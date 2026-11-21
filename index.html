@@ -1792,7 +1792,7 @@
   <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
   <script src="live.js"></script>
   <script src="places.js"></script>
-  <script src="walkroute.js"></script>
+  <script src="walkroute.js" defer></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
   <script>
@@ -3871,14 +3871,28 @@
     }
 
     // Turn the API's sections into swipeable steps: walk → ride → change → ride → … → walk → arrive
+    // What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
+    const platformEndOf = (pa) => (pa && pa.edge
+      ? { platform: true, level: pa.edge.level || 0, ref: pa.edge.key || platformKey(pa.edge.ref) || null } : { platform: true });
+    // After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
+    // engine-journey.js leaves it)
+    function syncEnds(steps) {
+      steps.forEach((st) => {
+        if (st.type !== 'walk' && st.type !== 'change') return;
+        const old = st.ends || [];
+        const from = st.prevRide ? platformEndOf(st.prevRide.arrAt) : (old[0] || [])[0] || {};
+        const to = st.nextRide ? platformEndOf(st.nextRide.depAt) : (old[old.length - 1] || [])[1] || {};
+        st.ends = (st.lines || []).length <= 1 ? [[from, to]] : old;
+      });
+    }
+
     function buildSteps(conn, destTitle) {
       const steps = [];
       let walk = { min: 0, lines: [], ends: [], start: null };
       let lastRide = null;
       const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], ends: [], start: null }; return w; };
       // what each end of a walk is, for the walking router: your position, a platform (on its floor), a station, a place
-      const platformEnd = (pa) => (pa && pa.edge
-        ? { platform: true, level: pa.edge.level || 0, ref: pa.edge.key || platformKey(pa.edge.ref) || null } : { platform: true });
+      const platformEnd = platformEndOf;
       const at = new Map(conn.sections.filter((s) => s.journey).map((s) => [s, placeRide(s)]));
       conn.sections.forEach((s, idx) => {
         if (!s.journey) {
@@ -3886,7 +3900,8 @@
           walk.start = walk.start || s.departure.departure;
           // walks start/end on the platform you get off / on, not at the station's centre
           let a = coordOf(s.departure), b = coordOf(s.arrival);
-          let fromEnd = idx === 0 ? { gps: true } : { platform: true }, toEnd = idx === conn.sections.length - 1 ? {} : { platform: true };
+          // the first walk starts where you are (GPS), or at the place the trip starts from (a pin, a search result)
+          let fromEnd = idx === 0 ? (tripStart ? {} : { gps: true }) : { platform: true }, toEnd = idx === conn.sections.length - 1 ? {} : { platform: true };
           if (lastRide && sameStop(s.departure, lastRide.arrival)) { a = at.get(lastRide).arr || a; fromEnd = platformEnd(at.get(lastRide).arrAt); }
           const nextRide = conn.sections.slice(idx + 1).find((x) => x.journey);
           if (nextRide && sameStop(s.arrival, nextRide.departure)) { b = at.get(nextRide).dep || b; toEnd = platformEnd(at.get(nextRide).depAt); }
@@ -4528,7 +4543,12 @@
       if (journeyConn.kante) {
         // a journey planned by the engine names its boarding points itself (engine-journey.js): move them there
         const id = journeyReq;
-        KanteJourney.requay(journeySteps, () => { if (id === journeyReq) { geoVersion++; routeKey = ''; queueSheet(); updateProgress(); } });
+        KanteJourney.requay(journeySteps, () => {
+          if (id !== journeyReq) return;
+          syncEnds(journeySteps);
+          refineWalks(id, true); // the moved walks again on the network (older answers are dropped by their revision)
+          geoVersion++; routeKey = ''; queueSheet(); updateProgress();
+        });
       } else if (platSig() !== platKey) {
         platKey = platSig();
         journeySteps = buildSteps(journeyConn, journeyDest ? journeyDest.title : '');
@@ -5961,6 +5981,7 @@
         if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
         renderJourney(opts.best, r.title);
         refineJourney(id); // swap straight lines for real walking paths and tracks/roads
+        if (opts.walk && opts.walk !== opts.best) netWalkOption(id, opts.walk, from, r); // its tab and card in network times
         kanteMatch(id);    // the engine's trip for every ride, for its live data
       } catch (e) {
         if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); }
@@ -6191,6 +6212,125 @@
       return { lines: parts, walks, floors };
     }
 
+    // Walks only, again (after a live platform change): every walk whose line no longer matches its last network answer
+    function refineWalks(id, onlyMoved) {
+      let scheduled = false;
+      const redraw = () => {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => { scheduled = false; if (id === journeyReq) { routeKey = ''; updateProgress(); } });
+      };
+      const task = (promise, apply) => promise.then((res) => { if (id !== journeyReq) return; apply(res); geoVersion++; redraw(); });
+      journeySteps.forEach((st) => {
+        if ((st.type !== 'walk' && st.type !== 'change') || !(st.lines || []).length || s3Plan(st)) return;
+        if (onlyMoved && st._netFor === lineKey(st)) return;
+        refineWalk(st, task);
+      });
+    }
+    const lineKey = (st) => { const cs = (st.lines || []).flat(); return cs.length ? cs[0].join() + '|' + cs[cs.length - 1].join() : ''; };
+    const walkKmh = () => Number(SETTINGS.prefs && SETTINGS.prefs().walkKmh) || 4.7;
+
+    // One walk (or change) on the pedestrian network. Each request carries the walk's revision: an answer for an older
+    // revision (the walk has been moved or rerouted since, by a platform change or the engine) is dropped.
+    function refineWalk(st, task) {
+      const rev = (st.walkRev = (st.walkRev || 0) + 1);
+      const current = () => st.walkRev === rev && journeySteps.includes(st);
+      if (st.kanteWalk) {
+        // a walk the Kante engine has routed: where the pedestrian network covers it, its path is drawn and its
+        // directions listed instead (the right door, arcades, floors, never through a building); elsewhere the
+        // engine's path stays. Times: see netWalkFits()
+        const all = st.lines.flat(), ends = st.ends || [];
+        if (all.length < 2) return;
+        const end = [(ends[0] || [])[0] || {}, (ends[ends.length - 1] || [])[1] || {}];
+        const key = lineKey(st);
+        task(routeWalk(all[0], all[all.length - 1], end, true), (res) => {
+          if (!res || !current() || !st.kanteWalk || !netWalkFits(st, res)) return;
+          st.lines = [res.coords];
+          st.walks = [res];
+          st.floors = res.floors && res.floors.length ? res.floors : null;
+          st._netFor = key;
+          queueSheet();
+        });
+        return;
+      }
+      const key = lineKey(st);
+      (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1], st.ends && st.ends[k]), (res) => {
+        if (!current()) return;
+        st.lines[k] = res.coords;
+        (st.walks || (st.walks = []))[k] = res;
+        // floor changes where the walking route actually takes them (else the platform levels imply one)
+        const floors = st.walks.flatMap((w) => (w && w.floors) || []);
+        st.floors = floors.length ? floors : null;
+        st._netFor = key;
+        if (res.net && !journeySteps.some((x) => x.type === 'ride')) retimeWalkConn(journeyConn, res.dist); // walking all the way
+        queueSheet(); // metres and written directions
+      }));
+    }
+
+    // May the network's path replace the engine's for this walk, and with which times?
+    //  - walking all the way: yes; the trip is timed by the network walk at your walking speed (retimeWalkConn)
+    //  - a change: the engine's times decide; if the network walk no longer fits between the two rides, the engine's
+    //    path stays (with its time); otherwise the time to spare is counted on the walk drawn
+    //  - to the first ride: you leave so as to be at the stop at the same time; to the door: the engine's arrival
+    //    stays. Either way only while the network walk is at most 2 minutes longer than the engine's
+    function netWalkFits(st, res) {
+      if (res.dist == null) return false;
+      const netS = res.dist / (walkKmh() / 3.6);
+      if (!journeySteps.some((x) => x.type === 'ride')) { retimeWalkConn(journeyConn, res.dist); return true; }
+      const engS = st.walkS != null ? st.walkS : ((st.type === 'change' ? st.walkMin : st.min) || 0) * 60;
+      if (st.type === 'change') {
+        const wait = (liveMs(st.next.departure, 'departure') - liveMs(st.prev.arrival, 'arrival')) / 1000;
+        if (!(netS <= wait)) return false;
+        st.walkS = netS;
+        st.walkMin = Math.max(1, Math.round(netS / 60));
+        return true;
+      }
+      if (netS > engS + 120) return false;
+      if (!st.final && st.t1 != null) { st.t0 = st.t1 - netS * 1000; st.min = Math.max(1, Math.round(netS / 60)); }
+      return true;
+    }
+
+    // Walking all the way: the trip's times, its card and its place among the options follow the walk drawn
+    // (network metres at your walking speed) instead of the engine's estimate
+    function retimeWalkConn(conn, metres) {
+      if (!conn || metres == null || conn._netMetres === Math.round(metres)) return;
+      const secs = metres / (walkKmh() / 3.6);
+      const arriveBy = journeyQuery.mode === 'arr' && !!(journeyQuery.date || journeyQuery.time);
+      const t0 = new Date(conn.from.departure).getTime(), t1 = new Date(conn.to.arrival).getTime();
+      const a = arriveBy ? t1 - secs * 1000 : t0, b = arriveBy ? t1 : t0 + secs * 1000;
+      conn.from.departure = new Date(a).toISOString();
+      conn.to.arrival = new Date(b).toISOString();
+      const sec = conn.sections && conn.sections[0];
+      if (sec && !sec.journey) {
+        if (sec.walk) sec.walk.duration = Math.round(secs);
+        if (sec.departure) sec.departure.departure = conn.from.departure;
+        if (sec.arrival) sec.arrival.arrival = conn.to.arrival;
+      }
+      if (conn.kante) conn.kante.walkM = Math.round(metres);
+      conn._netMetres = Math.round(metres);
+      if (conn === journeyConn) {
+        journeySteps.forEach((st) => {
+          if (st.type === 'walk') { st.t0 = a; st.t1 = b; st.min = Math.max(1, Math.round(secs / 60)); }
+          if (st.type === 'arrive') st.time = conn.to.arrival;
+        });
+      }
+      // its place among the options: the quicker way first (as the engine ranks them, one change worth 3 minutes)
+      const o = journeyOptions;
+      if (o && o.walk === conn && o.list && o.list.length) {
+        const cost = (c) => (arriveBy ? -connStart(c) : connEnd(c)) + (c.kante ? (c.kante.transfers || 0) * 180000 : 0);
+        const pt = o.list.reduce((x, y) => (cost(x) <= cost(y) ? x : y));
+        o.best = cost(conn) <= cost(pt) ? conn : pt;
+      }
+      queueSheet();
+    }
+    // The "On foot" option before it is opened: its walk on the network, so its tab and card already show those times
+    function netWalkOption(id, conn, from, dest) {
+      if (!conn || !window.WALKROUTE) return;
+      routeWalk(from, dest.lngLat, [tripStart ? {} : { gps: true }, {}], true).then((r) => {
+        if (id === journeyReq && r && r.net) retimeWalkConn(conn, r.dist);
+      });
+    }
+
     function refineJourney(id) {
       let pending = 0, scheduled = false;
       const redraw = () => {
@@ -6218,29 +6358,7 @@
             st.floors = res.floors;
             queueSheet();
           });
-        } else if (st.kanteWalk) {
-          // a walk the Kante engine has routed: where the pedestrian network covers it, its path is drawn and its
-          // directions listed instead (the right door, arcades, floors, never through a building); the engine's walking
-          // time still counts for the plan. Elsewhere the engine's path stays.
-          const all = st.lines.flat(), ends = st.ends || [];
-          if (all.length > 1) {
-            const end = [(ends[0] || [])[0] || {}, (ends[ends.length - 1] || [])[1] || {}];
-            task(routeWalk(all[0], all[all.length - 1], end, true), (res) => {
-              if (!res || !st.kanteWalk) return; // not covered, or the platform has changed since
-              st.lines = [res.coords];
-              st.walks = [res];
-              st.floors = res.floors && res.floors.length ? res.floors : null;
-              queueSheet();
-            });
-          }
-        } else lines.forEach((line, k) => task(routeWalk(line[0], line[line.length - 1], st.ends && st.ends[k]), (res) => {
-          st.lines[k] = res.coords;
-          (st.walks || (st.walks = []))[k] = res;
-          // floor changes where the walking route actually takes them (else the platform levels imply one)
-          const floors = st.walks.flatMap((w) => (w && w.floors) || []);
-          st.floors = floors.length ? floors : null;
-          queueSheet(); // metres and written directions
-        }));
+        } else if (st.type === 'walk' || st.type === 'change') refineWalk(st, task);
         if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.journey.category)), (res) => { st.path = res; });
       });
     }
