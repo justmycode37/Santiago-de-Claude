@@ -3,10 +3,10 @@
 //! One snapshot is built per poll from the matched journeys and swapped in as
 //! a whole (`Arc<LiveSnapshot>`); queries keep the snapshot they started with.
 
-use crate::matcher::{MatchMethod, MatchedTrip, Matcher};
+use crate::matcher::{MatchMethod, MatchedTrip, Matcher, REPORTED_ARR, REPORTED_DEP, REPORTED_SKIP};
 use crate::model::{FeedMeta, RtJourney};
 use kante_core::time::{Date, Secs};
-use kante_core::{LiveView, Timetable, TripIdx, TripLive};
+use kante_core::{ExtraTrip, LiveView, Timetable, TripIdx, TripLive, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
@@ -50,6 +50,9 @@ pub struct LiveSnapshot {
     /// Trips running at least [`LATE_THRESHOLD`] late, latest first.
     late: Vec<(Date, TripIdx, Secs)>,
     common_max_delay: Secs,
+    /// Journeys that are not in the timetable, and their index by id.
+    extras: Vec<ExtraTrip>,
+    extra_ids: HashMap<String, usize>,
     /// Feeds that went into this snapshot.
     pub feeds: Vec<FeedMeta>,
 }
@@ -101,6 +104,12 @@ impl LiveView for LiveSnapshot {
     fn max_delay(&self) -> Secs {
         self.max_delay
     }
+    fn extras(&self) -> &[ExtraTrip] {
+        &self.extras
+    }
+    fn extra(&self, id: &str) -> Option<&ExtraTrip> {
+        self.extra_ids.get(id).map(|&i| &self.extras[i])
+    }
 }
 
 /// Collects [`MatchedTrip`]s into a [`LiveSnapshot`].
@@ -151,6 +160,98 @@ impl LiveSnapshotBuilder {
         true
     }
 
+    /// Add a trip from the secondary feed (GTFS-RT), event by event:
+    ///
+    /// - a trip without live data yet is added as it is;
+    /// - otherwise, when this report updated the trip later than the one
+    ///   already there (by the trip's own timestamp, not the feed's), it adds
+    ///   only what it actually reports for stops the vehicle has not reached:
+    ///   an arrival, a departure, a skipped stop, or the cancellation of the
+    ///   whole trip. Measured times and platform changes already there stay,
+    ///   and nothing is taken from the delays the matcher carried over.
+    pub fn merge_forecasts(&mut self, tt: &Timetable, m: MatchedTrip) -> Merge {
+        let key = (m.date, m.trip);
+        let Some(old) = self.snap.trips.get_mut(&key) else {
+            if !m.platform_changes.is_empty() {
+                self.snap.changes.insert(key, m.platform_changes);
+            }
+            self.snap.trips.insert(key, m.live);
+            return Merge::Added;
+        };
+        self.duplicates += 1;
+        let new = &m.live;
+        let n = old.arr_delay.len();
+        if !m.own_timestamp || new.updated_at <= old.updated_at || new.arr_delay.len() != n || m.reported.len() != n {
+            return Merge::Kept;
+        }
+        if new.cancelled != old.cancelled {
+            // A newer report cancels the trip (or brings it back): the measured history stays.
+            old.cancelled = new.cancelled;
+            old.updated_at = new.updated_at;
+            old.sources |= SOURCE_GTFS_RT;
+            return Merge::Merged;
+        }
+        if old.cancelled || m.reported.iter().all(|&r| r == 0) {
+            return Merge::Kept;
+        }
+        old.updated_at = new.updated_at;
+        old.sources |= SOURCE_GTFS_RT;
+        // Positions whose arrival / departure is still a forecast.
+        let obs = old.observed_pos;
+        let first_arr = (obs + 1).max(0) as usize;
+        let first_dep = if obs >= 0 && old.observed_kind & OBSERVED_DEP == 0 { obs as usize } else { first_arr };
+        let times = tt.trip_times(m.trip);
+        // Never earlier than what was measured or forecast before it: no time travel.
+        let mut prev: Option<i64> = None;
+        let mut changed = false;
+        for p in 0..n {
+            let (sa, sd) = (times[2 * p] as i64, times[2 * p + 1] as i64);
+            let r = m.reported[p];
+            if p >= first_arr {
+                // The report's arrival where it gives one, else the forecast there was;
+                // either way not before what comes before it.
+                let want = if r & REPORTED_ARR != 0 { new.arr_delay[p] } else { old.arr_delay[p] } as i64;
+                let a = prev.map_or(want, |t| want.max(t - sa)) as i32;
+                changed |= a != old.arr_delay[p];
+                old.arr_delay[p] = a;
+            }
+            prev = Some(prev.map_or(sa + old.arr_delay[p] as i64, |t| t.max(sa + old.arr_delay[p] as i64)));
+            if p >= first_dep {
+                let want = if r & REPORTED_DEP != 0 { new.dep_delay[p] } else { old.dep_delay[p] } as i64;
+                let d = prev.map_or(want, |t| want.max(t - sd)) as i32;
+                changed |= d != old.dep_delay[p];
+                old.dep_delay[p] = d;
+            }
+            prev = Some(prev.map_or(sd + old.dep_delay[p] as i64, |t| t.max(sd + old.dep_delay[p] as i64)));
+            if p >= first_arr && r & REPORTED_SKIP != 0 {
+                if old.skipped.is_empty() {
+                    old.skipped = vec![false; n];
+                }
+                changed |= !old.skipped[p];
+                old.skipped[p] = true;
+            }
+            if r & (REPORTED_ARR | REPORTED_DEP) != 0 && (old.first_live < 0 || (p as i16) < old.first_live) {
+                old.first_live = p as i16;
+            }
+        }
+        if changed {
+            Merge::Merged
+        } else {
+            Merge::Kept
+        }
+    }
+
+    /// Add a journey that is not in the timetable, replacing an earlier report of it.
+    pub fn push_extra(&mut self, e: ExtraTrip) {
+        match self.snap.extra_ids.get(&e.id) {
+            Some(&i) => self.snap.extras[i] = e,
+            None => {
+                self.snap.extra_ids.insert(e.id.clone(), self.snap.extras.len());
+                self.snap.extras.push(e);
+            }
+        }
+    }
+
     /// Record a feed that contributed.
     pub fn feed(&mut self, meta: FeedMeta) {
         self.snap.feeds.push(meta);
@@ -192,6 +293,17 @@ impl LiveSnapshotBuilder {
     }
 }
 
+/// What [`LiveSnapshotBuilder::merge_forecasts`] did with a trip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Merge {
+    /// The trip had no live data yet.
+    Added,
+    /// Newer forecasts replaced older ones.
+    Merged,
+    /// The data already there stays (older report, or nothing new).
+    Kept,
+}
+
 /// What happened to the journeys of one feed document.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MatchCounts {
@@ -200,6 +312,8 @@ pub struct MatchCounts {
     pub by_journey_id: usize,
     pub by_fallback: usize,
     pub unmatched: usize,
+    /// Unmatched journeys kept as [`ExtraTrip`]s.
+    pub extras: usize,
 }
 
 impl MatchCounts {
@@ -214,7 +328,8 @@ impl LiveSnapshotBuilder {
     pub fn add_journey(&mut self, tt: &Timetable, matcher: &Matcher, j: &RtJourney, primary: bool, counts: &mut MatchCounts) {
         counts.journeys += 1;
         match matcher.apply(tt, j) {
-            Some(m) => {
+            Some(mut m) => {
+                m.live.sources = if primary { SOURCE_SIRI_ET } else { SOURCE_GTFS_RT };
                 match m.method {
                     MatchMethod::TripId => counts.by_trip_id += 1,
                     MatchMethod::JourneyId => counts.by_journey_id += 1,
@@ -223,10 +338,19 @@ impl LiveSnapshotBuilder {
                 if primary {
                     self.push(m);
                 } else {
-                    self.push_if_absent(m);
+                    self.merge_forecasts(tt, m);
                 }
             }
-            None => counts.unmatched += 1,
+            None => {
+                counts.unmatched += 1;
+                // Only the primary feed names lines and destinations of added journeys.
+                if primary && j.extra {
+                    if let Some(e) = matcher.extra_trip(tt, j) {
+                        counts.extras += 1;
+                        self.push_extra(e);
+                    }
+                }
+            }
         }
     }
 
@@ -238,8 +362,8 @@ impl LiveSnapshotBuilder {
         Ok(counts)
     }
 
-    /// Decode a GTFS-RT document and add every trip that matches and has no
-    /// live data yet.
+    /// Decode a GTFS-RT document and merge every trip that matches (see
+    /// [`LiveSnapshotBuilder::merge_forecasts`]).
     pub fn add_gtfs_rt(&mut self, tt: &Timetable, matcher: &Matcher, bytes: &[u8]) -> anyhow::Result<MatchCounts> {
         let mut counts = MatchCounts::default();
         let meta = crate::gtfsrt::parse_gtfs_rt(bytes, |j| self.add_journey(tt, matcher, &j, false, &mut counts))?;
@@ -289,7 +413,7 @@ mod tests {
         let mut b = LiveSnapshotBuilder::new();
 
         let c = b.add_siri_et(&tt, &m, SIRI.as_bytes()).unwrap();
-        assert_eq!(c, MatchCounts { journeys: 3, by_trip_id: 0, by_journey_id: 1, by_fallback: 1, unmatched: 1 });
+        assert_eq!(c, MatchCounts { journeys: 3, by_trip_id: 0, by_journey_id: 1, by_fallback: 1, unmatched: 1, extras: 0 });
 
         // GTFS-RT knows the IC too (with the planned stop id, i.e. no platform
         // change) and one more bus.
@@ -332,6 +456,156 @@ mod tests {
     }
 
     #[test]
+    fn extra_journeys_are_kept() {
+        let doc = r#"<Siri><ServiceDelivery><ResponseTimestamp>2026-11-20T21:55:05Z</ResponseTimestamp>
+<EstimatedTimetableDelivery><EstimatedJourneyVersionFrame>
+<EstimatedVehicleJourney><RecordedAtTime>2026-11-20T21:54:00Z</RecordedAtTime><ExtraJourney>true</ExtraJourney>
+ <VehicleMode>bus</VehicleMode><PublishedLineName>EV</PublishedLineName>
+ <FramedVehicleJourneyRef><DataFrameRef>2026-11-20</DataFrameRef><DatedVehicleJourneyRef>ch:1:sjyid:100001:ev-1</DatedVehicleJourneyRef></FramedVehicleJourneyRef>
+ <RecordedCalls><RecordedCall><StopPointRef>ch:1:sloid:1008</StopPointRef>
+  <AimedDepartureTime>2026-11-20T21:40:00Z</AimedDepartureTime><ActualDepartureTime>2026-11-20T21:42:00Z</ActualDepartureTime></RecordedCall></RecordedCalls>
+ <EstimatedCalls>
+  <EstimatedCall><StopPointRef>ch:1:sloid:99999999</StopPointRef><AimedArrivalTime>2026-11-20T22:00:00Z</AimedArrivalTime></EstimatedCall>
+  <EstimatedCall><StopPointRef>ch:1:sloid:7000</StopPointRef><AimedArrivalTime>2026-11-20T22:20:00Z</AimedArrivalTime><ExpectedArrivalTime>2026-11-20T22:23:00Z</ExpectedArrivalTime></EstimatedCall>
+ </EstimatedCalls>
+</EstimatedVehicleJourney>
+</EstimatedJourneyVersionFrame></EstimatedTimetableDelivery></ServiceDelivery></Siri>"#;
+        let (tt, _) = bern();
+        let m = Matcher::new(&tt);
+        let mut b = LiveSnapshotBuilder::new();
+        let c = b.add_siri_et(&tt, &m, doc.as_bytes()).unwrap();
+        assert_eq!((c.unmatched, c.extras), (1, 1));
+        let snap = b.build();
+        let e = snap.extra("extra:ch:1:sjyid:100001:ev-1").expect("kept");
+        assert_eq!(snap.extras().len(), 1);
+        assert_eq!((e.line.as_str(), e.mode), ("EV", Some(kante_core::Mode::Bus)));
+        assert_eq!(e.calls.len(), 2, "the call at an unknown stop is left out");
+        assert_eq!((e.observed_pos, e.observed_kind), (0, OBSERVED_DEP));
+        assert_eq!(e.calls[1].arr, Some(1_795_213_380), "expected, not aimed");
+        assert_eq!(e.headsign, tt.stations[e.calls[1].station as usize].name);
+    }
+
+    #[test]
+    fn gtfs_rt_merges_newer_forecasts_stop_by_stop() {
+        use crate::gtfsrt::enc::*;
+        let (tt, ids) = bern();
+        let m = Matcher::new(&tt);
+        let fri = day("2026-11-20");
+        let ic_report = |ts: i64| {
+            let mut feed = header(1_795_211_721, "test");
+            // A delay-only update from Bern on: 7 min late in, 6 min late out.
+            feed.extend(entity("e1", &[s(1, "ic733.fri"), s(3, "20261120"), i(4, 0)], &[stu(3, "ch:1:sloid:7000:4:7", Some(420), Some(360), 0), i(4, ts)]));
+            feed
+        };
+
+        // Updated after SIRI-ET (21:54:00): its forecasts win from Bern on.
+        let mut b = LiveSnapshotBuilder::new();
+        b.add_siri_et(&tt, &m, SIRI.as_bytes()).unwrap();
+        b.add_gtfs_rt(&tt, &m, &ic_report(1_795_211_700)).unwrap();
+        let snap = b.build();
+        let ic = snap.trip(fri, ids.ic).unwrap();
+        assert_eq!(&ic.dep_delay[..3], &[300, 300, 360], "measured departure kept, Lausanne keeps SIRI's forecast");
+        assert_eq!(&ic.arr_delay[..3], &[0, 300, 420]);
+        // The last stop: SIRI's forecast, but not before the later departure from Bern.
+        let times = tt.trip_times(ids.ic);
+        assert!(times[6] as i64 + ic.arr_delay[3] as i64 >= times[5] as i64 + 360);
+        assert_eq!((ic.observed_pos, ic.observed_kind), (0, OBSERVED_DEP));
+        assert_eq!(ic.quay, vec![NONE, NONE, ids.bern5, NONE], "SIRI's platform change stays");
+        assert_eq!(snap.platform_changes(fri, ids.ic), &[(2, "7".to_string(), "5".to_string())]);
+        assert_eq!(ic.sources, SOURCE_SIRI_ET | SOURCE_GTFS_RT);
+        assert_eq!(ic.updated_at, 1_795_211_700);
+
+        // Updated before SIRI-ET: nothing changes.
+        let mut b = LiveSnapshotBuilder::new();
+        b.add_siri_et(&tt, &m, SIRI.as_bytes()).unwrap();
+        b.add_gtfs_rt(&tt, &m, &ic_report(1_795_211_600)).unwrap();
+        let snap = b.build();
+        let ic = snap.trip(fri, ids.ic).unwrap();
+        assert_eq!(ic.dep_delay, vec![300, 300, 120, 120]);
+        assert_eq!(ic.sources, SOURCE_SIRI_ET);
+    }
+
+    #[test]
+    fn merged_forecast_never_goes_back_in_time() {
+        let (tt, ids) = bern();
+        let fri = day("2026-11-20");
+        let n = tt.pattern_stops(tt.trips[ids.ic as usize].pattern).len();
+        let mk = |arr: Vec<i32>, dep: Vec<i32>, at: i64| MatchedTrip {
+            date: fri,
+            trip: ids.ic,
+            live: TripLive { arr_delay: arr, dep_delay: dep, observed_pos: -1, updated_at: at, ..Default::default() },
+            platform_changes: vec![],
+            method: MatchMethod::TripId,
+            calls: n as u16,
+            aligned: n as u16,
+            on_schedule: n as u16,
+            implausible: 0,
+            own_timestamp: true,
+            first_reported: 0,
+            reported: vec![REPORTED_ARR | REPORTED_DEP; n],
+        };
+        let mut b = LiveSnapshotBuilder::new();
+        let mut first = mk(vec![0, 600, 600, 600], vec![600, 600, 600, 600], 100);
+        first.live.observed_pos = 1;
+        first.live.observed_kind = kante_core::OBSERVED_ARR;
+        b.push(first);
+        // A newer report that would have the train leave Lausanne before it arrived there.
+        assert_eq!(b.merge_forecasts(&tt, mk(vec![0, 0, 0, 0], vec![0, -60_000, 0, 0], 200)), Merge::Merged);
+        let snap = b.build();
+        let ic = snap.trip(fri, ids.ic).unwrap();
+        let times = tt.trip_times(ids.ic);
+        assert_eq!(ic.arr_delay[1], 600, "measured arrival stays");
+        let left = times[3] as i64 + ic.dep_delay[1] as i64;
+        assert!(left >= times[2] as i64 + 600, "departure from Lausanne not before the measured arrival");
+        for p in 1..n {
+            assert!(times[2 * p] as i64 + ic.arr_delay[p] as i64 >= times[2 * p - 1] as i64 + ic.dep_delay[p - 1] as i64);
+        }
+    }
+
+    #[test]
+    fn merge_takes_only_reported_events_and_newer_cancellations() {
+        let (tt, ids) = bern();
+        let fri = day("2026-11-20");
+        let n = tt.pattern_stops(tt.trips[ids.ic as usize].pattern).len();
+        let mk = |arr: Vec<i32>, dep: Vec<i32>, reported: Vec<u8>, at: i64, cancelled: bool| MatchedTrip {
+            date: fri,
+            trip: ids.ic,
+            live: TripLive { arr_delay: arr, dep_delay: dep, observed_pos: -1, first_live: 0, updated_at: at, cancelled, ..Default::default() },
+            platform_changes: vec![],
+            method: MatchMethod::TripId,
+            calls: n as u16,
+            aligned: n as u16,
+            on_schedule: n as u16,
+            implausible: 0,
+            own_timestamp: true,
+            first_reported: 0,
+            reported,
+        };
+        // Nothing measured yet; SIRI forecasts 2 min everywhere.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(vec![120; n], vec![120; n], vec![3; n], 100, false));
+        // A newer departure-only report from the first stop on (also: no overflow at the first stop).
+        let mut dep_only = vec![0u8; n];
+        dep_only[0] = REPORTED_DEP;
+        dep_only[1] = REPORTED_DEP;
+        assert_eq!(b.merge_forecasts(&tt, mk(vec![0; n], vec![300, 300, 0, 0], dep_only, 200, false)), Merge::Merged);
+        let ic = b.snap.trips.get(&(fri, ids.ic)).unwrap().clone();
+        assert_eq!(ic.dep_delay[0], 300);
+        assert_eq!(ic.arr_delay[1], 120, "the report has no arrival there: SIRI's forecast stays");
+        let times = tt.trip_times(ids.ic);
+        for p in 1..n {
+            assert!(times[2 * p] as i64 + ic.arr_delay[p] as i64 >= times[2 * p - 1] as i64 + ic.dep_delay[p - 1] as i64, "no time travel at {p}");
+        }
+        assert_eq!(ic.dep_delay[2], 120, "an event the report does not carry keeps SIRI's forecast");
+        // A newer cancellation applies; an older one does not.
+        assert_eq!(b.merge_forecasts(&tt, mk(vec![0; n], vec![0; n], vec![0; n], 150, true)), Merge::Kept);
+        assert!(!b.snap.trips.get(&(fri, ids.ic)).unwrap().cancelled);
+        assert_eq!(b.merge_forecasts(&tt, mk(vec![0; n], vec![0; n], vec![0; n], 300, true)), Merge::Merged);
+        let ic = b.snap.trips.get(&(fri, ids.ic)).unwrap();
+        assert!(ic.cancelled && ic.dep_delay[0] == 300);
+    }
+
+    #[test]
     fn push_replaces_and_empty_snapshot() {
         let (tt, ids) = bern();
         let fri = day("2026-11-20");
@@ -346,6 +620,9 @@ mod tests {
             aligned: 3,
             on_schedule: 3,
             implausible: 0,
+            own_timestamp: true,
+            first_reported: 0,
+            reported: vec![REPORTED_ARR | REPORTED_DEP; n],
         };
         let mut b = LiveSnapshotBuilder::with_capacity(4);
         b.push(mk(60, vec![(0, "A".into(), "C".into())]));

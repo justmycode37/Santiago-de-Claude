@@ -26,7 +26,7 @@
 
 use crate::model::{RtCall, RtJourney};
 use kante_core::time::{self, Date};
-use kante_core::{Precision, StationIdx, StopIdx, Timetable, TripIdx, TripLive, NONE};
+use kante_core::{ExtraCall, ExtraTrip, Mode, Precision, StationIdx, StopIdx, Timetable, TripIdx, TripLive, NONE};
 use std::collections::HashMap;
 
 /// How a journey was tied to its trip.
@@ -77,7 +77,19 @@ pub struct MatchedTrip {
     pub on_schedule: u16,
     /// Reported times that were dropped as implausible (see [`MatchOptions::max_delay`]).
     pub implausible: u16,
+    /// `live.updated_at` is the journey's own update time, not the feed's.
+    pub own_timestamp: bool,
+    /// First stop position the feed reported a time for; earlier positions
+    /// only carry the timetable. `u16::MAX` if none.
+    pub first_reported: u16,
+    /// Per stop position, what the feed itself reported: [`REPORTED_ARR`],
+    /// [`REPORTED_DEP`], [`REPORTED_SKIP`]. Other values are carried over.
+    pub reported: Vec<u8>,
 }
+
+pub const REPORTED_ARR: u8 = 1;
+pub const REPORTED_DEP: u8 = 2;
+pub const REPORTED_SKIP: u8 = 4;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MatchOptions {
@@ -627,6 +639,68 @@ impl Matcher {
         Err(if id_known { Unmatched::IdDoesNotFit } else { Unmatched::NotFound })
     }
 
+    /// A journey that is not in the timetable (`ExtraJourney`, or one whose id
+    /// and stops fit no trip) as an [`ExtraTrip`], with its calls at known
+    /// stops. `None` without a journey reference, an operating day or at least
+    /// two calls at known stops.
+    pub fn extra_trip(&self, tt: &Timetable, j: &RtJourney) -> Option<ExtraTrip> {
+        if j.journey_ref.is_empty() {
+            return None;
+        }
+        let date = time::parse_date(&j.operating_day)?;
+        let merged = merge_split_calls(&j.calls);
+        let rt_calls: &[RtCall] = merged.as_deref().unwrap_or(&j.calls);
+        let mut calls = Vec::new();
+        let (mut observed_pos, mut observed_kind) = (-1i16, 0u8);
+        for c in rt_calls {
+            let Some(station) = self.station_of_ref(tt, &c.stop_ref) else { continue };
+            let first = *tt.stations[station as usize].stops.first()?;
+            let named = if c.quay_ref.is_empty() { None } else { self.stops_of_ref(tt, &c.quay_ref).next() };
+            let stop = named
+                .or_else(|| self.stops_of_ref(tt, &c.stop_ref).next())
+                .or_else(|| (!c.platform.is_empty()).then(|| self.stop_by_label(tt, station, first, &c.platform)).flatten())
+                .filter(|&s| tt.stops[s as usize].station == station)
+                .unwrap_or(first);
+            let kind = if c.actual_arr.is_some() { kante_core::OBSERVED_ARR } else { 0 } | if c.actual_dep.is_some() { kante_core::OBSERVED_DEP } else { 0 };
+            if kind != 0 && !c.cancelled {
+                observed_pos = calls.len() as i16;
+                observed_kind = kind;
+            }
+            calls.push(ExtraCall {
+                station,
+                stop,
+                platform: c.platform.clone(),
+                aimed_arr: c.aimed_arr,
+                aimed_dep: c.aimed_dep,
+                arr: c.actual_arr.or(c.expected_arr).or(c.aimed_arr),
+                dep: c.actual_dep.or(c.expected_dep).or(c.aimed_dep),
+                skipped: c.cancelled,
+            });
+        }
+        if calls.len() < 2 {
+            return None;
+        }
+        let headsign = if !j.destination.is_empty() {
+            j.destination.clone()
+        } else {
+            tt.stations[calls.last()?.station as usize].name.clone()
+        };
+        Some(ExtraTrip {
+            id: format!("extra:{}", j.journey_ref),
+            date,
+            line: j.line_name.clone(),
+            mode: siri_mode(&j.mode),
+            headsign,
+            cancelled: j.cancelled,
+            calls,
+            observed_pos,
+            observed_kind,
+            updated_at: j.recorded_at,
+            inaccurate: j.prediction_inaccurate,
+            congestion: j.in_congestion,
+        })
+    }
+
     /// Boarding point of `station` that the platform name `name` refers to.
     fn stop_by_label(&self, tt: &Timetable, station: StationIdx, planned: StopIdx, name: &str) -> Option<StopIdx> {
         let (label, sectors) = split_platform(name);
@@ -738,12 +812,19 @@ impl Matcher {
             skipped: Vec::new(),
             quay: Vec::new(),
             observed_pos: -1,
+            observed_kind: 0,
+            first_live: -1,
             updated_at: j.recorded_at,
+            sources: 0,
+            inaccurate: j.prediction_inaccurate,
+            congestion: j.in_congestion,
         };
         let mut changes = Vec::new();
         let mut implausible = 0u16;
         let plausible = -self.options.max_early..=self.options.max_delay;
         let mut carry: Option<i32> = None;
+        let mut first_reported = u16::MAX;
+        let mut reported = vec![0u8; n];
         // Latest live time so far, to keep the overlay free of time travel.
         let mut prev = i64::MIN;
         for p in 0..n {
@@ -769,8 +850,14 @@ impl Matcher {
                     };
                     arr = delay(c.actual_arr, c.expected_arr, c.arr_delay, sched_arr);
                     dep = delay(c.actual_dep, c.expected_dep, c.dep_delay, sched_dep);
-                    if (c.actual_arr.is_some() && arr.is_some()) || (c.actual_dep.is_some() && dep.is_some()) {
+                    if (arr.is_some() || dep.is_some()) && first_reported == u16::MAX {
+                        first_reported = p as u16;
+                    }
+                    let kind = if c.actual_arr.is_some() && arr.is_some() { kante_core::OBSERVED_ARR } else { 0 }
+                        | if c.actual_dep.is_some() && dep.is_some() { kante_core::OBSERVED_DEP } else { 0 };
+                    if kind != 0 {
                         live.observed_pos = p as i16;
+                        live.observed_kind = kind;
                     }
                 }
                 if !c.cancelled && !j.cancelled {
@@ -787,9 +874,25 @@ impl Matcher {
                     }
                 }
             }
+            // A measured time is kept as it is; estimates around it give way.
+            let (arr_measured, dep_measured) = if cand.pos_call[p] != u32::MAX {
+                let c = &rt_calls[cand.pos_call[p] as usize];
+                (c.actual_arr.is_some() && arr.is_some(), c.actual_dep.is_some() && dep.is_some())
+            } else {
+                (false, false)
+            };
+            if arr.is_some() {
+                reported[p] |= REPORTED_ARR;
+            }
+            if dep.is_some() {
+                reported[p] |= REPORTED_DEP;
+            }
+            if live.skipped.get(p).copied().unwrap_or(false) {
+                reported[p] |= REPORTED_SKIP;
+            }
             // Arrival: reported, else as late as the vehicle was last known to be.
             let mut a = arr.or(carry).unwrap_or(0);
-            if sched_arr + (a as i64) < prev {
+            if !arr_measured && prev != i64::MIN && sched_arr + (a as i64) < prev {
                 a = (prev - sched_arr) as i32;
             }
             prev = sched_arr + a as i64;
@@ -798,7 +901,7 @@ impl Matcher {
             }
             // Departure: reported, else the carried delay, but never early on a guess.
             let mut d = dep.or(carry.map(|c| c.max(0))).unwrap_or(0);
-            if sched_dep + (d as i64) < prev {
+            if !dep_measured && sched_dep + (d as i64) < prev {
                 d = (prev - sched_dep) as i32;
             }
             prev = sched_dep + d as i64;
@@ -808,6 +911,7 @@ impl Matcher {
             live.arr_delay[p] = a;
             live.dep_delay[p] = d;
         }
+        live.first_live = if first_reported == u16::MAX { -1 } else { first_reported as i16 };
         MatchedTrip {
             date: cand.date,
             trip,
@@ -818,8 +922,26 @@ impl Matcher {
             aligned: cand.score.aligned.min(u16::MAX as u32) as u16,
             on_schedule: cand.score.on_schedule.min(u16::MAX as u32) as u16,
             implausible,
+            own_timestamp: j.recorded_at_own,
+            first_reported,
+            reported,
         }
     }
+}
+
+/// SIRI `VehicleMode` → timetable mode.
+fn siri_mode(m: &str) -> Option<Mode> {
+    Some(match m.to_ascii_lowercase().as_str() {
+        "rail" | "intercityrail" | "urbanrail" | "railway" => Mode::Rail,
+        "tram" => Mode::Tram,
+        "bus" | "coach" | "trolleybus" => Mode::Bus,
+        "metro" | "underground" => Mode::Metro,
+        "water" | "ferry" | "ship" => Mode::Boat,
+        "funicular" => Mode::Funicular,
+        "cableway" | "telecabin" | "aerial" | "air" => Mode::Cableway,
+        "" => return None,
+        _ => Mode::Other,
+    })
 }
 
 #[cfg(test)]
@@ -1062,6 +1184,7 @@ mod tests {
         assert_eq!(l.dep_delay, vec![72, 270, 60, 60]);
         assert_eq!(l.arr_delay, vec![0, 180, 180, 60]);
         assert_eq!(l.observed_pos, 1);
+        assert_eq!(l.observed_kind, kante_core::OBSERVED_ARR | kante_core::OBSERVED_DEP);
         assert_eq!(l.updated_at, 1_795_211_640);
         assert!(got.platform_changes.is_empty());
     }
@@ -1357,6 +1480,20 @@ mod tests {
     }
 
     #[test]
+    fn a_measured_time_is_never_moved() {
+        let (tt, ids) = bern();
+        let m = Matcher::new(&tt);
+        let mut j = ic733();
+        // Left Genève 30 s early: earlier than the (timetable) arrival there.
+        j.calls[0].actual_dep = t("2026-11-20T21:41:30");
+        let got = m.apply(&tt, &j).unwrap();
+        assert_eq!(got.trip, ids.ic);
+        assert_eq!(got.live.dep_delay[0], -30, "kept as measured, not raised to the timetable");
+        assert_eq!(got.reported[0] & REPORTED_DEP, REPORTED_DEP);
+        assert_eq!(got.live.first_live, 0);
+    }
+
+    #[test]
     fn vehicle_at_a_stop_is_reported_twice() {
         let (tt, ids) = bern();
         let m = Matcher::new(&tt);
@@ -1378,6 +1515,7 @@ mod tests {
         assert_eq!(got.live.arr_delay[1], 180);
         assert_eq!(got.live.dep_delay[1], 180);
         assert_eq!(got.live.observed_pos, 1);
+        assert_eq!(got.live.observed_kind, kante_core::OBSERVED_ARR, "arrived, not yet left");
         assert_eq!(got.platform_changes, vec![(1, "5".to_string(), "6".to_string())]);
         assert!(merge_split_calls(&ic733().calls).is_none());
     }
