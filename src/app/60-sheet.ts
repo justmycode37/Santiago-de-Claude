@@ -125,14 +125,13 @@ function placeSheet(d: SheetDetent, animate: boolean) {
   journeyEl.style.transition = animate ? '' : 'none';
   journeyEl.style.transform = `translate3d(0,${sheetY}px,0)`;
   journeyEl.dataset.detent = d;
-  jHandle.setAttribute('aria-label', d === 'full' ? 'Show more of the map' : 'Expand panel');
+  jHandle.setAttribute('aria-label', d === 'full' ? 'Show more of the map' : 'Show more of the journey');
 }
 // the camera refits its subject into the free part of the map once the sheet has settled
 function setDetent(d: SheetDetent, refit?: boolean) {
   const changed = d !== sheetDetent;
   placeSheet(d, true);
   if (!changed) return;
-  renderHead(true); // the list / map button follows the detent
   if (refit && d !== 'full' && journeyConn) setTimeout(() => (routeOverview ? fitJourney() : fitStep(journeyStep)), 320);
 }
 function openSheet() {
@@ -215,8 +214,7 @@ function openSheet() {
 
 // ---- What the sheet says about the trip ----
 let jFocus: JourneyFocus | null = null;              // { step, dir }: a walking direction picked in the list; the header then steps through them
-const openDirs = new Set<number>();     // walks whose directions you opened (changes start open)
-const closedDirs = new Set<number>();   // …and changes whose directions you closed
+const openDirs = new Set<number>();     // walks and changes whose directions you opened (all start closed)
 const openStops = new Set<number>();    // rides with all their stops listed
 
 // Where a walk ends: "Bay C", "Platform 7", the stop's name, or your destination

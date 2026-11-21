@@ -43,27 +43,25 @@ function liveParts(now: number): LiveLine | null {
   const walking = t && !t.arrived && journeySteps[t.i].type !== 'ride' && !journeySteps[t.i].final;
   const broken = brokenChange(now, t ? t.i + (walking ? 1 : 0) : 0);
   if (broken) {
-    return { kind: 'off', replan: true, parts: [`Change at ${broken.next.departure.station!.name} won't work · `, kBadge(broken.next.journey), ` leaves ${fmtTime(liveMs(broken.next.departure, 'departure'))}`] };
+    return { kind: 'off', replan: true, parts: [`Not enough time to change at ${broken.next.departure.station!.name} · `, kBadge(broken.next.journey), ` leaves ${fmtTime(liveMs(broken.next.departure, 'departure'))}`] };
   }
   if (t) {
     const st = journeySteps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000;
-    const kmLeft = lay.total - t.km;
-    const rest = t.arrived || st.final ? '' : `${kmLeft >= 10 ? Math.round(kmLeft) + ' km' : fmtDist(kmLeft * 1000)} left`;
     if (t.arrived) return { kind: 'gps', parts: ['You have arrived'] };
     if (st.type === 'ride') {
       const j = st.s.journey;
       if (now < st.t0! && t.kmIn < 0.05) {
-        return { kind: 'gps', rest, parts: [`At ${boardName(st)} · `, kBadge(j), ` ${leaves(st.t0!, now)}`, lateTag(lateMin(st.s.departure, 'departure')), platChange(st)] };
+        return { kind: 'gps', parts: [`At ${boardName(st)} · `, kBadge(j), ` ${leaves(st.t0!, now)}`, lateTag(lateMin(st.s.departure, 'departure')), platChange(st)] };
       }
       const n = stopKms(st).filter((k) => k > t.kmIn + 0.03).length;
       const to = st.s.arrival.station!.name;
-      return { kind: 'gps', rest, parts: ['On ', kBadge(j), n > 1 ? ` · ${n} stops to ${to}` : ` · get off at ${to}`, lateTag(lateMin(st.s.arrival, 'arrival'))] };
+      return { kind: 'gps', parts: ['On ', kBadge(j), n > 1 ? ` · ${n} stops to ${to}` : ` · get off at ${to}`, lateTag(lateMin(st.s.arrival, 'arrival'))] };
     }
     const r = st.nextRide;
     if (st.final || !r) return { kind: 'gps', parts: [`${fmtDist(left)} to ${st.toName || 'your destination'}`] };
     const where = left < 30 ? `At ${boardName(r)} · ` : `${fmtDist(left)} to ${boardName(r)} · `;
     const hr = left >= 30 ? hurry(left, r, now) : null;
-    return { kind: 'gps', rest: hr ? hr.text : rest, restLevel: hr && hr.level,
+    return { kind: 'gps', rest: hr ? hr.text : '', restLevel: hr && hr.level,
       parts: [where, kBadge(r.s.journey), ` ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.departure, 'departure')), platChange(r)] };
   }
   // no GPS: from the live timetable

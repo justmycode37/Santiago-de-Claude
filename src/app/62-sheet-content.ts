@@ -135,11 +135,9 @@ function legChain() {
   if (cut.length < items.length) chain.append(h('span', 'chain-more', `+${items.length - cut.length}`));
   return chain;
 }
+// The sheet's handle moves it between the map and the list; this closes the journey
 function sheetActions() {
-  const full = sheetDetent === 'full';
-  return h('span', 'sheet-actions',
-    kBtn('round-btn', full ? 'Show the map' : 'Show the list', () => setDetent(sheetDetent === 'full' ? 'mid' : 'full', true), kIcon(full ? 'map' : 'list', 18)),
-    kBtn('round-btn', 'Close journey', () => endJourney(), kIcon('close', 18)));
+  return h('span', 'sheet-actions', kBtn('round-btn', 'Close journey', () => endJourney(), kIcon('close', 18)));
 }
 // A walking direction picked: step through them, or back to the whole journey
 function stepNav(): HTMLDivElement {
@@ -151,7 +149,7 @@ function stepNav(): HTMLDivElement {
   const next = kBtn('round-btn', 'Next direction', () => focusDir(jFocus!.step, k + 1), kIcon('go', 18));
   prev.disabled = k === 0;
   next.disabled = k === dirs.length - 1;
-  return h('div', 'stepnav', prev, text, next, kBtn('round-btn', 'Back to the whole journey', overview, kIcon('close', 18)));
+  return h('div', 'stepnav', prev, text, next, kBtn('round-btn', 'Show full journey', overview, kIcon('close', 18)));
 }
 // ---- The journeys to choose from (the list of the Kante app, branch nikitas-implementation): one row each with
 //      its vehicles, times and first boarding point; walking all the way, when that is near enough, on a tab of
@@ -268,7 +266,6 @@ function showOption(conn: OdConnection) {
   if (conn === journeyConn || !journeyDest) return;
   const id = ++journeyReq; // what was still being fetched for the last one is dropped
   openDirs.clear();
-  closedDirs.clear();
   openStops.clear();
   renderJourney(conn, journeyDest.title);
   refineJourney(id);
@@ -331,12 +328,15 @@ function buildHead(): HTMLDivElement {
   const rides = journeySteps.filter((st) => st.type === 'ride');
   const tr = Math.max(0, rides.length - 1);
   const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
+  const start = new Date(journeyConn.from.departure!).getTime();
+  const following = document.body.classList.contains('following'); // under way: the pill at the top has the two times
   head.append(
     h('div', 'sheet-title',
-      optionCount() > 1 && !document.body.classList.contains('following') ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
-      legChain(), sheetActions()),
+      optionCount() > 1 && !following ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
+      legChain(), sheetActions()));
+  if (!following) head.append(
     h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.from.departure)} – ${fmtTime(end)}`),
-      h('span', null, !rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`)));
+      h('span', null, `${kDur((end - start) / 1000)} · ${!rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`}`)));
   const act = h('div', 'jhead-act');
   // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
   const lp = liveParts(now);
@@ -367,17 +367,22 @@ function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to
   return h('li', 'tl-row tl-place ' + kind,
     h('span', 'tl-time', h('b', null, fmtTime(t))),
     h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
-    h('span', 'tl-name', h('strong', null, name), h('small', null, kind === 'from' ? 'Start' : 'Destination')));
+    h('span', 'tl-name', h('strong', null, name)));
 }
 // Spare time on a change: from getting off to the next departure, less the walk
-function spareLine(st: JourneyChangeStep) {
+function spareOf(st: JourneyChangeStep) {
   const wait = (liveMs(st.next.departure, 'departure')! - liveMs(st.prev.arrival, 'arrival')!) / 1000;
   const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
   const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
   const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
+  const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
+  return { s, level, extra, short, easy: level === 'ok' && !short, text: `${kDurExact(s)} to spare` };
+}
+function spareLine(st: JourneyChangeStep) {
+  const { s, level, extra, short, text } = spareOf(st);
   return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
     level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
-      : h('span', null, h('b', null, `${kDurExact(s)} to spare`), extra > 0 && s < extra * 60 ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
+      : h('span', null, h('b', null, text), short ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
 }
 function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
   const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
@@ -401,26 +406,33 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const dist = walkDist(st);
   const lvl = levelChange(st);
   const pq = (transfer && quayOf(st.prevRide!, 'arr')) as Quay, nq = (transfer && quayOf(st.nextRide!, 'dep')) as Quay;
+  const spare = st.type === 'change' ? spareOf(st) : null;
+  // (how long the walk takes is in the time column beside it)
   const meta = [
-    mins ? `${kDur(mins * 60)} walk` : transfer && pq.label && nq.label ? (pq.word === nq.word ? `${pq.word} ${pq.label} → ${nq.label}` : `${pq.short} ${pq.label} → ${nq.short} ${nq.label}`) : '',
+    !mins && transfer && pq.label && nq.label ? (pq.word === nq.word ? `${pq.word} ${pq.label} → ${nq.label}` : `${pq.short} ${pq.label} → ${nq.short} ${nq.label}`) : '',
     dist ? fmtDist(dist) : '',
     lvl ? lvl.text.replace(/^Go /, '') : '',
+    spare && spare.easy ? spare.text : '',
   ].filter(Boolean).join(' · ');
   const active = !routeOverview && journeyStep === i;
   const dirs = walkDirections(st);
-  const expanded = openDirs.has(i) || (transfer && !closedDirs.has(i)) || (!!jFocus && jFocus.step === i);
+  const expanded = openDirs.has(i) || (!!jFocus && jFocus.step === i);
   const title = `${transfer ? 'Change to' : 'Walk to'} ${target}`;
   const main = h('div', 'tl-main',
     kBtn('walk-sum', `${title}, ${kDur(mins * 60)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
-  if (transfer) main.append(spareLine(st));
-  else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
+  if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
   if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view')));
   if (dirs.length > 1) {
-    main.append(kBtn('expander', null, () => {
-      if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
-      renderBody();
-    }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`));
+    const toggle = kBtn('expander', null, () => {
+      if (expanded) { openDirs.delete(i); if (jFocus && jFocus.step === i) jFocus = null; } else openDirs.add(i);
+      renderSheet();
+      const again = jBody.querySelector<HTMLElement>(`.expander[data-dirs="${i}"]`);
+      if (again) again.focus({ preventScroll: true });
+    }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.dataset.dirs = String(i);
+    main.append(toggle);
     if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k)))));
   }
   return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
@@ -429,39 +441,33 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     main);
 }
 
-// "Where to stand": the boarding point as a sign, with everything known about it in words
+// Where to stand: what the boarding row above it does not say (which side of the road, the sectors, the level,
+// the way the vehicle leaves). One row; a tap shows the boarding point on the map. Nothing when nothing is known.
 function standCard(st: JourneyRideStep, i: number) {
   const q = quayOf(st, 'dep'), j = st.s.journey, mode = modeOf(j.category), edge = q.edge;
   const bearing = edge && edge.bearing != null ? edge.bearing : q.travel;
-  const sign = h('div', 'sign' + (q.label ? '' : ' unsigned') + (q.label.length > 2 ? ' long' : ''), h('span', 'sign-noun', q.label ? q.word : 'Stop'));
-  if (q.label) sign.append(h('span', 'sign-label', q.label));
-  else {
-    const arrow = h('span', 'sign-arrow', kIcon(bearing != null ? 'arrow' : 'dot', bearing != null ? 30 : 26));
-    if (bearing != null) arrow.style.transform = `rotate(${bearing}deg)`;
-    sign.append(arrow);
-  }
   const side = edge && edge.side ? cap(edge.side) // the engine names the street
     : mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
   const level = edge && edge.level ? `Level ${levelShort(edge.level)}` : '';
   const next = j.passList && j.passList[1] && j.passList[1].station && j.passList[1].station.name;
   let compass = null;
-  if (next && bearing != null && q.label) {
+  if (next && bearing != null) {
     compass = h('span', 'stand-compass', kIcon('arrow', 14));
     compass.style.transform = `rotate(${bearing}deg)`;
     compass.setAttribute('role', 'img');
-    compass.setAttribute('aria-label', `Leaves heading ${compassWord(bearing)}`);
+    compass.setAttribute('aria-label', `Leaves towards the ${compassWord(bearing)}`);
   }
-  const info = h('div', 'stand-info',
-    h('div', 'stand-kicker', 'Where to stand'),
-    side ? h('div', 'stand-side', side) : null,
-    q.sectors || level ? h('div', 'stand-tags',
+  const info = h('span', 'stand-info',
+    side ? h('span', 'stand-side', side) : null,
+    q.sectors || level ? h('span', 'stand-tags',
       q.sectors ? h('span', 'tag strong', `${q.sectors.replace(/[^A-Za-z0-9]/g, '').length === 1 ? 'Sector' : 'Sectors'} ${q.sectors}`) : null,
       level ? h('span', 'tag', level) : null) : null,
-    next ? h('div', 'stand-dir', compass, h('span', null, 'Next stop: ', h('b', null, next))) : null);
-  const card = h('div', 'stand', h('div', 'stand-main', sign, info));
-  if (q.planned) card.append(h('div', 'stand-note warn', kIcon('alert', 16), `${q.word} ${q.planned} → ${q.label}: changed today`));
-  if (!edge) card.append(h('div', 'stand-note', kIcon('info', 16), 'Exact platform or bay unknown — map pin shows the stop'));
-  card.append(h('div', 'stand-foot', h('span'), kBtn('link-btn', null, () => showQuay(i), 'Show on map ', kIcon('right', 14))));
+    next ? h('span', 'stand-dir', compass, h('span', null, 'Next stop: ', h('b', null, next))) : null,
+    q.planned ? h('span', 'stand-note warn', kIcon('alert', 16), `Changed today: ${q.word} ${q.label} (was ${q.planned})`) : null,
+    !edge ? h('span', 'stand-note', kIcon('info', 16), 'Platform or bay unknown. Map pin shows the stop.') : null);
+  if (!info.childNodes.length) return null;
+  const card = kBtn('stand', null, () => showQuay(i), info, kIcon('map', 18, 'stand-go'));
+  card.title = 'Show on map';
   return card;
 }
 // Scheduled time; a delay follows as "+4 min" in the alarm colour
@@ -473,7 +479,7 @@ function callTime(stop: OdCheckpoint, which: 'departure' | 'arrival', strong?: b
 // Real-time state as a word, never by colour alone
 function liveTag(st: JourneyRideStep) {
   const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
-  return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Expected' : 'Timetable');
+  return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Live times' : 'Timetable');
 }
 function rideBlock(st: JourneyRideStep, i: number) {
   const s = st.s, j = s.journey, mode = modeOf(j.category);
@@ -492,7 +498,7 @@ function rideBlock(st: JourneyRideStep, i: number) {
       standCard(st, i),
       h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', j.to)),
       h('div', 'ride-sum',
-        stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `Ride ${stops + 1} stops · ${kDur(rideS)}`)
+        stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `${stops + 1} stops · ${kDur(rideS)}`)
           : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),
         liveTag(st)))));
   if (open) list.slice(1, -1).forEach((stop) => li.append(h('div', 'tl-row mid',
@@ -503,17 +509,14 @@ function rideBlock(st: JourneyRideStep, i: number) {
     h('span', 'tl-name', s.arrival.station!.name), kPlat(quayOf(st, 'arr'))));
   return li;
 }
+// How much walking the journey has in all (nothing for a journey without any)
 function footNote() {
-  const p = (SETTINGS.prefs ? SETTINGS.prefs() : {}) as Settings;
   const walks = journeySteps.filter((st) => st.type === 'walk' || st.type === 'change');
   const mins = walks.reduce((sum, st) => sum + walkMinOf(st), 0);
+  if (mins <= 0) return null;
   const dists = walks.map(walkDist);
   const dist = dists.every((d) => d != null) ? dists.reduce((a, b) => a + b, 0) : null;
-  const kmh = p.walkKmh ? Number(p.walkKmh).toFixed(1).replace('.0', '') : '';
-  const changes = Math.max(0, journeySteps.filter((st) => st.type === 'ride').length - 1);
-  return h('p', 'foot-note',
-    (mins > 0 ? `${kDur(mins * 60)} on foot${dist ? ` (${fmtDist(dist)})` : ''}${kmh ? ` at ${kmh} km/h` : ''}` : 'No walking on this journey') +
-    (p.extraChangeMin > 0 && changes > 0 ? ` · ${p.extraChangeMin} min extra change time` : ''));
+  return h('p', 'foot-note', `Total walking: ${kDur(mins * 60)}${dist ? ` (${fmtDist(dist)})` : ''}`);
 }
 function buildBody() {
   if (journeyList && journeyOptions) return listBody();
@@ -522,7 +525,8 @@ function buildBody() {
     if (sheetMsg === 'Finding a connection…') for (let k = 0; k < 4; k++) frag.append(h('div', 'skeleton'));
     return frag;
   }
-  if (!routeOverview) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
+  // (while stepping through directions, the header's own button leads back to the whole journey)
+  if (!routeOverview && !jFocus) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
   const tl = h('ol', 'tl');
   const first = journeySteps[0];
   if (first && first.type === 'walk') tl.append(placeRow(first.t0, journeyFrom, 'from'));
@@ -532,7 +536,8 @@ function buildBody() {
   });
   const last = journeySteps.filter((st) => st.type !== 'arrive').pop();
   if (last && last.type === 'walk' && last.final) tl.append(placeRow(journeyEnd(), journeyDest ? journeyDest.title : 'Destination', 'to'));
-  frag.append(tl, footNote(), h('div', 'sheet-end'));
+  const note = footNote();
+  frag.append(tl, ...(note ? [note] : []), h('div', 'sheet-end'));
   return frag;
 }
 function renderBody() {
@@ -540,31 +545,27 @@ function renderBody() {
   jBody.replaceChildren(buildBody());
   jBody.scrollTop = top;
 }
-let ticketFoot: { conn: OdConnection; tracking: boolean; arrival: HTMLElement; refresh?: () => void } | null = null;
+let ticketFoot: { conn: OdConnection; tracking: boolean; following: boolean; bar: HTMLElement; refresh?: () => void } | null = null;
 function renderFoot() {
   if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
-  const end = journeyEnd(), start = new Date(journeyConn.from.departure!).getTime();
-  const arrival = h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`),
-    h('b', null, kDur((end - start) / 1000)));
   const tracking = SETTINGS.prefs().fareTracking;
-  if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.arrival.isConnected) {
-    ticketFoot.arrival.replaceWith(arrival);
-    ticketFoot.arrival = arrival;
-    return;
-  }
+  const following = document.body.classList.contains('following');
+  if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.following === following && ticketFoot.bar.isConnected) return;
   const ticket = ticketLink();
   const pricing = ticketPricing(!!ticket);
-  jFoot.replaceChildren(h('div', 'actionbar',
-    kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+  // the fare sits at the end of the bar; with Trip history on it is a row of its own that opens the fare form
+  const bar = h('div', 'actionbar',
+    // under way already: the same button, small, brings the map back to where you are on the trip
+    following ? kBtn('round-btn', 'Back to where you are', startFollowing, kIcon('nav', 18))
+      : kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
     ticket,
     kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
-    arrival),
-    ...(pricing ? [pricing.row] : []),
-    ...(pricing?.form ? [pricing.form] : []));
-  ticketFoot = { conn: journeyConn, tracking, arrival, refresh: pricing?.refresh };
+    pricing && !pricing.form ? pricing.row : null);
+  jFoot.replaceChildren(bar, ...(pricing?.form ? [pricing.row, pricing.form] : []));
+  ticketFoot = { conn: journeyConn, tracking, following, bar, refresh: pricing?.refresh };
 }
 window.addEventListener('pricing-history-change', () => {
-  if (!ticketFoot?.arrival.isConnected) return;
+  if (!ticketFoot?.bar.isConnected) return;
   renderFoot();
   ticketFoot?.refresh?.();
 });

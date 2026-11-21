@@ -105,8 +105,7 @@ map.on('click', (e) => {
   const body = h('div', null,
     h('div', 'pf-head', kBadge(v.j), h('span', 'pf-name', h('b', null, `to ${v.headsign}`), h('small', null, `Next stop: ${v.nextStop}`))),
     v.extra ? h('p', 'pf-note vh-extra', 'Extra journey, not in the timetable') : null,
-    h('p', 'vh-how', how.text),
-    h('p', 'pf-note', 'Not GPS: placed from its stop times'));
+    h('p', 'vh-how', how.text));
   platformPopup.remove();
   vehPopup.setLngLat((f!.geometry as GeoJSON.Point).coordinates as LngLat).setDOMContent(body).addTo(map);
 });

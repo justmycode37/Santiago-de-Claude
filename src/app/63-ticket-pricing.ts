@@ -121,11 +121,11 @@ function ticketPricing(hasTicket: boolean) {
     const live = ticketAmount(quote?.[field]);
     const amount = live ? quote?.[field] : previous?.[field];
     const priceKnown = ticketAmount(amount);
-    const caption = live ? '2nd class' : 'Previous fare';
+    const caption = live ? '2nd class' : 'Saved price';
     summary.replaceChildren(...(priceKnown ? [
       h('span', 'ticket-fare-price', ticketMoney(amount)),
-      h('span', null, rate + ' · ' + caption),
-    ] : [hasTicket ? 'Check fare on SBB' : 'Trip fares']));
+      h('span', 'ticket-fare-rate', rate, h('span', live ? 'ticket-fare-class' : null, ' · ' + caption)),
+    ] : tracking ? [hasTicket ? 'Check fare on SBB' : 'Trip fares'] : [])); // no fare known: the ticket button is enough
     summary.title = live ? 'Standard second-class fare' : '';
     detail.textContent = live ? 'If you paid a different price, enter it here.'
       : priceKnown ? `Saved on ${previous?.date}. Enter the price for this trip.`
@@ -137,7 +137,7 @@ function ticketPricing(hasTicket: boolean) {
     quote = result;
     if (result && summary.isConnected) showFare();
   });
-  if (!tracking) return { row: h('div', 'ticket-fare-row', summary), refresh: showFare };
+  if (!tracking) return { row: h('div', 'ticket-fare-row aside', summary), refresh: showFare };
 
   const form = h('form', 'ticket-fare-form', detail);
   form.id = 'journeyFareForm';
@@ -167,12 +167,12 @@ function ticketPricing(hasTicket: boolean) {
       // unanswered fields, while preserving every amount the rider entered.
       const saved = PRICING_HISTORY.findConfirmed(trip);
       const needsQuote = !saved && !quote && [fare, halfFare].some((input) => !input.value && !edited.has(input));
-      if (needsQuote) status.textContent = 'Checking the fare...';
+      if (needsQuote) status.textContent = 'Checking the fare…';
       const result = needsQuote ? await pendingQuote : quote;
       const amount = (input: HTMLInputElement, field: keyof TicketFare) => input.value || edited.has(input) || saved ? input.valueAsNumber : result?.[field];
       const outcome = PRICING_HISTORY.confirm({ ...trip, fare: amount(fare, 'fare'), halfFare: amount(halfFare, 'halfFare') });
       const messages = {
-        saved: 'Trip saved to your pricing history',
+        saved: 'Trip saved to your trip history',
         duplicate: 'Trip already saved',
         updated: 'Saved fares updated',
         unavailable: 'Could not save this trip in the browser',

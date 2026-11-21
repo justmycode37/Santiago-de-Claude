@@ -14,6 +14,9 @@ npm run build   # dist/ once, without the dev server
 `npm run dev -- 8000 0.0.0.0` makes the dev server reachable from other devices. For a phone,
 `python3 tools/serve.py` serves the same `dist/` gzipped and cached.
 
+`?dev` in the address shows the "Developer options" switch at the bottom of Settings (tools to test
+"Adjust to how I walk"). Once switched on, it stays visible without the flag.
+
 ## Where things are
 
 | Source | Becomes |

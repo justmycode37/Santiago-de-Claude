@@ -21,6 +21,7 @@ function setFollowing(on: boolean) {
   if (on === document.body.classList.contains('following')) return;
   document.body.classList.toggle('following', on);
   if (on) closeSearch();
+  if (journeyConn) { renderHead(true); renderFoot(); } // Start has done its work; the pill has the times
   layoutTop();
   if (document.body.classList.contains('journey-mode')) placeSheet(sheetDetent, true);
 }

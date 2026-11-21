@@ -209,7 +209,6 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   updateWhenChip();
   jFocus = null;
   openDirs.clear();
-  closedDirs.clear();
   openStops.clear();
   updateCards(); // hide events and places: only the trip and the destination
   updatePlaces();

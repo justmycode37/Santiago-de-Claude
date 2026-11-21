@@ -23,7 +23,7 @@ Toilets are the exception: they cover all of Switzerland and come from `data/ch/
 
 The card shows `paid` as Free, Fee (with the price) or Partly free (`mixed`), with the city's own fee text where there is one, and "Free for customers" where OpenStreetMap says so. Online search results (Photon, Google) that lie within 50 m of one of our toilets are dropped as duplicates; other online toilets, for example in Liechtenstein, stay in the list.
 
-In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › On the map (all of them at first). `map-places.js` is loaded the first time they are shown or the search box is used; the map layer itself is only built once they are shown. The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, Eurokey, address, website) and directions.
+In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › Events and places (community events, toilets and drinking water at first). `map-places.js` is loaded the first time they are shown or the search box is used; the map layer itself is only built once they are shown. The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, Eurokey, address, website) and directions.
 
 ## Schemas
 

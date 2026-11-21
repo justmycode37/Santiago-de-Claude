@@ -1,5 +1,5 @@
 // ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
-// Shown with the events button, for the groups switched on under "On the map" in Settings.
+// Shown with the events button, for the groups switched on under "Events and places" in Settings.
 // The data (~2.5 MB: Bern, and the toilets of all of Switzerland) is loaded the first time it is needed.
 const PLACES_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlaceDotProps> = { type: 'FeatureCollection', features: [] };
 let PLACES: MapPlaces | null = null;
@@ -127,7 +127,8 @@ function openPlace(i: number) {
   if (x.f === 'yes') tags.push(x.pr ? 'Fee ' + x.pr : 'Fee');
   if (x.f === 'mixed') tags.push('Partly free'); // a free and a paying toilet, by cabin or by time of day
   // w: getting to the place, tw: the toilet itself. Station toilets only say the second.
-  if (x.w || x.tw) tags.push(WHEELCHAIR[x.w || x.tw!]);
+  // (a toilet that is all that is known about the place says so once, not as "Wheelchair accessible" too)
+  if (x.w || (x.tw && x.tw !== 'yes')) tags.push(WHEELCHAIR[x.w || x.tw!]);
   if (x.tw === 'yes') tags.push('Wheelchair toilet');
   if (x.tw === 'no' && x.w && x.w !== 'no') tags.push('No wheelchair toilet');
   if (x.e) tags.push('Eurokey');

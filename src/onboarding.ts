@@ -210,7 +210,6 @@
             <input class="switch" type="checkbox" role="switch" id="obAuto" aria-labelledby="obAutoT" aria-describedby="obAutoD" />
           </label>
         </div>
-        <p class="set-foot">You can change this at any time in Settings.</p>
       </div></div>
       <div class="ob-actions">
         <button class="ob-btn primary" type="button" data-go="access">Continue</button>

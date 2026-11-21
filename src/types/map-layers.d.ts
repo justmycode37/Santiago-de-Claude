@@ -5,7 +5,7 @@ type MapColorName = 'navy' | 'rose' | 'sun' | 'tang';
 /** A palette colour for drawing on a canvas: the disc, the glyph on it, and the same as a CSS variable. */
 interface MapColor { fill: string; ink: string; css: string }
 
-/** A switch under "On the map" in Settings; 'events' is the community events, the others are groups of places. */
+/** A switch under "Events and places" in Settings; 'events' is the community events, the others are groups of places. */
 type MapGroupKey = 'events' | 'toilets' | 'water' | 'health' | 'help' | 'food' | 'shops' | 'money' | 'rest' | 'access'
   | 'transit' | 'mobility' | 'kids' | 'learn' | 'sport' | 'culture' | 'stay' | 'faith' | 'recycling' | 'business';
 
@@ -29,7 +29,7 @@ interface MapLayersApi {
   COLORS: Record<MapColorName, MapColor>;
   /** Glyph name → SVG path data, stroked on a 24×24 grid. */
   GLYPHS: Record<string, string>;
-  /** The switches under "On the map", in the order they are listed. Earlier groups win where icons would overlap. */
+  /** The switches under "Events and places", in the order they are listed. Earlier groups win where icons would overlap. */
   GROUPS: MapGroup[];
   /** Search word (German, French, everyday English: 'apotheke', 'wc') → the words of the labels it means ('pharmacy', 'toilet'). */
   SEARCH_ALIASES: Record<string, string>;
