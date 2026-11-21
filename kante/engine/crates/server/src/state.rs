@@ -92,8 +92,6 @@ pub struct App {
     pub heavy: tokio::sync::Semaphore,
     /// Open `/api/stream` connections.
     pub streams: std::sync::atomic::AtomicUsize,
-    /// On-board position reports (`/api/observe`).
-    pub observed: crate::observe::Store,
     /// Learned travel and dwell times per pair of stops.
     pub profiles: crate::profiles::Shared,
     pub walk_bbox: BBox,
@@ -340,7 +338,6 @@ impl App {
             shutdown: tokio::sync::watch::channel(false).0,
             heavy: tokio::sync::Semaphore::new(4),
             streams: Default::default(),
-            observed: Default::default(),
             profiles: Default::default(),
             walk_bbox,
             data_dir: data_dir.to_path_buf(),

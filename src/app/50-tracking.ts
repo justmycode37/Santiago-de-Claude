@@ -182,7 +182,7 @@ function trackJourney() {
   // move the cards along with you, unless you have just picked a step yourself
   if (!track.missed && track.i !== autoStep) {
     autoStep = track.i;
-    if (now - userPickedAt > 20000) goToStep(track.i, true);
+    if (now - userPickedAt > 20000 && !journeyList) goToStep(track.i, true);
   }
 }
 

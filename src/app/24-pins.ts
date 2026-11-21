@@ -16,7 +16,7 @@ function armPin(f: TripField | null) {
   setMenu(false);
   pinMenu.remove();
   if (f === 'from') setPlanOpen(true);
-  if (document.body.classList.contains('journey-mode') && sheetDetent === 'full') setDetent('mid'); // some map to tap on
+  if (document.body.classList.contains('journey-mode') && sheetDetent !== 'low') setDetent('low'); // as much map to tap on as there is
 }
 document.getElementById('pinHintCancel')!.addEventListener('click', () => armPin(null));
 

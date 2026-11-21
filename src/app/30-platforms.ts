@@ -98,6 +98,7 @@ let popupReq = 0;
 let popupPlace: MapGroupKey | null = null; // the place (toilet, pharmacy…) whose card is open
 // Forgiving tap: the nearest dot or place icon within ~16 px, so small dots are easy to hit on a phone
 map.on('click', (e) => {
+  if (WALK_PACE.drawing()) return; // the taps draw a path (developer options)
   if (pinTap(e.lngLat.toArray())) return; // placing a pin, or closing the "From here / To here" menu
   const r = 16;
   const layers = ['platform-dot', ...PLACE_LAYERS].filter((id) => map.getLayer(id));

@@ -8,7 +8,6 @@ const userMarker = new maplibregl.Marker({ element: dotEl });
 let userLngLat: LngLat | null = null;
 let userAccuracy = 0;
 let lastFixAt = 0;
-const recentFixes: GpsFix[] = [];
 let centeredOnUser = false;
 const fixAge = () => (lastFixAt ? Date.now() - lastFixAt : Infinity);
 // A recent, usable GPS fix (watchPosition can stay quiet while you stand still, so allow a while)
@@ -31,8 +30,10 @@ function updateAccuracy() {
 map.on('zoom', updateAccuracy);
 
 let lastSavedAt = 0;
-function onPosition(pos: GeolocationPosition) {
-  const lngLat: LngLat = [pos.coords.longitude, pos.coords.latitude];
+let lastRealPos = null; // the newest fix from the phone itself, to come back to after a simulated walk
+function onPosition(pos) {
+  if (!pos.simulated) lastRealPos = pos;
+  const lngLat = [pos.coords.longitude, pos.coords.latitude];
   if (!inSwitzerland(lngLat)) {
     showToast('You are outside Switzerland');
     return;
@@ -44,10 +45,9 @@ function onPosition(pos: GeolocationPosition) {
   userLngLat = lngLat;
   userAccuracy = pos.coords.accuracy || 0;
   lastFixAt = takenAt;
-  // the last minute of fixes, to tell whether you are moving (on board) or standing
-  recentFixes.push({ ll: lngLat, t: takenAt, speed: pos.coords.speed });
-  while (recentFixes.length && recentFixes[0].t < takenAt - 60000) recentFixes.shift();
-  if (now - lastSavedAt > 30000) {
+  // "Adjust to how I walk" (Settings) measures your pace from these fixes; it does nothing while switched off
+  if (!pos.simulated) WALK_PACE.fix({ ll: lngLat, acc: userAccuracy, speed: pos.coords.speed, t: takenAt });
+  if (!pos.simulated && now - lastSavedAt > 30000) {
     lastSavedAt = now;
     try { localStorage.setItem('lastLocation', JSON.stringify(lngLat.map((x) => +x.toFixed(4)))); } catch (e) {}
   }
@@ -81,3 +81,14 @@ if (!window.isSecureContext) {
   // (after this script has run: onPosition uses things declared further down)
   setTimeout(() => EARLY_GEO.attach(onPosition, onPositionError), 0);
 }
+
+// Developer options: walking a path drawn on the map puts your position at its end
+WALK_PACE.attach({
+  map,
+  position: (pos) => { centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)
+  restore: () => {
+    if (!lastRealPos) return; // no real position: you stay where the walk ended
+    lastFixAt = 0;
+    onPosition(lastRealPos);
+  },
+});
