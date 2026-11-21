@@ -1,8 +1,10 @@
 // Builds map-places.js (what the map shows) from data/amenities.json, data/places.json,
-// data/official-places.json and data/toilets.json. Run from the repo root after refreshing those files:
+// data/official-places.json (all three Bern only) and data/ch/toilets-ch.json (all of Switzerland). Run from the
+// repo root after refreshing those files:
 //   node tools/build-map-places.mjs
-// Toilets come from data/toilets.json (tools/build-toilets.mjs: OpenStreetMap merged with station toilets and
-// the Nette Toilette restaurants), not from the raw OpenStreetMap ones in amenities.json.
+// Toilets come from data/ch/toilets-ch.json (tools/build-toilets-ch.mjs: OpenStreetMap merged with station
+// toilets, the cities' own lists and the Nette Toilette restaurants), not from the raw OpenStreetMap ones in
+// amenities.json. data/toilets.json (Bern) adds the notes the Swiss file leaves out.
 // Each data category is sorted into a map group with map-layers.js's classify(). OpenStreetMap items found in
 // both OSM files are kept once, and an official item is dropped when OSM has the same kind of thing within 25 m
 // (its missing details are filled in from the official one).
@@ -17,9 +19,18 @@ const { classify, GROUPS, GLYPHS } = sandbox.window.MAP_LAYERS;
 const amenities = read('data/amenities.json');
 const places = read('data/places.json');
 const official = read('data/official-places.json');
-const toilets = read('data/toilets.json');
+const toilets = read('data/ch/toilets-ch.json');
+const bernToilets = read('data/toilets.json');
+const osmToiletsCh = read('data/ch/osm-toilets.json');
 
-const SOURCES = ['OpenStreetMap', 'Stadt Bern', 'Kanton Bern', 'SBB', 'Velospot', 'opentransportdata.swiss'];
+const SOURCES = ['OpenStreetMap', 'Stadt Bern', 'Kanton Bern', 'SBB', 'Velospot'];
+// Who a toilet record comes from, by the key its sources start with (docs/data-ch-toilets.md)
+const TOILET_SOURCES = {
+  osm: 'OpenStreetMap', nette: 'Stadt Bern', atlas: 'opentransportdata.swiss', 'atlas.toilet': 'opentransportdata.swiss',
+  'zh.zueriwc': 'Stadt Zürich', 'bs.wc': 'Kanton Basel-Stadt', 'ge.wc': 'Ville de Genève', 'lu.wc': 'Stadt Luzern',
+  'sg.wc': 'Stadt St.Gallen', 'zg.stadtmobiliar': 'Stadt Zug',
+};
+const sourceId = (label) => (SOURCES.includes(label) ? SOURCES.indexOf(label) : SOURCES.push(label) - 1);
 const sourceIndex = (key) => (key.startsWith('stadtbern') ? 1 : key.startsWith('kantonbern') ? 2 : key.startsWith('sbb') ? 3 : key === 'velospot' ? 4 : 0);
 // Same kind of thing under different names, for matching official items to OSM ones
 const SAME = { bike_share: 'bicycle_rental', sports: 'sports_centre', doctor: 'doctors', charging_station: 'ev_charging' };
@@ -56,28 +67,39 @@ function fromOsm(i, placeGroup) {
     },
   };
 }
-// A record of data/toilets.json. Its first source says where the position comes from; a toilet nobody but the
-// owner may use is left off the map, one for customers is marked as such, and a Nette Toilette (a restaurant
-// or shop that lets everyone use its toilet) says so.
+// A record of data/ch/toilets-ch.json. A toilet nobody but the owner may use is left off the map, one for
+// customers is marked as such, and a Nette Toilette (a restaurant or shop that lets everyone use its toilet)
+// says so. The notes carry the builder's own remarks too ("OSM says paid=free"), which are not for the card.
 const NETTE_NOTE = /^nette toilette\b/i;
 const CENTRE_NOTE = /^position is the station centre\b/i;
-function fromToilet(t) {
-  if (/^(private|no)$/.test(t.access || '')) return null;
-  const from = t.sources[0].split(':')[0];
+const FEE_NOTE = /^fee \([^)]*\):\s*/;
+const BUILD_NOTE = /^(OSM|atlas) (says\b|[\w:]+=)/;
+const NOT_PUBLIC = /^(private|no|military|employees)$/;
+const TOILET_ACCESS = { customers: 'customers', guests: 'customers', permissive: 'permissive', permit: 'permit', key: 'key' };
+function fromToilet(t, extraNotes = []) {
+  if (NOT_PUBLIC.test(t.access || '')) return null;
+  const keys = [...new Set(t.sources.map((s) => s.split(/[:/]/)[0]).filter((k) => TOILET_SOURCES[k]))];
   const notes = (t.notes || '').split(/;\s*/).filter(Boolean);
-  const nette = t.sources.some((s) => s.startsWith('nette')) || notes.some((n) => NETTE_NOTE.test(n));
-  const customers = !nette && t.access === 'customers';
-  const about = notes.filter((n) => !NETTE_NOTE.test(n) && !CENTRE_NOTE.test(n));
+  for (const n of extraNotes) if (!notes.some((m) => m.toLowerCase() === n.toLowerCase())) notes.push(n);
+  const nette = keys.includes('nette') || notes.some((n) => NETTE_NOTE.test(n));
+  const access = nette ? null : TOILET_ACCESS[t.access] || null;
+  const about = notes.filter((n) => ![NETTE_NOTE, CENTRE_NOTE, FEE_NOTE, BUILD_NOTE].some((re) => re.test(n)));
   if (nette) about.unshift('Anyone may use this toilet without buying anything while the business is open.');
-  if (from === 'atlas') about.push('Shown at the middle of the station, the exact spot is not recorded.');
+  if (/^atlas/.test(keys[0])) about.push('Shown at the middle of the station, the exact spot is not recorded.');
+  const feeText = notes.filter((n) => FEE_NOTE.test(n)).map((n) => n.replace(FEE_NOTE, '').replace(/\.+$/, '.')).join(' ');
+  const street = t.address && (t.postcode || t.city) && !(t.postcode && t.address.includes(t.postcode))
+    ? `${t.address}, ${[t.postcode, t.city].filter(Boolean).join(' ')}` : t.address;
   return {
-    id: t.id, lon: t.lon, lat: t.lat, src: from === 'atlas' ? 5 : from === 'nette' ? 1 : 0, kind: 'toilets',
-    cat: classify(nette ? 'toilets_nette' : customers ? 'toilets_customers' : 'toilets'),
+    id: t.id, lon: t.lon, lat: t.lat, src: sourceId([...new Set(keys.map((k) => TOILET_SOURCES[k]))].join(', ')), kind: 'toilets',
+    cat: classify(nette ? 'toilets_nette' : access === 'customers' ? 'toilets_customers' : 'toilets'),
     name: clip(t.name || (nette ? t.operator : null), 90),
     x: {
-      a: addressOf(t), h: clip(t.opening_hours, 120), w: yesNo(t.wheelchair), f: nette ? 'no' : fee(t.fee),
-      l: clip(t.level, 12), d: clip(about.join(' · ')), k: !nette && /^(customers|permissive|permit)$/.test(t.access || '') ? t.access : null,
-      c: yesNo(t.changing_table) === 'yes' ? 1 : null, tw: yesNo(t.toilets_wheelchair), e: yesNo(t.eurokey) === 'yes' ? 1 : null,
+      a: clip(street, 120), h: clip(/^24 ?h$/i.test(t.opening_hours || '') ? '24/7' : t.opening_hours, 120), w: yesNo(t.wheelchair),
+      // f: no = free, yes = you pay, mixed = the site has a free and a paying toilet (by cabin or by time of day)
+      f: nette || t.paid === 'free' ? 'no' : t.paid === 'paid' ? 'yes' : t.paid === 'mixed' ? 'mixed' : null,
+      pr: t.paid === 'free' ? null : clip(t.price, 12), ft: clip(feeText),
+      l: clip(t.level, 12), d: clip(about.join(' · ')), k: access,
+      c: /^(yes|room)$/.test(t.changing_table || '') ? 1 : null, tw: yesNo(t.toilets_wheelchair), e: yesNo(t.eurokey) === 'yes' ? 1 : null,
       o: t.operator && t.operator !== t.name && !(nette && !t.name) ? clip(t.operator, 60) : null,
     },
   };
@@ -129,15 +151,23 @@ for (const it of byId.values()) {
 }
 
 // Toilets: already merged across their sources, so they skip the step above. The OpenStreetMap record adds
-// what toilets.json leaves out (website, phone).
+// what the toilet file leaves out (website, phone), and Bern's own toilet file its notes ("Pissoir", "Nur im
+// Sommer", a Nette Toilette only OpenStreetMap knows), under the same id.
+const bernNotes = new Map(bernToilets.items.map((t) => [t.id.replace(/^atlas\//, 'atlas.toilet/'), (t.notes || '').split(/;\s*/).filter(Boolean)]));
+for (const i of osmToiletsCh.items) if (!osmToilets.has(i.id)) osmToilets.set(i.id, i);
 let toiletsHidden = 0;
+const toiletIds = new Set();
 for (const t of toilets.items) {
-  const it = fromToilet(t);
+  toiletIds.add(t.id);
+  const it = fromToilet(t, bernNotes.get(t.id));
   if (!it) { toiletsHidden++; continue; }
   const osm = osmToilets.get(t.id);
   if (osm) { const o = fromOsm(osm); for (const k of ['p', 'u']) if (it.x[k] == null) it.x[k] = o.x[k]; }
   items.push(it);
 }
+// Every Bern toilet has to be in the Swiss file, or it would drop off the map unnoticed
+const lost = [...bernNotes.keys()].filter((id) => !toiletIds.has(id));
+if (lost.length) throw new Error(`data/toilets.json has toilets that data/ch/toilets-ch.json lacks: ${lost.join(', ')}`);
 
 // Official items: skip when OSM already has the same kind within 25 m
 const CELL = 0.0005; // ~40-55 m grid for the lookup
@@ -186,11 +216,13 @@ out.sort((a, b) => a[2] - b[2] || a[1] - b[1] || a[0] - b[0]);
 const generated = [amenities.generated, places.generated, official.generated, toilets.generated].sort().pop();
 const js = `// Generated by tools/build-map-places.mjs from data/*.json (${generated}). Do not edit by hand.
 // Sources: OpenStreetMap contributors (ODbL); Stadt Bern geoportal, Kanton Bern (opendata.swiss terms_open);
-// SBB (data.sbb.ch); Velospot (GBFS); station toilets from ATLAS (opentransportdata.swiss).
+// SBB (data.sbb.ch); Velospot (GBFS). Toilets, all of Switzerland: OpenStreetMap, station toilets from ATLAS
+// (opentransportdata.swiss), Stadt Zürich, Kanton Basel-Stadt (CC BY 4.0), Ville de Genève, Stadt Luzern,
+// Stadt St.Gallen (CC BY 4.0), Stadt Zug, Stadt Bern.
 // Rows: [lon, lat, category, name or 0, details?]
-// Details: a address, h opening hours, w wheelchair, f fee, p phone, u website, l level, d description,
-// k access, c changing table, tw wheelchair toilet, e Eurokey, o run by, s source (index into sources,
-// 0 = OpenStreetMap).
+// Details: a address, h opening hours, w wheelchair, f fee (no, yes, mixed), pr price, ft what the fee is for,
+// p phone, u website, l level, d description, k access, c changing table, tw wheelchair toilet, e Eurokey,
+// o run by, s source (index into sources, 0 = OpenStreetMap).
 window.MAP_PLACES = ${JSON.stringify({ generated, sources: SOURCES, cats, items: out })};
 `;
 writeFileSync(new URL('../map-places.js', import.meta.url), js);
@@ -199,4 +231,4 @@ const perGroup = {};
 for (const r of out) { const g = cats[r[2]][0]; perGroup[g] = (perGroup[g] || 0) + 1; }
 console.log(`map-places.js: ${out.length} places (${mergedTwins} OSM doubles and ${mergedOfficial} official items merged into OSM ones), ${(js.length / 1e6).toFixed(2)} MB`);
 console.log(perGroup);
-console.log(`toilets: ${toilets.items.length - toiletsHidden} from data/toilets.json (${toiletsHidden} private ones left out)`);
+console.log(`toilets: ${toilets.items.length - toiletsHidden} from data/ch/toilets-ch.json (${toiletsHidden} that are not for the public left out)`);

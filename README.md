@@ -33,7 +33,7 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
   ```bash
   python3 tools/build_platforms.py
   ```
-- **Places & amenities (`map-places.js`)** from `data/` (see [docs/places-data.md](docs/places-data.md)):
+- **Places & amenities (`map-places.js`)** from `data/` (Bern) and the Swiss toilets in `data/ch/toilets-ch.json` (see [docs/places-data.md](docs/places-data.md)):
   ```bash
   node tools/build-map-places.mjs
   ```

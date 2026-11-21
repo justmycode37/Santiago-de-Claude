@@ -1230,7 +1230,7 @@
         <button class="set-link" id="setMapAll" type="button">Hide all</button>
       </div>
       <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setMapHead"></div>
-      <p class="set-foot">The events button in the ••• menu shows or hides everything switched on here. Places such as toilets and drinking water are only mapped for Bern so far (OpenStreetMap, Stadt Bern, Kanton Bern, SBB and Velospot).</p>
+      <p class="set-foot">The events button in the ••• menu shows or hides everything switched on here. Toilets are mapped for all of Switzerland, other places such as drinking water only for Bern so far (OpenStreetMap, opentransportdata.swiss, SBB, Velospot, Kanton Bern, Kanton Basel-Stadt and the cities of Bern, Zürich, Geneva, Luzern, St. Gallen and Zug).</p>
 
       <h2 class="set-head" id="setYouHead">About you</h2>
       <div class="set-group" role="group" aria-labelledby="setYouHead">
@@ -1683,7 +1683,12 @@
       if (!groups.length) showToast('Everything is switched off under On the map in Settings.');
       else if (!wantPlaces && !visibleEvents().length) showToast('No events match your settings.');
       else if (map.getZoom() < (groups.includes('events') ? EVENT_MIN_ZOOM : PLACE_MIN_ZOOM)) showToast('Zoom into a town or neighbourhood to see events and places.');
-      else if (wantPlaces && !viewNearBern()) showToast('Places like toilets and drinking water are only mapped for Bern so far.');
+      else if (wantPlaces && !viewNearBern()) {
+        // toilets are mapped everywhere, the other groups only for Bern
+        const others = groups.some((k) => k !== 'events' && k !== 'toilets');
+        if (!groups.includes('toilets')) showToast('Places like drinking water are only mapped for Bern so far.');
+        else if (others) showToast('Outside Bern, only toilets are mapped so far.');
+      }
     });
     document.getElementById('settingsBtn').addEventListener('click', () => {
       setMenu(false);
@@ -1906,7 +1911,7 @@
 
     const stripTags = (s) => s.replace(/<[^>]*>/g, '').trim();
 
-    // ---- Places in the search (map-places.js, Bern): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
+    // ---- Places in the search (map-places.js: Bern, toilets everywhere): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
     //      lists the nearest ones; a name ("Migros", "Amavita") lists the places called that, nearest first ----
     const fold = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
     const stem = (w) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
@@ -2021,12 +2026,15 @@
 
     const nearM = (a, b, m) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
 
-    // One list from the three sources: Bern's own places (map-places.js), places online (places.js), swisstopo
+    // One list from the three sources: our own places (map-places.js), places online (places.js), swisstopo
     function combineResults(text, swiss, online, local) {
       const { kinds, names } = local;
       const bern = [...kinds, ...names];
       // a place in both the Bern data and online keeps the Bern entry
-      const found = (online ? online.results : [])
+      // toilets: ours cover all of Switzerland and know which are for customers only, so the same ones from online
+      // would only come up twice
+      const ownToilets = kinds.length > 0 && !!online && online.category === 'Toilets';
+      const found = (online && !ownToilets ? online.results : [])
         .filter((p) => !bern.some((b) => fold(b.title) === fold(p.title) && nearM(b.lngLat, p.lngLat, 150)));
       const places = [...kinds, ...found, ...names];
       // a place swisstopo also knows keeps the place (it has the category and the distance)
@@ -2435,7 +2443,7 @@
 
     // ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
     // Shown with the events button, for the groups switched on under "On the map" in Settings.
-    // The data (~1.5 MB, Bern only) is loaded the first time it is needed.
+    // The data (~2.5 MB: Bern, and the toilets of all of Switzerland) is loaded the first time it is needed.
     const PLACES_FC = { type: 'FeatureCollection', features: [] };
     let PLACES = null;
     let placesLoading = null;
@@ -2535,7 +2543,7 @@
     };
 
     const WHEELCHAIR = { yes: 'Wheelchair accessible', limited: 'Partly wheelchair accessible', no: 'Not wheelchair accessible' };
-    const ACCESS = { customers: 'Customers only', private: 'Private', permit: 'Permit needed', permissive: 'Open to the public' };
+    const ACCESS = { customers: 'Customers only', private: 'Private', permit: 'Permit needed', key: 'Key needed', permissive: 'Open to the public' };
     function openPlace(i) {
       const row = PLACES && PLACES.items[i];
       if (!row) return;
@@ -2558,7 +2566,8 @@
 
       const tags = [];
       if (x.f === 'no') tags.push('Free');
-      if (x.f === 'yes') tags.push('Fee');
+      if (x.f === 'yes') tags.push(x.pr ? 'Fee ' + x.pr : 'Fee');
+      if (x.f === 'mixed') tags.push('Partly free'); // a free and a paying toilet, by cabin or by time of day
       if (x.w) tags.push(WHEELCHAIR[x.w]);
       if (x.tw === 'yes') tags.push('Wheelchair toilet');
       if (x.e) tags.push('Eurokey');
@@ -2584,6 +2593,7 @@
       };
       if (x.a) addRow('Address', document.createTextNode(x.a));
       if (x.h) addRow(x.h === '24/7' ? 'Open' : 'Opening hours', document.createTextNode(x.h === '24/7' ? 'Day and night' : x.h));
+      if (x.ft || (x.f === 'mixed' && x.pr)) addRow('Fee', document.createTextNode(x.ft || `${x.pr} for some of the toilets`));
       if (x.l) addRow('Floor', document.createTextNode(x.l));
       if (x.d) addRow('About', document.createTextNode(x.d));
       if (x.o) addRow('Run by', document.createTextNode(x.o));
