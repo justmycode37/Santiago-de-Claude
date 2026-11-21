@@ -42,7 +42,10 @@ Heights are **z in metres relative to the model's level 0** (real heights; a slo
                   "sign-post" | "pole" | "shelter" | "clock" | "statue",
             xy: [x, y], z: 0.2, heading: 90,
             height: 4.5, length: 1.8, width: 0.5,                               // what is known; the renderer has defaults
-            variant: "", name: "" }],
+            variant: "", name: "" },
+          // a glass roof on columns (no xy): its outline, the underside of its edge above the ground, how much
+          // higher its middle is, and where the columns stand (left out: every 12 m, 1.5 m inside the edge)
+          { kind: "canopy", ring: [[x, y], ...], z: 0.2, height: 9.5, rise: 3, columns: [[x, y], ...], name: "" }],
 
   // Houses at their real size. Either a prism (ring + heights) or a mesh; `faces` describes what the walls look like.
   buildings: [{ name: "", ring: [[x, y], ...], holes: [...], base: 0.2, eaves: 16.5, ridge: 21,
@@ -69,3 +72,8 @@ Station3DDetail.build(THREE, detail, { theme: "light" | "dark", toScene, palette
 - `palette`: colours to match the viewer's theme (ground, building, green …); the renderer has its own defaults in the
   Apple-Maps-like palette of the viewer.
 - `group`: one `THREE.Group`, few draw calls (instancing, merged geometry), no textures loaded from the network.
+- Things that move: `h.addVehicle({ kind: "tram", line: "9", path: [[x, y], ...] })` puts a tram on a track centre
+  line (model coordinates, in driving direction) and returns `{ length, at, place(s), run({ from, to, seconds, ease }),
+  doors(open), show(visible), remove() }`; `s`, `from` and `to` are metres along the path to the tram's front, `ease`
+  is `"arrive"`, `"depart"` or `"linear"`, and `run` returns a promise. Call `h.tick(performance.now())` every frame
+  and draw while it returns true. `h.tracks()` gives the centre lines of the scene's `tram-track` surfaces.

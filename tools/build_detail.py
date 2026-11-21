@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Build stations3d/<key>.detail.js: a detail scene of a short stretch of a station model (format: stations3d/DETAIL.md).
+"""Build the detail scenes of a station model: stations3d/<key>.detail.js and stations3d/<key>.<place>.detail.js
+(format: stations3d/DETAIL.md). SCENES below says what each scene is: its box, its walk, its folder of extracts.
 
-The scene of Bern is the north head of the Hirschengraben: the walk between platform B and platform C of the tram stop
-"Bern, Hirschengraben", past the Bubenberg monument (38 m). The walk itself is asked from the app's router
-(station-route.js) so that it is a real route of the app.
+Bern has two. "hirschengraben" (file bern.detail.js, id "bern"): the Hirschengraben, for the walk between platform B
+and platform C of the tram stop "Bern, Hirschengraben", past the Bubenberg monument (38 m). "bahnhofplatz" (file
+bern.bahnhofplatz.detail.js, id "bern.bahnhofplatz"): the tram stop under the Baldachin and the square in front of the
+station, for the walk from tram platform B of "Bern, Bahnhof" to the main entrance (104 m). Each walk is asked from the
+app's router (station-route.js) so that it is a real route of the app.
 
-Sources (small extracts in tools/station3d_data/<key>/detail/, see the README.md there for licences and dates):
+Sources (small extracts in tools/station3d_data/<key>/<the scene's folder>/, see the README.md there for licences and dates):
   osm.json             OpenStreetMap: furniture nodes, tram tracks, buildings (levels, roof tags), shelters, monument
   baumkataster.json    City of Bern tree register: position, species, planting year of every city tree
   survey.json          cadastral survey of the City of Bern: ground cover (road / pavement / square), monument and
@@ -22,7 +25,9 @@ What is measured and what is not is written on every object as `source` (and `he
 assumed). Nothing is placed that no source shows.
 
 Usage:
-  python tools/build_detail.py                 # build stations3d/bern.detail.js
+  python tools/build_detail.py                 # build stations3d/bern.detail.js (the scene "hirschengraben")
+  python tools/build_detail.py --scene bahnhofplatz    # stations3d/bern.bahnhofplatz.detail.js; --scene all: both
+  python tools/build_detail.py --scene all --index-form array   # and write the manifest stations3d/detail-index.js
   python tools/build_detail.py --no-node       # take the walk from route.json instead of asking station-route.js
   python tools/build_detail.py --date 2026-07-01   # the day the scene is for (trees in leaf or bare)
   python tools/build_detail.py --data DIR --out FILE --facts FILE
@@ -50,7 +55,9 @@ ORIGIN = (7.4391, 46.9488)                      # the model's origin (stations3d
 KX = 111320 * math.cos(math.radians(ORIGIN[1]))
 KY = 110540
 
-SCENE = {
+SCENES = {}
+SCENES['hirschengraben'] = SCENE = {
+    'id': 'bern', 'data': 'detail', 'out': 'bern.detail.js',
     'name': 'Hirschengraben',
     'from': {'stop': {'uic': '8579896', 'ref': 'B'}},
     'to': {'stop': {'uic': '8579896', 'ref': 'C'}},
@@ -62,6 +69,30 @@ SCENE = {
     'building_reach': 26.0,                     # houses nearer than this to the detailed area are included
     'fine_within': 60.0,                        # nearer than this to the walk: finer rings and shorter kerb pieces
     'mesh_within': 75.0,                        # houses further from the walk that do not front the streets: prism only
+}
+# The second walk of the demo: from tram platform B of "Bern, Bahnhof" under the Baldachin (the glass roof over the tram
+# stop on Bahnhofplatz) to the pavement in front of the main entrance of the station.
+SCENES['bahnhofplatz'] = {
+    'id': 'bern.bahnhofplatz', 'data': 'detail-bahnhofplatz', 'out': 'bern.bahnhofplatz.detail.js',
+    'name': 'Bahnhofplatz',
+    'facts_key': 'bahnhofplatz-heiliggeist',
+    'from': {'stop': {'uic': '8576646', 'ref': 'B'}},
+    'to': {'xy': [75.8, -38.9], 'level': 0},
+    'from_name': 'Bern, Bahnhof, platform B',
+    'to_name': 'Bern station, in front of the main entrance (Bahnhofplatz)',
+    'end_names': ('platform B', 'in front of the main entrance'),
+    # the detailed area: the tram stop under the Baldachin, the Heiliggeistkirche, the east front of the Burgerspital
+    # and the square in front of the station. It ends 0.6 m south of the southernmost corner of the station building
+    # (y -33.58), so that the station itself stays the plain model's (its shell is the front the walk arrives at).
+    'box': (30.0, -175.0, 170.0, -33.0),
+    'building_reach': 26.0,
+    'fine_within': 45.0,
+    'mesh_within': 60.0,
+    # the station building is not a house of this scene: the plain station model has it (with its inside)
+    'skip_buildings': {'2241912': "Bern station main building: it is the plain station model's"},
+    'canopy_min_area': 500.0,                   # an "Unterstand" of the survey larger than this is a canopy, not a shelter
+    'furniture_within': 40.0,                   # small furniture only this near to the walk
+    'osm_small_buildings': True,                # the lift house under the Baldachin
 }
 KERB_ASSUMED = 0.10                             # m; used where the LiDAR cannot resolve a kerb (stated on the edge)
 SPECIES = {                                     # register name (German) -> botanical name
@@ -171,8 +202,42 @@ class Ground:
                 return float(np.median(self.cloud.z[idx]))
         return None
 
+    def fit(self, x, y, owners, r=5.0):
+        """Height at (x, y) of the plane through the ground points of the surfaces `owners` within r metres, fitted
+        robustly: returns that lie off the plane (a plinth, a parked car, a skip classified as ground) are thrown out
+        and the plane is fitted again. None where there are too few points or the fit is too steep to be ground."""
+        cl = self.cloud
+        idx = cl.near(x, y, r)
+        if owners is not None:
+            idx = idx[np.isin(self.owner[idx], owners)]
+        if len(idx) < 12:
+            return None
+        dx, dy, z = cl.x[idx] - x, cl.y[idx] - y, cl.z[idx]
+        med = float(np.median(z))
+        mad = float(np.median(np.abs(z - med)))
+        keep = np.abs(z - med) <= max(0.2, 4 * 1.4826 * mad)
+        coef = None
+        for _ in range(4):
+            if keep.sum() < 8:
+                return None
+            A = np.stack([np.ones(int(keep.sum())), dx[keep], dy[keep]], 1)
+            coef, *_ = np.linalg.lstsq(A, z[keep], rcond=None)
+            res = z - (coef[0] + coef[1] * dx + coef[2] * dy)
+            rk = res[keep]
+            lim = max(0.04, 2.5 * 1.4826 * float(np.median(np.abs(rk - np.median(rk)))))
+            new = np.abs(res) <= lim
+            if (new == keep).all():
+                break
+            keep = new
+        if coef is None or math.hypot(coef[1], coef[2]) > 0.12:
+            return None
+        # not beyond the points themselves (a corner of a surface with all its points on one side)
+        return float(min(max(coef[0], z[keep].min() - 0.05), z[keep].max() + 0.05)) if keep.any() else None
+
     def z(self, x, y, owner=None):
         v = self.at(x, y, owner)
+        if v is None:                                    # no ground return of this surface within 4 m (under a large roof, under
+            v = self.fit(x, y, None, 15.0)               # a vehicle): the robust plane through the ground within 15 m
         if v is None:
             v = self.at(x, y, None, 8.0)
         if v is None:                                    # outside the LiDAR extract: the nearest ground points
@@ -188,7 +253,8 @@ ROUTE_JS = r"""
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const root = process.argv[1], key = process.argv[2], job = JSON.parse(process.argv[3]);
 globalThis.window = globalThis;
-const SR = require(path.join(root, 'station-route.js'));
+const srp = path.join(root, 'station-route.js');           // the built router: in the repo root, or in dist/ (npm run build)
+const SR = require(fs.existsSync(srp) ? srp : path.join(root, 'dist', 'station-route.js'));
 vm.runInThisContext(fs.readFileSync(path.join(root, 'stations3d', key + '.js'), 'utf8'));
 const model = window.STATION3D[key];
 const r = SR.route(model, job.from, job.to, { date: job.date });
@@ -302,9 +368,24 @@ class Builder:
                 self.facts_file = p
                 break
         g = self.lidar['ground']
-        self.ground = Ground(Cloud(np.array(g['x']) / 100, np.array(g['y']) / 100, np.array(g['z']) / 100))
+        gx, gy, gz = np.array(g['x']) / 100, np.array(g['y']) / 100, np.array(g['z']) / 100
+        # "ground" returns from a level below the street (the open stairs and ramps down to an underpass): more than
+        # 1 m under the median of the ground around them (6 m cells, 5 x 5 of them). They are not the ground of the street.
+        cell = 6.0
+        ck = list(zip(np.floor(gx / cell).astype(int).tolist(), np.floor(gy / cell).astype(int).tolist()))
+        byc = defaultdict(list)
+        for i, k in enumerate(ck):
+            byc[k].append(i)
+        cmed = {k: float(np.median(gz[v])) for k, v in byc.items()}
+        ref = {k: float(np.median([cmed[(k[0] + i, k[1] + j)] for i in (-2, -1, 0, 1, 2) for j in (-2, -1, 0, 1, 2) if (k[0] + i, k[1] + j) in cmed])) for k in cmed}
+        below = gz < np.array([ref[k] for k in ck]) - 1.0
+        self.below_ground = int(below.sum())
+        self.ground = Ground(Cloud(gx[~below], gy[~below], gz[~below]))
         o = self.lidar['objects']
         self.obj = Cloud(np.array(o['x']) / 100, np.array(o['y']) / 100, np.array(o['z']) / 100, np.array(o['c']))
+        rf = self.lidar.get('roofs')                         # returns on the survey's roofs (only in newer extracts)
+        self.roofs = Cloud(np.array(rf['x']) / 100, np.array(rf['y']) / 100, np.array(rf['z']) / 100, np.array(rf['c'])) if rf else None
+        self.canopies = []
         self.route, self.route_from = get_route(data_dir, date, use_node)
         self.path2d = LineString([(p[0], p[1]) for p in self.route['points']])
         self.area = box(*SCENE['box'])
@@ -373,7 +454,12 @@ class Builder:
         return out
 
     def ring_out(self, poly, owner):
-        """A polygon as ring / holes / zs. Heights come from the ground points on this very surface."""
+        """A polygon as ring / holes / zs. Heights come from the ground points on this very surface: at every point
+        of the outline the robust plane through the ground returns within 5 m (Ground.fit), so that a few returns
+        from a plinth or a vehicle do not fold the ground. Where surfaces of the same kind of level meet without a
+        kerb (pavement and square; road and road) the points they share are fitted through the returns of both, so
+        both outlines have the same height there. A pavement and the road beside it keep their own heights: the
+        step between them is the kerb (an edge)."""
         poly = shapely.geometry.polygon.orient(poly.simplify(0.04), 1.0)
 
         step = 3.0 if poly.distance(self.path2d) < SCENE['fine_within'] else 6.0
@@ -382,8 +468,18 @@ class Builder:
             c = densify(list(r.coords), step)[:-1]
             return [pt(p) for p in c]
 
+        def height(p):
+            q = Point(p[0], p[1])
+            owners = sorted({owner} | {int(j) for j in self.cov_tree.query(q.buffer(0.08))
+                                       if self.cov_class[j] == self.cov_class[owner] and self.cov[j]['poly'].distance(q) < 0.08})
+            v = self.ground.fit(p[0], p[1], owners)
+            if v is None:
+                self.unfitted += 1
+                v = self.ground.z(p[0], p[1], owner)
+            return r2(v)
+
         ring = one(poly.exterior)
-        zs = [r2(self.ground.z(p[0], p[1], owner)) for p in ring]
+        zs = [height(p) for p in ring]
         holes = [one(i) for i in poly.interiors if Polygon(i).area > 0.3]
         return ring, holes, zs
 
@@ -391,11 +487,15 @@ class Builder:
         cov = self.cover()
         self.cov = cov
         self.ground.assign([s['poly'].buffer(-0.12) for s in cov])
+        self.cov_tree = shapely.STRtree([s['poly'] for s in cov])
+        self.cov_class = [0 if s['use'] in ('road', 'other') else 1 for s in cov]      # roadway level / raised (pavement, island, square, green)
+        self.unfitted = 0
         self.road = unary_union([s['poly'] for s in cov if s['use'] == 'road'])
         surfaces = []
         for i, s in enumerate(cov):
             ring, holes, zs = self.ring_out(s['poly'], i)
-            d = {'kind': s['kind'], 'use': s['use'], 'ring': ring, 'zs': zs, 'source': s['source'] + '; heights: lidar (swissSURFACE3D 2023 ground points)'}
+            d = {'kind': s['kind'], 'use': s['use'], 'ring': ring, 'zs': zs,
+                 'source': s['source'] + '; heights: lidar (swissSURFACE3D 2023 ground points, robust plane through the returns on this surface within 5 m of each outline point)'}
             if holes:
                 d['holes'] = holes
             surfaces.append(d)
@@ -420,6 +520,8 @@ class Builder:
                                  'line': [pt(p) for p in g.simplify(0.05).coords],
                                  'source': 'osm:way/%d (centre line, gauge %d mm); strip = gauge + rail heads; heights: lidar' % (e['id'], gauge * 1000)})
         self.say('surfaces: %d (%s)' % (len(surfaces), ', '.join('%d %s' % (sum(1 for s in surfaces if s['use'] == u), u) for u in sorted({s['use'] for s in surfaces}))))
+        self.say('  %d LiDAR ground returns more than 1 m under the ground around them (stairs and ramps down to an underpass) are not used' % self.below_ground)
+        self.say('  outline heights: robust plane fit; %d outline points with too few ground returns for it take the median of the nearest returns' % self.unfitted)
         return surfaces
 
     # ---- kerbs ----
@@ -697,10 +799,16 @@ class Builder:
         for poly in self.av_polys('Unterstand'):
             if not area.contains(poly.centroid):
                 continue
+            if poly.area > SCENE.get('canopy_min_area', 1e9):
+                props.append(self.canopy(poly))
+                continue
             c, ln, wd, axis = self.rect(poly)
             g0 = gz(c[0], c[1])
             m = shapely.contains_xy(poly.buffer(-0.2), ob.x, ob.y)
             h = ob.z[m] - g0
+            if self.roofs is not None:                       # a roof the LiDAR classifies as building
+                m = shapely.contains_xy(poly.buffer(-0.2), self.roofs.x, self.roofs.y)
+                h = self.roofs.z[m] - g0
             head, dist = self.facing(c, axis)
             o = [e for e, p in osm_sh if p.intersects(poly)]
             fo = [e for e, fxy in osm_fo if poly.buffer(3.0).contains(Point(fxy))]
@@ -745,6 +853,8 @@ class Builder:
             t = e['tags']
             kind = next((k for k, f in KINDS if f(t)), None)
             if not kind:
+                continue
+            if Point(xy).distance(self.path2d) > SCENE.get('furniture_within', 1e9):
                 continue
             if kind == 'fountain' and any(q['kind'] == 'fountain' and math.hypot(q['xy'][0] - xy[0], q['xy'][1] - xy[1]) < 5 for q in props):
                 continue
@@ -863,6 +973,62 @@ class Builder:
             props.append(d)
         return props, edges, surfaces
 
+    def canopy(self, poly):
+        """A large roof on columns (the Baldachin): outline from the survey, heights from the LiDAR returns on the roof,
+        columns where the survey has a pillar ("Pfeiler") under it."""
+        rf = self.roofs
+        gcl = self.ground.cloud
+        gi = np.flatnonzero(shapely.contains_xy(poly.buffer(3.0), gcl.x, gcl.y))
+        g0 = float(np.median(gcl.z[gi]))
+        m = np.flatnonzero(shapely.contains_xy(poly, rf.x, rf.y))
+        m = m[rf.z[m] - g0 > 2.5]
+        d = shapely.distance(shapely.points(rf.x[m], rf.y[m]), poly.exterior)
+        edge = rf.z[m][d < 1.5] - g0
+        top = float(np.percentile(rf.z[m], 99)) - g0
+        simple = shapely.geometry.polygon.orient(poly.simplify(0.25), 1.0)
+        ring = [pt(p) for p in list(simple.exterior.coords)[:-1]]
+        # height of the roof edge above the ground at every corner of the outline (the roof is low over the north neck
+        # and high over the tram platforms)
+        edge_h = []
+        for x, y in ring:
+            i = rf.near(x, y, 2.5)
+            i = i[rf.z[i] - g0 > 2.5]
+            edge_h.append(round(float(np.percentile(rf.z[i], 25)) - g0, 1) if len(i) >= 5 else None)
+        known = [v for v in edge_h if v is not None]
+        edge_h = [v if v is not None else round(float(np.median(known)), 1) for v in edge_h]
+        cols, col_h = [], []
+        pil = [LineString(o['line']) for o in self.av['objects'] if o['art'] == 'Pfeiler' and len(o['line']) > 1]
+        for p in polygonize(unary_union(pil)):
+            c = p.centroid
+            if not poly.buffer(0.5).contains(c):
+                continue
+            i = rf.near(c.x, c.y, 1.0)
+            cols.append(pt((c.x, c.y)))
+            col_h.append(round(float(np.median(rf.z[i])) - self.ground.z(c.x, c.y), 1) if len(i) >= 5 else None)
+        o = next((e for e, c in self.osm_ways(lambda t: t.get('building') == 'roof' and t.get('name'))
+                  if len(c) > 3 and Polygon(c).buffer(0).intersection(poly).area > 0.5 * poly.area), None)
+        out = {'kind': 'canopy', 'xy': pt((poly.centroid.x, poly.centroid.y)), 'ring': ring, 'z': r2(g0),
+               'height': round(float(np.median(edge)), 1), 'rise': round(top - float(np.median(edge)), 1),
+               'edgeHeights': edge_h, 'variant': 'free-form glass roof on steel columns'}
+        if cols:
+            out['columns'] = cols
+            out['columnHeights'] = col_h
+        if o:
+            out['name'] = o['tags']['name']
+        out['heightSource'] = 'lidar'
+        out['source'] = ('survey (AV Stadt Bern, single object "Unterstand", %.0f m2): outline (simplified to 0.25 m); lidar (swissSURFACE3D 2023, %d returns on the roof): '
+                         'height = median of the returns within 1.5 m of the edge above the ground under the roof (they lie between %.1f and %.1f m: the roof is low over the '
+                         'north neck and high over the tram platforms; edgeHeights has the height at every corner of the outline), rise = 99th percentile of all roof returns '
+                         'above that (the top is %.1f m above the ground); the underside of the glass is not measured, the returns are from the roof surface' % (
+                             poly.area, len(m), float(np.percentile(edge, 5)), float(np.percentile(edge, 95)), top))
+        if cols:
+            out['source'] += '; columns: the %d pillars ("Pfeiler") the survey has under the roof, columnHeights = roof returns above each (lidar)' % len(cols)
+        if o:
+            out['source'] += '; name: osm:way/%d (which says height=%s)' % (o['id'], o['tags'].get('height'))
+        self.canopies.append(poly)
+        self.say('canopy: %s, %.0f m2, edge %.1f m, top %.1f m above the ground, %d columns' % (out.get('name'), poly.area, out['height'], top, len(cols)))
+        return out
+
     def lidar_poles(self):
         """Small clusters of LiDAR returns high above the ground that belong to no tree and no house."""
         ob = self.obj
@@ -926,6 +1092,15 @@ class Builder:
             if fp.geom_type == 'MultiPolygon':
                 fp = max(fp.geoms, key=lambda g: g.area)
             items.append((b, fp))
+        skip = SCENE.get('skip_buildings') or {}
+        not_here = [poly for a, poly in av_b if str(a.get('egid')) in skip] + list(self.canopies)
+        if not_here:
+            # the station building (the plain model has it) and the glass roof (a canopy, not a house)
+            nh = unary_union(not_here)
+            n0 = len(items)
+            items = [(b, fp) for b, fp in items if str(b.get('egid')) not in skip and fp.intersection(nh).area < 0.5 * fp.area]
+            av_b = [(a, poly) for a, poly in av_b if str(a.get('egid')) not in skip and poly.intersection(nh).area < 0.5 * poly.area]
+            self.say('buildings left out: %d of the 3D model (%s)' % (n0 - len(items), '; '.join(skip.values()) + ('; the canopy' if self.canopies else '')))
         items.sort(key=lambda t: (0 if t[0].get('egid') else 1, -t[1].area))
         kept = []
         for b, fp in items:
@@ -971,6 +1146,35 @@ class Builder:
                             'source': 'survey (AV Stadt Bern): outline (the 2021 swissBUILDINGS3D model has no house here); top: lidar 2023, 90th percentile of %d roof returns' % li['n_building']}}
             items.append((nb, poly))
             all_fp.append(poly)
+        # small houses near the walk that only OpenStreetMap has as a building with a height (a lift house under a
+        # large roof, where the LiDAR does not see it and the survey has it only as a part of a building): outline from
+        # the survey's single object there, else from OpenStreetMap; height from the OpenStreetMap tag
+        if SCENE.get('osm_small_buildings'):
+            lines = [LineString(o['line']) for o in self.av['objects'] if o['art'].endswith('udeteil') and len(o['line']) > 1]
+            parts = [q for q in polygonize(unary_union(lines)) if q.area > 3] if lines else []
+            have = unary_union(all_fp) if all_fp else Polygon()
+            for e, poly in osm_b:
+                t = e['tags']
+                try:
+                    h = float(t.get('height', ''))
+                except ValueError:
+                    continue
+                if t.get('building') in (None, 'roof') or not 4 < poly.area < 80 or not self.area.contains(poly.centroid):
+                    continue
+                if poly.distance(self.path2d) > SCENE.get('furniture_within', 40.0) or poly.intersection(have).area > 0.3 * poly.area:
+                    continue
+                sv = [q for q in parts if q.intersection(poly).area > 0.5 * min(q.area, poly.area)]
+                outline = max(sv, key=lambda q: q.area) if sv else poly
+                g0 = self.ground.z(outline.centroid.x, outline.centroid.y)
+                col = {'red': '#b5443a'}.get(t.get('building:colour'))
+                nb = {'egid': None, 'year': None, 'terrain': None, 'surfaces': [],
+                      'prism': {'top': g0 + h, 'heightSource': 'osm height tag, not measured (it stands under a roof, the LiDAR does not see it)', 'color': col,
+                                'source': '%s: outline; osm:way/%d (building=%s, height=%s%s): that it is a house, its height%s' % (
+                                    'survey (AV Stadt Bern, single object "übriger Gebäudeteil")' if sv else 'osm:way/%d' % e['id'], e['id'], t.get('building'), t['height'],
+                                    ', building:colour=%s' % t['building:colour'] if t.get('building:colour') else '',
+                                    ' and colour (the tag says "%s", the exact colour is assumed)' % t['building:colour'] if col else '')}}
+                items.append((nb, outline))
+                all_fp.append(outline)
         for b, fp in items:
             if fp.geom_type == 'MultiPolygon':
                 fp = max(fp.geoms, key=lambda g: g.area)
@@ -987,6 +1191,8 @@ class Builder:
                 d = {'ring': ring, 'base': r2(base), 'eaves': r2(pr['top']), 'ridge': r2(pr['top']), 'roof': 'flat', 'heightSource': pr['heightSource']}
                 if pr.get('rebuilt'):
                     d['rebuilt'] = True
+                if pr.get('color'):
+                    d['color'] = pr['color']
                 src = [pr['source'], 'base: ' + base_src]
                 pos = ind = None
             else:
@@ -1134,7 +1340,7 @@ class Builder:
         import re
         place = None
         if isinstance(self.facts, dict):
-            place = next((v for v in self.facts.values() if isinstance(v, dict) and v.get('key') == SCENE['name'].lower()), None)
+            place = next((v for v in self.facts.values() if isinstance(v, dict) and v.get('key') == SCENE.get('facts_key', SCENE['name'].lower())), None)
         if not place:
             self.say('visual facts: no file for this place (colours and variants from photos are not in the scene)')
             return
@@ -1415,6 +1621,8 @@ class Builder:
             if c['to_path_m'] < 1.0:
                 notes.append('tree %s stands %.2f m from the centre line of the walk (the router follows the edge of the square there)' % (t['source'].split(' ')[0], c['to_path_m']))
         for p in detail['props']:
+            if p['kind'] == 'canopy':                        # a roof over the walk, nothing in its way
+                continue
             d = self.path2d.distance(Polygon(p['ring']) if p.get('ring') else Point(p['xy']))
             if d < 0.6:
                 notes.append('%s %s is %.2f m from the centre line of the walk' % (p['kind'], p.get('name') or p['xy'], d))
@@ -1440,6 +1648,9 @@ class Builder:
         notes.append('real ground along the walk is %.2f to %.2f m above level 0; with zOffset the two ends of the walk come to %+.2f m (platform B) and %+.2f m (platform C) '
                      'relative to the model floor; the plane near the walk has them at %.2f and %.2f m, the LiDAR at %.2f and %.2f m' % (
                          min(zr), max(zr), a[2] + detail['zOffset'], b[2] + detail['zOffset'], pl(a), pl(b), a[2], b[2]))
+        ends = SCENE.get('end_names')
+        if ends:
+            notes[-1] = notes[-1].replace('(platform B)', '(%s)' % ends[0]).replace('(platform C)', '(%s)' % ends[1])
         notes.append('kerb heights: the difference of the LiDAR ground on both sides of the kerb line (points 0.35 to 1.2 m from it, median per cross-section, '
                      'median of the cross-sections of a piece)')
         detail['notes'] = notes
@@ -1455,42 +1666,68 @@ class Builder:
                 assert o.get('source'), (key, o)
 
 
+def write_index(path, form):
+    """The manifest: which station models have detail scenes, and where they lie (bbox of each scene's area)."""
+    num = lambda v: ('%.2f' % v).rstrip('0').rstrip('.')
+    rows = []
+    for sc in SCENES.values():
+        f = os.path.join(ROOT, 'stations3d', sc['out'])
+        if not os.path.exists(f):
+            continue
+        with open(f, encoding='utf-8') as fh:
+            txt = fh.read()
+        detail = json.loads(txt[txt.index('] = ') + 4:].rstrip().rstrip(';'))
+        xs = [q[0] for q in detail['area']]
+        ys = [q[1] for q in detail['area']]
+        rows.append((sc, ','.join(num(v) for v in (min(xs), min(ys), max(xs), max(ys)))))
+    head = ('// Which station models have a detail scene (stations3d/DETAIL.md), and where it lies (bbox of its area, model metres).\n'
+            '// Tiny, loaded with the model; the scene itself is loaded only when a walk or the eye comes near.\n')
+    if form == 'object':
+        sc, bbox = rows[0]
+        body = 'window.STATION3D_DETAIL_INDEX = { %s: { file: "stations3d/%s", bbox: [%s] } };\n' % (KEY, sc['out'], bbox)
+    else:
+        body = 'window.STATION3D_DETAIL_INDEX = { %s: [\n%s\n] };\n' % (KEY, ',\n'.join(
+            '  { id: %s, file: "stations3d/%s", bbox: [%s] }' % (json.dumps(sc['id']), sc['out'], bbox) for sc, bbox in rows))
+    with open(path, 'w', encoding='utf-8', newline='\n') as f:
+        f.write(head + body)
+    print('wrote %s (%s)' % (path, '; '.join('%s %s' % (sc['id'], bbox) for sc, bbox in rows)))
+
+
 def main():
-    ap = argparse.ArgumentParser(description='Build the detail scene stations3d/%s.detail.js.' % KEY)
-    ap.add_argument('--data', default=os.path.join(ROOT, 'tools', 'station3d_data', KEY, 'detail'), help='folder with the source extracts')
-    default_out = os.path.join(ROOT, 'stations3d', KEY + '.detail.js')
-    ap.add_argument('--out', default=default_out)
-    ap.add_argument('--index', help='where to write the manifest detail-index.js (default: stations3d/detail-index.js, only when --out is the default)')
+    global SCENE
+    ap = argparse.ArgumentParser(description='Build the detail scenes stations3d/%s*.detail.js.' % KEY)
+    ap.add_argument('--scene', default='hirschengraben', choices=list(SCENES) + ['all'], help='which scene to build (default: hirschengraben)')
+    ap.add_argument('--data', help="folder with the source extracts (default: tools/station3d_data/%s/<the scene's folder>)" % KEY)
+    ap.add_argument('--out', help="default: stations3d/<the scene's file>")
+    ap.add_argument('--index', help='where to write the manifest detail-index.js (default: stations3d/detail-index.js)')
+    ap.add_argument('--index-form', default='keep', choices=['keep', 'array', 'object'],
+                    help='keep: leave the manifest as it is (default); array: one entry per scene that has a file; object: the old form, first scene only')
     ap.add_argument('--date', default=datetime.date.today().isoformat(), help='the day the scene is for (default: today)')
     ap.add_argument('--no-node', action='store_true', help='take the walk from route.json')
     ap.add_argument('--facts', help='visual-facts.json of the reference photos (default: <data>/visual-facts.json when it exists)')
     ap.add_argument('--report', help='also write the build report and the checks as JSON here')
     a = ap.parse_args()
-    b = Builder(a.data, a.date, not a.no_node, a.facts)
-    detail = b.build()
-    head = ('// Generated by tools/build_detail.py. Sources: OpenStreetMap (%s), Baumkataster and Amtliche Vermessung der Stadt Bern (%s), '
-            'swisstopo swissBUILDINGS3D 3.0 (2021) and swissSURFACE3D (2023). Format: stations3d/DETAIL.md\n'
-            '(window.STATION3D_DETAIL = window.STATION3D_DETAIL || {})[%s] = ' % (b.osm['timestamp_osm_base'][:10], b.reg['dataset_modified'], json.dumps(KEY)))
-    with open(a.out, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(head)
-        json.dump(detail, f, ensure_ascii=False, separators=(',', ':'))
-        f.write(';\n')
-    print('wrote %s (%d KB)' % (a.out, os.path.getsize(a.out) // 1024))
-    if os.path.abspath(a.out) == os.path.abspath(default_out) or a.index:
-        # which stations have a detail scene and where it lies: the bounding box of the scene's area
-        xs = [q[0] for q in detail['area']]
-        ys = [q[1] for q in detail['area']]
-        num = lambda v: ('%.2f' % v).rstrip('0').rstrip('.')
-        bbox = ','.join(num(v) for v in (min(xs), min(ys), max(xs), max(ys)))
-        index = a.index or os.path.join(ROOT, 'stations3d', 'detail-index.js')
-        with open(index, 'w', encoding='utf-8', newline='\n') as f:
-            f.write('// Which station models have a detail scene (stations3d/DETAIL.md), and where it lies (bbox of its area, model metres).\n'
-                    '// Tiny, loaded with the model; the scene itself is loaded only when a walk or the eye comes near.\n'
-                    'window.STATION3D_DETAIL_INDEX = { %s: { file: "stations3d/%s.detail.js", bbox: [%s] } };\n' % (KEY, KEY, bbox))
-        print('wrote %s (bbox %s)' % (index, bbox))
-    if a.report:
-        with open(a.report, 'w', encoding='utf-8', newline='\n') as f:
-            json.dump({'report': b.report, 'trees': b.tree_checks, 'pole_candidates': b.pole_candidates}, f, ensure_ascii=False, indent=1)
+    names = list(SCENES) if a.scene == 'all' else [a.scene]
+    for name in names:
+        SCENE = SCENES[name]
+        data = a.data or os.path.join(ROOT, 'tools', 'station3d_data', KEY, SCENE['data'])
+        out = a.out if a.out and len(names) == 1 else os.path.join(ROOT, 'stations3d', SCENE['out'])
+        print('== scene %s (%s) ==' % (name, SCENE['id']))
+        b = Builder(data, a.date, not a.no_node, a.facts)
+        detail = b.build()
+        head = ('// Generated by tools/build_detail.py. Sources: OpenStreetMap (%s), Baumkataster and Amtliche Vermessung der Stadt Bern (%s), '
+                'swisstopo swissBUILDINGS3D 3.0 (2021) and swissSURFACE3D (2023). Format: stations3d/DETAIL.md\n'
+                '(window.STATION3D_DETAIL = window.STATION3D_DETAIL || {})[%s] = ' % (b.osm['timestamp_osm_base'][:10], b.reg['dataset_modified'], json.dumps(SCENE['id'])))
+        with open(out, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(head)
+            json.dump(detail, f, ensure_ascii=False, separators=(',', ':'))
+            f.write(';\n')
+        print('wrote %s (%d KB)' % (out, os.path.getsize(out) // 1024))
+        if a.report:
+            with open(a.report if len(names) == 1 else a.report.replace('.json', '.%s.json' % name), 'w', encoding='utf-8', newline='\n') as f:
+                json.dump({'report': b.report, 'trees': b.tree_checks, 'pole_candidates': b.pole_candidates}, f, ensure_ascii=False, indent=1)
+    if a.index_form != 'keep':
+        write_index(a.index or os.path.join(ROOT, 'stations3d', 'detail-index.js'), a.index_form)
 
 
 if __name__ == '__main__':

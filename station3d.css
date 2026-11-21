@@ -502,6 +502,13 @@ button.s3-l.s3-off { pointer-events: none; }
   pointer-events: none;
 }
 .s3-callout[hidden] { display: none; }
+/* Station3D.open({ chrome: 'demo' }): only the picture, the card that says what to do (at the top) and the signs */
+.s3--demo .s3-top, .s3--demo .s3-sheet, .s3--demo .s3-mini, .s3--demo .s3-levels, .s3--demo .s3-tools,
+.s3--demo .s3-north, .s3--demo .s3-chip, .s3--demo .s3-credit, .s3--demo .s3-toast { display: none !important; }
+.s3--demo .s3-callout {
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: max(12px, env(safe-area-inset-right));
+}
 .s3-callout-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--s3-walk); color: var(--s3-on-walk); }
 .s3-callout-ico svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .s3-callout div { min-width: 0; }

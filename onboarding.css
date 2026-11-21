@@ -58,6 +58,9 @@
 .ob-art .a-block { fill: var(--ob-art-2); }
 .ob-art .a-case { fill: none; stroke: #14161a; stroke-width: 21; stroke-linecap: round; stroke-linejoin: round; }
 .ob-art .a-way { fill: none; stroke: var(--sun); stroke-width: 15; stroke-linecap: round; stroke-linejoin: round; }
+.ob-art .a-tram { fill: none; stroke: #d6001c; stroke-width: 15; stroke-linejoin: round; }
+.ob-art .a-stop { fill: #fff; stroke: #14161a; stroke-width: 3.5; }
+.ob-art .a-line { fill: #d6001c; stroke: #fff; stroke-width: 2.5; }
 .ob-art .a-chev { fill: none; stroke: #14161a; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
 .ob-art .a-bay { fill: #344D77; }
 .ob-art .a-bay-t { fill: #fff; font: 700 17px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; text-anchor: middle; }
@@ -116,6 +119,55 @@
 .ob-btn.soft:active { opacity: .7; }
 .ob-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
+/* The demo, act 2: the tram ride on a map of its own, laid over the 3D view and faded in and out (onboarding.ts) */
+.ob-ride { position: absolute; inset: 0; z-index: 61; opacity: 0; visibility: hidden; pointer-events: none; background: var(--sp-bg); transition: opacity .6s ease, visibility 0s linear .6s; }
+.ob-ride.on { opacity: 1; visibility: visible; transition: opacity .6s ease; }
+.ob-ride-map { position: absolute; inset: 0; }
+/* the same sign as the 3D view's instruction card (station3d.css, .s3-callout) */
+.ob-card {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  top: calc(env(safe-area-inset-top) + 12px);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 14px 9px 9px;
+  border-radius: 20px;
+  background: #14161a;
+  color: #fff;
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,.92), 0 8px 24px rgba(0,0,0,.28);
+}
+:root[data-theme="dark"] .ob-card { background: #f2f3f5; color: #14161a; box-shadow: 0 0 0 1.5px #0b0d10, 0 8px 24px rgba(0,0,0,.45); }
+.ob-card-ic { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #8e8e93; color: #fff; transition: background-color .45s ease; }
+.ob-card[data-kind="tram"] .ob-card-ic { background: #d6001c; }
+.ob-card[data-kind="off"] .ob-card-ic { background: #0a84ff; }
+.ob-card-ic svg, .ob-puck svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ob-card-t { min-width: 0; }
+.ob-card b { display: block; font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; text-wrap: pretty; }
+.ob-card small { display: block; margin-top: 3px; font-size: 13px; line-height: 1.25; opacity: .8; text-wrap: pretty; }
+/* you on the map: the blue dot of your position, which becomes the tram's badge once the app knows you are on it */
+.ob-puck { position: relative; width: 0; height: 0; }
+.ob-puck-you, .ob-puck-tram { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transition: opacity .5s ease, transform .6s var(--spring, cubic-bezier(.2,.9,.3,1.2)); }
+.ob-puck-you { width: 22px; height: 22px; border-radius: 50%; background: var(--you, #0a84ff); border: 3.5px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+.ob-puck-you::after { content: ""; position: absolute; inset: -13px; border-radius: 50%; background: var(--you, #0a84ff); opacity: .22; animation: ob-pulse 1.8s ease-out infinite; }
+@keyframes ob-pulse { from { transform: scale(.45); opacity: .4; } to { transform: scale(1.25); opacity: 0; } }
+.ob-puck-tram { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 11px 0 8px; border-radius: 18px; background: #d6001c; color: #fff; box-shadow: 0 0 0 3px #fff, 0 3px 10px rgba(0,0,0,.4); opacity: 0; transform: translate(-50%, -50%) scale(.3); }
+.ob-puck-tram svg { width: 20px; height: 20px; }
+.ob-puck-tram b { font-size: 17px; font-weight: 700; line-height: 1; }
+.ob-puck.tram .ob-puck-you { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+.ob-puck.tram .ob-puck-tram { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.ob-stop { position: relative; width: 0; height: 0; }
+.ob-stop i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid #14161a; box-sizing: border-box; }
+.ob-stop span { position: absolute; left: 13px; top: -13px; padding: 4px 9px; border-radius: 9px; background: #14161a; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+.ob-stop.left span { left: auto; right: 13px; }
+/* where the journey is: walk, tram, walk */
+.ob-acts { display: flex; gap: 6px; margin: 0 0 6px; padding: 0; list-style: none; }
+.ob-acts li { flex: 1; min-width: 0; padding-top: 7px; border-top: 3px solid var(--sp-fill); font-size: 12px; line-height: 1.2; color: var(--ob-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: border-color .4s ease, color .4s ease; }
+.ob-acts[data-act="1"] li:nth-child(-n+1), .ob-acts[data-act="2"] li:nth-child(-n+2), .ob-acts[data-act="3"] li { border-top-color: var(--user-blue); }
+.ob-acts[data-act="1"] li:nth-child(1), .ob-acts[data-act="2"] li:nth-child(2), .ob-acts[data-act="3"] li:nth-child(3) { color: var(--bar-text); font-weight: 600; }
+:root[data-theme="dark"] .ob-acts[data-act="1"] li:nth-child(-n+1), :root[data-theme="dark"] .ob-acts[data-act="2"] li:nth-child(-n+2), :root[data-theme="dark"] .ob-acts[data-act="3"] li { border-top-color: var(--accent-ink); }
+
 @media (prefers-reduced-motion: reduce) {
-  .ob, .ob-page, .ob-pick { animation: none !important; transition: none !important; }
+  .ob, .ob-page, .ob-pick, .ob-ride, .ob-puck-you, .ob-puck-you::after, .ob-puck-tram, .ob-acts li { animation: none !important; transition: none !important; }
 }

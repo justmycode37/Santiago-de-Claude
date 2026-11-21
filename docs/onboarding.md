@@ -8,22 +8,17 @@ a welcome page, a demo, two questions, then the map.
 | Part | State |
 |---|---|
 | The introduction: welcome page, first-visit rule, the two questions, the way into the app, "Show the introduction again" | **Complete and tested** (Chromium at phone size, light and dark) |
-| The demo walk it shows | **Not complete yet** |
+| The demo it shows: a journey in three acts (walk, tram ride, walk) | **Built; being polished** (see [The demo](#the-demo) for what each act draws today) |
 
-**The demo walk is not finished.** What plays today is the 3D station view's first-person walk across
-Hirschengraben in Bern (tram platform B to C, 38 m) as `station3d.js` draws and moves it now. The walk itself,
-what you see on the way and how it moves, is still being worked on in a session of its own. Until that is done,
-treat the demo as a placeholder for the final one.
-
-The introduction does not have to change when the walk does, as long as the walk keeps to the contract under
-[The demo](#the-demo). Nothing in the introduction waits on it: the demo can be skipped, and a demo that cannot
-load leads on to the questions.
+Nothing in the introduction waits on the demo: it can be skipped, and a demo that cannot load leads on to the questions.
 
 ## Flow
 
 1. **Welcome**: "Want to see what the app can do for you?" with "Yes, show me" and "Not now" (straight to the questions).
-2. **Demo**: the 3D view fills the screen above a bottom bar. The bar's button reads "Skip the demo" and becomes
-   "Continue" on arrival. The view's own close button and the back gesture also lead on.
+2. **Demo**: a short journey in Bern fills the screen above a bottom bar: a first-person walk across Hirschengraben
+   to the tram, the ride of one stop on a tilted map, a first-person walk to the main station. The bar shows which of
+   the three acts is playing; its button reads "Skip the demo" and becomes "Continue" on arrival. The back gesture
+   also leads on.
 3. **Question 1, walking speed**: the five speeds of Settings (`walkKmh`), plus "Adjust to how I walk" (`autoSpeed`).
 4. **Question 2, access needs**: `wheelchair`, `stepFree`, `fewerStairs`, `noEscalators`, `lowVision`.
    A stricter need shows the milder ones as included, as in Settings.
@@ -35,7 +30,7 @@ Every answer is written straight into the settings (`SETTINGS.set`, `settings.js
 
 | File | Role |
 |---|---|
-| `onboarding.js` | The pages and the demo seam (`startDemo`). Adds the row "Show the introduction again" to Settings. |
+| `src/onboarding.ts` | The pages and the demo (`startDemo`): the three acts and the ride's map. Adds the row "Show the introduction again" to Settings. |
 | `onboarding.css` | Its styles, loaded only when the introduction shows. Rows, icons and switches are the settings page's own classes. |
 | `index.html`, `<head>` | Decides whether it shows, covers the map until it is over (`:root[data-onboarding]`), and holds back the location prompt (`EARLY_GEO.start()`). |
 
@@ -51,21 +46,28 @@ Every answer is written straight into the settings (`SETTINGS.set`, `settings.js
 
 ## The demo
 
-One function in `onboarding.js`, `startDemo(host, onState)`, is the only place that knows what the demo is. Today it calls
+One function in `src/onboarding.ts`, `startDemo(host, onState)`, is the only place that knows what the demo is.
+It plays a fixed journey (no timetable request, the same at any time of day) in three acts inside `host`:
 
-```js
-Station3D.open({ key: 'bern', from: { stop: { uic: '8579896', ref: 'B' } }, to: { stop: { uic: '8579896', ref: 'C' } },
-                 title: 'Bern, Hirschengraben', pov: true, play: true, prefs: SETTINGS.journey(), mount: host })
-```
+| Act | What you see | Drawn by |
+|---|---|---|
+| 1 | A first-person walk from the east side of Hirschengraben across the roadway and past the Bubenberg monument to tram platform B. As you reach the platform, tram 9 pulls in and opens its doors. | `Station3D.open({ key: 'bern', from: stop C, to: stop B, pov: true, play, chrome: 'demo', arrive: { look }, mount: host })`, the Hirschengraben detail scene, the renderer's tram (`Station3D.detail().addVehicle`) |
+| 2 | The picture fades to a tilted map. Your blue dot becomes the tram's badge, a card says the app noticed that you got on, and the badge glides along the track to Bern, Bahnhof. | A MapLibre map of its own in the demo's box, with the app's map style; the track is the one of `stations3d/bern.js` |
+| 3 | Back in first person: from tram platform B at the station to the main entrance. The tram you came on drives off. | `Station3D.open({ key: 'bern', from: stop B of Bern, Bahnhof, to: a point in front of the main entrance, ... })`, the Bahnhofplatz detail scene where it is built, else the plain station model |
 
-and listens to the viewer's events:
+The second walk is opened, paused, while the map covers it, so the switch back does not wait for anything.
 
-| Event | Meaning for the introduction |
+`onState` hears:
+
+| State | Meaning for the introduction |
 |---|---|
-| `arrived`, or `step` with the arriving step | The walk is at its end: the button becomes "Continue". |
-| `error` | The view could not be shown. It says why and offers "Try again"; the button becomes "Continue". |
-| `open` after an error | It runs after all: the button goes back to "Skip the demo". |
-| `close` | The demo is over (its own close button, Done, the back gesture): on to the questions. |
+| `1`, `2`, `3` | That act begins: the bar marks it. |
+| `'arrived'` | The journey is at its end (the last view stays open): the button becomes "Continue". |
+| `'error'` | The 3D view could not be shown. It says why and offers "Try again"; the button becomes "Continue". |
+| `'playing'` | It runs after all: the button goes back to "Skip the demo". |
 
-A different demo only has to be started inside `host` and report the same four things.
-With `prefers-reduced-motion` the walk does not move by itself; the view's own buttons step through it.
+`over` resolves when the demo has gone (`finished`, `skipped`, `unavailable`); `close()` ends it from outside.
+A different demo only has to be started inside `host` and report the same things.
+
+With `prefers-reduced-motion` nothing moves by itself: the button reads "Next" and each press shows the next act as a
+still picture (`next()`), then "Continue".
