@@ -5036,6 +5036,19 @@
       }
       return key && from && to ? { key, from, to } : null;
     }
+    // The continuous "inside" view (station3d-solid.html) for stations that have its companion stations3d/<key>.solid.js
+    const s3SolidHas = new Map();
+    const s3HasSolid = (key) => {
+      if (!s3SolidHas.has(key)) s3SolidHas.set(key, fetch(`stations3d/${key}.solid.js`, { method: 'HEAD' }).then((r) => r.ok, () => false));
+      return s3SolidHas.get(key);
+    };
+    function s3SolidUrl(plan, prefs) {
+      const end = (e) => (e.stop ? `stop:${e.stop.uic}:${e.stop.ref || ''}${e.stop.sector ? '@' + e.stop.sector : ''}`
+        : e.ll ? `ll:${e.ll[0]},${e.ll[1]}${e.level != null ? ',' + e.level : ''}` : '');
+      const p = Object.keys(prefs || {}).filter((k) => prefs[k] === true).join(',');
+      return `station3d-solid.html?key=${encodeURIComponent(plan.key)}&from=${encodeURIComponent(end(plan.from))}`
+        + `&to=${encodeURIComponent(end(plan.to))}${p ? '&prefs=' + p : ''}`;
+    }
     // The journey options for the station router, for the day of that step (closures in the model have dates)
     const s3Prefs = (st) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
     let s3Step = null; // the journey step the 3D view was opened from
@@ -5410,7 +5423,18 @@
           h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
       if (transfer) main.append(spareLine(st));
       else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
-      if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget), kIcon('cube', 16), '3D view')));
+      const s3p = s3Plan(st);
+      if (s3p) {
+        const row = h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget), kIcon('cube', 16), '3D view'));
+        main.append(row);
+        // and, where the station has one, the whole building in one continuous 3D view (opens in a new tab)
+        s3HasSolid(s3p.key).then((ok) => {
+          if (ok) row.append(kBtn('view3d', 'Show this walk inside the station building, in one continuous 3D view', () => {
+            const p = s3Plan(st);
+            if (p) window.open(s3SolidUrl(p, s3Prefs(st)), '_blank', 'noopener');
+          }, kIcon('cube', 16), 'Inside view'));
+        });
+      }
       if (dirs.length > 1) {
         main.append(kBtn('expander', null, () => {
           if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }

@@ -92,13 +92,14 @@
     const q = new URLSearchParams(location.search);
     const key = await window.SOLID_READY.catch((e) => { $('title').textContent = 'No 3D model: ' + e.message; throw e; });
     const model = window.STATION3D[key];
-    // "stop:uic:ref[@sector]" | "entrance:Name" | "node:i"
+    // "stop:uic:ref[@sector]" | "entrance:Name" | "node:i" | "ll:lon,lat[,level]"
     const end = (t) => {
       if (!t) return null;
       const [k, ...rest] = t.split(':');
       if (k === 'stop') { let ref = rest[1] || '', sector; if (ref.includes('@')) [ref, sector] = ref.split('@'); return { stop: Object.assign({ uic: rest[0], ref }, sector ? { sector } : {}) }; }
       if (k === 'entrance') return { entrance: rest.join(':') };
       if (k === 'node') return { node: +rest[0] };
+      if (k === 'll') { const n = rest.join(':').split(',').map(Number); return n.length >= 2 && n.every(isFinite) ? Object.assign({ ll: [n[0], n[1]] }, n.length > 2 ? { level: n[2] } : {}) : null; }
       return null;
     };
     const presets = {
