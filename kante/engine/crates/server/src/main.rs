@@ -93,16 +93,6 @@ fn serve(args: &Args) -> Result<()> {
         } else {
             eprintln!("note: {} has no index.html; serving the API only (build the app with `npm run build` in app/)", app_dir.display());
         }
-        // Engine playground (a single debug page), always available at /playground/.
-        let pg = [PathBuf::from("engine/playground"), PathBuf::from("playground")].into_iter().find(|p| p.join("index.html").exists());
-        let has_app = app_dir.join("index.html").exists();
-        if let Some(pg) = pg {
-            router = router.nest_service("/playground", ServeDir::new(&pg));
-            if !has_app {
-                router = router.fallback_service(ServeDir::new(&pg));
-                eprintln!("note: serving the playground at / until the app is built");
-            }
-        }
         let router = router.layer(CompressionLayer::new()).layer(tower_http::cors::CorsLayer::permissive());
         let listener = tokio::net::TcpListener::bind((bind.as_str(), port)).await.with_context(|| format!("bind {bind}:{port}"))?;
         eprintln!("listening on http://{bind}:{port}");

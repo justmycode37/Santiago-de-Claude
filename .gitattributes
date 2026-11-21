@@ -1,0 +1,6 @@
+# RightSide (native iOS) is built on a Mac: keep its text files LF on every checkout.
+rightside/** text=auto eol=lf
+rightside/**/*.bin binary
+rightside/**/*.mlmodel binary
+rightside/**/*.png binary
+rightside/**/*.jpg binary
