@@ -2,12 +2,13 @@
 // boarding from that edge's own platform or bay. Counts the walks the network finds no route for.
 // usage: node stops_eval.mts CITY [--list]
 import fs from 'node:fs'; import vm from 'node:vm'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+import { transformSync } from 'amaro'; // npm install
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const city = process.argv[2];
 const C = JSON.parse(fs.readFileSync(HERE + '/cities.json', 'utf8'))[city];
 const ctx = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
-ctx.globalThis = ctx; vm.createContext(ctx); vm.runInContext(fs.readFileSync(REPO + '/walkroute.js', 'utf8'), ctx);
+ctx.globalThis = ctx; vm.createContext(ctx); vm.runInContext(transformSync(fs.readFileSync(REPO + '/src/walkroute.ts', 'utf8'), { mode: 'strip-only' }).code, ctx); // the script as the browser gets it: types taken out
 const W = ctx.WALKROUTE;
 W.configure({ loader: async (k) => { const s = fs.readFileSync(REPO + '/walkgraph/' + (k === 'index' ? 'index.js' : 't/' + k + '.js'), 'utf8');
   return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')'))); } });
