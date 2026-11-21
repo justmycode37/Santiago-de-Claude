@@ -16,7 +16,6 @@ build_release() { # build_release <commit> <release dir>
   (cd kante/engine && CARGO_TARGET_DIR="$ROOT/target" cargo build --release --locked -p kante-server)
   mkdir -p "$rel/data"
   cp "$ROOT/target/release/kante" "$rel/kante"
-  cp -r kante/engine/playground "$rel/playground"
   echo "$commit" > "$rel/COMMIT"
   ln -s "$ROOT/raw" "$rel/data/raw"
   ln -s "$ROOT/secrets" "$rel/data/secrets"
