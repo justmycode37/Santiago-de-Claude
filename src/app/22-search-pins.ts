@@ -139,7 +139,7 @@ function render(emptyText = 'No results') {
     onTap(more, () => { expanded = true; render(); });
     list.appendChild(more);
   }
-  if (window.PlaceSearch && results.some((r) => r.source)) { // places from places.js: credit their source
+  if (window.PlaceSearch && visible.some((r) => r.source)) { // places from places.js: credit their source
     const attr = document.createElement('li');
     attr.className = 'attr';
     attr.textContent = PlaceSearch.attribution;

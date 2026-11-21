@@ -16,7 +16,8 @@ const BERN_BOX = [[7.34, 46.9], [7.5, 46.99]];
 
 // Place groups to draw now (none while the events button is off or a journey is on)
 const placeGroupsShown = (): MapGroupKey[] => (eventsOn && !journeyDest ? SETTINGS.mapGroups().filter((k) => k !== 'events') : []);
-const placeFilter = (groups: MapGroupKey[]): maplibregl.FilterSpecification => ['in', ['get', 'g'], ['literal', groups]];
+// not the 'sign' icons (platform sector signs, station furniture): they would bury the app's own platform dots
+const placeFilter = (groups: MapGroupKey[]): maplibregl.FilterSpecification => ['all', ['in', ['get', 'g'], ['literal', groups]], ['!=', ['get', 'gl'], 'sign']];
 
 function placeLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
@@ -116,7 +117,8 @@ function openPlace(i: number) {
   if (group.color === 'sun') dot.style.setProperty('--f', '#344D77');
   dot.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MAP_LAYERS.GLYPHS[glyph]}"/></svg>`;
   const title = mk('div', 'pf-name');
-  title.append(mk('b', null, name || label), mk('small', null, name ? label : group.label));
+  title.append(mk('b', null, name || label));
+  if (name) title.append(mk('small', null, label)); // unnamed: the group would only repeat the kind ("Public toilet" / "Toilets")
   const head = mk('div', 'pf-head');
   head.append(dot, title);
   const body = mk('div', 'pl-body');

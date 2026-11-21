@@ -127,7 +127,8 @@ function ticketPricing(hasTicket: boolean) {
       h('span', 'ticket-fare-rate', rate, h('span', live ? 'ticket-fare-class' : null, ' · ' + caption)),
     ] : tracking ? [hasTicket ? 'Check fare on SBB' : 'Trip fares'] : [])); // no fare known: the ticket button is enough
     summary.title = live ? 'Standard second-class fare' : '';
-    detail.textContent = live ? 'If you paid a different price, enter it here.'
+    detail.hidden = live; // the fields already hold the fare
+    detail.textContent = live ? ''
       : priceKnown ? `Saved on ${previous?.date}. Enter the price for this trip.`
         : 'Enter the price you paid, if known.';
   }

@@ -158,7 +158,7 @@ async function openPlatform(f: PlatformTap) {
     if (req !== popupReq) return;
     // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
     const here = whole ? all : all.filter((d) => (d.edges ? d.edges.includes(f.properties.i!) : platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll));
-    note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st!.name}:`;
+    note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : 'From other platforms:';
     list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
       const li = mk('li');
       li.append(mk('time', null, fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure)), badge(d), mk('span', 'pf-to', d.to));

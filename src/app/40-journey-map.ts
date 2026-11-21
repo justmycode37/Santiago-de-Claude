@@ -64,7 +64,7 @@ function routeLayers(theme: Theme): RouteLayers {
         layout: { ...fixed, 'icon-image': img, 'icon-anchor': 'left', 'icon-offset': [8, 0] } },
       { id: 'route-pins', type: 'symbol', source: 'route', filter: kind('pin'), layout: { ...fixed, 'icon-image': img } },
       // "Platform 7" / "Bay C" where you board
-      { id: 'route-signs', type: 'symbol', source: 'route', filter: kind('sign'),
+      { id: 'route-signs', type: 'symbol', source: 'route', filter: kind('sign'), minzoom: 13,
         layout: { ...fixed, 'icon-image': img, 'symbol-sort-key': ['get', 'sort'],
                   'icon-size': ['interpolate', ['linear'], ['zoom'], 14, .85, 16.6, 1, 18.5, 1.15] } },
     ],

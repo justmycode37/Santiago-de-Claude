@@ -22,7 +22,9 @@ related.addEventListener('change', () => {
 function renderEventPage(f: EventFeature) {
   const p = f.properties;
   pageEvent = f;
-  const choices = eventsAtPin.includes(f) ? eventsAtPin : [];
+  // every event at this pin, soonest end first: the list is the only way to reach the others
+  const end = (e: EventFeature) => (e.properties.through ? Date.parse(e.properties.through) : Infinity);
+  const choices = eventsAtPin.includes(f) ? eventsAtPin.slice().sort((a, b) => (end(a) - end(b)) || 0) : [];
   related.replaceChildren();
   related.parentElement!.hidden = choices.length < 2;
   if (choices.length > 1) {
@@ -50,7 +52,7 @@ function renderEventPage(f: EventFeature) {
   document.getElementById('evAttendance')!.textContent = p.attendance;
   (document.getElementById('evOrganizer') as HTMLAnchorElement).href = p.url;
   document.getElementById('evVenue')!.textContent = p.venue;
-  document.getElementById('evCity')!.textContent = p.city;
+  document.getElementById('evCity')!.textContent = p.venue.toLowerCase().includes(p.city.toLowerCase()) ? '' : p.city;
   document.getElementById('evAbout')!.textContent = p.about;
   document.getElementById('evAudience')!.textContent = p.audience;
   evPage.scrollTop = 0;
@@ -91,7 +93,7 @@ eventJourneyButton.addEventListener('click', () => {
   const event = pageEvent;
   if (!event) return;
   if (!window.isSecureContext || !navigator.geolocation) {
-    eventJourneyStatus.textContent = 'Location is unavailable. Open this page over HTTPS in a browser with location access.';
+    eventJourneyStatus.textContent = 'Open this page over HTTPS to use your location.';
     return;
   }
   const request = ++eventLocationRequest;

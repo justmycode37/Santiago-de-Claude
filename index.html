@@ -670,7 +670,8 @@
     .kj .sheet-handle span { position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--handle); }
     .kj .sheet-handle::after { content: ""; position: absolute; left: 50%; top: -14px; width: 96px; height: 48px; margin-left: -48px; } /* 48 px touch zone */
     .kj .sheet-head { padding: 0 16px 8px; }
-    .kj .sheet-body { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; padding: 0 8px; }
+    .kj .sheet-body { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; padding: 0 8px; scrollbar-width: none; }
+    .kj .sheet-body::-webkit-scrollbar { display: none; }
     .kj.ksheet[data-detent="full"] .sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .kj .sheet-end { height: calc(88px + var(--safe-b)); }
     .kj.sheet-foot { display: none; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 16px calc(8px + var(--safe-b)); }
@@ -770,6 +771,7 @@
     .kj .jhead-times { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
     .kj .jhead-times b { font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; }
     .kj .jhead-times span { font-size: 14px; color: var(--ink-2); }
+    .kj .live-lead { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; } /* "260 m ·" keeps to its badge */
     .kj .jhead-act { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 2px; }
     .kj .jhead-act .pill-btn { align-self: center; }
     .kj .jhead-rest { flex: none; color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -1103,7 +1105,7 @@
     .ev-caption small { margin-top: 3px; font-size: 11px; line-height: 1.25; -webkit-line-clamp: 1; }
     .ev-related { display: block; margin: 0 0 20px; }
     .ev-related[hidden] { display: none; }
-    .ev-related select { display: block; width: 100%; margin-top: 6px; font: inherit; }
+    .ev-related select { display: block; width: 100%; height: 44px; margin-top: 6px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--row-bg); color: var(--bar-text); font: inherit; }
     @keyframes ev-in {
       from { transform: scale(.5); opacity: 0; }
       to   { transform: none; opacity: 1; }
@@ -1359,7 +1361,8 @@
     @media (prefers-reduced-motion: reduce) {
       .set-page, .lang-page, .switch, .switch::before, .set-thumb, .set-fill { transition: none !important; }
     }
-    #evOrganizer { text-decoration: none; display: grid; place-items: center; margin-bottom: 10px; }
+    /* external link: plain text, so it does not compete with Show journey */
+    #evOrganizer { display: grid; place-items: center; min-height: 44px; margin-bottom: 10px; color: var(--accent-ink); font-size: 17px; font-weight: 600; text-decoration: none; }
     .ev-map-btn:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
 
     .user-accuracy {
@@ -1401,11 +1404,14 @@
   <div id="map"></div>
 
   <div class="menu" id="menu">
-    <button class="fab menu-item" id="scanBtn" data-slot="3" type="button" aria-label="Scan a stop with the camera" tabindex="-1">
-      <span class="menu-label" aria-hidden="true">Scan a stop</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
-        <circle cx="12" cy="12" r="3.6" />
+    <button class="fab menu-main" id="menuBtn" type="button" aria-label="More" aria-expanded="false">
+      <svg class="ic-dots" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <circle cx="4.8" cy="12" r="2.4" />
+        <circle cx="12" cy="12" r="2.4" />
+        <circle cx="19.2" cy="12" r="2.4" />
+      </svg>
+      <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
       </svg>
     </button>
     <button class="fab menu-item" id="eventsBtn" data-slot="1" type="button" aria-label="Show events and places" aria-pressed="false" tabindex="-1">
@@ -1423,14 +1429,11 @@
         <circle cx="12" cy="12" r="3" />
       </svg>
     </button>
-    <button class="fab menu-main" id="menuBtn" type="button" aria-label="More" aria-expanded="false">
-      <svg class="ic-dots" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <circle cx="4.8" cy="12" r="2.4" />
-        <circle cx="12" cy="12" r="2.4" />
-        <circle cx="19.2" cy="12" r="2.4" />
-      </svg>
-      <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true">
-        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    <button class="fab menu-item" id="scanBtn" data-slot="3" type="button" aria-label="Scan a stop with the camera" tabindex="-1">
+      <span class="menu-label" aria-hidden="true">Scan a stop</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
+        <circle cx="12" cy="12" r="3.6" />
       </svg>
     </button>
   </div>
@@ -1652,7 +1655,6 @@
         </div>
         <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setLayersHead"></div>
         <p class="set-foot">Use “Events and places” in the ••• menu to show or hide what you switch on here. Toilets are mapped across Switzerland; other places are only mapped in Bern so far.</p>
-        <p class="set-foot">Sources, merged and shortened by us: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL), opentransportdata.swiss, SBB, Velospot, Kanton Bern, the cities of Bern, Zürich, Geneva, Luzern and Zug, Kanton Basel-Stadt and Stadt St.Gallen (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), and swisstopo (Amtliches Gebäudeadressverzeichnis) for addresses.</p>
       </div>
 
       <h2 class="set-head" id="setEventsHead">Events for you</h2>
@@ -1688,6 +1690,7 @@
       <div class="set-group set-gap">
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
       </div>
+      <p class="set-foot">Map data, merged and shortened by us: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL), opentransportdata.swiss, SBB, Velospot, Kanton Bern, the cities of Bern, Zürich, Geneva, Luzern and Zug, Kanton Basel-Stadt and Stadt St.Gallen (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), and swisstopo (Amtliches Gebäudeadressverzeichnis) for addresses.</p>
 
       <!-- Developer options: tools to test "Adjust to how I walk" with logged walks (walk-pace.js) -->
       <div class="set-group set-gap" id="devSwitch" hidden>
@@ -1759,7 +1762,7 @@
           <div><span id="evVenue"></span><small id="evCity"></small></div>
         </div>
         <div class="ev-row">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2.5a2.5 2.5 0 0 0 0 5V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.5a2.5 2.5 0 0 0 0-5zM14 6.5v1.5M14 11.25v1.5M14 16v1.5" /></svg>
           <div><span id="evCost"></span><small id="evAttendance"></small></div>
         </div>
       </div>
@@ -1769,7 +1772,7 @@
       <label class="ev-related" hidden>Events at this map pin
         <select id="evRelated"></select>
       </label>
-      <a class="ev-map-btn" id="evOrganizer" target="_blank" rel="noopener noreferrer">Organiser details</a>
+      <a id="evOrganizer" target="_blank" rel="noopener noreferrer">Organiser details</a>
       <button class="ev-map-btn" id="evShowJourney" type="button">Show journey</button>
       <p id="evJourneyStatus" role="status"></p>
     </div>
@@ -1785,7 +1788,7 @@
         </div>
         <div class="trip-row to">
           <button class="pin-tok" type="button" data-pin="to" aria-label="Destination pin: drag it onto the map, or tap it and then tap the map"><span><svg class="pin-art to" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg></span></button>
-          <input id="q" type="search" placeholder="Search places, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Destination: search places, food, shops and addresses" />
+          <input id="q" type="search" placeholder="Search places" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Destination: search places, food, shops and addresses" />
           <button class="clear" id="clear" type="button" data-clear="to" aria-label="Clear the destination"><span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span></button>
         </div>
         <button class="trip-btn" id="tripBtn" type="button" aria-label="Choose where the trip starts">
@@ -1795,7 +1798,7 @@
       </div>
       <div class="trip-chips">
         <button class="chip" id="whenChip" type="button" aria-haspopup="dialog" hidden><span id="whenText">Leave now</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5" /></svg></button>
-        <button class="chip quiet" id="tripClose" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>Close</button>
+        <button class="chip quiet" id="tripClose" type="button">Close</button>
       </div>
     </form>
     <div class="float-chip hint" id="pinHint" role="status" hidden><span id="pinHintText"></span><button type="button" id="pinHintCancel">Cancel</button></div>

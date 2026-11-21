@@ -123,14 +123,14 @@ function firstAction(now: number) {
 }
 
 function legChain() {
-  const items = journeySteps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && walkMinOf(st) >= 1));
+  const items = journeySteps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && walkMinOf(st) > 3));
   const max = 7, cut = items.length > max ? items.slice(0, max - 1) : items;
   const chain = h('span', 'chain');
   chain.setAttribute('aria-hidden', 'true');
   cut.forEach((st, i) => {
     if (i) chain.append(kIcon('right', 12, 'chain-sep'));
     chain.append(st.type === 'ride' ? kBadge(st.s.journey, null, chainIcon(st.s.journey))
-      : h('span', 'chain-walk', kIcon('walk', 14), String(Math.max(1, walkMinOf(st)))));
+      : h('span', 'chain-walk', kIcon('walk', 14), String(walkMinOf(st))));
   });
   if (cut.length < items.length) chain.append(h('span', 'chain-more', `+${items.length - cut.length}`));
   return chain;
@@ -167,7 +167,7 @@ function optionRow(conn: OdConnection, now: number) {
   chain.setAttribute('aria-hidden', 'true');
   let walkS = 0;
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
-  const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m >= 1) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
+  const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m > 3) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
   conn.sections.forEach((s) => {
     if (!s.journey) { walkS += (s.walk && s.walk.duration) || 0; return; }
     addWalk();
@@ -213,9 +213,8 @@ function optionRow(conn: OdConnection, now: number) {
 }
 function walkCard(conn: OdConnection) {
   const m = conn.kante ? conn.kante.walkM : null;
-  const kmh = SETTINGS.prefs ? Number(SETTINGS.prefs().walkKmh).toFixed(1).replace('.0', '') : '';
   return kBtn('walkcard', null, () => openOption(conn),
-    h('span', 'walkcard-big', h('b', null, kDur(connSecs(conn))), h('span', null, [m ? fmtDist(m) : '', kmh ? `at ${kmh} km/h` : ''].filter(Boolean).join(' '))),
+    h('span', 'walkcard-big', h('b', null, kDur(connSecs(conn))), h('span', null, m ? fmtDist(m) : '')),
     h('span', 'walkcard-sub', `${fmtTime(conn.from.departure)} – ${fmtTime(conn.to.arrival)}`),
     h('span', 'walkcard-cta', 'Walking directions', kIcon('right', 16)));
 }

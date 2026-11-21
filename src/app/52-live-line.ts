@@ -59,10 +59,12 @@ function liveParts(now: number): LiveLine | null {
     }
     const r = st.nextRide;
     if (st.final || !r) return { kind: 'gps', parts: [`${fmtDist(left)} to ${st.toName || 'your destination'}`] };
-    const where = left < 30 ? `At ${boardName(r)} · ` : `${fmtDist(left)} to ${boardName(r)} · `;
+    // the stop's name is the timeline's first item; a platform number is new
+    const board = boardName(r), named = board !== r.s.departure.station!.name;
+    const where = left < 30 ? `At ${board} ·` : named ? `${fmtDist(left)} to ${board} ·` : `${fmtDist(left)} ·`;
     const hr = left >= 30 ? hurry(left, r, now) : null;
     return { kind: 'gps', rest: hr ? hr.text : '', restLevel: hr && hr.level,
-      parts: [where, kBadge(r.s.journey), ` ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.departure, 'departure')), platChange(r)] };
+      parts: [h('span', 'live-lead', where, kBadge(r.s.journey)), ` ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.departure, 'departure')), platChange(r)] };
   }
   // no GPS: from the live timetable
   const ride = journeySteps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);

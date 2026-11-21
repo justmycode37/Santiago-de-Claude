@@ -56,7 +56,7 @@ type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?
 document.getElementById('scanBtn')!.addEventListener('click', () => {
   setMenu(false);
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('The camera needs HTTPS. Open the app via https:// or localhost.', 6000);
+    showToast('The camera isn’t available here.', 6000);
   }
   // Both permissions are asked right here, while the tap still counts as a user gesture (iOS needs that)
   const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia

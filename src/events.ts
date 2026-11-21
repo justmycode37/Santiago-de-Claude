@@ -77,6 +77,8 @@
   const scheduledEvents = window.SWISS_EVENT_SERIES.flatMap(({ sessions, ...series }) =>
     sessions.map((session) => ({ ...series, ...session })));
   listings.push(...window.SWISS_WORKSHOPS, ...scheduledEvents, ...window.COMMUNITY_PROGRAMMES, ...window.BERN_EVENTS);
+  // "21 Nov 2026 · 13:00" → "21 Nov · 13:00" in the current year; other years stay
+  const thisYear = new RegExp(String.raw`(\d{1,2}\.? [^\s\d·–-]+) ${new Date().getFullYear()}\b`, 'g');
   const features: EventFeature[] = listings.map(({ coordinates, ...listing }) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates },
@@ -84,6 +86,7 @@
       cost: 'Check fees with the organizer',
       attendance: 'Contact the organizer for registration details',
       ...listing,
+      when: listing.when.replace(thisYear, '$1'),
       color: CATEGORIES[listing.cat].color,
       ink: CATEGORIES[listing.cat].ink || '#FFFFFF',
       category: CATEGORIES[listing.cat].label,

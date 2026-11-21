@@ -46,7 +46,7 @@
       icon: '<path d="M4 20h5v-5h5v-5h5V5" />' },
     { key: 'noEscalators', color: 'rose', title: 'I avoid escalators', note: '',
       icon: '<path d="M3 15.5h4.5L15 7h6M3 20h6.5L17 11.5h4" />' },
-    { key: 'lowVision', color: 'rose', title: 'I’m blind or have low vision', note: 'For now this adds events and groups for blind and low-vision people to the map. It doesn’t change routes yet.',
+    { key: 'lowVision', color: 'rose', title: 'I’m blind or have low vision', note: 'Shows events and groups for you. Doesn’t change routes yet.',
       icon: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" />' },
   ];
   // A stricter need includes the milder ones (settings.js, effective()): those show as on and can't be switched off
@@ -180,11 +180,11 @@
       <div class="ob-scroll"><div class="ob-inner">
         ${ART}
         <h1 id="obT-welcome" tabindex="-1">Want to see what the app can do for you?</h1>
-        <p class="ob-lead">Take a short walk across Hirschengraben in Bern, from one tram stop to the next, seen the way the app guides you there. It takes about 20 seconds.</p>
+        <p class="ob-lead">Walk from one tram stop to the next in Bern, guided by the app. About 20 seconds.</p>
       </div></div>
       <div class="ob-actions">
         <button class="ob-btn primary" type="button" data-go="demo">Yes, show me</button>
-        <button class="ob-btn quiet" type="button" data-go="speed">Not now</button>
+        <button class="ob-btn quiet" type="button" data-go="speed">Skip demo</button>
       </div>
     </div>
 
@@ -201,12 +201,12 @@
       <div class="ob-scroll"><div class="ob-inner">
         <p class="ob-step">Question 1 of 2</p>
         <h1 id="obT-speed" tabindex="-1">How fast do you walk?</h1>
-        <p class="ob-lead">The app uses this for every walk: to the stop, between vehicles and to the door. If you are not sure, leave it on Normal.</p>
+        <p class="ob-lead">Used for every walk. Not sure? Leave it on Normal.</p>
         <div class="set-group" role="radiogroup" aria-labelledby="obT-speed">${speedRows}
         </div>
         <div class="set-group" id="obAutoGroup" hidden>
           <label class="set-row">
-            <span class="set-text"><b id="obAutoT">Adjust to how I walk</b><small id="obAutoD">The app measures your walking pace and sets the speed above for you. The pace is kept only on this device and never sent anywhere.</small></span>
+            <span class="set-text"><b id="obAutoT">Adjust to how I walk</b><small id="obAutoD">Measures your pace and sets the speed for you. Stays on this device.</small></span>
             <input class="switch" type="checkbox" role="switch" id="obAuto" aria-labelledby="obAutoT" aria-describedby="obAutoD" />
           </label>
         </div>
@@ -221,11 +221,11 @@
       <div class="ob-scroll"><div class="ob-inner">
         <p class="ob-step">Question 2 of 2</p>
         <h1 id="obT-access" tabindex="-1">Is there anything the app should plan around?</h1>
-        <p class="ob-lead">Switch on what applies to you. If nothing does, leave everything off.</p>
+        <p class="ob-lead">Switch on what applies to you.</p>
         <div class="set-group" role="group" aria-labelledby="obT-access">${needRows}
         </div>
-        <p class="set-foot">Your answers stay on this device. You can change them at any time in Settings.</p>
-        <p class="set-foot" id="obGeoNote" hidden>Next, your browser asks whether the app may use your location. The app uses it to show where you are and to start journeys from there.</p>
+        <p class="set-foot">Stays on this device. Change it anytime in Settings.</p>
+        <p class="set-foot" id="obGeoNote" hidden>Next, your browser asks for your location, to show where you are and start journeys there.</p>
       </div></div>
       <div class="ob-actions">
         <button class="ob-btn primary" type="button" data-go="done">Open the map</button>
@@ -403,16 +403,14 @@
   // ---------- Settings › "Show the introduction again" ----------
   let replay = false;
   const reset = document.getElementById('settingsReset');
-  if (reset && reset.parentElement && SETTINGS) {
-    const group = document.createElement('div');
-    group.className = 'set-group set-gap';
+  if (reset && SETTINGS) {
     const b = document.createElement('button');
     b.className = 'set-reset';
     b.id = 'settingsIntro';
     b.type = 'button';
     b.textContent = 'Show the introduction again';
-    group.append(b);
-    reset.parentElement.before(group);
+    reset.classList.add('set-line');
+    reset.before(b);
     b.addEventListener('click', () => { replay = true; SETTINGS.close(); });
     SETTINGS.onClose(() => { if (replay) { replay = false; open(); } });
   }
