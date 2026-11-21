@@ -729,15 +729,13 @@ def register_doors(bbox, proj, nodes, buildings, entrances):
     marks no door)."""
     with_door = {e[1] for e in entrances if e[1]}
     cell = 25.0
-    grid, every = {}, {}  # buildings without a door / all buildings, by 25 m cell
+    every = {}  # all buildings, by 25 m cell
     for bid, nds in buildings.items():
         ring = [proj.xy(*nodes[n]) for n in nds]
         xs, ys = [q[0] for q in ring], [q[1] for q in ring]
         for gx in range(int(min(xs) // cell), int(max(xs) // cell) + 1):
             for gy in range(int(min(ys) // cell), int(max(ys) // cell) + 1):
                 every.setdefault((gx, gy), []).append((bid, ring))
-                if bid not in with_door:
-                    grid.setdefault((gx, gy), []).append((bid, ring))
 
     def inside(q, ring):
         c = False
@@ -748,6 +746,15 @@ def register_doors(bbox, proj, nodes, buildings, entrances):
 
     def in_other(q, bid):
         return any(b != bid and inside(q, r) for b, r in every.get((int(q[0] // cell), int(q[1] // cell)), ()))
+
+    def outline_d(q, ring):
+        best = math.inf
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+            dx, dy = x2 - x1, y2 - y1
+            L2 = dx * dx + dy * dy
+            t = max(0.0, min(1.0, ((q[0] - x1) * dx + (q[1] - y1) * dy) / L2)) if L2 else 0.0
+            best = min(best, math.hypot(q[0] - x1 - dx * t, q[1] - y1 - dy * t))
+        return best
 
     def facade_point(q, bid, ring):
         """The nearest point of the outline that faces the open (not a wall shared with the house next door) →
@@ -776,20 +783,17 @@ def register_doors(bbox, proj, nodes, buildings, entrances):
         cands = {}
         for gx in range(int((q[0] - 8) // cell), int((q[0] + 8) // cell) + 1):
             for gy in range(int((q[1] - 8) // cell), int((q[1] + 8) // cell) + 1):
-                for bid, ring in grid.get((gx, gy), ()):
+                for bid, ring in every.get((gx, gy), ()):
                     cands[bid] = ring
-        best = None  # (rank, distance, building, point on the outline)
-        for bid, ring in cands.items():
-            d, at = facade_point(q, bid, ring)
-            ins = inside(q, ring)
-            if d > (12 if ins else 8):
-                continue
-            cand = (0 if ins else 1, d, bid, at)
-            if best is None or cand[:2] < best[:2]:
-                best = cand
-        if not best:
+        # the address belongs to the building it is in, else to the one whose outline is nearest (up to 8 m); a
+        # building with a mapped door keeps just that door
+        owner = min(((0 if inside(q, ring) else 1, outline_d(q, ring), bid) for bid, ring in cands.items()), default=None)
+        if not owner or (owner[0] and owner[1] > 8) or owner[2] in with_door:
             continue
-        _, _, bid, at = best
+        bid = owner[2]
+        d, at = facade_point(q, bid, cands[bid])
+        if d > 12:
+            continue
         # 12 and 12a at one door: one door, both numbers
         same = next((x for x in per_bld.get(bid, ()) if math.hypot(x[1][0] - at[0], x[1][1] - at[1]) < 2), None)
         if same:

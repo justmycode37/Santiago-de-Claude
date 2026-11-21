@@ -157,8 +157,8 @@
       const s = document.createElement('script');
       s.src = src;
       s.async = true;
-      s.onload = () => ok();
-      s.onerror = () => fail(new Error('load ' + src));
+      s.onload = () => { s.remove(); ok(); }; // the tile has been handed over: the element is not needed
+      s.onerror = () => { s.remove(); fail(new Error('load ' + src)); };
       document.head.appendChild(s);
     });
   }
@@ -187,7 +187,8 @@
             .catch((e) => { pending.delete(key); fail(e); });
         });
       // a tile that failed to load is tried again next time (the phone may have been offline)
-      tiles.set(key, got.then((data) => { raw.set(key, data); return true; }).catch(() => { tiles.delete(key); return false; }));
+      tiles.set(key, got.then((data) => { if (!wellFormed(data)) throw new Error('bad tile ' + key); raw.set(key, data); return true; })
+        .catch(() => { tiles.delete(key); return false; }));
     }
     return tiles.get(key);
   }
@@ -203,16 +204,36 @@
     [nodes, seenWays, seenShort, seenRail, buildings, entrances, egrid, bgrid, rgrid].forEach((m) => m.clear());
     inGraph.clear();
   }
+  // A piece of network joined to nothing else (a tram platform OpenStreetMap draws apart from the street it stands in,
+  // Bern Zytglogge's bay A): fewer than 40 nodes reach each other. Known per node until the network changes.
+  const islands = new Map();
+  function island(n) {
+    if (islands.has(n)) return islands.get(n);
+    const seen = new Set([n]), todo = [n];
+    while (todo.length && seen.size < 40) {
+      const m = todo.pop();
+      for (const e of m.adj) { const o = e.a === m ? e.b : e.a; if (!seen.has(o)) { seen.add(o); todo.push(o); } }
+    }
+    const small = seen.size < 40;
+    if (small) seen.forEach((m) => islands.set(m, true));
+    else islands.set(n, false);
+    return small;
+  }
   // Put these (loaded) tiles into the network, dropping the others first if it would grow too big
   function useTiles(keys) {
     const missing = keys.filter((k) => !inGraph.has(k));
+    if (!missing.length) return;
+    islands.clear(); // new tiles can join what was a piece on its own
     if (inGraph.size + missing.length > MAX_TILES) {
       const keep = new Set(keys);
-      [...raw.keys()].forEach((k) => { if (!keep.has(k) && !wanted.has(k)) { raw.delete(k); tiles.delete(k); } });
+      [...raw.keys()].forEach((k) => { if (!keep.has(k) && !wanted.has(k)) drop(k); });
       clearGraph();
       keys.forEach((k) => { addTile(raw.get(k)); inGraph.add(k); });
     } else missing.forEach((k) => { addTile(raw.get(k)); inGraph.add(k); });
   }
+  const drop = (k) => { raw.delete(k); tiles.delete(k); };
+  // a tile is only taken when it has every part (a half-added tile would stay in the network)
+  const wellFormed = (d) => d && Array.isArray(d.o) && ['n', 'a', 'w', 'v', 'b', 'e', 'x', 'r', 'l'].every((f) => Array.isArray(d[f]));
   const tileKey = (ll, size) => Math.floor(ll[1] / size + 1e-9) + '_' + Math.floor(ll[0] / size + 1e-9);
   const release = (keys) => keys.forEach((k) => { const c = wanted.get(k) - 1; if (c) wanted.set(k, c); else wanted.delete(k); });
   // Load every tile of the box around a and b → their keys, held (wanted) until the caller puts them into the network
@@ -230,7 +251,12 @@
     keys.forEach((k) => wanted.set(k, (wanted.get(k) || 0) + 1));
     // a missing tile in the middle would send the walk on a detour round it: then better the online router
     const ok = await Promise.all(keys.map(loadTile)).then((x) => x.every(Boolean), () => false);
-    if (!ok) { release(keys); return null; }
+    if (!ok) {
+      release(keys);
+      // the tiles that did load are not kept for nothing
+      keys.forEach((k) => { if (!inGraph.has(k) && !wanted.has(k) && raw.has(k)) drop(k); });
+      return null;
+    }
     return keys;
   }
 
@@ -260,12 +286,18 @@
     });
     return out;
   }
-  // Does the straight line p→q cross a railway track on the ground (other than one passing within skipM of p)?
-  function cutsRail(p, q, skipM) {
+  // Does the straight line p→q cross a railway track on the ground?
+  function cutsRail(p, q) {
     const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-    for (const [a, b] of gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5))
-      if (crosses(p, q, a, b) && !(skipM && project(p, a, b).d < skipM)) return true;
+    for (const [a, b] of gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)) if (crosses(p, q, a, b)) return true;
     return false;
+  }
+  // Does p→q cross just one track, the one p stands on (within 1.5 m of it)? A stop position given on the track
+  // itself is then on its platform; a second track crossed, however close, is never allowed
+  function onlyOwnTrack(p, q) {
+    const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    const hit = [...gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)].filter(([a, b]) => crosses(p, q, a, b));
+    return hit.length === 1 && project(p, hit[0][0], hit[0][1]).d < 1.5;
   }
   // Does the straight line p→q cut through a building (other than those in `allow`)?
   function cutsBuilding(p, q, allow) {
@@ -291,6 +323,7 @@
       if (!levelOk(a, o.level)) return;
       if (a.k === 'es' || (o.stepFree && a.w)) return; // never step onto the middle of an escalator
       if (o.osmOnly && a.s === 't') return; // second try: a swisstopo path near the end may lead nowhere
+      if (o.noIslands && island(e.a)) return; // last try: never onto a piece of network joined to nothing
       // a platform below or above the street: only paths known to be on its floor (not the street right above it)
       if (o.platform && !o.wide && o.level && !a.lv) return;
       // the platform of another track or bay is never where you board, however close (islands are metres apart)
@@ -309,7 +342,7 @@
       // reaches its own platform across that one track; the walk then starts on the platform (onTrack)
       let onTrack = false;
       if (pr.d > 1 && cutsRail(p, pr.q)) {
-        if (!own || cutsRail(p, pr.q, 1.5)) return;
+        if (!own || !onlyOwnTrack(p, pr.q)) return;
         onTrack = true;
       }
       if (pr.d > 2) {
@@ -649,6 +682,8 @@
       { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true, osmOnly: true } },
       { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true } },
       { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true, osmOnly: true } },
+      // a platform (or path) OpenStreetMap draws apart from every street: from the street beside it
+      { ...opt, from: { ...from, accuracy: null, wide: true, noIslands: true }, to: { ...to, wide: true, noIslands: true } },
     ];
     for (const t of tries) {
       if (!t) continue;

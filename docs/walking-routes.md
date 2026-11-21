@@ -16,7 +16,8 @@ where there are no tiles, the online routers are used.
 - **Floors**: station underpasses, stairs, escalators and lifts by level, with directions such as "Stairs down to
   level −2, then 80 m". Step-free, fewer-stairs and no-escalator settings avoid steps, escalators and raised kerbs.
 - **Platforms by number**: a train or bus is boarded from the platform OpenStreetMap gives for its track or bay
-  (`ref=3;4`), never from the island next to it.
+  (`ref=3;4`), never from the island next to it. A stop position given on the track itself reaches its platform
+  across that one track; a platform drawn apart from every street is reached from the street beside it.
 - **Squares and platforms** are crossed in a straight line; railway tracks on the ground are never crossed.
 - **Paths outside towns** that OpenStreetMap lacks come from swisstopo's swissTLM3D (marked `s: 't'`).
 - **Guesses are shown as guesses**: a straight bit across open ground longer than 20 m at either end of a walk, or a
@@ -58,10 +59,10 @@ same address, the point snapped onto the outline is a median 0.8 m (Bern), 0.9 m
 
 | Area | Tiles | Size (gzip) | OSM doors | Register doors |
 |---|---|---|---|---|
-| Bern | 84 | 9.2 MB (3.5 MB) | 15,500 | 26,700 |
-| Zürich | 215 | 20.6 MB (7.5 MB) | 7,000 | 76,500 |
-| Basel | 70 | 8.8 MB (3.1 MB) | 17,500 | 30,500 |
-| Geneva | 81 | 10.2 MB (3.7 MB) | 530 | 44,900 |
+| Bern | 84 | 9.2 MB (3.5 MB) | 15,500 | 25,900 |
+| Zürich | 215 | 20.6 MB (7.5 MB) | 7,000 | 76,200 |
+| Basel | 70 | 8.8 MB (3.1 MB) | 17,500 | 30,000 |
+| Geneva | 81 | 10.2 MB (3.7 MB) | 530 | 44,800 |
 | Lausanne | 62 | 6.9 MB (2.5 MB) | 820 | 28,200 |
 
 `tools/test_walkroute.mjs` checks the built tiles (doors reached, no building or track crossings, platform changes).

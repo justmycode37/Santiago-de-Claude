@@ -21,7 +21,8 @@ let mapped = null;
 const mappedSegs = () => { if (mapped && mapped.n === nodes.size) return mapped; mapped = []; mapped.n = nodes.size; const seen = new Set();
   nodes.forEach((n) => n.adj.forEach((e) => { if (e.attr.k !== 'ar' && !seen.has(e)) { seen.add(e); mapped.push([e.a.ll, e.b.ll]); } })); return mapped; };
 const nearMapped = (p) => { const k = 111320 * Math.cos(p[1] * Math.PI / 180);
-  for (const [a, b] of mappedSegs()) { if (Math.abs(a[0] - p[0]) > 0.0005 && Math.abs(b[0] - p[0]) > 0.0005) continue;
+  for (const [a, b] of mappedSegs()) { // only segments whose box comes within ~40 m of p (a long one may pass by p)
+    if (Math.min(a[0], b[0]) > p[0] + 0.0005 || Math.max(a[0], b[0]) < p[0] - 0.0005 || Math.min(a[1], b[1]) > p[1] + 0.0004 || Math.max(a[1], b[1]) < p[1] - 0.0004) continue;
     const ax = (a[0] - p[0]) * k, ay = (a[1] - p[1]) * 110540, dx = (b[0] - a[0]) * k, dy = (b[1] - a[1]) * 110540;
     const L2 = dx * dx + dy * dy, t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0; if (Math.hypot(ax + dx * t, ay + dy * t) < 3) return true; } return false; };
 const badMetres = (line, dest) => { const own = new Set(bldAt(dest).concat(bldAt(START))); let bad = 0;
@@ -29,7 +30,8 @@ const badMetres = (line, dest) => { const own = new Set(bldAt(dest).concat(bldAt
     for (let j = 0; j < n; j++) { const t = (j + .5) / n, p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
       if (bldAt(p).some((x) => !own.has(x)) && !nearMapped(p)) bad += L / n; } } return bad; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const med = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const med = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+const mean = (xs) => { const v = xs.filter((x) => x != null); return v.length ? +(v.reduce((t, x) => t + x, 0) / v.length).toFixed(1) : null; };
 
 // OSRM's answers are kept in osrm_CITY.json: the server is slow at times, and a rerun compares against the same routes
 const OSRM_FILE = `${HERE}/osrm_${city}.json`;
@@ -86,8 +88,9 @@ const out = { city, destinations: n, routed: cnt((r) => r.net), withDoors: wd.le
   withOsmDoors: wo.length, osmDoorReached: wo.filter((r) => r.doorOwn && r.doorType !== 'addr').length,
   registerDoorOnly: wd.length - wo.length, registerDoorReached: wd.filter((r) => !r.osmDoors && r.doorOwn).length,
   doorViaIndoor: wd.filter((r) => r.inStationOrIndoor).length,
-  netBadMean: +(rows.reduce((s, r) => s + (r.netBad || 0), 0) / n).toFixed(1), netBad3: cnt((r) => r.netBad >= 3),
-  osrmBadMean: +(rows.reduce((s, r) => s + (r.osrmBad || 0), 0) / n).toFixed(1), osrmBad3: cnt((r) => r.osrmBad >= 3),
+  // per walk that has a route (a missing route is not a walk with 0 m through buildings)
+  netBadMean: mean(rows.map((r) => r.netBad)), netBad3: cnt((r) => r.netBad >= 3),
+  osrmBadMean: mean(rows.map((r) => r.osrmBad)), osrmBad3: cnt((r) => r.osrmBad >= 3),
   offPathEnd: cnt((r) => r.offPathEnd), withSwisstopo: cnt((r) => r.swisstopoM > 0),
   medianNet: med(both.map((r) => r.netLen)), medianOsrm: med(both.map((r) => r.osrmLen)),
   shorter: both.filter((r) => r.netLen < r.osrmLen * 0.95).length, longer: both.filter((r) => r.netLen > r.osrmLen * 1.05).length, compared: both.length,

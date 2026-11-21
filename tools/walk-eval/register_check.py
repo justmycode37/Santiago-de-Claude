@@ -35,6 +35,9 @@ for c in AREAS:
         xs = [p[0] for p in ring]; ys = [p[1] for p in ring]
         for gx in range(int(min(xs) / .0005), int(max(xs) / .0005) + 1):
             for gy in range(int(min(ys) / .0005), int(max(ys) / .0005) + 1): grid.setdefault((gx, gy), []).append(bid)
+    def near(lon, lat):  # the buildings in the point's grid cell and the eight around it
+        gx, gy = int(lon / .0005), int(lat / .0005)
+        return {b for x in (gx - 1, gx, gx + 1) for y in (gy - 1, gy, gy + 1) for b in grid.get((x, y), ())}
     def inside(p, ring):
         cc = False
         for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
@@ -57,7 +60,7 @@ for c in AREAS:
         return best
     dins, dout, none = [], [], 0
     for lon, lat, _ in pts[c]:
-        cand = set(grid.get((int(lon / .0005), int(lat / .0005)), []))
+        cand = near(lon, lat)
         ds = [(edge_d((lon, lat), blds[b]), inside((lon, lat), blds[b])) for b in cand]
         if not ds: none += 1; continue
         d, ins = min(ds)
@@ -70,7 +73,7 @@ for c in AREAS:
     for lon, lat, a in pts[c]: reg.setdefault(a, []).append((lon, lat))
     dd = []; ds = []
     def snapped(p):
-        cand = set(grid.get((int(p[0] / .0005), int(p[1] / .0005)), []))
+        cand = near(*p)
         best = min((snap(p, blds[b]) for b in cand), default=(1e9, p))
         return best[1] if best[0] < 12 else p
     for (lon, lat), a in ents:
