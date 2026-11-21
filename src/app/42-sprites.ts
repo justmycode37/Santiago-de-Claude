@@ -24,7 +24,7 @@ function makeSprite(id: string): MapSprite | null {
 // A place on the map: a palette-coloured disc with a white rim and the group's glyph
 function placeSprite(glyph: string, color: string, dark: boolean, ratio: number) {
   const path = MAP_LAYERS.GLYPHS[glyph];
-  const col = MAP_LAYERS.COLORS[color];
+  const col = MAP_LAYERS.COLORS[color as MapColorName];
   if (!path || !col) return null;
   const d = 26, m = 3, r = d / 2, cx = m + r;
   const [c, ctx] = spriteCanvas(d + m * 2, d + m * 2, ratio);

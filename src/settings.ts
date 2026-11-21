@@ -7,8 +7,8 @@
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
-  const MODES = ['train', 'tram', 'bus', 'ship', 'cableway']; // transport.opendata.ch "transportations"
-  const DEFAULTS = {
+  const MODES: TransportMode[] = ['train', 'tram', 'bus', 'ship', 'cableway']; // transport.opendata.ch "transportations"
+  const DEFAULTS: Settings = {
     // Accessibility (stricter ones switch on the ones they include)
     stepFree: false,
     fewerStairs: false,
@@ -45,7 +45,7 @@
     maxWalkMin: { min: 5, max: 60, step: 5 },
   };
   const LAYER_KEYS = window.MAP_LAYERS.GROUPS.map((g) => g.key);
-  const JOURNEY_KEYS = ['stepFree', 'fewerStairs', 'noEscalators', 'wheelchair', 'walkKmh', 'extraChangeMin', 'maxWalkMin', 'modes'];
+  const JOURNEY_KEYS: (keyof Settings)[] = ['stepFree', 'fewerStairs', 'noEscalators', 'wheelchair', 'walkKmh', 'extraChangeMin', 'maxWalkMin', 'modes'];
   // Event tags (events.js, swiss-workshops.js) each setting shows
   const EVENT_TAGS = {
     newcomer: ['newcomers', 'language'],
@@ -55,23 +55,30 @@
     adaptiveSport: ['adaptive-sport'],
   };
 
-  function nearestPreset(kmh) {
+  /** The settings that are a switch, the two with a − and a + button, and the ones that pick events. */
+  type FlagKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
+  type StepperKey = keyof typeof STEPPERS;
+  type EventKey = keyof typeof EVENT_TAGS;
+  type TimeKey = 'departure' | 'arrival';
+  type StampKey = 'departureTimestamp' | 'arrivalTimestamp';
+
+  function nearestPreset(kmh: number) {
     let best = 0;
     SPEED_PRESETS.forEach((p, i) => { if (Math.abs(p.kmh - kmh) < Math.abs(SPEED_PRESETS[best].kmh - kmh)) best = i; });
     return best;
   }
 
-  function clean(saved) {
+  function clean(saved: Record<string, unknown>) {
     const s = { ...DEFAULTS };
-    for (const k in DEFAULTS) if (typeof DEFAULTS[k] === 'boolean' && typeof saved[k] === 'boolean') s[k] = saved[k];
+    for (const k in DEFAULTS) if (typeof DEFAULTS[k as keyof Settings] === 'boolean' && typeof saved[k] === 'boolean') s[k as FlagKey] = saved[k];
     if (typeof saved.walkKmh === 'number' && saved.walkKmh > 0) s.walkKmh = SPEED_PRESETS[nearestPreset(saved.walkKmh)].kmh;
     for (const k in STEPPERS) {
-      const v = saved[k], r = STEPPERS[k];
-      if (Number.isInteger(v) && v >= r.min && v <= r.max) s[k] = v;
+      const v = saved[k] as number, r = STEPPERS[k as StepperKey];
+      if (Number.isInteger(v) && v >= r.min && v <= r.max) s[k as StepperKey] = v;
     }
-    if (Array.isArray(saved.mapHidden)) s.mapHidden = LAYER_KEYS.filter((k) => saved.mapHidden.includes(k));
+    if (Array.isArray(saved.mapHidden)) s.mapHidden = LAYER_KEYS.filter((k) => (saved.mapHidden as unknown[]).includes(k));
     if (Array.isArray(saved.modes)) {
-      const m = MODES.filter((x) => saved.modes.includes(x));
+      const m = MODES.filter((x) => (saved.modes as unknown[]).includes(x));
       s.modes = m.length && m.length < MODES.length ? m : null;
     }
     return s;
@@ -79,12 +86,12 @@
 
   let state = { ...DEFAULTS };
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY));
+    const saved = JSON.parse(localStorage.getItem(KEY)!);
     if (saved && typeof saved === 'object') state = clean(saved);
     else {
       // Carry over the old event-preference checkboxes
-      const old = JSON.parse(localStorage.getItem('event-preferences'));
-      if (Array.isArray(old)) for (const k in EVENT_TAGS) state[k] = EVENT_TAGS[k].some((t) => old.includes(t));
+      const old = JSON.parse(localStorage.getItem('event-preferences')!);
+      if (Array.isArray(old)) for (const k in EVENT_TAGS) state[k as EventKey] = EVENT_TAGS[k as EventKey].some((t) => old.includes(t));
     }
   } catch { /* Settings still work for this visit. */ }
 
@@ -96,20 +103,20 @@
     const stepFree = state.stepFree || state.wheelchair;
     return { ...state, stepFree, fewerStairs: state.fewerStairs || stepFree, noEscalators: state.noEscalators || stepFree };
   }
-  const impliedBy = {
+  const impliedBy: Partial<Record<FlagKey, () => boolean>> = {
     stepFree: () => state.wheelchair,
     fewerStairs: () => state.stepFree || state.wheelchair,
     noEscalators: () => state.stepFree || state.wheelchair,
   };
 
   // ---- What the settings change ----
-  const eventTags = () => Object.keys(EVENT_TAGS).filter((k) => state[k]).flatMap((k) => EVENT_TAGS[k]);
+  const eventTags = () => (Object.keys(EVENT_TAGS) as EventKey[]).filter((k) => state[k]).flatMap((k) => EVENT_TAGS[k]);
   // Map groups the events button shows, e.g. ['events', 'toilets', …]
   const mapGroups = () => LAYER_KEYS.filter((k) => !state.mapHidden.includes(k));
 
   // Valhalla pedestrian costing for walks, or null for the normal walking router.
   // OpenStreetMap maps escalators as moving steps, so avoiding escalators means avoiding steps.
-  function walkCosting() {
+  function walkCosting(): WalkCosting | null {
     const s = effective();
     if (s.stepFree) return { type: 'wheelchair' };
     if (s.fewerStairs || s.noEscalators) return { step_penalty: 120 };
@@ -119,21 +126,21 @@
   // transport.opendata.ch "transportations[]" values, or [] for all
   const transportations = () => state.modes || [];
 
-  const pad = (n) => String(n).padStart(2, '0');
-  const secOf = (cp, which) => (cp[which + 'Timestamp'] != null ? cp[which + 'Timestamp'] : cp[which] ? Date.parse(cp[which]) / 1000 : null);
-  function setTime(cp, which, sec) {
-    cp[which + 'Timestamp'] = sec;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const secOf = (cp: OdCheckpoint, which: TimeKey) => (cp[which + 'Timestamp' as StampKey] != null ? cp[which + 'Timestamp' as StampKey] : cp[which] ? Date.parse(cp[which]) / 1000 : null);
+  function setTime(cp: OdCheckpoint, which: TimeKey, sec: number) {
+    cp[which + 'Timestamp' as StampKey] = sec;
     cp[which] = new Date(sec * 1000).toISOString();
   }
 
   // Walking speed: stretch or shrink every walk. Walks before the first ride end as it leaves
   // (so you set off earlier or later); walks after the last ride start when it arrives.
-  function retime(conn) {
+  function retime(conn: OdConnection) {
     const f = NORMAL_KMH / state.walkKmh;
     const secs = conn.sections || [];
     const rides = secs.map((s, i) => (s.journey ? i : -1)).filter((i) => i >= 0);
     if (Math.abs(f - 1) < 0.01 || !rides.length) return conn;
-    const dur = (s) => (s.walk && s.walk.duration) || 0;
+    const dur = (s: OdSection) => (s.walk && s.walk.duration) || 0;
     secs.forEach((s) => { if (!s.journey && s.walk && s.walk.duration) s.walk.duration = Math.round(s.walk.duration * f); });
     let t = secOf(secs[rides[0]].departure, 'departure');
     for (let i = rides[0] - 1; i >= 0 && t != null; i--) {
@@ -158,9 +165,9 @@
 
   // Does a (retimed) connection fit: no single walk longer than the maximum, and at every change
   // enough time for the walk plus the extra change time (at least 7 min step-free, 10 min wheelchair)?
-  function connectionFits(conn) {
+  function connectionFits(conn: OdConnection) {
     const accessMin = state.wheelchair ? 10 : effective().stepFree ? 7 : 0;
-    let walk = 0, lastRide = null;
+    let walk = 0, lastRide: OdSection | null = null;
     for (const s of conn.sections || []) {
       if (!s.journey) {
         walk += (s.walk && s.walk.duration) || 0;
@@ -179,12 +186,12 @@
   }
 
   // ---- Page ----
-  const page = document.getElementById('settingsPage');
-  const closeBtn = document.getElementById('settingsClose');
+  const page = document.getElementById('settingsPage')!;
+  const closeBtn = document.getElementById('settingsClose')!;
   // "On the map": one switch per group in map-layers.js
   const { GROUPS, GLYPHS } = window.MAP_LAYERS;
-  const layerGroup = document.getElementById('setMapGroup');
-  const layerAll = document.getElementById('setMapAll');
+  const layerGroup = document.getElementById('setMapGroup')!;
+  const layerAll = document.getElementById('setMapAll')!;
   for (const g of GROUPS) {
     const row = document.createElement('label');
     row.className = 'set-row';
@@ -214,31 +221,31 @@
     row.append(ic, text, input);
     layerGroup.append(row);
   }
-  const layerSwitches = [...layerGroup.querySelectorAll('input[data-layer]')];
-  const switches = [...page.querySelectorAll('input[data-setting]')];
-  const modeSwitches = [...page.querySelectorAll('input[data-mode]')];
-  const slider = document.getElementById('speedSlider');
-  const speedLabel = document.getElementById('speedName');
+  const layerSwitches = [...layerGroup.querySelectorAll<HTMLInputElement>('input[data-layer]')];
+  const switches = [...page.querySelectorAll<HTMLInputElement>('input[data-setting]')];
+  const modeSwitches = [...page.querySelectorAll<HTMLInputElement>('input[data-mode]')];
+  const slider = document.getElementById('speedSlider')!;
+  const speedLabel = document.getElementById('speedName')!;
   const LAST = SPEED_PRESETS.length - 1;
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  const changeListeners = [];
-  const closeListeners = [];
+  const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
+  const changeListeners: (() => void)[] = [];
+  const closeListeners: ((journeyChanged: boolean) => void)[] = [];
   let isOpen = false;
   let pushed = false;
   let journeyBefore = '';
-  let madeInert = [];
+  let madeInert: HTMLElement[] = [];
   let themeBefore = '';
 
   // ---- Walking speed slider: moves freely while dragged, snaps to the nearest of five stops ----
   let dragging = false;
   let dragAt = 0; // stop the thumb is nearest to while dragging
-  function drawSlider(pos, snap) {
+  function drawSlider(pos: number, snap: boolean) {
     slider.classList.toggle('snap', snap);
     slider.style.setProperty('--f', String(pos / LAST));
     speedLabel.textContent = SPEED_PRESETS[Math.round(pos)].label;
   }
   // The knob's centre runs from h/2 to width − h/2 (h = the pill's height, --h in the CSS)
-  const posAt = (e) => {
+  const posAt = (e: PointerEvent) => {
     const r = slider.getBoundingClientRect();
     const h = parseFloat(getComputedStyle(slider).getPropertyValue('--h')) || 0;
     return Math.min(LAST, Math.max(0, ((e.clientX - r.left - h / 2) / (r.width - h)) * LAST));
@@ -271,7 +278,7 @@
   slider.addEventListener('pointercancel', endDrag);
   slider.addEventListener('keydown', (e) => {
     const i = nearestPreset(state.walkKmh);
-    const to = { ArrowRight: i + 1, ArrowUp: i + 1, PageUp: i + 1, ArrowLeft: i - 1, ArrowDown: i - 1, PageDown: i - 1, Home: 0, End: LAST }[e.key];
+    const to = ({ ArrowRight: i + 1, ArrowUp: i + 1, PageUp: i + 1, ArrowLeft: i - 1, ArrowDown: i - 1, PageDown: i - 1, Home: 0, End: LAST } as Record<string, number | undefined>)[e.key];
     if (to === undefined) return;
     e.preventDefault();
     update({ walkKmh: SPEED_PRESETS[Math.min(LAST, Math.max(0, to))].kmh });
@@ -280,30 +287,30 @@
   function render() {
     const eff = effective();
     for (const input of switches) {
-      const k = input.dataset.setting;
+      const k = input.dataset.setting as FlagKey;
       input.checked = eff[k];
       input.disabled = impliedBy[k] ? impliedBy[k]() : false;
     }
     const on = state.modes || MODES;
     for (const input of modeSwitches) {
-      input.checked = on.includes(input.dataset.mode);
+      input.checked = on.includes(input.dataset.mode as TransportMode);
       input.disabled = input.checked && on.length === 1; // keep at least one
     }
-    for (const input of layerSwitches) input.checked = !state.mapHidden.includes(input.dataset.layer);
+    for (const input of layerSwitches) input.checked = !state.mapHidden.includes(input.dataset.layer as MapGroupKey);
     layerAll.textContent = state.mapHidden.length ? 'Show all' : 'Hide all';
     const speed = nearestPreset(state.walkKmh);
     if (!dragging) drawSlider(speed, true);
     slider.setAttribute('aria-valuenow', String(speed));
     slider.setAttribute('aria-valuetext', SPEED_PRESETS[speed].label);
     for (const k in STEPPERS) {
-      const r = STEPPERS[k];
-      document.getElementById(k + 'Val').textContent = `${state[k]} min`;
-      page.querySelector(`[data-stepper="${k}"][data-dir="-1"]`).disabled = state[k] <= r.min;
-      page.querySelector(`[data-stepper="${k}"][data-dir="1"]`).disabled = state[k] >= r.max;
+      const r = STEPPERS[k as StepperKey];
+      document.getElementById(k + 'Val')!.textContent = `${state[k as StepperKey]} min`;
+      page.querySelector<HTMLButtonElement>(`[data-stepper="${k}"][data-dir="-1"]`)!.disabled = state[k as StepperKey] <= r.min;
+      page.querySelector<HTMLButtonElement>(`[data-stepper="${k}"][data-dir="1"]`)!.disabled = state[k as StepperKey] >= r.max;
     }
   }
 
-  function update(patch) {
+  function update(patch: Partial<Settings>) {
     state = { ...state, ...patch };
     save();
     render();
@@ -311,27 +318,27 @@
   }
 
   page.addEventListener('change', (e) => {
-    const t = e.target;
+    const t = e.target as HTMLInputElement;
     if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
     else if (t.dataset.layer) {
       const hidden = state.mapHidden.filter((k) => k !== t.dataset.layer);
-      if (!t.checked) hidden.push(t.dataset.layer);
+      if (!t.checked) hidden.push(t.dataset.layer as MapGroupKey);
       update({ mapHidden: LAYER_KEYS.filter((k) => hidden.includes(k)) });
     }
     else if (t.dataset.mode) {
       const cur = new Set(state.modes || MODES);
-      t.checked ? cur.add(t.dataset.mode) : cur.delete(t.dataset.mode);
+      t.checked ? cur.add(t.dataset.mode as TransportMode) : cur.delete(t.dataset.mode as TransportMode);
       update({ modes: cur.size === MODES.length || !cur.size ? null : MODES.filter((m) => cur.has(m)) });
     }
   });
   page.addEventListener('click', (e) => {
-    const step = e.target.closest('[data-stepper]');
+    const step = (e.target as HTMLElement).closest<HTMLElement>('[data-stepper]');
     if (step) {
-      const k = step.dataset.stepper, r = STEPPERS[k];
-      return update({ [k]: Math.min(r.max, Math.max(r.min, state[k] + r.step * +step.dataset.dir)) });
+      const k = step.dataset.stepper as StepperKey, r = STEPPERS[k];
+      return update({ [k]: Math.min(r.max, Math.max(r.min, state[k] + r.step * +step.dataset.dir!)) });
     }
-    if (e.target.closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
-    if (e.target.closest('#settingsReset')) update({ ...DEFAULTS });
+    if ((e.target as HTMLElement).closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
+    if ((e.target as HTMLElement).closest('#settingsReset')) update({ ...DEFAULTS });
   });
 
   const journeySnapshot = () => JSON.stringify(JOURNEY_KEYS.map((k) => state[k]));
@@ -340,9 +347,9 @@
     isOpen = true;
     journeyBefore = journeySnapshot();
     render();
-    madeInert = [...document.body.children].filter((el) => el !== page && el.tagName !== 'SCRIPT' && !el.inert);
+    madeInert = ([...document.body.children] as HTMLElement[]).filter((el) => el !== page && el.tagName !== 'SCRIPT' && !el.inert);
     madeInert.forEach((el) => { el.inert = true; });
-    themeBefore = themeMeta.getAttribute('content');
+    themeBefore = themeMeta.getAttribute('content')!;
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
     page.scrollTop = 0;
     page.classList.add('open');
