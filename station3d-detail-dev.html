@@ -22,6 +22,9 @@
                                      written as +1.2), for close-ups
       sun=<azimuth>,<elevation>      where the light comes from
       zshift=<m> | auto              move the whole scene up or down (auto: by the zOffset of the data)
+      flatten=1                      take the slope of the street out (the ground lies level, as in the viewer)
+      shadows=0                      no cast shadows on the ground
+      feather=<m> featherinside=<m> feathercolor=<hex without #>   the rim of the ground (see the renderer's header)
       route=0                        hide the blue route band        fog=0   no haze
       ui=0                           hide the controls (for screenshots)
     For scripts: window.__ready is a promise that resolves with the stats once the first frame is drawn;
@@ -107,7 +110,8 @@
       sun: list('sun') ? { azimuth: +list('sun')[0], elevation: +list('sun')[1] } : undefined,
       route: q.get('route') !== '0', fog: q.get('fog') !== '0',
       pollard: q.has('pollard') ? q.get('pollard') !== '0' : undefined,
-      zShift: q.get('zshift') === 'auto' ? true : num('zshift', 0),
+      zShift: q.get('zshift') === 'auto' ? true : num('zshift', 0), flatten: q.get('flatten') === '1', shadows: q.get('shadows') !== '0',
+      feather: q.has('feather') ? num('feather', 5) : undefined, featherInside: num('featherinside', 0), featherColor: q.get('feathercolor') ? '#' + q.get('feathercolor') : undefined,
     };
     if (q.get('ui') === '0') { $('head').hidden = true; $('dock').hidden = true; }
     let done, failed;
@@ -172,17 +176,19 @@
       function rebuild(change) {
         Object.assign(state, change);
         document.documentElement.dataset.theme = state.theme;
-        const opts = { theme: state.theme, quality: state.quality, season: state.season, pollard: state.pollard, zShift: state.zShift, sun: state.sun, toScene };
+        const opts = { theme: state.theme, quality: state.quality, season: state.season, pollard: state.pollard, zShift: state.zShift, flatten: state.flatten, shadows: state.shadows, feather: state.feather, featherInside: state.featherInside, featherColor: state.featherColor, sun: state.sun, toScene };
         if (handle) Station3DDetail.update(handle, opts); else { handle = Station3DDetail.build(THREE, detail, opts); scene.add(handle.group); }
         pal = Station3DDetail.palette(state.theme);
         if (sky) { scene.remove(sky); sky.geometry.dispose(); sky.material.dispose(); }
         sky = Station3DDetail.sky(THREE, { theme: state.theme, radius: 800 });
         scene.add(sky);
-        scene.fog = state.fog ? new THREE.Fog(pal.horizon, 30, 230) : null; // the haze of the viewer's first-person view
+        scene.userData.fog = scene.fog = state.fog ? new THREE.Fog(pal.horizon, 42, 320) : null; // the haze of the viewer's first-person view
         renderer.setClearColor(pal.horizon);
         // what the viewer has around the stretch: plain ground to the horizon
         if (backdrop) { scene.remove(backdrop); backdrop.geometry.dispose(); backdrop.material.dispose(); }
-        const z = zAt(mid[0], mid[1]) - 0.45;
+        let z = zAt(mid[0], mid[1]); // below the lowest ground of the scene (a street that falls must not dip into it)
+        for (let i = 0; i <= 12; i++) for (let j = 0; j <= 12; j++) { const g = handle.groundAt(box[0] + (box[2] - box[0]) * i / 12, box[1] + (box[3] - box[1]) * j / 12); if (g != null) z = Math.min(z, g); }
+        z -= 0.45;
         backdrop = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshBasicMaterial({ color: pal.ground }));
         backdrop.rotation.x = -Math.PI / 2; backdrop.position.set(mid[0], z, -mid[1]); backdrop.renderOrder = -50;
         scene.add(backdrop);
@@ -235,6 +241,7 @@
           camera.lookAt(o.p[0] + Math.sin(b) * Math.cos(ph), z + Math.sin(ph), -(o.p[1] + Math.cos(b) * Math.cos(ph)));
         }
         if (sky) sky.position.copy(camera.position);
+        if (scene.userData.fog !== undefined) scene.fog = state.view === 'orbit' && !(state.cam && state.look) ? null : scene.userData.fog; // the haze belongs to the walk, not to the view from above
       }
       let queued = false;
       function draw() {
