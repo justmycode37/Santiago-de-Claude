@@ -7,7 +7,7 @@ real rails and roads.
 placed from the live arrival and departure times at its stops (SIRI-ET from
 [opentransportdata.swiss](https://opentransportdata.swiss)), which are typically one to two minutes old.
 
-This is not part of the static site: it needs a server, so `livemap/` is left out of the Vercel deploy.
+This is not part of the static site: it needs a server, so `livemap/` is left out of the GitHub Pages deploy.
 
 ## How it fits together
 

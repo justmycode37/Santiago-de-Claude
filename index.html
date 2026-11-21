@@ -2013,7 +2013,12 @@
       // ("health" → pharmacies, doctors, hospitals…)
       const tokens = plain.map(stem).flatMap((w) => (SEARCH_ALIASES[w] ? wordsOf(SEARCH_ALIASES[w]).map(stem) : [w]));
       const fits = (label) => tokens.every((t) => label.some((w) => w === t || (t.length >= 3 && w.startsWith(t))));
-      const cats = idx.cat.map((label, i) => (fits(label) || fits(idx.group[i]) ? i : -1)).filter((i) => i >= 0);
+      let cats = idx.cat.map((label, i) => (fits(label) || fits(idx.group[i]) ? i : -1)).filter((i) => i >= 0);
+      // A word that only starts a kind ("coop" → Cooperative) but is the whole name of places (Coop) asks for
+      // those places: the kind needs a word of its own then ("cooperative")
+      const whole = (label) => tokens.every((t) => label.some((w) => w === t));
+      if (cats.length && !cats.some((i) => whole(idx.cat[i]) || whole(idx.group[i]))
+        && idx.names.some((name) => name && plain.every((w) => wordsOf(name).includes(w)))) cats = [];
       const catSet = new Set(cats);
       // "closest toilet" is asked by someone who needs one now: not the ones for customers, with a key or a permit,
       // or that may be locked. "customer toilet" still lists those for customers.
@@ -2093,7 +2098,12 @@
       const found = (online ? online.results : [])
         .filter((p) => !ownToilet(p) && !bern.some((b) => fold(b.title) === fold(p.title) && nearM(b.lngLat, p.lngLat, 150)));
       const byDistance = local.toilets && !!online && online.category === 'Toilets' && found.every((p) => p.distance != null);
-      const places = byDistance ? [...[...kinds, ...found].sort((a, b) => a.distance - b.distance), ...names] : [...kinds, ...found, ...names];
+      // A name ("Coop", "Migros"): ours and those found online are the same kind of match, so all of them nearest first
+      // (online ones have a distance only when we know where you are)
+      const namesByDistance = !kinds.length && names.length > 0 && gpsOn() && found.every((p) => p.distance != null);
+      const places = byDistance ? [...[...kinds, ...found].sort((a, b) => a.distance - b.distance), ...names]
+        : namesByDistance ? [...found, ...names].sort((a, b) => a.distance - b.distance)
+        : [...kinds, ...found, ...names];
       // a place swisstopo also knows keeps the place (it has the category and the distance)
       const s = (swiss || []).filter((r) => !places.some((p) => fold(p.title) === fold(r.title) && nearM(p.lngLat, r.lngLat, 150)));
       placeCategory = (online && online.category) || null;
@@ -4646,11 +4656,11 @@
       const p = journeyProgress();
       goToStep(p && !p.ended ? p.i : 0, true);
     }
-    // "Get ticket": this trip on sbb.ch, where it can be bought. SBB's own link format (read from sbb.ch):
-    //   stops=Name_I<stop id>~Name_I<stop id>, day=YYYY-MM-DD, time=HH:mm, moment=dep|arr, lowPrice=1.
+    // "Get ticket": SBB's ticket page for this exact connection, ready to buy. SBB's own link format (read from sbb.ch):
+    //   /en/offer?stops=Name_I<stop id>~Name_I<stop id>&day=YYYY-MM-DD&time=HH_mm&moment=dep&trip=0_0
     // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
-    // result is this connection. lowPrice=1 turns on SBB's cheapest-price search (supersaver tickets);
-    // SBB ignores it where it doesn't offer that search.
+    // connection (trip=0_0) is this one. The page preselects the cheapest ticket for it (a supersaver ticket where
+    // there is one) and starts with a Half Fare Travelcard, which the buyer can change there.
     function sbbTicketUrl() {
       const rides = journeySteps.filter((st) => st.type === 'ride');
       if (!rides.length) return null;
@@ -4664,11 +4674,11 @@
       const q = new URLSearchParams({
         stops: `${stop(a.station)}~${stop(b.station)}`,
         day: `${parts.year}-${parts.month}-${parts.day}`,
-        time: `${parts.hour}:${parts.minute}`,
+        time: `${parts.hour}_${parts.minute}`,
         moment: 'dep',
-        lowPrice: '1',
+        trip: '0_0',
       });
-      return `https://www.sbb.ch/en/plan?${q}`;
+      return `https://www.sbb.ch/en/offer?${q}`;
     }
     function ticketLink() {
       const url = sbbTicketUrl();

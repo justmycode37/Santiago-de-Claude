@@ -2,7 +2,7 @@
 
 A Swiss community event map and public transport journey planner. Team project for the Powercoders Hackathon.
 
-[Open the live app](https://santiago-de-claude.vercel.app/)
+[Open the live app](https://justmycode37.github.io/Santiago-de-Claude/)
 
 ## Features
 
@@ -55,6 +55,10 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
   python3 tools/build_stop_images.py --all --fast --resume  # all of Switzerland, per 2 km tile (~1 h)
   python3 tools/build_stop_images.py --gtfs GTFS.zip # lines & destinations per stop edge
   ```
+
+## Deployment
+
+Every push to `main` publishes the static site to GitHub Pages ([`.github/workflows/pages.yml`](.github/workflows/pages.yml)). The workflow copies only the files the app serves and writes `version.js` with the commit it was built from. The engine is deployed separately, see [`deploy/`](deploy/README.md).
 
 ## Other components
 

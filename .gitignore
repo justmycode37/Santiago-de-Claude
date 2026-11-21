@@ -19,9 +19,6 @@ venv/
 .env
 .env.*
 
-# Vercel
-.vercel
-
 # Local config with API keys (see config.example.js)
 config.js
 
