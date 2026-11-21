@@ -167,7 +167,7 @@ function placeUserDot() {
   if (!userLngLat) return;
   let at: LngLat = userLngLat;
   const st = track && !track.off && !track.arrived ? journeySteps[track.i] : null;
-  const routed = !!st && st.type !== 'ride' && (st.walks || []).some((w) => w && w.net); // only onto real paths, never a straight guess
+  const routed = !!st && st.type !== 'ride' && (st.walks || []).some((w) => w && w.net && !w.approx); // only onto real paths, never a straight guess
   if (routed && track && track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), track.kmIn) || at;
   userMarker.setLngLat(at);
 }
@@ -184,7 +184,7 @@ function trackOnce() {
   if (!s) { track = null; return; }
   // walks follow exact footpaths now, so leaving one shows sooner than leaving a ride's line
   const here = journeySteps[s.i];
-  const onFoot = here.type !== 'ride' && (here.walks || []).some((w) => w && w.net);
+  const onFoot = here.type !== 'ride' && (here.walks || []).some((w) => w && w.net && !w.approx);
   const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
   // (once you have been on it, leaving it again is "off the route", however long that lasts)
