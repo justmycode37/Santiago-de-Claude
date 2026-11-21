@@ -1,0 +1,1 @@
+Keep `README.md` short and high-level—do not dump implementation details, endpoint specs, UI walkthroughs, or verbose feature changelog slop into it; put detailed documentation in `docs/` or the relevant component's README instead.
