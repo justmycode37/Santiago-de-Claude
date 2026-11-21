@@ -8,35 +8,40 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
+declare global {
+  // The router is a browser script: it puts its API on `window`, which here is the global object itself.
+  var window: typeof globalThis;
+}
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 globalThis.window = globalThis;
 const require = createRequire(import.meta.url);
-const SR = require(path.join(ROOT, 'src', 'station-route.ts'));
-const loadModel = (file, key) => {
+const SR = require(path.join(ROOT, 'src', 'station-route.ts')) as StationRouteApi;
+const loadModel = (file: string, key: string) => {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'stations3d', file), 'utf8'), { filename: file });
-  return window.STATION3D[key];
+  return window.STATION3D![key];
 };
 
 let passed = 0, failed = 0;
-const failures = [];
-function test(name, fn) {
+const failures: string[] = [];
+function test(name: string, fn: () => void) {
   try { fn(); passed++; console.log(`  ok    ${name}`); }
-  catch (e) { failed++; failures.push(name); console.log(`  FAIL  ${name}\n        ${e.message.split('\n').join('\n        ')}`); }
+  catch (e) { failed++; failures.push(name); console.log(`  FAIL  ${name}\n        ${(e as Error).message.split('\n').join('\n        ')}`); }
 }
-function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
-function eq(a, b, msg) {
+function assert(cond: unknown, msg?: string): asserts cond { if (!cond) throw new Error(msg || 'assertion failed'); }
+function eq(a: unknown, b: unknown, msg?: string) {
   const sa = JSON.stringify(a), sb = JSON.stringify(b);
   if (sa !== sb) throw new Error(`${msg || 'not equal'}\n        got:      ${sa}\n        expected: ${sb}`);
 }
-const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || 'not near'}: ${a} vs ${b} (±${tol})`);
-const kinds = (r) => r.steps.map((s) => s.kind);
-const dirs = (r) => r.steps.map((s) => s.dir);
-const usesKind = (r, k) => r.steps.some((s) => s.kind === k);
-const dump = (r) => (r ? r.steps.map((s) => `${s.kind}${s.dir ? ' ' + s.dir : ''}: ${s.text}`).join(' | ') : 'null');
+const near = (a: number, b: number, tol: number, msg?: string) => assert(Math.abs(a - b) <= tol, `${msg || 'not near'}: ${a} vs ${b} (±${tol})`);
+const kinds = (r: StationRouteResult) => r.steps.map((s) => s.kind);
+const dirs = (r: StationRouteResult) => r.steps.map((s) => s.dir);
+const usesKind = (r: StationRouteResult, k: StationRouteStepKind) => r.steps.some((s) => s.kind === k);
+const dump = (r: StationRouteResult | null) => (r ? r.steps.map((s) => `${s.kind}${s.dir ? ' ' + s.dir : ''}: ${s.text}`).join(' | ') : 'null');
 
 // Route shape that every route must have, whatever the model
-const SLOPING = new WeakMap();
-function slopingStreets(model) {
+const SLOPING = new WeakMap<StationModel, boolean>();
+function slopingStreets(model: StationModel) {
   if (!SLOPING.has(model)) {
     const n = model.graph.nodes;
     SLOPING.set(model, model.graph.edges.some((e) => e.kind === 'walk' && e.outdoor && n[e.a][2] !== n[e.b][2]));
@@ -45,7 +50,7 @@ function slopingStreets(model) {
 }
 
 // Is the point inside the ring, or within tol metres of its outline?
-function inRing(p, ring, tol = 0) {
+function inRing(p: XY, ring: XY[], tol = 0) {
   let inside = false, near = Infinity;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const a = ring[i], b = ring[j];
@@ -57,7 +62,7 @@ function inRing(p, ring, tol = 0) {
   return inside || near <= tol;
 }
 
-function checkShape(model, r, label = '') {
+function checkShape(model: StationModel, r: StationRouteResult | null, label = ''): asserts r is StationRouteResult {
   assert(r && Array.isArray(r.points) && r.points.length >= 1, `${label} no points`);
   assert(Array.isArray(r.steps) && r.steps.length >= 1, `${label} no steps`);
   const last = r.steps[r.steps.length - 1];
@@ -85,17 +90,20 @@ function checkShape(model, r, label = '') {
 }
 
 // Small graphs for single behaviours: nodes [[x, y, level]], links [a, b, kind, extra]
-function mk(nodes, links, more = {}) {
+type TestLink = [a: number, b: number, kind?: StationEdgeKind, extra?: Partial<StationEdge>];
+// (the router does not read what mk() leaves out)
+type TestModel = Omit<StationModel, 'built' | 'attribution'>;
+function mk(nodes: XYL[], links: TestLink[], more: Partial<StationModel> = {}) {
   const edges = links.map(([a, b, kind, extra]) => Object.assign({
     a, b, kind: kind || 'walk',
     len: kind === 'elevator' ? 0 : Math.round(Math.hypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1]) * 100) / 100,
   }, extra || {}));
-  return Object.assign({
+  return Object.assign<TestModel, Partial<StationModel>>({
     key: 'test', name: 'Test', origin: [7.44, 46.95], bbox: [-100, -100, 100, 100], uics: ['1'],
     levels: [{ id: -2, z: -9.6, name: 'Lower hall' }, { id: -1, z: -4.8, name: 'Underpass' }, { id: 0, z: 0, name: 'Platforms' }, { id: 1, z: 6, name: 'Overpass' }],
     areas: [], tracks: [], connectors: [], shell: [], stops: [], sectors: [], entrances: [], pois: [],
     graph: { nodes, edges },
-  }, more);
+  }, more) as StationModel;
 }
 
 // ======================================================================
@@ -178,10 +186,10 @@ test('stepFree: platform 3 → 1 by lift and ramp, no stairs', () => {
   // (the router starts and ends anywhere along a platform since 21.11.2026: no walk to the lift first)
   eq(kinds(r).filter((x) => x !== 'walk'), ['elevator', 'ramp', 'arrive']);
   assert(!usesKind(r, 'stairs'), dump(r));
-  eq(r.steps.find((x) => x.kind === 'elevator').text, 'Take the lift down to the underpass');
-  assert(/ramp up to platform 1$/.test(r.steps.find((x) => x.kind === 'ramp').text), dump(r));
+  eq(r.steps.find((x) => x.kind === 'elevator')!.text, 'Take the lift down to the underpass');
+  assert(/ramp up to platform 1$/.test(r.steps.find((x) => x.kind === 'ramp')!.text), dump(r));
   assert(!r.relaxed, 'step-free is possible here');
-  assert(r.seconds > SR.route(F, P3, P1).seconds, 'the step-free way is slower');
+  assert(r.seconds > SR.route(F, P3, P1)!.seconds, 'the step-free way is slower');
 });
 
 test('wheelchair: also avoids steep ramps; when none is left, relaxed says so', () => {
@@ -190,8 +198,8 @@ test('wheelchair: also avoids steep ramps; when none is left, relaxed says so', 
   checkShape(F, r);
   assert(usesKind(r, 'ramp') && !usesKind(r, 'stairs'), dump(r));
   eq(r.relaxed, ['wheelchair']);
-  assert(/wheelchair/.test(r.notice) && /steep/.test(r.notice), r.notice);
-  assert(r.steps.find((s) => s.kind === 'ramp').warn === true, 'ramp step flagged');
+  assert(/wheelchair/.test(r.notice!) && /steep/.test(r.notice!), r.notice);
+  assert(r.steps.find((s) => s.kind === 'ramp')!.warn === true, 'ramp step flagged');
 });
 
 test('relaxation: stepFree from the entrance needs one staircase, then the lift', () => {
@@ -201,40 +209,40 @@ test('relaxation: stepFree from the entrance needs one staircase, then the lift'
   eq(r.steps.filter((s) => s.kind === 'stairs').length, 1);
   assert(usesKind(r, 'elevator'), 'uses the lift for the second level change: ' + dump(r));
   eq(r.notice, 'No step-free way here: this route has stairs.');
-  const w = SR.route(F, ENT, P1, { wheelchair: true });
+  const w = SR.route(F, ENT, P1, { wheelchair: true })!;
   eq(w.relaxed, ['wheelchair', 'stepFree']);
 });
 
 test('fewerStairs: lift when it is a small detour, stairs when nothing else, never relaxed', () => {
-  const plain = SR.route(F, { node: 7 }, { node: 5 });
+  const plain = SR.route(F, { node: 7 }, { node: 5 })!;
   assert(usesKind(plain, 'stairs') && !usesKind(plain, 'elevator'), dump(plain));
-  const fewer = SR.route(F, { node: 7 }, { node: 5 }, { fewerStairs: true });
+  const fewer = SR.route(F, { node: 7 }, { node: 5 }, { fewerStairs: true })!;
   assert(usesKind(fewer, 'elevator') && !usesKind(fewer, 'stairs'), dump(fewer));
-  const only = SR.route(F, ENT, { node: 5 }, { fewerStairs: true });
+  const only = SR.route(F, ENT, { node: 5 }, { fewerStairs: true })!;
   assert(usesKind(only, 'stairs') && !only.relaxed, dump(only));
   // stairs beside a lift that is 300 m away: the stairs win even with fewerStairs
   const M = mk([[0, 0, 0], [10, 0, -1], [300, 0, 0], [300, 0, -1], [310, 0, -1], [0, 0, -1]],
     [[0, 1, 'stairs'], [0, 2], [2, 3, 'elevator'], [3, 4], [4, 1]]);
-  const far = SR.route(M, { node: 0 }, { node: 1 }, { fewerStairs: true });
+  const far = SR.route(M, { node: 0 }, { node: 1 }, { fewerStairs: true })!;
   assert(usesKind(far, 'stairs'), dump(far));
   // ... and a lift 25 m away wins
   const M2 = mk([[0, 0, 0], [10, 0, -1], [25, 0, 0], [25, 0, -1]], [[0, 1, 'stairs'], [0, 2], [2, 3, 'elevator'], [3, 1]]);
-  assert(usesKind(SR.route(M2, { node: 0 }, { node: 1 }, { fewerStairs: true }), 'elevator'));
-  assert(usesKind(SR.route(M2, { node: 0 }, { node: 1 }), 'stairs'));
+  assert(usesKind(SR.route(M2, { node: 0 }, { node: 1 }, { fewerStairs: true })!, 'elevator'));
+  assert(usesKind(SR.route(M2, { node: 0 }, { node: 1 })!, 'stairs'));
 });
 
 test('wheelchair: never wheelchair: false edges when there is another way; steep incline avoided', () => {
-  const nodes = [[0, 0, 0], [20, 0, 0], [10, 8, 0], [10, -30, 0]];
+  const nodes: XYL[] = [[0, 0, 0], [20, 0, 0], [10, 8, 0], [10, -30, 0]];
   const M = mk(nodes, [[0, 1, 'walk', { wheelchair: false }], [0, 2], [2, 1], [0, 3], [3, 1]]);
-  const plain = SR.route(M, { node: 0 }, { node: 1 });
+  const plain = SR.route(M, { node: 0 }, { node: 1 })!;
   eq(plain.nodes, [0, 1]);
-  const w = SR.route(M, { node: 0 }, { node: 1 }, { wheelchair: true });
+  const w = SR.route(M, { node: 0 }, { node: 1 }, { wheelchair: true })!;
   eq(w.nodes, [0, 2, 1]); assert(!w.relaxed);
   // the short detour is steep now (12 %): take the long flat one. (Models are cached: build a new one.)
   const M2 = mk(nodes, [[0, 1, 'walk', { wheelchair: false }], [0, 2, 'walk', { incline: 0.12 }], [2, 1], [0, 3], [3, 1]]);
-  const w2 = SR.route(M2, { node: 0 }, { node: 1 }, { wheelchair: true });
+  const w2 = SR.route(M2, { node: 0 }, { node: 1 }, { wheelchair: true })!;
   eq(w2.nodes, [0, 3, 1]); assert(!w2.relaxed);
-  eq(SR.route(M2, { node: 0 }, { node: 1 }, { stepFree: true }).nodes, [0, 1], 'only wheelchair users avoid them');
+  eq(SR.route(M2, { node: 0 }, { node: 1 }, { stepFree: true })!.nodes, [0, 1], 'only wheelchair users avoid them');
 });
 
 test('disconnected → null; one-way only → null the wrong way', () => {
@@ -274,7 +282,7 @@ test('route between two free positions on one edge, and from a free position', (
   checkShape(F, r);
   eq(kinds(r), ['walk', 'arrive']); near(r.length, 15, 0.5);
   eq(r.nodes, [5]);
-  const r2 = SR.route(F, { xy: [0, 7], level: -1 }, { xy: [0, -10], level: -1 });
+  const r2 = SR.route(F, { xy: [0, 7], level: -1 }, { xy: [0, -10], level: -1 })!;
   near(r2.length, 17, 0.5);
   const r3 = SR.route(F, { xy: [20, -13], level: 0 }, P1);
   checkShape(F, r3);
@@ -290,7 +298,7 @@ test('tiny fragments merge: landing between flights, short walk to the stairs', 
   eq(kinds(r), ['walk', 'stairs', 'walk', 'arrive'], dump(r));
   eq(r.steps[1].text, 'Take the stairs down to the underpass');
   // starting 2 m before the stairs: no "walk 2 m" step
-  const r2 = SR.route(M, { node: 5 }, { node: 4 });
+  const r2 = SR.route(M, { node: 5 }, { node: 4 })!;
   eq(kinds(r2), ['stairs', 'walk', 'arrive']);
 });
 
@@ -301,18 +309,18 @@ test('turn hints from the geometry; long walks split at a clear bend', () => {
   eq(kinds(r), ['walk', 'walk', 'walk', 'arrive']);
   eq(r.steps.map((s) => s.turn || null), [null, 'left', 'bear-left', null]);
   eq(r.steps[0].text, 'Walk 40 m'); eq(r.steps[1].text, 'Turn left and walk 40 m');
-  const back = SR.route(M, { node: 3 }, { node: 0 });
+  const back = SR.route(M, { node: 3 }, { node: 0 })!;
   eq(back.steps.map((s) => s.turn || null), [null, 'bear-right', 'right', null]);
   // gentle curve: one step
   const C = mk([[0, 0, 0], [20, 2, 0], [40, 6, 0], [60, 12, 0]], [[0, 1], [1, 2], [2, 3]]);
-  eq(kinds(SR.route(C, { node: 0 }, { node: 3 })), ['walk', 'arrive']);
+  eq(kinds(SR.route(C, { node: 0 }, { node: 3 })!), ['walk', 'arrive']);
 });
 
 test('no zig-zag: a grid gives the path with the fewest turns', () => {
-  const nodes = [], links = [], id = (i, j) => i * 5 + j;
+  const nodes: XYL[] = [], links: TestLink[] = [], id = (i: number, j: number) => i * 5 + j;
   for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) nodes.push([i * 10, j * 10, 0]);
   for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) { if (i < 4) links.push([id(i, j), id(i + 1, j)]); if (j < 4) links.push([id(i, j), id(i, j + 1)]); }
-  const r = SR.route(mk(nodes, links), { node: id(0, 0) }, { node: id(4, 4) });
+  const r = SR.route(mk(nodes, links), { node: id(0, 0) }, { node: id(4, 4) })!;
   let turns = 0;
   for (let k = 2; k < r.points.length; k++) {
     const a = r.points[k - 2], b = r.points[k - 1], c = r.points[k];
@@ -327,7 +335,7 @@ test('no pointless level change: stay on the level for a few metres more', () =>
   const M = mk([[0, 0, 0], [100, 0, 0], [0, 26, 0], [100, 26, 0], [5, 0, -1], [95, 0, -1]],
     [[0, 2], [2, 3], [3, 1], [0, 4, 'stairs', { len: 5 }], [4, 5], [5, 1, 'stairs', { len: 5 }]]);
   M.graph.edges[0].len = 2; M.graph.edges[2].len = 2; M.graph.edges[1].len = 100; // 104 m
-  const r = SR.route(M, { node: 0 }, { node: 1 });
+  const r = SR.route(M, { node: 0 }, { node: 1 })!;
   assert(!usesKind(r, 'stairs'), dump(r));
 });
 
@@ -344,10 +352,10 @@ test('lift: one wait per ride, also over several floors', () => {
 
 test('time model: walking speed, stairs slower up than down', () => {
   const M = mk([[0, 0, 0], [100, 0, 0]], [[0, 1]]);
-  near(SR.route(M, { node: 0 }, { node: 1 }).seconds, 100 / (4.7 / 3.6), 1);
-  near(SR.route(M, { node: 0 }, { node: 1 }, { walkKmh: 3 }).seconds, 120, 1);
+  near(SR.route(M, { node: 0 }, { node: 1 })!.seconds, 100 / (4.7 / 3.6), 1);
+  near(SR.route(M, { node: 0 }, { node: 1 }, { walkKmh: 3 })!.seconds, 120, 1);
   const S = mk([[0, 0, 0], [8, 0, -1]], [[0, 1, 'stairs']]);
-  const down = SR.route(S, { node: 0 }, { node: 1 }).seconds, up = SR.route(S, { node: 1 }, { node: 0 }).seconds;
+  const down = SR.route(S, { node: 0 }, { node: 1 })!.seconds, up = SR.route(S, { node: 1 }, { node: 0 })!.seconds;
   assert(up > down && up >= 12 && up <= 20 && down >= 8 && down <= 15, `up ${up} down ${down}`);
 });
 
@@ -362,18 +370,18 @@ test('coordinates and heights', () => {
 });
 
 test('pointAt and snap agree; snap gives index, t, step, remaining', () => {
-  const r = SR.route(F, ENT, P1);
+  const r = SR.route(F, ENT, P1)!;
   eq(SR.pointAt(r, 0), r.points[0]);
   eq(SR.pointAt(r, 1e9), r.points[r.points.length - 1]);
   const total = r.dists[r.dists.length - 1];
   for (let m = 0; m <= total; m += total / 37) {
-    const p = SR.pointAt(r, m), s = SR.snap(F, r, p, p[2]);
+    const p = SR.pointAt(r, m)!, s = SR.snap(F, r, p, p[2])!;
     near(s.along, m, 0.05, `along at ${m}`);
     near(s.along + s.remaining, total, 0.01);
     assert(s.step >= 0 && s.step < r.steps.length - 1, 'step index');
     assert(s.index >= r.steps[s.step].from && s.index < r.steps[s.step].to, 'step contains the piece');
   }
-  const s = SR.snap(F, r, { ll: SR.toLngLat(F, [3, 0]) }, -1);
+  const s = SR.snap(F, r, { ll: SR.toLngLat(F, [3, 0]) }, -1)!;
   near(s.dist, 3, 0.01); eq(s.point[2], -1);
 });
 
@@ -386,27 +394,27 @@ test('snap is monotonic along a route, also where floors overlap in plan', () =>
   let rng = 7;
   const rand = () => ((rng = (rng * 16807) % 2147483647) / 2147483647 - 0.5);
   const total = r.dists[r.dists.length - 1];
-  let prev = null, worst = 0, wrongFloor = 0;
+  let prev: StationRouteSnap | null = null, worst = 0, wrongFloor = 0;
   for (let m = 0; m <= total; m += 1.5) {
-    const p = SR.pointAt(r, m);
-    const fix = [p[0] + 3 * rand(), p[1] + 3 * rand()]; // GPS noise (±1.5 m), no level
-    const s = SR.snap(M, r, fix, prev);
+    const p = SR.pointAt(r, m)!;
+    const fix: XY = [p[0] + 3 * rand(), p[1] + 3 * rand()]; // GPS noise (±1.5 m), no level
+    const s: StationRouteSnap = SR.snap(M, r, fix, prev)!;
     if (prev) worst = Math.min(worst, s.along - prev.along);
     if (Math.abs(s.point[2] - p[2]) > 0.5) wrongFloor++;
     prev = s;
   }
   assert(worst > -4, `went back ${-worst} m`); // a few metres back is the GPS noise itself; a jump to the other floor would be ~70 m
   eq(wrongFloor, 0, 'fixes snapped to the other floor');
-  near(prev.along, total, 4, 'reaches the end');
+  near(prev!.along, total, 4, 'reaches the end');
   // without any hint the overlap is ambiguous; a level hint decides
-  near(SR.snap(M, r, [30, -0.5], -1).along, r.dists[2] + 1 + 40, 1);
-  near(SR.snap(M, r, [30, -0.5], 0).along, 30, 1);
+  near(SR.snap(M, r, [30, -0.5], -1)!.along, r.dists[2] + 1 + 40, 1);
+  near(SR.snap(M, r, [30, -0.5], 0)!.along, 30, 1);
   // fixture route too, with noise and the previous result
-  const fr = SR.route(F, P3, P1, { stepFree: true });
+  const fr = SR.route(F, P3, P1, { stepFree: true })!;
   prev = null; worst = 0;
   const ft = fr.dists[fr.dists.length - 1];
   for (let m = 0; m <= ft; m += 1) {
-    const p = SR.pointAt(fr, m), s = SR.snap(F, fr, [p[0] + 2 * rand(), p[1] + 2 * rand()], prev);
+    const p = SR.pointAt(fr, m)!, s: StationRouteSnap = SR.snap(F, fr, [p[0] + 2 * rand(), p[1] + 2 * rand()], prev)!;
     if (prev) worst = Math.min(worst, s.along - prev.along);
     prev = s;
   }
@@ -416,7 +424,9 @@ test('snap is monotonic along a route, also where floors overlap in plan', () =>
 // ======================================================================
 // Real models: the same checks for each, and sample routes printed in full. A sample endpoint is
 // ['stop', mode or null, ref, name pattern or null] or ['entrance', name pattern].
-const MODELS = [
+type SampleEnd = [kind: 'stop', mode: string | null, ref: string, name?: RegExp] | [kind: 'entrance', name: RegExp];
+type Sample = [title: string, from: SampleEnd, to: SampleEnd];
+const MODELS: [key: string, samples: Sample[]][] = [
   ['bern', [
     ['Platform 7 → tram edge B', ['stop', 'train', '7'], ['stop', 'tram', 'B']],
     ['Platform 3 → RBS platform 22', ['stop', 'train', '3', /^(?!.*RBS)/], ['stop', null, '22']],
@@ -463,7 +473,7 @@ for (const [key, samples] of MODELS) {
     console.log(`\nstations3d/${key}.js is not there: its tests are skipped`);
     continue;
   }
-  let M;
+  let M: StationModel | undefined;
   console.log(`\nModel ${key} (stations3d/${key}.js)`);
   test(`${key}: loads`, () => {
     M = loadModel(`${key}.js`, key);
@@ -473,15 +483,15 @@ for (const [key, samples] of MODELS) {
   if (M) modelTests(M, samples);
 }
 
-function modelTests(B, sampleDefs) {
+function modelTests(B: StationModel, sampleDefs: Sample[]) {
   const g = B.graph;
-  const kindCount = {};
+  const kindCount: Partial<Record<StationEdgeKind, number>> = {};
   for (const e of g.edges) kindCount[e.kind] = (kindCount[e.kind] || 0) + 1;
   console.log(`  ${g.nodes.length} nodes, ${g.edges.length} edges ${JSON.stringify(kindCount)}, ${B.stops.length} stops, ${(B.entrances || []).length} entrances, levels ${B.levels.map((l) => `${l.id} ${l.name}`).join(' / ')}`);
 
-  const T = (name, fn) => test(`${B.key}: ${name}`, fn);
+  const T = (name: string, fn: () => void) => test(`${B.key}: ${name}`, fn);
   T('data: stops, entrances and lifts are tied to the graph on the right level', () => {
-    const bad = [];
+    const bad: string[] = [];
     const levels = new Set(B.levels.map((l) => l.id));
     for (const s of B.stops) {
       const n = g.nodes[s.node];
@@ -513,7 +523,7 @@ function modelTests(B, sampleDefs) {
   });
 
   T('data: edges are valid (from the routing side)', () => {
-    const bad = [];
+    const bad: string[] = [];
     g.edges.forEach((e, i) => {
       const a = g.nodes[e.a], b = g.nodes[e.b];
       if (!a || !b) return bad.push(`edge ${i}: missing node`);
@@ -536,7 +546,7 @@ function modelTests(B, sampleDefs) {
   T('data: step-free reachability of every stop from the first entrance', () => {
     const from = (B.entrances || [])[0];
     if (!from) return;
-    const out = [];
+    const out: string[] = [];
     for (const s of B.stops) {
       const r = SR.route(B, { entrance: from.name }, { stop: { uic: s.uic, ref: s.ref } }, { stepFree: true });
       assert(r, `no route to ${s.uic} ${s.ref}`);
@@ -546,14 +556,18 @@ function modelTests(B, sampleDefs) {
   });
 
   // a sample of stops: every train platform, plus a spread of the others, one per node
-  const seen = new Set();
+  const seen = new Set<number>();
   const stops = B.stops.filter((s) => { const k = s.node; if (seen.has(k)) return false; seen.add(k); return true; });
   const trains = stops.filter((s) => s.mode === 'train'), others = stops.filter((s) => s.mode !== 'train');
   const sample = trains.concat(others.filter((s, i) => i % Math.max(1, Math.ceil(others.length / 25)) === 0)).slice(0, 50);
-  const label = (s) => `${s.mode} ${s.ref || '?'} (${s.uic}${s.name ? ' ' + s.name : ''})`;
+  const label = (s: StationStop) => `${s.mode} ${s.ref || '?'} (${s.uic}${s.name ? ' ' + s.name : ''})`;
 
+  interface Outlier {
+    a: StationStop; b: StationStop; prefs: StationRoutePrefs; r: StationRouteResult;
+    ratio: number; changes: number; minChanges: number; straight: number;
+  }
   T(`every pair of ${sample.length} stops is routable, with and without step-free, nothing absurd`, () => {
-    const out = [], fails = [];
+    const out: Outlier[] = [], fails: string[] = [];
     let n = 0, relaxed = 0, ms = 0, maxMs = 0;
     for (const prefs of [{}, { stepFree: true }]) {
       for (const a of sample) for (const b of sample) {
@@ -563,7 +577,7 @@ function modelTests(B, sampleDefs) {
         const dt = performance.now() - t0;
         ms += dt; maxMs = Math.max(maxMs, dt); n++;
         if (!r) { fails.push(`${label(a)} → ${label(b)} ${JSON.stringify(prefs)}`); continue; }
-        try { checkShape(B, r, `${label(a)} → ${label(b)}`); } catch (e) { fails.push(e.message); continue; }
+        try { checkShape(B, r, `${label(a)} → ${label(b)}`); } catch (e) { fails.push((e as Error).message); continue; }
         if (r.relaxed) relaxed++;
         const p = r.points[0], q = r.points[r.points.length - 1];
         const straight = Math.hypot(p[0] - q[0], p[1] - q[1]);
@@ -575,10 +589,10 @@ function modelTests(B, sampleDefs) {
     }
     console.log(`        ${n} routes, ${(ms / n).toFixed(1)} ms each on average, slowest ${maxMs.toFixed(0)} ms; step-free relaxed in ${relaxed}`);
     // Outliers, grouped by the stop pair (both directions, one line each) so a human can judge them
-    const show = (list, title, max) => {
+    const show = (list: Outlier[], title: string, max: number) => {
       if (!list.length) return;
       list.sort((x, y) => y.ratio - x.ratio);
-      const shown = new Set(), lines = [];
+      const shown = new Set<string>(), lines: Outlier[] = [];
       for (const o of list) {
         const k = [o.a.node, o.b.node].sort().join('-') + JSON.stringify(o.prefs);
         if (shown.has(k)) continue;
@@ -593,7 +607,7 @@ function modelTests(B, sampleDefs) {
     };
     show(out.filter((o) => !o.r.relaxed), 'outliers with all preferences met', 12);
     show(out.filter((o) => o.r.relaxed), 'outliers where step-free had to be relaxed', 4);
-    const unreach = new Map();
+    const unreach = new Map<string, number>();
     for (const o of out) if (o.r.relaxed) unreach.set(label(o.a), (unreach.get(label(o.a)) || 0) + 1);
     if (fails.length) throw new Error(`${fails.length} failed:\n` + fails.slice(0, 15).join('\n'));
   });
@@ -605,7 +619,7 @@ function modelTests(B, sampleDefs) {
     for (const en of B.entrances || []) assert(SR.route(B, { entrance: en.name }, { stop: { uic: target.uic, ref: target.ref } }), `entrance ${en.name}`);
     const [x0, y0, x1, y1] = B.bbox;
     for (const l of B.levels) for (let k = 0; k < 5; k++) {
-      const xy = [x0 + rand() * (x1 - x0), y0 + rand() * (y1 - y0)];
+      const xy: XY = [x0 + rand() * (x1 - x0), y0 + rand() * (y1 - y0)];
       const c = SR.resolve(B, { xy, level: l.id })[0];
       assert(c, 'snapped');
       const r = SR.route(B, { xy, level: l.id }, { stop: { uic: target.uic, ref: target.ref } });
@@ -640,11 +654,11 @@ function modelTests(B, sampleDefs) {
       if (!r || r.points.length < 2) continue;
       routes++;
       const total = r.dists[r.dists.length - 1];
-      let prev = null, worst = 0;
+      let prev: StationRouteSnap | null = null, worst = 0;
       for (let m = 0; m <= total; m += 2) {
-        const p = SR.pointAt(r, m);
+        const p = SR.pointAt(r, m)!;
         // ±1.5 m GPS noise, no level; the first fix knows its level, later ones carry the previous result
-        const s = SR.snap(B, r, [p[0] + 3 * rand(), p[1] + 3 * rand()], prev || p[2]);
+        const s: StationRouteSnap = SR.snap(B, r, [p[0] + 3 * rand(), p[1] + 3 * rand()], prev || p[2])!;
         if (prev) worst = Math.min(worst, s.along - prev.along);
         if (Math.abs(s.point[2] - p[2]) > 0.5) wrongFloor++;
         fixes++;
@@ -658,12 +672,12 @@ function modelTests(B, sampleDefs) {
   });
 
   // ---- Sample routes, printed in full ----
-  const find = (mode, ref, nameRe) => {
+  const find = (mode: string | null, ref: string, nameRe?: RegExp) => {
     const key = SR.platformKey(ref);
     const c = B.stops.filter((s) => (!mode || s.mode === mode) && SR.platformKey(s.ref) === key && (!nameRe || nameRe.test(s.name || '')));
     return c[0] || null;
   };
-  const ep = (d) => {
+  const ep = (d: SampleEnd) => {
     if (d[0] === 'entrance') {
       const en = (B.entrances || []).find((e) => d[1].test(e.name || '')) || (d[1].test('main') ? (B.entrances || [])[0] : null);
       return en ? { entrance: en.name } : null;
@@ -672,7 +686,8 @@ function modelTests(B, sampleDefs) {
     // (a stop without a number goes by its node: { stop: { uic, ref: '' } } means any of the stop's edges without one)
     return s ? (s.ref ? { stop: { uic: s.uic, ref: s.ref } } : { node: s.node }) : null;
   };
-  const samples = sampleDefs.map(([title, a, b]) => [title, ep(a), ep(b)]);
+  type SampleRoute = [title: string, from: StationRouteEndpoint | null, to: StationRouteEndpoint | null];
+  const samples = sampleDefs.map(([title, a, b]): SampleRoute => [title, ep(a), ep(b)]);
   console.log(`\n  Sample routes in ${B.key} (for review):`);
   for (const [title, a, b] of samples) {
     if (!a || !b) { console.log(`\n  ${title}: endpoint not in the model (${JSON.stringify(a)} → ${JSON.stringify(b)})`); continue; }
