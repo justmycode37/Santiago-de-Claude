@@ -32,7 +32,7 @@ interface Station3DOpenOptions {
   follow?: boolean;
   /** Open in the first-person view; povAt = metres along the route, povYaw / povPitch = the head, in degrees. */
   pov?: boolean;
-  povAt?: number | string;
+  povAt?: number | string | null;
   povYaw?: number | string;
   povPitch?: number | string;
   /** The element that gets the focus back on close (default: the one that has it now). */
@@ -47,7 +47,11 @@ interface Station3DOpenOptions {
 
 /** `Station3D.setUser(position)`: the live position. */
 interface Station3DUser {
-  ll: LngLat;
+  ll?: LngLat;
+  /** Instead of ll: the position in the model's own metres. */
+  xy?: XY;
+  /** The floor, when it is known. */
+  level?: number | null;
   /** Metres. */
   accuracy?: number;
   /** Compass bearing in degrees. */
@@ -73,7 +77,11 @@ interface Station3DPick {
   title: string;
   level: number;
   xy: XY;
-  ll: LngLat;
+  ll?: LngLat;
+  /** Instead of ll: the position in the model's own metres. */
+  xy?: XY;
+  /** The floor, when it is known. */
+  level?: number | null;
   stop: StationStop | null;
   area: Partial<StationArea> | null;
   /** The place as an end of a route (for `open({ from, to })`). */

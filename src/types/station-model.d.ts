@@ -62,7 +62,8 @@ interface StationStop {
   /** A remark that does not close the stop. */
   note?: string;
 }
-interface StationSector { ref: string; name: string; xy: XY; node?: number }
+/** `level`: not in the schema; the viewer reads it when a sector has one (else the level of the platform's stop). */
+interface StationSector { ref: string; name: string; xy: XY; node?: number; level?: number }
 interface StationSectorSpan { ref: string; name: string; a: XY; b: XY; line?: XY[] }
 interface StationProp {
   kind: 'sector-sign' | 'clock' | 'ticket-machine' | 'meeting-point';
