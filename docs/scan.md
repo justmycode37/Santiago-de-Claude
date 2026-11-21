@@ -63,3 +63,4 @@ scenes, small angled signs) stay "Nearby".
 | Live boarding check | `checkRoute()` + `due` hook | Ties a ride to an edge with Kante `/api/due` (quay label or departure bearing) |
 | Sign/GPS conflict | in `useText()` | A big, distinctive stop name far from the GPS fix |
 | Text events | `scan:text` | Everything Scan reads, for other features (indoor positioning) |
+| Word events | `scan:words` | Every word of each reading with its box in picture pixels and confidence (`ScanWordsDetail`), e.g. for vehicle displays (`ARCORE.read`) |

@@ -64,7 +64,9 @@ interface StopVisionRouteLive {
 /** A box in picture pixels. */
 interface ScanBox { x0: number; y0: number; x1: number; y1: number }
 /** A word OCR read: normalised (n: glued, toks: its words), where, how tall, on which line, how sure (0–100). */
-interface ScanWord { n: string; toks: string[]; box: ScanBox; h: number; block: number; line: number; conf: number }
+interface ScanWord { /** as read */ text: string; n: string; toks: string[]; box: ScanBox; h: number; block: number; line: number; conf: number }
+/** The 'scan:words' event: every word of one reading, its box in picture pixels (width × height) and its confidence (0–100). */
+interface ScanWordsDetail { words: Array<{ text: string; box: ScanBox; conf: number }>; width: number; height: number; tap: boolean }
 /** The words of one reading, by line, with the typical and the biggest text height of the confident ones. */
 interface ScanLayout { words: ScanWord[]; lines: ScanWord[][]; medianH: number; maxH: number; confident: number }
 /** A stop whose name was read: how well (0–1), which of its names, where and how big. */
