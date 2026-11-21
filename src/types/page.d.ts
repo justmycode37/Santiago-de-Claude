@@ -6,6 +6,10 @@ interface EarlyGeo {
   fixes: GeolocationPosition[];
   errors: GeolocationPositionError[];
   on: { onFix(position: GeolocationPosition): void; onError(error: GeolocationPositionError): void } | null;
+  /** Set once the browser has been asked for the location. */
+  started?: boolean;
+  /** Asks the browser for the location (once). On a first visit the introduction calls it when it ends (onboarding.ts). */
+  start(): void;
   /** Hand over every fix and error so far, and all that follow. */
   attach(onFix: (position: GeolocationPosition) => void, onError: (error: GeolocationPositionError) => void): void;
 }

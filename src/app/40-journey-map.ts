@@ -11,14 +11,14 @@ const jHandle = document.getElementById('jHandle')!;
 let journeyConn: OdConnection | null = null;
 let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
 let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
-let journeyDest = null;
-let journeyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
-let journeyOptions = null; // every way on offer to make the trip: { list, walk, best, earlier, later }
+let journeyDest: JourneyDest | null = null;
+let journeyQuery: JourneyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
+let journeyOptions: JourneyOptions | null = null; // every way on offer to make the trip: { list, walk, best, earlier, later }
 let journeyList = false;   // the sheet lists them to choose from (not the journey itself)
-let journeyTab = 'pt';     // …those by public transport, or 'walk': on foot all the way
-let journeyMore = null;    // 'earlier' | 'later' while more of them are being fetched
-let progressTimer = null;
-let liveTimer = null;
+let journeyTab: JourneyTab = 'pt';     // …those by public transport, or 'walk': on foot all the way
+let journeyMore: JourneyMoreDir | null = null;    // 'earlier' | 'later' while more of them are being fetched
+let progressTimer: number | null = null;
+let liveTimer: number | null = null;
 
 // ---- The journey on the map, drawn like the Kante app (nikitas-implementation): rides in their line colour
 //      with a casing, a stop circle at every stop, walks as a yellow band with arrows, a sign where you board ----

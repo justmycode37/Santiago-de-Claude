@@ -13,8 +13,16 @@ type HslRemap = (h: number, s: number, l: number) => Hsl;
 /** A map symbol drawn on a canvas (42-sprites.ts), as map.addImage() takes it. */
 interface MapSprite { data: ImageData; ratio: number }
 
-/** One GPS fix of the last minute (16-location.ts): where, when (ms) and how fast (m/s, when the device says). */
-interface GpsFix { ll: LngLat; t: number; speed: number | null }
+/**
+ * A position as onPosition() (16-location.ts) takes it: the browser's GeolocationPosition, or the made-up one at
+ * the end of a path walked in the developer options (walk-pace.ts), which says `simulated`.
+ */
+interface PositionFix {
+  coords: { longitude: number; latitude: number; accuracy: number; speed?: number | null; heading?: number | null };
+  /** When it was taken (ms). */
+  timestamp: number;
+  simulated?: boolean;
+}
 
 /** When the trip should be: leave at ('dep') or arrive by ('arr') a date and time; both empty = now. */
 type TimeMode = 'dep' | 'arr';

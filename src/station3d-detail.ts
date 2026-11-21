@@ -158,6 +158,14 @@
     vert(p: V3, c: RGB, a?: number): number;
   }
   interface GroundBatch extends Batch { uv: number[]; kind: GroundKind; layer: number }
+  /** A triangle of the ground the sun's shadows fall on, and its layer (-1: the plain ground). */
+  type CastTri = [a: V3, b: V3, c: V3, layer: number];
+  /** z = c + a·x + b·y. given: the plane is the data's (detail.groundPlane), not our fit. */
+  interface Plane { a: number; b: number; c: number; given?: boolean }
+  /** The shadow picture: the canvas and the part of the plan (model metres) it covers. */
+  interface Cast { canvas: HTMLCanvasElement; x0: number; y0: number; w: number; h: number; triangles: number }
+  /** A corner of the plain ground: p where it is drawn, q what groundAt answers there, open: 1 where no surface lies over it. */
+  interface PlatePt { p: V3; q: V3; open: number }
   // Ground, Batch and Writer are functions used with `new`
   type GroundNew = typeof Ground & (new () => Ground);
   type BatchNew = typeof Batch & (new (alpha?: boolean) => Batch);
@@ -211,6 +219,10 @@
     dark: boolean;
     high: boolean;
     sun: V3;
+    /** Drawn coarser: the thing being built stands far from the walk. */
+    far: boolean;
+    /** Where the shadow picture reaches (null: everywhere). */
+    castBox: Box | null;
     ground: Ground;
     z0: number;
     plane: ((x: number, y: number) => number) | null;
@@ -218,6 +230,16 @@
     counts: Station3DDetailCounts;
     warn(m: string): void;
     walk: [V3, V3, V3][];
+    /** The plain ground where the data has no surface. */
+    base: Ground;
+    gtris: CastTri[];
+    /** The sun's shadows are drawn as a picture. */
+    cast: boolean;
+    fit: Plane;
+    /** The level of the nearest street (low: towards the lowest nearby). Set by basePlate. */
+    zNear?: (x: number, y: number, low?: boolean) => number;
+    /** Whether the shadow picture covers this point. */
+    casts(x: number, y: number): boolean;
     groundBatches: Map<string, GroundBatch>;
     shadow: Batch;
     pool: Batch;
@@ -232,6 +254,8 @@
     rings: (BoxedRing | null)[];
     meshBuildings?: boolean;
   }
+  /** What fill() makes in one go; casts is added right after. */
+  type CtxDraft = Omit<Ctx, 'casts'>;
 
   /** A surface as read: cleaned rings, a height per ring point, its layer. */
   interface Surf {
@@ -247,12 +271,18 @@
     layer: number;
   }
   interface TrackLine { line: XY[]; width?: number }
+  /** What stripes() needs of a surface. */
+  interface Striped { ring: Ring; src: { heading?: number }; zAt: (x: number, y: number) => number }
+  /** A marking as buildMarking takes it: one given among the surfaces can bring any text as its kind. */
+  interface Marking extends Omit<StationDetailMarking, 'kind'> { kind?: string }
   interface StripPt { f: Frame; top: number; gl: number; gr: number }
   interface StripOpt { w: number; top: RGB; face: RGB; arris?: number; arrisCol?: RGB; shadow?: number; shadowA?: number; walk?: [V3, V3, V3][] }
 
   /** A prop while it is drawn: _host = the radius of the mast it is strapped to, _span = the wire it hangs on. */
-  interface Prop extends StationDetailProp { _host?: number; _span?: Span }
-  interface Span { len: number; a: V3; b: V3 }
+  interface Prop extends StationDetailProp { _host?: number; _span?: Wire }
+  /** The two ends of a wire across the street. */
+  interface Wire { a: V3; b: V3 }
+  interface Span extends Wire { len: number }
   interface PropLight { at: V3; reach: number; power: number; glow: number }
   /** The shadow under a prop: half sizes and strength. */
   interface PropShadow { rx: number; ry: number; a: number }
@@ -289,10 +319,13 @@
     openB: boolean;
   }
   interface Runs extends Array<Run> { E?: RingEdge[] }
+  /** A bay window laid out on a front: s = its middle along the front, its first and last floor, width and depth. */
+  interface Oriel { s: number; f0: number; f1: number; w: number; d: number }
+  interface Balcony { s: number; floor: number; w: number }
   interface MeshTri { A: V3; B: V3; D: V3; n: V3; ar: number }
 
   type Res = THREE.BufferGeometry | THREE.Material | THREE.Texture;
-  interface Handle extends Station3DDetailHandle { _res: Res[]; _THREE: ThreeModule; _ground: Ground | null }
+  interface Handle extends Station3DDetailHandle { _res: Res[]; _THREE: ThreeModule; _ground: Ground | null; _base: Ground | null }
   /** What build() makes itself; fill() and the end of build() add the rest of a Handle. */
   type HandleDraft = Pick<Handle, 'group' | 'detail' | 'opts' | 'lamps' | '_res' | '_THREE'> & { stats: null; parts: {} };
 
@@ -757,7 +790,7 @@
   function paint(kind: GroundKind, pal: Pal, n: number, dark: boolean) {
     const cv = document.createElement('canvas');
     cv.width = cv.height = n;
-    const g = cv.getContext('2d'), R = rng(seedOf(kind.length * 3.7, kind.charCodeAt(0) * 1.3, 5));
+    const g = cv.getContext('2d')!, R = rng(seedOf(kind.length * 3.7, kind.charCodeAt(0) * 1.3, 5));
     const base = kind === 'asphalt' ? pal.pavement : pal[kind] || pal.paving, k = dark ? 0.7 : 1, px = n / 512;
     g.fillStyle = css(base);
     g.fillRect(0, 0, n, n);
@@ -889,7 +922,7 @@
   }
 
   // ---------- shadows on the ground: dark, see-through shapes that lie on it ----------
-  function groundZ(C, x, y, fallback) {
+  function groundZ(C: Ctx, x: number, y: number, fallback?: number | null) {
     let z = C.ground.at(x, y);
     if (z == null && fallback == null) z = C.base.at(x, y);
     return z == null ? (fallback == null ? C.z0 : fallback) : z;
@@ -923,7 +956,7 @@
     }
   }
   // a pool of lamp light on the ground (night)
-  function pool(C, x, y, r, strength, zf) {
+  function pool(C: Ctx, x: number, y: number, r: number, strength: number, zf?: number) {
     const b = C.pool, n = C.high ? 18 : 10, col = C.pal.lamp;
     const zc = groundZ(C, x, y, zf), i0 = b.vert([x, y, zc + 0.014], col, strength);
     const rings = [[0.3, 0.72], [0.62, 0.3], [1, 0]];
@@ -1006,7 +1039,7 @@
         const grain = kind === 'paving' || kind === 'cobble' ? (num(s.src.heading) != null ? (90 - s.src.heading!) * RAD : grainOf(s.ring)) : 0.4;
         const ca = Math.cos(grain), sa = Math.sin(grain), base = b.n;
         // what the surface is used for sets its tone: roads a shade darker, pavements and squares warmer
-        const use = String(s.src.use || ''), P0 = C.pal, tint = [1, 1, 1];
+        const use = String(s.src.use || ''), P0 = C.pal, tint: RGB = [1, 1, 1];
         if (kind === 'asphalt') { // roads a clearly darker, cooler grey than the pavements beside them
           const want = /road|street|carriage|fahrbahn|lane/.test(use) ? P0.road : /pavement|sidewalk|footway|trottoir|island|insel|platform/.test(use) ? P0.pavement : P0.asphalt;
           for (let k = 0; k < 3; k++) tint[k] = Math.min(1, want[k] / Math.max(0.05, P0.pavement[k]));
@@ -1103,9 +1136,9 @@
     }
   }
   // a pedestrian crossing: yellow bars (this is Switzerland), each as long as the crossing is wide
-  function stripes(C, s, colour) {
-    const dir = num(s.src.heading) != null ? (90 - s.src.heading) * RAD : null;
-    const ax = longAxis(s.ring, dir), W = C.W.decal.world(), col = colour || C.pal.marking;
+  function stripes(C: Ctx, s: Striped, colour?: RGB) {
+    const dir = num(s.src.heading) != null ? (90 - s.src.heading!) * RAD : null;
+    const ax = longAxis(s.ring, dir)!, W = C.W.decal.world(), col = colour || C.pal.marking;
     const n = Math.max(1, Math.floor((ax.len + 0.5) / 1)), start = ax.u0 + (ax.len - (n - 0.5)) / 2;
     for (let i = 0; i < n; i++) {
       const u0 = start + i, u1 = u0 + 0.5;
@@ -1121,8 +1154,8 @@
   }
   // The plane that fits the street best: z = c + a·x + b·y. Surfaces with a height per point say how the street
   // lies; a stray point does not tip it. (The same fit the viewer makes; flatten: true takes this plane out.)
-  function fitPlane(list) {
-    let S = [];
+  function fitPlane(list: Surf[]): Plane {
+    let S: V3[] = [];
     for (const s of list) if (Array.isArray(s.src.zs)) s.ring.forEach((p, i) => S.push([p[0], p[1], s.zs[i]]));
     if (S.length < 12) { S = []; for (const s of list) s.ring.forEach((p, i) => S.push([p[0], p[1], s.zs[i]])); }
     const mean = S.length ? S.reduce((m, q) => m + q[2], 0) / S.length : 0, flat = { a: 0, b: 0, c: mean };
@@ -1145,14 +1178,14 @@
   // The plain ground of the stretch, wherever the data has no surface: it carries on at the height of the nearest
   // street (under houses too), so nothing stands in the air and groundAt never answers with something far below.
   // Under the surfaces it lies a little lower, out of sight. Beyond the outline it fades out (opts.feather).
-  function basePlate(C, list) {
-    const pts = [];
+  function basePlate(C: Ctx, list: Surf[]) {
+    const pts: V3[] = [];
     for (const s of list) s.ring.forEach((p, i) => pts.push([p[0], p[1], s.zs[i]]));
     C.fit = fitPlane(list);
     const gp = C.detail.groundPlane, gq = gp && gp.nearWalk && isFinite(gp.nearWalk.dzdx) ? gp.nearWalk : gp;
     if (gp && Array.isArray(gp.origin) && gq && isFinite(gq.z) && isFinite(gq.dzdx) && isFinite(gq.dzdy) && Math.hypot(gq.dzdx, gq.dzdy) < 0.12) C.fit = { a: gq.dzdx, b: gq.dzdy, c: gq.z - gq.dzdx * gp.origin[0] - gq.dzdy * gp.origin[1], given: true };
     if (pts.length) C.z0 = pts.reduce((m, q) => m + q[2], 0) / pts.length;
-    const near = C.zNear = (x, y, low) => {
+    const near = C.zNear = (x: number, y: number, low?: boolean) => {
       if (!pts.length) return C.z0;
       let d0 = Infinity, d1 = Infinity, d2 = Infinity, z0 = 0, z1 = 0, z2 = 0;
       for (let i = 0; i < pts.length; i++) {
@@ -1168,17 +1201,17 @@
     if (!area) return;
     const W = C.W.solid.world(), col = C.pal.ground, box = boxOf(area), cell = C.high ? 3 : 4.5;
     // drawn: a little under the lowest street nearby (it must not rise above a road); answered by groundAt: the level between them
-    const zb = (x, y) => { const g = C.ground.at(x, y); return g != null ? [g - 0.25, 0, g - 0.02] : [near(x, y, true) - 0.02, 1, near(x, y)]; };
+    const zb = (x: number, y: number): [drawn: number, open: number, level: number] => { const g = C.ground.at(x, y); return g != null ? [g - 0.25, 0, g - 0.02] : [near(x, y, true) - 0.02, 1, near(x, y)]; };
     for (let gx = Math.floor(box[0] / cell); gx * cell < box[2]; gx++) for (let gy = Math.floor(box[1] / cell); gy * cell < box[3]; gy++) {
       const x0 = gx * cell, y0 = gy * cell, x1 = x0 + cell, y1 = y0 + cell;
-      let poly = clipPoly(area, 1, 0, -x0);
+      let poly: XY[] | null = clipPoly(area, 1, 0, -x0);
       if (poly.length >= 3) poly = clipPoly(poly, -1, 0, x1);
       if (poly.length >= 3) poly = clipPoly(poly, 0, 1, -y0);
       if (poly.length >= 3) poly = clipPoly(poly, 0, -1, y1);
       poly = cleanRing(poly);
       if (!poly) continue;
       // p: where it is drawn (dipping under the surfaces); q: what groundAt answers (the level of the street)
-      const V = poly.map((p) => { const z = zb(p[0], p[1]); return { p: [p[0], p[1], z[0]], q: [p[0], p[1], z[2]], open: z[1] }; });
+      const V = poly.map((p): PlatePt => { const z = zb(p[0], p[1]); return { p: [p[0], p[1], z[0]], q: [p[0], p[1], z[2]], open: z[1] }; });
       for (const t of poly.length === 3 ? [[0, 1, 2]] : triangulate(C.THREE, poly)) {
         const a = V[t[0]], b = V[t[1]], c = V[t[2]];
         W.tri(a.p, b.p, c.p, col, { n: [0, 0, 1], mode: 1 });
@@ -1188,12 +1221,12 @@
     // the rim: beyond the outline the ground fades to nothing, in the colour the viewer's ground has (featherColor);
     // featherInside: the last metres inside the outline already take on that colour
     const f = or(C.opts.feather, 5), fc = hex(C.opts.featherColor) || col, fi = or(C.opts.featherInside, 0);
-    const lvl = (p) => { const g = C.ground.at(p[0], p[1]); return [p[0], p[1], (g != null ? g : near(p[0], p[1])) + (fi > 0 ? 0.03 : -0.02)]; };
+    const lvl = (p: XY): V3 => { const g = C.ground.at(p[0], p[1]); return [p[0], p[1], (g != null ? g : near(p[0], p[1])) + (fi > 0 ? 0.03 : -0.02)]; };
     if (f > 0 || fi > 0) {
-      const ring = [];
+      const ring: XY[] = [];
       for (let i = 0; i < area.length; i++) { const a = area[i], q = area[(i + 1) % area.length], k = Math.max(1, Math.ceil(Math.hypot(q[0] - a[0], q[1] - a[1]) / 3)); for (let j = 0; j < k; j++) ring.push([lerp(a[0], q[0], j / k), lerp(a[1], q[1], j / k)]); }
       const fr = lineFrames(ring, true), b = C.feather, n = fr.length;
-      const band = (d0, d1, a0, a1) => {
+      const band = (d0: number, d1: number, a0: number, a1: number) => {
         const base = b.n;
         fr.forEach((q) => {
           const e = lvl(q.p), i0 = offPt(q, d0), i1 = offPt(q, d1);
@@ -1209,21 +1242,21 @@
   // is laid down along the sun's direction and filled into a canvas (a filled picture cannot darken a spot twice),
   // softened a little, and laid over the ground. Bare branches give branch shadows, crowns give blobs, houses a
   // band on the side away from the sun.
-  function castShadows(C, batches) {
+  function castShadows(C: Ctx, batches: Batch[]): Cast | null {
     const L = C.sun;
     if (L[2] < 0.2 || !C.gtris.length || typeof document === 'undefined') return null;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const t of C.gtris) for (let j = 0; j < 3; j++) { x0 = Math.min(x0, t[j][0]); y0 = Math.min(y0, t[j][1]); x1 = Math.max(x1, t[j][0]); y1 = Math.max(y1, t[j][1]); }
+    for (const t of C.gtris) for (let j = 0 as 0 | 1 | 2; j < 3; j++) { x0 = Math.min(x0, t[j][0]); y0 = Math.min(y0, t[j][1]); x1 = Math.max(x1, t[j][0]); y1 = Math.max(y1, t[j][1]); }
     if (C.castBox) { x0 = Math.max(x0, C.castBox[0]); y0 = Math.max(y0, C.castBox[1]); x1 = Math.min(x1, C.castBox[2]); y1 = Math.min(y1, C.castBox[3]); }
     const w = x1 - x0, hh = y1 - y0;
     if (!(w > 1 && hh > 1)) return null;
     const N = C.high ? 1792 : 896, k = N / Math.max(w, hh), cw = Math.max(8, Math.round(w * k)), ch = Math.max(8, Math.round(hh * k));
     const cv = document.createElement('canvas');
     cv.width = cw; cv.height = ch;
-    const g = cv.getContext('2d'), kx = L[0] / L[2], ky = L[1] / L[2], cache = new Map();
-    const gz = (x, y) => {
+    const g = cv.getContext('2d')!, kx = L[0] / L[2], ky = L[1] / L[2], cache = new Map<number, number>();
+    const gz = (x: number, y: number) => {
       const key = Math.round(x * 2) * 100003 + Math.round(y * 2);
-      let z = cache.get(key);
+      let z: number | null | undefined = cache.get(key);
       if (z === undefined) { z = C.ground.at(x, y); if (z == null) z = C.base.at(x, y); if (z == null) z = C.zNear ? C.zNear(x, y) : C.z0; cache.set(key, z); }
       return z;
     };
@@ -1259,7 +1292,7 @@
     // soft edges: the picture laid over itself a few times, slightly moved
     const out = document.createElement('canvas');
     out.width = cw; out.height = ch;
-    const o = out.getContext('2d'), r = C.high ? 1.5 : 1.1, taps = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r * 0.7, r * 0.7], [-r * 0.7, r * 0.7], [r * 0.7, -r * 0.7], [-r * 0.7, -r * 0.7]];
+    const o = out.getContext('2d')!, r = C.high ? 1.5 : 1.1, taps = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r * 0.7, r * 0.7], [-r * 0.7, r * 0.7], [r * 0.7, -r * 0.7], [-r * 0.7, -r * 0.7]];
     o.globalCompositeOperation = 'lighter';
     o.globalAlpha = 1 / taps.length;
     for (const t of taps) o.drawImage(cv, t[0], t[1]);
@@ -1277,12 +1310,12 @@
   //                   { kind: "lane-line" | "stop-line", line: [[x, y], …], width: 0.12, dash: [1, 1], color: "#…" },
   //                   { kind: "crossing", ring: [[x, y], …], heading: 15, color: "#…" }]
   // heading: the way the traffic it speaks to moves (a symbol stands upright for someone coming that way).
-  function buildMarking(C, m) {
-    const pal = C.pal, given = hex(m.color), col = given ? (C.dark ? mix(pal.marking, tone(given, 0.62), 0.6) : mix(given, hex('#EDE9DD'), 0.12)) : pal.marking;
+  function buildMarking(C: Ctx, m: Marking) {
+    const pal = C.pal, given = hex(m.color), col = given ? (C.dark ? mix(pal.marking, tone(given, 0.62), 0.6) : mix(given, hex('#EDE9DD')!, 0.12)) : pal.marking;
     const W = C.W.decal.world(), lift = 0.007, kind = String(m.kind || '');
-    const P = (x, y) => [x, y, groundZ(C, x, y) + lift];
+    const P = (x: number, y: number): V3 => [x, y, groundZ(C, x, y) + lift];
     // a painted stroke along points, cut into short pieces so it follows the ground
-    const stroke = (pts, width) => {
+    const stroke = (pts: XY[], width: number) => {
       for (let i = 0; i + 1 < pts.length; i++) {
         const a = pts[i], b = pts[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
         if (l < 1e-4) continue;
@@ -1319,7 +1352,7 @@
     if (!xy || !isFinite(xy[0]) || !isFinite(xy[1])) return;
     const h = or(m.heading, 0) * RAD, fx = Math.sin(h), fy = Math.cos(h), rx = Math.cos(h), ry = -Math.sin(h);
     if (kind === 'arrow') {
-      const s = or(m.size, 2.2), T = (u, v) => [xy[0] + rx * u * s + fx * v * s, xy[1] + ry * u * s + fy * v * s];
+      const s = or(m.size, 2.2), T = (u: number, v: number): XY => [xy[0] + rx * u * s + fx * v * s, xy[1] + ry * u * s + fy * v * s];
       stroke(densify([T(0, -0.5), T(0, 0.12)], 0.6), 0.1 * s);
       const a = T(-0.17, 0.1), b = T(0.17, 0.1), c = T(0, 0.5);
       W.tri(P(a[0], a[1]), P(b[0], b[1]), P(c[0], c[1]), col, { n: [0, 0, 1], mode: 1 });
@@ -1327,9 +1360,9 @@
     }
     if (kind === 'bike-symbol' || kind === 'bike' || kind === 'bicycle') {
       // a bicycle seen from the side, lying on the road, stretched along the way you ride so it looks right from the saddle
-      const s = or(m.size, 1.8), sx = s * 0.375, sy = s * 1.28, T = (u, v) => [xy[0] + rx * u * sx + fx * (v - 0.39) * sy, xy[1] + ry * u * sx + fy * (v - 0.39) * sy]; // size: its length along the way; 0.6 of that wide
-      const wd = 0.045 * s, line = (pts) => stroke(pts.map((q) => T(q[0], q[1])), wd);
-      const wheel = (cx) => { const pts = []; for (let k = 0; k <= 14; k++) { const a = (k / 14) * TAU; pts.push([cx + Math.cos(a) * 0.3, 0.2 + Math.sin(a) * 0.2]); } line(pts); };
+      const s = or(m.size, 1.8), sx = s * 0.375, sy = s * 1.28, T = (u: number, v: number): XY => [xy[0] + rx * u * sx + fx * (v - 0.39) * sy, xy[1] + ry * u * sx + fy * (v - 0.39) * sy]; // size: its length along the way; 0.6 of that wide
+      const wd = 0.045 * s, line = (pts: XY[]) => stroke(pts.map((q) => T(q[0], q[1])), wd);
+      const wheel = (cx: number) => { const pts: XY[] = []; for (let k = 0; k <= 14; k++) { const a = (k / 14) * TAU; pts.push([cx + Math.cos(a) * 0.3, 0.2 + Math.sin(a) * 0.2]); } line(pts); };
       wheel(-0.5); wheel(0.5);
       line([[-0.5, 0.2], [-0.16, 0.6], [0.3, 0.6], [-0.04, 0.2], [-0.5, 0.2]]);   // the frame
       line([[-0.04, 0.2], [-0.2, 0.68]]);                                           // seat tube
@@ -1540,7 +1573,7 @@
     const kind = t.kind === 'conifer' || t.kind === 'columnar' ? t.kind : 'broadleaf';
     const H = clamp(or(t.height, kind === 'columnar' ? 12 : 9), 1.5, 60);
     const cr = clamp(or(t.crown, H * (kind === 'conifer' ? 0.2 : kind === 'columnar' ? 0.13 : 0.32)), 0.4, 25);
-    const age = num(t.planted) != null ? clamp(2026 - t.planted, 3, 160) : null;
+    const age = num(t.planted) != null ? clamp(2026 - t.planted!, 3, 160) : null;
     const tr = clamp(or(t.trunk, age != null ? clamp(0.13 + age * 0.0029, 0.1, 0.5) : clamp(H * 0.022, 0.07, 0.5)), 0.03, 1.5);
     let cb = or(t.crownBase, kind === 'broadleaf' ? clamp(H * 0.3, 2.2, 5) : kind === 'conifer' ? clamp(H * 0.12, 0.8, 2.5) : clamp(H * 0.15, 1.5, 3));
     if (C.path && lineDist(C.path, x, y) < cr + 1.2) cb = Math.max(cb, C.clearance); // nothing hangs into the walk at eye height
@@ -1592,29 +1625,29 @@
     if (pollard) {
       // A pollarded tree: a boss on the trunk, a few stout kinked limbs that fork, a knuckle at every end;
       // from the knuckles the thin shoots of one year (or, in summer, a tuft of leaves).
-      const shoot = Math.min(1.05, (H - cb) * 0.27), top = H - shoot * 0.8, nL = C.high ? 5 : 4, heads = [], a0 = R() * TAU, bx = lx * 0.6, by = ly * 0.6;
+      const shoot = Math.min(1.05, (H - cb) * 0.27), top = H - shoot * 0.8, nL = C.high ? 5 : 4, heads: P4[] = [], a0 = R() * TAU, bx = lx * 0.6, by = ly * 0.6;
       const tl = Math.max(tr, lerp(tr, 0.34, 0.5)); // limbs and knuckles thin out more slowly than the trunk on a young tree
-      const knob = (p, r, show) => { if (show || !leaves) W.lump(p, [r, r, r * 1.08], C.high ? 2 : 1, 0.34, seedOf(x + p[0], y + p[1], 7), () => tone(bark, 0.88)); heads.push([p[0], p[1], p[2], r]); };
-      const limb = (a, b, r0, r1, sides) => {
+      const knob = (p: V3, r: number, show?: boolean) => { if (show || !leaves) W.lump(p, [r, r, r * 1.08], C.high ? 2 : 1, 0.34, seedOf(x + p[0], y + p[1], 7), () => tone(bark, 0.88)); heads.push([p[0], p[1], p[2], r]); };
+      const limb = (a: V3, b: V3, r0: number, r1: number, sides: number) => {
         const k = Math.hypot(b[0] - a[0], b[1] - a[1]) * 0.22, m = [lerp(a[0], b[0], 0.55) + (R() - 0.5) * k, lerp(a[1], b[1], 0.55) + (R() - 0.5) * k, lerp(a[2], b[2], 0.34)];
         W.tube([[a[0], a[1], a[2], r0], [m[0], m[1], m[2], lerp(r0, r1, 0.55)], [b[0], b[1], b[2], r1]], sides, bark);
       };
       W.lump([bx, by, cb - 0.12], [tr * 1.12, tr * 1.12, tr * 0.95], C.high ? 2 : 1, 0.2, seedOf(x, y, 8), () => tone(bark, 0.94));
       for (let i = 0; i < nL; i++) {
         const az = a0 + (i / nL) * TAU + (R() - 0.5) * 0.6, reach = cr * (0.4 + R() * 0.2), rise = (top - cb) * (0.18 + R() * 0.34);
-        const p2 = [bx + Math.cos(az) * reach, by + Math.sin(az) * reach, cb + rise];
+        const p2: V3 = [bx + Math.cos(az) * reach, by + Math.sin(az) * reach, cb + rise];
         limb([bx, by, cb - 0.4], p2, Math.min(tr * 0.8, tl * 0.66), tl * 0.5, C.high ? 6 : 5);
         knob(p2, tl * 0.7, true); // in summer only these lower knuckles show under the leaves
         const arms = C.high ? 2 + (R() < 0.4 ? 1 : 0) : 1 + (R() < 0.5 ? 1 : 0);
         for (let a = 0; a < arms; a++) {
           const az2 = az + (arms === 1 ? 0 : (a / (arms - 1) - 0.5) * (1.3 + R() * 0.5)) + (R() - 0.5) * 0.35, r2 = Math.min(cr, reach + cr * (0.26 + R() * 0.3));
-          const e = [bx + Math.cos(az2) * r2, by + Math.sin(az2) * r2, Math.min(top, p2[2] + (top - p2[2]) * (0.3 + R() * 0.7))];
+          const e: V3 = [bx + Math.cos(az2) * r2, by + Math.sin(az2) * r2, Math.min(top, p2[2] + (top - p2[2]) * (0.3 + R() * 0.7))];
           limb(p2, e, tl * 0.42, tl * 0.3, C.high ? 5 : 4);
           knob(e, tl * 0.55);
           if (leaves && C.high) heads.push([(p2[0] + e[0]) / 2, (p2[1] + e[1]) / 2, (p2[2] + e[2]) / 2, 0]); // in summer leaves along the limb too
         }
       }
-      const pt = [bx + (R() - 0.5) * cr * 0.25, by + (R() - 0.5) * cr * 0.25, top];
+      const pt: V3 = [bx + (R() - 0.5) * cr * 0.25, by + (R() - 0.5) * cr * 0.25, top];
       limb([bx, by, cb - 0.2], pt, Math.min(tr * 0.8, tl * 0.6), tl * 0.34, C.high ? 6 : 5);
       knob(pt, tl * 0.58);
       const twig = mix(bark, pal.stone, 0.25);
@@ -1848,12 +1881,12 @@
   // hand side, z up; h: his height). Plate armour: greaves and knee cops, a skirt of
   // plates over mail, breastplate, big shoulder plates; bare-headed with hair to the collar; one arm stretched out
   // palm up, the other hand on a sword that stands point down; a cloak falling from the shoulder down his side.
-  function figure(C, W, x, y, z, h, col) {
+  function figure(C: Ctx, W: Writer, x: number, y: number, z: number, h: number, col: RGB) {
     const hi = mix(col, WHITE, C.dark ? 0.07 : 0.2), lo = tone(col, 0.8), mid = tone(col, 0.92), f = C.high ? 2 : 1, seg = C.high ? 8 : 6;
-    const T = (u, v, w, r) => [x + u * h, y + v * h, z + w * h, r * h];
+    const T = (u: number, v: number, w: number, r: number): P4 => [x + u * h, y + v * h, z + w * h, r * h];
     W.box(x - 0.2 * h, y - 0.15 * h, z, x + 0.2 * h, y + 0.17 * h, z + 0.03 * h, lo, { top: mid });
     // legs: the weight on his left leg, the right one a step forward
-    const leg = (sx, fwd) => {
+    const leg = (sx: number, fwd: number) => {
       const hip = T(sx * 0.062, 0, 0.5, 0.064), knee = T(sx * 0.074, fwd * 0.6, 0.295, 0.05), ank = T(sx * 0.082, fwd, 0.075, 0.034);
       W.tube([hip, knee], 6, mid);
       W.tube([[knee[0], knee[1], knee[2], 0.052 * h], T(sx * 0.078, fwd * 0.8, 0.2, 0.05), ank], 6, col);       // the greave, fuller at the calf
@@ -1892,20 +1925,20 @@
     W.lump([x + 0.19 * h, y - 0.04 * h, z + 0.36 * h], [0.045 * h, 0.075 * h, 0.27 * h], f, 0.06, 7, () => tone(col, 0.86));
   }
   // A bear walking uphill, as on the arms of Bern: an outline in a frame u (to the right), w (up)
-  const BEAR = [[-0.5, 0.06], [-0.43, 0.17], [-0.37, 0.2], [-0.33, 0.28], [-0.26, 0.22], [-0.12, 0.25], [0.1, 0.29], [0.33, 0.24], [0.47, 0.1], [0.45, -0.1], [0.48, -0.27], [0.34, -0.27], [0.3, -0.09], [0.04, -0.07], [-0.02, -0.27], [-0.16, -0.27], [-0.2, -0.05], [-0.33, -0.03], [-0.46, -0.03]];
+  const BEAR: XY[] = [[-0.5, 0.06], [-0.43, 0.17], [-0.37, 0.2], [-0.33, 0.28], [-0.26, 0.22], [-0.12, 0.25], [0.1, 0.29], [0.33, 0.24], [0.47, 0.1], [0.45, -0.1], [0.48, -0.27], [0.34, -0.27], [0.3, -0.09], [0.04, -0.07], [-0.02, -0.27], [-0.16, -0.27], [-0.2, -0.05], [-0.33, -0.03], [-0.46, -0.03]];
   PROPS.fountain = function (C, p, W) {
     const pal = C.pal, v = String(p.variant || '').toLowerCase(), stone = pal.stone, lt = mix(stone, WHITE, C.dark ? 0.08 : 0.3), water = pal.water;
     if (/temple|tempel|pavilion|rotunda|monopteros/.test(v)) {
       // an open round temple: steps, columns in a circle, a ring of stone, a copper-green dome with a gilt top; a figure inside
       const Rt = or(num(p.width) != null ? p.width : p.length, 5) / 2, H = or(p.height, 7.2), hcol = H * 0.52, n = 6, seg = C.high ? 18 : 12;
-      const cop = C.dark ? hex('#35514A') : hex('#8DBBA8'), gilt = C.dark ? hex('#8A7437') : hex('#E0BE5C');
+      const cop = C.dark ? hex('#35514A')! : hex('#8DBBA8')!, gilt = C.dark ? hex('#8A7437')! : hex('#E0BE5C')!;
       W.lathe(0, 0, 0, [[Rt + 0.35, 0], [Rt + 0.35, 0.16, lt], [Rt + 0.05, 0.16], [Rt + 0.05, 0.32, lt], [0, 0.32, lt]], seg, stone, { facet: false });
       for (let i = 0; i < n; i++) {
         const a = (i / n) * TAU + TAU / 12, cx = Math.cos(a) * Rt * 0.86, cyy = Math.sin(a) * Rt * 0.86;
         W.lathe(cx, cyy, 0.32, [[0.24, 0], [0.24, 0.14], [0.17, 0.2], [0.15, hcol - 0.25], [0.24, hcol - 0.1, lt], [0.24, hcol]], C.high ? 8 : 6, lt, { facet: false });
       }
       W.lathe(0, 0, 0.32 + hcol, [[Rt * 0.74, 0], [Rt * 0.98, 0, stone], [Rt * 0.98, 0.42], [Rt * 1.05, 0.46, lt], [Rt * 1.05, 0.58, lt], [Rt * 0.9, 0.58, lt]], seg, lt, { facet: false });
-      const zd = 0.32 + hcol + 0.58, hd = H - zd - 0.5, prof = [];
+      const zd = 0.32 + hcol + 0.58, hd = H - zd - 0.5, prof: LathePt[] = [];
       for (let k = 0; k <= 5; k++) { const a = (k / 5) * Math.PI / 2; prof.push([Rt * 0.9 * Math.cos(a) + 0.02, hd * Math.sin(a), k % 2 ? cop : tone(cop, 0.93)]); }
       W.lathe(0, 0, zd, prof, seg, cop, { facet: false });
       W.lathe(0, 0, zd + hd - 0.02, [[0.16, 0], [0.1, 0.22], [0.2, 0.3], [0, 0.52]], 6, gilt);
@@ -1913,8 +1946,8 @@
       figure(C, W, 0, 0, 1.32, Math.min(1.5, hcol - 1.3), pal.bronze);
       return { rx: Rt + 0.8, ry: Rt + 0.8, a: 1.2 };
     }
-    const trough = /trough|trog|rect|long/.test(v) || (num(p.length) && num(p.width) && p.length > p.width * 1.5);
-    const low = num(p.height) != null && p.height < 1.5, hb = low ? p.height : 0.8, hc = low ? hb + 1.0 : or(p.height, 3.1);
+    const trough = /trough|trog|rect|long/.test(v) || (num(p.length) && num(p.width) && p.length! > p.width! * 1.5);
+    const low = num(p.height) != null && p.height! < 1.5, hb = low ? p.height! : 0.8, hc = low ? hb + 1.0 : or(p.height, 3.1);
     let cy = 0, Rb = 0, L = 0, D = 0;
     if (trough) {
       L = or(p.length, 3.2); D = or(p.width, 1.3);
@@ -2112,7 +2145,7 @@
   PROPS.statue = function (C, p, W) {
     const pal = C.pal, v = String(p.variant || '').toLowerCase(), H = or(p.height, 4.4), L = or(p.length, 1.7), D = or(p.width, L);
     const given = hex(p.plinthColor), metal = hex(p.color);
-    const st = given && !C.dark ? mix(pal.stone, given, 0.4) : mix(pal.stone, hex(C.dark ? '#4A4442' : '#D9CCC2'), 0.5), lt = mix(st, WHITE, C.dark ? 0.08 : 0.3), a = L / 2, b = D / 2;
+    const st = given && !C.dark ? mix(pal.stone, given, 0.4) : mix(pal.stone, hex(C.dark ? '#4A4442' : '#D9CCC2')!, 0.5), lt = mix(st, WHITE, C.dark ? 0.08 : 0.3), a = L / 2, b = D / 2;
     const bronze = metal && !C.dark ? mix(pal.bronze, metal, 0.42) : pal.bronze;
     if (/obelisk|column|säule|saeule|stele/.test(v)) {
       W.box(-a, -b, 0, a, b, 0.25, tone(st, 0.94), { top: lt });
@@ -2135,14 +2168,14 @@
       block(z1 + 0.12, z2, 0.6, 0.47, st);
       block(z2, z2 + (hp - z2) * 0.3, 0.5, 0.56, lt); block(z2 + (hp - z2) * 0.3, z2 + (hp - z2) * 0.62, 0.58, 0.58, st); block(z2 + (hp - z2) * 0.62, hp, 0.5, 0.42, st);
       // on the front: a bronze band with a shield, the inscription in red letters, a trophy of arms, the bear of Bern
-      const dz = z2 - z1 - 0.12, zd = (q) => z1 + 0.12 + dz * q, kd = (zz) => lerp(0.6, 0.47, (zz - z1 - 0.12) / dz), fy = (zz) => b * kd(zz) + 0.012;
-      const red = mix(hex(C.dark ? '#7A3F38' : '#B24A3F'), st, 0.15), bz2 = tone(bronze, 0.86), bz3 = mix(bronze, WHITE, C.dark ? 0.06 : 0.16);
+      const dz = z2 - z1 - 0.12, zd = (q: number) => z1 + 0.12 + dz * q, kd = (zz: number) => lerp(0.6, 0.47, (zz - z1 - 0.12) / dz), fy = (zz: number) => b * kd(zz) + 0.012;
+      const red = mix(hex(C.dark ? '#7A3F38' : '#B24A3F')!, st, 0.15), bz2 = tone(bronze, 0.86), bz3 = mix(bronze, WHITE, C.dark ? 0.06 : 0.16);
       { const zb = zd(0.87), k = kd(zb) + 0.014; block(zb - 0.07, zb + 0.07, k + 0.003, k - 0.003, bz2, bronze); }
       { const zb = zd(0.87), sz = Math.min(0.62, a * 0.42), yy = fy(zb) + 0.045;
-        W.fan([[-0.42, 0.42], [0.42, 0.42], [0.42, -0.05], [0, -0.52], [-0.42, -0.05]].map((q) => [q[0] * sz, yy, zb + q[1] * sz]), bronze, { n: [0, 1, 0] });
-        W.fan([[-0.3, 0.3], [0.3, 0.3], [0.3, -0.02], [0, -0.36], [-0.3, -0.02]].map((q) => [q[0] * sz, yy + 0.006, zb + q[1] * sz]), bz3, { n: [0, 1, 0] }); }
+        W.fan([[-0.42, 0.42], [0.42, 0.42], [0.42, -0.05], [0, -0.52], [-0.42, -0.05]].map((q): V3 => [q[0] * sz, yy, zb + q[1] * sz]), bronze, { n: [0, 1, 0] });
+        W.fan([[-0.3, 0.3], [0.3, 0.3], [0.3, -0.02], [0, -0.36], [-0.3, -0.02]].map((q): V3 => [q[0] * sz, yy + 0.006, zb + q[1] * sz]), bz3, { n: [0, 1, 0] }); }
       // lettering: a block per letter, so it reads as words from across the square
-      const word = (q, n, lw, lh, gap) => {
+      const word = (q: number, n: number, lw: number, lh: number, gap: number) => {
         const zz = zd(q), tot = n * lw + (n - 1) * gap;
         for (let i = 0; i < n; i++) { const u0 = -tot / 2 + i * (lw + gap); W.quad([u0, fy(zz), zz], [u0 + lw, fy(zz), zz], [u0 + lw, fy(zz + lh), zz + lh], [u0, fy(zz + lh), zz + lh], red, { n: [0, 1, 0] }); }
       };
@@ -2159,7 +2192,7 @@
       W.obox([-0.02, ty + 0.2 * ls, zt + dz * 0.03], [0.13 * ls, 0, 0], [0, 0.06 * ls, -0.03 * ls], [0, 0.02 * ls, 0.07 * ls], bz2);                                                         // its visor
       // the bear, walking uphill, on the base
       { const s = Math.min(a * 0.62, (z1 - hs) * 1.35), zc2 = (hs + z1) / 2, yy = b * 0.69 + 0.03, t = 14 * RAD, ct = Math.cos(t), sn = Math.sin(t);
-        const pts = cleanRing(BEAR.map((q) => [(q[0] * ct - q[1] * sn) * s, (q[0] * sn + q[1] * ct) * s]));
+        const pts = cleanRing(BEAR.map((q): XY => [(q[0] * ct - q[1] * sn) * s, (q[0] * sn + q[1] * ct) * s]));
         if (pts) for (const tr of triangulate(C.THREE, pts)) W.tri([pts[tr[0]][0], yy, zc2 + pts[tr[0]][1]], [pts[tr[1]][0], yy, zc2 + pts[tr[1]][1]], [pts[tr[2]][0], yy, zc2 + pts[tr[2]][1]], bronze, { n: [0, 1, 0] }); }
     } else {
       W.box(-a - 0.28, -b - 0.28, 0, a + 0.28, b + 0.28, 0.18, tone(st, 0.92), { top: lt });
@@ -2233,7 +2266,7 @@
     }
     if (kind === 'lamp' && /wire|hung|hang|suspend|catenary|seil|pendant|cable/i.test(p.variant || '')) {
       const wr = Array.isArray(p.wire) && p.wire.length >= 2 && p.wire.every((q) => q && isFinite(q[0]) && isFinite(q[1])) ? p.wire : null, zw = z + or(p.height, 7) + 0.28;
-      const sp = wr ? { a: [wr[0][0], wr[0][1], or(wr[0][2], zw + 0.5)], b: [wr[wr.length - 1][0], wr[wr.length - 1][1], or(wr[wr.length - 1][2], zw + 0.5)] } : spanWire(C, x, y, zw, num(p.heading));
+      const sp: Wire | null = wr ? { a: [wr[0][0], wr[0][1], or(wr[0][2], zw + 0.5)], b: [wr[wr.length - 1][0], wr[wr.length - 1][1], or(wr[wr.length - 1][2], zw + 0.5)] } : spanWire(C, x, y, zw, num(p.heading));
       if (sp) p = Object.assign({}, p, { _span: sp });
     }
     const W = C.W.solid.frame(fx, fy, fz, h);
@@ -2305,7 +2338,7 @@
       if (!mt.length) { C.warn('building ' + index + ': mesh has no usable triangles'); if (!ring) return; }
       else { mcx /= mt.length * 3; mcy /= mt.length * 3; }
     }
-    const isMesh = mt.length > 0, hq = C.high, pathD = (x, y) => (C.path ? lineDist(C.path, x, y) : 0);
+    const isMesh = mt.length > 0, hq = C.high, pathD = (x: number, y: number) => (C.path ? lineDist(C.path, x, y) : 0);
     C.high = hq && (ring ? Math.min(...ring.map((p) => pathD(p[0], p[1]))) : pathD(mcx, mcy)) < 70;
     const gz = ring ? ring.map((p) => C.ground.at(p[0], p[1])).filter((v) => v != null) : [];
     const base = num(b.base) != null ? b.base! : gz.length ? Math.min(...gz) : isMesh ? mz0 : C.z0;
@@ -2325,7 +2358,7 @@
     const roofC = themed(C, b.roofColor, type === 'flat' ? pal.roof : pal.roofTile);
     const zBot = Math.min(base, gz.length ? Math.min(...gz) : base) - 0.4;
     const parapet = type === 'flat' && !isMesh ? 0.45 : 0, wallTop = eaves + parapet;
-    const wallAt = (col, z) => tone(col, lerp(0.93, 1.02, sat((z - base) / Math.max(1, eaves - base))));
+    const wallAt = (col: RGB, z: number) => tone(col, lerp(0.93, 1.02, sat((z - base) / Math.max(1, eaves - base))));
     const cen = ring ? centroid(ring) : [mcx, mcy];
     const inOther = (x: number, y: number) => C.rings.some((r, i) => i !== index && r && x >= r.box[0] && x <= r.box[2] && y >= r.box[1] && y <= r.box[3] && inRing(r, x, y));
 
@@ -2545,16 +2578,16 @@
 
     // ----- what is on the walls -----
     let off0 = isMesh ? 0.07 : 0;
-    const shut = C.high && b.shutters ? (hex(b.shutters) && !C.dark ? mix(hex(b.shutters), pal.shutters[0], 0.3) : pal.shutters[Math.floor(R() * pal.shutters.length) % pal.shutters.length]) : null; // only where the data says so
+    const shut = C.high && b.shutters ? (hex(b.shutters) && !C.dark ? mix(hex(b.shutters)!, pal.shutters[0], 0.3) : pal.shutters[Math.floor(R() * pal.shutters.length) % pal.shutters.length]) : null; // only where the data says so
     let budget = C.windowBudget;
     for (const r of runs) {
       if (!r.deco) continue;
       const rd = pathD((r.A[0] + r.B[0]) / 2, (r.A[1] + r.B[1]) / 2);
       if (!hq && rd > 95) continue; // at low quality the far houses are plain blocks
       C.high = hq && rd < 48; // sills, glazing bars and lintels only where they can be seen
-      const Q = r.Q, nrm = [r.n[0], r.n[1], 0], tdir = [r.t[0], r.t[1], 0], gfTop = base + r.gf, RW = rng(seedOf(r.A[0], r.A[1], 9));
-      const rect = (s0, s1, z0, z1, out, col, opt) => W.quad(Q(s0, off0 + out, z0), Q(s1, off0 + out, z0), Q(s1, off0 + out, z1), Q(s0, off0 + out, z1), col, Object.assign({ n: nrm }, opt));
-      const ledge = (s0, s1, z0, z1, out, col, topCol, slim) => { // a band that stands out from the wall (slim: front and top only)
+      const Q = r.Q, nrm: V3 = [r.n[0], r.n[1], 0], tdir: V3 = [r.t[0], r.t[1], 0], gfTop = base + r.gf, RW = rng(seedOf(r.A[0], r.A[1], 9));
+      const rect = (s0: number, s1: number, z0: number, z1: number, out: number, col: Cols, opt?: QuadOpt) => W.quad(Q(s0, off0 + out, z0), Q(s1, off0 + out, z0), Q(s1, off0 + out, z1), Q(s0, off0 + out, z1), col, Object.assign({ n: nrm }, opt));
+      const ledge = (s0: number, s1: number, z0: number, z1: number, out: number, col: RGB, topCol?: RGB, slim?: boolean) => { // a band that stands out from the wall (slim: front and top only)
         rect(s0, s1, z0, z1, out, col);
         W.quad(Q(s0, off0, z1), Q(s1, off0, z1), Q(s1, off0 + out, z1), Q(s0, off0 + out, z1), topCol || col, { n: [0, 0, 1] });
         W.quad(Q(s0, off0, z0), Q(s1, off0, z0), Q(s1, off0 + out, z0), Q(s0, off0 + out, z0), tone(col, 0.8), { n: [0, 0, -1] });
@@ -2564,8 +2597,8 @@
       };
       const rtrim = mix(r.col, pal.trim, 0.82), glassT = tone(pal.glass, C.dark ? 1 : 0.82), glassB = C.dark ? tone(pal.glass, 1.25) : mix(pal.glass, pal.sky, 0.3);
       const simple = !C.high || budget < 0;
-      const glow = () => { const k = RW(); return mix(pal.glassLit, hex(k < 0.5 ? '#F3B56B' : '#FFF3D6'), RW() * 0.45); };
-      const win = (sc, z0, ww, wh, litP, door) => {
+      const glow = () => { const k = RW(); return mix(pal.glassLit, hex(k < 0.5 ? '#F3B56B' : '#FFF3D6')!, RW() * 0.45); };
+      const win = (sc: number, z0: number, ww: number, wh: number, litP: number, door?: boolean) => {
         if (!simple) budget--; // only windows drawn in full count against the budget
         const lit = C.dark && RW() < litP, v = 0.94 + RW() * 0.12;
         rect(sc - ww / 2 - 0.1, sc + ww / 2 + 0.1, z0 - 0.05, z0 + wh + 0.12, 0.03, rtrim);
@@ -2582,18 +2615,18 @@
       // What stands out from this front, from the data: stone bay windows (Erker) and balconies.
       //   bayWindows | oriels: n  or  [{ bay: 2 | at: 0.5, floors: [1, 3], width: 2.6, depth: 0.8 }]   (floors: first and last upper floor, 1 = the one above the ground floor)
       //   balconies: n (that many per floor on the main floors)  or  [0, 2, 2, 1] (a count per upper floor)  or  [{ bay: 3, floor: 2, width: 2.4 }]
-      const upper = r.floors - 1, taken = new Set(); // "floor:bay" where something stands in front of the window
-      const sAtBay = (q) => (num(q.bay) != null ? (clamp(Math.round(q.bay), 0, r.bays - 1) + 0.5) * bw : clamp(or(q.at, 0.5), 0, 1) * r.len);
-      const spread = (n) => { const out = []; for (let i = 0; i < n; i++) out.push(clamp(Math.round((i + 0.5) * r.bays / n - 0.5), 0, r.bays - 1)); return out; };
-      const oriels = [];
+      const upper = r.floors - 1, taken = new Set<string>(); // "floor:bay" where something stands in front of the window
+      const sAtBay = (q: { bay?: number; at?: number }) => (num(q.bay) != null ? (clamp(Math.round(q.bay!), 0, r.bays - 1) + 0.5) * bw : clamp(or(q.at, 0.5), 0, 1) * r.len);
+      const spread = (n: number) => { const out: number[] = []; for (let i = 0; i < n; i++) out.push(clamp(Math.round((i + 0.5) * r.bays / n - 0.5), 0, r.bays - 1)); return out; };
+      const oriels: Oriel[] = [];
       { const src = r.spec.bayWindows != null ? r.spec.bayWindows : r.spec.oriels;
         if (Array.isArray(src)) for (const q of src) { if (q && typeof q === 'object') oriels.push({ s: sAtBay(q), f0: clamp(Math.round(or(q.floors && q.floors[0], 1)), 1, Math.max(1, upper)), f1: clamp(Math.round(or(q.floors && q.floors[1], upper - 1)), 1, Math.max(1, upper)), w: or(q.width, Math.min(2.6, bw * 0.95)), d: or(q.depth, 0.8) }); }
-        else if (num(src) > 0) for (const bay of spread(Math.min(Math.round(src), r.bays))) oriels.push({ s: (bay + 0.5) * bw, f0: 1, f1: Math.max(1, upper - 1), w: Math.min(2.6, bw * 0.95), d: 0.8 }); }
-      const balc = [];
+        else if (num(src)! > 0) for (const bay of spread(Math.min(Math.round(src!), r.bays))) oriels.push({ s: (bay + 0.5) * bw, f0: 1, f1: Math.max(1, upper - 1), w: Math.min(2.6, bw * 0.95), d: 0.8 }); }
+      const balc: Balcony[] = [];
       { const src = r.spec.balconies;
-        if (Array.isArray(src) && src.length && typeof src[0] === 'object') { for (const q of src) if (q) balc.push({ s: sAtBay(q), floor: clamp(Math.round(or(q.floor, 1)), 1, Math.max(1, upper)), w: or(q.width, Math.min(2.4, bw * 0.92)) }); }
-        else if (Array.isArray(src)) src.forEach((n, i) => { if (i < upper) for (const bay of spread(Math.min(Math.round(n) || 0, r.bays))) balc.push({ s: (bay + 0.5) * bw, floor: i + 1, w: Math.min(2.4, bw * 0.92) }); });
-        else if (num(src) > 0) for (let fl = 1; fl <= Math.min(upper, Math.max(1, upper - 1)); fl++) for (const bay of spread(Math.min(Math.round(src), r.bays))) balc.push({ s: (bay + 0.5) * bw, floor: fl, w: Math.min(2.4, bw * 0.92) }); }
+        if (Array.isArray(src) && src.length && typeof src[0] === 'object') { for (const q of src as StationDetailBalcony[]) if (q) balc.push({ s: sAtBay(q), floor: clamp(Math.round(or(q.floor, 1)), 1, Math.max(1, upper)), w: or(q.width, Math.min(2.4, bw * 0.92)) }); }
+        else if (Array.isArray(src)) (src as number[]).forEach((n, i) => { if (i < upper) for (const bay of spread(Math.min(Math.round(n) || 0, r.bays))) balc.push({ s: (bay + 0.5) * bw, floor: i + 1, w: Math.min(2.4, bw * 0.92) }); });
+        else if (num(src)! > 0) for (let fl = 1; fl <= Math.min(upper, Math.max(1, upper - 1)); fl++) for (const bay of spread(Math.min(Math.round(src!), r.bays))) balc.push({ s: (bay + 0.5) * bw, floor: fl, w: Math.min(2.4, bw * 0.92) }); }
       if (upper < 1 || r.fh < 2) { oriels.length = 0; balc.length = 0; }
       const stoneD = tone(r.col, 0.93), railC = tone(pal.metal, C.dark ? 0.9 : 0.75);
       for (const o of oriels) {
@@ -2612,8 +2645,8 @@
           const zf = gfTop + (fl - 1) * r.fh, wh = clamp(r.fh * 0.6, 1.0, 2.1), zw = zf + (r.fh - wh) * 0.45, ww = o.w - 0.7, lit = C.dark && RW() < 0.35, g = lit ? glow() : null;
           W.quad(Q(s0, off0 + d + 0.012, zf - 0.08), Q(s1, off0 + d + 0.012, zf - 0.08), Q(s1, off0 + d + 0.012, zf + 0.06), Q(s0, off0 + d + 0.012, zf + 0.06), rtrim, { n: nrm });
           W.quad(Q(o.s - ww / 2 - 0.08, off0 + d + 0.02, zw - 0.05), Q(o.s + ww / 2 + 0.08, off0 + d + 0.02, zw - 0.05), Q(o.s + ww / 2 + 0.08, off0 + d + 0.02, zw + wh + 0.1), Q(o.s - ww / 2 - 0.08, off0 + d + 0.02, zw + wh + 0.1), rtrim, { n: nrm });
-          for (let p = 0; p < 2; p++) { const a0 = o.s - ww / 2 + p * (ww / 2 + 0.03), a1 = a0 + ww / 2 - 0.03; W.quad(Q(a0, off0 + d + 0.035, zw), Q(a1, off0 + d + 0.035, zw), Q(a1, off0 + d + 0.035, zw + wh), Q(a0, off0 + d + 0.035, zw + wh), lit ? [g, g, tone(g, 0.86), tone(g, 0.86)] : [glassB, glassB, glassT, glassT], { n: nrm, mode: lit ? 1 : 0 }); }
-          if (d >= 0.6) for (const [sd, hn] of [[s0 - 0.012, [-tdir[0], -tdir[1], 0]], [s1 + 0.012, tdir]]) W.quad(Q(sd, off0 + 0.18, zw), Q(sd, off0 + d - 0.18, zw), Q(sd, off0 + d - 0.18, zw + wh), Q(sd, off0 + 0.18, zw + wh), lit ? g : [glassB, glassB, glassT, glassT], { n: hn, mode: lit ? 1 : 0 });
+          for (let p = 0; p < 2; p++) { const a0 = o.s - ww / 2 + p * (ww / 2 + 0.03), a1 = a0 + ww / 2 - 0.03; W.quad(Q(a0, off0 + d + 0.035, zw), Q(a1, off0 + d + 0.035, zw), Q(a1, off0 + d + 0.035, zw + wh), Q(a0, off0 + d + 0.035, zw + wh), lit ? [g!, g!, tone(g!, 0.86), tone(g!, 0.86)] : [glassB, glassB, glassT, glassT], { n: nrm, mode: lit ? 1 : 0 }); }
+          if (d >= 0.6) for (const [sd, hn] of [[s0 - 0.012, [-tdir[0], -tdir[1], 0]], [s1 + 0.012, tdir]] as [number, V3][]) W.quad(Q(sd, off0 + 0.18, zw), Q(sd, off0 + d - 0.18, zw), Q(sd, off0 + d - 0.18, zw + wh), Q(sd, off0 + 0.18, zw + wh), lit ? g! : [glassB, glassB, glassT, glassT], { n: hn, mode: lit ? 1 : 0 });
         }
       }
       for (const q of balc) {
@@ -2622,7 +2655,7 @@
         const zf = gfTop + (q.floor - 1) * r.fh + 0.1, s0 = q.s - q.w / 2, s1 = q.s + q.w / 2, d = 0.85, zr = zf + 0.95;
         W.obox(Q(q.s, off0 + d / 2, zf - 0.07), [tdir[0] * q.w / 2, tdir[1] * q.w / 2, 0], [nrm[0] * d / 2, nrm[1] * d / 2, 0], [0, 0, 0.07], stoneD, { top: mix(rtrim, WHITE, C.dark ? 0.05 : 0.3), skip: '-y' });
         for (const sb of [s0 + 0.25, s1 - 0.25]) W.tri(Q(sb, off0, zf - 0.14), Q(sb, off0 + d * 0.8, zf - 0.14), Q(sb, off0, zf - 0.6), tone(stoneD, 0.85), { two: true });
-        const rail = (a, c2, z, th) => W.obox([(a[0] + c2[0]) / 2, (a[1] + c2[1]) / 2, z], [(c2[0] - a[0]) / 2, (c2[1] - a[1]) / 2, 0], (() => { const l = Math.hypot(c2[0] - a[0], c2[1] - a[1]) || 1; return [-(c2[1] - a[1]) / l * th, (c2[0] - a[0]) / l * th, 0]; })(), [0, 0, th], railC, { skip: '+x-x' });
+        const rail = (a: V3, c2: V3, z: number, th: number) => W.obox([(a[0] + c2[0]) / 2, (a[1] + c2[1]) / 2, z], [(c2[0] - a[0]) / 2, (c2[1] - a[1]) / 2, 0], (() => { const l = Math.hypot(c2[0] - a[0], c2[1] - a[1]) || 1; return [-(c2[1] - a[1]) / l * th, (c2[0] - a[0]) / l * th, 0]; })(), [0, 0, th], railC, { skip: '+x-x' });
         const c0 = Q(s0 + 0.03, off0 + 0.02, 0), c1 = Q(s0 + 0.03, off0 + d - 0.04, 0), c3 = Q(s1 - 0.03, off0 + d - 0.04, 0), c4 = Q(s1 - 0.03, off0 + 0.02, 0);
         for (const [a, c2] of [[c0, c1], [c1, c3], [c3, c4]]) {
           rail(a, c2, zr, 0.022); rail(a, c2, zf + 0.12, 0.014);
@@ -2639,7 +2672,7 @@
         W.quad(Q(s0, off0, gfTop), Q(s0, off0 + 0.16, gfTop), Q(s0, off0 + 0.16, zt), Q(s0, off0, zt), stoneD, { n: [-tdir[0], -tdir[1], 0] });
         W.quad(Q(s1, off0, gfTop), Q(s1, off0 + 0.16, gfTop), Q(s1, off0 + 0.16, zt), Q(s1, off0, zt), stoneD, { n: tdir });
       }
-      const fwd = (i) => (i >= mid0 && i < mid1 ? 0.16 : 0);
+      const fwd = (i: number) => (i >= mid0 && i < mid1 ? 0.16 : 0);
       // upper floors: a line under each, a window per bay
       for (let k = 0; k + 1 < r.floors; k++) {
         const zf = gfTop + k * r.fh;
@@ -2677,7 +2710,7 @@
       } else if (r.kind === 'shop') {
         const fascia = mix(pal.awnings[Math.floor(RW() * pal.awnings.length) % pal.awnings.length], r.col, 0.35), awn0 = pal.awnings[Math.floor(RW() * pal.awnings.length) % pal.awnings.length];
         // awnings from the data: true, or { color }: every shop window gets one, in that colour softened to the palette
-        const aw = r.spec.awnings, awc = aw && typeof aw === 'object' ? hex(aw.color) : null, awn = awc ? (C.dark ? mix(awn0, tone(awc, 0.5), 0.5) : mix(awc, hex('#EFE9DC'), 0.25)) : awn0;
+        const aw = r.spec.awnings, awc = aw && typeof aw === 'object' ? hex(aw.color) : null, awn = awc ? (C.dark ? mix(awn0, tone(awc, 0.5), 0.5) : mix(awc, hex('#EFE9DC')!, 0.25)) : awn0;
         const doorEvery = 3, phase = Math.floor(RW() * doorEvery), frame = mix(r.col, BLACK, C.dark ? 0.3 : 0.45), hasAwn = aw ? true : aw === false ? false : RW() < 0.7;
         rect(0.12, r.len - 0.12, gfTop - 0.85, gfTop - 0.28, 0.05, fascia);
         for (let i = 0; i < r.bays; i++) {
@@ -2726,8 +2759,8 @@
     if (ring) for (const e of runs.E!) {
       const r = runs.find((q) => q.edges.includes(e));
       if (r && r.party) continue;
-      const P = (s, o) => [e.a[0] + e.t[0] * s + e.n[0] * o, e.a[1] + e.t[1] * s + e.n[1] * o];
-      const steps2 = Math.max(1, Math.ceil(e.len / 4)), inner = [], o1 = [], o2 = [], inBox = C.casts((e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2), away = !C.dark && !inBox && e.n[0] * C.sun[0] + e.n[1] * C.sun[1] < -0.2;
+      const P = (s: number, o: number): XY => [e.a[0] + e.t[0] * s + e.n[0] * o, e.a[1] + e.t[1] * s + e.n[1] * o];
+      const steps2 = Math.max(1, Math.ceil(e.len / 4)), inner: XY[] = [], o1: XY[] = [], o2: XY[] = [], inBox = C.casts((e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2), away = !C.dark && !inBox && e.n[0] * C.sun[0] + e.n[1] * C.sun[1] < -0.2;
       for (let k = 0; k <= steps2; k++) { const s = (k / steps2) * e.len; inner.push(P(s, 0.02)); o1.push(P(s, 1.5)); o2.push(P(s, 4.2)); }
       shadeStrip(C, inner, o1, inBox ? 0.7 : 1.05, base);
       if (away) shadeStrip(C, inner, o2, 0.6, base);
@@ -2869,25 +2902,25 @@
     const B = { solid: new (Batch as BatchNew)(), bld: new (Batch as BatchNew)(), crown: new (Batch as BatchNew)(), glass: new (Batch as BatchNew)(true), decal: new (Batch as BatchNew)() };
     const nTrees = (detail.trees || []).length;
     const C = {
-      THREE, detail, opts, pal, dark, high, far: false, castBox: null, sun, ground: new Ground(), z0: 0, plane: null,
+      THREE, detail, opts, pal, dark, high, far: false, castBox: null, sun, ground: new (Ground as GroundNew)(), z0: 0, plane: null,
       season: opts.season === 'summer' || opts.season === 'winter' ? opts.season : null,
       counts: { surfaces: 0, edges: 0, trees: 0, props: 0, buildings: 0 }, warn: (m) => { if (warnings.length < 40) warnings.push(m); },
-      walk: [], base: new Ground(), gtris: [], cast: !dark && opts.shadows !== false, fit: { a: 0, b: 0, c: 0 }, groundBatches: new Map(), shadow: new Batch(true), pool: new Batch(true), feather: new Batch(true), glows: [],
-      W: { solid: new Writer(B.solid, shade), bld: new Writer(B.bld, shade), crown: new Writer(B.crown, shade), glass: new Writer(B.glass, shade), decal: new Writer(B.decal, shade) },
+      walk: [], base: new (Ground as GroundNew)(), gtris: [], cast: !dark && opts.shadows !== false, fit: { a: 0, b: 0, c: 0 }, groundBatches: new Map(), shadow: new (Batch as BatchNew)(true), pool: new (Batch as BatchNew)(true), feather: new (Batch as BatchNew)(true), glows: [],
+      W: { solid: new (Writer as WriterNew)(B.solid, shade), bld: new (Writer as WriterNew)(B.bld, shade), crown: new (Writer as WriterNew)(B.crown, shade), glass: new (Writer as WriterNew)(B.glass, shade), decal: new (Writer as WriterNew)(B.decal, shade) },
       path: cleanLine(detail.path || []), clearance: or(opts.clearance, 2.7),
       lobeF: high ? (nTrees > 44 ? 2 : 3) : (nTrees > 90 ? 1 : 2), windowBudget: high ? 1100 : -1,
       rings: (detail.buildings || []).map((b) => { const r = b && cleanRing(b.ring) as BoxedRing | null; if (r) r.box = boxOf(r); return r; }),
-    };
+    } satisfies CtxDraft as unknown as Ctx;
     if (C.cast && C.path) {
       const bx = boxOf(C.path), m = 45;
       C.castBox = [bx[0] - m, bx[1] - m, bx[2] + m, bx[3] + m];
     }
     C.casts = (x, y) => C.cast && (!C.castBox || (x >= C.castBox[0] + 4 && x <= C.castBox[2] - 4 && y >= C.castBox[1] + 4 && y <= C.castBox[3] - 4));
-    const each = (list, name, fn) => (list || []).forEach((item, i) => {
+    const each = <T>(list: T[] | undefined, name: string, fn: (item: T, i: number) => void) => (list || []).forEach((item, i) => {
       if (!item) return;
       try { fn(item, i); } catch (e) { C.warn(name + ' ' + i + ': ' + (e && (e as Error).message)); }
     });
-    const timing = {}, lap = (name, t) => { timing[name] = Math.round(now() - t); };
+    const timing: Record<string, number> = {}, lap = (name: string, t: number) => { timing[name] = Math.round(now() - t); };
     let tl = now();
     const surfaces = readSurfaces(C);
     buildSurfaces(C, surfaces);
@@ -2906,7 +2939,7 @@
     for (const t of C.walk) C.ground.add(t[0], t[1], t[2], 9); // kerb tops, once all edges have measured the ground beside them
     // Detail by distance from the walk: what stands along it is drawn in full, what is further away coarser
     // (limbs, shoots, crowns, window frames), and beyond 95 m in its simplest form. Without a path all is near.
-    const tier = (x, y, near, far) => { const d = C.path ? lineDist(C.path, x, y) : 0; C.high = high && d < near; C.far = d >= far; };
+    const tier = (x: number, y: number, near: number, far: number) => { const d = C.path ? lineDist(C.path, x, y) : 0; C.high = high && d < near; C.far = d >= far; };
     each(detail.buildings, 'building', (b, i) => { C.high = high; C.far = false; buildBuilding(C, b, i); });
     each(detail.trees, 'tree', (t) => { if (t.xy) tier(t.xy[0], t.xy[1], 45, high ? 95 : 60); buildTree(C, t); });
     each(detail.props, 'prop', (p) => { if (p.xy) tier(p.xy[0], p.xy[1], 60, 95); buildProp(C, p); });
@@ -2924,7 +2957,7 @@
     // flatten: the plane that fits the street is taken out of all heights (a shear: what stands upright stays
     // upright, kerbs keep their steps), so the ground lies level at height 0 (+ zShift) like the floor of the model
     const fit = h.plane = { a: C.fit.a, b: C.fit.b, c: C.fit.c, given: !!C.fit.given }, flat = h.flattened = !!opts.flatten;
-    const toScene = flat ? (x, y, z) => map(x, y, z - (fit.c + fit.a * x + fit.b * y) + shift) : shift ? (x, y, z) => map(x, y, z + shift) : map;
+    const toScene = flat ? (x: number, y: number, z: number) => map(x, y, z - (fit.c + fit.a * x + fit.b * y) + shift) : shift ? (x: number, y: number, z: number) => map(x, y, z + shift) : map;
     for (const l of h.lamps) l.z += shift - (flat ? fit.c + fit.a * l.xy[0] + fit.b * l.xy[1] : 0);
     const o = toScene(0, 0, 0), ex = sub(toScene(1, 0, 0), o), ey = sub(toScene(0, 1, 0), o), ez = sub(toScene(0, 0, 1), o);
     const flip = dot(ex, cross(ey, ez)) < 0; // a mirrored mapping turns every triangle over
@@ -2951,27 +2984,27 @@
       if (m) parts.ground.push(m);
     });
     if (cast) { // the shadow picture, laid over each layer of the ground
-      const tex = new THREE.CanvasTexture(cast.canvas), by = new Map();
+      const tex = new THREE.CanvasTexture(cast.canvas), by = new Map<number, Batch>();
       tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
       res.push(tex); nTex++;
       for (const t of C.gtris) {
         if (Math.max(t[0][0], t[1][0], t[2][0]) < cast.x0 || Math.min(t[0][0], t[1][0], t[2][0]) > cast.x0 + cast.w || Math.max(t[0][1], t[1][1], t[2][1]) < cast.y0 || Math.min(t[0][1], t[1][1], t[2][1]) > cast.y0 + cast.h) continue;
         let b = by.get(t[3]);
-        if (!b) { b = new Batch(); b.uv = []; by.set(t[3], b); }
-        for (let j = 0; j < 3; j++) { b.i.push(b.vert([t[j][0], t[j][1], t[j][2] + 0.002], WHITE)); b.uv.push((t[j][0] - cast.x0) / cast.w, (t[j][1] - cast.y0) / cast.h); }
+        if (!b) { b = new (Batch as BatchNew)(); b.uv = []; by.set(t[3], b); }
+        for (let j = 0 as 0 | 1 | 2; j < 3; j++) { b.i.push(b.vert([t[j][0], t[j][1], t[j][2] + 0.002], WHITE)); b.uv!.push((t[j][0] - cast.x0) / cast.w, (t[j][1] - cast.y0) / cast.h); }
       }
       parts.cast = [];
       [...by.keys()].sort((p, q) => p - q).forEach((layer) => {
         const l = Math.max(0, layer);
-        const m = mesh('cast-' + layer, by.get(layer), new Basic({ map: tex, transparent: true, depthWrite: false, opacity: pal.castAlpha, polygonOffset: true, polygonOffsetFactor: -(l + 0.5), polygonOffsetUnits: -(2 * l + 1) }), 1.5, true);
-        if (m) parts.cast.push(m);
+        const m = mesh('cast-' + layer, by.get(layer)!, new Basic({ map: tex, transparent: true, depthWrite: false, opacity: pal.castAlpha, polygonOffset: true, polygonOffsetFactor: -(l + 0.5), polygonOffsetUnits: -(2 * l + 1) }), 1.5, true);
+        if (m) parts.cast!.push(m);
       });
     }
     parts.decals = mesh('decals', B.decal, new Basic({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -10 }), -10);
     parts.solid = mesh('solid', B.solid, new Basic({ vertexColors: true }), 0);
     parts.buildings = mesh('buildings', B.bld, new Basic({ vertexColors: true, side: C.meshBuildings ? THREE.DoubleSide : THREE.FrontSide }), 0);
     parts.crowns = mesh('crowns', B.crown, new Basic({ vertexColors: true }), 0);
-    const veil = (extra) => new Basic(Object.assign({ vertexColors: true, transparent: true, depthWrite: false }, extra));
+    const veil = (extra?: THREE.MeshBasicMaterialParameters) => new Basic(Object.assign({ vertexColors: true, transparent: true, depthWrite: false }, extra));
     parts.feather = mesh('feather', C.feather, veil({ polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }), 1);
     parts.shadows = mesh('shadows', C.shadow, veil({ polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -12 }), 2);
     parts.pools = mesh('pools', C.pool, veil({ polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -12, blending: THREE.AdditiveBlending, fog: false }), 3);
@@ -3029,14 +3062,14 @@
   function update(h: Handle, change?: Station3DDetailOptions) {
     if (!h || !h._THREE) return h;
     const o = Object.assign({}, h.opts, change);
-    const same = ['theme', 'quality', 'season', 'pollard', 'zShift', 'flatten', 'shadows', 'featherColor', 'featherInside', 'sun', 'palette', 'sky', 'feather', 'clearance'].every((k) => JSON.stringify(o[k]) === JSON.stringify(h.opts[k]));
+    const same = (['theme', 'quality', 'season', 'pollard', 'zShift', 'flatten', 'shadows', 'featherColor', 'featherInside', 'sun', 'palette', 'sky', 'feather', 'clearance'] as const).every((k) => JSON.stringify(o[k]) === JSON.stringify(h.opts[k]));
     if (same && h.group.children.length) return h;
     h.opts = o;
     clear(h);
     fill(h._THREE, h);
     return h;
   }
-  function groundAt(h, x, y) {
+  function groundAt(h: Handle | null | undefined, x: number, y: number) {
     if (!h || !h._ground) return null;
     let z = h._ground.at(x, y);
     if (z == null && h._base) z = h._base.at(x, y);

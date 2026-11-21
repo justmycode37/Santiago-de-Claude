@@ -87,7 +87,7 @@ function kBadge(j: LineLike, size?: 'lg' | null, withIcon?: boolean) {
 const chainIcon = (j: LineLike) => !(modeOf(j.category) === 'train' && /[A-Za-z]/.test(lineLabel(j))); // "IC 8" says train by itself
 
 // Where a ride stops: the label ("7", "C"), its noun, and the timetable's platform when it has changed today
-function quayOf(r: JourneyRideStep, end: 'dep' | 'arr'): Quay {
+function quayOf(r: QuayRide, end: 'dep' | 'arr'): Quay {
   const s = r.s, stop = end === 'dep' ? s.departure : s.arrival, at = ((end === 'dep' ? r.depAt : r.arrAt) || {}) as Partial<JourneyPlatformAt>;
   const live = stop.prognosis && stop.prognosis.platform, plan = stop.platform;
   const { num, sectors } = splitPlatform(live || plan || '');
