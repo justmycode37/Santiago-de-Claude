@@ -27,15 +27,36 @@ The engine is `https://kante.omniroute.app` by default. Set `kanteUrl` in `confi
 
 ## Getting started
 
+Needs [Node.js](https://nodejs.org) 22.18 or newer.
+
 ```bash
 git clone https://github.com/justmycode37/Santiago-de-Claude.git
 cd Santiago-de-Claude
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
 
-Open `http://localhost:8000`.
+Open `http://localhost:8000`. `npm run dev` builds the site into `dist/`, serves it and rebuilds when you save a file.
 
-For testing on a phone, run `python3 tools/serve.py` instead (serves gzipped, cached assets) behind HTTPS (e.g. `tailscale serve`) so GPS, camera, and compass work.
+For testing on a phone, run `python3 tools/serve.py` next to it (serves `dist/` gzipped and cached) behind HTTPS (e.g. `tailscale serve`) so GPS, camera, and compass work.
+
+### Where the code is
+
+The app is written in TypeScript. The browser still gets plain scripts with the names it always had: the build only takes the types out, so `dist/live.js` is `src/live.ts` line for line.
+
+| Source | Becomes |
+| --- | --- |
+| `src/<name>.ts` | `<name>.js`, a script the page loads (`src/live.ts` → `live.js`) |
+| `src/app/*.ts` | the page's own script, joined in file name order and put into `index.html` |
+| `index.html`, `*.css`, and the `.js` files in the repository root (generated data) | copied as they are |
+
+The files in `src/app` share one scope, like the single script they are joined into, so the number in a file's name is its place in that script. A new script in `src/` needs its `<script src="name.js">` tag in `index.html`, as before.
+
+```bash
+npm run check   # check the types
+npm test        # the station router's tests
+npm run build   # dist/ once, without the dev server
+```
 
 ### Optional: Google Places search
 
@@ -60,7 +81,7 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
 
 ## Deployment
 
-Every push to `main` publishes the static site to GitHub Pages ([`.github/workflows/pages.yml`](.github/workflows/pages.yml)). The workflow copies only the files the app serves and writes `version.js` with the commit it was built from. The engine is deployed separately, see [`deploy/`](deploy/README.md).
+Every push to `main` builds the site and publishes it to GitHub Pages ([`.github/workflows/pages.yml`](.github/workflows/pages.yml)). The workflow publishes only the files the app serves (`node scripts/build.mts --release`) and writes `version.js` with the commit it was built from. The engine is deployed separately, see [`deploy/`](deploy/README.md).
 
 ## Other components
 
