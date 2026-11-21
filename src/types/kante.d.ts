@@ -88,7 +88,7 @@ interface KanteLiveInfo {
 /** The older engines' word for it, still sent beside `liveInfo`. */
 type KanteLiveWord = 'observed' | 'predicted' | 'timetable';
 /** How a position was worked out. */
-type KanteBasis = 'observed-stop' | 'forecast' | 'timetable' | 'crowd';
+type KanteBasis = 'observed-stop' | 'forecast' | 'timetable';
 
 /** Where a vehicle is at `t`: standing at stop `seq`, or `frac` of the way from `seq` to `nextSeq`. */
 interface KantePosition {
@@ -113,7 +113,7 @@ interface KanteMeta {
   validTo: string;
   walkBbox: KanteBbox;
   realtime: { enabled: boolean; source?: string; updatedAt?: number; trips?: number; extras?: number; error?: string; feeds?: KanteFeedStatus[] };
-  /** The optional parts this engine has: 'match', 'due', 'observe', 'stream', 'extras', 'gtfs-rt'. */
+  /** The optional parts this engine has: 'match', 'due', 'stream', 'extras', 'gtfs-rt'. */
   features: string[];
   counts: { stations: number; quays: number; trips: number; walkEdges: number };
   attribution: string[];
@@ -259,10 +259,6 @@ interface KanteMatch {
 }
 interface KanteMatchResponse { match: KanteMatch | null; candidates: number; reason: 'unique' | 'ambiguous' | 'none' }
 
-// ---- POST /api/observe: an on-board report
-type KanteObserveRequest = { tripId: string; serviceDate: string; lat: number; lon: number; t: number; accuracy: number };
-interface KanteObserveResponse { accepted: boolean; reason?: string }
-
 // ---- POST /api/plan, POST /api/walk
 /** Routing options. The engine has a default for each (PlanOptions in json.rs). */
 type KantePlanOptions = {
@@ -292,6 +288,8 @@ type KantePlanRequest = {
   options?: KantePlanOptions;
   page?: string;
 };
+/** A plan request as the app sends it: always with the traveller's routing options. */
+type KantePlanBody = KantePlanRequest & { options: KanteRoutingOptions };
 type KanteWalkRequest = { from: KantePlaceRef; to: KantePlaceRef; options?: KantePlanOptions };
 
 /** One written direction of a walk; `from`..`to` are its part of the walk's `geometry` (indices). */
@@ -383,6 +381,7 @@ interface KantePlanResponse {
   journeys: KanteJourney[];
   /** Walking all the way, when that is possible. */
   walkOnly?: KanteJourney;
+  /** Where to ask on for journeys before and after these: sent back as the request's `page`. */
   earlier?: string;
   later?: string;
   tookMs: number;
@@ -559,12 +558,37 @@ interface KanteStep {
 }
 /** The time picker's choice: leave at or arrive by; date "2026-11-21", time "14:05"; nothing or '' = today, now. */
 type KanteTimeQuery = { mode?: 'dep' | 'arr'; date?: string | null; time?: string | null };
+/** What more() needs to ask on: the request plans() sent, and the engine's pages before and after (null: none left). */
+interface KantePlansState { body: KantePlanBody; earlier?: string | null; later?: string | null }
+/**
+ * Every way to make a trip, for the list to choose from (KanteJourney.plans()). The page makes the same from
+ * transport.opendata.ch's answer when the engine has none: without `kante`, `walk` null, `earlier` and `later` false.
+ */
+interface KantePlans {
+  /** The journeys as connections, by departure. */
+  list: OdConnection[];
+  /** Walking all the way, when the engine offers it (up to about 3.5 km and 50 minutes). */
+  walk: OdConnection | null;
+  /** The one to show first: one of `list`, or `walk`. */
+  best: OdConnection;
+  /** Whether more() has earlier, and later, journeys to add. */
+  earlier: boolean;
+  later: boolean;
+  kante?: KantePlansState;
+}
 interface KanteJourneyApi {
   /**
-   * The engine's journey as a transport.opendata.ch connection (with `kante` on it, its sections and its stops);
-   * null when the engine is off, cannot be reached or finds none. fromLL: where from; dest: a search result.
+   * The engine's journey to show first, as a transport.opendata.ch connection (with `kante` on it, its sections and
+   * its stops); null when the engine is off, cannot be reached or finds none. fromLL: where from; dest: a search result.
    */
   find(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null): Promise<OdConnection | null>;
+  /** Every journey the engine offers for the trip; null as find(). */
+  plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null): Promise<KantePlans | null>;
+  /**
+   * Adds the earlier or later journeys for the same trip to plans()'s answer (`list`, `earlier`, `later`).
+   * → false when there was no page to ask for. Throws when the engine cannot be reached.
+   */
+  more(p: KantePlans | null | undefined, dir: 'earlier' | 'later'): Promise<boolean>;
   /** Where exactly a stop of an engine journey is; null for any other stop. */
   at(stop: OdCheckpoint | null | undefined): KantePlatformAt | null;
   /** Hands every walk and change of an engine journey its engine leg: time, path, directions, floor changes. */
@@ -602,12 +626,6 @@ interface KanteGetPaths {
   '/api/indoor': KanteIndoorResponse;
   '/api/match': KanteMatchResponse;
 }
-/** What a POST takes and answers, by path. */
-interface KantePostPaths {
-  '/api/plan': { body: KantePlanRequest; result: KantePlanResponse };
-  '/api/walk': { body: KanteWalkRequest; result: KanteWalk };
-  '/api/observe': { body: KanteObserveRequest; result: KanteObserveResponse };
-}
 /** The live data's connection to the engine. Nothing here throws: a call that fails answers null. */
 interface KanteLiveClient {
   /** The engine's address without a trailing slash; null = switched off. */
@@ -615,19 +633,16 @@ interface KanteLiveClient {
   /** The address came from the page's link (?kante=, ?engine=off). */
   fromLink: boolean;
   ignored: string | undefined;
-  /** Whether the engine may be sent the traveller's position (any engine in use is one the site or this machine chose). */
-  trusted: boolean;
   /** The engine's /api/meta, asked once; while it fails, again after RETRY_MS (force: now). null: not reachable, or off. */
   ready(force?: boolean): Promise<KanteMeta | null>;
   /** The engine has answered. */
   ok(): boolean;
-  /** Whether the engine has an optional part ('match', 'observe', 'stream', …). */
+  /** Whether the engine has an optional part ('match', 'stream', …). */
   has(feature: string): boolean;
   /** The full address of a path, e.g. for an EventSource. Only with an engine (`url`). */
   href(path: string, params?: KanteParams | null): string;
   /** ms: the timeout, 8000 when left out. */
   get<P extends keyof KanteGetPaths>(path: P, params?: KanteParams | null, ms?: number): Promise<KanteGetPaths[P] | null>;
-  post<P extends keyof KantePostPaths>(path: P, body: KantePostPaths[P]['body']): Promise<KantePostPaths[P]['result'] | null>;
 }
 
 /** A position moved on to another moment (KANTE_LIVE.advance). */
@@ -648,24 +663,6 @@ interface KanteLiveContext {
   leftS?: number | null;
   /** The stop with the last measured time, by name. */
   observedAt?: string | null;
-}
-/** The traveller's planned ride, for the on-board check. */
-interface KanteOnboardMine {
-  /** The engine's trip, null when the ride has not been matched. */
-  tripId: string | null;
-  /** The line as shown: "S1". */
-  line: string;
-  headsign?: string | null;
-}
-interface KanteOnboardVerdict {
-  /** The planned vehicle is among the candidates… */
-  ours: boolean;
-  /** …and was recognised by its trip, not only by its line. */
-  byTrip: boolean;
-  /** Not ours: the best candidate. */
-  top: KanteOnboardCandidate | null;
-  /** `top` is clearly another vehicle (another line or direction, and no rival close to it). */
-  clear: boolean;
 }
 /** The line of a vehicle as the journey object the app colours lines by. */
 interface KanteJourneyLike { category: string; number: string; operator: string; name: string }
@@ -721,8 +718,6 @@ interface KanteLiveApi {
   rideKm(p: KanteAdvancedPosition | null | undefined, seqIdx: Map<number, number> | null | undefined, kms: (number | null | undefined)[], stopIdx: number[]): KanteRideKm | null;
   /** Says how a position was worked out. dim: it is not live. */
   liveText(info: Pick<KanteLiveInfo, 'state' | 'inaccurate' | 'congestion'> | null | undefined, ctx?: KanteLiveContext | null): { text: string; dim: boolean };
-  /** cands: /api/onboard's candidates. */
-  onboardVerdict(cands: KanteOnboardCandidate[] | null | undefined, mine: KanteOnboardMine): KanteOnboardVerdict;
   /** Seconds until it leaves, seconds of walking left. */
   runOrWait(leftS: number, walkS: number): KanteRunOrWait;
   journeyLike(line: Partial<KanteLine> | null | undefined): KanteJourneyLike;
@@ -742,7 +737,5 @@ interface KanteLiveApi {
   norm(t: string | null | undefined): string;
   /** A URL's origin, or null when it is not an http(s) URL. */
   originOf(u: string | null | undefined): string | null;
-  /** A coordinate with 5 decimals (about 1 m). */
-  roundLL(x: number): number;
 }
 declare var KANTE_LIVE: KanteLiveApi;
