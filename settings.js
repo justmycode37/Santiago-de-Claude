@@ -216,12 +216,10 @@
     layerGroup.append(row);
   }
   const layerSwitches = [...layerGroup.querySelectorAll('input[data-layer]')];
-  const pricingPanel = document.getElementById('pricingPanel');
-  const pricingContent = document.getElementById('pricingContent');
+  const pricingSuggestions = document.getElementById('pricingSuggestions');
+  const pricingSummary = document.getElementById('pricingSummary');
   const pricingClearPaused = document.getElementById('pricingClearPaused');
   const pricingStorageStatus = document.getElementById('pricingStorageStatus');
-  let refreshPricing;
-  let pricingLoad;
   const switches = [...page.querySelectorAll('input[data-setting]')];
   const modeSwitches = [...page.querySelectorAll('input[data-mode]')];
   const slider = document.getElementById('speedSlider');
@@ -285,20 +283,34 @@
   });
 
   function renderPricing() {
-    pricingPanel.hidden = !state.fareTracking;
-    pricingClearPaused.hidden = state.fareTracking || !PRICING_HISTORY.list().length;
-    if (!state.fareTracking || !isOpen) return;
-    if (refreshPricing) {
-      refreshPricing();
-      return;
-    }
-    if (pricingLoad) return;
-    pricingLoad = import('./pricing-panel.js').then(({ mountPricing }) => {
-      refreshPricing = mountPricing(pricingContent, PRICING_HISTORY);
-    }).catch(() => {
-      pricingContent.textContent = 'Could not load ticket pricing. Reopen Settings to retry.';
-    }).finally(() => { pricingLoad = null; });
+    const count = PRICING_HISTORY.list().length;
+    pricingSuggestions.hidden = !state.fareTracking;
+    pricingClearPaused.hidden = state.fareTracking || !count;
+    pricingSummary.textContent = count
+      ? `${count} saved ${count === 1 ? 'trip' : 'trips'}`
+      : 'See how your saved trips compare';
   }
+
+  window.openFareSuggestions = async (trigger) => {
+    if (!state.fareTracking) return;
+    try {
+      const { openSuggestions } = await import('./pricing-panel.js');
+      if (state.fareTracking && trigger?.isConnected) {
+        openSuggestions({ history: PRICING_HISTORY, trigger, onChange: () => {
+          renderPricing();
+          window.dispatchEvent(new Event('pricing-history-change'));
+        } });
+      }
+    } catch {
+      const message = 'Fare suggestions could not load. Please try again.';
+      if (!isOpen && typeof window.showToast === 'function') window.showToast(message);
+      else {
+        pricingStorageStatus.hidden = false;
+        pricingStorageStatus.textContent = message;
+      }
+    }
+  };
+  pricingSuggestions.addEventListener('click', () => window.openFareSuggestions(pricingSuggestions));
 
   pricingClearPaused.addEventListener('click', () => {
     if (!window.confirm('Clear all confirmed trips saved in this browser?')) return;
@@ -336,6 +348,7 @@
   }
 
   function update(patch) {
+    if ('fareTracking' in patch) pricingStorageStatus.hidden = true;
     state = { ...state, ...patch };
     save();
     render();
@@ -416,6 +429,21 @@
   window.addEventListener('hashchange', () => {
     if (!onSettings()) pushed = false;
     sync();
+  });
+  // Keep consent in sync when another tab pauses tracking or clears settings.
+  window.addEventListener('storage', (event) => {
+    if (event.storageArea !== localStorage) return;
+    if (event.key === KEY || event.key === null) {
+      let saved;
+      try { saved = JSON.parse(localStorage.getItem(KEY)); } catch { /* Treat unreadable consent as off. */ }
+      const enabled = saved?.fareTracking === true;
+      if (state.fareTracking !== enabled) {
+        state = { ...state, fareTracking: enabled };
+        if (!enabled) document.querySelector('dialog[data-fare-suggestions][open]')?.close();
+        render();
+        window.dispatchEvent(new Event('pricing-history-change'));
+      }
+    } else if (isOpen && event.key === 'pricing-trip-history-v1') renderPricing();
   });
   closeBtn.addEventListener('click', close);
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });

@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
   <title>Maps</title>
+  <link rel="stylesheet" href="pricing.css" />
+  <link rel="stylesheet" href="ticket-pricing.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <script>
     // Pick the theme before first paint: saved choice, else the system setting
@@ -695,8 +697,7 @@
     .kj .jrow-act.gone { color: var(--ink-3); font-weight: 400; }
     .kj .jrow-act .badge { align-self: center; }
     .kj .actionbar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
-    .kj .trip-log { margin-top: 6px; padding: 5px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
-    #pricingPanel { padding: 12px 16px; }
+    #pricingSuggestions[hidden] { display: none; }
     .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
     .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
     .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
@@ -711,7 +712,7 @@
       .kj .pill-btn.start { padding: 0 16px; }
       .kj .pill-btn.ticket { padding: 0 14px; }
     }
-    @media (max-width: 360px) {
+    @media (max-width: 410px) {
       .kj .pill-btn.ticket .tk-long { display: none; }
       .kj .pill-btn.ticket .tk-short { display: inline; }
     }
@@ -1384,6 +1385,21 @@
       </div>
       <p class="set-foot">Other languages are translated by Google Translate, so the text on the screen is sent to Google. Stop, line and place names stay as they are written on the signs.</p>
 
+      <h2 class="set-head" id="pricingHeading">Tickets &amp; travelcards</h2>
+      <div class="set-group" role="group" aria-labelledby="pricingHeading">
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4zM15 7v2m0 3v1m0 3v1" /></svg></span>
+          <span class="set-text"><b id="pricingToggleTitle">Trip history</b><small id="pricingToggleHelp">Save rides you confirm on this device for fare suggestions.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="fareTracking" aria-labelledby="pricingToggleTitle" aria-describedby="pricingToggleHelp" />
+        </label>
+        <button class="set-row set-nav" id="pricingSuggestions" type="button" aria-haspopup="dialog" hidden>
+          <span class="set-text"><b>Fare suggestions</b><small id="pricingSummary"></small></span>
+          <svg class="set-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+        <button class="set-reset" id="pricingClearPaused" type="button" hidden>Clear saved trips</button>
+      </div>
+      <p class="set-foot" id="pricingStorageStatus" role="status" hidden></p>
+
       <h2 class="set-head" id="setAccessHead">Accessibility</h2>
       <div class="set-group" role="group" aria-labelledby="setAccessHead">
         <label class="set-row">
@@ -1532,17 +1548,6 @@
         </label>
       </div>
       <p class="set-foot">The events map shows what matches anything you turn on under About you or Events. With all of them off, you see every event.</p>
-
-      <h2 class="set-head" id="pricingHeading">Ticket pricing</h2>
-      <div class="set-group" role="group" aria-labelledby="pricingHeading">
-        <label class="set-row">
-          <span class="set-text"><b id="pricingToggleTitle">Trip history and fare estimates</b><small id="pricingToggleHelp">Save trips you explicitly log in this browser and use them to compare SBB tickets and travelcards.</small></span>
-          <input class="switch" type="checkbox" role="switch" data-setting="fareTracking" aria-labelledby="pricingToggleTitle" aria-describedby="pricingToggleHelp" />
-        </label>
-        <div id="pricingPanel" hidden><div id="pricingContent"></div></div>
-        <button class="set-reset" id="pricingClearPaused" type="button" hidden>Clear saved trips</button>
-        <p id="pricingStorageStatus" role="status" hidden></p>
-      </div>
 
       <div class="set-group set-gap">
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
@@ -5383,18 +5388,34 @@
       jBody.replaceChildren(buildBody());
       jBody.scrollTop = top;
     }
+    let ticketFoot = null;
     function renderFoot() {
-      if (!journeyConn || journeyList) { jFoot.replaceChildren(); return; } // Start belongs to a journey that has been chosen
+      if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
       const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
+      const arrival = h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`),
+        h('b', null, kDur((end - start) / 1000)));
+      const tracking = SETTINGS.prefs().fareTracking;
+      if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.arrival.isConnected) {
+        ticketFoot.arrival.replaceWith(arrival);
+        ticketFoot.arrival = arrival;
+        return;
+      }
+      const ticket = ticketLink();
+      const pricing = ticketPricing(!!ticket);
       jFoot.replaceChildren(h('div', 'actionbar',
         kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
-        ticketLink(),
+        ticket,
         kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
-        h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
-      if (SETTINGS.prefs().fareTracking && journeySteps.some((step) => step.type === 'ride')) {
-        jFoot.append(kBtn('trip-log', null, confirmFareTrip, 'Log this trip'));
-      }
+        arrival),
+        ...(pricing ? [pricing.row] : []),
+        ...(pricing?.form ? [pricing.form] : []));
+      ticketFoot = { conn: journeyConn, tracking, arrival, refresh: pricing?.refresh };
     }
+    window.addEventListener('pricing-history-change', () => {
+      if (!ticketFoot?.arrival.isConnected) return;
+      renderFoot();
+      ticketFoot?.refresh?.();
+    });
     function renderSheet() {
       renderHead(true);
       renderBody();
@@ -5445,28 +5466,195 @@
       if (sheetDetent === 'full') setDetent('mid');
       renderSheet();
     }
-    // Start: the sheet steps aside and the map shows where you are on the trip (GPS moves it along from there)
-    function confirmFareTrip() {
-      if (!journeyConn || !SETTINGS.prefs().fareTracking) return;
+    function confirmFareTrip(trip, fare, halfFare) {
+      if (!SETTINGS.prefs().fareTracking) return '';
+      const result = PRICING_HISTORY.confirm({ ...trip, fare, halfFare });
+      const messages = {
+        saved: 'Trip saved to your pricing history',
+        duplicate: 'Trip already saved',
+        updated: 'Saved fares updated',
+        unavailable: 'Could not save this trip in the browser',
+      };
+      return messages[result];
+    }
+
+    const ticketQuotes = new WeakMap();
+    const ticketAmount = (amount) => Number.isFinite(amount) && amount >= 0;
+    const ticketMoney = (amount) => `CHF ${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+    async function matchFareConnection(sections, signal) {
+      const first = sections[0], last = sections[sections.length - 1];
+      const parts = swissTicketTime(first.departure.departure);
+      const params = new URLSearchParams({
+        from: first.departure.station.id,
+        to: last.arrival.station.id,
+        date: `${parts.year}-${parts.month}-${parts.day}`,
+        time: `${parts.hour}:${parts.minute}`,
+        limit: '5',
+      });
+      const response = await fetch(`${OPENDATA}connections?${params}`, { signal });
+      if (!response.ok) return null;
+      const { connections } = await response.json();
+      const sameStopTime = (a, b, field) => String(a.station?.id) === String(b.station?.id)
+        && Date.parse(a[field]) === Date.parse(b[field]);
+      const matches = (connections || []).filter((candidate) => {
+        const rides = candidate.sections.filter((section) => section.journey);
+        return rides.length === sections.length && rides.every((ride, i) =>
+          sameStopTime(ride.departure, sections[i].departure, 'departure')
+          && sameStopTime(ride.arrival, sections[i].arrival, 'arrival')
+          && (!sections[i].journey.category || ride.journey.category === sections[i].journey.category));
+      });
+      return matches.length === 1 ? matches[0] : null;
+    }
+
+    function quoteTicket(conn) {
+      if (!ticketQuotes.has(conn)) {
+        // Send only the data needed to price the exact rides, excluding access walks and app metadata.
+        const checkpoint = (stop, time) => ({ station: { id: stop.station?.id }, [time]: stop[time] });
+        const engineCheckpoint = (call, field, clock) => {
+          const id = call.quay?.stationId;
+          const time = call[clock];
+          return {
+            station: { id: KANTE.uicOf(id) || id },
+            [field]: Number.isFinite(time) ? new Date(time * 1000).toISOString() : null,
+          };
+        };
+        const sections = conn.sections.filter((section) => section.journey).flatMap(({ departure, arrival, journey, kanteLegs }) => {
+          if (kanteLegs?.length > 1) return kanteLegs.map((leg) => ({
+            departure: engineCheckpoint(leg.from, 'departure', 'dep'),
+            arrival: engineCheckpoint(leg.to, 'arrival', 'arr'),
+            journey: { category: leg.line.category },
+          }));
+          return [{
+            departure: checkpoint(departure, 'departure'),
+            arrival: checkpoint(arrival, 'arrival'),
+            journey: { category: journey.category, operator: journey.operator, number: journey.number, name: journey.name },
+          }];
+        });
+        const request = (async () => {
+          if (!sections.length || !sections.every(({ departure, arrival }) => departure.station.id && arrival.station.id
+            && Number.isFinite(Date.parse(departure.departure)) && Number.isFinite(Date.parse(arrival.arrival)))) return null;
+          const signal = AbortSignal.timeout?.(10000);
+          // Kante uses operator names from its own feed. Resolve its exact ride times and stops
+          // to the fare provider's connection before asking for a price.
+          const connection = conn.kante ? await matchFareConnection(sections, signal) : { sections };
+          if (!connection) return null;
+          const response = await fetch(`${OPENDATA}fare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(connection),
+            signal,
+          });
+          if (!response.ok) return null;
+          const data = await response.json();
+          const second = data.currency === 'CHF' && data.fares?.['2nd'];
+          if (!second || (!ticketAmount(second.full) && !ticketAmount(second.halfFare))) return null;
+          return { fare: second.full, halfFare: second.halfFare };
+        })().catch(() => null);
+        ticketQuotes.set(conn, request);
+      }
+      return ticketQuotes.get(conn);
+    }
+
+    function ticketPricing(hasTicket) {
+      const conn = journeyConn;
       const rides = journeySteps.filter((step) => step.type === 'ride').map((step) => step.s);
-      if (!rides.length) return;
-      const result = PRICING_HISTORY.confirm({
+      const tracking = SETTINGS.prefs().fareTracking;
+      if (!rides.length || (!tracking && !hasTicket)) return null;
+      const trip = {
         from: rides[0].departure.station.name,
         to: rides[rides.length - 1].arrival.station.name,
         departure: rides[0].departure.departure,
         rides: rides.map((ride) => [
-          lineLabel(ride.journey), ride.departure.station.name, ride.arrival.station.name,
-          ride.departure.departure,
+          lineLabel(ride.journey), ride.departure.station.name, ride.arrival.station.name, ride.departure.departure,
         ]),
-      });
-      const messages = {
-        saved: 'Trip saved to your pricing history',
-        duplicate: 'This trip is already in your pricing history',
-        unavailable: 'Could not save this trip in the browser',
       };
-      showToast(messages[result]);
+      let quote = null;
+      const fare = h('input'), halfFare = h('input');
+      const edited = new Set();
+      const submit = h('button', 'pill-btn ticket-fare-save');
+      submit.type = 'submit';
+      for (const input of [fare, halfFare]) {
+        input.type = 'number';
+        input.inputMode = 'decimal';
+        input.min = '0';
+        input.step = '0.01';
+        input.addEventListener('input', () => edited.add(input));
+      }
+      const summary = h('span', 'ticket-fare-summary');
+      summary.id = 'journeyFareSummary';
+      const detail = h('p', 'ticket-fare-context');
+      function showFare() {
+        const saved = tracking ? PRICING_HISTORY.findConfirmed(trip) : null;
+        submit.textContent = saved ? 'Save fares' : 'Confirm trip';
+        for (const [input, field] of [[fare, 'fare'], [halfFare, 'halfFare']]) {
+          const value = saved?.[field] ?? quote?.[field];
+          if (!edited.has(input)) input.value = ticketAmount(value) ? value.toFixed(2) : '';
+        }
+        const previous = tracking ? PRICING_HISTORY.routeFare(trip.from, trip.to) : null;
+        const source = quote ? '2nd class' : previous ? 'Previous fare' : '';
+        const amounts = quote || previous;
+        const prices = amounts ? [
+          ticketAmount(amounts.fare) && `${ticketMoney(amounts.fare)} full`,
+          ticketAmount(amounts.halfFare) && `${ticketMoney(amounts.halfFare)} Half Fare`,
+        ].filter(Boolean) : [];
+        summary.replaceChildren(...(prices.length ? [h('span', null, source),
+          ...prices.map((price) => h('span', 'ticket-fare-price', ' · ', price))]
+          : [hasTicket ? 'Check fare on SBB' : 'Trip fares']));
+        summary.title = quote ? 'Standard point-to-point fare from NOVA' : '';
+        detail.textContent = quote ? 'Standard fare from NOVA. Adjust the amounts if you paid a different fare.'
+          : previous ? `Previous fare saved for ${previous.date}. Enter the fare for this trip.`
+            : 'Enter the fares for your trip if you know them.';
+      }
+      showFare();
+      const pendingQuote = hasTicket ? quoteTicket(conn) : Promise.resolve(null);
+      pendingQuote.then((result) => {
+        quote = result;
+        if (result && summary.isConnected) showFare();
+      });
+      if (!tracking) return { row: h('div', 'ticket-fare-row', summary) };
+
+      const form = h('form', 'ticket-fare-form', detail);
+      form.id = 'journeyFareForm';
+      form.hidden = true;
+      const arrow = h('span', 'ticket-fare-chevron');
+      arrow.setAttribute('aria-hidden', 'true');
+      const toggle = kBtn('ticket-fare-row ticket-fare-toggle', 'Fare options', () => {
+        form.hidden = !form.hidden;
+        toggle.setAttribute('aria-expanded', String(!form.hidden));
+      }, summary, arrow);
+      toggle.setAttribute('aria-controls', form.id);
+      toggle.setAttribute('aria-describedby', summary.id);
+      toggle.setAttribute('aria-expanded', 'false');
+      const status = h('p', 'ticket-fare-status');
+      status.setAttribute('role', 'status');
+      const suggestions = kBtn('ticket-fare-suggestions', null, (event) => {
+        window.openFareSuggestions(event.currentTarget);
+      }, 'Fare suggestions');
+      form.append(h('div', 'ticket-fare-fields', h('label', null, 'Full fare (CHF)', fare),
+        h('label', null, 'Half Fare (CHF)', halfFare)),
+        h('div', 'ticket-fare-actions', submit, suggestions), status);
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (submit.disabled) return;
+        submit.disabled = true;
+        try {
+          // A quick confirmation can precede the price response. Use the quote for
+          // unanswered fields, while preserving every amount the rider entered.
+          const needsQuote = !quote && [fare, halfFare].some((input) => !input.value && !edited.has(input));
+          if (needsQuote) status.textContent = 'Checking the fare...';
+          const result = needsQuote ? await pendingQuote : quote;
+          const amount = (input, field) => input.value || edited.has(input) ? input.valueAsNumber : result?.[field];
+          status.textContent = confirmFareTrip(trip, amount(fare, 'fare'), amount(halfFare, 'halfFare'));
+          edited.clear();
+          showFare();
+        } finally {
+          submit.disabled = false;
+        }
+      });
+      return { row: toggle, form, refresh: showFare };
     }
 
+    // Start: the sheet steps aside and the map shows where you are on the trip (GPS moves it along from there)
     function startFollowing() {
       setFollowing(true);
       if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
@@ -5481,16 +5669,19 @@
     // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
     // connection (trip=0_0) is this one. The page preselects the cheapest ticket for it (a supersaver ticket where
     // there is one) and starts with a Half Fare Travelcard, which the buyer can change there.
+    function swissTicketTime(departure) {
+      return Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).formatToParts(new Date(departure)).map((p) => [p.type, p.value]));
+    }
+    const sbbStopId = (id) => /^0?(\d{7})$/.exec(String(id || ''))?.[1];
     function sbbTicketUrl() {
       const rides = journeySteps.filter((st) => st.type === 'ride');
       if (!rides.length) return null;
       const a = rides[0].s.departure, b = rides[rides.length - 1].s.arrival;
-      const sbbId = (st) => !!st && /^\d{7}$/.test(String(st.id || '')); // Swiss stop number (UIC), as sbb.ch knows it
-      if (!sbbId(a.station) || !sbbId(b.station) || !a.departure) return null;
-      const stop = (st) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${st.id}`;
-      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-      }).formatToParts(new Date(a.departure)).map((p) => [p.type, p.value]));
+      if (!sbbStopId(a.station?.id) || !sbbStopId(b.station?.id) || !a.departure) return null;
+      const stop = (st) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${sbbStopId(st.id)}`;
+      const parts = swissTicketTime(a.departure);
       const q = new URLSearchParams({
         stops: `${stop(a.station)}~${stop(b.station)}`,
         day: `${parts.year}-${parts.month}-${parts.day}`,

@@ -6,16 +6,24 @@ const offers = {
   friends: 'https://www.sbb.ch/en/offers/friends-day-pass-youth',
   month: 'https://www.sbb.ch/en/offers/ga-1-month',
   ga: 'https://www.sbb.ch/en/offers/ga-travelcard',
+  seniorGA: 'https://www.sbb.ch/en/offers/ga-travelcard-senior',
 };
+
+const swissDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
+});
 
 function isFare(amount) {
   return Number.isFinite(amount) && amount >= 0;
 }
 
+function routeTicketFare(trip, halfFare) {
+  if (!halfFare) return trip.fare;
+  return isFare(trip.halfFare) ? trip.halfFare : trip.fare / 2;
+}
+
 function bestDailyFare(day, { age, covered, halfFare, saver, dayPassPrice }) {
-  const ticketFare = halfFare
-    ? (isFare(day.halfFare) ? day.halfFare : day.fare / 2)
-    : day.fare;
+  const ticketFare = routeTicketFare(day, halfFare);
   const choices = [{ cost: ticketFare, label: 'route tickets', url: offers.tickets }];
 
   if (covered) {
@@ -55,14 +63,19 @@ function compareTickets(days, months, options, cardCost = 0) {
     }
   }
 
+  const onlyOffer = counts.size === 1 ? [...counts.keys()][0] : null;
+  const ticketLabel = onlyOffer?.startsWith('Friends Day Pass') ? 'Friends Day Pass for Youth'
+    : onlyOffer === 'route tickets' ? 'Point-to-point tickets'
+    : onlyOffer || 'A mix of tickets and day passes';
   const summary = Array.from(counts, ([label, count]) => `${count * months} × ${label}`).join(', ');
   const cardNote = cardCost ? ` Includes CHF ${cardCost} for the annual Half Fare Travelcard.` : '';
+  const saverNote = links.has(offers.saverDay) ? ' Saver Day Pass prices assume the quoted fare is available each time.' : '';
   const estimationNote = usingEstimatedHalfFare ? ' Missing discounted fares are estimated at 50% of the full fare.' : '';
   return {
     id: cardCost ? 'buy-half-fare' : 'tickets',
-    label: cardCost ? 'Buy Half Fare + daily tickets' : 'Buy tickets as needed',
+    label: cardCost ? 'Half Fare Travelcard + tickets' : ticketLabel,
     cost: Math.round((total * months + cardCost) * 100) / 100,
-    detail: `${summary}.${cardNote}${estimationNote}`,
+    detail: `${summary}.${cardNote}${saverNote}${estimationNote}`,
     url: cardCost ? offers.halfFare : links.size === 1 ? links.values().next().value : offers.tickets,
   };
 }
@@ -73,10 +86,10 @@ function compareTickets(days, months, options, cardCost = 0) {
  * Saver Day Pass prices are used only as estimates for matching travel days.
  */
 export function recommendFares({
-  days, months = 1, age, hasHalfFare = false, saver, date, covered = false,
+  days, months = 1, age, hasHalfFare = false, saver, date, covered = false, seniorEligibility,
 } = {}) {
   if (!Array.isArray(days) || !Number.isInteger(months) || months < 1 || months > 12) return [];
-  const pricedDays = days.filter((day) => day && isFare(day.fare));
+  const pricedDays = days.filter((day) => day && (isFare(day.fare) || (hasHalfFare && isFare(day.halfFare))));
   if (pricedDays.length === 0) return [];
 
   const knownAge = Number.isInteger(age) && age >= 16;
@@ -99,32 +112,97 @@ export function recommendFares({
       url: offers.month,
     });
 
-    // Senior eligibility starts at 64 or 65. The input does not distinguish it.
-    if (age < 64) {
+    if (age !== 64 || typeof seniorEligibility === 'boolean') {
+      const senior = age >= 65 || (age === 64 && seniorEligibility);
       const gaPrices = newTariff ? {
-        youth: [2875, 265], age25: [3535, 315], adult: [4095, 365],
+        youth: [2875, 265], age25: [3535, 315], adult: [4095, 365], senior: [3260, 295],
       } : {
-        youth: [2780, 260], age25: [3495, 310], adult: [3995, 355],
+        youth: [2780, 260], age25: [3495, 310], adult: [3995, 355], senior: [3040, 275],
       };
-      const [yearPrice, monthlyPrice] = gaPrices[age < 25 ? 'youth' : age === 25 ? 'age25' : 'adult'];
+      const [yearPrice, monthlyPrice] = gaPrices[senior ? 'senior' : age < 25 ? 'youth' : age === 25 ? 'age25' : 'adult'];
+      const gaName = senior ? 'GA Travelcard for Seniors' : 'GA Travelcard';
+      const gaUrl = senior ? offers.seniorGA : offers.ga;
       results.push({
         id: 'annual-ga',
-        label: 'GA Travelcard, annual payment',
+        label: `${gaName}, annual payment`,
         cost: yearPrice,
         detail: `Full year paid upfront, including the ${months === 1 ? 'one month' : `${months} months`} of travel compared here.`,
-        url: offers.ga,
+        url: gaUrl,
       });
 
       const billedMonths = Math.max(6, months);
       results.push({
         id: 'monthly-ga',
-        label: 'GA Travelcard, monthly payment',
+        label: `${gaName}, monthly payment`,
         cost: monthlyPrice * billedMonths,
         detail: `CHF ${monthlyPrice} per month for ${billedMonths} months. Six-month minimum term. Check SBB’s cancellation deadline.`,
-        url: offers.ga,
+        url: gaUrl,
       });
     }
   }
 
   return results.sort((a, b) => a.cost - b.cost);
+}
+
+/** Compare costs using complete travel days from the last 30 Swiss calendar dates. */
+export function recommendFromHistory(trips, profile = {}, now = new Date()) {
+  const { year, month, day } = Object.fromEntries(
+    swissDate.formatToParts(now).map(({ type, value }) => [type, value]),
+  );
+  const today = `${year}-${month}-${day}`;
+  const cutoff = new Date(`${today}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 29);
+  const recentDates = new Set();
+  for (let i = 0; i < 30; i++) {
+    recentDates.add(cutoff.toISOString().slice(0, 10));
+    cutoff.setUTCDate(cutoff.getUTCDate() + 1);
+  }
+
+  const byDate = new Map();
+  const routeDays = new Map();
+  let repeatedRoute = null;
+  const seen = new Set();
+  let tripCount = 0;
+  for (const trip of trips ?? []) {
+    if (!trip || trip.confirmed === false || !recentDates.has(trip.date) || Date.parse(trip.departure) > now.getTime()) continue;
+    if (typeof trip.id === 'string') {
+      if (seen.has(trip.id)) continue;
+      seen.add(trip.id);
+    }
+    tripCount++;
+    if (!byDate.has(trip.date)) byDate.set(trip.date, []);
+    byDate.get(trip.date).push(trip);
+    if (typeof trip.from !== 'string' || typeof trip.to !== 'string') continue;
+    const stops = [trip.from, trip.to].map(name => name.trim().normalize().toLocaleLowerCase('de-CH')).sort();
+    if (!stops[0] || stops[0] === stops[1]) continue;
+    const key = JSON.stringify(stops);
+    if (!routeDays.has(key)) routeDays.set(key, new Set());
+    const dates = routeDays.get(key);
+    dates.add(trip.date);
+    if (dates.size > (repeatedRoute?.dayCount ?? 1)) {
+      repeatedRoute = { from: trip.from, to: trip.to, dayCount: dates.size };
+    }
+  }
+
+  const days = [];
+  for (const routes of byDate.values()) {
+    if (!routes.every((trip) => isFare(trip.fare) || (profile.hasHalfFare && isFare(trip.halfFare)))) continue;
+    days.push({
+      fare: routes.every((trip) => isFare(trip.fare)) ? routes.reduce((sum, trip) => sum + trip.fare, 0) : null,
+      halfFare: routes.reduce((sum, trip) => sum + routeTicketFare(trip, true), 0),
+      estimatedHalfFare: routes.some((trip) => !isFare(trip.halfFare)),
+      groupSize: profile.groupSize,
+      allUnder25: profile.allUnder25,
+    });
+  }
+
+  const routeSpend = days.reduce((sum, day) => sum + routeTicketFare(day, profile.hasHalfFare), 0);
+  return {
+    ranked: recommendFares({ ...profile, days, date: today }),
+    dayCount: days.length,
+    tripCount,
+    repeatedRoute,
+    missingCount: byDate.size - days.length,
+    monthlySpend: Math.round(routeSpend * 100) / 100,
+  };
 }
