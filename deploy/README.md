@@ -9,6 +9,7 @@ lives in `~/kante-host`.
 | `kante-engine.service` | The engine, on `127.0.0.1:8080` only |
 | `kante-tunnel.service` | `cloudflared`, which gives the engine a public HTTPS address without opening a port |
 | `kante-deploy.timer` | Every two minutes, runs `deploy.sh` |
+| `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays) |
 
 ## The running instance
 
@@ -107,3 +108,27 @@ To watch another branch or use another port, put `KANTE_BRANCH=…` or `KANTE_PO
 The downloaded data is not refreshed by itself. To refresh it, run
 `KANTE_RAW=~/kante-host/raw ~/kante-host/repo/kante/scripts/fetch-data.sh --refresh`, then
 `deploy.sh --force`.
+
+## Keeping the data fresh
+
+`refresh-data.sh` (daily, `kante-data.timer`):
+
+- **Timetable.** The national timetable is fetched again on Mondays and Thursdays, when it is updated, and a
+  new release is built from it with `deploy.sh --force`. A timetable year ends on the second Sunday of
+  December (13 December 2026); `kante/scripts/fetch-data.sh` then switches to the next year's dataset by
+  itself, so the engine keeps knowing trips after that day. The 02:30 run on that Sunday does the switch,
+  before the first trains. `refresh-data.sh` compares the timetable of the *running* release with the one in
+  force, so a failed download or build is tried again the next night, and a release is only kept when its
+  timetable is valid today (`deploy.sh` checks `validTo`).
+- **Learned travel times.** On Mondays the last 15 days of the open "Ist-Daten" archive are reduced to how
+  long each hop and each stop usually takes (`livemap/measure/ist_daten_hops.py`, about 0.5 MB each in
+  `~/kante-host/profiles`). The engine reads them within ten minutes, no restart. Days already reduced stay in
+  `~/kante-host/ist-daten`, so a weekly run downloads about seven days of 0.7 GB.
+- `deploy.sh` copies new or changed units from `deploy/units` and enables `kante-data.timer`, so a host set up
+  before this script existed gets it with the next deploy.
+
+## Live data keys
+
+`~/kante-host/secrets/otd.json`: `{"siri-et": "…", "gtfs-rt": "…"}`. One opentransportdata.swiss key can be
+subscribed to both products; without `"gtfs-rt"` the SIRI-ET key is tried for GTFS-RT too. After a deploy,
+`deploy.sh` notes in its log whether live data is coming in; `/api/meta` → `realtime.feeds` shows each feed.

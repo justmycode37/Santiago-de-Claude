@@ -247,12 +247,18 @@
     await Promise.all(sections.flatMap((s) => (s.kanteLegs || []).map(async (leg) => {
       let trip;
       try { trip = await K.trip(leg.tripId, leg.serviceDate); } catch (e) { return; }
-      const bySeq = new Map((trip.calls || []).map((c) => [c.seq, c]));
-      s.kanteCalls.forEach((b) => {
-        const call = b.leg === leg && bySeq.get(b.seq);
-        if (call) setCall(b.stop, call, b.arr, b.dep);
-      });
+      applyTrip(s, trip, leg);
     })));
+  }
+  // An answer of /api/trip for one of the section's trips (also used by live.js's polling in index.html)
+  function applyTrip(s, trip, leg) {
+    leg = leg || (s.kanteLegs || []).find((l) => l.tripId === trip.tripId && l.serviceDate === trip.serviceDate);
+    if (!leg) return;
+    const bySeq = new Map((trip.calls || []).map((c) => [c.seq, c]));
+    s.kanteCalls.forEach((b) => {
+      const call = b.leg === leg && bySeq.get(b.seq);
+      if (call) setCall(b.stop, call, b.arr, b.dep);
+    });
   }
 
   // After a refresh: a platform change moves the boarding (or alighting) point. Put the ride's ends, and the
@@ -302,5 +308,5 @@
     if (moved) changed();
   }
 
-  window.KanteJourney = { find, at, decorate, refresh, requay, options };
+  window.KanteJourney = { find, at, decorate, refresh, applyTrip, requay, options };
 })();

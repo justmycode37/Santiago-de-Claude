@@ -202,7 +202,10 @@ fn trip_update(b: &[u8], feed_ts: i64) -> Result<RtJourney> {
         match (f, v) {
             (1, Val::Bytes(m)) => trip_descriptor(m, &mut j)?,
             (2, Val::Bytes(m)) => j.calls.push(stop_time_update(m)?),
-            (4, Val::Varint(x)) if x != 0 => j.recorded_at = x as i64,
+            (4, Val::Varint(x)) if x != 0 => {
+                j.recorded_at = x as i64;
+                j.recorded_at_own = true;
+            }
             _ => {}
         }
     }

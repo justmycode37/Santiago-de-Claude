@@ -82,6 +82,20 @@ pub struct App {
     /// Normalised station names for the fallback search.
     pub station_norm: Vec<String>,
     pub live: RwLock<LiveState>,
+    /// Each live feed's last matched trips (see `live.rs`).
+    pub feeds: parking_lot::Mutex<crate::live::Feeds>,
+    /// Bumped whenever a new live snapshot is swapped in (for `/api/stream`).
+    pub live_tx: tokio::sync::watch::Sender<u64>,
+    /// Set when the server shuts down, so open streams end and do not hold it up.
+    pub shutdown: tokio::sync::watch::Sender<bool>,
+    /// Vehicle lists being computed at once (requests and streams wait their turn).
+    pub heavy: tokio::sync::Semaphore,
+    /// Open `/api/stream` connections.
+    pub streams: std::sync::atomic::AtomicUsize,
+    /// On-board position reports (`/api/observe`).
+    pub observed: crate::observe::Store,
+    /// Learned travel and dwell times per pair of stops.
+    pub profiles: crate::profiles::Shared,
     pub walk_bbox: BBox,
     pub data_dir: PathBuf,
 }
@@ -321,6 +335,13 @@ impl App {
             stop_ids,
             station_norm,
             live: RwLock::new(LiveState { view: None, meta: Default::default() }),
+            feeds: Default::default(),
+            live_tx: tokio::sync::watch::channel(0).0,
+            shutdown: tokio::sync::watch::channel(false).0,
+            heavy: tokio::sync::Semaphore::new(4),
+            streams: Default::default(),
+            observed: Default::default(),
+            profiles: Default::default(),
             walk_bbox,
             data_dir: data_dir.to_path_buf(),
         })
@@ -328,6 +349,11 @@ impl App {
 
     pub fn live_view(&self) -> Option<Arc<dyn LiveView>> {
         self.live.read().view.clone()
+    }
+
+    /// Tell `/api/stream` listeners that the live data changed.
+    pub fn bump_live(&self) {
+        self.live_tx.send_modify(|v| *v += 1);
     }
 
     pub fn footpaths_for(&self, p: &WalkProfile) -> &Footpaths {
