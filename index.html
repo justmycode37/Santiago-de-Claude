@@ -4251,11 +4251,11 @@
       const p = journeyProgress();
       goToStep(p && !p.ended ? p.i : 0, true);
     }
-    // "Get ticket": this trip on sbb.ch, where it can be bought. SBB's own link format (read from sbb.ch):
-    //   stops=Name_I<stop id>~Name_I<stop id>, day=YYYY-MM-DD, time=HH:mm, moment=dep|arr, lowPrice=1.
+    // "Get ticket": SBB's ticket page for this exact connection, ready to buy. SBB's own link format (read from sbb.ch):
+    //   /en/offer?stops=Name_I<stop id>~Name_I<stop id>&day=YYYY-MM-DD&time=HH_mm&moment=dep&trip=0_0
     // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
-    // result is this connection. lowPrice=1 turns on SBB's cheapest-price search (supersaver tickets);
-    // SBB ignores it where it doesn't offer that search.
+    // connection (trip=0_0) is this one. The page preselects the cheapest ticket for it (a supersaver ticket where
+    // there is one) and starts with a Half Fare Travelcard, which the buyer can change there.
     function sbbTicketUrl() {
       const rides = journeySteps.filter((st) => st.type === 'ride');
       if (!rides.length) return null;
@@ -4269,11 +4269,11 @@
       const q = new URLSearchParams({
         stops: `${stop(a.station)}~${stop(b.station)}`,
         day: `${parts.year}-${parts.month}-${parts.day}`,
-        time: `${parts.hour}:${parts.minute}`,
+        time: `${parts.hour}_${parts.minute}`,
         moment: 'dep',
-        lowPrice: '1',
+        trip: '0_0',
       });
-      return `https://www.sbb.ch/en/plan?${q}`;
+      return `https://www.sbb.ch/en/offer?${q}`;
     }
     function ticketLink() {
       const url = sbbTicketUrl();
