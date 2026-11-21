@@ -1,26 +1,31 @@
 // ---- Top pill: the trip on one line, roughly to scale in time. Every ride is a solid line with its name above it;
 //      walking, changing and waiting are rows of single dots (always at least a few, so a short change still shows).
 //      The part already behind you fades. Tap to jump to that step. ----
-const jBar = document.getElementById('jBar');
+const jBar = document.getElementById('jBar')!;
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const svgEl = (tag, attrs) => { const e = document.createElementNS(SVG_NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) => { const e = document.createElementNS(SVG_NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k] as string); return e; };
 const BAR = { pad: 6, lineY: 26, textY: 14, dot: 8, ball: 2.5, node: 4.2, inset: 4 }; // ball: walking dots, node: ends of a ride
 // → { segs: [{ kind, a, b, x0, x1, label }], t0, t1, W, x(t), tAt(px) }
+/** A part of the bar: from when to when (ms), its least width, and (once laid out) its width and where it is, px. */
+interface BarPart { a: number; b: number; min: number; w: number; x0: number; x1: number }
+interface BarRide extends BarPart { kind: 'ride'; label: string }
+interface BarGap extends BarPart { kind: 'gap' }
+type BarSeg = BarRide | BarGap;
 function barLayout() {
-  const t0 = new Date(journeyConn.from.departure).getTime(), t1 = Math.max(new Date(journeyConn.to.arrival).getTime(), journeyEnd());
+  const t0 = new Date(journeyConn!.from.departure!).getTime(), t1 = Math.max(new Date(journeyConn!.to.arrival!).getTime(), journeyEnd());
   const W = jBar.clientWidth, L = W - 2 * BAR.pad;
-  const segs = [];
+  const segs: BarSeg[] = [];
   let cursor = t0, rides = 0;
-  journeyConn.sections.filter((s) => s.journey).forEach((s) => {
-    const a = Math.max(cursor, liveMs(s.departure, 'departure')), b = Math.max(a, liveMs(s.arrival, 'arrival'));
-    if (a > cursor || rides) segs.push({ kind: 'gap', a: cursor, b: a, min: rides ? 28 : 17 }); // a change, or the walk to the first stop
-    segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.journey) });
+  journeyConn!.sections.filter((s) => s.journey).forEach((s) => {
+    const a = Math.max(cursor, liveMs(s.departure, 'departure')!), b = Math.max(a, liveMs(s.arrival, 'arrival')!);
+    if (a > cursor || rides) segs.push({ kind: 'gap', a: cursor, b: a, min: rides ? 28 : 17 } as BarGap); // a change, or the walk to the first stop
+    segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.journey!) } as BarRide);
     cursor = b;
     rides++;
   });
-  if (t1 > cursor || !rides) segs.push({ kind: 'gap', a: cursor, b: Math.max(cursor, t1), min: 17 });
+  if (t1 > cursor || !rides) segs.push({ kind: 'gap', a: cursor, b: Math.max(cursor, t1), min: 17 } as BarGap);
   // widths in proportion to time, but never below each part's minimum
-  let fixed = new Set();
+  let fixed = new Set<BarSeg>();
   for (let pass = 0; pass < 4; pass++) {
     const freeMs = segs.reduce((s, g) => s + (fixed.has(g) ? 0 : g.b - g.a), 0);
     const freePx = L - segs.reduce((s, g) => s + (fixed.has(g) ? g.min : 0), 0);
@@ -31,20 +36,20 @@ function barLayout() {
   }
   let px = BAR.pad;
   segs.forEach((g) => { g.x0 = px; px += Math.max(0, g.w); g.x1 = px; });
-  const x = (t) => {
+  const x = (t: number) => {
     if (t <= t0) return BAR.pad;
     const g = segs.find((s) => t <= s.b) || segs[segs.length - 1];
     return g.x0 + (g.x1 - g.x0) * (g.b > g.a ? Math.min(1, Math.max(0, (t - g.a) / (g.b - g.a))) : 1);
   };
-  const tAt = (p) => {
+  const tAt = (p: number) => {
     const g = segs.find((s) => p <= s.x1) || segs[segs.length - 1];
     return g.a + (g.b - g.a) * (g.x1 > g.x0 ? Math.min(1, Math.max(0, (p - g.x0) / (g.x1 - g.x0))) : 0);
   };
   return { segs, t0, t1, W, x, tAt };
 }
-function drawBarArt(g, { segs }) {
+function drawBarArt(g: SVGGElement, { segs }: { segs: BarSeg[] }) {
   const first = segs[0], last = segs[segs.length - 1];
-  const dot = (cx, r) => g.appendChild(svgEl('circle', { cx, cy: BAR.lineY, r, fill: 'currentColor' }));
+  const dot = (cx: number, r: number) => g.appendChild(svgEl('circle', { cx, cy: BAR.lineY, r, fill: 'currentColor' }));
   segs.forEach((s) => {
     if (s.kind === 'ride') {
       // a big dot where the ride starts and where it ends, the line between them
@@ -71,7 +76,7 @@ function renderBar() {
   const now = pt.t, live = pt.gps ? now < geo.t1 : now > geo.t0 && now < geo.t1;
   const nx = now <= geo.t0 ? 0 : now >= geo.t1 ? geo.W : geo.x(now);
   const svg = svgEl('svg', { viewBox: `0 0 ${geo.W} ${jBar.clientHeight}`, 'aria-hidden': 'true' });
-  const clip = (id, xa, xb) => {
+  const clip = (id: string, xa: number, xb: number) => {
     const c = svgEl('clipPath', { id });
     c.appendChild(svgEl('rect', { x: xa, y: -10, width: Math.max(0, xb - xa), height: 80 }));
     return c;
@@ -126,12 +131,12 @@ function tick() {
 }
 
 function updatePillTimes() {
-  const plan = new Date(journeyConn.to.arrival).getTime(), live = journeyEnd();
-  const el = document.getElementById('jArr');
+  const plan = new Date(journeyConn!.to.arrival!).getTime(), live = journeyEnd();
+  const el = document.getElementById('jArr')!;
   el.textContent = fmtTime(live);
   el.classList.toggle('late', live - plan >= 60000);
 }
-function renderJourney(conn, destTitle) {
+function renderJourney(conn: OdConnection, destTitle: string) {
   journeyConn = conn;
   journeySteps = buildSteps(conn, destTitle);
   platKey = platSig();
@@ -141,7 +146,7 @@ function renderJourney(conn, destTitle) {
   autoStep = 0;
   jFocus = null;
   sheetMsg = '';
-  document.getElementById('jDep').textContent = fmtTime(conn.from.departure);
+  document.getElementById('jDep')!.textContent = fmtTime(conn.from.departure);
   updatePillTimes();
   trackJourney();
   renderBar();
@@ -153,7 +158,7 @@ function renderJourney(conn, destTitle) {
 }
 
 // Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you
-function goToStep(i, auto) {
+function goToStep(i: number, auto?: boolean) {
   if (!journeySteps.length) return;
   if (!auto) userPickedAt = Date.now();
   journeyStep = Math.min(journeySteps.length - 1, Math.max(0, i));
@@ -176,22 +181,22 @@ function mapPadding() {
   const side = window.innerWidth >= 700 && covered ? 444 : 48; // wide screens: the sheet is a panel on the left
   return { top, bottom: side > 48 ? 40 : bottom, left: side, right: 48 };
 }
-function fitCoords(coords, maxZoom = 17) {
+function fitCoords(coords: LngLat[], maxZoom = 17) {
   if (!coords.length) return;
   const b = coords.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
   map.fitBounds(b, { padding: mapPadding(), maxZoom, duration: 700 });
 }
 function fitJourney() {
-  const all = [];
+  const all: LngLat[] = [];
   journeySteps.forEach((st) => all.push(...stepCoords(st)));
   requestAnimationFrame(() => fitCoords(all));
 }
-function fitStep(i) {
+function fitStep(i: number) {
   const st = journeySteps[i];
   if (st) fitCoords(stepCoords(st));
 }
 
-async function startJourney(r, keepQuery) {
+async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   const id = ++journeyReq;
   if (!keepQuery) journeyQuery = { mode: 'dep', date: '', time: '' };
   journeyDest = r;
@@ -209,9 +214,9 @@ async function startJourney(r, keepQuery) {
   setPlanOpen(true);
   document.body.classList.add('journey-mode');
   setMenu(false);
-  document.getElementById('jBar').innerHTML = '';
-  document.getElementById('jDep').textContent = '--:--';
-  document.getElementById('jArr').textContent = '--:--';
+  document.getElementById('jBar')!.innerHTML = '';
+  document.getElementById('jDep')!.textContent = '--:--';
+  document.getElementById('jArr')!.textContent = '--:--';
   sheetMsg = 'Finding a connection…';
   track = null;
   renderSheet();

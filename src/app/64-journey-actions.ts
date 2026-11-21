@@ -8,7 +8,7 @@ function overview() {
   renderSheet();
 }
 // One walking direction on the map, close up
-function focusDir(i, k) {
+function focusDir(i: number, k: number) {
   const st = journeySteps[i], d = st && walkDirections(st)[k];
   if (!d) return;
   jFocus = { step: i, dir: k };
@@ -23,7 +23,7 @@ function focusDir(i, k) {
   renderSheet();
 }
 // A boarding point close up
-function showQuay(i) {
+function showQuay(i: number) {
   const r = journeySteps[i];
   if (!r) return;
   jFocus = null;
@@ -43,7 +43,7 @@ function startFollowing() {
   }
   setDetent('low');
   const p = journeyProgress();
-  goToStep(p && !p.ended ? p.i : 0, true);
+  goToStep(p && !(p as TimedPlace).ended ? p.i : 0, true);
 }
 // "Get ticket": SBB's ticket page for this exact connection, ready to buy. SBB's own link format (read from sbb.ch):
 //   /en/offer?stops=Name_I<stop id>~Name_I<stop id>&day=YYYY-MM-DD&time=HH_mm&moment=dep&trip=0_0
@@ -54,14 +54,14 @@ function sbbTicketUrl() {
   const rides = journeySteps.filter((st) => st.type === 'ride');
   if (!rides.length) return null;
   const a = rides[0].s.departure, b = rides[rides.length - 1].s.arrival;
-  const sbbId = (st) => !!st && /^\d{7}$/.test(String(st.id || '')); // Swiss stop number (UIC), as sbb.ch knows it
+  const sbbId = (st: OdLocation | null | undefined) => !!st && /^\d{7}$/.test(String(st.id || '')); // Swiss stop number (UIC), as sbb.ch knows it
   if (!sbbId(a.station) || !sbbId(b.station) || !a.departure) return null;
-  const stop = (st) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${st.id}`;
+  const stop = (st: OdLocation) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${st.id}`;
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(new Date(a.departure)).map((p) => [p.type, p.value]));
   const q = new URLSearchParams({
-    stops: `${stop(a.station)}~${stop(b.station)}`,
+    stops: `${stop(a.station!)}~${stop(b.station!)}`,
     day: `${parts.year}-${parts.month}-${parts.day}`,
     time: `${parts.hour}_${parts.minute}`,
     moment: 'dep',
@@ -82,12 +82,12 @@ function ticketLink() {
 async function shareJourney() {
   const title = `${journeyFrom} to ${journeyDest ? journeyDest.title : 'destination'}`;
   const lines = journeySteps.filter((st) => st.type === 'ride').map((st) => lineLabel(st.s.journey)).join(' → ');
-  const text = `${title}: ${fmtTime(journeyConn.from.departure)} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
+  const text = `${title}: ${fmtTime(journeyConn!.from.departure)} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
   const url = location.origin + location.pathname;
   try {
     if (navigator.share) await navigator.share({ title, text, url });
     else { await navigator.clipboard.writeText(`${text}\n${url}`); showToast('Journey copied'); }
   } catch (e) {
-    if (e.name !== 'AbortError') showToast('Couldn\'t share the journey');
+    if ((e as Error).name !== 'AbortError') showToast('Couldn\'t share the journey');
   }
 }

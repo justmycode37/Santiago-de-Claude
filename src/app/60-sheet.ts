@@ -32,21 +32,21 @@ const KICON = {
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.4-5.5M19.5 4.5v4h-4"/>',
   cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
 };
-const MODE_K = { train: 'rail', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable' };
+const MODE_K: Record<LineMode, KIconName> = { train: 'rail', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable' };
 const MODE_NAME = { train: 'Train', tram: 'Tram', bus: 'Bus', boat: 'Boat', cable: 'Cable car' };
-const STEP_K = { depart: 'nav', walk: 'walk', 'stairs-up': 'stairs-up', 'stairs-down': 'stairs-down', arrive: 'flag' };
+const STEP_K: Record<JourneyDirection['kind'], KIconName> = { depart: 'nav', walk: 'walk', 'stairs-up': 'stairs-up', 'stairs-down': 'stairs-down', arrive: 'flag' };
 const kTpl = document.createElement('template');
-function kIcon(name, size = 20, cls) {
+function kIcon(name: KIconName, size = 20, cls?: string) {
   kTpl.innerHTML = `<svg class="icon${cls ? ' ' + cls : ''}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KICON[name] || KICON.dot}</svg>`;
-  return kTpl.content.firstChild;
+  return kTpl.content.firstChild as SVGSVGElement;
 }
 // h('div', 'cls', …children): strings become text, null / false / '' are skipped, arrays are flattened
-function h(tag, cls, ...kids) {
+function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, ...kids: HChild[]): HTMLElementTagNameMap[K] {
   const e = mk(tag, cls);
-  kids.flat(Infinity).forEach((k) => { if (k != null && k !== false && k !== '') e.append(typeof k === 'object' ? k : String(k)); });
+  ((kids as unknown[]).flat(Infinity) as HLeaf[]).forEach((k) => { if (k != null && k !== false && k !== '') e.append(typeof k === 'object' ? k : String(k)); });
   return e;
 }
-function kBtn(cls, label, onClick, ...kids) {
+function kBtn(cls: string, label: string | null, onClick: (e: MouseEvent) => void, ...kids: HChild[]) {
   const b = h('button', cls, ...kids);
   b.type = 'button';
   if (label) b.setAttribute('aria-label', label);
@@ -55,7 +55,7 @@ function kBtn(cls, label, onClick, ...kids) {
 }
 
 // "< 1 min", "23 min", "1 h 05 min"; never "0 min" for a time that is not zero
-function kDur(s) {
+function kDur(s: number) {
   if (s > 0 && s < 60) return '< 1 min';
   const m = Math.max(0, Math.round(s / 60));
   if (m < 60) return `${m} min`;
@@ -63,42 +63,42 @@ function kDur(s) {
   return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
 }
 // where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
-function kDurExact(s) {
+function kDurExact(s: number) {
   s = Math.max(0, Math.round(s));
   if (s < 60) return `${s} s`;
   if (s < 90) return s % 60 ? `1 min ${s % 60} s` : '1 min';
   return kDur(Math.floor(s / 60) * 60);
 }
 // "+4 min" after a time, in the alarm colour; nothing when on time
-function kDelay(min) {
+function kDelay(min: number) {
   if (!min) return null;
   const e = h('span', 'delay ' + (min > 0 ? 'late' : 'early'), `${min > 0 ? '+' : '−'}${Math.abs(min)} min`);
   e.setAttribute('aria-label', `${Math.abs(min)} ${Math.abs(min) === 1 ? 'minute' : 'minutes'} ${min > 0 ? 'late' : 'early'}`);
   return e;
 }
 // Line badge: a plain rounded rectangle in the line's colour ("IC 8", "S3"; a bare number gets its mode icon)
-function kBadge(j, size, withIcon) {
+function kBadge(j: LineLike, size?: 'lg' | null, withIcon?: boolean) {
   const label = lineLabel(j), mode = modeOf(j.category);
   const b = h('span', 'badge' + (size ? ' ' + size : ''), withIcon || !label ? kIcon(MODE_K[mode] || 'bus', size === 'lg' ? 16 : 13) : null, label);
   b.setAttribute('role', 'img');
   b.setAttribute('aria-label', mode === 'train' ? label : `${MODE_NAME[mode] || 'Bus'} ${label}`);
   return lineVars(b, j);
 }
-const chainIcon = (j) => !(modeOf(j.category) === 'train' && /[A-Za-z]/.test(lineLabel(j))); // "IC 8" says train by itself
+const chainIcon = (j: LineLike) => !(modeOf(j.category) === 'train' && /[A-Za-z]/.test(lineLabel(j))); // "IC 8" says train by itself
 
 // Where a ride stops: the label ("7", "C"), its noun, and the timetable's platform when it has changed today
-function quayOf(r, end) {
-  const s = r.s, stop = end === 'dep' ? s.departure : s.arrival, at = (end === 'dep' ? r.depAt : r.arrAt) || {};
+function quayOf(r: JourneyRideStep, end: 'dep' | 'arr'): Quay {
+  const s = r.s, stop = end === 'dep' ? s.departure : s.arrival, at = ((end === 'dep' ? r.depAt : r.arrAt) || {}) as Partial<JourneyPlatformAt>;
   const live = stop.prognosis && stop.prognosis.platform, plan = stop.platform;
   const { num, sectors } = splitPlatform(live || plan || '');
   const edge = at.edge || null;
   const label = num || (edge && edge.ref) || '';
   const word = platformWord(s.journey); // Platform · Bay · Pier
   return { label, sectors, word, short: word === 'Platform' ? 'Pl.' : word, edge, travel: at.travel,
-    planned: live && plan && live !== plan ? splitPlatform(plan).num : null, station: stop.station.name };
+    planned: live && plan && live !== plan ? splitPlatform(plan).num : null, station: stop.station!.name };
 }
 // The boarding point in its fixed slot: right-aligned, bold ("Pl. 7", "Bay C"); nothing for an unsigned stop
-function kPlat(q, long) {
+function kPlat(q: Quay | null | undefined, long?: boolean) {
   if (!q || !q.label) return null;
   const e = h('span', 'plat' + (q.planned ? ' changed' : ''), h('span', 'plat-noun', long ? q.word : q.short), h('b', null, q.label));
   e.setAttribute('aria-label', `${q.word} ${q.label}${q.planned ? `, changed from ${q.planned}` : ''}`);
@@ -106,10 +106,10 @@ function kPlat(q, long) {
 }
 
 // ---- Sheet: low (fitted to its header), middle (half the screen), expanded (stopping below the top bar) ----
-let sheetDetent = 'low';
+let sheetDetent: SheetDetent = 'low';
 let sheetY = 0;
 const SHEET_GRIP = 20;
-function sheetPositions() {
+function sheetPositions(): SheetPositions {
   const hgt = window.innerHeight;
   const full = Math.round(Math.max(topUiBottom(), menu.getBoundingClientRect().bottom, 0) + 8);
   const footH = jFoot.offsetHeight || 0, headH = jHead.offsetHeight || 60;
@@ -117,7 +117,7 @@ function sheetPositions() {
   const mid = Math.min(low, Math.max(full, Math.round(hgt * 0.5)));
   return { full, mid, low, h: hgt };
 }
-function placeSheet(d, animate) {
+function placeSheet(d: SheetDetent, animate: boolean) {
   const pos = sheetPositions();
   sheetDetent = d;
   sheetY = pos[d];
@@ -128,7 +128,7 @@ function placeSheet(d, animate) {
   jHandle.setAttribute('aria-label', d === 'full' ? 'Show more of the map' : 'Expand panel');
 }
 // the camera refits its subject into the free part of the map once the sheet has settled
-function setDetent(d, refit) {
+function setDetent(d: SheetDetent, refit?: boolean) {
   const changed = d !== sheetDetent;
   placeSheet(d, true);
   if (!changed) return;
@@ -143,15 +143,15 @@ function openSheet() {
 }
 (function sheetDrag() {
   const el = journeyEl;
-  let startY = 0, startX = 0, base = 0, mode = '', samples = [];
-  const begin = (cx, cy) => { startX = cx; startY = cy; base = sheetY; mode = ''; samples = [{ t: performance.now(), y: cy }]; };
-  const move = (cx, cy, target, ev) => {
+  let startY = 0, startX = 0, base = 0, mode = '', samples: { t: number; y: number }[] = [];
+  const begin = (cx: number, cy: number) => { startX = cx; startY = cy; base = sheetY; mode = ''; samples = [{ t: performance.now(), y: cy }]; };
+  const move = (cx: number, cy: number, target: EventTarget | null, ev: TouchEvent | PointerEvent) => {
     const dy = cy - startY;
     if (mode === '') {
       const dx = cx - startX;
       if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
       if (Math.abs(dx) > Math.abs(dy)) mode = 'native';
-      else if (sheetDetent === 'full' && target && jBody.contains(target)) mode = jBody.scrollTop > 0 || dy < 0 ? 'native' : 'drag';
+      else if (sheetDetent === 'full' && target && jBody.contains(target as Node)) mode = jBody.scrollTop > 0 || dy < 0 ? 'native' : 'drag';
       else mode = 'drag';
       if (mode === 'drag') el.style.transition = 'none';
     }
@@ -172,7 +172,7 @@ function openSheet() {
     mode = '';
     const a = samples[0], b = samples[samples.length - 1];
     const v = b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0; // px per ms
-    const pos = sheetPositions(), order = ['full', 'mid', 'low'];
+    const pos = sheetPositions(), order: SheetDetent[] = ['full', 'mid', 'low'];
     let best = order[0];
     for (const d of order) if (Math.abs(pos[d] - sheetY) < Math.abs(pos[best] - sheetY)) best = d;
     // a fling over 500 px/s moves one detent in its direction
@@ -189,16 +189,16 @@ function openSheet() {
   el.addEventListener('touchend', end);
   el.addEventListener('touchcancel', end);
   // mouse: drag by the header only
-  el.querySelector('.sheet-top').addEventListener('pointerdown', (e) => {
-    if (e.pointerType !== 'mouse' || e.target.closest('button, a, input')) return;
+  el.querySelector<HTMLElement>('.sheet-top')!.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || (e.target as HTMLElement).closest('button, a, input')) return;
     begin(e.clientX, e.clientY);
-    const mm = (ev) => move(ev.clientX, ev.clientY, null, ev);
+    const mm = (ev: PointerEvent) => move(ev.clientX, ev.clientY, null, ev);
     const mu = () => { removeEventListener('pointermove', mm); removeEventListener('pointerup', mu); end(); };
     addEventListener('pointermove', mm);
     addEventListener('pointerup', mu);
   });
   el.addEventListener('wheel', (e) => {
-    let next = null;
+    let next: SheetDetent | null = null;
     if (sheetDetent !== 'full' && e.deltaY > 0) next = 'full';
     else if (sheetDetent === 'full' && e.deltaY < -30 && jBody.scrollTop <= 0) next = 'mid';
     if (next) setDetent(next, true);
@@ -214,9 +214,9 @@ function openSheet() {
 })();
 
 // ---- What the sheet says about the trip ----
-let jFocus = null;              // { step, dir }: a walking direction picked in the list; the header then steps through them
-const openDirs = new Set();     // walks whose directions you opened (changes start open)
-const closedDirs = new Set();   // …and changes whose directions you closed
-const openStops = new Set();    // rides with all their stops listed
+let jFocus: JourneyFocus | null = null;              // { step, dir }: a walking direction picked in the list; the header then steps through them
+const openDirs = new Set<number>();     // walks whose directions you opened (changes start open)
+const closedDirs = new Set<number>();   // …and changes whose directions you closed
+const openStops = new Set<number>();    // rides with all their stops listed
 
 // Where a walk ends: "Bay C", "Platform 7", the stop's name, or your destination

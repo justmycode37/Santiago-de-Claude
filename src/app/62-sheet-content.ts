@@ -1,20 +1,22 @@
 // ---- 3D station view (station3d.js): for walks and changes in a station that has a 3D model (stations3d/) ----
 const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
-const s3Key = (stop) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id)) || null;
+const s3Key = (stop: OdCheckpoint | null | undefined) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id!)) || null;
 // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
-function s3End(stop, at) {
+/** What s3End() fills in: the platform, its position, or both. */
+interface S3EndParts { stop?: StationRouteStopRef; ll?: LngLat; level?: number | null }
+function s3End(stop: OdCheckpoint, at: JourneyPlatformAt | null | undefined): Station3DEndpoint | null {
   const edge = at && at.edge, raw = platformOf(stop);
   const ref = raw !== '–' ? raw : (edge && edge.ref) || '';
   const ll = (at && at.ll) || coordOf(stop);
   if (!ref && !ll) return null;
-  const end = {};
-  if (ref) end.stop = { uic: String(stop.station.id), ref };
+  const end: S3EndParts = {};
+  if (ref) end.stop = { uic: String(stop.station!.id), ref };
   if (ll) end.ll = ll;
   if (edge && edge.level != null) end.level = edge.level;
-  return end;
+  return end as Station3DEndpoint;
 }
 // Where a step's walk starts and ends inside the modelled station, or null when it is not in one
-function s3Plan(st) {
+function s3Plan(st: JourneyStep): StationWalkPlan | null {
   let key = null, from = null, to = null;
   if (st.type === 'walk' && st.next) {
     key = s3Key(st.next.departure);
@@ -26,7 +28,7 @@ function s3Plan(st) {
     from = start ? (far ? { ll: start, label: 'the way in' } : here ? { ll: start } : { ll: start, label: 'the start' }) : null;
   } else if (st.type === 'walk') {
     key = st.from ? s3Key(st.from.arrival) : null;
-    from = key && s3End(st.from.arrival, st.prevRide && st.prevRide.arrAt);
+    from = key && s3End(st.from!.arrival, st.prevRide && st.prevRide.arrAt);
     const end = (journeyDest && journeyDest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
     const far = end && from && from.ll && distKm(from.ll, end) > S3_NEAR_KM;
     to = end ? { ll: end, label: far ? `the way to ${st.toName}` : st.toName } : null;
@@ -34,16 +36,16 @@ function s3Plan(st) {
     const ka = s3Key(st.prev.arrival), kb = s3Key(st.next.departure);
     key = kb || ka;
     from = ka === key ? s3End(st.prev.arrival, st.prevRide && st.prevRide.arrAt)
-      : st.points[0] ? { ll: st.points[0], label: st.prev.arrival.station.name } : null;
+      : st.points[0] ? { ll: st.points[0], label: st.prev.arrival.station!.name! } : null;
     to = kb === key ? s3End(st.next.departure, st.nextRide && st.nextRide.depAt)
-      : st.points[1] ? { ll: st.points[1], label: st.next.departure.station.name } : null;
+      : st.points[1] ? { ll: st.points[1], label: st.next.departure.station!.name! } : null;
   }
   return key && from && to ? { key, from, to } : null;
 }
 // The journey options for the station router, for the day of that step (closures in the model have dates)
-const s3Prefs = (st) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
-let s3Step = null; // the journey step the 3D view was opened from
-function s3Open(st, button) {
+const s3Prefs = (st: JourneyStep | null | undefined) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
+let s3Step: JourneyStep | null = null; // the journey step the 3D view was opened from
+function s3Open(st: JourneyStep, button: HTMLElement | null) {
   const plan = s3Plan(st); // now, not when the sheet was drawn: the start follows your position
   if (!plan) return;
   s3Step = st;
@@ -51,32 +53,32 @@ function s3Open(st, button) {
 }
 // "Done" at the end of the 3D walk: back to the journey, on the step that follows
 if (window.Station3D) Station3D.on('done', () => {
-  const i = journeySteps.indexOf(s3Step);
+  const i = journeySteps.indexOf(s3Step!);
   Station3D.close();
   if (i >= 0 && i < journeySteps.length - 1) goToStep(i + 1);
 });
 
-function walkTarget(st) {
+function walkTarget(st: JourneyStep) {
   const r = st.type === 'change' || !st.final ? st.nextRide : null;
   if (!r) return st.toName || (journeyDest && journeyDest.title) || 'your destination';
   const q = quayOf(r, 'dep');
-  return q.label ? `${q.word} ${q.label}` : r.s.departure.station.name;
+  return q.label ? `${q.word} ${q.label}` : r.s.departure.station!.name;
 }
 // Metres on foot, once every part of the walk has been routed (null until then)
-function walkDist(st) {
+function walkDist(st: JourneyStep) {
   const lines = st.lines || [];
   if (!lines.length) return 0;
   const ws = st.walks || [];
-  return lines.every((_, k) => ws[k] && ws[k].dist != null) ? ws.reduce((sum, w) => sum + (w ? w.dist : 0), 0) : null;
+  return lines.every((_, k) => ws[k] && ws[k].dist != null) ? ws.reduce((sum, w) => sum + (w ? w.dist! : 0), 0) : null;
 }
-const walkMinOf = (st) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
+const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
 
 // Written directions for a walk, from the walking router's turn-by-turn steps, with the floor change in its place
-const TURN = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
+const TURN: Record<string, string> = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
   'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
-function walkDirections(st) {
-  if (st._dirsV === geoVersion) return st._dirs;
-  const out = [];
+function walkDirections(st: JourneyStep) {
+  if (st._dirsV === geoVersion) return st._dirs!;
+  const out: JourneyDirection[] = [];
   (st.walks || []).forEach((w) => {
     // a stretch through a modelled station: its own directions, floor changes included
     if (w && w.dirs) out.push(...w.dirs);
@@ -84,13 +86,13 @@ function walkDirections(st) {
     const m = s.maneuver || {}, d = Math.round(s.distance || 0);
     if (m.type === 'arrive' || d < 3) return;
     const along = s.name ? ` along ${s.name}` : '';
-    const verb = m.type === 'depart' ? 'Walk' : `${TURN[m.modifier] || 'Continue'} and walk`;
+    const verb = m.type === 'depart' ? 'Walk' : `${TURN[m.modifier!] || 'Continue'} and walk`;
     out.push({ kind: m.type === 'depart' ? 'depart' : 'walk', text: `${verb} ${fmtDist(d)}${along}`, coords: s.geometry && s.geometry.coordinates });
   });
   });
   const lvl = st.floors ? null : levelChange(st);
   if (lvl) {
-    const item = { kind: lvl.to < lvl.from ? 'stairs-down' : 'stairs-up', text: lvl.text, from: lvl.from, to: lvl.to, coords: lvl.at ? [lvl.at] : null };
+    const item: JourneyDirection = { kind: lvl.to < lvl.from ? 'stairs-down' : 'stairs-up', text: lvl.text, from: lvl.from, to: lvl.to, coords: lvl.at ? [lvl.at] : null };
     if (st.type === 'walk' && st.final) out.unshift(item);
     else if (st.type === 'walk') out.push(item);
     else out.splice(Math.ceil(out.length / 2), 0, item);
@@ -105,7 +107,7 @@ function walkDirections(st) {
 }
 
 // What to do first, and when: the verb is yours when the trip starts on foot ("Leave in 4 min"), the vehicle's otherwise
-function firstAction(now) {
+function firstAction(now: number) {
   const first = journeySteps[0], ride = journeySteps.find((st) => st.type === 'ride');
   const walkFirst = first && first.type === 'walk';
   const when = walkFirst ? first.t0 : ride ? ride.t0 : null;
@@ -140,18 +142,18 @@ function sheetActions() {
     kBtn('round-btn', 'Close journey', () => endJourney(), kIcon('close', 18)));
 }
 // A walking direction picked: step through them, or back to the whole journey
-function stepNav() {
-  const st = journeySteps[jFocus.step], dirs = st ? walkDirections(st) : [], k = jFocus.dir, d = dirs[k];
+function stepNav(): HTMLDivElement {
+  const st = journeySteps[jFocus!.step], dirs = st ? walkDirections(st) : [], k = jFocus!.dir, d = dirs[k];
   if (!d) { jFocus = null; return buildHead(); }
   const text = h('div', 'stepnav-text', h('small', null, `${k + 1} of ${dirs.length}`), h('strong', 'trunc2', d.text));
   text.setAttribute('aria-live', 'polite');
-  const prev = kBtn('round-btn', 'Previous direction', () => focusDir(jFocus.step, k - 1), kIcon('back', 18));
-  const next = kBtn('round-btn', 'Next direction', () => focusDir(jFocus.step, k + 1), kIcon('go', 18));
+  const prev = kBtn('round-btn', 'Previous direction', () => focusDir(jFocus!.step, k - 1), kIcon('back', 18));
+  const next = kBtn('round-btn', 'Next direction', () => focusDir(jFocus!.step, k + 1), kIcon('go', 18));
   prev.disabled = k === 0;
   next.disabled = k === dirs.length - 1;
   return h('div', 'stepnav', prev, text, next, kBtn('round-btn', 'Back to the whole journey', overview, kIcon('close', 18)));
 }
-function buildHead() {
+function buildHead(): HTMLDivElement {
   if (jFocus) return stepNav();
   const head = h('div', 'jhead');
   if (!journeyConn) {
@@ -170,13 +172,13 @@ function buildHead() {
   const act = h('div', 'jhead-act');
   // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
   const lp = liveParts(now);
-  const rideNow = rides.some((st) => st.t0 != null && now >= st.t0 && now <= st.t1);
+  const rideNow = rides.some((st) => st.t0 != null && now >= st.t0 && now <= st.t1!);
   if (now > end + 120000) act.append(h('span', 'jrow-act gone', 'This journey has ended'));
   else if (lp && lp.kind === 'off') act.append(h('span', 'jrow-act late', lp.parts), kBtn('pill-btn small', null, replan, kIcon('refresh', 16), 'Replan'));
   else if (lp && (lp.kind === 'gps' || (lp.kind === 'est' && rideNow))) act.append(h('span', 'jrow-act', lp.parts), ...(lp.rest ? [h('span', 'jhead-rest' + (lp.restLevel ? ' hurry-' + lp.restLevel : ''), lp.rest)] : [])); // append(null) would write "null"
   else {
     const a = firstAction(now);
-    if (a.text) act.append(h('span', 'jrow-act ' + (a.gone ? 'gone' : a.state), a.text, a.gone ? null : kDelay(a.delay)));
+    if (a.text) act.append(h('span', 'jrow-act ' + (a.gone ? 'gone' : a.state), a.text, a.gone ? null : kDelay(a.delay!)));
     else if (a.quay) act.append(h('span'));
     const plat = a.quay && kPlat(a.quay, true); // null at a stop without signed bays
     if (plat) act.append(plat);
@@ -185,7 +187,7 @@ function buildHead() {
   return head;
 }
 let headKey = '';
-function renderHead(force) {
+function renderHead(force?: boolean) {
   const node = buildHead();
   const key = node.outerHTML;
   if (!force && key === headKey) return; // unchanged: leave it alone (and its buttons pressable)
@@ -193,15 +195,15 @@ function renderHead(force) {
   jHead.replaceChildren(node);
 }
 
-function placeRow(t, name, kind) {
+function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to') {
   return h('li', 'tl-row tl-place ' + kind,
     h('span', 'tl-time', h('b', null, fmtTime(t))),
     h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
     h('span', 'tl-name', h('strong', null, name), h('small', null, kind === 'from' ? 'Start' : 'Destination')));
 }
 // Spare time on a change: from getting off to the next departure, less the walk
-function spareLine(st) {
-  const wait = (liveMs(st.next.departure, 'departure') - liveMs(st.prev.arrival, 'arrival')) / 1000;
+function spareLine(st: JourneyChangeStep) {
+  const wait = (liveMs(st.next.departure, 'departure')! - liveMs(st.prev.arrival, 'arrival')!) / 1000;
   const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
   const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
   const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
@@ -209,20 +211,20 @@ function spareLine(st) {
     level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
       : h('span', null, h('b', null, `${kDurExact(s)} to spare`), extra > 0 && s < extra * 60 ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
 }
-function stepRow(d, active, onClick) {
+function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
   const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
     h('span', 'step-icon', kIcon(STEP_K[d.kind] || 'walk', 18)), h('span', 'step-text', d.text),
     d.from != null && d.to != null ? h('span', 'tag lvl', levelShort(d.from), kIcon('go', 11), levelShort(d.to)) : null);
   if (active) b.setAttribute('aria-current', 'step');
   return h('li', null, b);
 }
-function walkBlock(st, i) {
+function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const transfer = st.type === 'change';
   const mins = walkMinOf(st);
   const target = walkTarget(st);
   if (transfer) {
-    const pq = quayOf(st.prevRide, 'arr'), nq = quayOf(st.nextRide, 'dep');
-    const samePlace = st.prev.arrival.station.name === st.next.departure.station.name;
+    const pq = quayOf(st.prevRide!, 'arr'), nq = quayOf(st.nextRide!, 'dep');
+    const samePlace = st.prev.arrival.station!.name === st.next.departure.station!.name;
     if (!mins && !(st.lines && st.lines.length) && samePlace && pq.label && pq.word === nq.word && pq.label === nq.label) {
       return h('li', 'tl-row tl-walk same', h('span', 'tl-time'), h('span', 'tl-rail walk'),
         h('div', 'tl-main', h('strong', null, `Change at the same ${nq.word.toLowerCase()}`), spareLine(st)));
@@ -230,7 +232,7 @@ function walkBlock(st, i) {
   }
   const dist = walkDist(st);
   const lvl = levelChange(st);
-  const pq = transfer && quayOf(st.prevRide, 'arr'), nq = transfer && quayOf(st.nextRide, 'dep');
+  const pq = (transfer && quayOf(st.prevRide!, 'arr')) as Quay, nq = (transfer && quayOf(st.nextRide!, 'dep')) as Quay;
   const meta = [
     mins ? `${kDur(mins * 60)} walk` : transfer && pq.label && nq.label ? (pq.word === nq.word ? `${pq.word} ${pq.label} → ${nq.label}` : `${pq.short} ${pq.label} → ${nq.short} ${nq.label}`) : '',
     dist ? fmtDist(dist) : '',
@@ -245,7 +247,7 @@ function walkBlock(st, i) {
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (transfer) main.append(spareLine(st));
   else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
-  if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget), kIcon('cube', 16), '3D view')));
+  if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view')));
   if (dirs.length > 1) {
     main.append(kBtn('expander', null, () => {
       if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
@@ -260,7 +262,7 @@ function walkBlock(st, i) {
 }
 
 // "Where to stand": the boarding point as a sign, with everything known about it in words
-function standCard(st, i) {
+function standCard(st: JourneyRideStep, i: number) {
   const q = quayOf(st, 'dep'), j = st.s.journey, mode = modeOf(j.category), edge = q.edge;
   const bearing = edge && edge.bearing != null ? edge.bearing : q.travel;
   const sign = h('div', 'sign' + (q.label ? '' : ' unsigned') + (q.label.length > 2 ? ' long' : ''), h('span', 'sign-noun', q.label ? q.word : 'Stop'));
@@ -295,27 +297,27 @@ function standCard(st, i) {
   return card;
 }
 // Scheduled time; a delay follows as "+4 min" in the alarm colour
-function callTime(stop, which, strong) {
+function callTime(stop: OdCheckpoint, which: 'departure' | 'arrival', strong?: boolean) {
   const t = stop[which] || stop[which === 'departure' ? 'arrival' : 'departure'];
   if (!t) return h('span', 'tl-time');
   return h('span', 'tl-time', strong ? h('b', null, fmtTime(t)) : h('span', null, fmtTime(t)), kDelay(lateMin(stop, which)));
 }
 // Real-time state as a word, never by colour alone
-function liveTag(st) {
+function liveTag(st: JourneyRideStep) {
   const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
   return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Expected' : 'Timetable');
 }
-function rideBlock(st, i) {
+function rideBlock(st: JourneyRideStep, i: number) {
   const s = st.s, j = s.journey, mode = modeOf(j.category);
   const list = j.passList || [];
   const stops = Math.max(0, list.length - 2);
-  const rideS = Math.max(0, (st.t1 - st.t0) / 1000);
+  const rideS = Math.max(0, (st.t1! - st.t0!) / 1000);
   const open = openStops.has(i);
   const li = lineVars(h('li', 'tl-ride'), j);
   li.append(h('div', 'tl-row board',
     callTime(s.departure, 'departure', true),
     h('span', 'tl-rail ride first', h('i', 'tl-node', kIcon(MODE_K[mode] || 'bus', 15))),
-    h('span', 'tl-name', h('strong', null, s.departure.station.name)),
+    h('span', 'tl-name', h('strong', null, s.departure.station!.name)),
     kPlat(quayOf(st, 'dep'))));
   li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
     h('div', 'tl-main',
@@ -330,11 +332,11 @@ function rideBlock(st, i) {
     h('span', 'tl-rail ride', h('i', 'tl-stopdot')),
     h('span', 'tl-name', (stop.station && stop.station.name) || ''))));
   li.append(h('div', 'tl-row alight', callTime(s.arrival, 'arrival'), h('span', 'tl-rail ride last', h('i', 'tl-enddot')),
-    h('span', 'tl-name', s.arrival.station.name), kPlat(quayOf(st, 'arr'))));
+    h('span', 'tl-name', s.arrival.station!.name), kPlat(quayOf(st, 'arr'))));
   return li;
 }
 function footNote() {
-  const p = SETTINGS.prefs ? SETTINGS.prefs() : {};
+  const p = (SETTINGS.prefs ? SETTINGS.prefs() : {}) as Settings;
   const walks = journeySteps.filter((st) => st.type === 'walk' || st.type === 'change');
   const mins = walks.reduce((sum, st) => sum + walkMinOf(st), 0);
   const dists = walks.map(walkDist);
@@ -371,7 +373,7 @@ function renderBody() {
 }
 function renderFoot() {
   if (!journeyConn) { jFoot.replaceChildren(); return; }
-  const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
+  const end = journeyEnd(), start = new Date(journeyConn.from.departure!).getTime();
   jFoot.replaceChildren(h('div', 'actionbar',
     kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
     ticketLink(),
