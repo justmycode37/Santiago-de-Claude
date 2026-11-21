@@ -1,0 +1,4 @@
+# Compiled path finder, cached paths and raw measurement recordings
+shaper/target/
+data/
+measure/recordings/
