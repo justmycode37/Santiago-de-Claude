@@ -1,0 +1,185 @@
+﻿.fare-dialog {
+  box-sizing: border-box;
+  width: min(520px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100% - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  border-radius: 24px;
+  background: var(--sheet-bg);
+  color: var(--bar-text);
+  box-shadow: var(--shadow);
+  font: inherit;
+}
+
+.fare-dialog::backdrop { background: rgba(0, 0, 0, .5); }
+
+.fare-shell { display: flex; flex-direction: column; max-height: inherit; }
+
+.fare-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.fare-header h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+
+.fare-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 20px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.fare-dialog h3, .fare-dialog p { margin: 0; }
+.fare-dialog a { color: var(--accent-ink); font-weight: 600; text-underline-offset: .15em; }
+
+.fare-results, .fare-form, .fare-trips { display: grid; gap: 10px; }
+
+.fare-card {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+  padding: 15px 16px;
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+  background: var(--row-bg);
+  background: color-mix(in srgb, var(--accent-ink) 9%, var(--sheet-bg));
+}
+
+.fare-card h3 { font-size: 19px; line-height: 1.25; overflow-wrap: anywhere; }
+.fare-card a { margin-top: 4px; }
+.fare-eyebrow { color: var(--accent-ink); font-weight: 650; }
+.fare-price { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fare-note { color: var(--bar-text); font-size: 13px; }
+.fare-status { position: sticky; bottom: 0; background: var(--sheet-bg); font-weight: 600; }
+
+.fare-status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+
+.fare-dialog details {
+  border: 1px solid var(--hair);
+  border-radius: 13px;
+  background: var(--sheet-bg);
+}
+
+.fare-dialog summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 650;
+  border-radius: 13px;
+}
+
+.fare-dialog details > :not(summary) { margin: 0; padding: 4px 12px 12px; }
+.fare-alternatives { display: grid; list-style: none; }
+
+.fare-alternatives li {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 0;
+  border-top: 1px solid var(--hair);
+}
+
+.fare-alternatives li:last-child { padding-bottom: 0; }
+
+.fare-offer {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.fare-offer span { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.fare-trip {
+  padding: 12px;
+  border: 1px solid var(--hair);
+  border-radius: 11px;
+  background: var(--row-bg);
+}
+
+.fare-trip strong { overflow-wrap: anywhere; }
+.fare-trip .fare-note { margin-top: -7px; }
+
+.fare-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr));
+  gap: 8px;
+}
+
+.fare-fields label { display: grid; align-content: start; gap: 4px; font-size: 13px; font-weight: 600; }
+.fare-check { display: flex; gap: 8px; align-items: baseline; }
+.fare-profile-hint { display: grid; gap: 6px; }
+.fare-current-rate { margin-inline-start: 6px; font-size: 13px; color: var(--accent-ink); }
+.fare-rate-setting { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--hair); }
+.fare-rate-setting label { font-weight: 650; }
+.fare-form > label:has(select) { display: grid; gap: 4px; }
+.fare-check input { accent-color: var(--user-blue); margin: 0; }
+
+.fare-dialog input[type="number"], .fare-dialog select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--sheet-bg);
+  color: var(--bar-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.fare-dialog button {
+  justify-self: start;
+  padding: 7px 10px;
+  min-height: 34px;
+  border: 1px solid var(--hair);
+  border-radius: 9px;
+  background: var(--pressed);
+  color: var(--bar-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fare-dialog button[type="submit"] { color: var(--accent-ink); }
+
+.fare-dialog .fare-close {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.fare-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.fare-actions p { flex-basis: 100%; }
+.fare-dialog [hidden] { display: none; }
+.fare-dialog :focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+
+@media (max-width: 540px) {
+  .fare-dialog {
+    width: 100%;
+    margin: auto 0 0;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .fare-body { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+}

@@ -44,6 +44,28 @@ function s3Plan(st: JourneyStep): StationWalkPlan | null {
 }
 // The journey options for the station router, for the day of that step (closures in the model have dates)
 const s3Prefs = (st: JourneyStep | null | undefined) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
+// The continuous "inside" view (station3d-solid.html) for the stations that have its companion stations3d/<key>.solid.js,
+// listed in stations3d/solid-index.js (written by tools/station3d_solid.py; loaded once, when a walk card needs it)
+let s3SolidIndex: Promise<Record<string, { file: string }>> | null = null;
+function s3HasSolid(key: string): Promise<boolean> {
+  if (!s3SolidIndex) s3SolidIndex = new Promise((resolve) => {
+    if (window.STATION3D_SOLID_INDEX) { resolve(window.STATION3D_SOLID_INDEX); return; }
+    const s = document.createElement('script');
+    s.src = 'stations3d/solid-index.js';
+    s.onload = () => resolve(window.STATION3D_SOLID_INDEX || {});
+    s.onerror = () => { s.remove(); s3SolidIndex = null; resolve({}); };   // offline: try again for the next card
+    document.head.appendChild(s);
+  });
+  return s3SolidIndex.then((ix) => !!ix[key]);
+}
+type S3SolidEnd = { stop?: { uic: string; ref?: string; sector?: string }; ll?: LngLat; level?: number | null };
+function s3SolidUrl(plan: StationWalkPlan, prefs: object): string {
+  const end = (e: S3SolidEnd) => (e.stop ? `stop:${e.stop.uic}:${e.stop.ref || ''}${e.stop.sector ? '@' + e.stop.sector : ''}`
+    : e.ll ? `ll:${e.ll[0]},${e.ll[1]}${e.level != null ? ',' + e.level : ''}` : '');
+  const p = Object.entries(prefs).filter(([, v]) => v === true).map(([k]) => k).join(',');
+  return `station3d-solid.html?key=${encodeURIComponent(plan.key)}&from=${encodeURIComponent(end(plan.from as S3SolidEnd))}`
+    + `&to=${encodeURIComponent(end(plan.to as S3SolidEnd))}${p ? '&prefs=' + p : ''}`;
+}
 let s3Step: JourneyStep | null = null; // the journey step the 3D view was opened from
 function s3Open(st: JourneyStep, button: HTMLElement | null) {
   const plan = s3Plan(st); // now, not when the sheet was drawn: the start follows your position
@@ -415,7 +437,18 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (transfer) main.append(spareLine(st));
   else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
-  if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view')));
+  const s3p = s3Plan(st);
+  if (s3p) {
+    const row = h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
+    main.append(row);
+    // and, where the station has one, the whole building in one continuous 3D view (opens in a new tab)
+    s3HasSolid(s3p.key).then((ok) => {
+      if (ok) row.append(kBtn('view3d', 'Show this walk inside the station building, in one continuous 3D view', () => {
+        const p = s3Plan(st);
+        if (p) window.open(s3SolidUrl(p, s3Prefs(st)), '_blank', 'noopener');
+      }, kIcon('cube', 16), 'Inside view'));
+    });
+  }
   if (dirs.length > 1) {
     main.append(kBtn('expander', null, () => {
       if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
@@ -540,15 +573,34 @@ function renderBody() {
   jBody.replaceChildren(buildBody());
   jBody.scrollTop = top;
 }
+let ticketFoot: { conn: OdConnection; tracking: boolean; arrival: HTMLElement; refresh?: () => void } | null = null;
 function renderFoot() {
-  if (!journeyConn || journeyList) { jFoot.replaceChildren(); return; } // Start belongs to a journey that has been chosen
+  if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
   const end = journeyEnd(), start = new Date(journeyConn.from.departure!).getTime();
+  const arrival = h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`),
+    h('b', null, kDur((end - start) / 1000)));
+  const tracking = SETTINGS.prefs().fareTracking;
+  if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.arrival.isConnected) {
+    ticketFoot.arrival.replaceWith(arrival);
+    ticketFoot.arrival = arrival;
+    return;
+  }
+  const ticket = ticketLink();
+  const pricing = ticketPricing(!!ticket);
   jFoot.replaceChildren(h('div', 'actionbar',
     kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
-    ticketLink(),
+    ticket,
     kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
-    h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
+    arrival),
+    ...(pricing ? [pricing.row] : []),
+    ...(pricing?.form ? [pricing.form] : []));
+  ticketFoot = { conn: journeyConn, tracking, arrival, refresh: pricing?.refresh };
 }
+window.addEventListener('pricing-history-change', () => {
+  if (!ticketFoot?.arrival.isConnected) return;
+  renderFoot();
+  ticketFoot?.refresh?.();
+});
 function renderSheet() {
   renderHead(true);
   renderBody();

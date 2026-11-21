@@ -47,6 +47,7 @@ document.getElementById('settingsBtn')!.addEventListener('click', () => {
 SETTINGS.onChange(() => { updateCards(); updatePlaces(); vehUpdate(); });
 // Accessibility options changed during a journey → plan it again with them
 SETTINGS.onClose((journeyChanged) => {
+  if (journeyConn) renderFoot();
   if (journeyChanged && journeyDest) startJourney(journeyDest, true);
   else menuBtn.focus();
 });
@@ -78,6 +79,33 @@ document.getElementById('scanBtn')!.addEventListener('click', () => {
     },
     toast: (t) => showToast(t),
     onClose: () => menuBtn.focus(),
+    // What is about to stop at a place, from the Kante engine (/api/due, kante/docs/LIVE-API.md); null without it
+    due: (params) => (kante && kante.url
+      ? kante.ready().then((m) => (m && kante.has('due') ? kante.get('/api/due', params, 6000) as Promise<KanteDueResponse | null> : null))
+      : Promise.resolve(null)),
+    // The next ride of the journey under way, for Scan to say "your bus leaves from this side / across the road".
+    // exact: the timetable names the platform; otherwise the edge was inferred from the direction of travel.
+    route: () => {
+      if (!journeySteps || !journeySteps.length) return null;
+      const r = journeySteps.find((st) => st.type === 'ride' && (st.t0 || 0) > Date.now() - 60000);
+      if (!r || r.type !== 'ride' || !r.s || !r.s.departure || !r.s.departure.station) return null;
+      const id = String(r.s.departure.station.id);
+      const pst = PLATFORMS.get(id);
+      const e = r.depAt && r.depAt.edge;
+      // the edge object itself, or (Kante journeys build their own) the edge with the same letter / at that spot
+      let i = pst && e ? pst.edges.indexOf(e as unknown as PlatformEdge) : -1;
+      if (i < 0 && pst && e && e.ll) {
+        const k = platformKey(e.ref);
+        const near = pst.edges.map((x, n): [number, number] => [distKm(x.ll, e.ll), n])
+          .filter(([d, n]) => d < 0.012 && (!k || pst.edges[n].key === k)).sort((x, y) => x[0] - y[0]);
+        if (near.length) i = near[0][1];
+      }
+      const key = platformKey(platformOf(r.s.departure));
+      return { uic: id, name: r.s.departure.station.name || '', edge: i >= 0 ? i : null,
+               exact: !!pst && i >= 0 && ((!!key && pst.edges[i].key === key) || !!(e && e.ref && platformKey(e.ref) === pst.edges[i].key)),
+               line: r.s.journey ? lineLabel(r.s.journey) : '', to: (r.s.journey && r.s.journey.to) || undefined,
+               time: (r.s.departure.prognosis && r.s.departure.prognosis.departure) || r.s.departure.departure || undefined }; // live time
+    },
   };
   startPlatforms(); // the stop positions are needed straight away
   const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation));

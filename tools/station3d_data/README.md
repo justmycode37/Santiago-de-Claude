@@ -47,3 +47,14 @@ Known problems that matter here:
 - Furniture has no level in the source: the builder takes `level` from the file when it is set there, else puts a
   piece on level 0 when it lies on a platform, else on the level of the nearest walkable area within 15 m, else
   leaves it out.
+## Zürich HB (`zurich/`)
+
+`boards.json`, `sectors.json` and `furniture.json` are made by `tools/station3d_sbb_layers.py zurich` straight from
+data.sbb.ch (`sektortafel`, `haltestelle-uhr`, `billetautomat`), for the stop ids and extent in `STATIONS`:
+
+- The sector signs of tracks 3-18 carry their own sector's letter on both faces ("A|A"), about two per sector; the
+  sector centre is their middle. (At stations whose signs mark the border between two sectors, "B|C", the script puts
+  a centre midway between the two borders; checked on Wankdorf against the centres there: median 3 m, at most 7 m.)
+- data.sbb.ch has no sector signs for Löwenstrasse (31-34) and Museumstrasse (41-44), and no platform-edge lines any
+  more (`perronkante` was withdrawn), so Zürich has no `spans.json` and no `platform_edges.geojson`.
+- Clocks and ticket machines are all those inside the model's extent; the builder gives them a level.

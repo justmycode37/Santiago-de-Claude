@@ -253,8 +253,7 @@ ROUTE_JS = r"""
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const root = process.argv[1], key = process.argv[2], job = JSON.parse(process.argv[3]);
 globalThis.window = globalThis;
-const srp = path.join(root, 'station-route.js');           // the built router: in the repo root, or in dist/ (npm run build)
-const SR = require(fs.existsSync(srp) ? srp : path.join(root, 'dist', 'station-route.js'));
+const SR = require(path.join(root, 'src', 'station-route.ts')); // node 22.18+ takes the types out itself
 vm.runInThisContext(fs.readFileSync(path.join(root, 'stations3d', key + '.js'), 'utf8'));
 const model = window.STATION3D[key];
 const r = SR.route(model, job.from, job.to, { date: job.date });

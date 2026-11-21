@@ -1,0 +1,567 @@
+{
+ "source": "Labelled by reading the display pixels of each pass (sheets without OCR output), 2026-11-21. Destination is the official stop name the display stands for.",
+ "videos": {
+  "KCRRyh57G6Y": "https://www.youtube.com/watch?v=KCRRyh57G6Y",
+  "P8HXFv5L2sA": "https://www.youtube.com/watch?v=P8HXFv5L2sA",
+  "QfULTK-AKAM": "https://www.youtube.com/watch?v=QfULTK-AKAM",
+  "uUvUaJAR6l8": "https://www.youtube.com/watch?v=uUvUaJAR6l8"
+ },
+ "frameRate": "1 frame per second (ffmpeg fps=1, q:v 3) from the 1080p stream",
+ "labels": [
+  {
+   "event": 0,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 2,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 3,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 4,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 5,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 7,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 8,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 9,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 10,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 21,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 22,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 23,
+   "line": "10",
+   "destination": "Ostermundigen, Rüti"
+  },
+  {
+   "event": 24,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 30,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 32,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 46,
+   "line": "22",
+   "destination": "Wabern, Kleinwabern"
+  },
+  {
+   "event": 48,
+   "line": "22",
+   "destination": "Wabern, Kleinwabern"
+  },
+  {
+   "event": 54,
+   "line": "22",
+   "destination": "Wabern, Kleinwabern"
+  },
+  {
+   "event": 55,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 59,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 61,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 62,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 64,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 65,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 66,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 68,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 69,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 70,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 73,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 74,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 75,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 76,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 79,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 81,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 82,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 83,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 85,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 87,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 88,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 89,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 90,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 93,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 94,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 96,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 102,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 104,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 105,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 106,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 107,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 109,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 110,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 111,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 112,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 113,
+   "line": "8",
+   "destination": "Bern Brünnen Westside, Bahnhof"
+  },
+  {
+   "event": 114,
+   "line": "8",
+   "destination": "Bern Brünnen Westside, Bahnhof"
+  },
+  {
+   "event": 127,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 131,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 135,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 137,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 141,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 142,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 143,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 144,
+   "line": "19",
+   "destination": "Spiegel, Blinzern"
+  },
+  {
+   "event": 145,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  },
+  {
+   "event": 146,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 150,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  },
+  {
+   "event": 153,
+   "line": "8",
+   "destination": "Bern Brünnen Westside, Bahnhof"
+  },
+  {
+   "event": 154,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 155,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 159,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 165,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 166,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 170,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 171,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 172,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 174,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 175,
+   "line": "3",
+   "destination": "Bern, Bahnhof"
+  },
+  {
+   "event": 178,
+   "line": "3",
+   "destination": "Bern, Weissenbühl (Tram)"
+  },
+  {
+   "event": 180,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 187,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 188,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 189,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 190,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 192,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 194,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 195,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 196,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 197,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 199,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 200,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 203,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 207,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 212,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  },
+  {
+   "event": 215,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 216,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 217,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 218,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  },
+  {
+   "event": 220,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 221,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 222,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 223,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 226,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 227,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 228,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 232,
+   "line": "8",
+   "destination": "Bern Brünnen Westside, Bahnhof"
+  },
+  {
+   "event": 233,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  },
+  {
+   "event": 234,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 235,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 236,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 237,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 238,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  }
+ ]
+}

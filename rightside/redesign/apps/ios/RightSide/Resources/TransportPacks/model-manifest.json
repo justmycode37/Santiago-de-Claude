@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "transport-yoloe-11s-512",
+  "version": "2",
+  "source": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yoloe-11s-seg.pt",
+  "license": "AGPL-3.0; proprietary deployment requires separate licensing review",
+  "classes": [
+    "bus",
+    "tram",
+    "train"
+  ],
+  "textPrompts": [
+    "city bus",
+    "tramway",
+    "train"
+  ],
+  "inputSize": 512,
+  "precision": "float16",
+  "preprocessing": "RGB 0..1, centered square letterbox, padding RGB(114,114,114)",
+  "outputs": [
+    {
+      "name": "var_1369",
+      "shape": [
+        1,
+        39,
+        5376
+      ]
+    },
+    {
+      "name": "p",
+      "shape": [
+        1,
+        32,
+        128,
+        128
+      ]
+    }
+  ],
+  "weightsSHA256": "8e439445c87338b79d9ce21dec109f4621e26df67e94d26ea1a98c1e64dce3e3",
+  "files": {
+    "Data/com.apple.CoreML/model.mlmodel": "978484588cef7141c75bff9f45fee8d6b0e1ee456a6ab9a8ba228644acc61f74",
+    "Data/com.apple.CoreML/weights/weight.bin": "9fe4332a01a02998acdf15ad7c374ee9652119d65cc95cc73de8d2b83f3538e9",
+    "Manifest.json": "7ca6d44554d48dc5290b545c261cc82c141f0b417d008ba765d15c7819478547"
+  },
+  "validation": "Zero-shot transport prompts. Not a calibrated classifier; field evaluation required."
+}

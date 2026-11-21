@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
   <title>Maps</title>
+  <link rel="stylesheet" href="pricing.css" />
+  <link rel="stylesheet" href="ticket-pricing.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <script>
     // Pick the theme before first paint: saved choice, else the system setting
@@ -784,6 +786,7 @@
     .kj .jrow-act.gone { color: var(--ink-3); font-weight: 400; }
     .kj .jrow-act .badge { align-self: center; }
     .kj .actionbar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+    #pricingSuggestions[hidden] { display: none; }
     .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
     .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
     .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
@@ -798,7 +801,7 @@
       .kj .pill-btn.start { padding: 0 16px; }
       .kj .pill-btn.ticket { padding: 0 14px; }
     }
-    @media (max-width: 360px) {
+    @media (max-width: 410px) {
       .kj .pill-btn.ticket .tk-long { display: none; }
       .kj .pill-btn.ticket .tk-short { display: inline; }
     }
@@ -1515,6 +1518,26 @@
       </div>
       <p class="set-foot">Other languages are translated by Google Translate, so the text on the screen is sent to Google. Stop, line and place names stay as they are written on the signs.</p>
 
+      <h2 class="set-head" id="pricingHeading">Tickets &amp; travelcards</h2>
+      <div class="set-group" role="group" aria-labelledby="pricingHeading">
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M3 10h18M6 15h4"/></svg></span>
+          <span class="set-text"><b id="halfFareTitle">I have a Half Fare Travelcard</b><small id="halfFareHelp">Show my reduced price under Get ticket.</small></span>
+          <input class="switch" type="checkbox" role="switch" id="pricingHalfFare" aria-labelledby="halfFareTitle" aria-describedby="halfFareHelp" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4zM15 7v2m0 3v1m0 3v1" /></svg></span>
+          <span class="set-text"><b id="pricingToggleTitle">Trip history</b><small id="pricingToggleHelp">Save rides you confirm on this device for fare suggestions.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="fareTracking" aria-labelledby="pricingToggleTitle" aria-describedby="pricingToggleHelp" />
+        </label>
+        <button class="set-row set-nav" id="pricingSuggestions" type="button" aria-haspopup="dialog" hidden>
+          <span class="set-text"><b>Fare suggestions</b><small id="pricingSummary"></small></span>
+          <svg class="set-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+        <button class="set-reset" id="pricingClearPaused" type="button" hidden>Clear saved trips</button>
+      </div>
+      <p class="set-foot" id="pricingStorageStatus" role="status" hidden></p>
+
       <h2 class="set-head" id="setAccessHead">Accessibility</h2>
       <div class="set-group" role="group" aria-labelledby="setAccessHead">
         <label class="set-row">
@@ -1803,6 +1826,7 @@
   <script src="community-programmes.js"></script>
   <script src="events.js"></script>
   <script src="map-layers.js"></script>
+  <script src="pricing-history.js"></script>
   <script src="settings.js"></script>
   <script src="walk-pace.js"></script>
   <!-- The introduction for a first visit (needs settings.js only). If it can't load, the app starts as usual -->
@@ -1816,7 +1840,65 @@
   <script src="live.js"></script>
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
-  <script src="station3d.js"></script>
+  <script>
+    // The 3D station viewer (station3d.js, ~260 KB) loads the first time it is needed, not at start-up: a tap on
+    // "3D view", or a journey through a station that has a model (its walk is drawn from the model, and the viewer
+    // is preloaded). Until then this stand-in answers has() from stations3d/index.js and passes every other call on
+    // once the viewer is there. station3d.js then replaces window.Station3D with itself.
+    (function () {
+      let loading = null;
+      let user;
+      let wanted = null;      // the latest open() asked for while loading; close() cancels it
+      const listeners = [];
+      function load() {
+        if (!loading) loading = new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'station3d.js';
+          s.onload = () => {
+            const real = window.Station3D;
+            if (!real || real === stub) { loading = null; s.remove(); reject(new Error('station3d.js did not start')); return; }
+            for (const [name, fn] of listeners) real.on(name, fn);
+            if (user !== undefined) real.setUser(user);
+            resolve(real);
+          };
+          s.onerror = () => { loading = null; s.remove(); reject(new Error('Could not load station3d.js')); };
+          document.head.appendChild(s);
+        });
+        return loading;
+      }
+      const stub = window.Station3D = {
+        has: (uic) => (window.STATION3D_INDEX && window.STATION3D_INDEX[String(uic)]) || null,
+        open: (opts) => {
+          wanted = opts;
+          load().then((real) => {
+            if (wanted !== opts) return; // a later open() or a close() came while it loaded
+            wanted = null;
+            real.open(opts);
+          }, (e) => {
+            if (wanted !== opts) return;
+            wanted = null;
+            // the listeners hear it as from the viewer (onboarding's demo is behind an overlay the toast cannot reach)
+            for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn({ message: e.message }); } catch (err) {} }
+            if (window.showToast) window.showToast('The 3D view could not be loaded.');
+          });
+        },
+        setUser: (u) => { user = u || null; },
+        close: () => { wanted = null; },
+        isOpen: () => wanted !== null, // "opening" counts as open, so whoever closes it cancels the pending open
+        on: (name, fn) => { listeners.push([name, fn]); return () => stub.off(name, fn); },
+        off: (name, fn) => {
+          const i = listeners.findIndex(([n, f]) => n === name && f === fn);
+          if (i >= 0) listeners.splice(i, 1);
+          if (window.Station3D !== stub) window.Station3D.off(name, fn);
+        },
+        selectStep: () => {}, setFollow: () => {}, setPov: () => {}, setPeel: () => {},
+        play: () => false, pause: () => {}, isPlaying: () => false,
+        enableCompass: () => load().then((real) => real.enableCompass(), () => 'unavailable'),
+        preload: (key) => load().then((real) => real.preload(key), () => false),
+        loadData: (key) => load().then((real) => real.loadData(key), () => null),
+      };
+    })();
+  </script>
   <!-- build: src/app -->
 </body>
 </html>

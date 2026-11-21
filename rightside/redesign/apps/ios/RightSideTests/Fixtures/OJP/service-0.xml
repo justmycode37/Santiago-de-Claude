@@ -1,0 +1,831 @@
+<?xml version="1.0" encoding="utf-8"?>
+<OJP xmlns="http://www.vdv.de/ojp" xmlns:siri="http://www.siri.org.uk/siri" version="2.0">
+  <OJPResponse>
+    <siri:ServiceDelivery>
+      <siri:ResponseTimestamp>2026-11-21T06:40:39.226Z</siri:ResponseTimestamp>
+      <siri:ProducerRef>MOTIS</siri:ProducerRef>
+      <siri:ResponseMessageIdentifier>19</siri:ResponseMessageIdentifier>
+      <OJPTripInfoDelivery>
+        <siri:ResponseTimestamp>2026-11-21T06:40:39.226Z</siri:ResponseTimestamp>
+        <siri:DefaultLanguage/>
+        <TripInfoResponseContext>
+          <Places>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:71359</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Länggasse</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Länggasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.42617</siri:Longitude>
+                <siri:Latitude>46.95597</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:71359:0:626</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Länggasse</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:71359</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Länggasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.42637</siri:Longitude>
+                <siri:Latitude>46.95602</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:90129</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.46439</siri:Longitude>
+                <siri:Latitude>46.9666</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:90129:0:2</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:90129</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.46433</siri:Longitude>
+                <siri:Latitude>46.96659</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:90038</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Unitobler</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Unitobler</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.42975</siri:Longitude>
+                <siri:Latitude>46.9549</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:90038:0:2</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Unitobler</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:90038</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Unitobler</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43019</siri:Longitude>
+                <siri:Latitude>46.95461</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:71358</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Mittelstrasse</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Mittelstrasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43253</siri:Longitude>
+                <siri:Latitude>46.95322</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:71358:0:195405</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Mittelstrasse</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:71358</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Mittelstrasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43289</siri:Longitude>
+                <siri:Latitude>46.95288</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:71357</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Universität</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Universität</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43559</siri:Longitude>
+                <siri:Latitude>46.95089</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:71357:0:2</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Universität</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:71357</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Universität</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43566</siri:Longitude>
+                <siri:Latitude>46.95074</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:81351</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Schanzenstrasse</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Schanzenstrasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43717</siri:Longitude>
+                <siri:Latitude>46.94794</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:81351:0:661080</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Schanzenstrasse</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:81351</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Schanzenstrasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.43729</siri:Longitude>
+                <siri:Latitude>46.94794</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:76646</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Bahnhof</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Bahnhof</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44021</siri:Longitude>
+                <siri:Latitude>46.94811</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:76646:0:13</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Bahnhof</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:76646</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Bahnhof</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44001</siri:Longitude>
+                <siri:Latitude>46.94821</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:88990</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Bollwerk</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Bollwerk</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44137</siri:Longitude>
+                <siri:Latitude>46.95164</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:88990:0:3</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Bollwerk</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:88990</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Bollwerk</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44194</siri:Longitude>
+                <siri:Latitude>46.95195</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:88994</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Gewerbeschule</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Gewerbeschule</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.4464</siri:Longitude>
+                <siri:Latitude>46.9548</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:88994:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Gewerbeschule</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:88994</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Gewerbeschule</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44644</siri:Longitude>
+                <siri:Latitude>46.9549</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:88996</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Lorraine</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Lorraine</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44697</siri:Longitude>
+                <siri:Latitude>46.95759</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:88996:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Lorraine</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:88996</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Lorraine</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44706</siri:Longitude>
+                <siri:Latitude>46.95772</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:89008</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Wyleregg</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Wyleregg</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44892</siri:Longitude>
+                <siri:Latitude>46.96097</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:89008:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Wyleregg</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:89008</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Wyleregg</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.44908</siri:Longitude>
+                <siri:Latitude>46.96102</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:88991</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Breitfeld</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Breitfeld</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.45221</siri:Longitude>
+                <siri:Latitude>46.96256</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:88991:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Breitfeld</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:88991</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Breitfeld</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.45294</siri:Longitude>
+                <siri:Latitude>46.96269</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:76997</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Markuskirche</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Markuskirche</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.45664</siri:Longitude>
+                <siri:Latitude>46.96366</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:76997:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Markuskirche</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:76997</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Markuskirche</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.45773</siri:Longitude>
+                <siri:Latitude>46.96388</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:88999</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Morgartenstrasse</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Morgartenstrasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.45976</siri:Longitude>
+                <siri:Latitude>46.96441</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:88999:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Morgartenstrasse</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:88999</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Morgartenstrasse</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.45998</siri:Longitude>
+                <siri:Latitude>46.96442</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPlace>
+                <StopPlaceRef>ch:1:sloid:89007</StopPlaceRef>
+                <StopPlaceName>
+                  <Text xml:lang="">Bern, Wyler</Text>
+                </StopPlaceName>
+              </StopPlace>
+              <Name>
+                <Text xml:lang="">Bern, Wyler</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.46368</siri:Longitude>
+                <siri:Latitude>46.96532</siri:Latitude>
+              </GeoPosition>
+            </Place>
+            <Place>
+              <StopPoint>
+                <siri:StopPointRef>ch:1:sloid:89007:0:1</siri:StopPointRef>
+                <StopPointName>
+                  <Text xml:lang="">Bern, Wyler</Text>
+                </StopPointName>
+                <ParentRef>ch:1:sloid:89007</ParentRef>
+              </StopPoint>
+              <Name>
+                <Text xml:lang="">Bern, Wyler</Text>
+              </Name>
+              <GeoPosition>
+                <siri:Longitude>7.46401</siri:Longitude>
+                <siri:Latitude>46.96527</siri:Latitude>
+              </GeoPosition>
+            </Place>
+          </Places>
+          <Situations/>
+        </TripInfoResponseContext>
+        <TripInfoResult>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:71359:0:626</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Länggasse</Text>
+            </StopPointName>
+            <PlannedQuay>
+              <Text xml:lang="">A</Text>
+            </PlannedQuay>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:50:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:50:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>1</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:90038:0:2</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Unitobler</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T06:51:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:51:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:51:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:51:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>2</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:71358:0:195405</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Mittelstrasse</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T06:52:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:52:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:52:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:52:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>3</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:71357:0:2</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Universität</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T06:53:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:53:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:53:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:53:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>4</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:81351:0:661080</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Schanzenstrasse</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T06:54:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:54:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:54:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:54:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>5</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:76646:0:13</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Bahnhof</Text>
+            </StopPointName>
+            <PlannedQuay>
+              <Text xml:lang="">E</Text>
+            </PlannedQuay>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T06:56:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:56:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:56:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:56:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>6</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:88990:0:3</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Bollwerk</Text>
+            </StopPointName>
+            <PlannedQuay>
+              <Text xml:lang="">B</Text>
+            </PlannedQuay>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T06:58:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:58:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T06:58:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T06:58:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>7</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:88994:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Gewerbeschule</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:00:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:00:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:00:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:00:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>8</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:88996:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Lorraine</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:01:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:01:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:01:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:01:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>9</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:89008:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Wyleregg</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:02:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:02:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:02:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:02:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>10</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:88991:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Breitfeld</Text>
+            </StopPointName>
+            <PlannedQuay>
+              <Text xml:lang="">B</Text>
+            </PlannedQuay>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:03:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:03:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:03:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:03:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>11</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:76997:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Markuskirche</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:04:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:04:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:04:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:04:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>12</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:88999:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Morgartenstrasse</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:05:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:05:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:05:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:05:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>13</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:89007:0:1</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern, Wyler</Text>
+            </StopPointName>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:06:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:06:00Z</EstimatedTime>
+            </ServiceArrival>
+            <ServiceDeparture>
+              <TimetabledTime>2026-11-21T07:06:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:06:00Z</EstimatedTime>
+            </ServiceDeparture>
+            <Order>14</Order>
+          </PreviousCall>
+          <PreviousCall>
+            <siri:StopPointRef>ch:1:sloid:90129:0:2</siri:StopPointRef>
+            <StopPointName>
+              <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+            </StopPointName>
+            <PlannedQuay>
+              <Text xml:lang="">C</Text>
+            </PlannedQuay>
+            <ServiceArrival>
+              <TimetabledTime>2026-11-21T07:07:00Z</TimetabledTime>
+              <EstimatedTime>2026-11-21T07:07:00Z</EstimatedTime>
+            </ServiceArrival>
+            <Order>15</Order>
+          </PreviousCall>
+          <Service>
+            <OperatingDayRef>2026-11-21</OperatingDayRef>
+            <JourneyRef>20261121_07:50_ch_.ojp-92-20.1.TA.1071.j26</JourneyRef>
+            <PublicCode>20</PublicCode>
+            <siri:LineRef>ch_92-20-j26-1</siri:LineRef>
+            <siri:DirectionRef>0</siri:DirectionRef>
+            <Mode>
+              <PtMode>bus</PtMode>
+              <ShortName>
+                <Text xml:lang="de">B</Text>
+              </ShortName>
+            </Mode>
+            <ProductCategory>
+              <Name>
+                <Text xml:lang="de">Bus</Text>
+              </Name>
+              <ShortName>
+                <Text xml:lang="de">B</Text>
+              </ShortName>
+            </ProductCategory>
+            <PublishedServiceName>
+              <Text xml:lang="">20</Text>
+            </PublishedServiceName>
+            <TrainNumber>72310</TrainNumber>
+            <OriginText>
+              <Text xml:lang="">Bern, Länggasse</Text>
+            </OriginText>
+            <siri:OperatorRef>827</siri:OperatorRef>
+            <DestinationStopPointRef>ch:1:sloid:90129:0:2</DestinationStopPointRef>
+            <DestinationText>
+              <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+            </DestinationText>
+          </Service>
+          <JourneyTrack>
+            <TrackSection>
+              <TrackSectionStart>
+                <siri:StopPointRef>ch:1:sloid:71359:0:626</siri:StopPointRef>
+                <Name>
+                  <Text xml:lang="">Bern, Länggasse</Text>
+                </Name>
+              </TrackSectionStart>
+              <TrackSectionEnd>
+                <siri:StopPointRef>ch:1:sloid:90129:0:2</siri:StopPointRef>
+                <Name>
+                  <Text xml:lang="">Bern Wankdorf, Bahnhof</Text>
+                </Name>
+              </TrackSectionEnd>
+              <LinkProjection>
+                <Position>
+                  <siri:Longitude>7.42637</siri:Longitude>
+                  <siri:Latitude>46.95602</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.43019</siri:Longitude>
+                  <siri:Latitude>46.95461</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.43289</siri:Longitude>
+                  <siri:Latitude>46.95288</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.43566</siri:Longitude>
+                  <siri:Latitude>46.95074</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.43729</siri:Longitude>
+                  <siri:Latitude>46.94794</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.44001</siri:Longitude>
+                  <siri:Latitude>46.94821</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.44194</siri:Longitude>
+                  <siri:Latitude>46.95195</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.44644</siri:Longitude>
+                  <siri:Latitude>46.9549</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.44706</siri:Longitude>
+                  <siri:Latitude>46.95772</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.44908</siri:Longitude>
+                  <siri:Latitude>46.96102</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.45294</siri:Longitude>
+                  <siri:Latitude>46.96269</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.45773</siri:Longitude>
+                  <siri:Latitude>46.96388</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.45998</siri:Longitude>
+                  <siri:Latitude>46.96442</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.46401</siri:Longitude>
+                  <siri:Latitude>46.96527</siri:Latitude>
+                </Position>
+                <Position>
+                  <siri:Longitude>7.46433</siri:Longitude>
+                  <siri:Latitude>46.96659</siri:Latitude>
+                </Position>
+              </LinkProjection>
+              <Duration>PT17M</Duration>
+              <Length>0</Length>
+            </TrackSection>
+          </JourneyTrack>
+        </TripInfoResult>
+      </OJPTripInfoDelivery>
+    </siri:ServiceDelivery>
+  </OJPResponse>
+</OJP>

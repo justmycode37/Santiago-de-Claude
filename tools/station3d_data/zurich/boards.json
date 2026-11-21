@@ -1,0 +1,1445 @@
+[
+{
+"ref": "3",
+"xy": [
+-235.38,
+89.07
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 202490363"
+},
+{
+"ref": "3",
+"xy": [
+-156.73,
+57.38
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 202490353"
+},
+{
+"ref": "3",
+"xy": [
+-96.73,
+36.42
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Aufgang Europaallee",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469936"
+},
+{
+"ref": "3",
+"xy": [
+-61.84,
+23.31
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Dach uber Gleis 3/4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470197"
+},
+{
+"ref": "3",
+"xy": [
+1.06,
+-1.59
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Dach uber Gleis 3/4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470916"
+},
+{
+"ref": "3",
+"xy": [
+25.74,
+-11.32
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Dach uber Gleis 3/4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 141985690"
+},
+{
+"ref": "3",
+"xy": [
+91.24,
+-37.26
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Dach uber Gleis 3/4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 176386326"
+},
+{
+"ref": "4",
+"xy": [
+-221.95,
+100.42
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35469765"
+},
+{
+"ref": "4",
+"xy": [
+-152.11,
+72.81
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470181"
+},
+{
+"ref": "4",
+"xy": [
+-107.53,
+54.22
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484546"
+},
+{
+"ref": "4",
+"xy": [
+-57.25,
+34.44
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470790"
+},
+{
+"ref": "4",
+"xy": [
+-7.62,
+14.61
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470924"
+},
+{
+"ref": "4",
+"xy": [
+30.68,
+-0.56
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471039"
+},
+{
+"ref": "4",
+"xy": [
+90.46,
+-24.27
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471139"
+},
+{
+"ref": "5",
+"xy": [
+-221.95,
+100.42
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35469775"
+},
+{
+"ref": "5",
+"xy": [
+-152.11,
+72.81
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470172"
+},
+{
+"ref": "5",
+"xy": [
+-107.53,
+54.22
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469944"
+},
+{
+"ref": "5",
+"xy": [
+-57.25,
+34.44
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470799"
+},
+{
+"ref": "5",
+"xy": [
+-7.62,
+14.61
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470933"
+},
+{
+"ref": "5",
+"xy": [
+30.68,
+-0.56
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471048"
+},
+{
+"ref": "5",
+"xy": [
+90.46,
+-24.27
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471147"
+},
+{
+"ref": "6",
+"xy": [
+-215.98,
+117.21
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 50",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469781"
+},
+{
+"ref": "6",
+"xy": [
+-145.44,
+89.39
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470161"
+},
+{
+"ref": "6",
+"xy": [
+-86.52,
+65.09
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469952"
+},
+{
+"ref": "6",
+"xy": [
+-50.66,
+50.79
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470807"
+},
+{
+"ref": "6",
+"xy": [
+-0.42,
+30.84
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470941"
+},
+{
+"ref": "6",
+"xy": [
+37.33,
+15.84
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471056"
+},
+{
+"ref": "6",
+"xy": [
+97.11,
+-7.86
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471155"
+},
+{
+"ref": "7",
+"xy": [
+-215.98,
+117.21
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 50",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469790"
+},
+{
+"ref": "7",
+"xy": [
+-145.44,
+89.39
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470153"
+},
+{
+"ref": "7",
+"xy": [
+-86.52,
+65.09
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469960"
+},
+{
+"ref": "7",
+"xy": [
+-50.66,
+50.79
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470815"
+},
+{
+"ref": "7",
+"xy": [
+-0.42,
+30.84
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470949"
+},
+{
+"ref": "7",
+"xy": [
+37.33,
+15.84
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484638"
+},
+{
+"ref": "7",
+"xy": [
+97.11,
+-7.86
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471164"
+},
+{
+"ref": "8",
+"xy": [
+-209.97,
+132.72
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 51",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484508"
+},
+{
+"ref": "8",
+"xy": [
+-139.48,
+104.56
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470143"
+},
+{
+"ref": "8",
+"xy": [
+-79.94,
+81.46
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469969"
+},
+{
+"ref": "8",
+"xy": [
+-44.05,
+67.28
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470823"
+},
+{
+"ref": "8",
+"xy": [
+6.31,
+47.21
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470957"
+},
+{
+"ref": "8",
+"xy": [
+43.87,
+32.31
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471066"
+},
+{
+"ref": "8",
+"xy": [
+103.65,
+8.59
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484663"
+},
+{
+"ref": "9",
+"xy": [
+-209.97,
+132.72
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 51",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469799"
+},
+{
+"ref": "9",
+"xy": [
+-139.48,
+104.56
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470136"
+},
+{
+"ref": "9",
+"xy": [
+-79.94,
+81.46
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469977"
+},
+{
+"ref": "9",
+"xy": [
+-44.05,
+67.28
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470831"
+},
+{
+"ref": "9",
+"xy": [
+6.31,
+47.21
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470966"
+},
+{
+"ref": "9",
+"xy": [
+43.87,
+32.31
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471074"
+},
+{
+"ref": "9",
+"xy": [
+103.65,
+8.59
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471171"
+},
+{
+"ref": "10",
+"xy": [
+-204.99,
+149.63
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 52A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469809"
+},
+{
+"ref": "10",
+"xy": [
+-132.72,
+121.26
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470126"
+},
+{
+"ref": "10",
+"xy": [
+-73.4,
+97.78
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469987"
+},
+{
+"ref": "10",
+"xy": [
+-37.52,
+83.52
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470838"
+},
+{
+"ref": "10",
+"xy": [
+12.89,
+63.46
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470975"
+},
+{
+"ref": "10",
+"xy": [
+50.39,
+48.62
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471081"
+},
+{
+"ref": "10",
+"xy": [
+110.26,
+24.85
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471182"
+},
+{
+"ref": "11",
+"xy": [
+-204.99,
+149.63
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 52A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469816"
+},
+{
+"ref": "11",
+"xy": [
+-132.72,
+121.26
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470116"
+},
+{
+"ref": "11",
+"xy": [
+-73.4,
+97.78
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469995"
+},
+{
+"ref": "11",
+"xy": [
+-37.52,
+83.52
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470848"
+},
+{
+"ref": "11",
+"xy": [
+12.89,
+63.46
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470985"
+},
+{
+"ref": "11",
+"xy": [
+50.39,
+48.62
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471088"
+},
+{
+"ref": "11",
+"xy": [
+110.26,
+24.85
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471190"
+},
+{
+"ref": "12",
+"xy": [
+-126.1,
+136.75
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Mast 27",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470108"
+},
+{
+"ref": "12",
+"xy": [
+-66.99,
+113.7
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470003"
+},
+{
+"ref": "12",
+"xy": [
+-31.12,
+99.46
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470856"
+},
+{
+"ref": "12",
+"xy": [
+19.22,
+79.48
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470991"
+},
+{
+"ref": "12",
+"xy": [
+56.74,
+64.57
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484646"
+},
+{
+"ref": "12",
+"xy": [
+116.6,
+40.85
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471199"
+},
+{
+"ref": "13",
+"xy": [
+-198.28,
+164.67
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 45",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469825"
+},
+{
+"ref": "13",
+"xy": [
+-126.1,
+136.75
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Mast 27",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470099"
+},
+{
+"ref": "13",
+"xy": [
+-66.99,
+113.7
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470008"
+},
+{
+"ref": "13",
+"xy": [
+-31.12,
+99.46
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470864"
+},
+{
+"ref": "13",
+"xy": [
+19.22,
+79.48
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470999"
+},
+{
+"ref": "13",
+"xy": [
+56.74,
+64.57
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471096"
+},
+{
+"ref": "13",
+"xy": [
+116.6,
+40.85
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471205"
+},
+{
+"ref": "14",
+"xy": [
+-193.12,
+180.4
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 53A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484516"
+},
+{
+"ref": "14",
+"xy": [
+-119.5,
+153.17
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Mast 28",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470093"
+},
+{
+"ref": "14",
+"xy": [
+-60.56,
+129.82
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470017"
+},
+{
+"ref": "14",
+"xy": [
+-24.67,
+115.57
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470873"
+},
+{
+"ref": "14",
+"xy": [
+25.78,
+95.6
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471006"
+},
+{
+"ref": "14",
+"xy": [
+63.15,
+80.74
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471105"
+},
+{
+"ref": "14",
+"xy": [
+123.09,
+56.95
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471214"
+},
+{
+"ref": "15",
+"xy": [
+-193.12,
+180.4
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 53A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469833"
+},
+{
+"ref": "15",
+"xy": [
+-119.5,
+153.17
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Mast 28",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470084"
+},
+{
+"ref": "15",
+"xy": [
+-60.56,
+129.82
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470025"
+},
+{
+"ref": "15",
+"xy": [
+-24.67,
+115.57
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470882"
+},
+{
+"ref": "15",
+"xy": [
+25.78,
+95.6
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471015"
+},
+{
+"ref": "15",
+"xy": [
+63.15,
+80.74
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471114"
+},
+{
+"ref": "15",
+"xy": [
+123.09,
+56.95
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471221"
+},
+{
+"ref": "16",
+"xy": [
+-189.67,
+196.94
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 54A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469843"
+},
+{
+"ref": "16",
+"xy": [
+-114.04,
+169.51
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Mast 29",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470077"
+},
+{
+"ref": "16",
+"xy": [
+-53.93,
+146.3
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470034"
+},
+{
+"ref": "16",
+"xy": [
+-18.19,
+132.02
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470892"
+},
+{
+"ref": "16",
+"xy": [
+32.25,
+112.07
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471024"
+},
+{
+"ref": "16",
+"xy": [
+69.84,
+97.25
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471121"
+},
+{
+"ref": "16",
+"xy": [
+129.63,
+73.45
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471228"
+},
+{
+"ref": "17",
+"xy": [
+-189.67,
+196.94
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 54A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35469850"
+},
+{
+"ref": "17",
+"xy": [
+-114.04,
+169.51
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Mast 29",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470067"
+},
+{
+"ref": "17",
+"xy": [
+-53.93,
+146.3
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470043"
+},
+{
+"ref": "17",
+"xy": [
+-18.19,
+132.02
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470899"
+},
+{
+"ref": "17",
+"xy": [
+32.25,
+112.07
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484630"
+},
+{
+"ref": "17",
+"xy": [
+69.84,
+97.25
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471130"
+},
+{
+"ref": "17",
+"xy": [
+129.63,
+73.45
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Langshalle 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471238"
+},
+{
+"ref": "18",
+"xy": [
+-179.25,
+209.59
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35469858"
+},
+{
+"ref": "18",
+"xy": [
+-106.83,
+182.64
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kombistander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35470059"
+},
+{
+"ref": "18",
+"xy": [
+-42.82,
+157.07
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Prov.Dach Gleis 18",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470050"
+},
+{
+"ref": "18",
+"xy": [
+-24.5,
+147.58
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Dach u. Gleis 17/18",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35470908"
+},
+{
+"ref": "18",
+"xy": [
+49.52,
+118.05
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Dach u. Gleis 17/18",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471031"
+},
+{
+"ref": "18",
+"xy": [
+74.67,
+107.89
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Dach u. Gleis 17/18",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35484654"
+},
+{
+"ref": "18",
+"xy": [
+132.39,
+84.89
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Dach u. Gleis 17/18",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35471247"
+}
+]
