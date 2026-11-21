@@ -193,7 +193,7 @@ function optionRow(conn: OdConnection, now: number) {
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
   const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m >= 1) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
   conn.sections.forEach((s) => {
-    if (!s.journey) { walkS += (s.walk && s.walk.duration) || 0; return; }
+    if (!s.journey) { walkS += s._netWalkS != null ? s._netWalkS : (s.walk && s.walk.duration) || 0; return; }
     addWalk();
     add(kBadge(s.journey, null, chainIcon(s.journey)));
   });
