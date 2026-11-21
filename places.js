@@ -8,9 +8,11 @@
 // - Google Places (Text Search, New), when config.js sets a key: Google's own places, ratings and opening state.
 //   Falls back to OpenStreetMap if Google fails.
 //
-// PlaceSearch.search(text, { center, origin, radiusKm }) → Promise<[{ title, subtitle, kind, lngLat, origin: 'place',
+// PlaceSearch.search(text, { center, origin, radiusKm, bbox }) → Promise<[{ title, subtitle, kind, lngLat, origin: 'place',
 //   source, distance, category }]>; `center` biases the search (the map view), `origin` is where distances are
-//   measured from (you), both [lng, lat].
+//   measured from (you), both [lng, lat]. `bbox` [west, south, east, north] keeps only places inside it ("Search
+//   this area").
+// PlaceSearch.reverse([lng, lat]) → Promise<{ title } | null>: what stands there ("Kramgasse 12"), for a dropped pin.
 (function () {
   const CONFIG = window.APP_CONFIG || {};
   const GOOGLE_KEY = (CONFIG.googlePlacesKey || '').trim();
@@ -171,9 +173,9 @@
   const round = (x) => x.toFixed(3); // ~100 m: nearby searches from almost the same spot share a cached answer
 
   // Nearest places of one kind, widening the circle when there are few
-  async function photonNearby(cat, center, origin, radiusKm) {
+  async function photonNearby(cat, center, origin, radiusKm, bbox) {
     let found = [];
-    for (const r of [radiusKm, Math.max(radiusKm * 4, 5)]) {
+    for (const r of bbox ? [radiusKm] : [radiusKm, Math.max(radiusKm * 4, 5)]) { // an area asked for is not widened
       const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
       cat.tags.forEach((t) => params.append('osm_tag', t));
       const data = await getJSON(`${PHOTON}reverse?${params}`);
@@ -185,9 +187,10 @@
   }
 
   // Places by name, the ones near the map first
-  async function photonByName(text, center, origin) {
+  async function photonByName(text, center, origin, bbox) {
     const params = new URLSearchParams({ q: text, lat: round(center[1]), lon: round(center[0]), zoom: '16',
       location_bias_scale: '0.1', limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
+    if (bbox) params.set('bbox', bbox.map(round).join(','));
     const data = await getJSON(`${PHOTON}api/?${params}`);
     const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean));
     // Photon's order is by how well the name matches; nearer places move up (300 m ≈ one place in the list)
@@ -199,13 +202,16 @@
   const GOOGLE_FIELDS = ['places.id', 'places.displayName', 'places.shortFormattedAddress', 'places.formattedAddress',
     'places.location', 'places.primaryType', 'places.primaryTypeDisplayName', 'places.types', 'places.rating',
     'places.currentOpeningHours.openNow', 'places.businessStatus'].join(',');
-  async function google(text, center, origin, radiusKm) {
+  async function google(text, center, origin, radiusKm, bbox) {
+    const where = bbox
+      ? { locationRestriction: { rectangle: { low: { latitude: +round(bbox[1]), longitude: +round(bbox[0]) }, high: { latitude: +round(bbox[3]), longitude: +round(bbox[2]) } } } }
+      : { locationBias: { circle: { center: { latitude: +round(center[1]), longitude: +round(center[0]) }, radius: Math.min(radiusKm * 1000, 50000) } } };
     const body = JSON.stringify({
       textQuery: text,
       languageCode: 'en',
       regionCode: 'CH',
       pageSize: 20,
-      locationBias: { circle: { center: { latitude: +round(center[1]), longitude: +round(center[0]) }, radius: Math.min(radiusKm * 1000, 50000) } },
+      ...where,
     });
     const data = await getJSON('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
@@ -230,7 +236,7 @@
     }).filter((r) => r.title);
   }
 
-  async function search(text, { center, origin, radiusKm = 1.5 } = {}) {
+  async function search(text, { center, origin, radiusKm = 1.5, bbox } = {}) {
     const q = text.trim();
     if (q.length < 2 || !center) return { category: null, results: [] };
     const cat = matchCategory(q);
@@ -238,16 +244,33 @@
     if (GOOGLE_KEY) {
       // "near me" is already said by the location bias
       const query = NEARBY.test(fold(q)) ? fold(q).replace(NEARBY, '') || q : q;
-      try { list = await google(query, center, origin, radiusKm); }
+      try { list = await google(query, center, origin, radiusKm, bbox); }
       catch (e) { console.warn('Google Places failed, using OpenStreetMap', e); }
     }
-    if (!list) list = cat ? await photonNearby(cat, center, origin, radiusKm) : await photonByName(q, center, origin);
+    if (!list) list = cat ? await photonNearby(cat, center, origin, radiusKm, bbox) : await photonByName(q, center, origin, bbox);
     for (const r of list) r.subtitle = subtitle(r);
     return { category: cat ? cat.label : null, results: list };
   }
 
+  // What stands at a point, for a pin dropped on the map: the place it is on, else the nearest address
+  // ("Kramgasse 12"), "Near …" when that is some way off
+  async function reverse(lngLat) {
+    const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: APP_LANG.pick(['de', 'fr', 'en']) });
+    const data = await getJSON(`${PHOTON}reverse?${params}`);
+    const f = (data.features || [])[0];
+    const p = f && f.properties;
+    if (!p) return null;
+    const far = distance(lngLat, f.geometry.coordinates);
+    const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+    const town = p.city || p.town || p.village || p.locality || p.district || '';
+    const named = p.name && !SKIP_KEYS.has(p.osm_key) && far < 30 ? p.name : '';
+    const label = named || street || p.name || town;
+    return label ? { title: far > 80 ? `Near ${label}` : label } : null;
+  }
+
   window.PlaceSearch = {
     search,
+    reverse,
     matchCategory: (t) => { const c = matchCategory(t); return c ? c.label : null; },
     source: GOOGLE_KEY ? 'google' : 'osm',
     attribution: GOOGLE_KEY ? 'Google Maps' : 'Places © OpenStreetMap contributors',
