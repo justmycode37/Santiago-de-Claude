@@ -63,9 +63,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 class Server(http.server.ThreadingHTTPServer):
-    # The app asks for some twenty files at once, and behind a proxy (tailscale serve) each request is a connection
-    # of its own. With Python's default of 5 waiting connections the rest are refused and the proxy answers 502.
+    # A browser opens a dozen connections at once (more through a proxy such as `tailscale serve`). Python's
+    # default queue holds only 5 waiting connections: the rest were refused, the proxy answered 502, a script
+    # was missing and the app broke ("Map could not be loaded").
     request_queue_size = 128
+    daemon_threads = True
 
 
 def main():

@@ -57,17 +57,20 @@
   // `over` resolves once the view has gone:
   // 'finished' (after arriving), 'skipped' (before) or 'unavailable'. close() ends it from outside.
   function startDemo(host, onState) {
-    const S = window.Station3D;
-    if (!S || !SETTINGS) return { over: Promise.resolve('unavailable'), close() {} };
+    // Always window.Station3D as it is now: the viewer may be loaded on first use and replace a stand-in object
+    const S = () => window.Station3D;
+    if (!S() || !SETTINGS) return { over: Promise.resolve('unavailable'), close() {} };
     let end, arrived = false, failed = false, ended = false, walker = null;
     const over = new Promise((resolve) => { end = resolve; });
-    const offs = [];
+    const heard = [];
+    const hear = (name, fn) => { heard.push([name, fn]); S().on(name, fn); };
+    const deaf = () => { for (const [name, fn] of heard.splice(0)) S().off(name, fn); };
     const finish = () => {
       if (ended) return;
       ended = true;
-      offs.forEach((off) => off());
+      deaf();
       if (walker) walker.stop();
-      if (S.isOpen()) S.close();
+      if (S().isOpen()) S().close();
       end(failed ? 'unavailable' : arrived ? 'finished' : 'skipped');
     };
     const arrive = () => {
@@ -75,20 +78,20 @@
       arrived = true;
       onState('arrived');
     };
-    offs.push(S.on('arrived', arrive));                                          // showcase branch
-    offs.push(S.on('step', (e) => { if (e && e.step && e.step.kind === 'arrive') arrive(); })); // Next, up to the last step
-    offs.push(S.on('error', () => { failed = true; onState('error'); }));
-    offs.push(S.on('close', finish));                                            // the view's own ✕, Done or the back gesture
-    offs.push(S.on('open', () => {                                               // also after the view's "Try again"
+    hear('arrived', arrive);                                                     // once the viewer walks by itself
+    hear('step', (e) => { if (e && e.step && e.step.kind === 'arrive') arrive(); }); // Next, up to the last step
+    hear('error', () => { failed = true; onState('error'); });
+    hear('close', finish);                                                       // the view's own ✕, Done or the back gesture
+    hear('open', () => {                                                         // also after the view's "Try again"
       if (failed) { failed = false; onState('playing'); }
       if (walker) walker.stop();
-      walker = typeof S.play !== 'function' && !arrived ? standInWalk(host, arrive) : null;
-    }));
+      walker = typeof S().play !== 'function' && !arrived ? standInWalk(host, arrive) : null;
+    });
     try {
-      S.open({ ...DEMO_WALK, pov: true, play: true, prefs: SETTINGS.journey(), mount: host });
+      S().open({ ...DEMO_WALK, pov: true, play: true, prefs: SETTINGS.journey(), mount: host });
     } catch (e) {
       ended = true;
-      offs.forEach((off) => off());
+      deaf();
       return { over: Promise.resolve('unavailable'), close() {} };
     }
     return { over, close: finish };
