@@ -58,14 +58,10 @@
     stationIdOf,
     meta: () => call('/api/meta'),
     search: (q, near) => call('/api/search', { params: { q, lat: near && near.lat, lon: near && near.lon } }),
-    nearby: (lat, lon, opts) => call('/api/nearby', { params: { lat, lon, ...opts } }),
     reverse: (lat, lon) => call('/api/reverse', { params: { lat, lon } }),
-    quays: (params) => call('/api/quays', { params }),
     departures: (params) => call('/api/departures', { params }), // { station | quay, time, limit }
     trip: (id, date) => call('/api/trip', { params: { id, date } }),
     vehicles: (params) => call('/api/vehicles', { params }),
-    onboard: (params) => call('/api/onboard', { params }),
-    indoor: (params) => call('/api/indoor', { params }),
     plan: (body) => call('/api/plan', { body, timeout: 15000 }),
     walk: (body) => call('/api/walk', { body }),
   };
