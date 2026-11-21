@@ -1,6 +1,8 @@
-// Builds map-places.js (what the map shows) from data/amenities.json, data/places.json and
-// data/official-places.json. Run from the repo root after refreshing those files:
+// Builds map-places.js (what the map shows) from data/amenities.json, data/places.json,
+// data/official-places.json and data/toilets.json. Run from the repo root after refreshing those files:
 //   node tools/build-map-places.mjs
+// Toilets come from data/toilets.json (tools/build-toilets.mjs: OpenStreetMap merged with station toilets and
+// the Nette Toilette restaurants), not from the raw OpenStreetMap ones in amenities.json.
 // Each data category is sorted into a map group with map-layers.js's classify(). OpenStreetMap items found in
 // both OSM files are kept once, and an official item is dropped when OSM has the same kind of thing within 25 m
 // (its missing details are filled in from the official one).
@@ -15,8 +17,9 @@ const { classify, GROUPS, GLYPHS } = sandbox.window.MAP_LAYERS;
 const amenities = read('data/amenities.json');
 const places = read('data/places.json');
 const official = read('data/official-places.json');
+const toilets = read('data/toilets.json');
 
-const SOURCES = ['OpenStreetMap', 'Stadt Bern', 'Kanton Bern', 'SBB', 'Velospot'];
+const SOURCES = ['OpenStreetMap', 'Stadt Bern', 'Kanton Bern', 'SBB', 'Velospot', 'opentransportdata.swiss'];
 const sourceIndex = (key) => (key.startsWith('stadtbern') ? 1 : key.startsWith('kantonbern') ? 2 : key.startsWith('sbb') ? 3 : key === 'velospot' ? 4 : 0);
 // Same kind of thing under different names, for matching official items to OSM ones
 const SAME = { bike_share: 'bicycle_rental', sports: 'sports_centre', doctor: 'doctors', charging_station: 'ev_charging' };
@@ -29,7 +32,7 @@ const clip = (s, n = 180) => {
   if (!t) return null;
   return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t;
 };
-const yesNo = (v) => (v == null ? null : /^(yes|designated|ja)\b/i.test(v) ? 'yes' : /^(no|nein)\b/i.test(v) ? 'no' : /^limited\b/i.test(v) ? 'limited' : null);
+const yesNo = (v) => (v == null ? null : /^(yes|designated|only|ja)\b/i.test(v) ? 'yes' : /^(no|nein)\b/i.test(v) ? 'no' : /^limited\b/i.test(v) ? 'limited' : null);
 const fee = (v) => (v == null ? null : /^no$/i.test(v) ? 'no' : /^yes$/i.test(v) || /\d/.test(v) ? 'yes' : null);
 const url = (v) => {
   const s = clip(v, 300);
@@ -53,6 +56,32 @@ function fromOsm(i, placeGroup) {
     },
   };
 }
+// A record of data/toilets.json. Its first source says where the position comes from; a toilet nobody but the
+// owner may use is left off the map, one for customers is marked as such, and a Nette Toilette (a restaurant
+// or shop that lets everyone use its toilet) says so.
+const NETTE_NOTE = /^nette toilette\b/i;
+const CENTRE_NOTE = /^position is the station centre\b/i;
+function fromToilet(t) {
+  if (/^(private|no)$/.test(t.access || '')) return null;
+  const from = t.sources[0].split(':')[0];
+  const notes = (t.notes || '').split(/;\s*/).filter(Boolean);
+  const nette = t.sources.some((s) => s.startsWith('nette')) || notes.some((n) => NETTE_NOTE.test(n));
+  const customers = !nette && t.access === 'customers';
+  const about = notes.filter((n) => !NETTE_NOTE.test(n) && !CENTRE_NOTE.test(n));
+  if (nette) about.unshift('Anyone may use this toilet without buying anything while the business is open.');
+  if (from === 'atlas') about.push('Shown at the middle of the station, the exact spot is not recorded.');
+  return {
+    id: t.id, lon: t.lon, lat: t.lat, src: from === 'atlas' ? 5 : from === 'nette' ? 1 : 0, kind: 'toilets',
+    cat: classify(nette ? 'toilets_nette' : customers ? 'toilets_customers' : 'toilets'),
+    name: clip(t.name || (nette ? t.operator : null), 90),
+    x: {
+      a: addressOf(t), h: clip(t.opening_hours, 120), w: yesNo(t.wheelchair), f: nette ? 'no' : fee(t.fee),
+      l: clip(t.level, 12), d: clip(about.join(' · ')), k: !nette && /^(customers|permissive|permit)$/.test(t.access || '') ? t.access : null,
+      c: yesNo(t.changing_table) === 'yes' ? 1 : null, tw: yesNo(t.toilets_wheelchair), e: yesNo(t.eurokey) === 'yes' ? 1 : null,
+      o: t.operator && t.operator !== t.name && !(nette && !t.name) ? clip(t.operator, 60) : null,
+    },
+  };
+}
 function fromOfficial(i) {
   const acc = i.wheelchair_or_accessibility;
   const w = yesNo(acc);
@@ -73,7 +102,11 @@ const metres = (a, b) => {
 // OSM: amenities first; places.json repeats some of the same OSM objects with more detail
 const byId = new Map();
 const merge = (into, from) => { for (const k in from.x) if (into.x[k] == null && from.x[k] != null) into.x[k] = from.x[k]; if (!into.name) into.name = from.name; };
-for (const i of amenities.items) byId.set(i.id, fromOsm(i));
+const osmToilets = new Map(); // the toilets go in from data/toilets.json below
+for (const i of amenities.items) {
+  if (i.category === 'toilets') osmToilets.set(i.id, i);
+  else byId.set(i.id, fromOsm(i));
+}
 for (const i of places.items) {
   const p = fromOsm(i, i.group);
   const had = byId.get(i.id);
@@ -92,6 +125,17 @@ for (const it of byId.values()) {
     if (twin) { merge(twin, it); mergedTwins++; continue; }
     (byName.get(key) || byName.set(key, []).get(key)).push(it);
   }
+  items.push(it);
+}
+
+// Toilets: already merged across their sources, so they skip the step above. The OpenStreetMap record adds
+// what toilets.json leaves out (website, phone).
+let toiletsHidden = 0;
+for (const t of toilets.items) {
+  const it = fromToilet(t);
+  if (!it) { toiletsHidden++; continue; }
+  const osm = osmToilets.get(t.id);
+  if (osm) { const o = fromOsm(osm); for (const k of ['p', 'u']) if (it.x[k] == null) it.x[k] = o.x[k]; }
   items.push(it);
 }
 
@@ -139,12 +183,14 @@ for (const it of items) {
 // Stable order, so a rebuild from the same data gives the same file
 out.sort((a, b) => a[2] - b[2] || a[1] - b[1] || a[0] - b[0]);
 
-const generated = [amenities.generated, places.generated, official.generated].sort().pop();
+const generated = [amenities.generated, places.generated, official.generated, toilets.generated].sort().pop();
 const js = `// Generated by tools/build-map-places.mjs from data/*.json (${generated}). Do not edit by hand.
 // Sources: OpenStreetMap contributors (ODbL); Stadt Bern geoportal, Kanton Bern (opendata.swiss terms_open);
-// SBB (data.sbb.ch); Velospot (GBFS). Rows: [lon, lat, category, name or 0, details?]
+// SBB (data.sbb.ch); Velospot (GBFS); station toilets from ATLAS (opentransportdata.swiss).
+// Rows: [lon, lat, category, name or 0, details?]
 // Details: a address, h opening hours, w wheelchair, f fee, p phone, u website, l level, d description,
-// k access, c changing table, tw wheelchair toilet, s source (index into sources, 0 = OpenStreetMap).
+// k access, c changing table, tw wheelchair toilet, e Eurokey, o run by, s source (index into sources,
+// 0 = OpenStreetMap).
 window.MAP_PLACES = ${JSON.stringify({ generated, sources: SOURCES, cats, items: out })};
 `;
 writeFileSync(new URL('../map-places.js', import.meta.url), js);
@@ -153,3 +199,4 @@ const perGroup = {};
 for (const r of out) { const g = cats[r[2]][0]; perGroup[g] = (perGroup[g] || 0) + 1; }
 console.log(`map-places.js: ${out.length} places (${mergedTwins} OSM doubles and ${mergedOfficial} official items merged into OSM ones), ${(js.length / 1e6).toFixed(2)} MB`);
 console.log(perGroup);
+console.log(`toilets: ${toilets.items.length - toiletsHidden} from data/toilets.json (${toiletsHidden} private ones left out)`);

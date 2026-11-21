@@ -95,6 +95,8 @@
   // spacing between icons at every zoom, so where they would crowd the lower ranks wait until you zoom in.
   const CATS = {
     toilets: ['toilets', 'wc', 2, 'Public toilet'],
+    toilets_nette: ['toilets', 'wc', 3, 'Nette Toilette'], // a restaurant or shop that lets everyone use its toilet
+    toilets_customers: ['toilets', 'wc', 4, 'Customer toilet'],
     drinking_water: ['water', 'drop', 3, 'Drinking water'],
     water_point: ['water', 'drop', 3, 'Water point'],
     shower: ['water', 'drop', 4, 'Shower'],

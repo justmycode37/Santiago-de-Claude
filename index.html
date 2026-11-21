@@ -1959,7 +1959,9 @@
       const fits = (label) => tokens.every((t) => label.some((w) => w === t || (t.length >= 3 && w.startsWith(t))));
       const cats = idx.cat.map((label, i) => (fits(label) || fits(idx.group[i]) ? i : -1)).filter((i) => i >= 0);
       const catSet = new Set(cats);
-      const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2])), 6) : [];
+      // "closest toilet" is asked by someone who needs one now: not the ones for customers only
+      const forAll = (r) => !(r[4] && r[4].k === 'customers' && PLACES.cats[r[2]][0] === 'toilets');
+      const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2]) && forAll(r)), 6) : [];
 
       // a name: every word appears in it. Stops and stations come from the swisstopo search instead, and some official
       // items are only named after where they stand ("Bahnhofplatz 1"), so they don't count as names.
@@ -2559,6 +2561,7 @@
       if (x.f === 'yes') tags.push('Fee');
       if (x.w) tags.push(WHEELCHAIR[x.w]);
       if (x.tw === 'yes') tags.push('Wheelchair toilet');
+      if (x.e) tags.push('Eurokey');
       if (x.c) tags.push('Baby changing');
       if (x.k && ACCESS[x.k]) tags.push(ACCESS[x.k]);
       if (tags.length) {
@@ -2583,6 +2586,7 @@
       if (x.h) addRow(x.h === '24/7' ? 'Open' : 'Opening hours', document.createTextNode(x.h === '24/7' ? 'Day and night' : x.h));
       if (x.l) addRow('Floor', document.createTextNode(x.l));
       if (x.d) addRow('About', document.createTextNode(x.d));
+      if (x.o) addRow('Run by', document.createTextNode(x.o));
       if (x.p) addRow('Phone', link('tel:' + x.p.replace(/[^\d+]/g, ''), x.p));
       if (x.u) {
         let host = x.u;
