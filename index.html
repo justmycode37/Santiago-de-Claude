@@ -1607,6 +1607,10 @@
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
+  <!-- indoor position in the 3D view: phone sensors, signs read by Scan, floor (indoorloc.js, signloc.js, indoornav.js) -->
+  <script src="indoorloc.js" defer></script>
+  <script src="signloc.js" defer></script>
+  <script src="indoornav.js" defer></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
@@ -2062,7 +2066,8 @@
       userMarker.setLngLat(lngLat);
       if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
       updateAccuracy();
-      if (window.Station3D) Station3D.setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined });
+      // through the indoor filter (indoornav.js) while a station is open in 3D: it adds the floor and the phone's steps
+      if (window.Station3D) (window.INDOORNAV || Station3D).setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined });
       inputs.from.placeholder = 'Your location';
       if (!centeredOnUser && !destMarker._map && !startMarker._map) {
         centeredOnUser = true;

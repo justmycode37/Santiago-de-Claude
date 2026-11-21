@@ -499,6 +499,8 @@
 
   // Compare read text with the stops around (or, without a position, all stops)
   async function useText(text, wasTap) {
+    // other parts of the app can use what was read (indoornav.js: signs as indoor position evidence)
+    try { window.dispatchEvent(new CustomEvent('scan:text', { detail: { text, tap: !!wasTap } })); } catch (e) {}
     const all = norm(text).split(' ').filter(Boolean);
     const tokens = all.filter((t) => t.length >= 2 || /^\d$/.test(t));
     if (!tokens.length) { if (wasTap) app.toast('No text found there. Move closer to the sign.'); return; }

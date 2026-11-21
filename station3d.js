@@ -15,6 +15,7 @@
      both ends: the route · only `to` (or only `from`): that place, shown and framed, ready for "route from where I am"
      · none: explore · the same place twice: "stay on platform 7" · no way in the plan: said so, the destination shown
    Station3D.setUser({ ll, accuracy, heading } | null)   live position; far outside the model it is said, not followed
+     (also { xy, level, levelSure } from the indoor position, indoornav.js: levelSure = that floor is trusted)
    Station3D.close() · isOpen() · selectStep(i) · setFollow(bool) · setPov(bool) · setPeel(0..1)
    Station3D.enableCompass() → Promise<'granted' | 'denied' | 'unavailable'>
    Station3D.preload(key) · loadData(key) → model | null
@@ -4521,9 +4522,14 @@
       nu.outside = false;
       let mode = 'approx', x = xy[0], y = xy[1], level = u.level != null && isFinite(u.level) ? u.level : null, alongM = null, pi = null, step = userStep;
       if (A.routed && !A.same && router && router.snap) {
-        const hint = nu.snap || (manualAt ? { along: manualAt.along, level: manualAt.point[2] } : level != null ? level : undefined);
+        // levelSure: the floor comes from an indoor position (indoornav.js) that is sure of it: it beats the floor
+        // of the previous snap, and a snap onto another floor of the route does not count
+        const sure = u.levelSure && level != null;
+        const hint = (sure && nu.snap && Math.abs(nu.snap.point[2] - level) >= 0.5) ? level
+          : nu.snap || (manualAt ? { along: manualAt.along, level: manualAt.point[2] } : level != null ? level : undefined);
         let sn = null;
         try { sn = router.snap(model, route, xy, hint); } catch (e) { sn = null; }
+        if (sn && sure && Math.abs(sn.point[2] - level) >= 0.5) sn = null;
         // on the route while the fix could plausibly be there; GPS knows no floor, the route does
         if (sn && sn.dist <= clamp(acc * 1.5, 18, 70)) {
           mode = 'route'; alongM = sn.along; pi = sn.index + sn.t; [x, y, level] = sn.point; step = sn.step;

@@ -12,6 +12,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Events & amenities**: Shows community events on the map alongside public toilets all over Switzerland and Bern's public amenities and local places.
 - **Any language**: Settings › **Language** translates the app into any of Google Translate's 249 languages (`translate.js`); English is the default. The text on screen is sent to Google to translate it; stop, line and place names stay as written on the signs.
 - **Camera stop scan**: Menu › **Scan** identifies nearby stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
+- **Indoor position in 3D stations**: In the 3D station view, the app works out which floor you are on and where from the phone's steps and heading, GPS, signs read by Scan, the journey and (in a native wrapper) the barometer. See [docs/indoor-positioning.md](docs/indoor-positioning.md); try it with `indoorloc-dev.html?key=bern`.
 
 ## Live tracking
 
@@ -56,6 +57,11 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
   python3 tools/build_stop_images.py --area bern     # one city
   python3 tools/build_stop_images.py --all --fast --resume  # all of Switzerland, per 2 km tile (~1 h)
   python3 tools/build_stop_images.py --gtfs GTFS.zip # lines & destinations per stop edge
+  ```
+
+- **Indoor position check**: simulated walks through a station model, with a regression check:
+  ```bash
+  node tools/sim_indoorloc.js --check
   ```
 
 ## Deployment
