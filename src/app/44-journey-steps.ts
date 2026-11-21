@@ -286,7 +286,7 @@ function signId(st: JourneyRideStep) {
 function stepFeatures(steps: JourneyStep[]) {
   const f: RouteFeature[] = [];
   const add = (geometry: RouteFeature['geometry'], properties: RouteFeatureProps) => f.push({ type: 'Feature', properties, geometry });
-  const line = (cs: LngLat[] | undefined, kind: 'ride' | 'walk', step: number, extra?: Partial<RouteFeatureProps>) => cs && cs.length > 1 && add({ type: 'LineString', coordinates: cs }, { kind, step, ...extra });
+  const line = (cs: LngLat[] | undefined, kind: 'ride' | 'walk' | 'wcov', step: number, extra?: Partial<RouteFeatureProps>) => cs && cs.length > 1 && add({ type: 'LineString', coordinates: cs }, { kind, step, ...extra });
   const pt = (c: LngLat | null | undefined, props: RouteFeatureProps) => c && add({ type: 'Point', coordinates: c }, props);
   // where you are on the trip: everything before it is drawn faded ("done")
   const p = journeyProgress();
@@ -311,7 +311,8 @@ function stepFeatures(steps: JourneyStep[]) {
         const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
         const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
         let at = from;
-        [[0, a, true], [a, b, false], [b, l.length - 1, true]].forEach(([x, y, guess]) => {
+        const pieces: [from: number, to: number, guess: boolean][] = [[0, a, true], [a, b, false], [b, l.length - 1, true]];
+        pieces.forEach(([x, y, guess]) => {
           if (y <= x) return;
           const part = l.slice(x, y + 1);
           doneLine(part, 'walk', i, at, guess ? { approx: true } : undefined);
