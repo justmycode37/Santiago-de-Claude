@@ -38,3 +38,14 @@ In the app, the events button in the ••• menu shows these icons together w
 | `data/station-lifts.json`, `data/street-slopes.geojson`, `data/construction-sites.geojson`, `data/holidays.json` | Lifts/escalators/ramps near stations, street slope %, current construction sites, public and school holidays | [data-streets.md](data-streets.md) |
 
 Sample check of these files: [verification-2.md](verification-2.md).
+
+## Switzerland-wide basic needs (`data/ch/`)
+
+| File | What | Docs |
+|---|---|---|
+| `data/ch/toilets-ch.json` | 7,139 toilets merged from OSM, ATLAS station toilets and the official lists of Zürich, Basel, Geneva, Luzern, St. Gallen, Zug; `paid` = free (3,217) / paid (379) / mixed (65) / null (3,478), `price` where known | [data-ch-toilets.md](data-ch-toilets.md) |
+| `data/ch/osm-<category>.json` | 94,025 OSM basic amenities in 30 files (drinking water, AED, pharmacy, hospital, shower, playground, ...) with canton | [data-ch-osm.md](data-ch-osm.md) |
+| `data/ch/official-ch.json` | 11,991 official points from 29 sources (city toilets and fountains, AED registers, hospitals, BABS emergency meeting points, SBB) | [data-ch-official.md](data-ch-official.md) |
+| `data/ch/help-ch.json` | 543 places from national networks (Tischlein deck dich, Caritas-Markt, Madame Frigo, Nette Toilette Basel/Luzern/Solothurn, big-city shelters and soup kitchens) + 10 national hotlines | [data-ch-help.md](data-ch-help.md) |
+
+Addresses are filled from the national address register (`tools/enrich-addresses-ch.mjs`): 20% → 79% overall. Sample check: [verification-ch.md](verification-ch.md).
