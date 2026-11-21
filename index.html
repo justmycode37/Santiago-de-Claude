@@ -1342,6 +1342,7 @@
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
   <script src="engine.js"></script>
+  <script src="engine-departures.js"></script>
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
@@ -2411,11 +2412,14 @@
       }
       platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
       try {
-        const res = await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
-        const all = ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
+        // The Kante engine knows the edge of every departure (engine-departures.js: d.edges). Without it,
+        // transport.opendata.ch and the rule below.
+        const exact = window.KANTE_BOARD ? await KANTE_BOARD.load(f.properties.id, st, platformLL, f.properties.i) : null;
+        const res = exact || await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
+        const all = exact || ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
         if (req !== popupReq) return;
         // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
-        const here = whole ? all : all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
+        const here = whole ? all : all.filter((d) => (d.edges ? d.edges.includes(f.properties.i) : platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll));
         note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st.name}:`;
         list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
           const li = mk('li');
