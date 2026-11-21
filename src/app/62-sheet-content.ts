@@ -451,10 +451,11 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     kBtn('walk-sum', `${title}, ${kDur(mins * 60)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
+  // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
+  const row = h('div', 'step-views');
   const s3p = s3Plan(st);
   if (s3p) {
-    const row = h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
-    main.append(row);
+    row.append(kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
     // and, where the station has one, the whole building in one continuous 3D view (opens in a new tab)
     s3HasSolid(s3p.key).then((ok) => {
       if (ok) row.append(kBtn('view3d', 'Show this walk inside the station building, in one continuous 3D view', () => {
@@ -463,6 +464,9 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
       }, kIcon('cube', 16), 'Inside view'));
     });
   }
+  const ar = arStepButton(st);
+  if (ar) row.append(ar);
+  if (row.childNodes.length || s3p) main.append(row);
   if (dirs.length > 1) {
     const toggle = kBtn('expander', null, () => {
       if (expanded) { openDirs.delete(i); if (jFocus && jFocus.step === i) jFocus = null; } else openDirs.add(i);
