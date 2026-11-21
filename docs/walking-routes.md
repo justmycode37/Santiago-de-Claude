@@ -45,7 +45,7 @@ swisstopo line more than 12 m from every OSM way is added and joined to the stre
 closed tracks, climbing passages, ferries and lines in or under buildings are left out. Tiles are 0.01° (about 1 km);
 only the ones around a walk are loaded. The tile format is described in the builder's docstring.
 
-`tools/test_walkroute.mjs` checks the built tiles (doors reached, no building or track crossings, platform changes).
+`tools/test_walkroute.mts` checks the built tiles (doors reached, no building or track crossings, platform changes).
 
 ## Aerial photo (prototype)
 

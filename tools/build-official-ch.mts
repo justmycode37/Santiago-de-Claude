@@ -63,7 +63,7 @@ type OfficialCategory = "toilets" | "shower" | "drinking_water" | "fountain" | "
   | "emergency_meeting_point" | "wifi" | "ticket_machine" | "waiting_room" | "pharmacy" | "post_office" | "library";
 type Wheelchair = "yes" | "limited" | "no";
 // A source record as it was read (a GeoJSON feature's properties, a row of a JSON export, of a CSV or of a GPKG table).
-// Each source's interface (above its function) names the columns that are read.
+// Each source's interface (further down) names the columns that are read.
 interface Props { [column: string]: unknown }
 // The fee fields of an item: the raw text, what it says about paying, and the amount as written.
 interface Fee { fee: string | null; paid: "free" | "paid" | null; price: string | null }

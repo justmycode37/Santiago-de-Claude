@@ -11,7 +11,7 @@ has, and hands that to the viewer.
 | `signloc.js` | Signs as evidence (`SIGNLOC`): "Gleis 7 Sektor C", "Gleise 1–6 →", exits, named underpasses, shops |
 | `indoornav.js` | Glue (`INDOORNAV`): runs the filter while a station is open in 3D, feeds `Station3D.setUser` |
 | `indoorloc-dev.html` | Development page: live sensors, floor probabilities, "I'm here", signs, record / export / replay |
-| `tools/sim_indoorloc.js` | Simulated walks through a model with realistic sensor noise; scores and a regression check |
+| `tools/sim_indoorloc.cts` | Simulated walks through a model with realistic sensor noise; scores and a regression check |
 
 ## How it works
 
@@ -51,7 +51,7 @@ Robustness built in (found by failing simulations and by two independent code re
 
 ## Results (simulation, Bern model)
 
-`node tools/sim_indoorloc.js` walks 15 scenarios × 8 runs through the Bern model on routes of `station-route.js`:
+`node tools/sim_indoorloc.cts` walks 15 scenarios × 8 runs through the Bern model on routes of `station-route.js`:
 Bahnhofplatz → RBS platform 21 (level −2) by stairs and by lift, → platform 7 through the underpass, platform 7 → 21,
 21 → the bus terminal on the Welle (level 2), lost with only signs, phone in pocket, strong magnetic disturbance.
 
@@ -81,7 +81,7 @@ phone adapter (`Sensors`: step detection, gyro/compass fusion) is only exercised
 2. **Start sensors** (iOS asks for motion access), then **Record**.
 3. Walk a route. Every so often tap **I'm here…** and then your place on the model: that is the ground truth.
 4. **Stop**, **Export**. Replay it with **Import & replay** (animated in the 3D view) or
-   `node tools/sim_indoorloc.js --replay file.json`.
+   `node tools/sim_indoorloc.cts --replay file.json`.
 
 In the app nothing is needed: opening a station in 3D starts it (iOS: the first tap in the 3D view asks for motion
 access). The station session outlives the 3D view by 10 minutes, so you can close it, read a sign with Scan (which

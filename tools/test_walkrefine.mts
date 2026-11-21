@@ -3,7 +3,7 @@
 // are dropped. The sources are transpiled as they are; the routers are stubbed with promises the test settles.
 // Offline; exit code 1 on any failure.
 //
-//   node tools/test_walkrefine.mjs
+//   node tools/test_walkrefine.mts
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -188,7 +188,7 @@ console.log("8. the floor a lift starts on, from the router (step-free from plat
   const ctx = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'walkroute.js'), 'utf8'), ctx);
+  vm.runInContext(transformSync(fs.readFileSync(path.join(ROOT, 'src', 'walkroute.ts'), 'utf8'), { mode: 'strip-only' }).code, ctx); // the script as the browser gets it: types taken out
   ctx.WALKROUTE.configure({ loader: async (k) => {
     const s = fs.readFileSync(path.join(ROOT, 'walkgraph', k === 'index' ? 'index.js' : `t/${k}.js`), 'utf8');
     return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')')));

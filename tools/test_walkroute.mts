@@ -1,7 +1,7 @@
 // Tests for walkroute.js on the built walkgraph/ tiles (Bern). Offline; exit code 1 on any failure.
 //
-//   node tools/test_walkroute.mjs           # all
-//   node tools/test_walkroute.mjs --quick   # without the 992 platform pairs
+//   node tools/test_walkroute.mts           # all
+//   node tools/test_walkroute.mts --quick   # without the 992 platform pairs
 //
 // 1. Places around Bern station (tools/test_walkroute_cases.json): every one is routed; where its building has a
 //    mapped door, the walk ends at one; no straight connector of a walk cuts through another building.
@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { transformSync } from 'amaro'; // npm install
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -23,7 +24,7 @@ function router() {
   const ctx = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'walkroute.js'), 'utf8'), ctx);
+  vm.runInContext(transformSync(fs.readFileSync(path.join(ROOT, 'src', 'walkroute.ts'), 'utf8'), { mode: 'strip-only' }).code, ctx); // the script as the browser gets it: types taken out
   ctx.WALKROUTE.configure({ loader: async (k) => {
     const s = fs.readFileSync(path.join(ROOT, 'walkgraph', k === 'index' ? 'index.js' : `t/${k}.js`), 'utf8');
     return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')')));

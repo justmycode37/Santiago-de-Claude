@@ -7,20 +7,20 @@
 //
 // The station is a 3D model from stations3d/ (stations3d/SCHEMA.md) and the walks are routes of station-route.js.
 // It tests the logic, not the sensor assumptions: those need real recordings (indoorloc-dev.html → Record, then
-// `node tools/sim_indoorloc.js --replay log.json`). Numbers here are only as good as the noise models below.
+// `node tools/sim_indoorloc.cts --replay log.json`). Numbers here are only as good as the noise models below.
 //
-//   node tools/sim_indoorloc.js                      all scenarios, 8 seeds each, on Bern
-//   node tools/sim_indoorloc.js --seeds 4 --only lift --verbose
-//   node tools/sim_indoorloc.js --only lift --trace --traceseed 2    print truth vs estimate every 10 s
-//   node tools/sim_indoorloc.js --only rbs-baro --seeds 1 --export walk.json   a log to replay in indoorloc-dev.html
-//   node tools/sim_indoorloc.js --check               regression test: exit 1 if a scenario got worse
-//   node tools/sim_indoorloc.js --replay recording.json [--key bern]
+//   node tools/sim_indoorloc.cts                      all scenarios, 8 seeds each, on Bern
+//   node tools/sim_indoorloc.cts --seeds 4 --only lift --verbose
+//   node tools/sim_indoorloc.cts --only lift --trace --traceseed 2    print truth vs estimate every 10 s
+//   node tools/sim_indoorloc.cts --only rbs-baro --seeds 1 --export walk.json   a log to replay in indoorloc-dev.html
+//   node tools/sim_indoorloc.cts --check               regression test: exit 1 if a scenario got worse
+//   node tools/sim_indoorloc.cts --replay recording.json [--key bern]
 'use strict';
 const path = require('path');
 const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
-const I = require(path.join(ROOT, 'indoorloc.js'));
-const S = require(path.join(ROOT, 'signloc.js'));
+const I = require(path.join(ROOT, 'src', 'indoorloc.ts'));
+const S = require(path.join(ROOT, 'src', 'signloc.ts'));
 
 const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
