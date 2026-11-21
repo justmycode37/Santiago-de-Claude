@@ -140,8 +140,9 @@ function guideAlerts(now: number, from: number): GuideNote[] {
     const saidPlats = guidePlat.get(i) || [], saidPlat = saidPlats[saidPlats.length - 1];
     if (ahead && q.label && q.label !== saidPlat && (planned || saidPlat)) {
       out.push({ key: `plat|${i}|${saidPlats.length}`, urgent: true, after: () => guidePlat.set(i, [...saidPlats, q.label]),
-        text: !saidPlat || planned ? `${q.word} change: ${name} now leaves from ${q.word.toLowerCase()} ${q.label}, not ${saidPlat || planned}.`
-          : `${q.word} change: ${name} leaves from ${q.word.toLowerCase()} ${q.label} after all, not ${saidPlat}.` });
+        // "after all" only for the way back to the platform the timetable planned
+        text: saidPlat && !planned && st.s.departure.platform ? `${q.word} change: ${name} leaves from ${q.word.toLowerCase()} ${q.label} after all, not ${saidPlat}.`
+          : `${q.word} change: ${name} now leaves from ${q.word.toLowerCase()} ${q.label}, not ${saidPlat || planned}.` });
     }
     if (st !== upcoming) return;
     // A delay of 3 minutes or more, each time it has changed by 3 or more, and when it is gone again

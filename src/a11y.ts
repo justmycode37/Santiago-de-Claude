@@ -178,7 +178,7 @@
   // closeDialog(el, { fallback, restore }): gives the rest back and returns focus to where it came from.
   type Opener = HTMLElement | null | (() => HTMLElement | null);
   const KEEP = (el: Element) => el.tagName === 'SCRIPT' || el.classList.contains('sr-live') || el.id === 'toast';
-  const openDialogs = new Map<HTMLElement, { made: HTMLElement[]; returnTo: Opener }>();
+  const openDialogs = new Map<HTMLElement, { made: HTMLElement[]; returnTo: Opener; watch: MutationObserver }>();
   const usable = (el: HTMLElement | null): el is HTMLElement => !!el && el !== page.body && page.contains(el) && !el.closest('[inert]') && el.getClientRects().length > 0;
   // A modal dialog that is open already (the first-visit introduction, over a page that is still starting) is on
   // top of this one: it stays usable and keeps the focus.
@@ -191,30 +191,37 @@
     const cover = () => rest().filter((x) => !KEEP(x) && !keep.includes(x) && !x.inert && !onTop(x));
     const made = cover();
     made.forEach((x) => { x.inert = true; });
-    openDialogs.set(el, { made, returnTo: returnTo || page.activeElement as HTMLElement | null });
-    el.inert = false;
     const target = focus || el;
     if (target === el && !el.hasAttribute('tabindex')) el.tabIndex = -1;
     const enter = () => { try { target.focus({ preventScroll: true }); } catch (e) { /* not focusable yet */ } };
-    if (!covers.length) { enter(); return; }
-    // Under another dialog: once that one is gone, this one is on top. What it gave back to the page is covered
-    // again, and the focus comes in (after the other one has put it where it thought it belonged).
-    const watch = new MutationObserver(() => {
+    // Another dialog can be on top of this one: the first-visit introduction, which is there already or comes
+    // up while the page is still starting, and which puts this one out of reach until it is over. Once it is
+    // gone, this one is on top: what the other gave back to the page is covered again, and the focus comes in
+    // (after the other has put it where it thought it belonged). So this dialog is watched for being let go
+    // (inert), and every dialog on top of it for going away.
+    const watch = new MutationObserver(() => settle());
+    const settle = () => {
       const d = openDialogs.get(el);
-      if (!d) { watch.disconnect(); return; }
-      if (covers.some(onTop)) return;
-      watch.disconnect();
+      if (!d) return;
+      const above = rest().filter(onTop);
+      above.forEach((c) => watch.observe(c, { attributes: true }));
+      if (above.length || el.inert) return;
       const more = cover();
       more.forEach((x) => { x.inert = true; });
       d.made.push(...more);
-      root.setTimeout(() => { if (openDialogs.has(el)) enter(); }, 0);
-    });
+      if (!el.contains(page.activeElement)) root.setTimeout(() => { if (openDialogs.has(el) && !el.inert) enter(); }, 0);
+    };
+    openDialogs.set(el, { made, returnTo: returnTo || page.activeElement as HTMLElement | null, watch });
+    el.inert = false;
+    watch.observe(el, { attributes: true, attributeFilter: ['inert'] });
     covers.forEach((c) => watch.observe(c, { attributes: true }));
+    if (!covers.length) enter();
   }
   function closeDialog(el: HTMLElement, { fallback = null, restore = true }: { fallback?: HTMLElement | null; restore?: boolean } = {}) {
     const d = openDialogs.get(el);
     if (!d) return;
     openDialogs.delete(el);
+    d.watch.disconnect();
     d.made.forEach((x) => { x.inert = false; });
     if (!restore) return;
     let back: HTMLElement | null = null;

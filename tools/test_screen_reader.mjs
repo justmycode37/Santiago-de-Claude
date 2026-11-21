@@ -139,7 +139,8 @@ if (want('journey')) {
   if (await ev('journeyList')) {
     check('several journeys: their number and the one on the map are announced', /\d+ journeys to .+\. On the map: \d\d:\d\d to \d\d:\d\d/.test(h1), h1);
     check('each journey in the list is worded as one sentence', /^\d\d:\d\d to \d\d:\d\d, .+(direct|change|on foot)/.test(await ev(`document.querySelector('#jBody .jrow').getAttribute('aria-label')`)), await ev(`document.querySelector('#jBody .jrow').getAttribute('aria-label')`));
-    await ev(`window.__rows = [...document.querySelectorAll('#jBody ol.journeys > li')]; document.querySelector('#jBody .jrow').focus(); refreshList(); renderBody();`);
+    // (brought up to the minute first: a row whose countdown has moved on since it was drawn is rightly drawn again)
+    await ev(`refreshList(); window.__rows = [...document.querySelectorAll('#jBody ol.journeys > li')]; document.querySelector('#jBody .jrow').focus(); refreshList(); renderBody();`);
     check('the list keeps its rows while the clock moves on', await ev(`document.activeElement.classList.contains('jrow') && [...document.querySelectorAll('#jBody ol.journeys > li')].every((li, i) => li === window.__rows[i])`), await active());
     await ev(`window.__heard.length = 0; document.querySelector('#jBody .jrow').click()`); await sleep(1200);
     h1 = await heard();
