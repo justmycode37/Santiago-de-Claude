@@ -13,34 +13,34 @@
   const APART_M = 25;     // edges of the same name count as separate places when every quay lies this close to one
 
   // Comparable edge name, same rule as platformKey() in index.html: "7A-D" → "7", "Kante H" → "H"
-  function keyOf(p) {
+  function keyOf(p: string | null | undefined) {
     const s = String(p || '').toUpperCase().replace(/^(GLEIS|GL\.|KANTE|QUAI|VOIE|BINARIO|STEG|PERRON)\s*/, '').trim();
     const digits = /^\d+/.exec(s);
     return digits ? digits[0] : s.replace(/[^0-9A-Z]/g, '');
   }
   const toRad = Math.PI / 180;
-  function distM(a, b) {
+  function distM(a: LngLat, b: LngLat) {
     const k = Math.cos((a[1] + b[1]) / 2 * toRad);
     return Math.hypot((a[0] - b[0]) * k, a[1] - b[1]) * 111320;
   }
-  const llOf = (q) => [q.lon, q.lat];
-  const nearest = (list, dist) => list.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+  const llOf = (q: KanteQuay): LngLat => [q.lon, q.lat];
+  const nearest = <T>(list: T[], dist: (x: T) => number) => list.reduce((a, b) => (dist(b) < dist(a) ? b : a));
 
   // Which edges of the stop is each quay? → Map: quay id → { edges: [index…] } when that is known ([] = a boarding
   // point the map has no dot for), or { guess, free } when only the direction of travel can tell.
-  function edgesOfQuays(st, quays) {
-    const out = new Map();
+  function edgesOfQuays(st: KanteBoardStop, quays: KanteQuay[]) {
+    const out = new Map<string, KanteQuayEdges>();
     const edges = st.edges.map((e, i) => ({ i, key: e.key, ll: e.ll }));
-    const exact = (q) => q.precision === 'edge'; // the quay has a position of its own
-    const named = new Map(); // edge name → the quays that carry it
-    const loose = [];        // quays without a name, or with one the map does not have
+    const exact = (q: KanteQuay) => q.precision === 'edge'; // the quay has a position of its own
+    const named = new Map<string, KanteQuay[]>(); // edge name → the quays that carry it
+    const loose: KanteQuay[] = [];        // quays without a name, or with one the map does not have
     for (const q of quays) {
       // the timetable only names the stop: the direction of travel has to tell, as for transport.opendata.ch
       if (q.precision === 'station') { out.set(q.id, { guess: true }); continue; }
       const key = keyOf(q.label);
       if (key && edges.some((e) => e.key === key)) {
         if (!named.has(key)) named.set(key, []);
-        named.get(key).push(q);
+        named.get(key)!.push(q);
       } else loose.push(q);
     }
     // Those are matched by position, with the unnamed edges. Both data sets come from the same registry, so a quay
@@ -54,7 +54,7 @@
     }
     for (const [key, qs] of named) {
       const same = edges.filter((e) => e.key === key);
-      const home = (q) => nearest(same, (e) => distM(e.ll, llOf(q)));
+      const home = (q: KanteQuay) => nearest(same, (e) => distM(e.ll, llOf(q)));
       // Several edges of one name are either separate places (a bay "A" per direction: each quay sits on its own
       // edge) or dots along one platform (Bern track 2 and its sectors: the quays are spread out), which share
       // everything. An edge without a quay of its own is taken with its nearest namesake that has one.
@@ -69,19 +69,19 @@
   }
 
   // A point ~300 m ahead in the direction of travel, standing in for the next stop
-  function ahead(ll, bearing) {
+  function ahead(ll: LngLat, bearing: number): LngLat {
     const d = 300 / 111320;
     return [ll[0] + d * Math.sin(bearing * toRad) / Math.cos(ll[1] * toRad), ll[1] + d * Math.cos(bearing * toRad)];
   }
-  const iso = (unix) => new Date(unix * 1000).toISOString();
+  const iso = (unix: number) => new Date(unix * 1000).toISOString();
 
   // The engine's answer → stationboard entries with `edges`
-  function toBoard(uic, st, data, platformLL) {
-    const quays = new Map((data.quays || []).map((q) => [q.id, q]));
+  function toBoard(uic: string, st: KanteBoardStop, data: KanteDeparturesResponse, platformLL?: KantePlatformLL | null): KanteBoardEntry[] {
+    const quays = new Map<string, KanteQuay>((data.quays || []).map((q) => [q.id, q]));
     const where = edgesOfQuays(st, data.quays || []);
-    const taken = new Set(); // edges that have a quay of their own
+    const taken = new Set<number>(); // edges that have a quay of their own
     for (const w of where.values()) (w.edges || []).forEach((i) => taken.add(i));
-    const real = (d) => d.dep + (d.live && d.delayS || 0);
+    const real = (d: KanteDeparture) => d.dep + (d.live && d.delayS || 0);
     return (data.departures || [])
       .filter((d) => !d.cancelled) // the lists have no way to show a cancelled ride: leave it out
       .sort((a, b) => real(a) - real(b))
@@ -118,12 +118,12 @@
   // The engine's id of a stop, once known: a stop that is no part of a larger station goes without "Parent" there,
   // and some stops it does not have under their own number at all (null). Asked once, because the browser logs
   // every "unknown station" answer as an error.
-  const stationOf = new Map();
+  const stationOf = new Map<string, string | null>();
 
   // More departures of one edge than the stop's board holds (a bay served twice an hour at a busy station, or
   // only at night): the next ones of its own quays, within a day, added to `data`.
-  async function addOwn(K, st, data, edge) {
-    const own = [];
+  async function addOwn(K: KanteApi, st: KanteBoardStop, data: KanteDeparturesResponse, edge: number) {
+    const own: string[] = [];
     for (const [id, w] of edgesOfQuays(st, data.quays || [])) if (w.edges && w.edges.includes(edge)) own.push(id);
     const have = new Set(data.departures.map((d) => d.tripId + '|' + d.serviceDate + '|' + d.seq));
     const until = Date.now() / 1000 + 86400;
@@ -140,26 +140,26 @@
 
   // uic: the stop's id in PLATFORMS, st: its entry there, platformLL: index.html's rule for an unknown edge,
   // edge: the edge the list is for (index; leave it out for the stop as a whole)
-  async function load(uic, st, platformLL, edge) {
+  async function load(uic: string | number, st: KanteBoardStop | null | undefined, platformLL?: KantePlatformLL | null, edge?: number | null) {
     const K = window.KANTE;
     const id = K && K.available() && st ? K.stationIdOf(uic) : null;
     if (!id || stationOf.get(id) === null) return null;
     try {
-      let data = null;
-      for (const station of stationOf.has(id) ? [stationOf.get(id)] : [id, id.replace('Parent', '')]) {
+      let data: KanteDeparturesResponse | null = null;
+      for (const station of stationOf.has(id) ? [stationOf.get(id)!] : [id, id.replace('Parent', '')]) {
         try {
-          data = await K.departures({ station, limit: LIMIT });
+          data = await K!.departures({ station, limit: LIMIT });
           stationOf.set(id, station);
           break;
         } catch (e) {
-          if (e.status !== 400) throw e; // 400: no station of that id
+          if ((e as { status?: number }).status !== 400) throw e; // 400: no station of that id
         }
       }
       if (!data) stationOf.set(id, null);
-      let board = data ? toBoard(String(uic), st, data, platformLL) : [];
+      let board = data ? toBoard(String(uic), st!, data, platformLL) : [];
       if (edge != null && board.length && board.filter((d) => d.edges.includes(edge)).length < FEW) {
-        await addOwn(K, st, data, edge);
-        board = toBoard(String(uic), st, data, platformLL);
+        await addOwn(K!, st!, data!, edge);
+        board = toBoard(String(uic), st!, data!, platformLL);
       }
       return board.length ? board : null;
     } catch {

@@ -1,6 +1,6 @@
 // Community listings sourced from the organizers below.
 (function () {
-  const CATEGORIES = {
+  const CATEGORIES: Record<EventCategory, { color: string; ink?: string; label: string }> = {
     language:  { color: '#344D77', label: 'Language' },
     food:      { color: '#FF7241', label: 'Community meal' },
     legal:     { color: '#344D77', label: 'Advice' },
@@ -25,7 +25,7 @@
     health:    'M12 5v14M5 12h14',
   };
 
-  const listings = [
+  const listings: EventListing[] = [
     {
       id: 'speak-out-dinner', cat: 'food', title: 'Free dinner at Speak-Out',
       coordinates: [8.544008, 47.374928], city: 'Zürich',
@@ -77,7 +77,7 @@
   const scheduledEvents = window.SWISS_EVENT_SERIES.flatMap(({ sessions, ...series }) =>
     sessions.map((session) => ({ ...series, ...session })));
   listings.push(...window.SWISS_WORKSHOPS, ...scheduledEvents, ...window.COMMUNITY_PROGRAMMES, ...window.BERN_EVENTS);
-  const features = listings.map(({ coordinates, ...listing }) => ({
+  const features: EventFeature[] = listings.map(({ coordinates, ...listing }) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates },
     properties: {
@@ -90,7 +90,7 @@
     },
   }));
 
-  function matches(event, preferences, now = Date.now()) {
+  function matches(event: EventFeature, preferences: string[], now = Date.now()) {
     const { through, tags } = event.properties;
     return (!through || Date.parse(through) >= now)
       && (!preferences.length || preferences.some((preference) => tags.includes(preference)));

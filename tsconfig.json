@@ -1,0 +1,15 @@
+{
+  // The scripts the browser runs (src/). They are plain scripts, not modules: what a file declares at its top
+  // level is global, as it is in the browser. Types are only checked here; scripts/build.mts makes the .js.
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023", "dom", "dom.iterable", "webworker.importscripts"],
+    "module": "esnext",
+    "types": [],
+    "noEmit": true,
+    "erasableSyntaxOnly": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

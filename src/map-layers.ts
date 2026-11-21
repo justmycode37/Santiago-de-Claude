@@ -68,7 +68,7 @@
   };
 
   // The switches under "On the map", in this order. Earlier groups win where icons would overlap.
-  const GROUPS = [
+  const GROUPS: MapGroup[] = [
     { key: 'events', label: 'Community events', color: 'rose', glyph: 'calendar', note: 'Filtered by About you and Events below' },
     { key: 'toilets', label: 'Toilets', color: 'navy', glyph: 'wc' },
     { key: 'water', label: 'Drinking water', color: 'navy', glyph: 'drop', note: 'Fountains, taps and showers' },
@@ -93,7 +93,7 @@
 
   // category → [group, glyph, rank, label]. Rank 1 (hospitals, stations) to 5 (benches, bike racks): the map keeps the same
   // spacing between icons at every zoom, so where they would crowd the lower ranks wait until you zoom in.
-  const CATS = {
+  const CATS: Record<string, PlaceClass> = {
     toilets: ['toilets', 'wc', 2, 'Public toilet'],
     toilets_nette: ['toilets', 'wc', 3, 'Public toilet (Nette Toilette)'], // a restaurant or shop that lets everyone use its toilet
     toilets_customers: ['toilets', 'wc', 4, 'Customer toilet'],
@@ -220,24 +220,24 @@
     coworking: ['business', 'briefcase', 4, 'Coworking space'],
   };
   // Raw categories that read better with another label
-  const LABELS = {
+  const LABELS: Record<string, string> = {
     fast_food: 'Fast food', ice_cream: 'Ice cream', arts_centre: 'Arts centre', events_venue: 'Event venue',
     guest_house: 'Guest house', camp_site: 'Campsite', caravan_site: 'Caravan site', second_hand: 'Second-hand shop',
     doityourself: 'DIY store', department_store: 'Department store', dry_cleaning: 'Dry cleaner', it: 'IT services',
     fitness_centre: 'Gym', sports_hall: 'Sports hall', estate_agent: 'Estate agent', yes: 'Place',
   };
-  const PLACE_GROUP = { // places.json "group" → map group, glyph, rank
+  const PLACE_GROUP: Record<string, [MapGroupKey, string, PlaceRank]> = { // places.json "group" → map group, glyph, rank
     food_drink: ['food', 'fork', 4], shopping: ['shops', 'bag', 5], lodging: ['stay', 'bed', 3],
     attractions_culture: ['culture', 'star', 4], leisure_sport: ['sport', 'ball', 4],
     services: ['business', 'briefcase', 5], health: ['health', 'cross', 4], worship: ['faith', 'worship', 3],
   };
-  const humanize = (c) => {
+  const humanize = (c: string) => {
     const s = String(c).split(/[;,]/)[0].replace(/_/g, ' ').trim();
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
 
   // → [group, glyph, rank, label]
-  function classify(category, placeGroup) {
+  function classify(category: string, placeGroup?: string): PlaceClass {
     if (CATS[category]) return CATS[category];
     const label = LABELS[category] || humanize(category);
     if (placeGroup === 'food_drink') {
@@ -264,7 +264,7 @@
       if (/^(association|foundation|union|religion|cooperative|organization)$/.test(category)) return ['help', 'people', 5, label];
       if (/^(financial|financial_services|financial_advisor)$/.test(category)) return ['money', 'cash', 5, label];
     }
-    const g = PLACE_GROUP[placeGroup] || PLACE_GROUP.services;
+    const g = PLACE_GROUP[placeGroup!] || PLACE_GROUP.services;
     return [g[0], g[1], g[2], label];
   }
 

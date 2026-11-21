@@ -14,15 +14,15 @@
 // caller then asks transport.opendata.ch as before.
 (function () {
   const K = window.KANTE;
-  const iso = (sec) => new Date(sec * 1000).toISOString();
-  const pad2 = (n) => String(n).padStart(2, '0');
+  const iso = (sec: number) => new Date(sec * 1000).toISOString();
+  const pad2 = (n: number) => String(n).padStart(2, '0');
 
   // ---- Settings → routing options (kante/engine/crates/server/src/json.rs, PlanOptions) ----
   // The app's transport types (settings.js) → the engine's modes
-  const ENGINE_MODES = { train: ['rail', 'rack'], tram: ['tram', 'metro'], bus: ['bus', 'ondemand', 'other'], ship: ['boat'], cableway: ['cableway', 'funicular', 'lift'] };
+  const ENGINE_MODES: Record<TransportMode, KanteMode[]> = { train: ['rail', 'rack'], tram: ['tram', 'metro'], bus: ['bus', 'ondemand', 'other'], ship: ['boat'], cableway: ['cableway', 'funicular', 'lift'] };
   function options() {
     const p = window.SETTINGS.prefs();
-    const o = {
+    const o: KanteRoutingOptions = {
       walkSpeed: Math.round((p.walkKmh / 3.6) * 1000) / 1000, // m/s
       stairs: p.stepFree ? 'never' : p.fewerStairs ? 'avoid' : 'ok',
       escalators: !p.noEscalators,
@@ -38,15 +38,16 @@
   // ---- Lines ----
   // index.html tells a ride's mode from its category (modeOf) and builds its label from category + number
   // (lineLabel). The engine names the mode itself; its line name often repeats the category ("IC61", "S1").
-  const APP_MODE = { rail: 'train', rack: 'train', tram: 'tram', metro: 'tram', boat: 'boat', funicular: 'cable', cableway: 'cable', lift: 'cable' };
-  const CATEGORY_MODE = [
+  type AppMode = 'train' | 'tram' | 'bus' | 'boat' | 'cable';
+  const APP_MODE: Partial<Record<KanteMode, AppMode>> = { rail: 'train', rack: 'train', tram: 'tram', metro: 'tram', boat: 'boat', funicular: 'cable', cableway: 'cable', lift: 'cable' };
+  const CATEGORY_MODE: [RegExp, AppMode][] = [
     [/^(IC|ICE|ICN|IR|IRE|EC|EN|EXT|NJ|RE|R|RB|S|SN|PE|TGV|RJX|TER)$/, 'train'],
     [/^(T|TRAM|M)$/, 'tram'],
     [/^(BAT|FAE|BAV)$/, 'boat'],
     [/^(FUN|PB|GB|SL|LB|ASC)$/, 'cable'],
   ];
   const PLAIN_CATEGORY = { train: 'R', tram: 'T', bus: 'B', boat: 'BAT', cable: 'FUN' };
-  function lineOf(line) {
+  function lineOf(line: KanteLine) {
     const mode = APP_MODE[line.mode] || 'bus';
     const name = line.name || '';
     let category = (line.category || '').toUpperCase();
@@ -60,7 +61,7 @@
   // ---- Stops ----
   // One stop of a ride in the shape of a transport.opendata.ch checkpoint. "platform" is the timetable's,
   // "prognosis" what is expected today (live times, and the platform when it has changed).
-  function setCall(stop, call, arr = true, dep = true) {
+  function setCall(stop: OdCheckpoint, call: KanteStopCall, arr = true, dep = true) {
     const q = call.quay;
     const p = stop.prognosis || (stop.prognosis = { platform: null, arrival: null, departure: null });
     stop.kante = call;
@@ -77,14 +78,14 @@
     stop.platform = changed ? call.plannedLabel : label;
     p.platform = changed ? label : null;
   }
-  const stationOf = (q) => ({ id: K.uicOf(q.stationId) || q.stationId, name: q.stationName, coordinate: { x: q.lat, y: q.lon } });
+  const stationOf = (q: KanteQuay) => ({ id: K!.uicOf(q.stationId) || q.stationId, name: q.stationName, coordinate: { x: q.lat, y: q.lon } });
 
   // Where exactly a stop of an engine journey is → { ll, edge, travel } as platformAt() in index.html gives it,
   // or null for any other stop. edge is null when the engine only knows the stop, not the boarding point.
-  function at(stop) {
+  function at(stop: OdCheckpoint | null | undefined): KantePlatformAt | null {
     const call = stop && stop.kante, q = call && call.quay;
     if (!q) return null;
-    const ll = [q.lon, q.lat];
+    const ll: LngLat = [q.lon, q.lat];
     const exact = q.precision === 'edge' || (q.precision === 'edge-at-station' && !!q.label);
     const edge = exact ? { ref: q.label || '', bearing: null, level: q.level == null ? null : q.level, ll, side: q.side ? q.side.text : '' } : null;
     return { ll, edge, travel: stop.kanteBearing == null ? null : stop.kanteBearing };
@@ -93,9 +94,9 @@
   // ---- Sections ----
   // One ride. More than one leg when you stay seated while the vehicle goes on as another trip: that is shown
   // as one ride, under the line you board.
-  function rideSection(legs) {
+  function rideSection(legs: KanteRideLeg[]): OdSection {
     const first = legs[0];
-    const passList = [], calls = []; // calls: which stop shows which call of which trip (for the live refresh)
+    const passList: OdCheckpoint[] = [], calls: KanteCallBinding[] = []; // calls: which stop shows which call of which trip (for the live refresh)
     legs.forEach((leg, n) => {
       const list = [leg.from, ...leg.intermediate, leg.to];
       list.forEach((call, k) => {
@@ -117,11 +118,11 @@
 
   // A walk shorter than half a minute would round to "0 min" and drop out of the trip; one that has a way
   // to go still counts as a walk
-  const shownSecs = (leg) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
-  function walkSection(leg) {
-    const end = (p, which, t) => {
+  const shownSecs = (leg: KanteWalk) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
+  function walkSection(leg: KanteWalkLeg): OdSection {
+    const end = (p: KanteWalkPoint, which: 'departure' | 'arrival', t: number) => {
       const coordinate = { x: p.lat, y: p.lon };
-      const stop = p.quay ? { station: { ...stationOf(p.quay), coordinate } } : { location: { coordinate } };
+      const stop: OdCheckpoint = p.quay ? { station: { ...stationOf(p.quay), coordinate } } : { location: { coordinate } };
       stop[which] = iso(t);
       return stop;
     };
@@ -129,9 +130,9 @@
   }
 
   // An engine journey → a connection as transport.opendata.ch gives it
-  function adapt(j) {
-    const parts = [];
-    let ride = null;
+  function adapt(j: KanteJourney): OdConnection {
+    const parts: (KanteRideLeg[] | KanteWalkLeg)[] = [];
+    let ride: KanteRideLeg[] | null = null;
     j.legs.forEach((leg) => {
       if (leg.type === 'ride') {
         if (leg.stayOnBoard && ride) { ride.push(leg); return; }
@@ -148,8 +149,8 @@
     let arrival = j.arr;
     const last = sections.map((s) => !!s.journey).lastIndexOf(true);
     if (last >= 0) {
-      arrival = sections[last].arrival.kante.arr;
-      sections.slice(last + 1).forEach((s) => { arrival += Math.round(s.walk.duration / 60) * 60; });
+      arrival = sections[last].arrival.kante!.arr!;
+      sections.slice(last + 1).forEach((s) => { arrival += Math.round(s.walk!.duration! / 60) * 60; });
     }
     return { kante: j, from: { departure: iso(j.dep) }, to: { arrival: iso(arrival) }, transfers: j.transfers, sections };
   }
@@ -165,7 +166,7 @@
     if (walk && body.arriveBy && body.time) {
       // the engine starts this walk when its last journey leaves: move it to end at the chosen time
       const dep = body.time - walk.durationS;
-      walk = { ...walk, dep, arr: body.time, legs: [{ ...walk.legs[0], dep, arr: body.time }] };
+      walk = { ...walk, dep, arr: body.time, legs: [{ ...walk.legs[0] as KanteWalkLeg, dep, arr: body.time }] };
     }
     return { list, walk };
   }
@@ -191,7 +192,7 @@
   // fromLL: [lng, lat]; dest: a search result ({ lngLat }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
   function request(fromLL, dest, query) {
     if (!K || !K.available() || !fromLL || !dest || !dest.lngLat) return null;
-    const body = { from: { lat: fromLL[1], lon: fromLL[0] }, to: { lat: dest.lngLat[1], lon: dest.lngLat[0] }, options: options() };
+    const body: PlanBody = { from: { lat: fromLL[1], lon: fromLL[0] }, to: { lat: dest.lngLat[1], lon: dest.lngLat[0] }, options: options() };
     const { mode, date, time } = query || {};
     if (date || time) {
       const now = new Date();
@@ -245,17 +246,17 @@
   // ---- Walks ----
   // The engine's walking leg as index.html keeps a routed walk: its line, metres, and written directions
   // with the floor changes ({ kind, text, coords, from, to } as walkDirections() lists them).
-  function walkParts(leg) {
+  function walkParts(leg: KanteWalk): KanteWalkParts {
     const coords = leg.geometry;
-    const whole = (x) => Math.round(x || 0);
-    const dirs = [];
+    const whole = (x: number | null | undefined) => Math.round(x || 0);
+    const dirs: KanteWalkDir[] = [];
     (leg.steps || []).forEach((s) => {
       if (s.kind === 'arrive') return; // index.html ends the list with its own "Arrive at …"
       const vertical = /^(stairs|escalator|ramp)-|^lift$/.test(s.kind);
       const change = vertical && s.toLevel != null && whole(s.toLevel) !== whole(s.level);
-      const down = /-down$/.test(s.kind) || (change && s.toLevel < (s.level || 0));
+      const down = /-down$/.test(s.kind) || (change && s.toLevel! < (s.level || 0));
       const up = /-up$/.test(s.kind) || (change && !down);
-      const d = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text, coords: coords.slice(s.from, s.to + 1) };
+      const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text, coords: coords.slice(s.from, s.to + 1) };
       if (change) { d.from = whole(s.level); d.to = whole(s.toLevel); }
       dirs.push(d);
     });
@@ -265,9 +266,9 @@
     const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
     const dist = leg.kind === 'transfer' && pathS > leg.durationS + 150 ? null : leg.distanceM;
     return { lines: [coords], walks: [{ coords, steps: null, dist, dirs }],
-      floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from, to: d.to })) };
+      floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! })) };
   }
-  function setWalk(st, leg) {
+  function setWalk(st: KanteStep, leg: KanteWalk) {
     st.kante = leg;
     st.walkS = leg.durationS; // to the second, for the time to spare at a change
     st.kanteWalk = !leg.approximate && !!leg.geometry && leg.geometry.length > 1;
@@ -275,34 +276,34 @@
   }
 
   // Called by buildSteps() in index.html: hand every walk and change of an engine journey its engine leg
-  function decorate(steps, conn) {
+  function decorate(steps: KanteStep[], conn: OdConnection) {
     const secs = conn.sections;
-    const before = (ride) => secs[secs.indexOf(ride) - 1];
+    const before = (ride: OdSection) => secs[secs.indexOf(ride) - 1];
     steps.forEach((st) => {
       if (st.type !== 'walk' && st.type !== 'change') return;
-      const s = st.type === 'walk' && st.final ? secs[secs.length - 1] : before(st.next);
+      const s = st.type === 'walk' && st.final ? secs[secs.length - 1] : before(st.next!);
       if (!s || s.journey || !s.kante) return;
-      setWalk(st, s.kante);
-      if (st.type === 'walk' && st.t0 != null) st.t1 = st.t0 + s.kante.durationS * 1000;
+      setWalk(st, s.kante as KanteWalkLeg);
+      if (st.type === 'walk' && st.t0 != null) st.t1 = st.t0 + (s.kante as KanteWalkLeg).durationS * 1000;
     });
   }
 
   // ---- Live ----
   // Fresh forecasts for the rides of an engine journey: each trip again from the engine (delays, platform
   // changes). A trip that cannot be fetched keeps its last forecast.
-  async function refresh(sections) {
+  async function refresh(sections: OdSection[]) {
     await Promise.all(sections.flatMap((s) => (s.kanteLegs || []).map(async (leg) => {
       let trip;
-      try { trip = await K.trip(leg.tripId, leg.serviceDate); } catch (e) { return; }
+      try { trip = await K!.trip(leg.tripId, leg.serviceDate); } catch (e) { return; }
       applyTrip(s, trip, leg);
     })));
   }
   // An answer of /api/trip for one of the section's trips (also used by live.js's polling in index.html)
-  function applyTrip(s, trip, leg) {
+  function applyTrip(s: OdSection, trip: KanteTrip, leg?: KanteRideLeg | null) {
     leg = leg || (s.kanteLegs || []).find((l) => l.tripId === trip.tripId && l.serviceDate === trip.serviceDate);
     if (!leg) return;
-    const bySeq = new Map((trip.calls || []).map((c) => [c.seq, c]));
-    s.kanteCalls.forEach((b) => {
+    const bySeq = new Map<number, KanteStopCall>((trip.calls || []).map((c) => [c.seq, c]));
+    s.kanteCalls!.forEach((b) => {
       const call = b.leg === leg && bySeq.get(b.seq);
       if (call) setCall(b.stop, call, b.arr, b.dep);
     });
@@ -310,33 +311,33 @@
 
   // After a refresh: a platform change moves the boarding (or alighting) point. Put the ride's ends, and the
   // walks that lead to and from them, on the new one. changed() is called whenever a line on the map has moved.
-  function requay(steps, changed) {
-    const same = (a, b) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
-    const lastOf = (st) => { const l = st.lines && st.lines[st.lines.length - 1]; return l && l[l.length - 1]; };
-    const rewalk = new Map(); // step → [from, to]
+  function requay(steps: KanteStep[], changed: () => void) {
+    const same = (a: LngLat | null | undefined, b: LngLat | null | undefined) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
+    const lastOf = (st: KanteStep) => { const l = st.lines && st.lines[st.lines.length - 1]; return l && l[l.length - 1]; };
+    const rewalk = new Map<KanteStep, [LngLat, LngLat]>(); // step → [from, to]
     let moved = false;
     steps.forEach((st, i) => {
       if (st.type !== 'ride') return;
-      const d = at(st.s.departure), a = at(st.s.arrival);
+      const d = at(st.s!.departure), a = at(st.s!.arrival);
       if (!d || !a || (same(d.ll, st.depLL) && same(a.ll, st.arrLL))) return;
       const prev = steps[i - 1], next = steps[i + 1], final = steps[steps.length - 1];
       moved = true;
       if (!same(d.ll, st.depLL) && prev && prev.type !== 'ride') {
-        const from = prev.type === 'change' ? prev.points[0] : prev.lines[0] && prev.lines[0][0];
-        if (prev.type === 'change') prev.points[1] = d.ll; else prev.board = d.ll;
+        const from = prev.type === 'change' ? prev.points![0] : prev.lines![0] && prev.lines![0][0];
+        if (prev.type === 'change') prev.points![1] = d.ll; else prev.board = d.ll;
         if (from) rewalk.set(prev, [(rewalk.get(prev) || [from])[0], d.ll]);
       }
       if (!same(a.ll, st.arrLL) && next && next.type !== 'ride') {
-        const to = next.type === 'change' ? next.points[1] : lastOf(next);
-        if (next.type === 'change') next.points[0] = a.ll;
+        const to = next.type === 'change' ? next.points![1] : lastOf(next);
+        if (next.type === 'change') next.points![0] = a.ll;
         else if (next.type === 'walk') next.alight = a.ll;
         if (final.type === 'arrive' && final.from === st.s) final.end = a.ll;
-        if (to && next.type !== 'arrive') rewalk.set(next, [a.ll, (rewalk.get(next) || [null, to])[1]]);
+        if (to && next.type !== 'arrive') rewalk.set(next, [a.ll, (rewalk.get(next) || [null, to] as [null, LngLat])[1]]);
       }
       const routed = st.path !== st.stops; // the track or road between the stops has been drawn in
-      st.stops[0] = d.ll;
-      st.stops[st.stops.length - 1] = a.ll;
-      st.path = routed ? [d.ll, ...st.path.slice(1, -1), a.ll] : st.stops;
+      st.stops![0] = d.ll;
+      st.stops![st.stops!.length - 1] = a.ll;
+      st.path = routed ? [d.ll, ...st.path!.slice(1, -1), a.ll] : st.stops;
       Object.assign(st, { depAt: d, depLL: d.ll, arrAt: a, arrLL: a.ll });
     });
     rewalk.forEach(([a, b], st) => {
@@ -344,7 +345,7 @@
       Object.assign(st, { lines: same(a, b) ? [] : [[a, b]], walks: undefined, floors: undefined, kanteWalk: false });
       if (same(a, b) || !K || !K.available()) return;
       K.walk({ from: { lat: a[1], lon: a[0] }, to: { lat: b[1], lon: b[0] }, options: options() }).then((leg) => {
-        if (!steps.includes(st) || !st.lines.length || !same(st.lines[0][0], a) || !same(lastOf(st), b)) return; // moved again since
+        if (!steps.includes(st) || !st.lines!.length || !same(st.lines![0][0], a) || !same(lastOf(st), b)) return; // moved again since
         setWalk(st, leg);
         const min = Math.round(shownSecs(leg) / 60);
         if (st.type === 'change') st.walkMin = min; else st.min = min;
