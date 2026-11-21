@@ -28,7 +28,16 @@ fetch() { # fetch <url> <dest>
   mkdir -p "$(dirname "$dest")"
   echo "fetch $dest"
   # -L: the timetable permalink redirects to a signed storage URL.
-  curl -fSL --retry 3 -A "$UA" -o "$dest.part" "$url"
+  # Explicit returns: this runs inside `if`, where `set -e` does not stop a failed command.
+  if ! curl -fSL --retry 3 -A "$UA" -o "$dest.part" "$url"; then
+    rm -f "$dest.part"
+    return 1
+  fi
+  if [[ $dest == *.zip ]] && ! python3 -I -c 'import sys, zipfile; sys.exit(0 if zipfile.ZipFile(sys.argv[1]).testzip() is None else 1)' "$dest.part" 2>/dev/null; then
+    echo "error: $url gave a broken zip" >&2
+    rm -f "$dest.part"
+    return 1
+  fi
   mv "$dest.part" "$dest"
 }
 
@@ -42,23 +51,24 @@ timetable_year() { # timetable_year [YYYY-MM-DD]
   if [[ ! $d < $(printf '%s-12-%02d' "$y" $((first + 7))) ]]; then echo $((y + 1)); else echo "$y"; fi
 }
 dataset=${KANTE_GTFS_DATASET:-timetable-$(timetable_year)-gtfs2020}
-# A new timetable year is a different file: fetch it even without --refresh.
-if [[ -s "$RAW"/gtfs/gtfs.zip && "$(cat "$RAW"/gtfs/DATASET 2>/dev/null)" != "$dataset" ]]; then
-  echo "timetable: $(cat "$RAW"/gtfs/DATASET 2>/dev/null || echo unknown) -> $dataset"
-  mv "$RAW"/gtfs/gtfs.zip "$RAW"/gtfs/gtfs.previous.zip
-fi
-if ! fetch "$OTD/en/dataset/$dataset/permalink" "$RAW"/gtfs/gtfs.zip; then
-  # Not published yet, or a hiccup: keep the timetable there was.
-  if [[ -s "$RAW"/gtfs/gtfs.previous.zip ]]; then
-    echo "warning: could not fetch $dataset; keeping the previous timetable" >&2
-    mv "$RAW"/gtfs/gtfs.previous.zip "$RAW"/gtfs/gtfs.zip
-    dataset=$(cat "$RAW"/gtfs/DATASET 2>/dev/null || echo unknown)
+# The timetable is downloaded next to the one in use and only replaces it once it is complete, so a
+# build that runs meanwhile never finds it missing. A new timetable year is fetched even without --refresh.
+have=$(cat "$RAW"/gtfs/DATASET 2>/dev/null || true)
+if [[ $have != "$dataset" || $refresh -eq 1 || ! -s "$RAW"/gtfs/gtfs.zip ]]; then
+  [[ $have != "$dataset" ]] && echo "timetable: ${have:-none} -> $dataset"
+  rm -f "$RAW"/gtfs/gtfs.next.zip
+  if fetch "$OTD/en/dataset/$dataset/permalink" "$RAW"/gtfs/gtfs.next.zip; then
+    mv "$RAW"/gtfs/gtfs.next.zip "$RAW"/gtfs/gtfs.zip
+    echo "$dataset" > "$RAW"/gtfs/DATASET
+  elif [[ -s "$RAW"/gtfs/gtfs.zip ]]; then
+    # Not published yet, or a hiccup: keep the timetable there is (DATASET still names it).
+    echo "warning: could not fetch $dataset; keeping ${have:-the timetable there is}" >&2
   else
     exit 1
   fi
+else
+  echo "have  $RAW/gtfs/gtfs.zip ($dataset)"
 fi
-rm -f "$RAW"/gtfs/gtfs.previous.zip
-echo "$dataset" > "$RAW"/gtfs/DATASET
 
 # atlas registry: boarding points, sectors, boarding accessibility ("actual date" variants).
 # The portal gives each upload a new resource id, so the current link is read from the dataset page.
@@ -70,18 +80,21 @@ atlas_url() { # atlas_url <dataset id> <file name>
 atlas() { # atlas <dataset id> <file name> <dest>
   local url
   url=$(atlas_url "$1" "$2") || true
-  if [[ -z "$url" ]]; then
-    if [[ -s "$3" ]]; then echo "keep  $3 (no link found for $2)"; return; fi
-    echo "error: no download link for $2 on $OTD/dataset/$1" >&2
+  if [[ -z "$url" ]] || ! fetch "$url" "$3"; then
+    if [[ -s "$3" ]]; then echo "keep  $3 (could not fetch $2)"; return 0; fi
+    echo "error: could not fetch $2 from $OTD/dataset/$1" >&2
     return 1
   fi
-  fetch "$url" "$3"
 }
 atlas b06d90be-91c6-440e-ab97-09f579d2fad0 actual-date-world-traffic-point.csv "$RAW"/atlas/traffic-point.csv
 atlas 52c157d0-e6bc-406b-8e7d-63713aa28585 actual-date-sectors-and-sector-groups.csv "$RAW"/atlas/sectors.csv
 atlas 8e5931a6-b4aa-456a-9be4-498f28168861 actual-date-platform.csv "$RAW"/atlas/prm-platform.csv
 
-fetch "https://download.geofabrik.de/europe/switzerland-latest.osm.pbf" "$RAW"/osm/switzerland-latest.osm.pbf
+# A map download that fails keeps the map there is: a Geofabrik hiccup must not hold up a new timetable.
+if ! fetch "https://download.geofabrik.de/europe/switzerland-latest.osm.pbf" "$RAW"/osm/switzerland-latest.osm.pbf; then
+  [[ -s "$RAW"/osm/switzerland-latest.osm.pbf ]] || exit 1
+  echo "keep  $RAW/osm/switzerland-latest.osm.pbf (could not fetch a new one)"
+fi
 
 echo
 echo "Raw data ready in $RAW."

@@ -5,6 +5,6 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=%h/kante-host/repo/deploy/refresh-data.sh
+ExecStart=/bin/bash %h/kante-host/repo/deploy/refresh-data.sh
 Nice=15
 TimeoutStartSec=3h

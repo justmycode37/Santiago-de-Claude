@@ -23,13 +23,15 @@ dow=$(date +%u)   # 1 = Monday … 7 = Sunday
 repo=$ROOT/repo
 
 # --- timetable, stop registry, map
-before=$(cat "$ROOT/raw/gtfs/DATASET" 2>/dev/null || true)
+# Compared with the timetable of the release that is running, not with the last download, so a
+# failed download or build is tried again the next day (and the year change is not missed).
+running=$(cat "$ROOT/current/DATASET" 2>/dev/null || true)
 want=$(source <(sed -n '/^timetable_year()/,/^}/p' "$repo/kante/scripts/fetch-data.sh"); echo "timetable-$(timetable_year)-gtfs2020")
-if (( now )) || [[ $dow == 1 || $dow == 4 || $before != "$want" ]]; then
-  log "fetching the timetable ($want) and the map"
+if (( now )) || [[ $dow == 1 || $dow == 4 || $running != "$want" ]]; then
+  log "fetching the timetable ($want, running: ${running:-unknown}) and the map"
   if KANTE_RAW=$ROOT/raw "$repo/kante/scripts/fetch-data.sh" --refresh; then
     log "building a release with the new data"
-    "$repo/deploy/deploy.sh" --force || log "the release with the new data failed; the running engine is untouched"
+    KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force || log "the release with the new data failed; the running engine is untouched"
   else
     log "download failed; keeping the data there is"
   fi
@@ -40,6 +42,9 @@ if (( now )) || [[ $dow == 1 ]] || [[ ! -s $ROOT/profiles/hop.csv.gz ]]; then
   log "rebuilding the travel-time profiles"
   mkdir -p "$ROOT/profiles" "$ROOT/ist-daten"
   out=$ROOT/ist-daten/out
+  # days older than the window are no longer needed (about 50 MB each, reduced)
+  find "$ROOT/ist-daten" -maxdepth 1 -type f -name '20*' -mtime +30 -delete 2>/dev/null || true
+  rm -rf "$ROOT/ist-daten/raw"
   if python3 -I "$repo/livemap/measure/ist_daten_hops.py" --days 15 --cache "$ROOT/ist-daten" --out "$out" --write-profile; then
     for k in hop dwell; do
       cp "$out/profile_${k}_paironly.csv.gz" "$ROOT/profiles/$k.csv.gz.part"

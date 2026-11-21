@@ -106,11 +106,11 @@ fn serve(args: &Args) -> Result<()> {
         let router = router.layer(CompressionLayer::new()).layer(tower_http::cors::CorsLayer::permissive());
         let listener = tokio::net::TcpListener::bind((bind.as_str(), port)).await.with_context(|| format!("bind {bind}:{port}"))?;
         eprintln!("listening on http://{bind}:{port}");
-        axum::serve(listener, router)
+        axum::serve(listener, router.into_make_service_with_connect_info::<std::net::SocketAddr>())
             .with_graceful_shutdown(async move {
                 let _ = tokio::signal::ctrl_c().await;
                 // End the event streams, else they keep the server up until it is killed.
-                let _ = stopping.send(true);
+                stopping.send_replace(true); // kept for streams that subscribe after this
             })
             .await?;
         Ok(())

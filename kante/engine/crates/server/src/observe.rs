@@ -33,6 +33,8 @@ struct Report {
     t: i64,
     hop: u16,
     frac: f32,
+    /// Hashed address of the reporter (only to tell reporters apart; expires with the report).
+    who: u64,
 }
 
 #[derive(Default)]
@@ -61,10 +63,14 @@ pub enum Refused {
     TooFrequent,
 }
 
+/// A reporter, as far as the rate limit and "two different phones" go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Who(u64);
+
 impl Store {
-    /// Take a report that the handler has already checked against the trip:
-    /// at `t` the phone was `frac` (0…1) along the hop that starts at `hop`.
-    pub fn add(&self, key: Key, addr: &str, now: i64, t: i64, hop: u16, frac: f32) -> Result<(), Refused> {
+    /// The rate limit, checked before any other work: one report per address
+    /// per [`RATE_S`].
+    pub fn admit(&self, addr: &str, now: i64) -> Result<Who, Refused> {
         let mut g = self.inner.lock();
         let inner = &mut *g;
         if now - inner.gc_at > 30 {
@@ -82,33 +88,53 @@ impl Store {
             return Err(Refused::TooFrequent);
         }
         inner.last_from.insert(who, now);
-        let v = inner.by_trip.entry(key).or_default();
-        v.push(Report { t, hop, frac: frac.clamp(0.0, 1.0) });
+        Ok(Who(who))
+    }
+
+    /// Keep a report that the handler has checked against the trip: at `t` the
+    /// phone was `frac` (0…1) along the hop that starts at `hop`.
+    pub fn add(&self, key: Key, who: Who, t: i64, hop: u16, frac: f32) {
+        let mut g = self.inner.lock();
+        let v = g.by_trip.entry(key).or_default();
+        v.push(Report { t, hop, frac: frac.clamp(0.0, 1.0), who: who.0 });
         if v.len() > 32 {
             v.remove(0);
         }
-        Ok(())
     }
 
     /// The fraction of hop `hop` (from `dep` to `arr`, unix seconds) the vehicle
-    /// has covered at `now` according to the reports, when they qualify (see
-    /// the module docs), bounded to [`MAX_SHIFT_S`] around `est` (the feed's
-    /// fraction). `None` when they do not.
+    /// has covered at `now` according to the reports, when they qualify: the
+    /// newest reports of at least two different reporters, none of whom went
+    /// backwards, agreeing within 20 s of travel. Bounded to [`MAX_SHIFT_S`]
+    /// around `est` (the feed's fraction). `None` otherwise.
     pub fn correct(&self, key: &Key, hop: u16, dep: i64, arr: i64, now: i64, est: f32) -> Option<f32> {
         let g = self.inner.lock();
         let v = g.by_trip.get(key)?;
-        let mut rs: Vec<Report> = v.iter().copied().filter(|r| r.hop == hop && now - r.t <= KEEP_S && r.t <= now).collect();
-        if rs.len() < 2 {
-            return None;
-        }
-        rs.sort_by_key(|r| r.t);
-        let (a, b) = (rs[rs.len() - 2], rs[rs.len() - 1]);
-        if b.t - a.t < RATE_S || b.frac + 0.01 < a.frac {
-            return None;
-        }
         let span = (arr - dep).max(1) as f32;
-        // From the newest report on, at the hop's own pace.
-        let reported = b.frac + (now - b.t) as f32 / span;
+        let mut rs: Vec<Report> = v.iter().copied().filter(|r| r.hop == hop && now - r.t <= KEEP_S && r.t <= now).collect();
+        rs.sort_by_key(|r| r.t);
+        // Newest report per reporter on this hop, and whether that reporter went backwards.
+        let mut newest: HashMap<u64, (Report, bool)> = HashMap::new();
+        for r in rs {
+            match newest.get_mut(&r.who) {
+                Some((last, back)) => {
+                    *back |= r.frac + 0.01 < last.frac;
+                    *last = r;
+                }
+                None => {
+                    newest.insert(r.who, (r, false));
+                }
+            }
+        }
+        let now_frac: Vec<f32> = newest.values().filter(|(_, back)| !back).map(|(r, _)| r.frac + (now - r.t) as f32 / span).collect();
+        if now_frac.len() < 2 {
+            return None;
+        }
+        let (lo, hi) = now_frac.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &f| (lo.min(f), hi.max(f)));
+        if (hi - lo) * span > 20.0 {
+            return None; // the reporters disagree
+        }
+        let reported = now_frac.iter().sum::<f32>() / now_frac.len() as f32;
         let max = MAX_SHIFT_S / span;
         Some(reported.clamp(est - max, est + max).clamp(0.0, 1.0))
     }
@@ -119,26 +145,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn needs_two_forward_reports_and_stays_bounded() {
+    fn needs_two_reporters_who_agree_and_stays_bounded() {
         let s = Store::default();
         let k = Key::Trip(100, 7);
-        // Hop of 120 s; the feed thinks the vehicle is 50 % along.
-        assert!(s.add(k.clone(), "a", 1000, 1000, 3, 0.2).is_ok());
-        assert_eq!(s.correct(&k, 3, 900, 1020, 1000, 0.5), None, "one report is not enough");
-        assert_eq!(s.add(k.clone(), "a", 1002, 1002, 3, 0.3), Err(Refused::TooFrequent));
-        assert!(s.add(k.clone(), "a", 1006, 1006, 3, 0.25).is_ok());
-        // 0.25 + 4/120 ≈ 0.283, within 45 s (0.375) of 0.5.
+        // Hop of 120 s from 900 to 1020; the feed thinks the vehicle is 50 % along.
+        let a = s.admit("a", 1000).unwrap();
+        s.add(k.clone(), a, 1000, 3, 0.2);
+        assert_eq!(s.admit("a", 1002), Err(Refused::TooFrequent));
+        let a = s.admit("a", 1006).unwrap();
+        s.add(k.clone(), a, 1006, 3, 0.25);
+        assert_eq!(s.correct(&k, 3, 900, 1020, 1010, 0.5), None, "one phone is not enough");
+        let b = s.admit("b", 1007).unwrap();
+        s.add(k.clone(), b, 1007, 3, 0.27);
+        // a: 0.25 + 4/120 = 0.283, b: 0.27 + 3/120 = 0.295, mean 0.289
         let f = s.correct(&k, 3, 900, 1020, 1010, 0.5).unwrap();
-        assert!((f - 0.2833).abs() < 0.01, "{f}");
+        assert!((f - 0.289).abs() < 0.01, "{f}");
         // A far-off estimate: moved at most 45 s of travel (0.375) towards the reports.
         let f = s.correct(&k, 3, 900, 1020, 1010, 0.95).unwrap();
         assert!((f - 0.575).abs() < 0.01, "{f}");
-        // Other hop: nothing.
-        assert_eq!(s.correct(&k, 4, 900, 1020, 1010, 0.5), None);
-        // Going backwards: nothing.
-        assert!(s.add(k.clone(), "b", 1012, 1012, 3, 0.05).is_ok());
-        assert_eq!(s.correct(&k, 3, 900, 1020, 1013, 0.5), None);
+        assert_eq!(s.correct(&k, 4, 900, 1020, 1010, 0.5), None, "other hop");
+        // b now disagrees by more than 20 s of travel: nothing.
+        let b = s.admit("b", 1013).unwrap();
+        s.add(k.clone(), b, 1013, 3, 0.8);
+        assert_eq!(s.correct(&k, 3, 900, 1020, 1014, 0.5), None);
         // Expired after 3 minutes.
-        assert_eq!(s.correct(&k, 3, 900, 1020, 1012 + KEEP_S + 1, 0.5), None);
+        assert_eq!(s.correct(&k, 3, 900, 1020, 1013 + KEEP_S + 1, 0.5), None);
     }
 }

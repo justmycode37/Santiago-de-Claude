@@ -82,7 +82,14 @@ pub struct MatchedTrip {
     /// First stop position the feed reported a time for; earlier positions
     /// only carry the timetable. `u16::MAX` if none.
     pub first_reported: u16,
+    /// Per stop position, what the feed itself reported: [`REPORTED_ARR`],
+    /// [`REPORTED_DEP`], [`REPORTED_SKIP`]. Other values are carried over.
+    pub reported: Vec<u8>,
 }
+
+pub const REPORTED_ARR: u8 = 1;
+pub const REPORTED_DEP: u8 = 2;
+pub const REPORTED_SKIP: u8 = 4;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MatchOptions {
@@ -655,7 +662,7 @@ impl Matcher {
                 .filter(|&s| tt.stops[s as usize].station == station)
                 .unwrap_or(first);
             let kind = if c.actual_arr.is_some() { kante_core::OBSERVED_ARR } else { 0 } | if c.actual_dep.is_some() { kante_core::OBSERVED_DEP } else { 0 };
-            if kind != 0 {
+            if kind != 0 && !c.cancelled {
                 observed_pos = calls.len() as i16;
                 observed_kind = kind;
             }
@@ -806,6 +813,7 @@ impl Matcher {
             quay: Vec::new(),
             observed_pos: -1,
             observed_kind: 0,
+            first_live: -1,
             updated_at: j.recorded_at,
             sources: 0,
             inaccurate: j.prediction_inaccurate,
@@ -816,6 +824,7 @@ impl Matcher {
         let plausible = -self.options.max_early..=self.options.max_delay;
         let mut carry: Option<i32> = None;
         let mut first_reported = u16::MAX;
+        let mut reported = vec![0u8; n];
         // Latest live time so far, to keep the overlay free of time travel.
         let mut prev = i64::MIN;
         for p in 0..n {
@@ -865,9 +874,25 @@ impl Matcher {
                     }
                 }
             }
+            // A measured time is kept as it is; estimates around it give way.
+            let (arr_measured, dep_measured) = if cand.pos_call[p] != u32::MAX {
+                let c = &rt_calls[cand.pos_call[p] as usize];
+                (c.actual_arr.is_some() && arr.is_some(), c.actual_dep.is_some() && dep.is_some())
+            } else {
+                (false, false)
+            };
+            if arr.is_some() {
+                reported[p] |= REPORTED_ARR;
+            }
+            if dep.is_some() {
+                reported[p] |= REPORTED_DEP;
+            }
+            if live.skipped.get(p).copied().unwrap_or(false) {
+                reported[p] |= REPORTED_SKIP;
+            }
             // Arrival: reported, else as late as the vehicle was last known to be.
             let mut a = arr.or(carry).unwrap_or(0);
-            if sched_arr + (a as i64) < prev {
+            if !arr_measured && prev != i64::MIN && sched_arr + (a as i64) < prev {
                 a = (prev - sched_arr) as i32;
             }
             prev = sched_arr + a as i64;
@@ -876,7 +901,7 @@ impl Matcher {
             }
             // Departure: reported, else the carried delay, but never early on a guess.
             let mut d = dep.or(carry.map(|c| c.max(0))).unwrap_or(0);
-            if sched_dep + (d as i64) < prev {
+            if !dep_measured && sched_dep + (d as i64) < prev {
                 d = (prev - sched_dep) as i32;
             }
             prev = sched_dep + d as i64;
@@ -886,6 +911,7 @@ impl Matcher {
             live.arr_delay[p] = a;
             live.dep_delay[p] = d;
         }
+        live.first_live = if first_reported == u16::MAX { -1 } else { first_reported as i16 };
         MatchedTrip {
             date: cand.date,
             trip,
@@ -898,6 +924,7 @@ impl Matcher {
             implausible,
             own_timestamp: j.recorded_at_own,
             first_reported,
+            reported,
         }
     }
 }
@@ -1450,6 +1477,20 @@ mod tests {
         let lenient = Matcher::with_options(&tt, MatchOptions { fallback_min_share: 0.6, ..Default::default() });
         let got = lenient.explain(&tt, &j).unwrap();
         assert_eq!((got.trip, got.method, got.on_schedule), (ids.bus, MatchMethod::Fallback, 3));
+    }
+
+    #[test]
+    fn a_measured_time_is_never_moved() {
+        let (tt, ids) = bern();
+        let m = Matcher::new(&tt);
+        let mut j = ic733();
+        // Left Genève 30 s early: earlier than the (timetable) arrival there.
+        j.calls[0].actual_dep = t("2026-11-20T21:41:30");
+        let got = m.apply(&tt, &j).unwrap();
+        assert_eq!(got.trip, ids.ic);
+        assert_eq!(got.live.dep_delay[0], -30, "kept as measured, not raised to the timetable");
+        assert_eq!(got.reported[0] & REPORTED_DEP, REPORTED_DEP);
+        assert_eq!(got.live.first_live, 0);
     }
 
     #[test]

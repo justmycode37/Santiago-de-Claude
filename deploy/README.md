@@ -9,7 +9,7 @@ lives in `~/kante-host`.
 | `kante-engine.service` | The engine, on `127.0.0.1:8080` only |
 | `kante-tunnel.service` | `cloudflared`, which gives the engine a public HTTPS address without opening a port |
 | `kante-deploy.timer` | Every two minutes, runs `deploy.sh` |
-| `kante-data.timer` | Daily at 03:30, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays) |
+| `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays) |
 
 ## The running instance
 
@@ -116,7 +116,10 @@ The downloaded data is not refreshed by itself. To refresh it, run
 - **Timetable.** The national timetable is fetched again on Mondays and Thursdays, when it is updated, and a
   new release is built from it with `deploy.sh --force`. A timetable year ends on the second Sunday of
   December (13 December 2026); `kante/scripts/fetch-data.sh` then switches to the next year's dataset by
-  itself, so the engine keeps knowing trips after that day. The 03:30 run on that Sunday does the switch.
+  itself, so the engine keeps knowing trips after that day. The 02:30 run on that Sunday does the switch,
+  before the first trains. `refresh-data.sh` compares the timetable of the *running* release with the one in
+  force, so a failed download or build is tried again the next night, and a release is only kept when its
+  timetable is valid today (`deploy.sh` checks `validTo`).
 - **Learned travel times.** On Mondays the last 15 days of the open "Ist-Daten" archive are reduced to how
   long each hop and each stop usually takes (`livemap/measure/ist_daten_hops.py`, about 0.5 MB each in
   `~/kante-host/profiles`). The engine reads them within ten minutes, no restart. Days already reduced stay in

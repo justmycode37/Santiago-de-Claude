@@ -52,7 +52,7 @@ pub mod snapshot;
 
 pub use fetch::{fetch, FetchError, Fetcher, PollPolicy, Poller};
 pub use gtfsrt::parse_gtfs_rt;
-pub use matcher::{MatchMethod, MatchOptions, MatchedTrip, Matcher, Unmatched};
+pub use matcher::{MatchMethod, MatchOptions, MatchedTrip, Matcher, Unmatched, REPORTED_ARR, REPORTED_DEP, REPORTED_SKIP};
 pub use model::{FeedKind, FeedMeta, RtCall, RtJourney};
 pub use siri::{parse_siri_et, parse_siri_et_auto, parse_siri_et_gz};
 pub use snapshot::{LiveSnapshot, LiveSnapshotBuilder, MatchCounts, Merge, LATE_THRESHOLD};

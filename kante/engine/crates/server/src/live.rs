@@ -82,7 +82,28 @@ fn ingest(app: &App, matcher: &Matcher, kind: FeedKind, bytes: &[u8]) {
     };
     let parsed = match kind {
         FeedKind::SiriEt => kante_rt::parse_siri_et_auto(bytes, &mut sink),
-        FeedKind::GtfsRt => kante_rt::parse_gtfs_rt(bytes, &mut sink),
+        FeedKind::GtfsRt => {
+            // The document is small: read it whole first, so that trip ids of another
+            // timetable version can be set aside before matching (the journey id and
+            // the stops still find the trip).
+            let mut all = Vec::new();
+            match kante_rt::parse_gtfs_rt(bytes, |j| all.push(j)) {
+                Ok(meta) => {
+                    let other = !meta.feed_version.is_empty() && meta.feed_version != tt.feed_version;
+                    if other {
+                        eprintln!("live: gtfs-rt refers to timetable {} but {} is loaded; matching without its trip ids", meta.feed_version, tt.feed_version);
+                    }
+                    for mut j in all {
+                        if other {
+                            j.trip_id.clear();
+                        }
+                        sink(j);
+                    }
+                    Ok(meta)
+                }
+                Err(e) => Err(e),
+            }
+        }
     };
     let mut feeds = app.feeds.lock();
     let st = match kind {
@@ -92,11 +113,6 @@ fn ingest(app: &App, matcher: &Matcher, kind: FeedKind, bytes: &[u8]) {
     st.enabled = true;
     match parsed {
         Ok(meta) => {
-            if kind == FeedKind::GtfsRt && !meta.feed_version.is_empty() && meta.feed_version != tt.feed_version {
-                // Static ids of another timetable version: trip ids may point at the wrong trips.
-                eprintln!("live: gtfs-rt refers to timetable {} but {} is loaded; matching by journey id only", meta.feed_version, tt.feed_version);
-                trips.retain(|m| m.method != kante_rt::MatchMethod::TripId);
-            }
             eprintln!(
                 "live: {}: {} of {journeys} journeys matched, {} extra, {:.1} MB in {:.2}s",
                 kind.as_str(),

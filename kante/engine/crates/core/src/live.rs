@@ -23,6 +23,9 @@ pub struct TripLive {
     /// What was measured at `observed_pos`: [`OBSERVED_ARR`] and/or
     /// [`OBSERVED_DEP`]. A measured arrival alone does not mean the vehicle has left.
     pub observed_kind: u8,
+    /// First position with a time from the feed, -1 if none. Times before it
+    /// are the timetable's, not live (see [`TripLive::is_live_at`]).
+    pub first_live: i16,
     /// Unix time the source last updated this trip.
     pub updated_at: i64,
     /// Feeds that contributed: [`SOURCE_SIRI_ET`] | [`SOURCE_GTFS_RT`].
@@ -46,6 +49,12 @@ impl TripLive {
     #[inline]
     pub fn dep_delay_at(&self, pos: usize) -> Secs {
         self.dep_delay.get(pos).copied().unwrap_or(0)
+    }
+    /// Whether the time at `pos` comes from the feed (reported, or carried
+    /// on from an earlier report) rather than the timetable.
+    #[inline]
+    pub fn is_live_at(&self, pos: usize) -> bool {
+        self.first_live >= 0 && pos >= self.first_live as usize
     }
     #[inline]
     pub fn is_skipped(&self, pos: usize) -> bool {

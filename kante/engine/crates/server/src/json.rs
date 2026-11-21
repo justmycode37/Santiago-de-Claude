@@ -269,6 +269,10 @@ pub struct StopCall {
     pub skipped: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub on_request: bool,
+    /// The times here come from a live feed (reported, or carried on from an
+    /// earlier report), not from the timetable. Delays are only live where this is set.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub live: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -534,6 +538,16 @@ pub struct Position {
     /// `observed-stop`, `forecast`, `timetable` or `crowd`.
     pub basis: &'static str,
     pub t: i64,
+    /// `between`: the stop it is heading for (`seq` + 1, or later when stops are skipped).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_seq: Option<u16>,
+    /// The times the position is timed by: `between` → leaving `seq` and reaching
+    /// `nextSeq` (so a page can move the vehicle on from `frac` at `t`); `at` → its
+    /// arrival and departure at `seq`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dep: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arr: Option<i64>,
 }
 
 #[derive(Serialize)]

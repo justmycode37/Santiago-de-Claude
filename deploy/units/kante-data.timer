@@ -2,8 +2,10 @@
 Description=Refresh the Kante engine's timetable and learned travel times (daily, early morning)
 
 [Timer]
-OnCalendar=*-*-* 03:30
-RandomizedDelaySec=10min
+# 02:30 Swiss time: after the night's last trips of the old service day, before the first trains of
+# the new one; on the second Sunday of December this is when the new timetable year comes in.
+OnCalendar=*-*-* 02:30 Europe/Zurich
+RandomizedDelaySec=5min
 Persistent=true
 
 [Install]

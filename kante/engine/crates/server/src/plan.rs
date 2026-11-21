@@ -254,6 +254,7 @@ impl App {
             planned_label: actual.map(|_| tt.stops[planned as usize].label.clone()),
             skipped: live.map(|l| l.is_skipped(pos)).unwrap_or(false),
             on_request: flags & (FLAG_PICKUP_ON_REQUEST | FLAG_DROPOFF_ON_REQUEST) != 0,
+            live: live.is_some_and(|l| l.is_live_at(pos)),
         }
     }
 

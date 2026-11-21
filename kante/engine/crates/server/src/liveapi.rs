@@ -27,6 +27,8 @@ pub struct RunCall {
     pub skipped: bool,
     /// The planned boarding point when the live one differs.
     pub planned: Option<StopIdx>,
+    /// The times come from a live feed, not the timetable.
+    pub live: bool,
 }
 
 /// The facts behind `liveInfo`, for timetable trips and extra journeys alike.
@@ -94,6 +96,7 @@ impl Run {
                     dep: (p + 1 < n).then(|| time::to_unix(date, tt.dep(trip, p) + tl.map(|l| l.dep_delay_at(p)).unwrap_or(0))),
                     skipped: tl.map(|l| l.is_skipped(p)).unwrap_or(false),
                     planned: changed.map(|_| stops[p]),
+                    live: tl.is_some_and(|l| l.is_live_at(p)),
                 }
             })
             .collect();
@@ -121,6 +124,7 @@ impl Run {
                 dep: if i + 1 < n { c.dep.or(c.arr) } else { None },
                 skipped: c.skipped,
                 planned: None,
+                live: true,
             })
             .collect();
         Run { key: Key::Extra(e.id.clone()), mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
@@ -141,13 +145,29 @@ impl Run {
     }
 }
 
-/// Age of the newest live feed document, seconds; `None` without live data.
-pub fn feed_age(app: &App, now: i64) -> Option<i64> {
-    app.live.read().meta.updated_at.filter(|&t| t > 0).map(|t| now - t)
+fn wall_clock() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
-pub fn live_info(f: &LiveFacts, feed_age: Option<i64>, now: i64) -> json::LiveInfo {
-    let stale = f.live && feed_age.is_none_or(|a| a > STALE_S);
+/// How long ago (wall clock) each feed was last fetched and parsed successfully.
+#[derive(Clone, Copy, Default)]
+pub struct FeedAges {
+    pub siri: Option<i64>,
+    pub gtfs: Option<i64>,
+}
+
+pub fn feed_age(app: &App) -> FeedAges {
+    let now = wall_clock();
+    let live = app.live.read();
+    let age = |name: &str| live.meta.feeds.iter().find(|f| f.name == name).and_then(|f| f.polled_at).map(|t| now - t);
+    FeedAges { siri: age("siri-et"), gtfs: age("gtfs-rt") }
+}
+
+/// `now` is the moment asked about; staleness is judged by the wall clock: a
+/// trip is current only while a feed that contributed to it is being fetched.
+pub fn live_info(f: &LiveFacts, ages: FeedAges, now: i64) -> json::LiveInfo {
+    let fresh = |a: Option<i64>| a.is_some_and(|a| a <= STALE_S);
+    let stale = f.live && !((f.sources & SOURCE_SIRI_ET != 0 && fresh(ages.siri)) || (f.sources & SOURCE_GTFS_RT != 0 && fresh(ages.gtfs)));
     let state = if !f.live {
         "timetable"
     } else if stale {
@@ -198,7 +218,9 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
     let mut left_measured = f.observed_kind & OBSERVED_DEP != 0;
     if !left_measured && f.observed_kind & OBSERVED_ARR != 0 && !matches!(run.mode, Some(Mode::Rail | Mode::RackRail)) {
         if let Some(d) = prof.dwell(a, b) {
-            served[k].2 = served[k].1 + d;
+            // Not before the forecast departure: a bus that waits for its time at a
+            // timing point keeps waiting.
+            served[k].2 = (served[k].1 + d).max(served[k].2);
             left_measured = true;
         }
     }
@@ -209,6 +231,13 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
             next.1 = left + h;
             next.2 = next.2.max(next.1);
         }
+    }
+    // Keep every later stop in order after a change.
+    for m in k + 1..served.len() {
+        let before = served[m - 1].2;
+        let s = &mut served[m];
+        s.1 = s.1.max(before);
+        s.2 = s.2.max(s.1);
     }
     served
 }
@@ -222,19 +251,23 @@ pub fn position(app: &App, run: &Run, now: i64) -> Option<json::Position> {
     let last = *served.last()?;
     let f = &run.facts;
     let measured = |i: usize, kind: u8| f.observed_pos >= 0 && ((f.observed_pos as usize) > i || (f.observed_pos as usize == i && f.observed_kind & kind != 0));
-    let at = |i: usize, basis: &'static str| json::Position { state: "at", seq: i as u16, from: pos(i), to: pos(i), frac: 0.0, basis, t: now };
+    let at = |k: usize, basis: &'static str| {
+        let (i, a, d) = served[k];
+        json::Position { state: "at", seq: i as u16, from: pos(i), to: pos(i), frac: 0.0, basis, t: now, next_seq: None, dep: Some(d), arr: Some(a) }
+    };
     let basis_at = |i: usize| if !f.live { "timetable" } else if measured(i, OBSERVED_ARR) { "observed-stop" } else { "forecast" };
+    let n = served.len();
     if now < first.2 {
         let state = if now < first.1 { "before-start" } else { "at" };
-        return Some(json::Position { state, ..at(first.0, basis_at(first.0)) });
+        return Some(json::Position { state, ..at(0, basis_at(first.0)) });
     }
     if now >= last.1 {
-        return Some(json::Position { state: "ended", ..at(last.0, basis_at(last.0)) });
+        return Some(json::Position { state: "ended", ..at(n - 1, basis_at(last.0)) });
     }
-    for w in served.windows(2) {
+    for (k, w) in served.windows(2).enumerate() {
         let ((i, a_i, d_i), (j, a_j, _)) = (w[0], w[1]);
         if now >= a_i && now < d_i {
-            return Some(at(i, basis_at(i)));
+            return Some(at(k, basis_at(i)));
         }
         if now >= d_i && now < a_j {
             let span = (a_j - d_i).max(1);
@@ -245,10 +278,21 @@ pub fn position(app: &App, run: &Run, now: i64) -> Option<json::Position> {
                 frac = c;
                 basis = "crowd";
             }
-            return Some(json::Position { state: "between", seq: i as u16, from: pos(i), to: pos(j), frac, basis, t: now });
+            return Some(json::Position {
+                state: "between",
+                seq: i as u16,
+                from: pos(i),
+                to: pos(j),
+                frac,
+                basis,
+                t: now,
+                next_seq: Some(j as u16),
+                dep: Some(d_i),
+                arr: Some(a_j),
+            });
         }
     }
-    Some(at(last.0, basis_at(last.0)))
+    Some(at(n - 1, basis_at(last.0)))
 }
 
 /// Line badge of an extra journey ("EV", "S 1", "IC 8").
@@ -288,20 +332,57 @@ pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
     let tt = &app.tt;
     let live_arc = app.live_view();
     let live = live_arc.as_deref();
-    let age = feed_age(app, q.t);
+    let ages = feed_age(app);
     let (date, secs) = time::from_unix(q.t - q.before);
     let mut out: Vec<json::Due> = Vec::new();
+    let mut seen: std::collections::HashSet<(String, Date, usize)> = Default::default();
     let in_set = |s: StopIdx| q.stops.contains(&s);
-    for e in app.router.departures(&q.stops, date, secs, 400, live) {
+    let trip_item = |run: &Run, trip: TripIdx, pos: usize, delay: Option<i32>| {
+        let t = &tt.trips[trip as usize];
+        let number = tt.str(t.short_name);
+        due_item(app, run, pos, app.line_badge(trip), tt.str(t.headsign).to_string(), (!number.is_empty()).then(|| number.to_string()), ages, q.t, delay)
+    };
+    // Departures from every boarding point of these stations: a changed platform
+    // can bring a train to one of the asked ones (and take it away from another).
+    let mut all: Vec<StopIdx> = q.stops.iter().flat_map(|&s| tt.stations[tt.stops[s as usize].station as usize].stops.iter().copied()).collect();
+    all.sort_unstable();
+    all.dedup();
+    for e in app.router.departures(&all, date, secs, 600, live) {
         let dep = time::to_unix(date, e.live_dep);
         if dep > q.t + q.after {
             break;
         }
         let tl = live.and_then(|l| l.trip(e.date, e.trip));
         let run = Run::of_trip(app, e.trip, e.date, tl);
-        let t = &tt.trips[e.trip as usize];
-        let number = tt.str(t.short_name);
-        out.push(due_item(app, &run, e.pos as usize, app.line_badge(e.trip), tt.str(t.headsign).to_string(), (!number.is_empty()).then(|| number.to_string()), age, q.t, Some(e.live_dep - e.dep)));
+        let pos = e.pos as usize;
+        if !in_set(run.calls[pos].stop) || !seen.insert((run.id.clone(), e.date, pos)) {
+            continue;
+        }
+        out.push(trip_item(&run, e.trip, pos, Some(e.live_dep - e.dep)));
+    }
+    // Vehicles under way that will stop here only to set down (e.g. at the end of their
+    // run): they are not departures. Those not yet under way are not listed.
+    let mut area = BBox::empty();
+    for &s in &q.stops {
+        area.extend(&tt.stops[s as usize].pos);
+    }
+    if !q.stops.is_empty() {
+        let c = area.min.lerp(&area.max, 0.5);
+        let (now_date, now_secs) = time::from_unix(q.t);
+        for v in app.router.vehicles(&BBox::around(c, 4000.0), now_date, now_secs, live) {
+            let tl = live.and_then(|l| l.trip(v.date, v.trip));
+            let run = Run::of_trip(app, v.trip, v.date, tl);
+            for k in v.pos as usize..run.calls.len() {
+                let c = &run.calls[k];
+                let Some(a) = c.arr else { continue };
+                if a > q.t + q.after {
+                    break;
+                }
+                if in_set(c.stop) && a >= q.t - q.before && seen.insert((run.id.clone(), v.date, k)) {
+                    out.push(trip_item(&run, v.trip, k, None));
+                }
+            }
+        }
     }
     if let Some(l) = live {
         for x in l.extras() {
@@ -312,7 +393,8 @@ pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
                 let (Some(at), Some(leaves)) = (c.at(), c.leaves()) else { continue };
                 if in_set(c.stop) && leaves >= q.t - q.before && at <= q.t + q.after {
                     let run = Run::of_extra(x);
-                    out.push(due_item(app, &run, i, extra_badge(x), x.headsign.clone(), None, age, q.t, None));
+                    let delay = c.dep.zip(c.aimed_dep).or(c.arr.zip(c.aimed_arr)).map(|(t, a)| (t - a) as i32);
+                    out.push(due_item(app, &run, i, extra_badge(x), x.headsign.clone(), None, ages, q.t, delay));
                 }
             }
         }
@@ -323,7 +405,7 @@ pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: String, number: Option<String>, age: Option<i64>, now: i64, delay: Option<i32>) -> json::Due {
+fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: String, number: Option<String>, ages: FeedAges, now: i64, delay: Option<i32>) -> json::Due {
     let tt = &app.tt;
     let c = &run.calls[i];
     let here = &tt.stops[c.stop as usize];
@@ -352,13 +434,13 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
         planned_label: c.planned.map(|p| tt.stops[p as usize].label.clone()),
         arr,
         dep,
-        delay_s: delay.filter(|_| run.facts.live),
+        delay_s: delay.filter(|_| run.calls[i].live),
         cancelled: run.cancelled || c.skipped,
         approach_bearing: (i > 0).then(|| bearing(i - 1, i)).flatten(),
         depart_bearing: (i + 1 < run.calls.len()).then(|| bearing(i, i + 1)).flatten(),
         state,
         eta_s: arr.map(|a| a - now).unwrap_or(0),
-        live_info: live_info(&run.facts, age, now),
+        live_info: live_info(&run.facts, ages, now),
         extra: run.extra,
     }
 }
@@ -503,20 +585,27 @@ pub const MAX_AGE_S: i64 = 30;
 
 pub fn observe(app: &App, r: &json::ObserveRequest, addr: &str, now: i64) -> json::ObserveResponse {
     let no = |reason| json::ObserveResponse { accepted: false, reason: Some(reason) };
+    let who = match app.observed.admit(addr, now) {
+        Ok(w) => w,
+        Err(observe::Refused::TooFrequent) => return no("too-frequent"),
+    };
     if !(r.accuracy > 0.0 && r.accuracy <= MAX_ACCURACY_M) {
         return no("accuracy");
     }
     if r.t > now + 5 || now - r.t > MAX_AGE_S {
         return no("time");
     }
+    if !(r.lat.is_finite() && r.lon.is_finite() && r.lat.abs() <= 85.0 && r.lon.abs() <= 180.0) {
+        return no("position");
+    }
     let Some(date) = time::parse_date(&r.service_date) else { return no("trip") };
     let live_arc = app.live_view();
     let live = live_arc.as_deref();
     let (run, mode) = if r.trip_id.starts_with("extra:") {
-        let Some(x) = live.and_then(|l| l.extra(&r.trip_id)) else { return no("trip") };
+        let Some(x) = live.and_then(|l| l.extra(&r.trip_id)).filter(|x| x.date == date) else { return no("trip") };
         (Run::of_extra(x), x.mode)
     } else {
-        let Some(trip) = app.router.find_trip(&r.trip_id) else { return no("trip") };
+        let Some(trip) = app.router.find_trip(&r.trip_id).filter(|&t| app.tt.trip_active(t, date)) else { return no("trip") };
         (Run::of_trip(app, trip, date, live.and_then(|l| l.trip(date, trip))), Some(app.tt.trip_line(trip).mode))
     };
     if run.cancelled {
@@ -540,89 +629,75 @@ pub fn observe(app: &App, r: &json::ObserveRequest, addr: &str, now: i64) -> jso
     if off > corridor + r.accuracy {
         return no("off-route");
     }
-    match app.observed.add(run.key.clone(), addr, now, r.t, i as u16, frac) {
-        Ok(()) => json::ObserveResponse { accepted: true, reason: None },
-        Err(observe::Refused::TooFrequent) => no("too-frequent"),
-    }
+    app.observed.add(run.key.clone(), who, r.t, i as u16, frac);
+    json::ObserveResponse { accepted: true, reason: None }
 }
 
 // ------------------------------------------------------------------ /api/vehicles, /api/stream
 
+/// A vehicle as `/api/vehicles` lists it, everything taken from its position
+/// (the same served hop), so geometry, fraction and times always agree.
+#[allow(clippy::too_many_arguments)]
+fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, live: &'static str, ages: FeedAges, t: i64) -> Option<json::Vehicle> {
+    let tt = &app.tt;
+    let p = position(app, run, t)?;
+    if p.state == "before-start" || p.state == "ended" {
+        return None;
+    }
+    let next = p.next_seq.unwrap_or(p.seq) as usize;
+    Some(json::Vehicle {
+        trip_id: run.id.clone(),
+        service_date: time::fmt_date(run.date),
+        line,
+        headsign,
+        from: p.from,
+        to: p.to,
+        dep: p.dep.unwrap_or(t),
+        arr: p.arr.unwrap_or(t),
+        next_stop: tt.stations[tt.stops[run.calls[next].stop as usize].station as usize].name.clone(),
+        next_seq: next as u16,
+        live,
+        frac: p.frac,
+        basis: p.basis,
+        live_info: live_info(&run.facts, ages, t),
+        extra: run.extra,
+    })
+}
+
 /// Every vehicle under way in `bbox` at `t`, timetable trips and extra journeys.
 pub fn vehicles(app: &App, bbox: &BBox, t: i64) -> json::VehiclesResponse {
+    const MAX: usize = 1500;
     let (date, secs) = time::from_unix(t);
     let live_arc = app.live_view();
     let live = live_arc.as_deref();
     let tt = &app.tt;
-    let age = feed_age(app, t);
+    let ages = feed_age(app);
     let mut out = Vec::new();
     for v in app.router.vehicles(bbox, date, secs, live) {
-        if out.len() >= 1500 {
+        if out.len() >= MAX {
             break;
         }
         let tl = live.and_then(|l| l.trip(v.date, v.trip));
-        let tr = &tt.trips[v.trip as usize];
+        if tl.is_some_and(|l| l.cancelled) {
+            continue;
+        }
         let run = Run::of_trip(app, v.trip, v.date, tl);
-        let n = run.calls.len();
-        let next = if v.dwell { v.pos as usize } else { (v.pos as usize + 1).min(n - 1) };
-        let (a, b) = (run.calls[v.pos as usize].stop, run.calls[next].stop);
-        let p = position(app, &run, t);
-        let (frac, basis) = match &p {
-            Some(p) if p.state == "between" && p.seq == v.pos => (p.frac, p.basis),
-            Some(p) => (if p.state == "at" { 0.0 } else { (((secs - v.dep) as f32) / ((v.arr - v.dep).max(1) as f32)).clamp(0.0, 1.0) }, p.basis),
-            None => (0.0, "timetable"),
-        };
-        out.push(json::Vehicle {
-            trip_id: run.id.clone(),
-            service_date: time::fmt_date(v.date),
-            line: app.line_badge(v.trip),
-            headsign: tt.str(tr.headsign).to_string(),
-            from: lonlat(&tt.stops[a as usize].pos),
-            to: lonlat(&tt.stops[b as usize].pos),
-            dep: time::to_unix(date, v.dep),
-            arr: time::to_unix(date, v.arr),
-            next_stop: tt.stations[tt.stops[b as usize].station as usize].name.clone(),
-            next_seq: next as u16,
-            live: App::live_state(tl),
-            frac,
-            basis,
-            live_info: live_info(&run.facts, age, t),
-            extra: false,
-        });
+        let tr = &tt.trips[v.trip as usize];
+        out.extend(vehicle_of(app, &run, app.line_badge(v.trip), tt.str(tr.headsign).to_string(), App::live_state(tl), ages, t));
     }
     if let Some(l) = live {
         for x in l.extras() {
-            if x.cancelled || out.len() >= 1500 {
+            if x.cancelled || out.len() >= MAX {
                 continue;
             }
             let run = Run::of_extra(x);
-            let Some(p) = position(app, &run, t) else { continue };
-            if p.state == "before-start" || p.state == "ended" {
+            let Some(v) = vehicle_of(app, &run, extra_badge(x), x.headsign.clone(), if run.facts.observed_pos >= 0 { "observed" } else { "predicted" }, ages, t) else {
                 continue;
+            };
+            let (a, b) = (LatLon::from_deg(v.from[1], v.from[0]), LatLon::from_deg(v.to[1], v.to[0]));
+            if bbox.contains(&a) || bbox.contains(&b) {
+                out.push(v);
             }
-            let i = p.seq as usize;
-            let j = if p.state == "at" { i } else { (i + 1..run.calls.len()).find(|&k| !run.calls[k].skipped).unwrap_or(i) };
-            let (pa, pb) = (tt.stops[run.calls[i].stop as usize].pos, tt.stops[run.calls[j].stop as usize].pos);
-            if !bbox.contains(&pa) && !bbox.contains(&pb) {
-                continue;
-            }
-            out.push(json::Vehicle {
-                trip_id: run.id.clone(),
-                service_date: time::fmt_date(run.date),
-                line: extra_badge(x),
-                headsign: x.headsign.clone(),
-                from: lonlat(&pa),
-                to: lonlat(&pb),
-                dep: run.calls[i].dep.or(run.calls[i].arr).unwrap_or(t),
-                arr: run.calls[j].arr.or(run.calls[j].dep).unwrap_or(t),
-                next_stop: tt.stations[tt.stops[run.calls[j].stop as usize].station as usize].name.clone(),
-                next_seq: j as u16,
-                live: if run.facts.observed_pos >= 0 { "observed" } else { "predicted" },
-                frac: p.frac,
-                basis: p.basis,
-                live_info: live_info(&run.facts, age, t),
-                extra: true,
-            });
         }
     }
     json::VehiclesResponse { t, vehicles: out }
@@ -663,13 +738,38 @@ pub fn extra_departures(app: &App, live: &dyn LiveView, stops: &[StopIdx], from:
     out
 }
 
+/// At most this many `/api/stream` connections are open at once.
+pub const MAX_STREAMS: usize = 200;
+
+/// One open stream; frees its place when dropped.
+pub struct StreamSlot(Arc<App>);
+
+impl StreamSlot {
+    pub fn take(app: &Arc<App>) -> Option<StreamSlot> {
+        use std::sync::atomic::Ordering;
+        let n = app.streams.fetch_add(1, Ordering::SeqCst);
+        if n >= MAX_STREAMS {
+            app.streams.fetch_sub(1, Ordering::SeqCst);
+            return None;
+        }
+        Some(StreamSlot(app.clone()))
+    }
+}
+
+impl Drop for StreamSlot {
+    fn drop(&mut self) {
+        self.0.streams.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 /// Vehicles in `bbox` as server-sent events: at once, on every live update,
-/// and at least every 15 s.
-pub fn stream(app: Arc<App>, bbox: BBox) -> impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>> {
+/// and at least every 15 s. The lists are computed off the request threads,
+/// a few at a time.
+pub fn stream(app: Arc<App>, bbox: BBox, slot: StreamSlot) -> impl futures_util::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>> {
     use axum::response::sse::Event;
     let rx = app.live_tx.subscribe();
     let stop = app.shutdown.subscribe();
-    futures_util::stream::unfold((app, rx, stop, true), move |(app, mut rx, mut stop, first)| async move {
+    futures_util::stream::unfold((app, rx, stop, true, slot), move |(app, mut rx, mut stop, first, slot)| async move {
         if *stop.borrow() {
             return None;
         }
@@ -682,8 +782,11 @@ pub fn stream(app: Arc<App>, bbox: BBox) -> impl futures_util::Stream<Item = Res
             }
         }
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-        let body = vehicles(&app, &bbox, now);
+        let permit = app.heavy.acquire().await.ok()?;
+        let a = app.clone();
+        let body = tokio::task::spawn_blocking(move || vehicles(&a, &bbox, now)).await.ok()?;
+        drop(permit);
         let ev = Event::default().event("vehicles").json_data(&body).unwrap_or_else(|_| Event::default().comment("error"));
-        Some((Ok(ev), (app, rx, stop, false)))
+        Some((Ok(ev), (app, rx, stop, false, slot)))
     })
 }
