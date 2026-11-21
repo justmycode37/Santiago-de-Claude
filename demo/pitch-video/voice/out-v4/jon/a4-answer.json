@@ -1,0 +1,242 @@
+{
+ "text": "Nobody knew where the bus stops. Santiago does. Bay L. The app said: right spot. Santiago shows the exact one. Which bay. Which side of the road. We found out twenty minutes too late. Santiago tells you when to leave, and shows every turn of the walk.",
+ "model": "eleven_v4",
+ "voice": "jon",
+ "words": [
+  {
+   "text": "Nobody",
+   "start": 0,
+   "end": 0.48
+  },
+  {
+   "text": "knew",
+   "start": 0.533,
+   "end": 0.64
+  },
+  {
+   "text": "where",
+   "start": 0.72,
+   "end": 0.8
+  },
+  {
+   "text": "the",
+   "start": 0.88,
+   "end": 0.96
+  },
+  {
+   "text": "bus",
+   "start": 1.08,
+   "end": 1.2
+  },
+  {
+   "text": "stops.",
+   "start": 1.44,
+   "end": 1.92
+  },
+  {
+   "text": "Santiago",
+   "start": 2.16,
+   "end": 2.72
+  },
+  {
+   "text": "does.",
+   "start": 2.88,
+   "end": 3.36
+  },
+  {
+   "text": "Bay",
+   "start": 3.68,
+   "end": 3.92
+  },
+  {
+   "text": "L.",
+   "start": 4.08,
+   "end": 4.72
+  },
+  {
+   "text": "The",
+   "start": 4.8,
+   "end": 4.88
+  },
+  {
+   "text": "app",
+   "start": 5,
+   "end": 5.12
+  },
+  {
+   "text": "said:",
+   "start": 5.28,
+   "end": 5.6
+  },
+  {
+   "text": "right",
+   "start": 5.76,
+   "end": 6
+  },
+  {
+   "text": "spot.",
+   "start": 6.2,
+   "end": 6.8
+  },
+  {
+   "text": "Santiago",
+   "start": 6.88,
+   "end": 7.52
+  },
+  {
+   "text": "shows",
+   "start": 7.6,
+   "end": 7.84
+  },
+  {
+   "text": "the",
+   "start": 7.92,
+   "end": 8
+  },
+  {
+   "text": "exact",
+   "start": 8.28,
+   "end": 8.56
+  },
+  {
+   "text": "one.",
+   "start": 8.64,
+   "end": 9.12
+  },
+  {
+   "text": "Which",
+   "start": 9.36,
+   "end": 9.6
+  },
+  {
+   "text": "bay.",
+   "start": 9.68,
+   "end": 10.4
+  },
+  {
+   "text": "Which",
+   "start": 10.48,
+   "end": 10.64
+  },
+  {
+   "text": "side",
+   "start": 10.72,
+   "end": 10.88
+  },
+  {
+   "text": "of",
+   "start": 10.92,
+   "end": 10.96
+  },
+  {
+   "text": "the",
+   "start": 11,
+   "end": 11.04
+  },
+  {
+   "text": "road.",
+   "start": 11.12,
+   "end": 11.92
+  },
+  {
+   "text": "We",
+   "start": 12,
+   "end": 12.08
+  },
+  {
+   "text": "found",
+   "start": 12.16,
+   "end": 12.32
+  },
+  {
+   "text": "out",
+   "start": 12.4,
+   "end": 12.56
+  },
+  {
+   "text": "twenty",
+   "start": 12.64,
+   "end": 12.96
+  },
+  {
+   "text": "minutes",
+   "start": 13.04,
+   "end": 13.36
+  },
+  {
+   "text": "too",
+   "start": 13.44,
+   "end": 13.52
+  },
+  {
+   "text": "late.",
+   "start": 13.6,
+   "end": 14.32
+  },
+  {
+   "text": "Santiago",
+   "start": 14.4,
+   "end": 14.96
+  },
+  {
+   "text": "tells",
+   "start": 15.04,
+   "end": 15.2
+  },
+  {
+   "text": "you",
+   "start": 15.28,
+   "end": 15.44
+  },
+  {
+   "text": "when",
+   "start": 15.52,
+   "end": 15.6
+  },
+  {
+   "text": "to",
+   "start": 15.68,
+   "end": 15.76
+  },
+  {
+   "text": "leave,",
+   "start": 15.84,
+   "end": 16.24
+  },
+  {
+   "text": "and",
+   "start": 16.32,
+   "end": 16.4
+  },
+  {
+   "text": "shows",
+   "start": 16.56,
+   "end": 16.72
+  },
+  {
+   "text": "every",
+   "start": 16.8,
+   "end": 17.12
+  },
+  {
+   "text": "turn",
+   "start": 17.2,
+   "end": 17.36
+  },
+  {
+   "text": "of",
+   "start": 17.44,
+   "end": 17.52
+  },
+  {
+   "text": "the",
+   "start": 17.56,
+   "end": 17.6
+  },
+  {
+   "text": "walk.",
+   "start": 17.68,
+   "end": 18.24
+  }
+ ]
+}

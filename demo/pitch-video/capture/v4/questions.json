@@ -1,0 +1,49 @@
+{
+ "W": 390,
+ "H": 844,
+ "DPR": 2,
+ "length": 12.588,
+ "fps": 39.8,
+ "events": [
+  {
+   "name": "start",
+   "t": 0
+  },
+  {
+   "name": "tap-not-now",
+   "t": 0.376
+  },
+  {
+   "name": "q1",
+   "t": 1.89
+  },
+  {
+   "name": "tap-relaxed",
+   "t": 2.236
+  },
+  {
+   "name": "tap-auto",
+   "t": 3.702
+  },
+  {
+   "name": "tap-q1-continue",
+   "t": 5.851
+  },
+  {
+   "name": "q2",
+   "t": 7.362
+  },
+  {
+   "name": "tap-stairs",
+   "t": 7.702
+  },
+  {
+   "name": "tap-open-map",
+   "t": 10.051
+  },
+  {
+   "name": "end",
+   "t": 12.56
+  }
+ ]
+}

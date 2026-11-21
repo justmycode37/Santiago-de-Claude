@@ -1,0 +1,150 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    .act5-t { position: absolute; font-family: Inter, sans-serif; font-weight: 700; letter-spacing: -0.035em; line-height: 1.04; color: #fcfcfc; }
+    .act5-ph { position: absolute; width: 418px; height: 884px; padding: 9px; border-radius: 54px; background: #1b1c21; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 120px rgba(0,0,0,0.6); }
+    .act5-scr { position: relative; width: 400px; height: 866px; border-radius: 45px; overflow: hidden; background: #e9e9ea; }
+    .act5-scr img { position: absolute; left: 0; top: 0; width: 400px; height: 866px; display: block; }
+    .act5-iph { position: absolute; width: 418px; height: 828px; padding: 9px; border-radius: 54px; background: #1b1c21; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 120px rgba(0,0,0,0.6); }
+    .act5-iph video { display: block; width: 400px; height: 810px; border-radius: 45px; }
+    .act5-cph { position: absolute; width: 418px; height: 884px; padding: 9px; border-radius: 54px; background: #1b1c21; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 120px rgba(0,0,0,0.6); }
+    .act5-cph video { display: block; width: 400px; height: 866px; border-radius: 45px; }
+    .act5-full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .act5-full video, .act5-full img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    .act5-chip { position: absolute; left: 96px; top: 800px; padding: 22px 44px 26px; border-radius: 30px; font-family: Inter, sans-serif; font-weight: 900; font-size: 104px; letter-spacing: -0.04em; line-height: 1; white-space: nowrap; box-shadow: 0 18px 60px rgba(0,0,0,0.45); }
+    .act5-ring { position: absolute; left: 180px; top: 73px; width: 68px; height: 68px; border-radius: 50%; border: 5px solid #FFD34B; opacity: 0; }
+    .act5-cur { position: absolute; left: 9px; top: 9px; width: 46px; height: 46px; overflow: visible; opacity: 0; }
+    .act5-tkc { position: absolute; left: 160px; top: 590px; width: 1600px; height: 402px; border-radius: 44px; background: #fff; box-shadow: 0 30px 90px rgba(0,0,0,0.6); opacity: 0; }
+    .act5-tkc img { position: absolute; left: 0; top: 0; width: 1600px; height: 402px; border-radius: 44px; display: block; }
+    .act5-tap { position: absolute; left: 597px; top: 55px; width: 160px; height: 160px; border-radius: 50%; border: 10px solid #344D77; opacity: 0; }
+    .act5-fare { position: absolute; left: 40px; top: 256px; width: 790px; height: 94px; border-radius: 26px; border: 7px solid #FF7241; opacity: 0; }
+    .act5-half { position: absolute; left: 0; top: 0; width: 960px; height: 1080px; overflow: hidden; }
+    .act5-half video { position: absolute; left: 0; top: 0; width: 960px; height: 1080px; display: block; }
+    .act5-row { position: absolute; left: 360px; width: 1200px; height: 201px; border-radius: 40px; box-shadow: 0 16px 50px rgba(0,0,0,0.5); opacity: 0; }
+  </style>
+  <div id="root" data-composition-id="act5" data-width="1920" data-height="1080">
+    <div id="act5-n0" class="act5-t" style="left: 200px; top: 400px; font-size: 96px">And it goes further<br />than our problem.</div>
+    <div id="act5-n1" class="act5-t" style="left: 200px; top: 400px; font-size: 150px; font-weight: 900; color: #FFD34B">It adapts<br />to you.</div>
+    <div id="act5-phd" class="act5-iph" style="left: 1330px; top: 126px" data-layout-allow-overflow><video id="act5-vd" class="clip" data-start="0" data-duration="3.7" data-track-index="1" src="assets/phD.mp4" muted playsinline></video>
+      <div id="act5-ring" class="act5-ring"></div>
+      <svg id="act5-cur" class="act5-cur" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15.5 L12.2 22.5 L15 21.2 L11.8 14.4 L18.5 14.2 Z" fill="#ffffff" stroke="#0b0c0f" stroke-width="1.6" stroke-linejoin="round" /></svg>
+    </div>
+    <div id="act5-phe" class="act5-cph" style="left: 190px; top: 98px" data-layout-allow-overflow><video id="act5-ve" class="clip" data-start="3.7" data-duration="3.615" data-track-index="1" src="assets/phE.mp4" muted playsinline></video></div>
+    <div id="act5-e0" class="act5-t" style="left: 770px; top: 240px; font-size: 92px">New here?</div>
+    <div id="act5-e1" class="act5-t" style="left: 770px; top: 360px; font-size: 100px; font-weight: 900; color: #FFD34B">Pick your language.</div>
+    <div id="act5-e2" class="act5-t" style="left: 762px; top: 520px; font-size: 250px; font-weight: 900; color: #C55A82">249</div>
+    <div id="act5-e3" class="act5-t" style="left: 1250px; top: 690px; font-size: 60px">languages</div>
+    <div id="act5-wF" class="act5-full" data-layout-allow-overflow><video id="act5-mF" class="clip" data-start="7.315" data-duration="2.241" data-track-index="1" src="assets/mF.mp4" muted playsinline></video></div>
+    <div id="act5-cF0" class="act5-chip" style="top: 800px; background: #344D77; color: #ffffff" data-layout-allow-overflow data-layout-allow-occlusion>Can’t take stairs?</div>
+    <div id="act5-cF1" class="act5-chip" style="top: 800px; background: #FFD34B; color: #1d2a44" data-layout-allow-overflow data-layout-allow-occlusion>Switch them off.</div>
+    <div id="act5-g" class="act5-half" data-layout-allow-overflow><video id="act5-vg" class="clip" data-start="9.556" data-duration="2.996" data-track-index="1" src="assets/gG.mp4" muted playsinline></video></div>
+    <div id="act5-g0" class="act5-t" style="left: 1050px; top: 320px; font-size: 104px">Walk slower?</div>
+    <div id="act5-g1" class="act5-t" style="left: 1050px; top: 450px; font-size: 128px; font-weight: 900; color: #FFD34B">It learns<br />your pace.</div>
+    <div id="act5-phh" class="act5-cph" style="left: 751px; top: 98px" data-layout-allow-overflow><video id="act5-vh" class="clip" data-start="12.552" data-duration="2.307" data-track-index="1" src="assets/phH.mp4" muted playsinline></video></div>
+    <div id="act5-h0" class="act5-t" style="left: 70px; top: 440px; width: 600px; text-align: right; font-size: 92px; font-weight: 900">Search<br />anywhere.</div>
+    <div id="act5-h1" class="act5-t" style="left: 1250px; top: 440px; width: 640px; font-size: 92px; font-weight: 900; color: #FFD34B">Choose<br />your route.</div>
+    <div id="act5-wI" class="act5-full" data-layout-allow-overflow><video id="act5-mI" class="clip" data-start="14.859" data-duration="2.193" data-track-index="1" src="assets/mI.mp4" muted playsinline></video></div>
+    <div id="act5-cI0" class="act5-chip" style="top: 800px; background: #FF7241; color: #ffffff" data-layout-allow-overflow data-layout-allow-occlusion>Your bus. Live.</div>
+    <div id="act5-phj" class="act5-cph" style="left: 1330px; top: 98px" data-layout-allow-overflow><video id="act5-vj" class="clip" data-start="17.052" data-duration="3.853" data-track-index="1" src="assets/phJ.mp4" muted playsinline></video></div>
+    <div id="act5-j0" class="act5-t" style="left: 170px; top: 300px; font-size: 92px">Big station?</div>
+    <div id="act5-j1" class="act5-t" style="left: 170px; top: 420px; font-size: 150px; font-weight: 900; color: #FFD34B">Walk it<br />in 3D.</div>
+    <div id="act5-j2" class="act5-t" style="left: 174px; top: 770px; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: #8d95a8">Bern · Europaplatz · Wankdorf · Brünnen Westside · Bümpliz Nord</div>
+    <div id="act5-wK" class="act5-full" data-layout-allow-overflow><video id="act5-mK" class="clip" data-start="20.905" data-duration="2.006" data-track-index="1" src="assets/mK.mp4" muted playsinline></video></div>
+    <div id="act5-cK0" class="act5-chip" style="top: 800px; background: #344D77; color: #ffffff" data-layout-allow-overflow data-layout-allow-occlusion>Everything you need.</div>
+    <div id="act5-i0" class="act5-t" style="left: 360px; top: 196px; font-size: 34px; letter-spacing: 0.12em; text-transform: uppercase; color: #8d95a8">On your map</div>
+    <img id="act5-i1" class="act5-row" style="top: 270px" src="assets/i1.png" alt="" />
+    <img id="act5-i2" class="act5-row" style="top: 505px" src="assets/i2.png" alt="" />
+    <img id="act5-i3" class="act5-row" style="top: 740px" src="assets/i3.png" alt="" />
+    <div id="act5-phk" class="act5-iph" style="left: 1180px; top: 126px" data-layout-allow-overflow><video id="act5-vk" class="clip" data-start="25.586" data-duration="4.285" data-track-index="1" src="assets/phM.mp4" muted playsinline></video></div>
+    <div id="act5-s0" class="act5-t" style="left: 190px; top: 300px; font-size: 84px; color: #fcfcfc">A language café<br />near you.</div>
+    <div id="act5-s1" class="act5-t" style="left: 190px; top: 520px; font-size: 84px; color: #fcfcfc">One tap.</div>
+    <div id="act5-s2" class="act5-t" style="left: 190px; top: 630px; font-size: 84px; color: #FFD34B">Santiago takes<br />you there.</div>
+    <div id="act5-tkc" class="act5-tkc" data-layout-allow-overflow><img src="assets/tk.png" alt="" /><div id="act5-tap" class="act5-tap"></div><div id="act5-fare" class="act5-fare"></div></div>
+    <div id="act5-t0" class="act5-t" style="left: 0; right: 0; top: 270px; text-align: center; font-size: 120px; font-weight: 700; color: #fcfcfc">Your ticket?</div>
+    <div id="act5-t1" class="act5-t" style="left: 0; right: 0; top: 220px; text-align: center; font-size: 200px; font-weight: 900; color: #FFD34B">One tap.</div>
+    <div id="act5-t2" class="act5-t" style="left: 0; right: 0; top: 240px; text-align: center; font-size: 170px; font-weight: 900; color: #FF7241">Price included.</div>
+    <div id="act5-n18" class="act5-t" style="left: 0; right: 0; top: 330px; text-align: center; font-size: 84px">So you don’t just arrive.</div>
+    <div id="act5-n19" class="act5-t" style="left: 0; right: 0; top: 460px; text-align: center; font-size: 230px; font-weight: 900; color: #FFD34B">You belong.</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    const up = (sel, t, y = 44, d = 0.42) => tl.fromTo(sel, { opacity: 0, y }, { opacity: 1, y: 0, duration: d, ease: "expo.out" }, Math.max(0, t));
+    const out = (sel, t, d = 0.16) => tl.to(sel, { opacity: 0, y: -22, duration: d, ease: "power2.in" }, Math.max(0, t));
+    const dim = (sel, t, o = 0.3) => tl.to(sel, { opacity: o, duration: 0.3, ease: "power2.out" }, Math.max(0, t));
+    const hide = (sel, t) => tl.set(sel, { opacity: 0 }, Math.max(0, t));
+    tl.fromTo("#act5-phd", { opacity: 0, y: 90, scale: 1, transformOrigin: "52% 14%" }, { opacity: 1, y: 0, duration: 0.6, ease: "expo.out" }, 0.05);
+    up("#act5-n0", -0.06);
+    out("#act5-n0", 1.873);
+    up("#act5-n1", 2.043, 60, 0.4);
+    tl.fromTo("#act5-cur", { opacity: 0, x: 300, y: 560 }, { opacity: 1, duration: 0.2 }, 0.25);
+    tl.to("#act5-cur", { x: 205, y: 100, duration: 0.98, ease: "power2.inOut" }, 0.35);
+    tl.to("#act5-phd", { scale: 1.12, duration: 0.7, ease: "power2.inOut" }, 0.73);
+    tl.to("#act5-cur", { scale: 0.78, duration: 0.08, ease: "power2.in" }, 1.35);
+    tl.to("#act5-cur", { scale: 1, duration: 0.18, ease: "power2.out" }, 1.45);
+    tl.fromTo("#act5-ring", { opacity: 0.95, scale: 0.35 }, { opacity: 0, scale: 2.1, duration: 0.55, ease: "power2.out", immediateRender: false }, 1.38);
+    tl.to("#act5-cur", { opacity: 0, x: 250, y: 190, duration: 0.5, ease: "power2.inOut" }, 1.83);
+    hide(["#act5-phd", "#act5-n1"], 3.7);
+    tl.fromTo("#act5-phe", { opacity: 0, x: -80, scale: 1.02, transformOrigin: "50% 50%" }, { opacity: 1, x: 0, duration: 0.5, ease: "expo.out" }, 3.7);
+    tl.to("#act5-phe", { scale: 1.1, duration: 3.115, ease: "sine.inOut" }, 4.2);
+    up("#act5-e0", 3.75);
+    up("#act5-e1", 4.354, 60, 0.4);
+    up("#act5-e2", 5.521, 90, 0.42);
+    up("#act5-e3", 5.701, 30, 0.4);
+    hide(["#act5-phe", "#act5-e0", "#act5-e1", "#act5-e2", "#act5-e3"], 7.315);
+    tl.fromTo("#act5-wF", { scale: 1.16, transformOrigin: "80% 50%" }, { scale: 1.04, duration: 0.38, ease: "expo.out" }, 7.315);
+    tl.to("#act5-wF", { scale: 1.16, duration: 1.861, ease: "sine.inOut" }, 7.695);
+    tl.fromTo("#act5-cF0", { opacity: 0, y: 46, scale: 0.94, transformOrigin: "0% 100%" }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "expo.out" }, 7.355);
+    tl.to("#act5-cF0", { opacity: 0, duration: 0.08 }, 8.379);
+    tl.fromTo("#act5-cF1", { opacity: 0, y: 46, scale: 0.94, transformOrigin: "0% 100%" }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "expo.out" }, 8.459);
+    tl.to("#act5-cF1", { opacity: 0, duration: 0.08 }, 9.456);
+    tl.fromTo("#act5-g", { x: -960 }, { x: 0, duration: 0.45, ease: "expo.out" }, 9.556);
+    up("#act5-g0", 9.606);
+    up("#act5-g1", 10.552, 60, 0.4);
+    hide(["#act5-g", "#act5-g0", "#act5-g1"], 12.552);
+    tl.fromTo("#act5-phh", { opacity: 0, y: 120, scale: 1.0, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, scale: 1.1, duration: 0.55, ease: "expo.out" }, 12.552);
+    up("#act5-h0", 12.602, 50, 0.4);
+    up("#act5-h1", 13.838, 50, 0.4);
+    hide(["#act5-phh", "#act5-h0", "#act5-h1"], 14.859);
+    tl.fromTo("#act5-wI", { scale: 1.16, transformOrigin: "50% 55%" }, { scale: 1.04, duration: 0.38, ease: "expo.out" }, 14.859);
+    tl.to("#act5-wI", { scale: 1.12, duration: 1.813, ease: "sine.inOut" }, 15.239);
+    tl.fromTo("#act5-cI0", { opacity: 0, y: 46, scale: 0.94, transformOrigin: "0% 100%" }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "expo.out" }, 14.899);
+    tl.to("#act5-cI0", { opacity: 0, duration: 0.08 }, 16.952);
+    tl.fromTo("#act5-phj", { opacity: 0, y: 110, scale: 1.04, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, duration: 0.55, ease: "expo.out" }, 17.052);
+    tl.to("#act5-phj", { scale: 1.1, duration: 3.303, ease: "sine.inOut" }, 17.602);
+    up("#act5-j0", 17.102);
+    up("#act5-j1", 18.012, 60, 0.4);
+    up("#act5-j2", 18.362, 20, 0.4);
+    hide(["#act5-phj", "#act5-j0", "#act5-j1", "#act5-j2"], 20.905);
+    tl.fromTo("#act5-wK", { scale: 1.16, transformOrigin: "50% 50%" }, { scale: 1.04, duration: 0.38, ease: "expo.out" }, 20.905);
+    tl.to("#act5-wK", { scale: 1.1, duration: 1.626, ease: "sine.inOut" }, 21.285);
+    tl.fromTo("#act5-cK0", { opacity: 0, y: 46, scale: 0.94, transformOrigin: "0% 100%" }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "expo.out" }, 20.945);
+    tl.to("#act5-cK0", { opacity: 0, duration: 0.08 }, 22.811);
+    tl.fromTo("#act5-i1", { opacity: 0, x: -120 }, { opacity: 1, x: 0, duration: 0.4, ease: "expo.out" }, 22.951);
+    tl.fromTo("#act5-i2", { opacity: 0, x: -120 }, { opacity: 1, x: 0, duration: 0.4, ease: "expo.out" }, 23.702);
+    tl.fromTo("#act5-i3", { opacity: 0, x: -120 }, { opacity: 1, x: 0, duration: 0.4, ease: "expo.out" }, 24.632);
+    up("#act5-i0", 22.961, 20, 0.3);
+    hide(["#act5-i0", "#act5-i1", "#act5-i2", "#act5-i3"], 25.586);
+    tl.fromTo("#act5-phk", { opacity: 0, y: 110, scale: 1.1, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, duration: 0.55, ease: "expo.out" }, 25.586);
+    up("#act5-s0", 25.636, 40, 0.36);
+    dim("#act5-s0", 27.417, 0.32);
+    up("#act5-s1", 27.407, 40, 0.36);
+    dim("#act5-s1", 28.06, 0.32);
+    up("#act5-s2", 28.05, 40, 0.36);
+    hide(["#act5-phk", "#act5-s0", "#act5-s1", "#act5-s2"], 29.871);
+    up("#act5-t0", 29.921, 50, 0.34);
+    hide("#act5-t0", 30.678);
+    up("#act5-t1", 30.708, 50, 0.34);
+    hide("#act5-t1", 31.501);
+    up("#act5-t2", 31.531, 50, 0.34);
+    hide("#act5-t2", 32.894);
+    tl.fromTo("#act5-tkc", { opacity: 0, y: 140, scale: 0.96, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "expo.out" }, 29.871);
+    tl.fromTo("#act5-tap", { opacity: 0.95, scale: 0.35 }, { opacity: 0, scale: 2.2, duration: 0.6, ease: "power2.out", immediateRender: false }, 30.878);
+    tl.fromTo("#act5-fare", { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)", immediateRender: false }, 31.631);
+    hide("#act5-tkc", 32.974);
+    up("#act5-n18", 32.96);
+    up("#act5-n19", 34.414, 80, 0.45);
+    out(["#act5-n18", "#act5-n19"], 35.721);
+
+    window.__timelines["act5"] = tl;
+  </script>
+</template>
