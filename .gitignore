@@ -18,3 +18,6 @@ venv/
 # Secrets
 .env
 .env.*
+
+# Download cache of the data builders
+tools/cache/
