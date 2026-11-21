@@ -695,6 +695,8 @@
     .kj .jrow-act.gone { color: var(--ink-3); font-weight: 400; }
     .kj .jrow-act .badge { align-self: center; }
     .kj .actionbar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+    .kj .trip-log { margin-top: 6px; padding: 5px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+    #pricingPanel { padding: 12px 16px; }
     .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
     .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
     .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
@@ -1531,6 +1533,17 @@
       </div>
       <p class="set-foot">The events map shows what matches anything you turn on under About you or Events. With all of them off, you see every event.</p>
 
+      <h2 class="set-head" id="pricingHeading">Ticket pricing</h2>
+      <div class="set-group" role="group" aria-labelledby="pricingHeading">
+        <label class="set-row">
+          <span class="set-text"><b id="pricingToggleTitle">Trip history and fare estimates</b><small id="pricingToggleHelp">Save trips you explicitly log in this browser and use them to compare SBB tickets and travelcards.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="fareTracking" aria-labelledby="pricingToggleTitle" aria-describedby="pricingToggleHelp" />
+        </label>
+        <div id="pricingPanel" hidden><div id="pricingContent"></div></div>
+        <button class="set-reset" id="pricingClearPaused" type="button" hidden>Clear saved trips</button>
+        <p id="pricingStorageStatus" role="status" hidden></p>
+      </div>
+
       <div class="set-group set-gap">
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
       </div>
@@ -1638,6 +1651,7 @@
   <script src="community-programmes.js"></script>
   <script src="events.js"></script>
   <script src="map-layers.js"></script>
+  <script src="pricing-history.js"></script>
   <script src="settings.js"></script>
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
@@ -2002,6 +2016,7 @@
     SETTINGS.onChange(() => { updateCards(); updatePlaces(); vehUpdate(); });
     // Accessibility options changed during a journey → plan it again with them
     SETTINGS.onClose((journeyChanged) => {
+      if (journeyConn) renderFoot();
       if (journeyChanged && journeyDest) startJourney(journeyDest, true);
       else menuBtn.focus();
     });
@@ -5376,6 +5391,9 @@
         ticketLink(),
         kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
         h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
+      if (SETTINGS.prefs().fareTracking && journeySteps.some((step) => step.type === 'ride')) {
+        jFoot.append(kBtn('trip-log', null, confirmFareTrip, 'Log this trip'));
+      }
     }
     function renderSheet() {
       renderHead(true);
@@ -5428,6 +5446,27 @@
       renderSheet();
     }
     // Start: the sheet steps aside and the map shows where you are on the trip (GPS moves it along from there)
+    function confirmFareTrip() {
+      if (!journeyConn || !SETTINGS.prefs().fareTracking) return;
+      const rides = journeySteps.filter((step) => step.type === 'ride').map((step) => step.s);
+      if (!rides.length) return;
+      const result = PRICING_HISTORY.confirm({
+        from: rides[0].departure.station.name,
+        to: rides[rides.length - 1].arrival.station.name,
+        departure: rides[0].departure.departure,
+        rides: rides.map((ride) => [
+          lineLabel(ride.journey), ride.departure.station.name, ride.arrival.station.name,
+          ride.departure.departure,
+        ]),
+      });
+      const messages = {
+        saved: 'Trip saved to your pricing history',
+        duplicate: 'This trip is already in your pricing history',
+        unavailable: 'Could not save this trip in the browser',
+      };
+      showToast(messages[result]);
+    }
+
     function startFollowing() {
       setFollowing(true);
       if (!gpsOn() && window.isSecureContext && navigator.geolocation) {

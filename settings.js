@@ -31,6 +31,7 @@
     freeFood: false,
     women: false,
     adaptiveSport: false,
+    fareTracking: false,
   };
   const NORMAL_KMH = 4.7; // the timetable's walking times are taken as this pace
   const SPEED_PRESETS = [
@@ -215,6 +216,12 @@
     layerGroup.append(row);
   }
   const layerSwitches = [...layerGroup.querySelectorAll('input[data-layer]')];
+  const pricingPanel = document.getElementById('pricingPanel');
+  const pricingContent = document.getElementById('pricingContent');
+  const pricingClearPaused = document.getElementById('pricingClearPaused');
+  const pricingStorageStatus = document.getElementById('pricingStorageStatus');
+  let refreshPricing;
+  let pricingLoad;
   const switches = [...page.querySelectorAll('input[data-setting]')];
   const modeSwitches = [...page.querySelectorAll('input[data-mode]')];
   const slider = document.getElementById('speedSlider');
@@ -277,7 +284,32 @@
     update({ walkKmh: SPEED_PRESETS[Math.min(LAST, Math.max(0, to))].kmh });
   });
 
+  function renderPricing() {
+    pricingPanel.hidden = !state.fareTracking;
+    pricingClearPaused.hidden = state.fareTracking || !PRICING_HISTORY.list().length;
+    if (!state.fareTracking || !isOpen) return;
+    if (refreshPricing) {
+      refreshPricing();
+      return;
+    }
+    if (pricingLoad) return;
+    pricingLoad = import('./pricing-panel.js').then(({ mountPricing }) => {
+      refreshPricing = mountPricing(pricingContent, PRICING_HISTORY);
+    }).catch(() => {
+      pricingContent.textContent = 'Could not load ticket pricing. Reopen Settings to retry.';
+    }).finally(() => { pricingLoad = null; });
+  }
+
+  pricingClearPaused.addEventListener('click', () => {
+    if (!window.confirm('Clear all confirmed trips saved in this browser?')) return;
+    const cleared = PRICING_HISTORY.clear();
+    pricingStorageStatus.hidden = false;
+    pricingStorageStatus.textContent = cleared ? 'Trip history cleared.' : 'Could not clear trip history.';
+    renderPricing();
+  });
+
   function render() {
+    renderPricing();
     const eff = effective();
     for (const input of switches) {
       const k = input.dataset.setting;
