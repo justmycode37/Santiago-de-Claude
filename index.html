@@ -810,6 +810,18 @@
     /* "3D view": opens the station model (station3d.js) */
     .kj .view3d { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 8px 8px 2px 0; padding: 0 14px; border-radius: 18px; background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 700; }
     .kj .view3d:active { opacity: .7; }
+    /* AR camera (src/app/65-ar.ts): drawn over Scan's live view; no photo button */
+    .ar-mode .sv-top > .sv-btn:last-child { display: none; }
+    .ar-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+    .ar-box { position: absolute; border: 3px solid #fff; border-radius: 10px; box-shadow: 0 0 0 2px rgba(0,0,0,.45); }
+    .ar-box.ok { border-color: #2ecc71; }
+    .ar-box.warn { border-color: #ff9f1a; }
+    .ar-box > span { position: absolute; left: -3px; bottom: 100%; margin-bottom: 4px; max-width: 80vw; padding: 4px 8px; border-radius: 8px; background: rgba(0,0,0,.75); color: #fff; font: 700 14px/1.25 system-ui, sans-serif; }
+    .ar-box.ok > span { background: #1e8e4f; }
+    .ar-box.warn > span { background: #b86200; }
+    .ar-arrow { position: absolute; left: 50%; top: 24%; color: #fff; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); transform-origin: 50% 50%; }
+    .ar-arrow svg { width: 96px; height: 96px; display: block; }
+    .ar-info { position: absolute; left: 12px; right: 12px; top: calc(72px + env(safe-area-inset-top)); padding: 8px 12px; border-radius: 12px; background: rgba(0,0,0,.7); color: #fff; font: 700 15px/1.3 system-ui, sans-serif; text-align: center; }
     .pf-3d { display: inline-flex; align-items: center; gap: 6px; height: 36px; margin-top: 10px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--bar-text); color: var(--bar-bg); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
     .pf-3d:active { opacity: .7; }
     .kj .expander { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-top: 2px; font-size: 14px; font-weight: 700; }
@@ -1801,6 +1813,7 @@
   <script src="engine-journey.js"></script>
   <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
   <script src="live.js"></script>
+  <script src="arcore.js"></script>
   <script src="places.js"></script>
   <script src="walkroute.js" defer></script>
   <script src="stations3d/index.js"></script>
