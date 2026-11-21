@@ -1,0 +1,3118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#fcfcfc" />
+  <title>Maps</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script>
+    // Pick the theme before first paint: saved choice, else the system setting
+    (function () {
+      let saved = null;
+      try { saved = localStorage.getItem('theme'); } catch (e) {}
+      const sys = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = saved === 'dark' || saved === 'light' ? saved : sys;
+    })();
+  </script>
+  <style>
+    :root {
+      --bar-bg: #ffffff;
+      --bar-text: #1c1c1e;
+      --bar-secondary: #8e8e93;
+      --icon: #000000;
+      --pressed: #f2f2f7;
+      --clear-bg: #c7c7cc;
+      --page-bg: #fcfcfc;
+      --sheet-bg: #ffffff;
+      --row-bg: #f2f2f7;
+      --done: #34c759;
+      --glass: rgba(246,246,248,.82);
+      --card: #ffffff;
+      --hair: rgba(60,60,67,.12);
+      --shadow: 0 6px 24px rgba(0,0,0,.14), 0 1px 3px rgba(0,0,0,.08);
+      --user-blue: #0a84ff;
+      --pin-red: #ff3b30;
+      --spring: cubic-bezier(.32,.72,0,1);
+      --bounce: cubic-bezier(.34,1.45,.64,1);
+      color-scheme: light;
+    }
+    :root[data-theme="dark"] {
+      --bar-bg: #2c2c2e;
+      --bar-text: #ffffff;
+      --bar-secondary: #98989f;
+      --icon: #ffffff;
+      --pressed: #3a3a3c;
+      --clear-bg: #636366;
+      --page-bg: #1c1f24;
+      --sheet-bg: #1c1c1e;
+      --row-bg: #3a3a3c;
+      --done: #1f8a3b;
+      --glass: rgba(28,28,30,.78);
+      --card: rgba(58,58,60,.72);
+      --hair: rgba(255,255,255,.1);
+      --shadow: 0 6px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--page-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      overscroll-behavior: none;
+    }
+    #map { position: fixed; inset: 0; }
+    .maplibregl-control-container { display: none; }
+
+    /* Shared round floating button */
+    .fab {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--bar-bg);
+      box-shadow: var(--shadow);
+      display: grid;
+      place-items: center;
+      color: var(--icon);
+      cursor: pointer;
+      transition: background-color .3s ease, color .3s ease;
+    }
+    .fab:active { background: var(--pressed); }
+    .fab svg { width: 22px; height: 22px; grid-area: 1 / 1; }
+
+    /* Top-right menu: the dots button fans out into more buttons to its left */
+    .menu {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 12px);
+      right: 12px;
+      width: 44px;
+      height: 44px;
+      z-index: 20;
+    }
+    .menu .fab { position: absolute; top: 0; right: 0; }
+    .menu-item {
+      opacity: 0;
+      transform: translateX(0) scale(.4);
+      pointer-events: none;
+      transition: transform .5s var(--spring), opacity .2s ease, background-color .3s ease, color .3s ease;
+    }
+    .menu.open .menu-item { opacity: 1; pointer-events: auto; transition: transform .55s var(--bounce), opacity .25s ease, background-color .3s ease, color .3s ease; }
+    .menu.open .menu-item[data-slot="1"] { transform: translateX(-54px) scale(1); }
+    .menu.open .menu-item[data-slot="2"] { transform: translateX(-108px) scale(1); transition-delay: .04s; }
+    .menu.open .menu-item[data-slot="3"] { transform: translateX(-162px) scale(1); transition-delay: .08s; }
+    /* Toggled-on button (e.g. events shown) */
+    .fab.active { background: var(--user-blue); color: #fff; }
+    .fab.active:active { background: #0070e0; }
+    .menu-main { z-index: 1; }
+    .menu-main svg { transition: transform .4s var(--spring), opacity .2s ease; }
+    .menu-main .ic-close { opacity: 0; transform: rotate(-90deg) scale(.5); }
+    .menu.open .menu-main .ic-dots { opacity: 0; transform: rotate(90deg) scale(.5); }
+    .menu.open .menu-main .ic-close { opacity: 1; transform: none; }
+
+    /* Theme icon: moon in light mode (tap → dark), sun in dark mode (tap → light) */
+    .theme-btn svg { transition: transform .45s var(--spring), opacity .25s ease; }
+    .theme-btn .ic-sun { opacity: 0; transform: rotate(-90deg) scale(.5); }
+    :root[data-theme="dark"] .theme-btn .ic-moon { opacity: 0; transform: rotate(90deg) scale(.5); }
+    :root[data-theme="dark"] .theme-btn .ic-sun { opacity: 1; transform: none; }
+
+    /* Small status toast (e.g. location unavailable) */
+    .toast {
+      position: fixed;
+      left: 50%;
+      top: calc(env(safe-area-inset-top) + 68px);
+      transform: translate(-50%, -8px);
+      max-width: calc(100% - 32px);
+      padding: 10px 16px;
+      border-radius: 18px;
+      background: var(--bar-bg);
+      color: var(--bar-text);
+      box-shadow: var(--shadow);
+      font-size: 14px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease, transform .35s var(--spring);
+      z-index: 30;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Bottom search area (bar + results) */
+    .search-wrap {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(env(safe-area-inset-bottom) + 12px);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none; /* only the bar/list catch taps, so the map stays draggable beside the circle */
+    }
+    .search-wrap > * { pointer-events: auto; }
+
+    .results {
+      display: none;
+      max-height: 50vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      background: var(--bar-bg);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      list-style: none;
+      margin: 0;
+      padding: 4px 0;
+    }
+    .results.open { display: block; }
+    .results::-webkit-scrollbar { display: none; }
+    .results li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+    .results li.more {
+      justify-content: center;
+      color: var(--bar-secondary);
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .results li .text { flex: 1; min-width: 0; padding: 2px 0; }
+    .results li:active { background: var(--pressed); }
+    .results .icon {
+      flex: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--pin-red);
+    }
+    .results .icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .results .title,
+    .results .subtitle {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
+    .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
+    .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
+
+    .search {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      margin-left: auto;
+      padding: 0 8px 0 16px;
+      background: var(--bar-bg);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: width .45s var(--spring), padding .45s var(--spring), gap .45s var(--spring), background-color .3s ease;
+    }
+    .search input, .search .clear { transition: opacity .2s ease; }
+
+    /* Collapsed: the bar morphs into a circle in the bottom-right corner */
+    .search-wrap.collapsed .search {
+      width: 52px;
+      gap: 0;
+      padding: 0 0 0 16.5px; /* (52 - 19) / 2 keeps the magnifier centred */
+      cursor: pointer;
+    }
+    .search-wrap.collapsed .search input,
+    .search-wrap.collapsed .search .clear { opacity: 0; pointer-events: none; }
+    .search-wrap.collapsed .search .clear { display: none; }
+    .search-wrap.collapsed .results { display: none; }
+
+    /* ===== Journey (Apple Maps–style) ===== */
+    .glass {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      backdrop-filter: blur(28px) saturate(180%);
+    }
+
+    /* Top pill: depart · slim progress line · arrive */
+    .j-pill {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      top: calc(env(safe-area-inset-top) + 10px);
+      z-index: 15;
+      height: 54px;
+      display: none;
+      align-items: center;
+      gap: 2px;
+      padding: 0 6px;
+      color: var(--bar-text);
+      border-radius: 27px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 .5px var(--hair);
+    }
+    body.journey-mode .j-pill { display: flex; animation: pill-in .55s var(--spring) both; }
+    @keyframes pill-in { from { transform: translateY(-130%); } to { transform: none; } }
+    body.journey-mode .menu { top: calc(env(safe-area-inset-top) + 76px); }
+    .menu { transition: top .45s var(--spring); }
+    .j-time {
+      flex: none;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      padding: 5px 10px;
+      border-radius: 18px;
+      cursor: pointer;
+      text-align: left;
+      line-height: 1.1;
+    }
+    #jArrBtn { text-align: right; }
+    .j-time:active { background: var(--pressed); }
+    .j-time small { display: block; font-size: 11px; font-weight: 500; color: var(--bar-secondary); }
+    .j-time b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+    .j-bar { flex: 1; min-width: 0; position: relative; height: 40px; margin: 0 2px; color: var(--bar-text); cursor: pointer; }
+    .j-bar svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .j-bar text { font-size: 10.5px; font-weight: 700; letter-spacing: .01em; }
+    .j-bar-start { fill: none; }
+    .j-bar-now { stroke: var(--bar-bg); }
+    /* journey position on the map */
+    .route-now { width: 18px; height: 18px; }
+    .route-now::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; background: rgba(52,199,89,.28); animation: pulse 2s ease-out infinite; }
+    .route-now::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #34c759; border: 3px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.35); }
+
+    /* Bottom sheet: the search bar grows into it */
+    .journey {
+      display: none;
+      flex-direction: column;
+      color: var(--bar-text);
+      border-radius: 28px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.22), 0 0 0 .5px var(--hair);
+      overflow: hidden;
+    }
+    .search-wrap.journey-open .search,
+    .search-wrap.journey-open .results { display: none; }
+    .search-wrap.journey-open .journey { display: flex; animation: j-grow .6s var(--spring) both; }
+    .journey > * { animation: j-fade .35s ease .18s both; }
+    @keyframes j-grow {
+      from { max-height: 52px; border-radius: 26px; }
+      to   { max-height: 620px; border-radius: 28px; }
+    }
+    @keyframes j-fade {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .j-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--bar-secondary); opacity: .35; margin: 7px auto 0; }
+    .j-head { display: flex; align-items: flex-start; gap: 12px; padding: 8px 14px 0 20px; }
+    .j-dest { flex: 1; min-width: 0; }
+    .j-dest b { display: block; font-size: 24px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .j-dest span { display: block; margin-top: 1px; font-size: 15px; color: var(--bar-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .j-close {
+      flex: none;
+      width: 30px;
+      height: 30px;
+      margin-top: 2px;
+      border: 0;
+      padding: 0;
+      border-radius: 50%;
+      background: var(--hair);
+      color: var(--bar-secondary);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .j-close svg { width: 11px; height: 11px; }
+
+    /* Route summary: walk › M15 › M13 › pin */
+    .j-strip { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 10px 20px 12px; scrollbar-width: none; }
+    .j-strip::-webkit-scrollbar { display: none; }
+    .j-chev { flex: none; color: var(--bar-secondary); opacity: .6; font-size: 15px; font-weight: 600; }
+    .j-chip {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px 2px;
+      border: 0;
+      background: transparent;
+      color: var(--bar-secondary);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      opacity: .75;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .j-chip svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .j-chip.active { opacity: 1; color: var(--bar-text); transform: scale(1.06); }
+    .j-chip .j-badge { font-size: 13px; }
+
+    /* Card carousel: one step at a time, swiped sideways */
+    .j-viewport { margin: 0 12px; overflow: hidden; touch-action: pan-y; cursor: grab; }
+    .j-viewport:active { cursor: grabbing; }
+    .j-track { display: flex; transition: transform .42s var(--spring); will-change: transform; }
+    .j-track.dragging { transition: none; }
+    .j-slide { flex: 0 0 100%; min-width: 0; padding: 0 4px; }
+    .j-card {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px;
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: 0 1px 2px rgba(0,0,0,.06);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .j-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .j-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+    .j-ico svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .j-ico.line { background: var(--lc); color: var(--lf); }
+    :root[data-theme="dark"] .j-ico.line { background: var(--ldf); color: var(--ldc); }
+    .j-txt { flex: 1; min-width: 0; }
+    .j-title { font-size: 18px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; }
+    .j-subtitle { margin-top: 3px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 14px; color: var(--bar-secondary); }
+    .j-step { font-size: 12px; font-weight: 500; color: var(--bar-secondary); align-self: flex-start; white-space: nowrap; }
+    .j-metrics { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; padding-left: 52px; }
+    .j-metrics.one { grid-template-columns: 1fr; }
+    .j-metric .k { font-size: 12px; font-weight: 500; color: var(--bar-secondary); }
+    .j-metric .v { margin-top: 1px; font-size: 30px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .j-metric .v small { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--bar-secondary); }
+    .j-foot { padding-left: 52px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; color: var(--bar-secondary); margin-top: auto; min-width: 0; }
+    .j-foot b { color: var(--bar-text); font-weight: 600; }
+    .j-foot.after { margin-top: -6px; }
+    .j-tag { max-width: 100%; min-width: 0; }
+    .j-tag > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .j-tag svg { flex: none; }
+    .j-dots { display: flex; justify-content: center; gap: 7px; padding: 12px 0 14px; }
+    .j-dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: var(--bar-text); opacity: .25; cursor: pointer; transition: opacity .2s ease, transform .2s ease; }
+    .j-dot.active { opacity: 1; transform: scale(1.15); }
+
+    /* Destination: an ink pin with a yellow dot (as in the Kante app) */
+    .dest-pin { width: 26px; height: 34px; filter: drop-shadow(0 1.5px 2px rgba(8,10,14,.4)); cursor: default; }
+    .dest-pin svg { display: block; width: 26px; height: 34px; }
+    .dest-pin path { fill: #14161A; }
+    .dest-pin circle { fill: #FFD23F; }
+    :root[data-theme="dark"] .dest-pin path { fill: #F2F3F5; }
+    :root[data-theme="dark"] .dest-pin circle { fill: #14161A; }
+    .j-badge {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      justify-content: center;
+      min-width: 22px;
+      border-radius: 5px;
+      background: var(--lc, #8e8e93);
+      color: var(--lf, #fff);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    :root[data-theme="dark"] .j-badge { background: var(--ldc, #3a3a3c); color: var(--ldf, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ldf, #fff) 45%, transparent); }
+    .j-tag.plain { background: var(--hair); color: var(--bar-text); }
+    .j-tag.strong { background: var(--bar-text); color: var(--bar-bg); }
+    .j-delay { color: #ff3b30; font-size: 15px; font-weight: 600; margin-left: 5px; letter-spacing: 0; }
+
+    /* Tapped platform: name + next departures from exactly that platform / stop edge */
+    .pf-pop .maplibregl-popup-tip { display: none; }
+    .pf-pop .maplibregl-popup-content {
+      width: min(280px, calc(100vw - 32px));
+      padding: 12px 14px 10px;
+      border-radius: 16px;
+      background: var(--bar-bg);
+      color: var(--bar-text);
+      box-shadow: var(--shadow);
+      font: inherit;
+      font-size: 14px;
+    }
+    .pf-head { display: flex; align-items: center; gap: 10px; }
+    .pf-dot { flex: none; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 15px; display: grid; place-items: center; background: #fff; color: #3a3a3c; box-shadow: 0 0 0 1px rgba(0,0,0,.18); font-size: 15px; font-weight: 700; }
+    .pf-name { min-width: 0; }
+    .pf-name b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pf-name small { display: block; font-size: 13px; color: var(--bar-secondary); }
+    .pf-note { margin: 8px 0 0; font-size: 13px; color: var(--bar-secondary); }
+    .pf-note:empty { display: none; }
+    .pf-list { list-style: none; margin: 8px 0 0; padding: 0; }
+    .pf-list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--hair); }
+    .pf-list time { flex: none; width: 42px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pf-to { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pf-list .j-delay { margin-left: 0; font-size: 13px; }
+    .j-tag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+    .j-tag svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .j-tag.warn { background: rgba(255,149,0,.16); color: #ff9500; }
+    .j-tag.ok { background: rgba(52,199,89,.16); color: #34c759; }
+    .j-status:empty { display: none; }
+    .j-status { padding: 8px 20px 22px; font-size: 15px; color: var(--bar-secondary); }
+
+    /* Time picker sheet */
+    .t-dim { position: fixed; inset: 0; z-index: 49; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+    .t-dim.open { opacity: 1; pointer-events: auto; }
+    .t-sheet {
+      position: fixed;
+      left: 8px;
+      right: 8px;
+      bottom: calc(env(safe-area-inset-bottom) + 8px);
+      z-index: 50;
+      padding: 10px 18px 18px;
+      border-radius: 28px;
+      background: var(--sheet-bg);
+      color: var(--bar-text);
+      box-shadow: var(--shadow);
+      transform: translateY(130%);
+      transition: transform .45s var(--spring), background-color .3s ease;
+    }
+    .t-sheet.open { transform: none; }
+    .t-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--clear-bg); margin: 0 auto 14px; }
+    .t-title { font-size: 20px; font-weight: 800; margin-bottom: 14px; }
+    .t-seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; margin-bottom: 14px; border-radius: 12px; background: var(--row-bg); }
+    .t-seg button { border: 0; padding: 9px; border-radius: 10px; background: transparent; color: var(--bar-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .t-seg button.active { background: var(--bar-bg); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+    .t-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 7px 8px 7px 14px; border-radius: 12px; background: var(--row-bg); font-size: 16px; }
+    .t-field input { font: inherit; font-size: 17px; font-weight: 600; border: 0; border-radius: 8px; padding: 6px 10px; background: var(--bar-bg); color: var(--bar-text); }
+    .t-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 14px; }
+    .t-btn { height: 50px; border: 0; border-radius: 14px; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+    .t-btn.primary { background: var(--user-blue); color: #fff; }
+    .t-btn.secondary { background: var(--row-bg); color: var(--bar-text); }
+    .j-status:empty { display: none; }
+    .j-status { padding: 6px 16px 22px; font-size: 15px; color: var(--bar-secondary); }
+    .search > svg { flex: none; width: 19px; height: 19px; color: var(--icon); }
+    .search input {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      font: inherit;
+      font-size: 17px; /* ≥16px avoids iOS zoom on focus */
+      color: var(--bar-text);
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .search input::placeholder { color: var(--bar-secondary); }
+    .search input::-webkit-search-cancel-button { display: none; }
+    .clear {
+      flex: none;
+      display: none;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      place-items: center;
+      cursor: pointer;
+    }
+    .clear.show { display: grid; }
+    .clear span {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--clear-bg);
+      display: grid;
+      place-items: center;
+    }
+    .clear svg { width: 8px; height: 8px; color: var(--bar-bg); }
+
+    /* User location: accuracy halo + blue dot (no `position` on these: MapLibre's marker class keeps position:absolute) */
+    /* Event cards floating over their location */
+    .ev-card {
+      width: 124px;
+      padding-bottom: 10px; /* room for the tail, whose tip sits exactly on the event's location */
+      cursor: pointer;
+    }
+    .ev-inner {
+      position: relative;
+      background: var(--bar-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      transform-origin: 50% 100%;
+      animation: ev-in .4s var(--bounce) both;
+      transition: background-color .3s ease;
+    }
+    .ev-inner::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -7px;
+      width: 14px;
+      height: 14px;
+      background: inherit;
+      border-radius: 0 0 3px 0;
+      transform: translateX(-50%) rotate(45deg);
+      box-shadow: 3px 3px 6px rgba(0,0,0,.08);
+    }
+    .ev-card { width: 150px; }
+    .ev-inner { isolation: isolate; }
+    .ev-body {
+      display: grid; grid-template-rows: 2fr 1fr; height: 186px; width: 100%; padding: 0; border: 0; border-radius: 16px;
+      overflow: hidden; text-align: left; font: inherit; background: var(--bar-bg);
+      color: var(--bar-text); cursor: pointer;
+    }
+    .ev-body.no-photo { display: block; height: auto; }
+    .ev-body.no-photo img { display: none; }
+    .ev-body img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+    .ev-caption { display: block; min-height: 0; padding: 6px 9px; overflow: hidden; }
+    .ev-caption strong, .ev-caption small {
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    }
+    .ev-caption strong { font-size: 13px; line-height: 1.2; }
+    .ev-caption small { margin-top: 3px; font-size: 11px; line-height: 1.25; -webkit-line-clamp: 1; }
+    .ev-related { display: block; margin: 0 0 20px; }
+    .ev-related[hidden] { display: none; }
+    .ev-related select { display: block; width: 100%; margin-top: 6px; font: inherit; }
+    @keyframes ev-in {
+      from { transform: scale(.5); opacity: 0; }
+      to   { transform: none; opacity: 1; }
+    }
+
+    /* Event detail page: slides up over the map */
+    .ev-page {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: var(--sheet-bg);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      transform: translateY(100%);
+      visibility: hidden;
+      transition: transform .5s var(--spring), visibility 0s linear .5s, background-color .3s ease;
+    }
+    .ev-page::-webkit-scrollbar { display: none; }
+    .ev-page.open { transform: none; visibility: visible; transition: transform .5s var(--spring), visibility 0s, background-color .3s ease; }
+    .ev-hero {
+      position: relative;
+      height: calc(env(safe-area-inset-top) + 260px);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: linear-gradient(140deg, var(--c), color-mix(in srgb, var(--c) 55%, #000));
+    }
+    .ev-hero::before, .ev-hero::after { content: ""; position: absolute; border-radius: 50%; background: rgba(255,255,255,.13); }
+    .ev-hero::before { width: 260px; height: 260px; right: -80px; top: -90px; }
+    .ev-hero::after  { width: 150px; height: 150px; left: -40px; bottom: -60px; }
+    .ev-hero > svg { position: relative; width: 84px; height: 84px; fill: none; stroke: rgba(255,255,255,.95); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; margin-top: env(safe-area-inset-top); }
+    .ev-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .ev-back { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 12px; z-index: 1; }
+    .ev-content { padding: 20px 20px calc(env(safe-area-inset-bottom) + 28px); color: var(--bar-text); }
+    .ev-cat { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--c); }
+    .ev-content h1 { margin: 6px 0 18px; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
+    .ev-rows { background: var(--row-bg); border-radius: 14px; padding: 4px 14px; margin-bottom: 24px; }
+    .ev-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; font-size: 16px; }
+    .ev-row svg { flex: none; width: 22px; height: 22px; fill: none; stroke: var(--icon); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .ev-row small { display: block; font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
+    .ev-content h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; }
+    .ev-content p { margin: 0 0 22px; font-size: 16px; line-height: 1.45; color: var(--bar-text); }
+    .ev-map-btn {
+      width: 100%;
+      height: 52px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--user-blue);
+      color: #fff;
+      font: inherit;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    /* Settings: a page of its own (URL #settings) with grouped rows and switches, like iOS Settings */
+    .set-page {
+      --sp-bg: #f2f2f7;
+      --sp-card: #ffffff;
+      --sp-fill: rgba(120,120,128,.16);
+      --sp-off: rgba(120,120,128,.16);
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      background: var(--sp-bg);
+      color: var(--bar-text);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: calc(env(safe-area-inset-top) + 10px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 40px) max(16px, env(safe-area-inset-left));
+      transform: translateY(100%);
+      visibility: hidden;
+      transition: transform .5s var(--spring), visibility 0s linear .5s;
+    }
+    :root[data-theme="dark"] .set-page { --sp-bg: #000000; --sp-card: #1c1c1e; --sp-fill: rgba(120,120,128,.24); --sp-off: rgba(120,120,128,.32); }
+    .set-page::-webkit-scrollbar { display: none; }
+    .set-page.open { transform: none; visibility: visible; transition: transform .5s var(--spring), visibility 0s; }
+    .set-inner { max-width: 600px; margin: 0 auto; }
+    .set-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; margin-bottom: 8px; }
+    .set-top h1 { margin: 0; font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: .01em; }
+    .set-close {
+      position: relative;
+      flex: none;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--sp-fill);
+      color: var(--bar-secondary);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .set-close::after { content: ""; position: absolute; inset: -4px; } /* 44 px tap target */
+    .set-close:active { opacity: .55; }
+    .set-close svg { width: 14px; height: 14px; }
+    .set-head { margin: 28px 16px 8px; font-size: 13px; font-weight: 400; letter-spacing: .02em; text-transform: uppercase; color: var(--bar-secondary); }
+    .set-group { background: var(--sp-card); border-radius: 20px; padding: 4px 0; }
+    .set-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 16px; cursor: pointer; }
+    .set-row:has(.switch:disabled) { cursor: default; }
+    .set-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--c); display: grid; place-items: center; }
+    .set-ic svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+    .set-text { flex: 1; min-width: 0; }
+    .set-text b { display: block; font-size: 17px; line-height: 1.25; font-weight: 400; }
+    .set-text small { display: block; margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--bar-secondary); }
+    .set-foot { margin: 8px 16px 0; font-size: 13px; line-height: 1.4; color: var(--bar-secondary); }
+    /* iOS-style switch */
+    .switch {
+      appearance: none;
+      -webkit-appearance: none;
+      position: relative;
+      flex: none;
+      width: 51px;
+      height: 31px;
+      margin: 0;
+      border-radius: 16px;
+      background: var(--sp-off);
+      cursor: pointer;
+      transition: background-color .25s ease, opacity .2s ease;
+    }
+    .switch::before {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 27px;
+      height: 27px;
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16);
+      transition: transform .3s var(--spring), width .2s ease;
+    }
+    .switch:checked { background: #34c759; }
+    .switch:checked::before { transform: translateX(20px); }
+    .switch:active:not(:disabled)::before { width: 33px; }
+    .switch:checked:active:not(:disabled)::before { transform: translateX(14px); }
+    .switch:disabled { opacity: .5; cursor: default; }
+    .switch:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
+    /* Walking speed: Apple-style slider from Slow to Fast with five stops it snaps to */
+    .set-pad { padding: 16px; }
+    .set-gap { margin-top: 32px; }
+    .set-page { --sp-rail: #d1d1d6; }
+    :root[data-theme="dark"] .set-page { --sp-rail: #3a3a3c; }
+    .set-speed { font-size: 17px; line-height: 22px; font-weight: 600; }
+    .set-slider { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+    .set-end { flex: none; font-size: 15px; color: var(--bar-secondary); }
+    /* A pill as tall as the knob, like the switches. --f (0–1) is the knob's place; the knob and the
+       five stop dots ride on the pill's centre line, from h/2 to (width − h/2). */
+    .set-track { --f: .5; --h: 31px; position: relative; flex: 1; min-width: 0; height: 44px; touch-action: none; cursor: pointer; outline: none; -webkit-user-select: none; user-select: none; }
+    .set-track::before, .set-fill { content: ""; position: absolute; left: 0; top: 50%; height: var(--h); margin-top: calc(var(--h) / -2); border-radius: calc(var(--h) / 2); }
+    .set-track::before { right: 0; background: var(--sp-rail); }
+    .set-fill { width: calc(var(--h) + (100% - var(--h)) * var(--f)); background: var(--user-blue); }
+    .set-dot { position: absolute; top: 50%; left: calc(var(--h) / 2 + (100% - var(--h)) * var(--d)); width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff; }
+    .set-thumb {
+      position: absolute;
+      top: 50%;
+      left: calc(var(--h) / 2 + (100% - var(--h)) * var(--f));
+      width: 27px;
+      height: 27px;
+      margin: -13.5px 0 0 -13.5px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16);
+      transition: transform .2s var(--spring);
+    }
+    .set-track.snap .set-thumb { transition: left .35s var(--spring), transform .2s var(--spring); }
+    .set-track.snap .set-fill { transition: width .35s var(--spring); }
+    .set-track.dragging .set-thumb { transform: scale(1.08); }
+    .set-track:focus-visible .set-thumb { outline: 2px solid var(--user-blue); outline-offset: 2px; }
+    .set-stepper button:focus-visible, .set-reset:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 1px; }
+    /* − / + stepper */
+    .set-stepper { flex: none; display: flex; border-radius: 10px; background: var(--sp-fill); }
+    .set-stepper button { width: 48px; height: 34px; padding: 0; border: 0; background: transparent; color: var(--bar-text); display: grid; place-items: center; cursor: pointer; }
+    .set-stepper button:first-child { border-radius: 10px 0 0 10px; }
+    .set-stepper button:last-child { border-radius: 0 10px 10px 0; }
+    .set-stepper button:active:not(:disabled) { background: var(--sp-fill); }
+    .set-stepper button:disabled { opacity: .3; cursor: default; }
+    .set-stepper svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+    .set-reset { width: 100%; min-height: 52px; padding: 0 16px; border: 0; background: transparent; color: var(--user-blue); font: inherit; font-size: 17px; text-align: left; cursor: pointer; border-radius: 20px; }
+    .set-reset:active { opacity: .55; }
+    @media (prefers-reduced-motion: reduce) {
+      .set-page, .switch, .switch::before, .set-thumb, .set-fill { transition: none !important; }
+    }
+    #evOrganizer { text-decoration: none; display: grid; place-items: center; margin-bottom: 10px; }
+    .ev-map-btn:active { background: #0070e0; }
+
+    .user-accuracy {
+      border-radius: 50%;
+      background: rgba(10,132,255,.12);
+      border: 1px solid rgba(10,132,255,.25);
+      pointer-events: none;
+      transition: width .4s ease, height .4s ease;
+    }
+    .user-dot {
+      width: 22px;
+      height: 22px;
+    }
+    .user-dot::before {
+      content: "";
+      position: absolute;
+      inset: -14px;
+      border-radius: 50%;
+      background: rgba(10,132,255,.22);
+      animation: pulse 2.4s ease-out infinite;
+    }
+    .user-dot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--user-blue);
+      border: 3.5px solid #fff;
+      box-shadow: 0 1px 5px rgba(0,0,0,.3);
+    }
+    @keyframes pulse {
+      0%   { transform: scale(.4); opacity: 1; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="menu" id="menu">
+    <button class="fab menu-item theme-btn" id="themeBtn" data-slot="3" type="button" aria-label="Toggle dark mode" tabindex="-1">
+      <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11.73 3.51A8.5 8.5 0 1 0 20.49 12.27A6.5 6.5 0 0 1 11.73 3.51Z" />
+      </svg>
+      <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="5.2" />
+        <path d="M12 2v1.4M12 20.6V22M2 12h1.4M20.6 12H22M4.93 4.93l1 1M18.07 18.07l1 1M4.93 19.07l1-1M18.07 5.93l1-1" />
+      </svg>
+    </button>
+    <button class="fab menu-item" id="eventsBtn" data-slot="1" type="button" aria-label="Events" aria-pressed="false" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+        <path d="M3.5 10h17M8 3v4M16 3v4" />
+        <path d="M8 14.5h.01M12 14.5h.01M16 14.5h.01" stroke-width="3.2" />
+      </svg>
+    </button>
+    <button class="fab menu-item" id="settingsBtn" data-slot="2" type="button" aria-label="Settings" aria-haspopup="dialog" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    </button>
+    <button class="fab menu-main" id="menuBtn" type="button" aria-label="More" aria-expanded="false">
+      <svg class="ic-dots" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <circle cx="4.8" cy="12" r="2.4" />
+        <circle cx="12" cy="12" r="2.4" />
+        <circle cx="19.2" cy="12" r="2.4" />
+      </svg>
+      <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <div class="j-pill glass" id="jPill">
+    <button class="j-time" id="jDepBtn" type="button" aria-label="Change departure time"><small>Depart</small><b id="jDep">--:--</b></button>
+    <div class="j-bar" id="jBar"></div>
+    <button class="j-time" id="jArrBtn" type="button" aria-label="Change arrival time"><small>Arrive</small><b id="jArr">--:--</b></button>
+  </div>
+
+  <div class="t-dim" id="tDim"></div>
+  <div class="t-sheet" id="tSheet" role="dialog" aria-label="Choose time" aria-hidden="true">
+    <div class="t-grab"></div>
+    <div class="t-title">When do you want to travel?</div>
+    <div class="t-seg" id="tSeg">
+      <button type="button" data-mode="dep">Depart at</button>
+      <button type="button" data-mode="arr">Arrive by</button>
+    </div>
+    <label class="t-field"><span>Date</span><input type="date" id="tDate" /></label>
+    <label class="t-field"><span>Time</span><input type="time" id="tTime" /></label>
+    <div class="t-actions">
+      <button class="t-btn secondary" id="tNow" type="button">Now</button>
+      <button class="t-btn primary" id="tDone" type="button">Search</button>
+    </div>
+  </div>
+
+  <section class="set-page" id="settingsPage" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true">
+    <div class="set-inner">
+      <header class="set-top">
+        <h1 id="settingsTitle">Settings</h1>
+        <button class="set-close" id="settingsClose" type="button" aria-label="Close settings">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" /></svg>
+        </button>
+      </header>
+
+      <h2 class="set-head" id="setAccessHead">Accessibility</h2>
+      <div class="set-group" role="group" aria-labelledby="setAccessHead">
+        <label class="set-row">
+          <span class="set-ic" style="--c:#30b0c7" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18.5h18V9.5z" /></svg></span>
+          <span class="set-text"><b id="setStepFreeT">Step-free</b><small id="setStepFreeD">No stairs and no escalators, for wheelchairs, pushchairs and heavy luggage.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="stepFree" aria-labelledby="setStepFreeT" aria-describedby="setStepFreeD" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#a2845e" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h5v-5h5v-5h5V5" /></svg></span>
+          <span class="set-text"><b id="setStairsT">Fewer stairs</b><small id="setStairsD">Take a lift or ramp when the detour is small.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="fewerStairs" aria-labelledby="setStairsT" aria-describedby="setStairsD" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#8e8e93" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 15.5h4.5L15 7h6M3 20h6.5L17 11.5h4" /></svg></span>
+          <span class="set-text"><b id="setEscT">No escalators</b></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="noEscalators" aria-labelledby="setEscT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#007aff" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10" cy="4.5" r="1.7" fill="#fff" stroke="none" /><path d="M10 8v6h5.5l2.5 5M10 10.8h4.5M7.3 12.2a5 5 0 1 0 5.9 7" /></svg></span>
+          <span class="set-text"><b id="setWheelT">Wheelchair accessible</b><small id="setWheelD">Also avoids paths marked unsuitable and barriers a wheelchair can’t pass.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="wheelchair" aria-labelledby="setWheelT" aria-describedby="setWheelD" />
+        </label>
+      </div>
+      <p class="set-foot">Stairs, lifts and ramps come from OpenStreetMap and may be incomplete. Step-free journeys get at least 7 minutes at every change, wheelchair journeys 10. The timetable doesn’t say which trains and buses have step-free boarding, so check with the operator when it matters.</p>
+
+      <h2 class="set-head" id="setSpeedHead">Walking speed</h2>
+      <div class="set-group set-pad" role="group" aria-labelledby="setSpeedHead">
+        <div class="set-speed" id="speedName" aria-hidden="true">Normal</div>
+        <div class="set-slider">
+          <span class="set-end" aria-hidden="true">Slow</span>
+          <div class="set-track" id="speedSlider" role="slider" tabindex="0" aria-labelledby="setSpeedHead" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2" aria-valuetext="Normal">
+            <span class="set-fill"></span>
+            <span class="set-dot" style="--d:0"></span>
+            <span class="set-dot" style="--d:.25"></span>
+            <span class="set-dot" style="--d:.5"></span>
+            <span class="set-dot" style="--d:.75"></span>
+            <span class="set-dot" style="--d:1"></span>
+            <span class="set-thumb"></span>
+          </div>
+          <span class="set-end" aria-hidden="true">Fast</span>
+        </div>
+      </div>
+      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible.</p>
+
+      <h2 class="set-head" id="setChangeHead">Changes and walking</h2>
+      <div class="set-group" role="group" aria-labelledby="setChangeHead">
+        <div class="set-row">
+          <span class="set-ic" style="--c:#ff9500" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg></span>
+          <span class="set-text"><b id="setMarginT">Extra change time</b><small id="extraChangeMinVal" aria-live="polite">2 min</small></span>
+          <span class="set-stepper" role="group" aria-labelledby="setMarginT">
+            <button type="button" data-stepper="extraChangeMin" data-dir="-1" aria-label="Less extra change time"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg></button>
+            <button type="button" data-stepper="extraChangeMin" data-dir="1" aria-label="More extra change time"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10" /></svg></button>
+          </span>
+        </div>
+        <div class="set-row">
+          <span class="set-ic" style="--c:#34c759" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="13" cy="4" r="1.8" /><path d="M12.5 8L10 13.5l3.5 3V21M10 13.5L7 21M12.5 8l3 3.5 3 .5M12.5 8L9 9.5 7.5 12.5" /></svg></span>
+          <span class="set-text"><b id="setMaxWalkT">Maximum walk</b><small id="maxWalkMinVal" aria-live="polite">20 min</small></span>
+          <span class="set-stepper" role="group" aria-labelledby="setMaxWalkT">
+            <button type="button" data-stepper="maxWalkMin" data-dir="-1" aria-label="Shorter maximum walk"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg></button>
+            <button type="button" data-stepper="maxWalkMin" data-dir="1" aria-label="Longer maximum walk"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10" /></svg></button>
+          </span>
+        </div>
+      </div>
+      <p class="set-foot">Extra change time is added to the walking time at every change. Maximum walk is the longest single walk to, from or between stops.</p>
+
+      <h2 class="set-head" id="setModesHead">Transport types</h2>
+      <div class="set-group" role="group" aria-labelledby="setModesHead">
+        <label class="set-row">
+          <span class="set-ic" style="--c:#ff3b30" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3" /><path d="M5 10h14M8.5 21l2-4M15.5 21l-2-4M9 13.5h.01M15 13.5h.01" /></svg></span>
+          <span class="set-text"><b id="setTrainT">Train</b></span>
+          <input class="switch" type="checkbox" role="switch" data-mode="train" aria-labelledby="setTrainT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#ff9500" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="6" width="14" height="12" rx="2.5" /><path d="M5 12h14M12 6V3M8.5 3h7M9 21l1.5-3M15 21l-1.5-3" /></svg></span>
+          <span class="set-text"><b id="setTramT">Tram</b></span>
+          <input class="switch" type="checkbox" role="switch" data-mode="tram" aria-labelledby="setTramT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#007aff" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="14" rx="2.5" /><path d="M4 11h16M7.5 18v2.5M16.5 18v2.5M7.5 14.5h.01M16.5 14.5h.01" /></svg></span>
+          <span class="set-text"><b id="setBusT">Bus</b></span>
+          <input class="switch" type="checkbox" role="switch" data-mode="bus" aria-labelledby="setBusT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#30b0c7" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0M5 14.5L4 10h16l-1 4.5M8 10V6.5h8V10M12 6.5V3.5" /></svg></span>
+          <span class="set-text"><b id="setBoatT">Boat</b></span>
+          <input class="switch" type="checkbox" role="switch" data-mode="ship" aria-labelledby="setBoatT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#af52de" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4l18 4M12 6v4" /><rect x="5" y="10" width="14" height="10" rx="2.5" /><path d="M5 15h14" /></svg></span>
+          <span class="set-text"><b id="setCableT">Cable car &amp; funicular</b></span>
+          <input class="switch" type="checkbox" role="switch" data-mode="cableway" aria-labelledby="setCableT" />
+        </label>
+      </div>
+
+      <h2 class="set-head" id="setYouHead">About you</h2>
+      <div class="set-group" role="group" aria-labelledby="setYouHead">
+        <label class="set-row">
+          <span class="set-ic" style="--c:#5856d6" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg></span>
+          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Still learning the language? See newcomer meetups, language cafés and courses.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="newcomer" aria-labelledby="setNewcomerT" aria-describedby="setNewcomerD" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#af52de" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg></span>
+          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">See events and groups for blind and low-vision people.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="lowVision" aria-labelledby="setVisionT" aria-describedby="setVisionD" />
+        </label>
+      </div>
+
+      <h2 class="set-head" id="setEventsHead">Events</h2>
+      <div class="set-group" role="group" aria-labelledby="setEventsHead">
+        <label class="set-row">
+          <span class="set-ic" style="--c:#ff9500" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M16 21V3c-2 1.5-3 4-3 7h3" /></svg></span>
+          <span class="set-text"><b id="setFoodT">Free food</b></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="freeFood" aria-labelledby="setFoodT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#ff2d55" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="3.5" /><path d="M5 20.5a7 7 0 0 1 14 0" /></svg></span>
+          <span class="set-text"><b id="setWomenT">Women’s groups</b></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="women" aria-labelledby="setWomenT" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:#34c759" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 8l3.8 2.8-1.5 4.5H9.7L8.2 10.8z" /></svg></span>
+          <span class="set-text"><b id="setSportT">Adaptive sport</b></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="adaptiveSport" aria-labelledby="setSportT" />
+        </label>
+      </div>
+      <p class="set-foot">The events map shows what matches anything you turn on under About you or Events. With all of them off, you see every event.</p>
+
+      <div class="set-group set-gap">
+        <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
+      </div>
+    </div>
+  </section>
+
+  <article class="ev-page" id="evPage" aria-hidden="true">
+    <div class="ev-hero" id="evHero">
+      <button class="fab ev-back" id="evBack" type="button" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+      </button>
+    </div>
+    <div class="ev-content" id="evContent">
+      <div class="ev-cat" id="evCat"></div>
+      <h1 id="evTitle"></h1>
+      <div class="ev-rows">
+        <div class="ev-row">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+          <div><span id="evWhen"></span></div>
+        </div>
+        <div class="ev-row">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></svg>
+          <div><span id="evVenue"></span><small id="evCity"></small></div>
+        </div>
+        <div class="ev-row">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" /></svg>
+          <div><span id="evCost"></span><small id="evAttendance"></small></div>
+        </div>
+      </div>
+      <h2>About</h2>
+      <p id="evAbout"></p>
+      <h2>Who it’s for</h2>
+      <p id="evAudience"></p>
+      <label class="ev-related" hidden>Events at this map pin
+        <select id="evRelated"></select>
+      </label>
+      <a class="ev-map-btn" id="evOrganizer" target="_blank" rel="noopener noreferrer">Organizer details</a>
+      <button class="ev-map-btn" id="evShowJourney" type="button">Show journey</button>
+      <p id="evJourneyStatus" role="status"></p>
+    </div>
+  </article>
+
+  <div class="search-wrap" id="searchWrap">
+    <ul class="results" id="results" role="listbox"></ul>
+    <form class="search" id="searchForm" role="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="7" />
+        <path d="M16 16l5 5" />
+      </svg>
+      <input id="q" type="search" placeholder="Search destination" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search destination" />
+      <button class="clear" id="clear" type="button" aria-label="Clear">
+        <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
+      </button>
+    </form>
+    <section class="journey glass" id="journey" aria-label="Journey">
+      <div class="j-grab"></div>
+      <div class="j-head">
+        <div class="j-dest"><b id="jTo"></b><span id="jSub"></span></div>
+        <button class="j-close" id="jClose" type="button" aria-label="End journey">
+          <svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>
+        </button>
+      </div>
+      <div class="j-strip" id="jStrip"></div>
+      <div class="j-viewport" id="jViewport"><div class="j-track" id="jTrack"></div></div>
+      <div class="j-dots" id="jDots"></div>
+      <div class="j-status" id="jStatus"></div>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="swiss-workshops.js"></script>
+  <script src="bern-events.js"></script>
+  <script src="community-programmes.js"></script>
+  <script src="events.js"></script>
+  <script src="settings.js"></script>
+  <script>
+    // ---------- Theme helpers ----------
+    const root = document.documentElement;
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    const currentTheme = () => root.dataset.theme === 'dark' ? 'dark' : 'light';
+
+    // ---------- Map ----------
+    const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
+    const CH_BOUNDS = [[5.7, 45.6], [10.7, 48.0]];
+    const FALLBACK = [7.4474, 46.9480]; // Bern
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      // Plain background until the swisstopo style (light or dark) is ready
+      style: { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': getComputedStyle(root).getPropertyValue('--page-bg').trim() } }] },
+      center: FALLBACK,
+      zoom: 13,
+      minZoom: 6,
+      maxZoom: 20,
+      maxBounds: [[4.5, 44.9], [12.2, 48.6]],
+      attributionControl: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      touchPitch: false,
+      maxPitch: 0,
+      fadeDuration: 120,
+      refreshExpiredTiles: false,
+    });
+    map.touchZoomRotate.disableRotation();
+    map.keyboard.disableRotation();
+
+    // swisstopo has no dark vector basemap. Same as the Kante app: a dark variant of the light base map,
+    // made by remapping the lightness of every colour in the style (ground, roads, casings and text separately).
+    const STYLES = { light: null, dark: null };
+
+    function parseColor(c) {
+      const s = String(c).trim().toLowerCase();
+      let m = /^#([0-9a-f]{3,8})$/.exec(s);
+      if (m) {
+        let h = m[1];
+        if (h.length === 3 || h.length === 4) h = [...h].map((x) => x + x).join('');
+        const n = parseInt(h.slice(0, 6), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255, h.length === 8 ? parseInt(h.slice(6), 16) / 255 : 1];
+      }
+      m = /^rgba?\(([^)]+)\)$/.exec(s);
+      if (m) {
+        const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+        if (p.length >= 3 && p.every((x) => !Number.isNaN(x))) return [p[0], p[1], p[2], p[3] ?? 1];
+      }
+      m = /^hsla?\(([^)]+)\)$/.exec(s);
+      if (m) {
+        const p = m[1].split(/[\s,/]+/).filter(Boolean).map((x) => parseFloat(x));
+        if (p.length >= 3) return [...fromHsl(p[0], p[1] / 100, p[2] / 100), p[3] ?? 1];
+      }
+      return null;
+    }
+    function toHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const l = (max + min) / 2;
+      if (max === min) return [0, 0, l];
+      const d = max - min;
+      const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return [h * 60, s, l];
+    }
+    function fromHsl(h, s, l) {
+      const k = (n) => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = (n) => Math.round((l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))) * 255);
+      return [f(0), f(8), f(4)];
+    }
+    // land, water, buildings: lightness inverted into a narrow dark range with a cool tint
+    const darkGround = (h, s, l) => (s < 0.1 ? [222, 0.2, 0.075 + (1 - l) * 0.5] : [h, s * 0.55, 0.08 + (1 - l) * 0.62]);
+    // road surfaces: lighter than the land so the network stays readable
+    const darkRoad = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.16 : s * 0.5, 0.2 + l * 0.12];
+    const darkRoadCasing = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.18 : s * 0.5, 0.1 + (1 - l) * 0.12];
+    const darkText = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.12 : s * 0.7, Math.min(0.86, 0.5 + (1 - l) * 0.4)];
+    const darkHalo = () => [222, 0.25, 0.08];
+    function remapColors(v, f) {
+      if (typeof v === 'string') {
+        const p = parseColor(v);
+        if (!p) return v;
+        const [r, g, b] = fromHsl(...f(...toHsl(p[0], p[1], p[2])));
+        return `rgba(${r},${g},${b},${p[3]})`;
+      }
+      if (Array.isArray(v)) return v.map((x) => remapColors(x, f));
+      if (v && typeof v === 'object') {
+        const o = {};
+        for (const k in v) o[k] = remapColors(v[k], f);
+        return o;
+      }
+      return v;
+    }
+    const DARK_HIDE = /^(hillshade|scree|hachure|pattern_landcover|contour_line)/;
+    function makeDarkStyle(base) {
+      const style = structuredClone(base);
+      for (const layer of style.layers) {
+        if (DARK_HIDE.test(layer.id)) {
+          layer.layout = { ...(layer.layout || {}), visibility: 'none' };
+          continue;
+        }
+        const paint = layer.paint;
+        if (!paint) continue;
+        const isRoadFill = /(^|_)fill$/.test(layer.id) && layer.type === 'line';
+        const isRoadCasing = /road_casing|tunnel_road|pedestrian|footway|parking/.test(layer.id);
+        for (const key of Object.keys(paint)) {
+          if (!key.endsWith('-color')) continue;
+          const f = key === 'text-halo-color' || key === 'icon-halo-color' ? darkHalo
+            : key === 'text-color' || key === 'icon-color' ? darkText
+            : isRoadFill ? darkRoad : isRoadCasing ? darkRoadCasing : darkGround;
+          paint[key] = remapColors(paint[key], f);
+        }
+      }
+      return style;
+    }
+
+    // ---------- Community events ----------
+    // Which events show is set on the Settings page (settings.js)
+    function visibleEvents() {
+      const preferences = SETTINGS.eventTags();
+      return EVENTS.features.filter((event) => EVENTS.matches(event, preferences));
+    }
+
+    const EVENT_MIN_ZOOM = 12.5;
+    const eventMarkers = [];
+    let eventsOn = false;
+
+    function updateCards() {
+      for (const marker of eventMarkers) marker.remove();
+      eventMarkers.length = 0;
+      if (!eventsOn || map.getZoom() < EVENT_MIN_ZOOM) return;
+
+      const { clientWidth, clientHeight } = map.getContainer();
+      const venues = new Map();
+      for (const feature of visibleEvents()) {
+        const coordinates = feature.geometry.coordinates;
+        const key = coordinates.join(',');
+        let venue = venues.get(key);
+        if (!venue) {
+          const point = map.project(coordinates);
+          if (point.x < -75 || point.x > clientWidth + 75 || point.y < 0 || point.y > clientHeight + 186) continue;
+          venue = { point, coordinates, features: [] };
+          venues.set(key, venue);
+        }
+        venue.features.push(feature);
+      }
+
+      // Give local support programmes first pick of the available map space.
+      const supportTags = ['newcomers', 'language', 'free-food', 'blind-low-vision', 'deaf', 'wheelchair', 'adaptive-sport'];
+      function compareEvents(a, b) {
+        const first = a.properties;
+        const second = b.properties;
+        const support = (event) => event.tags.some(tag => supportTags.includes(tag));
+        const deadline = (event) => event.through ? Date.parse(event.through) : Infinity;
+        return Number(support(second)) - Number(support(first))
+          || Number(Boolean(first.areaOnly)) - Number(Boolean(second.areaOnly))
+          || deadline(first) - deadline(second)
+          || first.id.localeCompare(second.id);
+      }
+      const candidates = Array.from(venues.values());
+      for (const venue of candidates) venue.features.sort(compareEvents);
+      candidates.sort((a, b) => compareEvents(a.features[0], b.features[0]));
+
+      const shown = [];
+      for (const venue of candidates) {
+        const overlap = shown.find(other => Math.abs(other.point.x - venue.point.x) < 158
+          && Math.abs(other.point.y - venue.point.y) < 202);
+        if (!overlap) shown.push(venue);
+        // At maximum zoom, keep even adjacent doors accessible from the event details.
+        else if (map.getZoom() >= map.getMaxZoom() - 0.01) overlap.features.push(...venue.features);
+      }
+      for (const venue of shown) {
+        const element = makeVenueCard(venue.features);
+        const marker = new maplibregl.Marker({ element, anchor: 'bottom' })
+          .setLngLat(venue.coordinates).addTo(map);
+        eventMarkers.push(marker);
+      }
+    }
+
+    function makeVenueCard(features) {
+      const event = features[0].properties;
+      const card = document.createElement('div');
+      card.className = 'ev-card';
+      const inner = document.createElement('div');
+      inner.className = 'ev-inner';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ev-body';
+      const photo = document.createElement('img');
+      photo.loading = 'lazy';
+      photo.alt = '';
+      photo.addEventListener('error', () => {
+        const original = event.imageSource;
+        if (original && photo.src !== original) photo.src = original;
+        else button.classList.add('no-photo');
+      });
+      const caption = document.createElement('span');
+      caption.className = 'ev-caption';
+      const title = document.createElement('strong');
+      const time = document.createElement('small');
+      caption.append(title, time);
+      button.append(photo, caption);
+      inner.append(button);
+      card.append(inner);
+      button.classList.toggle('no-photo', !event.image);
+      if (event.image) photo.src = event.image;
+      title.textContent = event.title;
+      time.textContent = (event.areaOnly ? 'Town area · ' : '') + event.when;
+      button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        eventsAtPin = features;
+        openEvent(event.id);
+      });
+      return card;
+    }
+    map.on('moveend', updateCards);
+    map.on('zoom', () => {
+      if (eventMarkers.length && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
+    });
+    map.on('resize', updateCards);
+
+    function setEventsOn(enabled) {
+      eventsOn = enabled;
+      eventsBtn.setAttribute('aria-pressed', String(enabled));
+      eventsBtn.classList.toggle('active', enabled);
+      updateCards();
+    }
+
+    function applyMapTheme(diff) {
+      const theme = currentTheme();
+      if (!STYLES[theme]) return;
+      const style = structuredClone(STYLES[theme]);
+      style.sources.platforms = { type: 'geojson', data: PLATFORM_FC };
+      style.sources.route = { type: 'geojson', data: ROUTE_FC };
+      const route = routeLayers(theme);
+      const firstSymbol = style.layers.findIndex((l) => l.type === 'symbol');
+      style.layers.splice(firstSymbol < 0 ? style.layers.length : firstSymbol, 0, ...route.below);
+      style.layers.push(...platformLayers(theme), ...route.above);
+      map.setStyle(style, { diff });
+    }
+
+    fetch(STYLE_URL)
+      .then((r) => r.json())
+      .then((style) => {
+        STYLES.light = style;
+        STYLES.dark = makeDarkStyle(style);
+        applyMapTheme(false);
+        map.once('idle', updateCards);
+      })
+      .catch(() => showToast('Map could not be loaded'));
+
+    function setTheme(theme, persist) {
+      root.dataset.theme = theme;
+      themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
+      if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
+      applyMapTheme(true);
+    }
+    themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
+
+    // Follow the system setting until the user picks a theme themselves
+    if (window.matchMedia) {
+      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        let saved = null;
+        try { saved = localStorage.getItem('theme'); } catch (err) {}
+        if (!saved) setTheme(e.matches ? 'dark' : 'light', false);
+      });
+    }
+
+    // ---------- Toast ----------
+    const toast = document.getElementById('toast');
+    let toastTimer;
+    function showToast(text, ms = 4000) {
+      toast.textContent = text;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
+    }
+
+    // ---------- Top-right menu ----------
+    const menu = document.getElementById('menu');
+    const menuBtn = document.getElementById('menuBtn');
+    const menuItems = menu.querySelectorAll('.menu-item');
+    function setMenu(open) {
+      menu.classList.toggle('open', open);
+      menuBtn.setAttribute('aria-expanded', String(open));
+      menuItems.forEach((b) => (b.tabIndex = open ? 0 : -1));
+    }
+    menuBtn.addEventListener('click', () => setMenu(!menu.classList.contains('open')));
+    document.getElementById('themeBtn').addEventListener('click', () =>
+      setTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
+    const eventsBtn = document.getElementById('eventsBtn');
+    eventsBtn.addEventListener('click', () => {
+      setEventsOn(!eventsOn);
+      setMenu(false);
+      menuBtn.focus();
+      if (!eventsOn) return;
+      const events = visibleEvents();
+      if (!events.length) {
+        showToast('No events match your settings.');
+        return;
+      }
+      if (map.getZoom() < EVENT_MIN_ZOOM) showToast('Zoom into a town or neighbourhood to see events.');
+    });
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+      setMenu(false);
+      SETTINGS.open();
+    });
+    SETTINGS.onChange(updateCards);
+    // Accessibility options changed during a journey → plan it again with them
+    SETTINGS.onClose((journeyChanged) => {
+      if (journeyChanged && journeyDest) startJourney(journeyDest, true);
+      else menuBtn.focus();
+    });
+
+    // ---------- Current location ----------
+    const accEl = document.createElement('div');
+    accEl.className = 'user-accuracy';
+    const accMarker = new maplibregl.Marker({ element: accEl });
+    const dotEl = document.createElement('div');
+    dotEl.className = 'user-dot';
+    const userMarker = new maplibregl.Marker({ element: dotEl });
+    let userLngLat = null;
+    let userAccuracy = 0;
+    let centeredOnUser = false;
+
+    const inSwitzerland = ([lng, lat]) =>
+      lng >= CH_BOUNDS[0][0] && lng <= CH_BOUNDS[1][0] &&
+      lat >= CH_BOUNDS[0][1] && lat <= CH_BOUNDS[1][1];
+
+    // Size the light-blue accuracy halo in metres, like Apple Maps
+    function updateAccuracy() {
+      if (!userLngLat) return;
+      const mPerPx = 40075016.686 * Math.cos(userLngLat[1] * Math.PI / 180) / (512 * 2 ** map.getZoom());
+      const d = Math.min(2 * userAccuracy / mPerPx, 4000);
+      accEl.style.width = accEl.style.height = d + 'px';
+      accEl.style.display = d < 40 ? 'none' : '';
+    }
+    map.on('zoom', updateAccuracy);
+
+    function onPosition(pos) {
+      const lngLat = [pos.coords.longitude, pos.coords.latitude];
+      if (!inSwitzerland(lngLat)) {
+        showToast('You are outside Switzerland');
+        return;
+      }
+      userLngLat = lngLat;
+      userAccuracy = pos.coords.accuracy || 0;
+      accMarker.setLngLat(lngLat);
+      userMarker.setLngLat(lngLat);
+      if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
+      updateAccuracy();
+      if (!centeredOnUser && !destMarker._map) {
+        centeredOnUser = true;
+        map.jumpTo({ center: lngLat, zoom: 15 });
+      }
+    }
+
+    function onPositionError(err) {
+      if (userLngLat) return; // keep the last known position
+      const msg = err.code === 1
+        ? 'Location access is off. Allow it in Settings › Safari › Location.'
+        : 'Your location could not be found.';
+      showToast(msg, 6000);
+    }
+
+    if (!window.isSecureContext) {
+      showToast('Location needs HTTPS. Open the app via https:// or localhost.', 8000);
+    } else if (!('geolocation' in navigator)) {
+      showToast('This browser does not support location.');
+    } else {
+      // Quick coarse fix first, then precise live updates
+      navigator.geolocation.getCurrentPosition(onPosition, () => {}, { enableHighAccuracy: false, maximumAge: 60000, timeout: 5000 });
+      navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    }
+
+    // ---------- Search (swisstopo SearchServer) ----------
+    const wrap = document.getElementById('searchWrap');
+    const form = document.getElementById('searchForm');
+    const input = document.getElementById('q');
+    const list = document.getElementById('results');
+    const clearBtn = document.getElementById('clear');
+    const destEl = document.createElement('div');
+    destEl.className = 'dest-pin';
+    destEl.innerHTML = '<svg viewBox="0 0 26 34" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg>';
+    const destMarker = new maplibregl.Marker({ element: destEl, anchor: 'bottom' });
+
+    const ZOOM_BY_ORIGIN = { address: 17, gazetteer: 15, zipcode: 13, gg25: 13 };
+    // Result kinds → icon + colour (Apple Maps style: white glyph on a coloured circle)
+    const KIND = {
+      address:  { color: '#ff3b30', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
+      city:     { color: '#5e5ce6', svg: '<path d="M3 21h18M5 21V11l5-3v13M10 21V5l9 4v12M14 10h2M14 14h2M14 18h2"/>' },
+      postcode: { color: '#5e5ce6', svg: '<path d="M4 6h16v12H4zM4 7l8 6 8-6"/>' },
+      mountain: { color: '#a2845e', svg: '<path d="M2.5 19.5l6.5-12 4 7 2.5-3.5 6 8.5z"/>' },
+      water:    { color: '#32ade6', svg: '<path d="M3 9.5c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 15.5c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>' },
+      building: { color: '#8e8e93', svg: '<path d="M5 21V4h14v17M3 21h18M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>' },
+      station:  { color: '#0a84ff', svg: '<path d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM4 10h16M8 17l-2 4M16 17l2 4"/>' },
+      nature:   { color: '#34c759', svg: '<path d="M12 3l6 8.5h-3.5L19 17H5l4.5-5.5H6zM12 17v4"/>' },
+      other:    { color: '#8e8e93', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
+    };
+    const CANTONS = { AG: 'Aargau', AI: 'Appenzell I.Rh.', AR: 'Appenzell A.Rh.', BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
+      FR: 'Fribourg', GE: 'Geneva', GL: 'Glarus', GR: 'Graubünden', JU: 'Jura', LU: 'Lucerne', NE: 'Neuchâtel', NW: 'Nidwalden',
+      OW: 'Obwalden', SG: 'St. Gallen', SH: 'Schaffhausen', SO: 'Solothurn', SZ: 'Schwyz', TG: 'Thurgau', TI: 'Ticino', UR: 'Uri',
+      VD: 'Vaud', VS: 'Valais', ZG: 'Zug', ZH: 'Zurich' };
+    const cantonName = (c) => CANTONS[c] || c || '';
+
+    function gazetteerKind(type, oc) {
+      const t = type.toLowerCase();
+      if (/local name|field name/.test(t)) return ['nature', 'Area'];
+      if (/SIEDLUNG/.test(oc) || /populated|settlement|place|quarter|district/.test(t)) return ['city', 'Place'];
+      if (/GEWAESSER/.test(oc) || /lake|pond|reservoir/.test(t)) return ['water', /river|stream|brook/.test(t) ? 'River' : 'Lake'];
+      if (/river|stream|brook|waterfall/.test(t)) return ['water', type];
+      if (/peak|summit|mountain|hill|pass|viewpoint|ridge|rock|glacier/.test(t)) return ['mountain', type];
+      if (/\bstation\b|\bstop\b/.test(t)) return ['station', type];
+      if (/forest|wood|park|meadow|nature/.test(t)) return ['nature', type];
+      if (/GEBAEUDE/.test(oc) || /building/.test(t)) return ['building', 'Building'];
+      return ['other', type];
+    }
+
+    // swisstopo labels → a short main name + a grey detail line
+    function parseResult(attrs) {
+      const label = attrs.label || '';
+      const bold = stripTags((label.match(/<b>(.*?)<\/b>/i) || [])[1] || '');
+      const italic = stripTags((label.match(/<i>(.*?)<\/i>/i) || [])[1] || '').replace(/\s+/g, ' ').trim();
+      const canton = ((label.match(/\(([A-Z]{2})\)/) || [])[1]) || '';
+      switch (attrs.origin) {
+        case 'address': {
+          const street = stripTags(label.replace(/<b>.*?<\/b>/i, '')).replace(/\s*#\s*$/, '');
+          return { title: street || bold, subtitle: bold, kind: 'address' };
+        }
+        case 'gg25':
+          return { title: bold.replace(/\s*\([A-Z]{2}\)\s*$/, ''), subtitle: ['Municipality', cantonName(canton)].filter(Boolean).join(' · '), kind: 'city' };
+        case 'zipcode': {
+          const [, zip, name] = bold.match(/^(\d{4})\s*-\s*(.+)$/) || [null, '', bold];
+          return { title: name, subtitle: `Postcode ${zip}`.trim(), kind: 'postcode' };
+        }
+        default: { // gazetteer: "<i>Type</i> <b>Name</b> (BE) - Municipality,Municipality,…"
+          const munis = (stripTags(label).split(' - ')[1] || '').split(',').map((x) => x.trim()).filter(Boolean);
+          const [kind, typeLabel] = gazetteerKind(italic, attrs.objectclass || '');
+          let where = munis[0] && munis[0] !== bold ? munis[0] + (munis.length > 1 ? ` +${munis.length - 1}` : '') : '';
+          where = [where, cantonName(canton)].filter(Boolean).join(', ');
+          return { title: bold, subtitle: [typeLabel, where].filter(Boolean).join(' · '), kind };
+        }
+      }
+    }
+
+    const COLLAPSED_COUNT = 3;
+    let results = [];
+    let expanded = false;
+    let debounce;
+    let reqId = 0;
+
+    const stripTags = (s) => s.replace(/<[^>]*>/g, '').trim();
+
+    async function search(text) {
+      const id = ++reqId;
+      const url = 'https://api3.geo.admin.ch/rest/services/api/SearchServer?' + new URLSearchParams({
+        searchText: text,
+        type: 'locations',
+        origins: 'zipcode,gg25,gazetteer,address',
+        sr: '4326',
+        limit: '15',
+        lang: 'en',
+      });
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (id !== reqId) return; // a newer query is in flight
+        const seen = new Set();
+        results = (data.results || []).map((r) => ({
+          ...parseResult(r.attrs),
+          origin: r.attrs.origin,
+          lngLat: [r.attrs.lon, r.attrs.lat],
+        })).filter((r) => {
+          const key = (r.title + '|' + r.subtitle).toLowerCase();
+          if (!r.title || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        expanded = false;
+        render();
+      } catch (e) {
+        if (id === reqId) { results = []; render('Search unavailable'); }
+      }
+    }
+
+    function render(emptyText = 'No results') {
+      list.innerHTML = '';
+      if (!input.value.trim()) { list.classList.remove('open'); return; }
+      if (!results.length) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = emptyText;
+        list.appendChild(li);
+      }
+      const visible = expanded ? results : results.slice(0, COLLAPSED_COUNT);
+      visible.forEach((r, i) => {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        const icon = document.createElement('div');
+        const k = KIND[r.kind] || KIND.other;
+        icon.className = 'icon';
+        icon.style.background = k.color;
+        icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
+        const text = document.createElement('div');
+        text.className = 'text';
+        const t = document.createElement('div');
+        t.className = 'title';
+        t.textContent = r.title;
+        const s = document.createElement('div');
+        s.className = 'subtitle';
+        s.textContent = r.subtitle;
+        text.append(t, s);
+        li.append(icon, text);
+        // pointerdown + preventDefault keeps focus so the list doesn't vanish before the tap registers
+        li.addEventListener('pointerdown', (e) => e.preventDefault());
+        li.addEventListener('click', () => select(i));
+        list.appendChild(li);
+      });
+      if (!expanded && results.length > COLLAPSED_COUNT) {
+        const more = document.createElement('li');
+        more.className = 'more';
+        more.textContent = 'Show more…';
+        more.addEventListener('pointerdown', (e) => e.preventDefault());
+        more.addEventListener('click', () => { expanded = true; render(); });
+        list.appendChild(more);
+      }
+      list.classList.add('open');
+      if (!expanded) list.scrollTop = 0;
+    }
+
+    function select(i) {
+      const r = results[i];
+      if (r) showDestinationJourney(r);
+    }
+
+    function showDestinationJourney(r) {
+      input.value = r.title;
+      clearBtn.classList.add('show');
+      list.classList.remove('open');
+      input.blur();
+      destMarker.setLngLat(r.lngLat).addTo(map);
+      startJourney(r);
+    }
+
+    input.addEventListener('input', () => {
+      const text = input.value.trim();
+      clearBtn.classList.toggle('show', !!input.value);
+      clearTimeout(debounce);
+      if (text.length < 2) { reqId++; results = []; render(); return; }
+      debounce = setTimeout(() => search(text), 200);
+    });
+
+    input.addEventListener('focus', () => { setMenu(false); if (input.value.trim()) render(); });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (results.length) select(0);
+    });
+
+    clearBtn.addEventListener('pointerdown', (e) => e.preventDefault());
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      results = [];
+      reqId++;
+      clearBtn.classList.remove('show');
+      render();
+      destMarker.remove();
+      if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
+      input.focus();
+    });
+
+    // Collapse the bar into a circle when the user moves the map; tap the circle to expand it again
+    map.on('movestart', (e) => {
+      if (!e.originalEvent) return; // ignore programmatic moves (flyTo after a search)
+      if (wrap.classList.contains('journey-open')) { setMenu(false); return; } // keep the journey widget open
+      input.blur();
+      setMenu(false);
+      wrap.classList.add('collapsed');
+    });
+    form.addEventListener('click', () => {
+      if (!wrap.classList.contains('collapsed')) return;
+      wrap.classList.remove('collapsed');
+      input.focus();
+    });
+
+    // Tapping the map closes the keyboard, results and menu
+    map.on('mousedown', () => { input.blur(); setMenu(false); });
+    map.on('touchstart', () => { input.blur(); setMenu(false); });
+    input.addEventListener('blur', () => list.classList.remove('open'));
+
+    // ---------- Platforms & stop edges ----------
+    // Exact position of every platform (Gleis) and bus/tram stop edge (Kante) in Switzerland, from the
+    // official ATLAS data (platforms.js, built by tools/build_platforms.py). Always drawn on the map from
+    // zoom 17, and used to put journey boarding/alighting points on the right platform.
+    const PLATFORM_FC = { type: 'FeatureCollection', features: [] };
+    const PLATFORMS = new Map(); // station id (UIC, as in transport.opendata.ch) → { name, mode, edges: [{ ref, key, bearing, ll }] }
+    const PLATFORM_MODES = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
+
+    // Comparable platform name: "7A-D" → "7", "Kante H" → "H", "K1" → "K1", "–" → ""
+    function platformKey(p) {
+      const s = String(p || '').toUpperCase().replace(/^(GLEIS|GL\.|KANTE|QUAI|VOIE|BINARIO|STEG|PERRON)\s*/, '').trim();
+      const digits = /^\d+/.exec(s);
+      return digits ? digits[0] : s.replace(/[^0-9A-Z]/g, '');
+    }
+
+    function indexPlatforms(data) {
+      if (!data || !data.stops) return;
+      const features = [];
+      for (const [id, [name, m, raw]] of Object.entries(data.stops)) {
+        const mode = PLATFORM_MODES[m] || 'bus';
+        const edges = raw.map(([x, y, ref = '', bearing = null, level = null]) =>
+          ({ ref: ref || '', key: platformKey(ref), bearing, level, ll: [x / 1e5, y / 1e5] }));
+        PLATFORMS.set(id, { name, mode, edges });
+        edges.forEach((e, i) => {
+          features.push({ type: 'Feature', properties: { id, i, ref: e.ref }, geometry: { type: 'Point', coordinates: e.ll } });
+        });
+      }
+      PLATFORM_FC.features = features;
+      const src = map.getSource('platforms');
+      if (src) src.setData(PLATFORM_FC);
+      delete window.PLATFORM_DATA;
+    }
+
+    // Loaded after start-up (it is ~2 MB), as a script so it also works when index.html is opened as a file
+    const platformsReady = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'platforms.js';
+      s.async = true;
+      s.onload = () => { indexPlatforms(window.PLATFORM_DATA); resolve(); };
+      s.onerror = () => resolve(); // journeys fall back to station positions
+      document.head.appendChild(s);
+    });
+
+    // Neutral white dots that only appear when zoomed in close (street level)
+    const PLATFORM_MIN_ZOOM = 17;
+    const PLATFORM_TEXT_NUDGE = 0.135; // em down: the font sits high in its line box (measured)
+    function platformLayers(theme) {
+      const labelled = ['!=', ['get', 'ref'], ''];
+      const fadeIn = ['interpolate', ['linear'], ['zoom'], PLATFORM_MIN_ZOOM, 0, PLATFORM_MIN_ZOOM + 0.4, 1];
+      return [
+        { id: 'platform-dot', type: 'circle', source: 'platforms', minzoom: PLATFORM_MIN_ZOOM,
+          paint: {
+            'circle-color': '#ffffff',
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], PLATFORM_MIN_ZOOM, ['case', labelled, 7, 4], 19, ['case', labelled, 11, 6]],
+            'circle-opacity': fadeIn,
+          } },
+        // Platform / edge name inside the dot ("7", "H"); in crowded stations some only appear when zooming in further
+        { id: 'platform-ref', type: 'symbol', source: 'platforms', minzoom: PLATFORM_MIN_ZOOM, filter: labelled,
+          layout: {
+            'text-field': ['get', 'ref'],
+            'text-font': ['Frutiger Neue Bold'],
+            'text-size': ['interpolate', ['linear'], ['zoom'], PLATFORM_MIN_ZOOM, 10, 19, 14],
+            'text-offset': [0, PLATFORM_TEXT_NUDGE], // the font sits a little off-centre in its line box
+            'text-padding': 0,
+            'text-ignore-placement': true,
+          },
+          // a halo in the text colour makes the strokes heavier than the font's own bold
+          paint: { 'text-color': '#1c1c1e', 'text-halo-color': '#1c1c1e', 'text-halo-width': 0.6, 'text-opacity': fadeIn } },
+      ];
+    }
+
+    // Tap a platform: its name and the next departures from exactly that platform / edge (live)
+    const platformPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'pf-pop', maxWidth: 'none', offset: 16 });
+    let popupReq = 0;
+    // Forgiving tap: the nearest dot within ~16 px, so small dots are easy to hit on a phone
+    map.on('click', (e) => {
+      const r = 16;
+      const hits = map.getLayer('platform-dot')
+        ? map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['platform-dot'] }) : [];
+      if (!hits.length) { popupReq++; platformPopup.remove(); return; }
+      const dist = (f) => map.project(f.geometry.coordinates).dist(e.point);
+      openPlatform(hits.reduce((a, b) => (dist(b) < dist(a) ? b : a)));
+    });
+    async function openPlatform(f) {
+      const st = PLATFORMS.get(String(f.properties.id));
+      const edge = st && st.edges[f.properties.i];
+      if (!edge) return;
+      const req = ++popupReq;
+      const word = edge.ref ? nounOf(st.mode) : 'Stop';
+      const dot = mk('span', 'pf-dot', edge.ref);
+      const name = mk('div', 'pf-name');
+      const kind = (edge.ref ? `${word} ${edge.ref}` : word) + (edge.level ? ` · Level ${levelShort(edge.level)}` : '');
+      name.append(mk('b', null, st.name), mk('small', null, kind));
+      const head = mk('div', 'pf-head');
+      head.append(dot, name);
+      const note = mk('p', 'pf-note', 'Loading departures…');
+      const list = mk('ul', 'pf-list');
+      const box = mk('div');
+      box.append(head, note, list);
+      platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
+      try {
+        const res = await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
+        const all = ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
+        if (req !== popupReq) return;
+        // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
+        const here = all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
+        note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st.name}:`;
+        list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
+          const li = mk('li');
+          li.append(mk('time', null, fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure)), badge(d), mk('span', 'pf-to', d.to));
+          if (d.stop.delay > 0) li.append(mk('span', 'j-delay', `+${d.stop.delay}′`));
+          return li;
+        }));
+        platformPopup.setLngLat(edge.ll); // re-fit now that the card is taller
+      } catch {
+        if (req === popupReq) note.textContent = 'Departures could not be loaded.';
+      }
+    }
+    map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'platform-dot', () => { map.getCanvas().style.cursor = ''; });
+
+    function bearingDeg(a, b) {
+      const toRad = Math.PI / 180;
+      const dLng = (b[0] - a[0]) * toRad;
+      const y = Math.sin(dLng) * Math.cos(b[1] * toRad);
+      const x = Math.cos(a[1] * toRad) * Math.sin(b[1] * toRad) - Math.sin(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.cos(dLng);
+      return (Math.atan2(y, x) / toRad + 360) % 360;
+    }
+    const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+
+    // Exact place to board/alight at a stop: the platform the timetable names; without one, the edge
+    // where vehicles going our way (prev → next) stop; otherwise the station's own position.
+    const platformLL = (stop, prev, next) => platformAt(stop, prev, next).ll;
+    // → { ll, edge (null = only the station is known), travel (bearing of travel or null) }
+    function platformAt(stop, prev, next) {
+      const base = coordOf(stop);
+      const st = stop && stop.station && PLATFORMS.get(String(stop.station.id));
+      const out = (e) => ({ ll: e ? e.ll : base, edge: e || null, travel });
+      let travel = null;
+      if (!st) return out(null);
+      const here = base || st.edges[0].ll;
+      const from = prev || here, to = next || here;
+      travel = distKm(from, to) >= 0.01 ? bearingDeg(from, to) : null;
+      // ATLAS compass direction = direction of travel of the vehicles stopping at that edge
+      const facing = (edges) => {
+        const withBearing = travel == null ? [] : edges.filter((e) => e.bearing != null);
+        if (!withBearing.length) return null;
+        const best = withBearing.reduce((a, b) => (angleDiff(b.bearing, travel) < angleDiff(a.bearing, travel) ? b : a));
+        return angleDiff(best.bearing, travel) <= 60 ? best : null;
+      };
+      const key = platformKey(platformOf(stop));
+      if (key) {
+        const hits = st.edges.filter((e) => e.key === key);
+        if (hits.length) return out(hits.length > 1 && facing(hits) || hits[0]); // e.g. one "A" per direction
+      }
+      const pool = key ? st.edges.filter((e) => !e.key) : st.edges; // unknown name: only unnamed edges qualify
+      if (pool.length <= 1) return out(pool[0]);
+      if (travel == null) return out(null);
+      const best = facing(pool);
+      if (best) return out(best);
+      if (pool.length > 2) return out(null); // e.g. a big station without platform information: don't guess
+      // Two edges: traffic keeps right, so take the one on the right of the direction of travel
+      const c = pool.reduce((s, e) => [s[0] + e.ll[0] / pool.length, s[1] + e.ll[1] / pool.length], [0, 0]);
+      const k = Math.cos(c[1] * Math.PI / 180);
+      const dx = Math.sin(travel * Math.PI / 180), dy = Math.cos(travel * Math.PI / 180);
+      const side = (e) => dx * (e.ll[1] - c[1]) - dy * (e.ll[0] - c[0]) * k; // < 0: right of travel
+      return out(pool.reduce((a, b) => (side(b) < side(a) ? b : a)));
+    }
+
+    // ---------- Journey (public transport via transport.opendata.ch) ----------
+    const ROUTE_FC = { type: 'FeatureCollection', features: [] };
+    let journeyStep = 0;
+    let journeySteps = [];
+    let journeyReq = 0;
+    const journeyEl = document.getElementById('journey');
+    const jStrip = document.getElementById('jStrip');
+    const jViewport = document.getElementById('jViewport');
+    const jTrack = document.getElementById('jTrack');
+    const jDots = document.getElementById('jDots');
+    const jStatus = document.getElementById('jStatus');
+    let journeyConn = null;
+    let journeyDest = null;
+    let journeyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
+    let progressTimer = null;
+
+    // ---- The journey on the map, drawn like the Kante app (nikitas-implementation): rides in their line colour
+    //      with a casing, a stop circle at every stop, walks as a yellow band with arrows, a sign where you board ----
+    const WALK = '#FFD23F';
+    const WALK_EDGE = '#14161A';
+    let routeOverview = true; // the whole journey at once: nothing dimmed until a step is picked
+    const stepOpacity = (dim, on = 1) => (routeOverview ? on : ['case', ['==', ['get', 'step'], journeyStep], on, dim]);
+
+    // → { below: lines (under the map's labels), above: points and signs }
+    function routeLayers(theme) {
+      const dark = theme === 'dark';
+      const casing = dark ? '#0B0D10' : '#FFFFFF';
+      const zoomW = (a, b) => ['interpolate', ['linear'], ['zoom'], 10, a, 17, b];
+      const kind = (k) => ['==', ['get', 'kind'], k];
+      const round = { 'line-cap': 'round', 'line-join': 'round' };
+      const img = ['concat', ['get', 'img'], '|' + theme];
+      const fixed = { 'icon-allow-overlap': true, 'icon-ignore-placement': true };
+      return {
+        below: [
+          { id: 'route-ride-casing', type: 'line', source: 'route', filter: kind('ride'), layout: round,
+            paint: { 'line-color': casing, 'line-width': zoomW(5, 10), 'line-opacity': stepOpacity(.5) } },
+          { id: 'route-ride', type: 'line', source: 'route', filter: kind('ride'), layout: round,
+            paint: { 'line-color': ['get', dark ? 'dcolor' : 'color'], 'line-width': zoomW(3, 6), 'line-opacity': stepOpacity(.4) } },
+          { id: 'route-walk-casing', type: 'line', source: 'route', filter: kind('walk'), layout: round,
+            paint: { 'line-color': WALK_EDGE, 'line-width': zoomW(5, 10.5), 'line-opacity': stepOpacity(.3, .75) } },
+          { id: 'route-walk', type: 'line', source: 'route', filter: kind('walk'), layout: round,
+            paint: { 'line-color': WALK, 'line-width': zoomW(3.5, 8), 'line-opacity': stepOpacity(.4) } },
+        ],
+        above: [
+          { id: 'route-walk-arrows', type: 'symbol', source: 'route', filter: kind('walk'), minzoom: 14.5,
+            layout: { ...fixed, 'symbol-placement': 'line', 'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 14.5, 18, 18, 30],
+                      'icon-image': 'arr|k|' + theme, 'icon-size': ['interpolate', ['linear'], ['zoom'], 14.5, .6, 17, 1],
+                      'icon-rotation-alignment': 'map', 'icon-padding': 0 },
+            paint: { 'icon-opacity': stepOpacity(.4) } },
+          { id: 'route-stops', type: 'circle', source: 'route', filter: kind('stop'),
+            paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, ['case', ['get', 'end'], 3, 0], 13, ['case', ['get', 'end'], 5, 2.5], 17, ['case', ['get', 'end'], 7, 4.5]],
+                     'circle-color': casing, 'circle-stroke-color': ['get', dark ? 'dcolor' : 'color'], 'circle-stroke-width': ['case', ['get', 'end'], 3, 2],
+                     'circle-opacity': stepOpacity(.4), 'circle-stroke-opacity': stepOpacity(.4) } },
+          // where the walk changes floor: which way, and to which level
+          { id: 'route-lvl', type: 'symbol', source: 'route', filter: kind('lvl'), minzoom: 16,
+            layout: { ...fixed, 'icon-image': img, 'icon-anchor': 'left', 'icon-offset': [8, 0] } },
+          { id: 'route-pins', type: 'symbol', source: 'route', filter: kind('pin'), layout: { ...fixed, 'icon-image': img } },
+          // "Platform 7" / "Bay C" where you board
+          { id: 'route-signs', type: 'symbol', source: 'route', filter: kind('sign'),
+            layout: { ...fixed, 'icon-image': img, 'symbol-sort-key': ['get', 'sort'],
+                      'icon-size': ['interpolate', ['linear'], ['zoom'], 14, .85, 16.6, 1, 18.5, 1.15] } },
+        ],
+      };
+    }
+
+    function refreshRouteHighlight() {
+      if (!map.getLayer('route-ride')) return;
+      map.setPaintProperty('route-ride-casing', 'line-opacity', stepOpacity(.5));
+      map.setPaintProperty('route-ride', 'line-opacity', stepOpacity(.4));
+      map.setPaintProperty('route-walk-casing', 'line-opacity', stepOpacity(.3, .75));
+      map.setPaintProperty('route-walk', 'line-opacity', stepOpacity(.4));
+      map.setPaintProperty('route-walk-arrows', 'icon-opacity', stepOpacity(.4));
+      map.setPaintProperty('route-stops', 'circle-opacity', stepOpacity(.4));
+      map.setPaintProperty('route-stops', 'circle-stroke-opacity', stepOpacity(.4));
+    }
+
+    function setRoute(features) {
+      ROUTE_FC.features = features;
+      const src = map.getSource('route');
+      if (src) src.setData(ROUTE_FC);
+    }
+
+    // ---- Map symbols drawn on a canvas when MapLibre first needs them (ids: "sg|l|7|Platform|dark", "arr|k|light", …) ----
+    const SPRITE_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+    const INK = '#14161A';
+    function spriteCanvas(w, h, ratio) {
+      const c = document.createElement('canvas');
+      c.width = Math.ceil(w * ratio);
+      c.height = Math.ceil(h * ratio);
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.scale(ratio, ratio);
+      return [c, ctx];
+    }
+    const spriteOut = (c, ctx, ratio) => ({ data: ctx.getImageData(0, 0, c.width, c.height), ratio });
+    function makeSprite(id) {
+      const ratio = Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1)));
+      const p = id.split('|');
+      const dark = p[p.length - 1] === 'dark';
+      if (p[0] === 'sg') return signSprite(p[2] || '', p.length > 4 ? p[3] : '', dark, ratio);
+      if (p[0] === 'arr') return arrowSprite(ratio);
+      if (p[0] === 'pin') return fromSprite(ratio);
+      if (p[0] === 'lv') return levelSprite(p[1] === 'u', p[2] || '', dark, ratio);
+      return null;
+    }
+    // The boarding point as a sign: ink plate with a yellow stripe, "Platform 7"; a round marker when it has no name
+    function signSprite(label, noun, dark, ratio) {
+      const fs = 21, h = 38, m = 6;
+      const bg = dark ? '#F2F3F5' : INK, ink = dark ? INK : '#FFFFFF', outline = dark ? '#0B0D10' : '#FFFFFF';
+      const shadow = (ctx) => { ctx.shadowColor = 'rgba(8,12,24,.4)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2; };
+      if (!label) {
+        const d = 32, r = d / 2;
+        const [c, ctx] = spriteCanvas(d + m * 2, d + m * 2, ratio);
+        shadow(ctx);
+        ctx.fillStyle = outline;
+        ctx.beginPath(); ctx.arc(m + r, m + r, r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.arc(m + r, m + r, r - 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = WALK;
+        ctx.beginPath(); ctx.arc(m + r, m + r, r * .36, 0, Math.PI * 2); ctx.fill();
+        return spriteOut(c, ctx, ratio);
+      }
+      const probe = document.createElement('canvas').getContext('2d');
+      probe.font = `800 ${fs}px ${SPRITE_FONT}`;
+      const tw = probe.measureText(label).width;
+      probe.font = `600 11px ${SPRITE_FONT}`;
+      const nw = noun ? probe.measureText(noun).width + 6 : 0;
+      const w = Math.max(h, tw + nw + 18);
+      const [c, ctx] = spriteCanvas(w + m * 2, h + m * 2, ratio);
+      shadow(ctx);
+      ctx.fillStyle = outline;
+      ctx.beginPath(); ctx.roundRect(m - 1.5, m - 1.5, w + 3, h + 3, 8.5); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.save();
+      ctx.beginPath(); ctx.roundRect(m, m, w, h, 7); ctx.clip();
+      ctx.fillStyle = bg; ctx.fillRect(m, m, w, h);
+      ctx.fillStyle = WALK; ctx.fillRect(m, m + h - 4.5, w, 4.5);
+      ctx.restore();
+      ctx.fillStyle = ink;
+      ctx.textBaseline = 'middle';
+      const cy = m + (h - 4.5) / 2 + .5;
+      let x = m + (w - tw - nw) / 2;
+      if (noun) { ctx.font = `600 11px ${SPRITE_FONT}`; ctx.fillText(noun, x, cy + .5); x += nw; }
+      ctx.font = `800 ${fs}px ${SPRITE_FONT}`;
+      ctx.fillText(label, x, cy);
+      return spriteOut(c, ctx, ratio);
+    }
+    // Arrowhead pointing east; MapLibre turns it along the walking route
+    function arrowSprite(ratio) {
+      const [c, ctx] = spriteCanvas(9, 9, ratio);
+      ctx.fillStyle = INK;
+      ctx.beginPath(); ctx.moveTo(1.2, 1); ctx.lineTo(8, 4.5); ctx.lineTo(1.2, 8); ctx.lineTo(2.8, 4.5); ctx.closePath(); ctx.fill();
+      return spriteOut(c, ctx, ratio);
+    }
+    // Where the journey starts: a ring
+    function fromSprite(ratio) {
+      const d = 18;
+      const [c, ctx] = spriteCanvas(d + 8, d + 8, ratio);
+      ctx.shadowColor = 'rgba(8,10,14,.35)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(4 + d / 2, 4 + d / 2, d / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = INK; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(4 + d / 2, 4 + d / 2, d / 2 - 3.5, 0, Math.PI * 2); ctx.stroke();
+      return spriteOut(c, ctx, ratio);
+    }
+    // Pill on the route where it changes level: ↓ −4
+    function levelSprite(up, label, dark, ratio) {
+      const probe = document.createElement('canvas').getContext('2d');
+      probe.font = `700 13px ${SPRITE_FONT}`;
+      const tw = probe.measureText(label).width;
+      const h = 24, w = tw + 32, m = 4;
+      const [c, ctx] = spriteCanvas(w + m * 2, h + m * 2, ratio);
+      ctx.shadowColor = 'rgba(8,10,14,.35)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
+      ctx.fillStyle = dark ? '#23272E' : '#FFFFFF';
+      ctx.beginPath(); ctx.roundRect(m, m, w, h, h / 2); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      const fg = dark ? '#F2F3F5' : INK;
+      ctx.strokeStyle = fg; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(m + .75, m + .75, w - 1.5, h - 1.5, (h - 1.5) / 2); ctx.stroke();
+      const ax = m + 12, cy = m + h / 2, d = up ? -1 : 1;
+      ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(ax, cy - 5 * d); ctx.lineTo(ax, cy + 5 * d);
+      ctx.moveTo(ax - 4, cy + d); ctx.lineTo(ax, cy + 5 * d); ctx.lineTo(ax + 4, cy + d);
+      ctx.stroke();
+      ctx.fillStyle = fg;
+      ctx.font = `700 13px ${SPRITE_FONT}`;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, m + 22, cy + .5);
+      return spriteOut(c, ctx, ratio);
+    }
+    map.on('styleimagemissing', (e) => {
+      if (map.hasImage(e.id)) return;
+      const s = makeSprite(e.id);
+      if (s) map.addImage(e.id, s.data, { pixelRatio: s.ratio });
+    });
+
+    // ---- Line colours (as in the Kante app): every line gets one colour of a fixed palette,
+    //      the same on its badge and on the map. [name, light bg, light text, dark bg, dark (vivid) colour] ----
+    const PALETTE = [
+      ['red', '#C8322B', '#FFFFFF', '#2E1415', '#E6908C'], ['rust', '#B5490A', '#FFFFFF', '#2A180F', '#F58C4E'],
+      ['amber', '#F2B400', INK, '#352B0D', '#F2B400'], ['olive', '#5B7A00', '#FFFFFF', '#1A210D', '#8CBC00'],
+      ['green', '#1B7F3B', '#FFFFFF', '#0F2218', '#29C25A'], ['teal', '#007A78', '#FFFFFF', '#0A2123', '#00BCB9'],
+      ['azure', '#0B72B5', '#FFFFFF', '#0C1F2E', '#47B0F4'], ['blue', '#2456C8', '#FFFFFF', '#101A31', '#87A5E9'],
+      ['indigo', '#4B3FB5', '#FFFFFF', '#17162E', '#A39CDD'], ['violet', '#7B2D9B', '#FFFFFF', '#201329', '#C891DF'],
+      ['magenta', '#B4237A', '#FFFFFF', '#2A1123', '#E784BF'], ['brown', '#7A4A2B', '#FFFFFF', '#201815', '#D09B79'],
+      ['slate', '#3D4A5C', '#FFFFFF', '#15181E', '#97A5BA'],
+    ].map(([name, bg, fg, dbg, dfg]) => ({ name, bg, fg, dbg, dfg }));
+    const colorNamed = (n) => PALETTE.find((p) => p.name === n) || PALETTE[12];
+    // Zürich's trams are known by their colour (VBZ network map, snapped to the palette)
+    const VBZ_TRAM = { 2: 'red', 3: 'green', 4: 'indigo', 5: 'brown', 6: 'rust', 7: 'slate', 8: 'olive', 9: 'violet', 10: 'magenta', 11: 'green', 13: 'amber', 14: 'azure', 15: 'red', 17: 'magenta' };
+    const LONG_DISTANCE = /^(IC|ICE|ICN|EC|IR|IRE|RE|RJ|RJX|TGV|NJ|EN|PE|GEX|BEX|VAE|TER|RB|EXT)/;
+    function hashText(s) {
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return h >>> 0;
+    }
+    const lineColors = new Map();
+    function lineColor(j) {
+      const cat = (j.category || '').toUpperCase(), num = String(j.number || ''), label = lineLabel(j);
+      const key = `${j.operator || ''}|${cat}|${num}`;
+      if (lineColors.has(key)) return lineColors.get(key);
+      const mode = modeOf(cat);
+      let c;
+      if (mode === 'tram' && /VBZ|Verkehrsbetriebe Z/i.test(j.operator || '') && VBZ_TRAM[num]) c = colorNamed(VBZ_TRAM[num]);
+      else if (/^(BN|TN|SN|NB)$/.test(cat) || /^(N|SN)\d/.test(label)) c = colorNamed('indigo'); // night services
+      else if (mode === 'boat') c = colorNamed('teal');
+      else if (mode === 'cable') c = colorNamed('brown');
+      else if (mode === 'train' && (LONG_DISTANCE.test(cat) || !num)) c = colorNamed('slate');
+      else if (/^\d+$/.test(label)) c = PALETTE[(Number(label) * 5) % 12]; // consecutive numbers far apart on the wheel
+      else c = PALETTE[hashText(label || cat) % 12];
+      lineColors.set(key, c);
+      return c;
+    }
+    // CSS picks the light or the dark pair
+    function lineVars(el, j) {
+      const c = lineColor(j);
+      el.style.setProperty('--lc', c.bg);
+      el.style.setProperty('--lf', c.fg);
+      el.style.setProperty('--ldc', c.dbg);
+      el.style.setProperty('--ldf', c.dfg);
+      return el;
+    }
+
+    const MODE_ICON = {
+      train: '<path d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM4 10h16M8 17l-2 4M16 17l2 4"/>',
+      tram:  '<path d="M7 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM9 2.5h6M12 2.5V6M5 12h14M8 18l-2 3M16 18l2 3"/>',
+      bus:   '<path d="M6 3h12a2 2 0 0 1 2 2v12H4V5a2 2 0 0 1 2-2zM4 11h16M7 17v3M17 17v3"/>',
+      boat:  '<path d="M3 15l2 5h14l2-5zM6 15V9h12v6M12 5v4"/>',
+      cable: '<path d="M3 4l18 4M12 6v4M7 10h10v8H7zM7 14h10"/>',
+      walk:  '<circle cx="13" cy="4.2" r="1.9"/><path d="M10.5 21l1.5-5.5 2.5 2.5v3M8.5 12.5l2.5-4.5 3 1 2 3.5M12 15.5l-1.2-6.5"/>',
+      pin:   '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+      change: '<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>',
+      arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+      up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+      chevron: '<path d="M9 6l6 6-6 6"/>',
+      check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+      left: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
+      right: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
+      straight: '<path d="M12 20V4M6 10l6-6 6 6"/>',
+      stairs: '<path d="M4 20h5v-5h5v-5h5V5"/>',
+    };
+    const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${MODE_ICON[name]}</svg>`;
+
+    function modeOf(category = '') {
+      const c = category.toUpperCase();
+      if (/^(IC|ICE|ICN|IR|IRE|EC|EN|EXT|NJ|RE|R|RB|S|SN|PE|TGV|RJX|TER)$/.test(c)) return 'train';
+      if (/^(T|TRAM|M)$/.test(c)) return 'tram';
+      if (/^(BAT|FAE|BAV)$/.test(c)) return 'boat';
+      if (/^(FUN|PB|GB|SL|LB|ASC)$/.test(c)) return 'cable';
+      return 'bus';
+    }
+    function lineLabel(j) {
+      const c = (j.category || '').toUpperCase();
+      const n = j.number || '';
+      if (!n) return c;
+      if (/^(S|SN|R|RE|IR|IC|EC|ICE)$/.test(c)) return /^(S|SN)$/.test(c) ? c + n : `${c} ${n}`;
+      if (c === 'B' || c === 'T' || c === 'BUS' || c === 'TRAM') return n;
+      return `${c} ${n}`;
+    }
+
+    const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+    function fmtDuration(d) {
+      const m = /(\d+)d(\d+):(\d+)/.exec(d || '');
+      if (!m) return '';
+      const h = +m[1] * 24 + +m[2], min = +m[3];
+      return h ? `${h} h ${min} min` : `${min} min`;
+    }
+    function dayLabel(iso) {
+      const d = new Date(iso), now = new Date();
+      const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+      if (d.toDateString() === now.toDateString()) return 'Today';
+      if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+    const coordOf = (stop) => {
+      const c = stop && (stop.station || stop.location) && (stop.station || stop.location).coordinate;
+      return c && c.x != null && c.y != null ? [c.y, c.x] : null; // API: x = lat, y = lng
+    };
+
+    const sameStop = (a, b) => !!(a && b && a.station && b.station && a.station.id && a.station.id === b.station.id);
+
+    // Every stop of a ride on its exact platform/edge (falls back to the station position)
+    function placeRide(s) {
+      const list = s.journey.passList;
+      const raw = list.map(coordOf);
+      const at = list.map((stop, k) =>
+        platformAt(k === 0 ? s.departure : k === list.length - 1 ? s.arrival : stop, raw[k - 1] || null, raw[k + 1] || null));
+      const pts = at.map((a) => a.ll);
+      return { path: pts.filter(Boolean), dep: pts[0] || coordOf(s.departure), arr: pts[pts.length - 1] || coordOf(s.arrival),
+        depAt: at[0], arrAt: at[at.length - 1] };
+    }
+
+    // Turn the API's sections into swipeable steps: walk → ride → change → ride → … → walk → arrive
+    function buildSteps(conn, destTitle) {
+      const steps = [];
+      let walk = { min: 0, lines: [], start: null };
+      let lastRide = null;
+      const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], start: null }; return w; };
+      const at = new Map(conn.sections.filter((s) => s.journey).map((s) => [s, placeRide(s)]));
+      conn.sections.forEach((s, idx) => {
+        if (!s.journey) {
+          walk.min += Math.round((s.walk && s.walk.duration || 0) / 60);
+          walk.start = walk.start || s.departure.departure;
+          // walks start/end on the platform you get off / on, not at the station's centre
+          let a = coordOf(s.departure), b = coordOf(s.arrival);
+          if (lastRide && sameStop(s.departure, lastRide.arrival)) a = at.get(lastRide).arr || a;
+          const nextRide = conn.sections.slice(idx + 1).find((x) => x.journey);
+          if (nextRide && sameStop(s.arrival, nextRide.departure)) b = at.get(nextRide).dep || b;
+          if (a && b) walk.lines.push([a, b]);
+          return;
+        }
+        const w = flushWalk();
+        const here = at.get(s);
+        if (!lastRide) {
+          if (w.min > 0) {
+            const t0 = new Date(w.start || conn.from.departure).getTime();
+            steps.push({ type: 'walk', min: w.min, lines: w.lines, start: w.start, toName: s.departure.station.name, next: s,
+              board: here.dep, t0, t1: t0 + w.min * 60000 });
+          }
+        } else {
+          const t0 = new Date(lastRide.arrival.arrival).getTime();
+          const pa = at.get(lastRide).arr, pd = here.dep;
+          // changing platforms inside a station: show the way from one platform to the other
+          const lines = w.lines.length ? w.lines : pa && pd && distKm(pa, pd) > 0.015 ? [[pa, pd]] : [];
+          steps.push({ type: 'change', prev: lastRide, next: s, walkMin: w.min, lines,
+            points: [pa, pd], t0, t1: w.min > 0 ? t0 + w.min * 60000 : new Date(s.departure.departure).getTime() });
+        }
+        steps.push({ type: 'ride', s, path: here.path, stops: here.path, depLL: here.dep, arrLL: here.arr, depAt: here.depAt, arrAt: here.arrAt,
+          t0: new Date(s.departure.departure).getTime(), t1: new Date(s.arrival.arrival).getTime() });
+        lastRide = s;
+      });
+      const w = flushWalk();
+      const end = lastRide ? at.get(lastRide).arr : null;
+      if (w.min > 0 || !lastRide) {
+        const t0 = new Date(w.start || (lastRide ? lastRide.arrival.arrival : conn.from.departure)).getTime();
+        steps.push({ type: 'walk', min: w.min, lines: w.lines, start: w.start, toName: destTitle, final: true,
+          from: lastRide, alight: end, t0, t1: t0 + w.min * 60000 });
+      }
+      steps.push({ type: 'arrive', destTitle, time: conn.to.arrival, from: lastRide, end });
+      steps.forEach((st, i) => {
+        st.prevRide = steps.slice(0, i).reverse().find((x) => x.type === 'ride');
+        st.nextRide = steps.slice(i + 1).find((x) => x.type === 'ride');
+      });
+      return steps;
+    }
+
+    function stepCoords(st) {
+      const c = [];
+      (st.lines || []).forEach((l) => c.push(...l));
+      if (st.path) c.push(...st.path);
+      if (st.points) c.push(...st.points.filter(Boolean));
+      if (st.board) c.push(st.board);
+      if (st.alight) c.push(st.alight);
+      if (st.type === 'arrive') {
+        if (destMarker._map) c.push(destMarker.getLngLat().toArray());
+        if (st.end) c.push(st.end);
+      }
+      return c;
+    }
+
+    // How far through a step we are right now (0…1), from the timetable times
+    function stepProgress(st) {
+      if (st.t0 == null || st.t1 == null) return 0;
+      const now = Date.now();
+      if (now <= st.t0) return 0;
+      if (now >= st.t1) return 1;
+      return (now - st.t0) / Math.max(1, st.t1 - st.t0);
+    }
+    // Split a line at a fraction of its length → [travelled, ahead]
+    function splitLine(cs, frac) {
+      const total = lengthKm(cs);
+      let target = total * frac, acc = 0;
+      for (let i = 1; i < cs.length; i++) {
+        const d = distKm(cs[i - 1], cs[i]);
+        if (acc + d >= target) {
+          const r = d ? (target - acc) / d : 0;
+          const p = [cs[i - 1][0] + (cs[i][0] - cs[i - 1][0]) * r, cs[i - 1][1] + (cs[i][1] - cs[i - 1][1]) * r];
+          return [[...cs.slice(0, i), p], [p, ...cs.slice(i)], p];
+        }
+        acc += d;
+      }
+      return [cs, [cs[cs.length - 1]], cs[cs.length - 1]];
+    }
+
+    // A point a set distance along a line (km), from its start or (negative) from its end
+    function pointAlong(cs, km) {
+      if (!cs || cs.length < 2) return cs && cs[0];
+      const total = lengthKm(cs);
+      const at = km >= 0 ? Math.min(km, total / 2) : Math.max(total / 2, total + km);
+      return splitLine(cs, total ? at / total : 0)[2];
+    }
+
+    // Floor change on a walk ("Go down to level −4"); platforms without a level are at street level
+    function levelChange(st) {
+      const lv = (x) => (x == null ? 0 : x);
+      const depLevel = (r) => r && r.depAt && r.depAt.edge && r.depAt.edge.level;
+      const arrLevel = (r) => r && r.arrAt && r.arrAt.edge && r.arrAt.edge.level;
+      const walk = (st.lines || []).flat();
+      let from = 0, to = 0, at = null;
+      if (st.type === 'walk' && !st.final) { to = lv(depLevel(st.nextRide)); at = pointAlong(walk, -0.03); }
+      else if (st.type === 'walk') { from = lv(arrLevel(st.prevRide)); at = pointAlong(walk, 0.03); }
+      else if (st.type === 'change') {
+        from = lv(arrLevel(st.prevRide)); to = lv(depLevel(st.nextRide));
+        at = walk.length > 1 ? splitLine(walk, .5)[2] : st.points[1];
+      } else return null;
+      if (from === to) return null;
+      return { from, to, at, text: `Go ${to < from ? 'down' : 'up'} to ${to === 0 ? 'street level' : 'level ' + levelShort(to)}` };
+    }
+
+    function signId(st) {
+      const j = st.s.journey, raw = platformOf(st.s.departure);
+      const edge = st.depAt && st.depAt.edge;
+      const label = splitPlatform(raw === '–' ? '' : raw).num || (edge && edge.ref) || '';
+      return `sg|l|${label}|${label ? platformWord(j) : ''}`;
+    }
+
+    function stepFeatures(steps) {
+      const f = [];
+      const add = (geometry, properties) => f.push({ type: 'Feature', properties, geometry });
+      const line = (cs, kind, step, extra) => cs && cs.length > 1 && add({ type: 'LineString', coordinates: cs }, { kind, step, ...extra });
+      const pt = (c, props) => c && add({ type: 'Point', coordinates: c }, props);
+      steps.forEach((st, i) => {
+        (st.lines || []).forEach((l) => line(l, 'walk', i));
+        if (st.type === 'ride') {
+          const c = lineColor(st.s.journey), colors = { color: c.bg, dcolor: c.dfg };
+          line(st.path, 'ride', i, colors);
+          st.stops.slice(1, -1).forEach((p) => pt(p, { kind: 'stop', step: i, end: false, ...colors }));
+          pt(st.arrLL, { kind: 'stop', step: i, end: true, ...colors });
+          pt(st.depLL, { kind: 'sign', step: i, img: signId(st), sort: 10 });
+        }
+        const lvl = levelChange(st);
+        if (lvl && lvl.at) pt(lvl.at, { kind: 'lvl', step: i, img: `lv|${lvl.to > lvl.from ? 'u' : 'd'}|${levelShort(lvl.to)}` });
+      });
+      const first = steps[0];
+      if (first && first.type === 'walk' && first.lines[0]) pt(first.lines[0][0], { kind: 'pin', step: 0, img: 'pin|from' });
+      return f;
+    }
+
+    // Where along the route we are now (time-based estimate), or null before/after the trip
+    function currentPosition() {
+      for (const st of journeySteps) {
+        const prog = stepProgress(st);
+        if (prog <= 0 || prog >= 1) continue;
+        if (st.type === 'ride' && st.path.length > 1) return splitLine(st.path, prog)[2];
+        const walkLine = (st.lines || []).flat();
+        if (st.type === 'change') {
+          const wp = st.walkMin > 0 ? Math.min(1, (Date.now() - st.t0) / (st.walkMin * 60000)) : 1;
+          if (walkLine.length > 1 && wp < 1) return splitLine(walkLine, wp)[2];
+          return st.points[st.points.length - 1] || null;
+        }
+        if (walkLine.length > 1) return splitLine(walkLine, prog)[2];
+      }
+      return null;
+    }
+    const nowEl = document.createElement('div');
+    nowEl.className = 'route-now';
+    const nowMarker = new maplibregl.Marker({ element: nowEl });
+    function updateNowMarker() {
+      const pos = journeySteps.length ? currentPosition() : null;
+      if (pos) { nowMarker.setLngLat(pos); if (!nowMarker._map) nowMarker.addTo(map); }
+      else nowMarker.remove();
+    }
+
+    const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    const minutesBetween = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
+    const badge = (j) => lineVars(mk('span', 'j-badge', lineLabel(j)), j);
+    // Platform (rail, cable cars) · Bay (bus and tram edges, "Kante") · Pier (boats)
+    const nounOf = (mode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
+    const platformWord = (j) => nounOf(modeOf(j.category));
+    const platformOf = (stop) => (stop.prognosis && stop.prognosis.platform) || stop.platform || '–';
+
+    function tag(kind, iconName, text) {
+      const t = mk('span', 'j-tag ' + kind);
+      if (iconName) t.innerHTML = icon(iconName);
+      t.appendChild(mk('span', null, text));
+      return t;
+    }
+
+    const COMPASS8 = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+    const compassWord = (deg) => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const levelShort = (l) => (l < 0 ? '−' + -l : String(l));
+    const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
+
+    // "7A-D" → { num: '7', sectors: 'A–D' }; "H" → { num: 'H', sectors: '' }
+    function splitPlatform(p) {
+      const m = /^(\d+)\s*([A-Z](?:\s*-\s*[A-Z])?|[A-Z]{2,})$/i.exec(p || '');
+      if (!m) return { num: p || '', sectors: '' };
+      let s = m[2].toUpperCase().replace(/\s*-\s*/, '–');
+      if (!s.includes('–') && s.length > 1) s = `${s[0]}–${s[s.length - 1]}`;
+      return { num: m[1], sectors: s };
+    }
+
+    // ---- Cards: one per step, swiped sideways ----
+    const ICON_COLOR = { walk: '#8e8e93', change: '#ff9500', pin: '#ff3b30' };
+
+    // Header: round icon · title · grey subtitle (may contain badges) · "2 of 5"
+    function cardHead(iconName, color, title, subParts, stepText) {
+      const row = mk('div', 'j-row');
+      const ico = mk('div', 'j-ico');
+      if (typeof color === 'string') ico.style.background = color;
+      else { ico.classList.add('line'); lineVars(ico, color); } // a ride: the line's colour, as on the map
+      ico.innerHTML = icon(iconName);
+      const txt = mk('div', 'j-txt');
+      txt.appendChild(mk('div', 'j-title', title));
+      if (subParts && subParts.length) {
+        const sub = mk('div', 'j-subtitle');
+        subParts.forEach((p) => sub.append(typeof p === 'string' ? document.createTextNode(p) : p));
+        txt.appendChild(sub);
+      }
+      row.append(ico, txt, mk('div', 'j-step', stepText));
+      return row;
+    }
+    function metric(k, v, delay, small) {
+      const m = mk('div', 'j-metric');
+      m.appendChild(mk('div', 'k', k));
+      const val = mk('div', 'v', v);
+      if (small) val.appendChild(mk('small', null, small));
+      if (delay > 0) val.appendChild(mk('span', 'j-delay', `+${delay}′`));
+      m.appendChild(val);
+      return m;
+    }
+    function metrics(...items) {
+      const g = mk('div', 'j-metrics' + (items.length === 1 ? ' one' : ''));
+      g.append(...items);
+      return g;
+    }
+    function foot(cls, ...parts) { // strings, {b: text}, nodes; empty parts are skipped
+      const f = mk('div', 'j-foot' + (cls ? ' ' + cls : ''));
+      parts.filter(Boolean).forEach((p) => f.append(typeof p === 'string' ? document.createTextNode(p) : p.b != null ? mk('b', null, p.b) : p));
+      return f;
+    }
+    // "Platform 7" for the step's metric, plus its sectors ("7A-D" → "7", "A–D")
+    function platformMetric(stop, j, edge) {
+      const raw = platformOf(stop);
+      const { num, sectors } = splitPlatform(raw === '–' ? '' : raw);
+      return metric(platformWord(j), num || (edge && edge.ref) || '–', 0, sectors ? ` ${sectors}` : '');
+    }
+
+    // Where to stand (from the Kante app): sectors or side of the road, floor level, next stop and the way it leaves
+    function standTags(st) {
+      const s = st.s, j = s.journey, mode = modeOf(j.category), at = st.depAt || {}, edge = at.edge;
+      const raw = platformOf(s.departure);
+      const { sectors } = splitPlatform(raw === '–' ? '' : raw);
+      const bearing = edge && edge.bearing != null ? edge.bearing : at.travel;
+      const tags = [];
+      if (sectors) tags.push(tag('plain', null, `${sectors.length === 1 ? 'Sector' : 'Sectors'} ${sectors}`));
+      else if (mode !== 'train' && edge && edge.bearing != null) tags.push(tag('plain', null, `${cap(compassWord(edge.bearing + 90))} side of the road`)); // edges sit right of travel
+      if (edge && edge.level) tags.push(tag('plain', 'stairs', `Level ${levelShort(edge.level)}`));
+      const next = j.passList[1] && j.passList[1].station && j.passList[1].station.name;
+      if (next) {
+        const t = tag('plain next', 'up', `Next: ${next}`);
+        if (bearing != null) t.querySelector('svg').style.transform = `rotate(${bearing}deg)`;
+        tags.push(t);
+      }
+      return tags;
+    }
+
+    // Minutes, then metres once the walking route is in
+    function walkText(st, minutes) {
+      const walks = (st.walks || []).filter(Boolean);
+      const dist = walks.length && walks.every((w) => w.dist != null) ? walks.reduce((sum, w) => sum + w.dist, 0) : null;
+      return [minutes ? `${minutes} min` : '', dist ? fmtDist(dist) : ''].filter(Boolean).join(' · ');
+    }
+    function updateWalk(st) {
+      if (st.ui && st.ui.walk) st.ui.walk.textContent = walkText(st, st.ui.minutes) || st.ui.fallback;
+    }
+    function walkSpan(st, minutes, fallback) {
+      const span = mk('span', null, walkText(st, minutes) || fallback);
+      st.ui = { walk: span, minutes, fallback };
+      return span;
+    }
+
+    function walkCard(st, n, total) {
+      const card = mk('div', 'j-card');
+      const lvl = levelChange(st);
+      const lvlTag = lvl && tag('plain', 'stairs', lvl.text);
+      if (st.next) {
+        const s = st.next, j = s.journey, raw = platformOf(s.departure);
+        const target = raw !== '–' ? `${platformWord(j)} ${splitPlatform(raw).num}` : s.departure.station.name;
+        card.appendChild(cardHead('walk', ICON_COLOR.walk, `Walk to ${target}`,
+          [walkSpan(st, st.min, ''), ' · then', badge(j), `→ ${j.to}`], `${n} of ${total}`));
+        card.appendChild(metrics(metric('Departs', fmtTime(s.departure.departure), s.departure.delay), platformMetric(s.departure, j, st.nextRide && st.nextRide.depAt.edge)));
+        card.appendChild(foot('', lvlTag, lvlTag ? null : 'Leave at ', lvlTag ? null : { b: fmtTime(st.start) }));
+      } else {
+        card.appendChild(cardHead('walk', ICON_COLOR.walk, `Walk to ${st.toName}`, [walkSpan(st, st.min, `${st.min} min`), ' · follow the yellow line'], `${n} of ${total}`));
+        card.appendChild(metrics(metric('Arrive', fmtTime(journeyConn.to.arrival))));
+        if (lvlTag) card.appendChild(foot('', lvlTag));
+      }
+      return card;
+    }
+
+    function rideCard(st, n, total) {
+      const s = st.s, j = s.journey, mode = modeOf(j.category);
+      const stops = Math.max(0, j.passList.length - 1);
+      const card = mk('div', 'j-card');
+      card.appendChild(cardHead(mode, j, `Get off at ${s.arrival.station.name}`, [badge(j), `→ ${j.to}`], `${n} of ${total}`));
+      card.appendChild(metrics(metric('Departs', fmtTime(s.departure.departure), s.departure.delay), platformMetric(s.departure, j, st.depAt && st.depAt.edge)));
+      const tags = standTags(st);
+      if (tags.length) card.appendChild(foot('tags', ...tags));
+      card.appendChild(foot(tags.length ? 'after' : '', `${stops} stop${stops === 1 ? '' : 's'} · ${minutesBetween(s.departure.departure, s.arrival.arrival)} min · arrives `, { b: fmtTime(s.arrival.arrival) }));
+      return card;
+    }
+
+    function changeCard(st, n, total) {
+      const { prev, next } = st;
+      const wait = minutesBetween(prev.arrival.arrival, next.departure.departure);
+      const sameStation = prev.arrival.station.name === next.departure.station.name;
+      const pa = platformOf(prev.arrival), pd = platformOf(next.departure);
+      const card = mk('div', 'j-card');
+      const title = !sameStation ? `Walk to ${next.departure.station.name}`
+        : pd !== '–' ? `Change to ${platformWord(next.journey)} ${splitPlatform(pd).num}` : `Change at ${next.departure.station.name}`;
+      card.appendChild(cardHead('change', ICON_COLOR.change, title, [`${wait} min · take`, badge(next.journey), `→ ${next.journey.to}`], `${n} of ${total}`));
+      card.appendChild(metrics(metric('Departs', fmtTime(next.departure.departure), next.departure.delay), platformMetric(next.departure, next.journey, st.nextRide && st.nextRide.depAt.edge)));
+      const spare = wait - (st.walkMin || 0);
+      const spareTag = spare >= 2 ? tag('ok', 'check', `${spare} min to spare`)
+        : spare >= 0 ? tag('warn', 'change', `Tight: ${spare} min to spare`) : tag('warn', 'change', 'Very tight change');
+      let way;
+      if (!sameStation || st.walkMin > 0 || st.lines.length) {
+        way = tag('plain', 'walk', '');
+        way.lastChild.replaceWith(walkSpan(st, st.walkMin, 'Short walk'));
+      } else if (pa !== '–' && pd !== '–' && pa !== pd) way = tag('plain', 'change', `${splitPlatform(pa).num} → ${splitPlatform(pd).num}`);
+      else way = tag('plain', 'check', 'Same platform');
+      const lvl = levelChange(st);
+      card.appendChild(foot('', spareTag, way, lvl && tag('plain', 'stairs', lvl.text)));
+      return card;
+    }
+
+    function arriveCard(st, n, total) {
+      const card = mk('div', 'j-card');
+      card.appendChild(cardHead('pin', ICON_COLOR.pin, `Arrive at ${st.destTitle}`,
+        st.from ? [`Last stop: ${st.from.arrival.station.name}`] : [], `${n} of ${total}`));
+      card.appendChild(metrics(metric('Arrival', fmtTime(st.time))));
+      card.appendChild(foot('', dayLabel(st.time)));
+      return card;
+    }
+
+    function stepChip(st, i) {
+      const chip = mk('button', 'j-chip');
+      chip.type = 'button';
+      chip.dataset.step = i;
+      if (st.type === 'walk') {
+        chip.innerHTML = icon('walk');
+        chip.appendChild(document.createTextNode(`${st.min}`));
+      } else if (st.type === 'ride') {
+        chip.appendChild(badge(st.s.journey));
+      } else if (st.type === 'change') {
+        chip.innerHTML = icon('change');
+        chip.setAttribute('aria-label', 'Change');
+      } else {
+        chip.innerHTML = icon('pin');
+        chip.setAttribute('aria-label', 'Arrival');
+      }
+      chip.addEventListener('click', () => goToStep(i));
+      return chip;
+    }
+
+    // ---- Top pill: the trip on one line, roughly to scale in time. Every ride is a solid line with its name above it;
+    //      walking, changing and waiting are rows of single dots (always at least a few, so a short change still shows).
+    //      The part already behind you fades. Tap to jump to that step. ----
+    const jBar = document.getElementById('jBar');
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const svgEl = (tag, attrs) => { const e = document.createElementNS(SVG_NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+    const BAR = { pad: 6, lineY: 26, textY: 14, dot: 8, ball: 2.5, node: 4.2, inset: 4 }; // ball: walking dots, node: ends of a ride
+    // → { segs: [{ kind, a, b, x0, x1, label }], t0, t1, W, x(t), tAt(px) }
+    function barLayout() {
+      const t0 = new Date(journeyConn.from.departure).getTime(), t1 = new Date(journeyConn.to.arrival).getTime();
+      const W = jBar.clientWidth, L = W - 2 * BAR.pad;
+      const segs = [];
+      let cursor = t0, rides = 0;
+      journeyConn.sections.filter((s) => s.journey).forEach((s) => {
+        const a = Math.max(cursor, new Date(s.departure.departure).getTime()), b = Math.max(a, new Date(s.arrival.arrival).getTime());
+        if (a > cursor || rides) segs.push({ kind: 'gap', a: cursor, b: a, min: rides ? 28 : 17 }); // a change, or the walk to the first stop
+        segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.journey) });
+        cursor = b;
+        rides++;
+      });
+      if (t1 > cursor || !rides) segs.push({ kind: 'gap', a: cursor, b: Math.max(cursor, t1), min: 17 });
+      // widths in proportion to time, but never below each part's minimum
+      let fixed = new Set();
+      for (let pass = 0; pass < 4; pass++) {
+        const freeMs = segs.reduce((s, g) => s + (fixed.has(g) ? 0 : g.b - g.a), 0);
+        const freePx = L - segs.reduce((s, g) => s + (fixed.has(g) ? g.min : 0), 0);
+        segs.forEach((g) => { g.w = fixed.has(g) ? g.min : freeMs ? ((g.b - g.a) / freeMs) * freePx : freePx / segs.length; });
+        const low = segs.filter((g) => !fixed.has(g) && g.w < g.min);
+        if (!low.length) break;
+        low.forEach((g) => fixed.add(g));
+      }
+      let px = BAR.pad;
+      segs.forEach((g) => { g.x0 = px; px += Math.max(0, g.w); g.x1 = px; });
+      const x = (t) => {
+        if (t <= t0) return BAR.pad;
+        const g = segs.find((s) => t <= s.b) || segs[segs.length - 1];
+        return g.x0 + (g.x1 - g.x0) * (g.b > g.a ? Math.min(1, Math.max(0, (t - g.a) / (g.b - g.a))) : 1);
+      };
+      const tAt = (p) => {
+        const g = segs.find((s) => p <= s.x1) || segs[segs.length - 1];
+        return g.a + (g.b - g.a) * (g.x1 > g.x0 ? Math.min(1, Math.max(0, (p - g.x0) / (g.x1 - g.x0))) : 0);
+      };
+      return { segs, t0, t1, W, x, tAt };
+    }
+    function drawBarArt(g, { segs }) {
+      const first = segs[0], last = segs[segs.length - 1];
+      const dot = (cx, r) => g.appendChild(svgEl('circle', { cx, cy: BAR.lineY, r, fill: 'currentColor' }));
+      segs.forEach((s) => {
+        if (s.kind === 'ride') {
+          // a big dot where the ride starts and where it ends, the line between them
+          const xa = s === first ? s.x0 : s.x0 + BAR.inset, xb = Math.max(xa, s === last ? s.x1 : s.x1 - BAR.inset);
+          g.appendChild(svgEl('line', { x1: xa, y1: BAR.lineY, x2: xb, y2: BAR.lineY, stroke: 'currentColor', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+          if (s !== first) dot(xa, BAR.node);
+          if (s !== last) dot(xb, BAR.node);
+          return;
+        }
+        // walking / changing / waiting: evenly spaced dots, clear of the big dots on either side
+        const xa = s.x0 + (s === first ? 10 : 6), xb = s.x1 - (s === last ? 10 : 6);
+        const n = Math.max(1, Math.floor(Math.max(0, xb - xa) / BAR.dot) + 1);
+        const start = (xa + xb) / 2 - ((n - 1) * BAR.dot) / 2;
+        for (let k = 0; k < n; k++) dot(start + k * BAR.dot, BAR.ball);
+      });
+      g.appendChild(svgEl('circle', { cx: first.x0, cy: BAR.lineY, r: 3.6, class: 'j-bar-start', 'stroke-width': 2, stroke: 'currentColor' }));
+      dot(last.x1, BAR.node);
+    }
+    function renderBar() {
+      jBar.replaceChildren();
+      if (!journeyConn || !jBar.clientWidth) return;
+      const geo = barLayout();
+      const now = Date.now(), live = now > geo.t0 && now < geo.t1;
+      const nx = now <= geo.t0 ? 0 : now >= geo.t1 ? geo.W : geo.x(now);
+      const svg = svgEl('svg', { viewBox: `0 0 ${geo.W} ${jBar.clientHeight}`, 'aria-hidden': 'true' });
+      const clip = (id, xa, xb) => {
+        const c = svgEl('clipPath', { id });
+        c.appendChild(svgEl('rect', { x: xa, y: -10, width: Math.max(0, xb - xa), height: 80 }));
+        return c;
+      };
+      const defs = svgEl('defs', {});
+      defs.append(clip('jBarAhead', nx, geo.W + 10), clip('jBarDone', -10, nx));
+      const ahead = svgEl('g', { 'clip-path': 'url(#jBarAhead)' });
+      const done = svgEl('g', { 'clip-path': 'url(#jBarDone)', opacity: '.32' });
+      svg.append(defs, done, ahead);
+      jBar.appendChild(svg);
+      drawBarArt(ahead, geo);
+      drawBarArt(done, geo);
+      // line names, where they fit; faded once that ride is over
+      geo.segs.filter((s) => s.kind === 'ride').forEach((s) => {
+        const text = svgEl('text', { x: (s.x0 + s.x1) / 2, y: BAR.textY, 'text-anchor': 'middle', fill: 'currentColor', opacity: now >= s.b ? '.32' : '1' });
+        text.textContent = s.label;
+        svg.appendChild(text);
+        if (text.getComputedTextLength() > s.x1 - s.x0 + 8) text.remove();
+      });
+      if (live) {
+        svg.appendChild(svgEl('circle', { cx: nx, cy: BAR.lineY, r: 9, fill: 'currentColor', opacity: '.18' }));
+        svg.appendChild(svgEl('circle', { cx: nx, cy: BAR.lineY, r: 5, fill: 'currentColor', class: 'j-bar-now', 'stroke-width': 2.5 }));
+      }
+    }
+    if (window.ResizeObserver) new ResizeObserver(() => renderBar()).observe(jBar);
+    jBar.addEventListener('click', (e) => {
+      if (!journeyConn || !journeySteps.length) return;
+      const geo = barLayout();
+      const t = geo.tAt(e.clientX - jBar.getBoundingClientRect().left);
+      let i = 0;
+      journeySteps.forEach((st, k) => { if (st.t0 != null && st.t0 <= t) i = k; });
+      if (t >= geo.t1 - 1000) i = journeySteps.length - 1;
+      goToStep(i);
+    });
+
+    function updateProgress() {
+      if (!journeyConn) return;
+      renderBar();
+      if (journeySteps.length) { setRoute(stepFeatures(journeySteps)); updateNowMarker(); }
+    }
+
+    function renderJourney(conn, destTitle) {
+      journeyConn = conn;
+      journeySteps = buildSteps(conn, destTitle);
+      journeyStep = 0;
+      routeOverview = true;
+      document.getElementById('jDep').textContent = fmtTime(conn.from.departure);
+      document.getElementById('jArr').textContent = fmtTime(conn.to.arrival);
+      document.getElementById('jTo').textContent = destTitle;
+      document.getElementById('jSub').textContent =
+        `${dayLabel(conn.from.departure)} · ${fmtDuration(conn.duration)}` +
+        (conn.transfers ? ` · ${conn.transfers} change${conn.transfers > 1 ? 's' : ''}` : ' · direct');
+      jStrip.innerHTML = '';
+      jTrack.innerHTML = '';
+      jDots.innerHTML = '';
+      jStatus.textContent = '';
+      const total = journeySteps.length;
+      journeySteps.forEach((st, i) => {
+        if (i) jStrip.appendChild(mk('span', 'j-chev', '›'));
+        jStrip.appendChild(stepChip(st, i));
+        const slide = mk('div', 'j-slide');
+        slide.appendChild(st.type === 'walk' ? walkCard(st, i + 1, total)
+          : st.type === 'ride' ? rideCard(st, i + 1, total)
+          : st.type === 'change' ? changeCard(st, i + 1, total)
+          : arriveCard(st, i + 1, total));
+        jTrack.appendChild(slide);
+        const dot = mk('button', 'j-dot');
+        dot.type = 'button';
+        dot.setAttribute('aria-label', `Step ${i + 1}`);
+        dot.addEventListener('click', () => goToStep(i));
+        jDots.appendChild(dot);
+      });
+      renderBar();
+      setRoute(stepFeatures(journeySteps));
+      showStep(false);
+      fitJourney(); // overview first; swiping then zooms into each step
+    }
+
+    function showStep(fit) {
+      jTrack.style.transform = `translateX(${-journeyStep * 100}%)`;
+      jStrip.querySelectorAll('.j-chip').forEach((c) => c.classList.toggle('active', +c.dataset.step === journeyStep));
+      jDots.querySelectorAll('.j-dot').forEach((d, i) => d.classList.toggle('active', i === journeyStep));
+      const active = jStrip.querySelector('.j-chip.active');
+      if (active) jStrip.scrollTo({ left: active.offsetLeft - 18, behavior: 'smooth' });
+      refreshRouteHighlight();
+      if (fit) fitStep(journeyStep);
+    }
+    function goToStep(i) {
+      if (!journeySteps.length) return;
+      journeyStep = Math.min(journeySteps.length - 1, Math.max(0, i));
+      routeOverview = false;
+      showStep(true);
+    }
+
+    // ---- Swipe: drag the cards with a finger or the mouse; flick or drag past ~1/5 to change card ----
+    (function enableSwipe() {
+      let id = null, sx = 0, sy = 0, dx = 0, t = 0, decided = false, dragging = false;
+      jViewport.addEventListener('pointerdown', (e) => {
+        if (!journeySteps.length) return;
+        id = e.pointerId; sx = e.clientX; sy = e.clientY; dx = 0; t = performance.now(); decided = false; dragging = false;
+      });
+      jViewport.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== id) return;
+        const mx = e.clientX - sx, my = e.clientY - sy;
+        if (!decided && (Math.abs(mx) > 6 || Math.abs(my) > 6)) {
+          decided = true;
+          dragging = Math.abs(mx) > Math.abs(my);
+          if (dragging) { jViewport.setPointerCapture(id); jTrack.classList.add('dragging'); }
+        }
+        if (!dragging) return;
+        const last = journeySteps.length - 1;
+        dx = mx;
+        if ((journeyStep === 0 && dx > 0) || (journeyStep === last && dx < 0)) dx *= 0.3; // rubber band at the ends
+        jTrack.style.transform = `translateX(calc(${-journeyStep * 100}% + ${dx}px))`;
+      });
+      const end = (e) => {
+        if (e.pointerId !== id) return;
+        id = null;
+        if (!dragging) return;
+        dragging = false;
+        jTrack.classList.remove('dragging');
+        const w = jViewport.clientWidth;
+        const fast = performance.now() - t < 280 && Math.abs(dx) > 30;
+        if (dx < -w * 0.2 || (fast && dx < 0)) goToStep(journeyStep + 1);
+        else if (dx > w * 0.2 || (fast && dx > 0)) goToStep(journeyStep - 1);
+        else showStep(false);
+      };
+      jViewport.addEventListener('pointerup', end);
+      jViewport.addEventListener('pointercancel', end);
+    })();
+
+    function mapPadding() {
+      const h = journeyEl.getBoundingClientRect().height || 300;
+      return { top: document.body.classList.contains('journey-mode') ? 150 : 80, bottom: h + 40, left: 64, right: 64 };
+    }
+    function fitCoords(coords) {
+      if (!coords.length) return;
+      const b = coords.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
+      map.fitBounds(b, { padding: mapPadding(), maxZoom: 17, duration: 700 });
+    }
+    function fitJourney() {
+      const all = [];
+      journeySteps.forEach((st) => all.push(...stepCoords(st)));
+      requestAnimationFrame(() => fitCoords(all));
+    }
+    function fitStep(i) {
+      const st = journeySteps[i];
+      if (st) fitCoords(stepCoords(st));
+    }
+
+    async function startJourney(r, keepQuery) {
+      const id = ++journeyReq;
+      if (!keepQuery) journeyQuery = { mode: 'dep', date: '', time: '' };
+      journeyDest = r;
+      journeyConn = null;
+      journeySteps = [];
+      wrap.classList.remove('collapsed');
+      wrap.classList.add('journey-open');
+      document.body.classList.add('journey-mode');
+      setMenu(false);
+      jStrip.innerHTML = '';
+      jTrack.innerHTML = '';
+      jDots.innerHTML = '';
+      document.getElementById('jBar').innerHTML = '';
+      document.getElementById('jDep').textContent = '--:--';
+      document.getElementById('jArr').textContent = '--:--';
+      document.getElementById('jTo').textContent = r.title;
+      document.getElementById('jSub').textContent = '';
+      jStatus.textContent = 'Finding a connection…';
+      setRoute([]);
+      if (!keepQuery) map.flyTo({ center: r.lngLat, zoom: 14, speed: 1.4, offset: [0, -150] }); // keep the pin above the widget
+      clearInterval(progressTimer);
+      progressTimer = setInterval(updateProgress, 15000);
+
+      const from = userLngLat || map.getCenter().toArray();
+      try {
+        // exact platforms if their data is there in time; never hold a journey up for more than 4 s
+        const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
+        if (id !== journeyReq) return;
+        if (!conn) { jStatus.textContent = 'No public transport connection found for this trip.'; return; }
+        renderJourney(conn, r.title);
+        refineJourney(id); // swap straight lines for real walking paths and tracks/roads
+        if (!userLngLat) document.getElementById('jSub').textContent += ' · from map centre';
+      } catch (e) {
+        if (id === journeyReq) jStatus.textContent = 'Connections could not be loaded. Check your internet connection.';
+      }
+    }
+
+    // ---- Time picker: tap the departure or arrival time ----
+    const tSheet = document.getElementById('tSheet');
+    const tDim = document.getElementById('tDim');
+    const tDate = document.getElementById('tDate');
+    const tTime = document.getElementById('tTime');
+    let tMode = 'dep';
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const dateValue = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const timeValue = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    function setTMode(m) {
+      tMode = m;
+      document.querySelectorAll('#tSeg button').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+    }
+    function openTimeSheet(mode) {
+      if (!journeyDest) return;
+      setTMode(mode);
+      const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.to.arrival : journeyConn.from.departure) : new Date();
+      tDate.value = journeyQuery.date || dateValue(ref);
+      tTime.value = journeyQuery.time || timeValue(ref);
+      if (journeyQuery.mode !== mode && journeyConn) { tDate.value = dateValue(ref); tTime.value = timeValue(ref); }
+      tSheet.classList.add('open');
+      tDim.classList.add('open');
+      tSheet.setAttribute('aria-hidden', 'false');
+    }
+    function closeTimeSheet() {
+      tSheet.classList.remove('open');
+      tDim.classList.remove('open');
+      tSheet.setAttribute('aria-hidden', 'true');
+    }
+    document.getElementById('jDepBtn').addEventListener('click', () => openTimeSheet('dep'));
+    document.getElementById('jArrBtn').addEventListener('click', () => openTimeSheet('arr'));
+    document.querySelectorAll('#tSeg button').forEach((b) => b.addEventListener('click', () => setTMode(b.dataset.mode)));
+    tDim.addEventListener('click', closeTimeSheet);
+    document.getElementById('tNow').addEventListener('click', () => {
+      journeyQuery = { mode: 'dep', date: '', time: '' };
+      closeTimeSheet();
+      startJourney(journeyDest, true);
+    });
+    document.getElementById('tDone').addEventListener('click', () => {
+      journeyQuery = { mode: tMode, date: tDate.value, time: tTime.value };
+      closeTimeSheet();
+      startJourney(journeyDest, true);
+    });
+
+    // ---------- Accurate route shapes ----------
+    // Timetables only give stop coordinates, so the lines between them are routed:
+    //   walking → OSM foot routing (routing.openstreetmap.de), trains → BRouter rail profile (brouter.de),
+    //   buses/trams → OSM road routing. Anything implausible falls back to the straight line.
+    const routeCache = new Map();
+    function getJSON(url) {
+      if (!routeCache.has(url)) routeCache.set(url, fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+      return routeCache.get(url);
+    }
+    function distKm(a, b) {
+      const R = 6371, toRad = Math.PI / 180;
+      const dLat = (b[1] - a[1]) * toRad, dLng = (b[0] - a[0]) * toRad;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+    const lengthKm = (cs) => cs.reduce((sum, c, i) => (i ? sum + distKm(cs[i - 1], c) : 0), 0);
+    const plausible = (route, straight) => route && route.length > 1 && lengthKm(route) <= Math.max(lengthKm(straight) * 2.5, lengthKm(straight) + 0.4);
+    const ll = (c) => `${c[0].toFixed(6)},${c[1].toFixed(6)}`;
+
+    // → { coords, steps (OSRM turn-by-turn, or null), dist (m, or null) }
+    async function routeWalk(a, b) {
+      if (distKm(a, b) < 0.02) return { coords: [a, b], steps: null, dist: Math.round(distKm(a, b) * 1000) };
+      const costing = SETTINGS.walkCosting();
+      if (costing) return routeWalkAccessible(a, b, costing);
+      const d = await getJSON(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${ll(a)};${ll(b)}?overview=full&geometries=geojson&steps=true`);
+      const r = d && d.code === 'Ok' && d.routes[0];
+      const g = r && r.geometry.coordinates;
+      return plausible(g, [a, b]) ? { coords: [a, ...g, b], steps: r.legs[0].steps, dist: r.distance } : { coords: [a, b], steps: null, dist: null };
+    }
+
+    // Step-free / fewer-stairs walks (Settings › Journeys): Valhalla on the FOSSGIS server can avoid steps
+    // and route for wheelchairs. One request at a time, to go easy on the free server.
+    function decodePolyline6(str) {
+      const out = [];
+      let i = 0, lat = 0, lng = 0;
+      while (i < str.length) {
+        for (let k = 0; k < 2; k++) {
+          let b, shift = 0, v = 0;
+          do { b = str.charCodeAt(i++) - 63; v |= (b & 31) << shift; shift += 5; } while (b >= 32);
+          const d = v & 1 ? ~(v >> 1) : v >> 1;
+          if (k) lng += d; else lat += d;
+        }
+        out.push([lng / 1e6, lat / 1e6]);
+      }
+      return out;
+    }
+    let valhallaQueue = Promise.resolve();
+    async function routeWalkAccessible(a, b, costing) {
+      const q = {
+        locations: [{ lon: a[0], lat: a[1] }, { lon: b[0], lat: b[1] }],
+        costing: 'pedestrian', costing_options: { pedestrian: costing }, directions_type: 'none',
+      };
+      const url = 'https://valhalla1.openstreetmap.de/route?json=' + encodeURIComponent(JSON.stringify(q));
+      const d = await (valhallaQueue = valhallaQueue.then(() => getJSON(url)));
+      const t = d && d.trip;
+      const g = t && t.legs && t.legs[0] && decodePolyline6(t.legs[0].shape);
+      // step-free paths can detour more than normal walks; when none is found, show only the straight line
+      const direct = distKm(a, b);
+      const ok = g && g.length > 1 && lengthKm(g) <= Math.max(direct * 4, direct + 0.8);
+      return ok ? { coords: [a, ...g, b], steps: null, dist: Math.round(t.summary.length * 1000) } : { coords: [a, b], steps: null, dist: null };
+    }
+
+    async function routeRide(path, mode) {
+      if (path.length < 2) return path;
+      let g = null;
+      if (mode === 'train') {
+        const d = await getJSON(`https://brouter.de/brouter?lonlats=${path.map(ll).join('|')}&profile=rail&alternativeidx=0&format=geojson`);
+        g = d && d.features && d.features[0] && d.features[0].geometry.coordinates.map((c) => [c[0], c[1]]);
+      } else if (mode === 'bus' || mode === 'tram') {
+        const d = await getJSON(`https://routing.openstreetmap.de/routed-car/route/v1/driving/${path.map(ll).join(';')}?overview=full&geometries=geojson`);
+        g = d && d.code === 'Ok' && d.routes[0] && d.routes[0].geometry.coordinates;
+      }
+      return plausible(g, path) ? [path[0], ...g, path[path.length - 1]] : path;
+    }
+
+    function refineJourney(id) {
+      let pending = 0, scheduled = false;
+      const redraw = () => {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => { scheduled = false; if (id === journeyReq) { setRoute(stepFeatures(journeySteps)); updateNowMarker(); } });
+      };
+      const task = (promise, apply) => {
+        pending++;
+        promise.then((res) => { if (id !== journeyReq) return; apply(res); redraw(); });
+      };
+      journeySteps.forEach((st) => {
+        (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
+          st.lines[k] = res.coords;
+          (st.walks || (st.walks = []))[k] = res;
+          updateWalk(st);
+        }));
+        if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.journey.category)), (res) => { st.path = res; });
+      });
+    }
+
+    // Timetable data: transport.opendata.ch (the official Swiss timetable, incl. SBB, PostBus, city transport)
+    const OPENDATA = 'https://transport.opendata.ch/v1/';
+    const coordParam = (ll) => `${ll[1].toFixed(6)},${ll[0].toFixed(6)}`; // lat,lng
+    async function nearestStation(ll) {
+      const res = await fetch(`${OPENDATA}locations?` + new URLSearchParams({ x: ll[1], y: ll[0], type: 'station' }));
+      const data = await res.json();
+      const st = (data.stations || []).find((x) => x.id);
+      return st ? st.id : null;
+    }
+    async function connections(from, to) {
+      if (!from || !to) return null;
+      const q = { from, to, limit: '5' };
+      const { mode, date, time } = journeyQuery;
+      if (date) q.date = date;
+      if (time) q.time = time;
+      if (mode === 'arr' && (date || time)) q.isArrivalTime = '1';
+      const params = new URLSearchParams(q);
+      SETTINGS.transportations().forEach((t) => params.append('transportations[]', t));
+      const res = await fetch(`${OPENDATA}connections?` + params);
+      const data = await res.json();
+      // Settings: walks retimed to your walking speed; prefer connections whose walks and changes fit
+      const all = (data.connections || []).map(SETTINGS.retime);
+      const fits = all.filter(SETTINGS.connectionFits);
+      const list = fits.length ? fits : all;
+      if (!list.length) return null;
+      if (mode === 'arr' && (date || time)) {
+        // latest connection that still arrives by the chosen time
+        const target = new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime();
+        const ok = list.filter((c) => new Date(c.to.arrival).getTime() <= target + 60000);
+        return (ok.length ? ok : list).reduce((best, c) => (new Date(c.to.arrival) > new Date(best.to.arrival) ? c : best));
+      }
+      const after = date || time
+        ? new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime() - 60000
+        : Date.now() - 60000;
+      return list.find((c) => new Date(c.from.departure).getTime() >= after) || list[0];
+    }
+    // Exact coordinates can fail when a point is far from any stop (e.g. a municipality's centre in the fields),
+    // so fall back to the place name and then to the nearest stations at either end.
+    async function findConnection(fromLL, r) {
+      const from = coordParam(fromLL), to = coordParam(r.lngLat);
+      let c = await connections(from, to);
+      if (c) return c;
+      if (r.origin === 'gg25' || r.origin === 'gazetteer') {
+        c = await connections(from, r.title.replace(/\s*\([A-Z]{2}\)\s*$/, ''));
+        if (c) return c;
+      }
+      const toStation = await nearestStation(r.lngLat);
+      c = await connections(from, toStation);
+      if (c) return c;
+      const fromStation = await nearestStation(fromLL);
+      return connections(fromStation, toStation);
+    }
+
+    function endJourney() {
+      journeyReq++;
+      wrap.classList.remove('journey-open');
+      document.body.classList.remove('journey-mode');
+      clearInterval(progressTimer);
+      journeyConn = null;
+      journeyDest = null;
+      nowMarker.remove();
+      closeTimeSheet();
+      setRoute([]);
+      journeySteps = [];
+      destMarker.remove();
+      input.value = '';
+      results = [];
+      clearBtn.classList.remove('show');
+      render();
+      if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
+    }
+    document.getElementById('jClose').addEventListener('click', endJourney);
+
+    // ---------- Event page (URL: #event/<id>, so the back gesture/button works) ----------
+    const evPage = document.getElementById('evPage');
+    const evHero = document.getElementById('evHero');
+    const evContent = document.getElementById('evContent');
+    let pageEvent = null;
+    let pushedHash = false;
+
+    const findEvent = (id) => EVENTS.features.find((f) => f.properties.id === id);
+
+    function openEvent(id) {
+      pushedHash = true;
+      location.hash = 'event/' + encodeURIComponent(id);
+    }
+
+    let eventsAtPin = [];
+    const related = document.getElementById('evRelated');
+    related.addEventListener('change', () => {
+      history.replaceState(null, '', '#event/' + encodeURIComponent(related.value));
+      routeFromHash();
+    });
+
+    function renderEventPage(f) {
+      const p = f.properties;
+      pageEvent = f;
+      const choices = eventsAtPin.includes(f) ? eventsAtPin : [];
+      related.replaceChildren();
+      related.parentElement.hidden = choices.length < 2;
+      if (choices.length > 1) {
+        for (const { properties } of choices) {
+          related.add(new Option(properties.title + ' · ' + properties.when, properties.id));
+        }
+        related.value = p.id;
+      }
+      evHero.style.setProperty('--c', p.color);
+      evContent.style.setProperty('--c', p.color);
+      [...evHero.children].forEach((n) => { if (n.id !== 'evBack') n.remove(); });
+      evHero.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${EVENTS.GLYPHS[p.cat]}"/></svg>`);
+      if (p.image) {
+        const img = document.createElement('img');
+        img.src = p.image;
+        img.alt = '';
+        img.onerror = () => img.remove();
+        evHero.appendChild(img);
+      }
+      document.getElementById('evCat').textContent = p.category;
+      document.getElementById('evTitle').textContent = p.title;
+      document.getElementById('evWhen').textContent = p.when;
+      document.getElementById('evCost').textContent = p.cost;
+      document.getElementById('evAttendance').textContent = p.attendance;
+      document.getElementById('evOrganizer').href = p.url;
+      document.getElementById('evVenue').textContent = p.venue;
+      document.getElementById('evCity').textContent = p.city;
+      document.getElementById('evAbout').textContent = p.about;
+      document.getElementById('evAudience').textContent = p.audience;
+      evPage.scrollTop = 0;
+    }
+
+    const eventJourneyButton = document.getElementById('evShowJourney');
+    const eventJourneyStatus = document.getElementById('evJourneyStatus');
+    let eventLocationRequest = 0;
+
+    function routeFromHash() {
+      eventLocationRequest++;
+      eventJourneyButton.disabled = false;
+      eventJourneyStatus.textContent = '';
+      const m = location.hash.match(/^#event\/(.+)$/);
+      const f = m && findEvent(decodeURIComponent(m[1]));
+      if (f) {
+        renderEventPage(f);
+        input.blur();
+        setMenu(false);
+        evPage.classList.add('open');
+        evPage.setAttribute('aria-hidden', 'false');
+        document.getElementById('evBack').focus();
+      } else {
+        evPage.classList.remove('open');
+        evPage.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    function closeEvent() {
+      if (pushedHash) { pushedHash = false; history.back(); }
+      else history.replaceState(null, '', location.pathname + location.search);
+      routeFromHash();
+    }
+
+    window.addEventListener('hashchange', () => { if (!location.hash) pushedHash = false; routeFromHash(); });
+    document.getElementById('evBack').addEventListener('click', closeEvent);
+    eventJourneyButton.addEventListener('click', () => {
+      const event = pageEvent;
+      if (!event) return;
+      if (!window.isSecureContext || !navigator.geolocation) {
+        eventJourneyStatus.textContent = 'Location is unavailable. Open this page over HTTPS in a browser with location access.';
+        return;
+      }
+      const request = ++eventLocationRequest;
+      eventJourneyButton.disabled = true;
+      eventJourneyStatus.textContent = 'Finding your current location…';
+      navigator.geolocation.getCurrentPosition(position => {
+        if (request !== eventLocationRequest) return;
+        eventJourneyButton.disabled = false;
+        if (!inSwitzerland([position.coords.longitude, position.coords.latitude])) {
+          eventJourneyStatus.textContent = 'Journeys are available from locations in Switzerland.';
+          return;
+        }
+        onPosition(position);
+        const destination = event.properties.areaOnly
+          ? event.properties.title + ' (' + event.properties.city + ' area)'
+          : event.properties.title;
+        pushedHash = false;
+        history.replaceState(null, '', location.pathname + location.search);
+        routeFromHash();
+        showDestinationJourney({ title: destination, lngLat: event.geometry.coordinates });
+      }, error => {
+        if (request !== eventLocationRequest) return;
+        eventJourneyButton.disabled = false;
+        eventJourneyStatus.textContent = error.code === 1
+          ? 'Allow location access in your browser, then tap Show journey again.'
+          : 'Your location could not be found. Tap Show journey to try again.';
+      }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
+    });
+    routeFromHash(); // a shared #event/… link opens straight on the page
+
+    // ---------- Keep the bar above the iOS keyboard ----------
+    if (window.visualViewport) {
+      const vv = window.visualViewport;
+      const place = () => {
+        const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        wrap.style.bottom = kb > 0 ? (kb + 8) + 'px' : '';
+        list.style.maxHeight = kb > 0 ? (vv.height - 52 - 40) + 'px' : '';
+      };
+      vv.addEventListener('resize', place);
+      vv.addEventListener('scroll', place);
+    }
+  </script>
+</body>
+</html>
