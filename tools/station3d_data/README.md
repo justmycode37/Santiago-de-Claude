@@ -68,3 +68,22 @@ data.sbb.ch (`sektortafel`, `haltestelle-uhr`, `billetautomat`), for the stop id
   machines on −4 and 17 clocks and 3 ticket machines on −3; 42 of the section-filed pieces went to street level. The Museumstrasse clocks
   without a mounting (`montage_an` empty) stay on −3: nothing in the data says where they hang, and they lie over
   that floor's platforms.
+
+## Basel SBB (`basel/`) and Luzern (`luzern/`)
+
+`boards.json`, `sectors.json` and `furniture.json` are made by `tools/station3d_sbb_layers.py basel` and
+`... luzern` from data.sbb.ch, like Zürich's (2026-11-21):
+
+- **Basel SBB**: 86 sector signs on tracks 1-4, 6-11, 14-16, 18-20 and the French tracks 30-35 (data.sbb.ch has 106 in
+  the extent; 20 carry no track number and are left out). Most carry their own sector's letter on both faces
+  ("A|A"); on tracks 14-20 there are also signs at the borders ("E|D", "C|B", 27 of them), which the script only uses
+  where a sector has no sign of its own. No signs for tracks 5 and 12. 79 sector centres: median 0.0 m from the OSM
+  platform of their track (76 on it, at most 6.6 m off). 81 clocks and 19 ticket machines; SBB files them all under
+  one section ("Basel SBB"), so the builder gives them their level (one clock lies near no walkable area and is left
+  out).
+- **Luzern**: 60 sector signs on tracks 2-15, all "A|A" style, 54 of them hanging; 60 sector centres, median 0.5 m
+  from their platform (30 on it, at most 5.2 m off; the builder moves the others onto it). 52 clocks (11 of them filed
+  under the section "Luzern Cargo") and 14 ticket machines.
+- Neither station has platform-edge lines (`perronkante` was withdrawn) or measured heights here: no `spans.json`,
+  no `heights.json`. The level heights in the builder's station table come from OSM step counts, ATLAS platform
+  heights and swisstopo terrain (see the comments there).

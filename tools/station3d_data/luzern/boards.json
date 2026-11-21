@@ -1,0 +1,782 @@
+[
+{
+"ref": "2",
+"xy": [
+-48.44,
+-178.52
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 217256988"
+},
+{
+"ref": "2",
+"xy": [
+-36.71,
+-271.28
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 217256986"
+},
+{
+"ref": "2",
+"xy": [
+-27.45,
+-351.86
+],
+"front": "E",
+"back": "E",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35459399"
+},
+{
+"ref": "3",
+"xy": [
+-50.29,
+-56.49
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 334",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 385111183"
+},
+{
+"ref": "3",
+"xy": [
+-43.66,
+-115.79
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 314",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 385111201"
+},
+{
+"ref": "3",
+"xy": [
+-36.7,
+-177.35
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457563"
+},
+{
+"ref": "3",
+"xy": [
+-33.44,
+-270.94
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457645"
+},
+{
+"ref": "3",
+"xy": [
+-24.31,
+-351.53
+],
+"front": "E",
+"back": "E",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35459405"
+},
+{
+"ref": "4",
+"xy": [
+-50.29,
+-56.49
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Perronhalle 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 385111187"
+},
+{
+"ref": "4",
+"xy": [
+-43.66,
+-115.79
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 314",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457556"
+},
+{
+"ref": "4",
+"xy": [
+-31.65,
+-176.81
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Zungendach Perron 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457570"
+},
+{
+"ref": "4",
+"xy": [
+-19.73,
+-269.39
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457634"
+},
+{
+"ref": "4",
+"xy": [
+-12.02,
+-350.22
+],
+"front": "E",
+"back": "E",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35459365"
+},
+{
+"ref": "5",
+"xy": [
+-33.83,
+-54.68
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 335",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35483373"
+},
+{
+"ref": "5",
+"xy": [
+-27.26,
+-113.95
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 315",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457519"
+},
+{
+"ref": "5",
+"xy": [
+-25.63,
+-176.15
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Zungendach Perron 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457578"
+},
+{
+"ref": "5",
+"xy": [
+-16.57,
+-269.03
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457598"
+},
+{
+"ref": "5",
+"xy": [
+-7.93,
+-349.79
+],
+"front": "E",
+"back": "E",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35459373"
+},
+{
+"ref": "6",
+"xy": [
+-33.83,
+-54.68
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 335",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457509"
+},
+{
+"ref": "6",
+"xy": [
+-27.26,
+-113.95
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 315",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457527"
+},
+{
+"ref": "6",
+"xy": [
+-15.35,
+-175.05
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Zungendach Perron 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35483389"
+},
+{
+"ref": "6",
+"xy": [
+-2.96,
+-267.5
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457605"
+},
+{
+"ref": "6",
+"xy": [
+2.49,
+-348.67
+],
+"front": "E",
+"back": "E",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35459382"
+},
+{
+"ref": "7",
+"xy": [
+-15.95,
+-52.65
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 336",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457654"
+},
+{
+"ref": "7",
+"xy": [
+-9.4,
+-112.01
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 316",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457536"
+},
+{
+"ref": "7",
+"xy": [
+-7.96,
+-174.25
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Zungendach Perron 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457588"
+},
+{
+"ref": "7",
+"xy": [
+0.76,
+-267.08
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457617"
+},
+{
+"ref": "7",
+"xy": [
+6.69,
+-348.53
+],
+"front": "E",
+"back": "E",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35459390"
+},
+{
+"ref": "8",
+"xy": [
+-15.95,
+-52.65
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 336",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457665"
+},
+{
+"ref": "8",
+"xy": [
+-9.4,
+-112.01
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 316",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457546"
+},
+{
+"ref": "8",
+"xy": [
+-2.46,
+-173.6
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457762"
+},
+{
+"ref": "8",
+"xy": [
+14.61,
+-265.61
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457624"
+},
+{
+"ref": "9",
+"xy": [
+1.92,
+-50.69
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 337",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457675"
+},
+{
+"ref": "9",
+"xy": [
+8.44,
+-110.02
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 317",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457727"
+},
+{
+"ref": "9",
+"xy": [
+15.11,
+-171.7
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457771"
+},
+{
+"ref": "9",
+"xy": [
+18.87,
+-265.15
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457815"
+},
+{
+"ref": "10",
+"xy": [
+1.92,
+-50.69
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 337",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457684"
+},
+{
+"ref": "10",
+"xy": [
+8.44,
+-110.02
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 317",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457736"
+},
+{
+"ref": "10",
+"xy": [
+21.18,
+-170.94
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 384454321"
+},
+{
+"ref": "10",
+"xy": [
+31.19,
+-264.38
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457823"
+},
+{
+"ref": "11",
+"xy": [
+20.75,
+-48.59
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 338",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457694"
+},
+{
+"ref": "11",
+"xy": [
+27.34,
+-107.9
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 318",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457745"
+},
+{
+"ref": "11",
+"xy": [
+33.97,
+-169.49
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457789"
+},
+{
+"ref": "11",
+"xy": [
+35.74,
+-264.43
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457833"
+},
+{
+"ref": "12",
+"xy": [
+20.75,
+-48.59
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 338",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457701"
+},
+{
+"ref": "12",
+"xy": [
+27.34,
+-107.9
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 318",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457754"
+},
+{
+"ref": "12",
+"xy": [
+33.97,
+-169.49
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457798"
+},
+{
+"ref": "12",
+"xy": [
+44.91,
+-216.25
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35458351"
+},
+{
+"ref": "13",
+"xy": [
+30.82,
+-47.9
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Perronhalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457709"
+},
+{
+"ref": "13",
+"xy": [
+42.67,
+-106.2
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 319",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35460381"
+},
+{
+"ref": "13",
+"xy": [
+49.5,
+-167.82
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457806"
+},
+{
+"ref": "13",
+"xy": [
+49.57,
+-215.74
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35458368"
+},
+{
+"ref": "14",
+"xy": [
+42.64,
+-45.6
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Perronhalle 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457718"
+},
+{
+"ref": "14",
+"xy": [
+42.67,
+-106.2
+],
+"front": "B",
+"back": "B",
+"mounting": "FS-Mast 319",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35460390"
+},
+{
+"ref": "14",
+"xy": [
+49.5,
+-167.82
+],
+"front": "C",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35460407"
+},
+{
+"ref": "14",
+"xy": [
+61.44,
+-214.52
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35458361"
+},
+{
+"ref": "15",
+"xy": [
+48.91,
+-47.71
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35460373"
+},
+{
+"ref": "15",
+"xy": [
+55.61,
+-103.55
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35460399"
+},
+{
+"ref": "15",
+"xy": [
+62.07,
+-162.97
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35460417"
+},
+{
+"ref": "15",
+"xy": [
+64.94,
+-214.35
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 213284702"
+}
+]

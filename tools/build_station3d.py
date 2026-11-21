@@ -120,6 +120,8 @@ OVERPASS = ['https://overpass-api.de/api/interpreter',
 #               ['node', name, x, y]               a new node, for the ways below
 #               ['way', [node id | name | [x, y], ...], {tags}]   a new way (a ring ends on its first point)
 #               ['drop', way id]                   a way that is wrong, or that the ways above replace
+#   skip_edges  [uic, x, y, why]: an ATLAS stop edge that is wrong (the edge of that stop id within 10 m of the
+#             point is left out), with the evidence in `why`
 #   stop_names  [x, y, name, mode]: the stop without a platform number within 10 m of the point gets this name and
 #             mode ('tram' | 'bus'), where ATLAS has one name and one mode for the tram and the bus edges of a stop.
 #   level_shift  boxes in which OSM counts the floors differently from the rest of the station (a shopping centre
@@ -510,6 +512,190 @@ STATIONS = {
         'layers': ['sectors.json', 'boards.json', 'furniture.json'],
         # SBB lists clocks and ticket machines by section ("bps_name"): these sections are underground
         'sbb_sections': {'Zurich HB Lowenstrasse': -4, 'Zurich HB Museumstrasse': -3},
+    },
+    'basel': {
+        'name': 'Basel SBB',
+        'origin': (7.5895, 47.5475),
+        'bbox': (47.5440, 7.5830, 47.5500, 7.5940),
+        # The station building on Centralbahnplatz with the tram and bus stops in front of it, the platforms 1-20
+        # (OSM draws them up to 650 m long; the extent keeps 390 m east and 420 m west of the hall), the French
+        # platforms 30-35 in the west wing, the Passerelle over the tracks to Gundeldingen (Güterstrasse, tram stop
+        # Bahnhofeingang Gundeldingen), the Postpasserelle in the east, the provisional footbridge in the west
+        # (open since December 2025), and the Elisabethen-Passage under Centralbahnplatz.
+        'extent': (-420, -260, 390, 200),
+        # Left out: the tram stops Markthalle (north-west) and IWB with the Margarethenbrücke (south-west), which are
+        # stops of their own; the houses of Gundeldingen west of the tram stop (a café door there is a named
+        # entrance in OSM, not one of the station).
+        'extent_cut': [(-420, 95, -140, 200), (-420, -260, -250, -45), (-420, -260, -175, -190)],
+        # Basel SBB (tracks 1-20 and the SNCF tracks 30-35, all one stop in ATLAS), Basel, Bahnhof SBB (tram and
+        # bus on Centralbahnplatz), Basel, Bahnhofeingang Gundeldingen (tram on Güterstrasse)
+        'uics': ['8500010', '8578143', '8500146'],
+        # Level 0 is the surface of the platforms, about 277 m above sea level: swisstopo terrain (swissALTI3D,
+        # height service of api3.geo.admin.ch, 21.11.2026) reads 276.0-278.4 along the platforms (median 276.9 of
+        # 28 points; under the roofs it is the track bed, interpolated), ATLAS has the platform edges at 275.4-278.4.
+        # The streets are drawn on level 0 too, where OSM puts them: Centralbahnplatz and the hall are really 1.0 to
+        # 1.7 m higher (terrain 278.0-278.7, ATLAS tram and bus edges 278.2-278.7), Güterstrasse and Meret
+        # Oppenheim-Platz on the Gundeldingen side 2.5 to 3 m higher (terrain 279.3-280.1, ATLAS tram edges 279.5).
+        #   -1  -3.5   the hall basement and the Elisabethen-Passage under Centralbahnplatz: 23 steps down from the
+        #              hall (3.9 m at 17 cm a step), 20 up to the Elisabethenanlage (3.4 m), 21 up to Baloise Park
+        #              (3.6 m); from the terrain at the top of those stairs the floor is at 272.9-274.1 m, -2.9 to
+        #              -4.1. The model takes what the stairs climb from the streets as drawn.
+        #    1  +6.6   the Passerelle (RailCity), the Postpasserelle and the provisional footbridge: OSM counts 38-45
+        #              steps from the platforms up to the Passerelle (median 42: 6.5 m at 15.5 cm, 7.1 m at 17 cm), 42
+        #              to the Postpasserelle; from Güterstrasse (+2.5 to +3) 19 steps up to the Passerelle (+5.5 to
+        #              +6.2). The provisional footbridge stands higher: 48 steps from the platforms (7.4-8.2 m) and
+        #              27 from Güterstrasse (+6.8 to +7.2). One level has one height: +6.6 is the middle of these.
+        # OSM also has levels 0.25 and 0.5 in the hall (the ramps from the Passerelle down into it), drawn at
+        # heights in between, and level 2 on the Postpasserelle (see osm_edits) and on upper floors of shops.
+        # Because Güterstrasse is drawn on level 0 (OSM tags the ground floor of Bahnhof Süd level=0), the ramp from
+        # it up to the Passerelle (way 376386225, 26 m) comes out at 26 % instead of the 12-15 % its 3.2-4 m really
+        # climb: it is marked not for wheelchairs; the lift beside it is the step-free way, as in reality.
+        'levels': {
+            -1: (-3.5, 'Lower level'),
+            0: (0.0, 'Street level'),
+            1: (6.6, 'Passerelle'),
+        },
+        'level_height': 4.0,
+        'entrances': [
+            ['Centralbahnplatz (main hall)', 5, 34, 0],      # OSM: railway=train_station_entrance, entrance=main
+            ['Gundeldingen (Güterstrasse)', -126, -210, 0],  # the foot of the Passerelle at Bahnhof Süd
+            ['Meret Oppenheim-Platz (Postpasserelle)', 133, -192, 0],
+            ['Centralbahnstrasse (west wing, tracks 30-35)', -128, 44, 0],
+            ['Güterstrasse (provisional footbridge)', -238, -90, 0],
+        ],
+        'osm_edits': [
+            # The Postpasserelle (way 23585585) is tagged level=2, but each of its seven stairs down to the
+            # platforms is tagged level=0;1 with 42 steps, like the stairs of the Passerelle, and the path at its
+            # south end is level=1. SBB's station plan (Innenplan, 02/2026) shows it as an access to tracks 1-12.
+            # Same way, same nodes, level=1.
+            ['drop', 23585585],
+            ['way', [255404727, 1385073077, 1383459828, 1385073064, 1385073071, 1385073054, 1385073057, 1651902725,
+                     1180586380],
+             {'bridge': 'yes', 'description': 'Postpasserelle', 'highway': 'footway', 'indoor': 'yes', 'layer': '2',
+              'level': '1', 'name': 'Postpasserelle'}],
+            # The 8 m from the Passerelle to the door of the lift at the Flying Tiger shop (way 1273058936) is tagged
+            # level=0;1, which makes it a ramp of 7 m in 8 m; the lift (way 1306147450, level 0;1) does the climbing,
+            # and the door node 12097008874 is level=1. Same nodes, level=1.
+            ['drop', 1273058936],
+            ['way', [11821830258, 13718663696, 12097008874],
+             {'highway': 'footway', 'indoor': 'yes', 'layer': '1', 'level': '1', 'wheelchair': 'yes'}],
+            # The stairs between Güterstrasse and the Passerelle at Bahnhof Süd are drawn twice, 4 m apart and both
+            # 26 m long: way 1227358519 with level=1;0, way 1518317194 with step_count=19 and no level, whose top ends
+            # on the level-0 corridor at the lift. The second is dropped; its 19 steps are in the level table above.
+            ['drop', 1518317194],
+            # The ramp of the Centralbahn-Passage up to Centralbahnstrasse is two ways, 25 m and 5 m, each tagged
+            # level=-1;0 (ways 557976342 and 1063805094), so the short one came out as a 70 % slope. One way, one
+            # climb.
+            ['drop', 557976342],
+            ['drop', 1063805094],
+            ['way', [5380623519, 8828194235, 8828194234],
+             {'highway': 'footway', 'level': '-1;0', 'lit': 'yes', 'ramp': 'yes', 'surface': 'asphalt'}],
+            # Platform 1/2 begins where tracks 1 and 2 end (buffer stops at x 100-106), at the head platform along
+            # the east wing (relation 17880866, level 0, from the hall to x 102). OSM draws the two outlines touching
+            # over 8 m with no path between them, so platform 1/2 was reached only by the Postpasserelle stairs. SBB's
+            # plan (02/2026) shows tracks 1-4 reached at street level from the hall. A walk across the border:
+            ['way', [[90, -47], [99, -55]], {'highway': 'footway', 'level': '0', 'covered': 'yes'}],
+        ],
+        # SBB open data (tools/station3d_sbb_layers.py basel): sector signs, sector centres, clocks, ticket machines.
+        # SBB has one section ("Basel SBB") for all of them: no sbb_sections.
+        'layers': ['sectors.json', 'boards.json', 'furniture.json'],
+        # Closures (checked 21.11.2026): none found. OSM has nothing under construction on the ways of the station.
+        # The provisional footbridge at the west end opened at the timetable change of December 2025 (OSM start_date
+        # 2025-12-06; SRF), and stays until the permanent access from the Margarethenbrücke of the 2030s (canton of
+        # Basel-Stadt, project Basel SBB West); SBB's plan of 02/2026 shows it. The old underpass under tracks 5-12 is open only as an exit at rush hour (SRF,
+        # 12.08.2020) and is access=private in OSM: not in the model. No closure of a platform, a stair or a lift at
+        # Basel SBB appears in SBB's, the canton's or SRF's news for 2026.
+        # ATLAS has three edges of Bahnhofeingang Gundeldingen without a letter: two beside edges L and M on
+        # Güterstrasse, and one in the middle of the platforms, on platform 19/20 (277.6 m; no tram stop, track or
+        # OSM stop position there, 100 m from the tram line): that one is left out, else a route "to the tram at
+        # Gundeldingen" ends on a train platform.
+        'skip_edges': [['8500146', -98, -127, 'an ATLAS edge of the Güterstrasse tram stop on platform 19/20']],
+        'credits': ['© swisstopo'],                 # terrain heights
+    },
+    'luzern': {
+        'name': 'Luzern',
+        'origin': (8.3105, 47.0500),
+        'bbox': (47.0460, 8.3050, 47.0530, 8.3145),
+        # The terminus: the hall behind the Torbogen, the platforms 2-15 to the south (SBB 2-11, Zentralbahn 12-15,
+        # all at street level; OSM draws them up to 440 m long), the shopping level under the hall and Bahnhofplatz,
+        # the underpass across the platforms in the south (Zentralstrasse to Frohburgstrasse), the buses on
+        # Bahnhofplatz and Frohburgstrasse (edges X, N) and the boat landings 1-6 on Bahnhofquai.
+        # The Zentralbahn does not stop underground here: its trains use tracks 12-15 at street level (OSM, ATLAS;
+        # the underground through station is a project, OSM: proposed).
+        'extent': (-140, -440, 190, 180),
+        # Left out: the university building, its car park (levels 1-3) and the Frohburgsteg over the tracks east of
+        # the platforms (not ways to the trains), except the east mouth of the underpass.
+        'extent_cut': [(100, -440, 190, -20), (63, -115, 100, -20), (63, -440, 100, -180), (82, -180, 100, -155)],
+        'osm_edits': [
+            # Also left out: the walkway from the south end of platform 14/15 up two flights of stairs to the car
+            # park bridge, which goes on north to Frohburgstrasse (ways 1460976218, 1460976217, 115823563, layer 1,
+            # no step counts). OSM gives the bridge level=1 and no height, and joins its north end (way 592182340)
+            # straight onto the street pavement without any climb, so neither end can be placed; the builder
+            # disconnects that end as a slip, which left the stairs as a dead end. These three ways sit inside the
+            # extent next to platform 14/15, so they are dropped here rather than cut out with a box.
+            ['drop', 1460976218],
+            ['drop', 1460976217],
+            ['drop', 115823563],
+        ],
+        # Luzern (trains), Luzern, Bahnhof (buses), Luzern Bahnhofquai (boats, landings 1-4). Luzern, Inseliquai/Bahnhof
+        # (8502058) is a stop of its own 70 m beyond the extent.
+        'uics': ['8505000', '8508450', '8508492'],
+        # Level 0 is the surface of the platforms and the streets around, all about 436 m above sea level: ATLAS has
+        # the platform edges at 435.5-437.0 (median 436.6) and the bus edges on Bahnhofplatz at 435.1-436.0;
+        # swisstopo terrain (swissALTI3D, height service of api3.geo.admin.ch, 21.11.2026) 435.7-436.4 on the
+        # platforms, 435.2-436.1 on Bahnhofplatz, 436.0-436.4 at both mouths of the south underpass. Only the quay
+        # of the boat landings is lower (ATLAS 434.0-435.0); it is drawn on level 0.
+        #   -1  -5.0   the shopping level under the hall and Bahnhofplatz, and the south underpass: OSM counts 33
+        #              steps from the hall (5.6 m at 17 cm a step), 21, 27, 27 and 29 from Bahnhofplatz and
+        #              Pilatusstrasse (3.6-4.9 m), 29-31 from the platforms to the underpass (4.9-5.3 m) and 26 from
+        #              its west mouth (4.4 m); the middle of these
+        #    1  +5.6   the gallery of the hall: estimate. OSM counts no steps up to it; its escalators are drawn 13 m
+        #              long, like the escalators down to level -1 beside them, whose stairs count 33 steps.
+        # The levels 2-7 of OSM are the university, its car park and offices, outside the extent or not public.
+        'levels': {
+            -1: (-5.0, 'Lower level'),
+            0: (0.0, 'Street level'),
+            1: (5.6, 'Gallery'),
+        },
+        'level_height': 4.0,
+        'entrances': [
+            ['Bahnhofplatz (main hall)', -17, 37, 0],       # OSM: entrance=main
+            ['Pilatusstrasse', -145, 10, 0],                # OSM: entrance=main
+            ['Zentralstrasse (south underpass)', -74, -255, 0],
+            ['Frohburgstrasse (south underpass)', 94, -126, 0],
+            ['Bahnhofquai (boats)', 40, 140, 0],
+        ],
+        # Bus edges on Bahnhofplatz: the city of Luzern has been building more bus edges on Bahnhofplatz and
+        # Pilatusstrasse since 18 May 2026 for the new bus network of the timetable change of 13 December 2026
+        # (media release of the city, 15.07.2026; vbl.ch/dmp). ATLAS already lists the new edges C-H at the Torbogen;
+        # OSM has D, E and F there as disused, access=no, start_date=2026-12-13 ("Gültig ab FPW27"), and the bus
+        # lane to G and H with the same start date. They are closed in the model until then. OSM notes that from that
+        # day today's edge A becomes B and today's B becomes C, and a new A opens on Pilatusstrasse.
+        'closed': [
+            {'uic': '8508450', 'refs': ['C', 'D', 'E', 'F', 'G', 'H'], 'until': '2026-12-13',
+             'note': 'New bus stop, in use from 13 December 2026'},
+        ],
+        'notices': [
+            {'text': 'Building works on Bahnhofplatz: several bus lines leave from other stops than usual until '
+                     '13 December 2026; lines 11 and 18 end at Pilatusplatz', 'until': '2026-12-13'},
+            {'text': 'New bus network from 13 December 2026: on Bahnhofplatz edge A becomes B and edge B becomes C, '
+                     'new edges C to H at the Torbogen and A on Pilatusstrasse', 'from': '2026-12-13',
+             'until': '2027-03-01'},
+        ],
+        # Frohburgstrasse and its pavements are at street level (swisstopo terrain 435.6-436.1, ATLAS bus edges X and
+        # N 435.4-435.6). OSM joins the walkway up to the car park bridge (way 592182340, level=1) straight onto
+        # the pavement, which pulled the pavement up to level 1 and bus edge X with it; the builder makes the last
+        # piece of that walkway the slope.
+        'ground': [[75, -25, 0], [130, -19, 0]],
+        # the underpass across the platforms (OSM: a level -1 corridor area, unnamed)
+        'area_names': [[0, -205, -1, 'South underpass']],
+        # SBB open data (tools/station3d_sbb_layers.py luzern): sector signs, sector centres, clocks, ticket machines.
+        # SBB's sections here are "Luzern" and "Luzern Cargo" (11 clocks, 1 ticket machine), none underground: no
+        # sbb_sections.
+        'layers': ['sectors.json', 'boards.json', 'furniture.json'],
+        # Closures of the railway station (checked 21.11.2026): none found; OSM has nothing under construction on
+        # the ways of the station. The works on Bahnhofplatz are above (closed, notices).
+        'credits': ['© swisstopo'],                 # terrain heights
     },
 }
 
@@ -2136,6 +2322,15 @@ class Builder:
                 self.note('stops', f'{uic}: not in platforms.js')
                 continue
             name, mode, edges = st
+            for su, sx, sy, why in self.cfg.get('skip_edges', []):
+                # an ATLAS edge the station table shows to be wrong: the one of this stop id nearest the point
+                if su != uic or not edges:
+                    continue
+                d, i = min((math.dist(self.xy(e[0] / 1e5, e[1] / 1e5), (sx, sy)), i) for i, e in enumerate(edges))
+                if d <= 10:
+                    self.note('config', f'skip_edges: {name} [{uic}] edge {edges[i][2] or "(no letter)"} at '
+                                        f'({sx}, {sy}) left out: {why}')
+                    edges = edges[:i] + edges[i + 1:]
             if mode != 't' and uic in stations:
                 self.note('stops', f'{name} [{uic}]: ATLAS calls it "{MODES.get(mode, mode)}", OSM has a railway '
                                    f'station with this number: taken as a train stop')
