@@ -53,6 +53,8 @@
   const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const toRad = Math.PI / 180;
   const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+  // Is a reading still current? With the live camera it fades after a while (you have moved on); a photo does not change.
+  const fresh = (at, ms) => !!at && (!!stillImage || Date.now() - at < ms);
   function distM(a, b) {
     const k = Math.cos((a[1] + b[1]) / 2 * toRad);
     return Math.hypot((a[0] - b[0]) * k, a[1] - b[1]) * 111320;
@@ -125,13 +127,13 @@
   .sv-ar { position: absolute; inset: 0; pointer-events: none; }
   .sv-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center;
             transition: opacity .25s ease; will-change: transform; }
-  .sv-tag span { display: flex; align-items: center; gap: 6px; max-width: 44vw; padding: 6px 10px 6px 6px; border-radius: 18px;
+  .sv-tag > span { display: flex; align-items: center; gap: 6px; max-width: 44vw; padding: 6px 10px 6px 6px; border-radius: 18px;
                  background: rgba(28,28,30,.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
                  font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
-  .sv-tag span em { font-style: normal; overflow: hidden; text-overflow: ellipsis; }
+  .sv-tag > span em { font-style: normal; overflow: hidden; text-overflow: ellipsis; }
   .sv-tag small { font-weight: 500; color: #c7c7cc; }
   .sv-tag i { width: 2px; height: 26px; background: rgba(255,255,255,.75); }
-  .sv-tag.hit span { background: var(--navy, #344D77); outline: 2px solid #fff; }
+  .sv-tag.hit > span { background: var(--navy, #344D77); outline: 2px solid #fff; }
   .sv-ic { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #1c1c1e; }
   .sv-ic svg { width: 15px; height: 15px; }
   .sv-ref { flex: none; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; display: grid; place-items: center;
@@ -351,7 +353,7 @@
         s += c.ahead ? 0.8 : -Math.min(1.5, (bestOff - slack) / 40); // soft: compasses can be off by tens of degrees
       }
       c.geo = s; // location + compass only
-      if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.72) s += 6 * (ev.ocr - 0.6) / 0.4; // a read name dominates
+      if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.72) s += 6 * (ev.ocr - 0.6) / 0.4; // a read name dominates
       if (ev.lines) s += Math.min(1, 0.4 * ev.lines);
       if (ev.vis != null && ev.visRel != null) s += Math.max(-0.5, Math.min(1.5, ev.visRel * 12)); // tie-breaker
       c.score = s;
@@ -936,8 +938,8 @@
   function edgeOf(c) {
     const ev = evidence.get(c.uic) || {};
     const now = Date.now();
-    if (ev.edgeOcr != null && now - ev.edgeOcrAt < 20000) return { i: ev.edgeOcr, why: 'Platform sign read' };
-    if (ev.edgeDest != null && now - ev.edgeDestAt < 20000) return { i: ev.edgeDest, why: 'Destination read' };
+    if (ev.edgeOcr != null && fresh(ev.edgeOcrAt, 20000)) return { i: ev.edgeOcr, why: 'Platform sign read' };
+    if (ev.edgeDest != null && fresh(ev.edgeDestAt, 20000)) return { i: ev.edgeDest, why: 'Destination read' };
     if (ev.visRef && ev.visRef.edge != null && ev.visStreak >= VIS_FRAMES) return { i: ev.visRef.edge, why: 'Matches a photo of this side', maybe: true };
     if (c.st.edges.length === 1) return { i: 0, why: '' };
     // the camera points at one edge and the others are well outside the picture
@@ -953,7 +955,7 @@
 
   function recognised(c) {
     const ev = evidence.get(c.uic) || {};
-    if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
+    if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
     // photo match only together with the location: the stop that position + compass favour on their own
     if (ev.visStreak >= VIS_FRAMES && Date.now() - ev.visAt < 6000 && c.geoTop && c.ahead !== false && position()) return 'photo';
     return null;
@@ -1030,7 +1032,7 @@
     main.append(icon(c.st.mode), txt);
 
     const why = $('ul', 'sv-why');
-    if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.72) why.append(chip(`Sign read “${ev.ocrWhat}”`, true));
+    if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.72) why.append(chip(`Sign read “${ev.ocrWhat}”`, true));
     if (edge && edge.why) why.append(chip(edge.why + (ev.destWhat && edge.why === 'Destination read' ? ` “${ev.destWhat}”` : ''), !edge.maybe));
     if (ev.visStreak >= VIS_FRAMES) why.append(chip('Looks like its photos', how === 'photo'));
     else if (ev.vis != null && ev.visRel > 0.02) why.append(chip('Similar to its photos', false));
