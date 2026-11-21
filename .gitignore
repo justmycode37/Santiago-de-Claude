@@ -27,3 +27,6 @@ config.js
 
 # Raw open-data downloads (tools/fetch-raw.sh)
 data/raw/
+
+# Download cache of the data builders
+tools/cache/

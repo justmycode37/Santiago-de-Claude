@@ -393,6 +393,8 @@
     prefs: () => ({ ...effective() }), // walking speed, extra change time, step-free…
     retime,
     connectionFits,
+    // the journey options as the 3D station view's router wants them (station-route.js)
+    journey: () => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
     onChange: (fn) => changeListeners.push(fn),
     onClose: (fn) => closeListeners.push(fn),
   };

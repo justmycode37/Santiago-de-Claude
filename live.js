@@ -2,7 +2,7 @@
 // and how sure that is. The journey itself is still planned with transport.opendata.ch; this only makes the live
 // part better, and index.html keeps doing what it did before when the engine (or one of its features) is missing.
 //
-// Engine address: ?kante=<url> in the page address (for testing; ?kante=off switches it off), else
+// Engine address: ?kante=<url> in the page address (for testing; ?kante=off or ?engine=off switches it off), else
 // APP_CONFIG.kanteUrl (config.js; '' switches it off), else the hosted engine.
 //
 // The helpers below are plain functions without the DOM, so tools can test them with Node (module.exports).
@@ -12,7 +12,9 @@
 
   // → { url (null = off), fromLink }
   function engineUrl(search, config) {
-    const q = new URLSearchParams(search || '').get('kante');
+    const sp = new URLSearchParams(search || '');
+    if (sp.get('engine') === 'off') return { url: null, fromLink: true }; // engine.js's switch, honoured here too
+    const q = sp.get('kante');
     if (q != null) {
       if (/^(|off|none|0)$/i.test(q.trim())) return { url: null, fromLink: true };
       if (/^https?:\/\/[^/\s]+/i.test(q)) return { url: q.trim().replace(/\/+$/, ''), fromLink: true };
@@ -270,5 +272,5 @@
     padBbox, bboxContains, bboxOk, bboxParam, distKm, norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = KANTE;
-  else root.KANTE = KANTE;
+  else root.KANTE_LIVE = KANTE; // window.KANTE is engine.js, the general engine client
 })(typeof window !== 'undefined' ? window : this);

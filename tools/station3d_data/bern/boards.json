@@ -1,0 +1,1510 @@
+[
+{
+"ref": "49",
+"xy": [
+-483.03,
+-58.1
+],
+"front": "M",
+"back": "L",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327762"
+},
+{
+"ref": "1",
+"xy": [
+48.44,
+65.15
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482361"
+},
+{
+"ref": "4",
+"xy": [
+37.71,
+83.96
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "nearest kerb 2.8 m",
+"fid": "fid 270490372"
+},
+{
+"ref": "4",
+"xy": [
+-2.87,
+34.4
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270490422"
+},
+{
+"ref": "9",
+"xy": [
+-35.47,
+70.17
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272349767"
+},
+{
+"ref": "7",
+"xy": [
+-30.68,
+51.99
+],
+"front": "B",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329714"
+},
+{
+"ref": "5",
+"xy": [
+31.67,
+100.44
+],
+"front": "-",
+"back": "A",
+"mounting": "FS-Mast 3S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272348570"
+},
+{
+"ref": "9",
+"xy": [
+13.82,
+119.26
+],
+"front": "-",
+"back": "A",
+"mounting": "FS-Mast 5S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272349427"
+},
+{
+"ref": "2",
+"xy": [
+73.28,
+138.57
+],
+"front": "A",
+"back": "A",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482327"
+},
+{
+"ref": "7",
+"xy": [
+22.8,
+109.71
+],
+"front": "A",
+"back": "-",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 329329748"
+},
+{
+"ref": "1",
+"xy": [
+9.48,
+24.01
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482396"
+},
+{
+"ref": "10",
+"xy": [
+13.82,
+119.26
+],
+"front": "-",
+"back": "A",
+"mounting": "FS-Mast 5S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272348443"
+},
+{
+"ref": "6",
+"xy": [
+31.67,
+100.44
+],
+"front": "-",
+"back": "A",
+"mounting": "FS-Mast 3S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272348564"
+},
+{
+"ref": "2",
+"xy": [
+43.54,
+68.11
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482358"
+},
+{
+"ref": "3",
+"xy": [
+-2.85,
+34.38
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "nearest kerb 3.7 m",
+"fid": "fid 270490425"
+},
+{
+"ref": "6",
+"xy": [
+-21.81,
+40.62
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35456210"
+},
+{
+"ref": "4",
+"xy": [
+37.71,
+83.96
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270490373"
+},
+{
+"ref": "5",
+"xy": [
+-21.81,
+40.62
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35481033"
+},
+{
+"ref": "1",
+"xy": [
+73.28,
+138.57
+],
+"front": "A",
+"back": "A",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482322"
+},
+{
+"ref": "2",
+"xy": [
+9.48,
+24.01
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Dach_BE Halle West",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482391"
+},
+{
+"ref": "8",
+"xy": [
+-34.46,
+56.98
+],
+"front": "B",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329736"
+},
+{
+"ref": "6",
+"xy": [
+-143.27,
+-26.39
+],
+"front": "-",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272604019"
+},
+{
+"ref": "7",
+"xy": [
+-387.57,
+-85.67
+],
+"front": "-",
+"back": "H",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329763"
+},
+{
+"ref": "4",
+"xy": [
+-44.68,
+6.0
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272483821"
+},
+{
+"ref": "5",
+"xy": [
+-246.28,
+-60.1
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604626"
+},
+{
+"ref": "4",
+"xy": [
+-289.5,
+-83.44
+],
+"front": "G",
+"back": "H",
+"mounting": "BA-Dach_BE Perrondach 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604692"
+},
+{
+"ref": "49",
+"xy": [
+-383.44,
+-60.74
+],
+"front": "K",
+"back": "J",
+"mounting": "BA-Dach_BE Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 254327795"
+},
+{
+"ref": "1",
+"xy": [
+-269.98,
+-93.93
+],
+"front": "-",
+"back": "H",
+"mounting": "BA-Dach_BE Zungendach 1/2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482295"
+},
+{
+"ref": "5",
+"xy": [
+-142.22,
+-29.18
+],
+"front": "-",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272604020"
+},
+{
+"ref": "5",
+"xy": [
+-62.11,
+8.41
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272483994"
+},
+{
+"ref": "2",
+"xy": [
+-32.4,
+-4.87
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 270482402"
+},
+{
+"ref": "1",
+"xy": [
+-29.43,
+-8.87
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 270482411"
+},
+{
+"ref": "5",
+"xy": [
+-100.22,
+-13.73
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484322"
+},
+{
+"ref": "2",
+"xy": [
+-73.98,
+-30.53
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 270482423"
+},
+{
+"ref": "10",
+"xy": [
+-149.51,
+5.27
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272604034"
+},
+{
+"ref": "9",
+"xy": [
+-148.22,
+1.76
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272604036"
+},
+{
+"ref": "8",
+"xy": [
+-106.86,
+6.94
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329760"
+},
+{
+"ref": "4",
+"xy": [
+-145.09,
+-42.73
+],
+"front": "E",
+"back": "-",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272603996"
+},
+{
+"ref": "5",
+"xy": [
+-148.19,
+-31.53
+],
+"front": "E",
+"back": "-",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272604018"
+},
+{
+"ref": "10",
+"xy": [
+-198.07,
+-10.8
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604531"
+},
+{
+"ref": "3",
+"xy": [
+-184.37,
+-59.35
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 2",
+"hanging": true,
+"ref_from": "nearest kerb 0.9 m",
+"fid": "fid 272604588"
+},
+{
+"ref": "1",
+"xy": [
+-246.63,
+-88.53
+],
+"front": "G",
+"back": "H",
+"mounting": "BA-Dach_BE Zungendach 1/2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482315"
+},
+{
+"ref": "6",
+"xy": [
+-293.06,
+-70.8
+],
+"front": "G",
+"back": "H",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604687"
+},
+{
+"ref": "8",
+"xy": [
+-242.38,
+-40.39
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 329329773"
+},
+{
+"ref": "50",
+"xy": [
+-272.53,
+-35.64
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 254328344"
+},
+{
+"ref": "7",
+"xy": [
+-303.67,
+-62.07
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 329329728"
+},
+{
+"ref": "50",
+"xy": [
+-327.54,
+-49.58
+],
+"front": "J",
+"back": "H",
+"mounting": "BA-Dach_BE Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 254328201"
+},
+{
+"ref": "4",
+"xy": [
+-138.95,
+-40.32
+],
+"front": "-",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272603923"
+},
+{
+"ref": "3",
+"xy": [
+-137.96,
+-43.24
+],
+"front": "-",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "nearest kerb 2.7 m",
+"fid": "fid 272603926"
+},
+{
+"ref": "3",
+"xy": [
+-41.75,
+1.9
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "nearest kerb 2.0 m",
+"fid": "fid 272483823"
+},
+{
+"ref": "6",
+"xy": [
+-64.86,
+12.57
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272483997"
+},
+{
+"ref": "9",
+"xy": [
+-77.22,
+38.5
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484137"
+},
+{
+"ref": "10",
+"xy": [
+-111.88,
+23.03
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484211"
+},
+{
+"ref": "6",
+"xy": [
+-102.45,
+-9.24
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484310"
+},
+{
+"ref": "3",
+"xy": [
+-94.3,
+-28.25
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "nearest kerb 2.0 m",
+"fid": "fid 272484367"
+},
+{
+"ref": "7",
+"xy": [
+-66.65,
+25.63
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329753"
+},
+{
+"ref": "8",
+"xy": [
+-69.61,
+29.75
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329709"
+},
+{
+"ref": "7",
+"xy": [
+-104.57,
+2.54
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329723"
+},
+{
+"ref": "3",
+"xy": [
+-144.18,
+-45.3
+],
+"front": "E",
+"back": "-",
+"mounting": null,
+"hanging": false,
+"ref_from": "nearest kerb 2.6 m",
+"fid": "fid 272603998"
+},
+{
+"ref": "9",
+"xy": [
+-196.72,
+-14.83
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604534"
+},
+{
+"ref": "4",
+"xy": [
+-185.7,
+-54.52
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604586"
+},
+{
+"ref": "4",
+"xy": [
+-243.41,
+-70.37
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604643"
+},
+{
+"ref": "8",
+"xy": [
+-193.68,
+-25.37
+],
+"front": "F",
+"back": "E",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329767"
+},
+{
+"ref": "3",
+"xy": [
+-288.77,
+-86.08
+],
+"front": "G",
+"back": "H",
+"mounting": "BA-Dach_BE Perrondach 2",
+"hanging": true,
+"ref_from": "nearest kerb 2.4 m",
+"fid": "fid 272604694"
+},
+{
+"ref": "7",
+"xy": [
+-241.07,
+-43.51
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 329329758"
+},
+{
+"ref": "4",
+"xy": [
+-320.41,
+-91.34
+],
+"front": "H",
+"back": "-",
+"mounting": "FS-Mast 167",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 268965345"
+},
+{
+"ref": "6",
+"xy": [
+-323.63,
+-80.04
+],
+"front": "H",
+"back": "-",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604695"
+},
+{
+"ref": "49",
+"xy": [
+-326.78,
+-53.34
+],
+"front": "J",
+"back": "H",
+"mounting": "BA-Dach_BE Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 254328213"
+},
+{
+"ref": "9",
+"xy": [
+-109.69,
+18.75
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484213"
+},
+{
+"ref": "6",
+"xy": [
+-189.69,
+-40.23
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604581"
+},
+{
+"ref": "5",
+"xy": [
+-188.33,
+-45.16
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604584"
+},
+{
+"ref": "8",
+"xy": [
+-147.39,
+-10.34
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329771"
+},
+{
+"ref": "2",
+"xy": [
+-181.58,
+-69.5
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Wellendach 1/2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482471"
+},
+{
+"ref": "1",
+"xy": [
+-180.67,
+-72.51
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Wellendach 1/2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482477"
+},
+{
+"ref": "10",
+"xy": [
+-232.25,
+-22.74
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604559"
+},
+{
+"ref": "7",
+"xy": [
+-192.57,
+-29.88
+],
+"front": "F",
+"back": "E",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329778"
+},
+{
+"ref": "2",
+"xy": [
+-246.98,
+-87.16
+],
+"front": "G",
+"back": "H",
+"mounting": "BA-Dach_BE Zungendach 1/2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482310"
+},
+{
+"ref": "5",
+"xy": [
+-292.64,
+-72.3
+],
+"front": "G",
+"back": "H",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604691"
+},
+{
+"ref": "3",
+"xy": [
+-319.65,
+-94.3
+],
+"front": "H",
+"back": "-",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "nearest kerb 2.2 m",
+"fid": "fid 268965331"
+},
+{
+"ref": "5",
+"xy": [
+-323.48,
+-80.57
+],
+"front": "H",
+"back": "-",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604699"
+},
+{
+"ref": "49",
+"xy": [
+-438.13,
+-58.65
+],
+"front": "L",
+"back": "K",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327782"
+},
+{
+"ref": "2",
+"xy": [
+-270.17,
+-93.16
+],
+"front": "-",
+"back": "H",
+"mounting": "BA-Dach_BE Zungendach 1/2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 270482303"
+},
+{
+"ref": "10",
+"xy": [
+-80.11,
+42.57
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484138"
+},
+{
+"ref": "4",
+"xy": [
+-96.31,
+-23.68
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484357"
+},
+{
+"ref": "1",
+"xy": [
+-72.25,
+-34.06
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 270482425"
+},
+{
+"ref": "1",
+"xy": [
+-123.68,
+-53.18
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 270482449"
+},
+{
+"ref": "2",
+"xy": [
+-123.68,
+-53.18
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 270482455"
+},
+{
+"ref": "6",
+"xy": [
+-149.25,
+-28.72
+],
+"front": "E",
+"back": "-",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272604016"
+},
+{
+"ref": "7",
+"xy": [
+-145.97,
+-14.48
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 329329741"
+},
+{
+"ref": "9",
+"xy": [
+-231.38,
+-25.25
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604562"
+},
+{
+"ref": "6",
+"xy": [
+-247.35,
+-56.46
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604625"
+},
+{
+"ref": "3",
+"xy": [
+-242.29,
+-74.34
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 2",
+"hanging": true,
+"ref_from": "nearest kerb 1.7 m",
+"fid": "fid 272604648"
+},
+{
+"ref": "49",
+"xy": [
+-271.91,
+-37.61
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 254328346"
+},
+{
+"ref": "8",
+"xy": [
+-304.53,
+-59.8
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 329329739"
+},
+{
+"ref": "50",
+"xy": [
+-383.7,
+-56.29
+],
+"front": "K",
+"back": "J",
+"mounting": "BA-Dach_BE Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 254327797"
+},
+{
+"ref": "50",
+"xy": [
+-438.13,
+-58.65
+],
+"front": "L",
+"back": "K",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327781"
+},
+{
+"ref": "13",
+"xy": [
+-102.22,
+53.08
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484150"
+},
+{
+"ref": "50",
+"xy": [
+-542.95,
+-57.38
+],
+"front": "N",
+"back": "M",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327202"
+},
+{
+"ref": "12",
+"xy": [
+-235.47,
+-4.95
+],
+"front": "-",
+"back": "F",
+"mounting": "FS-Mast 206S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604555"
+},
+{
+"ref": "13",
+"xy": [
+-204.19,
+7.23
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604541"
+},
+{
+"ref": "10",
+"xy": [
+-38.6,
+74.14
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272349762"
+},
+{
+"ref": "12",
+"xy": [
+-99.47,
+48.91
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484147"
+},
+{
+"ref": "13",
+"xy": [
+-143.82,
+29.81
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484179"
+},
+{
+"ref": "50",
+"xy": [
+-602.85,
+-58.27
+],
+"front": "N",
+"back": "N",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327155"
+},
+{
+"ref": "49",
+"xy": [
+-542.95,
+-57.38
+],
+"front": "N",
+"back": "M",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327204"
+},
+{
+"ref": "13",
+"xy": [
+15.38,
+149.33
+],
+"front": "-",
+"back": "A",
+"mounting": "FS-Mast 6U",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272348434"
+},
+{
+"ref": "13",
+"xy": [
+-235.47,
+-4.95
+],
+"front": "-",
+"back": "F",
+"mounting": "FS-Mast 206S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604551"
+},
+{
+"ref": "12",
+"xy": [
+2.12,
+131.56
+],
+"front": "A",
+"back": "-",
+"mounting": "FS-Mast 6S",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272348437"
+},
+{
+"ref": "13",
+"xy": [
+-22.71,
+112.62
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272349418"
+},
+{
+"ref": "12",
+"xy": [
+-19.67,
+108.75
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272349421"
+},
+{
+"ref": "12",
+"xy": [
+-141.79,
+25.25
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 272484180"
+},
+{
+"ref": "12",
+"xy": [
+-202.75,
+3.23
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Perrondach 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 272604546"
+},
+{
+"ref": "50",
+"xy": [
+-483.03,
+-58.1
+],
+"front": "M",
+"back": "L",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327764"
+},
+{
+"ref": "13",
+"xy": [
+-61.78,
+82.43
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35456180"
+},
+{
+"ref": "12",
+"xy": [
+-58.74,
+78.51
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35481007"
+},
+{
+"ref": "49",
+"xy": [
+-602.85,
+-58.27
+],
+"front": "N",
+"back": "N",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 254327163"
+}
+]
