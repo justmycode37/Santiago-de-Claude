@@ -697,6 +697,8 @@ interface KanteDueResponse {
   due: Array<{
     line?: { name: string; category?: string; mode?: string };
     headsign?: string | null;
+    /** Stops on the way a display may show (LIVE-API.md). */
+    vias?: string[] | null;
     quayLabel?: string | null;
     departBearing?: number | null;
     state?: 'approaching' | 'at-stop' | 'departed';

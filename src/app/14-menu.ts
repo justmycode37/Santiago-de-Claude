@@ -65,7 +65,28 @@ document.getElementById('scanBtn')!.addEventListener('click', () => {
   const orientation = window.DeviceOrientationEvent && typeof (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission === 'function'
     ? (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission!() : Promise.resolve('granted');
   camera.catch(() => {}); orientation.catch(() => {});
-  const hooks: StopVisionHooks = {
+  const hooks = scanHooks();
+  openScanWith(hooks, camera, orientation);
+});
+// Scan's screen with these hooks, once stopvision.js and the stop positions are loaded (also used by the AR camera)
+function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation: Promise<unknown>, then?: () => void) {
+  startPlatforms(); // the stop positions are needed straight away
+  const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation)).then(() => { if (then) then(); });
+  if (window.STOPVISION) go();
+  else {
+    const s = document.createElement('script');
+    s.src = 'stopvision.js';
+    s.onload = go;
+    s.onerror = () => {
+      showToast('Scan could not be loaded.');
+      camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
+    };
+    document.head.appendChild(s);
+  }
+}
+// What Scan (and the AR camera) gets from the page
+function scanHooks(): StopVisionHooks {
+  return {
     PLATFORMS, OPENDATA, platformLL, coordOf, badge,
     position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
     openStop: (id, i) => {
@@ -105,17 +126,4 @@ document.getElementById('scanBtn')!.addEventListener('click', () => {
                time: (r.s.departure.prognosis && r.s.departure.prognosis.departure) || r.s.departure.departure || undefined }; // live time
     },
   };
-  startPlatforms(); // the stop positions are needed straight away
-  const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation));
-  if (window.STOPVISION) go();
-  else {
-    const s = document.createElement('script');
-    s.src = 'stopvision.js';
-    s.onload = go;
-    s.onerror = () => {
-      showToast('Scan could not be loaded.');
-      camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
-    };
-    document.head.appendChild(s);
-  }
-});
+}
