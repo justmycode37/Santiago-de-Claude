@@ -110,7 +110,7 @@
 // The search runs over directed edges (Dijkstra, binary heap): the cost of going on can depend on how you arrived,
 // which is what the lift wait (paid once per ride, not per floor), the level-change cost (once per staircase, not
 // per flight piece) and the turn cost need. sectorTimes runs the same search backwards from the destination.
-(function (root) {
+(function (root: typeof globalThis) {
   'use strict';
 
   const KX = 111320, KY = 110540, DEG = 180 / Math.PI;
@@ -140,18 +140,77 @@
   };
   const V_STAIRS = 1, V_ESC = 2, V_WCF = 4, V_STEEP = 8;
 
+  // ---------- Types (the router's own; what other scripts see is in src/types/station-route.d.ts) ----------
+  type Day = StationRouteDate | null | undefined;
+  type Endpoint = StationRouteEndpoint | null | undefined;
+  type Prefs = StationRoutePrefs | null | undefined;
+  type ClosedValue = StationRouteClosedValue | undefined;
+  /** The sectors a ref names: a range ("A-D") or a list ("BC"). */
+  type SectorSpec = { range: [string, string]; list?: undefined } | { list: string[]; range?: undefined };
+  /** A connector of either shape, as closureSources reads it: it checks each field before using it. */
+  interface AnyConnector { kind: StationRouteConnectorKind; xy?: XY; levels?: number[]; line?: XYL[]; name?: string; closed?: ClosedValue }
+  /** Something that can be closed … */
+  type ClosureSource = { kind?: StationRouteClosure['kind']; name?: string; ref?: string } & (
+    | { what: 'stop'; obj: StationStop }
+    | { what: 'edge' | 'connector' | 'area' | 'entrance'; obj: { closed?: ClosedValue } });
+  /** … and the graph edges that are closed with it. */
+  type EdgeClosure = ClosureSource & { edges: number[] };
+  /** The closed edges on one day: mask[e] = 1, by = edge → what closes it. */
+  interface ClosedOn { day: string; mask: Uint8Array; by: Map<number, EdgeClosure[]>; any: boolean }
+  interface PreparedArea { a: StationArea; level: number; box: [x0: number, y0: number, x1: number, y1: number]; prio: number }
+  /** A model indexed for the search (prepare). The arrays are per edge e; an arc is 2e (a → b) or 2e + 1 (b → a). */
+  interface Prepared {
+    model: StationModel;
+    nodes: XYL[];
+    edges: StationEdge[];
+    N: number;
+    E: number;
+    /** Height of each node, metres. */
+    nz: Float64Array;
+    EA: Int32Array;
+    EB: Int32Array;
+    /** WALK … LIFT. */
+    kind: Uint8Array;
+    L: Float64Array;
+    dz: Float64Array;
+    /** Heading a → b, radians (NaN: too short to have one). */
+    hd: Float64Array;
+    outdoor: Uint8Array;
+    oneway: Uint8Array;
+    /** V_… bits: the preferences the edge breaks; tmask: the same with landings counted as their stairs. */
+    vmask: Uint8Array;
+    tmask: Uint8Array;
+    /** 0: an edge with a bad end, left out. */
+    ok: Uint8Array;
+    incl: Float64Array;
+    /** Arcs leaving / arriving at each node. */
+    outs: number[][];
+    ins: number[][];
+    /** Connected part of each node; main = the one with the stops. */
+    comp: Int32Array;
+    main: number;
+    areas: PreparedArea[];
+    zf: (level: number) => number;
+    platKeys: (string[] | null)[];
+    closeSrc: EdgeClosure[];
+    closedCache: Map<string, ClosedOn>;
+    stopNodeCache?: Map<StationStop, number[]>;
+    stationNames?: Set<string>;
+    platNodes?: Map<string, string[]>;
+  }
+
   // ---------- Coordinates ----------
-  function toLocal(model, ll) {
+  function toLocal(model: StationModel, ll: LngLat): XY {
     const [lng0, lat0] = model.origin;
     return [(ll[0] - lng0) * KX * Math.cos(lat0 * Math.PI / 180), (ll[1] - lat0) * KY];
   }
-  function toLngLat(model, xy) {
+  function toLngLat(model: StationModel, xy: StationRouteXY): LngLat {
     const [lng0, lat0] = model.origin;
     return [lng0 + xy[0] / (KX * Math.cos(lat0 * Math.PI / 180)), lat0 + xy[1] / KY];
   }
 
-  const zCache = new WeakMap();
-  function zFn(model) {
+  const zCache = new WeakMap<StationModel, (level: number) => number>();
+  function zFn(model: StationModel) {
     let f = zCache.get(model);
     if (f) return f;
     const lv = (model.levels || []).filter((l) => isFinite(l.id) && isFinite(l.z)).slice().sort((a, b) => a.id - b.id);
@@ -167,7 +226,7 @@
     zCache.set(model, f);
     return f;
   }
-  const z = (model, level) => zFn(model)(level);
+  const z = (model: StationModel, level: number) => zFn(model)(level);
 
   // ---------- platformKey: the reference rule ----------
   // The comparable form of a platform / stop edge name, used by the router, and meant for the app and the viewer too
@@ -178,7 +237,7 @@
   //   3. if it then starts with digits, the key is those digits ("7A-D" → "7", "Gleis 7" → "7", "12 Sektor B" → "12");
   //   4. otherwise the key is the letters and digits only ("Kante H" → "H", "K1" → "K1", "K 1" → "K1", "–" → "").
   const PK_PREFIX = /^(GLEIS|GL\.|GL|KANTE|QUAI|VOIE|BINARIO|STEG|PERRON|PLATFORM|TRACK|BAY|PIER)\s*(?=\S)/;
-  function platformKey(p) {
+  function platformKey(p: string | number | null | undefined) {
     let s = String(p == null ? '' : p).toUpperCase().trim();
     const rest = s.replace(PK_PREFIX, '');
     if (rest !== s && /[0-9A-Z]/.test(rest)) s = rest.trim();
@@ -186,7 +245,7 @@
     return digits ? digits[0] : s.replace(/[^0-9A-Z]/g, '');
   }
   // Sectors a ref names: "7A-D" → ['A', 'D'] as a range, "7 B" → ['B'], "7BC" → ['B', 'C'], "7" / "K1" → null
-  function refSectors(ref) {
+  function refSectors(ref: string | number | null | undefined): SectorSpec | null {
     let s = String(ref == null ? '' : ref).toUpperCase().trim();
     const rest = s.replace(PK_PREFIX, '');
     if (rest !== s && /[0-9A-Z]/.test(rest)) s = rest.trim();
@@ -199,21 +258,21 @@
   }
 
   // ---------- Dates and closures ----------
-  const pad2 = (n) => String(n).padStart(2, '0');
-  function dateKey(d) {
-    if (d instanceof Date && !isNaN(d)) return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  function dateKey(d?: Day): string {
+    if (d instanceof Date && !isNaN(d as unknown as number)) return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
     return dateKey(new Date());
   }
-  const validDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s);
-  function activeOn(c, day) {
+  const validDay = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s);
+  function activeOn(c: ClosedValue, day: string) {
     if (!c) return false;
     if (c === true) return true;
     if (typeof c !== 'object') return false;
     const from = validDay(c.from) ? c.from.slice(0, 10) : null, until = validDay(c.until) ? c.until.slice(0, 10) : null;
     return (!from || from <= day) && (!until || day < until);
   }
-  function isClosed(thing, date) {
+  function isClosed(thing: { closed?: ClosedValue } | ClosedValue, date?: Day) {
     const day = dateKey(date);
     if (thing === true) return true;
     if (!thing || typeof thing !== 'object') return false;
@@ -221,14 +280,14 @@
     if ('from' in thing || 'until' in thing) return activeOn(thing, day); // a closure object itself
     return false;
   }
-  function notices(model, date) {
+  function notices(model: StationModel | null | undefined, date?: Day): StationNotice[] {
     const day = dateKey(date);
     const out = [];
-    for (const n of (model && model.notices) || []) {
+    for (const n of (model && model.notices) || [] as (StationNotice | string)[]) {
       if (typeof n === 'string') { if (n.trim()) out.push({ text: n }); continue; }
       if (!n || !n.text) continue;
       if (!validDay(n.from) && !validDay(n.until) ? true : activeOn({ from: n.from, until: n.until }, day)) {
-        const o = { text: n.text };
+        const o: StationNotice = { text: n.text };
         if (n.from) o.from = n.from;
         if (n.until) o.until = n.until;
         out.push(o);
@@ -237,11 +296,11 @@
     return out;
   }
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const fmtDay = (s) => (validDay(s) ? `${+s.slice(8, 10)} ${MONTHS[+s.slice(5, 7) - 1]}` : '');
+  const fmtDay = (s: string | undefined) => (validDay(s) ? `${+s.slice(8, 10)} ${MONTHS[+s.slice(5, 7) - 1]}` : '');
 
   // ---------- Prepared model (cached, date-independent) ----------
-  const prepCache = new WeakMap();
-  function prepare(model) {
+  const prepCache = new WeakMap<StationModel, Prepared>();
+  function prepare(model: StationModel): Prepared {
     let P = prepCache.get(model);
     if (P) return P;
     const g = model.graph || { nodes: [], edges: [] };
@@ -254,10 +313,10 @@
     const kind = new Uint8Array(E), L = new Float64Array(E), dz = new Float64Array(E), hd = new Float64Array(E);
     const outdoor = new Uint8Array(E), oneway = new Uint8Array(E), vmask = new Uint8Array(E), ok = new Uint8Array(E);
     const incl = new Float64Array(E); // signed slope in a → b direction (NaN: flat / unknown)
-    const outs = Array.from({ length: N }, () => []), ins = Array.from({ length: N }, () => []);
+    const outs = Array.from({ length: N }, (): number[] => []), ins = Array.from({ length: N }, (): number[] => []);
     const parent = new Int32Array(N);
     for (let i = 0; i < N; i++) parent[i] = i;
-    const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    const find = (i: number) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
 
     for (let e = 0; e < E; e++) {
       const ed = edges[e], a = ed.a, b = ed.b;
@@ -275,11 +334,11 @@
       // edge.incline gives the steepness; which way is up comes from the level heights when they differ
       // (builders often write the size only), else from the sign of incline (a → b)
       let s = NaN;
-      const hasInc = isFinite(ed.incline) && ed.incline !== 0;
+      const hasInc = isFinite(ed.incline!) && ed.incline !== 0;
       if (Math.abs(dz[e]) > 0.05 && (k === RAMP || k === WALK)) {
-        const mag = hasInc ? Math.abs(ed.incline) : L[e] > 0.5 ? Math.abs(dz[e]) / L[e] : 1;
+        const mag = hasInc ? Math.abs(ed.incline!) : L[e] > 0.5 ? Math.abs(dz[e]) / L[e] : 1;
         s = Math.sign(dz[e]) * mag;
-      } else if (hasInc) s = +ed.incline;
+      } else if (hasInc) s = +ed.incline!;
       incl[e] = s;
       let m = 0;
       if (k === STAIRS) m |= V_STAIRS;
@@ -303,7 +362,7 @@
     }
     // Main connected part: the one with the stops (else the biggest)
     const comp = new Int32Array(N);
-    const size = new Map();
+    const size = new Map<number, number>();
     for (let i = 0; i < N; i++) { comp[i] = find(i); size.set(comp[i], (size.get(comp[i]) || 0) + 1); }
     let main = -1;
     const st0 = (model.stops || []).find((s) => s.node >= 0 && s.node < N);
@@ -311,14 +370,14 @@
     else { let best = -1; size.forEach((n, c) => { if (n > best) { best = n; main = c; } }); }
 
     // Areas by level, with bounding boxes, for names of places
-    const areas = (model.areas || []).filter((a) => a.ring && a.ring.length >= 3 && a.kind !== 'room').map((a) => {
+    const areas = (model.areas || []).filter((a) => a.ring && a.ring.length >= 3 && a.kind !== 'room').map((a): PreparedArea => {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const [x, y] of a.ring) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
       return { a, level: +a.level || 0, box: [x0, y0, x1, y1], prio: a.kind === 'platform' ? 0 : a.kind === 'floor' ? 1 : a.kind === 'plaza' ? 2 : 3 };
     });
-    P = { model, nodes, edges, N, E, nz, EA, EB, kind, L, dz, hd, outdoor, oneway, vmask, tmask, ok, incl, outs, ins, comp, main, areas, zf };
+    P = { model, nodes, edges, N, E, nz, EA, EB, kind, L, dz, hd, outdoor, oneway, vmask, tmask, ok, incl, outs, ins, comp, main, areas, zf } as Prepared;
     // Platform keys of the platform area each edge lies on (for sector aiming and snapping)
-    P.platKeys = new Array(E).fill(null);
+    P.platKeys = new Array<string[] | null>(E).fill(null);
     for (let e = 0; e < E; e++) {
       if (!ok[e]) continue;
       const pa = nodes[EA[e]], pb = nodes[EB[e]];
@@ -332,25 +391,25 @@
   }
 
   // Which edges each closable thing closes (static); the date decides later which are closed.
-  function closureSources(P, model) {
-    const src = []; // { what, obj, kind?, name?, ref?, edges: [e] }
+  function closureSources(P: Prepared, model: StationModel) {
+    const src: EdgeClosure[] = []; // { what, obj, kind?, name?, ref?, edges: [e] }
     const { nodes, E, EA, EB, ok, kind, outdoor } = P;
-    const edgesOf = (test) => { const out = []; for (let e = 0; e < E; e++) if (ok[e] && test(e)) out.push(e); return out; };
+    const edgesOf = (test: (e: number) => boolean) => { const out: number[] = []; for (let e = 0; e < E; e++) if (ok[e] && test(e)) out.push(e); return out; };
     (model.graph && model.graph.edges || []).forEach((ed, e) => {
-      if (ed && ed.closed) src.push({ what: 'edge', obj: ed, kind: KIND_NAMES[kind[e]], name: ed.name || '', edges: [e] });
+      if (ed && ed.closed) src.push({ what: 'edge', obj: ed, kind: KIND_NAMES[kind[e]] as StationEdgeKind, name: ed.name || '', edges: [e] });
     });
-    (model.connectors || []).forEach((c) => {
+    (model.connectors || []).forEach((c: AnyConnector) => {
       if (!c || !c.closed) return;
-      let es;
+      let es: number[];
       if (c.kind === 'elevator' && c.xy) {
         const lv = Array.isArray(c.levels) ? c.levels : null;
-        const at = (n) => Math.hypot(nodes[n][0] - c.xy[0], nodes[n][1] - c.xy[1]) < 2.5 && (!lv || lv.some((l) => Math.abs(l - nodes[n][2]) < 0.3));
+        const at = (n: number) => Math.hypot(nodes[n][0] - c.xy![0], nodes[n][1] - c.xy![1]) < 2.5 && (!lv || lv.some((l) => Math.abs(l - nodes[n][2]) < 0.3));
         es = edgesOf((e) => kind[e] === LIFT && at(EA[e]) && at(EB[e]));
       } else if (Array.isArray(c.line) && c.line.length >= 2) {
         const k = KIND_CODES[c.kind] != null ? KIND_CODES[c.kind] : -1;
         const lvs = c.line.map((p) => (p.length > 2 ? +p[2] : 0));
         const lo = Math.min(...lvs) - 0.15, hi = Math.max(...lvs) + 0.15;
-        const near = (n) => nodes[n][2] >= lo && nodes[n][2] <= hi && distToLine(c.line, nodes[n][0], nodes[n][1]) < 1.5;
+        const near = (n: number) => nodes[n][2] >= lo && nodes[n][2] <= hi && distToLine(c.line!, nodes[n][0], nodes[n][1]) < 1.5;
         es = edgesOf((e) => kind[e] === k && near(EA[e]) && near(EB[e]));
       } else es = [];
       src.push({ what: 'connector', obj: c, kind: c.kind, name: c.name || '', edges: es });
@@ -359,7 +418,7 @@
       if (!a || !a.closed || !a.ring || a.ring.length < 3) return;
       // every edge with an end on that area (walks on it, and the stairs, lifts … that arrive on it)
       const lv = +a.level || 0;
-      const inside = (p) => Math.abs(p[2] - lv) <= 0.3 && inRing(a.ring, p[0], p[1]) && !(a.holes || []).some((h) => h && h.length >= 3 && inRing(h, p[0], p[1]));
+      const inside = (p: XYL) => Math.abs(p[2] - lv) <= 0.3 && inRing(a.ring, p[0], p[1]) && !(a.holes || []).some((h) => h && h.length >= 3 && inRing(h, p[0], p[1]));
       const es = edgesOf((e) => inside(nodes[EA[e]]) || inside(nodes[EB[e]]));
       src.push({ what: 'area', obj: a, kind: a.kind, name: a.name || '', ref: (a.refs || []).join('/'), edges: es });
     });
@@ -373,18 +432,18 @@
     return src;
   }
   // Closed edges on a date: { mask: Uint8Array(E), by: Map(edge → [source]), any }
-  function closedFor(P, date) {
+  function closedFor(P: Prepared, date: Day): ClosedOn {
     const day = dateKey(date);
     let c = P.closedCache.get(day);
     if (c) return c;
-    const mask = new Uint8Array(P.E), by = new Map();
+    const mask = new Uint8Array(P.E), by = new Map<number, EdgeClosure[]>();
     let any = false;
     for (const s of P.closeSrc) {
       if (!activeOn(s.obj.closed, day)) continue;
       for (const e of s.edges) {
         mask[e] = 1; any = true;
         if (!by.has(e)) by.set(e, []);
-        by.get(e).push(s);
+        by.get(e)!.push(s);
       }
     }
     c = { day, mask, by, any };
@@ -392,8 +451,8 @@
     P.closedCache.set(day, c);
     return c;
   }
-  function closureEntry(s, model) {
-    const c = s.obj.closed, o = { what: s.what };
+  function closureEntry(s: ClosureSource, model: StationModel) {
+    const c = s.obj.closed, o: StationRouteClosure = { what: s.what };
     if (s.kind) o.kind = s.kind;
     if (s.name) o.name = s.name;
     if (s.ref) o.ref = s.ref;
@@ -405,9 +464,9 @@
     }
     return o;
   }
-  function closureSentence(o, model) {
+  function closureSentence(o: StationRouteClosure, model: StationModel) {
     if (o.note) return /[.!?]$/.test(o.note.trim()) ? o.note.trim() : o.note.trim() + '.';
-    const thing = { stairs: 'the stairs', escalator: 'the escalator', elevator: 'the lift', ramp: 'the ramp' }[o.kind];
+    const thing: string | undefined = { stairs: 'the stairs', escalator: 'the escalator', elevator: 'the lift', ramp: 'the ramp' }[o.kind as StationRouteConnectorKind];
     const what = o.what === 'stop' ? (o.ref ? `${nounFor({ mode: o.mode })} ${o.ref}` : 'This stop')
       : o.what === 'entrance' ? (o.name ? `The entrance ${o.name}` : 'This entrance')
         : o.what === 'area' ? (o.name || (o.ref ? `Platform ${o.ref}` : 'Part of the station'))
@@ -418,7 +477,7 @@
   }
 
   // ---------- Geometry helpers ----------
-  function inRing(ring, x, y) {
+  function inRing(ring: XY[], x: number, y: number) {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
@@ -426,7 +485,7 @@
     }
     return inside;
   }
-  function distToLine(line, x, y) {
+  function distToLine(line: StationRouteXY[], x: number, y: number) {
     let best = Infinity;
     for (let i = 0; i + 1 < line.length; i++) {
       const p = line[i], q = line[i + 1], dx = q[0] - p[0], dy = q[1] - p[1], l2 = dx * dx + dy * dy;
@@ -437,7 +496,7 @@
     return line.length === 1 ? Math.hypot(x - line[0][0], y - line[0][1]) : best;
   }
   // Areas containing (x, y) on that floor (whole level ± 0.3), best first: platform, floor, plaza, other
-  function areasAt(P, x, y, level) {
+  function areasAt(P: Prepared, x: number, y: number, level: number) {
     const lr = Math.round(level);
     if (Math.abs(level - lr) > 0.3) return [];
     const out = [];
@@ -451,17 +510,24 @@
     }
     return out.sort((p, q) => p.prio - q.prio).map((A) => A.a);
   }
-  const angleDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d <= -Math.PI) d += 2 * Math.PI; return d; };
+  const angleDiff = (a: number, b: number) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d <= -Math.PI) d += 2 * Math.PI; return d; };
 
   // ---------- Endpoints ----------
   // Nearest point on an open edge to (x, y). level: the floor the position is on, or null (then prefer outdoor street
   // level). opt.filter(e) limits the edges; opt.closed is the closure mask. Far from everything (> snapNear): only a
   // street-level outdoor walk.
-  function snapToGraph(P, x, y, level, opt = {}) {
+  /** An end of a search: a resolve() candidate, or a sector aim (that one has no dist). */
+  type End = StationRouteGraphPlace & Omit<StationRouteCandidateInfo, 'dist'> & { dist?: number };
+  /** What resolve() notes on a candidate besides its place. */
+  type EndExtra = Pick<StationRouteCandidateInfo, 'stop' | 'closedStop' | 'onPlatform' | 'entrance' | 'closedEntrance'>;
+  /** A point on an edge: s = 0..1 from the edge's a to its b. */
+  interface EdgePoint { edge: number; s: number; point: XYL; dist: number; score?: number }
+  interface SnapOptions { closed?: Uint8Array | null; filter?: (e: number) => unknown }
+  function snapToGraph(P: Prepared, x: number, y: number, level: number | null | undefined, opt: SnapOptions = {}): EdgePoint | null {
     const hasLevel = level != null && isFinite(level);
     const closed = opt.closed, filter = opt.filter;
-    const usable = (e) => P.ok[e] && P.kind[e] !== LIFT && !(closed && closed[e]) && (!filter || filter(e));
-    const onEdge = (e) => {
+    const usable = (e: number) => P.ok[e] && P.kind[e] !== LIFT && !(closed && closed[e]) && (!filter || filter(e));
+    const onEdge = (e: number): EdgePoint => {
       const pa = P.nodes[P.EA[e]], pb = P.nodes[P.EB[e]];
       const dx = pb[0] - pa[0], dy = pb[1] - pa[1], l2 = dx * dx + dy * dy;
       let t = l2 > 1e-9 ? ((x - pa[0]) * dx + (y - pa[1]) * dy) / l2 : 0;
@@ -470,7 +536,7 @@
       const lv = (pa[2] || 0) + t * ((pb[2] || 0) - (pa[2] || 0));
       return { edge: e, s: t, point: [px, py, lv], dist: Math.hypot(x - px, y - py) };
     };
-    const street = (e, c) => P.kind[e] === WALK && P.outdoor[e] && Math.abs(c.point[2]) <= 0.6 && !P.platKeys[e];
+    const street = (e: number, c: EdgePoint) => P.kind[e] === WALK && P.outdoor[e] && Math.abs(c.point[2]) <= 0.6 && !P.platKeys[e];
     let best = null, bestStreet = null, bestOut = null, bestWalk = null;
     for (let e = 0; e < P.E; e++) {
       if (!usable(e)) continue;
@@ -490,7 +556,7 @@
       }
       if (P.comp[P.EA[e]] !== P.main) score += 50; // stray bits of graph that do not connect
       c.score = score;
-      if (!best || score < best.score) best = c;
+      if (!best || score < best.score!) best = c;
       if (street(e, c) && (!bestStreet || c.dist < bestStreet.dist)) bestStreet = c;
       if (P.outdoor[e] && P.kind[e] === WALK && (!bestOut || c.dist < bestOut.dist)) bestOut = c;
       if (P.kind[e] === WALK && (!bestWalk || c.dist < bestWalk.dist)) bestWalk = c;
@@ -501,13 +567,13 @@
     return bestStreet || bestOut || bestWalk || best;
   }
 
-  function sectorsOf(model, key) {
+  function sectorsOf(model: StationModel, key: string) {
     return (model.sectors || []).filter((s) => s && platformKey(s.ref) === key && (s.xy || Number.isInteger(s.node)))
       .slice().sort((a, b) => (String(a.name) < String(b.name) ? -1 : String(a.name) > String(b.name) ? 1 : 0));
   }
   // The point to aim at for some sectors of a platform: their node (one sector), else the middle of the range,
   // snapped onto that platform's edges. null when the data has none of them.
-  function sectorAim(P, model, key, spec, level, closed) {
+  function sectorAim(P: Prepared, model: StationModel, key: string, spec: SectorSpec | null, level: number | null | undefined, closed: Uint8Array | null): End | null {
     const all = sectorsOf(model, key);
     if (!all.length || !spec) return null;
     let chosen;
@@ -518,10 +584,10 @@
     if (!chosen.length) return null;
     const names = chosen.map((s) => String(s.name));
     const first = chosen[0], last = chosen[chosen.length - 1];
-    if (chosen.length === 1 && Number.isInteger(first.node) && first.node >= 0 && first.node < P.N) {
-      return { node: first.node, point: P.nodes[first.node].slice(0, 3), sectors: names };
+    if (chosen.length === 1 && Number.isInteger(first.node) && first.node! >= 0 && first.node! < P.N) {
+      return { node: first.node!, point: P.nodes[first.node!].slice(0, 3) as XYL, sectors: names };
     }
-    const xyOf = (s) => (s.xy ? s.xy : P.nodes[s.node]);
+    const xyOf = (s: StationSector) => (s.xy ? s.xy : P.nodes[s.node!]);
     const mx = (xyOf(first)[0] + xyOf(last)[0]) / 2, my = (xyOf(first)[1] + xyOf(last)[1]) / 2;
     const lv = level != null ? level : 0;
     let c = snapToGraph(P, mx, my, lv, { closed, filter: (e) => P.platKeys[e] && P.platKeys[e].includes(key) && Math.abs(P.nodes[P.EA[e]][2] - lv) < 0.3 });
@@ -532,11 +598,11 @@
 
   // Every graph node along a stop's platform: stop.nodes when the builder gives them, else the nodes on the stop's
   // level inside the platform areas whose refs include the stop's ref, else just stop.node. Cached per model.
-  function stopNodes(P, model, s) {
+  function stopNodes(P: Prepared, model: StationModel, s: StationStop) {
     if (!P.stopNodeCache) P.stopNodeCache = new Map();
     let ns = P.stopNodeCache.get(s);
     if (ns) return ns;
-    const ok = (n) => Number.isInteger(n) && n >= 0 && n < P.N;
+    const ok = (n: number) => Number.isInteger(n) && n >= 0 && n < P.N;
     if (Array.isArray(s.nodes) && s.nodes.some(ok)) ns = [...new Set(s.nodes.filter(ok))];
     else {
       ns = [];
@@ -564,19 +630,19 @@
     return ns;
   }
 
-  function resolve(model, ep, date) {
+  function resolve(model: StationModel, ep: Endpoint, date?: Day): StationRouteCandidate[] {
     const P = prepare(model);
     if (!ep) return [];
     const closed = closedFor(P, date).mask;
     const stops = model.stops || [];
     const day = dateKey(date);
-    const nodeOk = (n) => Number.isInteger(n) && n >= 0 && n < P.N;
-    const fromNode = (n, extra) => Object.assign({ node: n, point: P.nodes[n].slice(0, 3), dist: 0 }, extra);
-    const fromXY = (xy, level, extra, d = true) => {
+    const nodeOk = (n: number) => Number.isInteger(n) && n >= 0 && n < P.N;
+    const fromNode = (n: number, extra: EndExtra): StationRouteCandidate => Object.assign({ node: n, point: P.nodes[n].slice(0, 3) as XYL, dist: 0 }, extra);
+    const fromXY = (xy: StationRouteXY, level: number | null, extra: EndExtra, d = true): StationRouteCandidate[] => {
       const s = snapToGraph(P, xy[0], xy[1], level, { closed });
       return s ? [Object.assign({ edge: s.edge, s: s.s, point: s.point, dist: d ? s.dist : 0 }, extra)] : [];
     };
-    const openFirst = (list, test) => { const open = list.filter((c) => !test(c)); return open.length ? open : list; };
+    const openFirst = (list: StationRouteCandidate[], test: (c: StationRouteCandidate) => unknown) => { const open = list.filter((c) => !test(c)); return open.length ? open : list; };
     if (ep.stop) {
       const uic = ep.stop.uic != null ? String(ep.stop.uic) : null;
       const key = platformKey(ep.stop.ref);
@@ -586,8 +652,8 @@
       let c = pool.filter((s) => !key || platformKey(s.ref) === key);
       // letter forms only: "K" ↔ "K1"; a number never matches another number by prefix ("11" is not platform 1)
       if (!c.length && key && !/^\d+$/.test(key)) c = pool.filter((s) => { const k = platformKey(s.ref); return k && !/^\d+$/.test(k) && (k.startsWith(key) || key.startsWith(k)); });
-      let out = [];
-      const seenNode = new Set();
+      let out: StationRouteCandidate[] = [];
+      const seenNode = new Set<number>();
       for (const s of c) {
         const extra = { stop: s, closedStop: activeOn(s.closed, day) };
         // the whole platform: you may be anywhere along it (the search picks the best node)
@@ -600,7 +666,7 @@
       // sectors named in the ref, or given as { stop: { …, sector } }: aim at them instead of the whole platform
       const secSpec = ep.stop.sector ? refSectors(`${key || '0'} ${ep.stop.sector}`) : sec;
       if (out.length && secSpec && /^\d+$/.test(key)) {
-        const aim = sectorAim(P, model, key, secSpec, out[0].stop.level != null ? out[0].stop.level : out[0].point[2], closed);
+        const aim = sectorAim(P, model, key, secSpec, out[0].stop!.level != null ? out[0].stop!.level : out[0].point[2], closed);
         if (aim) out = [Object.assign(aim, { stop: out[0].stop, closedStop: out[0].closedStop, dist: 0 })];
       }
       // a stop the model does not know (no such ref): fall back to the position given with it, if any
@@ -621,15 +687,19 @@
       return openFirst(out, (x) => x.closedEntrance);
     }
     if (ep.xy || ep.ll) {
-      const xy = ep.xy || toLocal(model, ep.ll);
+      const xy = ep.xy || toLocal(model, ep.ll!);
       return fromXY(xy, ep.level != null && isFinite(ep.level) ? +ep.level : null, {});
     }
     return [];
   }
 
   // ---------- Binary heap ----------
-  function Heap() { this.k = []; this.v = []; }
-  Heap.prototype.push = function (key, val) {
+  /** A min-heap of values v by key k. lastKey: the key of the value pop() gave last. */
+  interface Heap { k: number[]; v: number[]; lastKey: number; push(key: number, val: number): void; pop(): number }
+  /** Heap is a constructor function, not a class: this is what `new Heap()` makes. */
+  type HeapClass = new () => Heap;
+  function Heap(this: Heap) { this.k = []; this.v = []; }
+  Heap.prototype.push = function (this: Heap, key: number, val: number) {
     const k = this.k, v = this.v;
     let i = k.length;
     k.push(key); v.push(val);
@@ -640,10 +710,10 @@
     }
     k[i] = key; v[i] = val;
   };
-  Heap.prototype.pop = function () {
+  Heap.prototype.pop = function (this: Heap) {
     const k = this.k, v = this.v;
     const top = v[0], topK = k[0];
-    const lk = k.pop(), lv = v.pop();
+    const lk = k.pop()!, lv = v.pop()!;
     const n = k.length;
     if (n) {
       let i = 0;
@@ -661,13 +731,13 @@
   };
 
   // ---------- Search ----------
-  function settings(prefs) {
+  function settings(prefs: Prefs) {
     const p = prefs || {};
     const wheel = !!p.wheelchair;
     const stepFree = wheel || !!p.stepFree;
     const fewer = stepFree || !!p.fewerStairs;
     const noEsc = stepFree || !!p.noEscalators;
-    const kmh = isFinite(p.walkKmh) && p.walkKmh > 0 ? +p.walkKmh : TIME.walkKmh;
+    const kmh = isFinite(p.walkKmh!) && p.walkKmh! > 0 ? +p.walkKmh! : TIME.walkKmh;
     let active = 0;
     if (stepFree) active |= V_STAIRS;
     if (noEsc) active |= V_ESC;
@@ -676,7 +746,8 @@
   }
 
   // Seconds and steering cost of a whole edge in one direction
-  function edgeCost(P, e, fwd, S) {
+  type SearchSettings = ReturnType<typeof settings>;
+  function edgeCost(P: Prepared, e: number, fwd: boolean, S: SearchSettings) {
     const k = P.kind[e], L = P.L[e], dz = fwd ? P.dz[e] : -P.dz[e], h = Math.abs(dz);
     let time = 0, extra = 0;
     if (k === WALK || k === RAMP) {
@@ -701,11 +772,56 @@
     }
     return [time, extra];
   }
-  const changesLevel = (P, e) => Math.abs(P.dz[e]) > 0.5 || P.kind[e] === LIFT;
+  const changesLevel = (P: Prepared, e: number) => Math.abs(P.dz[e]) > 0.5 || P.kind[e] === LIFT;
 
   // One query: base arcs 2e (a → b) / 2e + 1 (b → a), plus virtual arcs from the start S and into the end T
   // (partial edges for snapped points). closed: Uint8Array(E) or null (ignore closures).
-  function makeQuery(P, S, closed, src, dst) {
+  /** The arcs of a path, first to last, and the cost the search found for it. */
+  type Arcs = number[] & { cost?: number };
+  /** One search. Arc ids: 0 … B − 1 are the graph's (2e, 2e + 1), B … nA − 1 the virtual ones out of S and into T. */
+  interface Query {
+    P: Prepared;
+    S: SearchSettings;
+    closed: Uint8Array | null;
+    src: End[];
+    dst: End[];
+    B: number;
+    /** The node numbers of the start S and the end T. */
+    SN: number;
+    TN: number;
+    /** The virtual arcs, by id − B: from and to node, edge (-1: none) and the part s0 → s1 of it that is walked. */
+    vF: number[];
+    vT: number[];
+    vE: number[];
+    vS0: number[];
+    vS1: number[];
+    vCs: number[];
+    vCd: number[];
+    extraOut: Map<number, number[]>;
+    extraIn: Map<number, number[]>;
+    sOut: number[];
+    tIn: number[];
+    nA: number;
+    edge: (id: number) => number;
+    fwd: (id: number) => boolean;
+    frac: (id: number) => number;
+    to: (id: number) => number;
+    from: (id: number) => number;
+    kind: (id: number) => number;
+    usable: (id: number) => boolean;
+    cost: (id: number) => number;
+    time: (id: number) => number;
+    mask: (id: number) => number;
+    trans: (i: number, o: number, real?: boolean) => number;
+    uturn: (a: number, b: number) => boolean;
+    outsOf: (v: number) => (number[] | null | undefined)[];
+    insOf: (v: number) => (number[] | null | undefined)[];
+    /** Set by plan(): the route goes through a closure / where it wanted to go when it stops short. */
+    through?: boolean;
+    wantedPoint?: XYL;
+    wanted?: End;
+  }
+  function makeQuery(P: Prepared, S: SearchSettings, closed: Uint8Array | null, src: End[], dst: End[]): Query {
     const E = P.E, B = 2 * E, SN = P.N, TN = P.N + 1;
     const bCost = new Float64Array(B), bTime = new Float64Array(B);
     for (let e = 0; e < E; e++) {
@@ -715,17 +831,17 @@
       bTime[2 * e + 1] = r[0]; bCost[2 * e + 1] = r[0] + r[1];
     }
     // vCs / vCd: index of the start / end candidate an arc belongs to
-    const vF = [], vT = [], vE = [], vS0 = [], vS1 = [], vCs = [], vCd = [];
-    const extraOut = new Map(), extraIn = new Map(), sOut = [], tIn = [];
-    const isClosed = (e) => e >= 0 && closed && closed[e];
-    const addV = (from, to, e, s0, s1, cs, cd) => {
+    const vF: number[] = [], vT: number[] = [], vE: number[] = [], vS0: number[] = [], vS1: number[] = [], vCs: number[] = [], vCd: number[] = [];
+    const extraOut = new Map<number, number[]>(), extraIn = new Map<number, number[]>(), sOut: number[] = [], tIn: number[] = [];
+    const isClosed = (e: number) => e >= 0 && closed && closed[e];
+    const addV = (from: number, to: number, e: number, s0: number, s1: number, cs: number, cd: number) => {
       if (isClosed(e)) return;
       const id = B + vF.length;
       vF.push(from); vT.push(to); vE.push(e); vS0.push(s0); vS1.push(s1); vCs.push(cs); vCd.push(cd);
       if (from === SN) sOut.push(id);
-      else { if (!extraOut.has(from)) extraOut.set(from, []); extraOut.get(from).push(id); }
+      else { if (!extraOut.has(from)) extraOut.set(from, []); extraOut.get(from)!.push(id); }
       if (to === TN) tIn.push(id);
-      else { if (!extraIn.has(to)) extraIn.set(to, []); extraIn.get(to).push(id); }
+      else { if (!extraIn.has(to)) extraIn.set(to, []); extraIn.get(to)!.push(id); }
     };
     src.forEach((c, ci) => {
       if (c.node != null) addV(SN, c.node, -1, 0, 0, ci, -1);
@@ -745,7 +861,7 @@
       if (a.edge == null || a.edge !== b.edge) return;
       if (b.s >= a.s || !P.oneway[a.edge]) addV(SN, TN, a.edge, a.s, b.s, ai, bi);
     }));
-    const Q = { P, S, closed, src, dst, B, SN, TN, vF, vT, vE, vS0, vS1, vCs, vCd, extraOut, extraIn, sOut, tIn };
+    const Q = { P, S, closed, src, dst, B, SN, TN, vF, vT, vE, vS0, vS1, vCs, vCd, extraOut, extraIn, sOut, tIn } as Query;
     Q.nA = B + vF.length;
     Q.edge = (id) => (id < B ? id >> 1 : vE[id - B]);
     Q.fwd = (id) => (id < B ? (id & 1) === 0 : vS1[id - B] >= vS0[id - B]);
@@ -764,17 +880,17 @@
       const e = vE[id - B];
       return e < 0 ? 0 : Q.frac(id) * bTime[2 * e + (Q.fwd(id) ? 0 : 1)];
     };
-    const head = (id) => {
+    const head = (id: number) => {
       const e = Q.edge(id);
       if (e < 0 || P.L[e] * Q.frac(id) < 0.3) return NaN;
       return Q.fwd(id) ? P.hd[e] : P.hd[e] + Math.PI;
     };
     Q.mask = (id) => { const e = Q.edge(id); return e < 0 ? 0 : P.vmask[e]; };
-    const tmask = (id) => { const e = Q.edge(id); return e < 0 ? 0 : P.tmask[e]; };
+    const tmask = (id: number) => { const e = Q.edge(id); return e < 0 ? 0 : P.tmask[e]; };
     const W = TIME.violation;
     // Cost (or, with real = true, only the real seconds) of going on from arc i (-1: start) into arc o
     // a landing between flights counts as part of the staircase (one entry, one level change)
-    const runKind = (id) => { const k = Q.kind(id); return k === WALK && (tmask(id) & V_STAIRS) ? STAIRS : k; };
+    const runKind = (id: number) => { const k = Q.kind(id); return k === WALK && (tmask(id) & V_STAIRS) ? STAIRS : k; };
     Q.trans = (i, o, real) => {
       const ki = i < 0 ? NONE : Q.kind(i), ko = Q.kind(o);
       if (ko === NONE) return 0;
@@ -813,10 +929,10 @@
   }
 
   // Forward Dijkstra from S to T → arcs or null. Also returns the arcs it settled (for reachability).
-  function forward(Q) {
+  function forward(Q: Query): Arcs | null {
     const dist = new Float64Array(Q.nA).fill(Infinity);
     const prev = new Int32Array(Q.nA).fill(-1);
-    const heap = new Heap();
+    const heap = new (Heap as unknown as HeapClass)();
     for (const a of Q.sOut) {
       const d = Q.trans(-1, a) + Q.cost(a);
       if (d < dist[a]) { dist[a] = d; heap.push(d, a); }
@@ -838,7 +954,7 @@
       }
     }
     if (goal < 0) return null;
-    const arcs = [];
+    const arcs: Arcs = [];
     for (let a = goal; a >= 0; a = prev[a]) arcs.push(a);
     arcs.reverse();
     arcs.cost = dist[goal];
@@ -846,10 +962,10 @@
   }
 
   // Backward Dijkstra from T: g[a] = cost of arc a (from its start) to the end, nxt[a] = the arc after it
-  function backward(Q) {
+  function backward(Q: Query) {
     const g = new Float64Array(Q.nA).fill(Infinity);
     const nxt = new Int32Array(Q.nA).fill(-1);
-    const heap = new Heap();
+    const heap = new (Heap as unknown as HeapClass)();
     for (const t of Q.tIn) { const c = Q.cost(t); if (c < g[t]) { g[t] = c; heap.push(c, t); } }
     while (heap.k.length) {
       const b = heap.pop();
@@ -870,11 +986,11 @@
   }
 
   // Nodes reachable from S through usable arcs
-  function reachable(Q) {
-    const seen = new Uint8Array(Q.P.N + 2), stack = [];
+  function reachable(Q: Query) {
+    const seen = new Uint8Array(Q.P.N + 2), stack: number[] = [];
     for (const a of Q.sOut) { const v = Q.to(a); if (v < Q.P.N && !seen[v]) { seen[v] = 1; stack.push(v); } }
     while (stack.length) {
-      const v = stack.pop();
+      const v = stack.pop()!;
       for (const b of Q.P.outs[v]) {
         if (!Q.usable(b)) continue;
         const w = Q.to(b);
@@ -885,29 +1001,31 @@
   }
 
   // Arcs → points, pieces and the facts the steps need
-  function reconstruct(Q, arcs) {
+  /** One piece of a route, pts[i] → pts[i + 1]: len along the slope, hlen in plan, time in seconds, l0 / l1 its levels. */
+  interface Seg { kind: StationEdgeKind; edge: number; len: number; hlen: number; time: number; dz: number; l0: number; l1: number; outdoor: boolean; warn: boolean }
+  function reconstruct(Q: Query, arcs: Arcs) {
     const { P, S, B, SN, TN, vE, vS0, vS1, vF, vT, vCs, vCd, src, dst } = Q;
-    const pointOn = (e, s) => {
+    const pointOn = (e: number, s: number) => {
       const pa = P.nodes[P.EA[e]], pb = P.nodes[P.EB[e]];
       return [pa[0] + s * (pb[0] - pa[0]), pa[1] + s * (pb[1] - pa[1]), (pa[2] || 0) + s * ((pb[2] || 0) - (pa[2] || 0))];
     };
-    const fromPoint = (id) => {
+    const fromPoint = (id: number) => {
       if (id < B) return P.nodes[Q.from(id)].slice(0, 3);
       const j = id - B;
       if (vE[j] >= 0) return pointOn(vE[j], vS0[j]);
       return vF[j] === SN ? src[vCs[j]].point.slice() : P.nodes[vF[j]].slice(0, 3);
     };
-    const toPoint = (id) => {
+    const toPoint = (id: number) => {
       if (id < B) return P.nodes[Q.to(id)].slice(0, 3);
       const j = id - B;
       if (vE[j] >= 0) return pointOn(vE[j], vS1[j]);
       return vT[j] === TN ? dst[vCd[j]].point.slice() : P.nodes[vT[j]].slice(0, 3);
     };
-    const pts = [], segs = [], nodesOut = [];
+    const pts: XYL[] = [], segs: Seg[] = [], nodesOut: number[] = [];
     let used = 0, pendingTime = 0;
-    const same = (p, q) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6 && Math.abs(p[2] - q[2]) < 1e-6;
+    const same = (p: XYL, q: XYL) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6 && Math.abs(p[2] - q[2]) < 1e-6;
     arcs.forEach((a, i) => {
-      const p0 = fromPoint(a), p1 = toPoint(a);
+      const p0 = fromPoint(a) as XYL, p1 = toPoint(a) as XYL;
       if (!pts.length) pts.push(p0);
       const to = Q.to(a), fromN = Q.from(a);
       if (!nodesOut.length && fromN < P.N) nodesOut.push(fromN);
@@ -920,7 +1038,7 @@
       const dzs = P.zf(p1[2]) - P.zf(p0[2]);
       const flat = e >= 0 ? P.L[e] * Q.frac(a) : hl;
       const len = k === LIFT ? 0 : (k === WALK && Math.abs(dzs) < 0.05) ? flat : Math.hypot(flat, dzs);
-      segs.push({ kind: KIND_NAMES[k === NONE ? WALK : k], edge: e, len, hlen: hl, time: t + pendingTime, dz: dzs,
+      segs.push({ kind: KIND_NAMES[k === NONE ? WALK : k] as StationEdgeKind, edge: e, len, hlen: hl, time: t + pendingTime, dz: dzs,
         l0: p0[2], l1: p1[2], outdoor: e >= 0 ? !!P.outdoor[e] : false, warn: !!(Q.mask(a) & S.active) });
       pendingTime = 0;
       pts.push(p1);
@@ -932,14 +1050,14 @@
   }
 
   // ---------- Words ----------
-  const levelShort = (l) => (l < 0 ? '−' + -l : String(l));
-  const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
+  const levelShort = (l: number) => (l < 0 ? '−' + -l : String(l));
+  const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
   const GENERIC = /^(the )?(underpass|subway|overpass|platforms?|platform level|terrace level|concourse level|mezzanine level|gallery level|shopping level|upper deck|lower deck|concourse|hall|station hall|main hall|ticket hall|passage|passageway|tunnel|footbridge|bridge|mezzanine|gallery|basement|lower level|upper level|lower floor|upper floor|ground floor|first floor|shopping level|shops|mall|shopping centre|car park|parking|bus station|tram stop|forecourt|square|station square|terrace|deck|roof|east wing|west wing|main underpass|east underpass|west underpass|north underpass|south underpass)$/;
   // A name as it reads after "to" / "through": "Underpass" → "the underpass", "Underpass and shops" → "the underpass
   // and shops", "Welle and gallery" → "Welle and the gallery", "PostAuto deck" → "the PostAuto deck",
   // "Level -3" → "level −3", "RBS station" / "Bahnhofplatz" / "Grosse Schanze, lower terrace" unchanged.
   const GENERIC_TAIL = /^[A-ZÄÖÜ][\w-]*\s+(deck|terrace|hall|underpass|overpass|passage|concourse|gallery|footbridge|mezzanine)$/;
-  function articledOne(name, first) {
+  function articledOne(name: string, first: boolean) {
     const n = String(name).trim(), low = n.toLowerCase();
     const lv = /^level\s*(-?\d+)$/.exec(low);
     if (lv) return `level ${levelShort(+lv[1])}`;
@@ -948,7 +1066,7 @@
     if (first && !n.includes(',') && GENERIC_TAIL.test(n)) return 'the ' + n;
     return n;
   }
-  function articled(name) {
+  function articled(name: string) {
     const parts = String(name).trim().split(/\s+and\s+/);
     if (parts.length === 1) return articledOne(parts[0], true);
     const firstGeneric = GENERIC.test(parts[0].trim().toLowerCase());
@@ -958,29 +1076,29 @@
       return GENERIC.test(p.trim().toLowerCase()) ? articledOne(p, !firstGeneric) : articledOne(p, false);
     }).join(' and ');
   }
-  function levelObj(model, level) {
+  function levelObj(model: StationModel, level: number) {
     let best = null;
     for (const l of model.levels || []) if (!best || Math.abs(l.id - level) < Math.abs(best.id - level)) best = l;
     return best && Math.abs(best.id - level) < 0.5 ? best : null;
   }
   // Name of the nearest whole level ("the underpass", "level −3")
-  function levelName(model, level) {
+  function levelName(model: StationModel, level: number) {
     const l = levelObj(model, level);
     return l && l.name ? articled(l.name) : `level ${levelShort(Math.round(level))}`;
   }
-  const isNumRef = (r) => /^\d+$/.test(platformKey(r));
-  function platformRefs(area) {
+  const isNumRef = (r: string) => /^\d+$/.test(platformKey(r));
+  function platformRefs(area: StationArea) {
     const keys = [...new Set((area.refs || []).map(platformKey).filter(Boolean))];
     return keys.sort((a, b) => (+a || 0) - (+b || 0) || (a < b ? -1 : 1));
   }
-  function nounFor(stop) {
+  function nounFor(stop: { mode?: StationMode } | null | undefined) {
     const m = stop && stop.mode;
     return m === 'train' || m === 'cable' || m === 'cableway' || m === 'rack' || m === 'funicular' ? 'Platform' : m === 'boat' || m === 'ship' ? 'Pier' : 'Bay';
   }
-  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-  const normName = (s) => String(s).toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').trim();
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const normName = (s: string) => String(s).toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').trim();
   // "Bern", "Bern, Hauptbahnhof", "Bern Bahnhof", "Bern Hbf" …: names that just say "this station"
-  function isStationName(P, name) {
+  function isStationName(P: Prepared, name: string) {
     if (!P.stationNames) {
       P.stationNames = new Set([P.model.name, ...(P.model.stops || []).map((s) => s.name)].filter(Boolean).map(normName));
     }
@@ -990,21 +1108,23 @@
     return !!base && new RegExp(`^${base} (bahnhof|hauptbahnhof|hbf|bhf|station|gare|stazione)$`).test(n);
   }
   const SQUARE = /(platz|place|square|plaza|piazza|hof)$/i;
-  const usefulName = (P, n) => n && String(n).trim() && !isStationName(P, n);
-  const placeObj = (kind, text, prep, refs) => ({ key: text ? 'T' + text.toLowerCase() : '', kind, text, prep, refs });
-  function platformPlace(A, keys) {
+  /** What a stretch of a route is called in the steps. key: the same place has the same key. */
+  interface Place { key: string; kind: '' | 'platform' | 'plaza' | 'floor' | 'edge' | 'level'; text: string; prep: string; refs?: string[] }
+  const usefulName = (P: Prepared, n: string | undefined) => n && String(n).trim() && !isStationName(P, n);
+  const placeObj = (kind: Place['kind'], text: string, prep: string, refs?: string[]): Place => ({ key: text ? 'T' + text.toLowerCase() : '', kind, text, prep, refs });
+  function platformPlace(A: StationArea, keys: string[]) {
     const refs = platformRefs(A);
     if (!refs.length || !refs.every(isNumRef)) return null;
     const k = keys.find((x) => x && refs.includes(x));
     return Object.assign(placeObj('platform', `platform ${k || refs.join('/')}`, 'along', refs), { key: 'P' + refs.join('/') });
   }
-  function areaPlace(P, A) {
+  function areaPlace(P: Prepared, A: StationArea) {
     if (!A || !usefulName(P, A.name)) return null;
-    const prep = A.kind === 'plaza' || SQUARE.test(A.name) ? 'across' : A.kind === 'platform' ? 'along' : 'through';
-    return placeObj(A.kind === 'plaza' ? 'plaza' : A.kind === 'platform' ? 'platform' : 'floor', articled(A.name), prep, A.kind === 'platform' ? platformRefs(A) : undefined);
+    const prep = A.kind === 'plaza' || SQUARE.test(A.name!) ? 'across' : A.kind === 'platform' ? 'along' : 'through';
+    return placeObj(A.kind === 'plaza' ? 'plaza' : A.kind === 'platform' ? 'platform' : 'floor', articled(A.name!), prep, A.kind === 'platform' ? platformRefs(A) : undefined);
   }
-  const edgePlace = (P, ed) => (ed && usefulName(P, ed.name) ? placeObj('edge', articled(ed.name), SQUARE.test(ed.name) ? 'across' : 'along') : null);
-  function levelPlace(model, lv) {
+  const edgePlace = (P: Prepared, ed: StationEdge | null) => (ed && usefulName(P, ed.name) ? placeObj('edge', articled(ed.name!), SQUARE.test(ed.name!) ? 'across' : 'along') : null);
+  function levelPlace(model: StationModel, lv: number) {
     const lr = Math.round(lv);
     if (lr === 0 || Math.abs(lv - lr) > 0.15) return null; // whole levels only; level 0 is the obvious one
     const l = levelObj(model, lr);
@@ -1014,7 +1134,7 @@
 
   // Where a walk piece is: a train platform; indoors the named area containing it, then the edge's name; outdoors the
   // street / square name of the edge first, then the area; last the name of its (whole) level. Never another level's.
-  function placeOf(P, model, p, q, edge, keys) {
+  function placeOf(P: Prepared, model: StationModel, p: XYL, q: XYL, edge: number, keys: string[]) {
     const lv = (p[2] + q[2]) / 2, x = (p[0] + q[0]) / 2, y = (p[1] + q[1]) / 2;
     const list = areasAt(P, x, y, lv);
     for (const A of list) if (A.kind === 'platform') { const pp = platformPlace(A, keys); if (pp) return pp; }
@@ -1028,8 +1148,8 @@
   // Where a level change arrives: the platform there; the named area containing the point; the name of the walk
   // edges that follow; the level's name.
   // Platform refs (numeric) of the train platforms whose nodes include the node at this point, e.g. ['12', '13']
-  const r2 = (v) => Math.round(v * 100) / 100;
-  function platformAtNode(P, model, pt) {
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  function platformAtNode(P: Prepared, model: StationModel, pt: XYL) {
     if (!P.platNodes) {
       P.platNodes = new Map();
       for (const s of model.stops || []) {
@@ -1038,14 +1158,16 @@
         for (const n of stopNodes(P, model, s)) {
           const p = P.nodes[n], key = `${r2(p[0])},${r2(p[1])},${r2(p[2])}`;
           if (!P.platNodes.has(key)) P.platNodes.set(key, []);
-          if (!P.platNodes.get(key).includes(k)) P.platNodes.get(key).push(k);
+          if (!P.platNodes.get(key)!.includes(k)) P.platNodes.get(key)!.push(k);
         }
       }
     }
     const ks = P.platNodes.get(`${r2(pt[0])},${r2(pt[1])},${r2(pt[2])}`);
-    return ks ? ks.slice().sort((a, b) => a - b) : null;
+    return ks ? ks.slice().sort((a, b) => (a as unknown as number) - (b as unknown as number)) : null;
   }
-  function arrivalPlace(P, model, pt, nextWalk, keys) {
+  /** What the walk after a level change starts on. */
+  interface WalkStart { firstPlatform: Place | null; edgeName: Place | null }
+  function arrivalPlace(P: Prepared, model: StationModel, pt: XYL, nextWalk: WalkStart | null, keys: string[]) {
     const list = areasAt(P, pt[0], pt[1], pt[2]);
     for (const A of list) if (A.kind === 'platform') { const pp = platformPlace(A, keys); if (pp) return pp; }
     const pk = platformAtNode(P, model, pt);
@@ -1060,7 +1182,7 @@
     return placeObj('level', l && l.name ? articled(l.name) : `level ${levelShort(Math.round(pt[2]))}`, 'through');
   }
 
-  function turnOf(deg) {
+  function turnOf(deg: number): StationRouteTurn {
     const a = Math.abs(deg);
     if (a < 30) return 'straight';
     if (a > 150) return 'around';
@@ -1068,14 +1190,18 @@
     return deg > 0 ? 'left' : 'right';
   }
   const TURN_WORDS = { left: 'Turn left', right: 'Turn right', 'bear-left': 'Bear left', 'bear-right': 'Bear right', around: 'Turn around', straight: 'Keep straight on' };
-  const sectorText = (names) => (names.length === 1 ? `sector ${names[0]}` : `sectors ${names[0]}–${names[names.length - 1]}`);
-  const sectorShort = (names) => (names.length === 1 ? names[0] : `${names[0]}–${names[names.length - 1]}`);
+  const sectorText = (names: string[]) => (names.length === 1 ? `sector ${names[0]}` : `sectors ${names[0]}–${names[names.length - 1]}`);
+  const sectorShort = (names: string[]) => (names.length === 1 ? names[0] : `${names[0]}–${names[names.length - 1]}`);
 
   // ---------- Steps ----------
-  function buildSteps(P, model, pts, segs, ctx) {
+  /** A run of pieces segs[a] … segs[b − 1] that becomes one step. */
+  interface Run { kind: StationEdgeKind; dir: 'up' | 'down' | null; a: number; b: number; len: number }
+  /** The ends of the route, for the words of the steps. */
+  interface StepContext { toStop?: StationStop | null; fromStop?: StationStop | null; label?: string; toSectors?: string[] | false | null }
+  function buildSteps(P: Prepared, model: StationModel, pts: XYL[], segs: Seg[], ctx: StepContext) {
     const MIN_FRAG = 10, MIN_PLACE = 15, MIN_TURN = 20;
     // A level change is stairs, an escalator, a ramp or a lift; a sloping street is a walk
-    const segDir = (s) => {
+    const segDir = (s: Seg) => {
       if (s.kind === 'walk') return null;
       const dl = s.l1 - s.l0;
       if (Math.abs(dl) > 1e-6) return dl > 0 ? 'up' : 'down';
@@ -1083,7 +1209,7 @@
       return null;
     };
     // 1. Runs of one kind and direction
-    let runs = [];
+    let runs: Run[] = [];
     segs.forEach((s, i) => {
       const d = segDir(s), r = runs[runs.length - 1];
       if (r && r.kind === s.kind && r.dir === d) { r.b = i + 1; r.len += s.len; }
@@ -1112,14 +1238,14 @@
     const fromKey = ctx.fromStop ? platformKey(ctx.fromStop.ref) : '';
     const half = segs.reduce((a, s) => a + s.len, 0) / 2;
     let acc0 = 0;
-    const keysAt = [];
+    const keysAt: string[][] = [];
     const place = segs.map((s, i) => {
       const keys = acc0 < half ? [fromKey, targetKey] : [targetKey, fromKey];
       keysAt.push(keys);
       acc0 += s.len;
       return s.kind === 'walk' ? placeOf(P, model, pts[i], pts[i + 1], s.edge, keys) : null;
     });
-    const heading = (i, back, limit, win = 10) => {
+    const heading = (i: number, back: boolean, limit: number[], win = 10) => {
       // direction over up to win m of horizontal path before (back) / after point i, within seg range limit [a, b)
       let d = 0, j = i;
       const [x, y] = pts[i];
@@ -1137,13 +1263,13 @@
       if (d < Math.min(2, win)) return NaN;
       return back ? Math.atan2(y - py, x - px) : Math.atan2(py - y, px - x);
     };
-    const out = [];
+    const out: Run[] = [];
     for (const r of runs) {
       if (r.kind !== 'walk') { out.push(r); continue; }
       // by place
-      let parts = [];
+      let parts: { key: string; a: number; b: number; len: number }[] = [];
       for (let i = r.a; i < r.b; i++) {
-        const k = place[i].key, last = parts[parts.length - 1];
+        const k = place[i]!.key, last = parts[parts.length - 1];
         if (last && last.key === k) { last.b = i + 1; last.len += segs[i].len; }
         else parts.push({ key: k, a: i, b: i + 1, len: segs[i].len });
       }
@@ -1197,23 +1323,23 @@
     runs = out;
 
     // 4. Text
-    const steps = [];
-    const sumT = (r) => { let t = 0; for (let i = r.a; i < r.b; i++) t += segs[i].time; return t; };
+    const steps: StationRouteStep[] = [];
+    const sumT = (r: Run) => { let t = 0; for (let i = r.a; i < r.b; i++) t += segs[i].time; return t; };
     // the place covering most of a walk's length
-    const bestPlace = (r) => {
-      const m = new Map();
+    const bestPlace = (r: Run) => {
+      const m = new Map<string, number>();
       for (let i = r.a; i < r.b; i++) { const p = place[i]; if (p) m.set(p.key, (m.get(p.key) || 0) + segs[i].len); }
-      let bk = null, bl = -1;
+      let bk: string | null = null, bl = -1;
       m.forEach((l, k) => { if (l > bl) { bl = l; bk = k; } });
-      for (let i = r.a; i < r.b; i++) if (place[i] && place[i].key === bk) return place[i];
+      for (let i = r.a; i < r.b; i++) if (place[i] && place[i]!.key === bk) return place[i];
       return null;
     };
     // what a walk starts on: the platform of its first ~10 m, the first edge name in its first ~60 m
-    const walkStart = (r) => {
+    const walkStart = (r: Run | undefined): WalkStart | null => {
       if (!r || r.kind !== 'walk') return null;
       let d = 0, firstPlatform = null, edgeName = null;
       for (let i = r.a; i < segs.length && segs[i].kind === 'walk' && d < 60; i++) {
-        if (d < 10 && !firstPlatform && place[i] && place[i].kind === 'platform' && place[i].text) firstPlatform = place[i];
+        if (d < 10 && !firstPlatform && place[i] && place[i]!.kind === 'platform' && place[i]!.text) firstPlatform = place[i];
         if (!edgeName && segs[i].edge >= 0) edgeName = edgePlace(P, P.edges[segs[i].edge]);
         d += segs[i].len;
       }
@@ -1223,13 +1349,13 @@
     const endPt = pts[pts.length - 1];
     // sector at the end: only the aimed ones (a platform as a whole is reached where the route first gets to it;
     // route.toAssumed says where that is)
-    let arriveSector = null;
+    let arriveSector: { names: string[]; aimed: boolean } | null = null;
     if (ctx.toSectors && ctx.toSectors.length) arriveSector = { names: ctx.toSectors, aimed: true };
-    let lastPlaceText = null;
+    let lastPlaceText: string | null = null;
     runs.forEach((r, ri) => {
       const from = r.a, to = r.b;
       const level = pts[from][2], toLevel = pts[to][2];
-      const st = { kind: r.kind, from, to, level, toLevel, dir: r.dir, len: Math.round(r.len), seconds: Math.round(sumT(r)), text: '' };
+      const st: StationRouteStep = { kind: r.kind, from, to, level, toLevel, dir: r.dir, len: Math.round(r.len), seconds: Math.round(sumT(r)), text: '' };
       if (segs.slice(r.a, r.b).some((s) => s.warn)) st.warn = true;
       // turn hint from the geometry around the start of this step
       let turn = null;
@@ -1280,13 +1406,13 @@
     const last = pts.length - 1;
     let label = ctx.label || 'Arrive';
     if (arriveSector && arriveSector.aimed) label += `, ${sectorText(arriveSector.names)}`;
-    const arrive = { kind: 'arrive', from: last, to: last, level: pts[last][2], toLevel: pts[last][2], dir: null, len: 0, seconds: 0, text: label };
+    const arrive: StationRouteStep = { kind: 'arrive', from: last, to: last, level: pts[last][2], toLevel: pts[last][2], dir: null, len: 0, seconds: 0, text: label };
     if (arriveSector) arrive.sector = sectorShort(arriveSector.names);
     steps.push(arrive);
     return steps;
   }
 
-  function endLabel(model, cand) {
+  function endLabel(model: StationModel, cand: End | null | undefined) {
     if (!cand) return null;
     let s = cand.stop;
     if (!s && cand.node != null) s = (model.stops || []).find((x) => x.node === cand.node);
@@ -1297,16 +1423,16 @@
     return null;
   }
   // metres from a point to a sector's stretch of platform (its span, else its sign)
-  function sectorDist(P, model, key, name, pt) {
+  function sectorDist(P: Prepared, model: StationModel, key: string, name: string, pt: XYL) {
     let d = Infinity;
     for (const sp of model.sectorSpans || []) if (sp && sp.a && sp.b && platformKey(sp.ref) === key && String(sp.name) === name) d = Math.min(d, distToLine([sp.a, sp.b], pt[0], pt[1]));
-    for (const s of sectorsOf(model, key)) if (String(s.name) === name) { const xy = s.xy || P.nodes[s.node]; d = Math.min(d, Math.hypot(xy[0] - pt[0], xy[1] - pt[1])); }
+    for (const s of sectorsOf(model, key)) if (String(s.name) === name) { const xy = s.xy || P.nodes[s.node!]; d = Math.min(d, Math.hypot(xy[0] - pt[0], xy[1] - pt[1])); }
     return d;
   }
   // { sector?, xy, text }: "from the stairs at sector B", "to the lift", "from sector A"
   const CONN_NOUN = { stairs: 'the stairs', escalator: 'the escalator', ramp: 'the ramp', elevator: 'the lift' };
-  function assumed(P, model, stop, pt, segs, atStart) {
-    const o = { xy: [Math.round(pt[0] * 100) / 100, Math.round(pt[1] * 100) / 100] };
+  function assumed(P: Prepared, model: StationModel, stop: StationStop, pt: XYL, segs: Seg[], atStart: boolean) {
+    const o = { xy: [Math.round(pt[0] * 100) / 100, Math.round(pt[1] * 100) / 100] } as StationRouteAssumed; // text: below
     const key = platformKey(stop.ref);
     // the sector whose stretch of platform (model.sectorSpans) the point is on, else the nearest sector sign
     let best = null, bd = Infinity;
@@ -1317,7 +1443,7 @@
     if (!best || bd > 30) {
       best = null; bd = Infinity;
       for (const s of sectorsOf(model, key)) {
-        const xy = s.xy || P.nodes[s.node];
+        const xy = s.xy || P.nodes[s.node!];
         const d = Math.hypot(xy[0] - pt[0], xy[1] - pt[1]);
         if (d < bd) { bd = d; best = s; }
       }
@@ -1338,23 +1464,27 @@
       : atStart ? `from the end of the ${noun} nearest your way` : `to the end of the ${noun} you reach first`;
     return o;
   }
-  const stopOf = (model, c) => c && (c.stop || (c.node != null ? (model.stops || []).find((x) => x.node === c.node) : null));
+  const stopOf = (model: StationModel, c: End | null | undefined) => c && (c.stop || (c.node != null ? (model.stops || []).find((x) => x.node === c.node) : null));
 
   // ---------- route ----------
   // The search part shared by route() and why(): { r, Q, closures, incomplete } or { fail: reason }
-  function plan(model, from, to, prefs) {
+  type Walked = ReturnType<typeof reconstruct>;
+  /** What plan() gives: why there is no route, or the search and the path it found. */
+  type Plan = { fail: StationRouteWhy }
+    | { fail?: undefined; P: Prepared; S: SearchSettings; Q: Query; r: Walked; closures: StationRouteClosure[]; incomplete: boolean; through: boolean; src: End[]; dst: End[] };
+  function plan(model: StationModel, from: Endpoint, to: Endpoint, prefs: Prefs): Plan {
     if (!model || !model.graph) return { fail: 'unknown-position' };
     const P = prepare(model);
     const S = settings(prefs);
     const C = closedFor(P, S.date);
     const src = resolve(model, from, S.date), dst = resolve(model, to, S.date);
-    const unknown = (ep) => (ep && ep.stop ? 'unknown-stop' : ep && ep.entrance != null ? 'unknown-entrance' : ep && ep.node != null ? 'unknown-node' : 'unknown-position');
+    const unknown = (ep: Endpoint): StationRouteWhy => (ep && ep.stop ? 'unknown-stop' : ep && ep.entrance != null ? 'unknown-entrance' : ep && ep.node != null ? 'unknown-node' : 'unknown-position');
     if (!src.length) return { fail: unknown(from) };
     if (!dst.length) return { fail: unknown(to) };
-    const closures = [];
+    const closures: StationRouteClosure[] = [];
     const seenObj = new Set(), seenKey = new Set();
     // one entry per closure: the same thing (or the same note) on several edges / connectors is listed once
-    const addClosure = (s) => {
+    const addClosure = (s: ClosureSource) => {
       if (seenObj.has(s.obj)) return;
       seenObj.add(s.obj);
       const o = closureEntry(s, model);
@@ -1365,8 +1495,8 @@
     };
     // closed endpoints: still routed to (the traveller asked for them), but said
     for (const c of [src[0], dst[0]]) {
-      if (c.closedStop) addClosure({ what: 'stop', obj: c.stop, name: c.stop.name || '' });
-      if (c.closedEntrance) addClosure({ what: 'entrance', obj: c.entrance, name: c.entrance.name || '' });
+      if (c.closedStop) addClosure({ what: 'stop', obj: c.stop!, name: c.stop!.name || '' });
+      if (c.closedEntrance) addClosure({ what: 'entrance', obj: c.entrance!, name: c.entrance!.name || '' });
     }
     let Q = makeQuery(P, S, C.any ? C.mask : null, src, dst);
     let arcs = forward(Q);
@@ -1397,7 +1527,7 @@
           Q = Q0; arcs = arcs0; incomplete = false;
           Q.through = true;
         } else {
-          const near = [{ node: best, point: P.nodes[best].slice(0, 3), dist: 0 }];
+          const near = [{ node: best, point: P.nodes[best].slice(0, 3) as XYL, dist: 0 }];
           Q = makeQuery(P, S, C.mask, src, near);
           arcs = forward(Q);
           if (!arcs) return { fail: 'closed' };
@@ -1411,17 +1541,17 @@
     return { P, S, Q, r, closures, incomplete, through: !!Q.through, src, dst };
   }
 
-  function route(model, from, to, prefs) {
+  function route(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): StationRouteResult | null {
     const pl = plan(model, from, to, prefs);
     if (pl.fail) return null;
     const { P, S, Q, r, closures, incomplete } = pl;
     let { pts, segs } = r;
-    const dc = incomplete ? Q.wanted : r.dstCand, sc = r.srcCand;
+    const dc = incomplete ? Q.wanted! : r.dstCand, sc = r.srcCand;
     const toStop = stopOf(model, dc), fromStop = stopOf(model, sc);
     const same = !incomplete && segs.length === 0;
     const still = segs.length === 0; // nothing to walk: same place, or shut in by closures
     let label = endLabel(model, dc) || 'Arrive';
-    if (still) pts = [pts[0], pts[0].slice()];
+    if (still) pts = [pts[0], pts[0].slice() as XYL];
     if (incomplete) label = 'As close as the route can get';
     if (same) {
       // a change on the same platform (or two stop edges at one node): a drawable route of two equal points
@@ -1430,7 +1560,7 @@
       else if (toStop) label = nounFor(toStop) === 'Platform' ? `${label} is across the same platform` : `${label} is at the same stop`;
       else label = `You are at ${label === 'Arrive' ? 'the destination' : label}`;
     }
-    let steps;
+    let steps: StationRouteStep[];
     if (still) {
       steps = [{ kind: 'arrive', from: 0, to: 1, level: pts[0][2], toLevel: pts[1][2], dir: null, len: 0, seconds: 0, text: label }];
     } else {
@@ -1440,8 +1570,8 @@
     let length = 0, seconds = 0;
     for (const s of segs) { length += s.len; seconds += s.time; dists.push(Math.round(length * 100) / 100); }
     if (still) dists.push(0);
-    const rd = (v) => Math.round(v * 100) / 100;
-    const out = {
+    const rd = (v: number) => Math.round(v * 100) / 100;
+    const out: StationRouteResult = {
       points: pts.map((p) => [rd(p[0]), rd(p[1]), rd(p[2])]),
       nodes: r.nodes,
       length: Math.round(length),
@@ -1450,29 +1580,29 @@
       dists,
       edges: still ? [-1] : segs.map((s) => s.edge),
       fromDist: rd(sc && sc.dist || 0),
-      toDist: rd(incomplete ? Math.hypot(pts[pts.length - 1][0] - Q.wantedPoint[0], pts[pts.length - 1][1] - Q.wantedPoint[1]) : (dc && dc.dist) || 0),
+      toDist: rd(incomplete ? Math.hypot(pts[pts.length - 1][0] - Q.wantedPoint![0], pts[pts.length - 1][1] - Q.wantedPoint![1]) : (dc && dc.dist) || 0),
     };
     if (same) out.same = true;
     // Where on a whole platform the route was taken to start / end
     if (!same && sc && sc.onPlatform) {
-      out.fromAssumed = assumed(P, model, sc.stop, pts[0], segs, true);
+      out.fromAssumed = assumed(P, model, sc.stop!, pts[0], segs, true);
       // name the sector the way sectorTimes does (from each sector's middle), when the start is at that sector
       const fa = out.fromAssumed;
       if (fa.sector && from && from.stop) {
-        const st = sectorTimes(model, { stop: { uic: from.stop.uic, ref: platformKey(sc.stop.ref) } }, to, prefs);
-        if (st && st.best !== fa.sector && sectorDist(P, model, platformKey(sc.stop.ref), st.best, pts[0]) <= 25) {
+        const st = sectorTimes(model, { stop: { uic: from.stop.uic, ref: platformKey(sc.stop!.ref) } }, to, prefs);
+        if (st && st.best !== fa.sector && sectorDist(P, model, platformKey(sc.stop!.ref), st.best, pts[0]) <= 25) {
           fa.text = fa.text.replace(`sector ${fa.sector}`, `sector ${st.best}`);
           fa.sector = st.best;
         }
       }
     }
-    if (!same && !incomplete && dc && dc.onPlatform) out.toAssumed = assumed(P, model, dc.stop, pts[pts.length - 1], segs, false);
+    if (!same && !incomplete && dc && dc.onPlatform) out.toAssumed = assumed(P, model, dc.stop!, pts[pts.length - 1], segs, false);
     if (fromStop && sc.stop) out.fromStop = fromStop;
     if (toStop && dc.stop) out.toStop = toStop;
     if (sc && sc.sectors) out.fromSectors = sc.sectors;
     if (dc && dc.sectors && !incomplete) out.toSectors = dc.sectors;
     const sentences = [];
-    const relaxed = [];
+    const relaxed: StationRouteRelaxed[] = [];
     if (r.used & (V_WCF | V_STEEP) || (S.wheel && r.used & (V_STAIRS | V_ESC))) relaxed.push('wheelchair');
     if (S.stepFree && r.used & (V_STAIRS | V_ESC)) relaxed.push('stepFree');
     if (S.noEsc && r.used & V_ESC) relaxed.push('noEscalators');
@@ -1502,14 +1632,16 @@
     return out;
   }
 
-  function why(model, from, to, prefs) {
+  function why(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): StationRouteWhy | null {
     const pl = plan(model, from, to, prefs);
     if (pl.fail) return pl.fail;
     return pl.incomplete || pl.through ? 'closed' : null;
   }
 
   // ---------- Sector times ----------
-  function sectorTimes(model, from, to, prefs) {
+  /** A sector's walk, with the search cost the sectors are compared by (taken off before they are returned). */
+  type SectorWalk = StationRouteSectorTime & { _cost?: number };
+  function sectorTimes(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): StationRouteSectorTimes | null {
     if (!model || !model.graph || !from || !from.stop) return null;
     const P = prepare(model);
     const S = settings(prefs);
@@ -1517,10 +1649,10 @@
     const key = platformKey(from.stop.ref);
     const plat = resolve(model, { stop: { uic: from.stop.uic, ref: key } }, S.date);
     if (!plat.length) return null;
-    const level = plat[0].stop.level != null ? plat[0].stop.level : plat[0].point[2];
+    const level = plat[0].stop!.level != null ? plat[0].stop!.level : plat[0].point[2];
     const secs = sectorsOf(model, key);
     if (!secs.length) return null;
-    const cands = [], names = [];
+    const cands: End[] = [], names: string[] = [];
     for (const s of secs) {
       const aim = sectorAim(P, model, key, { list: [String(s.name).toUpperCase()] }, level, C.any ? C.mask : null);
       if (aim) { cands.push(aim); names.push(String(s.name)); }
@@ -1530,7 +1662,7 @@
     if (!dst.length) return null;
     const Q = makeQuery(P, S, C.any ? C.mask : null, cands, dst);
     const { g, nxt } = backward(Q);
-    const out = [];
+    const out: SectorWalk[] = [];
     cands.forEach((c, ci) => {
       let best = -1, bv = Infinity;
       for (const a of Q.sOut) {
@@ -1539,28 +1671,28 @@
         if (v < bv) { bv = v; best = a; }
       }
       if (best < 0) return;
-      const arcs = [];
+      const arcs: Arcs = [];
       for (let a = best; a >= 0; a = nxt[a]) arcs.push(a);
       arcs.cost = bv;
       const r = reconstruct(Q, arcs);
       let length = 0, seconds = 0;
       for (const s of r.segs) { length += s.len; seconds += s.time; }
       const conn = r.segs.find((s) => s.kind !== 'walk');
-      const e = { name: names[ci], seconds: Math.round(seconds), length: Math.round(length), via: conn ? conn.kind : null };
+      const e: SectorWalk = { name: names[ci], seconds: Math.round(seconds), length: Math.round(length), via: conn ? conn.kind as StationRouteConnectorKind : null };
       if (r.used) e.warn = true;
       e._cost = bv;
       out.push(e);
     });
     if (!out.length) return null;
     let best = out[0];
-    for (const e of out) if (e._cost < best._cost - 1e-6 || (Math.abs(e._cost - best._cost) <= 1e-6 && e.seconds < best.seconds)) best = e;
+    for (const e of out) if (e._cost! < best._cost! - 1e-6 || (Math.abs(e._cost! - best._cost!) <= 1e-6 && e.seconds < best.seconds)) best = e;
     const secsList = out.map((e) => e.seconds);
     out.forEach((e) => { delete e._cost; });
     return { best: best.name, sectors: out, spreadSeconds: Math.max(...secsList) - Math.min(...secsList) };
   }
 
   // ---------- Position on a route ----------
-  function dists(route) {
+  function dists(route: StationRoutePath) {
     if (route.dists && route.dists.length === route.points.length) return route.dists;
     const d = [0];
     for (let i = 1; i < route.points.length; i++) {
@@ -1569,8 +1701,8 @@
     }
     return d;
   }
-  const climbCache = new WeakMap();
-  function climbs(route) {
+  const climbCache = new WeakMap<StationRoutePath, number[]>();
+  function climbs(route: StationRoutePath) {
     let c = climbCache.get(route);
     if (c && c.length === route.points.length) return c;
     const pts = route.points;
@@ -1583,40 +1715,43 @@
     climbCache.set(route, c);
     return c;
   }
-  function stepAt(route, index) {
+  function stepAt(route: StationRoutePath, index: number) {
     const st = route.steps || [];
     for (let i = 0; i < st.length; i++) if (st[i].kind !== 'arrive' && index >= st[i].from && index < st[i].to) return i;
     return Math.max(0, st.length - 1);
   }
 
-  function snap(model, route, xy, hint) {
+  /** The hint of snap() once it is known to carry a previous position. */
+  type PrevSnap = StationRouteSnapHint & { along: number };
+  interface SnapBest { score: number; index: number; t: number; point: XYL; dist: number; along: number }
+  function snap(model: StationModel, route: StationRoutePath | null | undefined, xy: StationRouteXY | { ll: LngLat }, hint?: number | StationRouteSnapHint | null): StationRouteSnap | null {
     if (!route || !route.points || !route.points.length) return null;
     if (xy && !Array.isArray(xy) && xy.ll) xy = toLocal(model, xy.ll);
     const pts = route.points, D = dists(route), total = D[D.length - 1];
-    let hl = null, prev = null;
+    let hl = null, prev: PrevSnap | null = null;
     // A previous result keeps the position continuous along the route (which also keeps it on the right one of two
     // floors that overlap in plan, and lets it change floor in a lift); a level number only when the caller knows it.
     if (typeof hint === 'number' && isFinite(hint)) hl = hint;
     else if (hint && typeof hint === 'object') {
-      if (isFinite(hint.along)) prev = hint;
-      if (isFinite(hint.level)) hl = +hint.level;
+      if (isFinite(hint.along!)) prev = hint as PrevSnap;
+      if (isFinite(hint.level!)) hl = +hint.level!;
     }
-    const x = xy[0], y = xy[1];
+    const x = (xy as StationRouteXY)[0], y = (xy as StationRouteXY)[1];
     if (pts.length === 1) {
-      return { index: 0, t: 0, point: pts[0].slice(), dist: Math.hypot(x - pts[0][0], y - pts[0][1]), along: 0, remaining: 0, step: stepAt(route, 0) };
+      return { index: 0, t: 0, point: pts[0].slice() as XYL, dist: Math.hypot(x - pts[0][0], y - pts[0][1]), along: 0, remaining: 0, step: stepAt(route, 0) };
     }
     // climb[i]: levels changed on stairs, escalators, ramps and slopes before point i (lifts do not count: they have
     // no length, so the next fix can be on the new floor). Between two fixes the floor may change only by about as
     // much as the route climbs in between, so a fix cannot hop onto the floor above or below.
     const CL = climbs(route);
-    const climbAt = (i, t) => CL[i] + t * (CL[i + 1] - CL[i]);
+    const climbAt = (i: number, t: number) => CL[i] + t * (CL[i + 1] - CL[i]);
     const LA = []; // pieces that are lift rides (no length, change of level)
     for (let i = 0; i + 1 < pts.length; i++) {
       if (Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) < 0.05 && Math.abs(pts[i + 1][2] - pts[i][2]) > 0.3) LA.push(i);
     }
     let prevClimb = 0;
     if (prev) {
-      let pi = Number.isInteger(prev.index) && prev.index >= 0 && prev.index < pts.length - 1 ? prev.index : -1, pt = isFinite(prev.t) ? prev.t : 0;
+      let pi = Number.isInteger(prev.index) && prev.index! >= 0 && prev.index! < pts.length - 1 ? prev.index! : -1, pt = isFinite(prev.t!) ? prev.t! : 0;
       if (pi < 0) {
         pi = 0;
         while (pi < pts.length - 2 && D[pi + 1] < prev.along) pi++;
@@ -1625,14 +1760,14 @@
       prevClimb = climbAt(pi, pt);
       if (!Number.isInteger(prev.index)) prev = Object.assign({}, prev, { index: pi });
     }
-    let best = null;
+    let best: SnapBest | null = null;
     for (let i = 0; i < pts.length - 1; i++) {
       const p = pts[i], q = pts[i + 1];
       const dx = q[0] - p[0], dy = q[1] - p[1], l2 = dx * dx + dy * dy;
       let t;
       if (l2 > 1e-6) t = ((x - p[0]) * dx + (y - p[1]) * dy) / l2;
       else if (hl != null && q[2] !== p[2]) t = (hl - p[2]) / (q[2] - p[2]);
-      else if (prev) t = prev.index >= i ? 1 : 0; // in a lift: at the floor you are going to once past it
+      else if (prev) t = prev.index! >= i ? 1 : 0; // in a lift: at the floor you are going to once past it
       else t = 0;
       t = t < 0 ? 0 : t > 1 ? 1 : t;
       const px = p[0] + t * dx, py = p[1] + t * dy, lv = p[2] + t * (q[2] - p[2]);
@@ -1643,7 +1778,7 @@
       if (prev) {
         const jump = along - prev.along;
         // going back counts from the furthest point reached so far, so noise cannot creep the dot backwards
-        const back = Math.max(-jump, (isFinite(prev.progress) ? prev.progress : prev.along) - along);
+        const back = Math.max(-jump, (isFinite(prev.progress!) ? prev.progress! : prev.along) - along);
         if (back > 3) score += 0.5 * (back - 3);
         else if (jump > 30) score += 0.2 * (jump - 30);
         const hop = Math.abs(climbAt(i, t) - prevClimb);
@@ -1651,21 +1786,21 @@
         // through a lift only from the lift: a fix still walking towards it cannot already be on the floor it serves
         for (const li of LA) {
           const la = D[li];
-          if (prev.index < li && i > li) score += Math.max(0, la - prev.along - 5);
-          else if (prev.index > li && i < li) score += Math.max(0, prev.along - la - 5);
+          if (prev.index! < li && i > li) score += Math.max(0, la - prev.along - 5);
+          else if (prev.index! > li && i < li) score += Math.max(0, prev.along - la - 5);
         }
       }
       if (!best || score < best.score - 1e-9) best = { score, index: i, t, point: [px, py, lv], dist: d, along };
     }
-    const progress = Math.max(best.along, prev ? (isFinite(prev.progress) ? prev.progress : prev.along) : 0);
-    return { index: best.index, t: best.t, point: best.point, dist: best.dist, along: best.along, remaining: Math.max(0, total - best.along), step: stepAt(route, best.index), progress };
+    const progress = Math.max(best!.along, prev ? (isFinite(prev.progress!) ? prev.progress! : prev.along) : 0);
+    return { index: best!.index, t: best!.t, point: best!.point, dist: best!.dist, along: best!.along, remaining: Math.max(0, total - best!.along), step: stepAt(route, best!.index), progress };
   }
 
-  function pointAt(route, m) {
+  function pointAt(route: StationRoutePath, m: number): XYL | null {
     const pts = route.points, D = dists(route);
     if (!pts.length) return null;
-    if (!(m > 0)) return pts[0].slice();
-    if (m >= D[D.length - 1]) return pts[pts.length - 1].slice();
+    if (!(m > 0)) return pts[0].slice() as XYL;
+    if (m >= D[D.length - 1]) return pts[pts.length - 1].slice() as XYL;
     let lo = 0, hi = D.length - 1;
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (D[mid] <= m) lo = mid; else hi = mid; }
     const seg = D[hi] - D[lo], t = seg > 0 ? (m - D[lo]) / seg : 0;
@@ -1673,7 +1808,7 @@
     return [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])];
   }
 
-  const api = { toLocal, toLngLat, z, route, snap, pointAt, sectorTimes, why, isClosed, notices, resolve, platformKey, levelName, TIME };
+  const api: StationRouteApi = { toLocal, toLngLat, z, route, snap, pointAt, sectorTimes, why, isClosed, notices, resolve, platformKey, levelName, TIME };
   root.StationRoute = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
