@@ -10,7 +10,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **3D station navigation**: Interactive 3D models for Bern, Europaplatz, Wankdorf, Brünnen Westside, and Bümpliz Nord with bird's-eye and first-person indoor transfer routes.
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo), with draggable start/destination map pins.
 - **Events & amenities**: Shows community events alongside public toilets across Switzerland and Bern's public amenities and local places.
-- **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
+- **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones). Details: [docs/scan.md](docs/scan.md).
 - **First-visit introduction**: A welcome page, a short 3D demo walk and two questions (walking speed, access needs) before the map; details and status in [docs/onboarding.md](docs/onboarding.md).
 - **Multilingual UI**: Settings › **Language** translates the interface into any of Google Translate's 249 languages.
 

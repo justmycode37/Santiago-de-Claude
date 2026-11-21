@@ -622,6 +622,7 @@ interface KanteGetPaths {
   '/api/departures': KanteDeparturesResponse;
   '/api/trip': KanteTrip;
   '/api/vehicles': KanteVehiclesResponse;
+  '/api/due': KanteDueResponse;
   '/api/onboard': KanteOnboardResponse;
   '/api/indoor': KanteIndoorResponse;
   '/api/match': KanteMatchResponse;
@@ -739,3 +740,18 @@ interface KanteLiveApi {
   originOf(u: string | null | undefined): string | null;
 }
 declare var KANTE_LIVE: KanteLiveApi;
+
+/** GET /api/due (kante/docs/LIVE-API.md): every trip due at a boarding point, as far as the page uses it. */
+interface KanteDueResponse {
+  t: number;
+  due: Array<{
+    line?: { name: string; category?: string; mode?: string };
+    headsign?: string | null;
+    quayLabel?: string | null;
+    departBearing?: number | null;
+    state?: 'approaching' | 'at-stop' | 'departed';
+    etaS?: number | null;
+    delayS?: number | null;
+    cancelled?: boolean;
+  }>;
+}
