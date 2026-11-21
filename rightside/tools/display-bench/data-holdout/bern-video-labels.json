@@ -1,0 +1,192 @@
+{
+ "source": "Held-out set: labelled after all tuning on the dev set, from pixels only (no OCR shown). line \"-\" = special tram without a service (Extrawagen).",
+ "videos": {
+  "SFXYdgCvsik": "https://www.youtube.com/watch?v=SFXYdgCvsik",
+  "ZJ1gcwbj7CU": "https://www.youtube.com/watch?v=ZJ1gcwbj7CU",
+  "67trWo1HZ9c": "https://www.youtube.com/watch?v=67trWo1HZ9c",
+  "03aYHH4eZcY": "https://www.youtube.com/watch?v=03aYHH4eZcY"
+ },
+ "frameRate": "2 frames per second (ffmpeg fps=2, q:v 3) from the 1080p stream",
+ "labels": [
+  {
+   "event": 1,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 10,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 21,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 25,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 36,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 38,
+   "line": "6",
+   "destination": "Bern, Fischermätteli"
+  },
+  {
+   "event": 47,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 59,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 62,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  },
+  {
+   "event": 66,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 69,
+   "line": "3",
+   "destination": "Bern, Weissenbühl (Tram)"
+  },
+  {
+   "event": 71,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 78,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 80,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 81,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 88,
+   "line": "7",
+   "destination": "Bern, Bümpliz"
+  },
+  {
+   "event": 94,
+   "line": "-",
+   "destination": "Extrawagen"
+  },
+  {
+   "event": 95,
+   "line": "10",
+   "destination": "Ostermundigen, Rüti"
+  },
+  {
+   "event": 101,
+   "line": "10",
+   "destination": "Ostermundigen, Rüti"
+  },
+  {
+   "event": 102,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 103,
+   "line": "8",
+   "destination": "Bern Brünnen Westside, Bahnhof"
+  },
+  {
+   "event": 112,
+   "line": "19",
+   "destination": "Bern, Elfenau"
+  },
+  {
+   "event": 117,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 120,
+   "line": "10",
+   "destination": "Ostermundigen, Rüti"
+  },
+  {
+   "event": 122,
+   "line": "10",
+   "destination": "Schliern, Bus-Endstation"
+  },
+  {
+   "event": 126,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 129,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 134,
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee"
+  },
+  {
+   "event": 135,
+   "line": "10",
+   "destination": "Ostermundigen, Rüti"
+  },
+  {
+   "event": 136,
+   "line": "8",
+   "destination": "Bern, Saali"
+  },
+  {
+   "event": 139,
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof"
+  },
+  {
+   "event": 141,
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation"
+  },
+  {
+   "event": 162,
+   "line": "6",
+   "destination": "Bern, Bahnhof"
+  },
+  {
+   "event": 165,
+   "line": "6",
+   "destination": "Worb Dorf"
+  },
+  {
+   "event": 170,
+   "line": "7",
+   "destination": "Bern, Ostring"
+  },
+  {
+   "event": 173,
+   "line": "12",
+   "destination": "Bern, Holligen"
+  }
+ ]
+}

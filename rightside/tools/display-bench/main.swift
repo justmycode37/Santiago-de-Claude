@@ -23,6 +23,9 @@ func load<T: Decodable>(_ type: T.Type, _ path: String) -> T {
 }
 let args = CommandLine.arguments
 let dataDir = args.count > 1 ? args[1] : "data"
+// Frames are replayed 0.5 s apart: the held-out set really is 2 frames/s; the dev set is 1 frame/s, compressed
+// so the app's 2 s / 3-frame rule (live sampling every 0.4 s) sees a comparable number of frames.
+let step = 0.5
 let ocr = load(OCRFile.self, dataDir + "/bern-video-ocr.json")
 let events = load(Events.self, dataDir + "/bern-video-events.json").events
 let labels = load(Labels.self, dataDir + "/bern-video-labels.json").labels
@@ -32,7 +35,6 @@ let eventsByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
 
 func rect(_ b: [Double]) -> CGRect { CGRect(x: b[0], y: b[1], width: b[2], height: b[3]) }
 let t0 = Date(timeIntervalSince1970: 1_800_000_000)
-let step = 0.5 // frames are 1 s apart in the video; replayed 0.5 s apart (the app samples every 0.4 s)
 
 /// Readings of the largest vehicle in each frame of a pass, exactly as the app builds them.
 func readings(_ event: Event, keepObserved: Bool) -> (VehicleTrack, [Date]) {
@@ -64,13 +66,20 @@ func run(_ event: Event, expected: VehicleServiceExpectation, keepObserved: Bool
     let (track, times) = readings(event, keepObserved: keepObserved)
     var named: String?
     var conflict = false
+    var reportedConflict = false
     for (i, now) in times.enumerated() {
         var window = track
         window.readings = Array(track.readings.prefix(i + 1)).filter { now.timeIntervalSince($0.at) <= 2 }
         window.lastSeen = now
         let decision = VehicleServiceMatcher.decide(window, expected: expected, now: now)
         if decision.state == .visualCandidate { return (.accepted, nil) }
-        if decision.state == .conflicting { conflict = true; named = named ?? decision.observedService }
+        if decision.state == .conflicting {
+            conflict = true; named = named ?? decision.observedService
+            if args.contains("--why") && !reportedConflict {
+                reportedConflict = true
+                print("   CONFLICT \(decision.reason) at frame \(i): readings \(window.readings.map { "\($0.line ?? "-")|\($0.destination ?? "-")" })")
+            }
+        }
     }
     return (conflict ? .conflicting : .unknown, named)
 }
@@ -86,6 +95,8 @@ struct Tally { var accepted = 0, conflicting = 0, unknown = 0, namedRight = 0, n
 }
 func pct(_ a: Int, _ n: Int) -> String { n == 0 ? "-" : String(format: "%5.1f%%", Double(a) * 100 / Double(n)) }
 
+struct Trial: Encodable { let event: Int; let line: String; let destination: String; let positive: Bool }
+var trials: [Trial] = []
 var positive = ["A": Tally(), "B": Tally(), "C": Tally()]
 var negative = ["A": Tally(), "B": Tally(), "C": Tally()]
 var perFrame = [String: Int]()
@@ -107,8 +118,9 @@ for label in (args.contains("--bench") || args.contains("--why") ? [] : labels) 
         }
         perFrame[key, default: 0] += 1
     }
-    // Positive trial: the rider expects exactly this service.
-    for (name, observed, useBoard) in [("A", false, false), ("B", true, false), ("C", true, true)] {
+    // Positive trial: the rider expects exactly this service (none for a vehicle without a service).
+    if label.line != "-" { trials.append(Trial(event: label.event, line: label.line, destination: label.destination, positive: true)) }
+    for (name, observed, useBoard) in label.line == "-" ? [] : [("A", false, false), ("B", true, false), ("C", true, true)] {
         let (o, _) = run(event, expected: expectation(label.line, label.destination, board: useBoard), keepObserved: observed)
         positive[name]!.add(o)
         if name == "C" { details.append("#\(label.event) \(label.line) \(label.destination): A/B/C positive → \(run(event, expected: expectation(label.line, label.destination, board: false), keepObserved: false).0.rawValue)/\(run(event, expected: expectation(label.line, label.destination, board: false), keepObserved: true).0.rawValue)/\(o.rawValue)") }
@@ -122,6 +134,7 @@ for label in (args.contains("--bench") || args.contains("--why") ? [] : labels) 
     let offset = label.event % max(1, rest.count)
     let picks = Array(sameLine) + Array(sameDestination) + [rest[offset % rest.count], rest[(offset + 7) % rest.count]]
     for wrong in picks {
+        trials.append(Trial(event: label.event, line: wrong.line, destination: wrong.destination, positive: false))
         for (name, observed, useBoard) in [("A", false, false), ("B", true, false), ("C", true, true)] {
             var e = expectation(wrong.line, wrong.destination, board: useBoard)
             if useBoard { e.boardAlternatives = board }
@@ -136,6 +149,9 @@ for label in (args.contains("--bench") || args.contains("--why") ? [] : labels) 
     }
 }
 
+if let i = args.firstIndex(of: "--export-trials"), i + 1 < args.count {
+    try! JSONEncoder().encode(trials).write(to: URL(fileURLWithPath: args[i + 1]))
+}
 print("Labelled passes: \(labels.count) (\(Set(labels.map { $0.line + $0.destination }).count) services). Board: \(board.count) line/destination pairs.\n")
 print("Per frame, closed-set match of the largest vehicle's display text against the board:")
 let frameTotal = perFrame.values.reduce(0, +)
@@ -143,7 +159,8 @@ for key in ["matched-correct", "matched-WRONG", "ambiguous", "unlisted", "unread
     print("  \(key.padding(toLength: 16, withPad: " ", startingAt: 0)) \(String(format: "%4d", perFrame[key] ?? 0))  \(pct(perFrame[key] ?? 0, frameTotal))")
 }
 print("\nPositive trials (rider expects the service shown): want 'accepted' (= visual candidate), never 'conflicting'")
-print("  strategy  accepted  conflicting(false alarm)  unknown")
+print("  strategy  accepted  conflicting(false alarm)  unknown   (A = current rules without fuzzy/board evidence;")
+print("                                                             the original snapshot's rules: run-baseline.sh)")
 for name in ["A", "B", "C"] { let t = positive[name]!; print("  \(name)         \(pct(t.accepted, t.n))   \(pct(t.conflicting, t.n))                  \(pct(t.unknown, t.n))") }
 print("\nNegative trials (rider expects a different service): want 'conflicting', never 'accepted'")
 print("  strategy  accepted(FALSE ACCEPT)  conflicting  unknown  named the right service")

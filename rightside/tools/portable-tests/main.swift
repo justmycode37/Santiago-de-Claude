@@ -134,6 +134,48 @@ do {
     check(d.state == .unknown, "frames disagreeing between services stay unknown, got \(d.state) \(d.reason)")
 }
 
+// MARK: - Behaviour the snapshot's XCTests pin down (re-stated here; the originals need XCTest/CoreLocation/simd)
+
+do {
+    // VehicleEvidenceTests.testUnreadableAndFlickeringDisplayCannotReuseLastMatch
+    let expected = VehicleServiceExpectation(line: "6", destination: "Fischermätteli")
+    var t = track([[VehicleText]](repeating: [text("6 Fischermätteli")], count: 3))
+    let d = t.detection
+    t.lastSeen = t0.addingTimeInterval(1.4)
+    t.readings.append(VehicleTextRules.read([text("6")], detection: d, otherBoxes: [], at: t.lastSeen, frameID: UUID()))
+    check(VehicleServiceMatcher.decide(t, expected: expected, now: t.lastSeen).state == .unknown, "latest frame unreadable -> unknown")
+    t.readings[3] = VehicleTextRules.read([text("6 Fischermätteli", score: 0.4)], detection: d, otherBoxes: [], at: t.lastSeen, frameID: UUID())
+    check(VehicleServiceMatcher.decide(t, expected: expected, now: t.lastSeen).state == .unknown, "latest frame low-confidence -> unknown (no board)")
+}
+do {
+    // CameraBoardingTests.testDisplayedShortTurnBeforeRequestedStopHasSpecificWarning (plain readings, no observed text)
+    var expected = VehicleServiceExpectation(line: "6", destination: "Fischermätteli")
+    expected.alightingCallID = "a"; expected.downstreamCalls = [.init(id: "b", stopID: "s1", name: "Bahnhof"), .init(id: "a", stopID: "s2", name: "Fischermätteli")]
+    let readings = [0.0, 0.5, 1.0].map { DisplayReading(frameID: UUID(), at: t0.addingTimeInterval($0), line: "6", destination: "bahnhof", outOfService: false, ambiguous: false, raw: ["6 bahnhof"]) }
+    let t = VehicleTrack(id: UUID(), detection: detection(), lastSeen: t0.addingTimeInterval(1), readings: readings)
+    let d = VehicleServiceMatcher.decide(t, expected: expected, now: t0.addingTimeInterval(1))
+    check(d.state == .conflicting && d.reason == "display_short_turn_before_alighting", "short turn on plain readings, got \(d.reason)")
+    // VehicleDisplayRecognitionTests: three distinct frames of another line still conflict; one repeated frame does not decide.
+    let other = VehicleServiceExpectation(line: "9", destination: "Brünnen Westside Bhf")
+    let eight = [0.0, 0.4, 0.85].map { DisplayReading(frameID: UUID(), at: t0.addingTimeInterval($0), line: "8", destination: "brunnen westside bhf", outOfService: false, ambiguous: false, raw: []) }
+    let stable = VehicleTrack(id: UUID(), detection: detection(), lastSeen: t0.addingTimeInterval(0.85), readings: eight)
+    check(VehicleServiceMatcher.decide(stable, expected: other, now: stable.lastSeen).state == .conflicting, "line 8 display vs expected 9 conflicts")
+    check(VehicleServiceMatcher.decide(stable, expected: .init(line: "8", destination: "Brünnen Westside Bhf"), now: stable.lastSeen).state == .visualCandidate, "line 8 display matches 8")
+}
+do {
+    // New: single-frame junk readings never raise the wrong-vehicle alarm.
+    let expected = VehicleServiceExpectation(line: "9", destination: "Wabern, Tram-Endstation")
+    for junk in [["e|dach ag"], ["031|35x2"], ["9|wabern"], ["9|wabern", "9|wabern"], ["12|zentrum po"]] {
+        let readings = junk.enumerated().map { i, v -> DisplayReading in
+            let p = v.split(separator: "|").map(String.init)
+            return DisplayReading(frameID: UUID(), at: t0.addingTimeInterval(Double(i) * 0.5), line: p[0], destination: p[1], outOfService: false, ambiguous: false, raw: [])
+        }
+        let t = VehicleTrack(id: UUID(), detection: detection(), lastSeen: readings.last!.at, readings: readings)
+        let e = junk == [["12|zentrum po"]].first! ? VehicleServiceExpectation(line: "12", destination: "Bern, Zentrum Paul Klee") : expected
+        check(VehicleServiceMatcher.decide(t, expected: e, now: t.lastSeen).state != .conflicting, "\(junk) must not conflict")
+    }
+}
+
 // MARK: - Geo/AR alignment
 
 struct Rng { var state: UInt64

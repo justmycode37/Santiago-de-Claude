@@ -328,6 +328,28 @@ enum VehicleServiceMatcher {
     /// Closed-set comparison of each recent frame's display text with the selected ride and the stop's
     /// other departures. Without a departure board only a strict match (same route numeral, destination
     /// similarity >= 0.85) can support the selected ride; it can never name another service.
+    /// A reading that really says something else, rather than a misread of the expected display.
+    static func credibleContradiction(_ reading: DisplayReading, expected: VehicleServiceExpectation) -> Bool {
+        let expectedLine = DisplayText.lineKey(expected.line)
+        if let line = reading.line {
+            let key = DisplayText.lineKey(line)
+            // A route numeral must look like one: digits, not starting with 0 ("e", "n", "031" are not lines).
+            guard DisplayText.isRouteToken(key), key.contains(where: \.isNumber), !key.drop(while: \.isLetter).hasPrefix("0") else { return false }
+        }
+        guard let destination = reading.destination else { return reading.line != nil }
+        let words = DisplayText.words(destination)
+        guard words.joined().filter(\.isLetter).count >= 3, !["via", "uber"].contains(words.first ?? "") else { return false }
+        let sameLine = reading.line.map { DisplayText.lineKey($0) == expectedLine
+            || DisplayText.confusionKey(DisplayText.lineKey($0)) == DisplayText.confusionKey(expectedLine) } ?? true
+        if sameLine {
+            // "9 Wabern" for "Wabern, Tram-Endstation", "Zentrum Po" (cut off), "Mankdorf Bhf" (misread).
+            if DepartureDisplayMatcher.destinationSimilarity(destination, expected.destination) >= 0.6 { return false }
+            let observed = words.joined()
+            if observed.count >= 4, DisplayText.variants(expected.destination).contains(where: { $0.joined().hasPrefix(observed) }) { return false }
+        }
+        return true
+    }
+
     static func boardEvidence(_ readings: [DisplayReading], expected: VehicleServiceExpectation) -> BoardEvidence {
         let own = DisplayCandidate(line: expected.line, destination: expected.destination, isExpected: true)
         let alternatives = expected.boardAlternatives.filter { !$0.isExpected && !DepartureDisplayMatcher.sameDisplay($0, own) }
@@ -336,7 +358,10 @@ enum VehicleServiceMatcher {
         var others: [String: (candidate: DisplayCandidate, frames: Set<UUID>)] = [:]
         var seen = Set<UUID>()
         for reading in readings where !reading.observed.isEmpty && seen.insert(reading.frameID).inserted {
-            let match = DepartureDisplayMatcher.match(reading.observed, candidates: candidates, frameID: reading.frameID)
+            // Without other services to compare against, keep the snapshot's confidence floor (0.7).
+            let texts = alternatives.isEmpty ? reading.observed.filter { $0.score >= 0.7 } : reading.observed
+            guard !texts.isEmpty else { continue }
+            let match = DepartureDisplayMatcher.match(texts, candidates: candidates, frameID: reading.frameID)
             guard let best = match.best else { continue }
             if alternatives.isEmpty {
                 if match.outcome == .matched, best.line == .exact, best.destination >= 0.85 { evidence.expectedFrames.append(reading.at) }
@@ -383,11 +408,18 @@ enum VehicleServiceMatcher {
             // The display repeatedly fits the selected ride clearly better than every other listed
             // departure. Exact spelling differences (OCR misreads) no longer count as a conflict.
         } else {
-            if readings.contains(where: { ($0.line != nil && $0.line != line) || ($0.destination != nil && $0.destination != destination) }) {
+            let differing = readings.filter { ($0.line != nil && $0.line != line) || ($0.destination != nil && $0.destination != destination) }
+            if !differing.isEmpty {
                 // A misread of the right display must not be reported as the wrong vehicle.
                 if !board.expectedFrames.isEmpty { return answer(.unknown, "insufficient_temporal_evidence") }
+                // Only a credible contradiction, seen in two distinct frames, is a conflict: a real route numeral and
+                // destination letters that are not just a misspelling or truncation of the expected display.
+                // Recorded Bern footage showed single-frame "conflicts" from adverts ("AARE DACH AG" → line "e"),
+                // phone numbers on vans and the right display in short form ("9 Wabern" for "Wabern, Tram-Endstation").
+                let credible = differing.filter { credibleContradiction($0, expected: expected) }
+                guard Set(credible.map(\.frameID)).count >= 2 else { return answer(.unknown, "display_conflict_unconfirmed") }
                 if let alightingIndex = expected.downstreamCalls.firstIndex(where: { $0.id == expected.alightingCallID }),
-                   readings.contains(where: { reading in
+                   credible.contains(where: { reading in
                        reading.line == line && expected.downstreamCalls.prefix(alightingIndex).contains { VehicleTextRules.normalize($0.name) == reading.destination }
                    }) { return answer(.conflicting, "display_short_turn_before_alighting") }
                 return answer(.conflicting, "wrong_line_destination_or_short_working")
