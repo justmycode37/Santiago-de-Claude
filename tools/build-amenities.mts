@@ -11,7 +11,60 @@ const SAME = ["bench", "shelter", "shower", "post_office", "post_box", "bank", "
   "social_facility", "place_of_worship", "dentist", "veterinary", "telephone", "public_bookcase", "bicycle_repair_station", "bicycle_parking",
   "recycling", "water_point", "internet_cafe", "car_sharing", "taxi", "bicycle_rental", "food_sharing", "give_box", "embassy"];
 const LOCKERS = ["locker", "lockers", "luggage_locker"];
-const QUERY = (nonce) => `[out:json][timeout:180][bbox:${BBOX}];
+
+/** The tags of an OpenStreetMap object, key → value ("amenity" → "toilets"); a tag the object lacks reads as undefined. */
+type OsmTags = Record<string, string>;
+/** An element of an Overpass answer (`out center tags`): a node has its own position, a way or relation its center. */
+interface OverpassElement {
+  type: "node" | "way" | "relation";
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: OsmTags;
+}
+interface OverpassAnswer {
+  elements: OverpassElement[];
+  /** Set when the query timed out or ran out of memory: the elements are then only a part */
+  remark?: string;
+}
+interface LatLon { lat: number; lon: number }
+/** A record of data/amenities.json (docs/places-data.md). The values are OpenStreetMap's own strings; null = not tagged. */
+interface Amenity {
+  /** "node/123", "way/456" */
+  id: string;
+  lat: number;
+  lon: number;
+  /** What categorize() makes of the tags: "toilets", "drinking_water", "wifi", … */
+  category: string;
+  name: string | null;
+  opening_hours: string | null;
+  fee: string | null;
+  wheelchair: string | null;
+  website: string | null;
+  /** "Neuengasse 15, 3011 Bern" */
+  address: string | null;
+  level: string | null;
+  access: string | null;
+  operator: string | null;
+  phone: string | null;
+  description: string | null;
+  changing_table: string | null;
+  unisex: string | null;
+  male: string | null;
+  female: string | null;
+  toilets_wheelchair: string | null;
+  toilets_disposal: string | null;
+  drinking_water: string | null;
+  covered: string | null;
+  backrest: string | null;
+  capacity: string | null;
+  indoor: string | null;
+  check_date: string | null;
+  /** All tags but the mappers' own notes (source, note, fixme, created_by) */
+  tags: OsmTags;
+}
+const QUERY = (nonce: string) => `[out:json][timeout:180][bbox:${BBOX}];
 // nonce ${nonce}
 (
   nwr[amenity=toilets];
@@ -35,7 +88,7 @@ out center tags;`;
 
 // First match wins, so a library with free wifi stays a library (shortcut: one category per element).
 // New categories come after wifi so every element categorized by the old build keeps its category.
-function categorize(t) {
+function categorize(t: OsmTags) {
   const a = t.amenity;
   if (a === "toilets") return "toilets";
   if (a === "drinking_water" || ((a === "fountain" || t.man_made === "water_tap") && t.drinking_water === "yes")) return "drinking_water";
@@ -67,26 +120,26 @@ async function fetchOverpass() {
         body: new URLSearchParams({ data: QUERY(`${Date.now()}-${attempt}`) }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const json = await res.json() as OverpassAnswer;
       if (!Array.isArray(json.elements)) throw new Error("no elements");
       if (json.remark && /timed out|runtime error/i.test(json.remark)) throw new Error(json.remark); // partial result
       return json.elements;
     } catch (e) {
-      console.error(`attempt ${attempt} failed: ${e.message}`);
+      console.error(`attempt ${attempt} failed: ${(e as Error).message}`);
       if (attempt === 5) throw e;
       await new Promise((r) => setTimeout(r, 5000 * attempt));
     }
   }
 }
 
-const join = (sep, ...xs) => xs.filter(Boolean).join(sep) || null;
-const metres = (a, b) => Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180));
+const join = (sep: string, ...xs: (string | null | undefined)[]) => xs.filter(Boolean).join(sep) || null;
+const metres = (a: LatLon, b: LatLon) => Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180));
 const ORDER = { node: 0, way: 1, relation: 2 };
 
-const seen = new Set(); // category + rounded point (~1 m)
-const named = new Map(); // category|name -> kept items, for node+way duplicates within 15 m
-const items = [];
-for (const el of (await fetchOverpass()).sort((a, b) => ORDER[a.type] - ORDER[b.type])) { // nodes first, so the node wins
+const seen = new Set<string>(); // category + rounded point (~1 m)
+const named = new Map<string, LatLon[]>(); // category|name -> kept items, for node+way duplicates within 15 m
+const items: Amenity[] = [];
+for (const el of (await fetchOverpass())!.sort((a, b) => ORDER[a.type] - ORDER[b.type])) { // nodes first, so the node wins
   const t = el.tags ?? {};
   const category = categorize(t);
   const lat = el.lat ?? el.center?.lat;
@@ -126,6 +179,6 @@ for (const i of items) {
 }
 
 writeFileSync(OUT, JSON.stringify({ generated: new Date().toISOString(), source: "OpenStreetMap contributors (ODbL) via overpass.osm.ch", items }));
-const counts = {};
+const counts: Record<string, number> = {};
 for (const i of items) counts[i.category] = (counts[i.category] ?? 0) + 1;
 console.log(items.length, "items", counts);

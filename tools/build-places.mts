@@ -10,7 +10,68 @@ const BBOX = "46.9,7.34,46.99,7.5"; // S,W,N,E
 const [S, W, N, E] = BBOX.split(",").map(Number);
 const MAX_BYTES = 15e6;
 
-const set = (s) => new Set(s.split(" "));
+/** The tags of an OpenStreetMap object, key → value ("amenity" → "cafe"); a tag the object lacks reads as undefined. */
+type OsmTags = Record<string, string>;
+/** An element of an Overpass answer (`out center tags`): a node has its own position, a way or relation its center. */
+interface OverpassElement {
+  type: "node" | "way" | "relation";
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: OsmTags;
+}
+interface OverpassAnswer {
+  elements: OverpassElement[];
+  /** Set when the query timed out or failed: the elements are then only a part */
+  remark?: string;
+}
+interface LatLon { lat: number; lon: number }
+/** The eight kinds of place the file is grouped by. */
+type PlaceGroup = "lodging" | "health" | "food_drink" | "attractions_culture" | "worship" | "shopping" | "services" | "leisure_sport";
+/** A record of data/places.json (docs/places-data.md). The values are OpenStreetMap's own strings; null = not tagged. */
+interface Place {
+  /** "node/123", "way/456" */
+  id: string;
+  lat: number;
+  lon: number;
+  group: PlaceGroup;
+  /** The value of the tag that put it in its group: "restaurant", "bakery", "museum" */
+  category: string;
+  name: string | null;
+  brand: string | null;
+  operator: string | null;
+  /** "Neuengasse 15, 3011 Bern": the four parts below in one line */
+  address: string | null;
+  street: string | null;
+  housenumber: string | null;
+  postcode: string | null;
+  city: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  opening_hours: string | null;
+  wheelchair: string | null;
+  wheelchair_description: string | null;
+  toilets_wheelchair: string | null;
+  cuisine: string | null;
+  /** The diet:* tags without the prefix: { vegan: "yes" } */
+  diet: Record<string, string> | null;
+  outdoor_seating: string | null;
+  takeaway: string | null;
+  delivery: string | null;
+  /** The payment:* tags without the prefix: { cash: "yes", twint: "yes" } */
+  payment: Record<string, string> | null;
+  level: string | null;
+  internet_access: string | null;
+  wikidata: string | null;
+  description: string | null;
+  check_date: string | null;
+  /** All tags but the mappers' own notes; left out for the big categories when the file would pass MAX_BYTES */
+  tags?: OsmTags;
+}
+
+const set = (s: string) => new Set(s.split(" "));
 const LODGING = set("hotel hostel guest_house apartment motel camp_site caravan_site chalet alpine_hut");
 const HEALTH_AMENITY = set("doctors dentist pharmacy hospital clinic veterinary");
 const FOOD_AMENITY = set("restaurant cafe fast_food bar pub biergarten ice_cream food_court nightclub");
@@ -23,7 +84,7 @@ const PRIVATE = set("private no permit residents employees delivery agricultural
 const UNNAMED_OK = set("parking fuel charging_station"); // everything else must have a name
 
 // One query per group so none times out; regexes mirror the sets above (categorize() does the real filtering).
-const rx = (s) => `"^(${[...s].join("|")})$"`;
+const rx = (s: Set<string>) => `"^(${[...s].join("|")})$"`;
 const QUERIES = {
   food_drink: `nwr[amenity~${rx(FOOD_AMENITY)}];`,
   shopping: `nwr[shop]; nwr[amenity=marketplace];`,
@@ -32,7 +93,7 @@ const QUERIES = {
   services: `nwr[amenity~${rx(SERVICE_AMENITY)}]; nwr[amenity~"^(parking|recycling|coworking_space|embassy)$"]; nwr[office]; nwr[craft];`,
   health_worship: `nwr[amenity~${rx(HEALTH_AMENITY)}]; nwr[amenity=place_of_worship]; nwr[healthcare];`,
 };
-const query = (body, nonce) => `[out:json][timeout:180][bbox:${BBOX}];
+const query = (body: string, nonce: string) => `[out:json][timeout:180][bbox:${BBOX}];
 // nonce ${nonce}
 (
 ${body}
@@ -41,7 +102,7 @@ out center tags;`;
 
 // Precedence (first match wins): lodging > health amenity > food amenity/shop > culture amenity/tourism > worship >
 // marketplace > services (amenity, office=coworking/diplomatic, shop=car/car_repair) > leisure > other shop > healthcare=* > office=* > craft=* > historic=*.
-function categorize(t) {
+function categorize(t: OsmTags): [group: PlaceGroup, category: string] | null {
   const a = t.amenity, priv = PRIVATE.has(t.access);
   if (LODGING.has(t.tourism)) return ["lodging", t.tourism];
   if (HEALTH_AMENITY.has(a)) return ["health", a];
@@ -67,7 +128,7 @@ function categorize(t) {
   return null;
 }
 
-async function fetchOverpass(body) {
+async function fetchOverpass(body: string) {
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       const res = await fetch(URL, {
@@ -76,33 +137,33 @@ async function fetchOverpass(body) {
         body: new URLSearchParams({ data: query(body, `${Date.now()}-${attempt}`) }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const json = await res.json() as OverpassAnswer;
       if (!Array.isArray(json.elements)) throw new Error("no elements");
       if (json.remark && /error|timed out/i.test(json.remark)) throw new Error(json.remark);
       return json.elements;
     } catch (e) {
-      console.error(`attempt ${attempt} failed: ${e.message}`);
+      console.error(`attempt ${attempt} failed: ${(e as Error).message}`);
       if (attempt === 5) throw e;
       await new Promise((r) => setTimeout(r, 5000 * attempt));
     }
   }
 }
 
-const prefixed = (t, p) => {
+const prefixed = (t: OsmTags, p: string) => {
   const o = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith(p)).map(([k, v]) => [k.slice(p.length), v]));
   return Object.keys(o).length ? o : null;
 };
 const DROP = /^(source|note$|fixme$|FIXME$|created_by$)/;
 
-const byId = new Map();
+const byId = new Map<string, OverpassElement>();
 for (const [name, body] of Object.entries(QUERIES)) {
-  const els = await fetchOverpass(body);
+  const els = await fetchOverpass(body) as OverpassElement[];
   console.log(name, els.length, "elements");
   for (const el of els) byId.set(`${el.type}/${el.id}`, el);
   await new Promise((r) => setTimeout(r, 3000));
 }
 
-let items = [];
+let items: Place[] = [];
 for (const [id, el] of byId) {
   const t = el.tags ?? {};
   const cat = categorize(t);
@@ -134,24 +195,24 @@ for (const [id, el] of byId) {
 }
 
 // Node + way of the same place (e.g. shop point inside its building): same name+category within 25 m -> keep the richer one.
-const metres = (a, b) => Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180));
-const buckets = new Map();
+const metres = (a: LatLon, b: LatLon) => Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180));
+const buckets = new Map<string, Place[]>();
 for (const i of items) {
   if (!i.name) continue;
   const k = `${i.category}|${i.name}`;
   buckets.set(k, [...(buckets.get(k) ?? []), i]);
 }
-const dropped = new Set();
+const dropped = new Set<Place>();
 for (const list of buckets.values()) {
   for (let x = 0; x < list.length; x++) for (let y = x + 1; y < list.length; y++) {
     const [p, q] = [list[x], list[y]];
     if (dropped.has(p) || dropped.has(q) || metres(p, q) > 25) continue;
-    dropped.add(Object.keys(p.tags).length >= Object.keys(q.tags).length ? q : p);
+    dropped.add(Object.keys(p.tags!).length >= Object.keys(q.tags!).length ? q : p);
   }
 }
 items = items.filter((i) => !dropped.has(i));
 
-const counts = {}, catTotals = {};
+const counts: Record<string, Record<string, number>> = {}, catTotals: Record<string, number> = {};
 for (const i of items) {
   (counts[i.group] ??= {})[i.category] = (counts[i.group][i.category] ?? 0) + 1;
   catTotals[i.category] = (catTotals[i.category] ?? 0) + 1;
@@ -167,7 +228,7 @@ if (Buffer.byteLength(json) > MAX_BYTES) { // keep the file loadable in a browse
 }
 
 // Self-check: a bad build fails loudly instead of shipping a broken file.
-const ids = new Set();
+const ids = new Set<string>();
 for (const i of items) {
   assert.ok(Number.isFinite(i.lat) && i.lat >= S && i.lat <= N, `lat out of bbox: ${i.id}`);
   assert.ok(Number.isFinite(i.lon) && i.lon >= W && i.lon <= E, `lon out of bbox: ${i.id}`);

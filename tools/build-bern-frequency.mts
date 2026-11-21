@@ -11,18 +11,29 @@ import fs from "node:fs";
 import readline from "node:readline";
 import assert from "node:assert/strict";
 
+/** data/bern-stop-accessibility.json (tools/build-bern-accessibility.mts), as far as it is read here: which stops there are. */
+interface StopsFile { stops: { didok: number }[] }
+/** A stop's record in data/bern-stop-frequency.json (docs/data-transit-access.md). The numbers are scheduled departures, rounded to 0.1. */
+interface StopFrequency {
+  /** By hour of the day (0 = 00:00 to 00:59), averaged over the days of the timetable period */
+  avg_departures_per_hour: number[];
+  /** The busiest hour of avg_departures_per_hour */
+  peak_departures_per_hour: number;
+  /** "9 → Wabern, Tram-Endstation" → departures per day */
+  daily_departures_by_line: Record<string, number>;
+}
 const [stopsFile, outFile] = process.argv.slice(2);
-const bernStops = new Set(JSON.parse(fs.readFileSync(stopsFile, "utf8")).stops.map((s) => String(s.didok)));
+const bernStops = new Set((JSON.parse(fs.readFileSync(stopsFile, "utf8")) as StopsFile).stops.map((s) => String(s.didok)));
 
 // One row per trip and traffic-day pattern. FAHRTAGE is the number of days in
 // the timetable period on which that trip calls at the stop, so summing it per
 // hour and dividing by the period length gives average departures per day.
-const dayWeight = new Map(); // didok -> Map("line|terminus|HH", days)
+const dayWeight = new Map<string, Map<string, number>>(); // didok -> Map("line|terminus|HH", days)
 let periodDays = 0; // longest FAHRTAGE seen = effective length of the period
 
 // Names like "Bern, Pestalozzi" are quoted and contain commas.
-function splitCsv(line) {
-  const cells = [];
+function splitCsv(line: string) {
+  const cells: string[] = [];
   let cur = "";
   let quoted = false;
   for (const ch of line) {
@@ -37,7 +48,7 @@ function splitCsv(line) {
 }
 
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
-let header = null;
+let header: string[] | null = null;
 for await (const line of rl) {
   if (!header) {
     header = splitCsv(line);
@@ -46,7 +57,7 @@ for await (const line of rl) {
   // Cheap pre-filter before the full parse: BPUIC is a bare number.
   const m = line.match(/,(85\d{5}),/);
   if (!m || !bernStops.has(m[1])) continue;
-  const row = Object.fromEntries(splitCsv(line).map((v, i) => [header[i], v]));
+  const row = Object.fromEntries(splitCsv(line).map((v, i) => [header![i], v]));
   const didok = row.BPUIC;
   if (!bernStops.has(didok)) continue;
   const dep = row.AB_ZEIT_KB.split(" ")[1]; // "01.01.70 05:39:00" -> "05:39:00"
@@ -55,15 +66,15 @@ for await (const line of rl) {
   periodDays = Math.max(periodDays, days);
   const key = `${row.LINIE}|${row.END_BP_BEZEICHNUNG}|${dep.slice(0, 2)}`;
   if (!dayWeight.has(didok)) dayWeight.set(didok, new Map());
-  const byKey = dayWeight.get(didok);
+  const byKey = dayWeight.get(didok)!;
   byKey.set(key, (byKey.get(key) ?? 0) + days);
 }
 
-const round = (x) => Math.round(x * 10) / 10;
-const stops = {};
+const round = (x: number) => Math.round(x * 10) / 10;
+const stops: Record<string, StopFrequency> = {};
 for (const [didok, byKey] of dayWeight) {
-  const perHour = Array(24).fill(0);
-  const lines = {};
+  const perHour: number[] = Array(24).fill(0);
+  const lines: Record<string, number> = {};
   for (const [key, days] of byKey) {
     const [line, terminus, hour] = key.split("|");
     perHour[Number(hour) % 24] += days / periodDays;

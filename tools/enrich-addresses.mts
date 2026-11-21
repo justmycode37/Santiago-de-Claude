@@ -18,8 +18,46 @@ const EXTRACT = `${RAW}/gebaeudeadressen-bern.csv`; // bbox-filtered cache, ~1% 
 const URL = "https://data.geo.admin.ch/ch.swisstopo.amtliches-gebaeudeadressverzeichnis/amtliches-gebaeudeadressverzeichnis_ch/amtliches-gebaeudeadressverzeichnis_ch_2056.csv.zip";
 const FILL_M = 25, CHECK_M = 50, CELL = 50;
 
+/** An address of the register (a row of the CSV with ADR_STATUS "real"), in LV95 metres. */
+interface RegAddress {
+  e: number;
+  n: number;
+  street: string;
+  nr: string;
+  postcode: string;
+  city: string;
+  /** normStreet(street) */
+  norm: string;
+  /** "Neuengasse 15, 3011 Bern" */
+  label: string;
+}
+/** A record of data/places.json or data/amenities.json, as far as it is read and changed here (docs/data-enrichment.md). */
+interface Item {
+  id: string;
+  name: string | null;
+  lat: number;
+  lon: number;
+  /** "Neuengasse 15, 3011 Bern" */
+  address: string | null;
+  /** The parts of the address: places.json only */
+  street?: string | null;
+  housenumber?: string | null;
+  postcode?: string | null;
+  city?: string | null;
+  /** The OpenStreetMap tags; left out of the *.min.json copies */
+  tags?: Record<string, string>;
+  /** Set when the address is the register's nearest one, not OpenStreetMap's */
+  address_source?: "derived:gwr";
+  /** How far away that register address is, in metres */
+  address_distance_m?: number;
+  /** Set when the register knows no street of OpenStreetMap's name within CHECK_M */
+  address_check?: "street_mismatch";
+  /** The nearest register address, for a street_mismatch */
+  address_official?: string;
+}
+
 // WGS84 -> LV95, swisstopo approximate formulas (~1 m), so all distances below are plain metres.
-function toLV95(lat, lon) {
+function toLV95(lat: number, lon: number): [e: number, n: number] {
   const p = (lat * 3600 - 169028.66) / 10000, l = (lon * 3600 - 26782.5) / 10000;
   return [
     2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l ** 3,
@@ -27,7 +65,7 @@ function toLV95(lat, lon) {
   ];
 }
 // Comparable street key; drops a trailing house number some OSM items put inside addr:street ("Rain 13").
-const normStreet = (s) => s.normalize("NFC").replace(/\s+\d+\s*[a-z]?$/i, "").toLowerCase().replace(/ß/g, "ss")
+const normStreet = (s: string) => s.normalize("NFC").replace(/\s+\d+\s*[a-z]?$/i, "").toLowerCase().replace(/ß/g, "ss")
   .replace(/str\.?(?=\s|$)/g, "strasse").replace(/[^\p{L}\p{N}]/gu, "");
 
 assert.ok(Math.hypot(...toLV95(46.951082877, 7.438632495).map((v, i) => v - [2600000, 1200000][i])) < 2, "LV95 conversion");
@@ -43,14 +81,14 @@ async function ensureExtract() {
     console.log("downloading", URL);
     const res = await fetch(URL);
     assert.ok(res.ok, `download failed: HTTP ${res.status}`);
-    await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(ZIP + ".part"));
+    await pipeline(Readable.fromWeb(res.body!), fs.createWriteStream(ZIP + ".part"));
     fs.renameSync(ZIP + ".part", ZIP);
   }
   const corners = [[46.9, 7.34], [46.9, 7.5], [46.99, 7.34], [46.99, 7.5]].map(([a, b]) => toLV95(a, b));
   const [minE, maxE, minN, maxN] = [0, 1].flatMap((i) => [Math.min(...corners.map((c) => c[i])) - 300, Math.max(...corners.map((c) => c[i])) + 300]);
   const unzip = spawn("unzip", ["-p", ZIP], { stdio: ["ignore", "pipe", "inherit"] });
-  const out = [];
-  let cols;
+  const out: string[] = [];
+  let cols: string[] | undefined;
   for await (const line of createInterface({ input: unzip.stdout })) {
     if (!cols) { cols = line.replace(/^﻿/, "").split(";"); out.push(cols.join(";")); continue; }
     const c = line.split(";"), e = +c[cols.indexOf("ADR_EASTING")], n = +c[cols.indexOf("ADR_NORTHING")];
@@ -63,35 +101,35 @@ async function ensureExtract() {
 await ensureExtract();
 const [head, ...lines] = fs.readFileSync(EXTRACT, "utf8").trim().split("\n");
 const H = Object.fromEntries(head.split(";").map((c, i) => [c, i]));
-const grid = new Map();
+const grid = new Map<string, RegAddress[]>();
 let regCount = 0;
 for (const line of lines) {
   const c = line.split(";");
   if (c[H.ADR_STATUS] !== "real" || !c[H.STN_LABEL] || !c[H.ADR_NUMBER]) continue; // skip planned/outdated
   const [postcode, ...city] = c[H.ZIP_LABEL].split(" ");
-  const a = { e: +c[H.ADR_EASTING], n: +c[H.ADR_NORTHING], street: c[H.STN_LABEL], nr: c[H.ADR_NUMBER], postcode, city: city.join(" ") };
+  const a = { e: +c[H.ADR_EASTING], n: +c[H.ADR_NORTHING], street: c[H.STN_LABEL], nr: c[H.ADR_NUMBER], postcode, city: city.join(" ") } as RegAddress;
   a.norm = normStreet(a.street);
   a.label = `${a.street} ${a.nr}, ${c[H.ZIP_LABEL]}`;
   const k = `${Math.floor(a.e / CELL)},${Math.floor(a.n / CELL)}`;
-  (grid.get(k) ?? grid.set(k, []).get(k)).push(a);
+  (grid.get(k) ?? grid.set(k, []).get(k)!).push(a);
   regCount++;
 }
 console.log("register addresses in bbox:", regCount);
 
 // All register addresses within r metres, nearest first.
-function near(lat, lon, r) {
+function near(lat: number, lon: number, r: number) {
   const [e, n] = toLV95(lat, lon), gx = Math.floor(e / CELL), gy = Math.floor(n / CELL), s = Math.ceil(r / CELL);
-  const hits = [];
+  const hits: [d: number, a: RegAddress][] = [];
   for (let x = gx - s; x <= gx + s; x++) for (let y = gy - s; y <= gy + s; y++)
     for (const a of grid.get(`${x},${y}`) ?? []) { const d = Math.hypot(a.e - e, a.n - n); if (d <= r) hits.push([d, a]); }
   return hits.sort((p, q) => p[0] - q[0]);
 }
 
-const ADDR_FIELDS = ["street", "housenumber", "postcode", "city"]; // places.json only
+const ADDR_FIELDS = ["street", "housenumber", "postcode", "city"] as const; // places.json only
 for (const file of FILES) {
-  const doc = JSON.parse(fs.readFileSync(file, "utf8"));
+  const doc = JSON.parse(fs.readFileSync(file, "utf8")) as { items: Item[] };
   const items = doc.items;
-  let osm = 0, derived = 0, mismatches = [], checked = 0;
+  let osm = 0, derived = 0, mismatches: string[] = [], checked = 0;
   for (const it of items) {
     if (it.address_source === "derived:gwr") { // undo a previous run
       it.address = null;
@@ -119,7 +157,7 @@ for (const file of FILES) {
     }
   }
   // self-checks
-  assert.ok(items.filter((i) => i.address_source === "derived:gwr").every((i) => i.address && i.address_distance_m <= FILL_M));
+  assert.ok(items.filter((i) => i.address_source === "derived:gwr").every((i) => i.address && i.address_distance_m! <= FILL_M));
   assert.ok(items.filter((i) => i.address_check).every((i) => i.address && i.address_official && !i.address_source));
   for (const it of items.slice(0, 300)) { // grid lookup agrees with brute force
     const [e, n] = toLV95(it.lat, it.lon);
@@ -130,10 +168,10 @@ for (const file of FILES) {
   }
   fs.writeFileSync(file, JSON.stringify(doc));
   const min = file.replace(/\.json$/, ".min.json");
-  const r6 = (x) => Math.round(x * 1e6) / 1e6;
+  const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
   fs.writeFileSync(min, JSON.stringify({ ...doc, items: items.map(({ tags, ...i }) => ({ ...i, lat: r6(i.lat), lon: r6(i.lon) })) }));
-  const pct = (k) => `${k} (${((k / items.length) * 100).toFixed(1)}%)`;
-  const mb = (f) => (fs.statSync(f).size / 1e6).toFixed(2) + " MB";
+  const pct = (k: number) => `${k} (${((k / items.length) * 100).toFixed(1)}%)`;
+  const mb = (f: string) => (fs.statSync(f).size / 1e6).toFixed(2) + " MB";
   console.log(`\n${file}: ${items.length} items`);
   console.log(`  address before: ${pct(osm)}  after: ${pct(osm + derived)}  (+${derived} derived:gwr)`);
   console.log(`  OSM addresses checked: ${checked}, street_mismatch: ${mismatches.length}`);

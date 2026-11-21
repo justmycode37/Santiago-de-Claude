@@ -14,7 +14,61 @@ const CANTONS = ["AG", "AI", "AR", "BE", "BL", "BS", "FR", "GE", "GL", "GR", "JU
 const SAME = ["shelter", "shower", "post_office", "bureau_de_change", "money_transfer", "police", "social_facility", "dentist",
   "public_bookcase", "bicycle_repair_station", "food_sharing", "give_box"];
 const LOCKERS = ["locker", "lockers", "luggage_locker"];
-const QUERY = (canton, nonce) => `[out:json][timeout:600];
+
+/** The tags of an OpenStreetMap object, key → value ("amenity" → "toilets"); a tag the object lacks reads as undefined. */
+type OsmTags = Record<string, string>;
+/** An element of an Overpass answer (`out center tags`): a node has its own position, a way or relation its center. */
+interface OverpassElement {
+  type: "node" | "way" | "relation";
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: OsmTags;
+}
+interface OverpassAnswer {
+  elements: OverpassElement[];
+  /** Set when the query timed out or ran out of memory: the elements are then only a part */
+  remark?: string;
+}
+/** An element with the canton whose query returned it ("BE"). */
+type CantonElement = OverpassElement & { canton: string };
+interface LatLon { lat: number; lon: number }
+/** A record of data/ch/osm-<category>.json (docs/data-ch-osm.md). The values are OpenStreetMap's own strings; null = not tagged. */
+interface ChAmenity {
+  /** "node/123", "way/456" */
+  id: string;
+  lat: number;
+  lon: number;
+  name: string | null;
+  /** Street and house number: "Neuengasse 15" */
+  address: string | null;
+  postcode: string | null;
+  city: string | null;
+  /** "BE", "ZH" */
+  canton: string;
+  opening_hours: string | null;
+  fee: string | null;
+  access: string | null;
+  wheelchair: string | null;
+  toilets_wheelchair: string | null;
+  changing_table: string | null;
+  unisex: string | null;
+  operator: string | null;
+  phone: string | null;
+  website: string | null;
+  level: string | null;
+  indoor: string | null;
+  drinking_water: string | null;
+  check_date: string | null;
+  /** The next four: toilets and showers only */
+  charge?: string | null;
+  fee_conditional?: string | null;
+  payment_coins?: string | null;
+  /** From fee and charge; null = unknown */
+  paid?: "free" | "paid" | null;
+}
+const QUERY = (canton: string, nonce: string) => `[out:json][timeout:600];
 // nonce ${nonce}
 area["ISO3166-2"="CH-${canton}"][admin_level=4]->.a;
 (
@@ -35,7 +89,7 @@ area["ISO3166-2"="CH-${canton}"][admin_level=4]->.a;
 out center tags;`;
 
 // Copied from the Bern build (same order, first match wins), with non-basic branches removed.
-function categorize(t) {
+function categorize(t: OsmTags) {
   const a = t.amenity;
   if (a === "toilets") return "toilets";
   if (a === "drinking_water" || ((a === "fountain" || t.man_made === "water_tap") && t.drinking_water === "yes")) return "drinking_water";
@@ -54,8 +108,8 @@ function categorize(t) {
   return null;
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function fetchCanton(canton) {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function fetchCanton(canton: string) {
   for (let attempt = 1; attempt <= 6; attempt++) {
     try {
       const res = await fetch(URL, {
@@ -67,23 +121,23 @@ async function fetchCanton(canton) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = await res.text(); // overload/rate-limit errors come back as HTTP 200 with an XHTML page
       if (body.startsWith("<")) throw new Error(body.match(/<strong[^>]*>Error<\/strong>:([^<]*)/)?.[1]?.trim() ?? "non-JSON response");
-      const json = JSON.parse(body);
+      const json = JSON.parse(body) as OverpassAnswer;
       if (!Array.isArray(json.elements)) throw new Error("no elements");
       if (json.remark) throw new Error(`remark: ${json.remark}`); // timeout/out-of-memory => partial result
       return json.elements;
     } catch (e) {
-      console.error(`${canton} attempt ${attempt} failed: ${e.message}`);
+      console.error(`${canton} attempt ${attempt} failed: ${(e as Error).message}`);
       if (attempt === 6) throw e;
       await sleep(20_000 * attempt);
     }
   }
 }
 
-const metres = (a, b) => Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180));
+const metres = (a: LatLon, b: LatLon) => Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180));
 const ORDER = { node: 0, way: 1, relation: 2 };
-const r6 = (x) => Math.round(x * 1e6) / 1e6;
+const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
 // "free" / "paid" / null from fee + charge, so toilets and showers can be filtered by cost. fee wins over charge.
-function paid(t) {
+function paid(t: OsmTags) {
   const fee = t.fee?.trim().toLowerCase();
   if (fee === "no" || fee === "0") return "free";
   if (fee === "yes") return "paid";
@@ -97,17 +151,17 @@ assert.equal(paid({ charge: "CHF 0" }), "free");
 assert.equal(paid({ fee: "donation" }), null);
 assert.equal(paid({}), null);
 
-const byId = new Map(); // ways crossing a canton border come back from both cantons; first canton wins
+const byId = new Map<string, CantonElement>(); // ways crossing a canton border come back from both cantons; first canton wins
 for (const canton of CANTONS) {
-  const els = await fetchCanton(canton);
+  const els = await fetchCanton(canton) as OverpassElement[];
   for (const el of els) if (!byId.has(`${el.type}/${el.id}`)) byId.set(`${el.type}/${el.id}`, { ...el, canton });
   console.error(`${canton}: ${els.length} elements`);
   await sleep(3000);
 }
 
-const seen = new Set(); // category + rounded point (~1 m)
-const named = new Map(); // category|name -> kept points, for node+way duplicates within 15 m
-const byCat = {};
+const seen = new Set<string>(); // category + rounded point (~1 m)
+const named = new Map<string, LatLon[]>(); // category|name -> kept points, for node+way duplicates within 15 m
+const byCat: Record<string, ChAmenity[]> = {};
 for (const el of [...byId.values()].sort((a, b) => ORDER[a.type] - ORDER[b.type])) { // nodes first, so the node wins
   const t = el.tags ?? {};
   const category = categorize(t);
@@ -155,5 +209,5 @@ for (const [category, items] of Object.entries(byCat).sort()) {
   writeFileSync(`${OUT}/osm-${category}.json`, json);
   console.log(`${category}\t${items.length}\t${mb.toFixed(2)} MB\t${(gzipSync(json).length / 1e6).toFixed(2)} MB gz`);
 }
-const cost = {}; for (const i of byCat.toilets) cost[i.paid] = (cost[i.paid] ?? 0) + 1;
+const cost: Record<string, number> = {}; for (const i of byCat.toilets) cost[i.paid!] = (cost[i.paid!] ?? 0) + 1;
 console.log(`total ${all.length}; toilets in Bern bbox: ${bern}; toilets paid:`, cost);
