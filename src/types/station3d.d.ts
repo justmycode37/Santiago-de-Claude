@@ -1,24 +1,20 @@
 // The 3D station viewer (src/station3d.ts → window.Station3D): what the page script and the development page call.
 // The model it shows is in station-model.d.ts, the route it draws in station-route.d.ts.
 
-// TEMPORARY, until station-route.d.ts exists: the router's types under placeholder names.
-type S3TmpRouter = any;
-type S3TmpRoute = any;
-type S3TmpStep = any;
-type S3TmpEnd = any;
-type S3TmpPrefs = any;
+/** An end of the route as `open()` takes it: an endpoint of the router, which may carry the name to show for it. */
+type Station3DEndpoint = StationRouteEndpoint & { label?: string };
 
 /** `Station3D.open(options)`. Numbers may also come as strings (the development page reads them from the URL). */
 interface Station3DOpenOptions {
   /** The model: a key of STATION3D_INDEX (see `Station3D.has`). */
   key: string;
   /** Both ends: the route. One end: that place, shown and framed. None: explore. */
-  from?: S3TmpEnd | null;
-  to?: S3TmpEnd | null;
-  prefs?: S3TmpPrefs | null;
+  from?: Station3DEndpoint | null;
+  to?: Station3DEndpoint | null;
+  prefs?: StationRoutePrefs | null;
   title?: string;
   /** The day closures and notices are judged for (default: `prefs.date`, then today). */
-  date?: string | Date;
+  date?: StationRouteDate;
   /** Detail scenes: bare or leafy trees (default: what the data says). */
   season?: 'winter' | 'summer';
   /** Detail scenes: how fine they are drawn (default: by the device). */
@@ -61,12 +57,12 @@ interface Station3DUser {
 type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'css' | 'broken' | 'lost';
 /** What `Station3D.on(name, fn)` hands to fn. */
 interface Station3DEventMap {
-  open: { key: string; route: S3TmpRoute | null; focus: { which: 'from' | 'to'; why: string | null } | null };
+  open: { key: string; route: StationRouteResult | null; focus: { which: 'from' | 'to'; why: StationRouteWhy | 'no-router' | null } | null };
   close: undefined;
   /** The Done button. */
-  done: { route: S3TmpRoute | null };
+  done: { route: StationRouteResult | null };
   /** index −1, step null: the overview. */
-  step: { index: number; step: S3TmpStep | null };
+  step: { index: number; step: StationRouteStep | null };
   pick: Station3DPick;
   follow: boolean;
   pov: boolean;
@@ -81,7 +77,7 @@ interface Station3DPick {
   stop: StationStop | null;
   area: Partial<StationArea> | null;
   /** The place as an end of a route (for `open({ from, to })`). */
-  endpoint: S3TmpEnd;
+  endpoint: StationRouteEndpoint;
 }
 type Station3DCompass = 'granted' | 'denied' | 'unavailable';
 

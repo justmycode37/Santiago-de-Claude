@@ -312,7 +312,7 @@ interface KanteWalkPoint { name: string; lat: number; lon: number; quay?: KanteQ
 /** A walk, as /api/walk answers it. */
 interface KanteWalk {
   /** access: to the first stop; transfer: a change; egress: from the last stop; direct: all the way on foot. */
-  kind: 'access' | 'transfer' | 'egress' | 'direct' | 'walk';
+  kind: 'access' | 'transfer' | 'egress' | 'direct';
   from: KanteWalkPoint;
   to: KanteWalkPoint;
   dep: number;
@@ -507,10 +507,18 @@ interface KanteWalkDir {
 }
 /** A walk as the app keeps a routed one. `steps` are a street router's; the engine's walk has `dirs` instead. */
 interface KanteRoutedWalk { coords: LngLat[]; steps: null; dist: number | null; dirs: KanteWalkDir[] }
+/** Where a walk changes floor, and between which floors. */
 interface KanteFloorChange { at: LngLat; from: number; to: number }
+/** The engine's walk in the three fields a step keeps a routed walk in. */
+interface KanteWalkParts { lines: LngLat[][]; walks: KanteRoutedWalk[]; floors: KanteFloorChange[] }
 /**
- * A step of the journey (buildSteps() in src/app/44-journey-steps.ts), as far as engine-journey.ts reads and
- * writes it. Which fields a step has depends on its `type`.
+ * A step of the journey (buildSteps() in src/app/44-journey-steps.ts), as far as engine-journey.ts reads it and
+ * sets it field by field. Which fields a step has depends on its `type`.
+ *
+ * decorate() and requay() also write, all at once (Object.assign): on a walk or change the engine has routed, a
+ * KanteWalkParts (`lines`, `walks`, `floors`); on one whose end has moved, `lines` (the straight line), `walks` and
+ * `floors` undefined, `kanteWalk` false; on a ride whose boarding points have moved, `depAt` and `arrAt`
+ * (KantePlatformAt) with `depLL` and `arrLL`.
  */
 interface KanteStep {
   type: 'walk' | 'change' | 'ride' | 'arrive';
@@ -541,8 +549,6 @@ interface KanteStep {
   path?: LngLat[];
   depLL?: LngLat | null;
   arrLL?: LngLat | null;
-  depAt?: unknown;
-  arrAt?: unknown;
   // What decorate() and requay() add to a walk or change of an engine journey:
   /** The engine's walk. */
   kante?: KanteWalk;
@@ -550,17 +556,15 @@ interface KanteStep {
   walkS?: number;
   /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
   kanteWalk?: boolean;
-  walks?: unknown;
-  floors?: unknown;
 }
+/** The time picker's choice: leave at or arrive by; date "2026-11-21", time "14:05"; nothing or '' = today, now. */
+type KanteTimeQuery = { mode?: 'dep' | 'arr'; date?: string | null; time?: string | null };
 interface KanteJourneyApi {
   /**
    * The engine's journey as a transport.opendata.ch connection (with `kante` on it, its sections and its stops);
-   * null when the engine is off, cannot be reached or finds none. fromLL: where from; dest: a search result;
-   * query: the time picker's choice (date "2026-11-21", time "14:05"; '' = today, now).
+   * null when the engine is off, cannot be reached or finds none. fromLL: where from; dest: a search result.
    */
-  find(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined,
-    query?: { mode?: 'dep' | 'arr'; date?: string | null; time?: string | null } | null): Promise<OdConnection | null>;
+  find(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null): Promise<OdConnection | null>;
   /** Where exactly a stop of an engine journey is; null for any other stop. */
   at(stop: OdCheckpoint | null | undefined): KantePlatformAt | null;
   /** Hands every walk and change of an engine journey its engine leg: time, path, directions, floor changes. */
@@ -669,6 +673,10 @@ interface KanteJourneyLike { category: string; number: string; operator: string;
 type KanteLiveCarrier = { liveInfo?: KanteLiveInfo | null; live?: KanteLiveWord | boolean | null };
 /** What places a vehicle of /api/vehicles; `t`: the time of the response it came in. */
 type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & { frac?: number | null; t?: number | null };
+/** A vehicle of /api/vehicles, as far as it tells whether it has left a stop; `info`: its liveInfoOf(), when already worked out. */
+type KanteVehicleSeen = Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null };
+/** late: the walk is longer than the time left; tight: under three minutes to spare. */
+interface KanteRunOrWait { text: string; level: 'late' | 'tight' | 'ok' }
 
 interface KanteLiveApi {
   DEFAULT_URL: string;
@@ -705,7 +713,7 @@ interface KanteLiveApi {
   /** The next call after `seq` that the vehicle stops at. */
   nextCall(calls: KanteStopCall[] | null | undefined, seq: number): KanteStopCall | null;
   /** Where the vehicle is at tNow, going on from the engine's position. */
-  advance(pos: KantePosition | KanteAdvancedPosition | null | undefined, calls: KanteStopCall[] | null | undefined, tNow: number): KanteAdvancedPosition | null;
+  advance(pos: KantePosition | null | undefined, calls: KanteStopCall[] | null | undefined, tNow: number): KanteAdvancedPosition | null;
   /**
    * …as km along the drawn ride. seqIdx: seqIndex(); kms: each drawn stop's km; stopIdx: each drawn stop's place
    * in the passList. null when it is not on this part of the trip.
@@ -716,12 +724,12 @@ interface KanteLiveApi {
   /** cands: /api/onboard's candidates. */
   onboardVerdict(cands: KanteOnboardCandidate[] | null | undefined, mine: KanteOnboardMine): KanteOnboardVerdict;
   /** Seconds until it leaves, seconds of walking left. */
-  runOrWait(leftS: number, walkS: number): { text: string; level: 'late' | 'tight' | 'ok' };
+  runOrWait(leftS: number, walkS: number): KanteRunOrWait;
   journeyLike(line: Partial<KanteLine> | null | undefined): KanteJourneyLike;
   /** Where a vehicle of /api/vehicles is at tNow. */
   vehicleAt(v: KanteVehicleHop, tNow: number): LngLat;
-  /** Under way after a measured departure from the stop before. `info`: its liveInfoOf(), when already worked out. */
-  vehicleLeftMeasured(v: (Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null }) | null | undefined): boolean;
+  /** Under way after a measured departure from the stop before. */
+  vehicleLeftMeasured(v: KanteVehicleSeen | null | undefined): boolean;
   /** The box grown by a share of its size on every side, kept within the engine's limit. */
   padBbox(b: KanteBbox, share: number): KanteBbox;
   bboxContains(outer: KanteBbox | null | undefined, inner: KanteBbox): boolean;
