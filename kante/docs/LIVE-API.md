@@ -8,8 +8,8 @@ Switzerland publishes no live GPS positions of vehicles. Every position here is 
 measured ones where a vehicle has already been, the operators' forecasts for the rest, the timetable
 where there is no live data. `liveInfo` says which, so a page never shows an estimate as a fact.
 
-`GET /api/meta` lists in `features` which of the parts below this engine has (`match`, `due`, `observe`,
-`stream`, `extras`, `gtfs-rt`). A page checks it and falls back to what it did before when one is missing.
+`GET /api/meta` lists in `features` which of the parts below this engine has (`match`, `due`, `stream`,
+`extras`, `gtfs-rt`). A page checks it and falls back to what it did before when one is missing.
 
 ## Where the data comes from
 
@@ -69,8 +69,8 @@ timed by (leaving `seq`, reaching `nextSeq`; for `at`, arriving at and leaving `
 between two requests, start from `frac` at `t` and go on at the pace of `dep`→`arr`. Once a departure has been measured, the time to the next stop is what that hop usually takes
 (learned from the measured times of the past two weeks, see `crates/server/src/profiles.rs`), not the
 forecast; likewise how long a bus or tram stands at a stop after a measured arrival. On 4.5 M test hops
-this cut the error of the arrival from 33.5 s to 10.6 s on average (`livemap/measure/IST-DATEN.md`). `basis` is `observed-stop` (timed from the last measured stop), `forecast`, `timetable` or `crowd`
-(corrected by on-board reports, see `/api/observe`). `from`/`to` are the stops' boarding points (the
+this cut the error of the arrival from 33.5 s to 10.6 s on average (`livemap/measure/IST-DATEN.md`). `basis` is `observed-stop` (timed from the last measured stop), `forecast` or `timetable`.
+`from`/`to` are the stops' boarding points (the
 changed one when the platform changed); the line between them is straight.
 
 Each call in `calls` has `live: true` where its times come from a feed (reported, or carried on from an
@@ -154,30 +154,6 @@ Included: departures from the asked boarding points, counting the platform in us
 `delayS` is only given where the time is live.
 `approachBearing` is the direction the vehicle drives in when it arrives (from the stop before);
 `departBearing` when it leaves (to the next stop). Either is null where there is no such stop.
-
-## `POST /api/observe` — on-board reports (opt-in)
-
-A phone that is on a vehicle may report where it is, so the vehicle's position improves for everyone.
-Pages must ask first, send nothing by default, and only send while the traveller is on board.
-
-```json
-{ "tripId": "…", "serviceDate": "2026-11-21", "lat": 46.95, "lon": 7.44, "t": 1795262074, "accuracy": 12 }
-→ { "accepted": true }
-```
-
-What the engine does with it, so one phone cannot move a vehicle:
-
-- Rejected: accuracy worse than 50 m, older than 30 s or in the future, more than 150 m (rail 400 m) from
-  the line between the vehicle's stops, a trip that is not under way, more than one report per 5 s from
-  the same address.
-- The rate limit is checked first, before any other work. The address is the connection's; only behind the
-  local Cloudflare tunnel (connections from 127.0.0.1) is `CF-Connecting-IP` used. Other forwarding headers
-  are ignored.
-- Kept in memory for 3 minutes, reduced to "this far along this hop at this time". No identity, no
-  positions, no history; the address is kept hashed, only to tell reporters apart, and expires with them.
-- A report only moves the vehicle along its current hop, never to another hop, and at most 45 s of travel
-  from the feed's estimate. It counts once **two different reporters** agree within 20 s of travel and
-  neither went backwards; one phone alone never changes what others see. `basis` is `crowd` only then.
 
 ## `GET /api/stream?bbox=w,s,e,n` — vehicles as server-sent events
 

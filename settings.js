@@ -2,8 +2,9 @@
 // The journey options are the ones from the Kante app (niknal357's branch): accessibility, walking speed,
 // change time, maximum walk and transport types. "On the map" picks what the events button shows (map-layers.js),
 // "About you" and "Events" narrow down which community events show. "Live data" switches the live vehicles on the
-// map, and whether your position is sent to the Kante engine while you ride (the on-board check and on-board reports;
-// off unless switched on: live.js, kante/docs/LIVE-API.md).
+// map (live.js).
+// "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.js); "Developer options" at the very
+// bottom shows the tools to test that.
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
@@ -16,15 +17,14 @@
     wheelchair: false,
     // Walking and changing
     walkKmh: 4.7,
+    autoSpeed: false, // measure how fast you walk and move the walking speed to match (walk-pace.js); off unless you turn it on
     extraChangeMin: 2,
     maxWalkMin: 20,
     modes: null, // null = every transport type
     // On the map: groups switched off (map-layers.js GROUPS keys); everything is on at first
     mapHidden: [],
-    // Live data (live.js): vehicles on the map; your position goes to the engine (on-board check and reports) only
-    // when shareOnboard is switched on here
+    // Live data (live.js): vehicles on the map
     liveVehicles: true,
-    shareOnboard: false,
     // Events
     newcomer: false,
     lowVision: false,
@@ -32,6 +32,8 @@
     women: false,
     adaptiveSport: false,
     fareTracking: false,
+    // Developer options (bottom of the page)
+    devOptions: false,
   };
   const NORMAL_KMH = 4.7; // the timetable's walking times are taken as this pace
   const SPEED_PRESETS = [
@@ -231,6 +233,7 @@
   const closeListeners = [];
   let isOpen = false;
   let pushed = false;
+  let scrollTo = ''; // id of the heading to open the page at
   let journeyBefore = '';
   let madeInert = [];
   let themeBefore = '';
@@ -356,12 +359,14 @@
     }
   }
 
-  function update(patch) {
+  // by: 'auto' when the app changed the setting itself (walk-pace.js), otherwise it was you
+  function update(patch, by) {
     if ('fareTracking' in patch) pricingStorageStatus.hidden = true;
+    const before = state;
     state = { ...state, ...patch };
     save();
     render();
-    changeListeners.forEach((fn) => fn());
+    changeListeners.forEach((fn) => fn(patch, by, before));
   }
 
   page.addEventListener('change', (e) => {
@@ -398,11 +403,13 @@
     isOpen = true;
     journeyBefore = journeySnapshot();
     render();
-    madeInert = [...document.body.children].filter((el) => el !== page && el.tagName !== 'SCRIPT' && !el.inert);
+    // (the walking-speed notice stays usable: it can show on top of this page)
+    madeInert = [...document.body.children].filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
     madeInert.forEach((el) => { el.inert = true; });
     themeBefore = themeMeta.getAttribute('content');
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
     page.scrollTop = 0;
+    reveal();
     page.classList.add('open');
     page.setAttribute('aria-hidden', 'false');
     closeBtn.focus({ preventScroll: true });
@@ -427,7 +434,16 @@
     if (want !== isOpen) (want ? show : hide)();
   }
 
-  function open() {
+  function reveal() {
+    const el = scrollTo && document.getElementById(scrollTo);
+    scrollTo = '';
+    if (el) el.scrollIntoView({ block: 'start' });
+  }
+
+  // anchor: id of a heading on the page to open it at (optional)
+  function open(anchor) {
+    scrollTo = anchor || '';
+    if (isOpen) return reveal();
     if (onSettings()) return sync();
     pushed = true;
     location.hash = 'settings';
@@ -477,7 +493,9 @@
     connectionFits,
     // the journey options as the 3D station view's router wants them (station-route.js)
     journey: () => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
-    onChange: (fn) => changeListeners.push(fn),
+    speedPresets: SPEED_PRESETS.map((p) => ({ ...p })), // the five stops of the walking speed slider
+    set: (patch, by) => update(patch, by),
+    onChange: (fn) => changeListeners.push(fn), // fn(patch, by, settingsBefore)
     onClose: (fn) => closeListeners.push(fn),
   };
 
