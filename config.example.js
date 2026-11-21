@@ -5,4 +5,6 @@
 // "Places API (New)" and to your site's address (HTTP referrers), because the page sends it from the browser.
 window.APP_CONFIG = {
   googlePlacesKey: '',
+  // The Kante engine (engine.js). Leave it out for the team's hosted engine; '' switches the engine off.
+  // kanteUrl: 'http://localhost:8080',
 };
