@@ -278,7 +278,8 @@
         if (nodeOk(s.node)) out.push(fromNode(s.node, { stop: s }));
         else if (s.xy) out.push(...fromXY(s.xy, s.level, { stop: s }));
       }
-      return out;
+      // a stop the model does not know (no such ref): fall back to the position given with it, if any
+      if (out.length || !(ep.xy || ep.ll)) return out;
     }
     if (ep.node != null) return nodeOk(ep.node) ? [fromNode(ep.node, {})] : [];
     if (ep.entrance != null) {

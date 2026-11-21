@@ -451,6 +451,10 @@
     .j-tag svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     .j-tag.warn { background: rgba(255,149,0,.16); color: #ff9500; }
     .j-tag.ok { background: rgba(52,199,89,.16); color: #34c759; }
+    /* "3D view": opens the station model (station3d.js) */
+    button.j-tag { border: 0; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity .15s; }
+    button.j-tag:active { opacity: .6; }
+    .pf-3d { margin-top: 10px; }
     .j-status:empty { display: none; }
     .j-status { padding: 8px 20px 22px; font-size: 15px; color: var(--bar-secondary); }
 
@@ -1066,6 +1070,8 @@
   <script src="community-programmes.js"></script>
   <script src="events.js"></script>
   <script src="settings.js"></script>
+  <script src="stations3d/index.js"></script>
+  <script src="station3d.js"></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
@@ -1418,6 +1424,7 @@
       userMarker.setLngLat(lngLat);
       if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
       updateAccuracy();
+      if (window.Station3D) Station3D.setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined });
       if (!centeredOnUser && !destMarker._map) {
         centeredOnUser = true;
         map.jumpTo({ center: lngLat, zoom: 15 });
@@ -1756,6 +1763,19 @@
       const list = mk('ul', 'pf-list');
       const box = mk('div');
       box.append(head, note, list);
+      // a station with a 3D model: show this platform in it, with the way there when you are nearby
+      const key3d = window.Station3D && Station3D.has(f.properties.id);
+      if (key3d) {
+        const view3d = s3Tag(() => {
+          const to = { ll: edge.ll };
+          if (edge.ref) to.stop = { uic: String(f.properties.id), ref: edge.ref };
+          if (edge.level != null) to.level = edge.level;
+          const near = userLngLat && distKm(userLngLat, edge.ll) < 0.8;
+          Station3D.open({ key: key3d, from: near ? { ll: userLngLat } : undefined, to, prefs: SETTINGS.journey() });
+        });
+        view3d.classList.add('pf-3d');
+        box.append(view3d);
+      }
       platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
       try {
         const res = await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
@@ -2088,6 +2108,7 @@
       right: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v5"/>',
       straight: '<path d="M12 20V4M6 10l6-6 6 6"/>',
       stairs: '<path d="M4 20h5v-5h5v-5h5V5"/>',
+      cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
     };
     const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${MODE_ICON[name]}</svg>`;
 
@@ -2421,6 +2442,59 @@
       return span;
     }
 
+    // ---- 3D station view (station3d.js): for walks and changes in a station that has a 3D model (stations3d/) ----
+    const s3Key = (stop) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id)) || null;
+    // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
+    function s3End(stop, at) {
+      const edge = at && at.edge, raw = platformOf(stop);
+      const ref = raw !== '–' ? raw : (edge && edge.ref) || '';
+      const ll = (at && at.ll) || coordOf(stop);
+      if (!ref && !ll) return null;
+      const end = {};
+      if (ref) end.stop = { uic: String(stop.station.id), ref };
+      if (ll) end.ll = ll;
+      if (edge && edge.level != null) end.level = edge.level;
+      return end;
+    }
+    // Where a step's walk starts and ends inside the modelled station, or null when it is not in one
+    function s3Plan(st) {
+      let key = null, from = null, to = null;
+      if (st.type === 'walk' && st.next) {
+        key = s3Key(st.next.departure);
+        const start = userLngLat || (st.lines[0] && st.lines[0][0]);
+        from = start ? (userLngLat ? { ll: start } : { ll: start, label: 'the start' }) : null;
+        to = s3End(st.next.departure, st.nextRide && st.nextRide.depAt);
+      } else if (st.type === 'walk') {
+        key = st.from ? s3Key(st.from.arrival) : null;
+        from = key && s3End(st.from.arrival, st.prevRide && st.prevRide.arrAt);
+        const end = (journeyDest && journeyDest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
+        to = end ? { ll: end, label: st.toName } : null;
+      } else if (st.type === 'change') {
+        const ka = s3Key(st.prev.arrival), kb = s3Key(st.next.departure);
+        key = kb || ka;
+        from = ka === key ? s3End(st.prev.arrival, st.prevRide && st.prevRide.arrAt)
+          : st.points[0] ? { ll: st.points[0], label: st.prev.arrival.station.name } : null;
+        to = kb === key ? s3End(st.next.departure, st.nextRide && st.nextRide.depAt)
+          : st.points[1] ? { ll: st.points[1], label: st.next.departure.station.name } : null;
+      }
+      return key && from && to ? { key, from, to } : null;
+    }
+    function s3Tag(open) {
+      const b = mk('button', 'j-tag strong');
+      b.type = 'button';
+      b.innerHTML = icon('cube');
+      b.appendChild(mk('span', null, '3D view'));
+      b.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+      return b;
+    }
+    function s3Button(st) {
+      if (!s3Plan(st)) return null;
+      return s3Tag(() => {
+        const plan = s3Plan(st); // again: the start follows your position
+        if (plan) Station3D.open({ ...plan, prefs: SETTINGS.journey() });
+      });
+    }
+
     function walkCard(st, n, total) {
       const card = mk('div', 'j-card');
       const lvl = levelChange(st);
@@ -2431,11 +2505,12 @@
         card.appendChild(cardHead('walk', ICON_COLOR.walk, `Walk to ${target}`,
           [walkSpan(st, st.min, ''), ' · then', badge(j), `→ ${j.to}`], `${n} of ${total}`));
         card.appendChild(metrics(metric('Departs', fmtTime(s.departure.departure), s.departure.delay), platformMetric(s.departure, j, st.nextRide && st.nextRide.depAt.edge)));
-        card.appendChild(foot('', lvlTag, lvlTag ? null : 'Leave at ', lvlTag ? null : { b: fmtTime(st.start) }));
+        card.appendChild(foot('', lvlTag, lvlTag ? null : 'Leave at ', lvlTag ? null : { b: fmtTime(st.start) }, s3Button(st)));
       } else {
         card.appendChild(cardHead('walk', ICON_COLOR.walk, `Walk to ${st.toName}`, [walkSpan(st, st.min, `${st.min} min`), ' · follow the yellow line'], `${n} of ${total}`));
         card.appendChild(metrics(metric('Arrive', fmtTime(journeyConn.to.arrival))));
-        if (lvlTag) card.appendChild(foot('', lvlTag));
+        const view3d = s3Button(st);
+        if (lvlTag || view3d) card.appendChild(foot('', lvlTag, view3d));
       }
       return card;
     }
@@ -2472,7 +2547,7 @@
       } else if (pa !== '–' && pd !== '–' && pa !== pd) way = tag('plain', 'change', `${splitPlatform(pa).num} → ${splitPlatform(pd).num}`);
       else way = tag('plain', 'check', 'Same platform');
       const lvl = levelChange(st);
-      card.appendChild(foot('', spareTag, way, lvl && tag('plain', 'stairs', lvl.text)));
+      card.appendChild(foot('', spareTag, way, lvl && tag('plain', 'stairs', lvl.text), s3Button(st)));
       return card;
     }
 
