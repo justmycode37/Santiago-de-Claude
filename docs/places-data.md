@@ -24,3 +24,17 @@ In the app, the events button in the ••• menu shows these icons together w
 
 `data/official-places.json` (built by `tools/build-official-places.mjs`, official non-OSM data, also used to cross-check OSM) = `{ generated, sources: Source[], items: OfficialPlace[] }`, `Source = { key, name, url, licence, count, fetched_ok, error? }` (a failed source has `fetched_ok: false`, `count: 0`), `OfficialPlace = { id: "<sourceKey>/<native id>", source, lat, lon, category, name, address, opening_hours, wheelchair_or_accessibility, phone, website, email, description, geometry_type, props }`. Every field except `id/source/lat/lon/category/geometry_type/props` may be `null`. Text values are raw German source values (e.g. `wheelchair_or_accessibility` "ja" / "nein" / "unbekannt"). `props` holds every raw source property; polygons are reduced to their centroid with `props.geometry_bbox = [W,S,E,N]`. Sources: Stadt Bern geoportal (`stadtbern.*`, 44 layers), Kanton Bern (`kantonbern.*`: AED, hospitals, elderly and disability care), SBB data.sbb.ch (`sbb.*`), Velospot GBFS (`velospot`, a capacity/vehicle snapshot is in `props.status_snapshot`). Categories include `aed | hospital | elderly_care | disability_services | disabled_parking | acoustic_crossing_signal | tactile_paving | platform_sector_sign | transit_stop | ticket_machine | wifi | bike_share | playground | sports | school | city_office | ...` (list them with `new Set(items.map(i => i.category))`). Bbox 46.9,7.34,46.99,7.5. Licences are per source in `sources[].licence`.
 
+
+## More datasets (data-gaps branch)
+
+| File | What | Docs |
+|---|---|---|
+| `data/toilets.json` | 176 toilets merged from OSM, ATLAS station toilets and the city's Nette Toilette partners, with access and wheelchair fields | [data-enrichment.md](data-enrichment.md) |
+| `data/places.min.json`, `data/amenities.min.json` | Browser copies without raw tags; addresses filled from the official address register (89% / 70%) | [data-enrichment.md](data-enrichment.md) |
+| `data/services.json` | 1,686 canton/federal service points (job centres, KESB, debt collection, childcare, worship, emergency meeting points, asylum centres) | [data-services.md](data-services.md) |
+| `data/help.json`, `data/offices.json` | Hand-curated help: food distribution, fridges, day centres, shelters, legal advice, health, hotlines, language courses, discounts | [data-help.md](data-help.md) |
+| `data/fares.json` | Libero tickets, prices, where to buy, fines | [data-help.md](data-help.md) |
+| `data/bern-stop-accessibility.json`, `data/bern-stop-frequency.json` | Wheelchair verdict, kerb height and departures per hour for 387 Bern stops | [data-transit-access.md](data-transit-access.md) |
+| `data/station-lifts.json`, `data/street-slopes.geojson`, `data/construction-sites.geojson`, `data/holidays.json` | Lifts/escalators/ramps near stations, street slope %, current construction sites, public and school holidays | [data-streets.md](data-streets.md) |
+
+Sample check of these files: [verification-2.md](verification-2.md).
