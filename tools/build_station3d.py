@@ -56,7 +56,7 @@ try:
     import numpy as np
     import shapely
     from shapely.geometry import LineString, MultiPoint, MultiPolygon, Point, Polygon, box
-    from shapely.ops import nearest_points, unary_union
+    from shapely.ops import nearest_points, substring, unary_union
     from shapely.prepared import prep
     from shapely.strtree import STRtree
 except ImportError:  # pragma: no cover
@@ -109,6 +109,22 @@ OVERPASS = ['https://overpass-api.de/api/interpreter',
 #   structures  the same for a bridge or a tunnel OSM gives no level: [x, y, level]. The nearest path on a bridge or
 #             in a tunnel (within 15 m) is put on that level, whole. Only needed where neither level=* nor the
 #             steps counted on its stairs nor the tracks it crosses say how high it is.
+#   squares   [x, y]: a point on a square that is open to walk across, where OSM has only its outline as
+#             place=square (and the pavements along its edges as highway=pedestrian areas, with a bus or tram loop
+#             between them). The outline becomes one square to walk on, together with the pedestrian areas in it.
+#   links     walks OSM has no path for, each with the evidence for it: [x1, y1, x2, y2, level]. Each end is put on
+#             the nearest path on that level (within 8 m); the link is flagged inferred in the model.
+#   osm_edits  corrections to the OpenStreetMap download, each with its evidence next to it, applied before
+#             anything is read from it (local metres):
+#               ['move', node id, x, y]            a node to where the thing really is
+#               ['node', name, x, y]               a new node, for the ways below
+#               ['way', [node id | name | [x, y], ...], {tags}]   a new way (a ring ends on its first point)
+#               ['drop', way id]                   a way that is wrong, or that the ways above replace
+#   stop_names  [x, y, name, mode]: the stop without a platform number within 10 m of the point gets this name and
+#             mode ('tram' | 'bus'), where ATLAS has one name and one mode for the tram and the bus edges of a stop.
+#   level_shift  boxes in which OSM counts the floors differently from the rest of the station (a shopping centre
+#             that calls its ground floor level 1): [minX, minY, maxX, maxY, shift]. The shift is added to every
+#             level=* of the things that lie in the box entirely.
 # ---------------------------------------------------------------------------------------------------------------------
 STATIONS = {
     'bern': {
@@ -288,6 +304,166 @@ STATIONS = {
         'layers': ['sectors.json', 'spans.json', 'boards.json', 'furniture.json'],
         'credits': ['© swisstopo'],                 # terrain heights
     },
+    'bruennen': {
+        'name': 'Bern Brünnen Westside',
+        'origin': (7.3752, 46.9440),
+        'bbox': (46.9422, 7.3715, 46.9460, 7.3790),
+        'extent': (-140, -60, 140, 85),
+        'extent_cut': [(-140, 8, -70, 85)],         # the Westside centre itself
+        'uics': ['8516154', '8582262'],
+        # Two levels. The square with the tram loop and the bus stop (Gilberte-de-Courgenay-Platz) is level 0; the
+        # railway runs along its south side on a terrace one storey higher, level 1, with a platform on each side
+        # of the two tracks. Three stairs and a lift lead from the square up to platform 1. Platform 2 is reached
+        # through a passage under the tracks, level with the square (OSM: tunnel=yes, layer=-1), with stairs and a
+        # lift up at its far end, and by a footpath from Winterholzstrasse on the hillside behind it.
+        # Heights: ATLAS has the tram and bus edges at 553.5 and 553.6 m above sea level and the two platform edges
+        # at 558.0 and 558.7; swisstopo terrain (swissALTI3D, height service of api3.geo.admin.ch, 21.11.2026)
+        # gives 553.3-553.4 on the square and 557.8-558.7 along platform 1; OSM counts 30, 32 and 33 steps from the
+        # square to platform 1 and 31 from the passage to platform 2 (5.1-5.6 m at 17 cm a step). Level 1 is drawn
+        # 5.0 m above the square (558.4 m), in the middle of these figures.
+        # OSM has level=1 on platform 1 only (nothing on platform 2, the stairs, the lifts and the passage), and
+        # the Westside centre next door counts its own floors from the basement: its ground floor, on the square,
+        # is level=1 there (level:ref=0). level_shift puts the centre on the count of the station.
+        'levels': {
+            0: (0.0, 'Street level'),
+            1: (5.0, 'Platform level'),
+        },
+        'level_height': 5.0,
+        'level_shift': [(-400, 5, -45, 300, -1)],
+        # The square is one open paved surface (swisstopo aerial image): OSM has its outline as place=square, the
+        # pavements along its edge as two pedestrian areas and nothing across the tram loop and the bus bays.
+        'squares': [[-10, 40]],
+        'entrances': [
+            ['Gilberte-de-Courgenay-Platz', 24, 18, 0],     # the square, at the mouth of the underpass
+            ['Westside centre', -63, 45, 0],
+            ['Riedbachstrasse', 38, 61, 0],
+            ['Ramuzstrasse', 18, 76, 0],
+            ['Winterholzstrasse', 94, 19, 1],
+        ],
+        'area_names': [[27, 10, 0, 'Underpass']],
+        # The islands of the tram and the bus on the square are raised: the ATLAS accessibility data (PRM) has
+        # their boarding edges at 27 cm (tram) and 16 cm (bus). Links across their long sides are for walkers only
+        # (wheelchair: false, made by the builder for every square); a wheelchair goes round by the ends. OSM also
+        # has the kerb between the pavements and the loop (way 654589097, barrier=kerb, no height, no lowered
+        # points): it is not in the model. Both islands are wheelchair=yes in OSM and step-free in ATLAS, so there
+        # are lowered kerbs; where they are is not in any source used here.
+        # ATLAS has one name and the mode "bus" for the tram and the bus edges. The island under the roof next to
+        # platform 1 is the tram's (OSM railway=platform with the tram stop position, 27 cm edge), the one north
+        # of it the bus's (OSM highway=platform, bus stop position, 16 cm edge).
+        'stop_names': [
+            [13, 19, 'Bern Brünnen Westside, Bahnhof (tram)', 'tram'],
+            [-2, 27, 'Bern Brünnen Westside, Bahnhof (bus)', 'bus'],
+        ],
+        # The footpath from the east end of platform 2 to Winterholzstrasse (way 67834886, no level in OSM) climbs
+        # the slope behind the platform: swisstopo terrain (as above) gives 558.6 m where it leaves the platform,
+        # 559.0 at its barrier 5 m on, 562.0 at its top and 561.7 on the street, 3.4 m in 37 m (9 %): its top is
+        # 8.4 m above the square in this model, the street 8.1 m. The terrain model reads 0.6 m high at the
+        # platform edge (ATLAS: 558.0), so the slope is good to about half a metre. The builder puts ground
+        # within 0.15 of a level on that level and steepens the rest to make up for it (snap): the two heights
+        # below are given 0.25 m lower so that the model comes out at 8.4 and 8.1 m, and the barrier, 0.4 m up,
+        # stays on the level of the platform. The path then climbs 3.4 m in its last 31 m (11 %).
+        # The path has a double cycle barrier (OSM: openable); whether a wheelchair passes it is not known.
+        'spots': [[89.13, 19.17, 8.13, 'ground'], [93.53, 19.36, 7.9, 'ground']],
+        'layers': ['furniture.json'],
+        'credits': ['© swisstopo'],                 # terrain heights
+    },
+    'buempliz-nord': {
+        'name': 'Bern Bümpliz Nord',
+        'origin': (7.3900, 46.9459),
+        'bbox': (46.9443, 7.3870, 46.9477, 7.3930),
+        'extent': (-125, -70, 125, 60),
+        'extent_cut': [(27, -70, 125, -45)],        # the paths around the Fellergut centre, south-east of the exit
+        'uics': ['8504489', '8579523'],
+        # Two levels. Level 0: the tracks with platform 2 at the station building and the island platform 4/5, the
+        # forecourt and Mühledorfstrasse with the bus stop. Level -1: the pedestrian underpass, about 100 m long,
+        # from the low ground on the Fellerstrasse side under the tracks, the station building and Mühledorfstrasse
+        # to the Fellergut centre. It comes out level at both ends; stairs and a lift join it to the forecourt, stairs
+        # to the island platform, and a side passage leads to the lift of the island platform.
+        # OSM has no level=* here except on that lift ("0;-2"); the underpass is tunnel=yes with layer=-2, the side
+        # passage layer=-1. Both are the one lower level of this model (-1): the builder puts the underpass there
+        # because it passes under the tracks. The "-2" of the lift is in no table and no path arrives on it.
+        # Heights: ATLAS has the platform edges at 555.3-555.4 m above sea level; swisstopo terrain (swissALTI3D,
+        # height service of api3.geo.admin.ch, 21.11.2026) gives 555.5-555.8 on the platforms and the forecourt,
+        # 555.0-556.3 on Mühledorfstrasse, 551.7 at the north mouth of the underpass, 552.1-552.3 along the side
+        # passage and 552.4-552.7 at its south end. OSM counts 25 steps from the underpass to the forecourt (4.3 m at
+        # 17 cm a step) and 18 from the side passage to the island platform (3.1 m). The underpass is drawn 3.7 m
+        # below the platforms (551.7 m): the measured mouth, and the middle of the two stairs. An estimate to
+        # within about half a metre: the floor itself cannot be measured from the air.
+        'levels': {
+            -1: (-3.7, 'Underpass'),
+            0: (0.0, 'Street level'),
+        },
+        'level_height': 3.7,
+        # Corrections to OpenStreetMap from the cadastral survey of the City of Bern (Amtliche Vermessung, open data
+        # of Geoinformation Stadt Bern; the outlines used are in Santiago-de-Claude-research/bern-transit-3d/
+        # bern-research/stations/data/focus/8504489-bern-buempliz-nord.geojson), checked against the swisstopo
+        # aerial image on 21.11.2026.
+        'osm_edits': [
+            # The stairs between the main underpass and the island platform. The survey has two ("Wichtige
+            # Treppe"), one each side of the underpass, 9.4 m long: the west one from its foot at (-5.8, 18.5) up
+            # to (-15.1, 16.8), the east one from (3.8, 20.2) up to (13.0, 21.9). OSM has only the west one (way
+            # 1355631683), drawn from the middle of the underpass to the foot of the real stairs, so its top
+            # came out 8.6 m too far east, in the small building that stands over the underpass there.
+            ['move', 14166031860, -5.84, 18.47],
+            ['move', 12546099519, -15.06, 16.82],
+            ['drop', 1355631683],
+            ['way', [12546099518, 14166031860], {'highway': 'footway', 'tunnel': 'yes', 'layer': '-2'}],
+            ['way', [14166031860, 12546099519], {'highway': 'steps', 'incline': 'up'}],
+            ['node', 'east foot', 3.75, 20.21],
+            ['way', [12546099518, 'east foot'], {'highway': 'footway', 'tunnel': 'yes', 'layer': '-2'}],
+            ['way', ['east foot', [13.0, 21.86]], {'highway': 'steps', 'incline': 'up'}],
+            # The stairs between the side passage and the island platform (OSM way 1372264312, 18 steps): in the
+            # survey from the foot at (-29.6, 14.8), on the west wall of the passage, up to (-37.2, 12.5); OSM
+            # has them 7 m further east, across the passage. The path on the platform from their top to the lift
+            # (way 1372264311) goes with them, past the north side of the stairwell.
+            ['node', 'side foot', -29.64, 14.84],
+            ['move', 12706575454, -37.19, 12.5],
+            ['move', 12706575455, -30.5, 16.2],
+            ['drop', 1372264312],
+            ['way', [12706575453, 'side foot'], {'highway': 'footway', 'tunnel': 'yes', 'layer': '-1'}],
+            ['way', ['side foot', 12706575454], {'highway': 'steps', 'incline': 'up', 'step_count': '18'}],
+            # The station building. OSM has one outline for the building, the open forecourt under its roof and
+            # the pavilion with the lift (way 96140022, 4 storeys): in the model the forecourt, its stairs and the
+            # lift then stand inside a block. The survey has the building itself (x -57 to -13) and the pavilion
+            # (x -5 to 12) as two buildings with the forecourt between them. Storeys of the building as in OSM;
+            # the pavilion has one (aerial image). The roof over the forecourt is in neither source and is left out.
+            ['drop', 96140022],
+            ['way', [[-21.25, -5.84], [-22.43, -6.15], [-21.99, -8.58], [-37.49, -11.37], [-57.13, -15.04],
+                     [-55.71, -22.89], [-36.04, -19.32], [-35.41, -22.74], [-12.75, -18.65], [-14.82, -7.3],
+                     [-15.55, -4.75], [-21.25, -5.84]],
+             {'building': 'train_station', 'building:levels': '4', 'roof:levels': '1'}],
+            ['way', [[-5.01, -5.54], [-3.71, -5.66], [-2.56, -11.95], [-3.72, -12.5], [11.58, -9.75], [10.31, -2.76],
+                     [-5.01, -5.54]], {'building': 'yes', 'building:levels': '1'}],
+            # The roof over the island platform (survey: "Unterstand", 65 m long). Its height is not in any
+            # source: 4 m is an estimate.
+            ['way', [[-13.41, 20.14], [-23.24, 18.37], [-45.49, 14.37], [-44.52, 8.79], [19.36, 20.12],
+                     [18.39, 25.71], [-13.41, 20.14]], {'building': 'roof', 'height': '4'}],
+        ],
+        # ATLAS has one name for the two bus edges. They are on opposite sides of Mühledorfstrasse.
+        'stop_names': [
+            [-26, -39, 'Bern Bümpliz Nord, Bahnhof (station side)', 'bus'],
+            [52, -36, 'Bern Bümpliz Nord, Bahnhof (across the road)', 'bus'],
+        ],
+        'entrances': [
+            ['Mühledorfstrasse', -9, -28, 0],
+            ['Fellerstrasse (underpass)', -4, 27, -1],      # its north exit
+            ['Fellergut (underpass)', 24, -67, -1],         # its south exit
+        ],
+        # Mühledorfstrasse in front of the station: OSM has the two pavements and no crossing between them for
+        # 100 m either way. The swisstopo aerial image shows a raised crossing table there (chequered ramps at
+        # x = 0 and x = 12): people cross on it to the bus stop on the far side.
+        'links': [[6, -33, 6, -44, 0]],
+        # The side passage to the lift of the island platform, and the two short pieces between the underpass, the
+        # stairs and the lift at the station building: floors of the underpass, flat. (The steps counted on their
+        # stairs put them 0.6 m above and below the level, which would make ramps of them.)
+        # The same for the three pieces of floor between the underpass and the feet of the stairs to the island
+        # platform (osm_edits above; the two main stairs have no steps counted), and for the underpass itself,
+        # which the steps counted on the stairs at its two ends would otherwise tilt by 0.4 m.
+        'structures': [[-23.4, 20, -1], [-12, 26, -1], [11.7, -10.9, -1], [9.4, -10.4, -1],
+                       [-2.8, 18.8, -1], [2.0, 19.7, -1], [-26.2, 15.9, -1], [12.5, -30, -1]],
+        'layers': ['furniture.json'],
+        'credits': ['© swisstopo', 'Geodaten Stadt Bern'],   # terrain heights, aerial image; cadastral survey
+    },
 }
 
 # Paths people walk on. Roads with their own mapped pavements are left out (sidewalk=separate or the big road classes).
@@ -428,6 +604,12 @@ def parse_levels(tags):
     return sorted(out) or None
 
 
+def shift_level(v, d):
+    """level=* with d added to every number in it: ("0;1", -1) -> "-1;0"."""
+    lv = parse_levels({'level': v})
+    return ';'.join(f'{l + d:g}' for l in lv) if lv else v
+
+
 def num(v, default=None):
     try:
         return float(re.match(r'\s*-?\d+(?:[.,]\d+)?', str(v)).group(0).replace(',', '.'))
@@ -505,6 +687,13 @@ def tidy(poly, tol=0.2):
         p = Polygon(p.exterior, [h for h in p.interiors if Polygon(h).area >= 0.3])
         out.append(shapely.geometry.polygon.orient(p, 1.0))
     return out
+
+
+def island_sides(poly, end=1.0):
+    """The outline of a platform island without its two ends: the long sides, where the kerb is."""
+    r = list(poly.minimum_rotated_rectangle.exterior.coords)[:4]
+    short = sorted((LineString([r[i], r[(i + 1) % 4]]) for i in range(4)), key=lambda l: l.length)[:2]
+    return poly.exterior.difference(unary_union([l.buffer(end, cap_style=2) for l in short]))
 
 
 def ring_xy(ring):
@@ -588,6 +777,22 @@ class Builder:
         self.nodes, self.ways, self.rels = {}, {}, {}
         self.node_xy = {}
         dead = 0
+        self.edit_osm()
+        shifts = [(box(*b[:4]), b[4]) for b in self.cfg.get('level_shift', [])]
+        shifted = 0
+        for e in self.osm['elements'] if shifts else []:
+            # (written back into the tags, so that everything after this reads one count of floors; the tags are
+            # copied first: the same download may be built twice in one run)
+            if 'level' not in e.get('tags', {}):
+                continue
+            pts = [e] if e['type'] == 'node' else [g for g in e.get('geometry') or [] if g] if e['type'] == 'way'                 else [g for m in e.get('members', []) for g in m.get('geometry') or [] if g]
+            for zone, d in shifts:
+                if pts and all(zone.covers(Point(self.xy(g['lon'], g['lat']))) for g in pts):
+                    e['tags'] = dict(e['tags'], level=shift_level(e['tags']['level'], d))
+                    shifted += 1
+                    break
+        if shifted:
+            self.note('input', f'level=* of {shifted} things shifted to the count of floors of the station (level_shift)')
         for e in self.osm['elements']:
             e.setdefault('tags', {})
             if e['type'] == 'node':
@@ -627,6 +832,75 @@ class Builder:
         self.note('input', f'{len(self.nodes)} tagged nodes, {len(self.ways)} ways, {len(self.rels)} relations; '
                            f'{dead} skipped as not open today (construction / proposed / razed / disused)')
         self.osm_date = (self.osm.get('osm3s') or {}).get('timestamp_osm_base', '')[:10]
+
+    def edit_osm(self):
+        """The corrections of the station table to the OpenStreetMap download (osm_edits)."""
+        edits = self.cfg.get('osm_edits')
+        if not edits:
+            return
+        els = [dict(e) for e in self.osm['elements']]   # (copies: the same download may be built twice in one run)
+        at = {}                                         # node id -> where it is
+        for e in els:
+            if e['type'] == 'node':
+                at[e['id']] = {'lon': e['lon'], 'lat': e['lat']}
+            elif e['type'] == 'way' and e.get('geometry') and e.get('nodes'):
+                for n, g in zip(e['nodes'], e['geometry']):
+                    if g:
+                        at.setdefault(n, {'lon': g['lon'], 'lat': g['lat']})
+
+        def ll(x, y):
+            return {'lon': self.lon0 + x / self.kx, 'lat': self.lat0 + y / self.ky}
+
+        named, fresh, count = {}, [-1], defaultdict(int)
+
+        def new_node(x, y):
+            at[fresh[0]] = ll(x, y)
+            fresh[0] -= 1
+            return fresh[0] + 1
+
+        for op in edits:
+            kind = op[0]
+            if kind == 'node':
+                named[op[1]] = new_node(op[2], op[3])
+            elif kind == 'move':
+                if op[1] not in at:
+                    self.note('config', f'osm_edits move {op[1]}: no such node in the download, not used')
+                    continue
+                at[op[1]] = ll(op[2], op[3])
+                for e in els:
+                    if e['type'] == 'node' and e['id'] == op[1]:
+                        e.update(at[op[1]])
+                    elif e['type'] == 'way' and e.get('geometry') and op[1] in (e.get('nodes') or ()):
+                        e['geometry'] = [dict(at[n]) if n == op[1] else g for n, g in zip(e['nodes'], e['geometry'])]
+            elif kind == 'drop':
+                kept = [e for e in els if not (e['type'] == 'way' and e['id'] == op[1])]
+                if len(kept) == len(els):
+                    self.note('config', f'osm_edits drop {op[1]}: no such way in the download, not used')
+                    continue
+                els = kept
+            elif kind == 'way':
+                ids, here = [], {}
+                for r in op[1]:
+                    if isinstance(r, (list, tuple)):
+                        key = (r[0], r[1])
+                        if key not in here:
+                            here[key] = new_node(r[0], r[1])
+                        ids.append(here[key])
+                    else:
+                        ids.append(named.get(r, r))
+                if any(n not in at for n in ids):
+                    self.note('config', f'osm_edits way {op[1]}: a node of it is not in the download, not used')
+                    continue
+                els.append({'type': 'way', 'id': fresh[0], 'nodes': ids, 'geometry': [dict(at[n]) for n in ids],
+                            'tags': dict(op[2])})
+                fresh[0] -= 1
+            else:
+                self.note('config', f'osm_edits {op}: not understood, not used')
+                continue
+            count[kind] += 1
+        self.osm = dict(self.osm, elements=els)
+        self.note('input', 'OpenStreetMap corrected from the station table (osm_edits): '
+                  + ', '.join(f'{n} {k}' for k, n in sorted(count.items())))
 
     def rel_polygons(self, rel):
         """Polygons of a multipolygon relation and the ids of the nodes on their rings."""
@@ -703,6 +977,8 @@ class Builder:
         def add_area(kind, polys, ids, t, src):
             lv = parse_levels(t)
             if kind == 'building':
+                if t.get('location') == 'underground':
+                    return   # (a car park or a shelter under the ground: nothing stands there)
                 for p in polys:
                     self.buildings.append((p, t, src))
                 return
@@ -797,8 +1073,32 @@ class Builder:
             for n in l['ids']:
                 self.lift_of[n] = i
 
+        for x, y in self.cfg.get('squares', []):
+            found = [(Polygon(w['pts']), w) for w in self.ways.values()
+                     if w['closed'] and not w['dead'] and w['tags'].get('place') == 'square']
+            found = [(p, w) for p, w in found if p.is_valid and p.covers(Point(x, y))]
+            if not found:
+                self.note('config', f'squares [{x}, {y}]: no place=square outline around this point')
+                continue
+            poly, w = min(found, key=lambda f: f[0].area)
+            inside = [a for a in self.areas if a['kind'] == 'plaza' and a['level'] is None
+                      and a['poly'].intersection(poly).area > 0.8 * a['poly'].area]
+            whole = unary_union([poly] + [a['poly'] for a in inside]).buffer(0.3, join_style=2).buffer(-0.3, join_style=2)
+            before = len(self.areas)
+            add_area('plaza', [max(clean_polys(whole), key=lambda q: q.area)],
+                     set(w['nodes']).union(*[a['ids'] for a in inside]), w['tags'], f'way {w["id"]}')
+            if len(self.areas) == before:
+                self.note('config', f'squares [{x}, {y}]: way {w["id"]} is closed to the public, left out')
+                continue
+            self.areas[-1]['square'] = True
+            self.areas = [a for a in self.areas if not any(a is b for b in inside)]
+            self.note('squares', f'{w["tags"].get("name", "")} (way {w["id"]}, place=square): one square of '
+                                 f'{self.areas[-1]["poly"].area:.0f} m2 to walk across, with the pedestrian areas '
+                                 f'{", ".join(a["src"][0] for a in inside) or "(none)"} in it')
         self.merge_platforms()
         self.extend_platforms()
+        # (the squares of the station table last: the platforms that stand on them are meshed before them)
+        self.areas.sort(key=lambda a: bool(a.get('square')))
         for a in self.areas:
             a['osm_level'] = a['level']
         for l in self.lifts:
@@ -1040,7 +1340,7 @@ class Builder:
             a['level'] = a['osm_level']
         for l in self.lifts:
             l['levels'] = set(l['osm_levels'])
-        for section in ('fixed', 'guess', 'platforms on the level of their track'):
+        for section in ('fixed', 'guess', 'platforms on the level of their track', 'lifts without a level in OSM'):
             self.notes.pop(section, None)
         # A train platform that OSM gives no level and that is not on a bridge or in a tunnel is on the level of its
         # track: the level of the tracks it continues (level=* there, or a platform with level=* further along),
@@ -1078,8 +1378,11 @@ class Builder:
 
         # nodes of unlevelled ground paths that lie on a walkable area belong to it
         tree = STRtree([a['poly'] for a in self.areas]) if self.areas else None
+        rings = defaultdict(int)         # node id -> number of walkable areas that have it on their outline
         for a in self.areas:
             a['inner'] = set()
+            for n in a['ids']:
+                rings[n] += 1
         if tree is not None:
             for wid, w in self.walk.items():
                 t = w['tags']
@@ -1091,13 +1394,23 @@ class Builder:
                         continue   # (the nodes in the middle of a flight of stairs are on no floor)
                     for k in tree.query(Point(p), predicate='intersects'):
                         a = self.areas[int(k)]
+                        if steps and n not in a['ids'] and (rings[n] or any(
+                                o != wid and self.floats(self.walk[o]['tags']) for o, _ in walk_nodes[n])):
+                            continue   # (the end of stairs on the outline of one area is not on another area
+                            #             that is drawn overlapping it, and the end where a tunnel or a bridge
+                            #             begins is not on the platform above or below it: stairs lead from one
+                            #             to the other)
                         # only ground-level areas: a path drawn across an underground floor is the street above it
                         if n in a['ids'] or (not a['float'] and not a['indoor'] and a['level'] in (None, 0)):
                             a['inner'].add(n)
         # A stairwell drawn as a hole in a platform has both ends of its stairs on the outline of the hole. On a
         # platform without level=* (all of its nodes are taken to be on one height) only the end that leads nowhere
         # else stands on the platform; the other end is where the stairs come out, on the bridge or in the underpass.
+        # The same on a platform with level=*, for stairs that carry no level of their own (level=* on the stairs
+        # says where their ends are): the end that also belongs to a path or to the outline of another platform or
+        # square is where the stairs come out, and is not on the level of the platform.
         off = defaultdict(set)
+        off_levelled = defaultdict(set)
         for wid, w in self.walk.items():
             if w['tags'].get('highway') != 'steps':
                 continue
@@ -1105,11 +1418,17 @@ class Builder:
             onward = [n for n in ends if any(other != wid for other, _ in walk_nodes[n])]
             if len(onward) == 1:
                 off[onward[0]].add(ends[0] if onward[0] == ends[1] else ends[1])
+            if not parse_levels(w['tags']):
+                onward = [n for n in ends if rings[n] > 1 or any(other != wid for other, _ in walk_nodes[n])]
+                if len(onward) == 1:
+                    off_levelled[onward[0]].add(ends[0] if onward[0] == ends[1] else ends[1])
         for a in self.areas:
             members = [n for n in (a['ids'] | a['inner']) if n not in self.lift_of]
+            have = set(members)
             if a['osm_level'] is None:
-                have = set(members)
                 members = [n for n in members if not (off.get(n, set()) & have)]
+            else:
+                members = [n for n in members if not (off_levelled.get(n, set()) & have)]
             a['members'] = members
             if a['level'] is not None:
                 for n in members:
@@ -1153,6 +1472,12 @@ class Builder:
                     claims[self.walk[wid]['nodes'][i]][float(lvl)] += 1
 
         group_level = {}
+        # Stairs of more than 2 m (step_count) lead to another level: a square or platform without a level is not
+        # on the level that the other end of such stairs stands on, whatever a node it shares with a levelled
+        # outline says (a square drawn up to the foot of the wall of a raised platform).
+        tall = [(w['nodes'][0], w['nodes'][-1]) for w in self.walk.values()
+                if w['free'] and not w['lv'] and w['tags'].get('highway') == 'steps'
+                and (num(w['tags'].get('step_count')) or 0) * STEP_RISE > 2.0]
 
         def regroup():
             votes = defaultdict(lambda: defaultdict(int))
@@ -1160,9 +1485,15 @@ class Builder:
                 if n in parent or find(n) != n:
                     for lvl, k in c.items():
                         votes[find(n)][lvl] += k
+            for ends in tall:
+                for u, v in (ends, ends[::-1]):
+                    c = claims.get(v)
+                    if c and len(c) == 1 and find(u) != find(v) and find(u) in votes:
+                        votes[find(u)].pop(next(iter(c)), None)
             group_level.clear()
             for g, c in votes.items():
-                group_level[g] = max(c.items(), key=lambda kv: (kv[1], -abs(kv[0])))[0]
+                if c:
+                    group_level[g] = max(c.items(), key=lambda kv: (kv[1], -abs(kv[0])))[0]
 
         def known(n):
             """The level of a node if it is settled."""
@@ -1336,6 +1667,20 @@ class Builder:
         if refit:
             var = {k: i for i, k in enumerate(k for k in var if k not in fixed)}
             zs = self.least_squares(var, fixed, eqs)
+        # A lift that OSM gives no level serves the levels of the platforms, squares and floors it is drawn into
+        # (its outline shares nodes with theirs), and those of the paths that end at it (below).
+        for l in self.lifts:
+            if l['osm_levels']:
+                continue
+            on = sorted({a['level'] for a in self.areas if a['ids'] & l['ids'] and float(a['level']).is_integer()}
+                        - l['levels'])
+            if on:
+                l['levels'] |= set(on)
+                self.note('lifts without a level in OSM',
+                          f'{l["src"]} at ({l["xy"][0]:.0f}, {l["xy"][1]:.0f}): stands on the outline of '
+                          + ' and '.join(f'{a["kind"]} {",".join(a["refs"]) or a["name"] or a["src"][0]} (level '
+                                         f'{a["level"]:g})' for a in self.areas
+                                         if a['ids'] & l['ids'] and a['level'] in on) + ': serves those levels')
 
         # levels of the unlevelled ways; at a lift each way lands on the nearest level the lift serves
         for wid, w in self.walk.items():
@@ -1392,6 +1737,28 @@ class Builder:
                     self.wl[wid][i] = main
                     self.note('fixed', f'node {n} at ({p[0]:.0f}, {p[1]:.0f}): way {wid} (level {lvl:g}) meets level '
                                        f'{main:g} without stairs or lift; its last piece is treated as a slope')
+
+        # Stairs climb one way. Where an end was put on another level than incline=* or the steps counted say (it
+        # meets a levelled path there, above), the nodes in between are left above or below both ends: they are
+        # put on the line between the ends instead.
+        for wid, w in self.walk.items():
+            lv = self.wl[wid]
+            if not w['free'] or w['tags'].get('highway') != 'steps' or len(lv) < 3:
+                continue
+            lo, hi = min(lv[0], lv[-1]), max(lv[0], lv[-1])
+            loose = [i for i in range(1, len(lv) - 1) if len(walk_nodes[w['nodes'][i]]) == 1
+                     and w['nodes'][i] not in self.lift_of]
+            if len(loose) == len(lv) - 2 and any(not (lo - 0.01 <= lv[i] <= hi + 0.01) for i in loose):
+                total = line_len(w['pts']) or 1.0
+                run = 0.0
+                for i in range(1, len(lv) - 1):
+                    run += dist(w['pts'][i - 1], w['pts'][i])
+                    lv[i] = round(lv[0] + (lv[-1] - lv[0]) * run / total, 2)
+                p0 = w['pts'][0]
+                self.note('fixed', f'way {wid} (steps) at ({p0[0]:.0f}, {p0[1]:.0f}): incline={w["tags"].get("incline")}'
+                                   f' step_count={w["tags"].get("step_count")} contradicts the levels of its ends '
+                                   f'({lv[0]:g} and {lv[-1]:g}); the ends win, the nodes between them are put on '
+                                   f'the line from one to the other')
 
     def spot_heights(self):
         """Measured heights of the street from the station's heights.json: [x, y, metres, 'ground' | 'bridge', id]."""
@@ -1503,6 +1870,8 @@ class Builder:
                 self.gkey[key] = i
         else:
             self.gmeta[i].update(meta)
+        if meta.get('float'):
+            self.gmeta[i]['off'] = True   # where a tunnel or a bridge begins, whichever of its ways comes last
         return i
 
     def edge(self, a, b, kind, length=None, **attrs):
@@ -1605,6 +1974,32 @@ class Builder:
                                            f'{lv[-1]:g}: {rise:.0f} m in one flight, drawn {line_len(pts):.0f} m long')
 
         self.add_lifts()
+
+    def add_links(self):
+        """The walks of the station table that OSM has no path for (links): from path to path, flagged inferred."""
+        for x1, y1, x2, y2, lvl in self.cfg.get('links', []):
+            ends = []
+            for p in ((x1, y1), (x2, y2)):
+                best = None
+                for k, e in enumerate(self.edges):
+                    a, b = self.gn[e['a']], self.gn[e['b']]
+                    if e['kind'] != 'walk' or a[2] != lvl or b[2] != lvl:
+                        continue
+                    seg = LineString([a[:2], b[:2]])
+                    d = seg.distance(Point(p))
+                    if d <= 8 and (best is None or d < best[0]):
+                        q = seg.interpolate(seg.project(Point(p)))
+                        best = (d, k, (q.x, q.y))
+                if best:
+                    ends.append(self.split(best[1], best[2]))
+            if len(ends) == 2 and ends[0] != ends[1]:
+                self.edge(ends[0], ends[1], 'walk', outdoor=True, inferred=True)
+                self.note('inferred links', f'link of the station table from ({self.gn[ends[0]][0]:.0f}, '
+                          f'{self.gn[ends[0]][1]:.0f}) to ({self.gn[ends[1]][0]:.0f}, {self.gn[ends[1]][1]:.0f}) on '
+                          f'level {lvl:g}, {dist(self.gn[ends[0]], self.gn[ends[1]]):.1f} m')
+            else:
+                self.note('config', f'links [{x1}, {y1}, {x2}, {y2}, {lvl}]: no path on level {lvl:g} within 8 m of '
+                                    f'one of its ends, left out')
 
     def add_lifts(self):
         """One node per level a lift serves; the ways that end at the lift hang on them. finish_lifts joins them."""
@@ -1895,7 +2290,10 @@ class Builder:
             near = prep(free.buffer(0.2))
             local = []
             minx, miny, maxx, maxy = free.bounds
-            for i in by_level.get(lvl, []):
+            # a square of the station table also takes the nodes along the platforms that stand on it (made
+            # above): one walks straight across it to them, over the tram tracks
+            for i in ([i for i in range(len(self.gn)) if self.gn[i][2] == lvl] if a.get('square')
+                      else by_level.get(lvl, [])):
                 x, y, _ = self.gn[i]
                 if not (minx - 1 <= x <= maxx + 1 and miny - 1 <= y <= maxy + 1):
                     continue
@@ -1968,10 +2366,27 @@ class Builder:
                     if i < j and (i, j) in pair:
                         adj[i][j] = adj[j][i] = pair[(i, j)]
 
-            def link(i, j, d):
+            def link(i, j, d, **more):
                 adj[i][j] = adj[j][i] = d
                 pair[(i, j) if i < j else (j, i)] = d
-                self.edge(i, j, 'walk', d, **attrs)
+                e = self.edge(i, j, 'walk', d, **attrs)
+                if e:
+                    e.update(more)   # (edge() leaves out what is False)
+
+            # The tram and bus islands that stand on a square of the station table are raised (boarding edges of
+            # 16 to 27 cm): one steps onto them over their long sides, and rolls onto them at their ends. A link
+            # across a long side is kept for walkers and marked wheelchair: false; the links that stay clear of the
+            # long sides are made first, so that the step-free way round does not depend on the others.
+            kerbs = None
+            if a.get('square'):
+                sides = [island_sides(b['poly']) for b in self.areas if b is not a and b['kind'] == 'platform'
+                         and b['level'] == lvl and poly.buffer(1.0).covers(b['poly'])]
+                sides = [x for x in sides if not x.is_empty]
+                kerbs = prep(unary_union(sides)) if sides else None
+
+            def over_kerb(i, j):
+                d = dist(self.gn[i], self.gn[j])
+                return d > 0.3 and kerbs.intersects(substring(LineString([self.gn[i][:2], self.gn[j][:2]]), 0.1, d - 0.1))
 
             for i, j in zip(spine_ids, spine_ids[1:]):
                 if i is not None and j is not None and j not in adj[i]:
@@ -1986,6 +2401,19 @@ class Builder:
                         continue
                     cands.append((d, i, j))
             cands.sort()
+            if kerbs is not None:
+                stepped = {(i, j) for d, i, j in cands if over_kerb(i, j)}
+                for d, i, j in cands:
+                    if j in adj[i] or (i, j) in stepped:
+                        continue
+                    if d > 0.05:
+                        if self.within(adj, i, j, SPANNER * d + 0.3):
+                            continue
+                        if not reach.covers(LineString([self.gn[i][:2], self.gn[j][:2]])):
+                            continue
+                    link(i, j, d)
+                cands = [c for c in cands if (c[1], c[2]) in stepped]
+            made = len(self.edges)
             for d, i, j in cands:
                 if j in adj[i]:
                     continue
@@ -1994,7 +2422,12 @@ class Builder:
                         continue
                     if not reach.covers(LineString([self.gn[i][:2], self.gn[j][:2]])):
                         continue
-                link(i, j, d)
+                link(i, j, d, **({'wheelchair': False} if kerbs is not None else {}))
+            if kerbs is not None:
+                self.note('squares', f'{a["name"] or a["src"][0]}: {len(stepped)} of the straight lines across it '
+                                     f'cross the long side of a tram or bus island (a kerb); {len(self.edges) - made} '
+                                     f'of them were needed as links for walkers (wheelchair: false), the others '
+                                     f'are no shorter than the way round the ends of the islands')
 
     def within(self, adj, src, dst, limit):
         """Is there already a walk from src to dst no longer than limit?"""
@@ -2173,10 +2606,10 @@ class Builder:
         self.edges.append(rest)
         return m
 
-    def nearest_node(self, p, level, limit=60.0, only=None):
+    def nearest_node(self, p, level, limit=60.0, only=None, tol=0.01):
         best = None
         for i, (x, y, lvl) in enumerate(self.gn):
-            if self.comp[i] != self.main or abs(lvl - level) > 0.01 or self.gmeta[i].get('helper'):
+            if self.comp[i] != self.main or abs(lvl - level) > tol or self.gmeta[i].get('helper'):
                 continue
             if only and not only(i):
                 continue
@@ -2196,6 +2629,12 @@ class Builder:
                     items.append((t['name'], n['xy'], lv[0] if lv else 0.0, f'node {n["id"]}'))
         for name, p, lvl, src in items:
             hit = self.nearest_node(p, lvl, 25.0)
+            if not hit:
+                # the end of a path that climbs or falls away from the level: the street it comes out on
+                hit = self.nearest_node(p, lvl, 25.0, tol=0.95)
+                if hit:
+                    self.note('entrances', f'{name} ({src}): no path node on level {lvl:g} within 25 m; tied to the '
+                                           f'end of the sloping path at level {self.gn[hit[1]][2]:g}')
             if not hit:
                 self.note('entrances', f'{name} ({src}): no path node on level {lvl:g} within 25 m, left out')
                 continue
@@ -2342,14 +2781,17 @@ class Builder:
             name = t.get('name') or {'tickets': 'Ticket machine' if t.get('vending') else 'Tickets',
                                      'toilets': 'Toilets', 'lockers': 'Lockers', 'info': 'Information',
                                      'meeting-point': 'Meeting point'}[k]
-            items.append((k, name, p, lv[0] if lv else None))
+            items.append((k, name, p, lv[0] if lv else None, t.get('layer') not in (None, '0')))
         for k, name, x, y, lvl in self.cfg.get('pois', []):
-            items.append((k, name, (x, y), float(lvl)))
-        for k, name, p, lvl in items:
+            items.append((k, name, (x, y), float(lvl), False))
+        # (without level=* and without layer=* a thing stands on the ground: not in the underpass that runs below
+        # it, not on the bridge above it)
+        ground = [i for i in range(len(self.gn)) if not self.gmeta[i].get('float')] or list(range(len(self.gn)))
+        for k, name, p, lvl, layered in items:
             if not self.extent.covers(Point(p)):
                 continue
             if lvl is None:   # the level of the ground there
-                best = min(range(len(self.gn)), key=lambda i: dist(self.gn[i], p))
+                best = min(range(len(self.gn)) if layered else ground, key=lambda i: dist(self.gn[i], p))
                 lvl = float(round(self.gn[best][2]))
             key = (k, round(p[0] / 3), round(p[1] / 3), lvl)
             if key in seen:
@@ -2389,7 +2831,7 @@ class Builder:
         best = None
         for i, (x, y, lvl) in enumerate(self.gn):
             m = self.gmeta[i]
-            if m.get('float') or m.get('helper') or 'osm' not in m:
+            if m.get('float') or m.get('off') or m.get('helper') or 'osm' not in m:
                 continue
             d = dist((x, y), p)
             if best is None or d < best[0]:
@@ -2641,6 +3083,10 @@ class Builder:
             item = {'uic': st['uic'], 'ref': st['ref'], 'mode': st['mode'], 'name': st['name'], 'level': lvl(l),
                     'xy': [round(x, 2), round(y, 2)], 'node': st['node'],
                     'nodes': sorted(set(along) | {st['node']})}
+            if not st['ref']:
+                # (the app can only name a stop without a number by this point: the router takes a position
+                # within 3 m of it for the stop, on the level the stop has here)
+                item['at'] = [round(st['p'][0], 2), round(st['p'][1], 2)]
             if st.get('closed') and self.shut(st['closed']):
                 item['closed'] = self.shut(st['closed'])
             if st.get('closed') and st['closed'].get('remark'):
@@ -2691,6 +3137,13 @@ class Builder:
             if len(set(names)) == len(names):
                 for i, n in zip(items, names):
                     i['name'] = n
+        for x, y, name, mode in self.cfg.get('stop_names', []):
+            near = [i for i in stops if not i['ref'] and dist(i['xy'], (x, y)) <= 10]
+            if len(near) == 1:
+                near[0].update(name=name, mode=mode)
+            else:
+                self.note('config', f'stop_names [{x}, {y}, {name}]: {len(near)} stops without a number within 10 m, '
+                                    f'not used')
         for item in stops:
             item.pop('_p'), item.pop('_bearing')
         if merged:
@@ -2876,7 +3329,9 @@ class Builder:
             pt = Point(f['xy'])
             on = [l for poly, l, k in walk if k == 'platform' and l == 0 and poly.covers(pt)]
             near = sorted((poly.distance(pt), abs(l), l) for poly, l, k in walk)
-            if on:
+            if f.get('level') is not None:
+                level = f['level']        # (given in the file, where the rule below would pick the wrong floor)
+            elif on:
                 level = 0
             elif near and near[0][0] <= 15:
                 level = near[0][2]
@@ -3102,6 +3557,7 @@ class Builder:
             self.solve_levels()
         self.name_areas()
         self.build_graph()
+        self.add_links()
         self.place_stops()
         self.mesh_areas()
         self.finish_lifts()
