@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 WorkingDirectory=%h/kante-host/current
 EnvironmentFile=-%h/kante-host/config.env
-# "--app none": serve the API (and the debug page at /playground/), not the Kante web app
+# "--app none": serve the API only, not the Kante web app
 ExecStart=/bin/sh -c 'exec ./kante serve --data data --bind 127.0.0.1 --port "$${KANTE_PORT:-8080}" --app none'
 KillSignal=SIGINT
 TimeoutStopSec=15

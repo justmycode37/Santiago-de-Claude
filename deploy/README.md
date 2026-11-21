@@ -13,7 +13,7 @@ lives in `~/kante-host`.
 
 ## The running instance
 
-The engine is at **https://kante.omniroute.app** (try `/api/meta` or `/playground/`). It runs behind the
+The engine is at **https://kante.omniroute.app** (try `/api/meta`). It runs behind the
 Cloudflare tunnel `kante-lapdell1`, made the dashboard way: the hostname is set in Cloudflare and the host
 only holds the tunnel's token. Cloudflare turns away some non-browser clients on this address, among them
 Python's default `urllib` (HTTP 403); browsers, `curl` and Node are fine.
