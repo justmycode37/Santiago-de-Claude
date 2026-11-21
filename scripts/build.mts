@@ -25,7 +25,7 @@ export const APP = path.join(SRC, 'app');
 /** The line in index.html that the page's own script replaces. */
 const APP_MARKER = /^[ \t]*<!-- build: src\/app -->[ \t]*$/m;
 /** Folders the page loads files from. */
-export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media'];
+export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media', 'walkgraph']; // walkgraph: the pedestrian network (walkroute.js)
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
 const DEMO = ['demo/index.html', 'demo/opening.jpg', 'demo/santiago.mp4'];
 /** In the repository root, but not published: the development pages, the config template and a local config. */
