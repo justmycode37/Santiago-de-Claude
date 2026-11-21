@@ -1146,7 +1146,7 @@
       score();
       placeTags();
       renderSheet();
-      if (!busy && !(noCamera && !stillImage)) { // no camera and no photo: nothing to read, load nothing
+      if (!busy && (stillImage || ui!.video.videoWidth > 0)) { // nothing to read yet (no frames, or no camera): load nothing
         const ocrDue = tapRead ? Infinity : now - lastOcr - 1500;
         // comparing photos only helps while it can still change the answer: not once a sign has settled it,
         // and not when fewer than two stops around have photos

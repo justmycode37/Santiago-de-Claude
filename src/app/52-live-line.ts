@@ -59,9 +59,8 @@ function liveParts(now: number): LiveLine | null {
     }
     const r = st.nextRide;
     if (st.final || !r) return { kind: 'gps', parts: [`${fmtDist(left)} to ${st.toName || 'your destination'}`] };
-    // the stop's name is the timeline's first item; a platform number is new
-    const board = boardName(r), named = board !== r.s.departure.station!.name;
-    const where = left < 30 ? `At ${board} ·` : named ? `${fmtDist(left)} to ${board} ·` : `${fmtDist(left)} ·`;
+    const board = boardName(r);
+    const where = left < 30 ? `At ${board} ·` : `${fmtDist(left)} to ${board} ·`;
     const hr = left >= 30 ? hurry(left, r, now) : null;
     return { kind: 'gps', rest: hr ? hr.text : '', restLevel: hr && hr.level,
       parts: [h('span', 'live-lead', where, kBadge(r.s.journey)), ` ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.departure, 'departure')), platChange(r)] };

@@ -93,7 +93,7 @@ eventJourneyButton.addEventListener('click', () => {
   const event = pageEvent;
   if (!event) return;
   if (!window.isSecureContext || !navigator.geolocation) {
-    eventJourneyStatus.textContent = 'Open this page over HTTPS to use your location.';
+    eventJourneyStatus.textContent = !window.isSecureContext ? 'Open this page over HTTPS to use your location.' : 'This browser can’t share your location.';
     return;
   }
   const request = ++eventLocationRequest;

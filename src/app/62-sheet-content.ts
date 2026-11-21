@@ -123,7 +123,8 @@ function firstAction(now: number) {
 }
 
 function legChain() {
-  const items = journeySteps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && walkMinOf(st) > 3));
+  const rides = journeySteps.some((st) => st.type === 'ride'); // a walk-only journey keeps its walk
+  const items = journeySteps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && (!rides || walkMinOf(st) > 3)));
   const max = 7, cut = items.length > max ? items.slice(0, max - 1) : items;
   const chain = h('span', 'chain');
   chain.setAttribute('aria-hidden', 'true');
