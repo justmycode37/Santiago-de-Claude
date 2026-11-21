@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2325_380",{"s":{},"d":{"8509345":[[0,"231","Achseten, Kirche|Frutigen, Bahnhof"]]}});
+STOP_IMAGES_TILE("2325_380",{"s":{"8509345":[["mapillary","mly",0,38,"m:212128307167999","trac71","CC-BY-SA-4.0","f/rQGDbM6ugNE8/5EAg/ygQdB/fzutwVy+MC/ssREhb4ABUMAfM37xD8/esLBQ8A9SUIFR8V/ucX8gAU+/wAEuwaEvsH8/T38w4N2x0A5PXkA/4U7e8E8vwUAfMAE+wH9h8F+P4CAAYTBAP5FfMgDfXoBwMr+gYPAwjzFwnbC+8="]]},"d":{"8509345":[[0,"231","Achseten, Kirche|Frutigen, Bahnhof"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2331_518",{"s":{},"d":{"8574657":[[0,"832","Müstair, Clostra Son Jon"]]}});
+STOP_IMAGES_TILE("2331_518",{"s":{"8574657":[["mapillary","mly",0,85,"m:1001847347283986","lumi","CC-BY-SA-4.0","UoHsXXrhLBf/CvpB7tWdAiQd6uby7u3tHxsnCv73FvcCIN1GGC341e0UJu/r2xsQ+yAMGNQSE+PrIPHzJC4DHA3w8wYL9u8CDtYG/+8d6ecDBQcCCO0XCQEID/Pt5vPs9ODpBfkH9//uCv3+FewP5v/74vgKEer0DvQQH+b46B0="]]},"d":{"8574657":[[0,"832","Müstair, Clostra Son Jon"]]}});

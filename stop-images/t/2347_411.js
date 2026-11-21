@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2347_411",{"s":{},"d":{"8511719":[[0,"391","Alpnach Dorf, Bahnhof"]]}});
+STOP_IMAGES_TILE("2347_411",{"s":{"8511719":[["mapillary","mly",0,103,"m:1438619420112255","fcignat","CC-BY-SA-4.0","SraJJn80KOHQGAUiLN/KFTgB9RvsG/rj6fYCyAUw6TYoOcQSESVDAvXhLxf7+AwK5+Hp9wUHDQnZDwPn+h/nLOgnFQ8RMPgNDQMTDQ0X2+066+oOIuQVCxEHCRgE/fr7C/cP6QcOCAQKERYFDfcBCgf79AAbBQL7DAUABgIBBwk="]]},"d":{"8511719":[[0,"391","Alpnach Dorf, Bahnhof"]]}});

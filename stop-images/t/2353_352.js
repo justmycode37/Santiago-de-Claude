@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2353_352",{"s":{},"d":{"8571908":[[0,"131","La Neuveville, poste|Le Landeron, gare"],[null,"131","Nods, école|Lignières, Moulin Navilot"]]}});
+STOP_IMAGES_TILE("2353_352",{"s":{"8571908":[["mapillary","mly",0,210,"m:978753932930117","mapmaniak","CC-BY-SA-4.0","Rc2kDH8mLvXYAyEl7uzF9NToH8va/Ou2AwYH3gcW+iw0AwTpICEa8wQN7gf2BPUA5g/9Fu/lIwbd7gT4AfQPBQAXB/M8/e0WEusLBfwjE/gS/Qv+Fuwy7AL6E/0EFgP9+xQN8/4AAAgaGwsDDwn5CfUG8O8IByADBA8EABMEByA="]]},"d":{"8571908":[[0,"131","La Neuveville, poste|Le Landeron, gare"],[null,"131","Nods, école|Lignières, Moulin Navilot"]]}});

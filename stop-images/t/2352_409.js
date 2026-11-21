@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2352_409",{"s":{},"d":{"8594401":[[0,"N6","Menznau, Bahnhof|Wolhusen, Bahnhof|Luzern, Bahnhof"]]}});
+STOP_IMAGES_TILE("2352_409",{"s":{"8594401":[["mapillary","mly",0,6,"m:1095011854314457","strassenfeger","CC-BY-SA-4.0","Xdu1DmlSF9vtxQri2fAFMZ+gCgCBKgKzDfHiAwYZxx0eHBMfPBs+7twn6gTsAt//6PgN8M3/9QrOBx30/h8HBh04G/AfAtwmCwUkG/cn6gAHDf3/K+QSDBAOGPgYH/P0FQgI/AEH9hkIEQICBgAJ9vwFIt77BB8PEwAR9/0E/wU="]]},"d":{"8594401":[[0,"N6","Menznau, Bahnhof|Wolhusen, Bahnhof|Luzern, Bahnhof"]]}});

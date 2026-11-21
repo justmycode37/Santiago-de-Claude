@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2337_490",{"s":{},"d":{"8509096":[[0,"GB","Davos Glaris (Talst.Jatzmeder)"]]}});
+STOP_IMAGES_TILE("2337_490",{"s":{"8509096":[["mapillary","mly",0,4294967224,"m:942086253232358","jesolem","CC-BY-SA-4.0","FLCpFX8I6CLlFtbDXfIX0BMPyD311tnEu7Pa5Q5BFT459CD9B8/uCtcxONw+6BUNJcoECwosCBrF3+El5+UtIv4H6EXzzyrwCPAO7ELw5c76Jt4W8dLbDQjcAD3W69flzt4A7zvh/AwBCPjSOLsJ1xDb8v4d2RXxDRnpMfbiJO0="]]},"d":{"8509096":[[0,"GB","Davos Glaris (Talst.Jatzmeder)"]]}});

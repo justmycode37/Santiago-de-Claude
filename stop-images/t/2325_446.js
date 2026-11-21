@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2325_446",{"s":{},"d":{"8578838":[[0,"140 131","Disentis/Mustér, staziun/posta|Biasca, Stazione|Campra, centro nordico|Olivone, Posta"]]}});
+STOP_IMAGES_TILE("2325_446",{"s":{"8578838":[["mapillary","mly",0,162,"m:1406726616372486","jollo","CC-BY-SA-4.0","Lr2BRmMuEwf86QrJRcEDDMbmG8u+BB3n6e722D5S1C8uC+EbIBQK1tIOE/EOE/YO9OARP/n2Ah3Q/BHt9O3+Fw4G7+YgIALu+u8V9SUc+gMhBhHzGu39/A77DQPzCgwK+PQBDQoDGAwLOvrjEg4gA/4FCuwYCBb1BPT3/u31Byg="]]},"d":{"8578838":[[0,"140 131","Disentis/Mustér, staziun/posta|Biasca, Stazione|Campra, centro nordico|Olivone, Posta"]]}});

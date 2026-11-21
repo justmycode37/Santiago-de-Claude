@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2366_383",{"s":{},"d":{"8557115":[[0,"131","Balsthal, Bahnhof|Aedermannsdorf, Güggel"]]}});
+STOP_IMAGES_TILE("2366_383",{"s":{"8557115":[["mapillary","mly",0,356,"m:1168346790255845","frankvival","CC-BY-SA-4.0","fLv0f2cZ09Q3+CFAJRQQRVTg9ETgyCoDGB7jBMzA6TsrEtgmEho/CQMRDwU3+Tr34NEU/BUkDUX2H//wBwMHG8oIPhny/wISDeYx9wgaBBnt9RHp3AUZAyfcE+38Ew8f2/8U9+r0GOb2ACHkEP3mE/rVGggL1+kVDxccBALvAfw="]]},"d":{"8557115":[[0,"131","Balsthal, Bahnhof|Aedermannsdorf, Güggel"]]}});

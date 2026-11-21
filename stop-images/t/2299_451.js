@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2299_451",{"s":{},"d":{"8505656":[[null,"3623","Lugano Centrale (lago)|Gandria (lago)"]]}});
+STOP_IMAGES_TILE("2299_451",{"s":{"8505656":[["mapillary","mly",0,0,"m:1681429765613891","santon","CC-BY-SA-4.0","DoWIMWSoTG4R/IFg2pwOvrDPypsrqfkh47dS/cL1OgjSFp5s4CEqBgkYC+Lqq/HYKBw7zwS/AsEMBcjrKxMxNe7g8fclwskF4OoL2wpJ5Rb04BcYFAH43tnh0g3hF7bKH9ADBCDrA/zvNMwkAeNG6h0W6fsd8/DiLPHFCwraKzM="]]},"d":{"8505656":[[null,"3623","Lugano Centrale (lago)|Gandria (lago)"]]}});

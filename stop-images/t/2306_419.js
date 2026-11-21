@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2306_419",{"s":{"8505587":[["mapillary","mly",0,77,"m:634558118508621","oeschinen","CC-BY-SA-4.0","7IiuQX/RYUf9JQkOHrDz6+8H+u70xPbYAM8cNjJlvjpG8yYL/fzv/u/7/uws7zc6BeL8AwbhBBHH9SjsFwYNMyoI8/ooDggH4/Ub6B71AdII+QbG//UZHvcE6Az2/OPtBAoH/DQd7/cdLw8X8O8JFgj4Fv7/FPoFAvP/2/f+/QE="]]},"d":{}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2347_337",{"s":{},"d":{"8502502":[[0,"154","Fleurier, gare"]]}});
+STOP_IMAGES_TILE("2347_337",{"s":{"8502502":[["mapillary","mly",0,267,"m:477438030161214","globeur","CC-BY-SA-4.0","XKL8N3d/Bbr62BYkCe7fL/2/Bu6sRxbwIe0s9ecC8Cn14gzoDC8T8/4vBQD5CBbsEfoJA/gCIB26+un58ysVJv4U9fj+5ekUA+EJ3QgS8ecEEBgKF+kJDvIIIO8IGv7/A/4Y5wv2CAkIFBL1AvP/8gHzAO//ChoXDwIBB//9+w8="]]},"d":{"8502502":[[0,"154","Fleurier, gare"]]}});

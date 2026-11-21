@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2358_416",{"s":{},"d":{"8577115":[[0,"101","Hochdorf, Bahnhof"],[1,"101","Hochdorf, Bahnhof"]],"8577116":[[0,"101","Hochdorf, Bahnhof"]]}});
+STOP_IMAGES_TILE("2358_416",{"s":{"8577116":[["mapillary","mly",0,0,"m:994474968037311","blubberblubb","CC-BY-SA-4.0","fwfvOjv5xgQOPPrk8PvZFwIS4h8KCiUB+wnnCuHqDvYINd0BESUc6fAHCQ3/9gDs/uHy+fMLIDP/AfML6QQI+uwB8iUJ8vcB9Av4+fry+wYHAAMD+g4PChD6BgoA+xEGDhL/9QQJCATiAff///cS/gf2CPoB+PwAD/8D9gYD8/M="]]},"d":{"8577115":[[0,"101","Hochdorf, Bahnhof"],[1,"101","Hochdorf, Bahnhof"]],"8577116":[[0,"101","Hochdorf, Bahnhof"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2372_437",{"s":{},"d":{"8503375":[[0,"655","Effretikon, Bahnhof"]],"8587857":[[0,"655","Kyburg, Dorf"]]}});
+STOP_IMAGES_TILE("2372_437",{"s":{"8587857":[["mapillary","mly",0,359,"m:574128080220192","u001","CC-BY-SA-4.0","euCyPH/kIRLpSQoVJvy+ECAHEiH4M+O/LukVqiIY5BAVBvQGAOsU2aENAB/VAf3q++/cG/MBIOziAvDMAA8VKfIN+gIuHsoDDBPlFQkt5ukR9/gzSdsCEQHtIPsML9AIDQb6/QPi5yQYCO/xARsE6gX76fowJzTvHxfp//Uk6BA="]]},"d":{"8503375":[[0,"655","Effretikon, Bahnhof"]],"8587857":[[0,"655","Kyburg, Dorf"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2378_427",{"s":{},"d":{"8579941":[[0,"",""],[1,"543","Hüntwangen-Wil, Bahnhof"]]}});
+STOP_IMAGES_TILE("2378_427",{"s":{"8579941":[["mapillary","mly",0,155,"m:991901808012313","beat","CC-BY-SA-4.0","f+MaSzn8xN9RJSD0DhQSACHm9xj2+ez68BYM/QG2ARP3/BLtGwwy9BQe+/gU7QsQ8/f6D/Ad5hf2CvYDDgEVFfQBFggSAgb/BfL3Cvr2Bv7/+AwB7QoK/woFEAv+AAYX/w8c//H2/wT9BPv/9/QG+wb4+vQg8wUJAgUYCgcJBvs="]]},"d":{"8579941":[[0,"",""],[1,"543","Hüntwangen-Wil, Bahnhof"]]}});

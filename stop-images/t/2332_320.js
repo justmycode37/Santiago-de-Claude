@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2332_320",{"s":{},"d":{"8570155":[[0,"750","Cossonay-Penthalaz, gare|Cossonay-Ville, centre|Le Pont, gare"]]}});
+STOP_IMAGES_TILE("2332_320",{"s":{"8570155":[["mapillary","mly",0,324,"m:482336046535868","jan_solem","CC-BY-SA-4.0","ep7wf3ICKOLm7Cu+H7nYQcK20AO7aN8KPPvpzEsO19EHI5jxGCVAss4kLO7P/Rv8Gf8qCsoXHRC9MOO2Fg44SsIkAdQWF/MQ/vTmHx0U5P8I5hoOJrgICSQcLPgVDt7z7RHmK+gW/BPvOQDP5ewgAO0L/uUuCP0U+/jbAPAbEg0="]]},"d":{"8570155":[[0,"750","Cossonay-Penthalaz, gare|Cossonay-Ville, centre|Le Pont, gare"]]}});

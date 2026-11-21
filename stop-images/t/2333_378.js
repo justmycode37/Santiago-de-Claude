@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2333_378",{"s":{},"d":{"8571635":[[0,"250","Schwenden i.D., Grimmialp"],[null,"",""]]}});
+STOP_IMAGES_TILE("2333_378",{"s":{"8571635":[["mapillary","mly",0,255,"m:929533198287844","oeschinen","CC-BY-SA-4.0","y5GOsIEW7/cPQg0O8/MVJRb76+EaDfr8MgMOHiE+NdcA6c3YGxscBPbl5fgmzSQaKN7vFiEU4t/zEAEF//UtCwP9BusE7+oRG+wL4BoI6QYNIALZAPr16h/58esJ8twND+IF9vz+9wYYDfjvBfwH6vXo/QYJ8BkMHhf/BgEAAQA="]]},"d":{"8571635":[[0,"250","Schwenden i.D., Grimmialp"],[null,"",""]]}});

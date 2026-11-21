@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2333_436",{"s":{},"d":{"8500004":[[null,"920","Disentis/Mustér, staziun/posta|Tschamut, Via Alpsu|Andermatt, Bahnhofplatz"]]}});
+STOP_IMAGES_TILE("2333_436",{"s":{"8500004":[["mapillary","mly",0,269,"m:1849182878594217","canadarunner","CC-BY-SA-4.0","f8yIT3T64i6OWcsMTem04UPsw83B3O7yoM/c2yBT1hPwL8cWEB8Wx9nGMicaz8kbw/LPFDb27AblHhom7fv1C9EK/kwUDerY5PIQ7iAq6xkjAOYn2gQHBzL0zgIBBiUR5vUkEvbaEv/2E+LP//f4C/Ef1Ajn2gn3EfgP+AfpDBE="]]},"d":{"8500004":[[null,"920","Disentis/Mustér, staziun/posta|Tschamut, Via Alpsu|Andermatt, Bahnhofplatz"]]}});

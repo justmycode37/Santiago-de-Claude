@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2341_489",{"s":{},"d":{"8509087":[[0,"PB","Weissfluhjoch"]]}});
+STOP_IMAGES_TILE("2341_489",{"s":{"8509087":[["commons","geo",null,null,"c:3/30/2020-08-21_Weissfluh.jpg/500px-2020-08-21_Weissfluh.jpg","Tiia Monto","CC BY-SA 3.0","L4Gk5nne80+tMs3cMwT80RzNrxf+59oC1b2+uyT/8QAOPPwE0+4JFkoDN90buBBB1vL9BTAq/RS8IjmxCvsHLfYT+vAFEhjQ/BICyDf69cMjCdAhI+HyIzMV41ryBdYg2vY08D/x9kvxEg/ZHcEp/Sjw9ij9+Rfg/NwUAf3ZHgc="]]},"d":{"8509087":[[0,"PB","Weissfluhjoch"]]}});

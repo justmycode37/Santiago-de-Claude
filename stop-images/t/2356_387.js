@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2356_387",{"s":{},"d":{"8571551":[[0,"90","Kleindietwil, Post"]]}});
+STOP_IMAGES_TILE("2356_387",{"s":{"8571551":[["mapillary","mly",0,201,"m:941727459722728","joostjakob","CC-BY-SA-4.0","f9HnTl797d8dCSaxLgHrQbHMDQv5JBQRAusI9On6KOM2F+MaXyYn0ssbJwzgCOLsFQwgHODv/A3VFPfXKBQaGuAKE/kHAN8N8wXp/g0KEgYS7xMUAuYWAgMFJgILAPX58RAHCQsFABv4FPgPAuAADBEEE/UfMAsPDfn+6PkACgA="]]},"d":{"8571551":[[0,"90","Kleindietwil, Post"]]}});

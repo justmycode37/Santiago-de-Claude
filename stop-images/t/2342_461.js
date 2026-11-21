@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2342_461",{"s":{},"d":{"8582785":[[0,"125","Laax GR, posta|Laax GR, Nagens"]]}});
+STOP_IMAGES_TILE("2342_461",{"s":{"8530779":[["mapillary","mly",1,356,"m:1260357247741427","snowdiver","CC-BY-SA-4.0","062B3yMX1gQnA8QXBEsIQOv88Q3m+7EEQRbqRL4t+ggZ8EL/BAE+EucoFOg0FhzoCfYh7xIx6P0FFgEN6PIaRPIg+BnzCycYLO0z+Av99/3mAvof59sEEwfTDAb2/P7rHvUS6f4E+A/48BrV7t8V+Ov+GfDqAhHwDCUK8ekG//0="]]},"d":{"8582785":[[0,"125","Laax GR, posta|Laax GR, Nagens"]]}});

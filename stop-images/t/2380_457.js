@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2380_457",{"s":{},"d":{"8506554":[[0,"921","Weinfelden, Bahnhof"],[null,"",""],[1,"921","Kreuzlingen, Kantonsschule"]]}});
+STOP_IMAGES_TILE("2380_457",{"s":{"8506554":[["mapillary","mly",0,122,"m:2925258041125548","mstock","CC-BY-SA-4.0","fyHnKSvJwRoGRh7vCQLl7O0B+wnvCv3q6fz78vrpEhcXG/ruF/8wBPz/5/gYKwn79RrkBA8I7yoJ+ecQ+eohCf0GCAYaBgvt3w4S+OwD+g359BcI+Pz7+R0R+f0ZDPvwAgT59f/tBwARC/UI+/wOBv8HCQkK5RIEAxUODgv1+PE="]]},"d":{"8506554":[[0,"921","Weinfelden, Bahnhof"],[null,"",""],[1,"921","Kreuzlingen, Kantonsschule"]]}});

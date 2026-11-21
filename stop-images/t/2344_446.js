@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2344_446",{"s":{},"d":{"8505996":[[null,"408","Linthal, Bahnhof|Attinghausen, Seilbahn|Urnerboden, Dorf|Balm (Klausen)"]]}});
+STOP_IMAGES_TILE("2344_446",{"s":{"8505996":[["mapillary","mly",0,224,"m:180828187274488","canadarunner","CC-BY-SA-4.0","f7jHOmsK3PqtZey1KgKgM06ssPMLwNjjw/Lm2fhYuvopIrNLBvci96/zGQIW7u8MAAf+JRQPCAjKAv7gHxDcLQsGDAYADvwX5v4C/jEm3OIZ2OQe/xH4BjQwFjIBCSYV2wkeDD7B6xUTJ+oJ9uMe7vwS+OH6Gx8GGPXxCO76FzA="]]},"d":{"8505996":[[null,"408","Linthal, Bahnhof|Attinghausen, Seilbahn|Urnerboden, Dorf|Balm (Klausen)"]]}});

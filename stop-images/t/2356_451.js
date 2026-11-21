@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2356_451",{"s":{},"d":{"8530516":[[0,"PB","Niederurnen"]]}});
+STOP_IMAGES_TILE("2356_451",{"s":{"8530516":[["mapillary","mly",0,276,"m:842318506628873","beat","CC-BY-SA-4.0","5s6hT3/sPksNE/FTLsb26vAq2etapf/65BgaCAcv/UFGNgZc/yTr9fAq//fm5RweA+UQxizo0dHsC/TqKiMjQRQ2HgQK2voG0g332PcVAd4NAgHqAyIB+Pvb9y7/+cEBBPgB5Qgm7Rz8K+oH9fcW2wcH9/EFIuMMBg/6CQf5EwU="]]},"d":{"8530516":[[0,"PB","Niederurnen"]]}});

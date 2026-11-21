@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2334_380",{"s":{},"d":{"8507245":[[0,"55","Thun, Bahnhof"]]}});
+STOP_IMAGES_TILE("2334_380",{"s":{"8507245":[["mapillary","mly",0,332,"m:192171352754781","dl7auq","CC-BY-SA-4.0","SYiROmo5BQLrGRuBKcffWeq7BD7Ra/fGWDRKCU025gUVbODkSRk/8eAlGSLR6vQEFBkj8drl+fHd6firHA4nCNUmHPsCEtAaDAPoEw0rGvv67SE7M9/wH/cYLfUCE+sP4Qz/IO7c9hEgIfM74Av86AIaCQ8hDCv2OhXj8Pj1Dhs="]]},"d":{"8507245":[[0,"55","Thun, Bahnhof"]]}});

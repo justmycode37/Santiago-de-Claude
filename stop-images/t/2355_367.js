@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2355_367",{"s":{},"d":{"8508873":[[0,"362","Lyss, Bahnhof|Schnottwil, Post|Schnottwil, Schulhaus"],[1,"M34","Lyss, Bahnhof"]]}});
+STOP_IMAGES_TILE("2355_367",{"s":{"8508873":[["mapillary","mly",0,270,"m:1758443964745888","Senfkorn","CC-BY-SA-4.0","fwHaMRvkz/ndPAMGDQvNB0wOBwQV6Pv6A+z43zD69vgAHNwHA+0BAtbo6uwI+A8FCv7qG/wM7g/x/vv08/Tp8+H58Rn5+vnzCQ79DAgR8AH+AA8d/QDzBQr6EAMSEvQMAvb+7xD18xMIC/js9/sgBv0DAAYS+xIHC//7BAcH8Ag="]]},"d":{"8508873":[[0,"362","Lyss, Bahnhof|Schnottwil, Post|Schnottwil, Schulhaus"],[1,"M34","Lyss, Bahnhof"]]}});

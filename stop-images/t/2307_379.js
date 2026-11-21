@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2307_379",{"s":{},"d":{"8530859":[[0,"GB PB","Sorebois|Grimentz (télé)"]]}});
+STOP_IMAGES_TILE("2307_379",{"s":{"8530859":[["commons","geo",null,null,"c:5/54/EW-B%C3%A4nkli_Sorebois.jpg/500px-EW-B%C3%A4nkli_Sorebois.jpg","FkMohr","CC BY-SA 3.0 de","+IHC/in4HFUKIatG+oxHFhaltewlCT093rgL6rEn1xcIIfYb5ggaDAMHIQow+NDuBvjkIN0I8/biPffYER79KfYVDD8vDgboBwMc0PLwA9QTHMIlGPn8ESsp+CUAIwIdCuw2+ibh7A7xBRbzG9wGyhsJAAMHJQ3iCwAVFeblDhM="]]},"d":{"8530859":[[0,"GB PB","Sorebois|Grimentz (télé)"]]}});

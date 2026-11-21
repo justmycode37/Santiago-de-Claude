@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2365_379",{"s":{},"d":{"8557117":[[0,"131","Balsthal, Bahnhof|Herbetswil, Mieschegg|Herbetswil, Hinterer Brandberg"]]}});
+STOP_IMAGES_TILE("2365_379",{"s":{"8557117":[["mapillary","mly",0,185,"m:135675718541535","frankvival","CC-BY-SA-4.0","Qb2mMH/nHgIfHA5c9eLY8bARHuApsOLe8Rwm+v4ODyAGKsIS8QIb4uQbHw3v6hEV1gT59vgL9tHnEQH+8vgEA+QFBOQJ/gL29/UV+vQY/+7m9Af4/gMXC+v+A/TqAfUI7QQMAwETA/X3FAABAAYo6Pn7+RIB+Qn6Cwn1DvXp/wo="]]},"d":{"8557117":[[0,"131","Balsthal, Bahnhof|Herbetswil, Mieschegg|Herbetswil, Hinterer Brandberg"]]}});

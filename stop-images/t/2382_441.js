@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2382_441",{"s":{},"d":{"8511173":[[0,"825","Stein am Rhein, Bahnhof"]]}});
+STOP_IMAGES_TILE("2382_441",{"s":{"8511173":[["mapillary","mly",0,264,"m:1097701880708651","canadarunner","CC-BY-SA-4.0","f/fQLzn53xPrBRLuLeu9E+fs5QntLP/kBSUcJysiDfwGI+neEwwNBwPq8hgF6AUU+ez0+wX++C4P5+8B7vIG8uoICg75BvQMBwT3CfYPGwMO+PMF6A72Avr5BAUGARIF/Av3/+4GDP746wAI8AAGFPsEAB0N8RDtC/7v9gb1Agw="]]},"d":{"8511173":[[0,"825","Stein am Rhein, Bahnhof"]]}});

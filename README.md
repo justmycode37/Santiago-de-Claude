@@ -39,7 +39,8 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
   ```
 - **Stop scan database (`stop-images/`)** from GTFS + open photo sources (requires `pip install onnxruntime pillow numpy`; optional `MAPILLARY_TOKEN` client token):
   ```bash
-  python3 tools/build_stop_images.py --area bern     # or --all --resume
+  python3 tools/build_stop_images.py --area bern     # one city
+  python3 tools/build_stop_images.py --all --fast --resume  # all of Switzerland, per 2 km tile (~1 h)
   python3 tools/build_stop_images.py --gtfs GTFS.zip # lines & destinations per stop edge
   ```
 

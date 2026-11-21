@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2364_466",{"s":{},"d":{"8506265":[[0,"2725","Jakobsbad (Kronbergbahn)"]]}});
+STOP_IMAGES_TILE("2364_466",{"s":{"8506265":[["mapillary","mly",0,0,"m:4156252191104170","mr4703","CC-BY-SA-4.0","KIEnKg/h7vfuDAYb4bEaC+0A5t0J+xMQDQQ2FujlAf3v9RP66Bns+/r63ecEBvLiJRv82xoa+f4LC9r85QUXC/389AcQ/+0CGd376Qry7gAJ/AwTEQgT7AEZ9vn/AQcDF+wTBvP9+RgF/RIQAwEMEAT5CR0O+vv+B/EI+AsLBBQ="]]},"d":{"8506265":[[0,"2725","Jakobsbad (Kronbergbahn)"]]}});

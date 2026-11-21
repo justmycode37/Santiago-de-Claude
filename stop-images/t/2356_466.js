@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2356_466",{"s":{},"d":{"8588536":[[0,"442","Walenstadt, Bahnhof|Flums, Bahnhof|Berschis, Unterdorf|Walenstadt, Rathausplatz"]]}});
+STOP_IMAGES_TILE("2356_466",{"s":{"8588536":[["mapillary","mly",0,156,"m:3866559813379628","lto","CC-BY-SA-4.0","f/fNYxq58dJg7/IfJfUiA+4GJv0FBhMAyQEb9PP6CAz+Jfb7D/Aj+fISAfcBDxDw6+/sBvsA9vrz7/f8Hu8D/BD/GgQO/gICAwwN9PX2BfX//vkF7/T7/SwABhAB/vQJAwUdFvv6BvMKAgDwBfEf+RD5B/UAAA4PCgz/Afz5/wI="]]},"d":{"8588536":[[0,"442","Walenstadt, Bahnhof|Flums, Bahnhof|Berschis, Unterdorf|Walenstadt, Rathausplatz"]]}});

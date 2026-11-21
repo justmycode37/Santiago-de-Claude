@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2341_389",{"s":{},"d":{"8510510":[[0,"252","Thun, Bahnhof"],[1,"252","Escholzmatt, Bahnhof"]]}});
+STOP_IMAGES_TILE("2341_389",{"s":{"8510510":[["mapillary","mly",0,93,"m:1235485053575116","barbe45","CC-BY-SA-4.0","WsCeQH8SBeThTPmkDM3REP7UA+zM87vfv9L3vQo70RoX/9YtIRUO3970GQ0K5OkA+f0CG/jX+vbo//ntEBPSI+cbFuoH/vweFAkREjk54+QG8/EKC/UB8CoH9xEfCuzm+hj+ABzwCAkPGvX2DvQAEAkUAvMTGBMA9gTz8gcGGB4="]]},"d":{"8510510":[[0,"252","Thun, Bahnhof"],[1,"252","Escholzmatt, Bahnhof"]]}});

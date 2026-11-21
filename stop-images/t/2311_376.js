@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2311_376",{"s":{},"d":{"8530137":[[0,"GB","Vercorin (station aval)"]]}});
+STOP_IMAGES_TILE("2311_376",{"s":{"8530137":[["commons","geo",null,null,"c:2/24/Fingerpost_Cr%C3%AAt_du_Midi_station_2021_10_14.jpg/500px-Fingerpost_Cr%C3%AAt_du_Midi_station_2021_10_14.jpg","Eginhard","CC BY-SA 4.0","HoH+7vPyqAEIB+0e948CFAUnogEg2i4bC/g5IAL96w3h5eXx3+LCAR4YBhL8GfLfKQEN7QIa//by7QsHD/IC/vke9wgWDRQIAuj5AwAN8fn+9QAGBfcI+gcQCQr58Pj8BPESBQH1ARj8+hX3/Pv6+Az67h8PAfUNCfr9AQj/Cw0="]]},"d":{"8530137":[[0,"GB","Vercorin (station aval)"]]}});

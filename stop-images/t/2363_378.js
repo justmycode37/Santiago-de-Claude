@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2363_378",{"s":{},"d":{"8500699":[[0,"12","Oberbalmberg, Kurhaus"],[1,"12","Solothurn, Hauptbahnhof"]]}});
+STOP_IMAGES_TILE("2363_378",{"s":{"8500699":[["mapillary","mly",0,179,"m:365987498488325","sp8962de","CC-BY-SA-4.0","ZNafSWL2FOQP9wLVf+QhGfj++P8RGP/m4RQk6DYx5vkpQxMY/esRsP8PJvr0ABsP3vAHJvLSBQADDBnoLfriQykfAPARFxcAAfMQBAT/AQI2H937Bu0YAx36CQYBEvQL9x37JAD4DQsWLv8E9Oof/B71KAQTGPz2/gP55/fxChk="]]},"d":{"8500699":[[0,"12","Oberbalmberg, Kurhaus"],[1,"12","Solothurn, Hauptbahnhof"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2347_423",{"s":{},"d":{"8508496":[[0,"2556","Beckenried (Klewenalpbahn)"]]}});
+STOP_IMAGES_TILE("2347_423",{"s":{"8508496":[["commons","geo",null,null,"c:9/9b/Epal_SBB_pallet_%286917980653%29.jpg/500px-Epal_SBB_pallet_%286917980653%29.jpg","Martin Abegglen from Bern, Switzerland","CC BY-SA 2.0","1YGQwCX6vD3YCbgNH7s37+IK3EYX3PLz8+QE2OwU7yHW5gv0F/wlE9UBABnuEO/3Bi7t/9k1+QLg8vj069P2C//x+DUN3/UVLRf7A+n87wXw2s338QH6+9vvCtoSC/rcIBP64eXq7AAFBi/1Hu8g5uEzKv7z6/3zEwT6BBfqDQY="]]},"d":{"8508496":[[0,"2556","Beckenried (Klewenalpbahn)"]]}});

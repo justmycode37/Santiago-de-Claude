@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2318_350",{"s":{},"d":{"8531374":[[0,"SL","Leysin (Tête d'Aï aval)"]]}});
+STOP_IMAGES_TILE("2318_350",{"s":{"8531374":[["mapillary","mly",0,157,"m:1229177651232834","graharg","CC-BY-SA-4.0","D4HSM+uZEQgFNM//Agjb+SMLzdzg4ewB7f4Q5QQN3RYeGe4g/AYtFQYKPuQY4+fxJQwr4A3/4Q7yLcXpAQQGIRUi0S0aFPn4DAUjxwQK/QMP6A0Y7fbt1xIJ5ugc9NIALhAH7AYF5hHwCe4D8vMcEAkG+QYD+v4ODvnkDtgAEeo="]]},"d":{"8531374":[[0,"SL","Leysin (Tête d'Aï aval)"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2366_379",{"s":{},"d":{"8557114":[[0,"131","Balsthal, Bahnhof"]]}});
+STOP_IMAGES_TILE("2366_379",{"s":{"8557114":[["mapillary","mly",0,342,"m:2565698097070768","crontab","CC-BY-SA-4.0","SIEHbTe6+wsXGjLyHSED5EISACXo2d7z+gX48fv7BhPr5/cR7B0V/x4YJdUg//L9CykNDwYE+CH/DeoaDPf18dj/ESj4CP/99gQX4vsQ8wIE7gsFBPgM/RH7Ehok8PwX/QzrBBMM/BX+A/wFA/wN6//z/wYJ/f4NBxIe7QEA8wk="]]},"d":{"8557114":[[0,"131","Balsthal, Bahnhof"]]}});

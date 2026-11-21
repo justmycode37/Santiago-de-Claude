@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2351_445",{"s":{},"d":{"8503762":[[0,"504","Glarus, Bahnhof"]]}});
+STOP_IMAGES_TILE("2351_445",{"s":{"8503762":[["commons","geo",null,null,"c:4/48/Gl%C3%A4rnischmassiv_-_panoramio.jpg/500px-Gl%C3%A4rnischmassiv_-_panoramio.jpg","pyraniton","CC BY 3.0","8JHOIn/2LDbM//YUYeUP//zgywXd2c3Mudz9BQp+7DwuD/oFHwD7IQL0FvFGzQof9u0Q8xQL7xPO+uEZz+wHEfAo9CDg4y0B/u4N7jsT6rEbBfMaFs7g5/n03xLx68saAe8dBjbv4AIA+9H6AMLe9Q/s5xsS9fv8+gXeCNzxNAw="]]},"d":{"8503762":[[0,"504","Glarus, Bahnhof"]]}});

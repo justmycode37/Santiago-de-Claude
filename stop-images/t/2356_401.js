@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2356_401",{"s":{},"d":{"8577305":[[0,"61","Luzern, Bahnhof|Luzern, Pilatusplatz|Ruswil, Rottalcenter"],[1,"61","Ettiswil, Post"]]}});
+STOP_IMAGES_TILE("2356_401",{"s":{"8577305":[["mapillary","mly",0,264,"m:274804161045288","boeboe","CC-BY-SA-4.0","cuCmHH8JFeXr8QzxJuoAKwfJKPLpEgTC5ebptx8I1/PyKNwL9v850PYSFQfrBPLp/eYYHdn2CBb3CvDe+Rv1L/EMId0TDOkIAv0PAeUH4wAX+g0ZE8nv8A0WD/cGG///CAvr/f37GgUOMxoBEAIP9wEHBfcW+vf+EiH//+gLDwo="]]},"d":{"8577305":[[0,"61","Luzern, Bahnhof|Luzern, Pilatusplatz|Ruswil, Rottalcenter"],[1,"61","Ettiswil, Post"]]}});

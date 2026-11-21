@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2362_477",{"s":{},"d":{"8582567":[[null,"414","Feldkirch, Bahnhof|Ruggell, Industriering"]]}});
+STOP_IMAGES_TILE("2362_477",{"s":{"8582567":[["mapillary","mly",0,44,"m:1367781448851395","AR88","CC-BY-SA-4.0","fp+BKCANRKCc8N+l1vCu9+ag7AWNV+T31Q+dxxq+rijhMREX2hov0PfwU/K87ecEvtL8Jw68++wCTO/31hYKAeQbCRwhO88EOBD9Fhf/7CoX2Nob9fYd4hP1E/EGCjfZ9v8AGu8lLeUHMfjb+hsFBvj86esQ7hXaF/j/DBoV8fc="]]},"d":{"8582567":[[null,"414","Feldkirch, Bahnhof|Ruggell, Industriering"]]}});

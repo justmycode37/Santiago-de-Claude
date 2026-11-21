@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2364_410",{"s":{},"d":{"8530628":[[0,"3651 3652 3653","Meisterschwanden Delphin"]]}});
+STOP_IMAGES_TILE("2364_410",{"s":{"8530628":[["mapillary","mly",0,109,"m:1142812319533652","chhousi","CC-BY-SA-4.0","f6PSEg6U6d9L7+4qBeQnuzk27yvnDgL27xEG/MHc9SH8KQMI6ioGAicXSBIlIgALFjX9HhncDQ//CR/2++wUBvVGFzAQAR8B0wkU2xv96Abm6gYPAO4KEzDqEALn++MDCxIT++8aGQkqAwYE/PUF9Abs/Owu+A4A9wAgCP4Z8fo="]]},"d":{"8530628":[[0,"3651 3652 3653","Meisterschwanden Delphin"]]}});

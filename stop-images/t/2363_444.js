@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2363_444",{"s":{},"d":{"8577341":[[0,"893","Wald ZH, Bahnhof"]]}});
+STOP_IMAGES_TILE("2363_444",{"s":{"8577341":[["mapillary","mly",0,96,"m:296314615447315","lto","CC-BY-SA-4.0","f/vqVD7Z9d0P2P0HIP3/BtgEBNby2uf39PIJ/gT8DhkCI+wFCAv07ez36/kG5wPl7BP6Evz39QQS6e8JBwbxEuMSBBMHCvccFw0H8fsD7grv/w8Y/PEBDgH1/v0LCfT69PME7gD89wcDC/8B+AoR//72DxcIAQIKAQEEFAwH//c="]]},"d":{"8577341":[[0,"893","Wald ZH, Bahnhof"]]}});

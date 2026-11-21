@@ -114,8 +114,8 @@ def polite(host, gap):
         time.sleep(wait)
 
 
-GAPS = {'tiles.mapillary.com': 0.1, 'commons.wikimedia.org': 0.35, 'upload.wikimedia.org': 0.25, 'query.wikidata.org': 1.0, 'api.panoramax.xyz': 0.2,
-        'graph.mapillary.com': 0.05, 'overpass-api.de': 5.0, 'data.sbb.ch': 0.5}
+GAPS = {'tiles.mapillary.com': 0.1, 'commons.wikimedia.org': 0.25, 'upload.wikimedia.org': 0.25, 'query.wikidata.org': 1.0, 'api.panoramax.xyz': 0.2,
+        'graph.mapillary.com': 0.02, 'overpass-api.de': 5.0, 'data.sbb.ch': 0.5}
 
 
 def fetch(url, data=None, headers=None, cache=True, binary=False, tries=5):
@@ -136,10 +136,10 @@ def fetch(url, data=None, headers=None, cache=True, binary=False, tries=5):
                 json.loads(body)  # only cache valid answers
             if cache:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
-                tmp = f'{path}.{threading.get_ident()}.tmp'
+                tmp = f'{path}.{os.getpid()}.{threading.get_ident()}.tmp'
                 with open(tmp, 'wb') as f:
                     f.write(body)
-                os.replace(tmp, path)
+                safe_replace(tmp, path)
             return body if binary else json.loads(body)
         except urllib.error.HTTPError as e:
             if e.code in (400, 401, 403, 404, 410):
@@ -151,6 +151,25 @@ def fetch(url, data=None, headers=None, cache=True, binary=False, tries=5):
 
 
 _stop_state = threading.local()  # per worker thread: did a request fail while collecting the current stop?
+
+
+def safe_replace(tmp, path, keep_theirs=True):
+    """Swap a finished temporary file in. On Windows that fails while another process reads the file (two builds
+    side by side): try again briefly; for caches (keep_theirs), the other process's identical copy will do."""
+    for attempt in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if keep_theirs and os.path.exists(path):
+                break
+            time.sleep(0.1 * (attempt + 1))
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+    if not (keep_theirs and os.path.exists(path)):
+        raise PermissionError(f'could not write {path}')
 
 
 def try_fetch(*a, **k):
@@ -471,9 +490,15 @@ def _mly_tile(lon, lat, z=14):
     return (int((lon + 180) / 360 * 2 ** z), int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * 2 ** z))
 
 
+_mly_tile_locks = {}
+
+
 def _mly_near(x, y, lon, lat, token, z=14):
     with _mly_lock:
-        if (x, y) not in _mly_tiles:
+        lock = _mly_tile_locks.setdefault((x, y), threading.Lock())
+    with lock:  # one download per coverage tile; other tiles download at the same time
+        grid = _mly_tiles.get((x, y))
+        if grid is None:
             body = try_fetch(f'https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token={token}',
                              binary=True)
             pts = mvt_points(body, z, x, y) if body else []
@@ -481,7 +506,6 @@ def _mly_near(x, y, lon, lat, token, z=14):
             for p in pts:  # bucket by ~100 m for quick lookups
                 grid.setdefault((round(p[0] * 1000), round(p[1] * 1000)), []).append(p)
             _mly_tiles[(x, y)] = grid
-        grid = _mly_tiles[(x, y)]
     return [p for dx in (-1, 0, 1) for dy in (-1, 0, 1) for p in grid.get((round(lon * 1000) + dx, round(lat * 1000) + dy), [])]
 
 
@@ -547,7 +571,12 @@ def mapillary_facing(stop, ei, edge, token):
 def commons_near(stop):
     r = int(min(300, max(40, stop['r'] + 35)))
     pages = commons_pages({'generator': 'geosearch', 'ggsnamespace': '6', 'ggscoord': f'{stop["c"][1]}|{stop["c"][0]}',
-                           'ggsradius': str(r), 'ggslimit': '100'})
+                           'ggsradius': str(r), 'ggslimit': '100' if stop['mode'] == 't' else '40'})  # stations: many photos
+    return commons_filter(stop, pages)
+
+
+def commons_filter(stop, pages):
+    """Which geotagged Commons photos near a stop show it → (refs, the stop's own categories found on them)."""
     toks = name_tokens(stop['name'])
     # "Zürich HB", "Bern": the only distinctive word is the town, which half the photos of the town mention
     town_only = ',' not in stop['name'] or not ({t for t in norm(stop['name'].split(',')[-1]).split()} & toks)
@@ -687,16 +716,17 @@ def image_bytes(ref):
     body = try_fetch(ref['thumb'], binary=True, cache=False)
     if body:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = f'{path}.{threading.get_ident()}.tmp'
+        tmp = f'{path}.{os.getpid()}.{threading.get_ident()}.tmp'
         with open(tmp, 'wb') as f:
             f.write(body)
-        os.replace(tmp, path)
+        safe_replace(tmp, path)
     return body
 
 
 # Full 768-value fingerprints of every photo, kept on this machine only (not shipped): a photo is fingerprinted
 # once, and the shipped 128-value version can be recomputed from these if the projection ever changes.
-EMB_CACHE = os.path.join(CACHE, 'emb768.tsv')
+EMB_CACHE = os.path.join(CACHE, 'emb768.tsv')  # read: emb768*.tsv; each running build appends to its own file
+EMB_OUT = os.path.join(CACHE, f'emb768.{os.getpid()}.tsv')
 _emb, _emb_lock = None, threading.Lock()
 
 
@@ -706,11 +736,12 @@ def emb_cache():
     with _emb_lock:
         if _emb is None:
             _emb = {}
-            if os.path.exists(EMB_CACHE):
-                with open(EMB_CACHE, encoding='utf-8') as f:
+            import glob
+            for path in sorted(glob.glob(os.path.join(CACHE, 'emb768*.tsv'))):
+                with open(path, encoding='utf-8') as f:
                     for line in f:
                         k, _, b = line.rstrip('\n').partition('\t')
-                        if b:
+                        if b and len(b) == 1024:  # 768 bytes in base64; anything else is a broken line
                             _emb[k] = b
         return _emb
 
@@ -728,11 +759,19 @@ def emb_put(items):
     import numpy as np
     cache = emb_cache()
     os.makedirs(CACHE, exist_ok=True)
-    with _emb_lock, open(EMB_CACHE, 'a', encoding='utf-8') as f:
+    with _emb_lock, open(EMB_OUT, 'a', encoding='utf-8') as f:
         for key, v in items:
             b = base64.b64encode(np.round(v / np.abs(v).max() * 127).astype(np.int8).tobytes()).decode()
             cache[key] = b
             f.write(f'{key}\t{b}\n')
+
+
+def safe_image_bytes(ref):
+    try:
+        return image_bytes(ref)
+    except Exception as e:  # one photo that cannot be saved: its stop is retried later, the build goes on
+        log(f'  ! photo {photo_key(ref)}: {type(e).__name__}: {str(e)[:100]}')
+        return None
 
 
 def fingerprint(refs_by_stop, embedder):
@@ -744,10 +783,10 @@ def fingerprint(refs_by_stop, embedder):
     jobs = [j for j in jobs if 'v' not in j[1]]
     log(f'fingerprinting {len(jobs)} new photos')
     done = 0
-    with cf.ThreadPoolExecutor(6) as pool:
-        for i in range(0, len(jobs), 32):
-            chunk = jobs[i:i + 32]
-            datas = list(pool.map(lambda j: image_bytes(j[1]), chunk))
+    with cf.ThreadPoolExecutor(16) as pool:
+        for i in range(0, len(jobs), 64):
+            chunk = jobs[i:i + 64]
+            datas = list(pool.map(lambda j: safe_image_bytes(j[1]), chunk))
             arrays, keep = [], []
             for (uic, r), d in zip(chunk, datas):
                 try:
@@ -858,7 +897,7 @@ def atomic_write(path, text):
     tmp = f'{path}.{os.getpid()}.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         f.write(text)
-    os.replace(tmp, path)
+    safe_replace(tmp, path, keep_theirs=False)
 
 
 def write(refs_by_stop, stops, keep_srcs=(), lines_by_stop=None, keep_all=()):
@@ -959,6 +998,217 @@ def migrate(stops):
             os.remove(os.path.join(tdir, name))
     write_index()
 
+
+
+# ---------------------------------------------------------------- fast mode: one 0.02° tile at a time
+# The same sources and the same rules as collect(), but asked once per area instead of once per stop:
+# Commons geotagged files by bounding box (split while an area has more than 500), their details 50 at a time;
+# Panoramax pictures by bounding box, "faces the edge" checked here from each picture's direction; Mapillary
+# photos from its coverage tiles, their links 50 at a time. A few requests per tile instead of several per stop.
+def _quarters(b):
+    mx, my = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+    return [(b[0], b[1], mx, my), (mx, b[1], b[2], my), (b[0], my, mx, b[3]), (mx, my, b[2], b[3])]
+
+
+def commons_in_box(box, depth=0):
+    d = try_fetch(COMMONS + urllib.parse.urlencode({'action': 'query', 'list': 'geosearch', 'gsnamespace': '6',
+                  'gsbbox': f'{box[3]}|{box[0]}|{box[1]}|{box[2]}', 'gslimit': '500', 'format': 'json'}))
+    rows = ((d or {}).get('query') or {}).get('geosearch', [])
+    if len(rows) >= 500 and depth < 4:
+        return [r for q in _quarters(box) for r in commons_in_box(q, depth + 1)]
+    return rows
+
+
+def commons_pages_by_title(titles):
+    out, titles = {}, sorted(set(titles))
+    for i in range(0, len(titles), 50):
+        for pg in commons_pages({'titles': '|'.join(titles[i:i + 50])}):
+            out[pg['title']] = pg
+    return out
+
+
+def panoramax_in_box(box, depth=0):
+    d = try_fetch('https://api.panoramax.xyz/api/search?' + urllib.parse.urlencode(
+        {'bbox': f'{box[0]},{box[1]},{box[2]},{box[3]}', 'limit': '1000'}))
+    feats = (d or {}).get('features', [])
+    if len(feats) >= 1000 and depth < 3:
+        return [f for q in _quarters(box) for f in panoramax_in_box(q, depth + 1)]
+    return feats
+
+
+def panoramax_ref(f, ei, edge):
+    props, assets = f.get('properties', {}), f.get('assets', {})
+    sd = (assets.get('sd') or assets.get('thumb') or {}).get('href')
+    lon, lat = f['geometry']['coordinates'][:2]
+    head = props.get('view:azimuth')
+    if not sd or head is None or (props.get('pers:interior_orientation') or {}).get('field_of_view') == 360:
+        return None
+    dist = dist_m((lon, lat), edge)
+    if not 3 <= dist <= 35 or angle_diff(bearing((lon, lat), edge), head) > 50:  # as place_fov_tolerance=50
+        return None
+    lic = next((l.get('title', '') for l in f.get('links', []) if l.get('rel') == 'license'), 'CC-BY-SA-4.0')
+    who = ', '.join(p.get('name', '') for p in f.get('providers', []) if p.get('name')) or 'Panoramax'
+    return {'src': 'panoramax', 'prov': 'pnx', 'edge': ei, 'lon': lon, 'lat': lat, 'heading': head, 'thumb': sd,
+            'page': f'https://api.panoramax.xyz/#focus=pic&pic={f["id"]}', 'credit': who[:80],
+            'cache_key': f'pnx-{f["id"]}', 'dist': dist,
+            'licence': lic.replace('License for this object (', '').rstrip(')')[:40],
+            'date': (props.get('datetime') or '')[:10], 'text': ''}
+
+
+def mapillary_candidates(ei, edge, token):
+    """Mapillary photos taken 3–35 m from the edge and facing it, best first (no requests: coverage tiles)."""
+    picks = []
+    for lon, lat, pr in mapillary_points(edge[0], edge[1], token):
+        head = pr.get('compass_angle')
+        if pr.get('is_pano') or head is None:
+            continue
+        dist = dist_m((lon, lat), edge)
+        if 3 <= dist <= 35 and angle_diff(bearing((lon, lat), edge), head) <= 35:
+            picks.append((-(pr.get('captured_at') or 0) / 3.15e10 + dist / 10, lon, lat, head, pr, dist))
+    picks.sort(key=lambda x: x[0])
+    out, seqs = [], set()
+    for _, lon, lat, head, pr, dist in picks:
+        seq = pr.get('sequence_id')
+        if seq and seq in seqs:
+            continue
+        seqs.add(seq)
+        out.append({'src': 'mapillary', 'prov': 'mly', 'edge': ei, 'lon': lon, 'lat': lat, 'heading': head,
+                    'id': str(pr['id']), 'page': f'https://www.mapillary.com/app/?pKey={pr["id"]}',
+                    'licence': 'CC-BY-SA-4.0', 'date': datetime.datetime.fromtimestamp(
+                        (pr.get('captured_at') or 0) / 1000, datetime.UTC).strftime('%Y-%m-%d'),
+                    'text': '', 'dist': dist, 'cache_key': f'mly-{pr["id"]}'})
+        if len(out) >= MAX_STREET_PER_EDGE:
+            break
+    return out
+
+
+def mapillary_links(refs, token):
+    """Picture links and authors for Mapillary photos, 50 per request (256 px is plenty for a fingerprint)."""
+    ids = sorted({r['id'] for r in refs})
+    info = {}
+    for i in range(0, len(ids), 50):
+        d = try_fetch('https://graph.mapillary.com/images?' + urllib.parse.urlencode(
+            {'access_token': token, 'image_ids': ','.join(ids[i:i + 50]), 'fields': 'id,thumb_256_url,creator'}))
+        for im in (d or {}).get('data', []):
+            info[str(im['id'])] = im
+    out = []
+    for r in refs:
+        im = info.get(r['id'])
+        if im and im.get('thumb_256_url'):
+            r['thumb'] = im['thumb_256_url']
+            r['credit'] = ((im.get('creator') or {}).get('username') or 'Mapillary')[:80]
+            out.append(r)
+    return out
+
+
+def collect_tile(group, wd, sbb, token):
+    """Photos for all stops of one tile → ({uic: refs}, complete)."""
+    _stop_state.failed = False
+    try:
+        pad = max(40, max(min(300, s['r'] + 35) for s in group)) / 111320
+        lons = [e[0] for s in group for e in s['edges']] + [s['c'][0] for s in group]
+        lats = [e[1] for s in group for e in s['edges']] + [s['c'][1] for s in group]
+        k = math.cos(math.radians(sum(lats) / len(lats)))
+        box = (min(lons) - pad / k, min(lats) - pad, max(lons) + pad / k, max(lats) + pad)
+        # Commons: what geosearch would give each stop (nearest within its radius), details fetched once
+        rows = commons_in_box(box)
+        want, near = set(), {}
+        for st in group:
+            r = min(300, max(40, st['r'] + 35))
+            close = sorted((dist_m(st['c'], (row['lon'], row['lat'])), row['title']) for row in rows)
+            near[st['uic']] = [t for d, t in close if d <= r][:100 if st['mode'] == 't' else 40]
+            want.update(near[st['uic']])
+            if wd.get(st['uic']):
+                want.update(wd[st['uic']]['images'])
+        pages = commons_pages_by_title(want)
+        pnx = panoramax_in_box(box)
+        mly_all, per_stop = [], {}
+        for st in group:
+            uic = st['uic']
+            refs = list(sbb.get(uic, []))
+            w = wd.get(uic)
+            if w:
+                refs += [x for x in (commons_ref(pages[t], 'wd') for t in w['images'] if t in pages) if x]
+            geo, cats = commons_filter(st, [pages[t] for t in near[uic] if t in pages])
+            for cat in sorted((w['cats'] if w else set()) | cats)[:2]:
+                refs += commons_category(cat)[:6]
+            refs += geo
+            street = []
+            for ei, edge in enumerate(st['edges'][:12]):
+                if st['mode'] == 't' and len(st['edges']) > 6:
+                    break  # big stations: street-level photos rarely show a given platform
+                got = [x for x in (panoramax_ref(f, ei, edge) for f in pnx) if x]
+                got.sort(key=lambda x: x['dist'])
+                mly = mapillary_candidates(ei, edge, token) if token and MLY['ok'] else []
+                street.append((got, mly))
+                mly_all += mly
+            per_stop[uic] = (refs, street)
+        linked = {id(r) for r in mapillary_links(mly_all, token)} if mly_all else set()
+        out = {}
+        order = {'sbb': 0, 'wd': 1, 'osm': 2, 'cat': 3, 'mly': 4, 'pnx': 5, 'geo': 6}
+        for uic, (refs, street) in per_stop.items():
+            for got, mly in street:
+                both = [r for r in mly if id(r) in linked] + got  # Mapillary first, then the nearest Panoramax
+                refs += both[:MAX_STREET_PER_EDGE]
+            seen, keep = set(), []
+            for r in sorted(refs, key=lambda r: order[r['prov']]):
+                key = r.get('cache_key') or r['thumb'].rsplit('/', 1)[-1]
+                if key not in seen:
+                    seen.add(key)
+                    keep.append(r)
+            out[uic] = keep[:MAX_PER_STOP]
+        return out, not _stop_state.failed
+    except Exception as e:
+        log(f'  ! tile {tile_key(*group[0]["c"])}: {type(e).__name__}: {str(e)[:120]}')
+        return {}, False
+
+
+def run_fast(todo, wd, sbb, token, embedder, ckpt, workers):
+    groups = {}
+    for st in todo:
+        groups.setdefault(tile_key(*st['c']), []).append(st)
+    keys = sorted(groups)
+    log(f'fast mode: {len(todo)} stops in {len(keys)} tiles')
+    t0, done_stops = time.time(), 0
+    if token:
+        mapillary_usable(token)
+    def finish(part, got, upto):
+        nonlocal done_stops
+        chunk, incomplete = {}, set()
+        for g, (refs, ok) in zip(part, got):
+            for st in g:
+                if st['uic'] in refs:
+                    chunk[st['uic']] = refs[st['uic']]
+                if not ok:
+                    incomplete.add(st['uic'])
+        incomplete |= fingerprint(chunk, embedder)
+        write(chunk, stops_global, keep_srcs=() if token and MLY['ok'] else ('mapillary',), keep_all=incomplete)
+        with open(ckpt, 'a') as f:
+            f.writelines(f'{u}\n' for u in chunk if u not in incomplete)
+        done_stops += sum(len(g) for g in part)
+        rate = (time.time() - t0) / done_stops
+        log(f'{done_stops}/{len(todo)} stops ({upto}/{len(keys)} tiles), '
+            f'{sum(1 for v in chunk.values() if v)} of this batch with photos, '
+            f'{rate:.2f} s/stop, about {rate * (len(todo) - done_stops) / 60:.0f} min left')
+
+    # collect batch n+1 while batch n is fingerprinted and written (one writer at a time: no lost tile updates)
+    with cf.ThreadPoolExecutor(1) as writer, cf.ThreadPoolExecutor(workers) as pool:
+        pending = None
+        for i in range(0, len(keys), 64):
+            part = [groups[k] for k in keys[i:i + 64]]
+            got = list(pool.map(lambda g: collect_tile(g, wd, sbb, token), part))
+            if pending:
+                pending.result()
+            pending = writer.submit(finish, part, got, i + len(part))
+            if len(_mly_tiles) > 120:
+                with _mly_lock:  # coverage tiles of areas already done
+                    for key in list(_mly_tiles)[:60]:
+                        _mly_tiles.pop(key, None)
+        if pending:
+            pending.result()
+
+
+stops_global = {}
 
 # ---------------------------------------------------------------- timetable: lines + destinations per stop edge
 def build_lines(stops, zip_path, max_lines=10, max_dests=6):
@@ -1086,8 +1336,10 @@ def main():
     ap.add_argument('--modes', default='t,m,b,s,c', help='t=train m=tram b=bus s=boat c=cable (default all)')
     ap.add_argument('--limit', type=int, default=0, help='only the first N stops (testing)')
     ap.add_argument('--mapillary-token-file')
-    ap.add_argument('--workers', type=int, default=4)
+    ap.add_argument('--workers', type=int, default=12,
+                    help='stops collected at once; each website still gets at most one request per its own interval')
     ap.add_argument('--calibrate', action='store_true', help='measure how well photos alone tell nearby stops apart')
+    ap.add_argument('--fast', action='store_true', help='ask the sources per 0.02° tile instead of per stop (much faster)')
     ap.add_argument('--migrate', action='store_true', help='convert format-1 tiles (0.1°, 768 values) to format 2')
     ap.add_argument('--gtfs', metavar='ZIP', help='add the lines and destinations of every stop edge from a Swiss GTFS zip '
                     '(opentransportdata.swiss "Fahrplan GTFS"), for all stops')
@@ -1119,15 +1371,20 @@ def main():
         todo = todo[:a.limit]
     ckpt = os.path.join(CACHE, 'done-' + hashlib.sha1(f'{bbox}|{a.modes}|{bool(token)}'.encode()).hexdigest()[:12] + '.txt')
     done_before = set()
-    if a.resume and os.path.exists(ckpt):
-        with open(ckpt) as f:
-            done_before = set(f.read().split())
+    if a.resume:  # stops finished by any earlier run (e.g. an all-Switzerland run, now split into halves)
+        import glob
+        for path in glob.glob(os.path.join(CACHE, 'done-*.txt')):
+            with open(path) as f:
+                done_before |= set(f.read().split())
         todo = [s for s in todo if s['uic'] not in done_before]
         log(f'resuming: {len(done_before)} stops done before')
     log(f'{len(todo)} stops in the area')
     wd, sbb = wikidata(stops), sbb_images()
-    osm = osm_tagged(bbox) if not a.all else []  # Overpass would time out on all of Switzerland in one query
+    osm = osm_tagged(bbox) if not (a.all or a.fast) else []  # Overpass would time out on big areas
     embedder = Embedder()
+    if a.fast:
+        stops_global.update(stops)
+        return run_fast(todo, wd, sbb, token, embedder, ckpt, a.workers)
 
     refs_by_stop, done = {}, 0
     batch = 200  # write results every 200 stops, so a long run can be stopped and continued

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2329_493",{"s":{},"d":{"8595924":[[0,"593","Preda, Hotel Kulm/Bahnhof|Chamues-ch, plaz"]]}});
+STOP_IMAGES_TILE("2329_493",{"s":{"8595924":[["mapillary","mly",0,81,"m:831797954386704","selfishseahorse","CC-BY-SA-4.0","RcSBJ0Ec6vvZIvOmK+HzKOrZBBHUDADsAREa0QAs6Q0VRvAXBiw27w/6JfnuHxH7BAMJ5fH0BwjJBAXkHTMBKesi6/4QC/X8+Pj/Cw4jFOT/FPwQBv7zECUU8u4FHPj86/ESDAPz/hYyIPb0/vcZ5vgT+fUb9hcNAxH/IQkYASc="]]},"d":{"8595924":[[0,"593","Preda, Hotel Kulm/Bahnhof|Chamues-ch, plaz"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2370_374",{"s":{},"d":{"8579511":[[0,"118","Liesberg, Riederwald"],[1,"118","Laufen, Bahnhof"],[null,"118","Laufen, Bahnhof"]]}});
+STOP_IMAGES_TILE("2370_374",{"s":{"8579511":[["mapillary","mly",0,6,"m:779474079622591","likesopenstreetmap","CC-BY-SA-4.0","fwILTDAF2wfW5yL6TAXxE+q+4e6tQvT55+fuAxgTBu7wEQAM9/j88v0P6/sMIP8eFBf4A/sRDRATCvYR/vkQF+4BFgnu0AP1/BYICvfv9wn1DAnr9/D8De8D9QsJ+g4J6/zrGP3f9f8GIgcG7P8SBfjzCfUB7QIK/AAEBQv9Cu4="]]},"d":{"8579511":[[0,"118","Liesberg, Riederwald"],[1,"118","Laufen, Bahnhof"],[null,"118","Laufen, Bahnhof"]]}});

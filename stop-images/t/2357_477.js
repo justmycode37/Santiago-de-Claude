@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2357_477",{"s":{},"d":{"8509609":[[0,"22","Triesenberg, Dorfzentrum"]]}});
+STOP_IMAGES_TILE("2357_477",{"s":{"8509609":[["mapillary","mly",0,-1,"m:813360852942441","bischa","CC-BY-SA-4.0","PIG+RmTbWg72AQD8FfAoAQLZ2trrne3ipAb5F/Zw3CM2ArAXEwAE8+PI+DANuhYFLA8VAgTb5fAOAfgF1BreBi79ACQU+xoR5+ITEib4EAIK5vQYAt8J6wIC6hT3HvoTuBQVDA7y4gwE7BAD7Or/G/wU+gckDAD4/gkGAPrz9fU="]]},"d":{"8509609":[[0,"22","Triesenberg, Dorfzentrum"]]}});

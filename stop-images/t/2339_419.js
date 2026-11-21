@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2339_419",{"s":{},"d":{"8508366":[[2,"2534","Stand|Engelberg (Talst. Kabinenb.)"]],"8530371":[[1,"2537","Jochpass"]]}});
+STOP_IMAGES_TILE("2339_419",{"s":{"8530371":[["mapillary","mly",0,331,"m:236319494950193","till","CC-BY-SA-4.0","bcaVf0K1C+HTF8H1Nh4hCbrfxvzRpN1fyfrrCv5Dv2AHEv1S7vhF3vAYVNfbdAn5CfwS5zgU790S8+kMDRYrQAM3ARYg9gf39vwm4DwE8vwX2e422d7h/gQS994xNun4ASn3AjH9+iMZHQYG9hcm/PnkCOoeDwwTBRQPFPMPD/A="]]},"d":{"8508366":[[2,"2534","Stand|Engelberg (Talst. Kabinenb.)"]],"8530371":[[1,"2537","Jochpass"]]}});

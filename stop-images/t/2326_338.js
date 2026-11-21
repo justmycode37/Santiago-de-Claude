@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2326_338",{"s":{},"d":{"8557076":[[0,"381","Palézieux, gare|Grandvaux, Pra Grana|Cully, gare|Oron-la-Ville, gare routière"]]}});
+STOP_IMAGES_TILE("2326_338",{"s":{"8557076":[["mapillary","mly",0,247,"m:1254946203468714","Jeankowkow","CC-BY-SA-4.0","f8adHk02A6alGy3ly+3qBDsYAyXGBOPo/PPf1AXu2izi890B+w8y6e4f3goI4vXm8wfx9uvYKQj1BxP47v71//YkGQwr0c0JFv/7GgIhBBsD5woREfQg6Pv+G/r2J/QJ9gIe8/UWGPcXEAbmDgkCBfXs8OUH+wj+GRUQ+wgF9hA="]]},"d":{"8557076":[[0,"381","Palézieux, gare|Grandvaux, Pra Grana|Cully, gare|Oron-la-Ville, gare routière"]]}});

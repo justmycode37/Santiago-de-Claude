@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2380_412",{"s":{},"d":{"8503411":[[0,"S36 S27 EXT","Bülach|Bad Zurzach|Waldshut|Baden|Koblenz|Turgi"]]}});
+STOP_IMAGES_TILE("2380_412",{"s":{"8503411":[["commons","wd",null,null,"c:d/da/Koblenz_Dorf_railway_station.jpg/500px-Koblenz_Dorf_railway_station.jpg","Anonymous Unknown author","CC0","+u+BcvTWcypbYChCI5EMEPj8JM1QLO8vAbYXzzLYQ/78BMIt5RYnEAIe/Pw/Be0U4ezl/vkMwt8Y/eAE/ODaCxL2HDXWDAoMFyM+9/b89wQm/e/xATD35dnvBBQA6Pb+JAcU7v31ABsbC/bz9/EZCA7uA+/xDP7tAwDz+wL3Du4="]]},"d":{"8503411":[[0,"S36 S27 EXT","Bülach|Bad Zurzach|Waldshut|Baden|Koblenz|Turgi"]]}});

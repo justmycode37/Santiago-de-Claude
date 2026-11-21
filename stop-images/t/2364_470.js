@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2364_470",{"s":{},"d":{"8506259":[[0,"2740","Wasserauen (Ebenalpbahn)"]]}});
+STOP_IMAGES_TILE("2364_470",{"s":{"8506259":[["mapillary","mly",0,248,"m:167824601938737","flansch","CC-BY-SA-4.0","BYH/6+UhnQ36EgwoGA/pCfwOtuP4Dv8JBADpMgcO+vT44AQh3SAB8xIMAgEHBfn+4wYG++QCAhwGFQj5DgD7AfAD9ioEAAoDAOwH8xQXAAYC6gYR9hoa5w/+AQLu8QX7/wUEBf8YBAr6BO389Q8F9fb86hAI+AQEDPEI6wsX9xI="]]},"d":{"8506259":[[0,"2740","Wasserauen (Ebenalpbahn)"]]}});

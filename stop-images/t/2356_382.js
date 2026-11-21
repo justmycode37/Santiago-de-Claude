@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2356_382",{"s":{},"d":{"8576495":[[null,"466","Burgdorf, Bahnhof|Wynigen, Bahnhof"]]}});
+STOP_IMAGES_TILE("2356_382",{"s":{"8576495":[["mapillary","mly",0,243,"m:321155559372776","sodom89","CC-BY-SA-4.0","fxPtKxbf8fpAANn3CBYW5xr6/BTl7CoT8uwH8fzVDRsQ4gX17v4PFwwq7RH6BgIEIRryBxIR4/kWDwsV+O3c/+UEAwQJDAzzAQMB7QXlDAsA7Q0I/QUN+AL7DPEGF/sQ9gwEDgb6APX8AAgA5AEGBP4D/ggH9wYA9RADCh4AA/w="]]},"d":{"8576495":[[null,"466","Burgdorf, Bahnhof|Wynigen, Bahnhof"]]}});

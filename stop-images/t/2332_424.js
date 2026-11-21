@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2332_424",{"s":{},"d":{"8505779":[[0,"411","Göschenen, Bahnhof"]]}});
+STOP_IMAGES_TILE("2332_424",{"s":{"8505779":[["commons","geo",null,null,"c:3/3d/Refuge_In_A_Cloudscape_%28235580727%29.jpeg/500px-Refuge_In_A_Cloudscape_%28235580727%29.jpeg","Julien Seguinot","CC BY-SA 3.0","6oHHFnX3HlHZ7vjeUgn/AsXNsOjlqQHjogn8BPxN+jxQKucQIPkMKB3gBAsnu+0lAhcu4gvm0fjq5CLgGAsDBfoOEvIL8R8u8A4B4iT0+s0YCgvvB/Ua/UkwuRfzBfj3xwJBLwMY8Psi9gYYCsLa5QD0BvUDCgYwE+b/AQMo9AE="]]},"d":{"8505779":[[0,"411","Göschenen, Bahnhof"]]}});

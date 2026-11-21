@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2326_466",{"s":{},"d":{"8574536":[[0,"561","Chiavenna, Stazione|Monte Spluga"],[null,"561","Splügen, Dorf"]]}});
+STOP_IMAGES_TILE("2326_466",{"s":{"8574536":[["mapillary","mly",0,164,"m:138218011770812","jopparn","CC-BY-SA-4.0","dbCBWHgLFAfCA/bKZtzdOs3S88oI9wElzwXxARZ6/Ag3Q7oHPygNwQXnIADoCOAN5wokLRzt+wLUGh3qAQnuNfgV+gEVJAoY9QEa+xsn/vAaB+sOFvMYFRcX5igNKg/j2hwM9xvxBh/4BAPnAujqLv8M/QERCyr+FAzm5eshFiE="]]},"d":{"8574536":[[0,"561","Chiavenna, Stazione|Monte Spluga"],[null,"561","Splügen, Dorf"]]}});

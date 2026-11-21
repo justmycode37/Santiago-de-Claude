@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2345_360",{"s":{},"d":{"8504197":[[0,"550","Gümmenen, Bahnhof"],[null,"550","Laupen BE, Bahnhof"]]}});
+STOP_IMAGES_TILE("2345_360",{"s":{"8504197":[["mapillary","mly",0,253,"m:917679705747982","habi","CC-BY-SA-4.0","fwvhRyXrz//gLAwFIRH39xny8/PTIgbm+O0F+hD0+PfrDPcK7PMgBukA5eUBFvcEBxLcAOr4Dx4FAwMLAAADFNcGChoI3fb78hf27/z5/g4T+Bz/6f4A+QQF9gEOAv38BAABEP/xBfYEFe755/ge9/75BgQS8f0L/wwHDvr4CAk="]]},"d":{"8504197":[[0,"550","Gümmenen, Bahnhof"],[null,"550","Laupen BE, Bahnhof"]]}});
