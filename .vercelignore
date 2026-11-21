@@ -3,3 +3,6 @@ data/
 docs/
 tools/
 README.md
+
+# Needs its own server; not part of the static site
+livemap/
