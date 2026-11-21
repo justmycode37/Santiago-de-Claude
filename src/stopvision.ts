@@ -20,7 +20,7 @@
   const INPUT = 224;
   const MEAN = [0.485, 0.456, 0.406];
   const STD = [0.229, 0.224, 0.225];
-  const IDENTITY = { wd: 1, cat: 1, sbb: 1, osm: 1 }; // photos tied to the stop by identity, not just by place
+  const IDENTITY: Partial<Record<StopImagesProvenance, number>> = { wd: 1, cat: 1, sbb: 1, osm: 1 }; // photos tied to the stop by identity, not just by place
   // Photo similarity (cosine of the stored fingerprints). Measured on 1,200 photos of 313 Bern + Zürich stops
   // (python3 tools/build_stop_images.py --calibrate): photos of the same stop have a median similarity of 0.48,
   // photos of other stops within 600 m 0.30; picking the stop by photo alone is right only ~50–55 % of the time,
@@ -29,42 +29,66 @@
   const VIS_MARGIN = 0.05; // best stop must beat the runner-up by this much…
   const VIS_FRAMES = 3;    // …in this many frames in a row
 
-  let app = null;          // hooks from index.html
-  let ui = null;           // DOM
-  let stream = null;
+  type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
+  interface ScanUI {
+    root: HTMLElement; video: HTMLVideoElement; still: HTMLImageElement; ar: HTMLDivElement; ring: HTMLDivElement;
+    status: HTMLDivElement; sheet: HTMLDivElement; debug: HTMLPreElement; tags: Map<string, HTMLDivElement>; shownKey: string;
+  }
+  // The live camera or the photo taken instead: a video has the one pair of sizes, a picture the other
+  interface FrameSize { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number }
+  type Frame = (HTMLVideoElement | HTMLImageElement) & FrameSize;
+  interface Region { x: number; y: number; w: number; h: number }
+  // iOS Safari's compass, next to the standard event
+  interface CompassEvent extends DeviceOrientationEvent { webkitCompassHeading?: number; webkitCompassAccuracy?: number }
+  type Canvas2DNoFilter = Omit<CanvasRenderingContext2D, 'filter'>; // browsers without canvas filters
+  interface ServedLine { edge: number | null; line: string | null; to: string | null }
+  interface ScanPca { k: number; mean: Float32Array; w: Int8Array; scale: Float32Array }
+  // what the model worker answers
+  interface EmbedReply { type: 'emb'; id: number; v: Float32Array; ms: number }
+  type ModelReply = { type: 'ready' } | EmbedReply | { type: 'error'; id?: number; message: string };
+  interface PendingEmbed { resolve: (m: EmbedReply) => void; reject: (e: Error) => void }
+  interface PhotoMatch { c: StopVisionCandidate; sim: number; ref: StopVisionPhoto }
+  interface ScanStats {
+    frames: number[]; ocr: number[]; photo: number[]; engine: StopVisionBenchResult['engine'];
+    modelLoadMs: number; ocrLoadMs: number; longFrames: number;
+  }
+
+  let app: StopVisionHooks | null = null;          // hooks from index.html
+  let ui: ScanUI | null = null;           // DOM
+  let stream: MediaStream | null = null;
   let running = false;
-  let heading = null;      // degrees, where the camera looks; null = unknown
+  let heading: number | null = null;      // degrees, where the camera looks; null = unknown
   let headingAcc = 30;     // degrees
   let headingAt = 0;
-  let candidates = [];     // stops around you, scored
+  let candidates: StopVisionCandidate[] = [];     // stops around you, scored
   let candidatesBy = '';   // 'gps' (around you) or 'sign' (no position: stops whose name was read)
-  const evidence = new Map(); // uic → { ocr, ocrAt, ocrWhat, edgeOcr, vis, visRef, visStreak, departures }
-  const tiles = new Map();    // photo tiles loaded: key → { uic: refs }
-  let modelState = 'idle';
-  let ocr = null, ocrState = 'idle', ocrLang = '', ocrFailedAt = 0;
+  const evidence = new Map<string, StopVisionEvidence>(); // uic → { ocr, ocrAt, ocrWhat, edgeOcr, vis, visRef, visStreak, departures }
+  const tiles = new Map<string, StopVisionTile>();    // photo tiles loaded: key → { uic: refs }
+  let modelState: LoadState = 'idle';
+  let ocr: TesseractWorker | null = null, ocrState: LoadState = 'idle', ocrLang = '', ocrFailedAt = 0;
   let lastOcr = 0, lastVis = 0, ocrPass = 0;
-  let tapRead = null;      // { x, y } in video pixels: read the sign there next
+  let tapRead: { x: number; y: number } | null = null;      // { x, y } in video pixels: read the sign there next
   let debugOn = typeof location !== 'undefined' && /[?&]scandebug(&|$)/.test(location.search);
-  let stillImage = null;   // a photo taken with the file input instead of the live camera
+  let stillImage: string | null = null;   // a photo taken with the file input instead of the live camera
   let stillFrames = 0;     // photo comparisons done on that photo (one is enough: it does not change)
   let stillReads = 0;      // sign readings done on it
 
   // ---------------------------------------------------------------- small helpers
-  const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const $ = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, text?: string | null) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const toRad = Math.PI / 180;
-  const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+  const angleDiff = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
   // Is a reading still current? With the live camera it fades after a while (you have moved on); a photo does not change.
-  const fresh = (at, ms) => !!at && (!!stillImage || Date.now() - at < ms);
-  function distM(a, b) {
+  const fresh = (at: number | undefined, ms: number) => !!at && (!!stillImage || Date.now() - at < ms);
+  function distM(a: LngLat, b: LngLat) {
     const k = Math.cos((a[1] + b[1]) / 2 * toRad);
     return Math.hypot((a[0] - b[0]) * k, a[1] - b[1]) * 111320;
   }
-  function bearing(a, b) {
+  function bearing(a: LngLat, b: LngLat) {
     const k = Math.cos((a[1] + b[1]) / 2 * toRad);
     return (Math.atan2((b[0] - a[0]) * k, b[1] - a[1]) / toRad + 360) % 360;
   }
-  const norm = (s) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  function lev(a, b) {
+  const norm = (s: string | null | undefined) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  function lev(a: string, b: string) {
     if (a === b) return 0;
     let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
     for (let i = 1; i <= a.length; i++) {
@@ -74,9 +98,9 @@
     }
     return prev[b.length];
   }
-  const ratio = (a, b) => 1 - lev(a, b) / Math.max(a.length, b.length, 1);
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
+  const ratio = (a: string, b: string) => 1 - lev(a, b) / Math.max(a.length, b.length, 1);
+  function loadScript(src: string) {
+    return new Promise<Event>((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src; s.async = true;
       s.onload = resolve; s.onerror = () => reject(new Error('could not load ' + src));
@@ -85,16 +109,16 @@
   }
   const GENERIC = new Set(['bahnhof', 'station', 'gare', 'stazione', 'post', 'dorf', 'zentrum', 'centre', 'centro', 'nord', 'sud', 'ost', 'west', 'bhf', 'sbb', 'cff', 'ffs']);
   // What a sign would show: "Bern, Zytglogge" → "zytglogge" (and the full name); "Muri bei Bern" → itself
-  function nameVariants(name) {
+  function nameVariants(name: string) {
     const parts = String(name).split(',').map((p) => norm(p)).filter(Boolean);
     const out = new Set([parts.join(' ')]);
     if (parts.length > 1) out.add(parts[parts.length - 1]);
     return [...out].filter((v) => v.replace(/ /g, '').length >= 4);
   }
-  const distinctive = (v) => v.split(' ').some((t) => t.length >= 4 && !GENERIC.has(t));
+  const distinctive = (v: string) => v.split(' ').some((t) => t.length >= 4 && !GENERIC.has(t));
 
   // Best fuzzy match of a name in OCR text: compare with every run of words of about the same length
-  function matchIn(tokens, variant) {
+  function matchIn(tokens: string[], variant: string) {
     const want = variant.replace(/ /g, '');
     const k = variant.split(' ').length;
     let best = 0;
@@ -188,13 +212,13 @@
     boat: '<path d="M3 17l2 4h14l2-4zM6 17V9h12v8M12 3v6M9 6h6"/>',
     cable: '<path d="M2 4l20 4M12 6v4M7 10h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM5 15h14"/>',
   };
-  const icon = (mode) => {
+  const icon = (mode: StopVisionMode) => {
     const s = $('span', 'sv-ic');
     s.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[mode] || ICONS.bus}</svg>`;
     return s;
   };
   const MODE_WORD = { train: 'Train station', tram: 'Tram stop', bus: 'Bus stop', boat: 'Boat pier', cable: 'Cable car' };
-  const EDGE_WORD = (mode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
+  const EDGE_WORD = (mode: StopVisionMode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
 
   function buildUI() {
     if (!document.getElementById('sv-css')) {
@@ -238,7 +262,7 @@
     document.body.appendChild(root);
     close.addEventListener('click', closeScan);
     shoot.addEventListener('click', () => file.click());
-    file.addEventListener('change', () => { if (file.files[0]) useStill(file.files[0]); file.value = ''; });
+    file.addEventListener('change', () => { if (file.files![0]) useStill(file.files![0]); file.value = ''; });
     // Tap the picture to read the sign there
     root.addEventListener('click', (e) => {
       if (e.target !== video && e.target !== still && e.target !== ar) return;
@@ -253,10 +277,10 @@
     document.addEventListener('keydown', onKey);
     return { root, video, still, ar, ring, status, sheet, debug, tags: new Map(), shownKey: '' };
   }
-  const onKey = (e) => { if (e.key === 'Escape') closeScan(); };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeScan(); };
 
   // Screen point → pixel in the video/photo (object-fit: cover)
-  function toSourcePx(el, cx, cy) {
+  function toSourcePx(el: Frame, cx: number, cy: number) {
     const w = el.videoWidth || el.naturalWidth, h = el.videoHeight || el.naturalHeight;
     if (!w || !h) return null;
     const r = el.getBoundingClientRect();
@@ -264,22 +288,22 @@
     return { x: (cx - r.left - (r.width - w * s) / 2) / s, y: (cy - r.top - (r.height - h * s) / 2) / s };
   }
 
-  function setStatus(title, detail) {
-    ui.status.replaceChildren($('b', null, title), document.createTextNode(detail || ''));
+  function setStatus(title: string, detail: string) {
+    ui!.status.replaceChildren($('b', null, title), document.createTextNode(detail || ''));
   }
 
   // ---------------------------------------------------------------- compass
   // Where the back camera points, from the device orientation (W3C: R = Rz(α)·Rx(β)·Ry(γ); camera = −z axis).
-  function onOrientation(e) {
-    let h = null, acc = 25;
+  function onOrientation(e: CompassEvent) {
+    let h: number | null = null, acc = 25;
     if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
       // iOS: compass heading of the device, corrected for how the screen is turned
       const turn = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
       h = (e.webkitCompassHeading + turn + 360) % 360;
-      acc = e.webkitCompassAccuracy > 0 ? Math.max(10, e.webkitCompassAccuracy) : 30;
+      acc = e.webkitCompassAccuracy! > 0 ? Math.max(10, e.webkitCompassAccuracy!) : 30;
       if (e.beta != null && Math.abs(e.beta) < 25) acc = 60; // lying flat: the camera looks at the ground
     } else if (e.absolute && e.alpha != null) {
-      const a = e.alpha * toRad, b = e.beta * toRad, g = (e.gamma || 0) * toRad;
+      const a = e.alpha * toRad, b = e.beta! * toRad, g = (e.gamma || 0) * toRad;
       const east = -(Math.cos(a) * Math.sin(g) + Math.sin(a) * Math.sin(b) * Math.cos(g));
       const north = -(Math.sin(a) * Math.sin(g) - Math.cos(a) * Math.sin(b) * Math.cos(g));
       const up = -Math.cos(b) * Math.cos(g);
@@ -301,17 +325,17 @@
 
   // Horizontal field of view of what is on screen (≈ 75° diagonal phone camera, cropped by object-fit: cover)
   function screenFov() {
-    const el = stillImage ? ui.still : ui.video;
+    const el: Frame = stillImage ? ui!.still : ui!.video;
     const w = el.videoWidth || el.naturalWidth || 3, h = el.videoHeight || el.naturalHeight || 4;
     const full = 2 * Math.atan(Math.tan(37.5 * toRad) * w / Math.hypot(w, h)) / toRad;
-    const sw = ui.root.clientWidth, sh = ui.root.clientHeight;
+    const sw = ui!.root.clientWidth, sh = ui!.root.clientHeight;
     const visible = Math.min(1, (sw / sh) / (w / h));
     return 2 * Math.atan(Math.tan(full / 2 * toRad) * visible) / toRad;
   }
 
   // ---------------------------------------------------------------- candidates (geometry)
   function position() {
-    const p = app.position();
+    const p = app!.position();
     return p && p.ll && p.age < 120000 && p.acc < 500 ? p : null;
   }
 
@@ -319,8 +343,8 @@
     const pos = position();
     if (!pos) { if (candidatesBy === 'gps') { candidates = []; candidatesBy = ''; } return; }
     const radius = Math.min(600, Math.max(150, 3 * pos.acc + 60));
-    const out = [];
-    for (const [uic, st] of app.PLATFORMS) {
+    const out: StopVisionCandidate[] = [];
+    for (const [uic, st] of app!.PLATFORMS) {
       let best = Infinity, bestI = 0;
       st.edges.forEach((e, i) => { const d = distM(pos.ll, e.ll); if (d < best) { best = d; bestI = i; } });
       if (best <= radius) out.push({ uic, st, dist: best, nearEdge: bestI, variants: nameVariants(st.name) });
@@ -346,29 +370,29 @@
         const slack = fov / 2 + Math.min(40, headingAcc);
         let bestOff = 180;
         c.st.edges.forEach((e, i) => {
-          const off = angleDiff(bearing(pos.ll, e.ll), heading);
+          const off = angleDiff(bearing(pos.ll, e.ll), heading!);
           if (off < bestOff) { bestOff = off; c.aheadEdge = i; }
         });
         c.ahead = bestOff <= slack;
         s += c.ahead ? 0.8 : -Math.min(1.5, (bestOff - slack) / 40); // soft: compasses can be off by tens of degrees
       }
       c.geo = s; // location + compass only
-      if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.72) s += 6 * (ev.ocr - 0.6) / 0.4; // a read name dominates
+      if (fresh(ev.ocrAt, 12000) && ev.ocr! >= 0.72) s += 6 * (ev.ocr! - 0.6) / 0.4; // a read name dominates
       if (ev.lines) s += Math.min(1, 0.4 * ev.lines);
       if (ev.vis != null && ev.visRel != null) s += Math.max(-0.5, Math.min(1.5, ev.visRel * 12)); // tie-breaker
       c.score = s;
     }
-    const byGeo = candidates.slice().sort((a, b) => b.geo - a.geo);
-    candidates.forEach((c) => { c.geoTop = c === byGeo[0] && (byGeo.length < 2 || byGeo[0].geo - byGeo[1].geo > 0.15); });
-    candidates.sort((a, b) => b.score - a.score);
+    const byGeo = candidates.slice().sort((a, b) => b.geo! - a.geo!);
+    candidates.forEach((c) => { c.geoTop = c === byGeo[0] && (byGeo.length < 2 || byGeo[0].geo! - byGeo[1].geo! > 0.15); });
+    candidates.sort((a, b) => b.score! - a.score!);
     // keep the stop shown unless another one is clearly better (no flicker between two close scores)
-    const keep = prevTop && candidates.includes(prevTop) && candidates[0] !== prevTop && candidates[0].score - prevTop.score < 0.3;
-    if (keep) candidates.splice(0, 0, ...candidates.splice(candidates.indexOf(prevTop), 1));
+    const keep = prevTop && candidates.includes(prevTop) && candidates[0] !== prevTop && candidates[0].score! - prevTop.score! < 0.3;
+    if (keep) candidates.splice(0, 0, ...candidates.splice(candidates.indexOf(prevTop!), 1));
     prevTop = candidates[0] || null;
   }
 
   // ---------------------------------------------------------------- reading signs
-  function ocrLanguage(ll) {
+  function ocrLanguage(ll: LngLat | null) {
     if (!ll) return 'deu+fra';
     const [lon, lat] = ll;
     if (lat < 46.45 && lon > 8.38) return 'ita';
@@ -378,7 +402,7 @@
   }
 
   async function ensureOcr() {
-    const lang = ocrLanguage(position() && position().ll);
+    const lang = ocrLanguage(position() && position()!.ll);
     if (ocr && ocrLang === lang) return ocr;
     if (ocrState === 'loading' || (ocrState === 'failed' && Date.now() - ocrFailedAt < 30000)) return null;
     ocrState = 'loading';
@@ -387,7 +411,7 @@
     try {
       if (!window.Tesseract) await loadScript(TESSERACT);
       if (ocr) { const old = ocr; ocr = null; await old.terminate(); }
-      const reader = await window.Tesseract.createWorker(lang.split('+'), 1); // LSTM engine; language data from jsDelivr
+      const reader = await window.Tesseract!.createWorker(lang.split('+'), 1); // LSTM engine; language data from jsDelivr
       if (mine !== session || !running) { reader.terminate(); ocrState = 'idle'; return null; } // closed meanwhile
       ocr = reader;
       await ocr.setParameters({ tessedit_pageseg_mode: '11' });     // sparse text: signs scattered in a street scene
@@ -404,7 +428,7 @@
   }
 
   // Sharpness of a grey frame (variance of the Laplacian): skip blurred frames
-  function sharpness(ctx, w, h) {
+  function sharpness(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const d = ctx.getImageData(0, 0, w, h).data;
     const g = new Float32Array(w * h);
     for (let i = 0; i < w * h; i++) g[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
@@ -417,24 +441,24 @@
     return sum2 / n - (sum / n) ** 2;
   }
 
-  function source() { return stillImage ? ui.still : ui.video; }
-  function sourceSize() { const s = source(); return [s.videoWidth || s.naturalWidth, s.videoHeight || s.naturalHeight]; }
+  function source(): Frame { return stillImage ? ui!.still : ui!.video; }
+  function sourceSize() { const s = source(); return [s.videoWidth || s.naturalWidth, s.videoHeight || s.naturalHeight] as [w: number, h: number]; }
 
   // A frame (or the part around a tap) for OCR: grey, contrast stretched, optionally inverted (white on blue signs)
   // The frame (or the part around a tap) for OCR, as a JPEG: grey, more contrast, inverted for light-on-dark signs.
   // The browser's own canvas filters do the pixel work (no JS loop over a million pixels on the page), and the
   // JPEG is encoded asynchronously; browsers without canvas filters fall back to a JS loop.
-  let ocrCanvasEl = null, lumaCanvas = null;
-  function isDark(region) {
+  let ocrCanvasEl: HTMLCanvasElement | null = null, lumaCanvas: HTMLCanvasElement | null = null;
+  function isDark(region: Region) {
     if (!lumaCanvas) { lumaCanvas = document.createElement('canvas'); lumaCanvas.width = lumaCanvas.height = 24; }
-    const g = lumaCanvas.getContext('2d', { willReadFrequently: true });
+    const g = lumaCanvas.getContext('2d', { willReadFrequently: true })!;
     g.drawImage(source(), region.x, region.y, region.w, region.h, 0, 0, 24, 24);
     const d = g.getImageData(0, 0, 24, 24).data;
     let sum = 0;
     for (let i = 0; i < d.length; i += 4) sum += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
     return sum / 576 < 100; // mostly dark: the text is probably light
   }
-  async function ocrImage(region, invert) {
+  async function ocrImage(region: Region | null, invert: boolean | ((dark: boolean) => boolean)) {
     const [w, h] = sourceSize();
     const r = region || { x: w * 0.05, y: h * 0.05, w: w * 0.9, h: h * 0.75 }; // signs are rarely at the bottom
     const flip = typeof invert === 'function' ? invert(isDark(r)) : invert;
@@ -442,7 +466,7 @@
     if (!ocrCanvasEl) ocrCanvasEl = document.createElement('canvas');
     const c = ocrCanvasEl;
     c.width = Math.round(r.w * scale); c.height = Math.round(r.h * scale);
-    const ctx = c.getContext('2d', { willReadFrequently: true });
+    const ctx: CanvasRenderingContext2D | Canvas2DNoFilter = c.getContext('2d', { willReadFrequently: true })!;
     if ('filter' in ctx) {
       ctx.filter = `grayscale(1) contrast(1.35)${flip ? ' invert(1)' : ''}`;
       ctx.drawImage(source(), r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
@@ -457,11 +481,11 @@
       }
       ctx.putImageData(img, 0, 0);
     }
-    const blob = await new Promise((resolve) => (c.toBlob ? c.toBlob(resolve, 'image/jpeg', 0.92) : resolve(null)));
+    const blob = await new Promise<Blob | null>((resolve) => (c.toBlob ? c.toBlob(resolve, 'image/jpeg', 0.92) : resolve(null)));
     return blob || c;
   }
 
-  let gateCanvas = null;
+  let gateCanvas: HTMLCanvasElement | null = null;
   async function readSigns() {
     const mine = session;
     const reader = await ensureOcr();
@@ -472,11 +496,11 @@
       // cheap check on a 160 px copy first: a blurred frame (phone moving) is not worth reading
       if (!gateCanvas) gateCanvas = document.createElement('canvas');
       gateCanvas.width = 160; gateCanvas.height = Math.round(160 * h / w);
-      const g = gateCanvas.getContext('2d', { willReadFrequently: true });
+      const g = gateCanvas.getContext('2d', { willReadFrequently: true })!;
       g.drawImage(source(), 0, 0, gateCanvas.width, gateCanvas.height);
       if (sharpness(g, gateCanvas.width, gateCanvas.height) < 30) return;
     }
-    let region = null;
+    let region: Region | null = null;
     const tap = tapRead;
     if (tap) {
       const rw = w * 0.7, rh = h * 0.28;
@@ -498,14 +522,14 @@
   }
 
   // Compare read text with the stops around (or, without a position, all stops)
-  async function useText(text, wasTap) {
+  async function useText(text: string, wasTap: boolean) {
     const all = norm(text).split(' ').filter(Boolean);
     const tokens = all.filter((t) => t.length >= 2 || /^\d$/.test(t));
-    if (!tokens.length) { if (wasTap) app.toast('No text found there. Move closer to the sign.'); return; }
+    if (!tokens.length) { if (wasTap) app!.toast('No text found there. Move closer to the sign.'); return; }
     const now = Date.now();
     let pool = candidates;
     if (!position()) pool = allStopsMatching(tokens);
-    const hits = [];
+    const hits: { c: StopVisionCandidate; best: number }[] = [];
     const located = !!position();
     let sliceAt = performance.now();
     const mine = session;
@@ -524,13 +548,13 @@
         if (m > best) { best = m; what = v; }
       }
       const ev = evidence.get(c.uic) || {};
-      if (best >= 0.72 && (!ev.ocrAt || now - ev.ocrAt > 12000 || best >= ev.ocr)) {
+      if (best >= 0.72 && (!ev.ocrAt || now - ev.ocrAt > 12000 || best >= ev.ocr!)) {
         Object.assign(ev, { ocr: best, ocrAt: now, ocrWhat: what, ocrUnique: true, ocrStrong: distinctive(what) });
         evidence.set(c.uic, ev);
         hits.push({ c, best });
       }
       // platform letter / number written next to a word like Kante, Gleis, Quai (e.g. "Kante C", "Gleis 7")
-      const refs = [];
+      const refs: string[] = [];
       for (let i = 0; i < all.length - 1; i++) {
         if (/^(kante|gleis|gl|steig|quai|voie|binario|perron|bay|platform)$/.test(all[i]) && /^[a-z0-9]{1,3}$/.test(all[i + 1])) refs.push(all[i + 1].toUpperCase());
       }
@@ -540,7 +564,7 @@
       }
       // line numbers and destinations: from the timetable (offline, tools/build_stop_images.py --gtfs) and the
       // live departures. They only confirm a stop and pick its edge; on their own they never recognise a stop.
-      const served = []; // [{ edge, line, to }]
+      const served: ServedLine[] = []; // [{ edge, line, to }]
       for (const l of linesOf(c.uic) || []) {
         for (const line of l.lines) served.push({ edge: l.edge, line, to: null });
         for (const to of l.dests) served.push({ edge: l.edge, line: null, to });
@@ -550,7 +574,7 @@
         const lines = new Set(served.filter((d) => d.line).map((d) => d.line));
         const hit = new Set(tokens.filter((t) => /^\d{1,3}[a-z]?$/.test(t) && lines.has(t)));
         ev.lines = hit.size >= 2 ? hit.size : 0;
-        const dests = new Map(); // destination → edges it leaves from
+        const dests = new Map<string, Set<number | null>>(); // destination → edges it leaves from
         for (const d of served) if (d.to) dests.set(norm(d.to.split(',').pop()), (dests.get(norm(d.to.split(',').pop())) || new Set()).add(d.edge));
         for (const [dest, edges] of dests) {
           if (edges.size !== 1 || edges.has(null)) continue; // goes from several edges: says nothing about which
@@ -566,23 +590,23 @@
       // Signs also list destinations, which are names of other stops: of the stops read at once, the nearest
       // one is where you are; the others only count as "read", not as recognised
       const near = hits.reduce((a, b) => (b.c.dist < a.c.dist ? b : a));
-      for (const h of hits) if (h !== near && h.c.dist > near.c.dist + 40) evidence.get(h.c.uic).ocrUnique = false;
+      for (const h of hits) if (h !== near && h.c.dist > near.c.dist + 40) evidence.get(h.c.uic)!.ocrUnique = false;
     }
     if (!located && hits.length) {
       // no GPS: list the stops whose name was read; only a clear single winner counts as recognised
       const clear = hits.length === 1 || hits[0].best - hits[1].best >= 0.1;
-      hits.forEach((h, i) => { evidence.get(h.c.uic).ocrUnique = clear && i === 0; });
+      hits.forEach((h, i) => { evidence.get(h.c.uic)!.ocrUnique = clear && i === 0; });
       candidates = hits.slice(0, 8).map((h) => h.c);
       candidatesBy = 'sign';
-      if (!clear) app.toast('Several stop names fit what was read (signs also list destinations). Turn on location to know which one is here.');
+      if (!clear) app!.toast('Several stop names fit what was read (signs also list destinations). Turn on location to know which one is here.');
     }
     const bestHit = hits[0];
-    if (wasTap && !bestHit) app.toast('Read: “' + text.replace(/\s+/g, ' ').trim().slice(0, 60) + '” – no stop nearby has that name.');
+    if (wasTap && !bestHit) app!.toast('Read: “' + text.replace(/\s+/g, ' ').trim().slice(0, 60) + '” – no stop nearby has that name.');
   }
 
-  let nameIndex = null;
-  function allStopsMatching(tokens) {
-    if (!nameIndex) nameIndex = [...app.PLATFORMS].map(([uic, st]) => ({ uic, st, dist: 0, nearEdge: 0, variants: nameVariants(st.name) }));
+  let nameIndex: StopVisionCandidate[] | null = null;
+  function allStopsMatching(tokens: string[]) {
+    if (!nameIndex) nameIndex = [...app!.PLATFORMS].map(([uic, st]) => ({ uic, st, dist: 0, nearEdge: 0, variants: nameVariants(st.name) }));
     const long = tokens.filter((t) => t.length >= 4);
     if (!long.length) return [];
     // cheap pre-filter: share a 3-letter start with a read word
@@ -591,7 +615,7 @@
   }
 
   // ---------------------------------------------------------------- live departures (for lines/destinations + display)
-  async function departures(c) {
+  async function departures(c: StopVisionCandidate) {
     const ev = evidence.get(c.uic) || {};
     if (!depDue(ev)) return ev.departures;
     ev.depBusy = true;
@@ -599,14 +623,14 @@
     try {
       // The Kante engine knows the edge of every departure (engine-departures.js: d.edges, the first one is the
       // edge the rule below would name). Without it, transport.opendata.ch and that rule.
-      const exact = window.KANTE_BOARD ? await window.KANTE_BOARD.load(c.uic, c.st, app.platformLL) : null;
-      const res = exact || await fetch(app.OPENDATA + 'stationboard?' + new URLSearchParams({ id: c.uic, limit: '30' }));
-      const all = exact || ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
+      const exact = window.KANTE_BOARD ? await window.KANTE_BOARD.load(c.uic, c.st, app!.platformLL) : null;
+      const res = exact || await fetch(app!.OPENDATA + 'stationboard?' + new URLSearchParams({ id: c.uic, limit: '30' }));
+      const all = exact || ((await (res as Response).json() as OdStationboardResponse).stationboard || []).filter((d) => d.stop && d.stop.departure);
       ev.departures = all.map((d) => {
-        const next = d.passList && d.passList[1] ? app.coordOf(d.passList[1]) : null;
-        const ll = d.edges ? null : app.platformLL(d.stop, null, next);
+        const next = d.passList && d.passList[1] ? app!.coordOf(d.passList[1]) : null;
+        const ll = d.edges ? null : app!.platformLL(d.stop, null, next);
         const edge = d.edges ? (d.edges.length ? d.edges[0] : -1) : c.st.edges.findIndex((e) => e.ll === ll);
-        return { time: (d.stop.prognosis && d.stop.prognosis.departure) || d.stop.departure, delay: d.stop.delay || 0,
+        return { time: (d.stop.prognosis && d.stop.prognosis.departure) || d.stop.departure!, delay: d.stop.delay || 0,
                  line: (d.number || d.name || '').replace(/^\D+\s/, ''), cat: d.category || '', to: d.to || '', edge: edge >= 0 ? edge : null, edges: d.edges, raw: d };
       });
       ev.depFailed = false;
@@ -625,26 +649,26 @@
   // Database format 2 (tools/build_stop_images.py): 0.02° tiles with, per stop, its reference photos
   // [src, prov, edge, heading, ref, credit, licence, fingerprint] and its timetable lines per edge [edge, lines, dests].
   // Fingerprints are 128 int8 values: DINOv2 [CLS, mean patch] (768), centred and projected with index.pca.
-  let index = null;
+  let index: StopImagesIndex | null = null;
   function loadIndex() {
     if (window.STOP_IMAGES_INDEX) return Promise.resolve(index = window.STOP_IMAGES_INDEX);
     return loadScript('stop-images/index.js').then(() => (index = window.STOP_IMAGES_INDEX || null)).catch(() => null);
   }
 
-  function b64bytes(b64) {
+  function b64bytes(b64: string) {
     const bin = atob(b64);
     const out = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
-  function decodeEmb(b64) {
+  function decodeEmb(b64: string) {
     const v = new Int8Array(b64bytes(b64).buffer);
     let n = 0;
     for (let i = 0; i < v.length; i++) n += v[i] * v[i];
     return { v, n: Math.sqrt(n) || 1 };
   }
   // Compact photo reference → picture + page links (see build_stop_images.py compact_ref)
-  function refLinks(ref) {
+  function refLinks(ref: string): { thumb: string | null; page: string } {
     const kind = ref.slice(0, 2), rest = ref.slice(2);
     if (kind === 'c:') return { thumb: 'https://upload.wikimedia.org/wikipedia/commons/thumb/' + rest, page: 'https://commons.wikimedia.org/wiki/File:' + rest.split('/')[2] };
     if (kind === 'p:') {
@@ -655,32 +679,32 @@
     return { thumb: rest, page: rest };
   }
 
-  const tileBytes = new Map(); // key → size of its script (diagnostics)
+  const tileBytes = new Map<string, number>(); // key → size of its script (diagnostics)
   window.STOP_IMAGES_TILE = (key, data) => {
-    const t = data.s || data.d ? data : { s: data, d: {} };
+    const t = (data.s || data.d ? data : { s: data, d: {} }) as StopImagesTile;
     tiles.set(key, { s: t.s || {}, d: t.d || {}, refs: new Map(), at: Date.now() });
   };
 
-  async function loadTilesAround(ll) {
+  async function loadTilesAround(ll: LngLat) {
     if (!(await loadIndex())) return;
-    const size = index.tile || 0.1;
+    const size = index!.tile || 0.1;
     // every tile that can hold a stop with an edge within the candidate radius (+ a margin for spread-out stops)
     const pos = position();
     const r = Math.min(600, Math.max(150, 3 * (pos ? pos.acc : 50) + 60)) + 300;
     const dLat = r / 111320, dLon = r / (111320 * Math.cos(ll[1] * toRad));
-    const want = new Set();
+    const want = new Set<string>();
     for (let la = Math.floor((ll[1] - dLat) / size); la <= Math.floor((ll[1] + dLat) / size); la++) {
       for (let lo = Math.floor((ll[0] - dLon) / size); lo <= Math.floor((ll[0] + dLon) / size); lo++) {
         const key = `${la}_${lo}`;
-        if (!Object.prototype.hasOwnProperty.call(index.tiles, key)) continue; // 0 photos can still mean lines
+        if (!Object.prototype.hasOwnProperty.call(index!.tiles, key)) continue; // 0 photos can still mean lines
         want.add(key);
-        if (tiles.has(key)) { tiles.get(key).at = Date.now(); continue; }
+        if (tiles.has(key)) { tiles.get(key)!.at = Date.now(); continue; }
         tiles.set(key, { s: {}, d: {}, refs: new Map(), at: Date.now() }); // loading
         const src = `stop-images/t/${key}.js`;
         loadScript(src).then(() => {
           const s = [...document.querySelectorAll('script')].find((e) => e.src.endsWith(src));
           if (s) s.remove(); // the data is in memory now
-          const entry = performance.getEntriesByName(new URL(src, location.href).href).pop();
+          const entry = performance.getEntriesByName(new URL(src, location.href).href).pop() as PerformanceResourceTiming | undefined;
           if (entry) tileBytes.set(key, entry.transferSize || entry.encodedBodySize || 0);
         }).catch(() => tiles.delete(key));
       }
@@ -693,9 +717,9 @@
   }
 
   // Photos of a stop, decoded on first use
-  function refsOf(uic) {
+  function refsOf(uic: string): StopVisionPhoto[] | null {
     for (const t of tiles.values()) {
-      if (t.refs.has(uic)) return t.refs.get(uic);
+      if (t.refs.has(uic)) return t.refs.get(uic)!;
       const raw = t.s[uic];
       if (raw) {
         const refs = raw.map(([src, prov, edge, head, ref, credit, licence, emb]) =>
@@ -707,7 +731,7 @@
     return null;
   }
   // Timetable lines and destinations per edge of a stop (offline): [{ edge, lines: Set, dests: [] }]
-  function linesOf(uic) {
+  function linesOf(uic: string) {
     for (const t of tiles.values()) {
       const raw = t.d[uic];
       if (raw) return raw.map(([edge, lines, dests]) => ({ edge, lines: new Set(lines.split(' ').filter(Boolean).map(norm)), dests: dests ? dests.split('|') : [] }));
@@ -717,11 +741,11 @@
 
   // ---- the image model runs in a worker, so the camera picture and the labels never wait for it
   // Shared by the worker and the main-thread fallback: last_hidden_state → 128-value fingerprint
-  function describe(hs, dim, pca) {
+  function describe(hs: Float32Array, dim: number, pca: ScanPca | null) {
     const tokens = hs.length / dim;
     const cls = hs.slice(0, dim), mean = new Float32Array(dim);
     for (let t = 1; t < tokens; t++) for (let k = 0; k < dim; k++) mean[k] += hs[t * dim + k];
-    const unit = (v) => { let s = 0; for (let i = 0; i < v.length; i++) s += v[i] * v[i]; s = Math.sqrt(s) || 1; for (let i = 0; i < v.length; i++) v[i] /= s; return v; };
+    const unit = (v: Float32Array) => { let s = 0; for (let i = 0; i < v.length; i++) s += v[i] * v[i]; s = Math.sqrt(s) || 1; for (let i = 0; i < v.length; i++) v[i] /= s; return v; };
     unit(cls); unit(mean);
     const v = new Float32Array(2 * dim);
     for (let i = 0; i < dim; i++) { v[i] = cls[i] / Math.SQRT2; v[dim + i] = mean[i] / Math.SQRT2; }
@@ -735,7 +759,7 @@
     for (let j = 0; j < k; j++) y[j] *= pca.scale[j];
     return unit(y);
   }
-  function toTensor(rgba, n) {
+  function toTensor(rgba: Uint8ClampedArray, n: number) {
     const x = new Float32Array(3 * n);
     for (let i = 0; i < n; i++) for (let ch = 0; ch < 3; ch++) x[ch * n + i] = (rgba[i * 4 + ch] / 255 - MEAN[ch]) / STD[ch];
     return x;
@@ -767,15 +791,15 @@
       }
     };`;
 
-  let worker = null, workerUrl = null, mainSession = null, pcaData = null, embedId = 0;
-  const pending = new Map();
-  function pcaFromIndex() {
+  let worker: Worker | null = null, workerUrl: string | null = null, mainSession: OrtSession | null = null, pcaData: ScanPca | null = null, embedId = 0;
+  const pending = new Map<number, PendingEmbed>();
+  function pcaFromIndex(): ScanPca | null {
     const p = index && index.pca;
     if (!p) return null;
     return { k: p.k, mean: new Float32Array(b64bytes(p.mean).buffer), w: new Int8Array(b64bytes(p.w).buffer), scale: new Float32Array(b64bytes(p.scale).buffer) };
   }
   async function modelBytes() {
-    const m = index.model;
+    const m = index!.model;
     const url = `https://huggingface.co/${m.repo}/resolve/${m.rev}/${m.file}`;
     try { // keep the 24 MB model on the phone after the first time
       const cache = await caches.open('stopvision-model');
@@ -800,18 +824,18 @@
       try {
         workerUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
         worker = new Worker(workerUrl);
-        await new Promise((resolve, reject) => {
-          worker.onmessage = (e) => {
+        await new Promise<void>((resolve, reject) => {
+          worker!.onmessage = (e: MessageEvent<ModelReply>) => {
             const m = e.data;
             if (m.type === 'ready') resolve();
             else if (m.type === 'emb') { const p = pending.get(m.id); pending.delete(m.id); if (p) p.resolve(m); }
             else if (m.type === 'error') {
               if (m.id == null) reject(new Error(m.message));
-              const p = pending.get(m.id); pending.delete(m.id); if (p) p.reject(new Error(m.message));
+              const p = pending.get(m.id!); pending.delete(m.id!); if (p) p.reject(new Error(m.message));
             }
           };
-          worker.onerror = (e) => reject(new Error(e.message || 'worker failed'));
-          worker.postMessage({ type: 'init', ortDist: ORT_DIST, threads, model: buf, pca: pcaData }, [buf]);
+          worker!.onerror = (e) => reject(new Error(e.message || 'worker failed'));
+          worker!.postMessage({ type: 'init', ortDist: ORT_DIST, threads, model: buf, pca: pcaData }, [buf]);
         });
         if (mine !== session || !running) { releaseModel(); return false; }
         // from now on a crash fails what is waiting (the scan carries on with signs) instead of hanging it
@@ -823,9 +847,9 @@
         if (worker) worker.terminate();
         worker = null;
         if (!window.ort) await loadScript(ORT_DIST + 'ort.wasm.min.js');
-        window.ort.env.wasm.wasmPaths = ORT_DIST;
-        window.ort.env.wasm.numThreads = threads;
-        mainSession = await window.ort.InferenceSession.create(new Uint8Array(await modelBytes()), { executionProviders: ['wasm'] });
+        window.ort!.env.wasm.wasmPaths = ORT_DIST;
+        window.ort!.env.wasm.numThreads = threads;
+        mainSession = await window.ort!.InferenceSession.create(new Uint8Array(await modelBytes()), { executionProviders: ['wasm'] });
         stats.engine = 'page';
         if (mine !== session || !running) { releaseModel(); return false; }
       }
@@ -840,29 +864,29 @@
   }
 
   // Fingerprint of the picture: same preprocessing as the database (shortest side → 224, centre crop, ImageNet norm)
-  let frameCanvas = null;
+  let frameCanvas: HTMLCanvasElement | null = null;
   async function embedFrame() {
     const [w, h] = sourceSize();
     if (!w) return null;
     const side = Math.min(w, h);
     if (!frameCanvas) { frameCanvas = document.createElement('canvas'); frameCanvas.width = frameCanvas.height = INPUT; }
-    const ctx = frameCanvas.getContext('2d', { willReadFrequently: true });
+    const ctx = frameCanvas.getContext('2d', { willReadFrequently: true })!;
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(source(), (w - side) / 2, (h - side) / 2, side, side, 0, 0, INPUT, INPUT);
     const rgba = ctx.getImageData(0, 0, INPUT, INPUT).data;
     if (worker) {
       const id = ++embedId;
-      const res = await new Promise((resolve, reject) => {
+      const res = await new Promise<EmbedReply>((resolve, reject) => {
         // never wait forever: a stuck worker would block sign reading too (one job at a time)
         const timer = setTimeout(() => { if (pending.delete(id)) reject(new Error('photo model timed out')); }, 15000);
         pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
-        worker.postMessage({ type: 'embed', id, size: INPUT, rgba: rgba.buffer }, [rgba.buffer]);
+        worker!.postMessage({ type: 'embed', id, size: INPUT, rgba: rgba.buffer }, [rgba.buffer]);
       });
       stats.photo.push(res.ms);
       return res.v;
     }
     const t0 = performance.now();
-    const out = await mainSession.run({ pixel_values: new window.ort.Tensor('float32', toTensor(rgba, INPUT * INPUT), [1, 3, INPUT, INPUT]) });
+    const out = await mainSession!.run({ pixel_values: new window.ort!.Tensor('float32', toTensor(rgba, INPUT * INPUT), [1, 3, INPUT, INPUT]) });
     const v = describe(out.last_hidden_state.data, 384, pcaData);
     stats.photo.push(performance.now() - t0);
     return v;
@@ -884,21 +908,21 @@
     if (!running || !ui || owner !== session) return;
     if (stillImage) stillFrames++;
     // a photo linked to several of these stops (e.g. a view of the whole square) cannot tell them apart
-    const shared = new Map();
-    for (const c of withRefs) for (const r of refsOf(c.uic)) shared.set(r.ref, (shared.get(r.ref) || 0) + 1);
+    const shared = new Map<string, number>();
+    for (const c of withRefs) for (const r of refsOf(c.uic)!) shared.set(r.ref, (shared.get(r.ref) || 0) + 1);
     const mine = session;
     const q = await embedFrame();
     if (!q || !running || mine !== session) return;
-    const best = [];
+    const best: PhotoMatch[] = [];
     for (const c of withRefs) {
-      let top = -1, topRef = null;
-      for (const r of refsOf(c.uic)) {
-        if (shared.get(r.ref) > 1 || r.emb.v.length !== q.length) continue;
+      let top = -1, topRef: StopVisionPhoto | null = null;
+      for (const r of refsOf(c.uic)!) {
+        if (shared.get(r.ref)! > 1 || r.emb.v.length !== q.length) continue;
         let dot = 0;
         for (let i = 0; i < q.length; i++) dot += q[i] * r.emb.v[i];
         let sim = dot / r.emb.n;
         if (!IDENTITY[r.prov] && r.prov === 'geo') sim -= 0.02; // photos tied only by place count a bit less
-        if (r.head != null && headingOk() && !stillImage && angleDiff(r.head, heading) < 45) sim += 0.02; // taken looking the same way
+        if (r.head != null && headingOk() && !stillImage && angleDiff(r.head, heading!) < 45) sim += 0.02; // taken looking the same way
         if (sim > top) { top = sim; topRef = r; }
       }
       if (topRef) best.push({ c, sim: top, ref: topRef });
@@ -920,8 +944,8 @@
   }
 
   // ---------------------------------------------------------------- diagnostics (?scandebug, or tap the status 3×)
-  const stats = { frames: [], ocr: [], photo: [], engine: '-', modelLoadMs: 0, ocrLoadMs: 0, longFrames: 0 };
-  const pctl = (a, p) => { if (!a.length) return 0; const s = a.slice(-30).sort((x, y) => x - y); return Math.round(s[Math.min(s.length - 1, Math.floor(p * s.length))]); };
+  const stats: ScanStats = { frames: [], ocr: [], photo: [], engine: '-', modelLoadMs: 0, ocrLoadMs: 0, longFrames: 0 };
+  const pctl = (a: number[], p: number) => { if (!a.length) return 0; const s = a.slice(-30).sort((x, y) => x - y); return Math.round(s[Math.min(s.length - 1, Math.floor(p * s.length))]); };
   function diagnostics() {
     const f = stats.frames.slice(-60);
     const fps = f.length > 1 ? Math.round(1000 * (f.length - 1) / (f[f.length - 1] - f[0])) : 0;
@@ -932,62 +956,62 @@
       `signs: ${pctl(stats.ocr, 0.5)} ms (p95 ${pctl(stats.ocr, 0.95)}) · loaded in ${stats.ocrLoadMs} ms · ${ocrLang || '-'}`,
       `photos: ${pctl(stats.photo, 0.5)} ms (p95 ${pctl(stats.photo, 0.95)}) · ${stats.engine} · loaded in ${stats.modelLoadMs} ms`,
       `tiles: ${tiles.size} (${Math.round(kb)} KB) · stops near: ${candidates.length}`,
-      `GPS ±${pos ? Math.round(pos.acc) : '-'} m · compass ${headingOk() ? Math.round(heading) + '° ±' + Math.round(headingAcc) : 'off'}`,
+      `GPS ±${pos ? Math.round(pos.acc) : '-'} m · compass ${headingOk() ? Math.round(heading!) + '° ±' + Math.round(headingAcc) : 'off'}`,
     ].join('\n');
   }
 
   // ---------------------------------------------------------------- what is shown
   // Which edge of a recognised stop you are looking at, and how we know (null = only the stop is known)
-  function edgeOf(c) {
+  function edgeOf(c: StopVisionCandidate): StopVisionEdgeGuess | null {
     const ev = evidence.get(c.uic) || {};
     const now = Date.now();
     if (ev.edgeOcr != null && fresh(ev.edgeOcrAt, 20000)) return { i: ev.edgeOcr, why: 'Platform sign read' };
     if (ev.edgeDest != null && fresh(ev.edgeDestAt, 20000)) return { i: ev.edgeDest, why: 'Destination read' };
-    if (ev.visRef && ev.visRef.edge != null && ev.visStreak >= VIS_FRAMES) return { i: ev.visRef.edge, why: 'Matches a photo of this side', maybe: true };
+    if (ev.visRef && ev.visRef.edge != null && ev.visStreak! >= VIS_FRAMES) return { i: ev.visRef.edge, why: 'Matches a photo of this side', maybe: true };
     if (c.st.edges.length === 1) return { i: 0, why: '' };
     // the camera points at one edge and the others are well outside the picture
     const pos = position();
     if (headingOk() && pos && headingAcc <= 30) {
       const fov = screenFov();
-      const offs = c.st.edges.map((e) => angleDiff(bearing(pos.ll, e.ll), heading));
+      const offs = c.st.edges.map((e) => angleDiff(bearing(pos.ll, e.ll), heading!));
       const inView = offs.map((o, i) => [o, i]).filter(([o]) => o <= fov / 2);
       if (inView.length === 1 && offs.every((o, i) => i === inView[0][1] || o > fov / 2 + 25)) return { i: inView[0][1], why: 'Only side in view', maybe: true };
     }
     return null;
   }
 
-  function recognised(c) {
+  function recognised(c: StopVisionCandidate) {
     const ev = evidence.get(c.uic) || {};
-    if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
+    if (fresh(ev.ocrAt, 12000) && ev.ocr! >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
     // photo match only together with the location: the stop that position + compass favour on their own
-    if (ev.visStreak >= VIS_FRAMES && Date.now() - ev.visAt < 6000 && c.geoTop && c.ahead !== false && position()) return 'photo';
+    if (ev.visStreak! >= VIS_FRAMES && Date.now() - ev.visAt! < 6000 && c.geoTop && c.ahead !== false && position()) return 'photo';
     return null;
   }
 
   function placeTags() {
     const pos = position();
-    const seen = new Set();
+    const seen = new Set<string>();
     if (pos && headingOk() && !stillImage) {
       const fov = screenFov();
-      const W = ui.root.clientWidth, H = ui.root.clientHeight;
+      const W = ui!.root.clientWidth, H = ui!.root.clientHeight;
       const top = candidates[0];
       const shown = candidates.slice(0, 12);
       shown.forEach((c, n) => {
         const e = c.st.edges[c.aheadEdge != null ? c.aheadEdge : c.nearEdge];
-        const off = ((bearing(pos.ll, e.ll) - heading + 540) % 360) - 180;
+        const off = ((bearing(pos.ll, e.ll) - heading! + 540) % 360) - 180;
         if (Math.abs(off) > fov / 2 + 4) return;
         const x = W / 2 + Math.tan(off * toRad) / Math.tan(fov / 2 * toRad) * W / 2;
         const y = H * (0.42 - Math.min(0.2, distM(pos.ll, e.ll) / 1000)) - (n % 3) * 30; // nearer = lower
-        let tag = ui.tags.get(c.uic);
+        let tag = ui!.tags.get(c.uic);
         if (!tag) {
           tag = $('div', 'sv-tag');
           const pill = $('span');
           tag.append(pill, $('i'));
-          ui.ar.appendChild(tag);
-          ui.tags.set(c.uic, tag);
+          ui!.ar.appendChild(tag);
+          ui!.tags.set(c.uic, tag);
         }
-        const pill = tag.firstChild;
-        const label = c.st.name.split(',').pop().trim();
+        const pill = tag.firstChild as HTMLSpanElement;
+        const label = c.st.name.split(',').pop()!.trim();
         const key = label + e.ref + Math.round(distM(pos.ll, e.ll) / 5);
         if (tag.dataset.key !== key) {
           tag.dataset.key = key;
@@ -1001,55 +1025,55 @@
         seen.add(c.uic);
       });
     }
-    for (const [uic, tag] of ui.tags) if (!seen.has(uic)) { tag.remove(); ui.tags.delete(uic); }
+    for (const [uic, tag] of ui!.tags) if (!seen.has(uic)) { tag.remove(); ui!.tags.delete(uic); }
   }
 
-  function chip(text, on) { const li = $('li', on ? 'on' : null, text); return li; }
+  function chip(text: string, on: boolean) { const li = $('li', on ? 'on' : null, text); return li; }
 
   function renderSheet() {
     const pos = position();
     const c = candidates[0];
     if (!c) {
       const msg = !pos
-        ? (app.position() ? 'Waiting for a precise location…' : 'Location is off: point the camera at a stop sign and tap it to read the name.')
+        ? (app!.position() ? 'Waiting for a precise location…' : 'Location is off: point the camera at a stop sign and tap it to read the name.')
         : 'No stops within a few hundred metres.';
-      if (ui.shownKey !== msg) { ui.shownKey = msg; ui.sheet.replaceChildren($('p', 'sv-hint', msg)); }
+      if (ui!.shownKey !== msg) { ui!.shownKey = msg; ui!.sheet.replaceChildren($('p', 'sv-hint', msg)); }
       return;
     }
     const ev = evidence.get(c.uic) || {};
     const how = recognised(c);
     const edge = edgeOf(c);
     const e = edge ? c.st.edges[edge.i] : null;
-    const deps = ev.departures ? ev.departures.filter((d) => !e || (d.edges ? d.edges.includes(edge.i) : d.edge === edge.i) || d.edge == null && c.st.edges.length === 1) : null;
+    const deps = ev.departures ? ev.departures.filter((d) => !e || (d.edges ? d.edges.includes(edge!.i) : d.edge === edge!.i) || d.edge == null && c.st.edges.length === 1) : null;
     const key = [c.uic, how, edge && edge.i, ev.depAt, ev.departures && ev.departures.length, ev.depFailed, ev.visRef && ev.visRef.page, ev.ocrAt, c.ahead, candidates.slice(1, 4).map((x) => x.uic).join()].join('|');
-    if (key === ui.shownKey) return;
-    ui.shownKey = key;
+    if (key === ui!.shownKey) return;
+    ui!.shownKey = key;
 
     const state = $('span', 'sv-state' + (how ? ' ok' : ''), how ? 'Recognised' : !pos ? 'Possible match' : c.ahead ? 'Nearby · ahead' : 'Nearby');
     const main = $('div', 'sv-main');
     const txt = $('div');
     const sub = [MODE_WORD[c.st.mode] || 'Stop'];
-    if (e && e.ref) sub.push(`${EDGE_WORD(c.st.mode)} ${e.ref}${edge.maybe ? ' (probably)' : ''}`);
+    if (e && e.ref) sub.push(`${EDGE_WORD(c.st.mode)} ${e.ref}${edge!.maybe ? ' (probably)' : ''}`);
     if (pos) sub.push(Math.round(c.dist) + ' m');
     txt.append($('b', null, c.st.name), $('small', null, sub.join(' · ')));
     main.append(icon(c.st.mode), txt);
 
     const why = $('ul', 'sv-why');
-    if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.72) why.append(chip(`Sign read “${ev.ocrWhat}”`, true));
+    if (fresh(ev.ocrAt, 12000) && ev.ocr! >= 0.72) why.append(chip(`Sign read “${ev.ocrWhat}”`, true));
     if (edge && edge.why) why.append(chip(edge.why + (ev.destWhat && edge.why === 'Destination read' ? ` “${ev.destWhat}”` : ''), !edge.maybe));
-    if (ev.visStreak >= VIS_FRAMES) why.append(chip('Looks like its photos', how === 'photo'));
-    else if (ev.vis != null && ev.visRel > 0.02) why.append(chip('Similar to its photos', false));
+    if (ev.visStreak! >= VIS_FRAMES) why.append(chip('Looks like its photos', how === 'photo'));
+    else if (ev.vis != null && ev.visRel! > 0.02) why.append(chip('Similar to its photos', false));
     if (c.ahead) why.append(chip('In front of the camera', false));
     if (pos && c === candidates.slice().sort((a, b) => a.dist - b.dist)[0]) why.append(chip('Closest stop', false));
     if (!refsOf(c.uic)) why.append(chip('No reference photos yet', false));
 
-    const nodes = [state, main, why];
+    const nodes: HTMLElement[] = [state, main, why];
     if (deps && deps.length) {
       const ul = $('ul', 'sv-deps');
       for (const d of deps.slice(0, 4)) {
         const li = $('li');
         li.append($('time', null, new Date(d.time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })),
-          app.badge ? app.badge(d.raw) : $('span', 'sv-line', d.line || d.cat), $('span', 'sv-to', d.to));
+          app!.badge ? app!.badge(d.raw) : $('span', 'sv-line', d.line || d.cat), $('span', 'sv-to', d.to));
         if (d.delay > 0) li.append($('span', 'sv-late', `+${d.delay}′`));
         ul.appendChild(li);
       }
@@ -1063,11 +1087,11 @@
     const actions = $('div', 'sv-actions');
     const show = $('button', null, 'Show on map');
     show.type = 'button';
-    show.addEventListener('click', () => { const uic = c.uic, i = edge ? edge.i : null; closeScan(); app.openStop(uic, i); });
+    show.addEventListener('click', () => { const uic = c.uic, i = edge ? edge.i : null; closeScan(); app!.openStop(uic, i); });
     actions.append(show);
     nodes.push(actions);
 
-    const ref = ev.visRef && ev.vis >= VIS_MIN ? ev.visRef : null;
+    const ref = ev.visRef && ev.vis! >= VIS_MIN ? ev.visRef : null;
     if (ref) {
       const p = $('div', 'sv-photo');
       if (ref.thumb) { const img = $('img'); img.src = ref.thumb; img.alt = 'Reference photo'; img.loading = 'lazy'; p.append(img); }
@@ -1082,16 +1106,16 @@
       for (const a of alts) {
         const li = $('li');
         li.append(icon(a.st.mode), $('span', null, a.st.name), $('small', null, pos ? Math.round(a.dist) + ' m' : ''));
-        li.addEventListener('click', () => { closeScan(); app.openStop(a.uic, null); });
+        li.addEventListener('click', () => { closeScan(); app!.openStop(a.uic, null); });
         ul.appendChild(li);
       }
       nodes.push(ul);
     }
-    ui.sheet.replaceChildren(...nodes);
+    ui!.sheet.replaceChildren(...nodes);
   }
 
   function renderStatus() {
-    const busy = [];
+    const busy: string[] = [];
     if (ocrState === 'loading') busy.push('loading the sign reader');
     if (modelState === 'loading') busy.push('loading the image model (24 MB, once)');
     const pos = position();
@@ -1104,18 +1128,18 @@
 
   // ---------------------------------------------------------------- loop
   let lastCand = 0, lastStatus = 0;
-  let prevTop = null;
-  const depDue = (ev) => !ev.depBusy && (!ev.depAt || Date.now() - ev.depAt > 60000);
+  let prevTop: StopVisionCandidate | null = null;
+  const depDue = (ev: StopVisionEvidence) => !ev.depBusy && (!ev.depAt || Date.now() - ev.depAt > 60000);
 
-  function loop(mine) {
+  function loop(mine: number) {
     // One heavy job at a time (reading signs or comparing photos), so a phone never runs both at once:
     // a tap goes first, otherwise whichever is more overdue. Frames keep drawing while a job runs in its worker.
     let busy = false, lastFrame = 0, lastWork = 0;
-    const run = (job, done) => {
+    const run = (job: () => Promise<void>, done: (t: number) => void) => {
       busy = true;
       job().catch((e) => console.warn(e)).finally(() => { busy = false; done(Date.now()); });
     };
-    const frame = (t) => {
+    const frame = (t: number) => {
       if (!running || mine !== session) return;
       if (lastFrame && t - lastFrame > 50) stats.longFrames++;
       lastFrame = t;
@@ -1140,30 +1164,30 @@
         else if (visDue >= 0) run(comparePhotos, (t2) => { lastVis = t2; });
       }
       if (candidates[0] && depDue(evidence.get(candidates[0].uic) || {})) departures(candidates[0]).catch(() => {});
-      if (now - lastStatus > 1000) { lastStatus = now; renderStatus(); if (debugOn) ui.debug.textContent = diagnostics(); }
+      if (now - lastStatus > 1000) { lastStatus = now; renderStatus(); if (debugOn) ui!.debug.textContent = diagnostics(); }
       requestAnimationFrame(frame);
     };
     renderStatus();
     requestAnimationFrame(frame);
   }
 
-  function useStill(file) {
+  function useStill(file: File) {
     if (stillImage) URL.revokeObjectURL(stillImage);
     evidence.clear(); // what the live camera saw does not apply to this photo
     stillFrames = 0;
     stillReads = 0;
     if (!position()) candidates = [];
     stillImage = URL.createObjectURL(file);
-    ui.still.src = stillImage;
-    ui.root.classList.add('still');
-    ui.still.onload = () => { if (!ui) return; lastOcr = 0; lastVis = 0; renderStatus(); };
+    ui!.still.src = stillImage;
+    ui!.root.classList.add('still');
+    ui!.still.onload = () => { if (!ui) return; lastOcr = 0; lastVis = 0; renderStatus(); };
   }
 
   // ---------------------------------------------------------------- open / close
-  const stopStream = (st) => { if (st) st.getTracks().forEach((t) => t.stop()); };
+  const stopStream = (st: MediaStream | null) => { if (st) st.getTracks().forEach((t) => t.stop()); };
   let session = 0;
 
-  async function openScan(hooks, cameraPromise, orientationPromise) {
+  async function openScan(hooks: StopVisionHooks, cameraPromise: Promise<MediaStream>, orientationPromise?: Promise<unknown>) {
     if (running) { cameraPromise.then(stopStream, () => {}); return; } // already open: drop the second camera
     const mine = ++session;
     app = hooks;
@@ -1210,17 +1234,17 @@
     ocr = null; ocrState = 'idle'; ocrLang = '';
     tiles.clear(); tileBytes.clear(); nameIndex = null;
     candidates = []; candidatesBy = ''; prevTop = null;
-    ui.root.remove();
+    ui!.root.remove();
     ui = null;
     if (app && app.onClose) app.onClose();
   }
 
   // Benchmark (scan-bench.html): load both engines, then time sign reading and photo fingerprints on an image
-  async function bench(img, runs = 8, log = () => {}) {
+  async function bench(img: HTMLImageElement, runs = 8, log: (text: string, sofar?: Partial<StopVisionBenchResult>) => void = () => {}) {
     const fake = { videoWidth: 0, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight };
-    ui = { still: img, video: fake, ring: { classList: { remove() {} } }, root: { clientWidth: 390, clientHeight: 844 } };
-    stillImage = 'bench'; running = true; app = app || { position: () => null, PLATFORMS: new Map(), toast() {} };
-    const out = {};
+    ui = { still: img, video: fake, ring: { classList: { remove() {} } }, root: { clientWidth: 390, clientHeight: 844 } } as unknown as ScanUI;
+    stillImage = 'bench'; running = true; app = app || { position: () => null, PLATFORMS: new Map(), toast() {} } as Partial<StopVisionHooks> as StopVisionHooks;
+    const out = {} as StopVisionBenchResult;
     let t = performance.now();
     await ensureOcr(); out.ocrLoadMs = Math.round(performance.now() - t); log('sign reader ready', out);
     t = performance.now();
@@ -1228,7 +1252,7 @@
     for (let i = 0; i < runs; i++) { await embedFrame(); log(`photo ${i + 1}/${runs}`); }
     for (let i = 0; i < Math.min(3, runs); i++) {
       const img2 = await ocrImage(null, i % 2 === 1);
-      const t0 = performance.now(); const { data } = await ocr.recognize(img2); stats.ocr.push(performance.now() - t0);
+      const t0 = performance.now(); const { data } = await ocr!.recognize(img2); stats.ocr.push(performance.now() - t0);
       out.text = (data.text || '').replace(/\s+/g, ' ').trim().slice(0, 80); log(`signs ${i + 1}/3`);
     }
     out.photoMs = { p50: pctl(stats.photo, 0.5), p95: pctl(stats.photo, 0.95) };
