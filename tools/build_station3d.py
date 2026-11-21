@@ -122,8 +122,13 @@ OVERPASS = ['https://overpass-api.de/api/interpreter',
 #               ['drop', way id]                   a way that is wrong, or that the ways above replace
 #   skip_edges  [uic, x, y, why]: an ATLAS stop edge that is wrong (the edge of that stop id within 10 m of the
 #             point is left out), with the evidence in `why`
+#   stop_areas  [uic, ref or name, x, y, why]: the platform area at the point belongs to that stop too (its nodes
+#             are added to the stop's), where ATLAS has one edge for two platforms, e.g. a metro's two side platforms
 #   stop_names  [x, y, name, mode]: the stop without a platform number within 10 m of the point gets this name and
 #             mode ('tram' | 'bus'), where ATLAS has one name and one mode for the tram and the bus edges of a stop.
+#   modes_from_osm  True: the same for the edges with a letter, from OSM: an edge whose letter OSM has on a bus or
+#             tram stop position or platform near it is a tram stop when one of them is tram=yes, else a bus stop.
+#             (Always done for a stop id that OSM has as a railway station, where ATLAS calls it bus or tram.)
 #   level_shift  boxes in which OSM counts the floors differently from the rest of the station (a shopping centre
 #             that calls its ground floor level 1): [minX, minY, maxX, maxY, shift]. The shift is added to every
 #             level=* of the things that lie in the box entirely.
@@ -530,6 +535,9 @@ STATIONS = {
         # Basel SBB (tracks 1-20 and the SNCF tracks 30-35, all one stop in ATLAS), Basel, Bahnhof SBB (tram and
         # bus on Centralbahnplatz), Basel, Bahnhofeingang Gundeldingen (tram on Güterstrasse)
         'uics': ['8500010', '8578143', '8500146'],
+        # ATLAS files every edge of "Basel, Bahnhof SBB" (8578143) as tram, but bays A, B, C and K on Centralbahnplatz
+        # serve buses only (OSM: bus=yes on their stop positions and platforms, no tram=yes): modes from OSM
+        'modes_from_osm': True,
         # Level 0 is the surface of the platforms, about 277 m above sea level: swisstopo terrain (swissALTI3D,
         # height service of api3.geo.admin.ch, 21.11.2026) reads 276.0-278.4 along the platforms (median 276.9 of
         # 28 points; under the roofs it is the track bed, interpolated), ATLAS has the platform edges at 275.4-278.4.
@@ -674,6 +682,11 @@ STATIONS = {
         'closed': [
             {'uic': '8508450', 'refs': ['C', 'D', 'E', 'F', 'G', 'H'], 'until': '2026-12-13',
              'note': 'New bus stop, in use from 13 December 2026'},
+            # today's A and B keep their place but change letters on 13 December (OSM notes, as above): a note on
+            # each, until a rebuild with the ATLAS data of the new timetable moves A to Pilatusstrasse
+            {'uic': '8508450', 'refs': ['A'],
+             'remark': 'From 13 December 2026 this bus edge is B; the new edge A is on Pilatusstrasse'},
+            {'uic': '8508450', 'refs': ['B'], 'remark': 'From 13 December 2026 this bus edge is C'},
         ],
         'notices': [
             {'text': 'Building works on Bahnhofplatz: several bus lines leave from other stops than usual until '
@@ -695,6 +708,214 @@ STATIONS = {
         'layers': ['sectors.json', 'boards.json', 'furniture.json'],
         # Closures of the railway station (checked 21.11.2026): none found; OSM has nothing under construction on
         # the ways of the station. The works on Bahnhofplatz are above (closed, notices).
+        'credits': ['© swisstopo'],                 # terrain heights
+    },
+    'lausanne': {
+        'name': 'Lausanne',
+        'origin': (6.6291, 46.5168),
+        'bbox': (46.5138, 6.6235, 46.5198, 6.6345),
+        # The station on its terrace in the slope: tracks 1 and 3-8 (there is no track 2) and 70, the short track at
+        # the east end of the platform of track 1, with the station building, Place de la Gare above it in the north with the bus stops and the m2 station
+        # Lausanne-Gare under it, the two underpasses under the tracks (west, and east from the hall) and Rue du
+        # Simplon below the tracks in the south, where they come out. Left out: the m2 stop Grancy, the buses of
+        # Rasude, Closelet and Montbenon, and the hillside of Petit-Chêne above Place de la Gare.
+        'extent': (-335, -110, 330, 240),
+        # Lausanne (train) and Lausanne, gare (m2 and the buses on Place de la Gare: ATLAS has both under 8592050)
+        'uics': ['8501120', '8592050'],
+        # OSM counts the floors from the platforms: 0 = the platforms, the hall and Place de la Gare; -1 = the
+        # underpasses and the m2 station; -2 = the south end of the east underpass, at the level of Rue du Simplon.
+        # Heights relative to the surface of the platforms, 447.3 m above sea level (swisstopo terrain, swissALTI3D,
+        # height service of api3.geo.admin.ch, 21.11.2026: 447.0-447.7 on platforms 1 to 7/8):
+        #   -1  -4.8   28 steps on each of the six stairs between the platforms and the east underpass (17 cm a
+        #              step). One level has one height: the west underpass rises towards its north mouth (20 steps
+        #              up to Place de la Gare there, which lies at 449.2: the floor is about -1.3 at that end; the
+        #              ramp beside those stairs, way 344135870, 22 m and wheelchair=yes in OSM, comes out at 22 % in
+        #              the model and does not count as step-free), and the m2 platform slopes at 12 % (OSM incline);
+        #              its upper end is about -2.6 (26 steps down from the street at 449.1). The m2 stop's ele=455
+        #              in OSM is the value of the bus stops above it, not a measurement.
+        #   -2  -8.6   26 steps from -1 at the south end of the east underpass (-9.2 by the steps); swisstopo
+        #              terrain gives 439.3 at its south mouth and 438.1-439.3 along Rue du Simplon (-8.0 to -9.2)
+        #    1, 2, 3   not in the table: extrapolated with level_height (4 m a level). OSM has level=1 and 3 only on
+        #              a few shops and a café on upper floors along Rue du Petit-Chêne, with no source for a height;
+        #              the model's Level 1 and Level 2 are a few points of the street that climbs west of Place de la
+        #              Gare (spots below), where it passes those heights
+        # One level has one height for the street too: OSM ends the stairs and ramps from the underpasses and the
+        # m2 on Place de la Gare on level 0, and the model draws the square in front of the station at the height of
+        # the platforms, while swisstopo terrain has it 1.7 m higher (449.0-449.2 in front of the m2 and at the
+        # mouth of the west underpass; 447.4-448.5 at the east end).
+        'levels': {
+            -2: (-8.6, 'Rue du Simplon'),
+            -1: (-4.8, 'Underpasses'),
+            0: (0.0, 'Street level'),
+        },
+        'level_height': 4.0,
+        # Petit-Chêne, the steep street up to the town from the east end of the square: not part of the complex
+        'extent_cut': [(-40, 92, 330, 240)],
+        'entrances': [
+            ['Place de la Gare (main entrance)', 10, 38, 0],
+            ['Place de la Gare (west underpass)', -40, 88, 0],
+            ['Rue du Simplon (east underpass)', 70, -70, -2],
+            ['Rue du Simplon (west underpass)', -55, -60, -2],
+        ],
+        # The west underpass comes out on Rue du Simplon over a landing that OSM has as a bridge without a level
+        # (ways 1425301684 and 1425301685, layer=1), with stairs and a lift down to the street: the landing is the
+        # floor of the underpass, which it continues.
+        'structures': [[-67.8, -52, -1], [-69.4, -55.3, -1]],
+        # Place de la Gare climbs 14 m to the west, past the bus stops C, D, E and I. swisstopo terrain (as above) at
+        # the corners of its two pavements (OSM ways 862084481 north side, 995959770 south side), given relative to
+        # the part of the square in front of the station (449.0 m, which the model draws on level 0, see above), so
+        # that the climb comes out right: 451.2 m at x = -112, 454.9 at -187, 459.6 at -253, 463.5 at -311.
+        'spots': [
+            [-52.3, 91.5, 0.2, 'ground'], [-70.1, 101.8, 0.8, 'ground'], [-111.5, 127.0, 2.2, 'ground'],
+            [-124.4, 134.8, 2.8, 'ground'], [-143.5, 146.4, 3.6, 'ground'], [-186.9, 172.7, 5.9, 'ground'],
+            [-205.1, 183.7, 7.2, 'ground'], [-221.7, 193.9, 8.2, 'ground'], [-235.0, 201.9, 9.3, 'ground'],
+            [-252.8, 213.0, 10.6, 'ground'], [-310.7, 247.5, 14.5, 'ground'],
+            [-120.5, 114.0, 2.2, 'ground'], [-182.7, 151.4, 5.1, 'ground'], [-231.4, 180.7, 8.3, 'ground'],
+            [-243.5, 188.0, 9.1, 'ground'], [-257.5, 196.5, 10.0, 'ground'], [-320.0, 234.0, 14.5, 'ground'],
+        ],
+        # Rue du Simplon falls to the west: 439.3 at the south mouth of the east underpass, 437.3-437.4 at the stairs
+        # and the lift that bring the west underpass down to it (OSM ways 1425301684-1425301687, lift node
+        # 13100595957, no levels). The street there is put on level -2, like the other end (1.3 m too high).
+        'ground': [[-69.8, -56.6, -2], [-54.9, -59.7, -2]],
+        # The bus stops C, D, E and I on the climbing part of the square: OSM has their waiting areas as platforms
+        # without a level (ways 1041897644-1041897647), 17-47 m long along the pavement. The builder draws a platform
+        # flat on one level, which here leaves one end of C 1.6 m above or below the pavement it lies on, and puts I on
+        # the wrong level. Without them the stops stand on the pavement at its measured height; nothing else uses them.
+        # ATLAS has the edge of I without its letter, and two edges of Lausanne, gare without a letter: the m2
+        # (OSM: Lausanne-Gare, railway=halt, level -1) and I. stop_names tells them apart. The m2 stop stands on one of
+        # the two side platforms of the m2 (OSM ways 315754586/315754587); ATLAS has one edge for both.
+        # ATLAS has edge F at (208, 46), where OSM has a platform G (way 1218037926); OSM's platform F is 90 m further
+        # east and drawn without a way to it. The stop stays at the ATLAS position.
+        'stop_names': [
+            [-270, 207, 'Lausanne, gare I', 'bus'],
+            [38, 88, 'Lausanne-Gare (m2)', 'train'],
+        ],
+        # ATLAS has one edge of the m2 for its two side platforms (OSM ways 315754586 and 315754587); the stop is
+        # matched to the west one. The passage from the east underpass (closed until 18 Dec, above) reaches the east
+        # one (node 3473841559 is on its outline): both belong to the stop, so a route to the m2 can use it.
+        'stop_areas': [['8592050', 'Lausanne-Gare (m2)', 47.3, 93.8, 'the east side platform of the m2, where the passage arrives']],
+        # Works (Léman 2030, the rebuild of the station and of Place de la Gare):
+        # - lausanne.ch, "Fermeture du passage" (Pôle Gare, files of 22-23 Sep 2026): the part of the east underpass
+        #   under Place de la Gare between the station and the m2 is closed from 25 Sep 2026, 21:00, until 18 Dec
+        #   2026 (works on the new underground level of the square). The m2 is reached on the surface; the east side
+        #   of the station step-free by the lift of platform 1. OSM (21.11.2026) has the passage as foot=no, without
+        #   a date: the east underpass north of the station building (way 1561897395), its way west to the m2 (way
+        #   313989605) and a branch (way 345760467). That would leave them out; osm_edits below keep them in the
+        #   model, closed until that date (opens). The short tunnel at the north end, with its stairs and lift up to
+        #   Place de la Gare, is open in OSM. Where the temporary stairs the CFF set up for the m2 are, the page does
+        #   not say; they are not in the model.
+        # - OSM: the new platform ("quai 5") south of 7/8 is being built where track 9 was (landuse=construction
+        #   "Chantier Gare de Lausanne", construction=quai_5, opening_date 2030-12-31; track 9 railway=disused);
+        #   ATLAS has no stop there today. The new underpasses are not open (CFF: works from the end of
+        #   2026, platforms in stages 2030-2036) and are not in OSM.
+        'opens': {'date': '2026-12-18',
+                  'note': 'The passage between the east underpass and the m2 under Place de la Gare is closed for '
+                          'works until 18 December 2026'},
+        'notices': [
+            {'text': 'The underground passage between the station and the m2 is closed until 18 December 2026: '
+                     'follow the signs to the m2 on the surface. Step-free to the east underpass: lift of platform 1',
+             'from': '2026-09-25', 'until': '2026-12-18'},
+        ],
+        'osm_edits': [
+            # the waiting areas of the bus stops C, D, E and I (see above)
+            ['drop', 1041897644], ['drop', 1041897645], ['drop', 1041897646], ['drop', 1041897647],
+            # the closed passage to the m2 (see above), as under construction until the date the city gives
+            ['drop', 1561897395], ['drop', 313989605], ['drop', 345760467],
+            ['way', [3524096453, 3200281824], {'highway': 'construction', 'construction': 'footway', 'level': '-1',
+                                               'layer': '-1', 'tunnel': 'yes', 'wheelchair': 'yes',
+                                               'opening_date': '2026-12-18'}],
+            ['way', [3200281824, 3473841559], {'highway': 'construction', 'construction': 'footway', 'level': '-1',
+                                               'layer': '-1', 'tunnel': 'yes', 'wheelchair': 'yes',
+                                               'opening_date': '2026-12-18'}],
+            ['way', [3524096463, 3524096455, 3524096453], {'highway': 'construction', 'construction': 'footway',
+                                                           'layer': '-1', 'tunnel': 'yes',
+                                                           'opening_date': '2026-12-18'}],
+        ],
+        # SBB open data (tools/station3d_sbb_layers.py lausanne): sector signs of tracks 1, 3-8 and 70 (at the borders
+        # between two sectors, "B|C"), sector centres from them, clocks and ticket machines. SBB lists all of them in
+        # one section ("Lausanne"), none underground: no sbb_sections.
+        'layers': ['sectors.json', 'boards.json', 'furniture.json'],
+        'credits': ['© swisstopo'],                 # terrain heights
+    },
+    'geneve': {
+        'name': 'Genève',
+        'origin': (6.1423, 46.2102),
+        'bbox': (46.2075, 6.1375, 46.2140, 6.1470),
+        # Genève-Cornavin: the station building on Place de Cornavin with its hall, the platforms 1-7 (and 10, the
+        # short track at the south-west end of platform 4/5) on the embankment above it, the passages under the tracks
+        # to the Montbrillant side, the Metro Shopping mall under Place de Cornavin, and the tram and bus stops around
+        # it (Gare Cornavin A-L). Left out: the stops Coutance, Chantepoulet, Lyon and Poste, and the parking floors
+        # under the square (levels -2 and -3 of its lifts).
+        'extent': (-230, -175, 210, 350),
+        'extent_cut': [(-230, 240, 90, 350)],      # passages through the blocks of Rue de Lausanne, north of the station
+        'uics': ['8501008', '8587057'],
+        # OSM counts the floors from the street: 0 = the hall and Place de Cornavin, 1 = the north part of the passages
+        # and the Montbrillant side, 2 = the platforms, -1 = Metro Shopping. Level 0 stays the street (the shell of
+        # the buildings stands on it); heights relative to level 0 and, in brackets, to the platforms:
+        #    2  +7.9 (0)    swisstopo terrain (swissALTI3D, height service of api3.geo.admin.ch, 21.11.2026) gives
+        #                   391.6-392.9 on the platforms and 383.2-384.9 on Place de Cornavin in front of the hall
+        #                   (+7.0 to +9.7); the step counts add up to +6.6 to +8.7 (20 steps from 0 to 1, 19, 27 and
+        #                   31 from 1 to 2; 17 cm a step). OSM's ele of the tram and bus stops (327) is not a height.
+        #    1  +3.4 (-4.5) the passages under the tracks and the Montbrillant side: 20 steps up from 0, and the three
+        #                   escalators beside them, 5 m long in plan, climb at most 3.5 m at 35 degrees; from 2 down:
+        #                   27 steps (+3.3), the escalators of about 8 m in plan (+3.3 to +3.5 at 30 degrees), 19 and
+        #                   31 steps (+4.7, +2.6). swisstopo terrain has the streets of the Montbrillant side higher,
+        #                   388.5-389.3 at Place de Montbrillant and Place du Reculet (+4.1 to +4.9): the passages rise
+        #                   to them. One level has one height: the three ramps between this level and the platforms
+        #                   (24-27 m) come out at 17-19 % here, too steep to count as step-free; the lifts are.
+        #   -1  -3.6 (-11.5) 20, 21 and 21 steps from 0 (29 on one stair: -4.9)
+        #   -2, -3          the parking under the square (only its lifts are in OSM): left out by the builder
+        'levels': {
+            -1: (-3.6, 'Metro Shopping'),
+            0: (0.0, 'Street level'),
+            1: (3.4, 'Montbrillant level'),
+            2: (7.9, 'Platforms'),
+        },
+        'level_height': 3.5,
+        'entrances': [
+            ['Place de Cornavin (main hall)', 31, -13, 0],
+            ['Aile Ouest (Rue de Montbrillant)', -66, 11, 0],
+            ['Montbrillant (passages under the tracks)', -3, 92, 1],
+            ['Rue du Mont-Blanc (Metro Shopping)', 87, -105, 0],
+        ],
+        # The stairs from the west end of Metro Shopping (corridor "Place de Cornavin", level -1) up to the pavement
+        # in front of the Hôtel Cornavin (way 82683746, 14 steps) are incline=down in OSM, drawn from the corridor:
+        # they go up (the corridor is underground, the pavement on the street, swisstopo 385.3). Fixed below, and the
+        # top of the stairs is on the street.
+        'ground': [[-33.4, -75.7, 0]],
+        # ATLAS has Genève, gare Cornavin as a tram stop; OSM has which of its letters are trams (H, I, D/E with the
+        # buses) and which buses (A-C, F, G, J-L). P has no stop in OSM and stays a tram stop, as ATLAS says.
+        # The Léman Express has no platforms of its own here: its trains use tracks 1-7 (ATLAS and OSM have no other).
+        'modes_from_osm': True,
+        'osm_edits': [
+            # The outline of the tram platform H (way 1264828952, covered, under the south-west end of the train
+            # platforms) shares its corner node 11750585098 with the outline of train platform 1 (relation 10174235,
+            # level 2), 7.9 m above it: the tram platform would be put on the level of the trains. The same outline
+            # with a corner of its own:
+            ['node', 'H corner', -35.0, -58.1],
+            ['drop', 1264828952],
+            ['way', ['H corner', 11750585099, 11750585100, 11750585101, 11750585102, 11750585113, 11750585112,
+                     5910919373, 5910919222, 5910919218, 11750585103, 5910919219, 11750585104, 5910919220, 11750585105,
+                     5910919221, 11750585106, 11750585107, 5910919343, 5910919341, 11750585108, 11750585109,
+                     11750585110, 11750585111, 'H corner'],
+             {'area': 'yes', 'bench': 'no', 'bin': 'yes', 'covered': 'yes', 'highway': 'platform', 'lit': 'yes',
+              'local_ref': 'H', 'name': 'Gare Cornavin', 'public_transport': 'platform', 'railway': 'platform',
+              'ref': 'H', 'route_ref': '14;18', 'tactile_paving': 'yes', 'tram': 'yes'}],
+            # the stairs at the west end of Metro Shopping (see above), going up from the corridor
+            ['drop', 82683746],
+            ['way', [769087109, 769087110, 5910919363],
+             {'handrail': 'yes', 'highway': 'steps', 'incline': 'up', 'lit': 'yes', 'ramp': 'no', 'step_count': '14',
+              'surface': 'concrete', 'tactile_paving': 'yes'}],
+        ],
+        # Works: none that closes anything for passengers today. The underground station (Léman 2030) has not
+        # started: CFF, "Genève-Meyrin-La Praille: travaux préalables" (company.sbb.ch) has the advance works ending at
+        # the end of 2026 and the main works from 2027 at the earliest; track 5 was renewed from 27 June to 17 August
+        # 2026 (news.sbb.ch, "Renouvellement de la voie 5 à Genève"; track 6 follows in summer 2027, no dates yet).
+        # OSM has the underground station only as proposed (not in the model).
+        # SBB open data (tools/station3d_sbb_layers.py geneve): sector signs of tracks 1-7 and 10 (at the borders
+        # between two sectors, "B|C"), sector centres from them, clocks and ticket machines, all in one SBB section
+        # ("Geneve"): no sbb_sections.
+        'layers': ['sectors.json', 'boards.json', 'furniture.json'],
         'credits': ['© swisstopo'],                 # terrain heights
     },
 }
@@ -1054,6 +1275,15 @@ class Builder:
                     self.note('opening later (in the model, closed until then)',
                               f'way {e["id"]} ({t["highway"]} level={t.get("level")}): OSM start date {date}, '
                               f'closed until {e["opens"]}')
+                elif t.get('highway') == 'construction' and t.get('construction') in WALK_HIGHWAYS and date \
+                        and e['id'] < 0:
+                    # a way the station table adds as closed until a date (osm_edits): open from that date on, so a
+                    # rebuild after the reopening keeps it (a real OSM construction way waits for OSM to be updated)
+                    kind = t['construction']
+                    e['tags'] = t = {k: v for k, v in t.items()
+                                     if k not in ('construction', 'opening_date', 'start_date')}
+                    t['highway'] = kind
+                    self.note('reopened (station table)', f'way {e["id"]} ({kind}): open since {date}')
                 e['dead'] = is_dead(e['tags'])
                 dead += e['dead']
                 self.ways[e['id']] = e
@@ -2331,15 +2561,35 @@ class Builder:
                     self.note('config', f'skip_edges: {name} [{uic}] edge {edges[i][2] or "(no letter)"} at '
                                         f'({sx}, {sy}) left out: {why}')
                     edges = edges[:i] + edges[i + 1:]
+            road = {}   # edge index -> 'b' | 'm': edges of this stop that OSM has as bus or tram stops
+            if mode != 't' and (uic in stations or self.cfg.get('modes_from_osm')):
+                # ATLAS has one mode per stop id, OSM one per stop position and platform: an edge whose letter OSM has
+                # on a bus or tram stop near it is a bus or a tram stop as OSM says (Lausanne, gare: the m2 station and
+                # the buses on the square above it; with modes_from_osm, Genève, gare Cornavin: trams and buses)
+                road_tags = [(Point(n['xy']), n['tags']) for n in self.nodes.values()
+                             if n['tags'].get('public_transport') in ('stop_position', 'platform')] + \
+                            [(a['poly'], a['tags']) for a in plats if not train_platform(a)]
+                for i, e in enumerate(edges):
+                    ref = e[2] if len(e) > 2 and e[2] else ''
+                    p = Point(self.xy(e[0] / 1e5, e[1] / 1e5))
+                    on = [t for g, t in road_tags if ref and g.distance(p) <= STOP_SEARCH * 2
+                          and key_of(ref) in {key_of(t.get(k, '')) for k in ('ref', 'local_ref')}
+                          and any(t.get(k) == 'yes' for k in ('bus', 'trolleybus', 'tram'))]
+                    if on:
+                        road[i] = 'm' if any(t.get('tram') == 'yes' for t in on) else 'b'
+                if any(m != mode for m in road.values()) or (road and uic in stations):
+                    self.note('stops', f'{name} [{uic}]: edges {", ".join(edges[i][2] for i in road)} are bus or '
+                                       f'tram stops in OSM: mode from OSM')
             if mode != 't' and uic in stations:
                 self.note('stops', f'{name} [{uic}]: ATLAS calls it "{MODES.get(mode, mode)}", OSM has a railway '
                                    f'station with this number: taken as a train stop')
                 mode = 't'
-            for e in edges:
+            for i, e in enumerate(edges):
                 p = self.xy(e[0] / 1e5, e[1] / 1e5)
                 ref = e[2] if len(e) > 2 and e[2] else ''
+                emode = road.get(i, mode)
                 atlas_level = e[4] if len(e) > 4 else None
-                if atlas_level not in (None, 0) and mode != 't' and not any(
+                if atlas_level not in (None, 0) and emode != 't' and not any(
                         a['level'] is not None and abs(a['level'] - atlas_level) <= 0.5
                         and a['poly'].distance(Point(p)) <= 40
                         and (a['uic'] == uic or (a['tags'].get('name') and name.endswith(a['tags']['name']))
@@ -2351,7 +2601,7 @@ class Builder:
                     self.note('stops', f'{name} {ref} [{uic}]: platforms.js says level {atlas_level:g}, OSM has no '
                                        f'platform on that level within 40 m: taken as on the street')
                     atlas_level = None
-                s = {'uic': uic, 'ref': ref, 'mode': MODES.get(mode, 'bus'), 'name': name, 'p': p,
+                s = {'uic': uic, 'ref': ref, 'mode': MODES.get(emode, 'bus'), 'name': name, 'p': p,
                      'atlas_level': atlas_level, 'node': None, 'how': None, 'area': None, 'anchor': None,
                      'bearing': e[3] if len(e) > 3 else None}
                 for c in shut:
@@ -2367,14 +2617,14 @@ class Builder:
                     if d > STOP_SEARCH:
                         continue
                     keys = {key_of(r) for r in a['refs']}
-                    if mode != 't' and train_platform(a):
+                    if emode != 't' and train_platform(a):
                         continue   # a tram or bus stop is not on a train platform, whatever its number
                     same_ref = bool(ref) and key_of(ref) in keys
                     if a['uic'] and a['uic'] != uic and not same_ref:
                         continue
                     if a['refs'] and ref and not same_ref:
                         continue   # another platform of the same stop
-                    if mode != 't' and not same_ref and a['refs'] and not ref:
+                    if emode != 't' and not same_ref and a['refs'] and not ref:
                         continue   # a stop without a number is not on a numbered platform (Zürich: the street above 41-44)
                     if atlas_level is not None and a['level'] is not None and abs(a['level'] - atlas_level) > 0.5 \
                             and not same_ref:
@@ -2389,7 +2639,7 @@ class Builder:
                     # number is unique in a station, a coordinate is easily a few dozen metres off: the number wins
                     far = [(a['poly'].distance(Point(p)), a) for a in plats
                            if key_of(ref) in {key_of(r) for r in a['refs']}
-                           and not (mode != 't' and train_platform(a))
+                           and not (emode != 't' and train_platform(a))
                            and (a['uic'] == uic or (not a['uic'] and a['tags'].get('name') == name))
                            and a['poly'].intersects(self.extent)]
                     if far:
@@ -2814,12 +3064,14 @@ class Builder:
             want = s['atlas_level']
             if want is None and siblings[s['uic']]:
                 want = max(set(siblings[s['uic']]), key=siblings[s['uic']].count)
+            # (the level of the other stops of the same id says nothing about a place on a street that slopes)
+            slope_ok = s['atlas_level'] is None
             best = None
             for i, (x, y, lvl) in enumerate(self.gn):
                 if comp[i] != main or self.gmeta[i].get('helper') or i in taken                         or not (float(lvl).is_integer() or i in open_air):
                     continue   # (on a whole level, or on a street that slopes)
                 d = dist((x, y), s['p'])
-                if want is not None:
+                if want is not None and not (slope_ok and not float(lvl).is_integer()):
                     d += 40 * abs(lvl - want)
                 if s['atlas_level'] is None and i not in open_air:
                     d += 25
@@ -2836,7 +3088,8 @@ class Builder:
                 if min(dist((q.x, q.y), a), dist((q.x, q.y), b)) < 3:
                     continue
                 d = dist((q.x, q.y), s['p'])
-                if want is not None:
+                if want is not None and not (slope_ok and e.get('outdoor') and not (
+                        float(a[2]).is_integer() and float(b[2]).is_integer())):
                     d += 40 * abs(a[2] - want)
                 if s['atlas_level'] is None and not e.get('outdoor'):
                     d += 25
@@ -3348,6 +3601,12 @@ class Builder:
             item = {'uic': st['uic'], 'ref': st['ref'], 'mode': st['mode'], 'name': st['name'], 'level': lvl(l),
                     'xy': [round(x, 2), round(y, 2)], 'node': st['node'],
                     'nodes': sorted(set(along) | {st['node']})}
+            for su, sname, sx, sy, _why in self.cfg.get('stop_areas', []):
+                # one ATLAS edge for two platforms (the side platforms of a metro): the other one's nodes too
+                if su == st['uic'] and sname in (st['ref'], st['name']):
+                    for ar in self.areas:
+                        if ar['kind'] == 'platform' and ar['poly'].buffer(0.5).contains(Point(sx, sy)):
+                            item['nodes'] = sorted(set(item['nodes']) | set(live(ar)))
             if not st['ref']:
                 # (the app can only name a stop without a number by this point: the router takes a position
                 # within 3 m of it for the stop, on the level the stop has here)
@@ -3572,11 +3831,17 @@ class Builder:
             self.note('layers', f'sector spans: {len(model["sectorSpans"])}, {bent} of them with the kerb line between '
                                 f'their ends (curved platform)')
         props = []
+        # the level of the train platforms (0 at most stations; Genève: 2), per track and the most common one
+        track_level = {key_of(s['ref']): s['level'] for s in model['stops'] if s['mode'] == 'train' and s.get('ref')}
+        levels_seen = list(track_level.values())
+        # the level most train platforms are on (a tie: the one nearest 0, then the lower; not set order)
+        main = max(set(levels_seen), key=lambda l: (levels_seen.count(l), -abs(l), -l)) if levels_seen else 0
         boards = self.data('boards.json', sbb)
         for b in boards or []:
             front, back = (b.get('front') or '').strip('- '), (b.get('back') or '').strip('- ')
             name = '|'.join(dict.fromkeys(x for x in (front, back) if x))
-            item = {'kind': 'sector-sign', 'xy': [round(v, 1) for v in b['xy']], 'level': 0,
+            item = {'kind': 'sector-sign', 'xy': [round(v, 1) for v in b['xy']],
+                    'level': track_level.get(key_of(b.get('ref') or ''), main),
                     'mount': 'hang' if b.get('hanging') else 'stand'}
             if b.get('ref'):
                 item['ref'] = b['ref']
@@ -3594,7 +3859,7 @@ class Builder:
         unmodelled = doubted = 0
         for f in furniture or []:
             pt = Point(f['xy'])
-            on = [l for poly, l, k in walk if k == 'platform' and l == 0 and poly.covers(pt)]
+            on = [l for poly, l, k in walk if k == 'platform' and l == main and poly.covers(pt)]
             near = sorted((poly.distance(pt), abs(l), l) for poly, l, k in walk)
             given = f.get('level')
             section = f.get('level_from') == 'sbb_section'
@@ -3611,7 +3876,7 @@ class Builder:
             elif hung and any(d <= 15 for d, _, _ in near):
                 level = max(l for d, _, l in near if d <= 15)   # the highest floor walkable there
             elif on:
-                level = 0
+                level = main
             elif near and near[0][0] <= 15:
                 level = near[0][2]
             else:

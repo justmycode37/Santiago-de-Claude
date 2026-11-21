@@ -46,6 +46,6 @@ The companion file is separate on purpose: the model format and the existing vie
   `tools/build_station3d.py`); room heights are schematic (2.6 m).
 - **SZU (tracks 21/22)** is left out while it is closed for its rebuild (until 13 December 2026); OSM has no platform.
 
-The next step for detail is SBB's own indoor plans (the Journey Maps tiles behind the SBB app, layer `rokas_indoor`):
-they need an API key from developer.sbb.ch, and their terms of reuse must be checked first. They would replace the
-OSM rooms and walls in `station3d_solid.py` and keep everything else.
+SBB's own indoor plans (the Journey Maps tiles behind the SBB app) are for SBB applications only. More detail has to
+come from better OpenStreetMap mapping; SBB's official station plan can be linked. See
+[sbb-journey-maps.md](sbb-journey-maps.md).
