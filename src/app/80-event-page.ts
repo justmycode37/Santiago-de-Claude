@@ -1,30 +1,30 @@
 // ---------- Event page (URL: #event/<id>, so the back gesture/button works) ----------
-const evPage = document.getElementById('evPage');
-const evHero = document.getElementById('evHero');
-const evContent = document.getElementById('evContent');
-let pageEvent = null;
+const evPage = document.getElementById('evPage')!;
+const evHero = document.getElementById('evHero')!;
+const evContent = document.getElementById('evContent')!;
+let pageEvent: EventFeature | null = null;
 let pushedHash = false;
 
-const findEvent = (id) => EVENTS.features.find((f) => f.properties.id === id);
+const findEvent = (id: string) => EVENTS.features.find((f) => f.properties.id === id);
 
-function openEvent(id) {
+function openEvent(id: string) {
   pushedHash = true;
   location.hash = 'event/' + encodeURIComponent(id);
 }
 
-let eventsAtPin = [];
-const related = document.getElementById('evRelated');
+let eventsAtPin: EventFeature[] = [];
+const related = document.getElementById('evRelated') as HTMLSelectElement;
 related.addEventListener('change', () => {
   history.replaceState(null, '', '#event/' + encodeURIComponent(related.value));
   routeFromHash();
 });
 
-function renderEventPage(f) {
+function renderEventPage(f: EventFeature) {
   const p = f.properties;
   pageEvent = f;
   const choices = eventsAtPin.includes(f) ? eventsAtPin : [];
   related.replaceChildren();
-  related.parentElement.hidden = choices.length < 2;
+  related.parentElement!.hidden = choices.length < 2;
   if (choices.length > 1) {
     for (const { properties } of choices) {
       related.add(new Option(properties.title + ' · ' + properties.when, properties.id));
@@ -43,21 +43,21 @@ function renderEventPage(f) {
     img.onerror = () => img.remove();
     evHero.appendChild(img);
   }
-  document.getElementById('evCat').textContent = p.category;
-  document.getElementById('evTitle').textContent = p.title;
-  document.getElementById('evWhen').textContent = p.when;
-  document.getElementById('evCost').textContent = p.cost;
-  document.getElementById('evAttendance').textContent = p.attendance;
-  document.getElementById('evOrganizer').href = p.url;
-  document.getElementById('evVenue').textContent = p.venue;
-  document.getElementById('evCity').textContent = p.city;
-  document.getElementById('evAbout').textContent = p.about;
-  document.getElementById('evAudience').textContent = p.audience;
+  document.getElementById('evCat')!.textContent = p.category;
+  document.getElementById('evTitle')!.textContent = p.title;
+  document.getElementById('evWhen')!.textContent = p.when;
+  document.getElementById('evCost')!.textContent = p.cost;
+  document.getElementById('evAttendance')!.textContent = p.attendance;
+  (document.getElementById('evOrganizer') as HTMLAnchorElement).href = p.url;
+  document.getElementById('evVenue')!.textContent = p.venue;
+  document.getElementById('evCity')!.textContent = p.city;
+  document.getElementById('evAbout')!.textContent = p.about;
+  document.getElementById('evAudience')!.textContent = p.audience;
   evPage.scrollTop = 0;
 }
 
-const eventJourneyButton = document.getElementById('evShowJourney');
-const eventJourneyStatus = document.getElementById('evJourneyStatus');
+const eventJourneyButton = document.getElementById('evShowJourney') as HTMLButtonElement;
+const eventJourneyStatus = document.getElementById('evJourneyStatus')!;
 let eventLocationRequest = 0;
 
 function routeFromHash() {
@@ -72,7 +72,7 @@ function routeFromHash() {
     setMenu(false);
     evPage.classList.add('open');
     evPage.setAttribute('aria-hidden', 'false');
-    document.getElementById('evBack').focus();
+    document.getElementById('evBack')!.focus();
   } else {
     evPage.classList.remove('open');
     evPage.setAttribute('aria-hidden', 'true');
@@ -86,7 +86,7 @@ function closeEvent() {
 }
 
 window.addEventListener('hashchange', () => { if (!location.hash) pushedHash = false; routeFromHash(); });
-document.getElementById('evBack').addEventListener('click', closeEvent);
+document.getElementById('evBack')!.addEventListener('click', closeEvent);
 eventJourneyButton.addEventListener('click', () => {
   const event = pageEvent;
   if (!event) return;

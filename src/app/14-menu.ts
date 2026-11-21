@@ -1,7 +1,7 @@
 // ---------- Toast ----------
-const toast = document.getElementById('toast');
-let toastTimer;
-function showToast(text, ms = 4000) {
+const toast = document.getElementById('toast')!;
+let toastTimer: number | undefined;
+function showToast(text: string, ms = 4000) {
   toast.textContent = text;
   toast.classList.add('show');
   clearTimeout(toastTimer);
@@ -9,18 +9,18 @@ function showToast(text, ms = 4000) {
 }
 
 // ---------- Top-right menu ----------
-const menu = document.getElementById('menu');
-const menuBtn = document.getElementById('menuBtn');
-const menuItems = menu.querySelectorAll('.menu-item');
-function setMenu(open) {
+const menu = document.getElementById('menu')!;
+const menuBtn = document.getElementById('menuBtn')!;
+const menuItems = menu.querySelectorAll<HTMLElement>('.menu-item');
+function setMenu(open: boolean) {
   menu.classList.toggle('open', open);
   menuBtn.setAttribute('aria-expanded', String(open));
   menuItems.forEach((b) => (b.tabIndex = open ? 0 : -1));
 }
 menuBtn.addEventListener('click', () => setMenu(!menu.classList.contains('open')));
-document.getElementById('themeBtn').addEventListener('click', () =>
+document.getElementById('themeBtn')!.addEventListener('click', () =>
   setTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
-const eventsBtn = document.getElementById('eventsBtn');
+const eventsBtn = document.getElementById('eventsBtn')!;
 // Shows or hides everything switched on under "On the map" in Settings
 eventsBtn.addEventListener('click', () => {
   setEventsOn(!eventsOn);
@@ -40,7 +40,7 @@ eventsBtn.addEventListener('click', () => {
     else if (others) showToast('Outside Bern, only toilets in Switzerland are mapped so far.');
   }
 });
-document.getElementById('settingsBtn').addEventListener('click', () => {
+document.getElementById('settingsBtn')!.addEventListener('click', () => {
   setMenu(false);
   SETTINGS.open();
 });
@@ -51,8 +51,10 @@ SETTINGS.onClose((journeyChanged) => {
   else menuBtn.focus();
 });
 
+/** iOS Safari: the compass has to be asked for, from a tap. */
+type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
 // ---------- Scan: recognise the stops around you with the camera (stopvision.js, loaded on first use) ----------
-document.getElementById('scanBtn').addEventListener('click', () => {
+document.getElementById('scanBtn')!.addEventListener('click', () => {
   setMenu(false);
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showToast('The camera needs HTTPS. Open the app via https:// or localhost.', 6000);
@@ -61,10 +63,10 @@ document.getElementById('scanBtn').addEventListener('click', () => {
   const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
     ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
     : Promise.reject(new Error('no camera API'));
-  const orientation = window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function'
-    ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');
+  const orientation = window.DeviceOrientationEvent && typeof (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission === 'function'
+    ? (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission!() : Promise.resolve('granted');
   camera.catch(() => {}); orientation.catch(() => {});
-  const hooks = {
+  const hooks: StopVisionHooks = {
     PLATFORMS, OPENDATA, platformLL, coordOf, badge,
     position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
     openStop: (id, i) => {
@@ -78,7 +80,7 @@ document.getElementById('scanBtn').addEventListener('click', () => {
     onClose: () => menuBtn.focus(),
   };
   startPlatforms(); // the stop positions are needed straight away
-  const go = () => platformsReady.then(() => window.STOPVISION.open(hooks, camera, orientation));
+  const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation));
   if (window.STOPVISION) go();
   else {
     const s = document.createElement('script');

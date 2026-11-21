@@ -8,7 +8,9 @@ function visibleEvents() {
 const EVENT_MIN_ZOOM = 12.5;
 // Cards on the map, by venue + events shown. Cards that stay on screen after a move are kept as they are
 // (no rebuild, no reloaded photo, no pop-in animation); only cards that change are added or removed.
-const eventMarkers = new Map();
+const eventMarkers = new Map<string, maplibregl.Marker>();
+/** A place with events, where its card goes on the screen. */
+interface EventVenue { point: maplibregl.Point; coordinates: LngLat; features: EventFeature[] }
 let eventsOn = false;
 
 function clearCards() {
@@ -21,7 +23,7 @@ function updateCards() {
   if (!eventsOn || journeyDest || !SETTINGS.mapGroups().includes('events') || map.getZoom() < EVENT_MIN_ZOOM) { clearCards(); return; }
 
   const { clientWidth, clientHeight } = map.getContainer();
-  const venues = new Map();
+  const venues = new Map<string, EventVenue>();
   for (const feature of visibleEvents()) {
     const coordinates = feature.geometry.coordinates;
     const key = coordinates.join(',');
@@ -37,11 +39,11 @@ function updateCards() {
 
   // Give local support programmes first pick of the available map space.
   const supportTags = ['newcomers', 'language', 'free-food', 'blind-low-vision', 'deaf', 'wheelchair', 'adaptive-sport'];
-  function compareEvents(a, b) {
+  function compareEvents(a: EventFeature, b: EventFeature) {
     const first = a.properties;
     const second = b.properties;
-    const support = (event) => event.tags.some(tag => supportTags.includes(tag));
-    const deadline = (event) => event.through ? Date.parse(event.through) : Infinity;
+    const support = (event: EventProperties) => event.tags.some(tag => supportTags.includes(tag));
+    const deadline = (event: EventProperties) => event.through ? Date.parse(event.through) : Infinity;
     return Number(support(second)) - Number(support(first))
       || Number(Boolean(first.areaOnly)) - Number(Boolean(second.areaOnly))
       || deadline(first) - deadline(second)
@@ -51,7 +53,7 @@ function updateCards() {
   for (const venue of candidates) venue.features.sort(compareEvents);
   candidates.sort((a, b) => compareEvents(a.features[0], b.features[0]));
 
-  const shown = [];
+  const shown: EventVenue[] = [];
   for (const venue of candidates) {
     const overlap = shown.find(other => Math.abs(other.point.x - venue.point.x) < 158
       && Math.abs(other.point.y - venue.point.y) < 202);
@@ -59,7 +61,7 @@ function updateCards() {
     // At maximum zoom, keep even adjacent doors accessible from the event details.
     else if (map.getZoom() >= map.getMaxZoom() - 0.01) overlap.features.push(...venue.features);
   }
-  const next = new Map();
+  const next = new Map<string, maplibregl.Marker>();
   for (const venue of shown) {
     const key = venue.coordinates.join(',') + '|' + venue.features.map((f) => f.properties.id).join(',');
     let marker = eventMarkers.get(key);
@@ -72,7 +74,7 @@ function updateCards() {
   for (const [key, marker] of next) eventMarkers.set(key, marker);
 }
 
-function makeVenueCard(features) {
+function makeVenueCard(features: EventFeature[]) {
   const event = features[0].properties;
   const card = document.createElement('div');
   card.className = 'ev-card';
@@ -114,7 +116,7 @@ map.on('zoom', () => {
 });
 map.on('resize', updateCards);
 
-function setEventsOn(enabled) {
+function setEventsOn(enabled: boolean) {
   eventsOn = enabled;
   eventsBtn.setAttribute('aria-pressed', String(enabled));
   eventsBtn.classList.toggle('active', enabled);
@@ -122,7 +124,7 @@ function setEventsOn(enabled) {
   updatePlaces();
 }
 
-function applyMapTheme(diff) {
+function applyMapTheme(diff: boolean) {
   const theme = currentTheme();
   if (!STYLES[theme]) return;
   const style = structuredClone(STYLES[theme]);
@@ -140,7 +142,7 @@ function applyMapTheme(diff) {
 
 // Usually already on its way since the <head> (EARLY_STYLE)
 (window.EARLY_STYLE || fetch(STYLE_URL).then((r) => r.json()))
-  .then((style) => {
+  .then((style: maplibregl.StyleSpecification) => {
     STYLES.light = style;
     STYLES.dark = makeDarkStyle(style);
     applyMapTheme(false);
@@ -149,7 +151,7 @@ function applyMapTheme(diff) {
   })
   .catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
 
-function setTheme(theme, persist) {
+function setTheme(theme: Theme, persist: boolean) {
   root.dataset.theme = theme;
   themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
   if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
@@ -158,7 +160,7 @@ function setTheme(theme, persist) {
 themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
 
 // Follow the system setting until the user picks a theme themselves
-if (window.matchMedia) {
+if (window.matchMedia as typeof matchMedia | undefined) {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
     let saved = null;
     try { saved = localStorage.getItem('theme'); } catch (err) {}
