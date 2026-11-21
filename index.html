@@ -1866,13 +1866,16 @@
         s.onerror = () => { s.remove(); reject(new Error('Could not load ' + src)); };
         document.head.appendChild(s);
       });
+      // a remembered fix is handed on only while it is recent (u.at: when it was taken); an older one would show as
+      // where you are now
+      const recent = (u) => !u || u.at == null || Date.now() - u.at < 60e3;
       function loadIndoor() {
         if (!indoor) indoor = Promise.all([window.INDOORLOC ? null : script('indoorloc.js'), window.SIGNLOC ? null : script('signloc.js')])
           .then(() => (window.INDOORNAV ? null : script('indoornav.js')))
           .then(() => {
             // what the stand-in kept: the latest GPS fix (with its own time, so indoornav.js keeps a newer one it
             // may already have), and signs read before (they still count if recent)
-            if (user !== undefined && window.INDOORNAV) window.INDOORNAV.setUser(user, userAt);
+            if (user !== undefined && recent(user) && window.INDOORNAV) window.INDOORNAV.setUser(user, userAt);
             window.removeEventListener('scan:text', onScan);
             for (const s of scans.splice(0)) window.dispatchEvent(new CustomEvent('scan:text', { detail: s }));
             // the viewer opened before these scripts were there: the indoor position joins the opening showing now
@@ -1905,7 +1908,7 @@
             real.on('close', () => { lastOpen = null; });
             // another station on its way (it replaces the one showing without a 'close'): only its own 'open' counts
             real.on('opening', () => { lastOpen = null; });
-            if (user !== undefined) real.setUser(user);
+            if (user !== undefined && recent(user)) real.setUser(user);
             // until indoornav.js is there, the page's GPS goes straight to the real viewer: keep noting the latest
             // fix, so the indoor position starts from it and not from an older one the stand-in had
             const own = real.setUser;
