@@ -1388,7 +1388,52 @@
   <script src="live.js"></script>
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
-  <script src="station3d.js"></script>
+  <script>
+    // The 3D station viewer (station3d.js, ~260 KB) loads the first time it is needed, not at start-up: a tap on
+    // "3D view", or a journey through a station that has a model (its walk is drawn from the model, and the viewer
+    // is preloaded). Until then this stand-in answers has() from stations3d/index.js and passes every other call on
+    // once the viewer is there. station3d.js then replaces window.Station3D with itself.
+    (function () {
+      let loading = null;
+      let user;
+      const listeners = [];
+      function load() {
+        if (!loading) loading = new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'station3d.js';
+          s.onload = () => {
+            const real = window.Station3D;
+            if (!real || real === stub) { reject(new Error('station3d.js did not start')); return; }
+            for (const [name, fn] of listeners) real.on(name, fn);
+            if (user !== undefined) real.setUser(user);
+            resolve(real);
+          };
+          s.onerror = () => { loading = null; s.remove(); reject(new Error('Could not load station3d.js')); };
+          document.head.appendChild(s);
+        });
+        return loading;
+      }
+      const stub = window.Station3D = {
+        has: (uic) => (window.STATION3D_INDEX && window.STATION3D_INDEX[String(uic)]) || null,
+        open: (opts) => {
+          load().then((real) => real.open(opts), () => { if (window.showToast) window.showToast('The 3D view could not be loaded.'); });
+        },
+        setUser: (u) => { user = u || null; },
+        close: () => {},
+        isOpen: () => false,
+        on: (name, fn) => { listeners.push([name, fn]); return () => stub.off(name, fn); },
+        off: (name, fn) => {
+          const i = listeners.findIndex(([n, f]) => n === name && f === fn);
+          if (i >= 0) listeners.splice(i, 1);
+          if (window.Station3D !== stub) window.Station3D.off(name, fn);
+        },
+        selectStep: () => {}, setFollow: () => {}, setPov: () => {}, setPeel: () => {},
+        enableCompass: () => load().then((real) => real.enableCompass(), () => 'unavailable'),
+        preload: (key) => load().then((real) => real.preload(key), () => false),
+        loadData: (key) => load().then((real) => real.loadData(key), () => null),
+      };
+    })();
+  </script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
