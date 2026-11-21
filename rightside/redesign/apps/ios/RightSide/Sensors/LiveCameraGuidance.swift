@@ -879,7 +879,14 @@ struct ARExperienceView: View {
     @ObservedObject var visual: VisualLocationStore
     let onObservation: (JSONValue) -> Void
     let onDone: () -> Void
-    @State private var mode = 0
+    @State private var mode: Int
+    init(context: CameraJourneyContext, location: LocationController, visual: VisualLocationStore,
+         onObservation: @escaping (JSONValue) -> Void, onDone: @escaping () -> Void) {
+        self.context = context; self.location = location; self.visual = visual
+        self.onObservation = onObservation; self.onDone = onDone
+        // With a journey, open straight into journey guidance rather than the mesh scanner.
+        _mode = State(initialValue: context.line != nil || context.target != nil ? 1 : 0)
+    }
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {

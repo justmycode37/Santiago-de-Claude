@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
 import CoreGraphics
+#endif
 
 enum TransportClass: String, Codable, CaseIterable { case bus, tram, train }
 
@@ -51,6 +53,9 @@ struct DisplayReading {
     let outOfService: Bool
     let ambiguous: Bool
     let raw: [String]
+    /// Every display-zone text on this vehicle, including low-confidence glyphs, for closed-set
+    /// comparison with the stop's departures (DepartureDisplayMatcher). Never shown as a reading.
+    var observed: [VehicleText] = []
 
     /// The badge uses observed spelling where available, never the expected itinerary words.
     var displayText: String? {
@@ -105,6 +110,23 @@ enum VehicleTextRules {
         return right || (layout == .eitherSide && left)
     }
 
+    /// Display-zone text on this vehicle for closed-set matching: confidence >= 0.3, centred inside this
+    /// vehicle's box and in its upper 65 %, and not overlapping another detected vehicle. Looser than
+    /// `isAssociated` (no mask test), because masks often cut the display band; the matcher's margin
+    /// against other services, not this filter, decides what counts.
+    static func displayEvidence(_ texts: [VehicleText], detection: VehicleDetection, otherBoxes: [CGRect]) -> [VehicleText] {
+        var result: [VehicleText] = []
+        for text in texts where text.score.isFinite && text.score >= 0.3 && !text.box.isEmpty
+            && detection.box.contains(CGPoint(x: text.box.midX, y: text.box.midY))
+            && text.box.midY < detection.box.minY + detection.box.height * 0.65
+            && !otherBoxes.contains(where: { $0.contains(CGPoint(x: text.box.midX, y: text.box.midY)) }) {
+            if let index = result.firstIndex(where: { $0.text == text.text && VehicleTracker.iou($0.box, text.box) > 0.5 }) {
+                if text.score > result[index].score { result[index] = text }
+            } else { result.append(text) }
+        }
+        return Array(result.prefix(24))
+    }
+
     /// No expected journey words are supplied to OCR or inserted into unreadable fields.
     static func read(_ texts: [VehicleText], detection: VehicleDetection, otherBoxes: [CGRect], at: Date, frameID: UUID, layout: VehicleDisplayLayout = .routeFirst) -> DisplayReading {
         let associated = texts.filter { $0.score >= 0.7 && isAssociated($0, detection: detection, otherBoxes: otherBoxes) }
@@ -151,7 +173,8 @@ enum VehicleTextRules {
         let unique = Set(pairs.map { $0.0 + "|" + $0.1 })
         return DisplayReading(frameID: frameID, at: at, line: unique.count == 1 ? pairs.first?.0 : nil,
                               destination: unique.count == 1 ? pairs.first?.1 : nil, outOfService: closed,
-                              ambiguous: unique.count > 1, raw: raw)
+                              ambiguous: unique.count > 1, raw: raw,
+                              observed: displayEvidence(texts, detection: detection, otherBoxes: otherBoxes))
     }
 }
 
@@ -211,10 +234,14 @@ enum VehicleMatchState: String { case unknown, conflicting, visualCandidate, ver
 struct VehicleDecision {
     let state: VehicleMatchState
     let reason: String
+    /// Line and destination of the departure the display was matched to, when it is not the selected ride.
+    var observedService: String? = nil
     var label: String {
         switch state {
         case .unknown: return "Service unreadable / unverified"
-        case .conflicting: return "Display conflicts · do not use this match"
+        case .conflicting:
+            if let observedService { return "Display shows \(observedService) · not your service" }
+            return "Display conflicts · do not use this match"
         case .visualCandidate: return "Display matches · verify service"
         case .verifiedService: return "Service evidence matches · check boarding area"
         }
@@ -265,6 +292,9 @@ struct VehicleServiceExpectation: Equatable {
     // Keep both bounds: the oldest source detects staleness, the newest detects future contributors.
     var latestObservedAt: Date? = nil
     var alightingUnavailable = false
+    /// Other services expected at this stop soon (departure board), compared with the display so a
+    /// misread is not mistaken for a wrong vehicle, and a wrong vehicle can be named.
+    var boardAlternatives: [DisplayCandidate] = []
 
     func contextDecision(at now: Date) -> VehicleDecision? {
         guard requiresRouteContext else { return nil }
@@ -285,6 +315,44 @@ struct VehicleServiceExpectation: Equatable {
     }
 }
 enum VehicleServiceMatcher {
+    struct BoardEvidence {
+        /// Capture times of frames whose display clearly matched the selected ride.
+        var expectedFrames: [Date] = []
+        var lastExpected: Date? { expectedFrames.last }
+        /// Another listed departure, matched clearly in at least two frames and never the selected ride.
+        var other: DisplayCandidate?
+        /// Frames disagree between the selected ride and another departure.
+        var split = false
+    }
+
+    /// Closed-set comparison of each recent frame's display text with the selected ride and the stop's
+    /// other departures. Without a departure board only a strict match (same route numeral, destination
+    /// similarity >= 0.85) can support the selected ride; it can never name another service.
+    static func boardEvidence(_ readings: [DisplayReading], expected: VehicleServiceExpectation) -> BoardEvidence {
+        let own = DisplayCandidate(line: expected.line, destination: expected.destination, isExpected: true)
+        let alternatives = expected.boardAlternatives.filter { !$0.isExpected && !DepartureDisplayMatcher.sameDisplay($0, own) }
+        let candidates = [own] + alternatives
+        var evidence = BoardEvidence()
+        var others: [String: (candidate: DisplayCandidate, frames: Set<UUID>)] = [:]
+        var seen = Set<UUID>()
+        for reading in readings where !reading.observed.isEmpty && seen.insert(reading.frameID).inserted {
+            let match = DepartureDisplayMatcher.match(reading.observed, candidates: candidates, frameID: reading.frameID)
+            guard let best = match.best else { continue }
+            if alternatives.isEmpty {
+                if match.outcome == .matched, best.line == .exact, best.destination >= 0.85 { evidence.expectedFrames.append(reading.at) }
+                continue
+            }
+            guard match.outcome == .matched else { continue }
+            if best.candidate.isExpected { evidence.expectedFrames.append(reading.at) }
+            else { others[best.candidate.identity, default: (best.candidate, [])].frames.insert(reading.frameID) }
+        }
+        let strongest = others.values.max { $0.frames.count < $1.frames.count }
+        if let strongest, strongest.frames.count >= 2 {
+            if evidence.expectedFrames.isEmpty { evidence.other = strongest.candidate } else { evidence.split = true }
+        } else if strongest != nil && !evidence.expectedFrames.isEmpty { evidence.split = true }
+        return evidence
+    }
+
     static func decide(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
                        binding: AuthoritativeVehicleBinding? = nil) -> VehicleDecision {
         func answer(_ state: VehicleMatchState, _ reason: String) -> VehicleDecision { VehicleDecision(state: state, reason: reason) }
@@ -297,17 +365,40 @@ enum VehicleServiceMatcher {
         if readings.contains(where: \.ambiguous) { return answer(.unknown, "ambiguous_display") }
         let line = VehicleTextRules.normalize(expected.line).replacingOccurrences(of: " ", with: "")
         let destination = VehicleTextRules.normalize(expected.destination)
-        if readings.contains(where: { ($0.line != nil && $0.line != line) || ($0.destination != nil && $0.destination != destination) }) {
+        let board = boardEvidence(readings, expected: expected)
+        if let other = board.other {
+            // Repeatedly and clearly another listed departure: name it instead of a generic conflict.
+            let service = other.line + " " + other.destination
             if let alightingIndex = expected.downstreamCalls.firstIndex(where: { $0.id == expected.alightingCallID }),
-               readings.contains(where: { reading in
-                   reading.line == line && expected.downstreamCalls.prefix(alightingIndex).contains { VehicleTextRules.normalize($0.name) == reading.destination }
-               }) { return answer(.conflicting, "display_short_turn_before_alighting") }
-            return answer(.conflicting, "wrong_line_destination_or_short_working")
+               other.lineKey == DisplayText.lineKey(expected.line),
+               expected.downstreamCalls.prefix(alightingIndex).contains(where: {
+                   DepartureDisplayMatcher.destinationSimilarity($0.name, other.destination) >= 0.9 }) {
+                return VehicleDecision(state: .conflicting, reason: "display_short_turn_before_alighting", observedService: service)
+            }
+            return VehicleDecision(state: .conflicting, reason: "display_matches_other_departure", observedService: service)
         }
-        guard latest.line != nil, latest.destination != nil else { return answer(.unknown, "display_unreadable") }
-        let complete = readings.filter { $0.line == line && $0.destination == destination }
-        guard Set(complete.map(\.frameID)).count >= 3, let first = complete.first,
-              latest.at.timeIntervalSince(first.at) >= 0.8 else { return answer(.unknown, "insufficient_temporal_evidence") }
+        if board.split { return answer(.unknown, "display_matches_several_departures") }
+        if board.expectedFrames.count >= 3, let first = board.expectedFrames.first,
+           latest.at.timeIntervalSince(first) >= 0.8, board.lastExpected == latest.at {
+            // The display repeatedly fits the selected ride clearly better than every other listed
+            // departure. Exact spelling differences (OCR misreads) no longer count as a conflict.
+        } else {
+            if readings.contains(where: { ($0.line != nil && $0.line != line) || ($0.destination != nil && $0.destination != destination) }) {
+                // A misread of the right display must not be reported as the wrong vehicle.
+                if !board.expectedFrames.isEmpty { return answer(.unknown, "insufficient_temporal_evidence") }
+                if let alightingIndex = expected.downstreamCalls.firstIndex(where: { $0.id == expected.alightingCallID }),
+                   readings.contains(where: { reading in
+                       reading.line == line && expected.downstreamCalls.prefix(alightingIndex).contains { VehicleTextRules.normalize($0.name) == reading.destination }
+                   }) { return answer(.conflicting, "display_short_turn_before_alighting") }
+                return answer(.conflicting, "wrong_line_destination_or_short_working")
+            }
+            guard latest.line != nil, latest.destination != nil else {
+                return answer(.unknown, board.expectedFrames.isEmpty ? "display_unreadable" : "insufficient_temporal_evidence")
+            }
+            let complete = readings.filter { $0.line == line && $0.destination == destination }
+            guard Set(complete.map(\.frameID)).count >= 3, let first = complete.first,
+                  latest.at.timeIntervalSince(first.at) >= 0.8 else { return answer(.unknown, "insufficient_temporal_evidence") }
+        }
         guard let binding, binding.trackID == track.id, binding.associationVerified,
               !binding.tripID.isEmpty, binding.observedAt <= now, now.timeIntervalSince(binding.observedAt) <= 30,
               binding.validUntil >= now, let until = expected.validUntil, until >= now,

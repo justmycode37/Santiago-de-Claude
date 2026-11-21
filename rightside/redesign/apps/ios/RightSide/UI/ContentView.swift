@@ -178,6 +178,7 @@ struct ContentView: View {
                 case .camera:
                     ARExperienceView(context: cameraContext, location: store.locationController, visual: visual,
                         onObservation: { store.observeVision($0) }, onDone: { sheet = nil })
+                        .task(id: ride?.from.id) { await loadBoardingDepartures() }
                 case .settings: settings
                 case .details: journeyDetails
                 case .time: departureSettings
@@ -278,7 +279,21 @@ struct ContentView: View {
             stop: stop?.name, target: target, targetLabel: label, simulated: simulated,
             boardingStopID: onBoard ? nil : ride?.from.id,
             boardingPointID: eligible ? spatialResolution?.boardingPointID : nil,
-            serviceExpectation: eligible ? CameraBoardingContext.expectation(journey: journey, ride: ride) : nil)
+            serviceExpectation: boardingExpectation(eligible: eligible))
+    }
+    /// The selected ride plus the other departures listed at its boarding stop, so the camera can tell a
+    /// misread of the right display from a different bus or tram, and name the one it sees.
+    private func boardingExpectation(eligible: Bool) -> VehicleServiceExpectation? {
+        guard eligible, var expectation = CameraBoardingContext.expectation(journey: journey, ride: ride) else { return nil }
+        expectation.boardAlternatives = DisplayCandidate.board(departures.snapshot,
+            boardingStop: DepartureBoardStop.place(for: ride?.from), now: Date())
+        return expectation
+    }
+    private func loadBoardingDepartures() async {
+        guard let stop = DepartureBoardStop.place(for: ride?.from), let id = DepartureStop.id(for: stop) else { return }
+        let offline = store.navigation?.overlays.offline == true
+        if departures.stop.flatMap(DepartureStop.id(for:)) == id, departures.snapshot?.recentlyRetrieved(at: Date()) == true { return }
+        await departures.select(stop, offline: offline)
     }
     private var showingOptions: Bool { active == nil && !editingJourney && !showDetails && !store.alternatives.isEmpty }
     private var showingJourney: Bool { !editingJourney && journey != nil && (active != nil || showDetails) }
