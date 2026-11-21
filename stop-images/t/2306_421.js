@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2306_421",{"s":{},"d":{"8505585":[[0,"72 RE73","Locarno FART|Domodossola (I)"]]}});
+STOP_IMAGES_TILE("2306_421",{"s":{"8505585":[["mapillary","mly",0,97,"m:6238821636148596","oeschinen","CC-BY-SA-4.0","2JgHfyEEGhxEFBnc9fr5+DTv6uDuyAEn9tgKFRMq4AMQ7/HrFfIfCcPpDeg02OkD/wYIG9fu9P0BAugNBQ8ZDSYi1P8JAw3qBfcEBw32+eIA9wsG9gQOAAsR8e7/+BACG/DxC/gFGB7u+/MA+vD26hULAvf+Eu/9D/8FDwT3+hI="]]},"d":{"8505585":[[0,"72 RE73","Locarno FART|Domodossola (I)"]]}});

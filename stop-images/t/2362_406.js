@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2362_406",{"s":{},"d":{"8594183":[[0,"52","Luzern, Bahnhof"]]}});
+STOP_IMAGES_TILE("2362_406",{"s":{"8594183":[["mapillary","mly",0,134,"m:468470140925520","strassenfeger","CC-BY-SA-4.0","QrKBBU1iFL/fveDiPBLmYN/YIfHEIyPsPBs30PPc9x4QH84CSSJVyLsRDPnsFgG0Cu8iJrvrLQPAMAnGFyH6Jvp0/+wqDeA1AfUCAQ0n897/4wAEI9oSDPYOEcvtMNXp5CL7KADzGP8UF8IJCxkKAeMSDeMnFir9DxDgFvH7//0="]]},"d":{"8594183":[[0,"52","Luzern, Bahnhof"]]}});

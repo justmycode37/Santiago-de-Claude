@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2318_380",{"s":{},"d":{"8579538":[[null,"471","Leukerbad, Busterminal|Leuk, Bahnhof"]]}});
+STOP_IMAGES_TILE("2318_380",{"s":{"8579538":[["commons","geo",null,null,"c:7/79/3954_Leukerbad%2C_Switzerland_-_panoramio.jpg/500px-3954_Leukerbad%2C_Switzerland_-_panoramio.jpg","Rolenc","CC BY 3.0","64HeGXoFDU3tEOf5Qf4J8wzywQnitcnqxMn/BQZH/0tH6yMaG+T7KNf59+VDywEQGff9CQssFRHb7sMD7/AX8/gR4Q8Q9iwrGe40AywJ5M4SBAAZAL3fAQwQ4yHs/+T45P8h4jrf4dvy49T/A63wwwrv1RIaCA/yGAnuKNvmHfg="]]},"d":{"8579538":[[null,"471","Leukerbad, Busterminal|Leuk, Bahnhof"]]}});

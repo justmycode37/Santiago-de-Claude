@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2331_387",{"s":{},"d":{"8582876":[[0,"67","Aeschiried, Suld Pochtenfall|Aeschiried, Schulhaus"]]}});
+STOP_IMAGES_TILE("2331_387",{"s":{"8582876":[["mapillary","mly",0,307,"m:544230396576136","trac71","CC-BY-SA-4.0","Veq7L3/n8wMlGexAHQPg1uoYD+siuujY//f3484jExgCI9EIDeEn1OcnLAYDGu4J7A8ODfQNAOkENwEIBOoZFMMu5u39CAQK/Qgb8wMCCwMF/wj+89kb9gb97R7pE/4H1wbn7gTyI/n09/bi+wws5/kFFQL/ywX1Fh76HgPnBuw="]]},"d":{"8582876":[[0,"67","Aeschiried, Suld Pochtenfall|Aeschiried, Schulhaus"]]}});

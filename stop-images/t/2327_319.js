@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2327_319",{"s":{},"d":{"8510991":[[0,"56","Morges, gare|Apples, gare"],[1,"56","Bière, gare"]],"8501085":[[0,"R56","Bière|Morges|Apples"]]}});
+STOP_IMAGES_TILE("2327_319",{"s":{"8510991":[["mapillary","mly",0,79,"m:929420429476196","Maximilien","CC-BY-SA-4.0","ZM6BMn5HGsPEDwLHMtIGIS3bCwXW+uKtBOgUyiINyQYSIhM5FRQc2ekK++XXLBzb7gAMKOC/Fv0CBh34CQLmJQYWBuEy8vQaDgf8BQkH8w4h8BALDQQV2QUPHwMHGPbt2h0EIQ0JDxIfKfwcChEGFPDuCPEIERsDEgQL9v/6+wg="]]},"d":{"8510991":[[0,"56","Morges, gare|Apples, gare"],[1,"56","Bière, gare"]],"8501085":[[0,"R56","Bière|Morges|Apples"]]}});

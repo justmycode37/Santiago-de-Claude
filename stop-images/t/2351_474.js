@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2351_474",{"s":{},"d":{"8582474":[[0,"457 456","Bad Ragaz, Pizolbahn"],[null,"457 456","Bad Ragaz, Bahnhof"]]}});
+STOP_IMAGES_TILE("2351_474",{"s":{"8582474":[["mapillary","mly",0,34,"m:296350775386669","lou_z","CC-BY-SA-4.0","J5qwLn9VNMHx2iLKEdAdEvXKARSgGAPxB+/v3xUhzRn9FwAFQfpB28cXFPoD/PXpEOQxJN0F+Aa79AHXG/cEJS4hBQc/FOkQHgQWLhEI4gQU9v4cD9cEEB3/IgPkFej87PwZFxoEGhX6IPDuBe73/vz7E+EMFwwIFQsbAOXtDAk="]]},"d":{"8582474":[[0,"457 456","Bad Ragaz, Pizolbahn"],[null,"457 456","Bad Ragaz, Bahnhof"]]}});

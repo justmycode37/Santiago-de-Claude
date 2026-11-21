@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2307_440",{"s":{},"d":{"8506528":[[0,"3","Brione s. Minusio, Chiesa|Locarno, Residenza Lido"]]}});
+STOP_IMAGES_TILE("2307_440",{"s":{"8506528":[["mapillary","mly",0,63,"m:2208322829596495","Forza_Inter","CC-BY-SA-4.0","HcOB5ScuN+AND/rxBvrvAfsWAxL3EQ/jMAklSxEqK776LMzlKwvk6dUbLAX8BxgrOiUC+iII0AIhDuXr3+xR9eklDPbZDNYWFh/3EvH6Cxb6CvoO+wwPCxYEBeH6GfL56gEG5wAHDfAMAgQIDA0g5hfzIf0UCvb4GQTk+/QG7RM="]]},"d":{"8506528":[[0,"3","Brione s. Minusio, Chiesa|Locarno, Residenza Lido"]]}});

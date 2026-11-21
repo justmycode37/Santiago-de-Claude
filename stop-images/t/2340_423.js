@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2340_423",{"s":{},"d":{"8530369":[[0,"PB","Engelberg (Fürenalp Bahn)"]]}});
+STOP_IMAGES_TILE("2340_423",{"s":{"8530369":[["commons","geo",null,null,"c:4/47/1_F%C3%BCrenalp_-_Engelberg_CH.jpg/500px-1_F%C3%BCrenalp_-_Engelberg_CH.jpg","W. Bulach","CC BY-SA 4.0","64H0NWTmEUrSCOD8OgIZKgC4zvkAm/YXt70R6QhRzSUy8+ckHtYaGRjyBukhsuMXCBkkFw8A9vbNNuLJ9Pjz/QwV9AAfDCQZ+Pf/5SsF6/UR4gQZFdMOESdO3wzmAvsE4/Yw4yr94Pz59Or73tIU7AP51TMBDhf69ucFJsT6IwI="]]},"d":{"8530369":[[0,"PB","Engelberg (Fürenalp Bahn)"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2378_466",{"s":{},"d":{"8511198":[[0,"944","Obersommeri, Dorf|Amriswil, Bahnhof"]]}});
+STOP_IMAGES_TILE("2378_466",{"s":{"8511198":[["mapillary","mly",0,43,"m:1094833837678367","himmelbuerger","CC-BY-SA-4.0","f8csY0Ig0N0ipyXMQuv9MuDeHQnbOPQR7PUd4fwFA98B8ekFLQwUxOMEDQL4/fL6DfwRA/kGBx3hGvjw+vkEHfbp9/sLF+rqFA76CQUb+wT0Bwz9/uT1/ggPHe8L9vz49PsECwL+9/wGEvj6AvMO+Q0HEPYE+PkhGf356O8ACQ0="]]},"d":{"8511198":[[0,"944","Obersommeri, Dorf|Amriswil, Bahnhof"]]}});

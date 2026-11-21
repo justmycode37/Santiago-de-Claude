@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2341_368",{"s":{},"d":{"8507743":[[null,"611 M16","Riggisberg, Post"],[0,"611","Schwarzenburg, Bahnhof"]]}});
+STOP_IMAGES_TILE("2341_368",{"s":{"8507743":[["mapillary","mly",0,95,"m:953727438623395","habi","CC-BY-SA-4.0","fxDMLDYT1gvPCgTUHQDV6+zm3OS1FgHV4Ar5BiwE/g4ABgn+EgwI3xH0/gME++8B7An7GRr69i73HAUJ/fQeAe8GChYH5uv/6/D08/4A+iIP/O7/6v4GCPr/9fvxCBED+/jxAu8QDAj0F/3lBfgEBuwB/QcOBQX7C/z9+QQEBfk="]]},"d":{"8507743":[[null,"611 M16","Riggisberg, Post"],[0,"611","Schwarzenburg, Bahnhof"]]}});

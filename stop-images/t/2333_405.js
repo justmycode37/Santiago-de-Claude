@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2333_405",{"s":{},"d":{"8576519":[[null,"128","Grindelwald, Bahnhof"],[0,"128","Schwarzwaldalp"]]}});
+STOP_IMAGES_TILE("2333_405",{"s":{"8576519":[["commons","geo",null,null,"c:b/b6/Fingerpost_near_Alpiglen_2021-06-19.jpg/500px-Fingerpost_near_Alpiglen_2021-06-19.jpg","Eginhard","CC BY-SA 4.0","KJXZICepJQP8H7cu+oEoDAyhowQH1xMlsuIt3sUm3Cr6GecN1/zoOgDcEugUGdzBGPLmIP7Z4OnhFO/tEiX5I/0RASUj8+/f6fEWGRkF+twEFuYICAIM7QYh0CURDv4JDe8O4ifk9fH19vkR9+f98hThBQge+PP8EPz4CAzeFug="]]},"d":{"8576519":[[null,"128","Grindelwald, Bahnhof"],[0,"128","Schwarzwaldalp"]]}});

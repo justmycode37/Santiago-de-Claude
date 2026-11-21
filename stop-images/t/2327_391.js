@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2327_391",{"s":{},"d":{"8507457":[[0,"24604","Birg (Schilthornbahn)"]]}});
+STOP_IMAGES_TILE("2327_391",{"s":{"8507457":[["mapillary","mly",0,215,"m:311082420365461","qungo","CC-BY-SA-4.0","35vE/X8ZF1OlPMPUaK/+GDMYkDUv/9qg4czu+SwM2CZADCQO6vsK8g35DuFHtyEn9+3T6RkO2yT2/vfADAIRLiohFSQJ9Tzk1x3w70D/8qYd+N8BItziIxs+6Dz36uc/rAws62X0AjUBJgj4FswK5x714SEf9+vs2OsQCBLNEv8="]]},"d":{"8507457":[[0,"24604","Birg (Schilthornbahn)"]]}});

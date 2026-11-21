@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2340_495",{"s":{},"d":{"8530541":[[0,"2870","Dörfji"]]}});
+STOP_IMAGES_TILE("2340_495",{"s":{"8530541":[["mapillary","mly",0,64,"m:214781786751244","jesolem","CC-BY-SA-4.0","14Hp1vEB1xkF9gwPCiTuPwIu4/X63/z+/fP8FggY/fcT3hEG9BEi+wIGGfn79d/x7QIR/P0h+/b1/PkPERQFDeoS8u/75/oTEvsK7gUIBQYEAiT+9fQFCggN//MC+gL8DAgF7/wKBA//AAL79fj7AfPxCfL++gb//gj/9g8BEwQ="]]},"d":{"8530541":[[0,"2870","Dörfji"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2364_448",{"s":{},"d":{"8582140":[[0,"630","Atzmännig, Schutt"],[null,"630","Uznach, Bahnhof|Eschenbach SG, Dorftreff"]]}});
+STOP_IMAGES_TILE("2364_448",{"s":{"8582140":[["mapillary","mly",0,197,"m:163636679018617","sp8962de","CC-BY-SA-4.0","f/SrTFPw9vbaAQ7YV/sACbnl3/7CAwgCwfnu5ldY5y4K++0C9u8U6vsBFwj7G+IW7Q8GCwAB6gPx+Or1EwItIwYM9f4EEefUzwv7AQYX7vn8+vH87M8KAQwR7+n4I/0T2f4HDxHwCBD9Kgf94+Yt/hAGCwQD+gMN+wgf+QLz/vI="]]},"d":{"8582140":[[0,"630","Atzmännig, Schutt"],[null,"630","Uznach, Bahnhof|Eschenbach SG, Dorftreff"]]}});

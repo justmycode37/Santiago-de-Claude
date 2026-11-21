@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2338_514",{"s":{},"d":{"8509706":[[0,"913","S-charl"],[null,"913","Scuol-Tarasp, staziun"]]}});
+STOP_IMAGES_TILE("2338_514",{"s":{"8509706":[["mapillary","mly",0,4,"m:394583658221740","sdos77","CC-BY-SA-4.0","UdGgTn8OFQNMAvb6SerMArAZGuUFuPrQwt7M7uJcIEIx7twXGv7z6qkR+wgq/dwS8/7t8/L79vXe9iwV9BP+A+ME/AkTCv8Y8OYM3CcD89MDBv/fAgUcHfcWACXs+/T/1BkA9P/++PP/+hz4/PkKAPMQDQwJ4BUTDBTz+g35COs="]]},"d":{"8509706":[[0,"913","S-charl"],[null,"913","Scuol-Tarasp, staziun"]]}});

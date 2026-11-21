@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2342_518",{"s":{},"d":{"8509973":[[0,"931 922","Ramosch, Fermada|Martina, cunfin"]]}});
+STOP_IMAGES_TILE("2342_518",{"s":{"8509973":[["mapillary","mly",0,136,"m:1689487881618303","k3rn3lp4n1c","CC-BY-SA-4.0","f9nTRifb39bv4wPaLTZZ/wL55PP5zwYh6Qz/8SEewSkUFwj2Ce8BAhIVB+8C9wQUABD4IhAm7hPkFxf8/fcYDv/x+hsX/xf7AvAG+wb6+evnAwYJ/fALHxcWCQP8D/sc5/kS+w8IDgz3DgfmHPka//AD9QgV8vsMEAIMA//9Bfg="]]},"d":{"8509973":[[0,"931 922","Ramosch, Fermada|Martina, cunfin"]]}});

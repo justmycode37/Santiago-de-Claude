@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2332_459",{"s":{},"d":{"8575037":[[null,"431","Ilanz, Bahnhof/Post|Vals, Post"],[0,"431","Vals, Post|Vals, Zervreila"]]}});
+STOP_IMAGES_TILE("2332_459",{"s":{"8575037":[["mapillary","mly",0,210,"m:842230629771615","rcollins","CC-BY-SA-4.0","T4W7f1MWFswF8gT7Rfv1UuLAEbnv5SIc0xMv6xE21gRPCNcN7gbvzeD0UBAFCwAj/gkjKf0F4BLKCvXk/Bf7Jg7uBeQVJ/0DCPP94g0N99sT9e76DQ7/Fi8dCv0ABwEE+PwoCADtDvbnGxL27PDy+hH99vkFKAv9EukJBvgbDRw="]]},"d":{"8575037":[[null,"431","Ilanz, Bahnhof/Post|Vals, Post"],[0,"431","Vals, Post|Vals, Zervreila"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2347_327",{"s":{},"d":{"8509512":[[0,"382","La Brévine, poste"],[1,"382","Les Bayards, Quartier du Vent"]]}});
+STOP_IMAGES_TILE("2347_327",{"s":{"8509512":[["mapillary","mly",0,59,"m:207442017627408","globeur","CC-BY-SA-4.0","eL+ZP382GdDIFRDP8MbUB1vUAgySHMO++8PlxRsoxCLv9yAbCw8T/+ooB9zp0h4TAPYdHADxFvjA8e8I3AX2M/sa8AAg6fAVLgQhBRUQ6Pz9+vUGCd0BAe4VLRD9Huv1CAED/iYIFwb3EA7W9/fr/fL9/uQP/u8BBgcR+fUHHfg="]]},"d":{"8509512":[[0,"382","La Brévine, poste"],[1,"382","Les Bayards, Quartier du Vent"]]}});

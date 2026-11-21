@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2350_413",{"s":{},"d":{"8508454":[[0,"2516","Fräkmüntegg|Kriens (Pilatusbahn)"]]}});
+STOP_IMAGES_TILE("2350_413",{"s":{"8508454":[["mapillary","mly",0,94,"m:568338258803780","Yha1","CC-BY-SA-4.0","VYGq//Ts+SYjKBD/DyU+5Uor2+zc0SI1BwU+4MAjDggs1Bb7Ajj52UkUz9kN8wEz6gD2+iAgtfjkO937xQv/2hZCBAoGLR/WH/Q9ElIJ2hfc+AHoGe3k8dQUB/zs7QIXHgca7PfvBxQT5PHc5/kK5tbmH/IK9QEPERTqAvv36g0="]]},"d":{"8508454":[[0,"2516","Fräkmüntegg|Kriens (Pilatusbahn)"]]}});

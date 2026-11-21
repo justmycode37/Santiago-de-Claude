@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2376_417",{"s":{},"d":{"8581639":[[0,"354","Kaiserstuhl AG, Bahnhof|Baden, Postautostation|Niederweningen, Bahnhof"]]}});
+STOP_IMAGES_TILE("2376_417",{"s":{"8581639":[["mapillary","mly",0,202,"m:301897544846735","Wuschel","CC-BY-SA-4.0","ZZ6B6nsYWOvGAAodw7i97ikAD/LTLhGgbCw7v0Lv99cGQMTK9PxP08c7BUPFxD4T+BUY//Uz+cm1Bqy+EjAz4ts0EMwL9s4QGM/XBvQeA9sGCf8sbub1IfkgNsb+CugT6df2Lfr83wMWC/77BiEL6P/4AeQXGyb2JR7nHQsYDSQ="]]},"d":{"8581639":[[0,"354","Kaiserstuhl AG, Bahnhof|Baden, Postautostation|Niederweningen, Bahnhof"]]}});

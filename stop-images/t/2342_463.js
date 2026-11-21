@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2342_463",{"s":{},"d":{"8530547":[[0,"2885","Flims Dorf (Talstation Foppa)|Startgels|Segnes|Nagens Sura"]]}});
+STOP_IMAGES_TILE("2342_463",{"s":{"8530547":[["mapillary","mly",1,181,"m:296763228625796","endszbrxns","CC-BY-SA-4.0","+oGS378MudADAOQpPl0J/+od5P8P1729APfjTtwV3OPk6SfL7QpS8uI/CsUTFQP+7vUcGBb3Cc7t9eXr8NZSLdfzE/0tFwcOCuP+DvgB+Pne9yMJ/BMGDhcQJCfi4PEQEhcm6f/z3hD69Abt3fQABfEFDw37/vz5HQL++PsW7SI="]]},"d":{"8530547":[[0,"2885","Flims Dorf (Talstation Foppa)|Startgels|Segnes|Nagens Sura"]]}});

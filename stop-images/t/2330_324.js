@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2330_324",{"s":{},"d":{"8570108":[[null,"730","Morges, gare"],[0,"730","Cossonay-Ville, centre"]]}});
+STOP_IMAGES_TILE("2330_324",{"s":{"8570108":[["mapillary","mly",0,201,"m:898868014290818","sburlot","CC-BY-SA-4.0","W83C8H/RJBngMezr/8TH7gjpMyQC/g28+OoF6SQby+ohCfDm/RJK2eEcKxHjGAEH8fcCOuUHNyDoGwng9RrzOBw3IfIRHQjt5fscAxoZBPsQGhEIEcLp9RQTIgssHAARJR/v/iMHDwcmNAURFf8OHAcAE/siICMbKPfw/eIOHRU="]]},"d":{"8570108":[[null,"730","Morges, gare"],[0,"730","Cossonay-Ville, centre"]]}});

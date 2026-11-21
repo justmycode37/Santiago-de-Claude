@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2327_351",{"s":{},"d":{"8504749":[[0,"2045","Moléson-sur-Gruyères (funi)"]]}});
+STOP_IMAGES_TILE("2327_351",{"s":{"8504749":[["mapillary","mly",1,163,"m:273876111106616","pablopita","CC-BY-SA-4.0","IYGXIhXCHgEMIsoyDu0p8Tfdnu7oDg8m9fcP6Nke4xUL/yUZzezhAg7bL84K/tT8/cPKJCL24d/xDvDeExoIHgM5/gkKHBbxANhDDjgZFsskBegX7OIpCDkh1x32BtcGBw33DTIbAx4ECO8H+wM65SnOAwcTCf4a+AP0AfnxHAA="]]},"d":{"8504749":[[0,"2045","Moléson-sur-Gruyères (funi)"]]}});

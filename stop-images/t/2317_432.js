@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2317_432",{"s":{},"d":{"8575866":[[0,"334","Fusio, Paese|Peccia, Paese"],[null,"334","Bignasco, Posta"]]}});
+STOP_IMAGES_TILE("2317_432",{"s":{"8575866":[["mapillary","mly",0,97,"m:313269736908303","alexanderar","CC-BY-SA-4.0","G8CBImxJE/Ub+hLkIOcKM+bgH8no1AfyBub18vk/yC4lBNYeQBAJ99vk4fIRAOn+EOj1JdUHBQjr+i33EQb2/QcaDfgeARgJFPYq7SQP+PMS2gz1MgAFBgwiBxUEGgH15hEEAgcAGgUuGAbc/AUA9fIDBugG+B0LCgQE+gAAFig="]]},"d":{"8575866":[[0,"334","Fusio, Paese|Peccia, Paese"],[null,"334","Bignasco, Posta"]]}});

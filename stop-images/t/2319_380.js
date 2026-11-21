@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2319_380",{"s":{},"d":{"8501657":[[0,"PB","Leukerbad (Talstation Gemmi)"]]}});
+STOP_IMAGES_TILE("2319_380",{"s":{"8501657":[["mapillary","mly",0,82,"m:383306319587241","trac71","CC-BY-SA-4.0","IYHtMBbpwvks/f8L/VAp2wcV6PrRuAUI+RUO2bcN3zkVAT0FDPcb/DgrBOER0f8qA/0H+iQQ5vXdAOHx8QMdBuITBgwa8gUJBvEm9S3uAv7t3AgGBOf5+wEXESYMC/Mz8/sP7ArlGgf/+f75BgcX+ukCJgID/gXpCBDx+wLr+QU="]]},"d":{"8501657":[[0,"PB","Leukerbad (Talstation Gemmi)"]]}});

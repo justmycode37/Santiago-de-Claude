@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2319_401",{"s":{},"d":{"8530242":[[0,"C","Riederalp (Hohfluh)"]],"8530808":[[0,"E","Moosfluh"]]}});
+STOP_IMAGES_TILE("2319_401",{"s":{"8530242":[["commons","geo",null,null,"c:c/c1/Cable_car_in_summer.jpg/500px-Cable_car_in_summer.jpg","Matias Senger","CC BY-SA 4.0","75m6TX/MPFqvVrXgX7njE1b3wylUxMwIyckNAw1Ym0UyPRga//ML6Q8wSiQMtfwlDsrqBC300vjf1N/fGhEdaiBCITQK9BLktPUI5zck1pkY/+MtEN3gHkkGvj8k8Nkt+Qwe8D/40TIWMur3Adsg2Q3+7CDyK+8xzAQC+gHXANs="]]},"d":{"8530242":[[0,"C","Riederalp (Hohfluh)"]],"8530808":[[0,"E","Moosfluh"]]}});

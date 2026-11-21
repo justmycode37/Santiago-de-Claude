@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2361_369",{"s":{},"d":{"8577980":[[null,"28","Grenchen Süd, Bahnhof"]]}});
+STOP_IMAGES_TILE("2361_369",{"s":{"8577980":[["commons","geo",null,null,"c:0/0e/Grenchenberg_-_View_close_to_unterberg.jpg/500px-Grenchenberg_-_View_close_to_unterberg.jpg","Rudolphous","CC BY-SA 4.0","KrS6M3/TKTjVF+8LWPDo3A3u1+5A2t74yQEXuSVC8hc0MOQz4N0jB/4VNNr//SsY6N4k3gfFA8/dEu3zHRPnXgoUCPDt7xjx1/723Bvn7tgx/OsOzggM3ATr4g/34tvlEO8aJQ/28wEbLekpEu0eHhzxGwAgHfcWBPb96PL2Dws="]]},"d":{"8577980":[[null,"28","Grenchen Süd, Bahnhof"]]}});

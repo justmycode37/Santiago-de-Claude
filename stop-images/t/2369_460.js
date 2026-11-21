@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2369_460",{"s":{},"d":{"8506481":[[0,"751","Flawil, Burgau|Flawil, Bahnhof|Wolfertswil, Magdenau"],[1,"751","Degersheim, Post"]]}});
+STOP_IMAGES_TILE("2369_460",{"s":{"8506481":[["mapillary","mly",0,0,"m:2978429415725776","habi","CC-BY-SA-4.0","fxDAMiLWBQ/RTevrDPr/BTLx9OYU+Pfm0gn16xf+6fET9Oke2hsF4v3mDNv8BAUD3PTvIxL/8BX3IxQN9hgMHAX7Fw4MFf4b7QL17gsd+QsRCOsF+w0G/xcKCPAHERf9/wIDBvMD+hH4EPvwCf8cJBMECPgXBhL3CvgD+vIP/f8="]]},"d":{"8506481":[[0,"751","Flawil, Burgau|Flawil, Bahnhof|Wolfertswil, Magdenau"],[1,"751","Degersheim, Post"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2345_425",{"s":{},"d":{"8530759":[[0,"PB","St. Jakob (Isenthal)"]]}});
+STOP_IMAGES_TILE("2345_425",{"s":{"8530759":[["mapillary","mly",0,94,"m:200253961724047","likesopenstreetmap","CC-BY-SA-4.0","YqfSf2/2uhzMZOolUv629H71m/f7turP0ssRsjMz0iUjD/JM5/r3/fALUMoevTglCAUBER4a4gD7F+PqGQTxT/4R+B4BAAMQ4gEN3A0O5voN8uAU+h4aASEa4Bke8O4N6wId5TTt6Bz6D+wVC+gUBAUICBQE/hkKCfb/C/3uAAM="]]},"d":{"8530759":[[0,"PB","St. Jakob (Isenthal)"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2305_352",{"s":{},"d":{"8570974":[[0,"214","Martigny, gare"]]}});
+STOP_IMAGES_TILE("2305_352",{"s":{"8570974":[["commons","geo",null,null,"c:8/87/Chemin_p%C3%A9destre_-_Poteau_indicateur_-_Le_Feylet_-_Ravoire.jpg/500px-Chemin_p%C3%A9destre_-_Poteau_indicateur_-_Le_Feylet_-_Ravoire.jpg","RTerrettaz","CC BY-SA 4.0","G6W9CzDuLxYuCak51IFE8+3j3wfp6DUO5MkTKdsc8zP0EhDz+P4IKfMDDugmDxEDBgMAKe0dHx/3IO8S8AEeBuT0/iImGtIBFxAb/gntEPr9EwUPFvfrAdz3EAzqGfgJ/fIJAxnk/QHyBAMA9ub2FwkICx8R/A3lFPcCCxkTC/o="]]},"d":{"8570974":[[0,"214","Martigny, gare"]]}});

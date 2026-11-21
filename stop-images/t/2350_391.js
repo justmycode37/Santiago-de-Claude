@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2350_391",{"s":{},"d":{"8508993":[[null,"285","Wasen i.E., Stegmatt|Langnau i.E., Bahnhof"]]}});
+STOP_IMAGES_TILE("2350_391",{"s":{"8508993":[["commons","geo",null,null,"c:0/08/Wanderwegweiser_L%C3%BCderenalp_Bus_1140.jpg/500px-Wanderwegweiser_L%C3%BCderenalp_Bus_1140.jpg","Pududuss","CC0","Fcq95iztJSDsFsVL54EcEM7J2uwx9QYX5gAW7Mr6Bvr3+REJAhT4EP3cJAwJCeX07gPqE974+/j7LgL6CAwKBvcFEBAnC9cK+wkFMPH7F+39F/ENBPX49Nzw/gcNHwoVChULDgvtAxPnAwYNBPEB/gkO9CIHA/71+/4aFg0d9/s="]]},"d":{"8508993":[[null,"285","Wasen i.E., Stegmatt|Langnau i.E., Bahnhof"]]}});

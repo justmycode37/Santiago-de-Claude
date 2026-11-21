@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2305_437",{"s":{},"d":{"8575564":[[0,"350","S. Antonino,Centri Commerciali|Cadenazzo, Stazione|Cadenazzo, Ruscadella"],[null,"",""]]}});
+STOP_IMAGES_TILE("2305_437",{"s":{"8575564":[["mapillary","mly",0,74,"m:28839225175661184","thetornado76","CC-BY-SA-4.0","cob6Nk84Ct+xJCTbPP7Ofy8F4/VDLfzq5loUCeonAfkTXafuXCwq6wf9EOrrLQjtrv3qDMMCTf6q/wPRChb/GRlU/AML9tsD9eAZAjQlCvn89xwGIfkWF/jz//EHBeHu5wEfEAziEPYHHuDx9fgE7AT2AN7+FzEHDQTMBu75CyE="]]},"d":{"8575564":[[0,"350","S. Antonino,Centri Commerciali|Cadenazzo, Stazione|Cadenazzo, Ruscadella"],[null,"",""]]}});

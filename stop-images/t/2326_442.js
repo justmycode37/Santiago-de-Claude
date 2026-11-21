@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2326_442",{"s":{},"d":{"8578847":[[0,"140","Disentis/Mustér, staziun/posta|Biasca, Stazione"]]}});
+STOP_IMAGES_TILE("2326_442",{"s":{"8578847":[["mapillary","mly",0,168,"m:178600747505544","alexanderar","CC-BY-SA-4.0","La2XN39gH+v///ndIu4CMwvoAvPN//Xq39rVBN1K+1M28OgZYiQA/+v88ew95fcKDPASLu0RER/D6QEI4hDyEBgfBx4UCSYoUeYj9yIY8tQE7voHOOMJ+wAJCRz4Gufq8BoS8RXiDvv7+PrWCd7o4wb48OAf8v/w+hwDEPjuJiM="]]},"d":{"8578847":[[0,"140","Disentis/Mustér, staziun/posta|Biasca, Stazione"]]}});

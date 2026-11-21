@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2366_373",{"s":{},"d":{"8583660":[[0,"",""],[1,"11","Vicques, poste|Vicques, bas du village"]]}});
+STOP_IMAGES_TILE("2366_373",{"s":{"8583660":[["commons","geo",null,null,"c:c/ce/Vermes_20260704_122757.jpg/500px-Vermes_20260704_122757.jpg","Zwantzig","CC BY-SA 4.0","IND0AS6BW+tA/uzmDf/pDjv5/PQA1PQEMUYS4Nz3GOPQ8MMS+fIeDssZFgMH8RDv/P37DfkD8RYCDf/+EhDwCQv94w4E5gjV6wn++wMK8fYMCv8W9Pj6+hL/8+IVBQUO8vDiEQMD8gYP+fwC/u8C9v4I+/QAFvb7D/EOBfwJ8wA="]]},"d":{"8583660":[[0,"",""],[1,"11","Vicques, poste|Vicques, bas du village"]]}});

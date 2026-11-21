@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2302_436",{"s":{},"d":{"8505861":[[0,"S30","Gallarate|Cadenazzo|Bellinzona|Ternate-Varano Borghi|Luino (I)"]]}});
+STOP_IMAGES_TILE("2302_436",{"s":{"8505861":[["mapillary","mly",0,295,"m:1544934266808594","thetornado76","CC-BY-SA-4.0","GJafDCTT2hkbFuBKf+UkFvkmXLzarr0oHik8EQvY5xHnIqIGIQ6a5yDWBPwK0fHoAf8AC7vwHvH1DA/T1A4b1BdD0AjMDSAZ2+swDOjeM/r47OT6HAUW9vgaGtv9DPXt7v77AwXh9xgHCg4ADf0cJwnxAQ0G+yYA/vzjF+bY3BI="]]},"d":{"8505861":[[0,"S30","Gallarate|Cadenazzo|Bellinzona|Ternate-Varano Borghi|Luino (I)"]]}});

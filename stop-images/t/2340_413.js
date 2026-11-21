@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2340_413",{"s":{},"d":{"8508356":[[0,"2525","Melchsee-Frutt (Bergstation)"]],"8508854":[[0,"343","Sarnen, Bahnhof|Melchtal, Dorf"]]}});
+STOP_IMAGES_TILE("2340_413",{"s":{"8508356":[["mapillary","mly",1,66,"m:820638631877099","till","CC-BY-SA-4.0","LoG4dlP0J/qw8SfsTfT5TebivQfj8yAg3Rj2DDMz0xn7MLvtIwUdowEoPQDoCQ0t5PgrPhom/PfYJRbdExEWHxwo+QgkLvMF6A4K3xL18gwP+QUEANIXMjMV7hX3HtIRxxoM/B7pCw78/QX96t0C9O/6A+sBE/cUHgUE7uUbDxY="]]},"d":{"8508356":[[0,"2525","Melchsee-Frutt (Bergstation)"]],"8508854":[[0,"343","Sarnen, Bahnhof|Melchtal, Dorf"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2304_394",{"s":{},"d":{"8501696":[[0,"2300","Saas-Fee Chalbermatten|Längfluh"]],"8501695":[[0,"2300","Spielboden"]]}});
+STOP_IMAGES_TILE("2304_394",{"s":{"8501696":[["commons","geo",null,null,"c:3/3a/Spielboden_-_trail.jpg/500px-Spielboden_-_trail.jpg","Tiia Monto","CC BY 4.0","GIHVP2HoAWX0Le7uZCbQCjnAjtgwsfgN+cnbuygf4RAXRMMGITHvISIHMeQRy/QECOf3Buwm8yfe/wLZMgwDQiMF8icT+BwJ7gbx1h4W4b4h/ek1IeUZJEkoAB0F7/sF9gkx8jH4BDTuEQLw8NUJ9i7/DQnnFyMN+QIXF9LeCQk="]]},"d":{"8501696":[[0,"2300","Saas-Fee Chalbermatten|Längfluh"]],"8501695":[[0,"2300","Spielboden"]]}});

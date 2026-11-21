@@ -12,9 +12,18 @@ Sources and their quirks: [amenities-sources.md](amenities-sources.md). Random-s
 
 ## On the map
 
-`node tools/build-map-places.mjs` (run after refreshing any of the three files) writes `map-places.js` (~1.6 MB, ~17,600 places). It sorts every category into one of the groups in `map-layers.js` (toilets, drinking water, health, help, food, shops, money, benches, accessibility, tickets, bikes, kids, schools, sport, culture, places to stay, worship, recycling, other businesses) with an icon and a rank from 1 (hospitals, stations) to 5 (benches, bike racks), keeps OSM objects that appear in both OSM files once, and drops an official item when OSM has the same kind of thing within 25 m (filling in OSM's missing details from it).
+`node tools/build-map-places.mjs` (run after refreshing any of the three files or the toilet files) writes `map-places.js` (~2.5 MB, ~24,500 places). It sorts every category into one of the groups in `map-layers.js` (toilets, drinking water, health, help, food, shops, money, benches, accessibility, tickets, bikes, kids, schools, sport, culture, places to stay, worship, recycling, other businesses) with an icon and a rank from 1 (hospitals, stations) to 5 (benches, bike racks), keeps OSM objects that appear in both OSM files once, and drops an official item when OSM has the same kind of thing within 25 m (filling in OSM's missing details from it).
 
-In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › On the map (all of them at first). `map-places.js` is only loaded the first time they are shown. The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, address, website) and directions.
+Toilets are the exception: they cover all of Switzerland and come from `data/ch/toilets-ch.json` (7,139 toilets: OSM merged with station toilets, six cities' own lists and the Nette Toilette restaurants, see [data-ch-toilets.md](data-ch-toilets.md)), not from the OSM toilets in `amenities.json`. Bern's `data/toilets.json` only adds the notes the Swiss file leaves out, and the build fails if it has a toilet the Swiss file lacks. Who may use a toilet:
+
+- The 88 toilets that are not for the public (`access` private, no, military, employees) are left off the map. Where a city's own list has such a toilet it is shown as public (3), and where only the station list has it, it is shown with the warning below (4).
+- Toilets for customers or guests are labelled "Customer toilet", a Nette Toilette "Public toilet (Nette Toilette)". A Nette Toilette is recognised by its source, its notes or its name.
+- The card says Key needed (`access` key, centralkey), Permit needed, Wheelchair users only (`access=wheelchair` or `wheelchair=only`) or May be closed or locked. The last one is for toilets whose notes say they are locked or shut ("Der Schlüssel muss am Billettschalter abgeholt werden"), found with a short list of German and French phrases in `build-map-places.mjs`, so it misses other wordings.
+- A search for the nearest toilet offers none of these restricted ones; "customer toilet" lists those for customers.
+
+The card shows `paid` as Free, Fee (with the price) or Partly free (`mixed`), with the city's own fee text where there is one, and "Free for customers" where OpenStreetMap says so. Online search results (Photon, Google) that lie within 50 m of one of our toilets are dropped as duplicates; other online toilets, for example in Liechtenstein, stay in the list.
+
+In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › On the map (all of them at first). `map-places.js` is loaded the first time they are shown or the search box is used; the map layer itself is only built once they are shown. The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, Eurokey, address, website) and directions.
 
 ## Schemas
 
@@ -47,5 +56,7 @@ Sample check of these files: [verification-2.md](verification-2.md).
 | `data/ch/osm-<category>.json` | 94,025 OSM basic amenities in 30 files (drinking water, AED, pharmacy, hospital, shower, playground, ...) with canton | [data-ch-osm.md](data-ch-osm.md) |
 | `data/ch/official-ch.json` | 11,991 official points from 29 sources (city toilets and fountains, AED registers, hospitals, BABS emergency meeting points, SBB) | [data-ch-official.md](data-ch-official.md) |
 | `data/ch/help-ch.json` | 543 places from national networks (Tischlein deck dich, Caritas-Markt, Madame Frigo, Nette Toilette Basel/Luzern/Solothurn, big-city shelters and soup kitchens) + 10 national hotlines | [data-ch-help.md](data-ch-help.md) |
+
+Of these, only the toilets are on the map so far (see [On the map](#on-the-map)): `toilets-ch.json`, plus `osm-toilets.json` for websites and phone numbers. The other files are not used by the app yet.
 
 Addresses are filled from the national address register (`tools/enrich-addresses-ch.mjs`): 20% → 79% overall. Sample check: [verification-ch.md](verification-ch.md).

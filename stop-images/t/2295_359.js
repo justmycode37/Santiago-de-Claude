@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2295_359",{"s":{},"d":{"8501877":[[0,"210","Orsières, gare|Le Grand-St-Bernard, Hospice"]]}});
+STOP_IMAGES_TILE("2295_359",{"s":{"8501877":[["mapillary","mly",0,191,"m:134669132019963","it_s_so_funny","CC-BY-SA-4.0","U9iBLVY84fbgzO/XbOosK6DXHuD58h7p1+cZ4v5d9/IRKyAABP0m4gMMB+PfN/YT/iE48vH15iDv7BP98QnoHxYB5uf08PQDCAz/DAQuBAIDPA8AFPn4+QkN8frpIxAA+/ADBgoACxwEE/kQ6O4c8gXsCu8B+igYEvn93+8QER4="]]},"d":{"8501877":[[0,"210","Orsières, gare|Le Grand-St-Bernard, Hospice"]]}});

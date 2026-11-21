@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2328_380",{"s":{},"d":{"8576313":[[null,"230 M45","Adelboden, Post|Kandersteg, Bahnhof|Frutigen, Bahnhof|Spiez, Bahnhof"]]}});
+STOP_IMAGES_TILE("2328_380",{"s":{"8576313":[["mapillary","mly",0,0,"m:1017708039940230","Yha1","CC-BY-SA-4.0","QtLMSn8lPtkYtOEODufgIM7XFeP4APn88/301xP54REU/L4SCh4P5Or+FwTgAwIc3/QIF+3d//HwFv/k9iMAHO0YCeYmI9MhE/EE+gAN4QcR9QH8HeIK9Pf7E/n+Avjm+/8TBOv5EPz6HgT1Dg0A+v/2/f4X9Q79Dfbz+vURGh0="]]},"d":{"8576313":[[null,"230 M45","Adelboden, Post|Kandersteg, Bahnhof|Frutigen, Bahnhof|Spiez, Bahnhof"]]}});

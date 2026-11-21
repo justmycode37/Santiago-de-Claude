@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2305_351",{"s":{},"d":{"8593489":[[0,"EV2 225","Les Marécottes, gare|Martigny, gare|Les Marécottes, télécabine|Van-d'en-Haut, camping"]]}});
+STOP_IMAGES_TILE("2305_351",{"s":{"8593489":[["mapillary","mly",0,288,"m:2818486838399936","randalf","CC-BY-SA-4.0","aJHpf1kw/90+DRO8ABPHQxLZv/cYo/dEqLfrIf0h1A4iBLkwR9/c59rODOgW8f/2EOsMLcgDEfrfC+UD+PPpBAYG4BoU++sf2dwjBBz97AX73f367wMc/xAQEwnmB+7t1Q4X9SIPJgzaAgUE7+r73e8O/u36+fALHez5C/4ECjI="]]},"d":{"8593489":[[0,"EV2 225","Les Marécottes, gare|Martigny, gare|Les Marécottes, télécabine|Van-d'en-Haut, camping"]]}});

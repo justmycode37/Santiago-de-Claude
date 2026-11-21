@@ -597,14 +597,17 @@
     ev.depBusy = true;
     evidence.set(c.uic, ev);
     try {
-      const res = await fetch(app.OPENDATA + 'stationboard?' + new URLSearchParams({ id: c.uic, limit: '30' }));
-      const all = ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
+      // The Kante engine knows the edge of every departure (engine-departures.js: d.edges, the first one is the
+      // edge the rule below would name). Without it, transport.opendata.ch and that rule.
+      const exact = window.KANTE_BOARD ? await window.KANTE_BOARD.load(c.uic, c.st, app.platformLL) : null;
+      const res = exact || await fetch(app.OPENDATA + 'stationboard?' + new URLSearchParams({ id: c.uic, limit: '30' }));
+      const all = exact || ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
       ev.departures = all.map((d) => {
         const next = d.passList && d.passList[1] ? app.coordOf(d.passList[1]) : null;
-        const ll = app.platformLL(d.stop, null, next);
-        const edge = c.st.edges.findIndex((e) => e.ll === ll);
+        const ll = d.edges ? null : app.platformLL(d.stop, null, next);
+        const edge = d.edges ? (d.edges.length ? d.edges[0] : -1) : c.st.edges.findIndex((e) => e.ll === ll);
         return { time: (d.stop.prognosis && d.stop.prognosis.departure) || d.stop.departure, delay: d.stop.delay || 0,
-                 line: (d.number || d.name || '').replace(/^\D+\s/, ''), cat: d.category || '', to: d.to || '', edge: edge >= 0 ? edge : null, raw: d };
+                 line: (d.number || d.name || '').replace(/^\D+\s/, ''), cat: d.category || '', to: d.to || '', edge: edge >= 0 ? edge : null, edges: d.edges, raw: d };
       });
       ev.depFailed = false;
       ev.depAt = Date.now();
@@ -1017,7 +1020,7 @@
     const how = recognised(c);
     const edge = edgeOf(c);
     const e = edge ? c.st.edges[edge.i] : null;
-    const deps = ev.departures ? ev.departures.filter((d) => !e || d.edge === edge.i || d.edge == null && c.st.edges.length === 1) : null;
+    const deps = ev.departures ? ev.departures.filter((d) => !e || (d.edges ? d.edges.includes(edge.i) : d.edge === edge.i) || d.edge == null && c.st.edges.length === 1) : null;
     const key = [c.uic, how, edge && edge.i, ev.depAt, ev.departures && ev.departures.length, ev.depFailed, ev.visRef && ev.visRef.page, ev.ocrAt, c.ahead, candidates.slice(1, 4).map((x) => x.uic).join()].join('|');
     if (key === ui.shownKey) return;
     ui.shownKey = key;

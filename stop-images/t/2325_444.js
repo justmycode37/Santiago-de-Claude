@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2325_444",{"s":{},"d":{"8578845":[[0,"140 131","Disentis/Mustér, staziun/posta|Biasca, Stazione|Olivone, Posta"]]}});
+STOP_IMAGES_TILE("2325_444",{"s":{"8578845":[["mapillary","mly",0,13,"m:486802439193228","alexanderar","CC-BY-SA-4.0","QL2BKnNADNcQExTtFuYEFfEIEt/Tx+Tn5/7e+PIb50cQ+csLLO0d69H24wYc+d8HAeT+D9nnAxLVBhfw8B7v+vIjDvwvBe4xEO8YDxIUBwAg6PP9GuYX/Q8FFwMBDuUB5xMH7vkS//cCFxb4B/oDE+0R/OYF5QXzAhAKAwkLBhk="]]},"d":{"8578845":[[0,"140 131","Disentis/Mustér, staziun/posta|Biasca, Stazione|Olivone, Posta"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2351_447",{"s":{},"d":{"8503774":[[0,"504","Glarus, Bahnhof|Klöntal, Richisau"]]}});
+STOP_IMAGES_TILE("2351_447",{"s":{"8503774":[["mapillary","mly",0,50,"m:3246224998949066","peterneubauer","CC-BY-SA-4.0","Sri7LX/FVBcN+gUH9xMRxiMECMkFqPKu2QzXYPtgzl1Ex90ELyIK+/7q1u8r7CkpGAjvK/MmIgfc3FcnEO4U9S7wAwMl+xQB/foRBCTsCND70xvT7AELFuYNGf/zBQHf6gUM/ucLHPUwCBzyHgsE5wTf+t4U//oYEPny/QIGABQ="]]},"d":{"8503774":[[0,"504","Glarus, Bahnhof|Klöntal, Richisau"]]}});

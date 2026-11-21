@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2356_352",{"s":{},"d":{"8504951":[[0,"132 121","Nods, école|St-Imier, gare"]]}});
+STOP_IMAGES_TILE("2356_352",{"s":{"8504951":[["mapillary","mly",0,230,"m:927916318048015","mapmaniak","CC-BY-SA-4.0","PJuYB2l/+dTKEhTa9tm9MzDk+RbTNBO3GQcpw/HrC/AaOPLWHR9CB/c2/hH88uv8/BAnD/EJCyDfB+7RCBQQBwYE+hQv8dQRP+gK+PcbAAwY8gcXSukfDu0HKezsKfTy/P8ICAr8KfsaLw36Hwvr/vH59/wAHAkEFP3jBgAGDxc="]]},"d":{"8504951":[[0,"132 121","Nods, école|St-Imier, gare"]]}});

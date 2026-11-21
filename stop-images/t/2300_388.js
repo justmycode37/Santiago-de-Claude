@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2300_388",{"s":{},"d":{"8530213":[[null,"2290","Zermatt (Talstation Sunnegga)"]]}});
+STOP_IMAGES_TILE("2300_388",{"s":{"8530213":[["mapillary","mly",0,279,"m:340869260812083","beat","CC-BY-SA-4.0","sIaDIAgk6X/nQOPhLwXmNhHy0uoOwRQVSuAZJvgY4gUi9C8k9g0Ozs8YRfUQ+OPpMqXnIP8cEv3xMwXx/xMILwkB8OMDERT/C/0WChID8/8TAPM+GvQNL0Qi9zkTHPDtGvcn3RX68RLmExXz9csD2DLv8/T8Jhz0Bw8QDdoC8BU="]]},"d":{"8530213":[[null,"2290","Zermatt (Talstation Sunnegga)"]]}});

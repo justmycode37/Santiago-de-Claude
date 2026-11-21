@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2292_445",{"s":{},"d":{"8575620":[[0,"523","Mendrisio, Stazione"]]}});
+STOP_IMAGES_TILE("2292_445",{"s":{"8575620":[["mapillary","mly",0,72,"m:783408676854087","soulcover","CC-BY-SA-4.0","fwe0HSgMH+LW5xfXKhIF/O3e/QTRHyvLywTw6SkL59v4MPcjBhvkyvnPDhrg/uPh+gL8MOvE5h0pFRru/fsNCRACDTwpGujkGO/NFgTZ/i4f7xoZ3wAP6Qvs8R/fDC0T6v8VD+IGDgz/Ju/o5BcaHf4IIPUJBxr6CfXx+/Py7gM="]]},"d":{"8575620":[[0,"523","Mendrisio, Stazione"]]}});

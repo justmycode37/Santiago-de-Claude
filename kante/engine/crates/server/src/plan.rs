@@ -249,8 +249,9 @@ impl App {
             quay: self.quay(actual.unwrap_or(planned)),
             arr: (pos > 0).then(|| time::to_unix(date, tt.arr(trip, pos))),
             dep: (pos + 1 < n).then(|| time::to_unix(date, tt.dep(trip, pos))),
-            arr_delay_s: live.filter(|_| pos > 0).map(|l| l.arr_delay_at(pos)),
-            dep_delay_s: live.filter(|_| pos + 1 < n).map(|l| l.dep_delay_at(pos)),
+            // only where the time is live: before the feed's first report it is the timetable's
+            arr_delay_s: live.filter(|l| pos > 0 && l.is_live_at(pos)).map(|l| l.arr_delay_at(pos)),
+            dep_delay_s: live.filter(|l| pos + 1 < n && l.is_live_at(pos)).map(|l| l.dep_delay_at(pos)),
             planned_label: actual.map(|_| tt.stops[planned as usize].label.clone()),
             skipped: live.map(|l| l.is_skipped(pos)).unwrap_or(false),
             on_request: flags & (FLAG_PICKUP_ON_REQUEST | FLAG_DROPOFF_ON_REQUEST) != 0,

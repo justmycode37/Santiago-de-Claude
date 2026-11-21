@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2331_514",{"s":{},"d":{"8509855":[[0,"811","Zernez, staziun|Mals, Bahnhof/Malles, stazione|Müstair, cunfin"]]}});
+STOP_IMAGES_TILE("2331_514",{"s":{"8509855":[["mapillary","mly",0,134,"m:1027861531898994","hierdadort","CC-BY-SA-4.0","RcGBFnxzCbK8+Br2EQwWAe3e+vnY/QQH2/nnyfsm2TQfIfj/EwUo2uoZFw0GAeD14e8EHPgLBPXPCTP7GRbrFBkhGvgL8f0MG+kLACAO8OwXBOz5FOEcDQz1ERjzF/n99BEJBRX0BRECDxz4Lf4F8/P1++EBAiAKAgwJAgQBCgk="]]},"d":{"8509855":[[0,"811","Zernez, staziun|Mals, Bahnhof/Malles, stazione|Müstair, cunfin"]]}});

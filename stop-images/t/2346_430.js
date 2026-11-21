@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2346_430",{"s":{},"d":{"8508473":[[null,"3600","Luzern Bahnhofquai|Flüelen (See)"]]}});
+STOP_IMAGES_TILE("2346_430",{"s":{"8508473":[["mapillary","mly",0,294,"m:466968944510869","likesopenstreetmap","CC-BY-SA-4.0","H6mBDR7OASDBLujsGwwJIkEby//jJgkHFiIYABRF7dwgO/fu8h4NGAIXPiMD3/QcDiHTFiYP5QD84w3+3vY4KxAz/zYp+P3fCPsgDicaF/3x6PUp9QPqLTQY+SzxEQbu+gYm/AQS8zIB/vnp/AgB4fIW6gn88ArwFw0EFPvtCCw="]]},"d":{"8508473":[[null,"3600","Luzern Bahnhofquai|Flüelen (See)"]]}});

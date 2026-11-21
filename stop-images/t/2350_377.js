@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2350_377",{"s":{},"d":{"8576454":[[0,"451","Bolligen, Bahnhof"],[1,"451","Hindelbank, Bahnhof|Krauchthal, Post"]]}});
+STOP_IMAGES_TILE("2350_377",{"s":{"8576454":[["mapillary","mly",0,241,"m:477784633645433","trac71","CC-BY-SA-4.0","f/zARUgF4+MeMOe9If8HBRro9P4DwPf31OIM4AEM5e4G9u0Q++sW7v7lDe/sCgv6/OgLDPgH8yUHAwYL8xr2H/P+Deoe/e4C/vUE/vP2/RQQ+QcN/f4H5QAW+gD/Agj8/v0MBQLw9wQRDfYS6PgOBvABDQMUA/oIBwkKAPXtCQM="]]},"d":{"8576454":[[0,"451","Bolligen, Bahnhof"],[1,"451","Hindelbank, Bahnhof|Krauchthal, Post"]]}});

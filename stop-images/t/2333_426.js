@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2333_426",{"s":{},"d":{"8573111":[[0,"411","Göschenen, Bahnhof"],[1,"411","Göscheneralp, Dammagletscher"]]}});
+STOP_IMAGES_TILE("2333_426",{"s":{"8573111":[["mapillary","mly",0,332,"m:1289732112496537","xdTAGCLAN","CC-BY-SA-4.0","LLGBFXpAQO0P/Q4V/OP/0+UW/b/AzPgPDwAF/yPm+D4hILErAR0d3vAC5hv+0hDoAez1Bv0HF9rlIvLe5hT0+AAh8QwYDvEEFPYX9v3xCfACERcZIOcp9eLnH/UFFfgG6woMCw759BAYJArxJg0YGgT/BfT5+Qr4B//3FwL14gY="]]},"d":{"8573111":[[0,"411","Göschenen, Bahnhof"],[1,"411","Göscheneralp, Dammagletscher"]]}});

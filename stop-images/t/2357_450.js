@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2357_450",{"s":{},"d":{"8577685":[[0,"513","Reichenburg, Bahnhof"],[1,"513","Ziegelbrücke, Bahnhof Süd"]]}});
+STOP_IMAGES_TILE("2357_450",{"s":{"8577685":[["mapillary","mly",0,0,"m:1766226086872907","oferi","CC-BY-SA-4.0","f+n0PlnyDtu73RUZBwbfD8fb/hDeMv0D7/kIBRzw8gDwIOkFGhs23ewS+gsE6BH/6P/w6QYF8QL4Gg386QXt6PIOAQYJ6OrwEwn1DOX9CA4OAhkF9gQL8v0NCfX3AA0I9fsJA+0E7uoLDPT5AwYX7gPb9+sO7AABE/gQ/Pj+EAM="]]},"d":{"8577685":[[0,"513","Reichenburg, Bahnhof"],[1,"513","Ziegelbrücke, Bahnhof Süd"]]}});

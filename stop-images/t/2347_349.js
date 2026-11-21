@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2347_349",{"s":{},"d":{"8570527":[[0,"540","Cudrefin, camping"],[1,"540","Avenches, gare"]]}});
+STOP_IMAGES_TILE("2347_349",{"s":{"8570527":[["mapillary","mly",0,0,"m:473832807042884","beat","CC-BY-SA-4.0","cuOWMn/f2xnxQfnoSecIyAz57+Eq0OPw0esXo+w0EBr8J+w2AvBDwAwgKdnuMiXzB+38/xLe/wIfBtf9+ATwSt8cB9P77Abp4/Ym2voH3fwYC+8D9QQN/CYC6PoKDOvw5A0IG/zrCOQMOwcHB+4YBfn8IAcL+AH2ExP99/zzBfo="]]},"d":{"8570527":[[0,"540","Cudrefin, camping"],[1,"540","Avenches, gare"]]}});

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2355_431",{"s":{},"d":{"8530636":[[0,"3661","Unterägeri (See)|Oberägeri (See)"]]}});
+STOP_IMAGES_TILE("2355_431",{"s":{"8530636":[["mapillary","mly",0,213,"m:149140187159140","gismountains","CC-BY-SA-4.0","SOmBO33x+xgaFOZ0Edy4/+ICBbYB0wm52vklAhsd+i0kKtA26g7jzugRHQMUCPv43B0PCRThCN7n+gLrBBUUEvH2+vYPJPr6Fu4K+fwh/PLp1/8ACPUPEvABFeT7BfXz7ggR/P/+DhT3CgX9AwYp8AwS7wQE3iD1DgcBEgAI+CI="]]},"d":{"8530636":[[0,"3661","Unterägeri (See)|Oberägeri (See)"]]}});

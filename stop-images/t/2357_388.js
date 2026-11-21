@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2357_388",{"s":{},"d":{"8571548":[[0,"90","Kleindietwil, Post|Walterswil BE, Dorf"]]}});
+STOP_IMAGES_TILE("2357_388",{"s":{"8571548":[["mapillary","mly",0,214,"m:1007928516403734","joostjakob","CC-BY-SA-4.0","f+X3Qz4a1gM/+k3BJ/MTJuTeEBMCGAL04h780/XxF+oT++30JwMo1ucYDR/zCO4TBOYeEOT8+BrlIPnnA/sBOR7nIfQTFOwL+d3n9g0B6h0A8f/++/UFB/YPJv8A/PgH9Rr6DAECD/sFCgXyCfMBAgz9BvUHCf8BGPYF9/YSCf0="]]},"d":{"8571548":[[0,"90","Kleindietwil, Post|Walterswil BE, Dorf"]]}});

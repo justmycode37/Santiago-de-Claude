@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2324_384",{"s":{},"d":{"8589869":[[null,"242","Kandersteg, Bahnhof"]],"8507594":[[0,"2410","Oeschinen (Bergstation)"]]}});
+STOP_IMAGES_TILE("2324_384",{"s":{"8589869":[["mapillary","mly",0,238,"m:462740020040858","Yha1","CC-BY-SA-4.0","QoHEDvUnP8uYwerX8+wSJfrgz9bWBQs44RkSIMft6vjwEvUT/RYlvMkKExXdJQzd67kWF+kKAOPMBRPsGTYSIBYvEwcdKdkrG+s5FiUY6wn78vv6K+D7IiTm9Q0VF+n58AYB/RHtAhLjB+3wCQ0Ow+rz2u0UCw4rLuf8Ce8TBxk="]]},"d":{"8589869":[[null,"242","Kandersteg, Bahnhof"]],"8507594":[[0,"2410","Oeschinen (Bergstation)"]]}});

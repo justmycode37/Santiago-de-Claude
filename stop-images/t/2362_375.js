@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2362_375",{"s":{},"d":{"8500252":[[0,"2026","Oberdorf SO (Talstation)"]]}});
+STOP_IMAGES_TILE("2362_375",{"s":{"8500251":[["mapillary","mly",0,10,"m:184499330205307","beat","CC-BY-SA-4.0","yoGQ4MAI1Cgn/OA9GUfeJdojBebqqMwQJPL8LA+pAP1BC/4H6wMb8OcXKAMLARL4SQATCwoOBfcAJMn35/gqLtj93+gXBwAQAwv4697dCx3cIQoYDADj9Pf+DQgrCuvpFOX6Gtz+xjDsFhQO7fYHCh7/EOf5Awb78wju6+z3C+Y="]]},"d":{"8500252":[[0,"2026","Oberdorf SO (Talstation)"]]}});

@@ -535,6 +535,17 @@
     .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
     .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
     .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
+    .kj a.pill-btn { text-decoration: none; }
+    .kj .pill-btn.ticket .tk-short { display: none; }
+    @media (max-width: 400px) {
+      .kj .actionbar { gap: 8px; }
+      .kj .pill-btn.start { padding: 0 16px; }
+      .kj .pill-btn.ticket { padding: 0 14px; }
+    }
+    @media (max-width: 360px) {
+      .kj .pill-btn.ticket .tk-long { display: none; }
+      .kj .pill-btn.ticket .tk-short { display: inline; }
+    }
     .kj .overview-btn { margin: 4px 8px 8px; }
     .kj .stepnav { display: flex; align-items: center; gap: 12px; min-height: 56px; }
     .kj .stepnav-text { flex: 1; min-width: 0; }
@@ -953,6 +964,7 @@
     .set-text b { display: block; font-size: 17px; line-height: 1.25; font-weight: 400; }
     .set-text small { display: block; margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--bar-secondary); }
     .set-foot { margin: 8px 16px 0; font-size: 13px; line-height: 1.4; color: var(--bar-secondary); }
+    .set-foot a { color: inherit; text-decoration: underline; }
     /* iOS-style switch */
     .switch {
       appearance: none;
@@ -1258,7 +1270,7 @@
         <button class="set-link" id="setMapAll" type="button">Hide all</button>
       </div>
       <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setMapHead"></div>
-      <p class="set-foot">The events button in the ••• menu shows or hides everything switched on here. Places such as toilets and drinking water are only mapped for Bern so far (OpenStreetMap, Stadt Bern, Kanton Bern, SBB and Velospot).</p>
+      <p class="set-foot">The events button in the ••• menu shows or hides everything switched on here. Toilets are mapped for all of Switzerland, other places such as drinking water only for Bern so far. Sources, merged and shortened by us: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL), opentransportdata.swiss, SBB, Velospot, Kanton Bern, the cities of Bern, Zürich, Geneva, Luzern and Zug, Kanton Basel-Stadt and Stadt St.Gallen (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), and for addresses swisstopo (Amtliches Gebäudeadressverzeichnis).</p>
 
       <h2 class="set-head" id="setYouHead">About you</h2>
       <div class="set-group" role="group" aria-labelledby="setYouHead">
@@ -1370,6 +1382,8 @@
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
   <script src="engine.js"></script>
+  <script src="engine-departures.js"></script>
+  <script src="engine-journey.js"></script>
   <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
   <script src="live.js"></script>
   <script src="places.js"></script>
@@ -1714,7 +1728,12 @@
       if (!groups.length) showToast('Everything is switched off under On the map in Settings.');
       else if (!wantPlaces && !visibleEvents().length) showToast('No events match your settings.');
       else if (map.getZoom() < (groups.includes('events') ? EVENT_MIN_ZOOM : PLACE_MIN_ZOOM)) showToast('Zoom into a town or neighbourhood to see events and places.');
-      else if (wantPlaces && !viewNearBern()) showToast('Places like toilets and drinking water are only mapped for Bern so far.');
+      else if (wantPlaces && !viewNearBern()) {
+        // toilets are mapped everywhere, the other groups only for Bern
+        const others = groups.some((k) => k !== 'events' && k !== 'toilets');
+        if (!groups.includes('toilets')) showToast('Places like drinking water are only mapped for Bern so far.');
+        else if (others) showToast('Outside Bern, only toilets in Switzerland are mapped so far.');
+      }
     });
     document.getElementById('settingsBtn').addEventListener('click', () => {
       setMenu(false);
@@ -1941,7 +1960,7 @@
 
     const stripTags = (s) => s.replace(/<[^>]*>/g, '').trim();
 
-    // ---- Places in the search (map-places.js, Bern): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
+    // ---- Places in the search (map-places.js: Bern, toilets everywhere): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
     //      lists the nearest ones; a name ("Migros", "Amavita") lists the places called that, nearest first ----
     const fold = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
     const stem = (w) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
@@ -1963,6 +1982,7 @@
           cat: PLACES.cats.map(([, , , label]) => labelWords(label)),
           group: PLACES.cats.map(([g]) => labelWords(GROUP_BY_KEY[g].label)),
           names: PLACES.items.map((r) => (r[3] ? fold(r[3]) : '')),
+          toilets: PLACES.items.filter((r) => PLACES.cats[r[2]][0] === 'toilets'),
         };
       }
       return placeIndex;
@@ -1976,15 +1996,16 @@
         subtitle: [row[3] ? label : '', fmtDist(km * 1000), row[4] && row[4].a && /\d/.test(row[4].a.split(',')[0]) ? row[4].a.split(',')[0] : ''].filter(Boolean).join(' · '),
         kind: 'place',
         origin: 'place',
+        distance: km * 1000,
         icon: { color: `var(--${group.color})`, fg: group.color === 'sun' ? '#344D77' : '', svg: `<path d="${MAP_LAYERS.GLYPHS[glyph]}"/>` },
         lngLat: [row[0], row[1]],
       };
     }
-    // → { kinds: nearest places of the kind asked for, names: places whose name matches }
+    // → { kinds: nearest places of the kind asked for, names: places whose name matches, toilets: a toilet was asked for }
     function searchPlaces(text) {
       const idx = placeSearchIndex();
       const plain = wordsOf(text).filter((w) => !NEAR_WORDS.has(w));
-      if (!idx || !plain.length) return { kinds: [], names: [] };
+      if (!idx || !plain.length) return { kinds: [], names: [], toilets: false };
       const from = gpsOn() ? userLngLat : map.getCenter().toArray();
       const near = (rows, n) => rows.map((r) => [r, distKm(from, r)]).sort((a, b) => a[1] - b[1]).slice(0, n);
 
@@ -1994,7 +2015,13 @@
       const fits = (label) => tokens.every((t) => label.some((w) => w === t || (t.length >= 3 && w.startsWith(t))));
       const cats = idx.cat.map((label, i) => (fits(label) || fits(idx.group[i]) ? i : -1)).filter((i) => i >= 0);
       const catSet = new Set(cats);
-      const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2])), 6) : [];
+      // "closest toilet" is asked by someone who needs one now: not the ones for customers, with a key or a permit,
+      // or that may be locked. "customer toilet" still lists those for customers.
+      const toilets = cats.length > 0 && cats.every((i) => PLACES.cats[i][0] === 'toilets');
+      const customerAsked = cats.length > 0 && cats.every((i) => PLACES.cats[i][3] === 'Customer toilet');
+      const forAll = (r) => !(r[4] && r[4].k && r[4].k !== 'permissive' && PLACES.cats[r[2]][0] === 'toilets')
+        || (customerAsked && r[4].k === 'customers');
+      const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2]) && forAll(r)), 6) : [];
 
       // a name: every word appears in it. Stops and stations come from the swisstopo search instead, and some official
       // items are only named after where they stand ("Bahnhofplatz 1"), so they don't count as names.
@@ -2004,7 +2031,7 @@
         const rows = [];
         idx.names.forEach((name, i) => {
           const r = PLACES.items[i];
-          if (!name || shown.has(r) || !plain.every((w) => name.includes(w))) return;
+          if (!name || shown.has(r) || catSet.has(r[2]) || !plain.every((w) => name.includes(w))) return;
           const [g, , , label] = PLACES.cats[r[2]];
           if (g === 'transit' || NAMED_BY_PLACE.has(label) || (r[4] && r[4].a && fold(r[4].a).startsWith(name))) return;
           rows.push(r);
@@ -2012,7 +2039,7 @@
         const starts = (r) => (fold(r[3]).startsWith(plain[0]) ? 0 : 1);
         names.push(...rows.map((r) => [r, distKm(from, r)]).sort((a, b) => starts(a[0]) - starts(b[0]) || a[1] - b[1]).slice(0, 5));
       }
-      return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)) };
+      return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)), toilets };
     }
 
     // Addresses, towns, postcodes, mountains, lakes: swisstopo
@@ -2054,14 +2081,19 @@
 
     const nearM = (a, b, m) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
 
-    // One list from the three sources: Bern's own places (map-places.js), places online (places.js), swisstopo
+    // One list from the three sources: our own places (map-places.js), places online (places.js), swisstopo
     function combineResults(text, swiss, online, local) {
       const { kinds, names } = local;
       const bern = [...kinds, ...names];
       // a place in both the Bern data and online keeps the Bern entry
+      // Toilets: ours cover Switzerland and know which are for customers only or locked, so an online toilet that
+      // is one of ours (within 50 m) is left out, whatever it is called there. The others (Liechtenstein, a new one)
+      // stay, and are listed with ours by distance.
+      const ownToilet = (p) => local.toilets && placeSearchIndex().toilets.some((r) => nearM(r, p.lngLat, 50));
       const found = (online ? online.results : [])
-        .filter((p) => !bern.some((b) => fold(b.title) === fold(p.title) && nearM(b.lngLat, p.lngLat, 150)));
-      const places = [...kinds, ...found, ...names];
+        .filter((p) => !ownToilet(p) && !bern.some((b) => fold(b.title) === fold(p.title) && nearM(b.lngLat, p.lngLat, 150)));
+      const byDistance = local.toilets && !!online && online.category === 'Toilets' && found.every((p) => p.distance != null);
+      const places = byDistance ? [...[...kinds, ...found].sort((a, b) => a.distance - b.distance), ...names] : [...kinds, ...found, ...names];
       // a place swisstopo also knows keeps the place (it has the category and the distance)
       const s = (swiss || []).filter((r) => !places.some((p) => fold(p.title) === fold(r.title) && nearM(p.lngLat, r.lngLat, 150)));
       placeCategory = (online && online.category) || null;
@@ -2446,11 +2478,14 @@
       }
       platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
       try {
-        const res = await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
-        const all = ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
+        // The Kante engine knows the edge of every departure (engine-departures.js: d.edges). Without it,
+        // transport.opendata.ch and the rule below.
+        const exact = window.KANTE_BOARD ? await KANTE_BOARD.load(f.properties.id, st, platformLL, f.properties.i) : null;
+        const res = exact || await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
+        const all = exact || ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
         if (req !== popupReq) return;
         // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
-        const here = whole ? all : all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
+        const here = whole ? all : all.filter((d) => (d.edges ? d.edges.includes(f.properties.i) : platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll));
         note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st.name}:`;
         list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
           const li = mk('li');
@@ -2468,7 +2503,7 @@
 
     // ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
     // Shown with the events button, for the groups switched on under "On the map" in Settings.
-    // The data (~1.5 MB, Bern only) is loaded the first time it is needed.
+    // The data (~2.5 MB: Bern, and the toilets of all of Switzerland) is loaded the first time it is needed.
     const PLACES_FC = { type: 'FeatureCollection', features: [] };
     let PLACES = null;
     let placesLoading = null;
@@ -2530,22 +2565,22 @@
       if (!data) return;
       PLACES = data;
       delete window.MAP_PLACES;
+      showPlacesIfNeeded();
+    }
+    // The places only go to the map (where building and indexing them keeps the page and a map worker busy) once
+    // they are to be shown; the search uses PLACES directly.
+    let placesOnMap = false;
+    function showPlacesIfNeeded() {
+      if (placesOnMap || !PLACES || !placeGroupsShown().length) return;
+      placesOnMap = true;
       const order = Object.fromEntries(MAP_LAYERS.GROUPS.map((g, i) => [g.key, i]));
-      PLACES_FC.features = data.items.map(([lon, lat, ci, name], i) => {
-        const [g, gl, rank] = data.cats[ci];
+      PLACES_FC.features = PLACES.items.map(([lon, lat, ci, name], i) => {
+        const [g, gl, rank] = PLACES.cats[ci];
         // o: who gets the room where icons would overlap: higher rank, then earlier group, then named before unnamed
         const properties = { i, g, gl, c: GROUP_BY_KEY[g].color, o: rank * 100 + order[g] * 2 + (name ? 0 : 1) };
         if (name) properties.n = name;
         return { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties };
       });
-      showPlacesIfNeeded();
-    }
-    // The places only go to the map (where indexing them keeps a map worker busy) once they are to be shown;
-    // the search uses PLACES directly.
-    let placesOnMap = false;
-    function showPlacesIfNeeded() {
-      if (placesOnMap || !PLACES_FC.features.length || !placeGroupsShown().length) return;
-      placesOnMap = true;
       const src = map.getSource('places');
       if (src) src.setData(PLACES_FC);
     }
@@ -2568,7 +2603,8 @@
     };
 
     const WHEELCHAIR = { yes: 'Wheelchair accessible', limited: 'Partly wheelchair accessible', no: 'Not wheelchair accessible' };
-    const ACCESS = { customers: 'Customers only', private: 'Private', permit: 'Permit needed', permissive: 'Open to the public' };
+    const ACCESS = { customers: 'Customers only', private: 'Private', permit: 'Permit needed', key: 'Key needed', permissive: 'Open to the public',
+      wheelchair: 'Wheelchair users only', unsure: 'May be closed or locked' };
     function openPlace(i) {
       const row = PLACES && PLACES.items[i];
       if (!row) return;
@@ -2591,9 +2627,13 @@
 
       const tags = [];
       if (x.f === 'no') tags.push('Free');
-      if (x.f === 'yes') tags.push('Fee');
-      if (x.w) tags.push(WHEELCHAIR[x.w]);
+      if (x.f === 'yes') tags.push(x.pr ? 'Fee ' + x.pr : 'Fee');
+      if (x.f === 'mixed') tags.push('Partly free'); // a free and a paying toilet, by cabin or by time of day
+      // w: getting to the place, tw: the toilet itself. Station toilets only say the second.
+      if (x.w || x.tw) tags.push(WHEELCHAIR[x.w || x.tw]);
       if (x.tw === 'yes') tags.push('Wheelchair toilet');
+      if (x.tw === 'no' && x.w && x.w !== 'no') tags.push('No wheelchair toilet');
+      if (x.e) tags.push('Eurokey');
       if (x.c) tags.push('Baby changing');
       if (x.k && ACCESS[x.k]) tags.push(ACCESS[x.k]);
       if (tags.length) {
@@ -2616,8 +2656,10 @@
       };
       if (x.a) addRow('Address', document.createTextNode(x.a));
       if (x.h) addRow(x.h === '24/7' ? 'Open' : 'Opening hours', document.createTextNode(x.h === '24/7' ? 'Day and night' : x.h));
+      if (x.ft || (x.f === 'mixed' && x.pr)) addRow('Fee', document.createTextNode(x.ft || `${x.pr} for some of the toilets`));
       if (x.l) addRow('Floor', document.createTextNode(x.l));
       if (x.d) addRow('About', document.createTextNode(x.d));
+      if (x.o) addRow('Run by', document.createTextNode(x.o));
       if (x.p) addRow('Phone', link('tel:' + x.p.replace(/[^\d+]/g, ''), x.p));
       if (x.u) {
         let host = x.u;
@@ -2655,6 +2697,7 @@
     const platformLL = (stop, prev, next) => platformAt(stop, prev, next).ll;
     // → { ll, edge (null = only the station is known), travel (bearing of travel or null) }
     function platformAt(stop, prev, next) {
+      if (stop && stop.kante) return KanteJourney.at(stop); // a journey from the Kante engine names the boarding point itself
       const base = coordOf(stop);
       const st = stop && stop.station && PLATFORMS.get(String(stop.station.id));
       const out = (e) => ({ ll: e ? e.ll : base, edge: e || null, travel });
@@ -3079,6 +3122,7 @@
         st.prevRide = steps.slice(0, i).reverse().find((x) => x.type === 'ride');
         st.nextRide = steps.slice(i + 1).find((x) => x.type === 'ride');
       });
+      if (conn.kante) KanteJourney.decorate(steps, conn); // the engine's walks: their path, directions and floor changes
       applyLiveTimes(steps);
       return steps;
     }
@@ -3600,13 +3644,16 @@
       const id = journeyReq, conn = journeyConn, now = Date.now();
       const rides = conn.sections.filter((s) => s.journey);
       // rides already behind you keep their last forecast; rides the Kante engine has live data for come from there
-      let todo = rides.filter((s) => (liveMs(s.arrival, 'arrival') || 0) > now - 120000 && !engineFresh(s));
+      // (for a journey planned by the engine any recent answer counts: it is the same trip engine-journey.js would ask for)
+      let todo = rides.filter((s) => (liveMs(s.arrival, 'arrival') || 0) > now - 120000 && !engineFresh(s, !!conn.kante));
       if (!todo.length) return;
       liveBusy = true;
       const before = liveSig();
       try {
+        // a journey from the Kante engine: its trips again from the engine (engine-journey.js)
+        if (conn.kante) await KanteJourney.refresh(todo);
         // ask from the first ride still to come; if the answer goes another way, ask again from the next one missing
-        for (let n = 0; n < 3 && todo.length; n++) {
+        for (let n = 0; n < 3 && todo.length && !conn.kante; n++) {
           const first = todo[0], last = rides[rides.length - 1], dep = new Date(first.departure.departure);
           const params = new URLSearchParams({ from: first.departure.station.id, to: last.arrival.station.id,
             date: dateValue(dep), time: timeValue(dep), limit: '4' });
@@ -3633,7 +3680,11 @@
     const platSig = () => journeyConn.sections.filter((s) => s.journey).map((s) => [platformOf(s.departure), platformOf(s.arrival)].join()).join(';');
     function liveUpdated(before) {
       if (!journeyConn || liveSig() === before) return;
-      if (platSig() !== platKey) {
+      if (journeyConn.kante) {
+        // a journey planned by the engine names its boarding points itself (engine-journey.js): move them there
+        const id = journeyReq;
+        KanteJourney.requay(journeySteps, () => { if (id === journeyReq) { geoVersion++; routeKey = ''; queueSheet(); updateProgress(); } });
+      } else if (platSig() !== platKey) {
         platKey = platSig();
         journeySteps = buildSteps(journeyConn, journeyDest ? journeyDest.title : '');
         geoVersion++;
@@ -3685,10 +3736,19 @@
     const needsMatch = (s) => s.journey && (!s._k || (s._k.state === 'error' && s._k.tries < 3 && Date.now() - s._k.tried > 25000));
     async function kanteMatch(id) {
       await kante.ready();
-      if (id !== journeyReq || !journeyConn || !kante.has('match')) return;
-      const rides = journeyConn.sections.filter(needsMatch);
+      if (id !== journeyReq || !journeyConn) return;
+      // rides planned elsewhere need /api/match; rides of an engine journey do not
+      const rides = journeyConn.sections.filter((s) => needsMatch(s) && (kante.has('match') || (s.kanteLegs && s.kanteLegs.length)));
       if (!rides.length) return;
       await Promise.all(rides.map(async (s) => {
+        // planned by the engine (engine-journey.js): the trip is known, nothing to match. A ride that stays seated
+        // into another trip is a chain: engine-journey.js's own refresh follows each of its trips.
+        if (s.kanteLegs && s.kanteLegs.length) {
+          const legs = s.kanteLegs, leg = legs[0];
+          s._k = legs.length > 1 || !leg.from || !leg.to ? { state: 'chain' } : { state: 'ok', at: 0,
+            match: { tripId: leg.tripId, serviceDate: leg.serviceDate, fromSeq: leg.from.seq, toSeq: leg.to.seq } };
+          return;
+        }
         const k = (s._k = { state: 'matching', tries: ((s._k && s._k.tries) || 0) + 1, tried: Date.now() });
         const j = s.journey;
         const r = await kante.get('/api/match', KANTE_LIVE.matchParams(s, lineLabel(j), modeOf(j.category) === 'train'));
@@ -3723,7 +3783,9 @@
           k.at = Date.now();
           k.fails = 0;
           k.seqIdx = KANTE_LIVE.seqIndex(KANTE_LIVE.alignCalls(trip, k.match, s.journey.passList));
-          KANTE_LIVE.applyTrip(s, trip, k.match);
+          // an engine journey keeps its stops in the engine's shape (stop.kante: boarding point, platform)
+          if (s.kanteLegs) KanteJourney.applyTrip(s, trip);
+          else KANTE_LIVE.applyTrip(s, trip, k.match);
         } else k.fails = (k.fails || 0) + 1;
         // no longer the ride's source (no answer for 100 s, or no live data any more): hand it back once
         if (engineFresh(s)) k.handedBack = false;
@@ -3951,6 +4013,7 @@
       alert: '<path d="M12 4l9.3 16H2.7L12 4zM12 10v4.5"/><path d="M12 17.3h.01" stroke-width="2.6"/>',
       info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7h.01" stroke-width="2.6"/>',
       share: '<path d="M12 15V3.5M12 3.5L8 7.5M12 3.5l4 4M5 12.5V20h14v-7.5"/>',
+      ticket: '<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M15 7.5v1.5M15 11.25v1.5M15 15v1.5"/>',
       go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
       check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
       arrow: '<path d="M12 3.5l5.5 15-5.5-3.3-5.5 3.3z" fill="currentColor" stroke-linejoin="round"/>',
@@ -4348,7 +4411,7 @@
     // Spare time on a change: from getting off to the next departure, less the walk
     function spareLine(st) {
       const wait = (liveMs(st.next.departure, 'departure') - liveMs(st.prev.arrival, 'arrival')) / 1000;
-      const s = wait - (st.walkMin || 0) * 60;
+      const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
       const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
       const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
       return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
@@ -4416,7 +4479,8 @@
         if (bearing != null) arrow.style.transform = `rotate(${bearing}deg)`;
         sign.append(arrow);
       }
-      const side = mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
+      const side = edge && edge.side ? cap(edge.side) // the engine names the street
+        : mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
       const level = edge && edge.level ? `Level ${levelShort(edge.level)}` : '';
       const next = j.passList && j.passList[1] && j.passList[1].station && j.passList[1].station.name;
       let compass = null;
@@ -4519,6 +4583,7 @@
       const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
       jFoot.replaceChildren(h('div', 'actionbar',
         kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+        ticketLink(),
         kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
         h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
     }
@@ -4580,6 +4645,40 @@
       setDetent('low');
       const p = journeyProgress();
       goToStep(p && !p.ended ? p.i : 0, true);
+    }
+    // "Get ticket": this trip on sbb.ch, where it can be bought. SBB's own link format (read from sbb.ch):
+    //   stops=Name_I<stop id>~Name_I<stop id>, day=YYYY-MM-DD, time=HH:mm, moment=dep|arr, lowPrice=1.
+    // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
+    // result is this connection. lowPrice=1 turns on SBB's cheapest-price search (supersaver tickets);
+    // SBB ignores it where it doesn't offer that search.
+    function sbbTicketUrl() {
+      const rides = journeySteps.filter((st) => st.type === 'ride');
+      if (!rides.length) return null;
+      const a = rides[0].s.departure, b = rides[rides.length - 1].s.arrival;
+      const sbbId = (st) => !!st && /^\d{7}$/.test(String(st.id || '')); // Swiss stop number (UIC), as sbb.ch knows it
+      if (!sbbId(a.station) || !sbbId(b.station) || !a.departure) return null;
+      const stop = (st) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${st.id}`;
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).formatToParts(new Date(a.departure)).map((p) => [p.type, p.value]));
+      const q = new URLSearchParams({
+        stops: `${stop(a.station)}~${stop(b.station)}`,
+        day: `${parts.year}-${parts.month}-${parts.day}`,
+        time: `${parts.hour}:${parts.minute}`,
+        moment: 'dep',
+        lowPrice: '1',
+      });
+      return `https://www.sbb.ch/en/plan?${q}`;
+    }
+    function ticketLink() {
+      const url = sbbTicketUrl();
+      if (!url) return null; // nothing to buy: a walk only, or a stop without an id
+      const a = h('a', 'pill-btn ticket', kIcon('ticket', 18), h('span', 'tk-long', 'Get ticket'), h('span', 'tk-short', 'Ticket'));
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.setAttribute('aria-label', 'Get a ticket for this journey on sbb.ch');
+      return a;
     }
     async function shareJourney() {
       const title = `${journeyFrom} to ${journeyDest ? journeyDest.title : 'destination'}`;
@@ -4971,7 +5070,8 @@
         model = await Station3D.loadData(plan.key);
         route = model && StationRoute.route(model, plan.from, plan.to, s3Prefs(st));
       } catch (e) { route = null; }
-      if (!route || route.points.length < 2 || route.same) return street();
+      // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path
+      if (!route || route.points.length < 2 || route.same) return st.kanteWalk ? null : street();
       const inside = route.points.map((p) => StationRoute.toLngLat(model, p));
       const parts = [], walks = [];
       const join = async (p, q) => { // the stretch between the walk's end and where the model's paths begin
@@ -5014,15 +5114,18 @@
       if (keys3d.size) setTimeout(() => { if (id === journeyReq) keys3d.forEach((k) => Station3D.preload(k)); }, 2500);
       journeySteps.forEach((st) => {
         const plan = (st.lines || []).length ? s3Plan(st) : null;
+        const lines = plan || st.kanteWalk ? [] : st.lines || []; // a walk the Kante engine has routed is already drawn
         if (plan) {
           // through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router
+          // or the engine's path, so the map shows the same way as the 3D view
           task(stationWalk(st, plan), (res) => {
+            if (!res) return;
             st.lines = res.lines;
             st.walks = res.walks;
             st.floors = res.floors;
             queueSheet();
           });
-        } else (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
+        } else lines.forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
           st.lines[k] = res.coords;
           (st.walks || (st.walks = []))[k] = res;
           queueSheet(); // metres and written directions
@@ -5070,6 +5173,9 @@
     // Exact coordinates can fail when a point is far from any stop (e.g. a municipality's centre in the fields),
     // so fall back to the place name and then to the nearest stations at either end.
     async function findConnection(fromLL, r) {
+      // the team's own Kante engine first (engine-journey.js); without an answer from it, the public timetable below
+      const own = window.KanteJourney ? await KanteJourney.find(fromLL, r, journeyQuery) : null;
+      if (own) return own;
       const from = coordParam(fromLL), to = coordParam(r.lngLat);
       let c = await connections(from, to);
       if (c) return c;

@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2345_493",{"s":{},"d":{"8530534":[[0,"GB","Klosters Dorf (Talst. Madrisa)"]]}});
+STOP_IMAGES_TILE("2345_493",{"s":{"8530534":[["commons","geo",null,null,"c:7/77/Wanderwegweiser_Station_Madrisa_Saaser_Alp_1884.jpg/500px-Wanderwegweiser_Station_Madrisa_Saaser_Alp_1884.jpg","Pududuss","CC BY-SA 4.0","H5en+/zHCTA7H6Y+1oE68fjnt/v59Boj0OklEtji0/XmFOIb+g8qLR7vHcz3/evb9xYVDgX1+vkNKuHW2hoKIBwJ9C4SBOXp+wESEv0XEgP49vcd++747fjsB/8XD+AC/gMQ/RH5/RfRESESAOATFg8DCwwc+9wNG/f4DgEBDQQ="]]},"d":{"8530534":[[0,"GB","Klosters Dorf (Talst. Madrisa)"]]}});

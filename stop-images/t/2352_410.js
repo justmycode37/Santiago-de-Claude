@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2352_410",{"s":{},"d":{"8511662":[[0,"214","Kriens, Busschleife"],[1,"214","Malters, Bahnhof"]]}});
+STOP_IMAGES_TILE("2352_410",{"s":{"8511662":[["mapillary","mly",0,264,"m:1035283400336141","strassenfeger","CC-BY-SA-4.0","U76zJk98/dPS3PGiE/XwVqvL1OqBNR3HHQT99vbj2xcMIBwKUSZB48Qp7OXn/Nr0z+0YLtTgERe/BQP5IBcB9h465hkx6bcuDfYC8/kc9CT/+w8QGs8VA/oWBc/kHfjy8fMOJQsGJRYXGeAQAAfr39r+HuXsHhQVHQ0C+9j+CBA="]]},"d":{"8511662":[[0,"214","Kriens, Busschleife"],[1,"214","Malters, Bahnhof"]]}});

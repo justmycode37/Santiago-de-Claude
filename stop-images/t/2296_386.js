@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2296_386",{"s":{},"d":{"8530210":[[0,"2282 2286","Testa Grigia|Trockener Steg"]]}});
+STOP_IMAGES_TILE("2296_386",{"s":{"8530210":[["mapillary","mly",1,168,"m:857831455083458","jopparn","CC-BY-SA-4.0","2YHD/iQh9T3PIeboHBLqWhsJz+3QyNzu//gVJR7+Cgwo1C8W4f79DeAVPAQUBvYRIvYH9w5E9hC68Njd8/wGDPEKEub/GiT3FPYBESBEDu4h9/1E9er2CBgoGxvmIeYo7tUg7x769w8ADu3t4/kSEw/g6QkJ+QsA+Qv52voKEuU="]]},"d":{"8530210":[[0,"2282 2286","Testa Grigia|Trockener Steg"]]}});

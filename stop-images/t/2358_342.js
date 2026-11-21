@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2358_342",{"s":{},"d":{"8504394":[[0,"371","La Chaux-de-Fonds, gare"]]}});
+STOP_IMAGES_TILE("2358_342",{"s":{"8504394":[["mapillary","mly",0,204,"m:467605541140619","it_s_so_funny","CC-BY-SA-4.0","ZeWBQnkQHOcf2PAgMtTyLabqPqMHvfjyyBcd7hcg+RYyG8oeGR7gzNTs9uP5B+//4gAcD/D3B9XW8APy7RHmDgzrI9McDuwb+N4UAPoy8gHyBP0EDOUF9eUKGeX1DQYABvkVFv7wISAXCP/kARYPDA4R9vQK7xT9FQX19PAODBM="]]},"d":{"8504394":[[0,"371","La Chaux-de-Fonds, gare"]]}});

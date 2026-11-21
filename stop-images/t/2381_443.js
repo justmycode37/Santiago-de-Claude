@@ -1,1 +1,1 @@
-STOP_IMAGES_TILE("2381_443",{"s":{},"d":{"8506719":[[null,"825","Frauenfeld, Bahnhof|Stein am Rhein, Bahnhof"],[0,"825","Stein am Rhein, Bahnhof"]]}});
+STOP_IMAGES_TILE("2381_443",{"s":{"8506719":[["mapillary","mly",0,117,"m:294202829087677","mr4703","CC-BY-SA-4.0","Zb3QR39bAs/avyzjEhv8Q/6h+vnHKgIMA/4IvxML5gsQA/wPKxopz988CgTj+vT+AgkZJOULGe/CF/DqBv0OQPcYHOIQAt4iBwMIDxAZ9g/wAA/7AOsb/QAPHucRHvkQ/goGFxDwAxP8Mwf0+vz/Be/3EegRCykVFvv29Af/DxY="]]},"d":{"8506719":[[null,"825","Frauenfeld, Bahnhof|Stein am Rhein, Bahnhof"],[0,"825","Stein am Rhein, Bahnhof"]]}});
