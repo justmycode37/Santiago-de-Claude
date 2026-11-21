@@ -21,7 +21,7 @@
     }
     const full = fareValue(value.saver?.full);
     const half = fareValue(value.saver?.half);
-    if (full > 0 || half > 0) result.saver = { full, half };
+    if (full > 0 || half > 0) result.saver = { full: full > 0 ? full : null, half: half > 0 ? half : null };
     return result;
   }
 
@@ -124,13 +124,19 @@
     const origin = routeKey(from);
     const destination = routeKey(to);
     let best = null;
+    let bestDeparture = -Infinity;
     for (const trip of list()) {
       if (trip.date > today || Date.parse(trip.departure) > Date.now()) continue;
       if (routeKey(trip.from) !== origin || routeKey(trip.to) !== destination) continue;
-      if (best && best.date >= trip.date) continue;
+      const departure = Date.parse(trip.departure);
+      const departureTime = Number.isFinite(departure) ? departure : -Infinity;
+      if (best && (best.date > trip.date || (best.date === trip.date && bestDeparture >= departureTime))) continue;
       const fare = fareValue(trip.fare);
       const halfFare = fareValue(trip.halfFare);
-      if (fare !== null || halfFare !== null) best = { fare, halfFare, date: trip.date };
+      if (fare !== null || halfFare !== null) {
+        best = { fare, halfFare, date: trip.date };
+        bestDeparture = departureTime;
+      }
     }
     return best;
   }

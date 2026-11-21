@@ -5471,17 +5471,6 @@
       if (sheetDetent === 'full') setDetent('mid');
       renderSheet();
     }
-    function confirmFareTrip(trip, fare, halfFare) {
-      if (!SETTINGS.prefs().fareTracking) return '';
-      const result = PRICING_HISTORY.confirm({ ...trip, fare, halfFare });
-      const messages = {
-        saved: 'Trip saved to your pricing history',
-        duplicate: 'Trip already saved',
-        updated: 'Saved fares updated',
-        unavailable: 'Could not save this trip in the browser',
-      };
-      return messages[result];
-    }
 
     const ticketQuotes = new WeakMap();
     const ticketAmount = (amount) => Number.isFinite(amount) && amount >= 0;
@@ -5594,7 +5583,7 @@
         const saved = tracking ? PRICING_HISTORY.findConfirmed(trip) : null;
         submit.textContent = saved ? 'Save fares' : 'Confirm trip';
         for (const [input, field] of [[fare, 'fare'], [halfFare, 'halfFare']]) {
-          const value = saved?.[field] ?? quote?.[field];
+          const value = saved ? saved[field] : quote?.[field];
           if (!edited.has(input)) input.value = ticketAmount(value) ? value.toFixed(2) : '';
         }
         const previous = tracking ? PRICING_HISTORY.routeFare(trip.from, trip.to) : null;
@@ -5650,13 +5639,23 @@
         try {
           // A quick confirmation can precede the price response. Use the quote for
           // unanswered fields, while preserving every amount the rider entered.
-          const needsQuote = !quote && [fare, halfFare].some((input) => !input.value && !edited.has(input));
+          const saved = PRICING_HISTORY.findConfirmed(trip);
+          const needsQuote = !saved && !quote && [fare, halfFare].some((input) => !input.value && !edited.has(input));
           if (needsQuote) status.textContent = 'Checking the fare...';
           const result = needsQuote ? await pendingQuote : quote;
-          const amount = (input, field) => input.value || edited.has(input) ? input.valueAsNumber : result?.[field];
-          status.textContent = confirmFareTrip(trip, amount(fare, 'fare'), amount(halfFare, 'halfFare'));
-          edited.clear();
-          showFare();
+          const amount = (input, field) => input.value || edited.has(input) || saved ? input.valueAsNumber : result?.[field];
+          const outcome = PRICING_HISTORY.confirm({ ...trip, fare: amount(fare, 'fare'), halfFare: amount(halfFare, 'halfFare') });
+          const messages = {
+            saved: 'Trip saved to your pricing history',
+            duplicate: 'Trip already saved',
+            updated: 'Saved fares updated',
+            unavailable: 'Could not save this trip in the browser',
+          };
+          status.textContent = messages[outcome];
+          if (outcome !== 'unavailable') {
+            edited.clear();
+            showFare();
+          }
         } finally {
           submit.disabled = false;
         }

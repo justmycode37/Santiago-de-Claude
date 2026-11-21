@@ -32,7 +32,7 @@ function bestDailyFare(day, { age, covered, halfFare, saver, dayPassPrice }) {
     }
 
     const saverPrice = halfFare ? saver?.half : saver?.full;
-    if (isFare(saverPrice)) {
+    if (isFare(saverPrice) && saverPrice > 0) {
       choices.push({ cost: saverPrice, label: 'Saver Day Pass', url: offers.saverDay });
     }
 
@@ -92,7 +92,7 @@ export function recommendFares({
   const pricedDays = days.filter((day) => day && (isFare(day.fare) || (hasHalfFare && isFare(day.halfFare))));
   if (pricedDays.length === 0) return [];
 
-  const knownAge = Number.isInteger(age) && age >= 16;
+  const knownAge = Number.isInteger(age) && age >= 16 && age <= 130;
   const validAge = knownAge ? age : Infinity;
   const newTariff = typeof date === 'string' && date >= '2026-12-13';
   const options = { age: validAge, covered, halfFare: hasHalfFare, saver, dayPassPrice: newTariff ? 81 : 78 };

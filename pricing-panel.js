@@ -212,7 +212,11 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
   const rateSetting = el('div', undefined, 'fare-rate-setting');
   rateSetting.append(halfFare, fareHelp);
   settings.append(rateSetting, fields, senior, coverage, youth, saver, button('Save profile'));
-  function showSaver() { saver.hidden = !values.covered.checked; }
+  function showSaver() {
+    saver.hidden = !values.covered.checked;
+    values.saverFull.disabled = saver.hidden;
+    values.saverHalf.disabled = saver.hidden;
+  }
   values.covered.addEventListener('change', showSaver);
   showSaver();
   values.age.addEventListener('input', showYouth);
