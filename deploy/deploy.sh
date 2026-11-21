@@ -32,6 +32,8 @@ healthy() { # the engine answers and has a timetable and a search index
         | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["results"] else 1)' 2>/dev/null; then
       return 0
     fi
+    # it keeps dying at start: no point in waiting
+    if (( $(systemctl --user show kante-engine.service -p NRestarts --value) > 2 )); then return 1; fi
     sleep 2
   done
   return 1
@@ -93,7 +95,11 @@ main() {
     if [[ -n $prev && -d $prev ]]; then
       ln -sfn "$prev" "$ROOT/current"
       systemctl --user restart kante-engine.service
-      log "went back to $(basename "$prev")"
+      if healthy; then
+        log "went back to $(basename "$prev")"
+      else
+        log "went back to $(basename "$prev"), but it does not answer either"
+      fi
     fi
     rm -rf "$rel"
     exit 1

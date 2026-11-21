@@ -7,7 +7,8 @@ PORT=${KANTE_PORT:-8080}
 
 echo "release:  $(basename "$(readlink "$ROOT/current" 2>/dev/null)" 2>/dev/null || echo none)"
 echo "watching: ${KANTE_BRANCH:-main}, last commit looked at $(cut -c1-7 "$ROOT/state/seen" 2>/dev/null || echo none)"
-curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c '
+meta=$(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null)
+[[ -n $meta ]] && echo "$meta" | python3 -c '
 import json, sys, time
 m = json.load(sys.stdin); r = m["realtime"]
 live = "off"
