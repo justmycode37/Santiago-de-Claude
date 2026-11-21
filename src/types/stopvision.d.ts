@@ -1,0 +1,252 @@
+// Scan (src/stopvision.ts, loaded on demand): its API on window, what the page hands it, the photo database it
+// reads (stop-images/, written by tools/build_stop_images.py) and the two libraries it loads from a CDN.
+
+// ---- what the page gives Scan (src/app/14-menu.ts) ----
+
+type StopVisionMode = 'train' | 'tram' | 'bus' | 'boat' | 'cable';
+/** One edge of a stop as Scan reads it: its name on the sign ("7", "H", '' = none), the comparable form, the place. */
+interface StopVisionEdge { ref: string; key: string; ll: LngLat }
+/** A stop of the page's PLATFORMS map (src/app/30-platforms.ts): the fields Scan reads. */
+interface StopVisionStop { name: string; mode: StopVisionMode; edges: StopVisionEdge[] }
+/** Where the user is: the place, its accuracy in metres and the age of the fix in ms. */
+interface StopVisionPosition { ll: LngLat; acc: number; age: number }
+
+/** The page's functions and data Scan works with. */
+interface StopVisionHooks {
+  /** Every stop by UIC number ("8507000"). */
+  PLATFORMS: Map<string, StopVisionStop>;
+  /** transport.opendata.ch's address, ending in "/v1/". */
+  OPENDATA: string;
+  /** The page's rule for the edge a departure leaves from: the named platform, else the edge facing the way it goes. */
+  platformLL: KantePlatformLL;
+  coordOf(stop: OdCheckpoint): LngLat | null;
+  /** The line's badge as the page draws it; without it Scan writes the line number itself. */
+  badge?(departure: OdStationboardEntry): HTMLElement;
+  /** null = no position (yet, or location is off). */
+  position(): StopVisionPosition | null;
+  /** Close Scan and show the stop on the map; edge: index into the stop's edges, null = the stop as a whole. */
+  openStop(uic: string, edge: number | null): void;
+  toast(text: string): void;
+  onClose?(): void;
+}
+
+// ---- what Scan knows while it runs (seen from outside through STOPVISION._debug) ----
+
+/** A stop around the user (or, without a position, one whose name was read), with how well it fits. */
+interface StopVisionCandidate {
+  uic: string;
+  st: StopVisionStop;
+  /** Metres to its nearest edge; 0 without a position. */
+  dist: number;
+  /** Index of that edge. */
+  nearEdge: number;
+  /** The names a sign could show, normalised: "Bern, Zytglogge" → ["bern zytglogge", "zytglogge"]. */
+  variants: string[];
+  // set by score():
+  /** Is one of its edges in front of the camera; null = no compass. */
+  ahead?: boolean | null;
+  /** The edge nearest to where the camera points. */
+  aheadEdge?: number;
+  /** Score from location and compass alone. */
+  geo?: number;
+  /** The best stop by location and compass, clearly. */
+  geoTop?: boolean;
+  score?: number;
+}
+
+/** A reference photo of a stop, decoded from a tile. */
+interface StopVisionPhoto {
+  src: StopImagesSource;
+  prov: StopImagesProvenance;
+  /** The edge it shows, when that is known. */
+  edge: number | null;
+  /** Compass direction it was taken in. */
+  head: number | null;
+  ref: string;
+  credit: string;
+  licence: string;
+  /** Address of a small picture (Mapillary has none) and of the photo's page. */
+  thumb: string | null;
+  page: string;
+  /** The fingerprint and its length. */
+  emb: { v: Int8Array; n: number };
+}
+
+/** One departure on the sheet. */
+interface StopVisionDeparture {
+  /** ISO 8601, the expected time when there is one. */
+  time: string;
+  /** Minutes late. */
+  delay: number;
+  line: string;
+  cat: string;
+  to: string;
+  /** The edge it leaves from (index), null = unknown. */
+  edge: number | null;
+  /** From the Kante engine: every edge it leaves from. */
+  edges: number[] | undefined;
+  raw: OdStationboardEntry;
+}
+
+/** What has been found out about one stop. Every part is missing until it has been looked at. */
+interface StopVisionEvidence {
+  /** How well the stop's name fits the text read (0–1), when, and which of its names. */
+  ocr?: number;
+  ocrAt?: number;
+  ocrWhat?: string;
+  /** Not just one of several names read at once (signs also list destinations). */
+  ocrUnique?: boolean;
+  /** The name read is more than a word like "Bahnhof". */
+  ocrStrong?: boolean;
+  /** Edge named on a sign ("Kante C"). */
+  edgeOcr?: number;
+  edgeOcrAt?: number;
+  /** Edge that a destination read on a sign leaves from. */
+  edgeDest?: number | null;
+  edgeDestAt?: number;
+  destWhat?: string;
+  /** How many of the stop's line numbers were read (0 when fewer than two). */
+  lines?: number;
+  /** Photo similarity of the best reference photo, that photo, and how far above the median of the stops around. */
+  vis?: number;
+  visRef?: StopVisionPhoto;
+  visRel?: number;
+  visAt?: number;
+  /** Frames in a row in which the photos clearly favoured this stop. */
+  visStreak?: number;
+  /** Live departures: null = could not be loaded. */
+  departures?: StopVisionDeparture[] | null;
+  depBusy?: boolean;
+  depFailed?: boolean;
+  depAt?: number;
+}
+
+/** Which edge of a stop the camera looks at and how that is known; maybe = a guess. */
+interface StopVisionEdgeGuess { i: number; why: string; maybe?: boolean }
+
+/** A photo tile in memory: its data, the photos decoded so far, when it was last needed. */
+interface StopVisionTile {
+  s: Record<string, StopImagesPhoto[]>;
+  d: Record<string, StopImagesLines[]>;
+  refs: Map<string, StopVisionPhoto[]>;
+  at: number;
+}
+
+/** What bench() measured (scan-bench.html). Times in ms. */
+interface StopVisionBenchResult {
+  ocrLoadMs: number;
+  modelLoadMs: number;
+  /** Where the image model ran: in a worker or on the page. */
+  engine: '-' | 'worker' | 'page';
+  /** The text read last; missing with 0 runs. */
+  text?: string;
+  photoMs: { p50: number; p95: number };
+  ocrMs: { p50: number; p95: number };
+}
+
+interface StopVisionDebug {
+  evidence: Map<string, StopVisionEvidence>;
+  candidates(): StopVisionCandidate[];
+  tiles: Map<string, StopVisionTile>;
+  matchIn(tokens: string[], variant: string): number;
+  nameVariants(name: string): string[];
+  norm(s: string | null | undefined): string;
+  distinctive(variant: string): boolean;
+  useText(text: string, wasTap: boolean): Promise<void>;
+  setApp(hooks: StopVisionHooks): void;
+  recognised(c: StopVisionCandidate): 'sign' | 'photo' | null;
+  findCandidates(): void;
+  score(): void;
+  edgeOf(c: StopVisionCandidate): StopVisionEdgeGuess | null;
+}
+
+interface StopVisionApi {
+  /**
+   * Open the Scan screen. camera: the answer to getUserMedia(), asked by the caller while the tap still counts
+   * as a user gesture; orientation: the same for the compass permission (iOS), only its failure is swallowed.
+   */
+  open(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation?: Promise<unknown>): Promise<void>;
+  close(): void;
+  /** Load both engines, then time `runs` photo fingerprints and up to 3 sign readings on an image. */
+  bench(img: HTMLImageElement, runs?: number, log?: (text: string, sofar?: Partial<StopVisionBenchResult>) => void): Promise<StopVisionBenchResult>;
+  _debug: StopVisionDebug;
+}
+/** Loaded on demand (stopvision.js), the first time Scan is opened. */
+declare var STOPVISION: StopVisionApi | undefined;
+
+// ---- stop-images/ (tools/build_stop_images.py): photo fingerprints and timetable lines of stops ----
+
+/** Where a photo was found. */
+type StopImagesSource = 'commons' | 'sbb' | 'panoramax' | 'mapillary';
+/**
+ * What ties a photo to the stop: SBB's own picture, Wikidata, OpenStreetMap, a Commons category (identity), or
+ * only the place it was taken at: Mapillary, Panoramax, Commons by coordinates.
+ */
+type StopImagesProvenance = 'sbb' | 'wd' | 'osm' | 'cat' | 'mly' | 'pnx' | 'geo';
+/**
+ * One reference photo. edge: index into the stop's edges; heading: compass degrees; ref: 'c:…' Commons,
+ * 'p:…' Panoramax, 'm:…' Mapillary, else an address; fingerprint: base64 of 128 int8 values.
+ */
+type StopImagesPhoto = [src: StopImagesSource, prov: StopImagesProvenance, edge: number | null, heading: number | null,
+  ref: string, credit: string, licence: string, fingerprint: string];
+/** The timetable of one edge (null = the stop as a whole): line numbers separated by spaces, destinations by '|'. */
+type StopImagesLines = [edge: number | null, lines: string, dests: string];
+/** A tile file, stop-images/t/<lat>_<lon>.js: photos (s) and lines (d) by UIC number. */
+interface StopImagesTile {
+  s?: Record<string, StopImagesPhoto[]>;
+  d?: Record<string, StopImagesLines[]>;
+}
+/** Database format 1: photos only. */
+type StopImagesTileV1 = Record<string, StopImagesPhoto[]>;
+/** Every tile file is one call of this; src/stopvision.ts defines it. */
+declare var STOP_IMAGES_TILE: (key: string, data: StopImagesTile | StopImagesTileV1) => void;
+
+/** stop-images/index.js. */
+interface StopImagesIndex {
+  /** Database format. */
+  v: number;
+  /** The day it was built, "2026-11-21". */
+  date: string;
+  /** Tile size in degrees. */
+  tile: number;
+  /** Tile "<lat / tile>_<lon / tile>" (rounded down) → number of stops with photos in it (0: timetable lines only). */
+  tiles: Record<string, number>;
+  /** The image model the fingerprints were made with, on huggingface.co. */
+  model: { repo: string; rev: string; file: string; input: number; mean: number[]; std: number[]; desc: string };
+  /** 768 model values → k fingerprint values. Base64: mean = 768 float32, w = 768 × k int8, scale = k float32. */
+  pca?: { k: number; n: number; mean: string; w: string; scale: string } | null;
+  /** Photos per provenance. */
+  photos: Partial<Record<StopImagesProvenance, number>>;
+  stops: number;
+  stops_with_lines: number;
+  bytes: number;
+}
+/** Loaded on demand by src/stopvision.ts. */
+declare var STOP_IMAGES_INDEX: StopImagesIndex | undefined;
+
+// ---- tesseract.js 6 and onnxruntime-web 1.20, loaded from jsDelivr: the parts Scan uses ----
+
+interface TesseractWorker {
+  setParameters(params: Record<string, string>): Promise<unknown>;
+  recognize(image: Blob | HTMLCanvasElement): Promise<{ data: { text: string } }>;
+  terminate(): Promise<unknown>;
+}
+interface TesseractGlobal {
+  /** oem 1 = the LSTM engine. */
+  createWorker(langs: string | string[], oem?: number): Promise<TesseractWorker>;
+}
+declare var Tesseract: TesseractGlobal | undefined;
+
+interface OrtTensor { data: Float32Array }
+interface OrtSession {
+  run(feeds: Record<string, OrtTensor>): Promise<Record<string, OrtTensor>>;
+  release(): Promise<void>;
+}
+interface OrtGlobal {
+  env: { wasm: { wasmPaths: string; numThreads: number } };
+  InferenceSession: {
+    create(model: Uint8Array, options?: { executionProviders?: string[]; graphOptimizationLevel?: string }): Promise<OrtSession>;
+  };
+  Tensor: new (type: 'float32', data: Float32Array, dims: number[]) => OrtTensor;
+}
+declare var ort: OrtGlobal | undefined;

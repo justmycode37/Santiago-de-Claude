@@ -1,4 +1,4 @@
-# Publish the static site to GitHub Pages on every push to main.
+# Build the site and publish it to GitHub Pages on every push to main.
 #
 # Needs one setting, made once by a repository admin:
 #   Settings → Pages → Build and deployment → Source: "GitHub Actions"
@@ -30,26 +30,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Collect the files the site serves
-        run: |
-          mkdir -p _site/demo
-          # The app: every page, script and stylesheet in the repository root ...
-          cp ./*.html ./*.js ./*.css _site/
-          # ... except the development pages and the config template
-          rm _site/station3d-dev.html _site/station3d-detail-dev.html _site/config.example.js
-          cp -r event-images stop-images stations3d demo-media walkgraph _site/  # walkgraph: the pedestrian network (walkroute.js)
-          # The demo page and the two files it plays, not the raw screen recordings next to them
-          cp demo/index.html demo/opening.jpg demo/santiago.mp4 _site/demo/
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # src/*.ts → the scripts the page loads, plus the files served as they are (scripts/build.mts)
+      - name: Build the site
+        run: node scripts/build.mts --release
 
       - name: Record the commit this was built from
         run: |
           printf 'window.BUILD = { commit: "%s", committed: "%s", repo: "%s" };\n' \
-            "$GITHUB_SHA" "$(git log -1 --format=%cI)" "$GITHUB_REPOSITORY" > _site/version.js
-          cat _site/version.js
+            "$GITHUB_SHA" "$(git log -1 --format=%cI)" "$GITHUB_REPOSITORY" > dist/version.js
+          cat dist/version.js
 
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: _site
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v5

@@ -1,7 +1,6 @@
 //! Live endpoints: where vehicles are and how sure that is (`liveInfo`,
 //! `position`), what is due at a stop (`/api/due`), which trip a ride planned
-//! elsewhere is (`/api/match`), on-board reports (`/api/observe`) and vehicles
-//! as server-sent events (`/api/stream`). The contract is in
+//! elsewhere is (`/api/match`) and vehicles as server-sent events (`/api/stream`). The contract is in
 //! `docs/LIVE-API.md`.
 //!
 //! A timetable trip with its live overlay and an extra journey of the feed are
@@ -9,9 +8,8 @@
 //! point in use, so every endpoint treats them the same way.
 
 use crate::json;
-use crate::observe::{self, Key};
 use crate::state::{lonlat, App};
-use kante_core::geo::{project_on_segment, BBox, LatLon};
+use kante_core::geo::{BBox, LatLon};
 use kante_core::time::{self, Date};
 use kante_core::*;
 use std::sync::Arc;
@@ -72,7 +70,6 @@ impl LiveFacts {
 }
 
 pub struct Run {
-    pub key: Key,
     pub mode: Option<Mode>,
     pub id: String,
     pub date: Date,
@@ -101,7 +98,6 @@ impl Run {
             })
             .collect();
         Run {
-            key: Key::Trip(date, trip),
             mode: Some(tt.trip_line(trip).mode),
             id: tt.trip_gtfs_id(trip).to_string(),
             date,
@@ -127,7 +123,7 @@ impl Run {
                 live: true,
             })
             .collect();
-        Run { key: Key::Extra(e.id.clone()), mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
+        Run { mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
     }
 
     /// Calls the vehicle actually stops at, with (index, arrival, departure); a
@@ -272,18 +268,13 @@ pub fn position(app: &App, run: &Run, now: i64) -> Option<json::Position> {
         if now >= d_i && now < a_j {
             let span = (a_j - d_i).max(1);
             let est = ((now - d_i) as f32 / span as f32).clamp(0.0, 1.0);
-            let mut basis = if !f.live { "timetable" } else if measured(i, OBSERVED_DEP) { "observed-stop" } else { "forecast" };
-            let mut frac = est;
-            if let Some(c) = app.observed.correct(&run.key, i as u16, d_i, a_j, now, est) {
-                frac = c;
-                basis = "crowd";
-            }
+            let basis = if !f.live { "timetable" } else if measured(i, OBSERVED_DEP) { "observed-stop" } else { "forecast" };
             return Some(json::Position {
                 state: "between",
                 seq: i as u16,
                 from: pos(i),
                 to: pos(j),
-                frac,
+                frac: est,
                 basis,
                 t: now,
                 next_seq: Some(j as u16),
@@ -576,61 +567,6 @@ pub fn station_of(app: &App, id: &str) -> Option<StationIdx> {
         keys.insert(1, format!("ch:1:sloid:{}", n - 8_500_000));
     }
     keys.iter().find_map(|k| app.station_ids.get(k.as_str()).copied())
-}
-
-// ------------------------------------------------------------------ /api/observe
-
-pub const MAX_ACCURACY_M: f32 = 50.0;
-pub const MAX_AGE_S: i64 = 30;
-
-pub fn observe(app: &App, r: &json::ObserveRequest, addr: &str, now: i64) -> json::ObserveResponse {
-    let no = |reason| json::ObserveResponse { accepted: false, reason: Some(reason) };
-    let who = match app.observed.admit(addr, now) {
-        Ok(w) => w,
-        Err(observe::Refused::TooFrequent) => return no("too-frequent"),
-    };
-    if !(r.accuracy > 0.0 && r.accuracy <= MAX_ACCURACY_M) {
-        return no("accuracy");
-    }
-    if r.t > now + 5 || now - r.t > MAX_AGE_S {
-        return no("time");
-    }
-    if !(r.lat.is_finite() && r.lon.is_finite() && r.lat.abs() <= 85.0 && r.lon.abs() <= 180.0) {
-        return no("position");
-    }
-    let Some(date) = time::parse_date(&r.service_date) else { return no("trip") };
-    let live_arc = app.live_view();
-    let live = live_arc.as_deref();
-    let (run, mode) = if r.trip_id.starts_with("extra:") {
-        let Some(x) = live.and_then(|l| l.extra(&r.trip_id)).filter(|x| x.date == date) else { return no("trip") };
-        (Run::of_extra(x), x.mode)
-    } else {
-        let Some(trip) = app.router.find_trip(&r.trip_id).filter(|&t| app.tt.trip_active(t, date)) else { return no("trip") };
-        (Run::of_trip(app, trip, date, live.and_then(|l| l.trip(date, trip))), Some(app.tt.trip_line(trip).mode))
-    };
-    if run.cancelled {
-        return no("trip");
-    }
-    let Some(p) = position(app, &run, r.t) else { return no("trip") };
-    if p.state != "between" && p.state != "at" {
-        return no("not-under-way");
-    }
-    let tt = &app.tt;
-    let i = p.seq as usize;
-    let a = tt.stops[run.calls[i].stop as usize].pos;
-    let Some(j) = (i + 1..run.calls.len()).find(|&k| !run.calls[k].skipped) else { return no("not-under-way") };
-    let b = tt.stops[run.calls[j].stop as usize].pos;
-    let corridor = match mode {
-        Some(Mode::Rail | Mode::RackRail) => 400.0,
-        _ => 150.0,
-    };
-    let here = LatLon::from_deg(r.lat, r.lon);
-    let (frac, off) = project_on_segment(&here, &a, &b);
-    if off > corridor + r.accuracy {
-        return no("off-route");
-    }
-    app.observed.add(run.key.clone(), who, r.t, i as u16, frac);
-    json::ObserveResponse { accepted: true, reason: None }
 }
 
 // ------------------------------------------------------------------ /api/vehicles, /api/stream

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 globalThis.window = globalThis;
 const require = createRequire(import.meta.url);
-const SR = require(path.join(ROOT, 'station-route.js'));
+const SR = require(path.join(ROOT, 'src', 'station-route.ts'));
 const loadModel = (file, key) => {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'stations3d', file), 'utf8'), { filename: file });
   return window.STATION3D[key];
