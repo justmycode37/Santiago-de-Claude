@@ -13,6 +13,8 @@ interface Settings {
   // Walking and changing
   /** Walking speed, one of five: 3, 4, 4.7 (what the timetable assumes), 5.5, 6.5. */
   walkKmh: number;
+  /** "Adjust to how I walk": measure the walking pace and move the walking speed to match (walk-pace.ts). */
+  autoSpeed: boolean;
   /** Minutes added to every change. */
   extraChangeMin: number;
   /** The longest single walk, in minutes. */
@@ -24,8 +26,6 @@ interface Settings {
   // Live data
   /** Show the vehicles on the map. */
   liveVehicles: boolean;
-  /** Send your position to the engine while you ride (the on-board check and reports). */
-  shareOnboard: boolean;
   // Guidance (src/a11y.ts)
   /** This phone's own voice says each step of a journey. Off for people who use a screen reader. */
   readAloud: boolean;
@@ -38,7 +38,21 @@ interface Settings {
   freeFood: boolean;
   women: boolean;
   adaptiveSport: boolean;
+  /** Show the developer options at the bottom of the Settings page. */
+  devOptions: boolean;
 }
+
+/** One stop of the walking speed slider (Slow … Fast). */
+interface SpeedPreset {
+  label: string;
+  kmh: number;
+}
+
+/** Who changed a setting: 'auto' = the app itself (walk-pace.ts); nothing = you. */
+type SettingsChangedBy = 'auto';
+
+/** Called after every change: what was changed, by whom, and the saved settings as they were before. */
+type SettingsChangeListener = (patch: Partial<Settings>, by: SettingsChangedBy | undefined, before: Settings) => void;
 
 /** The journey options the 3D station view's router takes (station-route.ts). */
 type JourneySettings = Pick<Settings, 'stepFree' | 'fewerStairs' | 'noEscalators' | 'wheelchair' | 'walkKmh'>;
@@ -47,8 +61,8 @@ type JourneySettings = Pick<Settings, 'stepFree' | 'fewerStairs' | 'noEscalators
 type WalkCosting = { type: 'wheelchair' } | { step_penalty: number };
 
 interface SettingsApi {
-  /** Opens the Settings page (URL #settings). */
-  open(): void;
+  /** Opens the Settings page (URL #settings); `anchor` = id of a heading on the page to open it at. */
+  open(anchor?: string): void;
   close(): void;
   /** The event tags switched on under "About you" and "Events"; none = show every event. */
   eventTags(): string[];
@@ -65,8 +79,12 @@ interface SettingsApi {
   /** Does a (retimed) connection fit the maximum walk and leave enough time at every change? */
   connectionFits(conn: OdConnection): boolean;
   journey(): JourneySettings;
+  /** The five stops of the walking speed slider, slow to fast (a copy). */
+  speedPresets: SpeedPreset[];
+  /** Changes settings, saves them and tells the listeners. `by`: 'auto' when the app changes a setting by itself. */
+  set(patch: Partial<Settings>, by?: SettingsChangedBy): void;
   /** `fn` is called after every change of a setting. Returns the number of listeners. */
-  onChange(fn: () => void): number;
+  onChange(fn: SettingsChangeListener): number;
   /** `fn` is called when the page closes, with whether a journey option was changed while it was open. */
   onClose(fn: (journeyChanged: boolean) => void): number;
 }

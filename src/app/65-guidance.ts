@@ -183,7 +183,7 @@ function startGuidance() {
   const { pos, news } = guideNews(now, true);
   const all = pos && !news.includes(pos) ? [...news, pos] : news; // the current step is said again when asked for
   guideSay(all, again ? '' : 'Guidance is on.');
-  if (!again) renderFoot(); // the Start button now says what it does next
+  syncStartLabel(); // the Start button now says what it does next
 }
 // No longer under way (either end of the trip is being changed, or the journey was closed)
 function stopGuidance() {
@@ -193,7 +193,7 @@ function stopGuidance() {
   guideDelay.clear();
   A11Y.keepAwake(false);
   A11Y.hush();
-  if (journeyConn && document.body.classList.contains('journey-mode')) renderFoot();
+  syncStartLabel();
 }
 // A journey in a sentence: "Journey to Zytglogge: 14:50 to 16:01, 1 hour 11 minutes, direct with IC 8."
 function journeySummary(lead = `Journey to ${destName()}: `): string {

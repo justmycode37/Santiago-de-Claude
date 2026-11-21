@@ -166,7 +166,7 @@ async function nearestStation(ll: LngLat) {
   return st ? st.id! : null;
 }
 // → { list, best, … } as KanteJourney.plans() gives it (no walking all the way, no earlier / later), or null
-async function connections(from, to) {
+async function connections(from: string | null, to: string | null): Promise<JourneyOptions | null> {
   if (!from || !to) return null;
   const q: Record<string, string> = { from, to, limit: '5' };
   const { mode, date, time } = journeyQuery;
@@ -180,27 +180,27 @@ async function connections(from, to) {
   // Settings: walks retimed to your walking speed; prefer connections whose walks and changes fit
   const all = (data.connections || []).map(SETTINGS.retime);
   const fits = all.filter(SETTINGS.connectionFits);
-  const list = (fits.length ? fits : all).sort((a, b) => new Date(a.from.departure) - new Date(b.from.departure));
+  const list = (fits.length ? fits : all).sort((a, b) => (new Date(a.from.departure!) as unknown as number) - (new Date(b.from.departure!) as unknown as number));
   if (!list.length) return null;
-  const offer = (shown, best) => ({ list: shown, best, walk: null, earlier: false, later: false });
+  const offer = (shown: OdConnection[], best: OdConnection) => ({ list: shown, best, walk: null, earlier: false, later: false });
   if (mode === 'arr' && (date || time)) {
     // those that still arrive by the chosen time; first the one that leaves last
     const target = new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime();
-    const ok = list.filter((c) => new Date(c.to.arrival).getTime() <= target + 60000);
+    const ok = list.filter((c) => new Date(c.to.arrival!).getTime() <= target + 60000);
     const shown = ok.length ? ok : list;
-    return offer(shown, shown.reduce((best, c) => (new Date(c.to.arrival) > new Date(best.to.arrival) ? c : best)));
+    return offer(shown, shown.reduce((best, c) => (new Date(c.to.arrival!) > new Date(best.to.arrival!) ? c : best)));
   }
   const after = date || time
     ? new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime() - 60000
     : Date.now() - 60000;
-  const ahead = list.filter((c) => new Date(c.from.departure).getTime() >= after);
+  const ahead = list.filter((c) => new Date(c.from.departure!).getTime() >= after);
   const shown = ahead.length ? ahead : list;
   return offer(shown, shown[0]);
 }
 // Exact coordinates can fail when a point is far from any stop (e.g. a municipality's centre in the fields),
 // so fall back to the place name and then to the nearest stations at either end.
 // → every way on offer: { list, walk, best, earlier, later }, or null
-async function findOptions(fromLL, r) {
+async function findOptions(fromLL: LngLat, r: JourneyDest): Promise<JourneyOptions | null> {
   // the team's own Kante engine first (engine-journey.js); without an answer from it, the public timetable below
   const own = window.KanteJourney ? await KanteJourney.plans(fromLL, r, journeyQuery) : null;
   if (own) return own;

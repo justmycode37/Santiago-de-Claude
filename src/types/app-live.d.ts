@@ -130,21 +130,6 @@ interface OdSection {
   _liveAt?: number;
 }
 
-/** The last on-board check (`onboard`): which vehicle the engine thinks you are on. */
-interface OnboardState {
-  /** The step you were on. */
-  step: number;
-  /** The planned vehicle is among the candidates, and was recognised by its trip. */
-  ours: boolean;
-  byTrip: boolean;
-  /** Clearly another vehicle: that one. */
-  top: KanteOnboardCandidate | null;
-  /** How many checks in a row gave the same other vehicle. */
-  streak: number;
-  /** When (ms). */
-  at: number;
-}
-
 // ---------------------------------------------------------------- live vehicles on the map
 
 /** A vehicle of /api/vehicles as the map keeps it: with the response's time, its line as a journey, and how live it is. */

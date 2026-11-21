@@ -52,16 +52,19 @@ function startFollowing() {
 // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
 // connection (trip=0_0) is this one. The page preselects the cheapest ticket for it (a supersaver ticket where
 // there is one) and starts with a Half Fare Travelcard, which the buyer can change there.
+function swissTicketTime(departure: string) {
+  return Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(departure)).map((p) => [p.type, p.value]));
+}
+const sbbStopId = (id: OdLocation['id']) => /^0?(\d{7})$/.exec(String(id || ''))?.[1];
 function sbbTicketUrl() {
   const rides = journeySteps.filter((st) => st.type === 'ride');
   if (!rides.length) return null;
   const a = rides[0].s.departure, b = rides[rides.length - 1].s.arrival;
-  const sbbId = (st: OdLocation | null | undefined) => !!st && /^\d{7}$/.test(String(st.id || '')); // Swiss stop number (UIC), as sbb.ch knows it
-  if (!sbbId(a.station) || !sbbId(b.station) || !a.departure) return null;
-  const stop = (st: OdLocation) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${st.id}`;
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(a.departure)).map((p) => [p.type, p.value]));
+  if (!sbbStopId(a.station?.id) || !sbbStopId(b.station?.id) || !a.departure) return null;
+  const stop = (st: OdLocation) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${sbbStopId(st.id)}`;
+  const parts = swissTicketTime(a.departure);
   const q = new URLSearchParams({
     stops: `${stop(a.station!)}~${stop(b.station!)}`,
     day: `${parts.year}-${parts.month}-${parts.day}`,

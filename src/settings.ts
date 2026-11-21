@@ -34,6 +34,7 @@
     freeFood: false,
     women: false,
     adaptiveSport: false,
+    fareTracking: false,
     // Developer options (bottom of the page)
     devOptions: false,
   };
@@ -226,6 +227,11 @@
     row.append(ic, text, input);
     layerGroup.append(row);
   }
+  const pricingHalfFare = document.getElementById('pricingHalfFare') as HTMLInputElement;
+  const pricingSuggestions = document.getElementById('pricingSuggestions')!;
+  const pricingSummary = document.getElementById('pricingSummary')!;
+  const pricingClearPaused = document.getElementById('pricingClearPaused')!;
+  const pricingStorageStatus = document.getElementById('pricingStorageStatus')!;
   const layerSwitches = [...layerGroup.querySelectorAll<HTMLInputElement>('input[data-layer]')];
   const switches = [...page.querySelectorAll<HTMLInputElement>('input[data-setting]')];
   const modeSwitches = [...page.querySelectorAll<HTMLInputElement>('input[data-mode]')];
@@ -233,7 +239,7 @@
   const speedLabel = document.getElementById('speedName')!;
   const LAST = SPEED_PRESETS.length - 1;
   const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
-  const changeListeners: (() => void)[] = [];
+  const changeListeners: SettingsChangeListener[] = [];
   const closeListeners: ((journeyChanged: boolean) => void)[] = [];
   let isOpen = false;
   let pushed = false;
@@ -290,7 +296,54 @@
     update({ walkKmh: SPEED_PRESETS[Math.min(LAST, Math.max(0, to))].kmh });
   });
 
+  function renderPricing() {
+    pricingHalfFare.checked = PRICING_HISTORY.profile().hasHalfFare === true;
+    const count = PRICING_HISTORY.list().length;
+    pricingSuggestions.hidden = !state.fareTracking;
+    pricingClearPaused.hidden = state.fareTracking || !count;
+    pricingSummary.textContent = count
+      ? `${count} saved ${count === 1 ? 'trip' : 'trips'}`
+      : 'See how your saved trips compare';
+  }
+
+  window.openFareSuggestions = async (trigger) => {
+    if (!state.fareTracking) return;
+    try {
+      const { openSuggestions } = await import('./pricing-panel.js');
+      if (state.fareTracking && trigger?.isConnected) {
+        openSuggestions({ history: PRICING_HISTORY, trigger, onChange: () => {
+          renderPricing();
+          window.dispatchEvent(new Event('pricing-history-change'));
+        } });
+      }
+    } catch {
+      const message = 'Fare suggestions could not load. Please try again.';
+      if (!isOpen && typeof window.showToast === 'function') window.showToast(message);
+      else {
+        pricingStorageStatus.hidden = false;
+        pricingStorageStatus.textContent = message;
+      }
+    }
+  };
+  pricingHalfFare.addEventListener('change', () => {
+    const saved = PRICING_HISTORY.setHalfFare(pricingHalfFare.checked);
+    pricingStorageStatus.hidden = saved;
+    if (!saved) pricingStorageStatus.textContent = 'Could not save your ticket preference.';
+    renderPricing();
+    window.dispatchEvent(new Event('pricing-history-change'));
+  });
+  pricingSuggestions.addEventListener('click', () => window.openFareSuggestions(pricingSuggestions));
+
+  pricingClearPaused.addEventListener('click', () => {
+    if (!window.confirm('Clear all confirmed trips saved in this browser?')) return;
+    const cleared = PRICING_HISTORY.clear();
+    pricingStorageStatus.hidden = false;
+    pricingStorageStatus.textContent = cleared ? 'Trip history cleared.' : 'Could not clear trip history.';
+    renderPricing();
+  });
+
   function render() {
+    renderPricing();
     const eff = effective();
     for (const input of switches) {
       const k = input.dataset.setting as FlagKey;
@@ -317,7 +370,8 @@
   }
 
   // by: 'auto' when the app changed the setting itself (walk-pace.js), otherwise it was you
-  function update(patch, by) {
+  function update(patch: Partial<Settings>, by?: SettingsChangedBy) {
+    if ('fareTracking' in patch) pricingStorageStatus.hidden = true;
     const before = state;
     state = { ...state, ...patch };
     save();
@@ -358,7 +412,11 @@
       return update({ [k]: Math.min(r.max, Math.max(r.min, state[k] + r.step * +step.dataset.dir!)) });
     }
     if ((e.target as HTMLElement).closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
-    if ((e.target as HTMLElement).closest('#settingsReset')) update({ ...DEFAULTS });
+    if ((e.target as HTMLElement).closest('#settingsReset')) {
+      if (pricingHalfFare.checked) PRICING_HISTORY.setHalfFare(false);
+      update({ ...DEFAULTS });
+      window.dispatchEvent(new Event('pricing-history-change'));
+    }
   });
 
   const journeySnapshot = () => JSON.stringify(JOURNEY_KEYS.map((k) => state[k]));
@@ -368,7 +426,7 @@
     journeyBefore = journeySnapshot();
     render();
     // (the walking-speed notice stays usable: it can show on top of this page)
-    madeInert = [...document.body.children].filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
+    madeInert = ([...document.body.children] as HTMLElement[]).filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
     madeInert.forEach((el) => { el.inert = true; });
     themeBefore = themeMeta.getAttribute('content')!;
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
@@ -405,7 +463,7 @@
   }
 
   // anchor: id of a heading on the page to open it at (optional)
-  function open(anchor) {
+  function open(anchor?: string) {
     scrollTo = anchor || '';
     if (isOpen) return reveal();
     if (onSettings()) return sync();
@@ -422,6 +480,25 @@
   window.addEventListener('hashchange', () => {
     if (!onSettings()) pushed = false;
     sync();
+  });
+  // Keep consent in sync when another tab pauses tracking or clears settings.
+  window.addEventListener('storage', (event) => {
+    if (event.storageArea !== localStorage) return;
+    if (event.key === KEY || event.key === null) {
+      let saved;
+      try { saved = JSON.parse(localStorage.getItem(KEY) ?? 'null'); } catch { /* Treat unreadable consent as off. */ }
+      const enabled = saved?.fareTracking === true;
+      if (state.fareTracking !== enabled) {
+        state = { ...state, fareTracking: enabled };
+        if (!enabled) document.querySelector<HTMLDialogElement>('dialog[data-fare-suggestions][open]')?.close();
+        render();
+        window.dispatchEvent(new Event('pricing-history-change'));
+      }
+    } else if (isOpen && event.key === 'pricing-trip-history-v1') renderPricing();
+    if (event.key === 'pricing-profile-v1' || event.key === null) {
+      renderPricing();
+      window.dispatchEvent(new Event('pricing-history-change'));
+    }
   });
   closeBtn.addEventListener('click', close);
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });

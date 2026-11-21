@@ -52,6 +52,7 @@ SETTINGS.onChange(() => {
 });
 // Accessibility options changed during a journey → plan it again with them
 SETTINGS.onClose((journeyChanged) => {
+  if (journeyConn) renderFoot();
   if (journeyChanged && journeyDest) startJourney(journeyDest, true);
   else menuBtn.focus();
 });

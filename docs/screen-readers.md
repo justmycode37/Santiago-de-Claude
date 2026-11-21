@@ -93,11 +93,11 @@ node tools/build-stop-access.mjs    # stop-access.js from data/bern-stop-accessi
 ## Testing
 
 ```bash
-node tools/test_a11y.mjs            # language helpers
+npm test                            # includes tools/test_a11y.mjs: the language helpers
 node tools/test_screen_reader.mjs   # the app in headless Chrome: roles, names, focus, announcements
 ```
 
-The browser test needs Chrome or Chromium and the internet, and takes a few minutes.
+The browser test builds `dist/` and serves it. It needs Chrome or Chromium and the internet, and takes a few minutes.
 
 The browser test drives the real app through search, events, a journey, guidance with a simulated GPS position, the blind or low-vision mode and Scan. It checks what the app hands to a screen reader. It does not replace trying a change with VoiceOver and TalkBack on a phone.
 
