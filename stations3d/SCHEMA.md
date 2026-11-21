@@ -198,3 +198,10 @@ Station3D.open({ key, from, to, prefs, title })   // from / to as for the router
 Station3D.setUser({ ll: [lng, lat], accuracy, heading })   // live position; null hides it
 Station3D.close()
 ```
+
+## Companion: `stations3d/<key>.solid.js`
+
+Optional, for the continuous 3D view (`station3d-solid.js`, see `docs/station3d-solid.md`): made from the model and
+OpenStreetMap by `tools/station3d_solid.py`; sets `(window.STATION3D_SOLID = window.STATION3D_SOLID || {})[key]`. It adds
+floor slabs with the wells cut out, walls, kerbs, railings, rooms, shop pins and the connectors with true heights. The
+model above does not depend on it and does not change.
