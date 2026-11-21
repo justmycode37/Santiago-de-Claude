@@ -10,10 +10,14 @@
 // (its missing details are filled in from the official one).
 import { readFileSync, writeFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { transformSync } from 'amaro'; // npm install
+
+// A script of the app (src/<name>.ts) as the JavaScript the browser gets: its types taken out
+const appScript = (name) => transformSync(readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8'), { mode: 'strip-only' }).code;
 
 const read = (f) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url)));
 const sandbox = { window: {} };
-vm.runInNewContext(readFileSync(new URL('../map-layers.js', import.meta.url), 'utf8'), sandbox);
+vm.runInNewContext(appScript('map-layers'), sandbox);
 const { classify, GROUPS, GLYPHS } = sandbox.window.MAP_LAYERS;
 
 const amenities = read('data/amenities.json');
