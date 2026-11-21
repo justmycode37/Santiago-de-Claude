@@ -1,39 +1,52 @@
 import { recommendFromHistory } from './pricing-engine.js';
+import type { FareOffer } from './pricing-engine.js';
+
+/** `openSuggestions(options)` */
+export interface FareSuggestionsOptions {
+  /** The saved trips and the travel profile: window.PRICING_HISTORY. */
+  history: PricingHistoryApi;
+  /** Gets the focus back when the window closes (default: the element that has it now). */
+  trigger?: HTMLElement | null;
+  /** Called after the profile or a saved trip was changed. */
+  onChange?: () => void;
+}
+/** The fields of a form of the window, by name. */
+type FareFields<K extends string> = HTMLFormControlsCollection & Record<K, HTMLInputElement>;
 
 const money = new Intl.NumberFormat('en-CH', { style: 'currency', currency: 'CHF' });
-const numeric = (input) => input.value === '' ? null : input.valueAsNumber;
+const numeric = (input: HTMLInputElement) => input.value === '' ? null : input.valueAsNumber;
 
-function el(tag, text, className) {
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string) {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
   if (className) node.className = className;
   return node;
 }
 
-function button(text, action, className) {
+function button(text: string, action?: () => void, className?: string) {
   const node = el('button', text, className);
   node.type = action ? 'button' : 'submit';
   if (action) node.addEventListener('click', action);
   return node;
 }
 
-function personal(tag, text, className) {
+function personal<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string) {
   const node = el(tag, text, className);
   node.setAttribute('translate', 'no');
   return node;
 }
 
-function numberField(label, name, value, min, max, step = 1) {
+function numberField(label: string, name: string, value: number | null | undefined, min: number, max?: number, step = 1) {
   const field = el('label', label);
   const input = el('input');
   Object.assign(input, { name, type: 'number', min, step, inputMode: step === 1 ? 'numeric' : 'decimal' });
-  if (max !== undefined) input.max = max;
-  if (Number.isFinite(value)) input.value = value;
+  if (max !== undefined) input.max = max as unknown as string;
+  if (Number.isFinite(value)) input.value = value as unknown as string;
   field.append(input);
   return field;
 }
 
-function checkbox(text, name, checked) {
+function checkbox(text: string, name: string, checked: boolean | undefined) {
   const label = el('label', undefined, 'fare-check');
   const input = el('input');
   Object.assign(input, { name, type: 'checkbox', checked: Boolean(checked) });
@@ -41,21 +54,21 @@ function checkbox(text, name, checked) {
   return label;
 }
 
-function disclosure(title) {
+function disclosure(title: string) {
   const box = el('details');
   box.append(el('summary', title));
   return box;
 }
 
-function offerLink(offer) {
+function offerLink(offer: FareOffer) {
   const link = el('a', 'View on SBB');
   Object.assign(link, { href: offer.url, target: '_blank', rel: 'noopener noreferrer' });
   link.setAttribute('aria-label', `View ${offer.label} on SBB`);
   return link;
 }
 
-let currentWindow;
-export function openSuggestions({ history, trigger = document.activeElement, onChange }) {
+let currentWindow: { dialog: HTMLDialogElement; cleanup: () => void } | undefined;
+export function openSuggestions({ history, trigger = document.activeElement as HTMLElement | null, onChange }: FareSuggestionsOptions) {
   if (currentWindow?.dialog.open) return currentWindow.dialog;
   currentWindow?.cleanup();
 
@@ -78,7 +91,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
   status.setAttribute('role', 'status');
   const profileBox = disclosure('Travel profile');
   const fareStatus = el('span', '', 'fare-current-rate');
-  profileBox.querySelector('summary').append(' ', fareStatus);
+  profileBox.querySelector('summary')!.append(' ', fareStatus);
   const tripBox = disclosure('Trip history');
   const tripList = el('div', undefined, 'fare-trips');
   tripBox.append(tripList);
@@ -115,7 +128,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
       }
       if (tripCount) card.append(button('Edit trip fares', () => {
         tripBox.open = true;
-        tripBox.querySelector('summary').focus();
+        tripBox.querySelector('summary')!.focus();
       }));
       results.append(card);
       appendCommuterSuggestion();
@@ -143,7 +156,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
       hint.append(el('p', 'Add your age and route coverage to compare eligible passes.', 'fare-note'),
         button('Set travel profile', () => {
           profileBox.open = true;
-          profileBox.querySelector('summary').focus();
+          profileBox.querySelector('summary')!.focus();
         }));
       results.append(hint);
     }
@@ -166,7 +179,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
     appendCommuterSuggestion();
   }
 
-  function changed(message) {
+  function changed(message: string) {
     renderResults();
     status.textContent = message;
     onChange?.();
@@ -197,18 +210,18 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
     numberField('Half Fare (CHF)', 'saverHalf', profile.saver?.half, 0.01, undefined, 0.01));
   quotes.append(el('p', 'Optional. Enter quotes only if you expect those fares on the days you travel.', 'fare-note'), quoteFields);
   saver.append(quotes);
-  const values = settings.elements;
+  const values = settings.elements as FareFields<'age' | 'months' | 'groupSize' | 'allUnder25' | 'covered' | 'saverFull' | 'saverHalf' | 'hasHalfFare'>;
   function showYouth() {
     const age = numeric(values.age);
     senior.hidden = age !== 64;
-    group.hidden = !(age >= 16 && age < 25);
+    group.hidden = !(age! >= 16 && age! < 25);
     values.groupSize.disabled = group.hidden;
-    youth.hidden = group.hidden || !(numeric(values.groupSize) > 1);
+    youth.hidden = group.hidden || !(numeric(values.groupSize)! > 1);
   }
   const halfFare = checkbox('I have a valid Half Fare Travelcard for this period', 'hasHalfFare', profile.hasHalfFare);
   const fareHelp = el('p', 'Select and save to show Half Fare ticket prices. Clear and save to show full fares.', 'fare-note');
   fareHelp.id = 'fare-rate-help';
-  halfFare.querySelector('input').setAttribute('aria-describedby', fareHelp.id);
+  halfFare.querySelector('input')!.setAttribute('aria-describedby', fareHelp.id);
   const rateSetting = el('div', undefined, 'fare-rate-setting');
   rateSetting.append(halfFare, fareHelp);
   settings.append(rateSetting, fields, senior, coverage, youth, saver, button('Save profile'));
@@ -242,7 +255,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
 
   function renderTrips() {
     const trips = history.list();
-    const summary = tripBox.querySelector('summary');
+    const summary = tripBox.querySelector('summary')!;
     summary.replaceChildren(el('span', 'Trip history'), personal('span', ` · ${trips.length}`));
     tripList.replaceChildren();
     if (!trips.length) {
@@ -270,7 +283,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
       form.append(el('strong', `${trip.from} → ${trip.to}`), el('p', trip.date, 'fare-note'), fares, actions);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
-        const { fare, halfFare } = form.elements;
+        const { fare, halfFare } = form.elements as FareFields<'fare' | 'halfFare'>;
         if (!history.update(trip.id, { fare: numeric(fare), halfFare: numeric(halfFare) })) {
           status.textContent = 'Could not save fares.';
           return;

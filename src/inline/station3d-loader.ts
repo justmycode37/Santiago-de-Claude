@@ -3,18 +3,21 @@
 // is preloaded). Until then this stand-in answers has() from stations3d/index.js and passes every other call on
 // once the viewer is there. station3d.js then replaces window.Station3D with itself.
 (function () {
-  let loading = null;
-  let user;
-  let wanted = null;      // the latest open() asked for while loading; close() cancels it
-  const listeners = [];
+  /** What the stand-in has of the viewer: all but the two calls of the development page. */
+  type Station3DStandIn = Omit<Station3DApi, '_orient' | '_debug'>;
+  type Station3DHeard = [name: keyof Station3DEventMap, fn: (detail: never) => void];
+  let loading: Promise<Station3DApi> | null = null;
+  let user: Station3DUser | null | undefined;
+  let wanted: Station3DOpenOptions | null = null;      // the latest open() asked for while loading; close() cancels it
+  const listeners: Station3DHeard[] = [];
   function load() {
-    if (!loading) loading = new Promise((resolve, reject) => {
+    if (!loading) loading = new Promise<Station3DApi>((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'station3d.js';
       s.onload = () => {
         const real = window.Station3D;
         if (!real || real === stub) { loading = null; s.remove(); reject(new Error('station3d.js did not start')); return; }
-        for (const [name, fn] of listeners) real.on(name, fn);
+        for (const [name, fn] of listeners) real.on(name, fn as (detail: unknown) => void);
         if (user !== undefined) real.setUser(user);
         resolve(real);
       };
@@ -31,11 +34,11 @@
         if (wanted !== opts) return; // a later open() or a close() came while it loaded
         wanted = null;
         real.open(opts);
-      }, (e) => {
+      }, (e: Error) => {
         if (wanted !== opts) return;
         wanted = null;
         // the listeners hear it as from the viewer (onboarding's demo is behind an overlay the toast cannot reach)
-        for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn({ message: e.message }); } catch (err) {} }
+        for (const [name, fn] of listeners.slice()) if (name === 'error') { try { (fn as (detail: { message: string }) => void)({ message: e.message }); } catch (err) {} }
         if (window.showToast) window.showToast('The 3D view could not be loaded.');
       });
     },
@@ -53,5 +56,5 @@
     enableCompass: () => load().then((real) => real.enableCompass(), () => 'unavailable'),
     preload: (key) => load().then((real) => real.preload(key), () => false),
     loadData: (key) => load().then((real) => real.loadData(key), () => null),
-  };
+  } satisfies Station3DStandIn as Station3DStandIn as Station3DApi;
 })();
