@@ -298,6 +298,18 @@
     .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
     .results li.attr:active { background: none; }
+    /* Categories when nothing is typed (25-categories.ts) */
+    .results li.cats { display: block; padding: 8px 12px 6px; cursor: default; }
+    .results li.cats:active { background: none; }
+    .cats-title { padding: 0 4px 6px; font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--bar-secondary); }
+    .cats-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cat-chip {
+      display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 5px; border: 0; border-radius: 999px;
+      background: var(--pressed); color: var(--bar-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .cat-chip:active { transform: scale(.96); }
+    .cat-icon { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+    .cat-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
 
     .trip {
       position: relative;
@@ -1035,6 +1047,20 @@
     }
     .ev-caption strong { font-size: 13px; line-height: 1.2; }
     .ev-caption small { margin-top: 3px; font-size: 11px; line-height: 1.25; -webkit-line-clamp: 1; }
+    /* Place cards of a category: the event card with a rating line, a distance line and a website button */
+    .place-card .ev-body { grid-template-rows: 104px auto; height: auto; }
+    .place-card .ev-body img { height: 104px; }
+    .place-card .ev-caption small { margin-top: 2px; }
+    .pc-icon { display: none; }
+    .place-card .ev-body.no-photo .pc-icon {
+      display: grid; place-items: center; width: 34px; height: 34px; margin: 9px 9px 0; border-radius: 50%; color: #fff;
+    }
+    .pc-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .pc-web {
+      position: absolute; top: 6px; right: 6px; z-index: 1; width: 30px; height: 30px; border-radius: 50%;
+      display: grid; place-items: center; background: var(--bar-bg); color: var(--accent-ink); box-shadow: var(--shadow);
+    }
+    .pc-web svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .ev-related { display: block; margin: 0 0 20px; }
     .ev-related[hidden] { display: none; }
     .ev-related select { display: block; width: 100%; height: 44px; margin-top: 6px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--row-bg); color: var(--bar-text); font: inherit; }
@@ -1595,7 +1621,7 @@
       <div class="set-group" role="group" aria-labelledby="setEventsHead">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg></span>
-          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Newcomer meetups, language cafés and courses.</small></span>
+          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Language courses and migration offices as search categories.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="newcomer" aria-labelledby="setNewcomerT" aria-describedby="setNewcomerD" />
         </label>
         <label class="set-row">
