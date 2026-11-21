@@ -739,7 +739,7 @@
   }
   // a pool of lamp light on the ground (night)
   function pool(C, x, y, r, strength, zf) {
-    const b = C.pool, n = 18, col = C.pal.lamp;
+    const b = C.pool, n = C.high ? 18 : 10, col = C.pal.lamp;
     const zc = groundZ(C, x, y, zf), i0 = b.vert([x, y, zc + 0.014], col, strength);
     const rings = [[0.3, 0.72], [0.62, 0.3], [1, 0]];
     rings.forEach((rg) => {
@@ -967,7 +967,7 @@
     const gp = C.detail.groundPlane, gq = gp && gp.nearWalk && isFinite(gp.nearWalk.dzdx) ? gp.nearWalk : gp;
     if (gp && Array.isArray(gp.origin) && gq && isFinite(gq.z) && isFinite(gq.dzdx) && isFinite(gq.dzdy) && Math.hypot(gq.dzdx, gq.dzdy) < 0.12) C.fit = { a: gq.dzdx, b: gq.dzdy, c: gq.z - gq.dzdx * gp.origin[0] - gq.dzdy * gp.origin[1], given: true };
     if (pts.length) C.z0 = pts.reduce((m, q) => m + q[2], 0) / pts.length;
-    const near = C.zNear = (x, y) => {
+    const near = C.zNear = (x, y, low) => {
       if (!pts.length) return C.z0;
       let d0 = Infinity, d1 = Infinity, d2 = Infinity, z0 = 0, z1 = 0, z2 = 0;
       for (let i = 0; i < pts.length; i++) {
@@ -976,12 +976,14 @@
       }
       const w0 = 1 / (d0 + 0.5), w1 = d1 < Infinity ? 1 / (d1 + 0.5) : 0, w2 = d2 < Infinity ? 1 / (d2 + 0.5) : 0;
       // towards the lowest of the three: plain ground beside a road must not rise above it
-      return 0.3 * (z0 * w0 + z1 * w1 + z2 * w2) / (w0 + w1 + w2) + 0.7 * Math.min(z0, w1 ? z1 : z0, w2 ? z2 : z0);
+      const avg = (z0 * w0 + z1 * w1 + z2 * w2) / (w0 + w1 + w2);
+      return low ? 0.3 * avg + 0.7 * Math.min(z0, w1 ? z1 : z0, w2 ? z2 : z0) : avg;
     };
     const area = cleanRing(C.detail.area);
     if (!area) return;
     const W = C.W.solid.world(), col = C.pal.ground, box = boxOf(area), cell = C.high ? 3 : 4.5;
-    const zb = (x, y) => { const g = C.ground.at(x, y); return g != null ? [g - 0.25, 0] : [near(x, y) - 0.02, 1]; };
+    // drawn: a little under the lowest street nearby (it must not rise above a road); answered by groundAt: the level between them
+    const zb = (x, y) => { const g = C.ground.at(x, y); return g != null ? [g - 0.25, 0, g - 0.02] : [near(x, y, true) - 0.02, 1, near(x, y)]; };
     for (let gx = Math.floor(box[0] / cell); gx * cell < box[2]; gx++) for (let gy = Math.floor(box[1] / cell); gy * cell < box[3]; gy++) {
       const x0 = gx * cell, y0 = gy * cell, x1 = x0 + cell, y1 = y0 + cell;
       let poly = clipPoly(area, 1, 0, -x0);
@@ -991,7 +993,7 @@
       poly = cleanRing(poly);
       if (!poly) continue;
       // p: where it is drawn (dipping under the surfaces); q: what groundAt answers (the level of the street)
-      const V = poly.map((p) => { const z = zb(p[0], p[1]); return { p: [p[0], p[1], z[0]], q: [p[0], p[1], z[1] ? z[0] : z[0] + 0.23], open: z[1] }; });
+      const V = poly.map((p) => { const z = zb(p[0], p[1]); return { p: [p[0], p[1], z[0]], q: [p[0], p[1], z[2]], open: z[1] }; });
       for (const t of poly.length === 3 ? [[0, 1, 2]] : triangulate(C.THREE, poly)) {
         const a = V[t[0]], b = V[t[1]], c = V[t[2]];
         W.tri(a.p, b.p, c.p, col, { n: [0, 0, 1], mode: 1 });
@@ -1407,7 +1409,7 @@
       // from the knuckles the thin shoots of one year (or, in summer, a tuft of leaves).
       const shoot = Math.min(1.05, (H - cb) * 0.27), top = H - shoot * 0.8, nL = C.high ? 5 : 4, heads = [], a0 = R() * TAU, bx = lx * 0.6, by = ly * 0.6;
       const tl = Math.max(tr, lerp(tr, 0.34, 0.5)); // limbs and knuckles thin out more slowly than the trunk on a young tree
-      const knob = (p, r) => { W.lump(p, [r, r, r * 1.08], C.high ? 2 : 1, 0.34, seedOf(x + p[0], y + p[1], 7), () => tone(bark, 0.88)); heads.push([p[0], p[1], p[2], r]); };
+      const knob = (p, r, show) => { if (show || !leaves) W.lump(p, [r, r, r * 1.08], C.high ? 2 : 1, 0.34, seedOf(x + p[0], y + p[1], 7), () => tone(bark, 0.88)); heads.push([p[0], p[1], p[2], r]); };
       const limb = (a, b, r0, r1, sides) => {
         const k = Math.hypot(b[0] - a[0], b[1] - a[1]) * 0.22, m = [lerp(a[0], b[0], 0.55) + (R() - 0.5) * k, lerp(a[1], b[1], 0.55) + (R() - 0.5) * k, lerp(a[2], b[2], 0.34)];
         W.tube([[a[0], a[1], a[2], r0], [m[0], m[1], m[2], lerp(r0, r1, 0.55)], [b[0], b[1], b[2], r1]], sides, bark);
@@ -1417,14 +1419,14 @@
         const az = a0 + (i / nL) * TAU + (R() - 0.5) * 0.6, reach = cr * (0.4 + R() * 0.2), rise = (top - cb) * (0.18 + R() * 0.34);
         const p2 = [bx + Math.cos(az) * reach, by + Math.sin(az) * reach, cb + rise];
         limb([bx, by, cb - 0.4], p2, Math.min(tr * 0.8, tl * 0.66), tl * 0.5, C.high ? 6 : 5);
-        knob(p2, tl * 0.7);
+        knob(p2, tl * 0.7, true); // in summer only these lower knuckles show under the leaves
         const arms = C.high ? 2 + (R() < 0.4 ? 1 : 0) : 1 + (R() < 0.5 ? 1 : 0);
         for (let a = 0; a < arms; a++) {
           const az2 = az + (arms === 1 ? 0 : (a / (arms - 1) - 0.5) * (1.3 + R() * 0.5)) + (R() - 0.5) * 0.35, r2 = Math.min(cr, reach + cr * (0.26 + R() * 0.3));
           const e = [bx + Math.cos(az2) * r2, by + Math.sin(az2) * r2, Math.min(top, p2[2] + (top - p2[2]) * (0.3 + R() * 0.7))];
           limb(p2, e, tl * 0.42, tl * 0.3, C.high ? 5 : 4);
           knob(e, tl * 0.55);
-          if (leaves) heads.push([(p2[0] + e[0]) / 2, (p2[1] + e[1]) / 2, (p2[2] + e[2]) / 2, 0]); // in summer leaves along the limb too
+          if (leaves && C.high) heads.push([(p2[0] + e[0]) / 2, (p2[1] + e[1]) / 2, (p2[2] + e[2]) / 2, 0]); // in summer leaves along the limb too
         }
       }
       const pt = [bx + (R() - 0.5) * cr * 0.25, by + (R() - 0.5) * cr * 0.25, top];
@@ -1433,7 +1435,7 @@
       const twig = mix(bark, pal.stone, 0.25);
       for (const hd of heads) {
         if (leaves) { const r = shoot * 0.95 + (hd[3] ? 0.6 : 0.45); lobe(hd[0], hd[1], hd[2] + r * 0.28, r, r * 0.85, (R() - 0.5) * 0.1, null, 2); continue; }
-        const n = C.far ? 0 : C.high ? 10 : 4, ox = hd[0] - bx, oy = hd[1] - by, ol = Math.hypot(ox, oy) || 1; // shoots are too thin to see from afar
+        const n = C.far ? 0 : C.high ? 8 : 4, ox = hd[0] - bx, oy = hd[1] - by, ol = Math.hypot(ox, oy) || 1; // shoots are too thin to see from afar
         for (let k = 0; k < n; k++) {
           const az = R() * TAU, tilt = 0.04 + R() * 0.46, l = shoot * (0.35 + R() * 0.65);
           const d = norm([Math.cos(az) * Math.sin(tilt) + ox / ol * 0.14, Math.sin(az) * Math.sin(tilt) + oy / ol * 0.14, Math.cos(tilt)]), s = hd[3] * 0.55;
@@ -2362,13 +2364,16 @@
     let budget = C.windowBudget;
     for (const r of runs) {
       if (!r.deco) continue;
-      C.high = hq && pathD((r.A[0] + r.B[0]) / 2, (r.A[1] + r.B[1]) / 2) < 48; // sills, glazing bars and lintels only where they can be seen
+      const rd = pathD((r.A[0] + r.B[0]) / 2, (r.A[1] + r.B[1]) / 2);
+      if (!hq && rd > 95) continue; // at low quality the far houses are plain blocks
+      C.high = hq && rd < 48; // sills, glazing bars and lintels only where they can be seen
       const Q = r.Q, nrm = [r.n[0], r.n[1], 0], tdir = [r.t[0], r.t[1], 0], gfTop = base + r.gf, RW = rng(seedOf(r.A[0], r.A[1], 9));
       const rect = (s0, s1, z0, z1, out, col, opt) => W.quad(Q(s0, off0 + out, z0), Q(s1, off0 + out, z0), Q(s1, off0 + out, z1), Q(s0, off0 + out, z1), col, Object.assign({ n: nrm }, opt));
-      const ledge = (s0, s1, z0, z1, out, col, topCol) => { // a band that stands out from the wall
+      const ledge = (s0, s1, z0, z1, out, col, topCol, slim) => { // a band that stands out from the wall (slim: front and top only)
         rect(s0, s1, z0, z1, out, col);
         W.quad(Q(s0, off0, z1), Q(s1, off0, z1), Q(s1, off0 + out, z1), Q(s0, off0 + out, z1), topCol || col, { n: [0, 0, 1] });
         W.quad(Q(s0, off0, z0), Q(s1, off0, z0), Q(s1, off0 + out, z0), Q(s0, off0 + out, z0), tone(col, 0.8), { n: [0, 0, -1] });
+        if (slim) return;
         W.quad(Q(s0, off0, z0), Q(s0, off0 + out, z0), Q(s0, off0 + out, z1), Q(s0, off0, z1), col, { n: [-tdir[0], -tdir[1], 0] });
         W.quad(Q(s1, off0, z0), Q(s1, off0 + out, z0), Q(s1, off0 + out, z1), Q(s1, off0, z1), col, { n: tdir });
       };
@@ -2376,7 +2381,7 @@
       const simple = !C.high || budget < 0;
       const glow = () => { const k = RW(); return mix(pal.glassLit, hex(k < 0.5 ? '#F3B56B' : '#FFF3D6'), RW() * 0.45); };
       const win = (sc, z0, ww, wh, litP, door) => {
-        budget--;
+        if (!simple) budget--; // only windows drawn in full count against the budget
         const lit = C.dark && RW() < litP, v = 0.94 + RW() * 0.12;
         rect(sc - ww / 2 - 0.1, sc + ww / 2 + 0.1, z0 - 0.05, z0 + wh + 0.12, 0.03, rtrim);
         if (lit) { const g = glow(); rect(sc - ww / 2, sc + ww / 2, z0, z0 + wh, 0.045, [g, g, tone(g, 0.86), tone(g, 0.86)], { mode: 1 }); }
@@ -2385,7 +2390,7 @@
         const bar = lit ? tone(rtrim, C.dark ? 0.75 : 0.6) : rtrim;
         rect(sc - 0.022, sc + 0.022, z0, z0 + wh, 0.052, bar);
         rect(sc - ww / 2, sc + ww / 2, z0 + wh * 0.68 - 0.02, z0 + wh * 0.68 + 0.02, 0.052, bar);
-        if (!door) ledge(sc - ww / 2 - 0.14, sc + ww / 2 + 0.14, z0 - 0.1, z0 - 0.04, 0.13, rtrim, mix(rtrim, WHITE, C.dark ? 0.05 : 0.3));
+        if (!door) ledge(sc - ww / 2 - 0.14, sc + ww / 2 + 0.14, z0 - 0.1, z0 - 0.04, 0.13, rtrim, mix(rtrim, WHITE, C.dark ? 0.05 : 0.3), true);
         if (shut && r.len / r.bays - ww > 1.15) for (const sd of [-1, 1]) rect(sc + sd * (ww / 2 + 0.12), sc + sd * (ww / 2 + 0.12 + ww * 0.46), z0 - 0.02, z0 + wh + 0.04, 0.06, shut);
       };
       const bw = r.len / r.bays, town = /town/i.test(String(r.spec.style || b.style || ''));
@@ -2416,7 +2421,7 @@
         W.quad(Q(s0, off0 + d, z0), Q(s1, off0 + d, z0), Q(s1, off0 + d, z1), Q(s0, off0 + d, z1), r.col, { n: nrm });
         W.quad(Q(s0, off0, z0), Q(s0, off0 + d, z0), Q(s0, off0 + d, z1), Q(s0, off0, z1), stoneD, { n: [-tdir[0], -tdir[1], 0] });
         W.quad(Q(s1, off0, z0), Q(s1, off0 + d, z0), Q(s1, off0 + d, z1), Q(s1, off0, z1), stoneD, { n: tdir });
-        W.quad(Q(s0 - 0.08, off0, z1 + 0.45), Q(s1 + 0.08, off0, z1 + 0.45), Q(s1 + 0.08, off0 + d + 0.1, z1), Q(s0 - 0.08, off0 + d + 0.1, z1), type === 'flat' ? rtrim : roofC, { n: [nrm[0] * 0.4, nrm[1] * 0.4, 1] });
+        W.quad(Q(s0 - 0.08, off0, z1 + 0.45), Q(s1 + 0.08, off0, z1 + 0.45), Q(s1 + 0.08, off0 + d + 0.1, z1), Q(s0 - 0.08, off0 + d + 0.1, z1), mix(rtrim, WHITE, C.dark ? 0.05 : 0.3), { n: [nrm[0] * 0.4, nrm[1] * 0.4, 1] }); // a stone top
         for (const sd of [s0 - 0.08, s1 + 0.08]) W.tri(Q(sd, off0, z1 + 0.45), Q(sd, off0 + d + 0.1, z1), Q(sd, off0, z1), stoneD, { two: true });
         for (let fl = o.f0; fl <= o.f1; fl++) {
           const zf = gfTop + (fl - 1) * r.fh, wh = clamp(r.fh * 0.6, 1.0, 2.1), zw = zf + (r.fh - wh) * 0.45, ww = o.w - 0.7, lit = C.dark && RW() < 0.35, g = lit ? glow() : null;
@@ -2462,7 +2467,7 @@
           const door = taken.has('b' + (k + 1) + ':' + i), z0 = zf + (door ? 0.14 : (r.fh - wh) * 0.45), h2 = door ? wh + (r.fh - wh) * 0.45 - 0.14 : wh;
           off0 += fwd(i);
           win((i + 0.5) * bw, z0, ww, h2, 0.3, door);
-          if (town && C.high && !simple) ledge((i + 0.5) * bw - ww / 2 - 0.2, (i + 0.5) * bw + ww / 2 + 0.2, z0 + h2 + 0.16, z0 + h2 + 0.26, 0.12, rtrim, mix(rtrim, WHITE, C.dark ? 0.05 : 0.3));
+          if (town && C.high && !simple) ledge((i + 0.5) * bw - ww / 2 - 0.2, (i + 0.5) * bw + ww / 2 + 0.2, z0 + h2 + 0.16, z0 + h2 + 0.26, 0.12, rtrim, mix(rtrim, WHITE, C.dark ? 0.05 : 0.3), true);
           off0 -= fwd(i);
         }
       }
@@ -2505,7 +2510,7 @@
             rect(s0 + m + 0.06, s0 + bw - m - 0.06, zg - 0.1, zg + 0.5, 0.045, tone(r.col, 0.86));
             gl(s0 + m + 0.06, s0 + bw - m - 0.06, zg + 0.5, top - 0.06);
           }
-          if (lit) pool(C, Q(s0 + bw / 2, 1.1, 0)[0], Q(s0 + bw / 2, 1.1, 0)[1], 2.6, 0.2, zg);
+          if (lit && C.high) pool(C, Q(s0 + bw / 2, 1.1, 0)[0], Q(s0 + bw / 2, 1.1, 0)[1], 2.6, 0.2, zg);
           if (hasAwn && (aw || RW() < 0.75)) { // an awning: a sloping sheet with a hanging edge
             const z1 = top + 0.12, z2 = z1 - 0.45, o1 = 1.15, a0 = s0 + m - 0.05, a1 = s0 + bw - m + 0.05, dk = tone(awn, 0.82);
             W.quad(Q(a0, off0 + 0.05, z1), Q(a1, off0 + 0.05, z1), Q(a1, off0 + o1, z2), Q(a0, off0 + o1, z2), [awn, awn, mix(awn, WHITE, C.dark ? 0 : 0.12), mix(awn, WHITE, C.dark ? 0 : 0.12)], { n: [0, 0, 1], two: true });
@@ -2718,7 +2723,7 @@
     // (limbs, shoots, crowns, window frames), and beyond 95 m in its simplest form. Without a path all is near.
     const tier = (x, y, near, far) => { const d = C.path ? lineDist(C.path, x, y) : 0; C.high = high && d < near; C.far = d >= far; };
     each(detail.buildings, 'building', (b, i) => { C.high = high; C.far = false; buildBuilding(C, b, i); });
-    each(detail.trees, 'tree', (t) => { if (t.xy) tier(t.xy[0], t.xy[1], 45, 95); buildTree(C, t); });
+    each(detail.trees, 'tree', (t) => { if (t.xy) tier(t.xy[0], t.xy[1], 45, high ? 95 : 60); buildTree(C, t); });
     each(detail.props, 'prop', (p) => { if (p.xy) tier(p.xy[0], p.xy[1], 60, 95); buildProp(C, p); });
     C.high = high; C.far = false;
     each(detail.markings, 'marking', (m) => buildMarking(C, m));

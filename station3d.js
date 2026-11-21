@@ -5136,15 +5136,15 @@
       if (opts.follow) setFollow(true);
       if (opts.pov) { setPov(true); if (opts.povYaw != null) pv.yaw = +opts.povYaw * Math.PI / 180; if (opts.povPitch != null) pv.pitch = +opts.povPitch * Math.PI / 180; }
       if (opts.list && stepsEl) toggleList();
-      if (opts.play && A.routed && !A.same) { // the walk plays by itself; with reduced motion it waits for the Play button
-        if (isFinite(+opts.play.speed) && +opts.play.speed > 0) PL.speed = clamp(+opts.play.speed, .2, 8);
-        if (!pov) setPov(true);
-        if (!reducedMotion()) setPlay(true);
-      }
       ensureDetail();
       touch();
       request();
       emit('open', { key: m.key, route, focus: focus ? { which: focus.which, why: focus.why } : null });
+      if (opts.play && A.routed && !A.same) { // after 'open' is told: the walk plays by itself; with reduced motion it waits for the Play button
+        if (isFinite(+opts.play.speed) && +opts.play.speed > 0) PL.speed = clamp(+opts.play.speed, .2, 8);
+        if (!pov) setPov(true);
+        if (!reducedMotion()) setPlay(true);
+      }
     }
 
     // Everything else on the page is out of reach while the view is open (as in settings.js)
