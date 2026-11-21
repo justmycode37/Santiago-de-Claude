@@ -54,8 +54,12 @@ do {
     let candidates = bern + [.init(line: "20", destination: "Bern, Bahnhof")]
     let m = DepartureDisplayMatcher.match([text("Bahnhof")], candidates: candidates)
     check(m.outcome == .ambiguous, "shared destination without numeral stays ambiguous, got \(m.outcome)")
-    let n = DepartureDisplayMatcher.match([text("20", x: 0.1, w: 0.05), text("Bahnhof", x: 0.17)], candidates: candidates)
-    check(n.outcome == .matched && n.best?.candidate.line == "20", "numeral resolves shared destination")
+    // Line 10 has one "Bahnhof" destination; line 20 has two (Bern, Bahnhof and Bern Wankdorf, Bahnhof), so
+    // "20 Bahnhof" rightly stays ambiguous between those.
+    let n = DepartureDisplayMatcher.match([text("10", x: 0.1, w: 0.05), text("Bahnhof", x: 0.17)], candidates: candidates)
+    check(n.outcome == .matched && n.best?.candidate.destination == "Bern, Bahnhof", "numeral resolves shared destination")
+    let twenty = DepartureDisplayMatcher.match([text("20", x: 0.1, w: 0.05), text("Bahnhof", x: 0.17)], candidates: candidates)
+    check(twenty.outcome != .matched, "20 Bahnhof: two line-20 Bahnhof destinations, no pick")
 }
 do {
     let m = DepartureDisplayMatcher.match([text("19", x: 0.1, w: 0.05), text("Ostermundigen", x: 0.17)], candidates: bern)
@@ -339,6 +343,70 @@ if let data = try? Data(contentsOf: URL(fileURLWithPath: packs + "/station-level
     check(ARFloorHeights.floorY(cameraY: 1.6, detectedPlaneYs: []).y == 1.6 - 1.4, "fallback phone height without a plane")
     check(abs(ARFloorHeights.targetY(startFloorY: -1.2, targetZ: europaplatz1?.z) - (-7.3)) < 1e-9, "target drawn on its real floor")
 } else { check(false, "station-levels.json missing or undecodable") }
+// MARK: - Review fixes (#15)
+
+do {
+    // 1. Two vehicles in one frame keep their own identification (cache keyed by vehicle text, not just the frame).
+    let frame = UUID()
+    let board = [DisplayCandidate(line: "9", destination: "Wabern, Tram-Endstation"), DisplayCandidate(line: "10", destination: "Ostermundigen, Rüti"),
+                 DisplayCandidate(line: "8", destination: "Bern, Saali")]
+    let a = DepartureDisplayMatcher.match([text("9", x: 0.1, w: 0.04), text("Wabern", x: 0.16)], candidates: board, frameID: frame)
+    let b = DepartureDisplayMatcher.match([text("10", x: 0.6, w: 0.05), text("Ostermundigen Rüti", x: 0.67)], candidates: board, frameID: frame)
+    check(a.best?.candidate.line == "9" && b.best?.candidate.line == "10", "two vehicles in one frame: 9 and 10, got \(a.best?.candidate.line ?? "-") and \(b.best?.candidate.line ?? "-")")
+}
+do {
+    // 2. A shared generic word does not make two destinations one.
+    let bahnhof = DisplayCandidate(line: "20", destination: "Bern, Bahnhof"), wankdorf = DisplayCandidate(line: "20", destination: "Bern Wankdorf, Bahnhof")
+    check(!DepartureDisplayMatcher.sameDisplay(bahnhof, wankdorf), "20 Bern, Bahnhof and 20 Bern Wankdorf, Bahnhof are different displays")
+    check(DepartureDisplayMatcher.sameDisplay(wankdorf, DisplayCandidate(line: "20", destination: "Bern Wankdorf, Bahnhof")), "identical names stay the same display")
+    check(!DepartureDisplayMatcher.sameDestination("Wabern, Tram-Endstation", "Wabern, Kleinwabern"), "a shared locality alone is not the same destination")
+    var expected = VehicleServiceExpectation(line: "20", destination: "Bern, Bahnhof")
+    expected.boardAlternatives = [wankdorf, DisplayCandidate(line: "9", destination: "Wabern, Tram-Endstation")]
+    let frames = [[VehicleText]](repeating: [text("20", x: 0.12, w: 0.05), text("Bern Wankdorf Bahnhof", x: 0.19)], count: 3)
+    let d = VehicleServiceMatcher.decide(track(frames), expected: expected, now: now)
+    check(d.state != .visualCandidate, "a 20 to Wankdorf is not accepted as the 20 to Bern, Bahnhof, got \(d.state) \(d.reason)")
+}
+do {
+    // 3. No ground arrows without a walking route (a straight line may cross a road or tracks).
+    let good = GeoARAlignment.Solution(yaw: 0.4, translation: Vec2(x: 1, y: 2), yawSigma: 3 * .pi / 180, positionSigma: 2.5, source: "combined", positionSamples: 30, pathSpan: 30)
+    let plan = ARRouteGuidance.plan(route: [], target: Vec2(x: 0, y: 22), alignment: good, camera: good.ar(Vec2(x: 0, y: 2)), cameraDirection: .pi / 2 + 0.4)
+    check(plan.mode != .path && plan.markers.isEmpty, "target without a route: direction only, got \(plan.mode) with \(plan.markers.count) arrows")
+    check(plan.targetDistance.map { abs($0 - 20) < 0.5 } ?? false, "distance to the target is still given")
+}
+do {
+    // 6. Kante evidence expires by absolute time and by the age of the answer.
+    let t = Date(timeIntervalSince1970: 1_800_000_000)
+    let item = KanteDue(tripId: "t", line: .init(name: "9", category: "T", mode: "tram"), headsign: "Bern Wankdorf, Bahnhof", vias: [], quayId: nil, quayLabel: "B",
+                        arr: t.timeIntervalSince1970 + 30, dep: t.timeIntervalSince1970 + 50, cancelled: false, approachBearing: nil,
+                        state: "approaching", etaS: 30, liveInfo: .init(state: "observed", inaccurate: false))
+    let c = VehiclePositionEvidence.candidates(from: [item])
+    let box = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4)
+    check((VehiclePositionEvidence.dueLikelihoods(for: box, pose: nil, due: [item], candidates: c, now: t, fetchedAt: t)[c[0].identity] ?? 0) > 0.9, "fresh: counts")
+    let later = t.addingTimeInterval(180) // the answer still says "approaching", but its departure was 130 s ago
+    check(VehiclePositionEvidence.dueLikelihoods(for: box, pose: nil, due: [item], candidates: c, now: later, fetchedAt: later).isEmpty, "past departure: gone, whatever the state said")
+    check(VehiclePositionEvidence.dueLikelihoods(for: box, pose: nil, due: [item], candidates: c, now: t.addingTimeInterval(20), fetchedAt: t.addingTimeInterval(-70)).isEmpty, "answer older than 60 s: not used")
+}
+
+do {
+    // 8. An error page during a Kante redeploy does not latch "no due"; the poll restarts on a new stop, ride or offline.
+    let meta = Data(#"{"features":["match","due"]}"#.utf8), old = Data(#"{"features":["match"]}"#.utf8)
+    check(KanteVehicleFeed.supportsDue(meta) == true && KanteVehicleFeed.supportsDue(old) == false, "meta read when the server answers")
+    check(KanteVehicleFeed.supportsDue(Data("<html>502 Bad Gateway</html>".utf8), status: 502) == nil, "502 page: undecided, not 'no due'")
+    check(KanteVehicleFeed.supportsDue(meta, status: 503) == nil, "non-2xx status: undecided")
+    let base = KanteVehicleFeed.pollKey(station: "8576646", line: "9", destination: "Wabern", offline: false, simulated: false)
+    check(base != nil && base != KanteVehicleFeed.pollKey(station: "8507110", line: "9", destination: "Wabern", offline: false, simulated: false), "new boarding stop: new poll")
+    check(KanteVehicleFeed.pollKey(station: "8576646", line: "9", destination: "Wabern", offline: true, simulated: false) == nil, "offline: no polling")
+}
+do {
+    // 11. Repeated identical fixes (underpass) give no path yaw; old compass samples drop out.
+    let t = Date(timeIntervalSince1970: 1_800_000_000)
+    var a = GeoARAlignment()
+    for i in 0..<12 { a.add(.init(at: t.addingTimeInterval(Double(i)), ar: Vec2(x: Double(i), y: 0), enu: Vec2(x: 0, y: 0), accuracy: 8)) }
+    check(a.pathFit() == nil, "AR moved 11 m but the fix never moved: no path yaw (was atan2(0,0) = 0)")
+    var b = GeoARAlignment()
+    b.add(.init(at: t, arDirection: 0, trueHeading: 90, accuracy: 10))
+    check(b.compassYaw(at: t.addingTimeInterval(5)) != nil && b.compassYaw(at: t.addingTimeInterval(60)) == nil, "heading older than 20 s is dropped")
+}
 
 // MARK: - Geo/AR alignment
 

@@ -35,6 +35,9 @@ private final class VisionWorkGate: @unchecked Sendable {
     /// Live "what is about to stop here" from the Kante engine (/api/due), or vehicle positions as a fallback.
     private let kante = KanteVehicleFeed()
     private var kanteDue: [KanteDue] = []
+    /// When the current `/api/due` answer was received; evidence older than a minute is not used.
+    private var kanteDueAt: Date?
+    private var kanteVehiclesAt: Date?
     private var kanteVehicles: [KanteVehicle] = []
     private var kanteSupportsDue: Bool?
     private var kanteTask: Task<Void, Never>?
@@ -46,6 +49,7 @@ private final class VisionWorkGate: @unchecked Sendable {
     @Published private(set) var boardingEdgeDescription: String?
     @Published private(set) var kerbMessage: String?
     private var lastKerbCheck = 0.0
+    private var kantePollKey: String?
     var onObservation: ((JSONValue) -> Void)?
     let view = ARSCNView(frame: .zero)
     private let worker = DispatchQueue(label: "rightside.live-ocr", qos: .userInitiated)
@@ -151,24 +155,33 @@ private final class VisionWorkGate: @unchecked Sendable {
     /// Polls the Kante engine every 15 s while the camera runs. The boarding stop id is sent when known;
     /// otherwise the current position (150 m radius). Nothing is sent offline or for simulated journeys.
     private func startKante(context: CameraJourneyContext, token: UUID) {
-        kanteTask?.cancel(); kanteDue = []; kanteVehicles = []
-        guard !context.offline, !context.simulated, context.line != nil else { return }
+        kanteTask?.cancel(); kanteDue = []; kanteVehicles = []; kanteDueAt = nil; kanteVehiclesAt = nil
+        kantePollKey = KanteVehicleFeed.pollKey(station: context.boardingStationID, line: context.line, destination: context.destination,
+                                                offline: context.offline, simulated: context.simulated)
+        guard kantePollKey != nil else { return }
+        /// Body only when the server answered 2xx: URLSession does not throw on 404/502/503 (e.g. during a redeploy).
+        func fetch(_ request: URLRequest) async -> (Data, Int)? {
+            guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            return (data, status)
+        }
         let feed = kante
         kanteTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.running, self.epoch == token else { return }
                 let fix = self.location?.latestLocation.map { GeoPoint(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude) }
                 if self.kanteSupportsDue == nil,
-                   let meta = try? await URLSession.shared.data(for: URLRequest(url: feed.base.appendingPathComponent("api/meta"), timeoutInterval: 8)) {
-                    self.kanteSupportsDue = KanteVehicleFeed.supportsDue(meta.0)
+                   let meta = await fetch(URLRequest(url: feed.base.appendingPathComponent("api/meta"), timeoutInterval: 8)) {
+                    // Latch only on a readable answer; an error page leaves it undecided for the next poll.
+                    self.kanteSupportsDue = KanteVehicleFeed.supportsDue(meta.0, status: meta.1)
                 }
                 if self.kanteSupportsDue == true, let request = feed.dueRequest(station: context.boardingStationID, around: fix),
-                   let response = try? await URLSession.shared.data(for: request), let due = try? KanteVehicleFeed.decodeDue(response.0) {
-                    if self.running, self.epoch == token { self.kanteDue = due }
+                   let response = await fetch(request), (200..<300).contains(response.1), let due = try? KanteVehicleFeed.decodeDue(response.0) {
+                    if self.running, self.epoch == token { self.kanteDue = due; self.kanteDueAt = Date() }
                 } else if self.kanteSupportsDue == false, let fix,
-                          let response = try? await URLSession.shared.data(for: feed.request(around: fix)),
+                          let response = await fetch(feed.request(around: fix)), (200..<300).contains(response.1),
                           let vehicles = try? KanteVehicleFeed.decode(response.0) {
-                    if self.running, self.epoch == token { self.kanteVehicles = vehicles }
+                    if self.running, self.epoch == token { self.kanteVehicles = vehicles; self.kanteVehiclesAt = Date() }
                 }
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
             }
@@ -212,6 +225,11 @@ private final class VisionWorkGate: @unchecked Sendable {
 
     func updateContext(_ context: CameraJourneyContext) {
         guard running else { return }
+        // Another boarding stop or ride, or offline toggled: poll for the new one (or stop polling).
+        if KanteVehicleFeed.pollKey(station: context.boardingStationID, line: context.line, destination: context.destination,
+                                    offline: context.offline, simulated: context.simulated) != kantePollKey {
+            startKante(context: context, token: epoch)
+        }
         if CameraEvidenceLifecycle.contextChanged(self.context, context) {
             invalidateCameraEvidence(.contextChanged)
             invalidateLocalCameraEvidence(.contextChanged)
@@ -298,7 +316,7 @@ private final class VisionWorkGate: @unchecked Sendable {
     func stop() {
         epoch = UUID(); running = false; processing = false
         routeGuide.reset(); routePlan = nil
-        kanteTask?.cancel(); kanteTask = nil; kanteDue = []; kanteVehicles = []
+        kanteTask?.cancel(); kanteTask = nil; kanteDue = []; kanteVehicles = []; kanteDueAt = nil; kanteVehiclesAt = nil; kantePollKey = nil
         cameraReady = false
         invalidateCameraEvidence(.stopped)
         invalidateLocalCameraEvidence(.stopped)
@@ -454,8 +472,9 @@ private final class VisionWorkGate: @unchecked Sendable {
                     ?? context.line.flatMap { line in context.destination.map {
                         VehicleServiceExpectation(line: line, destination: $0, requiresRouteContext: true)
                     } }
-                // Services Kante says are about to stop here join the departure-board candidates.
-                let dueCandidates = VehiclePositionEvidence.candidates(from: self.kanteDue)
+                // Services Kante says are about to stop here join the departure-board candidates (fresh answers only).
+                let freshDue = self.kanteDueAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? self.kanteDue : []
+                let dueCandidates = VehiclePositionEvidence.candidates(from: freshDue)
                 if var e = expected, !dueCandidates.isEmpty {
                     for c in dueCandidates where !e.boardAlternatives.contains(where: { $0.identity == c.identity }) { e.boardAlternatives.append(c) }
                     expected = e
@@ -463,9 +482,12 @@ private final class VisionWorkGate: @unchecked Sendable {
                 let candidates = expected.map { [DisplayCandidate(line: $0.line, destination: $0.destination, isExpected: true)] + $0.boardAlternatives } ?? []
                 let now = Date()
                 let decisions = result.tracks.map { track -> VehicleDecision in
-                    let positions = !self.kanteDue.isEmpty
-                        ? VehiclePositionEvidence.dueLikelihoods(for: track.detection.box, pose: cameraPose, due: self.kanteDue, candidates: candidates, now: now)
-                        : VehiclePositionEvidence.likelihoods(for: track.detection.box, pose: cameraPose, vehicles: self.kanteVehicles, candidates: candidates)
+                    let positions = !freshDue.isEmpty
+                        ? VehiclePositionEvidence.dueLikelihoods(for: track.detection.box, pose: cameraPose, due: freshDue, candidates: candidates,
+                                                                 now: now, fetchedAt: self.kanteDueAt)
+                        : VehiclePositionEvidence.likelihoods(for: track.detection.box, pose: cameraPose,
+                              vehicles: self.kanteVehiclesAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? self.kanteVehicles : [],
+                              candidates: candidates)
                     return VehicleServiceMatcher.decide(track, expected: expected, now: now, positions: positions)
                 }
                 func viewBox(_ upright: CGRect) -> CGRect {
