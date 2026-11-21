@@ -8,6 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
   <title>Maps</title>
+  <!-- three.js for the 3D station view (station3d-solid.js imports 'three'; loaded only when a station opens in 3D) -->
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
+                   "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
+  </script>
   <link rel="stylesheet" href="pricing.css" />
   <link rel="stylesheet" href="ticket-pricing.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
@@ -807,9 +812,12 @@
     .kj .spare small { font-size: 12px; font-weight: 400; }
     .kj .quiet-line { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
     .kj .quiet-line b { color: var(--ink); }
-    /* "3D view": opens the station model (station3d.js) */
-    .kj .view3d { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 8px 8px 2px 0; padding: 0 14px; border-radius: 18px; background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 700; }
-    .kj .view3d:active { opacity: .7; }
+    /* the ways to see a walk step: "3D view" (the station in 3D, station-view.js), and others that join the row */
+    .kj .step-views { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 2px; }
+    .kj .step-views:empty { display: none; }
+    .kj .step-views > button { margin: 0; }
+    .kj .view3d, .kj .step-views > button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 8px 8px 2px 0; padding: 0 14px; border-radius: 18px; background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 700; }
+    .kj .view3d:active, .kj .step-views > button:active { opacity: .7; }
     /* AR camera (src/app/65-ar.ts): drawn over Scan's live view; no photo button */
     .ar-mode .sv-top > .sv-btn:last-child { display: none; }
     .ar-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
