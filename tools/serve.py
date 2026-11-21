@@ -62,10 +62,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return io.BytesIO(body)
 
 
+class Server(http.server.ThreadingHTTPServer):
+    # The app asks for some twenty files at once, and behind a proxy (tailscale serve) each request is a connection
+    # of its own. With Python's default of 5 waiting connections the rest are refused and the proxy answers 502.
+    request_queue_size = 128
+
+
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     bind = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
-    server = http.server.ThreadingHTTPServer((bind, port), Handler)
+    server = Server((bind, port), Handler)
     print(f"Serving {ROOT} at http://{'localhost' if bind in ('127.0.0.1', '0.0.0.0') else bind}:{port}/", flush=True)
     try:
         server.serve_forever()

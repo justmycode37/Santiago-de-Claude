@@ -52,8 +52,9 @@
   const WALK_MPS = 2.2;      // stand-in walk: metres of the route per second (38 m in about 17 s)
   const WALK_DELAY = 1700;   // …and how long after the view opened it sets off (the view first swings down to eye level)
 
-  // Starts the demo inside `host`. `onState` hears 'arrived' (the walk is at its destination; the view stays open)
-  // and 'error' (it could not be shown; the view says why). `over` resolves once the view has gone:
+  // Starts the demo inside `host`. `onState` hears 'arrived' (the walk is at its destination; the view stays open),
+  // 'error' (it could not be shown; the view says why and offers "Try again") and 'playing' (it runs after all).
+  // `over` resolves once the view has gone:
   // 'finished' (after arriving), 'skipped' (before) or 'unavailable'. close() ends it from outside.
   function startDemo(host, onState) {
     const S = window.Station3D;
@@ -78,8 +79,10 @@
     offs.push(S.on('step', (e) => { if (e && e.step && e.step.kind === 'arrive') arrive(); })); // Next, up to the last step
     offs.push(S.on('error', () => { failed = true; onState('error'); }));
     offs.push(S.on('close', finish));                                            // the view's own ✕, Done or the back gesture
-    offs.push(S.on('open', () => {
-      if (typeof S.play !== 'function' && !walker) walker = standInWalk(host, arrive);
+    offs.push(S.on('open', () => {                                               // also after the view's "Try again"
+      if (failed) { failed = false; onState('playing'); }
+      if (walker) walker.stop();
+      walker = typeof S.play !== 'function' && !arrived ? standInWalk(host, arrive) : null;
     }));
     try {
       S.open({ ...DEMO_WALK, pov: true, play: true, prefs: SETTINGS.journey(), mount: host });
@@ -170,8 +173,10 @@
 
     <div class="ob-demo" data-page="demo" hidden>
       <h1 class="ob-sr" id="obT-demo" tabindex="-1">The demo: a walk across Hirschengraben</h1>
-      <button class="ob-skip" id="obSkip" type="button">Skip</button>
       <div id="obDemoHost"></div>
+      <div class="ob-actions">
+        <button class="ob-btn soft" id="obSkip" type="button">Skip the demo</button>
+      </div>
       <p class="ob-sr" id="obDemoSay" role="status"></p>
     </div>
 
@@ -304,13 +309,17 @@
 
   function runDemo() {
     const skip = $('#obSkip'), say = $('#obDemoSay');
-    skip.textContent = 'Skip';
-    skip.classList.remove('go');
-    say.textContent = '';
+    const waiting = () => {
+      skip.textContent = 'Skip the demo';
+      skip.className = 'ob-btn soft';
+      say.textContent = '';
+    };
+    waiting();
     page('demo');
     const mine = demo = startDemo($('#obDemoHost'), (state) => {
+      if (state === 'playing') return waiting();
       skip.textContent = 'Continue';
-      skip.classList.add('go');
+      skip.className = 'ob-btn primary go';
       say.textContent = state === 'error' ? 'The demo can’t be shown here. Continue to the questions.' : 'You have arrived. Continue to the questions.';
       if (state === 'arrived') skip.focus({ preventScroll: true });
     });
