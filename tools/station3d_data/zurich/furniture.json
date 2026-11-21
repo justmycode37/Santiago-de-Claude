@@ -85,7 +85,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985505"
+"source_id": "276985505",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -96,7 +97,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985509"
+"source_id": "276985509",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -107,7 +109,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985510"
+"source_id": "276985510",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -118,7 +121,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985508"
+"source_id": "276985508",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -129,7 +133,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "303405634"
+"source_id": "303405634",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -140,7 +145,8 @@
 "mounting": "BA-Gebaeude",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985574"
+"source_id": "276985574",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -151,7 +157,8 @@
 "mounting": "BA-Gebaeude",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985578"
+"source_id": "276985578",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -162,7 +169,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163216871"
+"source_id": "163216871",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -173,7 +181,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163367616"
+"source_id": "163367616",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -184,7 +193,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163217304"
+"source_id": "163217304",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -195,7 +205,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163327150"
+"source_id": "163327150",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -206,7 +217,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163327149"
+"source_id": "163327149",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -217,7 +229,8 @@
 "mounting": "BA-Dach_BE Alte Haupthalle",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "332169378"
+"source_id": "332169378",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -338,7 +351,8 @@
 "mounting": "FS-Mast 43",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985900"
+"source_id": "276985900",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -349,7 +363,8 @@
 "mounting": "BA-Ausruestungsstaender Kombistander",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985735"
+"source_id": "276985735",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -360,7 +375,8 @@
 "mounting": "BA-Dach_BE Uberdachung Aufgang",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985494"
+"source_id": "276985494",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -371,7 +387,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985747"
+"source_id": "276985747",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -382,7 +399,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985525"
+"source_id": "276985525",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -393,7 +411,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985757"
+"source_id": "276985757",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -404,7 +423,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985562"
+"source_id": "276985562",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -415,7 +435,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985577"
+"source_id": "276985577",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -426,7 +447,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163368156"
+"source_id": "163368156",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -437,7 +459,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163217166"
+"source_id": "163217166",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -448,7 +471,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163330055"
+"source_id": "163330055",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -459,7 +483,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163329183"
+"source_id": "163329183",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -470,7 +495,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163327177"
+"source_id": "163327177",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -481,7 +507,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163327176"
+"source_id": "163327176",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -492,7 +519,8 @@
 "mounting": "BA-Dach_BE Querhalle",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "176434621"
+"source_id": "176434621",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -602,7 +630,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985506"
+"source_id": "276985506",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -613,7 +642,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985528"
+"source_id": "276985528",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -624,7 +654,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985552"
+"source_id": "276985552",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -635,7 +666,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985568"
+"source_id": "276985568",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -646,7 +678,8 @@
 "mounting": "BA-Gebaeude",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985572"
+"source_id": "276985572",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -657,7 +690,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163368199"
+"source_id": "163368199",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -668,7 +702,8 @@
 "mounting": "BA-Ausruestungsstaender Kombistander",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "202490358"
+"source_id": "202490358",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -679,7 +714,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163216932"
+"source_id": "163216932",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -690,7 +726,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163217303"
+"source_id": "163217303",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -701,7 +738,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163327460"
+"source_id": "163327460",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -712,7 +750,8 @@
 "mounting": "BA-Dach_BE Alte Haupthalle",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "332169375"
+"source_id": "332169375",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -833,7 +872,8 @@
 "mounting": "BA-Dach_BE Prov.Dach Gleis 18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985739"
+"source_id": "276985739",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -844,7 +884,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985527"
+"source_id": "276985527",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -855,7 +896,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985869"
+"source_id": "276985869",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -866,7 +908,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985861"
+"source_id": "276985861",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -888,7 +931,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163367617"
+"source_id": "163367617",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -899,7 +943,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163330054"
+"source_id": "163330054",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -910,7 +955,8 @@
 "mounting": "BA-Dach_BE Dach uber Gleis 3/4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "176386361"
+"source_id": "176386361",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -921,7 +967,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163329179"
+"source_id": "163329179",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -932,7 +979,8 @@
 "mounting": "BA-Dach_BE Alte Haupthalle",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "38857470"
+"source_id": "38857470",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1075,7 +1123,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985876"
+"source_id": "276985876",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1086,7 +1135,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985751"
+"source_id": "276985751",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1097,7 +1147,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985555"
+"source_id": "276985555",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1108,7 +1159,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985561"
+"source_id": "276985561",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1119,7 +1171,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985550"
+"source_id": "276985550",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1130,7 +1183,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985795"
+"source_id": "276985795",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1141,7 +1195,8 @@
 "mounting": "BA-Dach_BE Dach u. Gleis 17/18",
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985564"
+"source_id": "276985564",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1152,7 +1207,8 @@
 "mounting": null,
 "level": -3,
 "source": "SBB haltestelle-uhr",
-"source_id": "276985566"
+"source_id": "276985566",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1163,7 +1219,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163368198"
+"source_id": "163368198",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1174,7 +1231,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163216881"
+"source_id": "163216881",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1185,7 +1243,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163216929"
+"source_id": "163216929",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1196,7 +1255,8 @@
 "mounting": null,
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163368157"
+"source_id": "163368157",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1207,7 +1267,8 @@
 "mounting": "BA-Dach_BE Langshalle 4",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163217104"
+"source_id": "163217104",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1218,7 +1279,8 @@
 "mounting": "BA-Dach_BE Langshalle 3",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "163327462"
+"source_id": "163327462",
+"level_from": "sbb_section"
 },
 {
 "kind": "clock",
@@ -1229,7 +1291,8 @@
 "mounting": "BA-Dach_BE Alte Haupthalle",
 "level": -4,
 "source": "SBB haltestelle-uhr",
-"source_id": "332169377"
+"source_id": "332169377",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1240,7 +1303,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000329"
+"source_id": "03000329",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1251,7 +1315,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000327"
+"source_id": "03000327",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1262,7 +1327,8 @@
 "mounting": "S-POS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "ID03000278"
+"source_id": "ID03000278",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1273,7 +1339,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "ID03000314"
+"source_id": "ID03000314",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1284,7 +1351,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000332"
+"source_id": "03000332",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1295,7 +1363,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000330"
+"source_id": "03000330",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1306,7 +1375,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "ID03000313"
+"source_id": "ID03000313",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1317,7 +1387,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000331"
+"source_id": "03000331",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1328,7 +1399,8 @@
 "mounting": "S-POS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000288"
+"source_id": "03000288",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1339,7 +1411,8 @@
 "mounting": "S-POS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "ID03000279"
+"source_id": "ID03000279",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1350,7 +1423,8 @@
 "mounting": "ePOS",
 "level": -4,
 "source": "SBB billetautomat",
-"source_id": "03000328"
+"source_id": "03000328",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1361,7 +1435,8 @@
 "mounting": "ePOS",
 "level": -3,
 "source": "SBB billetautomat",
-"source_id": "03000334"
+"source_id": "03000334",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1372,7 +1447,8 @@
 "mounting": "ePOS",
 "level": -3,
 "source": "SBB billetautomat",
-"source_id": "03000324"
+"source_id": "03000324",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
@@ -1383,7 +1459,8 @@
 "mounting": "ePOS",
 "level": -3,
 "source": "SBB billetautomat",
-"source_id": "03000326"
+"source_id": "03000326",
+"level_from": "sbb_section"
 },
 {
 "kind": "ticket_machine",
