@@ -17,6 +17,12 @@ const CHECKED = "2026-11-21";
 const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36" };
 
 // ---- sources (all read on CHECKED). gov = public authority page; everything else gets licence_unclear: true ----
+interface HelpSource {
+  name: string;
+  url: string;
+  live?: boolean; // fetched on every build (the others are hand-copied)
+  gov?: boolean;
+}
 const S = {
   tdd: { name: "Tischlein deck dich – operator map feed", url: "https://kkonlinerestapi.tischlein.ch/abgabestelle", live: true },
   caritas: { name: "Caritas-Markt – shop list on caritas-markt.ch", url: "https://caritas-markt.ch/de", live: true },
@@ -52,20 +58,61 @@ const S = {
   h143: { name: "Die Dargebotene Hand 143", url: "https://www.143.ch/" },
   h147: { name: "Pro Juventute 147", url: "https://www.147.ch/de/" },
   h142: { name: "Opferhilfe Schweiz 142", url: "https://www.opferhilfe-schweiz.ch/de/" },
-};
+} satisfies Record<string, HelpSource>;
 const LICENCE_NOTE = null; // no source states a licence
 
-const FIELDS = ["id", "network", "category", "name", "organisation", "address", "postcode", "city", "canton", "lat", "lon", "phone", "website",
-  "opening_hours", "who_for", "cost", "notes", "source_url", "source_checked", "confidence", "licence_unclear"];
-const item = (src, o) => ({ ...Object.fromEntries(FIELDS.map((f) => [f, null])), source_url: S[src].url, source_checked: CHECKED,
-  licence_unclear: !S[src].gov, _src: src, ...o });
+type SourceKey = keyof typeof S;
+type HelpChCategory = "food_distribution" | "public_fridge" | "second_hand" | "toilets_partner" | "shelter" | "soup_kitchen";
+type Pin = [lat: number, lon: number];
+// One row of `items` in data/ch/help-ch.json (docs/data-ch-help.md). Unknown = null.
+interface HelpChItem {
+  id: string;
+  network: string; // "tischlein-deck-dich", "madame-frigo", "local-<city>", ...
+  category: HelpChCategory;
+  name: string;
+  organisation: string | null;
+  address: string | null; // street line only
+  postcode: string | null;
+  city: string | null;
+  canton: string | null; // "BE"
+  lat: number | null;
+  lon: number | null;
+  phone: string | null;
+  website: string | null;
+  opening_hours: string | null;
+  who_for: string | null;
+  cost: string | null;
+  notes: string | null;
+  source_url: string;
+  source_checked: string; // YYYY-MM-DD
+  confidence: "high" | "medium" | "low";
+  licence_unclear: boolean;
+}
+// An item while it is built: the `_` fields feed the geocoder and the checks and are not written to the file.
+interface HelpChDraft extends HelpChItem {
+  _src: SourceKey;
+  _street?: string | null;
+  _plz?: string | null;
+  _town?: string | null;
+  _pin?: Pin | null; // the operator's own map pin
+  _canton?: string | null; // canton already looked up at the pin
+}
+// What item() is given: these fields are required, every other one defaults to null.
+type HelpChInput = Partial<HelpChDraft> & Pick<HelpChDraft, "id" | "network" | "category" | "name" | "confidence">;
 
-function slug(s) {
+const FIELDS: (keyof HelpChItem)[] = ["id", "network", "category", "name", "organisation", "address", "postcode", "city", "canton", "lat", "lon", "phone", "website",
+  "opening_hours", "who_for", "cost", "notes", "source_url", "source_checked", "confidence", "licence_unclear"];
+const item = (src: SourceKey, o: HelpChInput) => ({ ...Object.fromEntries(FIELDS.map((f) => [f, null])), source_url: S[src].url, source_checked: CHECKED,
+  licence_unclear: !(S[src] as HelpSource).gov, _src: src, ...o }) as HelpChDraft;
+
+function slug(s: string) {
   return s.toLowerCase().replace(/ß/g, "ss").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 assert.equal(slug("Café Tscharni – Bümpliz"), "cafe-tscharni-bumpliz");
 
-async function get(url, as = "text", tries = 3) {
+function get(url: string, as?: "text", tries?: number): Promise<string>;
+function get<T>(url: string, as: "json", tries?: number): Promise<T>;
+async function get(url: string, as = "text", tries = 3) {
   for (let i = 1; ; i++) {
     try {
       const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(60000) });
@@ -74,12 +121,12 @@ async function get(url, as = "text", tries = 3) {
     } catch (e) { if (i >= tries) throw e; await new Promise((r) => setTimeout(r, 1000 * i)); }
   }
 }
-async function mapLimit(arr, n, fn) {
+async function mapLimit<T, R>(arr: T[], n: number, fn: (x: T) => Promise<R>) {
   const out = [];
   for (let i = 0; i < arr.length; i += n) out.push(...(await Promise.all(arr.slice(i, i + n).map(fn))));
   return out;
 }
-const km = (a, b) => { // haversine, [lat, lon]
+const km = (a: Pin, b: Pin) => { // haversine, [lat, lon]
   const r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(h));
@@ -87,20 +134,36 @@ const km = (a, b) => { // haversine, [lat, lon]
 assert(Math.abs(km([46.948, 7.4474], [47.3769, 8.5417]) - 95.5) < 1);
 
 // ---- live feeds ----
-const fetched = {};
-async function feed(key, fn) {
+const fetched: Record<string, boolean> = {};
+async function feed(key: SourceKey, fn: () => Promise<HelpChDraft[]>) {
   try { const r = await fn(); fetched[key] = true; return r; } catch (e) {
-    fetched[key] = false; console.error(`FEED FAILED ${key}: ${e.message}`);
+    fetched[key] = false; console.error(`FEED FAILED ${key}: ${(e as Error).message}`);
     if (process.env.ALLOW_PARTIAL !== "1") throw e;
     return [];
   }
 }
 const DAY = { Montag: "Mon", Dienstag: "Tue", Mittwoch: "Wed", Donnerstag: "Thu", Freitag: "Fri", Samstag: "Sat", Sonntag: "Sun" };
-function hm(t) { const [h, m] = t.split("."); return `${h.padStart(2, "0")}:${(m ?? "00").padEnd(2, "0")}`; }
+function hm(t: string) { const [h, m] = t.split("."); return `${h.padStart(2, "0")}:${(m ?? "00").padEnd(2, "0")}`; }
 assert.equal(hm("9.00"), "09:00"); assert.equal(hm("16.15"), "16:15");
 
+type Wochentag = "Montag" | "Dienstag" | "Mittwoch" | "Donnerstag" | "Freitag" | "Samstag" | "Sonntag";
+// One distribution point in the Tischlein deck dich map feed, as far as it is read.
+interface TddRow {
+  firma1: string; // "AS Bern-West"
+  firma2: string | null;
+  strasse: string;
+  plz: string;
+  ort: string;
+  telefon: string | null;
+  telefon_direkt: string | null;
+  oeffnung_wochentag: Wochentag;
+  oeffnung_zeit_start: string; // "9.00"
+  oeffnung_zeit_end: string;
+  bemerkung_oeffnungszeit: string | null;
+  koordinaten: string | null; // "lat,lon"
+}
 const tdd = await feed("tdd", async () => {
-  const rows = await get(S.tdd.url, "json");
+  const rows = await get<TddRow[]>(S.tdd.url, "json");
   assert(rows.length >= 150, `Tischlein feed: only ${rows.length} rows`);
   return rows.map((r) => {
     const name = r.firma1.replace(/^AS /, "");
@@ -112,7 +175,7 @@ const tdd = await feed("tdd", async () => {
       opening_hours: `${DAY[r.oeffnung_wochentag] ?? r.oeffnung_wochentag} ${hm(r.oeffnung_zeit_start)}-${hm(r.oeffnung_zeit_end)}` + (r.bemerkung_oeffnungszeit ? ` (${r.bemerkung_oeffnungszeit})` : ""),
       who_for: "People in need with a Tischlein deck dich customer card (issued by selected social agencies after checking the household's finances; valid one year)",
       cost: "CHF 1 per visit (per Heilsarmee Zürich directory 30.09.2026; not stated in the feed)",
-      notes: "Bring your own bag. Card holders pick one fixed distribution point.", _pin: pin?.length === 2 && pin.every(Boolean) ? pin : null, confidence: "high",
+      notes: "Bring your own bag. Card holders pick one fixed distribution point.", _pin: pin?.length === 2 && pin.every(Boolean) ? pin as Pin : null, confidence: "high",
     });
   });
 });
@@ -128,9 +191,9 @@ const caritas = await feed("caritas", async () => {
     if (!addr) continue; // "Projekte" (Genf West, Zürich West) have no address
     const zi = addr.findIndex((l) => /^\d{4} /.test(l));
     assert(zi > 0, `Caritas-Markt ${title}: no postcode line`);
-    const [, plz, town] = addr[zi].match(/^(\d{4}) (.+)$/);
+    const [, plz, town] = addr[zi].match(/^(\d{4}) (.+)$/)!;
     out.push(item("caritas", {
-      id: "caritas-markt-" + slug(title), network: "caritas-markt", category: "food_distribution", name: `Caritas-Markt ${title}`, organisation: "Caritas-Markt (Genossenschaft)",
+      id: "caritas-markt-" + slug(title!), network: "caritas-markt", category: "food_distribution", name: `Caritas-Markt ${title}`, organisation: "Caritas-Markt (Genossenschaft)",
       _street: addr[0], _plz: plz, _town: town, phone: addr.slice(zi + 1).find((l) => /^\d{3} \d{3}/.test(l)) ?? null, website: "https://caritas-markt.ch/",
       opening_hours: hours?.slice(1).join("; ").replace(/\s*Uhr/g, "") || null,
       who_for: "Only people on social assistance, AHV/IV supplementary benefits, premium subsidies, scholarships, income at subsistence level, permit N/F/S, sans-papiers, or KulturLegi holders",
@@ -161,13 +224,13 @@ const frigo = await feed("frigo", async () => {
   const fh = await get(S.frigo.url);
   // each fridge is printed as a PHP array dump: [ID], [title], [address] => Array([street], [plz], [city]), [lat]/[lng]
   const out = fh.split("<pre>Array").slice(1).map((b) => {
-    const g = (re) => b.match(re)?.[1]?.trim();
+    const g = (re: RegExp) => b.match(re)?.[1]?.trim();
     const street = g(/\[street\] => (.*)/), title = g(/\[title\] => (.*)/);
     return item("frigo", {
       id: "frigo-" + g(/\[ID\] => (\d+)/), network: "madame-frigo", category: "public_fridge", name: `Madame Frigo – ${title}`, organisation: "Madame Frigo (volunteers)",
-      _street: street.replace(/\s+[–-]\s+.*$/, ""), _plz: g(/\[plz\] => (.*)/), _town: g(/\[city\] => (.*)\n\s*\[link\]/),
-      _pin: [+g(/\[lat\] =>\s*([\d.]+)/), +g(/\[lng\] =>\s*([\d.]+)/)], website: "https://www.madamefrigo.ch/", cost: "free", who_for: "Everyone",
-      notes: ["Bring food you don't need, take what you need.", /[–-]\s/.test(street) ? `Location detail: ${street}` : null].filter(Boolean).join(" "), confidence: "medium",
+      _street: street!.replace(/\s+[–-]\s+.*$/, ""), _plz: g(/\[plz\] => (.*)/), _town: g(/\[city\] => (.*)\n\s*\[link\]/),
+      _pin: [+g(/\[lat\] =>\s*([\d.]+)/)!, +g(/\[lng\] =>\s*([\d.]+)/)!], website: "https://www.madamefrigo.ch/", cost: "free", who_for: "Everyone",
+      notes: ["Bring food you don't need, take what you need.", /[–-]\s/.test(street!) ? `Location detail: ${street}` : null].filter(Boolean).join(" "), confidence: "medium",
     });
   });
   assert(out.length >= 150, `Madame Frigo: only ${out.length} fridges`);
@@ -175,14 +238,26 @@ const frigo = await feed("frigo", async () => {
 });
 
 // ---- canton lookup at a point (also our "inside Switzerland" test: no canton = outside) ----
-const cantonAt = async ([lat, lon]) => (await get(`https://api3.geo.admin.ch/rest/services/api/MapServer/identify?geometry=${lon},${lat}&geometryType=esriGeometryPoint&sr=4326&layers=all:ch.swisstopo.swissboundaries3d-kanton-flaeche.fill&tolerance=0&returnGeometry=false`, "json")).results[0]?.attributes.ak ?? null;
+// api3.geo.admin.ch identify on the canton layer: `ak` is the canton abbreviation.
+interface CantonIdentifyAnswer {
+  results: { attributes: { ak: string } }[];
+}
+const cantonAt = async ([lat, lon]: Pin) => (await get<CantonIdentifyAnswer>(`https://api3.geo.admin.ch/rest/services/api/MapServer/identify?geometry=${lon},${lat}&geometryType=esriGeometryPoint&sr=4326&layers=all:ch.swisstopo.swissboundaries3d-kanton-flaeche.fill&tolerance=0&returnGeometry=false`, "json")).results[0]?.attributes.ak ?? null;
 
+// foodsharing.de map marker and food-share-point detail, as far as they are read.
+interface FoodsharingMarker { id: number; name: string; lat: number; lon: number }
+interface FoodSharePoint {
+  status: number; // 1 = active
+  name: string;
+  address?: { street?: string | null; postalCode?: string | null; city?: string | null } | null;
+  location: { lat: number; lon: number };
+}
 const foodsharing = await feed("foodsharing", async () => {
-  const markers = (await get(S.foodsharing.url, "json")).filter((p) => p.lat > 45.8 && p.lat < 47.85 && p.lon > 5.9 && p.lon < 10.5
+  const markers = (await get<FoodsharingMarker[]>(S.foodsharing.url, "json")).filter((p) => p.lat > 45.8 && p.lat < 47.85 && p.lon > 5.9 && p.lon < 10.5
     && !/frigo|geschlossen|aufgehoben/i.test(p.name)); // Madame Frigo fridges are already in the frigo feed
   const swiss = (await mapLimit(markers, 8, async (p) => ({ p, canton: await cantonAt([p.lat, p.lon]) }))).filter((x) => x.canton);
   const out = await mapLimit(swiss, 8, async ({ p, canton }) => {
-    const d = await get(`https://foodsharing.de/api/food-share-points/${p.id}`, "json"); // creator/manager names deliberately not kept
+    const d = await get<FoodSharePoint>(`https://foodsharing.de/api/food-share-points/${p.id}`, "json"); // creator/manager names deliberately not kept
     if (d.status !== 1) return null;
     return item("foodsharing", {
       id: "foodsharing-" + p.id, network: "foodsharing", category: "public_fridge", name: d.name.trim(), organisation: "foodsharing (volunteers)",
@@ -192,15 +267,15 @@ const foodsharing = await feed("foodsharing", async () => {
       source_url: `https://foodsharing.de/fairteiler/${p.id}`, confidence: "medium",
     });
   });
-  return out.filter(Boolean);
+  return out.filter(Boolean) as HelpChDraft[];
 });
 
 const brocki = await feed("brocki", async () => {
   const h = await get(S.brocki.url);
-  const seen = [];
+  const seen: Pin[] = [];
   const out = [];
   for (const m of h.matchAll(/data-lat="([\d.]+)" data-lng="([\d.]+)"><a class="filialen__item-title" href="([^"]+)">([^<]+)<\/a>(?:<div class="filialen__item-extra">(.*?)<\/div>)?/g)) {
-    const [, lat, lon, href, title, extra] = m, pin = [+lat, +lon];
+    const [, lat, lon, href, title, extra] = m, pin: Pin = [+lat, +lon];
     if (seen.some((p) => km(p, pin) < 0.1)) continue; // Biel/Bienne is listed in both the German and French lists
     seen.push(pin);
     const lines = extra?.split("<br>").map((s) => s.trim()) ?? [];
@@ -220,7 +295,8 @@ const brocki = await feed("brocki", async () => {
 });
 
 // ---- hand-copied: Nette Toilette flyers ----
-const nette = (src, cityName, rows, cost) => rows.map(([name, street, oh, notes]) => item(src, {
+type NetteRow = [name: string, street: string, opening_hours: string, notes: string | null];
+const nette = (src: SourceKey, cityName: string, rows: NetteRow[], cost: string | null) => rows.map(([name, street, oh, notes]) => item(src, {
   id: `nette-toilette-${slug(cityName)}-${slug(name)}`, network: "nette-toilette", category: "toilets_partner", name: `Nette Toilette – ${name}`,
   _street: street, _town: cityName, opening_hours: oh, cost, who_for: "Everyone (no purchase needed per the scheme)",
   notes: ["Look for the 'nette Toilette' sticker at the entrance; only during the venue's opening hours.", notes].filter(Boolean).join(" "),
@@ -295,7 +371,10 @@ const ntSolothurn = nette("ntSolothurn", "Solothurn", [ // flyer items 1, 6, 16,
 ], null);
 
 // ---- hand-copied: night shelters and soup kitchens in the largest cities (Bern: see data/help.json) ----
-const local = (city, src, category, name, o) => item(src, { id: `${slug(city)}-${slug(name)}`, network: `local-${slug(city)}`, category, name, _town: city, ...o });
+type LocalInput = Partial<HelpChDraft> & Pick<HelpChDraft, "confidence">;
+type GeMealRow = [name: string, organisation: string | null, street: string, opening_hours: string, notes: string | null];
+type LsShelterRow = [name: string, organisation: string | null, street: string, postcode: string | null, phone: string, opening_hours: string, notes: string];
+const local = (city: string, src: SourceKey, category: HelpChCategory, name: string, o: LocalInput) => item(src, { id: `${slug(city)}-${slug(name)}`, network: `local-${slug(city)}`, category, name, _town: city, ...o });
 const LS_ACCESS = "Free. Adults living in Lausanne and accompanied minors with no other place to sleep. Reserve in person by day at the Bureau des réservations, Rue Saint-Martin 12 (Mon, Wed, Fri 14:00-16:45, closed on public holidays); no ID papers needed; shelters are often full.";
 const GE = "Ville de Genève leaflet 'Lieux d'accueil d'urgence', July 2026 (no postcodes in the leaflet).";
 const city = [
@@ -363,7 +442,7 @@ const city = [
     opening_hours: "Daily 19:00-08:00", cost: "free, subject to admission criteria",
     who_for: "Homeless people; 80 places (50 men, 27 women, 3 emergency)",
     notes: "No direct admission: first call the free line 0800 22 22 10 (Mon-Fri 10:30-20:00, Sat-Sun 15:00-20:00), then reception at the Club social rive droite. Evening meal, breakfast, showers, luggage storage.", confidence: "high" }),
-  ...[["Club social rive gauche", "Ville de Genève, Service social", "Rue Hugo-de-Senger 4", "Mon-Fri breakfast 08:00-09:15, lunch in 3 services 11:00/12:00/13:00; Sat lunch 11:00-12:00 (take-away only); Sun lunch 11:00/12:00/13:00", "Meal tickets Mon-Fri from 08:00, Sun from 10:30."],
+  ...([["Club social rive gauche", "Ville de Genève, Service social", "Rue Hugo-de-Senger 4", "Mon-Fri breakfast 08:00-09:15, lunch in 3 services 11:00/12:00/13:00; Sat lunch 11:00-12:00 (take-away only); Sun lunch 11:00/12:00/13:00", "Meal tickets Mon-Fri from 08:00, Sun from 10:30."],
     ["Le CARÉ", null, "Rue du Grand-Bureau 13", "Mon, Tue, Wed, Fri brunch 08:40-10:00 and 13:30-15:00; Thu brunch 08:40-10:00; Mon-Fri lunch at table 12:00-13:00; Sat lunch 11:45-13:00 (December-March)", "Closed the 3rd Thursday of the month. Also showers and emergency clothing on request."],
     ["Jardin de Montbrillant / Bus Car Touche", "Carrefour-Rue", "Rue de Montbrillant 3", "Tue, Wed breakfast 09:00-11:00 and lunch 11:00-12:30; Thu-Sat lunch 11:00-12:30; Sun lunch 11:00-12:30 (1st Sunday of the month)", "Breakfast at the Bus Car Touche, meals at the Jardin de Montbrillant."],
     ["Le Bateau Genève", null, "Quai Gustave-Ador", "Mon-Fri breakfast 07:30-09:30; Mon, Thu hot meal 10:00-11:00; Tue, Wed, Fri hot drinks 09:30-11:00; Sun dinner 17:00-19:30 (twice a month, alternating with Resto'Scout)", "No house number on the leaflet; coordinates are a point on the quay."],
@@ -374,14 +453,14 @@ const city = [
     ["SGS Solidarité Pâquis", null, "Place de la Navigation", "Sat lunch 12:00", "No house number on the leaflet; coordinates are a point on the square."],
     ["Refettorio Geneva", null, "Rue de Lyon 120", "Mon-Fri lunch 12:00-13:30 (doors 11:30), dinner 18:00 (doors 17:30)", "Meal tickets: lunch at Le Phare and on site; dinner tickets at Le CARÉ, La Roseraie, and Tue-Fri also Jardin de Montbrillant, Le Phare, Le Bateau."],
     ["Femmes à Bord", null, "Avenue de Riant-Parc 23", "Mon, Thu meal 10:30-14:30; Tue hot drinks and snack 14:00-17:00", "Women only, no children. 1st Tuesday of the month: outing."],
-  ].map(([n, org, st, oh, nt]) => local("Genève", "geLeaflet", "soup_kitchen", n, { organisation: org, _street: st, opening_hours: oh, cost: null,
+  ] satisfies GeMealRow[]).map(([n, org, st, oh, nt]) => local("Genève", "geLeaflet", "soup_kitchen", n, { organisation: org, _street: st, opening_hours: oh, cost: null,
     who_for: n === "Femmes à Bord" ? "Women" : "People who are homeless or in precarious situations", notes: [nt, GE].filter(Boolean).join(" "), confidence: "high" })),
   // Lausanne
-  ...[["Etape Saint-Martin", null, "Rue Saint-Martin 16", "1003", "+41 21 315 72 69", "Every night 21:00-08:00", "45 places."],
+  ...([["Etape Saint-Martin", null, "Rue Saint-Martin 16", "1003", "+41 21 315 72 69", "Every night 21:00-08:00", "45 places."],
     ["La Marmotte", "Armée du Salut", "Rue du Vallon 17", "1005", "+41 21 311 79 12", "Every night 21:00-08:00", "Up to 31 people; evening meal and morning snack for residents."],
     ["Sleep-In", null, "Chemin de l'Usine à gaz 10", "1020", "+41 21 625 66 77", "Every night 21:00-09:00", "Up to 26 people. In Renens."],
     ["Tivoli 12", "Ville de Lausanne", "Avenue de Tivoli 12", "1007", "+41 79 890 27 71", "Every night 21:00-08:00", "49 places, all year."],
-    ["Berne 34", "Ville de Lausanne", "Route de Berne 34", null, "+41 79 669 98 97", "Every night 21:00-08:00", "62 places, some reserved for women."]]
+    ["Berne 34", "Ville de Lausanne", "Route de Berne 34", null, "+41 79 669 98 97", "Every night 21:00-08:00", "62 places, some reserved for women."]] satisfies LsShelterRow[])
     .map(([n, org, st, plz, ph, oh, nt]) => local(n === "Sleep-In" ? "Renens" : "Lausanne", "lsShelter", "shelter", n, { id: `lausanne-${slug(n)}`, network: "local-lausanne",
       organisation: org, _street: st, _plz: plz, phone: ph, opening_hours: oh, cost: "free", who_for: LS_ACCESS, notes: nt, confidence: "high" })),
   local("Lausanne", "lsSoupe", "soup_kitchen", "La Soupe populaire", { organisation: "Fondation Mère Sofia", _street: "Rue Saint-Martin 12", _plz: "1003", phone: "078 626 43 22",
@@ -411,7 +490,20 @@ const city = [
 ];
 
 // ---- national hotlines (no addresses; never a domestic-violence shelter address) ----
-const hl = (number, name, purpose, src, o = {}) => ({ id: "hotline-" + number.replace(/\D/g, ""), number, name, purpose, hours: null, cost: null, scope: "Switzerland",
+// One row of `hotlines` in data/ch/help-ch.json.
+interface Hotline {
+  id: string;
+  number: string;
+  name: string;
+  purpose: string;
+  hours: string | null;
+  cost: string | null;
+  scope: string;
+  notes: string | null;
+  source_url: string;
+  source_checked: string;
+}
+const hl = (number: string, name: string, purpose: string, src: SourceKey, o: Partial<Hotline> = {}): Hotline => ({ id: "hotline-" + number.replace(/\D/g, ""), number, name, purpose, hours: null, cost: null, scope: "Switzerland",
   notes: null, source_url: S[src].url, source_checked: CHECKED, ...o });
 const hotlines = [
   hl("112", "European emergency number", "General emergency; handled by the police", "kapoTg", { hours: "24/7" }),
@@ -431,10 +523,14 @@ const hotlines = [
 ];
 
 // ---- geocoding ----
-const de = (x) => x.toLowerCase().replace(/ß/g, "ss").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").normalize("NFD").replace(/[̀-ͯ]/g, "");
+// swisstopo SearchServer answer (type=locations, origins=address, sr=4326), as far as it is read.
+interface SearchAnswer {
+  results: { attrs: { detail: string; lat: number; lon: number } }[];
+}
+const de = (x: string) => x.toLowerCase().replace(/ß/g, "ss").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").normalize("NFD").replace(/[̀-ͯ]/g, "");
 // detail looks like "rosengartenstrasse 30 8037 zuerich 261 zuerich ch zh". Same house number (if any), the street's longest
 // word, and same postcode or same town (postbox postcodes are not address postcodes, so town alone is enough).
-function addrOk(detail, street, plz, town) {
+function addrOk(detail: string, street: string, plz: string | null | undefined, town: string | null | undefined) {
   const m = de(detail).match(/^(.*?) (?:(\d+)[\w.]* )?(\d{4}) (.*) ch (\w\w)$/);
   if (!m) return false;
   const num = street.match(/ (\d+)[a-z]?(?:-\d+)?$/i)?.[1];
@@ -451,17 +547,17 @@ assert(!addrOk("bahnhofplatz 2 9100 herisau 3001 herisau ch ar", "Bahnhofplatz 2
 assert(!addrOk("bahnhofplatz 12 3011 bern 351 bern ch be", "Bahnhofplatz 2", "3011", "Bern"));
 assert(!addrOk("rue de carouge 53 1227 carouge 6608 carouge ch ge", "Rue de Carouge 53", "1205", "Genf"));
 
-async function geocode(street, plz, town) {
+async function geocode(street: string, plz: string | null | undefined, town: string | null | undefined) {
   const q = [street, plz, town].filter(Boolean).join(" ");
-  const j = await get(`https://api3.geo.admin.ch/rest/services/api/SearchServer?searchText=${encodeURIComponent(q)}&type=locations&origins=address&sr=4326&limit=5`, "json");
+  const j = await get<SearchAnswer>(`https://api3.geo.admin.ch/rest/services/api/SearchServer?searchText=${encodeURIComponent(q)}&type=locations&origins=address&sr=4326&limit=5`, "json");
   const hit = j.results.find((r) => addrOk(r.attrs.detail, street, plz, town));
   if (!hit) return null;
   const m = de(hit.attrs.detail).match(/ (\d{4}) .* ch (\w\w)$/);
-  return { lat: +hit.attrs.lat.toFixed(6), lon: +hit.attrs.lon.toFixed(6), postcode: m[1], canton: m[2].toUpperCase() };
+  return { lat: +hit.attrs.lat.toFixed(6), lon: +hit.attrs.lon.toFixed(6), postcode: m![1], canton: m![2].toUpperCase() };
 }
 
 const items = [...tdd, ...caritas, ...efa, ...frigo, ...foodsharing, ...brocki, ...ntBasel, ...ntLuzern, ...ntSolothurn, ...city];
-const unmatched = [], pinConflicts = [];
+const unmatched: string[] = [], pinConflicts: string[] = [];
 await mapLimit(items, 8, async (it) => {
   const g = it._street && await geocode(it._street, it._plz, it._town);
   const pin = it._pin, d = g && pin ? km([g.lat, g.lon], pin) : 0;
@@ -480,12 +576,12 @@ await mapLimit(items, 8, async (it) => {
   it.address = it._street ?? null; it.city = it._town ?? null;
 });
 // drop foodsharing points that duplicate a Madame Frigo fridge (within 75 m)
-const frigoPts = items.filter((i) => i.network === "madame-frigo" && i.lat != null).map((i) => [i.lat, i.lon]);
-const dupFs = new Set(items.filter((i) => i.network === "foodsharing" && i.lat != null && frigoPts.some((p) => km(p, [i.lat, i.lon]) < 0.075)).map((i) => i.id));
+const frigoPts = items.filter((i) => i.network === "madame-frigo" && i.lat != null).map((i) => [i.lat, i.lon] as Pin);
+const dupFs = new Set(items.filter((i) => i.network === "foodsharing" && i.lat != null && frigoPts.some((p) => km(p, [i.lat, i.lon] as Pin) < 0.075)).map((i) => i.id));
 // Tischlein also serves Liechtenstein: no Swiss canton at the point = not in this file
-const isOut = (i) => i.lat != null && (!i.canton || i.canton === "LI");
+const isOut = (i: HelpChDraft) => i.lat != null && (!i.canton || i.canton === "LI");
 const outsideCh = items.filter(isOut).map((i) => `${i.id}: ${i.address}, ${i.postcode} ${i.city}`);
-const out = items.filter((i) => !dupFs.has(i.id) && !isOut(i)).map((i) => Object.fromEntries(FIELDS.map((f) => [f, i[f]])));
+const out = items.filter((i) => !dupFs.has(i.id) && !isOut(i)).map((i) => Object.fromEntries(FIELDS.map((f) => [f, i[f]])) as unknown as HelpChItem);
 const srcOf = Object.fromEntries(items.map((i) => [i.id, i._src]));
 
 // ---- checks ----
@@ -496,19 +592,19 @@ for (const it of out) {
   assert(["high", "medium", "low"].includes(it.confidence), `bad confidence ${it.id}`);
   assert(!/frauenhaus|women'?s refuge|foyer pour femmes battues/i.test(it.name), `domestic-violence shelter must not be listed: ${it.id}`);
   if (it.lat != null) {
-    assert(it.lat > 45.81 && it.lat < 47.81 && it.lon > 5.95 && it.lon < 10.5, `outside Switzerland bbox: ${it.id}`);
+    assert(it.lat > 45.81 && it.lat < 47.81 && it.lon! > 5.95 && it.lon! < 10.5, `outside Switzerland bbox: ${it.id}`);
     assert(/^[A-Z]{2}$/.test(it.canton ?? ""), `no canton (outside CH?): ${it.id}`);
   }
 }
 assert(new Set(hotlines.map((h) => h.number)).size === hotlines.length, "duplicate hotline number");
-const byNet = (n) => out.filter((i) => i.network === n).length;
+const byNet = (n: string) => out.filter((i) => i.network === n).length;
 assert(byNet("tischlein-deck-dich") >= 150 || !fetched.tdd); assert(byNet("madame-frigo") >= 150 || !fetched.frigo);
 assert(unmatched.length <= out.length * 0.05, `too many items without coordinates: ${unmatched.length}`);
 
-const count = (key) => out.filter((i) => srcOf[i.id] === key).length;
-const sources = Object.entries(S).map(([key, s]) => ({ key, name: s.name, url: s.url, licence: LICENCE_NOTE, method: s.live ? "live" : "manual",
+const count = (key: string) => out.filter((i) => srcOf[i.id] === key).length;
+const sources = Object.entries(S).map(([key, s]: [string, HelpSource]) => ({ key, name: s.name, url: s.url, licence: LICENCE_NOTE, method: s.live ? "live" : "manual",
   count: count(key) + hotlines.filter((h) => h.source_url === s.url).length, fetched_ok: s.live ? fetched[key] ?? false : true }));
-const tally = (f) => Object.fromEntries(Object.entries(out.reduce((a, i) => ((a[i[f] ?? "?"] = (a[i[f] ?? "?"] ?? 0) + 1), a), {})).sort());
+const tally = (f: "network" | "category" | "canton" | "confidence") => Object.fromEntries(Object.entries(out.reduce<Record<string, number>>((a, i) => ((a[i[f] ?? "?"] = (a[i[f] ?? "?"] ?? 0) + 1), a), {})).sort());
 const counts = { network: tally("network"), category: tally("category"), canton: tally("canton"), confidence: tally("confidence") };
 
 mkdirSync(dirname(OUT), { recursive: true });

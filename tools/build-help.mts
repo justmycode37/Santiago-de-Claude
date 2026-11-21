@@ -38,9 +38,42 @@ const SRC = {
   frigo: "https://www.madamefrigo.ch/de/standorte/",
 };
 
+type HelpCategory = "food_distribution" | "free_meal" | "public_fridge" | "day_centre" | "outreach" | "shelter" | "free_showers"
+  | "health_mental" | "health_free" | "health_emergency" | "hotline" | "pharmacy_on_duty" | "legal_advice" | "language_courses"
+  | "discount" | "admin_help" | "toilets_partner" | "phone_charging" | "banks";
+// One row of `items` in data/help.json: a place, a phone line or a link-out (docs/data-help.md). Unknown = null.
+interface HelpItem {
+  id: string;
+  category: HelpCategory;
+  name: string;
+  organisation: string | null;
+  address: string | null; // "Street 1, 3011 Bern": what gets geocoded
+  lat: number | null;
+  lon: number | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  opening_hours: string | null;
+  opening_hours_osm: string | null; // OSM syntax, only where the text was unambiguous
+  languages: string | null;
+  cost: string | null;
+  who_for: string | null;
+  how_to_access: string | null;
+  notes: string | null;
+  source_url: string;
+  source_checked: string; // YYYY-MM-DD
+  confidence: "high" | "medium" | "low";
+  licence_unclear?: true; // the two operator feeds
+  _srcLatLon?: [lat: number, lon: number]; // Madame Frigo's own map pin: used while geocoding, deleted before writing
+}
+// What item() is given: these fields are required, every other one defaults to null.
+type HelpItemInput = Partial<HelpItem> & Pick<HelpItem, "id" | "category" | "name" | "source_url" | "confidence">;
+// A DeutschBon partner school as listed on bern.ch.
+type DeutschBonSchool = [slug: string, name: string, phone: string, email: string | null, website: string, notes?: string];
+
 const FIELDS = ["id", "category", "name", "organisation", "address", "lat", "lon", "phone", "email", "website", "opening_hours",
   "opening_hours_osm", "languages", "cost", "who_for", "how_to_access", "notes", "source_url", "source_checked", "confidence"];
-const item = (o) => ({ ...Object.fromEntries(FIELDS.map((f) => [f, null])), source_checked: CHECKED, ...o });
+const item = (o: HelpItemInput) => ({ ...Object.fromEntries(FIELDS.map((f) => [f, null])), source_checked: CHECKED, ...o }) as HelpItem;
 
 // ---- hand-curated items ----
 const L = "Leaflet 'uf dr Gass' (Stadt Bern / PINTO), file name 'Vs 09_25', content says 'Version 01.26'.";
@@ -114,7 +147,7 @@ const curated = [
   item({ id: "hotline-upd-krise", category: "hotline", name: "Psychiatric emergency / crisis centre (UPD)", phone: "+41 31 632 88 11", source_url: SRC.notfall, confidence: "high" }),
   item({ id: "hotline-elternnotruf", category: "hotline", name: "Elternnotruf Kanton Bern (parents' helpline)", phone: "0848 35 45 55", source_url: SRC.notfall, confidence: "high" }),
   // legal advice (Rechtsauskunftsstellen in der Stadt Bern, Ausgabe Oktober 2026: free or max CHF 50)
-  ...[
+  ...([
     { id: "asylhilfe-bern", name: "Asylhilfe Bern", address: null, phone: "031 382 52 72 / 076 700 49 40", email: "info@asylhilfe.ch", website: "https://www.asylhilfe.ch",
       opening_hours: "By appointment", who_for: "Asylum seekers and immigrants: legal and social advice", notes: "Postal address Postfach 4034, 3604 Thun (no Bern street address in source)." },
     { id: "fasa-asyl", name: "FASA, Fachstelle Sozialarbeit der kath. Kirche Region Bern – Asylbereich", address: "Mittelstrasse 6A, 3012 Bern", phone: "031 300 33 47",
@@ -146,7 +179,7 @@ const curated = [
       website: "https://www.schuldeninfo.ch", cost: "first consultation free", who_for: "People in debt" },
     { id: "breitsch-traeff-rechtsauskunft", name: "Breitsch-Träff Rechtsauskunftsstelle", address: "Breitenrainplatz 27, 3014 Bern", phone: "031 311 65 05",
       email: "info@breitsch-traeff.ch", website: "https://www.breitsch-traeff.ch", how_to_access: "Phone registration required", who_for: "All areas of law" },
-  ].map((o) => item({ category: "legal_advice", cost: "free or max. CHF 50 (per source)", source_url: SRC.recht, confidence: "high", ...o })),
+  ] satisfies Partial<HelpItem>[]).map((o) => item({ category: "legal_advice", cost: "free or max. CHF 50 (per source)", source_url: SRC.recht, confidence: "high", ...o })),
   // language courses
   item({ id: "kanton-sprachkurs-suche", category: "language_courses", name: "Kanton Bern German course finder", organisation: "Kanton Bern (BKD)",
     website: "https://www.weiterbildung-kurse.apps.be.ch/sprachkurs", who_for: "Migrants looking for German/French courses (incl. literacy, parent-child, conversation)",
@@ -157,7 +190,7 @@ const curated = [
     who_for: "Age 18+, German is a foreign language, registered in Stadt Bern or Ostermundigen; S status and sans-papiers allowed; not if asylum social aid already pays a course",
     how_to_access: "Lottery of 600 vouchers (+100 Ostermundigen); people with health-insurance premium reduction (IPV) get priority. Registration closed on " + CHECKED + "; next round autumn 2027.",
     notes: "Group courses only (incl. online) at 13 schools; no exam fees. Does not affect residence permit.", source_url: SRC.dbon, confidence: "high" }),
-  ...[
+  ...([
     ["academia-languages", "academia languages", "+41 58 440 90 80", "info.bern@academia-group.ch", "https://academia-languages.ch/", "Overview page lists +41 58 440 80 90; school detail lists +41 58 440 90 80."],
     ["alemania", "Alemania Deutschschule", "+41 31 332 31 31", "bern@alemania.ch", "https://www.alemania.ch/"],
     ["benedict", "Bénédict-Schule Bern", "+41 31 310 28 28", "info.be@benedict.ch", "https://www.benedict.ch/"],
@@ -171,7 +204,7 @@ const curated = [
     ["lernpunkt", "Lern.Punkt (Heilsarmee)", "+41 31 511 36 20", "lernpunkt@heilsarmee.ch", "https://lernpunkt.heilsarmee.ch/", "Express, literacy and courses for people with impaired sight up to B1; telc and fide tests; childcare from 6 months."],
     ["muki", "MuKi-Deutsch (mother-child courses), Stadt Bern", "+41 31 321 64 78", null, "https://www.bern.ch/themen/bildung/vorschule/muki-deutsch", "Children about 2.5-5 years."],
     ["vhs", "Volkshochschule Bern", "+41 31 320 30 32", "info@vhsbe.ch", "https://www.vhs-bern.ch"],
-  ].map(([slug, name, phone, email, website, notes]) => item({ id: `lang-${slug}`, category: "language_courses", name, phone, email, website,
+  ] satisfies DeutschBonSchool[]).map(([slug, name, phone, email, website, notes]) => item({ id: `lang-${slug}`, category: "language_courses", name, phone, email, website,
     notes: ["DeutschBon partner school (eduQua or similar).", notes].filter(Boolean).join(" "), source_url: SRC.dschulen, confidence: "high" })),
   ...[
     { id: "lang-muetterzentrum-bern-west", name: "German for women – Mütterzentrum Bern-West", address: "Waldmannstrasse 15, 3027 Bern", phone: "031 991 21 05", email: "info@muetterzentrumbern-west.ch" },
@@ -223,13 +256,49 @@ const nette = [
   notes: "List from the city flyer linked to the 11 July 2018 press release (12 venues then). May be outdated; the city WebGIS also shows them." + (name.includes("Schmieds") ? " Flyer writes the street as 'Schmiedplatz 5'." : ""),
   source_url: SRC.nette, confidence: "low" }));
 
-function slug(s) {
+function slug(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 assert.equal(slug("Café Tscharni – Bümpliz"), "cafe-tscharni-bumpliz");
 
 // ---- live feeds ----
-async function get(url, as = "text") {
+type Wochentag = "Montag" | "Dienstag" | "Mittwoch" | "Donnerstag" | "Freitag" | "Samstag" | "Sonntag";
+// One distribution point in the Tischlein deck dich map feed, as far as it is read.
+interface TddRow {
+  firma1: string; // "AS Bern-West"
+  firma2: string | null;
+  strasse: string;
+  plz: string;
+  ort: string;
+  telefon: string | null;
+  telefon_direkt: string | null;
+  oeffnung_wochentag: Wochentag;
+  oeffnung_zeit_start: string; // "9.00"
+  oeffnung_zeit_end: string;
+  bemerkung_oeffnungszeit: string | null;
+  koordinaten: string | null; // "lat,lon"
+}
+// swisstopo SearchServer answer (type=locations, origins=address, sr=4326), as far as it is read.
+interface SearchAnswer {
+  results: { attrs: { detail: string; lat: number; lon: number } }[];
+}
+interface GeocodeHit { lat: number; lon: number }
+// What `offices_supplement` in data/help.json adds to a row of data/offices.json (keyed by that row's id).
+interface OfficeSupplement {
+  opening_hours: string;
+  source_url: string;
+  source_checked: string;
+  opening_hours_osm?: string;
+  phone?: string;
+  phone_mobile?: string;
+  email?: string;
+  languages?: string;
+  note?: string;
+}
+
+function get(url: string, as?: "text"): Promise<string>;
+function get<T>(url: string, as: "json"): Promise<T>;
+async function get(url: string, as = "text") {
   const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(60000) });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return as === "json" ? res.json() : res.text();
@@ -237,10 +306,10 @@ async function get(url, as = "text") {
 // Stadt Bern (3001-3030) + communes touching it: Wohlen/Hinterkappelen, Bremgarten, Worblaufen, Zollikofen, Ittigen,
 // Bolligen, Ostermundigen, Gümligen/Muri, Worb, Wabern, Liebefeld/Köniz.
 const NEAR = new Set(["3032", "3033", "3047", "3048", "3052", "3063", "3065", "3072", "3073", "3074", "3076", "3084", "3097", "3098"]);
-const isBernArea = (plz) => (+plz >= 3001 && +plz <= 3030) || NEAR.has(plz);
+const isBernArea = (plz: string) => (+plz >= 3001 && +plz <= 3030) || NEAR.has(plz);
 assert(isBernArea("3011") && isBernArea("3084") && !isBernArea("3054") && !isBernArea("5630"));
 
-const tdd = (await get(SRC.tddApi, "json")).filter((r) => isBernArea(r.plz)).map((r) => item({
+const tdd = (await get<TddRow[]>(SRC.tddApi, "json")).filter((r) => isBernArea(r.plz)).map((r) => item({
   id: "tdd-" + slug(r.firma1.replace(/^AS /, "")), category: "food_distribution", name: `Tischlein deck dich – ${r.firma1.replace(/^AS /, "")}`,
   organisation: ["Tischlein deck dich", r.firma2].filter(Boolean).join(" / "), address: `${r.strasse}, ${r.plz} ${r.ort}`,
   phone: r.telefon_direkt || r.telefon || null,
@@ -250,31 +319,31 @@ const tdd = (await get(SRC.tddApi, "json")).filter((r) => isBernArea(r.plz)).map
   how_to_access: "Get a customer card through a social agency (Sozialfachstelle) after a needs check; the card comes by post; then collect food once a week here.",
   notes: "From the operator's own map feed. Source coordinates: " + r.koordinaten, source_url: SRC.tddApi, licence_unclear: true, confidence: "high",
 }));
-function hm(t) { const [h, m] = t.split("."); return `${h.padStart(2, "0")}:${(m ?? "00").padEnd(2, "0")}`; }
+function hm(t: string) { const [h, m] = t.split("."); return `${h.padStart(2, "0")}:${(m ?? "00").padEnd(2, "0")}`; }
 assert.equal(hm("9.00"), "09:00"); assert.equal(hm("16.15"), "16:15");
 assert(tdd.length >= 5, `Tischlein feed: only ${tdd.length} Bern rows`);
 
 // Madame Frigo prints each fridge as a PHP array dump: [title], [address] => Array([street], [plz], [city]).
 const fh = await get(SRC.frigo);
 const frigo = fh.split("<pre>Array").slice(1).map((b) => {
-  const g = (re) => b.match(re)?.[1]?.trim();
+  const g = (re: RegExp) => b.match(re)?.[1]?.trim();
   return { title: g(/\[title\] => (.*)/), street: g(/\[street\] => (.*)/), plz: g(/\[plz\] => (.*)/), city: g(/\[city\] => (.*)\n\s*\[link\]/),
-    srcLat: +g(/\[lat\] =>\s*([\d.]+)/), srcLon: +g(/\[lng\] =>\s*([\d.]+)/) };
+    srcLat: +g(/\[lat\] =>\s*([\d.]+)/)!, srcLon: +g(/\[lng\] =>\s*([\d.]+)/)! };
 }).filter((f) => f.plz && isBernArea(f.plz)).map((f) => item({
   _srcLatLon: [f.srcLat, f.srcLon],
-  id: "frigo-" + slug(f.title), category: "public_fridge", name: `Madame Frigo – ${f.title}`, organisation: "Madame Frigo (volunteers)",
-  address: `${f.street.replace(/\s+[–-]\s+.*$/, "")}, ${f.plz} ${f.city}`, cost: "free",
+  id: "frigo-" + slug(f.title!), category: "public_fridge", name: `Madame Frigo – ${f.title}`, organisation: "Madame Frigo (volunteers)",
+  address: `${f.street!.replace(/\s+[–-]\s+.*$/, "")}, ${f.plz} ${f.city}`, cost: "free",
   who_for: "Everyone", how_to_access: "Bring food you don't need, take what you need.",
-  notes: /[–-]\s/.test(f.street) ? `Location detail: ${f.street}` : null, source_url: SRC.frigo, licence_unclear: true, confidence: "medium" }));
+  notes: /[–-]\s/.test(f.street!) ? `Location detail: ${f.street}` : null, source_url: SRC.frigo, licence_unclear: true, confidence: "medium" }));
 assert(frigo.length >= 8, `Madame Frigo: only ${frigo.length} Bern fridges`);
 
 // ---- geocoding ----
-const geo = new Map();
-async function geocode(address) {
+const geo = new Map<string, GeocodeHit | null>();
+async function geocode(address: string) {
   if (geo.has(address)) return geo.get(address);
-  const [, street, plz, town] = address.match(/^(.*?), (\d{4}) (.+)$/);
+  const [, street, plz, town] = address.match(/^(.*?), (\d{4}) (.+)$/)!;
   const q = address.replace(/,/g, " ");
-  const j = await get(`https://api3.geo.admin.ch/rest/services/api/SearchServer?searchText=${encodeURIComponent(q)}&type=locations&origins=address&sr=4326&limit=5`, "json");
+  const j = await get<SearchAnswer>(`https://api3.geo.admin.ch/rest/services/api/SearchServer?searchText=${encodeURIComponent(q)}&type=locations&origins=address&sr=4326&limit=5`, "json");
   const hit = j.results.find((r) => addrOk(r.attrs.detail, street, plz, town));
   const res = hit ? { lat: +hit.attrs.lat.toFixed(6), lon: +hit.attrs.lon.toFixed(6) } : null;
   geo.set(address, res);
@@ -282,10 +351,10 @@ async function geocode(address) {
 }
 // detail looks like "bahnhofplatz 2 3011 bern 351 bern ch be". Same canton, same house number (if any), same street word,
 // and same postcode or same town (postbox postcodes like 3001 are not address postcodes).
-function addrOk(detail, street, plz, town) {
+function addrOk(detail: string, street: string, plz: string, town: string) {
   const m = detail.match(/^(.*?) (?:(\d+)[\w.]* )?(\d{4}) (.*) ch (\w\w)$/);
   if (!m || m[5] !== "be") return false;
-  const de = (x) => x.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const de = (x: string) => x.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").normalize("NFD").replace(/[̀-ͯ]/g, "");
   const num = street.match(/ (\d+)\w*$/)?.[1], word = de(street).split(/[ -]/)[0];
   return (num ? m[2] === num : true) && m[1].includes(word) && (m[3] === plz || m[4].includes(de(town).split(/[ -]/)[0]));
 }
@@ -311,7 +380,7 @@ for (const it of items) {
 }
 
 // ---- supplements for rows already in data/offices.json (never duplicated as items) ----
-const sup = (opening_hours, source_url, extra = {}) => ({ opening_hours, source_url, source_checked: CHECKED, ...extra });
+const sup = (opening_hours: string, source_url: string, extra: Partial<OfficeSupplement> = {}): OfficeSupplement => ({ opening_hours, source_url, source_checked: CHECKED, ...extra });
 const offices_supplement = {
   aufenthaltsraum: sup("Mon-Fri 08:30-11:00, 14:30-16:30; closed Tue afternoon and Sun. Free coffee/tea; soup on Saturday. Leaflet: 'Ab 16.12 geschlossen'.", SRC.ufdrgass),
   azzurro: sup("Mon, Wed, Thu, Fri café and meal from 11:30 (menu CHF 7); Sun from 15:00; closed Tue and Sat. First Monday of the month: free soup and bread for everyone from 18:00.", SRC.ufdrgass),
@@ -340,14 +409,14 @@ const offices_supplement = {
 };
 
 // ---- checks ----
-const offices = JSON.parse(readFileSync("data/offices.json", "utf8")).items;
+const offices: { id: string }[] = JSON.parse(readFileSync("data/offices.json", "utf8")).items;
 const officeIds = new Set(offices.map((o) => o.id));
 const ids = new Set();
 for (const it of items) {
   assert(!ids.has(it.id), `duplicate id ${it.id}`); ids.add(it.id);
   assert(!officeIds.has(it.id), `id clashes with offices.json: ${it.id}`);
   assert(it.category && it.name && it.source_url && ["high", "medium", "low"].includes(it.confidence), `incomplete ${it.id}`);
-  if (it.lat != null) assert(it.lat > 46.85 && it.lat < 47.05 && it.lon > 7.3 && it.lon < 7.6, `outside Bern area: ${it.id}`);
+  if (it.lat != null) assert(it.lat > 46.85 && it.lat < 47.05 && it.lon! > 7.3 && it.lon! < 7.6, `outside Bern area: ${it.id}`);
 }
 for (const id of Object.keys(offices_supplement)) assert(officeIds.has(id), `supplement for unknown office id ${id}`);
 
