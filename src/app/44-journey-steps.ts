@@ -111,14 +111,31 @@ function placeRide(s: RideSection) {
     dep: pts[0] || coordOf(s.departure), arr: pts[pts.length - 1] || coordOf(s.arrival), depAt: at[0], arrAt: at[at.length - 1] };
 }
 
+// What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
+const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa && pa.edge
+  ? { platform: true, level: pa.edge.level || 0, ref: pa.edge.key || platformKey(pa.edge.ref) || null } : { platform: true });
+// After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
+// engine-journey.js leaves it)
+function syncEnds(steps: JourneyStep[]) {
+  steps.forEach((st) => {
+    if (st.type !== 'walk' && st.type !== 'change') return;
+    const old = st.ends || [];
+    const from = st.prevRide ? platformEndOf(st.prevRide.arrAt) : (old[0] || [])[0] || {};
+    const to = st.nextRide ? platformEndOf(st.nextRide.depAt) : (old[old.length - 1] || [])[1] || {};
+    st.ends = (st.lines || []).length <= 1 ? [[from, to]] : old;
+  });
+}
+
 // Turn the API's sections into swipeable steps: walk → ride → change → ride → … → walk → arrive
 function buildSteps(conn: OdConnection, destTitle: string) {
   const steps: JourneyStep[] = [];
-  type PendingWalk = { min: number; lines: LngLat[][]; start: string | null | undefined };
+  type PendingWalk = { min: number; lines: LngLat[][]; ends: [WalkEnd, WalkEnd][]; start: string | null | undefined };
   type RideOrWalk = RideSection | (OdSection & { journey: null });
-  let walk: PendingWalk = { min: 0, lines: [], start: null };
+  let walk: PendingWalk = { min: 0, lines: [], ends: [], start: null };
   let lastRide = null as RideSection | null;
-  const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], start: null }; return w; };
+  const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], ends: [], start: null }; return w; };
+  // what each end of a walk is, for the walking router: your position, a platform (on its floor), a station, a place
+  const platformEnd = platformEndOf;
   const at = new Map<OdSection, ReturnType<typeof placeRide>>(conn.sections.filter((s) => s.journey).map((s) => [s, placeRide(s as RideSection)]));
   (conn.sections as RideOrWalk[]).forEach((s, idx) => {
     if (!s.journey) {
@@ -126,10 +143,13 @@ function buildSteps(conn: OdConnection, destTitle: string) {
       walk.start = walk.start || s.departure.departure;
       // walks start/end on the platform you get off / on, not at the station's centre
       let a = coordOf(s.departure), b = coordOf(s.arrival);
-      if (lastRide && sameStop(s.departure, lastRide.arrival)) a = at.get(lastRide)!.arr || a;
+      // the first walk starts where you are (GPS), or at the place the trip starts from (a pin, a search result)
+      let fromEnd: WalkEnd = idx === 0 ? (tripStart ? {} : { gps: true }) : { platform: true };
+      let toEnd: WalkEnd = idx === conn.sections.length - 1 ? {} : { platform: true };
+      if (lastRide && sameStop(s.departure, lastRide.arrival)) { a = at.get(lastRide)!.arr || a; fromEnd = platformEnd(at.get(lastRide)!.arrAt); }
       const nextRide = conn.sections.slice(idx + 1).find((x) => x.journey);
-      if (nextRide && sameStop(s.arrival, nextRide.departure)) b = at.get(nextRide)!.dep || b;
-      if (a && b) walk.lines.push([a, b]);
+      if (nextRide && sameStop(s.arrival, nextRide.departure)) { b = at.get(nextRide)!.dep || b; toEnd = platformEnd(at.get(nextRide)!.depAt); }
+      if (a && b) { walk.lines.push([a, b]); walk.ends.push([fromEnd, toEnd]); }
       return;
     }
     const w = flushWalk();
@@ -137,15 +157,19 @@ function buildSteps(conn: OdConnection, destTitle: string) {
     if (!lastRide) {
       if (w.min > 0) {
         const t0 = new Date(w.start || conn.from.departure!).getTime();
-        steps.push({ type: 'walk', min: w.min, lines: w.lines, start: w.start, toName: s.departure.station!.name!, next: s,
+        steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: s.departure.station!.name!, next: s,
           board: here.dep, t0, t1: t0 + w.min * 60000 });
       }
     } else {
       const t0 = new Date(lastRide.arrival.arrival!).getTime();
       const pa = at.get(lastRide)!.arr, pd = here.dep;
       // changing platforms inside a station: show the way from one platform to the other
-      const lines = w.lines.length ? w.lines : pa && pd && distKm(pa, pd) > 0.015 ? [[pa, pd]] : [];
-      steps.push({ type: 'change', prev: lastRide, next: s, walkMin: w.min, lines,
+      // (also when the two are close on the map but on different floors: one may be right below the other)
+      const fl = (x: JourneyPlatformAt | undefined) => (x && x.edge && x.edge.level) || 0;
+      const lines = w.lines.length ? w.lines
+        : pa && pd && (distKm(pa, pd) > 0.015 || fl(at.get(lastRide)!.arrAt) !== fl(here.depAt)) ? [[pa, pd]] : [];
+      const ends: [WalkEnd, WalkEnd][] = w.lines.length ? w.ends : [[platformEnd(at.get(lastRide)!.arrAt), platformEnd(here.depAt)]];
+      steps.push({ type: 'change', prev: lastRide, next: s, walkMin: w.min, lines, ends,
         points: [pa, pd], t0, t1: w.min > 0 ? t0 + w.min * 60000 : new Date(s.departure.departure!).getTime() });
     }
     steps.push({ type: 'ride', s, path: here.path, stops: here.path, stopIdx: here.idx, depLL: here.dep, arrLL: here.arr, depAt: here.depAt, arrAt: here.arrAt,
@@ -156,8 +180,9 @@ function buildSteps(conn: OdConnection, destTitle: string) {
   const end = lastRide ? at.get(lastRide)!.arr : null;
   if (w.min > 0 || !lastRide) {
     const t0 = new Date(w.start || (lastRide ? lastRide.arrival.arrival : conn.from.departure)!).getTime();
-    steps.push({ type: 'walk', min: w.min, lines: w.lines, start: w.start, toName: destTitle, final: true,
-      from: lastRide, alight: end, t0, t1: t0 + w.min * 60000 });
+    const last = w.lines[w.lines.length - 1];
+    steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
+      from: lastRide, alight: end, t0, t1: t0 + w.min * 60000, toLL: last && last[last.length - 1] });
   }
   steps.push({ type: 'arrive', destTitle, time: conn.to.arrival, from: lastRide, end });
   steps.forEach((st, i) => {
@@ -262,7 +287,7 @@ function signId(st: JourneyRideStep) {
 function stepFeatures(steps: JourneyStep[]) {
   const f: RouteFeature[] = [];
   const add = (geometry: RouteFeature['geometry'], properties: RouteFeatureProps) => f.push({ type: 'Feature', properties, geometry });
-  const line = (cs: LngLat[] | undefined, kind: 'ride' | 'walk', step: number, extra?: Partial<RouteFeatureProps>) => cs && cs.length > 1 && add({ type: 'LineString', coordinates: cs }, { kind, step, ...extra });
+  const line = (cs: LngLat[] | undefined, kind: 'ride' | 'walk' | 'wcov', step: number, extra?: Partial<RouteFeatureProps>) => cs && cs.length > 1 && add({ type: 'LineString', coordinates: cs }, { kind, step, ...extra });
   const pt = (c: LngLat | null | undefined, props: RouteFeatureProps) => c && add({ type: 'Point', coordinates: c }, props);
   // where you are on the trip: everything before it is drawn faded ("done")
   const p = journeyProgress();
@@ -278,7 +303,28 @@ function stepFeatures(steps: JourneyStep[]) {
   };
   steps.forEach((st, i) => {
     let from = 0;
-    (st.lines || []).forEach((l) => { doneLine(l, 'walk', i, from); from += lengthKm(l); });
+    (st.lines || []).forEach((l, k) => {
+      // a straight line until a router has found the way, and the long straight bits across open ground onto and off
+      // the paths (approxTo / approxFrom): dashed
+      const w = st.walks && st.walks[k];
+      if (!w || w.approx) doneLine(l, 'walk', i, from, { approx: true });
+      else {
+        const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
+        const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
+        let at = from;
+        const pieces: [from: number, to: number, guess: boolean][] = [[0, a, true], [a, b, false], [b, l.length - 1, true]];
+        pieces.forEach(([x, y, guess]) => {
+          if (y <= x) return;
+          const part = l.slice(x, y + 1);
+          doneLine(part, 'walk', i, at, guess ? { approx: true } : undefined);
+          at += lengthKm(part);
+        });
+      }
+      from += lengthKm(l);
+      if (!w) return;
+      (w.covered || []).forEach((c) => line(c.coords, 'wcov', i, { done: !!p && i < p.i }));
+      if (w.door && st.final) pt(w.door.ll, { kind: 'door', step: i, done: !!p && i < p.i });
+    });
     if (st.type === 'ride') {
       const c = lineColor(st.s.journey), colors = { color: c.bg, dcolor: c.dfg };
       doneLine(st.path, 'ride', i, 0, colors);

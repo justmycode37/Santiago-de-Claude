@@ -1,0 +1,9 @@
+# Bern mapped transit corridors
+
+Raw OpenStreetMap relation/way/node snapshots, © OpenStreetMap contributors, ODbL1.0. Licence/attribution: https://www.openstreetmap.org/copyright ; https://opendatacommons.org/licenses/odbl/1-0/ . These OSM-derived database files remain under ODbL1.0. Metadata in manifest.json preserves the exact source API requests, raw SHA256, acquisition time and source observation timestamp and its stated basis. No geometries or dates were silently edited.
+
+Scope: both directions of mapped tram8 (relations8468175/8468176) and trolleybus20 (10394513/10394514), Bern/Libero. Runtime joins require current planner line/mode/destination and a unique contiguous ordered stop list with source UIC/name + coordinate corroboration. Missing/repeated/ambiguous source topology remains gaps. Old GTFS tags are retained provenance only; they do not bind any current provider trip or operating day. Source geometry does not confirm passenger location, service operation, pedestrian crossings, platforms, entrances, floors or accessibility.
+
+Acquisition script: scripts/acquire-transit-geometry.py. Frozen planner/source audit and original per-request metadata: redesign/dist/workstream-A3. Native matching/replay tests are separate from field/device validation, which remains pending.
+
+The Swiss Overpass discovery endpoint returned numeric replication marker118626 instead of an ISO timestamp. It was not interpreted as a date. FOSSGIS TLS and Private.coffee timeout attempts are retained as failures. The shipped snapshot was fetched directly from the official latest-object OSM API /api/0.6/relation/{id}/full.json; responseDate preserves its actual server HTTP Date. This dates our source observation, not last survey or real-world route accuracy. Individual object versions/modification dates remain in raw bytes.

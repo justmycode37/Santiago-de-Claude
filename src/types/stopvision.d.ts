@@ -5,7 +5,7 @@
 
 type StopVisionMode = 'train' | 'tram' | 'bus' | 'boat' | 'cable';
 /** One edge of a stop as Scan reads it: its name on the sign ("7", "H", '' = none), the comparable form, the place. */
-interface StopVisionEdge { ref: string; key: string; ll: LngLat }
+interface StopVisionEdge { ref: string; key: string; ll: LngLat; /** compass direction of travel of the vehicles stopping there */ bearing?: number | null }
 /** A stop of the page's PLATFORMS map (src/app/30-platforms.ts): the fields Scan reads. */
 interface StopVisionStop { name: string; mode: StopVisionMode; edges: StopVisionEdge[] }
 /** Where the user is: the place, its accuracy in metres and the age of the fix in ms. */
@@ -30,7 +30,55 @@ interface StopVisionHooks {
   openStop(uic: string, edge: number | null): void;
   toast(text: string): void;
   onClose?(): void;
+  /** The next ride of the journey under way (null: no journey): where it leaves from, for "this side / across the road". */
+  route?(): StopVisionRoute | null;
+  /** What is about to stop at a place, from the Kante engine's /api/due; null without the engine or the feature. */
+  due?(params: Record<string, string | number | undefined>): Promise<KanteDueResponse | null>;
 }
+
+interface StopVisionRoute {
+  uic: string;
+  name: string;
+  /** index into the stop's edges; null when only the stop is known */
+  edge: number | null;
+  /** the edge is the timetable's (named platform), not inferred from the direction of travel */
+  exact: boolean;
+  line: string;
+  to?: string;
+  /** ISO time, live where known */
+  time?: string;
+  /** what the Kante engine says about this ride now (/api/due) */
+  live?: StopVisionRouteLive;
+}
+
+/** The engine's view of the ride (checkRoute): found at the stop, its edge, and how far away it is. */
+interface StopVisionRouteLive {
+  key: string;
+  at: number;
+  found: boolean;
+  edge?: number | null;
+  exact?: boolean;
+  state?: 'approaching' | 'at-stop' | 'departed';
+  etaS?: number | null;
+  delayS?: number | null;
+}
+
+/** A box in picture pixels. */
+interface ScanBox { x0: number; y0: number; x1: number; y1: number }
+/** A word OCR read: normalised (n: glued, toks: its words), where, how tall, on which line, how sure (0–100). */
+interface ScanWord { n: string; toks: string[]; box: ScanBox; h: number; block: number; line: number; conf: number }
+/** The words of one reading, by line, with the typical and the biggest text height of the confident ones. */
+interface ScanLayout { words: ScanWord[]; lines: ScanWord[][]; medianH: number; maxH: number; confident: number }
+/** A stop whose name was read: how well (0–1), which of its names, where and how big. */
+interface ScanNameHit { c: StopVisionCandidate; best: number; what: string; box?: ScanBox; h: number }
+/** The sign outlined in the picture. h0: the heading when it was read; ok: recognised; warn: a sign/GPS conflict. */
+interface ScanHighlight { box: ScanBox; name?: ScanBox | null; label: string; at: number; h0: number | null; ok?: boolean; warn?: boolean }
+/** A stop name read clearly, far from the GPS position. */
+interface ScanConflict { c: StopVisionCandidate; what: string; dist: number; at: number }
+/** Two edges facing each other across one road, and which one you are at: mine/other, how clear (|offset| / GPS accuracy). */
+interface ScanSide { mine: number; other: number; conf: number; across: number; near: number }
+/** The edge you stand at (i null: not clear; pair: the two it is between). */
+interface ScanStand { i: number | null; other?: number | null; why?: string; maybe?: boolean; unsure?: boolean; pair?: [number, number] }
 
 // ---- what Scan knows while it runs (seen from outside through STOPVISION._debug) ----
 
@@ -107,8 +155,14 @@ interface StopVisionEvidence {
   edgeDest?: number | null;
   edgeDestAt?: number;
   destWhat?: string;
-  /** How many of the stop's line numbers were read (0 when fewer than two). */
+  /** How many of the stop's line numbers were read (0 when fewer than two), and when. */
   lines?: number;
+  linesAt?: number;
+  /** The edge from destinations was found without the stop's name on the same sign: a guess. */
+  edgeDestWeak?: boolean;
+  /** Where its name and sign were read in the picture (picture pixels). */
+  signBox?: ScanBox | null;
+  nameBox?: ScanBox | null;
   /** Photo similarity of the best reference photo, that photo, and how far above the median of the stops around. */
   vis?: number;
   visRef?: StopVisionPhoto;
@@ -228,9 +282,14 @@ declare var STOP_IMAGES_INDEX: StopImagesIndex | undefined;
 
 // ---- tesseract.js 6 and onnxruntime-web 1.20, loaded from jsDelivr: the parts Scan uses ----
 
+interface TesseractBBox { x0: number; y0: number; x1: number; y1: number }
+interface TesseractWord { text: string; confidence: number; bbox: TesseractBBox }
+/** With output { blocks: true }: blocks → paragraphs → lines → words, each with its box in image pixels. */
+interface TesseractBlock { bbox: TesseractBBox; paragraphs?: Array<{ lines?: Array<{ words?: TesseractWord[] }> }> }
+interface TesseractPage { text: string; blocks?: TesseractBlock[] | null }
 interface TesseractWorker {
   setParameters(params: Record<string, string>): Promise<unknown>;
-  recognize(image: Blob | HTMLCanvasElement): Promise<{ data: { text: string } }>;
+  recognize(image: Blob | HTMLCanvasElement, options?: Record<string, unknown>, output?: Record<string, boolean>): Promise<{ data: TesseractPage }>;
   terminate(): Promise<unknown>;
 }
 interface TesseractGlobal {

@@ -171,21 +171,40 @@ function missedRide(t: TripPlace, now: number): JourneyRideStep | null {
   return !v || v.km > 0.4 ? r : null;
 }
 
+// On a walk, the blue dot sits on the walking route while GPS puts you within its accuracy of it (the halo stays
+// where GPS says), so it does not wander through walls; on a ride, or away from the route, it shows GPS as it is.
+function placeUserDot() {
+  if (!userLngLat) return;
+  let at: LngLat = userLngLat;
+  const st = track && !track.off && !track.arrived ? journeySteps[track.i] : null;
+  const routed = !!st && st.type !== 'ride' && (st.walks || []).some((w) => w && w.net); // only onto real paths, never a straight guess
+  if (routed && track && track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), track.kmIn) || at;
+  userMarker.setLngLat(at);
+}
 function trackJourney() {
+  trackOnce();
+  placeUserDot();
+}
+function trackOnce() {
   if (!journeySteps.length || !gpsOn() || !tripLive()) { track = null; return; }
   const now = Date.now(), lay = tripLayout(), tp = timeProgress(now);
   // where you were at the last fix (measured on today's lines), else where the timetable puts you
   const ref = track && !track.off && track.v === geoVersion ? track.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
   const s = snapToTrip(userLngLat!, ref, now);
   if (!s) { track = null; return; }
-  const tol = Math.max(35, Math.min(userAccuracy, 150)) + 30;
+  // walks follow exact footpaths now, so leaving one shows sooner than leaving a ride's line
+  const here = journeySteps[s.i];
+  const onFoot = here.type !== 'ride' && (here.walks || []).some((w) => w && w.net);
+  const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
-  if (tripStart && s.near > tol && !(track && !track.off)) { track = null; return; }
+  // (once you have been on it, leaving it again is "off the route", however long that lasts)
+  const onRoute = !!(track && track.onRoute) || s.near <= tol;
+  if (tripStart && !onRoute) { track = null; return; }
   const offCount = s.near > tol ? ((track && track.offCount) || 0) + 1 : 0;
-  track = { ...s, v: geoVersion, offCount, off: offCount >= 2 }; // two fixes in a row, so one stray fix doesn't count
+  track = { ...s, v: geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (track.off) return;
   const dest = destMarker._map && destMarker.getLngLat().toArray();
-  if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat!, dest) < 0.04)) {
+  if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat!, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {
     Object.assign(track, { i: journeySteps.length - 1, kmIn: 0, km: lay.total, arrived: true });
   }
   track.missed = track.arrived ? null : missedRide(track, now);

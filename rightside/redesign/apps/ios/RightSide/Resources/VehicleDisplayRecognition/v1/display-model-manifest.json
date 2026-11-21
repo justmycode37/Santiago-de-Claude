@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "originalModelSHA256": "7888113072263cb471b93f66dd5e2ad70548dc526fa1ace760d0d973dd121498",
+  "originalRevision": "89d3a50e2c27e2e7cceeab0e944c25c807d5db4f",
+  "license": "Apache-2.0",
+  "modelConversionReportSHA256": "f1c2ca1ed902f231bff757cbeb19f03e7ee91a46d82f056e70bc0c820f90630a",
+  "nativeReport": "/Users/samuelhitzinger/Projects/RightSide/redesign/dist/hill-climb-b3/swift-parity.9yfxtm2i/native-parity.json",
+  "nativeReportSHA256": "7586d197e4578862651ac4e99d540ebb35dabfe4e72a414cd9ba8e4bbc8862ff",
+  "input": "BGR uint8\u2192KleidiCV26.09-compatible two-stage integer linear48px\u2192/127.5-1\u2192CHW zero pad320",
+  "decode": "greedy CTC blank0,first argmax tie,collapse repeats before blank removal",
+  "computeUnits": "CPU_ONLY",
+  "shape": [
+    1,
+    3,
+    48,
+    320
+  ],
+  "independentPhotos": 2,
+  "fieldValidation": false,
+  "files": {
+    "DisplayRecognition-Apache-2.0.txt": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e",
+    "display-characters.json": "736f1593b68e36ffc935e557b1452a2cd43267808eb49ee705a90fb0be8d22c0",
+    "NOTICE.txt": "6151b760bea151a3803f6446a2b93e09ba62b2054fc9c0b805e49caa898b6543",
+    "VehicleDisplayRecognizer.mlpackage/Manifest.json": "238fbfacad65091de9719da1d7ebdcb60d3ab4330159bef545a9860dc9f496ba",
+    "VehicleDisplayRecognizer.mlpackage/Data/com.apple.CoreML/model.mlmodel": "95cb9e878381337fc9c2f6fae4b1697b05930a4e927019d91b7aa249f5932881",
+    "VehicleDisplayRecognizer.mlpackage/Data/com.apple.CoreML/weights/weight.bin": "5c7b8c5f7ef6640fac8424fea397a0c3e6c60d48efdc87217b9b2282a95dcd0e"
+  }
+}

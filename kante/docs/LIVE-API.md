@@ -22,9 +22,26 @@ The two are merged stop by stop, never trip against trip: SIRI-ET's measured tim
 always stay; GTFS-RT only replaces SIRI-ET's *forecasts* for stops not yet reached, and only when it
 updated that trip later than SIRI-ET did. Trips that only one feed knows come from that feed.
 
+Measured on 21 Nov 2026 (`livemap/measure/compare_feeds.py`, `forecast_compare.py`): the Swiss GTFS-RT
+carries no update time per trip (0 of 12,642), so in practice it **only fills in trips SIRI-ET lacks**.
+That is little but real: of 3,834 vehicles under way, 85.8 % have live data with both feeds against
+84.9 % with SIRI-ET alone (33 trips, most of them SNCF trains near Geneva and Basel, 16 % → 39 %, and
+Fribourg's TPF buses, 93 % → 100 %). Its forecasts are not better: on 891 arrivals measured later, both
+feeds' forecasts were off by 42 s on average (median 30 s). It has no measured times, no platform names
+and no names for the journeys it adds. GTFS-RT on its own matches 96 % of its journeys (all but the 506 it
+adds); SIRI-ET 99 %.
+
 Keys: `data/secrets/otd.json` as `{"siri-et": "…", "gtfs-rt": "…"}` (or `KANTE_OTD_KEY` /
 `KANTE_OTD_GTFS_RT_KEY`). Either one may be missing; the engine then runs with the other or on the
 timetable alone.
+
+When a feed fails: after a passing error (network, server, a broken document) it is asked again within
+two minutes, so the data is fresh again soon after the feed is back; a rejected key or a quota limit waits
+longer (up to 15 minutes, or what the feed asks for). Its last data stays in use, marked `stale` after
+5 minutes; after 30 minutes without an answer it is dropped and the engine runs on the timetable (and the
+other feed) until the feed answers again. `/api/meta` then says so: `realtime.source` names only feeds whose
+data is in use (null when none), `realtime.error` and the feed's `error` say it was dropped, and with no feed
+in use `updatedAt` is null and `/api/departures` answers `realtime: false`.
 
 ## `liveInfo`: how sure a trip's times are
 
@@ -107,13 +124,17 @@ For pages that plan with transport.opendata.ch and want this engine's live data 
 
 `reason` is `unique`, `ambiguous` (several trips fit: `match` is null, never a guess) or `none`.
 
-When the ride stays seated into a trip this one continues as (the timetable links them), `toSeq` is absent
-and `then` lists those trips in order, the last one with `toSeq`:
-`"then": [{ "tripId": "…", "serviceDate": "…", "toSeq": 7 }]`.
+When the ride stays seated into another trip, `toSeq` is absent and `then` lists the trips it rides on in
+order, the last one with `toSeq`: `"then": [{ "tripId": "…", "serviceDate": "…", "toSeq": 7 }]`. Such a
+trip is one the timetable links to this one, or — for a train that divides, which the timetable does not
+link (RhB RE13/RE24 at Klosters) — the one trip that leaves the same platform within ten minutes of this
+one's arrival towards one of the parts the arriving train names in its destination ("St. Moritz | Davos
+Platz"), and reaches the ride's destination at the ride's arrival time. Only for trains, only when `arr` is
+given, and when not exactly one trip fits, nothing is assumed.
 
-Tested on 74 rides between 15 pairs of places planned with transport.opendata.ch (21 Nov 2026): 67 unique,
-none ambiguous, 7 `none`. All 7 are RhB trains that divide on the way (RE13, RE24 at Klosters), which the
-timetable has as separate trips without a link; the page then keeps its own refresh for that ride.
+Tested on 106 rides between 21 pairs of places planned with transport.opendata.ch (21 Nov 2026), including
+the RhB trains that divide: 106 unique, none ambiguous, none missing. Example: RE24 1053 Landquart → Scuol-Tarasp
+is `then` RE4 1253 from Klosters Platz platform 3; RE13 1055 → Zernez is `then` RE3 1355.
 
 ## `GET /api/departures`
 
@@ -131,6 +152,13 @@ be there.
 | `t` | default now |
 | `before`, `after` | seconds before/after `t` to include (defaults 120 and 900) |
 | `limit` | default 30 |
+
+`quay` is the engine's quay id or the **ATLAS SLOID** of the boarding edge (what a journey from `/api/plan`
+gives as `quay.sloid`, and what the app's stop data knows). The two are the same string for nearly every
+boarding point; a platform whose sectors the timetable splits has extra quays for its parts
+(`ch:1:sloid:7000_gen:ch:1:sloid:7000:3:5_pf:5A-C` for Bern platform 5), and its SLOID covers all of them.
+`/api/departures?quay=` takes the same. Example: `GET /api/due?quay=ch:1:sloid:7000:3:5` — Bern, platform 5;
+`GET /api/due?quay=ch:1:sloid:76646:0:13` — Bern, Bahnhof, bay E.
 
 ```json
 { "t": 1795262074, "due": [ {
@@ -154,6 +182,60 @@ Included: departures from the asked boarding points, counting the platform in us
 `delayS` is only given where the time is live.
 `approachBearing` is the direction the vehicle drives in when it arrives (from the stop before);
 `departBearing` when it leaves (to the next stop). Either is null where there is no such stop.
+
+## `GET /api/identify` — which trip is the vehicle a camera sees?
+
+For a camera (or a person) that sees a bus, tram or train and could read some of its display. The answer is
+chosen among the vehicles that can actually be there at that moment — those due at the boarding points
+around (as `/api/due`) and those under way nearby (as `/api/vehicles`) — so a reading only has to tell them
+apart, not find the trip in the whole country.
+
+| Parameter | |
+|---|---|
+| `lat`, `lon` | where the camera is |
+| `t` | when it saw the vehicle, default now |
+| `line` | the line number as read (`10`, `S1`, `S 1`, `IC 8`, `EV`); optional |
+| `headsign` | the destination text as read (any part of it, may contain misread letters); optional |
+| `bearing` | the direction the vehicle drives in, degrees from north; optional |
+| `radius` | how far away the vehicle can be, metres (20–400, default 120): boarding points within it, and vehicles between stops whose estimated position is within it |
+| `quay` | only vehicles due at this boarding point (engine quay id or ATLAS SLOID); then no vehicle between stops is considered; optional |
+
+```json
+GET /api/identify?lat=46.94886&lon=7.43979&line=10&headsign=Ostermundigen%20R%C3%BCti&bearing=95
+{ "t": 1795262074, "result": "match", "confidence": 0.93,
+  "candidates": [ { "tripId": "…", "serviceDate": "2026-11-21", "score": 0.93,
+    "line": { "name": "10", "category": "T", "mode": "tram", "operator": "BERNMOBIL" },
+    "headsign": "Ostermundigen, Rüti", "seq": 5, "quayId": "ch:1:sloid:76646:0:13",
+    "downstream": [ { "seq": 5, "station": "Bern, Bahnhof", "quayId": "…", "arr": 1795262040 },
+                    { "seq": 6, "station": "Bern, Zytglogge", "quayId": "…", "arr": 1795262160 } ],
+    "evidence": { "line": "exact", "text": 1.0, "distanceM": 18, "timeOffS": 0, "bearingDiff": 7 },
+    "liveInfo": { … } } ] }
+```
+
+`result` is `match` (the first candidate, clearly ahead of every other), `ambiguous` (several fit about as
+well — the candidates are listed, best first; read more of the display, or add the direction) or `none`.
+`confidence` is the winner's score: a ranking (0–1), not a probability.
+
+How a candidate is scored: the line read (`exact`, `confusable` — O/0, I/1, S/5, B/8, Z/2, G/6 —, or
+`unseen`), how well the destination text fits its destination or one of its next stops (accents and
+digit-for-letter readings folded), how close it is in place and time, and how well its direction of travel
+fits `bearing`. Ruled out: another line read, or driving the other way (more than 120° off). A destination
+that was read and does not fit is never a match. Each candidate carries `downstream` (its next stops with
+boarding points), so a page can bind the vehicle to the trip and check it serves where the traveller goes.
+
+Tested by a simulated camera at 186 real situations in 12 cities (a vehicle due at a boarding point, read at
+its arrival time a few metres away, timetable data, 21 Nov 2026):
+
+| What was read | correct match | ambiguous (right trip listed) | wrong match |
+|---|---|---|---|
+| line + destination | 98 % | 2 % | 0 |
+| line + destination with a misread letter | 99 % | 1 % | 0 |
+| line + destination + direction | 99 % | 1 % | 0 |
+| line + direction | 96 % | 4 % | 0 |
+| destination only | 85 % | 15 % | 0 |
+| line only | 60 % | 40 % (same line both ways) | 0 |
+
+The script: `livemap/measure/identify_sim.py` (`python3 -I identify_sim.py [engine]`).
 
 ## `GET /api/stream?bbox=w,s,e,n` — vehicles as server-sent events
 

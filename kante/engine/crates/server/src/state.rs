@@ -79,6 +79,9 @@ pub struct App {
     pub station_grid: PointGrid,
     pub station_ids: FxHashMap<String, StationIdx>,
     pub stop_ids: FxHashMap<String, StopIdx>,
+    /// ATLAS SLOID → the engine's quays on it. Usually one, whose id is the SLOID; a platform
+    /// whose sectors the timetable splits has one quay per part (`…_pf:5A-C`).
+    pub sloid_stops: FxHashMap<String, Vec<StopIdx>>,
     /// Normalised station names for the fallback search.
     pub station_norm: Vec<String>,
     pub live: RwLock<LiveState>,
@@ -89,7 +92,7 @@ pub struct App {
     /// Set when the server shuts down, so open streams end and do not hold it up.
     pub shutdown: tokio::sync::watch::Sender<bool>,
     /// Vehicle lists being computed at once (requests and streams wait their turn).
-    pub heavy: tokio::sync::Semaphore,
+    pub heavy: Arc<tokio::sync::Semaphore>,
     /// Open `/api/stream` connections.
     pub streams: std::sync::atomic::AtomicUsize,
     /// Learned travel and dwell times per pair of stops.
@@ -305,6 +308,12 @@ impl App {
         let station_grid = PointGrid::new(tt.stations.iter().enumerate().map(|(i, s)| (i as u32, s.pos)), 500.0);
         let station_ids = tt.stations.iter().enumerate().map(|(i, s)| (s.gtfs_id.clone(), i as u32)).collect();
         let stop_ids = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.clone(), i as u32)).collect();
+        let mut sloid_stops: FxHashMap<String, Vec<StopIdx>> = FxHashMap::default();
+        for (i, s) in tt.stops.iter().enumerate() {
+            if !s.sloid.is_empty() {
+                sloid_stops.entry(s.sloid.clone()).or_default().push(i as StopIdx);
+            }
+        }
         let station_norm = tt.stations.iter().map(|s| text::normalize(&s.name)).collect();
 
         eprintln!(
@@ -331,17 +340,27 @@ impl App {
             station_grid,
             station_ids,
             stop_ids,
+            sloid_stops,
             station_norm,
             live: RwLock::new(LiveState { view: None, meta: Default::default() }),
             feeds: Default::default(),
             live_tx: tokio::sync::watch::channel(0).0,
             shutdown: tokio::sync::watch::channel(false).0,
-            heavy: tokio::sync::Semaphore::new(4),
+            heavy: Arc::new(tokio::sync::Semaphore::new(4)),
             streams: Default::default(),
             profiles: Default::default(),
             walk_bbox,
             data_dir: data_dir.to_path_buf(),
         })
+    }
+
+    /// The quays a `quay=` parameter names: an engine quay id, or an ATLAS SLOID (all the
+    /// engine's quays on that boarding point). Empty when unknown.
+    pub fn quays_of(&self, id: &str) -> Vec<StopIdx> {
+        if let Some(v) = self.sloid_stops.get(id) {
+            return v.clone();
+        }
+        self.stop_ids.get(id).map(|&s| vec![s]).unwrap_or_default()
     }
 
     pub fn live_view(&self) -> Option<Arc<dyn LiveView>> {
