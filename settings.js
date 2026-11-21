@@ -391,6 +391,7 @@
     connectionFits,
     // the journey options as the 3D station view's router wants them (station-route.js)
     journey: () => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
+    set: (patch) => update(patch), // change settings from outside the page (onboarding.js)
     onChange: (fn) => changeListeners.push(fn),
     onClose: (fn) => closeListeners.push(fn),
   };

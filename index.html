@@ -18,6 +18,26 @@
       document.documentElement.dataset.theme = saved === 'dark' || saved === 'light' ? saved : sys;
     })();
   </script>
+  <script>
+    // First visit on this device: the introduction (onboarding.js) comes before the map and before the location prompt.
+    // 'onboarding' in localStorage: 'started' until it has been finished, then 'done'. A device that has used the app
+    // before never sees it. ?intro shows it again, ?intro=0 switches it off (tests, screen recordings).
+    (function () {
+      let show = false;
+      try {
+        const flag = new URLSearchParams(location.search).get('intro');
+        const seen = localStorage.getItem('onboarding');
+        if (flag === '0') localStorage.setItem('onboarding', 'done');
+        else if (flag !== null || seen === 'started') show = true;
+        else if (!seen) {
+          const used = ['app-settings', 'lastLocation', 'theme', 'event-preferences'].some((k) => localStorage.getItem(k) !== null);
+          localStorage.setItem('onboarding', used ? 'done' : 'started');
+          show = !used;
+        }
+      } catch (e) {} // nothing can be remembered here: better never than on every visit
+      if (show) document.documentElement.dataset.onboarding = 'first';
+    })();
+  </script>
   <!-- Open the connections the app needs while the page is still loading (map tiles, search, timetable) -->
   <link rel="preconnect" href="https://vectortiles.geo.admin.ch" crossorigin />
   <link rel="preconnect" href="https://api3.geo.admin.ch" crossorigin />
@@ -38,7 +58,9 @@
           this.errors.splice(0).forEach(onError);
         },
       };
-      if (window.isSecureContext && navigator.geolocation) {
+      geo.start = () => {
+        if (geo.started || !window.isSecureContext || !navigator.geolocation) return;
+        geo.started = true;
         const fix = (p) => (geo.on ? geo.on.onFix(p) : geo.fixes.push(p));
         const fail = (e) => (geo.on ? geo.on.onError(e) : geo.errors.push(e));
         try {
@@ -46,7 +68,9 @@
           navigator.geolocation.getCurrentPosition(fix, () => {}, { enableHighAccuracy: false, maximumAge: 600000, timeout: 4000 });
           navigator.geolocation.watchPosition(fix, fail, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
         } catch (e) {}
-      }
+      };
+      // On a first visit the introduction asks first; it calls EARLY_GEO.start() when it ends (onboarding.js)
+      if (!document.documentElement.dataset.onboarding) geo.start();
 
       // Base map style with its two tile sets written in (saves two round trips before the first tile), and every
       // tile fetched from the style's own host: one HTTP/2 connection for style, fonts, icons and tiles, not six
@@ -125,6 +149,8 @@
       overscroll-behavior: none;
     }
     #map { position: fixed; inset: 0; }
+    /* First visit: the map stays covered until the introduction is over (onboarding.js, onboarding.css) */
+    :root[data-onboarding] body::before { content: ""; position: fixed; inset: 0; z-index: 79; background: var(--page-bg); }
     .maplibregl-control-container { display: none; }
 
     /* Shared round floating button */
@@ -1359,6 +1385,8 @@
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
+  <!-- The introduction for a first visit. If it can't load, the app starts as usual -->
+  <script src="onboarding.js" onerror="delete document.documentElement.dataset.onboarding; EARLY_GEO.start()"></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
