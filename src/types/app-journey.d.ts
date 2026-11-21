@@ -19,6 +19,28 @@ interface JourneyDest {
   origin?: string;
 }
 
+// ---------------------------------------------------------------- the journeys to choose from
+
+/**
+ * Every way on offer to make the trip (`journeyOptions`): what KanteJourney.plans() answers, or connections()
+ * (70-routing.ts) from the public timetable, which has no walking all the way and no earlier / later.
+ */
+interface JourneyOptions {
+  /** By public transport, in order of departure. */
+  list: OdConnection[];
+  /** On foot all the way, when that is near enough; else null. */
+  walk: OdConnection | null;
+  /** The one shown first: one of `list`, or `walk`. */
+  best: OdConnection;
+  /** Whether there are earlier and later ones to fetch (KanteJourney.more()). */
+  earlier: boolean;
+  later: boolean;
+}
+/** The list's two tabs: by public transport, or on foot all the way. */
+type JourneyTab = 'pt' | 'walk';
+/** Which way the list is being extended (`journeyMore`). */
+type JourneyMoreDir = 'earlier' | 'later';
+
 // ---------------------------------------------------------------- lines
 
 /** How a line runs, as far as its timetable category tells (modeOf()). */

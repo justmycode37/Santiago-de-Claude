@@ -20,6 +20,12 @@ interface SheetPositions { full: number; mid: number; low: number; h: number }
 /** A walking direction picked in the sheet: the journey step and which of its directions. */
 interface JourneyFocus { step: number; dir: number }
 
+/**
+ * What quayOf() (60-sheet.ts) reads of a ride's step: its section, and where it stops once the step has been
+ * placed. A row of the list of journeys (optionRow() in 62-sheet-content.ts) has only the section.
+ */
+type QuayRide = Pick<JourneyRideStep, 's'> & Partial<Pick<JourneyRideStep, 'depAt' | 'arrAt'>>;
+
 /** Where a ride stops, as quayOf() (60-sheet.ts) reads it of the ride's step. */
 interface Quay {
   /** The platform's or bay's name as signed ("7", "C"); '' at a stop without signed ones. */

@@ -14,9 +14,15 @@ interface StationRouteStopRef {
   /** "B" or "A-D": aim at these sectors of the platform instead of the whole platform. */
   sector?: string | null;
 }
+/** What the router reads of a stop besides station-model.d.ts's fields (stations3d/SCHEMA.md, `stops`). */
+interface StationStop {
+  /** On a stop without a ref: where the timetable data (platforms.js) has this stop edge. */
+  at?: XY;
+}
 /**
  * Where a route starts or ends. A `{ stop }` may also carry a position (xy / ll, level), used when the model has no
- * such stop. `level` is optional on a position: without it, outdoor street level is preferred.
+ * such stop. `level` is optional on a position: without it, outdoor street level is preferred. A position within 3 m
+ * of where the timetable data has a stop without a ref (`stops[].at`) is that stop, on the level the model has it on.
  */
 type StationRouteEndpoint =
   | { stop: StationRouteStopRef; xy?: StationRouteXY; ll?: LngLat; level?: number | null; node?: undefined; entrance?: undefined }
@@ -194,7 +200,7 @@ interface StationRouteCandidateInfo {
   point: XYL;
   /** Metres from the position asked for (0 for stops, nodes and entrances). */
   dist: number;
-  /** The model's stop, for a `{ stop }` endpoint, and whether it is closed that day. */
+  /** The model's stop, for a `{ stop }` endpoint (or a position that is a stop's `at`), and whether it is closed that day. */
   stop?: StationStop;
   closedStop?: boolean;
   /** One of several nodes along the stop's platform. */

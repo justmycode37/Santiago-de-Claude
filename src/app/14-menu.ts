@@ -47,6 +47,7 @@ document.getElementById('settingsBtn')!.addEventListener('click', () => {
 SETTINGS.onChange(() => { updateCards(); updatePlaces(); vehUpdate(); });
 // Accessibility options changed during a journey → plan it again with them
 SETTINGS.onClose((journeyChanged) => {
+  if (journeyConn) renderFoot();
   if (journeyChanged && journeyDest) startJourney(journeyDest, true);
   else menuBtn.focus();
 });

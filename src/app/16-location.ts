@@ -30,10 +30,10 @@ function updateAccuracy() {
 map.on('zoom', updateAccuracy);
 
 let lastSavedAt = 0;
-let lastRealPos = null; // the newest fix from the phone itself, to come back to after a simulated walk
-function onPosition(pos) {
+let lastRealPos: PositionFix | null = null; // the newest fix from the phone itself, to come back to after a simulated walk
+function onPosition(pos: PositionFix) {
   if (!pos.simulated) lastRealPos = pos;
-  const lngLat = [pos.coords.longitude, pos.coords.latitude];
+  const lngLat: LngLat = [pos.coords.longitude, pos.coords.latitude];
   if (!inSwitzerland(lngLat)) {
     showToast('You are outside Switzerland');
     return;

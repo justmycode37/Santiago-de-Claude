@@ -35,6 +35,32 @@ interface StationDetailSurface extends StationDetailItem {
   variant?: string;
 }
 
+type StationDetailMarkingKind = 'bike-symbol' | 'arrow' | 'lane-line' | 'stop-line' | 'crossing';
+/** Other names the renderer understands for a marking kind. */
+type StationDetailMarkingAlias = 'bike' | 'bicycle' | 'line';
+/** Paint on the ground, drawn on top of the surfaces. It needs no height: it lies on the ground below it. */
+interface StationDetailMarking extends StationDetailItem {
+  kind: StationDetailMarkingKind | StationDetailMarkingAlias;
+  /** "#rrggbb" (default: the palette's marking yellow). */
+  color?: string;
+  /** Symbols: the way the traffic it speaks to moves. Crossing: the way people walk (default: the long axis of the ring). */
+  heading?: number;
+  /** Bike symbol, arrow: where it is, and its length along `heading` in metres (bike symbol 1.8, arrow 2.2). */
+  xy?: XY;
+  size?: number;
+  /** Lane line, stop line: its course, its width in metres (0.12, stop line 0.4) and [painted, gap] in metres (missing: solid). */
+  line?: XY[];
+  width?: number;
+  dash?: [painted: number, gap?: number];
+  /** Crossing: its outline. */
+  ring?: XY[];
+}
+/** A marking given among the surfaces: `marking` (else `variant`) is its kind, the other fields are those of a marking. */
+interface StationDetailMarkingSurface extends Omit<StationDetailSurface, 'kind' | 'ring'>, Omit<StationDetailMarking, 'kind'> {
+  kind: 'marking';
+  marking?: StationDetailMarkingKind | StationDetailMarkingAlias;
+}
+
 type StationDetailEdgeKind = 'kerb' | 'ledge' | 'wall' | 'fence' | 'railing' | 'hedge' | 'steps';
 /** A linear thing with a height you could trip over or sit on. */
 interface StationDetailEdge extends StationDetailItem {
@@ -104,12 +130,18 @@ interface StationDetailProp extends StationDetailItem {
   plinthHeight?: number;
   plinthColor?: string;
   color?: string;
+  /** Hanging lamp: the two points its wire is fixed at (missing: the nearest house fronts on both sides). */
+  wire?: [x: number, y: number, z?: number][];
 }
 
 type StationDetailRoof = 'flat' | 'gabled' | 'hipped' | 'mansard';
 type StationDetailGroundFloor = 'shop' | 'arcade' | 'plain';
 /** Real geometry: positions = flat [x, y, z, …], indices = flat triangle corners (missing: every three points are one). */
 interface StationDetailMesh { positions: number[]; indices?: number[] }
+/** A stone bay window: at bay `bay` (0 = the first from a) or at `at` (0..1 along a→b), over the floors `floors`
+    (first and last; 1 = the floor above the ground floor). Sizes in metres. */
+interface StationDetailOriel { bay?: number; at?: number; floors?: [first: number, last: number]; width?: number; depth?: number }
+interface StationDetailBalcony { bay?: number; at?: number; floor?: number; width?: number }
 /** What one wall looks like: the wall of the building that runs from a to b. */
 interface StationDetailFace {
   a: XY;
@@ -120,6 +152,17 @@ interface StationDetailFace {
   color?: string;
   /** The way the wall looks, for buildings without a ring. */
   heading?: number;
+  /** The window grid as counted (`floors` includes the ground floor): goes before `bays` and `floors`. */
+  windows?: { bays?: number; floors?: number };
+  /** Stone bay windows: how many (spread along the front), or each one. `oriels` is read when `bayWindows` is missing. */
+  bayWindows?: number | StationDetailOriel[];
+  oriels?: number | StationDetailOriel[];
+  /** How many per floor on the main floors, or a count per upper floor (first entry = first upper floor), or each one. */
+  balconies?: number | number[] | StationDetailBalcony[];
+  /** Shop fronts: an awning over every window (in that colour) / none. Missing: over some. */
+  awnings?: boolean | { color?: string };
+  /** "townhouse": a lintel over every window; on fronts of five bays or more the middle bays stand forward. */
+  style?: string;
 }
 /** A house at its real size: a prism (ring + heights) or a mesh. */
 interface StationDetailBuilding extends StationDetailItem {
@@ -145,6 +188,17 @@ interface StationDetailBuilding extends StationDetailItem {
   shutters?: boolean | string;
   /** Floors in the roof: dormers on a mesh roof. */
   roofFloors?: number;
+  /** For the faces that have no `style` of their own. */
+  style?: string;
+}
+
+/** A plane through the ground: its height at `origin` and its slope (metres per metre east and north). */
+interface StationDetailPlane { z: number; dzdx: number; dzdy: number }
+/** The plane of the street as measured: height at (x, y) = z + dzdx · (x - origin[0]) + dzdy · (y - origin[1]). */
+interface StationDetailGroundPlane extends StationDetailPlane, StationDetailItem {
+  origin: XY;
+  /** The same through the ground near the walk only: `flatten` prefers it. */
+  nearWalk?: StationDetailPlane;
 }
 
 interface StationDetailModel {
@@ -158,7 +212,9 @@ interface StationDetailModel {
   path: StationDetailXYZ[];
   /** Metres the scene is to be moved up (+) or down (-) to meet the station model (`zShift: true`). */
   zOffset?: number;
-  surfaces?: StationDetailSurface[];
+  groundPlane?: StationDetailGroundPlane;
+  surfaces?: (StationDetailSurface | StationDetailMarkingSurface)[];
+  markings?: StationDetailMarking[];
   edges?: StationDetailEdge[];
   trees?: StationDetailTree[];
   props?: StationDetailProp[];
@@ -177,7 +233,7 @@ type Station3DDetailSeason = 'winter' | 'summer';
 /** The default colours of a theme ("#RRGGBB"), as `Station3DDetail.palette(theme)` gives them. */
 interface Station3DDetailPalette {
   sky: string; horizon: string; ground: string;
-  paving: string; asphalt: string; cobble: string; gravel: string; grass: string; soil: string; water: string;
+  paving: string; asphalt: string; road: string; pavement: string; cobble: string; gravel: string; grass: string; soil: string; water: string;
   tram: string; kerb: string; stone: string; marking: string; rail: string;
   wall: string; wallShade: string; trim: string; roof: string; roofTile: string;
   glass: string; glassLit: string; pane: string; door: string;
@@ -187,6 +243,8 @@ interface Station3DDetailPalette {
   shadow: string;
   /** 0..1: how dark the shadows on the ground are. */
   shadowAlpha: number;
+  /** 0..1: how dark the shadows are that the sun casts (0 at night). */
+  castAlpha: number;
   awnings: string[]; shutters: string[]; flowers: string[];
 }
 /** A colour given to the renderer: "#rgb" / "#rrggbb", or sRGB [r, g, b] with 0..1 each. */
@@ -210,13 +268,22 @@ interface Station3DDetailOptions {
   toScene?: (x: number, y: number, z: number) => [X: number, Y: number, Z: number];
   /** Metres the whole scene is moved up (+) or down (-) before toScene; true: by `detail.zOffset`. Default 0. */
   zShift?: number | boolean;
+  /** true: the plane that fits the street (`h.plane`) is taken out of every height, so the street lies level at
+      height 0 (+ zShift), like the floor of the station model. Default false. */
+  flatten?: boolean;
+  /** false: no cast shadows on the ground by day (soft round ones instead). Default true. */
+  shadows?: boolean;
   palette?: Station3DDetailPaletteOverride;
   /** Where the light comes from (compass bearing and height, degrees). Default: the direction of the viewer's sun. */
   sun?: { azimuth?: number; elevation?: number };
   /** true: add a sky dome to the group. */
   sky?: boolean;
-  /** Metres the ground fades out over beyond `detail.area` (default 5; 0: no fade). */
+  /** Metres the ground fades out over beyond `detail.area` (default 5; 0: a hard edge). */
   feather?: number;
+  /** The colour of that rim: that of the ground the scene lies in. Default: the palette's `ground`. */
+  featherColor?: Station3DDetailColor;
+  /** Metres inside the outline over which the scene's own ground already takes on `featherColor`. Default 0. */
+  featherInside?: number;
   /** Metres of free height kept under crowns that reach over `detail.path` (default 2.7). */
   clearance?: number;
 }
@@ -229,6 +296,8 @@ type Station3DDetailSky = THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMateri
 interface Station3DDetailParts {
   /** One per ground texture and layer. */
   ground: Station3DDetailMesh[];
+  /** The shadows the sun casts, one per ground layer: only by day, with `opts.shadows`, when something casts one. */
+  cast?: Station3DDetailMesh[];
   decals: Station3DDetailMesh | null;
   solid: Station3DDetailMesh | null;
   buildings: Station3DDetailMesh | null;
@@ -242,13 +311,15 @@ interface Station3DDetailParts {
   /** Only with `opts.sky`. */
   sky?: Station3DDetailSky;
 }
-interface Station3DDetailCounts { surfaces: number; edges: number; trees: number; props: number; buildings: number }
+interface Station3DDetailCounts { surfaces: number; edges: number; trees: number; props: number; buildings: number; markings?: number }
 interface Station3DDetailStats {
   triangles: number;
   drawCalls: number;
   vertices: number;
   textures: number;
   buildMs: number;
+  /** Milliseconds per stage of the build: "ground", "objects", "shadows". */
+  timing: Record<string, number>;
   /** Items of the data that were drawn. */
   counts: Station3DDetailCounts;
   /** Triangles per mesh, by its name without "detail-" ("solid", "ground-paving-0" …). */
@@ -256,8 +327,10 @@ interface Station3DDetailStats {
   /** What could not be drawn (at most 40). */
   warnings: string[];
 }
-/** Where a lamp is: model coordinates, z shifted; height = that of its light above z. */
+/** Where a lamp is: model coordinates, z in the frame of `groundAt`; height = that of its light above z. */
 interface Station3DDetailLamp { xy: XY; z: number; height: number }
+/** The plane fitted to the street: z = c + a·x + b·y (model metres, before zShift). given: it is the data's `groundPlane`. */
+interface Station3DDetailPlane { a: number; b: number; c: number; given: boolean }
 
 /** What `build` returns. */
 interface Station3DDetailHandle {
@@ -270,6 +343,9 @@ interface Station3DDetailHandle {
   quality: Station3DDetailQuality;
   /** The shift that was applied. */
   zShift: number;
+  plane: Station3DDetailPlane;
+  /** Whether `plane` was taken out of the heights (`opts.flatten`). */
+  flattened: boolean;
   stats: Station3DDetailStats;
   parts: Station3DDetailParts;
   lamps: Station3DDetailLamp[];
@@ -283,7 +359,8 @@ interface Station3DDetailApi {
   build(THREE: ThreeModule, detail: StationDetailModel | null | undefined, opts?: Station3DDetailOptions): Station3DDetailHandle;
   /** Changes the look without a new handle: the contents of `h.group` are built again in place. Returns `h`. */
   update(h: Station3DDetailHandle, change?: Station3DDetailOptions): Station3DDetailHandle;
-  /** z of what you stand on at (x, y): model metres relative to level 0, plus zShift. null outside the scene. */
+  /** The height of what you stand on at (x, y), in the frame the scene is drawn in: model metres relative to level 0,
+      plus zShift, minus the plane when flattened. null outside `detail.area`. */
   groundAt(h: Station3DDetailHandle | null | undefined, x: number, y: number): number | null;
   /** A sky dome (Y-up scene), for pages without one. */
   sky(THREE: ThreeModule, o?: Station3DDetailSkyOptions): Station3DDetailSky;

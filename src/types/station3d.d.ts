@@ -35,6 +35,8 @@ interface Station3DOpenOptions {
   povAt?: number | string | null;
   povYaw?: number | string;
   povPitch?: number | string;
+  /** The walk plays by itself in the first-person view (with prefers-reduced-motion it waits at the first step for the Play button). */
+  play?: boolean | Station3DPlayOptions | null;
   /** The element that gets the focus back on close (default: the one that has it now). */
   returnFocus?: HTMLElement | null;
   /** false: leave the rest of the page usable (development page). */
@@ -43,6 +45,12 @@ interface Station3DOpenOptions {
   mount?: HTMLElement | null;
   /** A tap anywhere on the model is a 'pick', not only on something with a name. */
   pickAnywhere?: boolean;
+}
+
+/** `Station3D.play(options)` and `open({ play })`. */
+interface Station3DPlayOptions {
+  /** A multiplier of walking pace (default 1.5). */
+  speed?: number | string;
 }
 
 /** `Station3D.setUser(position)`: the live position. */
@@ -72,8 +80,16 @@ interface Station3DEventMap {
   pick: Station3DPick;
   follow: boolean;
   pov: boolean;
+  /** Once per open, when the walk reaches the destination. */
+  arrived: { by: Station3DArrivedBy };
+  /** Metres walked in the first-person view, a few times a second; step = the index of the step it is in. */
+  progress: { along: number; total: number; step: number };
+  /** The walk started or stopped playing by itself. */
+  play: boolean;
   error: { code: Station3DErrorCode; message: string };
 }
+/** What brought the walk to the destination: it played by itself, the scrubber (or the keys), a step that was chosen, the live position. */
+type Station3DArrivedBy = 'play' | 'scrub' | 'step' | 'position';
 /** Something of the model that was tapped. */
 interface Station3DPick {
   title: string;
@@ -101,6 +117,10 @@ interface Station3DApi {
   setFollow(on: boolean): void;
   enableCompass(): Promise<Station3DCompass>;
   setPov(on: boolean): void;
+  /** The walk plays by itself. → is it walking now? */
+  play(o?: Station3DPlayOptions | null): boolean;
+  pause(): void;
+  isPlaying(): boolean;
   /** How far the floors are apart, 0..1. */
   setPeel(v: number): void;
   /** Loads the styles, three.js, the router and (with a key) the model ahead of an open. → did everything load? */
