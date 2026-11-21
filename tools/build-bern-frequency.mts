@@ -5,7 +5,7 @@
 //
 // Usage:
 //   unzip -p data/raw/haltestellen_2026.zip haltestellen_2026/haltestellen26.csv \
-//     | node tools/build-bern-frequency.mjs data/bern-stop-accessibility.json data/bern-stop-frequency.json
+//     | node tools/build-bern-frequency.mts data/bern-stop-accessibility.json data/bern-stop-frequency.json
 
 import fs from "node:fs";
 import readline from "node:readline";

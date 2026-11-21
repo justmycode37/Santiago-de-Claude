@@ -41,7 +41,7 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
   ```
 - **Places & amenities (`map-places.js`)** from `data/` (see [docs/places-data.md](docs/places-data.md)):
   ```bash
-  node tools/build-map-places.mjs
+  node tools/build-map-places.mts
   ```
 - **3D station models (`stations3d/`)** from OSM + ATLAS (requires `pip install shapely`):
   ```bash

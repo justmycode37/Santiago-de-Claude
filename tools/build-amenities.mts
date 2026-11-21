@@ -1,4 +1,4 @@
-// Usage: node tools/build-amenities.mjs data/amenities.json
+// Usage: node tools/build-amenities.mts data/amenities.json
 // Fetches Bern amenities from OSM (Swiss Overpass instance) and writes the contract's Amenity[] file. Data: (c) OpenStreetMap contributors, ODbL.
 import { writeFileSync } from "node:fs";
 import assert from "node:assert/strict";

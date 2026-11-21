@@ -1,4 +1,4 @@
-// Tests for station-route.js (window.StationRoute). Run: node tools/test_station_route.mjs
+// Tests for station-route.js (window.StationRoute). Run: node tools/test_station_route.mts
 // Plain assertions, no framework. Uses stations3d/_fixture.js, small made-up graphs built here, and every real
 // model listed in MODELS below that exists in stations3d/ (then also prints sample routes and outliers for a human
 // to judge).

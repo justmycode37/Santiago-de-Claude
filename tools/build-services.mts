@@ -1,8 +1,8 @@
-// Usage: node tools/build-services.mjs [data/services.json]
+// Usage: node tools/build-services.mts [data/services.json]
 // Official service locations for newcomers/refugees in canton Bern: Kanton Bern GPKG downloads (geofiles.be.ch),
 // BABS emergency meeting points and SEM federal asylum centres (geo.admin.ch). See docs/data-services.md.
 // A failed source is recorded in `sources` (fetched_ok:false) and the build continues.
-// Helpers copied from tools/build-official-places.mjs (importing it runs its build).
+// Helpers copied from tools/build-official-places.mts (importing it runs its build).
 import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

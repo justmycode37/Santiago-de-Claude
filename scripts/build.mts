@@ -6,9 +6,11 @@
 // What goes into dist/:
 //   src/<name>.ts      → <name>.js. The types are replaced by spaces and nothing else is touched, so the
 //                        script the browser runs is the source, line for line (no source maps needed).
-//   src/app/*.ts       → the page's own script, joined in file name order and put into index.html where
-//                        APP_MARKER stands. The files share one scope, as one script would.
-//   *.html *.css *.js  → copied (the .js files in the repository root are generated data and config.js)
+//   *.html             → copied, with every line "<!-- build: src/… -->" replaced by a <script> holding that
+//                        file, or that folder's files joined in file name order. src/app is the page's own
+//                        script: its files share one scope, as one script would. src/inline and src/pages
+//                        hold the small scripts written into index.html and into the other pages.
+//   *.css *.js         → copied (the .js files in the repository root are generated data and config.js)
 //   STATIC_DIRS, DEMO  → copied
 //
 // Types are not checked here (`npm run check` does that), so a type error never blocks a build.
@@ -20,14 +22,17 @@ import { transformSync } from 'amaro';
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const DIST = path.join(ROOT, 'dist');
 export const SRC = path.join(ROOT, 'src');
-export const APP = path.join(SRC, 'app');
 
-/** The line in index.html that the page's own script replaces. */
-const APP_MARKER = /^[ \t]*<!-- build: src\/app -->[ \t]*$/m;
+/**
+ * A line in a page that a script from src/ replaces: "<!-- build: src/app -->", "<!-- build: src/inline/early.ts -->".
+ * Attributes after the path go onto the <script> tag: "<!-- build: src/pages/x.ts type="module" -->".
+ */
+const MARKER = /^([ \t]*)<!-- build: (src\/[\w./-]+)((?: [a-z]+="[^"]*")*) -->[ \t]*$/gm;
 /** Folders the page loads files from. */
 export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media'];
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
-const DEMO = ['demo/index.html', 'demo/opening.jpg', 'demo/santiago.mp4'];
+const DEMO_PAGE = 'demo/index.html';
+const DEMO = ['demo/opening.jpg', 'demo/santiago.mp4'];
 /** In the repository root, but not published: the development pages, the config template and a local config. */
 const notReleased = (file: string) => /-dev\.html$/.test(file) || file === 'config.example.js' || file === 'config.js';
 
@@ -53,22 +58,29 @@ export function buildScript(name: string): void {
   fs.writeFileSync(path.join(DIST, out), stripTypes(path.join(SRC, name)));
 }
 
-/** The page's own script: src/app/*.ts in file name order, as one script. */
-export function appScript(): string {
-  const code = tsFiles(APP).map((f) => stripTypes(path.join(APP, f))).join('\n');
-  const at = code.search(/<\/script/i);
-  if (at >= 0) {
-    const line = code.slice(0, at).split('\n').length;
-    throw new Error(`src/app: "</script" (line ${line} of the joined script) would end the script in index.html. Write it as '<\\/script'.`);
+/** What a build marker names, as one script: a file, or a folder's files in file name order. */
+function inlineScript(source: string): string {
+  const at = path.join(ROOT, source);
+  const code = fs.statSync(at).isDirectory() ? tsFiles(at).map((f) => stripTypes(path.join(at, f))).join('\n') : stripTypes(at);
+  const end = code.search(/<\/script/i);
+  if (end >= 0) {
+    const line = code.slice(0, end).split('\n').length;
+    throw new Error(`${source}: "</script" (line ${line} of the script) would end the <script> in the page. Write it as '<\\/script'.`);
   }
-  return code;
+  return code.endsWith('\n') ? code : code + '\n';
 }
 
-/** index.html with the page's own script in it → dist/index.html */
-export function buildIndex(): void {
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  if (!APP_MARKER.test(html)) throw new Error('index.html: the line "<!-- build: src/app -->" is missing');
-  fs.writeFileSync(path.join(DIST, 'index.html'), html.replace(APP_MARKER, () => `  <script>\n${appScript()}  </script>`));
+/** A page with the scripts its build markers name written into it → dist/ */
+export function buildPage(page: string): void {
+  const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+  const out = path.join(DIST, page);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, html.replace(MARKER, (_line, indent: string, source: string, attributes: string) => `${indent}<script${attributes}>\n${inlineScript(source)}${indent}</script>`));
+}
+
+/** The pages in the repository root (and the demo page). */
+export function pages(release: boolean): string[] {
+  return [...fs.readdirSync(ROOT).filter((f) => f.endsWith('.html') && !(release && notReleased(f))), DEMO_PAGE];
 }
 
 /** Copy a file unless dist/ already has it unchanged (same size, not older). */
@@ -88,9 +100,9 @@ function copyDir(from: string, to: string): void {
   }
 }
 
-/** The pages, stylesheets and scripts in the repository root that are served as they are. */
+/** The stylesheets and scripts in the repository root that are served as they are. */
 export function rootFiles(release: boolean): string[] {
-  return fs.readdirSync(ROOT).filter((f) => /\.(html|css|js)$/.test(f) && f !== 'index.html' && !(release && notReleased(f)));
+  return fs.readdirSync(ROOT).filter((f) => /\.(css|js)$/.test(f) && !(release && notReleased(f)));
 }
 
 export function copyStatic(release: boolean): void {
@@ -99,16 +111,16 @@ export function copyStatic(release: boolean): void {
   for (const f of DEMO) copy(path.join(ROOT, f), path.join(DIST, f));
 }
 
-export function buildScripts(): void {
+export function buildScripts(release = false): void {
   for (const f of tsFiles(SRC)) buildScript(f);
-  buildIndex();
+  for (const page of pages(release)) buildPage(page);
 }
 
 export function build({ release = false, clean = release }: { release?: boolean; clean?: boolean } = {}): void {
   if (clean) fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(DIST, { recursive: true });
   copyStatic(release);
-  buildScripts();
+  buildScripts(release);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -1,8 +1,8 @@
 // Fills missing addresses in data/places.json and data/amenities.json from the official Swiss building
 // address register (swisstopo "Amtliches Gebäudeadressverzeichnis", bulk CSV, LV95), flags OSM street
 // names the register doesn't know nearby, and writes slim browser copies (*.min.json, no `tags`).
-// Run after tools/build-places.mjs and tools/build-amenities.mjs. Rewrites both files in place; idempotent.
-// Usage: node tools/enrich-addresses.mjs [data/places.json data/amenities.json]
+// Run after tools/build-places.mts and tools/build-amenities.mts. Rewrites both files in place; idempotent.
+// Usage: node tools/enrich-addresses.mts [data/places.json data/amenities.json]
 // Needs `unzip` on PATH (Git Bash / macOS / Linux have it). Raw files are cached in data/raw/.
 import fs from "node:fs";
 import { spawn } from "node:child_process";

@@ -1,4 +1,4 @@
-// Usage: node tools/build-help.mjs [data/help.json]
+// Usage: node tools/build-help.mts [data/help.json]
 // Hand-curated help items for newcomers / refugees / low-income people in Bern where no open dataset exists
 // (see docs/data-help.md), plus two live operator feeds: Tischlein deck dich (public JSON used by its own map)
 // and Madame Frigo (fridge list embedded in its locations page). Neither feed states a licence -> licence_unclear.

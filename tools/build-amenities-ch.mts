@@ -1,6 +1,6 @@
-// Usage: node tools/build-amenities-ch.mjs [outDir=data/ch]
+// Usage: node tools/build-amenities-ch.mts [outDir=data/ch]
 // Switzerland-wide basic-needs amenities from OSM (Swiss Overpass instance), one file per category: <outDir>/osm-<category>.json.
-// Same query/categorize/dedupe logic as tools/build-amenities.mjs (Bern), minus non-basic categories. Data: (c) OpenStreetMap contributors, ODbL.
+// Same query/categorize/dedupe logic as tools/build-amenities.mts (Bern), minus non-basic categories. Data: (c) OpenStreetMap contributors, ODbL.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import assert from "node:assert/strict";

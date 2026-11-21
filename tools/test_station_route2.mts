@@ -1,6 +1,6 @@
 // Round-2 tests for station-route.js: closures by date, closed endpoints, naming by where you arrive, sloping streets,
 // sectors and sectorTimes, why(), free-position snapping limits, platform keys, same-platform routes.
-// Run: node tools/test_station_route2.mjs  (plain assertions; uses the fixture, a synthetic two-level station built
+// Run: node tools/test_station_route2.mts  (plain assertions; uses the fixture, a synthetic two-level station built
 // here, and stations3d/bern.js when it exists, for printed sample routes).
 import fs from 'node:fs';
 import path from 'node:path';

@@ -6,7 +6,7 @@
 // Each stop-to-stop hop is put on the real rails or roads by the `shaper`
 // child process (OpenStreetMap path finder, see shaper/src/main.rs).
 //
-//   node server.mjs            → http://127.0.0.1:8090
+//   node server.mts            → http://127.0.0.1:8090
 //   KANTE_URL, PORT, HOST      override the engine address and the listener
 //   OSM_PBF                    the OpenStreetMap extract the shaper routes on
 
@@ -18,12 +18,12 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import { transformSync } from "amaro"; // from the repository root: npm install
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 const ENGINE = process.env.KANTE_URL || "http://127.0.0.1:8080";
 const PORT = Number(process.env.PORT || 8090);
 const HOST = process.env.HOST || "127.0.0.1";
-const INDEX = here("./index.html");
 const SHAPER = here("./shaper/target/release/shaper");
 const OSM_PBF = process.env.OSM_PBF || `${homedir()}/Powercoders-Hackathon/kante/data/raw/osm/switzerland-latest.osm.pbf`;
 const SHAPE_CACHE = here("./data/shapes-v1.tsv"); // bump the version when the shaper's rules change
@@ -367,6 +367,16 @@ async function shapesFor(req, res) {
   res.end(gzipSync(JSON.stringify({ epoch: EPOCH, shapes: out })));
 }
 
+// A page as the browser gets it: the line "<!-- build: page.ts -->" becomes a <script> holding that file,
+// with its types taken out (the page's script is TypeScript; nothing else is changed).
+async function page(file) {
+  const html = await readFile(here(file), "utf8");
+  const marker = /^<!-- build: ([\w.-]+) -->$/m.exec(html);
+  if (!marker) return html;
+  const script = transformSync(await readFile(here("./" + marker[1]), "utf8"), { mode: "strip-only" }).code;
+  return html.replace(marker[0], () => `<script>\n${script}</script>`);
+}
+
 await loadShapeCache();
 startShaper();
 
@@ -379,11 +389,11 @@ http.createServer(async (req, res) => {
     if (url.pathname === "/state") return await state(url, res);
     if (url.pathname === "/old") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      return res.end(await readFile(here("./index-old.html")));
+      return res.end(await page("./index-old.html"));
     }
     if (url.pathname === "/" || url.pathname === "/index.html") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      return res.end(await readFile(INDEX));
+      return res.end(await page("./index.html"));
     }
     res.writeHead(404).end("not found");
   } catch (e) {

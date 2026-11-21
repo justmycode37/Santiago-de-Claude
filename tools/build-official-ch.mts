@@ -1,10 +1,10 @@
-// Usage: node tools/build-official-ch.mjs [data/ch/official-ch.json]
+// Usage: node tools/build-official-ch.mts [data/ch/official-ch.json]
 // Official (non-OSM) open data for basic amenities across Switzerland: ATLAS station toilets, city toilet / fountain /
 // AED / hospital datasets (Zürich, Basel, Geneva, Luzern, St.Gallen, Zug, Biel), Kanton Bern AED + hospitals, the
 // national hospital-site list (Kanton Solothurn), BAZL hospital helipads, BABS emergency meeting points, SBB station
 // amenities, pharmacies (BL, GE), Geneva post offices, Luzern libraries. See docs/data-ch-official.md.
 // A failed source is recorded in `sources` (fetched_ok:false) and the build continues.
-// Helpers copied from tools/build-official-places.mjs / build-services.mjs (importing those runs their builds).
+// Helpers copied from tools/build-official-places.mts / build-services.mts (importing those runs their builds).
 import { writeFileSync, readFileSync, mkdtempSync, rmSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";

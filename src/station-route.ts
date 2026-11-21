@@ -1,6 +1,6 @@
 // Indoor router for the station 3D models (stations3d/SCHEMA.md, section "Router"): the quickest walk through a
 // model's graph, with step-by-step instructions. Classic script, no dependencies; sets window.StationRoute
-// (and module.exports in Node, for tools/test_station_route*.mjs).
+// (and module.exports in Node, for tools/test_station_route*.mts).
 //
 // ---- API ----
 // StationRoute.toLocal(model, [lng, lat])  → [x, y]

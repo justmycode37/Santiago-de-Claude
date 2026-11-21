@@ -1,15 +1,15 @@
-// Merges every Swiss toilet record we have into one list, data/ch/toilets-ch.json (CH-wide version of tools/build-toilets.mjs):
-//   osm      - amenity=toilets, data/ch/osm-toilets.json (tools/build-amenities-ch.mjs, ODbL)
+// Merges every Swiss toilet record we have into one list, data/ch/toilets-ch.json (CH-wide version of tools/build-toilets.mts):
+//   osm      - amenity=toilets, data/ch/osm-toilets.json (tools/build-amenities-ch.mts, ODbL)
 //   official - city WC registries (zh.zueriwc, bs.wc, ge.wc, lu.wc, sg.wc, zg.stadtmobiliar) and ATLAS station toilets
-//              (atlas.toilet, position = station centre), data/ch/official-ch.json (tools/build-official-ch.mjs)
-//   nette    - Stadt Bern "Nette Toilette" restaurants, taken from Bern's merged data/toilets.json (tools/build-toilets.mjs)
+//              (atlas.toilet, position = station centre), data/ch/official-ch.json (tools/build-official-ch.mts)
+//   nette    - Stadt Bern "Nette Toilette" restaurants, taken from Bern's merged data/toilets.json (tools/build-toilets.mts)
 // Matching is one-to-one, nearest pair first: city WC <-> OSM toilet within 30 m (same site); ATLAS <-> OSM within 100 m,
 // preferring OSM toilets that look like station toilets; Nette <-> OSM by id, else within 30 m. Unmatched records stay as
 // their own items. Precedence: official city data > OSM > none for paid/price/wheelchair/eurokey (disagreement -> notes);
 // OSM wins for name, address, opening_hours (machine-readable), access, operator; ATLAS only fills gaps.
 // `paid` is "free" | "paid" | "mixed" (site has both a free and a paying WC, by cabin or time of day) | null (unknown).
 // Nothing is excluded: customers/private toilets stay, flagged by `access`.
-// Usage: node tools/build-toilets-ch.mjs [data/ch/toilets-ch.json] [data/toilets.json]
+// Usage: node tools/build-toilets-ch.mts [data/ch/toilets-ch.json] [data/toilets.json]
 import fs from "node:fs";
 import assert from "node:assert/strict";
 
@@ -18,17 +18,17 @@ const BERN = process.argv[3] ?? "data/toilets.json";
 const CITY_M = 30, ATLAS_M = 100, ATLAS_BONUS_M = 50; // a station-looking OSM toilet beats a closer anonymous one by up to 50 m
 const CH = { S: 45.8, W: 5.9, N: 47.9, E: 10.6 };
 for (const f of ["data/ch/osm-toilets.json", "data/ch/official-ch.json", BERN])
-  assert.ok(fs.existsSync(f), `missing ${f}: run tools/build-amenities-ch.mjs, tools/build-official-ch.mjs, tools/build-toilets.mjs first`);
+  assert.ok(fs.existsSync(f), `missing ${f}: run tools/build-amenities-ch.mts, tools/build-official-ch.mts, tools/build-toilets.mts first`);
 
 const metres = (a, b) => Math.hypot((a.lat - b.lat) * 111195, (a.lon - b.lon) * 111195 * Math.cos((a.lat * Math.PI) / 180));
 const nn = (v) => (v == null || v === "" || v === "unknown" ? null : v);
-// loose on purpose: accents and "h" dropped so "Mülirad" ~ "Mühlirad" (from tools/build-toilets.mjs)
+// loose on purpose: accents and "h" dropped so "Mülirad" ~ "Mühlirad" (from tools/build-toilets.mts)
 const GENERIC = new Set(["restaurant", "ristorante", "hotel", "toilette", "toiletten", "toilettes", "bahnhof", "station", "public", "publique", "publics", "öffentliche"]);
 const nameTokens = (s) => new Set((s ?? "").toLowerCase().split(/[^\p{L}]+/u).filter((w) => w.length >= 4 && !GENERIC.has(w))
   .map((w) => w.normalize("NFD").replace(/\p{M}|h/gu, "")));
 const sharesName = (a, b) => [...nameTokens(a)].some((w) => [...nameTokens(b)].some((v) => v.startsWith(w.slice(0, 5)) || w.startsWith(v.slice(0, 5))));
 
-// --- fee text -> paid. Same regexes as tools/build-official-ch.mjs feeOf(), but there "free" also covers sites where one WC is
+// --- fee text -> paid. Same regexes as tools/build-official-ch.mts feeOf(), but there "free" also covers sites where one WC is
 // free and another costs; here that is "mixed". `\d.-` added so "Nachts 1.-" counts as paid.
 const FREE = /gebührenfrei|kostenlos|gratis|gratuit|gratuito|unentgeltlich|\bfree\b/i;
 const NOT_FREE = /(?:eurokey|pissoir)\s*(?:gratis|kostenlos)|(?:gratis|kostenlos)\s*mit\s*eurokey/gi;
@@ -134,7 +134,7 @@ const netteRecs = bern.filter((i) => i.sources.some((s) => s.startsWith("nette:"
 const stats = { matched: {}, conflicts: 0 };
 function absorb(it, rec, d, src, officialWins) {
   stats.matched[src] = (stats.matched[src] ?? 0) + 1;
-  // address: a stated one beats one derived from the register (tools/enrich-addresses-ch.mjs); OSM's beats the other source's
+  // address: a stated one beats one derived from the register (tools/enrich-addresses-ch.mts); OSM's beats the other source's
   const stated = (x) => x.address != null && x.address_source == null;
   if (rec.address != null && (it.address == null || (!stated(it) && stated(rec)))) for (const f of ADDR) it[f] = rec[f];
   for (const f of FIELDS) {

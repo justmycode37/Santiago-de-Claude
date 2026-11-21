@@ -1,9 +1,9 @@
 // Fills missing addresses Switzerland-wide from the official building address register (swisstopo "Amtliches
-// Gebäudeadressverzeichnis", national CSV, LV95) - CH version of tools/enrich-addresses.mjs. Every item with a null address
+// Gebäudeadressverzeichnis", national CSV, LV95) - CH version of tools/enrich-addresses.mts. Every item with a null address
 // takes the nearest register address within 25 m: address = "Street Nr", postcode, city (locality of ZIP_LABEL),
 // address_source = "derived:gwr", address_distance_m. Rewrites the files in place; idempotent (derived values are redone).
-// Run after tools/build-amenities-ch.mjs, tools/build-official-ch.mjs and tools/build-toilets-ch.mjs.
-// Usage: node tools/enrich-addresses-ch.mjs [files...]   (default: data/ch/osm-*.json, official-ch.json, toilets-ch.json)
+// Run after tools/build-amenities-ch.mts, tools/build-official-ch.mts and tools/build-toilets-ch.mts.
+// Usage: node tools/enrich-addresses-ch.mts [files...]   (default: data/ch/osm-*.json, official-ch.json, toilets-ch.json)
 // Needs `unzip` on PATH once, to build the compact cache data/raw/gebaeudeadressen-ch.csv.gz from the 469 MB national CSV.
 import fs from "node:fs";
 import zlib from "node:zlib";

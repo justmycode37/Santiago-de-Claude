@@ -1,4 +1,4 @@
-// Usage: node tools/build-help-ch.mjs [data/ch/help-ch.json]
+// Usage: node tools/build-help-ch.mts [data/ch/help-ch.json]
 // Basic-needs help for ALL of Switzerland, nationwide networks only (see docs/data-ch-help.md):
 //  - live operator feeds: Tischlein deck dich (map JSON), Caritas-Markt (shop modals on caritas-markt.ch),
 //    Essen für Alle (pick-up page), Madame Frigo (fridge list in its locations page), foodsharing Fairteiler

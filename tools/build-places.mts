@@ -1,4 +1,4 @@
-// Usage: node tools/build-places.mjs data/places.json
+// Usage: node tools/build-places.mts data/places.json
 // Fetches Google-Maps-style places (food, shops, hotels, culture, sport, services, health, worship) in Bern from OSM
 // (Swiss Overpass instance) and writes data/places.json. Data: (c) OpenStreetMap contributors, ODbL.
 import { writeFileSync } from "node:fs";

@@ -14,8 +14,8 @@ This is not part of the static site: it needs a server, so `livemap/` is left ou
 | Part | What it does |
 |---|---|
 | Kante engine (`kante/` in this repository) | Holds the timetable, polls the live feed once a minute with the API key, answers "which vehicles are under way" and "this trip's stops and delays" |
-| `server.mjs` | Asks the engine for every running vehicle, builds each one's coming stops with live times, and serves the page. Holds no API keys |
-| `shaper/` | Small Rust program. Finds the path between two consecutive stops on OpenStreetMap rails, roads or ferry lines. Started by `server.mjs` |
+| `server.mts` | Asks the engine for every running vehicle, builds each one's coming stops with live times, and serves the page. Holds no API keys |
+| `shaper/` | Small Rust program. Finds the path between two consecutive stops on OpenStreetMap rails, roads or ferry lines. Started by `server.mts` |
 | `index.html` | The map. Draws each vehicle along its path and glides to corrections instead of jumping |
 | `index-old.html` | The first version of the page (current hop only, no gliding), served at `/old` for comparison |
 | `measure/` | Scripts that measured how much vehicles jump around |
@@ -28,7 +28,7 @@ Needs Node 22+, Rust, and the Kante engine running on port 8080 with a SIRI-ET k
 ```sh
 cd livemap
 (cd shaper && cargo build --release)
-node server.mjs            # http://127.0.0.1:8090
+node server.mts            # http://127.0.0.1:8090
 ```
 
 | Variable | Default | Meaning |
@@ -91,7 +91,7 @@ Playwright is borrowed from the Kante app; set `PLAYWRIGHT_PACKAGE_JSON` to any 
 ```sh
 cd livemap/measure
 python3 log.py recordings/run.jsonl.gz 5 &                    # log the raw data for 5 minutes
-node browser_run.mjs recordings/run-browser.json.gz 300       # what the page draws, once a second
+node browser_run.mts recordings/run-browser.json.gz 300       # what the page draws, once a second
 wait
 python3 fetch_trips.py recordings/run.jsonl.gz recordings/trips.json.gz
 python3 simulate.py recordings/run.jsonl.gz recordings/trips.json.gz recordings/run-browser.json.gz

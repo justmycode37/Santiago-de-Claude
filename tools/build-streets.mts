@@ -1,4 +1,4 @@
-// Usage: node tools/build-streets.mjs
+// Usage: node tools/build-streets.mts
 // Mobility hazard data for Bern: street slopes + construction sites (Stadt Bern geoportal), holidays (OpenHolidays API),
 // station lifts/escalators/ramps (OSM via overpass.osm.ch). Writes data/street-slopes.geojson,
 // data/construction-sites.geojson, data/holidays.json, data/station-lifts.json. See docs/data-streets.md.
@@ -13,7 +13,7 @@ const TERMS_OPEN = "opendata.swiss terms_open (https://opendata.swiss/terms-of-u
 const ODBL = "© OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)";
 const CITY = "https://map.bern.ch/arcgis/rest/services/Geoportal";
 
-// Copied from tools/build-official-places.mjs (importing it runs its build). map.bern.ch needs a browser UA.
+// Copied from tools/build-official-places.mts (importing it runs its build). map.bern.ch needs a browser UA.
 async function get(url, init = {}) {
   for (let attempt = 1; ; attempt++) {
     try {

@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { APP, DIST, ROOT, SRC, STATIC_DIRS, build, buildScripts, copyStatic } from './build.mts';
+import { DIST, ROOT, SRC, STATIC_DIRS, build, buildScripts, copyStatic } from './build.mts';
 
 const port = Number(process.argv[2] ?? process.env.PORT ?? 8000);
 const host = process.argv[3] ?? process.env.HOST ?? '127.0.0.1';
@@ -69,5 +69,5 @@ http.createServer((req, res) => {
   });
   if (req.method === 'HEAD') res.end(); else fs.createReadStream(file).pipe(res);
 }).listen(port, host, () => {
-  console.log(`Serving dist/ at http://${host === '127.0.0.1' || host === '0.0.0.0' ? 'localhost' : host}:${port}/  (sources: ${path.relative(ROOT, SRC)}/, ${path.relative(ROOT, APP)}/)`);
+  console.log(`Serving dist/ at http://${host === '127.0.0.1' || host === '0.0.0.0' ? 'localhost' : host}:${port}/  (sources: ${path.relative(ROOT, SRC)}/)`);
 });

@@ -2,7 +2,7 @@
 // accessibility data and the BfR wheelchair status for every stop edge in the
 // Bern area, and writes one compact JSON the app can load directly.
 //
-// Usage: node tools/build-bern-accessibility.mjs data/raw data/bern-stop-accessibility.json [data/official-places.json]
+// Usage: node tools/build-bern-accessibility.mts data/raw data/bern-stop-accessibility.json [data/official-places.json]
 // Run tools/fetch-raw.sh first to download the raw files into data/raw.
 // ATLAS has some stop edges without coordinates; those get one from OSM (ref:sloid) or the city's
 // Haltestelle layer in data/official-places.json, recorded in edge.coord_source. Edges still
@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 
 const [rawDir, outFile, cityFile = "data/official-places.json"] = process.argv.slice(2);
 if (!rawDir || !outFile) {
-  console.error("usage: node build-bern-accessibility.mjs <raw-dir> <out.json>");
+  console.error("usage: node build-bern-accessibility.mts <raw-dir> <out.json>");
   process.exit(1);
 }
 

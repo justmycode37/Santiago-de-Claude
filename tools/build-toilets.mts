@@ -1,12 +1,12 @@
 // Merges every toilet record we have for greater Bern into one wheelchair-focused file, data/toilets.json:
-//   osm    - amenity=toilets from data/amenities.json (OSM, ODbL; run tools/enrich-addresses.mjs first)
+//   osm    - amenity=toilets from data/amenities.json (OSM, ODbL; run tools/enrich-addresses.mts first)
 //   atlas  - ATLAS/SBB station toilets, data/raw/actual-date-toilet.csv joined to service-point.csv (tools/fetch-raw.sh)
 //   nette  - Stadt Bern "Nette Toilette" programme (restaurants open their WC to everyone), 12 addresses from the
-//            city flyer, geocoded with the official address register cached by tools/enrich-addresses.mjs
+//            city flyer, geocoded with the official address register cached by tools/enrich-addresses.mts
 // Records of different sources within 30 m (ATLAS: 100 m) are one toilet. OSM values win; the other source fills gaps, and a
 // wheelchair disagreement is kept in `notes`. Nette restaurants also take opening hours / wheelchair from the
 // matching restaurant in data/places.json (the WC is usable during business hours).
-// Usage: node tools/build-toilets.mjs [data/toilets.json]
+// Usage: node tools/build-toilets.mts [data/toilets.json]
 import fs from "node:fs";
 import assert from "node:assert/strict";
 
@@ -46,7 +46,7 @@ function readCsv(file) {
   return lines.map((l) => { const v = l.split(";"); return Object.fromEntries(cols.map((c, i) => [c, v[i] ?? ""])); });
 }
 for (const f of ["actual-date-toilet.csv", "service-point.csv", "gebaeudeadressen-bern.csv"])
-  assert.ok(fs.existsSync(`${RAW}/${f}`), `missing ${RAW}/${f}: run tools/fetch-raw.sh and tools/enrich-addresses.mjs first`);
+  assert.ok(fs.existsSync(`${RAW}/${f}`), `missing ${RAW}/${f}: run tools/fetch-raw.sh and tools/enrich-addresses.mts first`);
 
 const rt = toWGS(2600000, 1200000);
 assert.ok(metres(rt, { lat: 46.951082877, lon: 7.438632495 }) < 2, "LV95 inverse");

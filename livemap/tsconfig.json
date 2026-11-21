@@ -1,0 +1,5 @@
+{
+  // The live map's server and its measuring script. Node runs them as they are (node server.mts).
+  "extends": "../scripts/tsconfig.json",
+  "include": ["server.mts", "measure"]
+}

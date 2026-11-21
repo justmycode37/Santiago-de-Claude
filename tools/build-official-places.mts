@@ -1,4 +1,4 @@
-// Usage: node tools/build-official-places.mjs [data/official-places.json]
+// Usage: node tools/build-official-places.mts [data/official-places.json]
 // Pulls official (non-OSM) Bern places: Stadt Bern geoportal layers, Kanton Bern GPKG downloads (AED, hospitals,
 // elderly/disability care), SBB data.sbb.ch point datasets and the Velospot GBFS feed. See research/amenities.md.
 // A failed source is recorded in `sources` (fetched_ok:false) and the build continues.
@@ -31,7 +31,7 @@ async function get(url, as = "json") {
   }
 }
 
-// swisstopo approximate LV03 -> WGS84 (~1 m), copied from tools/build-sbb-plan.mjs (importing it runs its build).
+// swisstopo approximate LV03 -> WGS84 (~1 m), copied from tools/build-sbb-plan.mts (importing it runs its build).
 function lv03ToWgs(y, x) {
   const Y = (y - 600000) / 1e6, X = (x - 200000) / 1e6;
   const lon = 2.6779094 + 4.728982 * Y + 0.791484 * Y * X + 0.1306 * Y * X * X - 0.0436 * Y ** 3;
