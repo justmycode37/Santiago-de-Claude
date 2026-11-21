@@ -8,21 +8,27 @@
     Opens the 3D station viewer (station3d.js) on its own, without the app.
 
     URL parameters
-      key=bern | _fixture            station model (stations3d/<key>.js). Default: bern
-      from=…  to=…                   endpoints; leave both out for explore mode
-                                       stop:<uic>:<ref>      stop:8507000:7
+      key=bern | europaplatz | wankdorf | _fixture     station model (stations3d/<key>.js). Default: bern
+      from=…  to=…                   endpoints; leave both out for explore mode; only to=… shows that place
+                                     (destination-only); from = to on one platform is the "same platform" state
+                                       stop:<uic>:<ref>      stop:8507000:7      stop:8507000:7@E = sector E of it
                                        entrance:<name>       entrance:Bahnhofplatz (main hall)
                                        node:<i>
                                        xy:<x>,<y>[,<level>]  local metres
                                        ll:<lng>,<lat>[,<level>]
       prefs=stepFree,fewerStairs,noEscalators,wheelchair      journey settings; walkKmh=4.7
+      date=YYYY-MM-DD                the day closures and notices are judged for (default: today). Bern: platform 3/4
+                                     is closed until 2026-12-13, track 1 from then on
       theme=light | dark             default: the system setting
       title=…                        text for the title bar
       step=<n>                       select this step after opening (0 = first)
       level=<id>                     show only this floor after opening
-      explode=1                      floors spread apart
+      peel=0..1                      how far the floors are peeled apart (0 = flat plan); default depends on the route
+      still=1                        no opening animation: straight to the settled view
+      list=1                         open with the list of all steps
+      motion=denied | silent | none  pretend the phone refuses motion access / never reports a direction / has no sensor
       follow=1                       follow mode on (needs a position)
-      user=xy:… | ll:…               a fixed position; acc=<m> (default 8), heading=<deg>
+      user=xy:… | ll:… | far         a fixed position; acc=<m> (default 8), heading=<deg>; far = 2.8 km from the station
       pov=1                          open in the street-level view; at=<m> metres along the route,
                                      yaw=<deg> pitch=<deg> head turned by hand,
                                      face=<deg> tilt=<deg> a pretend phone: compass bearing its back points to, tilt up
@@ -77,10 +83,20 @@
   <main>
     <h1>Station 3D</h1>
     <p>Development page for the 3D station viewer. The view opens by itself; these links reopen it with other settings. All URL parameters are listed at the top of this file.</p>
-    <a href="?key=bern&from=stop:8507000:7&to=stop:8507000:22">Bern: platform 7 to RBS platform 22 (three floors)</a>
-    <a href="?key=bern&from=stop:8507785:R&to=stop:8507000:3&sim=walk&follow=1">Bern: PostAuto deck to platform 3, simulated walk</a>
-    <a href="?key=bern&from=stop:8507785:R&to=stop:8507000:3&prefs=stepFree">Bern: PostAuto deck to platform 3, step-free</a>
+    <a href="?key=bern&from=stop:8507000:7&to=stop:8507000:22">Bern: platform 7 to RBS platform 22 (three floors, where to ride)</a>
+    <a href="?key=bern&from=stop:8507000:7@E&to=stop:8507000:12">Bern: platform 7 sector E to platform 12 (over the Welle)</a>
+    <a href="?key=bern&from=stop:8507000:8&to=stop:8576646:B">Bern: platform 8 to tram stop B</a>
+    <a href="?key=bern&from=stop:8507785:T&to=stop:8507000:3&date=2026-11-21">Bern: PostAuto to platform 3 while it is closed</a>
+    <a href="?key=bern&from=stop:8507785:T&to=stop:8507000:3&date=2026-12-20&sim=walk&follow=1">Bern: PostAuto to platform 3 once it is open, simulated walk</a>
+    <a href="?key=bern&from=stop:8507000:5&to=stop:8507000:22&prefs=wheelchair">Bern: platform 5 to RBS 22, wheelchair (preference not met)</a>
+    <a href="?key=bern&from=stop:8507000:7&to=stop:8507000:7">Bern: same platform</a>
+    <a href="?key=bern&to=stop:8507000:9">Bern: destination only (platform 9)</a>
+    <a href="?key=bern&from=stop:8507000:7&to=stop:8507000:11">Bern: a platform the plan does not have</a>
+    <a href="?key=bern&from=ll:8.5402,47.3782&to=stop:8507000:7&user=far&follow=1">Bern: from far away, follow on</a>
+    <a href="?key=bern&from=stop:8507000:5&to=stop:8507000:22&pov=1&at=60">Bern: first-person view in the main underpass</a>
     <a href="?key=bern">Bern: explore</a>
+    <a href="?key=europaplatz&from=stop:8507082:1&to=stop:8504108:3">Europaplatz: platform 1 to platform 3</a>
+    <a href="?key=wankdorf&from=stop:8516161:1&to=stop:8516161:7">Wankdorf: platform 1 to platform 7</a>
     <a href="?key=_fixture&from=stop:0000002:A&to=stop:0000001:1">Test station: bus stop A to platform 1</a>
     <a href="?key=_fixture&place=1">Test station: explore, tap to place the position</a>
   </main>
@@ -90,6 +106,8 @@
     <button type="button" id="dWalk" aria-pressed="false">Walk</button>
     <button type="button" id="dPlace" aria-pressed="false">Place</button>
     <button type="button" id="dNoUser">No position</button>
+    <button type="button" id="dFar" aria-pressed="false">Far away</button>
+    <button type="button" id="dGl" aria-pressed="false">Lose GL</button>
     <button type="button" id="dReopen">Reopen</button>
     <output id="dOut"></output>
   </div>
@@ -111,7 +129,15 @@
         if (!text) return null;
         const i = text.indexOf(':');
         const kind = text.slice(0, i), rest = text.slice(i + 1);
-        if (kind === 'stop') { const j = rest.indexOf(':'); return { stop: { uic: j < 0 ? rest : rest.slice(0, j), ref: j < 0 ? '' : rest.slice(j + 1) } }; }
+        if (kind === 'stop') {
+          const j = rest.indexOf(':');
+          let ref = j < 0 ? '' : rest.slice(j + 1), sector;
+          if (ref.includes('@')) { sector = ref.slice(ref.indexOf('@') + 1); ref = ref.slice(0, ref.indexOf('@')); }
+          const stop = { uic: j < 0 ? rest : rest.slice(0, j), ref };
+          if (sector) stop.sector = sector;
+          return { stop };
+        }
+        if (text === 'far') return { far: true };
         if (kind === 'node') return { node: +rest };
         if (kind === 'entrance') return { entrance: rest };
         const n = rest.split(',').map(Number);
@@ -122,12 +148,24 @@
       const prefs = {};
       (q.get('prefs') || '').split(',').filter(Boolean).forEach((p) => { prefs[p] = true; });
       if (q.has('walkKmh')) prefs.walkKmh = +q.get('walkKmh');
+      if (q.has('date')) prefs.date = q.get('date');
+      // a phone that refuses motion access, or grants it and then stays silent, or has no sensor at all
+      const motion = q.get('motion');
+      if (motion === 'none') { try { delete window.DeviceOrientationEvent; window.DeviceOrientationEvent = undefined; } catch (e) {} }
+      else if (motion) {
+        const F = function () {};
+        F.requestPermission = () => Promise.resolve(motion === 'denied' ? 'denied' : 'granted');
+        try { Object.defineProperty(window, 'DeviceOrientationEvent', { value: F, configurable: true }); } catch (e) { window.DeviceOrientationEvent = F; }
+      }
       const options = {
         key: q.get('key') || 'bern', from: endpoint(q.get('from')), to: endpoint(q.get('to')), prefs,
         title: q.get('title') || undefined,
         step: q.has('step') ? +q.get('step') : undefined,
         level: q.has('level') ? +q.get('level') : undefined,
-        explode: q.get('explode') === '1',
+        peel: q.has('peel') ? +q.get('peel') : undefined,
+        still: q.get('still') === '1',
+        list: q.get('list') === '1',
+        modal: q.get('ui') === '0', // with this page's own buttons showing, they must stay usable
         follow: q.get('follow') === '1',
         pickAnywhere: true,
         pov: q.get('pov') === '1',
@@ -188,7 +226,7 @@
           model = window.STATION3D[options.key];
           const u = endpoint(q.get('user'));
           if (u) {
-            const ll = u.ll || StationRoute.toLngLat(model, u.xy);
+            const ll = u.far ? StationRoute.toLngLat(model, [2000, 2000]) : u.ll || StationRoute.toLngLat(model, u.xy);
             Station3D.setUser({ ll, accuracy: acc, heading: fixedHeading == null ? undefined : fixedHeading });
           }
           if (q.get('sim') === 'walk') startSim();
@@ -249,6 +287,15 @@
       document.getElementById('dPlace').onclick = () => { placing = !placing; press('dPlace', placing); };
       document.getElementById('dNoUser').onclick = () => { stopSim(); Station3D.setUser(null); };
       document.getElementById('dReopen').onclick = () => Station3D.open(options);
+      document.getElementById('dFar').onclick = () => { stopSim(); if (model) Station3D.setUser({ ll: StationRoute.toLngLat(model, [2000, 2000]), accuracy: 30 }); };
+      // take the graphics memory away, then give it back (what a phone does to a tab in the background)
+      let glExt = null;
+      document.getElementById('dGl').onclick = () => {
+        const d = Station3D._debug();
+        if (!d || !d.renderer) return;
+        if (!glExt) { glExt = d.renderer.getContext().getExtension('WEBGL_lose_context'); if (glExt) glExt.loseContext(); press('dGl', true); }
+        else { glExt.restoreContext(); glExt = null; press('dGl', false); }
+      };
 
       window.DEV = { options, startSim, stopSim, reload, face };
       if (q.get('quiet') === '1') {
