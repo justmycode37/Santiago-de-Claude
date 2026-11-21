@@ -1,0 +1,145 @@
+[
+{
+"kind": "ticket_machine",
+"xy": [
+-56.69,
+56.19
+],
+"mounting": "Libero",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-96.11,
+-39.25
+],
+"mounting": "S-POS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-94.45,
+-39.34
+],
+"mounting": "S-POS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "clock",
+"xy": [
+-47.37,
+-18.76
+],
+"mounting": "BA-Dach_BE Perrondach 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "359671750"
+},
+{
+"kind": "clock",
+"xy": [
+-48.84,
+-39.04
+],
+"mounting": "FS-Mast 14",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "243844938"
+},
+{
+"kind": "clock",
+"xy": [
+64.93,
+81.99
+],
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857798"
+},
+{
+"kind": "clock",
+"xy": [
+-104.98,
+-42.09
+],
+"mounting": "BA-Dach_BE Perrondach 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857765"
+},
+{
+"kind": "clock",
+"xy": [
+-12.33,
+-43.74
+],
+"mounting": "FS-Mast 16",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "243844158"
+},
+{
+"kind": "clock",
+"xy": [
+91.86,
+-69.04
+],
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "243843920"
+},
+{
+"kind": "clock",
+"xy": [
+-56.73,
+40.96
+],
+"mounting": "BA-Dach_BE Perrondach 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857761"
+},
+{
+"kind": "clock",
+"xy": [
+88.89,
+-54.52
+],
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "359671505"
+},
+{
+"kind": "clock",
+"xy": [
+60.37,
+95.03
+],
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38861179"
+},
+{
+"kind": "clock",
+"xy": [
+-61.26,
+54.36
+],
+"mounting": "BA-Dach_BE Perrondach 1",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857756"
+}
+]

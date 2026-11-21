@@ -1,0 +1,353 @@
+[
+{
+"ref": "7",
+"xy": [
+60.37,
+95.04
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531014"
+},
+{
+"ref": "5",
+"xy": [
+14.05,
+64.56
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531012"
+},
+{
+"ref": "5",
+"xy": [
+-44.58,
+43.62
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275530995"
+},
+{
+"ref": "7",
+"xy": [
+-48.89,
+57.34
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531013"
+},
+{
+"ref": "6",
+"xy": [
+-45.46,
+46.26
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531008"
+},
+{
+"ref": "6",
+"xy": [
+64.93,
+81.99
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531019"
+},
+{
+"ref": "6",
+"xy": [
+14.05,
+64.56
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531006"
+},
+{
+"ref": "7",
+"xy": [
+-82.86,
+46.11
+],
+"front": "D",
+"back": "D",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 275531011"
+},
+{
+"ref": "6",
+"xy": [
+-79.67,
+34.16
+],
+"front": "D",
+"back": "D",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 275531001"
+},
+{
+"ref": "7",
+"xy": [
+9.27,
+78.05
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531015"
+},
+{
+"ref": "5",
+"xy": [
+-79.04,
+32.27
+],
+"front": "D",
+"back": "D",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 275531009"
+},
+{
+"ref": "5",
+"xy": [
+64.93,
+81.99
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531018"
+},
+{
+"ref": "2",
+"xy": [
+107.31,
+-60.84
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531004"
+},
+{
+"ref": "1",
+"xy": [
+19.88,
+-49.47
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531021"
+},
+{
+"ref": "3",
+"xy": [
+-88.82,
+-15.44
+],
+"front": "D",
+"back": "-",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531016"
+},
+{
+"ref": "1",
+"xy": [
+-36.62,
+-40.27
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 00",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 275530999"
+},
+{
+"ref": "3",
+"xy": [
+70.39,
+-48.28
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275530998"
+},
+{
+"ref": "2",
+"xy": [
+70.39,
+-48.28
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275530996"
+},
+{
+"ref": "3",
+"xy": [
+-45.08,
+-24.63
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 362291398"
+},
+{
+"ref": "1",
+"xy": [
+106.07,
+-73.8
+],
+"front": "A",
+"back": "-",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531000"
+},
+{
+"ref": "2",
+"xy": [
+-89.82,
+-20.49
+],
+"front": "D",
+"back": "-",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531002"
+},
+{
+"ref": "1",
+"xy": [
+-80.98,
+-38.38
+],
+"front": "D",
+"back": "D",
+"mounting": "FS-Mast 11",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 359720509"
+},
+{
+"ref": "1",
+"xy": [
+63.14,
+-60.26
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531010"
+},
+{
+"ref": "3",
+"xy": [
+14.4,
+-31.32
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531017"
+},
+{
+"ref": "2",
+"xy": [
+-45.08,
+-24.63
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275531007"
+},
+{
+"ref": "3",
+"xy": [
+107.31,
+-60.84
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275530994"
+},
+{
+"ref": "2",
+"xy": [
+14.4,
+-31.32
+],
+"front": "B",
+"back": "C",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 275530997"
+}
+]
