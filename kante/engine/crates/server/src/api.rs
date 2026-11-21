@@ -2,14 +2,14 @@
 
 use crate::json;
 use crate::liveapi;
-use crate::state::{level_f, lonlat, App};
+use crate::state::App;
 use axum::extract::{Query as Q, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use kante_core::geo::{project_on_segment, BBox, LatLon};
-use kante_core::time::{self, Date, Secs};
+use kante_core::geo::{BBox, LatLon};
+use kante_core::time;
 use kante_core::*;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -50,17 +50,13 @@ pub fn routes(app: Arc<App>) -> Router {
     Router::new()
         .route("/api/meta", get(meta))
         .route("/api/search", get(search))
-        .route("/api/nearby", get(nearby))
         .route("/api/reverse", get(reverse))
-        .route("/api/quays", get(quays))
         .route("/api/departures", get(departures))
         .route("/api/trip", get(trip))
         .route("/api/vehicles", get(vehicles))
-        .route("/api/onboard", get(onboard))
         .route("/api/due", get(due))
         .route("/api/match", get(match_trip))
         .route("/api/stream", get(stream))
-        .route("/api/indoor", get(indoor))
         .route("/api/plan", post(plan))
         .route("/api/walk", post(walk))
         .with_state(app)
@@ -149,92 +145,18 @@ fn fallback_station_search(app: &App, q: &str, near: Option<LatLon>, limit: usiz
 }
 
 /// GET /api/reverse?lat=&lon= → the place a dropped pin should be called.
-async fn reverse(State(app): S, Q(p): Q<NearbyParams>) -> Result<Json<json::Place>, ApiError> {
+async fn reverse(State(app): S, Q(p): Q<LatLonParams>) -> Result<Json<json::Place>, ApiError> {
     let r = json::PlaceRef { id: None, lat: Some(p.lat), lon: Some(p.lon), name: None };
     app.resolve(&r).map(|e| Json(e.place)).map_err(bad)
 }
 
-// ------------------------------------------------------------------ nearby
-
 #[derive(Deserialize)]
-struct NearbyParams {
+struct LatLonParams {
     lat: f64,
     lon: f64,
-    radius: Option<f32>,
-    limit: Option<usize>,
-    time: Option<i64>,
 }
 
-async fn nearby(State(app): S, Q(p): Q<NearbyParams>) -> Json<json::NearbyResponse> {
-    let pos = LatLon::from_deg(p.lat, p.lon);
-    let radius = p.radius.unwrap_or(600.0).clamp(50.0, 3000.0);
-    let limit = p.limit.unwrap_or(8).clamp(1, 20);
-    let (date, secs) = time::from_unix(p.time.unwrap_or_else(now_unix));
-    let live_arc = app.live_view();
-    let live = live_arc.as_deref();
-    let tt = &app.tt;
-
-    // A station is as near as its nearest boarding point.
-    let mut near: rustc_hash::FxHashMap<StationIdx, f32> = Default::default();
-    app.stop_grid.around(pos, radius, |s| {
-        let stop = &tt.stops[s as usize];
-        let d = stop.pos.dist_m(&pos);
-        if d <= radius {
-            let e = near.entry(stop.station).or_insert(f32::MAX);
-            *e = e.min(d);
-        }
-    });
-    let mut list: Vec<(f32, StationIdx)> = near.into_iter().map(|(s, d)| (d, s)).collect();
-    list.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-    let mut stations = Vec::new();
-    for (d, st) in list {
-        if stations.len() >= limit {
-            break;
-        }
-        let station = &tt.stations[st as usize];
-        let evs = app.router.departures(&station.stops, date, secs, 60, live);
-        let mut lines: Vec<json::NearbyLine> = Vec::new();
-        for e in evs.iter().filter(|e| !e.cancelled) {
-            let t = &tt.trips[e.trip as usize];
-            let badge = app.line_badge(e.trip);
-            let headsign = tt.str(t.headsign);
-            let when = time::to_unix(date, e.live_dep);
-            if when > time::to_unix(date, secs) + 3 * 3600 {
-                break;
-            }
-            if let Some(l) = lines.iter_mut().find(|l| l.line.name == badge.name && l.line.category == badge.category && l.headsign == headsign) {
-                if l.next.len() < 3 {
-                    l.next.push(when);
-                }
-                continue;
-            }
-            if lines.len() >= 8 {
-                continue;
-            }
-            lines.push(json::NearbyLine {
-                line: badge,
-                headsign: headsign.to_string(),
-                quay: app.quay(e.stop),
-                next: vec![when],
-                live: live.and_then(|l| l.trip(e.date, e.trip)).is_some(),
-                delay_s: live.and_then(|l| l.trip(e.date, e.trip)).map(|_| e.live_dep - e.dep),
-                trip_id: tt.trip_gtfs_id(e.trip).to_string(),
-                service_date: time::fmt_date(e.date),
-                seq: e.pos,
-            });
-        }
-        if lines.is_empty() {
-            continue;
-        }
-        let mut place = app.station_place(st);
-        place.dist_m = Some(d as u32);
-        stations.push(json::NearbyStation { place, dist_m: d as u32, lines });
-    }
-    Json(json::NearbyResponse { stations })
-}
-
-// ------------------------------------------------------------------ quays / indoor
+// ------------------------------------------------------------------ bounding boxes
 
 fn parse_bbox(s: &str) -> Result<BBox, ApiError> {
     let v: Vec<f64> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
@@ -248,78 +170,6 @@ fn parse_bbox(s: &str) -> Result<BBox, ApiError> {
 struct BboxParams {
     bbox: String,
     t: Option<i64>,
-}
-
-async fn quays(State(app): S, Q(p): Q<BboxParams>) -> Result<Json<json::QuaysResponse>, ApiError> {
-    let bbox = parse_bbox(&p.bbox)?;
-    let mut out = Vec::new();
-    app.stop_grid.for_bbox(&bbox, |s| {
-        if out.len() < 600 && bbox.contains(&app.tt.stops[s as usize].pos) {
-            out.push(app.quay(s));
-        }
-    });
-    Ok(Json(json::QuaysResponse { quays: out }))
-}
-
-fn kind_str(k: EdgeKind) -> &'static str {
-    match k {
-        EdgeKind::Footway => "footway",
-        EdgeKind::Sidewalk => "sidewalk",
-        EdgeKind::Crossing => "crossing",
-        EdgeKind::Path => "path",
-        EdgeKind::Pedestrian => "pedestrian",
-        EdgeKind::Steps => "steps",
-        EdgeKind::Escalator => "escalator",
-        EdgeKind::Lift => "lift",
-        EdgeKind::Corridor => "corridor",
-        EdgeKind::Platform => "platform",
-        EdgeKind::Road | EdgeKind::RoadBusy => "road",
-    }
-}
-
-async fn indoor(State(app): S, Q(p): Q<BboxParams>) -> Result<Response, ApiError> {
-    let bbox = parse_bbox(&p.bbox)?;
-    let mut features: Vec<serde_json::Value> = Vec::new();
-    if let Some(walk) = &app.walk {
-        if bbox.min.dist_m(&bbox.max) <= 4000.0 {
-            let g = walk.graph();
-            for e in walk.edges_in(&bbox) {
-                let ed = &g.edges[e as usize];
-                // Plain roads add nothing to a station close-up; the base map shows them.
-                if matches!(ed.kind, EdgeKind::Road | EdgeKind::RoadBusy) && ed.level_a == LEVEL_NONE {
-                    continue;
-                }
-                // Synthetic straight edges across squares and platforms are for
-                // routing; drawn, they turn every open space into a cobweb.
-                if ed.flags & EF_AREA != 0 {
-                    continue;
-                }
-                let coords: Vec<[f64; 2]> = g.edge_geom(e).iter().map(lonlat).collect();
-                let mut props = serde_json::json!({
-                    "kind": kind_str(ed.kind),
-                    "level": level_f(ed.level_a),
-                    "indoor": ed.flags & (EF_INDOOR | EF_TUNNEL) != 0,
-                });
-                if ed.level_b != ed.level_a {
-                    props["toLevel"] = serde_json::json!(level_f(ed.level_b));
-                }
-                let name = g.edge_name(e);
-                if !name.is_empty() {
-                    props["name"] = serde_json::json!(name);
-                }
-                features.push(serde_json::json!({
-                    "type": "Feature",
-                    "geometry": { "type": "LineString", "coordinates": coords },
-                    "properties": props,
-                }));
-                if features.len() >= 25_000 {
-                    break;
-                }
-            }
-        }
-    }
-    let body = serde_json::json!({ "type": "FeatureCollection", "features": features });
-    Ok(([(header::CACHE_CONTROL, "public, max-age=3600")], Json(body)).into_response())
 }
 
 // ------------------------------------------------------------------ departures / trip
@@ -482,40 +332,7 @@ fn extra_trip(app: &App, x: &ExtraTrip, now: i64) -> json::TripResponse {
     }
 }
 
-// ------------------------------------------------------------------ vehicles / on board
-
-/// A vehicle segment resolved to coordinates.
-struct Seg {
-    trip: TripIdx,
-    date: Date,
-    pos: u16,
-    a: LatLon,
-    b: LatLon,
-    dep: Secs,
-    arr: Secs,
-}
-
-fn segments(app: &App, bbox: &BBox, date: Date, now: Secs, live: Option<&dyn LiveView>) -> Vec<Seg> {
-    let tt = &app.tt;
-    app.router
-        .vehicles(bbox, date, now, live)
-        .into_iter()
-        .filter_map(|v| {
-            let stops = tt.pattern_stops(tt.trips[v.trip as usize].pattern);
-            // The boarding point in use (a changed platform), else the planned one.
-            let tl = live.and_then(|l| l.trip(v.date, v.trip));
-            let at = |p: usize| -> Option<LatLon> {
-                let planned = *stops.get(p)?;
-                let q = tl.and_then(|l| l.quay.get(p).copied()).filter(|&q| q != NONE).unwrap_or(planned);
-                Some(tt.stops[q as usize].pos)
-            };
-            let a = at(v.pos as usize)?;
-            let next = if v.dwell { v.pos as usize } else { v.pos as usize + 1 };
-            let b = at(next)?;
-            Some(Seg { trip: v.trip, date: v.date, pos: v.pos, a, b, dep: v.dep, arr: v.arr })
-        })
-        .collect()
-}
+// ------------------------------------------------------------------ vehicles
 
 async fn vehicles(State(app): S, Q(p): Q<BboxParams>) -> Result<Json<json::VehiclesResponse>, ApiError> {
     let bbox = parse_bbox(&p.bbox)?;
@@ -609,84 +426,6 @@ async fn match_trip(State(app): S, Q(p): Q<MatchParams>) -> Result<Json<json::Ma
     let dep = check_t(p.dep)?;
     let arr = p.arr.map(check_t).transpose()?;
     Ok(Json(liveapi::match_trip(&app, &liveapi::MatchQuery { from, dep, to, arr, line: &p.line, number: &p.number })))
-}
-
-#[derive(Deserialize)]
-struct OnboardParams {
-    lat: f64,
-    lon: f64,
-    t: Option<i64>,
-    #[serde(default)]
-    q: String,
-}
-
-async fn onboard(State(app): S, Q(p): Q<OnboardParams>) -> Json<json::OnboardResponse> {
-    let pos = LatLon::from_deg(p.lat, p.lon);
-    let t = p.t.unwrap_or_else(now_unix);
-    let (date, secs) = time::from_unix(t);
-    let live_arc = app.live_view();
-    let live = live_arc.as_deref();
-    let tt = &app.tt;
-    let filter = text::normalize(&p.q).replace(' ', "");
-
-    // Timetable positions are estimates and stop-to-stop lines are straight,
-    // so judge mainly by "is the traveller on this vehicle's segment" and only
-    // then by how far along it the vehicle should be. Trains get a wide
-    // corridor because the track can curve far away from the straight line.
-    let mut cands: Vec<(f32, json::OnboardCandidate)> = Vec::new();
-    for s in segments(&app, &BBox::around(pos, 6000.0), date, secs, live) {
-        let tr = &tt.trips[s.trip as usize];
-        let line = tt.trip_line(s.trip);
-        if !filter.is_empty() {
-            let name = text::normalize(&format!("{}{}", line.category, line.name)).replace(' ', "");
-            let plain = text::normalize(&line.name).replace(' ', "");
-            if !(plain.starts_with(&filter) || name.starts_with(&filter)) {
-                continue;
-            }
-        }
-        let (corridor, reach) = match line.mode {
-            Mode::Rail | Mode::RackRail => (1500.0, 6000.0),
-            Mode::Boat => (800.0, 3000.0),
-            Mode::Metro | Mode::Funicular | Mode::Cableway => (300.0, 1500.0),
-            _ => (150.0, 1200.0),
-        };
-        let (frac, off) = project_on_segment(&pos, &s.a, &s.b);
-        if off > corridor {
-            continue;
-        }
-        let span = (s.arr - s.dep).max(1) as f32;
-        let progress = ((secs - s.dep) as f32 / span).clamp(0.0, 1.0);
-        let est = s.a.lerp(&s.b, progress);
-        let along = est.dist_m(&pos);
-        if along > reach {
-            continue;
-        }
-        let _ = frac;
-        let stops = tt.pattern_stops(tr.pattern);
-        let next = (s.pos as usize + 1).min(stops.len() - 1);
-        let tl = live.and_then(|l| l.trip(s.date, s.trip));
-        let number = tt.str(tr.short_name);
-        let name_of = |i: usize| tt.stations[tt.stops[stops[i] as usize].station as usize].name.clone();
-        cands.push((
-            off + 0.35 * along,
-            json::OnboardCandidate {
-                trip_id: tt.trip_gtfs_id(s.trip).to_string(),
-                service_date: time::fmt_date(s.date),
-                line: app.line_badge(s.trip),
-                headsign: tt.str(tr.headsign).to_string(),
-                number: (!number.is_empty()).then(|| number.to_string()),
-                dist_m: along as u32,
-                next_seq: next as u16,
-                next_stop: name_of(next),
-                next_arr: time::to_unix(date, s.arr),
-                prev_stop: Some(name_of(s.pos as usize)),
-                delay_s: tl.map(|l| l.arr_delay_at(next)),
-            },
-        ));
-    }
-    cands.sort_by(|a, b| a.0.total_cmp(&b.0));
-    cands.truncate(12);
-    Json(json::OnboardResponse { candidates: cands.into_iter().map(|c| c.1).collect() })
 }
 
 // ------------------------------------------------------------------ planning

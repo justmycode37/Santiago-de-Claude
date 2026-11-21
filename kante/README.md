@@ -14,7 +14,6 @@ engine is at https://kante.omniroute.app.
 | Path | What |
 |---|---|
 | `engine/crates/` | The engine. `docs/ARCHITECTURE.md` explains the crates |
-| `engine/playground/` | One-page debug UI on the API, served at `/playground/` |
 | `scripts/fetch-data.sh` | Downloads the timetable, the stop registry and OpenStreetMap Switzerland (about 900 MB) |
 | `scripts/plan.py` | Plans a trip from the command line |
 
@@ -33,8 +32,8 @@ scripts/plan.py "Zürich HB" "Ostermundigen, Rüti" 2026-11-23T08:00 steps=1
 
 ## API
 
-`GET /api/meta`, `/api/search`, `/api/nearby`, `/api/reverse`, `/api/quays`, `/api/departures`, `/api/trip`,
-`/api/vehicles`, `/api/onboard`, `/api/indoor`, `/api/due`, `/api/match`, `/api/stream`, and `POST /api/plan`,
+`GET /api/meta`, `/api/search`, `/api/reverse`, `/api/departures`, `/api/trip`,
+`/api/vehicles`, `/api/due`, `/api/match`, `/api/stream`, and `POST /api/plan`,
 `/api/walk`. Any website may call it
 (CORS is open). The parameters are in `engine/crates/server/src/api.rs`.
 

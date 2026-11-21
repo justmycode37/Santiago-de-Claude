@@ -36,34 +36,6 @@ pub struct SearchResponse {
     pub results: Vec<Place>,
 }
 
-#[derive(Serialize)]
-pub struct NearbyResponse {
-    pub stations: Vec<NearbyStation>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NearbyStation {
-    pub place: Place,
-    pub dist_m: u32,
-    pub lines: Vec<NearbyLine>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NearbyLine {
-    pub line: LineBadge,
-    pub headsign: String,
-    pub quay: Quay,
-    pub next: Vec<i64>,
-    pub live: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub delay_s: Option<i32>,
-    pub trip_id: String,
-    pub service_date: String,
-    pub seq: u16,
-}
-
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct QuaySide {
@@ -94,11 +66,6 @@ pub struct Quay {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access: Option<&'static str>,
     pub modes: Vec<&'static str>,
-}
-
-#[derive(Serialize)]
-pub struct QuaysResponse {
-    pub quays: Vec<Quay>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -414,30 +381,6 @@ pub struct Vehicle {
     pub live_info: LiveInfo,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub extra: bool,
-}
-
-#[derive(Serialize)]
-pub struct OnboardResponse {
-    pub candidates: Vec<OnboardCandidate>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OnboardCandidate {
-    pub trip_id: String,
-    pub service_date: String,
-    pub line: LineBadge,
-    pub headsign: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub number: Option<String>,
-    pub dist_m: u32,
-    pub next_seq: u16,
-    pub next_stop: String,
-    pub next_arr: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev_stop: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub delay_s: Option<i32>,
 }
 
 #[derive(Serialize)]
