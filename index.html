@@ -164,6 +164,7 @@
     .menu.open .menu-item[data-slot="1"] { transform: translateX(-54px) scale(1); }
     .menu.open .menu-item[data-slot="2"] { transform: translateX(-108px) scale(1); transition-delay: .04s; }
     .menu.open .menu-item[data-slot="3"] { transform: translateX(-162px) scale(1); transition-delay: .08s; }
+    .menu.open .menu-item[data-slot="4"] { transform: translateX(-216px) scale(1); transition-delay: .12s; }
     /* Toggled-on button (e.g. events shown) */
     .fab.active { background: var(--user-blue); color: #fff; }
     .fab.active:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
@@ -1051,6 +1052,12 @@
   <div id="map"></div>
 
   <div class="menu" id="menu">
+    <button class="fab menu-item" id="scanBtn" data-slot="4" type="button" aria-label="Scan for stops with the camera" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
+        <circle cx="12" cy="12" r="3.6" />
+      </svg>
+    </button>
     <button class="fab menu-item theme-btn" id="themeBtn" data-slot="3" type="button" aria-label="Toggle dark mode" tabindex="-1">
       <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M11.73 3.51A8.5 8.5 0 1 0 20.49 12.27A6.5 6.5 0 0 1 11.73 3.51Z" />
@@ -1678,6 +1685,47 @@
     SETTINGS.onClose((journeyChanged) => {
       if (journeyChanged && journeyDest) startJourney(journeyDest, true);
       else menuBtn.focus();
+    });
+
+    // ---------- Scan: recognise the stops around you with the camera (stopvision.js, loaded on first use) ----------
+    document.getElementById('scanBtn').addEventListener('click', () => {
+      setMenu(false);
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('The camera needs HTTPS. Open the app via https:// or localhost.', 6000);
+      }
+      // Both permissions are asked right here, while the tap still counts as a user gesture (iOS needs that)
+      const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+        ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+        : Promise.reject(new Error('no camera API'));
+      const orientation = window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function'
+        ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');
+      camera.catch(() => {}); orientation.catch(() => {});
+      const hooks = {
+        PLATFORMS, OPENDATA, platformLL, coordOf, badge,
+        position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
+        openStop: (id, i) => {
+          const st = PLATFORMS.get(String(id));
+          if (!st) return;
+          const ll = i != null && st.edges[i] ? st.edges[i].ll : st.edges[0].ll;
+          map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 18) });
+          openPlatform({ properties: { id: String(id), i } });
+        },
+        toast: (t) => showToast(t),
+        onClose: () => menuBtn.focus(),
+      };
+      startPlatforms(); // the stop positions are needed straight away
+      const go = () => platformsReady.then(() => window.STOPVISION.open(hooks, camera, orientation));
+      if (window.STOPVISION) go();
+      else {
+        const s = document.createElement('script');
+        s.src = 'stopvision.js';
+        s.onload = go;
+        s.onerror = () => {
+          showToast('Scan could not be loaded.');
+          camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
+        };
+        document.head.appendChild(s);
+      }
     });
 
     // ---------- Current location ----------
@@ -2316,7 +2364,11 @@
     async function openPlatform(f) {
       popupPlace = null;
       const st = PLATFORMS.get(String(f.properties.id));
-      const edge = st && st.edges[f.properties.i];
+      // i = null: the stop as a whole (e.g. recognised by Scan without knowing which edge), all its departures
+      const whole = st && f.properties.i == null;
+      const edge = whole
+        ? { ref: '', level: null, ll: st.edges.reduce((s, e) => [s[0] + e.ll[0] / st.edges.length, s[1] + e.ll[1] / st.edges.length], [0, 0]) }
+        : st && st.edges[f.properties.i];
       if (!edge) return;
       const req = ++popupReq;
       const word = edge.ref ? nounOf(st.mode) : 'Stop';
@@ -2336,7 +2388,7 @@
         const all = ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
         if (req !== popupReq) return;
         // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
-        const here = all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
+        const here = whole ? all : all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
         note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st.name}:`;
         list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
           const li = mk('li');
