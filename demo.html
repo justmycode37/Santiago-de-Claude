@@ -14,13 +14,13 @@
 </head>
 <body>
   <main aria-label="Santiago demo film">
-    <video id="film" poster="/demo-media/opening.jpg" preload="auto" playsinline tabindex="0" aria-label="Santiago demo. Tap or press Space to enable sound, then to pause or resume." aria-keyshortcuts="Space"></video>
+    <video id="film" poster="demo-media/opening.jpg" preload="auto" playsinline tabindex="0" aria-label="Santiago demo. Tap or press Space to enable sound, then to pause or resume." aria-keyshortcuts="Space"></video>
   </main>
   <script>
     const film = document.getElementById('film');
     async function restartFilm() {
       // Start a fresh media session after navigation, including a cached Back visit.
-      film.src = '/demo-media/play-1e5ef0e1b62a.mp4';
+      film.src = 'demo-media/play-1e5ef0e1b62a.mp4';
       film.load();
       film.currentTime = 0;
       film.muted = false;
