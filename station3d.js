@@ -5,6 +5,8 @@
    Station3D.has(uic) → key | null
    Station3D.open({ key, from, to, prefs, title,      from / to as for StationRoute.route (a stop may carry sector);
                     date,                               the day closures and notices are judged for (or prefs.date)
+                    season: "winter" | "summer",        detail scenes: bare or leafy trees (default: what the data says)
+                    quality: "high" | "low",            detail scenes: how fine they are drawn (default: by the device)
                     peel, still, step, level, list,     how it opens: floors apart 0..1, no intro, a step, one floor, the step list
                     follow, pov, povAt, povYaw, povPitch,
                     returnFocus,                        the element that gets the focus back on close
@@ -165,6 +167,24 @@
     if (window.StationRoute) return Promise.resolve(window.StationRoute);
     return loadScript(BASE + 'station-route.js' + BUST).then(() => window.StationRoute || null, () => null);
   }
+
+  // Detail scenes (stations3d/DETAIL.md): a short stretch drawn with everything you would recognise on the spot.
+  // Which stations have one is in a tiny manifest, loaded with the model (and not missed if it is not there); the
+  // renderer and the scene itself are loaded only when a walk or the eye comes near.
+  let detailIndexPromise = null;
+  function loadDetailIndex() {
+    if (!detailIndexPromise) {
+      detailIndexPromise = (window.STATION3D_DETAIL_INDEX ? Promise.resolve() : loadScript(BASE + 'stations3d/detail-index.js' + BUST))
+        .then(() => window.STATION3D_DETAIL_INDEX || {}, () => ({}));
+    }
+    return detailIndexPromise;
+  }
+  function loadDetail(entry, key) {
+    const have = () => (window.Station3DDetail && window.STATION3D_DETAIL && window.STATION3D_DETAIL[key]) || null;
+    if (have()) return Promise.resolve(have());
+    return Promise.all([window.Station3DDetail ? null : loadScript(BASE + 'station3d-detail.js' + BUST), loadScript(BASE + entry.file + BUST)]).then(have, () => null);
+  }
+  const inBB = (b, x, y, m) => x >= b[0] - m && x <= b[2] + m && y >= b[1] - m && y <= b[3] + m;
 
   // ---------- model helpers ----------
   const toLocal = (model, ll) => {
@@ -776,6 +796,9 @@
     let liftFaces = new Map(); // lift → floor → the side its door is on
     const gridU = { value: 0 }; // how strongly the floor tiles show (only when you stand on them)
     let guides = [], activeGuide = null, povArriving = false, beacon = null; // what the route takes next, shown as an object
+    // the detail scene of this station, if it has one: { entry (manifest), data, h (the renderer's handle), show, bird }
+    const DT = { entry: null, data: null, h: null, loading: false, show: false, bird: false, li: 0, y0: 0, add: 0, k: 0, shellBox: null, tilt: null };
+    let clipHole = [], clipShell = []; // the plain model is cut out where the scene stands
     let los = [];        // per level: wall segments [ax, ay, bx, by] that hide labels behind them (first-person view)
     let disc = null;     // the accuracy disc of the user
     let labels = [], labelsDirty = false, levelLabels = [], tip = null, tipTimer = 0;
@@ -917,6 +940,8 @@
       v3 = new THREE.Vector3();
       // the four sides of the plate box: with a route only the part of each floor inside it is drawn
       clip = [0, 1, 2, 3].map(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e7));
+      clipHole = [0, 1, 2, 3].map(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e7));
+      clipShell = [0, 1, 2, 3].map(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e7));
       // The device can take the graphics memory away (a tab in the background, memory pressure). Ask for it back
       // and draw everything again when it returns.
       on(canvas, 'webglcontextlost', (e) => {
@@ -945,8 +970,180 @@
       clip[3].normal.set(-b.uy, 0, -b.ux); clip[3].constant = b.hh - cv;
     }
 
+    // ----- the detail scene -----
+    const detailQuality = () => (opts.quality === 'low' || opts.quality === 'high' ? opts.quality
+      : (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ? 'low' : 'high');
+    // is a walk, or the eye, near the scene?
+    function detailWanted() {
+      const b = DT.entry && DT.entry.bbox;
+      if (!b) return false;
+      if (A.routed && route.points.some((p) => inBB(b, p[0], p[1], 40))) return true;
+      return (pov || povT > .02) && inBB(b, pv.x, pv.y, 90);
+    }
+    function ensureDetail() {
+      if (!DT.entry || DT.loading || !self.alive || !self.ready) return;
+      if (!detailWanted()) { if (DT.h) dropDetail(); return; } // left behind: its geometry is given back
+      if (DT.h) return;
+      if (DT.data) { buildDetail(); return; }
+      DT.loading = true;
+      loadDetail(DT.entry, model.key).then((d) => {
+        DT.loading = false;
+        if (!self.alive) return;
+        if (!d) { DT.entry = null; return; }
+        DT.data = d;
+        if (detailWanted()) buildDetail();
+      });
+    }
+    function buildDetail() {
+      const RD = window.Station3DDetail, d = DT.data;
+      if (!RD || !d || DT.h || !self.ready || lost) return;
+      DT.li = P.idxOf(P.levelOfZ(0)); // the scene's heights are metres above the model's level 0
+      DT.y0 = Yc(P.levels[DT.li].id) - P.levels[DT.li].z;
+      const o = { theme, quality: detailQuality(), zShift: true, toScene: (x, y, z) => [x, DT.y0 + z, -y] };
+      if (opts.season === 'summer' || opts.season === 'winter') o.season = opts.season;
+      try { DT.h = RD.build(THREE, d, o); } catch (e) { console.error('Station3D: the detail scene could not be drawn', e); DT.entry = null; DT.h = null; return; }
+      // a renderer that does not move the scene by the offset its data asks for: we do it
+      DT.add = typeof DT.h.zShift === 'number' ? 0 : (isFinite(d.zOffset) ? +d.zOffset : 0);
+      DT.tilt = fitTilt(d, typeof DT.h.zShift === 'number' ? DT.h.zShift : DT.add);
+      DT.h.group.visible = false;
+      DT.h.group.renderOrder = 20;
+      scene.add(DT.h.group);
+      // where the plain model gives way: its ground and furniture inside the scene's area, its houses wherever the scene has its own
+      const b = DT.entry.bbox, s = [b[0], b[1], b[2], b[3]];
+      for (const B of d.buildings || []) {
+        const pos = (B.mesh && B.mesh.positions) || [];
+        for (let i = 0; i + 1 < pos.length; i += 3) { s[0] = Math.min(s[0], pos[i]); s[1] = Math.min(s[1], pos[i + 1]); s[2] = Math.max(s[2], pos[i]); s[3] = Math.max(s[3], pos[i + 1]); }
+        for (const p of B.ring || []) { s[0] = Math.min(s[0], p[0]); s[1] = Math.min(s[1], p[1]); s[2] = Math.max(s[2], p[0]); s[3] = Math.max(s[3], p[1]); }
+      }
+      DT.shellBox = [s[0] - 1.5, s[1] - 1.5, s[2] + 1.5, s[3] + 1.5];
+      DT.show = false; DT.bird = false;
+      dropRoute(); buildRoute(); // the line now follows the real ground
+      setTargets();
+      syncDetail();
+      request();
+    }
+    // The real ground falls across a scene (Hirschengraben: two metres from north to south) while the floor of the
+    // plain model is level, so no single offset joins both at every edge. The plane that fits the scene's ground best
+    // is taken out of it (a shear: what stands upright stays upright); what is left is kerbs, ledges and bumps.
+    // → { a, b, c }: that plane, metres above the model's floor at (x, y) = c + a x + b y.
+    function fitTilt(d, shift) {
+      const S = [], flat = { a: 0, b: 0, c: 0 };
+      for (const sf of (d && d.surfaces) || []) {
+        if (!Array.isArray(sf.ring) || !Array.isArray(sf.zs)) continue; // a flat surface (a plinth) says nothing about the street
+        for (let i = 0; i < sf.ring.length && i < sf.zs.length; i++) { const p = sf.ring[i], z = sf.zs[i]; if (p && isFinite(p[0]) && isFinite(p[1]) && isFinite(z)) S.push([p[0], p[1], z + shift]); }
+      }
+      if (S.length < 12) return flat;
+      let t = flat, use = S;
+      for (let it = 0; it < 4 && use.length >= 12; it++) {
+        const m = use.length;
+        let mx = 0, my = 0, mz = 0, xx = 0, xy = 0, yy = 0, xz = 0, yz = 0;
+        for (const q of use) { mx += q[0]; my += q[1]; mz += q[2]; }
+        mx /= m; my /= m; mz /= m;
+        for (const q of use) { const dx = q[0] - mx, dy = q[1] - my, dz = q[2] - mz; xx += dx * dx; xy += dx * dy; yy += dy * dy; xz += dx * dz; yz += dy * dz; }
+        const det = xx * yy - xy * xy;
+        if (!(Math.abs(det) > 1e-6)) return flat;
+        const a = (xz * yy - yz * xy) / det, b = (yz * xx - xz * xy) / det;
+        t = { a, b, c: mz - a * mx - b * my };
+        use = S.filter((q) => Math.abs(q[2] - (t.c + t.a * q[0] + t.b * q[1])) < .6); // a stray point does not tip the street
+      }
+      return isFinite(t.a + t.b + t.c) && Math.hypot(t.a, t.b) < .12 ? t : flat; // steeper than any street: leave it alone
+    }
+    const tiltAt = (x, y) => (DT.tilt ? DT.tilt.c + DT.tilt.a * x + DT.tilt.b * y : 0);
+    // the scene on the level it belongs to (the floors move when they are pulled apart), with the tilt taken out
+    function placeDetail() {
+      const g = DT.h && DT.h.group;
+      if (!g) return;
+      const lv = P.levels[DT.li], t = DT.tilt || { a: 0, b: 0, c: 0 };
+      g.matrixAutoUpdate = false; // scene X = x, Z = -y
+      g.matrix.set(1, 0, 0, 0, -t.a, 1, t.b, (Yc(lv.id) - lv.z) - DT.y0 + DT.add - t.c, 0, 0, 1, 0, 0, 0, 0, 1);
+      g.matrixWorldNeedsUpdate = true;
+    }
+    function dropDetail() {
+      if (!DT.h) return;
+      if (DT.show) { DT.show = false; try { applyHole(false, false); } catch (e) {} }
+      try { DT.h.dispose(); } catch (e) {}
+      if (DT.h.group && DT.h.group.parent) DT.h.group.parent.remove(DT.h.group);
+      DT.h = null; DT.bird = false;
+      if (R) routeFrames();
+    }
+    const groundOf = (x, y) => { const h = DT.h; if (!h) return null; const g = h.groundAt ? h.groundAt(x, y) : window.Station3DDetail && window.Station3DDetail.groundAt ? window.Station3DDetail.groundAt(h, x, y) : null; return g == null || !isFinite(g) ? null : g + DT.add - tiltAt(x, y); };
+    // How far the scene's ground lies above the plain model's floor at (x, y), for the line and the eye. Inside the
+    // hole that is cut into the plain model: the real ground. Around it a ramp of a few metres, so nothing jumps: where
+    // the scene is higher the ramp lies outside (inside, it would dive under the scene's ground), where it is lower
+    // the ramp lies inside (outside, the plain floor would cover it).
+    const HOLE_IN = 1, HOLE_RAMP = 5;
+    function liftRaw(x, y, level) {
+      if (!DT.h || Math.abs(level - P.levels[DT.li].id) > .45) return 0;
+      const b = DT.entry.bbox, x0 = b[0] + HOLE_IN, y0 = b[1] + HOLE_IN, x1 = b[2] - HOLE_IN, y1 = b[3] - HOLE_IN;
+      const cx = clamp(x, x0, x1), cy = clamp(y, y0, y1), d = Math.hypot(x - cx, y - cy); // d: how far outside the hole
+      if (d >= HOLE_RAMP) return 0;
+      const g = groundOf(cx, cy);
+      if (g == null) return 0;
+      const up = g - (P.zOf(level) - P.levels[DT.li].z);
+      if (up < -.8) return 0; // no surface there (under a house the renderer answers with its base plane, far below)
+      let t;
+      if (up >= 0) t = 1 - d / HOLE_RAMP;
+      else if (d > 0) return 0;
+      else t = clamp(Math.min(x - x0, x1 - x, y - y0, y1 - y) / HOLE_RAMP, 0, 1);
+      return up * t * t * (3 - 2 * t);
+    }
+    const detailLift = (x, y, level) => (DT.show ? liftRaw(x, y, level) : 0);
+    // a box cut out of whatever uses these four planes (material.clipIntersection = true): only what is inside all is dropped
+    function setHole(planes, b) {
+      if (!b) { for (const p of planes) { p.normal.set(1, 0, 0); p.constant = 1e7; } return; }
+      planes[0].normal.set(1, 0, 0); planes[0].constant = -b[2];
+      planes[1].normal.set(-1, 0, 0); planes[1].constant = b[0];
+      planes[2].normal.set(0, 0, -1); planes[2].constant = -b[3];
+      planes[3].normal.set(0, 0, 1); planes[3].constant = b[1];
+    }
+    // on: the scene is drawn. From the eye: the plain model is cut out where the scene stands. From above (bird): the
+    // scene is what the plate carries, cut to the plate's box.
+    function applyHole(on, bird) {
+      const hole = on && !bird;
+      const set = (mat, planes, inter) => { if (!mat) return; mat.clippingPlanes = planes; mat.clipIntersection = !!inter; mat.needsUpdate = true; };
+      const b = DT.entry && DT.entry.bbox;
+      setHole(clipHole, hole && b ? [b[0] + HOLE_IN, b[1] + HOLE_IN, b[2] - HOLE_IN, b[3] - HOLE_IN] : null);
+      setHole(clipShell, hole ? DT.shellBox : null);
+      const l = lv3[DT.li];
+      if (l) {
+        for (const m of [l.mesh, l.lines]) set(m.material, hole ? clipHole : clip, hole);
+        l.cut = on && bird;
+      }
+      for (const hh of hl) if (hh.li === DT.li) set(hh.mesh.material, hole ? clipHole : clip, hole);
+      for (const o of povOnly) if (o.material && !o.userData.ground) set(o.material, hole ? clipHole : null, hole);
+      if (strip) for (const m of [strip.mesh, strip.lines]) set(m.material, hole ? clipHole : null, hole);
+      for (const s of shellParts) for (const m of [s.mesh, s.lines]) set(m.material, hole ? clipShell : null, hole);
+      if (DT.h) DT.h.group.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) { m.clippingPlanes = on && bird ? clip : null; m.clipIntersection = false; m.needsUpdate = true; } });
+      applyOpacity();
+      shadowDirty = true;
+    }
+    // every frame: is the scene to be drawn, and how?
+    function syncDetail() {
+      const h = DT.h;
+      if (!h) return;
+      const b = DT.entry.bbox, lv = P.levels[DT.li];
+      const bird = !pov && povT < .02 && isolate == null && A.routed && A.shown.length === 1 && A.shown[0] === DT.li && route.points.every((p) => inBB(b, p[0], p[1], 3));
+      const eye = (pov || povT > .02) && inBB(b, pv.x, pv.y, 90);
+      const show = bird || eye;
+      if (show !== DT.show || (show && bird !== DT.bird)) {
+        DT.show = show; DT.bird = show && bird;
+        h.group.visible = show;
+        applyHole(show, DT.bird);
+        routeFrames();
+        request();
+      }
+      if (show) placeDetail();
+    }
+    function dropRoute() {
+      if (!R) return;
+      for (const m of R.meshes) { scene.remove(m); m.material.dispose(); const i = disposables.indexOf(m); if (i >= 0) disposables.splice(i, 1); }
+      R.geo.dispose();
+      R = null;
+    }
+
     const track = (o) => { disposables.push(o); return o; };
     function clearScene() {
+      dropDetail();
       for (const o of disposables) {
         if (o.geometry) o.geometry.dispose();
         if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
@@ -1771,7 +1968,7 @@
         const c = new THREE.Color(T.ground);
         g.quad([x0 - m, y0 - m, lf, yo], [x1 + m, y0 - m, lf, yo], [x1 + m, y1 + m, lf, yo], [x0 - m, y1 + m, lf, yo], [c.r, c.g, c.b, 1]);
         const mesh = track(new THREE.Mesh(g.build(SH, true), new THREE.MeshLambertMaterial({ vertexColors: true })));
-        mesh.frustumCulled = false; mesh.renderOrder = -5; mesh.receiveShadow = true; mesh.visible = false;
+        mesh.frustumCulled = false; mesh.renderOrder = -5; mesh.receiveShadow = true; mesh.visible = false; mesh.userData.ground = true;
         scene.add(mesh);
         povOnly.push(mesh);
       }
@@ -2124,7 +2321,19 @@
     function buildRoute() {
       R = null;
       if (!A.routed) return;
-      const sm = smoothPath(route.points);
+      let sm = smoothPath(route.points);
+      if (DT.h) { // inside a detail scene the line lies on the real ground and steps over kerbs: it needs close points to bend there
+        const b = DT.entry.bbox, out = [];
+        for (let j = 0; j < sm.length; j++) {
+          const a = sm[j], c = sm[j + 1];
+          out.push(a);
+          if (!c || Math.abs(c.l - a.l) > 1e-6 || !(inBB(b, a.x, a.y, HOLE_RAMP + 1) || inBB(b, c.x, c.y, HOLE_RAMP + 1))) continue;
+          const n = Math.min(500, Math.floor(Math.hypot(c.x - a.x, c.y - a.y) / .28));
+          for (let k = 1; k <= n; k++) { const t = k / (n + 1); out.push({ x: lerp(a.x, c.x, t), y: lerp(a.y, c.y, t), l: a.l, o: -1 }); }
+        }
+        sm = out;
+        for (const p of sm) p.g = liftRaw(p.x, p.y, p.l);
+      }
       const m = sm.length, K = 10;
       const D = new Float32Array(m);
       const Dorig = new Float32Array(route.points.length);
@@ -2200,7 +2409,7 @@
       const { sm, K, geo } = R, m = sm.length;
       const pos = geo.attributes.position.array, rad = geo.attributes.aRad.array, tan = geo.attributes.aTan.array;
       const ys = new Float32Array(m);
-      for (let j = 0; j < m; j++) ys[j] = Yc(sm[j].l);
+      for (let j = 0; j < m; j++) ys[j] = Yc(sm[j].l) + (DT.show ? sm[j].g || 0 : 0);
       let bx = 1, by = 0, bz = 0, tx = 1, ty = 0, tz = 0;
       for (let j = 0; j < m; j++) {
         const a = Math.max(0, j - 1), b = Math.min(m - 1, j + 1);
@@ -2349,8 +2558,8 @@
       const e = povT;
       if (e > 0) {
         const b = pv.device ? pv.dB : pv.bearing + pv.yaw;
-        const ph = clamp(pv.device ? pv.dP : pv.pitch + pv.slope - .1, -1.25, 1.25);
-        camB.position.set(pv.x, Yc(pv.level) + EYE, -pv.y);
+        const ph = clamp(pv.device ? pv.dP : pv.pitch + pv.slope - lerp(.1, .015, DT.k), -1.25, 1.25); // in a detail scene the eye looks up from the floor: the place is the point
+        camB.position.set(pv.x, Yc(pv.level) + EYE + detailLift(pv.x, pv.y, pv.level), -pv.y);
         v3.set(Math.sin(b) * Math.cos(ph), Math.sin(ph), -Math.cos(b) * Math.cos(ph)).add(camB.position);
         camB.lookAt(v3);
         camera.position.lerp(camB.position, e);
@@ -2361,8 +2570,8 @@
       camera.far = lerp(cam.dist + P.diag * 3 + 400, 700, e);
       camera.updateProjectionMatrix();
       const f = Math.pow(e, 3);
-      fog.near = lerp(1e6, 42, f); // depth reads, but a wall 40 m away is still a wall
-      fog.far = lerp(1e7, 320, f);
+      fog.near = lerp(1e6, lerp(42, 95, DT.k), f); // depth reads, but a wall 40 m away is still a wall;
+      fog.far = lerp(1e7, lerp(320, 800, DT.k), f); // in a detail scene the houses across the square stay clear
     }
     const focal = () => H / (2 * Math.tan(FOV * Math.PI / 360));
     // The pose (looking from az / pol) that just fits the points into the free part of the screen
@@ -2565,6 +2774,7 @@
       } else if (isolate != null) active.add(isolate);
       levelLabels.forEach((L) => L.el.classList.toggle('s3-active', active.has(L.li)));
       syncGuides();
+      syncDetail();
       request();
     }
     function applyOpacity() {
@@ -2574,14 +2784,14 @@
         const solid = m.opacity >= .45 && !p.ghost;
         if (m.depthWrite !== solid) { m.depthWrite = solid; shadowDirty = true; }
         p.mesh.castShadow = solid;
-        p.lines.visible = p.op > .01;
-        p.mesh.visible = p.op * p.gain > .008;
+        p.lines.visible = p.op > .01 && !p.cut;
+        p.mesh.visible = p.op * p.gain > .008 && !p.cut; // cut: a detail scene stands in its place
         p.lines.material.opacity = p.ghost ? p.lineBase * p.op * (p.kind === 'shell' ? Math.min(1, p.gain / T.shellAlpha) : 1) : p.lineBase * (.3 + .7 * p.op) * (p.op < .5 ? 1.3 : 1);
       }
       hl.forEach((h) => {
         const o = lv3[h.li].op;
         if (h.uniform) h.mesh.material.uniforms.uAlpha.value = h.base * o; else h.mesh.material.opacity = h.base * o;
-        h.mesh.visible = o > .3;
+        h.mesh.visible = o > .3 && !lv3[h.li].cut;
       });
     }
     function stepOpacity(dt) {
@@ -2662,6 +2872,8 @@
         if (t >= 1) { povT = povAnim.to; povAnim = null; povScene(); }
         busy = true;
       }
+      if (DT.entry) { ensureDetail(); syncDetail(); }
+      { const kt = DT.show && pov && inBB(DT.entry.bbox, pv.x, pv.y, 4) ? 1 : 0; if (DT.k !== kt) { DT.k += (kt - DT.k) * (reducedMotion() ? 1 : 1 - Math.exp(-dt / 500)); if (Math.abs(kt - DT.k) < .01) DT.k = kt; else busy = true; } }
       if (!pov) return busy;
       const k = (tau) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
       if (!pv.free && A.routed) {
@@ -2928,7 +3140,7 @@
       return L;
     }
     function project(x, y, level, lift) {
-      v3.set(x, Yc(level) + (lift || 0), -y).project(camera);
+      v3.set(x, Yc(level) + (lift || 0) + detailLift(x, y, level), -y).project(camera);
       if (v3.z < -1 || v3.z > 1) return null;
       return [(v3.x * .5 + .5) * W, (-v3.y * .5 + .5) * H];
     }
@@ -4380,7 +4592,7 @@
         else { user.sx = tx; user.sy = ty; user.sl = tl; }
       }
       disc.visible = user.mode !== 'manual' && user.acc > 0;
-      disc.position.set(user.sx, Yc(user.sl) + .3, -user.sy);
+      disc.position.set(user.sx, Yc(user.sl) + .3 + detailLift(user.sx, user.sy, user.sl), -user.sy);
       disc.scale.setScalar(Math.max(2.5, user.acc));
       disc.material.opacity = user.mode === 'approx' ? .1 : .16;
       if (follow) {
@@ -4548,6 +4760,8 @@
         if (wasPov) setPov(true);
       }
       syncPov();
+      DT.show = false; DT.bird = false;
+      ensureDetail();
       request();
     }
     function start(m, r) {
@@ -4611,6 +4825,7 @@
       if (opts.follow) setFollow(true);
       if (opts.pov) { setPov(true); if (opts.povYaw != null) pv.yaw = +opts.povYaw * Math.PI / 180; if (opts.povPitch != null) pv.pitch = +opts.povPitch * Math.PI / 180; }
       if (opts.list && stepsEl) toggleList();
+      ensureDetail();
       touch();
       request();
       emit('open', { key: m.key, route, focus: focus ? { which: focus.which, why: focus.why } : null });
@@ -4667,8 +4882,10 @@
         try { root.querySelector('.s3-close').focus({ preventScroll: true }); } catch (e) {}
         const three = loadThree().catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'three' }); });
         const mdl = loadModel(opts.key).catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'model' }); });
-        return Promise.all([three, mdl, loadRouter()]).then(([, m, r]) => {
+        return Promise.all([three, mdl, loadRouter(), loadDetailIndex()]).then(([, m, r, di]) => {
           if (!self.alive) return;
+          DT.entry = (di && (di[opts.key] || di[m.key])) || null;
+          if (DT.entry && !(DT.entry.bbox && DT.entry.bbox.length === 4 && DT.entry.file)) DT.entry = null;
           // from here on a failure is not the connection: it is the model or this code
           try { start(m, r); } catch (e) { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'broken' }); }
         });
@@ -4720,6 +4937,7 @@
       labels: labels.length, shownLabels: labels.filter((l) => l.shown).map((l) => ({ kind: l.kind, text: l.el.textContent, x: Math.round(parseFloat((l.el.style.transform.match(/translate\(([-\d.]+)px/) || [0, 0])[1])), y: Math.round(parseFloat((l.el.style.transform.match(/,\s*([-\d.]+)px/) || [0, 0])[1])), w: l.w, h: l.h, pinned: !!l.pinned })),
       free, safe, avoid, pov, povT, pv: Object.assign({}, pv), listeners: offs.length, lost, inert: inerted.length, compassOn,
       pick, flyTo, request, renderer, rebuild, setPeel, select, project, boxRing, Yc, P,
+      detail: DT.entry ? { loaded: !!DT.data, built: !!DT.h, show: DT.show, bird: DT.bird, k: DT.k, tilt: DT.tilt, stats: DT.h && DT.h.stats ? { triangles: DT.h.stats.triangles, drawCalls: DT.h.stats.drawCalls, buildMs: DT.h.stats.buildMs, warnings: DT.h.stats.warnings } : null, lift: liftRaw, ground: groundOf } : null,
       signs: signList.map((w) => ({ style: w.style, text: w.text, back: w.back, x: Math.round(w.x), y: Math.round(w.y), lf: w.lf })), props: inst ? { boxes: inst.boxes.length, cyls: inst.cyls.length } : null,
       // run every animation to its end and draw (for tests in a tab that gets no animation frames)
       settle: () => {
@@ -4730,6 +4948,7 @@
         if (user && !user.outside && user.sx != null) { user.sx = user.x; user.sy = user.y; user.sl = user.level; if (follow) { cam.tx = user.sx; cam.tl = user.sl; cam.tz = -user.sy; } }
         if (pov) { pv.x = pv.tx; pv.y = pv.ty; pv.level = pv.tl; pv.bearing = pv.tb; }
         indoorT = Math.round(indoorT);
+        DT.k = DT.show && pov && DT.entry && inBB(DT.entry.bbox, pv.x, pv.y, 4) ? 1 : 0;
         grow = null; if (R) R.U.uGrow.value = 1e9;
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
         frame(performance.now() + 5e6);
