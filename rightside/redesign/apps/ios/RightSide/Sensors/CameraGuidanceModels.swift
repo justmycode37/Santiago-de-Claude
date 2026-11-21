@@ -44,6 +44,8 @@ struct CameraJourneyContext {
     var offline = false
     /// Platform / edge label the journey plans to board at ("B", "7"), when the timetable gives one.
     var boardingQuayLabel: String? = nil
+    /// Timetable departure of the ride from the boarding stop, to find its own trip in Kante's due list.
+    var boardingDeparture: Date? = nil
 
     func match(_ text: String) -> String? {
         if let stop, Self.containsPhrase(text, phrase: stop) { return "Stop text · check sign" }

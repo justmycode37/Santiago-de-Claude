@@ -3,6 +3,8 @@ import Foundation
 /// One platform or stop edge (ATLAS traffic point) from the web app's platforms.js, via stop-edges.json.
 struct StopEdge: Equatable {
     let uic: String
+    /// platforms.js mode of the stop: "b" bus, "m" tram/metro, "t" train.
+    var mode: String = ""
     /// Letter or number on the sign ("A", "7"); empty when ATLAS has none.
     let ref: String
     let point: GeoPoint
@@ -14,7 +16,7 @@ struct StopEdge: Equatable {
 
 /// Every bus, tram and train stop edge in Switzerland (`Resources/TransportPacks/stop-edges.json`,
 /// built by `rightside/tools/build-edge-packs.py` from platforms.js).
-struct StopEdgePack {
+struct StopEdgePack: @unchecked Sendable { // immutable after init
     let date: String?
     private let raw: [String: Any]
 
@@ -28,12 +30,13 @@ struct StopEdgePack {
     /// Parsed on demand: the pack has ~50,000 edges, a journey needs one stop's.
     func edges(uic: String) -> [StopEdge] {
         guard let stop = raw[uic] as? [Any], stop.count == 2, let rows = stop[1] as? [[Any]] else { return [] }
+        let mode = stop[0] as? String ?? ""
         return rows.compactMap { row in
             guard row.count >= 2, let x = (row[0] as? NSNumber)?.doubleValue, let y = (row[1] as? NSNumber)?.doubleValue else { return nil }
             let ref = row.count > 2 ? (row[2] as? String ?? "") : ""
             let bearing = row.count > 3 ? (row[3] as? NSNumber)?.doubleValue : nil
             let level = row.count > 4 ? (row[4] as? NSNumber)?.doubleValue : nil
-            return StopEdge(uic: uic, ref: ref, point: GeoPoint(latitude: y / 1e5, longitude: x / 1e5), bearing: bearing, level: level)
+            return StopEdge(uic: uic, mode: mode, ref: ref, point: GeoPoint(latitude: y / 1e5, longitude: x / 1e5), bearing: bearing, level: level)
         }
     }
 
@@ -98,6 +101,18 @@ enum KerbSide {
     static let roadMiddle = -3.0
     /// The answer must hold with this many standard deviations of the fix's reported accuracy.
     static let sigmas = 1.0
+    /// Only a rider near the edge is judged: across a street is 5–30 m sideways, not hundreds of metres.
+    static let maximumLateral = 40.0
+    static let maximumAlong = 80.0
+
+    /// The kerb test is only meaningful at a bus or tram edge on the street: not at train platforms (their
+    /// ATLAS direction is the track's, and the platform is reached by steps or ramps), not at an edge on another
+    /// floor, and not at a modelled station whose floor for this edge is unknown.
+    static func applies(to edge: StopEdge, floor: StationLevelPack.Floor?, stationModelled: Bool) -> Bool {
+        guard ["b", "m"].contains(edge.mode), (edge.level ?? 0) == 0 else { return false }
+        if stationModelled { return floor.map { abs($0.z) < 1 } ?? false }
+        return true
+    }
 
     static func assess(user: GeoPoint, accuracy: Double, edge: StopEdge, siblings: [StopEdge]) -> KerbAssessment {
         guard let bearing = edge.bearing, accuracy.isFinite, accuracy > 0 else {
@@ -116,7 +131,7 @@ enum KerbSide {
          .filter { distance - $0.1 > 2 * accuracy }
          .min { $0.1 < $1.1 }?.0
         let side: KerbAssessment.Side
-        if abs(along) > 80 { side = .unknown }
+        if abs(along) > maximumAlong || abs(lateral) > maximumLateral { side = .unknown }
         else if lateral < roadMiddle - sigmas * accuracy || nearer != nil { side = .opposite }
         else if lateral > roadMiddle + sigmas * accuracy { side = .boarding }
         else { side = .unknown }
@@ -125,7 +140,7 @@ enum KerbSide {
 }
 
 /// Floor heights of modelled multi-level stations (`station-levels.json`, from the web app's stations3d/).
-struct StationLevelPack: Decodable {
+struct StationLevelPack: Decodable, Sendable {
     struct Station: Decodable {
         let key: String
         let name: String
@@ -186,6 +201,18 @@ enum ARFloorHeights {
         let below = detectedPlaneYs.filter { cameraY - $0 >= 0.8 && cameraY - $0 <= 2.2 }
         if let nearest = below.max() { return (nearest, true) }
         return (cameraY - fallbackPhoneHeight, false)
+    }
+
+    /// The street-level floor height in AR (y) where the session started. It is set from the first frame and may be
+    /// refined once by a detected plane, but only while the camera is still at its starting height: a plane found
+    /// after going down to a platform is that platform's floor, not the street.
+    struct StartFloor: Equatable { let y: Double; let detected: Bool; let cameraY: Double }
+    static func updateStart(_ start: StartFloor?, cameraY: Double, floor: (y: Double, detected: Bool)) -> StartFloor {
+        guard let start else { return StartFloor(y: floor.y, detected: floor.detected, cameraY: cameraY) }
+        if !start.detected, floor.detected, abs(cameraY - start.cameraY) < 0.5 {
+            return StartFloor(y: floor.y, detected: true, cameraY: start.cameraY)
+        }
+        return start
     }
 
     /// AR height of the boarding target. The rider is assumed to start the camera at street level (level 0 of

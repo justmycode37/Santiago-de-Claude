@@ -19,8 +19,8 @@ import UIKit
     private var contextKey = ""
     private var markerNodes: [SCNNode] = []
     private var targetNode: SCNNode?
-    /// Floor height (ARKit y) when the session started: the rider is assumed to start at street level.
-    private var startFloorY: Double?
+    /// Street-level floor (ARKit y) where the session started: the rider is assumed to start at street level.
+    private var startFloor: ARFloorHeights.StartFloor?
     /// Whether the floor under the rider was found by ARKit plane detection (else the 1.4 m fallback).
     private(set) var floorDetected = false
     /// Typical height of a hand-held phone above the pavement; the ground arrows are drawn this far below the camera.
@@ -40,7 +40,7 @@ import UIKit
 
     func reset() {
         alignment.reset(); plane = nil; lastFix = nil; lastHeading = nil; plan = nil; lastUpdate = 0
-        startFloorY = nil; floorDetected = false; startFloorDetected = false
+        startFloor = nil; floorDetected = false; targetNodeLabel = nil
         clearNodes()
     }
 
@@ -87,8 +87,8 @@ import UIKit
             .map { Double($0.transform.columns.3.y + $0.center.y) }
         let floor = ARFloorHeights.floorY(cameraY: Double(position.y), detectedPlaneYs: planes)
         floorDetected = floor.detected
-        if startFloorY == nil || (floor.detected && !startFloorDetected) { startFloorY = floor.y; startFloorDetected = floor.detected }
-        let targetY = ARFloorHeights.targetY(startFloorY: startFloorY ?? floor.y, targetZ: targetZ)
+        startFloor = ARFloorHeights.updateStart(startFloor, cameraY: Double(position.y), floor: floor)
+        let targetY = ARFloorHeights.targetY(startFloorY: startFloor?.y ?? floor.y, targetZ: targetZ)
         render(next, groundY: Float(floor.y), targetY: Float(targetY), targetLabel: targetLabel)
     }
 
@@ -97,7 +97,8 @@ import UIKit
         targetNode?.removeFromParentNode(); targetNode = nil
     }
 
-    private var startFloorDetected = false
+    /// Label the target node was made with; a new label (e.g. once Kante names the edge) rebuilds the node.
+    private var targetNodeLabel: String?
 
     private func render(_ plan: ARRouteGuidance.Plan, groundY: Float, targetY: Float, targetLabel: String) {
         // Reuse chevron nodes; hide the ones not needed this frame.
@@ -116,9 +117,10 @@ import UIKit
             node.opacity = CGFloat(max(0.25, min(1, 1.5 - marker.sigma / 4)))
         }
         if let target = plan.target {
-            if targetNode == nil {
+            if targetNode == nil || targetNodeLabel != targetLabel {
+                targetNode?.removeFromParentNode()
                 let node = JourneyReferenceMarker.make(label: targetLabel)
-                root.addChildNode(node); targetNode = node
+                root.addChildNode(node); targetNode = node; targetNodeLabel = targetLabel
             }
             // JourneyReferenceMarker puts its sphere 3 m up; anchor it on the ground below the boarding point.
             // On the target's own floor (e.g. 6.1 m down at Europaplatz platform 1), not the rider's.

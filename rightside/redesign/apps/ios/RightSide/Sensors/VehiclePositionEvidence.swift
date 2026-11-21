@@ -139,6 +139,12 @@ struct KanteDue: Decodable, Equatable {
     let approachBearing: Double?
     /// Direction it drives in when it leaves (to the next stop), degrees: the travel direction at the boarding edge.
     var departBearing: Double? = nil
+    /// Live delay, seconds; only where the time is live.
+    var delayS: Double? = nil
+    /// The quay label when there is one (Kante sends "" for a quay without a label).
+    var label: String? { quayLabel.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
+    /// Timetable departure (live time minus live delay).
+    var plannedDeparture: Double? { (dep ?? arr).map { $0 - (delayS ?? 0) } }
     /// "approaching", "at-stop" or "departed".
     let state: String
     let etaS: Double?
@@ -186,6 +192,24 @@ extension KanteVehicleFeed {
 }
 
 extension VehiclePositionEvidence {
+    /// The `/api/due` trip that is the rider's own ride: same line and destination and, when the journey's planned
+    /// departure is known, the same planned departure within 90 s. Nil unless exactly one trip fits, so the 10:00
+    /// from A is never mistaken for the rider's 10:10 from B.
+    static func dueItem(line: String?, destination: String?, plannedDeparture: Date?, in due: [KanteDue], now: Date) -> KanteDue? {
+        guard let line, let destination else { return nil }
+        let key = DisplayText.lineKey(line), t = now.timeIntervalSince1970
+        var fitting = due.filter { item in
+            DisplayText.lineKey(item.line.name) == key && item.cancelled != true
+                && DepartureDisplayMatcher.sameDestination(item.headsign, destination, threshold: 0.85)
+                && (item.dep ?? item.arr ?? t) >= t - 20
+        }
+        if let plannedDeparture {
+            let planned = plannedDeparture.timeIntervalSince1970
+            fitting = fitting.filter { $0.plannedDeparture.map { abs($0 - planned) <= 90 } ?? false }
+        }
+        return fitting.count == 1 ? fitting[0] : nil
+    }
+
     /// Display candidates from `/api/due`, one per line + headsign, with vias.
     static func candidates(from due: [KanteDue]) -> [DisplayCandidate] {
         var result: [DisplayCandidate] = []

@@ -408,6 +408,49 @@ do {
     check(b.compassYaw(at: t.addingTimeInterval(5)) != nil && b.compassYaw(at: t.addingTimeInterval(60)) == nil, "heading older than 20 s is dropped")
 }
 
+// MARK: - Review fixes (#24)
+
+if let data = try? Data(contentsOf: URL(fileURLWithPath: packs + "/stop-edges.json")), let edgePack = try? StopEdgePack(data: data),
+   let b = edgePack.boardingEdge(uic: "8576646", ref: "B"), let bearing = b.bearing {
+    // 4. Far sideways is no claim; the test applies to street-level bus/tram edges only.
+    let plane = LocalTangentPlane(origin: b.point), r = bearing * .pi / 180
+    let far = plane.geo(Vec2(x: cos(r) * -300, y: -sin(r) * -300))
+    check(KerbSide.assess(user: far, accuracy: 3, edge: b, siblings: []).side == .unknown, "300 m sideways with a 3 m fix: no claim (was 'cross the street')")
+    check(b.mode == "m" && KerbSide.applies(to: b, floor: nil, stationModelled: false), "street tram edge: kerb test applies")
+    let rail = edgePack.edges(uic: "8500286").first { $0.ref == "1" }
+    check(rail.map { $0.mode == "t" && !KerbSide.applies(to: $0, floor: nil, stationModelled: false) } ?? false, "train platform with a bearing: no kerb test")
+    check(!KerbSide.applies(to: b, floor: nil, stationModelled: true), "modelled station, floor of this edge unknown: no kerb test")
+    check(KerbSide.applies(to: b, floor: .init(level: 0, z: 0, name: "Street level"), stationModelled: true), "modelled station, street-level edge: applies")
+} else { check(false, "edge pack for review checks") }
+do {
+    // 5 + 9. The rider's own trip by planned departure; an empty Kante label counts as none.
+    let t = Date(timeIntervalSince1970: 1_800_000_000) // "now"
+    func trip(_ id: String, planned: Double, delay: Double?, quay: String) -> KanteDue {
+        var d = KanteDue(tripId: id, line: .init(name: "10", category: "B", mode: "bus"), headsign: "Ostermundigen, Rüti", vias: [], quayId: nil,
+                         quayLabel: quay, arr: planned + (delay ?? 0) - 20, dep: planned + (delay ?? 0), cancelled: false, approachBearing: nil,
+                         state: "approaching", etaS: nil, liveInfo: nil)
+        d.delayS = delay
+        return d
+    }
+    let ten00 = trip("a", planned: t.timeIntervalSince1970 + 60, delay: nil, quay: "A")
+    let ten10 = trip("b", planned: t.timeIntervalSince1970 + 660, delay: 180, quay: "B")
+    let mine = VehiclePositionEvidence.dueItem(line: "10", destination: "Ostermundigen, Rüti", plannedDeparture: t.addingTimeInterval(660), in: [ten00, ten10], now: t)
+    check(mine?.label == "B", "the 10:10 rider is sent to the 10:10's edge (B), even 3 min late, got \(mine?.label ?? "nil")")
+    check(VehiclePositionEvidence.dueItem(line: "10", destination: "Ostermundigen, Rüti", plannedDeparture: nil, in: [ten00, ten10], now: t) == nil,
+          "no planned departure and two trips: no pick")
+    check(trip("c", planned: 0, delay: nil, quay: "").label == nil && trip("c", planned: 0, delay: nil, quay: " ").label == nil, "empty quay label is no label")
+}
+do {
+    // 7. The street baseline is set once; a plane found after going down is not the street.
+    var start = ARFloorHeights.updateStart(nil, cameraY: 1.4, floor: (y: 0.0, detected: false))      // fallback at street level
+    start = ARFloorHeights.updateStart(start, cameraY: -4.7, floor: (y: -6.1, detected: true))        // 6.1 m down, platform found
+    check(start.y == 0.0, "baseline stays at street level after descending, got \(start.y)")
+    check(abs(ARFloorHeights.targetY(startFloorY: start.y, targetZ: -6.1) - (-6.1)) < 1e-9, "Europaplatz platform 1 drawn at -6.1 m, not -12.2 m")
+    let refined = ARFloorHeights.updateStart(ARFloorHeights.updateStart(nil, cameraY: 1.4, floor: (y: 0.0, detected: false)),
+                                             cameraY: 1.5, floor: (y: 0.08, detected: true))
+    check(refined.y == 0.08 && refined.detected, "still at the starting height: a detected street floor refines the fallback")
+}
+
 // MARK: - Geo/AR alignment
 
 struct Rng { var state: UInt64
