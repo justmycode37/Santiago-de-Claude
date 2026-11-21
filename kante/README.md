@@ -33,7 +33,7 @@ scripts/plan.py "Zürich HB" "Ostermundigen, Rüti" 2026-11-23T08:00 steps=1
 ## API
 
 `GET /api/meta`, `/api/search`, `/api/reverse`, `/api/departures`, `/api/trip`,
-`/api/vehicles`, `/api/due`, `/api/match`, `/api/stream`, and `POST /api/plan`,
+`/api/vehicles`, `/api/due`, `/api/identify`, `/api/match`, `/api/stream`, and `POST /api/plan`,
 `/api/walk`. Any website may call it
 (CORS is open). The parameters are in `engine/crates/server/src/api.rs`.
 
