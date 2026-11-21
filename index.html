@@ -2445,6 +2445,7 @@
     }
 
     // ---- 3D station view (station3d.js): for walks and changes in a station that has a 3D model (stations3d/) ----
+    const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
     const s3Key = (stop) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id)) || null;
     // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
     function s3End(stop, at) {
@@ -2464,13 +2465,16 @@
       if (st.type === 'walk' && st.next) {
         key = s3Key(st.next.departure);
         const start = userLngLat || (st.lines[0] && st.lines[0][0]);
-        from = start ? (userLngLat ? { ll: start } : { ll: start, label: 'the start' }) : null;
         to = s3End(st.next.departure, st.nextRide && st.nextRide.depAt);
+        // from further away the model only shows the last stretch: where the walk comes in, not where you are
+        const far = start && to && to.ll && distKm(start, to.ll) > S3_NEAR_KM;
+        from = start ? (far ? { ll: start, label: 'the way in' } : userLngLat ? { ll: start } : { ll: start, label: 'the start' }) : null;
       } else if (st.type === 'walk') {
         key = st.from ? s3Key(st.from.arrival) : null;
         from = key && s3End(st.from.arrival, st.prevRide && st.prevRide.arrAt);
         const end = (journeyDest && journeyDest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
-        to = end ? { ll: end, label: st.toName } : null;
+        const far = end && from && from.ll && distKm(from.ll, end) > S3_NEAR_KM;
+        to = end ? { ll: end, label: far ? `the way to ${st.toName}` : st.toName } : null;
       } else if (st.type === 'change') {
         const ka = s3Key(st.prev.arrival), kb = s3Key(st.next.departure);
         key = kb || ka;
