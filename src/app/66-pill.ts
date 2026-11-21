@@ -221,6 +221,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   document.getElementById('jArr')!.textContent = '--:--';
   sheetMsg = 'Finding a connection…';
   track = null;
+  placeUserDot(); // plain GPS until the new trip follows you
   renderSheet();
   if (!wasOpen) openSheet();
   vehMarker.remove();
@@ -250,6 +251,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
     if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
     renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
+    if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     kanteMatch(id);    // the engine's trip for every ride, for its live data
   } catch (e) {
     if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); }

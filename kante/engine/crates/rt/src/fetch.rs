@@ -186,6 +186,10 @@ pub struct PollPolicy {
     pub max_per_day: u32,
     /// Ceiling for the error backoff, also used when the key is rejected.
     pub max_backoff: Duration,
+    /// Ceiling for the backoff after a passing error (network, server, a broken
+    /// document): the feed is back soon, and a long wait would leave the data
+    /// stale long after it is.
+    pub max_transient_backoff: Duration,
 }
 
 impl PollPolicy {
@@ -198,6 +202,7 @@ impl PollPolicy {
                 min_interval: Duration::from_secs(30),
                 max_per_day: 3000,
                 max_backoff: Duration::from_secs(900),
+                max_transient_backoff: Duration::from_secs(120),
             },
             // The feed is regenerated every 30 s; 32 s respects both documented limits.
             FeedKind::GtfsRt => PollPolicy {
@@ -205,6 +210,7 @@ impl PollPolicy {
                 min_interval: Duration::from_secs(30),
                 max_per_day: 2800,
                 max_backoff: Duration::from_secs(900),
+                max_transient_backoff: Duration::from_secs(120),
             },
         }
     }
@@ -306,7 +312,7 @@ impl Poller {
                     FetchError::RateLimited { retry_after } => {
                         retry_after.unwrap_or(Duration::ZERO).max(exp).max(Duration::from_secs(60)).min(DAY)
                     }
-                    _ => exp,
+                    _ => exp.min(p.max_transient_backoff.max(p.interval)),
                 };
                 self.next_at = Some(now + delay);
                 self.last_error = Some(e.clone());
@@ -491,7 +497,8 @@ mod tests {
         assert_eq!(p.wait(t0 + 8 * S), 52 * S);
         assert_eq!(p.wait(t0 + 61 * S), Duration::ZERO);
 
-        // Transient errors: 120 s, 240 s, … capped at 15 min.
+        // Passing errors (server, network): 120 s and no more, so the data is fresh again
+        // within two minutes of the feed coming back (3,000 requests a day allow it).
         let t1 = t0 + 60 * S;
         p.on_request(t1);
         p.on_result(t1, t1 + S, Err(&FetchError::Status(503)));
@@ -499,11 +506,14 @@ mod tests {
         let t2 = t1 + 121 * S;
         p.on_request(t2);
         p.on_result(t2, t2, Err(&FetchError::Transport("x".into())));
-        assert_eq!(p.wait(t2), 240 * S);
+        assert_eq!(p.wait(t2), 120 * S);
         assert_eq!(p.failures(), 2);
         for _ in 0..10 {
             p.on_result(t2, t2, Err(&FetchError::Status(500)));
         }
+        assert_eq!(p.wait(t2), 120 * S);
+        // A rejected key still waits the full 15 min.
+        p.on_result(t2, t2, Err(&FetchError::Unauthorized));
         assert_eq!(p.wait(t2), 900 * S);
 
         // Success resets the backoff.
@@ -536,7 +546,7 @@ mod tests {
         // A policy that asks for far too much is clamped by the per-minute
         // floor and the daily budget.
         let policy =
-            PollPolicy { interval: S, min_interval: 30 * S, max_per_day: 3, max_backoff: 900 * S };
+            PollPolicy { interval: S, min_interval: 30 * S, max_per_day: 3, max_backoff: 900 * S, max_transient_backoff: 120 * S };
         let mut p = Poller::with_policy(FeedKind::SiriEt, policy);
         assert_eq!(p.policy().interval, 30 * S);
         let t0 = Instant::now();

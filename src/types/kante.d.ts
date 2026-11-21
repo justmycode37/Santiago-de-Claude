@@ -119,24 +119,8 @@ interface KanteMeta {
   attribution: string[];
 }
 
-// ---- GET /api/search, /api/nearby, /api/reverse (answers a KantePlace), /api/quays
+// ---- GET /api/search, /api/reverse (answers a KantePlace)
 interface KanteSearchResponse { results: KantePlace[] }
-interface KanteNearbyLine {
-  line: KanteLine;
-  headsign: string;
-  quay: KanteQuay;
-  /** The next departures. */
-  next: number[];
-  live: boolean;
-  delayS?: number;
-  tripId: string;
-  serviceDate: string;
-  seq: number;
-}
-interface KanteNearbyStation { place: KantePlace; distM: number; lines: KanteNearbyLine[] }
-interface KanteNearbyResponse { stations: KanteNearbyStation[] }
-interface KanteQuaysResponse { quays: KanteQuay[] }
-type KanteNearbyOptions = { radius?: number; limit?: number; time?: number };
 /** `bbox`: "west,south,east,north" (KANTE_LIVE.bboxParam). */
 type KanteBboxParams = { bbox: string; t?: number };
 
@@ -207,37 +191,6 @@ interface KanteVehicle {
   extra?: boolean;
 }
 interface KanteVehiclesResponse { t: number; vehicles: KanteVehicle[] }
-
-// ---- GET /api/onboard: the vehicles a phone at a position could be on, best first
-type KanteOnboardParams = { lat: number; lon: number; t?: number; q?: string };
-interface KanteOnboardCandidate {
-  tripId: string;
-  serviceDate: string;
-  line: KanteLine;
-  headsign: string;
-  number?: string;
-  distM: number;
-  nextSeq: number;
-  nextStop: string;
-  nextArr: number;
-  prevStop?: string;
-  delayS?: number;
-}
-interface KanteOnboardResponse { candidates: KanteOnboardCandidate[] }
-
-// ---- GET /api/indoor: the walking network inside a box, as GeoJSON lines
-interface KanteIndoorFeature {
-  type: 'Feature';
-  geometry: { type: 'LineString'; coordinates: LngLat[] };
-  properties: {
-    kind: 'footway' | 'sidewalk' | 'crossing' | 'path' | 'pedestrian' | 'steps' | 'escalator' | 'lift' | 'corridor' | 'platform' | 'road';
-    level: number | null;
-    indoor: boolean;
-    toLevel?: number | null;
-    name?: string;
-  };
-}
-interface KanteIndoorResponse { type: 'FeatureCollection'; features: KanteIndoorFeature[] }
 
 // ---- GET /api/match: the engine's trip for a ride planned elsewhere
 /** What is left empty is not sent. */
@@ -411,15 +364,11 @@ interface KanteApi {
   stationIdOf(uic: string | number): string | null;
   meta(): Promise<KanteMeta>;
   search(q: string, near?: { lat: number; lon: number } | null): Promise<KanteSearchResponse>;
-  nearby(lat: number, lon: number, opts?: KanteNearbyOptions): Promise<KanteNearbyResponse>;
   reverse(lat: number, lon: number): Promise<KantePlace>;
-  quays(params: KanteBboxParams): Promise<KanteQuaysResponse>;
   departures(params: KanteDeparturesParams): Promise<KanteDeparturesResponse>;
   /** date: the trip's operating day, "2026-11-21". */
   trip(id: string, date: string): Promise<KanteTrip>;
   vehicles(params: KanteBboxParams): Promise<KanteVehiclesResponse>;
-  onboard(params: KanteOnboardParams): Promise<KanteOnboardResponse>;
-  indoor(params: KanteBboxParams): Promise<KanteIndoorResponse>;
   plan(body: KantePlanRequest): Promise<KantePlanResponse>;
   walk(body: KanteWalkRequest): Promise<KanteWalk>;
 }
@@ -532,6 +481,8 @@ interface KanteStep {
   from?: OdSection | null;
   /** walk, change: the lines drawn on the map. */
   lines?: LngLat[][];
+  /** walk (the last one): the place it leads to (its line may end at the door found for it). */
+  toLL?: LngLat;
   /** change: where you get off and where you board. */
   points?: (LngLat | null | undefined)[];
   /** walk: where you board, or where you got off. */
@@ -548,6 +499,9 @@ interface KanteStep {
   path?: LngLat[];
   depLL?: LngLat | null;
   arrLL?: LngLat | null;
+  /** ride: where it is boarded and left (the platform edge, when the engine knows it). */
+  depAt?: JourneyPlatformAt | null;
+  arrAt?: JourneyPlatformAt | null;
   // What decorate() and requay() add to a walk or change of an engine journey:
   /** The engine's walk. */
   kante?: KanteWalk;
@@ -616,14 +570,11 @@ interface KanteEngineUrl { url: string | null; fromLink: boolean; ignored?: stri
 interface KanteGetPaths {
   '/api/meta': KanteMeta;
   '/api/search': KanteSearchResponse;
-  '/api/nearby': KanteNearbyResponse;
   '/api/reverse': KantePlace;
-  '/api/quays': KanteQuaysResponse;
   '/api/departures': KanteDeparturesResponse;
   '/api/trip': KanteTrip;
   '/api/vehicles': KanteVehiclesResponse;
-  '/api/onboard': KanteOnboardResponse;
-  '/api/indoor': KanteIndoorResponse;
+  '/api/due': KanteDueResponse;
   '/api/match': KanteMatchResponse;
 }
 /** The live data's connection to the engine. Nothing here throws: a call that fails answers null. */
@@ -739,3 +690,18 @@ interface KanteLiveApi {
   originOf(u: string | null | undefined): string | null;
 }
 declare var KANTE_LIVE: KanteLiveApi;
+
+/** GET /api/due (kante/docs/LIVE-API.md): every trip due at a boarding point, as far as the page uses it. */
+interface KanteDueResponse {
+  t: number;
+  due: Array<{
+    line?: { name: string; category?: string; mode?: string };
+    headsign?: string | null;
+    quayLabel?: string | null;
+    departBearing?: number | null;
+    state?: 'approaching' | 'at-stop' | 'departed';
+    etaS?: number | null;
+    delayS?: number | null;
+    cancelled?: boolean;
+  }>;
+}

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "file": "osm-relation-8468176.json",
+      "url": "https://api.openstreetmap.org/api/0.6/relation/8468176/full.json",
+      "sha256": "c42bec98c34e873b1d48f7f66c9f2fd1ae06c731dca239cce26987bf43888a67",
+      "acquiredAt": "2026-11-21T05:24:19.876085+00:00",
+      "responseDate": "2026-11-21T05:24:19+00:00",
+      "responseDateBasis": "Latest OSM API full-relation response; server HTTP Date, not object modification time or a timetable validity assertion",
+      "attribution": "\u00a9 OpenStreetMap contributors \u00b7 ODbL 1.0",
+      "licenceURL": "https://www.openstreetmap.org/copyright"
+    },
+    {
+      "file": "osm-relation-8468175.json",
+      "url": "https://api.openstreetmap.org/api/0.6/relation/8468175/full.json",
+      "sha256": "b5ba6910231ff9dca4ef6bba9b969a4e3342110fd91097805408b263af9104d4",
+      "acquiredAt": "2026-11-21T05:24:29.338993+00:00",
+      "responseDate": "2026-11-21T05:24:29+00:00",
+      "responseDateBasis": "Latest OSM API full-relation response; server HTTP Date, not object modification time or a timetable validity assertion",
+      "attribution": "\u00a9 OpenStreetMap contributors \u00b7 ODbL 1.0",
+      "licenceURL": "https://www.openstreetmap.org/copyright"
+    },
+    {
+      "file": "osm-relation-10394513.json",
+      "url": "https://api.openstreetmap.org/api/0.6/relation/10394513/full.json",
+      "sha256": "966b3500df593ae687cbef10be11bfee6a632b492a195527b644cbc88eccfcbd",
+      "acquiredAt": "2026-11-21T05:24:29.585923+00:00",
+      "responseDate": "2026-11-21T05:24:29+00:00",
+      "responseDateBasis": "Latest OSM API full-relation response; server HTTP Date, not object modification time or a timetable validity assertion",
+      "attribution": "\u00a9 OpenStreetMap contributors \u00b7 ODbL 1.0",
+      "licenceURL": "https://www.openstreetmap.org/copyright"
+    },
+    {
+      "file": "osm-relation-10394514.json",
+      "url": "https://api.openstreetmap.org/api/0.6/relation/10394514/full.json",
+      "sha256": "631d7c7027574eab9a52fec23cc4273f6c4186c1ad087041149a5bfa25e41ece",
+      "acquiredAt": "2026-11-21T05:24:29.775197+00:00",
+      "responseDate": "2026-11-21T05:24:29+00:00",
+      "responseDateBasis": "Latest OSM API full-relation response; server HTTP Date, not object modification time or a timetable validity assertion",
+      "attribution": "\u00a9 OpenStreetMap contributors \u00b7 ODbL 1.0",
+      "licenceURL": "https://www.openstreetmap.org/copyright"
+    }
+  ]
+}

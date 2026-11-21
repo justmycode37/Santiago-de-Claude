@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "bern-station-osm-2026-11-21",
+  "source": "OpenStreetMap via Overpass",
+  "endpoint": "https://overpass-api.de/api/interpreter",
+  "fetchedAt": "2026-11-21T00:18:31.922Z",
+  "sourceTimestamp": "2026-11-21T00:16:45Z",
+  "httpStatus": 200,
+  "queryFile": "query.overpassql",
+  "bounds": [
+    7.433,
+    46.9445,
+    7.445,
+    46.951
+  ],
+  "boundsOrder": "west,south,east,north",
+  "crs": "EPSG:4326",
+  "coordinateOrder": "longitude,latitude",
+  "rawCoordinateFields": "OSM nodes preserve named lon and lat fields; derived coordinates use [lon, lat].",
+  "license": "ODbL-1.0",
+  "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "attribution": "© OpenStreetMap contributors · ODbL 1.0",
+  "copyrightUrl": "https://www.openstreetmap.org/copyright",
+  "usagePolicyUrl": "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+  "acquisition": "One manually initiated bounded POST request; no recurring/public routing backend use of Overpass.",
+  "usagePolicyCheckedAt": "2026-11-21",
+  "rawFile": "raw.json",
+  "rawSha256": "0c8a04e37b39410b19f5192fb4cea7bb1ea092b13cea7b76179e383472d2850d",
+  "rawBytes": 1306012,
+  "graphFile": "graph.json",
+  "graphSha256": "40772cf7ad93078417c99b5a9c53112b2e88a2ddc57ea59f44533127fcd1caba",
+  "graphNodes": 3015,
+  "graphEdges": 3073,
+  "largestComponentNodes": 515,
+  "sampleRequest": {
+    "from": {
+      "nodeId": "osm:node:1739995048@unknown"
+    },
+    "to": {
+      "nodeId": "osm:node:13345002313@unknown"
+    },
+    "now": "2026-11-21T00:18:31.922Z"
+  },
+  "sampleResult": {
+    "status": "routed",
+    "distanceMeters": 867.9723747116177,
+    "edgeCount": 101
+  },
+  "quality": "OSM-derived; not surveyed or field-verified",
+  "currentAccess": "unknown",
+  "pedestrianTargetStatus": "unverified",
+  "warnings": [
+    "Inferred from an OSM snapshot; not surveyed, verified, or guaranteed currently open.",
+    "No association with the correct passenger curb or waiting area has been verified.",
+    "Bounded incomplete network: roads, area routing, and uncertain floor connections are omitted.",
+    "157 unsupported or incomplete way segments omitted."
+  ]
+}

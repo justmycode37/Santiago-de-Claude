@@ -1,0 +1,15 @@
+{
+  "url": "https://transport.opendata.ch/ojp20",
+  "method": "POST",
+  "startedAt": "2026-11-21T06:45:05Z",
+  "requestSHA256": "5c7475709177bb00fa128a2d59eac1ea07b0c677c8fac4a9b165684c292da3e7",
+  "timeoutSeconds": 25,
+  "byteLimit": 2000000,
+  "requestedTime": "2026-11-21T06:55:05Z",
+  "arriveBy": false,
+  "status": 200,
+  "responseDate": "Sat, 21 Nov 2026 06:45:05 GMT",
+  "acquiredAt": "2026-11-21T06:45:05.369228+00:00",
+  "sha256": "91184b097a3f71e76a240ca3ce1594a67e3736c9fbfaf129780d11c09728aedd",
+  "bytes": 130362
+}

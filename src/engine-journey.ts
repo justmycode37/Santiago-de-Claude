@@ -313,24 +313,31 @@
 
   // After a refresh: a platform change moves the boarding (or alighting) point. Put the ride's ends, and the
   // walks that lead to and from them, on the new one. changed() is called whenever a line on the map has moved.
+  const requayed = new WeakMap<KanteStep, LngLat[][]>(); // the walk requay() last moved, by the lines it drew
   function requay(steps: KanteStep[], changed: () => void) {
     const same = (a: LngLat | null | undefined, b: LngLat | null | undefined) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
     const lastOf = (st: KanteStep) => { const l = st.lines && st.lines[st.lines.length - 1]; return l && l[l.length - 1]; };
+    const sameEdge = (x: KantePlatformAt, y: JourneyPlatformAt | null | undefined) => {
+      const e = x.edge, f = y && y.edge;
+      return (e ? e.ref : null) === (f ? f.ref : null) && (e ? e.level : null) === (f ? f.level : null);
+    };
     const rewalk = new Map<KanteStep, [LngLat, LngLat]>(); // step → [from, to]
     let moved = false;
     steps.forEach((st, i) => {
       if (st.type !== 'ride') return;
       const d = at(st.s!.departure), a = at(st.s!.arrival);
-      if (!d || !a || (same(d.ll, st.depLL) && same(a.ll, st.arrLL))) return;
+      if (!d || !a || (same(d.ll, st.depLL) && same(a.ll, st.arrLL) && sameEdge(d, st.depAt) && sameEdge(a, st.arrAt))) return;
       const prev = steps[i - 1], next = steps[i + 1], final = steps[steps.length - 1];
       moved = true;
+      // the same point, another platform (its name or floor): the walks stay, and are routed again to it (refineWalks())
+      if (same(d.ll, st.depLL) && same(a.ll, st.arrLL)) { Object.assign(st, { depAt: d, arrAt: a }); return; }
       if (!same(d.ll, st.depLL) && prev && prev.type !== 'ride') {
         const from = prev.type === 'change' ? prev.points![0] : prev.lines![0] && prev.lines![0][0];
         if (prev.type === 'change') prev.points![1] = d.ll; else prev.board = d.ll;
         if (from) rewalk.set(prev, [(rewalk.get(prev) || [from])[0], d.ll]);
       }
       if (!same(a.ll, st.arrLL) && next && next.type !== 'ride') {
-        const to = next.type === 'change' ? next.points![1] : lastOf(next);
+        const to = next.type === 'change' ? next.points![1] : (next.type === 'walk' && next.toLL) || lastOf(next); // the place, not the door last found
         if (next.type === 'change') next.points![0] = a.ll;
         else if (next.type === 'walk') next.alight = a.ll;
         if (final.type === 'arrive' && final.from === st.s) final.end = a.ll;
@@ -344,11 +351,21 @@
     });
     rewalk.forEach(([a, b], st) => {
       // straight to the new point at once, then the engine's way there when it has one
-      Object.assign(st, { lines: same(a, b) ? [] : [[a, b]], walks: undefined, floors: undefined, kanteWalk: false });
-      if (same(a, b) || !K || !K.available()) return;
+      const line: LngLat[] = [a, b], lines = same(a, b) ? [] : [line];
+      Object.assign(st, { lines, walks: undefined, floors: undefined, kanteWalk: false });
+      requayed.set(st, lines);
+      if (!lines.length) { // no walk left: both rides at one point
+        st.walkS = 0;
+        if (st.type === 'change') st.walkMin = 0; else st.min = 0;
+        return;
+      }
+      if (!K || !K.available()) return;
       K.walk({ from: { lat: a[1], lon: a[0] }, to: { lat: b[1], lon: b[0] }, options: options() }).then((leg) => {
-        if (!steps.includes(st) || !st.lines!.length || !same(st.lines![0][0], a) || !same(lastOf(st), b)) return; // moved again since
-        setWalk(st, leg);
+        if (!steps.includes(st) || requayed.get(st) !== lines) return; // moved again since
+        // its time always; its path only while the straight line is still drawn (a station model's or the
+        // network's way, in already, stays)
+        if (st.lines === lines && lines[0] === line && line.length === 2) setWalk(st, leg);
+        else { st.kante = leg; st.walkS = leg.durationS; }
         const min = Math.round(shownSecs(leg) / 60);
         if (st.type === 'change') st.walkMin = min; else st.min = min;
         if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - leg.durationS * 1000; // be there at the same time

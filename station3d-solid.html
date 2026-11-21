@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Station in 3D</title>
+  <!--
+    The inside of a station as one continuous 3D building (station3d-solid.js). Data: stations3d/<key>.js (the model)
+    and stations3d/<key>.solid.js (tools/station3d_solid.py). Open:
+      station3d-solid.html?key=zurich                                   journeys to choose from
+      station3d-solid.html?key=zurich&from=entrance:Bahnhofplatz&to=stop:8503000:32&prefs=stepFree
+  -->
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
+                   "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
+  </script>
+  <style>
+    :root { --bg: #eef1f4; --ink: #14161a; --muted: #5b6270; --card: rgba(255,255,255,.94); --line: #d6dbe2; --accent: #14161a;
+      --route: #ffc928; --up: #0f9d8a; --down: #e07b00; color-scheme: light; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #101317; --ink: #eef0f3; --muted: #9aa3b0; --card: rgba(24,27,32,.94); --line: #2c323b; --accent: #eef0f3; color-scheme: dark; } }
+    :root[data-theme="dark"] { --bg: #101317; --ink: #eef0f3; --muted: #9aa3b0; --card: rgba(24,27,32,.94); --line: #2c323b; --accent: #eef0f3; color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    #view { position: fixed; inset: 0; touch-action: none; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.14); backdrop-filter: blur(8px); }
+    #top { position: fixed; top: 12px; left: 12px; right: 72px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+    #top h1 { margin: 0; font-size: 18px; }
+    #top select { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; max-width: 100%; }
+    #sum { color: var(--muted); font-size: 13px; }
+    #floors { position: fixed; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; padding: 6px; z-index: 5; }
+    #floors button, .btn { font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 10px; min-width: 44px; min-height: 40px; padding: 4px 8px; cursor: pointer; }
+    #floors button { font-weight: 700; position: relative; }
+    #floors button.used::after { content: ''; position: absolute; right: 4px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--route); }
+    #floors button.on, .btn.on { background: var(--accent); color: var(--bg); }
+    #floors hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; }
+    #step { position: fixed; left: 12px; right: 12px; bottom: 12px; padding: 12px 14px; z-index: 5; max-width: 560px; margin: 0 auto; }
+    #stepText { font-size: 17px; font-weight: 650; min-height: 24px; }
+    #stepMeta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    #stepBar { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+    #stepBar .grow { flex: 1; }
+    .btn { border-color: var(--line); }
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+    .sx-labels { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+    .sx-label { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 6px;
+      background: var(--card); border: 1px solid var(--line); color: var(--ink); will-change: transform; }
+    .sx-level { background: transparent; border: 0; color: var(--muted); font-size: 13px; font-weight: 800; text-shadow: 0 0 3px var(--bg), 0 0 6px var(--bg); }
+    .sx-plat { background: #14161a; color: #fff; border-color: #14161a; font-size: 13px; }
+    .sx-place { font-style: italic; }
+    .sx-sector { background: #1f3a8a; color: #fff; border-color: #1f3a8a; padding: 1px 5px; }
+    .sx-pin { font-weight: 500; font-size: 11px; }
+    .sx-step { background: var(--route); color: #14161a; border-color: #14161a; font-size: 13px; }
+    .sx-step.sx-on { outline: 3px solid #14161a; }
+    .sx-start { background: #1f8a4c; color: #fff; border-color: #1f8a4c; }
+    .sx-end { background: #d7263d; color: #fff; border-color: #d7263d; }
+    .attrib { position: fixed; left: 14px; bottom: 2px; font-size: 10px; color: var(--muted); z-index: 4; }
+    @media (max-width: 480px) { #top { right: 70px; } #stepText { font-size: 16px; } }
+    #fail { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+    #fail[hidden] { display: none; }
+    #fail div { max-width: 420px; text-align: center; }
+    #fail h2 { margin: 0 0 6px; font-size: 18px; }
+    #fail p { margin: 0 0 14px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="view" aria-label="3D view of the station"></div>
+  <div id="fail" role="alert" hidden><div><h2></h2><p></p><button class="btn" type="button" onclick="location.reload()">Try again</button></div></div>
+  <header id="top" class="card">
+    <h1 id="title">Station</h1>
+    <select id="journey" aria-label="Journey"></select>
+    <div id="sum" aria-live="polite"></div>
+  </header>
+  <nav id="floors" class="card" aria-label="Floors"></nav>
+  <section id="step" class="card" aria-live="polite">
+    <div id="stepText"></div>
+    <div id="stepMeta"></div>
+    <div id="stepBar">
+      <button class="btn" id="prev" aria-label="Previous step">‹</button>
+      <button class="btn" id="next" aria-label="Next step">Next ›</button>
+      <span class="grow"></span>
+      <button class="btn" id="wholeBtn">Whole way</button>
+      <button class="btn" id="stretch" title="Vertical stretch" aria-label="Vertical stretch">↕ 2.2×</button>
+    </div>
+    <div class="legend"><span><i style="background:var(--up)"></i>escalator up</span><span><i style="background:var(--down)"></i>escalator down</span><span><i style="background:#c9c1b3"></i>stairs</span><span><i style="background:#7fb2e5"></i>lift</span><span><i style="background:var(--route)"></i>your way</span></div>
+  </section>
+  <div class="attrib" id="attrib"></div>
+  <script>
+    // data scripts, then the module
+    (function () {
+      const q = new URLSearchParams(location.search);
+      const key = q.get('key') || 'zurich';
+      const load = (src) => new Promise((ok, fail) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => fail(new Error('missing ' + src)); document.head.appendChild(s); });
+      window.SOLID_READY = Promise.all([load('stations3d/' + key + '.js'), load('stations3d/' + key + '.solid.js'), load('station-route.js')]).then(() => key);
+    })();
+  </script>
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    // something it cannot do without (the station's data, three.js from its CDN, WebGL): say so instead of an empty view
+    const fail = (title, text, e) => {
+      $('fail').querySelector('h2').textContent = title;
+      $('fail').querySelector('p').textContent = text;
+      $('fail').hidden = false;
+      throw e;
+    };
+    const q = new URLSearchParams(location.search);
+    const key = await window.SOLID_READY.catch((e) => fail('No 3D model for this station', 'Its plan did not load. Check your connection, then try again.', e));
+    const { open } = await import('./station3d-solid.js')
+      .catch((e) => fail('The 3D view didn’t load', 'Check your connection, then try again.', e));
+    const model = window.STATION3D[key];
+    // "stop:uic:ref[@sector]" | "entrance:Name" | "node:i" | "ll:lon,lat[,level]", or a stop with its position as
+    // well, "stop:…;ll:…" (the router then falls back to the position for a platform the model does not know)
+    const end = (t) => {
+      if (!t) return null;
+      if (t.includes(';')) { const parts = t.split(';').map(end1); return parts.every(Boolean) ? Object.assign({}, ...parts) : null; }
+      return end1(t);
+    };
+    const end1 = (t) => {
+      const [k, ...rest] = t.split(':');
+      if (k === 'stop') { let ref = rest[1] || '', sector; if (ref.includes('@')) [ref, sector] = ref.split('@'); return { stop: Object.assign({ uic: rest[0], ref }, sector ? { sector } : {}) }; }
+      if (k === 'entrance') return { entrance: rest.join(':') };
+      if (k === 'node') return { node: +rest[0] };
+      if (k === 'll') { const n = rest.join(':').split(',').map(Number); return n.length >= 2 && n.every(isFinite) ? Object.assign({ ll: [n[0], n[1]] }, n.length > 2 ? { level: n[2] } : {}) : null; }
+      return null;
+    };
+    const presets = {
+      zurich: [
+        ['Bahnhofplatz → platform 32 (Löwenstrasse, −4)', 'entrance:Bahnhofplatz', 'stop:8503000:32', ''],
+        ['Platform 7 → platform 43 (Museumstrasse, −3)', 'stop:8503000:7', 'stop:8503000:43', ''],
+        ['Platform 33 → platform 16, step-free', 'stop:8503000:33', 'stop:8503000:16', 'stepFree'],
+        ['Platform 44 → tram at Bahnhofquai', 'stop:8503000:44', 'stop:8587349:', ''],
+        ['Platform 31 → Sihlpost tram', 'stop:8503000:31', 'stop:8591367:', ''],
+      ],
+      bern: [
+        ['Bahnhofplatz → RBS platform 23 (−2)', 'entrance:Bahnhofplatz (main hall)', 'stop:8507000:23', ''],
+        ['Platform 7 → bus terminal on the Welle', 'stop:8507000:7', 'stop:8507785:U', ''],
+      ],
+    }[key] || [];
+    // "stepFree,walkKmh:3.5,date:2026-12-24": a bare name is true; walkKmh a number, date the journey's day
+    const prefsOf = (s) => Object.fromEntries((s || '').split(',').filter(Boolean).map((p) => {
+      const i = p.indexOf(':');
+      if (i < 0) return [p, true];
+      const k = p.slice(0, i), v = p.slice(i + 1);
+      return [k, k === 'date' ? v : Number.isFinite(+v) ? +v : v];
+    }));
+    let initial = q.get('from') && q.get('to') ? ['Your journey', q.get('from'), q.get('to'), q.get('prefs') || ''] : presets[0];
+    const opts = [...(initial && !presets.includes(initial) ? [initial] : []), ...presets];
+    $('journey').innerHTML = opts.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('') + '<option value="x">Explore the station</option>';
+    $('title').textContent = model.name;
+    $('attrib').textContent = (model.attribution || []).join(' · ');
+
+    let view = null;
+    try {
+      view = await open({
+        mount: $('view'), key,
+        from: initial && end(initial[1]), to: initial && end(initial[2]), prefs: prefsOf(initial && initial[3]),
+        onChange: sync,
+      });
+    } catch (e) {
+      fail('3D isn’t available here', 'This browser or device can’t draw 3D graphics. The walking route is still in the app.', e);
+    }
+    const levels = view.levels.slice().reverse();
+    $('floors').innerHTML = levels.map((l) => `<button data-l="${l.id}" title="${l.name}">${l.id > 0 ? '+' + l.id : l.id}</button>`).join('') + '<hr><button data-l="all" title="Whole building">⌂</button>';
+    $('floors').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; b.dataset.l === 'all' ? view.whole() : view.floor(+b.dataset.l); };
+    $('journey').onchange = () => {
+      const v = $('journey').value;
+      if (v === 'x') { view.plan(null, null); return; }
+      const p = opts[+v];
+      view.plan(end(p[1]), end(p[2]), prefsOf(p[3]));
+    };
+    $('prev').onclick = () => view.prev();
+    $('next').onclick = () => view.route && view.next();
+    $('wholeBtn').onclick = () => view.whole();
+    $('stretch').onclick = () => { const s = view.stretch > 1.5 ? 1 : 2.2; view.setStretch(s); $('stretch').textContent = `↕ ${s}×`; };
+
+    function sync({ route, step, focusLevel }) {
+      const used = new Set(route ? route.points.map((p) => Math.round(p[2])) : []);
+      for (const b of $('floors').querySelectorAll('button[data-l]')) {
+        b.classList.toggle('used', used.has(+b.dataset.l));
+        b.classList.toggle('on', b.dataset.l === 'all' ? (step < 0 && focusLevel == null) : focusLevel === +b.dataset.l);
+      }
+      if (!route) {
+        $('sum').textContent = 'Explore: pick a floor, drag to turn, pinch to zoom';
+        const lvls = window.STATION3D_SOLID[key].levels;
+        $('stepText').textContent = focusLevel != null ? `Level ${focusLevel}: ${(lvls.find((l) => l.id === focusLevel) || {}).name || ''}` : model.name;
+        $('stepMeta').textContent = (opts.length && $('journey').value !== 'x' ? 'No way found for this journey. ' : '') + `${lvls.length} levels, from ${lvls[0].z} m to ${lvls[lvls.length - 1].z} m`;
+        $('prev').disabled = $('next').disabled = true;
+        return;
+      }
+      const changes = route.steps.filter((s) => s.kind !== 'walk' && s.kind !== 'arrive' && Math.round(s.toLevel) !== Math.round(s.level));
+      if (focusLevel != null) {
+        const lv = window.STATION3D_SOLID[key].levels.find((l) => l.id === focusLevel) || {};
+        $('stepText').textContent = `Level ${focusLevel}: ${lv.name || ''}`;
+        $('stepMeta').textContent = `${lv.z} m · the floors above it are lifted away (their outlines stay). ⌂ shows the whole building.`;
+        $('next').textContent = 'Start ›'; $('prev').disabled = true; $('next').disabled = false;
+        return;
+      }
+      $('sum').textContent = `${Math.round(route.length)} m · ${Math.max(1, Math.round(route.seconds / 60))} min · ${changes.length} change${changes.length === 1 ? '' : 's'} of floor`
+        + (route.notice ? ' · ' + route.notice : '');
+      $('prev').disabled = step <= 0; $('next').disabled = step >= route.steps.length - 1;
+      if (step < 0) {
+        $('stepText').textContent = changes.filter((s) => s.toLevel !== s.level).map((s) => `${s.kind === 'elevator' ? 'Lift' : s.kind[0].toUpperCase() + s.kind.slice(1)} ${s.dir === 'down' ? '↓' : '↑'} ${s.toLevel}`).join('  ·  ') || 'All on one floor';
+        $('stepMeta').textContent = 'The whole way. Next › goes step by step.';
+        $('next').textContent = 'Start ›';
+      } else {
+        const s = route.steps[step];
+        $('stepText').textContent = s.text;
+        $('stepMeta').textContent = `Step ${step + 1} of ${route.steps.length} · level ${s.level}${s.toLevel !== s.level ? ' → ' + s.toLevel : ''}${s.len ? ' · ' + Math.round(s.len) + ' m' : ''}`;
+        $('next').textContent = 'Next ›';
+      }
+    }
+    sync({ route: view.route, step: -1, focusLevel: null });
+    window.SOLID = view;
+  </script>
+</body>
+</html>
