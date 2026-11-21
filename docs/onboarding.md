@@ -55,7 +55,13 @@ It plays a fixed journey (no timetable request, the same at any time of day) in 
 | 2 | The picture fades to a tilted map. Your blue dot becomes the tram's badge, a card says the app noticed that you got on, and the badge glides along the track to Bern, Bahnhof. | A MapLibre map of its own in the demo's box, with the app's map style; the track is the one of `stations3d/bern.js` |
 | 3 | Back in first person: from tram platform B at the station to the main entrance. The tram you came on drives off. | `Station3D.open({ key: 'bern', from: stop B of Bern, Bahnhof, to: a point in front of the main entrance, ... })`, the Bahnhofplatz detail scene where it is built, else the plain station model |
 
-The second walk is opened, paused, while the map covers it, so the switch back does not wait for anything.
+Nothing is shown while it loads. Before act 1 a page with the trip at a glance (the three legs, coming in slowly one
+after the other) covers the 3D view until the street is built behind it; then it fades and the walk sets off. The
+second walk is opened, waiting, while the map covers it, and the map does not start to move before that scene is built.
+
+**Hold to go faster.** A touch on the picture does not stop or turn anything. While a finger is held down anywhere on
+the picture, or on the button at its right edge where the thumb rests, the whole journey runs three times as fast
+(`FAST`): the walks, the ride and the pauses between them.
 
 `onState` hears:
 

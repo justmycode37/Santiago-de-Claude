@@ -1130,7 +1130,7 @@
     const ARRIVE_M = 5; // metres before the end over which the head turns to the arrival view
     // how long frames take in the first-person view; a phone that cannot keep up draws fewer pixels (never more again)
     const PR_STEPS = [2, 1.5, 1.25, 1];
-    const FT = { cap: 2, avg: 16.7, slow: 0, ring: new Float32Array(120), n: 0, last: 0, sim: false, drops: 0 };
+    const FT = { cap: 2, avg: 16.7, slow: 0, ring: new Float32Array(120), n: 0, last: 0, sim: false, drops: 0, chain: false };
     const pixelRatio = () => Math.min(window.devicePixelRatio || 1, FT.cap);
     const disposables: Tracked[] = [];
     const offs: (() => void)[] = [];
@@ -2307,7 +2307,10 @@
         pad(g, p, d, hw * 2);
         const inAt = (q: XYL | undefined) => { const a = q && areaAt(P, P.idxOf(q[2]), q[0], q[1]); return !!a && a.kind === 'floor'; };
         const was = inAt(rp[Math.max(0, bi - 2)]), will = inAt(rp[Math.min(rp.length - 1, bi + 2)]);
-        if (!was && !will) continue;   // out of doors on both sides: the route only passes near this door
+        // out of doors for 8 m on both sides, on one floor: the route only passes near this door
+        const indoors = (q: XYL) => { const li = P.idxOf(q[2]), a = areaAt(P, li, q[0], q[1]); return q[2] !== p[2] || (!!a && (a.kind === 'floor' || a.kind === 'room' || (a.kind === 'platform' && P.levels[li].z < -1.5))); };
+        const leads = (dir: 1 | -1) => { for (let j = bi + dir; j >= 0 && j < rp.length && Math.abs(R!.A[j] - R!.A[bi]) < 8; j += dir) if (indoors(rp[j])) return true; return false; };
+        if (!was && !will && !leads(-1) && !leads(1)) continue;
         let stepI = -1;
         route!.steps.forEach((st, i) => { if (stepI < 0 && st.kind !== 'arrive' && bi >= st.from && bi <= st.to) stepI = i; });
         if (stepI < 0) continue;
@@ -3794,7 +3797,10 @@
       if (!FT.sim) {
         const real = performance.now(), d = real - FT.last;
         FT.last = real;
-        if (d > 0 && d < 250) {
+        // only a frame that follows a busy one straight away says how fast the device is: a view that stands still
+        // is drawn on a slow timer, and those gaps are not slow frames
+        if (!FT.chain) FT.slow = 0;
+        else if (d > 0 && d < 250) {
           FT.avg += (d - FT.avg) * .1;
           FT.ring[FT.n++ % FT.ring.length] = d;
           FT.slow = pov && povT > .98 && FT.avg > 24 ? FT.slow + 1 : 0;
@@ -3825,6 +3831,7 @@
       const flowing = R && !A.same && !reducedMotion() && !document.hidden && now - lastActivity < 14000;
       if (flowing) { phase = (phase + dt * .00042) % 1; R!.U.uPhase.value = phase; }
       render();
+      FT.chain = busy;
       if (busy) request();
       else if (flowing) slowTimer = setTimeout(request, 34);
     }
@@ -4346,7 +4353,7 @@
         try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
         ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
         touch();
-        if (pov) pausePlay(); // looking around: the walk waits
+        if (pov && !demo) pausePlay(); // looking around: the walk waits (the demo has no Play button to set it off again)
         skipIntro();
         moved = true;
         tween = null;
@@ -4439,6 +4446,7 @@
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') { e.preventDefault(); if (listMode) toggleList(); else api.close(); return; }
+      if (demo && e.key !== 'Tab') return; // the demo plays by itself: no key walks or stops it
       if (e.key === 'Tab') { // keep the focus inside the dialog
         const f = [...root.querySelectorAll<HTMLElement>('button:not([disabled]):not([tabindex="-1"]), [role="slider"], input, canvas')].filter((el) => el.offsetParent !== null);
         if (!f.length) return;
@@ -5698,6 +5706,7 @@
     self.setPov = (b) => setPov(b);
     self.play = (o) => {
       if (o && isFinite(+o.speed!) && +o.speed! > 0) PL.speed = clamp(+o.speed!, .2, 8);
+      if (PL.on) return true; // already walking: only the pace changes, without a new start
       if (!self.ready) { opts.play = opts.play || true; return false; } // it starts when the view is ready
       if (!A.routed || A.same) return false;
       if (!pov) setPov(true);
