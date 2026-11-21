@@ -183,7 +183,7 @@ console.log('7. requay(): a change left without a walk, and the engine walk answ
   check(ch.lines === model, "the station model's way stays drawn");
 }
 
-console.log("8. the floor a lift starts on, from the router (step-free from platform 13 at Bern)");
+console.log("8. the floor a lift starts on, from the router (step-free from platform 10 to 12 at Zürich HB)");
 {
   const ctx = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
   ctx.globalThis = ctx;
@@ -194,11 +194,12 @@ console.log("8. the floor a lift starts on, from the router (step-free from plat
     return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')')));
   } });
   const pd = fs.readFileSync(path.join(ROOT, 'platforms.js'), 'utf8');
-  const edges = JSON.parse(pd.slice(pd.indexOf('{'), pd.lastIndexOf('}') + 1)).stops['8507000'][2].map((e) => ({ ll: [e[0] / 1e5, e[1] / 1e5], ref: e[2], level: e[4] || 0 }));
-  // the platform's edges (sectors) in turn, to a route that takes the lift down first
+  // (Bern's lift down from Gleis 13 was only taken from a stop position given on the track itself, which now
+  // reaches its platform's ramp; Zürich HB's Gleis 10 → 12 takes a lift down to the underpass)
+  const edges = JSON.parse(pd.slice(pd.indexOf('{'), pd.lastIndexOf('}') + 1)).stops['8503000'][2].map((e) => ({ ll: [e[0] / 1e5, e[1] / 1e5], ref: e[2], level: e[4] || 0 }));
   let r = null;
-  for (const a of edges.filter((e) => e.ref === '13')) for (const b of edges.filter((e) => e.ref === '1')) {
-    const x = r ? null : await ctx.WALKROUTE.route(a.ll, b.ll, { stepFree: true, from: { platform: true, level: a.level, ref: '13' }, to: { platform: true, level: b.level, ref: '1' } });
+  for (const a of edges.filter((e) => e.ref === '10')) for (const b of edges.filter((e) => e.ref === '12')) {
+    const x = r ? null : await ctx.WALKROUTE.route(a.ll, b.ll, { stepFree: true, from: { platform: true, level: a.level, ref: '10' }, to: { platform: true, level: b.level, ref: '12' } });
     if (x && x.cues.some((q) => /^Lift to level −1/.test(q.text))) r = x;
   }
   const c = app();

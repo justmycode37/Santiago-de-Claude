@@ -56,7 +56,7 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
   ```
 - **Walking network (`walkgraph/`)** from OpenStreetMap + swisstopo swissTLM3D (see [docs/walking-routes.md](docs/walking-routes.md)):
   ```bash
-  python3 tools/build_walkgraph.py --area bern
+  python3 tools/build_walkgraph.py --area bern     # built: bern, zurich, basel, geneva, lausanne
   ```
 
 ## Other components
