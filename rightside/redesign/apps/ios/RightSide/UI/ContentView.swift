@@ -269,7 +269,9 @@ struct ContentView: View {
         let eligible = !onBoard && store.boardingServiceEligible(for: ride)
         let stop = leg?.kind == "ride" ? (onBoard ? leg?.to : leg?.from) : leg?.to
         var target = MapGeometry.coordinate(stop?.coordinate)
-        let routeEnd = target
+        // Aim the AR marker at the resolved boarding edge/platform when the journey has one, else the stop.
+        let resolvedPoint = eligible && spatialResolution?.boardingPointID != nil ? spatialResolution?.coordinate : nil
+        let routeEnd = resolvedPoint.flatMap { $0.isValid ? CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) : nil } ?? target
         var label = language.text(.referenceLocation, stop?.name ?? language.text(.journeyStop))
         var route: [CLLocationCoordinate2D] = []
         if let leg, leg.kind != "ride", let detail = walking.displayedSnapshot(for: journey, leg: leg) {
