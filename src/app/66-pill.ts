@@ -118,7 +118,7 @@ function updateProgress() {
 let gpsPolling = false;
 function tick() {
   updateProgress();
-  if (journeyConn) { kanteOnboard(); kanteObserve(); }
+  refreshList();
   if (!journeyConn || gpsPolling || fixAge() < 25000 || !tripLive() || !window.isSecureContext || !navigator.geolocation) return;
   gpsPolling = true;
   navigator.geolocation.getCurrentPosition((pos) => { gpsPolling = false; onPosition(pos); }, () => { gpsPolling = false; },
@@ -197,6 +197,9 @@ async function startJourney(r, keepQuery) {
   journeyDest = r;
   journeyConn = null;
   journeySteps = [];
+  journeyOptions = null;
+  journeyList = false;
+  journeyMore = null;
   journeyFrom = tripStart ? tripStart.title : userLngLat ? 'Your location' : 'Map centre';
   updateWhenChip();
   jFocus = null;
@@ -226,17 +229,22 @@ async function startJourney(r, keepQuery) {
   liveTimer = setInterval(refreshLive, 60000); // live forecasts once a minute while the trip is on
   clearInterval(kanteTimer);
   kanteTimer = setInterval(kantePoll, 30000); // …and every 30 s from the Kante engine, for the rides it knows
-  onboard = null;
   vehStop(); // the map shows only the trip
 
   const from = tripStart ? tripStart.lngLat : userLngLat || map.getCenter().toArray();
   try {
     // exact platforms if their data is there in time; never hold a journey up for more than 4 s
     startPlatforms();
-    const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
+    const [opts] = await Promise.all([findOptions(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
     if (id !== journeyReq) return;
-    if (!conn) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
-    renderJourney(conn, r.title);
+    if (!opts) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
+    // More than one way to go: the list to choose from, with the best one on the map. (Under way, a new
+    // plan goes straight to its best journey.)
+    journeyOptions = opts;
+    journeyTab = opts.best === opts.walk ? 'walk' : 'pt';
+    journeyList = optionCount() > 1 && !document.body.classList.contains('following');
+    if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
+    renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
     kanteMatch(id);    // the engine's trip for every ride, for its live data
   } catch (e) {

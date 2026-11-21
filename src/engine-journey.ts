@@ -9,8 +9,9 @@
 // the engine only offers changes that work with them. Nothing is retimed or filtered afterwards
 // (SETTINGS.retime / SETTINGS.connectionFits are for the transport.opendata.ch fallback only).
 //
-// find() gives null when the engine is off, unreachable or has no journey; the caller then asks
-// transport.opendata.ch as before.
+// plans() gives every journey the engine offers for a trip (and walking all the way when that is near enough),
+// find() the one to show first. Both give null when the engine is off, unreachable or has no journey; the
+// caller then asks transport.opendata.ch as before.
 (function () {
   const K = window.KANTE;
   const iso = (sec: number) => new Date(sec * 1000).toISOString();
@@ -155,29 +156,41 @@
   }
 
   // ---- Planning ----
-  type PlanBody = KantePlanRequest & { options: KanteRoutingOptions };
-  // Which of the engine's journeys to show. Leaving now or at a set time: the one that gets there first;
-  // "arrive by": the one that leaves last. One change less is worth three minutes. Walking all the way
-  // wins when it is no slower and within the maximum walk.
-  function pick(res: KantePlanResponse, body: PlanBody) {
-    const sound = (j: KanteJourney) => !j.legs.some((l) => (l as KanteRideLeg).cancelled) && !(j.alerts || []).some((a) => a.kind === 'missed-connection');
+  // The engine's journeys worth showing, and walking all the way when the engine offers it (up to about
+  // 3.5 km and 50 minutes) → { list, walk }
+  function offers(res, body) {
+    const sound = (j) => !j.legs.some((l) => l.cancelled) && !(j.alerts || []).some((a) => a.kind === 'missed-connection');
     let list = (res.journeys || []).filter((j) => j.legs && j.legs.length);
     if (list.some(sound)) list = list.filter(sound);
-    const cost = (j: KanteJourney) => (body.arriveBy ? -j.dep : j.arr) + j.transfers * 180;
-    const best = list.reduce<KanteJourney | null>((a, b) => (a && cost(a) <= cost(b) ? a : b), null);
     let walk = res.walkOnly && res.walkOnly.legs && res.walkOnly.legs.length === 1 ? res.walkOnly : null;
     if (walk && body.arriveBy && body.time) {
       // the engine starts this walk when its last journey leaves: move it to end at the chosen time
       const dep = body.time - walk.durationS;
       walk = { ...walk, dep, arr: body.time, legs: [{ ...walk.legs[0] as KanteWalkLeg, dep, arr: body.time }] };
     }
+    return { list, walk };
+  }
+  // Which of them to show first. Leaving now or at a set time: the one that gets there first; "arrive by": the
+  // one that leaves last. One change less is worth three minutes. Walking all the way wins when it is no
+  // slower and within the maximum walk.
+  function pick({ list, walk }, body) {
+    const cost = (j) => (body.arriveBy ? -j.dep : j.arr) + j.transfers * 180;
+    const best = list.reduce((a, b) => (a && cost(a) <= cost(b) ? a : b), null);
     if (!walk || !best) return best || walk;
     const noSlower = body.arriveBy ? walk.dep >= best.dep : walk.arr <= best.arr;
     return noSlower && walk.durationS <= body.options.maxWalkMin * 60 ? walk : best;
   }
+  // Journeys that another one beats outright (leaving no earlier, arriving no later, with no more changes) are
+  // left out: next to its neighbours a page of the engine's answer can hold such leftovers
+  function prune(list) {
+    const j = (c) => c.kante;
+    return list.filter((a) => !list.some((b) => b !== a && j(b).dep >= j(a).dep && j(b).arr <= j(a).arr && j(b).transfers <= j(a).transfers
+      && (j(b).dep > j(a).dep || j(b).arr < j(a).arr || j(b).transfers < j(a).transfers)));
+  }
+  const byDeparture = (a, b) => a.kante.dep - b.kante.dep;
 
   // fromLL: [lng, lat]; dest: a search result ({ lngLat }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
-  async function find(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null) {
+  function request(fromLL, dest, query) {
     if (!K || !K.available() || !fromLL || !dest || !dest.lngLat) return null;
     const body: PlanBody = { from: { lat: fromLL[1], lon: fromLL[0] }, to: { lat: dest.lngLat[1], lon: dest.lngLat[0] }, options: options() };
     const { mode, date, time } = query || {};
@@ -189,12 +202,45 @@
       body.time = Math.floor(t / 1000);
       if (mode === 'arr') body.arriveBy = true;
     }
+    return body;
+  }
+  // Every way to make the trip, for the list to choose from → { list: connections by departure, walk: walking
+  // all the way (or null), best: the one to show first, earlier / later: whether more() has any, kante: its state }
+  async function plans(fromLL, dest, query) {
+    const body = request(fromLL, dest, query);
+    if (!body) return null;
     try {
-      const j = pick(await K.plan(body), body);
-      return j ? adapt(j) : null;
+      const res = await K.plan(body);
+      const o = offers(res, body);
+      const first = pick(o, body);
+      if (!first) return null;
+      const conns = new Map(o.list.map((j) => [j, adapt(j)]));
+      const walk = o.walk ? adapt(o.walk) : null;
+      const best = first === o.walk ? walk : conns.get(first);
+      const list = prune([...conns.values()]);
+      if (best !== walk && !list.includes(best)) list.push(best); // the one shown first stays, whatever else there is
+      list.sort(byDeparture);
+      return { list, walk, best, earlier: !!res.earlier, later: !!res.later, kante: { body, earlier: res.earlier, later: res.later } };
     } catch (e) {
       return null; // unreachable, too slow, or no route (HTTP 400)
     }
+  }
+  // Earlier or later journeys for the same trip, added to plans()'s answer → true when there was a page to ask for
+  async function more(p, dir) {
+    const k = p && p.kante, cursor = k && k[dir];
+    if (!cursor) return false;
+    const res = await K.plan({ ...k.body, page: cursor });
+    const seen = new Set(p.list.map((c) => c.kante.id));
+    const fresh = offers(res, k.body).list.filter((j) => !seen.has(j.id)).map(adapt);
+    p.list = prune([...p.list, ...fresh]).sort(byDeparture);
+    k[dir] = res[dir] || null;
+    p[dir] = !!k[dir];
+    return true;
+  }
+  // The one journey plans() would show first
+  async function find(fromLL, dest, query) {
+    const p = await plans(fromLL, dest, query);
+    return p ? p.best : null;
   }
 
   // ---- Walks ----
@@ -310,5 +356,5 @@
     if (moved) changed();
   }
 
-  window.KanteJourney = { find, at, decorate, refresh, applyTrip, requay, options };
+  window.KanteJourney = { find, plans, more, at, decorate, refresh, applyTrip, requay, options };
 })();

@@ -1,0 +1,121 @@
+/* The introduction for a first visit (onboarding.js). Loaded only when it is shown.
+   Colours come from the app's palette in index.html; the rows, icons and switches are the settings page's own
+   (.set-group, .set-row, .set-ic, .set-text, .switch), so the two always look alike. */
+.ob {
+  /* the settings page's surface colours (index.html, .set-page) */
+  --sp-bg: #f2f2f7;
+  --sp-card: #ffffff;
+  --sp-fill: rgba(120,120,128,.16);
+  --sp-off: rgba(120,120,128,.16);
+  --ob-rail: #8e8e93;   /* ring of an unticked choice: 3:1 against the card */
+  --ob-dim: #636366;    /* secondary text, darker than the app's grey: these lines carry instructions */
+  --ob-art: #e6eaf2;
+  --ob-art-2: #d5dbe8;
+  position: fixed;
+  inset: 0;
+  z-index: 80; /* above the cover (79) and everything of the app; the 3D view of the demo opens inside */
+  background: var(--sp-bg);
+  color: var(--bar-text);
+  transition: opacity .35s ease;
+}
+:root[data-theme="dark"] .ob {
+  --sp-bg: #000000;
+  --sp-card: #1c1c1e;
+  --sp-fill: rgba(120,120,128,.24);
+  --sp-off: rgba(120,120,128,.32);
+  --ob-dim: #aeaeb2;
+  --ob-art: #1c1c1e;
+  --ob-art-2: #2c2c2e;
+}
+.ob[hidden], .ob [hidden] { display: none; }
+.ob.leaving { opacity: 0; pointer-events: none; }
+
+/* A page: what scrolls, and the buttons that stay at the bottom */
+.ob-page { position: absolute; inset: 0; display: flex; flex-direction: column; animation: ob-in .45s var(--spring) both; }
+@keyframes ob-in { from { opacity: 0; transform: translateY(14px); } }
+.ob-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: calc(env(safe-area-inset-top) + 28px) max(16px, env(safe-area-inset-right)) 20px max(16px, env(safe-area-inset-left));
+}
+.ob-scroll::-webkit-scrollbar { display: none; }
+.ob-inner { max-width: 600px; margin: 0 auto; }
+.ob-step { margin: 0 16px 6px; font-size: 13px; letter-spacing: .02em; text-transform: uppercase; color: var(--ob-dim); }
+.ob h1 { margin: 0 16px; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: .01em; text-wrap: balance; outline: none; }
+.ob-lead { margin: 12px 16px 22px; font-size: 17px; line-height: 1.4; color: var(--ob-dim); }
+.ob .set-foot { margin-top: 12px; color: var(--ob-dim); }
+.ob .set-text small { color: var(--ob-dim); }
+.ob .set-group + .set-group { margin-top: 16px; }
+
+/* Welcome: a drawing of the walk, the question, the two answers */
+.ob-welcome .ob-scroll { display: flex; }
+.ob-welcome .ob-inner { width: 100%; margin: auto; padding-bottom: 8px; }
+.ob-art { display: block; width: 100%; height: auto; margin-bottom: 28px; border-radius: 28px; background: var(--ob-art); }
+.ob-art .a-block { fill: var(--ob-art-2); }
+.ob-art .a-case { fill: none; stroke: #14161a; stroke-width: 21; stroke-linecap: round; stroke-linejoin: round; }
+.ob-art .a-way { fill: none; stroke: var(--sun); stroke-width: 15; stroke-linecap: round; stroke-linejoin: round; }
+.ob-art .a-chev { fill: none; stroke: #14161a; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
+.ob-art .a-bay { fill: #344D77; }
+.ob-art .a-bay-t { fill: #fff; font: 700 17px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; text-anchor: middle; }
+.ob-art .a-pin { fill: var(--rose); stroke: #fff; stroke-width: 3; }
+.ob-art .a-you { fill: var(--you); stroke: #fff; stroke-width: 3; stroke-linejoin: round; }
+.ob-art .a-mon { fill: var(--tang); }
+
+/* Buttons */
+.ob-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 632px;
+  margin: 0 auto;
+  padding: 10px max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 18px) max(16px, env(safe-area-inset-left));
+}
+.ob-btn { width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-radius: 14px; font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; }
+.ob-btn.primary { background: var(--user-blue); color: #fff; }
+.ob-btn.primary:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
+.ob-btn.quiet { min-height: 48px; background: transparent; color: var(--accent-ink); font-weight: 400; }
+.ob-btn.quiet:active { opacity: .55; }
+.ob-btn:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
+:root[data-theme="dark"] .ob-btn:focus-visible { outline-color: var(--accent-ink); }
+
+/* Walking speed: one of five, ticked like a list in iOS Settings */
+.ob-pick {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: 0 2px 0 0;
+  border: 2px solid var(--ob-rail);
+  border-radius: 50%;
+  background: transparent center / 14px 14px no-repeat;
+  cursor: pointer;
+  transition: background-color .2s ease, border-color .2s ease;
+}
+.ob-pick:checked {
+  border-color: var(--user-blue);
+  background-color: var(--user-blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 7.5l3 3 6-7'/%3E%3C/svg%3E");
+}
+.ob-pick:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
+:root[data-theme="dark"] .ob-pick:focus-visible, :root[data-theme="dark"] .ob .switch:focus-visible { outline-color: var(--accent-ink); }
+.ob-kmh { flex: none; font-size: 15px; color: var(--ob-dim); font-variant-numeric: tabular-nums; }
+
+/* The demo: the 3D view in the space above, and our button below it, where the buttons of the other pages are */
+.ob-demo { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sp-bg); }
+#obDemoHost { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+#obDemoHost .s3 { position: absolute; } /* the view fills this box, not the screen (station3d.css: fixed) */
+.ob-demo .ob-actions { position: relative; z-index: 61; padding-top: 12px; } /* above the view (60), also above its bare error message */
+.ob-btn.soft { background: var(--sp-fill); color: var(--bar-text); }
+.ob-btn.soft:active { opacity: .7; }
+.ob-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ob, .ob-page, .ob-pick { animation: none !important; transition: none !important; }
+}

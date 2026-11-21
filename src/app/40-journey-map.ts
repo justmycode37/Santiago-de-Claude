@@ -12,7 +12,11 @@ let journeyConn = null;
 let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
 let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
 let journeyDest = null;
-let journeyQuery: JourneyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
+let journeyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
+let journeyOptions = null; // every way on offer to make the trip: { list, walk, best, earlier, later }
+let journeyList = false;   // the sheet lists them to choose from (not the journey itself)
+let journeyTab = 'pt';     // …those by public transport, or 'walk': on foot all the way
+let journeyMore = null;    // 'earlier' | 'later' while more of them are being fetched
 let progressTimer = null;
 let liveTimer = null;
 

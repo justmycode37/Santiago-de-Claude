@@ -439,12 +439,23 @@ const MODELS = [
     ['Platform 6 → entrance Stauffacherstrasse', ['stop', 'train', '6'], ['entrance', /Stauffacher/]],
   ]],
   ['bruennen', [
+    ['Tram terminus → platform 2', ['stop', 'tram', '', /\(tram\)/], ['stop', 'train', '2']],
     ['Platform 1 → platform 2', ['stop', 'train', '1'], ['stop', 'train', '2']],
-    ['Tram / bus stop → platform 2', ['stop', 'bus', ''], ['stop', 'train', '2']],
+    ['Bus stop → platform 1', ['stop', 'bus', '', /\(bus\)/], ['stop', 'train', '1']],
+    ['Bus stop → platform 2', ['stop', 'bus', '', /\(bus\)/], ['stop', 'train', '2']],
+    ['Platform 2 → tram terminus', ['stop', 'train', '2'], ['stop', 'tram', '', /\(tram\)/]],
+    ['Entrance Westside centre → platform 1', ['entrance', /Westside/], ['stop', 'train', '1']],
+    ['Platform 2 → entrance Winterholzstrasse', ['stop', 'train', '2'], ['entrance', /Winterholz/]],
+    ['Entrance Winterholzstrasse → platform 1', ['entrance', /Winterholz/], ['stop', 'train', '1']],
   ]],
   ['buempliz-nord', [
-    ['Platform 2 → platform 4', ['stop', 'train', '2'], ['stop', 'train', '4']],
-    ['Bus stop → platform 5', ['stop', 'bus', ''], ['stop', 'train', '5']],
+    ['Bus stop (far side of Mühledorfstrasse) → platform 4', ['stop', 'bus', '', /across the road/], ['stop', 'train', '4']],
+    ['Bus stop (station side) → platform 5', ['stop', 'bus', '', /station side/], ['stop', 'train', '5']],
+    ['Entrance Mühledorfstrasse → platform 4', ['entrance', /^Mühledorfstrasse$/], ['stop', 'train', '4']],
+    ['Entrance Mühledorfstrasse → platform 2', ['entrance', /^Mühledorfstrasse$/], ['stop', 'train', '2']],
+    ['Platform 2 → platform 5', ['stop', 'train', '2'], ['stop', 'train', '5']],
+    ['North exit of the underpass → platform 5', ['entrance', /^Fellerstrasse/], ['stop', 'train', '5']],
+    ['Platform 4 → south exit of the underpass', ['stop', 'train', '4'], ['entrance', /^Fellergut/]],
   ]],
 ];
 for (const [key, samples] of MODELS) {
@@ -602,6 +613,22 @@ function modelTests(B, sampleDefs) {
     }
   });
 
+  T('the timetable point of a stop without a number is that stop, whatever level comes with it', () => {
+    const bad = [];
+    let n = 0;
+    for (const s of B.stops) {
+      if (s.ref) continue;
+      if (!s.at) { bad.push(`${s.name}: no "at"`); continue; }
+      n++;
+      for (const level of [null, s.level + 1, s.level - 1]) {
+        const c = SR.resolve(B, level == null ? { xy: s.at } : { xy: s.at, level });
+        if (!c.length || c.some((x) => x.stop !== s)) bad.push(`${s.name} with level ${level}`);
+      }
+    }
+    console.log(`        ${n} stops without a number`);
+    assert(!bad.length, bad.join('\n'));
+  });
+
   T('snap is monotonic along real routes', () => {
     let rng = 5;
     const rand = () => ((rng = (rng * 16807) % 2147483647) / 2147483647 - 0.5);
@@ -642,7 +669,8 @@ function modelTests(B, sampleDefs) {
       return en ? { entrance: en.name } : null;
     }
     const s = find(d[1], d[2], d[3]);
-    return s ? { stop: { uic: s.uic, ref: s.ref } } : null;
+    // (a stop without a number goes by its node: { stop: { uic, ref: '' } } means any of the stop's edges without one)
+    return s ? (s.ref ? { stop: { uic: s.uic, ref: s.ref } } : { node: s.node }) : null;
   };
   const samples = sampleDefs.map(([title, a, b]) => [title, ep(a), ep(b)]);
   console.log(`\n  Sample routes in ${B.key} (for review):`);

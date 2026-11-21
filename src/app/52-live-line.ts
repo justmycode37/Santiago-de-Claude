@@ -32,13 +32,6 @@ function hurry(left, r, now) {
 }
 function liveParts(now) {
   const t = track && gpsOn() ? track : null;
-  // on board another vehicle than planned? Asked, never claimed
-  const ob = t && onboard && !onboard.ours && onboard.streak >= 2 && onboard.step === t.i && now - onboard.at < 60000 && journeySteps[t.i];
-  if (ob && ob.type === 'ride') {
-    const top = onboard.top, mine = ob.s.journey, tj = KANTE_LIVE.journeyLike(top.line);
-    const sameLine = KANTE_LIVE.norm(top.line.name) === KANTE_LIVE.norm(lineLabel(mine));
-    return { kind: 'off', replan: true, parts: sameLine ? ['On ', kBadge(tj), ` towards ${top.headsign}?`] : ['On the ', kBadge(tj), ' instead of the ', kBadge(mine), '?'] };
-  }
   if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.d)} away`], replan: true };
   if (t && t.missed) {
     const r = t.missed;
