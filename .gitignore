@@ -21,3 +21,9 @@ venv/
 
 # Vercel
 .vercel
+
+# Local config with API keys (see config.example.js)
+config.js
+
+# Raw open-data downloads (tools/fetch-raw.sh)
+data/raw/
