@@ -22,6 +22,15 @@ The two are merged stop by stop, never trip against trip: SIRI-ET's measured tim
 always stay; GTFS-RT only replaces SIRI-ET's *forecasts* for stops not yet reached, and only when it
 updated that trip later than SIRI-ET did. Trips that only one feed knows come from that feed.
 
+Measured on 21 Nov 2026 (`livemap/measure/compare_feeds.py`, `forecast_compare.py`): the Swiss GTFS-RT
+carries no update time per trip (0 of 12,642), so in practice it **only fills in trips SIRI-ET lacks**.
+That is little but real: of 3,834 vehicles under way, 85.8 % have live data with both feeds against
+84.9 % with SIRI-ET alone (33 trips, most of them SNCF trains near Geneva and Basel, 16 % → 39 %, and
+Fribourg's TPF buses, 93 % → 100 %). Its forecasts are not better: on 891 arrivals measured later, both
+feeds' forecasts were off by 42 s on average (median 30 s). It has no measured times, no platform names
+and no names for the journeys it adds. GTFS-RT on its own matches 96 % of its journeys (all but the 506 it
+adds); SIRI-ET 99 %.
+
 Keys: `data/secrets/otd.json` as `{"siri-et": "…", "gtfs-rt": "…"}` (or `KANTE_OTD_KEY` /
 `KANTE_OTD_GTFS_RT_KEY`). Either one may be missing; the engine then runs with the other or on the
 timetable alone.
