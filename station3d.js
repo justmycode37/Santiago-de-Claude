@@ -50,6 +50,8 @@
   const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  // an end of the route inside a sentence: "platform 7", but a stop without a number keeps its name as it is
+  const lowName = (o) => (o && o.kind === 'stop' && !o.ref ? o.name : lowerFirst(o && o.name));
 
   // The app's --spring curve, cubic-bezier(.32,.72,0,1), as a function
   function bezier(x1, y1, x2, y2) {
@@ -3975,7 +3977,7 @@
       if (A.routed && A.same) { subEl.textContent = route.steps[0] ? route.steps[0].text : 'You are there'; return; }
       if (A.routed) {
         const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
-        subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowerFirst(to.name) : to.name} · ${fmtMin(route.seconds)}`;
+        subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowName(to) : to.name} · ${fmtMin(route.seconds)}`;
       } else if (focus && focus.hit) subEl.textContent = describe(focus.hit).sub;
       else subEl.textContent = 'Station plan in 3D';
     }
@@ -4045,7 +4047,7 @@
     function arriveTitle(inSentence) {
       const to = endInfo(toEnd, 'to');
       if (route.incomplete) return inSentence ? 'the route ends: the way on is closed' : 'The route ends here: the way on is closed';
-      const name = to.kind === 'stop' ? lowerFirst(to.name) : to.name;
+      const name = to.kind === 'stop' ? lowName(to) : to.name;
       return inSentence ? `arrive at ${name}` : `You’re at ${name}`;
     }
     function arriveLine() {
@@ -4136,7 +4138,7 @@
         if (to.far) c.txt.append(note('info', `The plan ends ${fmtFar(to.dist)} before ${to.name}.`));
         const rb = rideBlock();
         if (rb) c.txt.append(rb);
-        else if (from.assumed && from.kind === 'stop') c.txt.append(note('info', `${cap(from.assumed)} of ${lowerFirst(from.name)}.`));
+        else if (from.assumed && from.kind === 'stop') c.txt.append(note('info', `${cap(from.assumed)} of ${lowName(from)}.`));
         const used = route.notice || '';
         const nb = noticesBlock(stationNotices().filter((nt) => nt.text && !used.includes(nt.text) && !(to.note && to.note === nt.text)));
         if (nb) c.txt.append(nb);
@@ -4148,7 +4150,7 @@
         li.dataset.i = i;
         const climb = st.kind !== 'walk' && st.kind !== 'arrive';
         const arrive = st.kind === 'arrive';
-        const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route.incomplete && to.kind === 'stop' ? `Arrive at ${lowerFirst(to.name)}` : arrive && route.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
+        const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route.incomplete && to.kind === 'stop' ? `Arrive at ${lowName(to)}` : arrive && route.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
         if (arrive) {
           if (to.sector && !to.closed) c.meta.append(tag('s3-tag-sector', null, sectorTag(to.sector)));
           else if (to.reach && !to.closed) c.meta.append(tag('', null, `You get onto it at sector ${to.reach}`));
@@ -4219,7 +4221,7 @@
     function buildSame() {
       const to = endInfo(toEnd, 'to');
       const box = mk('div', 's3-explore');
-      const c = card(to.closed ? 'closed' : 'check', to.closed ? 's3-k-warn' : 's3-k-done', (route.steps[0] && route.steps[0].text) || `You’re at ${lowerFirst(to.name)}`);
+      const c = card(to.closed ? 'closed' : 'check', to.closed ? 's3-k-warn' : 's3-k-done', (route.steps[0] && route.steps[0].text) || `You’re at ${lowName(to)}`);
       c.meta.textContent = /^stay/i.test((route.steps[0] && route.steps[0].text) || '') ? 'No walk: your next departure leaves from the platform you arrive on.' : 'No walk: it is where you already are.';
       if (to.closed) c.txt.append(note('warn', to.note || route.notice || `${cap(to.name)} is closed.`));
       else if (route.notice) c.txt.append(note('warn', route.notice));
@@ -4408,6 +4410,10 @@
       const mkHit = (xy, level, extra) => { const li = P.idxOf(level || 0); return Object.assign({ li, level: P.levels[li].id, xy: [xy[0], xy[1]], area: areaAt(P, li, xy[0], xy[1]) }, extra); };
       if (end.stop) { const s = findStop(end.stop); if (s && s.xy) return mkHit(s.xy, s.level, { stop: s }); }
       if (end.entrance) { const e = (model.entrances || []).find((x) => x.name === end.entrance); if (e && e.xy) return mkHit(e.xy, e.level, { entrance: e }); }
+      // a position the router takes for a stop without a number (stops[].at): that stop, on the level it has here
+      if ((end.xy || end.ll) && router && router.resolve) {
+        try { const c = (router.resolve(model, end, day) || [])[0]; if (c && c.stop && !c.stop.ref && c.stop.xy) return mkHit(c.stop.xy, c.stop.level, { stop: c.stop }); } catch (e) {}
+      }
       let xy = end.xy || (end.ll ? toLocal(model, end.ll) : null), level = end.level;
       if (xy && distOutside(xy) > 40) xy = null;
       if (!xy && router && router.resolve) {
