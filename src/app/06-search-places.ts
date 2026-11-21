@@ -93,7 +93,7 @@ async function searchSwisstopo(text) {
     origins: 'zipcode,gg25,gazetteer,address',
     sr: '4326',
     limit: '15',
-    lang: 'en',
+    lang: APP_LANG.pick(['de', 'fr', 'it', 'rm', 'en']),
   });
   const res = await fetch(url);
   const data = await res.json();

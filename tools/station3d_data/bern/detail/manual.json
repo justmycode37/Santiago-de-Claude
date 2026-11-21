@@ -1,0 +1,39 @@
+{
+  "note": "What was read by eye, 2026-11-21. 'lidar_objects' only says what a group of LiDAR returns is (the position and the height come from the LiDAR); 'photo_objects' are things only the aerial photo shows; 'statue_faces' is read from a ground photo. Aerial photos: Orthofoto 2026 of the City of Bern (WMS Geoportal/Orthofoto_2026, flown March/April 2026, trees bare) and swisstopo SWISSIMAGE 10 cm 2024 (in leaf). Ground photo: Wikimedia Commons 'Bern Hirschengraben 2024.jpg' (winter 2024, looking south from the north tip), in the research folder as showcase/imagery/hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg.",
+  "lidar_objects": [
+    {
+      "near": [-102.0, -197.8], "kind": "lamp", "variant": "suspended on span wires",
+      "seen": "by eye: a white lamp body hanging on crossing wires at this place in both aerial photos (Orthofoto 2026 Stadt Bern, SWISSIMAGE 2024); all returns at one height, nothing below, so it hangs"
+    },
+    {
+      "near": [-83.2, -229.3], "kind": "lamp", "variant": "suspended on span wires",
+      "seen": "by eye: a white lamp body above the east roadway at this place in both aerial photos (Orthofoto 2026 Stadt Bern, SWISSIMAGE 2024); all returns at one height, nothing below, so it hangs"
+    },
+    {
+      "near": [-66.0, -186.8], "kind": "lamp", "variant": "suspended on span wires",
+      "seen": "by eye: a white lamp body where several wires meet (SWISSIMAGE 2024, Orthofoto 2026 Stadt Bern); returns at 9.0-9.2 m (lamp) and at 5.8-5.9 m (tram contact wire), nothing below"
+    },
+    {
+      "near": [-78.3, -193.9], "kind": "pole", "variant": "mast, tall grey steel tram pole with banding rings on a concrete foot; carries the cycle-route signs and a no-entry sign", "column": true,
+      "seen": "by eye: photo:hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg shows this mast at the north-east corner of the head of the square, with red cycle-route signs at 2 to 4 m; OpenStreetMap has a guidepost and a map board at this place (node/10728896894, node/10728896893)"
+    },
+    {
+      "near": [-93.2, -196.7], "kind": "pole", "variant": "mast, tall grey steel tram pole", "column": true,
+      "seen": "by eye: SWISSIMAGE 2024 shows the long thin shadow of a mast that stands here, and photo:hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg shows a second mast at the west side of the head, beside the tram track"
+    }
+  ],
+  "statue_faces": {
+    "bearing": 0, "towards": "north (Bubenbergplatz)",
+    "seen": "by eye: photo:hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg, taken from the north, shows the figure and the inscription from the front"
+  },
+  "photo_objects": [
+    {
+      "kind": "bench", "xy": [-93.4, -216.6], "heading": 20, "length": 3.4, "variant": "long wooden bench, movable", "temporary": true,
+      "seen": "Orthofoto 2026 Stadt Bern (10 cm, spring 2026), digitised by eye: brown wooden bench about 3.4 m long (+-0.3 m) lying across the promenade; in SWISSIMAGE 2024 the same kind of bench lies 1 m further south, turned by 90 degrees, so it is moved about. Which side people sit on is not visible: heading is one of the two long sides"
+    },
+    {
+      "kind": "bench", "xy": [-92.95, -224.4], "heading": 113, "length": 3.3, "variant": "long wooden bench, movable", "temporary": true,
+      "seen": "Orthofoto 2026 Stadt Bern (10 cm, spring 2026), digitised by eye: brown wooden bench about 3.3 m long (+-0.3 m) along the east row of trees; not there in SWISSIMAGE 2024, so it is moved about. Which side people sit on is not visible: heading is one of the two long sides"
+    }
+  ]
+}
