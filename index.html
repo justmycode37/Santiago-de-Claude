@@ -575,6 +575,11 @@
     .kj .spare small { font-size: 12px; font-weight: 400; }
     .kj .quiet-line { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
     .kj .quiet-line b { color: var(--ink); }
+    /* "3D view": opens the station model (station3d.js) */
+    .kj .view3d { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 8px 8px 2px 0; padding: 0 14px; border-radius: 18px; background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 700; }
+    .kj .view3d:active { opacity: .7; }
+    .pf-3d { display: inline-flex; align-items: center; gap: 6px; height: 36px; margin-top: 10px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--bar-text); color: var(--bar-bg); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .pf-3d:active { opacity: .7; }
     .kj .expander { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-top: 2px; font-size: 14px; font-weight: 700; }
     .kj .steps { margin: 2px 0 6px -8px; }
     .kj .step { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 36px; padding: 8px; border-radius: 8px; font-size: 14px; }
@@ -1336,6 +1341,8 @@
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
   <script src="places.js"></script>
+  <script src="stations3d/index.js"></script>
+  <script src="station3d.js"></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
@@ -1781,6 +1788,7 @@
       userMarker.setLngLat(lngLat);
       if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
       updateAccuracy();
+      if (window.Station3D) Station3D.setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined });
       if (!centeredOnUser && !destMarker._map) {
         centeredOnUser = true;
         map.jumpTo({ center: lngLat, zoom: 15 });
@@ -2382,6 +2390,23 @@
       const list = mk('ul', 'pf-list');
       const box = mk('div');
       box.append(head, note, list);
+      // a station with a 3D model: show this platform in it, with the way there when you are nearby
+      const key3d = window.Station3D && Station3D.has(f.properties.id);
+      if (key3d) {
+        const view3d = mk('button', 'pf-3d');
+        view3d.type = 'button';
+        view3d.append(kIcon('cube', 16), '3D view');
+        view3d.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const to = { ll: edge.ll };
+          if (edge.ref) to.stop = { uic: String(f.properties.id), ref: edge.ref };
+          if (edge.level != null) to.level = edge.level;
+          const near = userLngLat && distKm(userLngLat, edge.ll) < 0.8;
+          s3Step = null;
+          Station3D.open({ key: key3d, from: near ? { ll: userLngLat } : undefined, to, prefs: SETTINGS.journey(), returnFocus: view3d });
+        });
+        box.append(view3d);
+      }
       platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
       try {
         const res = await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
@@ -3140,8 +3165,10 @@
           pt(st.arrLL, { kind: 'stop', step: i, end: true, done: !!p && i < p.i, ...colors });
           pt(st.depLL, { kind: 'sign', step: i, img: signId(st), sort: 10 });
         }
-        const lvl = levelChange(st);
+        // floor changes: every one on a walk through a modelled station (st.floors), else the one the platform levels imply
+        const lvl = st.floors ? null : levelChange(st);
         if (lvl && lvl.at) pt(lvl.at, { kind: 'lvl', step: i, img: `lv|${lvl.to > lvl.from ? 'u' : 'd'}|${levelShort(lvl.to)}` });
+        (st.floors || []).forEach((m) => pt(m.at, { kind: 'lvl', step: i, img: `lv|${m.to > m.from ? 'u' : 'd'}|${levelShort(m.to)}` }));
       });
       const first = steps[0];
       if (first && first.type === 'walk' && first.lines[0]) pt(first.lines[0][0], { kind: 'pin', step: 0, img: 'pin|from' });
@@ -3545,6 +3572,7 @@
       check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
       arrow: '<path d="M12 3.5l5.5 15-5.5-3.3-5.5 3.3z" fill="currentColor" stroke-linejoin="round"/>',
       refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.4-5.5M19.5 4.5v4h-4"/>',
+      cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
     };
     const MODE_K = { train: 'rail', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable' };
     const MODE_NAME = { train: 'Train', tram: 'Tram', bus: 'Bus', boat: 'Boat', cable: 'Cable car' };
@@ -3735,6 +3763,63 @@
     const openStops = new Set();    // rides with all their stops listed
 
     // Where a walk ends: "Bay C", "Platform 7", the stop's name, or your destination
+    // ---- 3D station view (station3d.js): for walks and changes in a station that has a 3D model (stations3d/) ----
+    const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
+    const s3Key = (stop) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id)) || null;
+    // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
+    function s3End(stop, at) {
+      const edge = at && at.edge, raw = platformOf(stop);
+      const ref = raw !== '–' ? raw : (edge && edge.ref) || '';
+      const ll = (at && at.ll) || coordOf(stop);
+      if (!ref && !ll) return null;
+      const end = {};
+      if (ref) end.stop = { uic: String(stop.station.id), ref };
+      if (ll) end.ll = ll;
+      if (edge && edge.level != null) end.level = edge.level;
+      return end;
+    }
+    // Where a step's walk starts and ends inside the modelled station, or null when it is not in one
+    function s3Plan(st) {
+      let key = null, from = null, to = null;
+      if (st.type === 'walk' && st.next) {
+        key = s3Key(st.next.departure);
+        const start = userLngLat || (st.lines[0] && st.lines[0][0]);
+        to = s3End(st.next.departure, st.nextRide && st.nextRide.depAt);
+        // from further away the model only shows the last stretch: where the walk comes in, not where you are
+        const far = start && to && to.ll && distKm(start, to.ll) > S3_NEAR_KM;
+        from = start ? (far ? { ll: start, label: 'the way in' } : userLngLat ? { ll: start } : { ll: start, label: 'the start' }) : null;
+      } else if (st.type === 'walk') {
+        key = st.from ? s3Key(st.from.arrival) : null;
+        from = key && s3End(st.from.arrival, st.prevRide && st.prevRide.arrAt);
+        const end = (journeyDest && journeyDest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
+        const far = end && from && from.ll && distKm(from.ll, end) > S3_NEAR_KM;
+        to = end ? { ll: end, label: far ? `the way to ${st.toName}` : st.toName } : null;
+      } else if (st.type === 'change') {
+        const ka = s3Key(st.prev.arrival), kb = s3Key(st.next.departure);
+        key = kb || ka;
+        from = ka === key ? s3End(st.prev.arrival, st.prevRide && st.prevRide.arrAt)
+          : st.points[0] ? { ll: st.points[0], label: st.prev.arrival.station.name } : null;
+        to = kb === key ? s3End(st.next.departure, st.nextRide && st.nextRide.depAt)
+          : st.points[1] ? { ll: st.points[1], label: st.next.departure.station.name } : null;
+      }
+      return key && from && to ? { key, from, to } : null;
+    }
+    // The journey options for the station router, for the day of that step (closures in the model have dates)
+    const s3Prefs = (st) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
+    let s3Step = null; // the journey step the 3D view was opened from
+    function s3Open(st, button) {
+      const plan = s3Plan(st); // now, not when the sheet was drawn: the start follows your position
+      if (!plan) return;
+      s3Step = st;
+      Station3D.open({ ...plan, prefs: s3Prefs(st), returnFocus: button });
+    }
+    // "Done" at the end of the 3D walk: back to the journey, on the step that follows
+    if (window.Station3D) Station3D.on('done', () => {
+      const i = journeySteps.indexOf(s3Step);
+      Station3D.close();
+      if (i >= 0 && i < journeySteps.length - 1) goToStep(i + 1);
+    });
+
     function walkTarget(st) {
       const r = st.type === 'change' || !st.final ? st.nextRide : null;
       if (!r) return st.toName || (journeyDest && journeyDest.title) || 'your destination';
@@ -3756,14 +3841,18 @@
     function walkDirections(st) {
       if (st._dirsV === geoVersion) return st._dirs;
       const out = [];
-      (st.walks || []).forEach((w) => ((w && w.steps) || []).forEach((s) => {
+      (st.walks || []).forEach((w) => {
+        // a stretch through a modelled station: its own directions, floor changes included
+        if (w && w.dirs) out.push(...w.dirs);
+      else ((w && w.steps) || []).forEach((s) => {
         const m = s.maneuver || {}, d = Math.round(s.distance || 0);
         if (m.type === 'arrive' || d < 3) return;
         const along = s.name ? ` along ${s.name}` : '';
         const verb = m.type === 'depart' ? 'Walk' : `${TURN[m.modifier] || 'Continue'} and walk`;
         out.push({ kind: m.type === 'depart' ? 'depart' : 'walk', text: `${verb} ${fmtDist(d)}${along}`, coords: s.geometry && s.geometry.coordinates });
-      }));
-      const lvl = levelChange(st);
+      });
+      });
+      const lvl = st.floors ? null : levelChange(st);
       if (lvl) {
         const item = { kind: lvl.to < lvl.from ? 'stairs-down' : 'stairs-up', text: lvl.text, from: lvl.from, to: lvl.to, coords: lvl.at ? [lvl.at] : null };
         if (st.type === 'walk' && st.final) out.unshift(item);
@@ -3919,6 +4008,7 @@
           h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
       if (transfer) main.append(spareLine(st));
       else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
+      if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget), kIcon('cube', 16), '3D view')));
       if (dirs.length > 1) {
         main.append(kBtn('expander', null, () => {
           if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
@@ -4477,6 +4567,47 @@
       return plausible(g, path) ? [path[0], ...g, path[path.length - 1]] : path;
     }
 
+    // A walk that passes through a station with a 3D model: the model's route for the part inside it, the street
+    // router for what lies before and after. Falls back to the street router alone when the model has no route.
+    async function stationWalk(st, plan) {
+      const lines = st.lines.map((l) => l.slice());
+      const a = lines[0][0], last = lines[lines.length - 1], b = last[last.length - 1];
+      const street = async () => {
+        const walks = await Promise.all(lines.map((l) => routeWalk(l[0], l[l.length - 1])));
+        return { lines: walks.map((w) => w.coords), walks, floors: null };
+      };
+      let model = null, route = null;
+      try {
+        model = await Station3D.loadData(plan.key);
+        route = model && StationRoute.route(model, plan.from, plan.to, s3Prefs(st));
+      } catch (e) { route = null; }
+      if (!route || route.points.length < 2 || route.same) return street();
+      const inside = route.points.map((p) => StationRoute.toLngLat(model, p));
+      const parts = [], walks = [];
+      const join = async (p, q) => { // the stretch between the walk's end and where the model's paths begin
+        if (distKm(p, q) < 0.03) return;
+        const w = await routeWalk(p, q);
+        parts.push(w.coords);
+        walks.push(w);
+      };
+      // only for free positions: a route from a platform starts wherever it is best to leave that platform
+      if (!route.fromStop) await join(a, inside[0]);
+      const whole = (x) => Math.round(x);
+      // the station's own written directions, in the shape walkDirections() lists them
+      const dirs = route.steps.filter((s) => s.kind !== 'arrive').map((s, k) => {
+        const change = s.kind !== 'walk' && whole(s.toLevel) !== whole(s.level);
+        const d = { kind: change ? (s.toLevel < s.level ? 'stairs-down' : 'stairs-up') : k === 0 && !parts.length ? 'depart' : 'walk',
+          text: s.text, coords: inside.slice(s.from, s.to + 1) };
+        if (change) { d.from = whole(s.level); d.to = whole(s.toLevel); }
+        return d;
+      });
+      parts.push(inside);
+      walks.push({ coords: inside, steps: null, dist: route.length, dirs });
+      if (!route.toStop) await join(inside[inside.length - 1], b);
+      const floors = dirs.filter((d) => d.from != null).map((d) => ({ at: d.coords[0], from: d.from, to: d.to }));
+      return { lines: parts, walks, floors };
+    }
+
     function refineJourney(id) {
       let pending = 0, scheduled = false;
       const redraw = () => {
@@ -4488,8 +4619,20 @@
         pending++;
         promise.then((res) => { if (id !== journeyReq) return; apply(res); geoVersion++; redraw(); });
       };
+      const keys3d = new Set(journeySteps.map((st) => (s3Plan(st) || {}).key).filter(Boolean));
+      // get the 3D view ready in the background, so "3D view" opens at once
+      if (keys3d.size) setTimeout(() => { if (id === journeyReq) keys3d.forEach((k) => Station3D.preload(k)); }, 2500);
       journeySteps.forEach((st) => {
-        (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
+        const plan = (st.lines || []).length ? s3Plan(st) : null;
+        if (plan) {
+          // through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router
+          task(stationWalk(st, plan), (res) => {
+            st.lines = res.lines;
+            st.walks = res.walks;
+            st.floors = res.floors;
+            queueSheet();
+          });
+        } else (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
           st.lines[k] = res.coords;
           (st.walks || (st.walks = []))[k] = res;
           queueSheet(); // metres and written directions
