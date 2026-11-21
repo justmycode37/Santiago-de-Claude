@@ -77,11 +77,7 @@ interface Station3DPick {
   title: string;
   level: number;
   xy: XY;
-  ll?: LngLat;
-  /** Instead of ll: the position in the model's own metres. */
-  xy?: XY;
-  /** The floor, when it is known. */
-  level?: number | null;
+  ll: LngLat;
   stop: StationStop | null;
   area: Partial<StationArea> | null;
   /** The place as an end of a route (for `open({ from, to })`). */
