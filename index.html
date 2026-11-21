@@ -159,24 +159,24 @@
       opacity: 0;
       transform: translateY(0) scale(.4);
       pointer-events: none;
-      transition: transform .5s var(--spring), opacity .2s ease, background-color .3s ease, color .3s ease;
+      transition: transform .22s var(--spring), opacity .15s ease, background-color .3s ease, color .3s ease;
     }
-    .menu.open .menu-item { opacity: 1; pointer-events: auto; transition: transform .55s var(--bounce), opacity .25s ease, background-color .3s ease, color .3s ease; }
+    .menu.open .menu-item { opacity: 1; pointer-events: auto; transition: transform .3s var(--bounce), opacity .15s ease, background-color .3s ease, color .3s ease; }
     .menu.open .menu-item[data-slot="1"] { transform: translateY(54px) scale(1); }
-    .menu.open .menu-item[data-slot="2"] { transform: translateY(108px) scale(1); transition-delay: .04s; }
-    .menu.open .menu-item[data-slot="3"] { transform: translateY(162px) scale(1); transition-delay: .08s; }
-    .menu.open .menu-item[data-slot="4"] { transform: translateY(216px) scale(1); transition-delay: .12s; }
+    .menu.open .menu-item[data-slot="2"] { transform: translateY(108px) scale(1); transition-delay: .02s; }
+    .menu.open .menu-item[data-slot="3"] { transform: translateY(162px) scale(1); transition-delay: .04s; }
+    .menu.open .menu-item[data-slot="4"] { transform: translateY(216px) scale(1); transition-delay: .06s; }
     /* Toggled-on button (e.g. events shown) */
     .fab.active { background: var(--user-blue); color: #fff; }
     .fab.active:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
     .menu-main { z-index: 1; }
-    .menu-main svg { transition: transform .4s var(--spring), opacity .2s ease; }
+    .menu-main svg { transition: transform .25s var(--spring), opacity .15s ease; }
     .menu-main .ic-close { opacity: 0; transform: rotate(-90deg) scale(.5); }
     .menu.open .menu-main .ic-dots { opacity: 0; transform: rotate(90deg) scale(.5); }
     .menu.open .menu-main .ic-close { opacity: 1; transform: none; }
 
     /* Theme icon: moon in light mode (tap → dark), sun in dark mode (tap → light) */
-    .theme-btn svg { transition: transform .45s var(--spring), opacity .25s ease; }
+    .theme-btn svg { transition: transform .3s var(--spring), opacity .2s ease; }
     .theme-btn .ic-sun { opacity: 0; transform: rotate(-90deg) scale(.5); }
     :root[data-theme="dark"] .theme-btn .ic-moon { opacity: 0; transform: rotate(90deg) scale(.5); }
     :root[data-theme="dark"] .theme-btn .ic-sun { opacity: 1; transform: none; }
@@ -201,6 +201,69 @@
       z-index: 30;
     }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Notice that the walking speed was changed to match how you walk (walk-pace.js). It stays until closed,
+       above everything up to the settings page; the toast moves below it. */
+    .pace-note {
+      position: fixed;
+      top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 10px); /* below the search card or the progress pill */
+      left: 50%;
+      width: min(calc(100% - 24px), 440px);
+      transform: translateX(-50%);
+      z-index: 46;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 12px 14px 14px;
+      border-radius: 20px;
+      background: var(--bar-bg);
+      color: var(--bar-text);
+      box-shadow: var(--shadow), 0 0 0 .5px var(--hair);
+      animation: note-in .55s var(--spring) both;
+    }
+    .pace-note[hidden], .sim-panel[hidden] { display: none; }
+    @keyframes note-in { from { opacity: 0; transform: translate(-50%, -16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    body.pace-note-on .toast { top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 20px + var(--pace-note-h, 120px)); }
+    .pace-note-text { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; }
+    .pace-note-text b { display: block; margin-bottom: 2px; font-size: 16px; line-height: 1.3; font-weight: 600; }
+    .pace-note-text span { display: block; }
+    .pace-note-go { height: 36px; margin-top: 10px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--user-blue); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .pace-note-go:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
+    .pace-note-x { position: relative; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--row-bg); color: var(--bar-text); display: grid; place-items: center; cursor: pointer; }
+    .pace-note-x::after { content: ""; position: absolute; inset: -6px; } /* 44 px tap target */
+    .pace-note-x:active { opacity: .55; }
+    .pace-note-x svg { width: 12px; height: 12px; }
+    .pace-note-go:focus-visible, .pace-note-x:focus-visible, .sim-actions button:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .pace-note { animation: none; } }
+
+    /* Developer options: a path drawn on the map and the panel to walk it (walk-pace.js) */
+    .sim-panel {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(env(safe-area-inset-bottom) + 12px);
+      max-width: 440px;
+      margin: 0 auto;
+      z-index: 25;
+      padding: 14px 16px 16px;
+      border-radius: 24px;
+      color: var(--bar-text);
+      box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 .5px var(--hair);
+    }
+    body.sim-mode .search-wrap { display: none; }
+    .sim-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .sim-top b { font-size: 17px; font-weight: 600; }
+    .sim-panel p { min-height: 2.8em; margin: 6px 0 10px; font-size: 14px; line-height: 1.4; }
+    .sim-speed { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+    .sim-speed input { flex: 1; min-width: 0; accent-color: var(--user-blue); }
+    .sim-speed output { flex: none; min-width: 66px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .sim-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .sim-actions button { flex: 1; height: 44px; padding: 0; border: 0; border-radius: 12px; background: var(--row-bg); color: var(--bar-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .sim-actions button.primary { background: var(--user-blue); color: #fff; }
+    .sim-actions button:disabled { opacity: .4; cursor: default; }
+    .sim-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    .sim-svg polyline { fill: none; stroke: var(--tang); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 10; }
+    .sim-svg circle { fill: #fff; stroke: var(--tang); stroke-width: 3; }
 
     /* Search at the top: one pill ("Where to?") that grows a start row above it once a trip is being planned.
        Results drop down below it. On phones it leaves room for the menu button on its right. */
@@ -284,7 +347,7 @@
       background: var(--bar-bg);
       border-radius: 23px;
       box-shadow: var(--shadow);
-      transition: background-color .3s ease, opacity .2s ease, margin-right .3s var(--spring);
+      transition: background-color .3s ease, opacity .2s ease, margin-right .2s var(--spring);
     }
     body.searching .trip { margin-right: 0; } /* the menu button steps aside while you search: as wide as the results */
     @media (min-width: 700px) {
@@ -441,11 +504,11 @@
       border-radius: 27px;
       box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 .5px var(--hair);
     }
-    body.following .j-pill { display: flex; animation: pill-in .55s var(--spring) both; }
+    body.following .j-pill { display: flex; animation: pill-in .32s var(--spring) both; }
     @keyframes pill-in { from { transform: translateY(-130%); } to { transform: none; } }
     body.following .menu { top: calc(env(safe-area-inset-top) + 76px); }
     body.searching .menu { opacity: 0; pointer-events: none; } /* the results list opens over its place */
-    .menu { transition: top .45s var(--spring), opacity .2s ease; }
+    .menu { transition: top .28s var(--spring), opacity .15s ease; }
     .j-time {
       flex: none;
       border: 0;
@@ -571,7 +634,7 @@
       border-radius: 28px 28px 0 0;
       box-shadow: var(--shadow-2);
       transform: translate3d(0, 110vh, 0);
-      transition: transform .3s var(--ease);
+      transition: transform .26s var(--ease);
       will-change: transform;
     }
     body.journey-mode .kj.ksheet { display: flex; }
@@ -633,6 +696,48 @@
     .kj .chain-sep { color: var(--ink-3); }
     .kj .chain-walk { display: inline-flex; align-items: center; flex: none; gap: 1px; height: 20px; padding: 0 5px 0 3px; border-radius: 4px; background: var(--tonal-2); color: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .kj .chain-more { font-size: 12px; color: var(--ink-2); }
+
+    /* the journeys to choose from: tabs (public transport · on foot), one row per journey */
+    .kj .sheet-title h2 { flex: 1; min-width: 0; margin: 0; font-size: 18px; line-height: 24px; font-weight: 700; }
+    .kj .tabs { flex: 1; display: flex; gap: 4px; min-width: 0; box-shadow: inset 0 -1px 0 var(--line); }
+    .kj .tabs button { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; font-size: 14px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+    .kj .tabs button.on { color: var(--ink); font-weight: 700; }
+    .kj .tabs button.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--ink); }
+    .kj .journeys > li { margin-bottom: 8px; }
+    .kj .day-sep { margin: 16px 8px 8px; font-size: 14px; }
+    .kj .list-end { height: calc(16px + var(--safe-b)); }
+    /* one journey: three 20 px lines */
+    .kj .jrow { display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 16px; border-radius: 16px; background: var(--card); }
+    .kj .jrow:active, .kj .walkcard:active { background: var(--tonal); }
+    .kj .jrow.gone { opacity: .6; }
+    .kj .jrow.shown { box-shadow: inset 0 0 0 2px var(--ink); } /* the one drawn on the map */
+    .kj .jrow-l1 { display: flex; align-items: center; gap: 12px; height: 20px; }
+    .kj .jrow-l1 .chain { flex: 1; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+    .kj .jrow-dur { margin-left: auto; flex: none; white-space: nowrap; }
+    .kj .jrow-l2, .kj .jrow-l3 { display: grid; grid-template-columns: 46px minmax(0, 1fr) 46px; align-items: center; column-gap: 12px; height: 20px; }
+    .kj .jrow-l3 { grid-template-columns: 46px minmax(0, 1fr); font-size: 14px; color: var(--ink-2); }
+    .kj .jrow-time { font-variant-numeric: tabular-nums; }
+    .kj .jrow-time.end { text-align: right; }
+    .kj .jrow-plat { color: var(--ink); white-space: nowrap; }
+    .kj .jrow-mid { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; white-space: nowrap; }
+    .kj .jrow .jrow-act { flex: none; flex-wrap: nowrap; }
+    /* "1 change · 8 min": the minutes drop to a second line, out of sight, when the row is too narrow for both */
+    .kj .jrow-chg { display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 4px; height: 20px; min-width: 0; margin-left: auto; overflow: hidden; }
+    /* the rides to scale between the two times */
+    .kj .tbar { position: relative; height: 20px; }
+    .kj .tbar-base { position: absolute; left: 4px; right: 4px; top: 8px; height: 4px; background: radial-gradient(circle, var(--dot) 1.6px, transparent 1.8px) 0 0 / 7px 4px repeat-x; }
+    .kj .tbar-ride { position: absolute; top: 7px; height: 6px; border-radius: 3px; background: var(--Lbar); }
+    .kj .tbar-change { position: absolute; top: 5px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--card); border: 2px solid var(--ink); }
+    .kj .tbar-end { position: absolute; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+    .kj .tbar-end.a { left: 0; }
+    .kj .tbar-end.b { right: 0; }
+    .kj .more { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 40px; margin-bottom: 8px; border-radius: 20px; box-shadow: inset 0 0 0 1px var(--tonal-2); font-size: 14px; font-weight: 700; }
+    .kj .more:disabled { color: var(--ink-3); cursor: default; }
+    .kj .walkcard { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 16px; border-radius: 16px; background: var(--card); }
+    .kj .walkcard-big { display: flex; align-items: baseline; gap: 12px; }
+    .kj .walkcard-big b { font-size: 30px; line-height: 32px; }
+    .kj .walkcard-sub { font-size: 14px; color: var(--ink-2); }
+    .kj .walkcard-cta { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-weight: 700; }
 
     /* journey header */
     .kj .jhead-times { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
@@ -871,7 +976,7 @@
       color: var(--bar-text);
       box-shadow: var(--shadow);
       transform: translateY(130%);
-      transition: transform .45s var(--spring), background-color .3s ease;
+      transition: transform .3s var(--spring), background-color .3s ease;
     }
     .t-sheet.open { transform: none; }
     .t-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--clear-bg); margin: 0 auto 14px; }
@@ -990,10 +1095,10 @@
       scrollbar-width: none;
       transform: translateY(100%);
       visibility: hidden;
-      transition: transform .5s var(--spring), visibility 0s linear .5s, background-color .3s ease;
+      transition: transform .32s var(--spring), visibility 0s linear .32s, background-color .3s ease;
     }
     .ev-page::-webkit-scrollbar { display: none; }
-    .ev-page.open { transform: none; visibility: visible; transition: transform .5s var(--spring), visibility 0s, background-color .3s ease; }
+    .ev-page.open { transform: none; visibility: visible; transition: transform .32s var(--spring), visibility 0s, background-color .3s ease; }
     .ev-hero {
       position: relative;
       height: calc(env(safe-area-inset-top) + 260px);
@@ -1047,11 +1152,11 @@
       padding: calc(env(safe-area-inset-top) + 10px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 40px) max(16px, env(safe-area-inset-left));
       transform: translateY(100%);
       visibility: hidden;
-      transition: transform .5s var(--spring), visibility 0s linear .5s;
+      transition: transform .32s var(--spring), visibility 0s linear .32s;
     }
     :root[data-theme="dark"] .set-page { --sp-bg: #000000; --sp-card: #1c1c1e; --sp-fill: rgba(120,120,128,.24); --sp-off: rgba(120,120,128,.32); }
     .set-page::-webkit-scrollbar { display: none; }
-    .set-page.open { transform: none; visibility: visible; transition: transform .5s var(--spring), visibility 0s; }
+    .set-page.open { transform: none; visibility: visible; transition: transform .32s var(--spring), visibility 0s; }
     .set-inner { max-width: 600px; margin: 0 auto; }
     .set-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; margin-bottom: 8px; }
     .set-top h1 { margin: 0; font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: .01em; }
@@ -1163,6 +1268,20 @@
     .set-stepper svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
     .set-reset { width: 100%; min-height: 52px; padding: 0 16px; border: 0; background: transparent; color: var(--accent-ink); font: inherit; font-size: 17px; text-align: left; cursor: pointer; border-radius: 20px; }
     .set-reset:active { opacity: .55; }
+    /* Walking speed card: the slider, then "Adjust to how I walk" under a hairline; its privacy promise in full-strength text */
+    .set-group > .set-pad { padding: 12px 16px; }
+    .set-line { border-top: .5px solid var(--hair); }
+    .set-reset.set-line { border-radius: 0; }
+    .set-reset.set-line:last-child { border-radius: 0 0 20px 20px; }
+    .set-private { color: var(--bar-text); }
+    .set-private svg { width: 13px; height: 13px; margin-right: 5px; vertical-align: -1.5px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    /* Developer options */
+    .dev-row { cursor: default; }
+    .dev-speed label { display: flex; justify-content: space-between; gap: 12px; font-size: 17px; line-height: 1.25; }
+    .dev-speed output { flex: none; color: var(--bar-secondary); font-variant-numeric: tabular-nums; }
+    .dev-speed input { display: block; width: 100%; height: 28px; margin: 8px 0 0; accent-color: var(--user-blue); }
+    .dev-result { color: var(--bar-text); }
+    .dev-result:empty { display: none; }
     /* A row that opens a page: value and chevron on the right */
     .set-nav { width: 100%; border: 0; border-radius: 20px; background: transparent; color: inherit; font: inherit; text-align: left; }
     .set-nav:active { background: var(--sp-fill); }
@@ -1181,10 +1300,10 @@
       padding: calc(env(safe-area-inset-top) + 10px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 40px) max(16px, env(safe-area-inset-left));
       transform: translateX(100%);
       visibility: hidden;
-      transition: transform .45s var(--spring), visibility 0s linear .45s;
+      transition: transform .32s var(--spring), visibility 0s linear .32s;
     }
     .lang-page::-webkit-scrollbar { display: none; }
-    .lang-page.open { transform: none; visibility: visible; transition: transform .45s var(--spring), visibility 0s; }
+    .lang-page.open { transform: none; visibility: visible; transition: transform .32s var(--spring), visibility 0s; }
     .lang-page [hidden] { display: none !important; }
     .lang-back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin-left: -10px; padding: 0 10px 0 4px; border: 0; border-radius: 10px; background: none; color: var(--accent-ink); font: inherit; font-size: 17px; cursor: pointer; }
     .lang-back:active { opacity: .55; }
@@ -1297,6 +1416,36 @@
 
   <div class="toast" id="toast" role="status"></div>
 
+  <!-- The walking speed was changed to match how you walk (walk-pace.js). Stays until closed. -->
+  <div class="pace-note" id="paceNote" role="status" hidden>
+    <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 3 7-8M15 7h5v5" /></svg></span>
+    <div class="pace-note-text">
+      <b id="paceNoteTitle"></b>
+      <span id="paceNoteBody"></span>
+      <button class="pace-note-go" id="paceNoteGo" type="button">Open Settings</button>
+    </div>
+    <button class="pace-note-x" id="paceNoteClose" type="button" aria-label="Close this notice">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" /></svg>
+    </button>
+  </div>
+
+  <!-- Developer options: draw a path on the map and walk it (walk-pace.js) -->
+  <div class="sim-panel glass" id="simPanel" role="group" aria-labelledby="simTitle" hidden>
+    <div class="sim-top">
+      <b id="simTitle">Simulated walk</b>
+      <button class="pace-note-x" id="simClose" type="button" aria-label="Close the simulated walk">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" /></svg>
+      </button>
+    </div>
+    <p id="simStatus"></p>
+    <label class="sim-speed"><span>Speed</span><input id="simSpeed" type="range" min="2" max="8" step="0.1" value="5" /><output id="simSpeedVal" for="simSpeed">5.0 km/h</output></label>
+    <div class="sim-actions">
+      <button id="simUndo" type="button">Undo</button>
+      <button id="simClear" type="button">Clear</button>
+      <button class="primary" id="simGo" type="button">Walk it</button>
+    </div>
+  </div>
+
   <div class="j-pill glass" id="jPill">
     <button class="j-edit" id="jEdit" type="button" aria-label="Change the start or the destination"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg></button>
     <button class="j-time" id="jDepBtn" type="button" aria-label="Change departure time"><small>Depart</small><b id="jDep">--:--</b></button>
@@ -1366,23 +1515,32 @@
       <p class="set-foot">Stairs, lifts and ramps come from OpenStreetMap and may be incomplete. Step-free journeys get at least 7 minutes at every change, wheelchair journeys 10. The timetable doesn’t say which trains and buses have step-free boarding, so check with the operator when it matters.</p>
 
       <h2 class="set-head" id="setSpeedHead">Walking speed</h2>
-      <div class="set-group set-pad" role="group" aria-labelledby="setSpeedHead">
-        <div class="set-speed" id="speedName" aria-hidden="true">Normal</div>
-        <div class="set-slider">
-          <span class="set-end" aria-hidden="true">Slow</span>
-          <div class="set-track" id="speedSlider" role="slider" tabindex="0" aria-labelledby="setSpeedHead" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2" aria-valuetext="Normal">
-            <span class="set-fill"></span>
-            <span class="set-dot" style="--d:0"></span>
-            <span class="set-dot" style="--d:.25"></span>
-            <span class="set-dot" style="--d:.5"></span>
-            <span class="set-dot" style="--d:.75"></span>
-            <span class="set-dot" style="--d:1"></span>
-            <span class="set-thumb"></span>
+      <div class="set-group" role="group" aria-labelledby="setSpeedHead">
+        <div class="set-pad">
+          <div class="set-speed" id="speedName" aria-hidden="true">Normal</div>
+          <div class="set-slider">
+            <span class="set-end" aria-hidden="true">Slow</span>
+            <div class="set-track" id="speedSlider" role="slider" tabindex="0" aria-labelledby="setSpeedHead" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2" aria-valuetext="Normal">
+              <span class="set-fill"></span>
+              <span class="set-dot" style="--d:0"></span>
+              <span class="set-dot" style="--d:.25"></span>
+              <span class="set-dot" style="--d:.5"></span>
+              <span class="set-dot" style="--d:.75"></span>
+              <span class="set-dot" style="--d:1"></span>
+              <span class="set-thumb"></span>
+            </div>
+            <span class="set-end" aria-hidden="true">Fast</span>
           </div>
-          <span class="set-end" aria-hidden="true">Fast</span>
         </div>
+        <label class="set-row set-line">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 3 7-8M15 7h5v5" /></svg></span>
+          <span class="set-text"><b id="setAutoT">Adjust to how I walk</b><small id="setAutoD">The app measures your walking pace and sets the speed above for you.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="autoSpeed" aria-labelledby="setAutoT" aria-describedby="setAutoD setAutoPrivacy" />
+        </label>
       </div>
       <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible.</p>
+      <p class="set-foot">With “Adjust to how I walk” on, the app measures your pace while it is open. When another step between Slow and Fast fits you better, the speed changes at the next start and the app tells you. Moving the slider yourself starts the measuring again.</p>
+      <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your walking pace is measured and kept only in this app, on this device. It is never sent anywhere, no places are stored, and turning the setting off deletes it.</p>
 
       <h2 class="set-head" id="setChangeHead">Changes and walking</h2>
       <div class="set-group" role="group" aria-labelledby="setChangeHead">
@@ -1492,6 +1650,34 @@
       <div class="set-group set-gap">
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
       </div>
+
+      <!-- Developer options: tools to test "Adjust to how I walk" with logged walks (walk-pace.js) -->
+      <div class="set-group set-gap">
+        <label class="set-row">
+          <span class="set-ic" style="--c:#8e8e93" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8.5 7l-5 5 5 5M15.5 7l5 5-5 5" /></svg></span>
+          <span class="set-text"><b id="setDevT">Developer options</b><small id="setDevD">Tools for testing. Not needed to use the app.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="devOptions" aria-labelledby="setDevT" aria-describedby="setDevD" />
+        </label>
+      </div>
+      <div id="devTools" hidden>
+        <h2 class="set-head" id="devPaceHead">Test: adjust to how I walk</h2>
+        <div class="set-group" role="group" aria-labelledby="devPaceHead">
+          <div class="set-row dev-row">
+            <span class="set-text"><b>Recorded so far</b><small id="devPaceState" role="status"></small></span>
+          </div>
+          <div class="set-pad set-line dev-speed">
+            <label for="devSpeed"><span>Simulated walking speed</span><output id="devSpeedVal" for="devSpeed">5.0 km/h</output></label>
+            <input id="devSpeed" type="range" min="2" max="8" step="0.1" value="5" />
+          </div>
+          <button class="set-reset set-line" type="button" data-dev="draw">Draw a path on the map and walk it</button>
+          <button class="set-reset set-line" type="button" data-dev="walk">Log a 10-minute walk</button>
+          <button class="set-reset set-line" type="button" data-dev="check">Run the start-up check now</button>
+          <button class="set-reset set-line" type="button" data-dev="notice">Show the notice</button>
+          <button class="set-reset set-line" type="button" data-dev="clear">Delete recorded walks</button>
+        </div>
+        <p class="set-foot dev-result" id="devPaceResult" role="status"></p>
+        <p class="set-foot">Walks logged here are instant, at the speed set here. They replace what was recorded, count however short they are, and turn “Adjust to how I walk” on. The app changes the walking speed when it starts, so reload it after logging, or run the start-up check here.</p>
+      </div>
     </div>
 
     <!-- Settings → Language (URL #settings/language): every language Google Translate offers (translate.js) -->
@@ -1597,6 +1783,7 @@
   <script src="events.js"></script>
   <script src="map-layers.js"></script>
   <script src="settings.js"></script>
+  <script src="walk-pace.js"></script>
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
   <script src="engine.js"></script>
@@ -2038,7 +2225,10 @@
     map.on('zoom', updateAccuracy);
 
     let lastSavedAt = 0;
+    let lastRealPos = null; // the newest fix from the phone itself, to come back to after a simulated walk
+    let posSimulated = false; // the position shown is a made-up one (developer options): it is never sent anywhere
     function onPosition(pos) {
+      if (!pos.simulated) lastRealPos = pos;
       const lngLat = [pos.coords.longitude, pos.coords.latitude];
       if (!inSwitzerland(lngLat)) {
         showToast('You are outside Switzerland');
@@ -2051,10 +2241,17 @@
       userLngLat = lngLat;
       userAccuracy = pos.coords.accuracy || 0;
       lastFixAt = takenAt;
-      // the last minute of fixes, to tell whether you are moving (on board) or standing
-      recentFixes.push({ ll: lngLat, t: takenAt, speed: pos.coords.speed });
-      while (recentFixes.length && recentFixes[0].t < takenAt - 60000) recentFixes.shift();
-      if (now - lastSavedAt > 30000) {
+      posSimulated = !!pos.simulated;
+      // the last minute of fixes, to tell whether you are moving (on board) or standing. A made-up position jumps,
+      // which would look like a ride, so it starts this afresh instead.
+      if (pos.simulated) recentFixes.length = 0;
+      else {
+        recentFixes.push({ ll: lngLat, t: takenAt, speed: pos.coords.speed });
+        while (recentFixes.length && recentFixes[0].t < takenAt - 60000) recentFixes.shift();
+      }
+      // "Adjust to how I walk" (Settings) measures your pace from these fixes; it does nothing while switched off
+      if (!pos.simulated) WALK_PACE.fix({ ll: lngLat, acc: userAccuracy, speed: pos.coords.speed, t: takenAt });
+      if (!pos.simulated && now - lastSavedAt > 30000) {
         lastSavedAt = now;
         try { localStorage.setItem('lastLocation', JSON.stringify(lngLat.map((x) => +x.toFixed(4)))); } catch (e) {}
       }
@@ -2088,6 +2285,17 @@
       // (after this script has run: onPosition uses things declared further down)
       setTimeout(() => EARLY_GEO.attach(onPosition, onPositionError), 0);
     }
+
+    // Developer options: walking a path drawn on the map puts your position at its end
+    WALK_PACE.attach({
+      map,
+      position: (pos) => { centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)
+      restore: () => {
+        if (!lastRealPos) return; // no real position: you stay where the walk ended
+        lastFixAt = 0;
+        onPosition(lastRealPos);
+      },
+    });
 
     // ---------- Search (swisstopo SearchServer) ----------
     const wrap = document.getElementById('searchWrap');
@@ -2713,7 +2921,7 @@
       setMenu(false);
       pinMenu.remove();
       if (f === 'from') setPlanOpen(true);
-      if (document.body.classList.contains('journey-mode') && sheetDetent === 'full') setDetent('mid'); // some map to tap on
+      if (document.body.classList.contains('journey-mode') && sheetDetent !== 'low') setDetent('low'); // as much map to tap on as there is
     }
     document.getElementById('pinHintCancel').addEventListener('click', () => armPin(null));
 
@@ -2998,6 +3206,7 @@
     let popupPlace = null; // the place (toilet, pharmacy…) whose card is open
     // Forgiving tap: the nearest dot or place icon within ~16 px, so small dots are easy to hit on a phone
     map.on('click', (e) => {
+      if (WALK_PACE.drawing()) return; // the taps draw a path (developer options)
       if (pinTap(e.lngLat.toArray())) return; // placing a pin, or closing the "From here / To here" menu
       const r = 16;
       const layers = ['platform-dot', ...PLACE_LAYERS].filter((id) => map.getLayer(id));
@@ -3318,6 +3527,10 @@
     let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
     let journeyDest = null;
     let journeyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
+    let journeyOptions = null; // every way on offer to make the trip: { list, walk, best, earlier, later }
+    let journeyList = false;   // the sheet lists them to choose from (not the journey itself)
+    let journeyTab = 'pt';     // …those by public transport, or 'walk': on foot all the way
+    let journeyMore = null;    // 'earlier' | 'later' while more of them are being fetched
     let progressTimer = null;
     let liveTimer = null;
 
@@ -4010,7 +4223,7 @@
       // move the cards along with you, unless you have just picked a step yourself
       if (!track.missed && track.i !== autoStep) {
         autoStep = track.i;
-        if (now - userPickedAt > 20000) goToStep(track.i, true);
+        if (now - userPickedAt > 20000 && !journeyList) goToStep(track.i, true);
       }
     }
 
@@ -4384,7 +4597,7 @@
     // Only with Settings › Live data › share switched on (off by default): it sends your position to the engine.
     async function kanteOnboard() {
       const t = track, now = Date.now();
-      if (!SETTINGS.prefs().shareOnboard || !kante.ok() || !kante.trusted || onboardBusy || !t || !gpsOn() || now - onboardAt < 20000) return;
+      if (!SETTINGS.prefs().shareOnboard || !kante.ok() || !kante.trusted || onboardBusy || !t || !gpsOn() || posSimulated || now - onboardAt < 20000) return;
       const st = journeySteps[t.i];
       if (!st || st.type !== 'ride' || t.arrived || now < st.t0 - 60000 || !movingNow()) return;
       const id = journeyReq, k = st.s._k, j = st.s.journey, line = lineLabel(j);
@@ -4415,7 +4628,7 @@
       if (!SETTINGS.prefs().shareOnboard || !kante.trusted || !kante.has('observe')) return;
       if (!onboard || !onboard.byTrip || now - onboard.at > 45000 || !t || t.off || t.arrived || t.i !== onboard.step) return;
       const st = journeySteps[t.i], k = st && st.s && st.s._k;
-      if (!k || k.state !== 'ok' || !gpsOn() || fixAge() > 10000 || !(userAccuracy > 0 && userAccuracy <= 50) || now - observeAt < 10000) return;
+      if (!k || k.state !== 'ok' || !gpsOn() || posSimulated || fixAge() > 10000 || !(userAccuracy > 0 && userAccuracy <= 50) || now - observeAt < 10000) return;
       observeAt = now;
       kante.post('/api/observe', { tripId: k.match.tripId, serviceDate: k.match.serviceDate, lat: KANTE_LIVE.roundLL(userLngLat[1]),
         lon: KANTE_LIVE.roundLL(userLngLat[0]), t: Math.round(lastFixAt / 1000), accuracy: Math.round(userAccuracy) });
@@ -4934,7 +5147,174 @@
       next.disabled = k === dirs.length - 1;
       return h('div', 'stepnav', prev, text, next, kBtn('round-btn', 'Back to the whole journey', overview, kIcon('close', 18)));
     }
+    // ---- The journeys to choose from (the list of the Kante app, branch nikitas-implementation): one row each with
+    //      its vehicles, times and first boarding point; walking all the way, when that is near enough, on a tab of
+    //      its own. The one shown first is drawn on the map; a tap on a row opens that journey. ----
+    const optionCount = () => (journeyOptions ? journeyOptions.list.length + (journeyOptions.walk ? 1 : 0) : 0);
+    const connStart = (c) => new Date(c.from.departure).getTime();
+    const connEnd = (c) => new Date(c.to.arrival).getTime();
+    const connSecs = (c) => Math.max(0, connEnd(c) - connStart(c)) / 1000;
+
+    function optionRow(conn, now) {
+      const rides = conn.sections.filter((s) => s.journey), first = rides[0];
+      const t0 = connStart(conn), t1 = Math.max(connEnd(conn), t0 + 60000);
+      // line 1: every vehicle's badge, with the walks between them, and how long it all takes
+      const chain = h('span', 'chain');
+      chain.setAttribute('aria-hidden', 'true');
+      let walkS = 0;
+      const add = (node) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
+      const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m >= 1) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
+      conn.sections.forEach((s) => {
+        if (!s.journey) { walkS += (s.walk && s.walk.duration) || 0; return; }
+        addWalk();
+        add(kBadge(s.journey, null, chainIcon(s.journey)));
+      });
+      addWalk();
+      // line 2: the two times, and between them the rides to scale (a ring where you change)
+      const bar = h('span', 'tbar', h('i', 'tbar-base'));
+      bar.setAttribute('aria-hidden', 'true');
+      const pct = (t) => Math.min(100, Math.max(0, ((t - t0) / (t1 - t0)) * 100));
+      rides.forEach((s, k) => {
+        const a = pct(liveMs(s.departure, 'departure')), b = pct(liveMs(s.arrival, 'arrival'));
+        const ride = lineVars(h('i', 'tbar-ride'), s.journey);
+        ride.style.left = a + '%';
+        ride.style.width = Math.max(4, b - a) + '%';
+        bar.append(ride);
+        if (!k) return;
+        const change = h('i', 'tbar-change');
+        change.style.left = pct((liveMs(rides[k - 1].arrival, 'arrival') + liveMs(s.departure, 'departure')) / 2) + '%';
+        bar.append(change);
+      });
+      bar.append(h('i', 'tbar-end a'), h('i', 'tbar-end b'));
+      // line 3: where it leaves from, in how long, and the changes (with the time there is for the tightest)
+      const walkFirst = !conn.sections[0].journey;
+      const secs = ((walkFirst || !first ? t0 : liveMs(first.departure, 'departure')) - now) / 1000;
+      const gone = secs < -45;
+      const text = gone ? `Left ${kDur(-secs)} ago` : secs < 60 ? (walkFirst ? 'Leave now' : 'Leaves now')
+        : secs < 3600 ? `${walkFirst ? 'Leave' : 'Leaves'} in ${kDur(Math.floor(secs / 60) * 60)}` : '';
+      const late = first ? lateMin(first.departure, 'departure') : 0;
+      const forecast = first && first.departure.prognosis && first.departure.prognosis.departure;
+      const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.departure, 'departure') - liveMs(rides[k].arrival, 'arrival')) / 60000)));
+      const changes = !rides.length ? ['On foot'] : !gaps.length ? ['Direct']
+        : [`${gaps.length} ${gaps.length === 1 ? 'change' : 'changes'}`, `· ${gaps.length === 1 ? '' : '≥ '}${Math.min(...gaps)} min`];
+      const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), null, () => openOption(conn),
+        h('span', 'jrow-l1', chain, h('b', 'jrow-dur', kDur((t1 - t0) / 1000))),
+        h('span', 'jrow-l2', h('b', 'jrow-time', fmtTime(conn.from.departure)), bar, h('b', 'jrow-time end', fmtTime(conn.to.arrival))),
+        h('span', 'jrow-l3', h('span', 'jrow-plat', first ? kPlat(quayOf({ s: first }, 'dep')) : null),
+          h('span', 'jrow-mid',
+            text ? h('span', 'jrow-act ' + (gone ? 'gone' : !forecast ? 'plain' : late > 0 ? 'late' : 'ok'), text, gone ? null : kDelay(late)) : null,
+            h('span', 'jrow-chg', changes.map((t) => h('span', null, t))))));
+      if (conn === journeyConn) row.setAttribute('aria-current', 'true'); // the one drawn on the map
+      return row;
+    }
+    function walkCard(conn) {
+      const m = conn.kante ? conn.kante.walkM : null;
+      const kmh = SETTINGS.prefs ? Number(SETTINGS.prefs().walkKmh).toFixed(1).replace('.0', '') : '';
+      return kBtn('walkcard', null, () => openOption(conn),
+        h('span', 'walkcard-big', h('b', null, kDur(connSecs(conn))), h('span', null, [m ? fmtDist(m) : '', kmh ? `at ${kmh} km/h` : ''].filter(Boolean).join(' '))),
+        h('span', 'walkcard-sub', `${fmtTime(conn.from.departure)} – ${fmtTime(conn.to.arrival)}`),
+        h('span', 'walkcard-cta', 'Walking directions', kIcon('right', 16)));
+    }
+    function listHead() {
+      const o = journeyOptions;
+      let title = h('h2', 'trunc', 'Journeys'); // (an h1 here is a place name, which the translator leaves alone)
+      if (o.walk && o.list.length) {
+        // public transport (its quickest journey) · on foot
+        const tab = (key, icon, secs, label) => {
+          const b = kBtn(journeyTab === key ? 'on' : '', `${label}, ${kDur(secs)}`, () => setJourneyTab(key), kIcon(icon, 20), kDur(secs));
+          b.setAttribute('role', 'tab');
+          b.setAttribute('aria-selected', String(journeyTab === key));
+          return b;
+        };
+        title = h('div', 'tabs', tab('pt', 'rail', Math.min(...o.list.map(connSecs)), 'Public transport'), tab('walk', 'walk', connSecs(o.walk), 'On foot'));
+        title.setAttribute('role', 'tablist');
+        title.setAttribute('aria-label', 'How to travel');
+      }
+      return h('div', 'jhead', h('div', 'sheet-title', title, sheetActions()));
+    }
+    function listBody() {
+      const o = journeyOptions, now = Date.now(), frag = document.createDocumentFragment();
+      if (journeyTab === 'walk' && o.walk) {
+        frag.append(walkCard(o.walk), h('div', 'list-end'));
+        return frag;
+      }
+      const more = (dir) => {
+        const b = kBtn('more', null, () => loadMoreJourneys(dir), kIcon(dir === 'earlier' ? 'up' : 'down', 16),
+          journeyMore === dir ? `Loading ${dir} journeys…` : cap(dir));
+        b.disabled = !!journeyMore;
+        return b;
+      };
+      if (o.earlier) frag.append(more('earlier'));
+      const ol = h('ol', 'journeys');
+      let lastDay = 'Today';
+      o.list.forEach((conn) => {
+        const day = dayLabel(conn.from.departure);
+        ol.append(h('li', null, day !== lastDay ? h('div', 'day-sep', day) : null, optionRow(conn, now)));
+        lastDay = day;
+      });
+      frag.append(ol);
+      if (o.later) frag.append(more('later'));
+      frag.append(h('div', 'list-end'));
+      return frag;
+    }
+    // Make one of the journeys the one on the map (and the one the sheet is about, once it is opened)
+    function showOption(conn) {
+      if (conn === journeyConn || !journeyDest) return;
+      const id = ++journeyReq; // what was still being fetched for the last one is dropped
+      openDirs.clear();
+      closedDirs.clear();
+      openStops.clear();
+      onboard = null;
+      renderJourney(conn, journeyDest.title);
+      refineJourney(id);
+      kanteMatch(id);
+    }
+    // A row tapped: that journey, as before (the header gets a way back to the list)
+    function openOption(conn) {
+      journeyList = false;
+      if (conn === journeyConn) renderSheet();
+      else showOption(conn);
+      setDetent('low', true); // the map with that journey, its times, and Start
+    }
+    function showOptions() {
+      if (optionCount() < 2) return;
+      journeyList = true;
+      jFocus = null;
+      if (!routeOverview) { routeOverview = true; refreshRouteHighlight(); }
+      renderSheet();
+      if (sheetDetent === 'low') setDetent('mid', true);
+      else fitJourney();
+    }
+    function setJourneyTab(tab) {
+      const o = journeyOptions;
+      if (!o || tab === journeyTab) return;
+      journeyTab = tab;
+      const conn = tab === 'walk' ? o.walk : o.best !== o.walk ? o.best : o.list[0];
+      if (conn && conn !== journeyConn) showOption(conn);
+      else renderSheet();
+    }
+    // "Earlier" / "Later": more journeys for the same trip (from the Kante engine)
+    async function loadMoreJourneys(dir) {
+      const o = journeyOptions;
+      if (!o || journeyMore || !window.KanteJourney) return;
+      journeyMore = dir;
+      renderBody();
+      try { await KanteJourney.more(o, dir); }
+      catch (e) { showToast(`${cap(dir)} journeys could not be loaded.`); }
+      if (o !== journeyOptions) return; // another trip has been planned meanwhile
+      journeyMore = null;
+      if (journeyList) renderBody();
+    }
+    // The countdowns in the rows ("Leaves in 6 min") move on with the clock
+    function refreshList() {
+      if (!journeyList || !journeyOptions) return;
+      const fresh = document.createElement('div');
+      fresh.append(buildBody());
+      if (fresh.innerHTML !== jBody.innerHTML) renderBody();
+    }
+
     function buildHead() {
+      if (journeyList && journeyOptions) return listHead();
       if (jFocus) return stepNav();
       const head = h('div', 'jhead');
       if (!journeyConn) {
@@ -4947,7 +5327,9 @@
       const tr = Math.max(0, rides.length - 1);
       const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
       head.append(
-        h('div', 'sheet-title', legChain(), sheetActions()),
+        h('div', 'sheet-title',
+          optionCount() > 1 && !document.body.classList.contains('following') ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
+          legChain(), sheetActions()),
         h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.from.departure)} – ${fmtTime(end)}`),
           h('span', null, !rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`)));
       const act = h('div', 'jhead-act');
@@ -5129,6 +5511,7 @@
         (p.extraChangeMin > 0 && changes > 0 ? ` · ${p.extraChangeMin} min extra change time` : ''));
     }
     function buildBody() {
+      if (journeyList && journeyOptions) return listBody();
       const frag = document.createDocumentFragment();
       if (!journeyConn) {
         if (sheetMsg === 'Finding a connection…') for (let k = 0; k < 4; k++) frag.append(h('div', 'skeleton'));
@@ -5153,7 +5536,7 @@
       jBody.scrollTop = top;
     }
     function renderFoot() {
-      if (!journeyConn) { jFoot.replaceChildren(); return; }
+      if (!journeyConn || journeyList) { jFoot.replaceChildren(); return; } // Start belongs to a journey that has been chosen
       const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
       jFoot.replaceChildren(h('div', 'actionbar',
         kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
@@ -5388,6 +5771,7 @@
     let gpsPolling = false;
     function tick() {
       updateProgress();
+      refreshList();
       if (journeyConn) { kanteOnboard(); kanteObserve(); }
       if (!journeyConn || gpsPolling || fixAge() < 25000 || !tripLive() || !window.isSecureContext || !navigator.geolocation) return;
       gpsPolling = true;
@@ -5467,6 +5851,9 @@
       journeyDest = r;
       journeyConn = null;
       journeySteps = [];
+      journeyOptions = null;
+      journeyList = false;
+      journeyMore = null;
       journeyFrom = tripStart ? tripStart.title : userLngLat ? 'Your location' : 'Map centre';
       updateWhenChip();
       jFocus = null;
@@ -5503,10 +5890,16 @@
       try {
         // exact platforms if their data is there in time; never hold a journey up for more than 4 s
         startPlatforms();
-        const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
+        const [opts] = await Promise.all([findOptions(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
         if (id !== journeyReq) return;
-        if (!conn) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
-        renderJourney(conn, r.title);
+        if (!opts) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
+        // More than one way to go: the list to choose from, with the best one on the map. (Under way, a new
+        // plan goes straight to its best journey.)
+        journeyOptions = opts;
+        journeyTab = opts.best === opts.walk ? 'walk' : 'pt';
+        journeyList = optionCount() > 1 && !document.body.classList.contains('following');
+        if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
+        renderJourney(opts.best, r.title);
         refineJourney(id); // swap straight lines for real walking paths and tracks/roads
         kanteMatch(id);    // the engine's trip for every ride, for its live data
       } catch (e) {
@@ -5729,6 +6122,7 @@
       const st = (data.stations || []).find((x) => x.id);
       return st ? st.id : null;
     }
+    // → { list, best, … } as KanteJourney.plans() gives it (no walking all the way, no earlier / later), or null
     async function connections(from, to) {
       if (!from || !to) return null;
       const q = { from, to, limit: '5' };
@@ -5743,24 +6137,29 @@
       // Settings: walks retimed to your walking speed; prefer connections whose walks and changes fit
       const all = (data.connections || []).map(SETTINGS.retime);
       const fits = all.filter(SETTINGS.connectionFits);
-      const list = fits.length ? fits : all;
+      const list = (fits.length ? fits : all).sort((a, b) => new Date(a.from.departure) - new Date(b.from.departure));
       if (!list.length) return null;
+      const offer = (shown, best) => ({ list: shown, best, walk: null, earlier: false, later: false });
       if (mode === 'arr' && (date || time)) {
-        // latest connection that still arrives by the chosen time
+        // those that still arrive by the chosen time; first the one that leaves last
         const target = new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime();
         const ok = list.filter((c) => new Date(c.to.arrival).getTime() <= target + 60000);
-        return (ok.length ? ok : list).reduce((best, c) => (new Date(c.to.arrival) > new Date(best.to.arrival) ? c : best));
+        const shown = ok.length ? ok : list;
+        return offer(shown, shown.reduce((best, c) => (new Date(c.to.arrival) > new Date(best.to.arrival) ? c : best)));
       }
       const after = date || time
         ? new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime() - 60000
         : Date.now() - 60000;
-      return list.find((c) => new Date(c.from.departure).getTime() >= after) || list[0];
+      const ahead = list.filter((c) => new Date(c.from.departure).getTime() >= after);
+      const shown = ahead.length ? ahead : list;
+      return offer(shown, shown[0]);
     }
     // Exact coordinates can fail when a point is far from any stop (e.g. a municipality's centre in the fields),
     // so fall back to the place name and then to the nearest stations at either end.
-    async function findConnection(fromLL, r) {
+    // → every way on offer: { list, walk, best, earlier, later }, or null
+    async function findOptions(fromLL, r) {
       // the team's own Kante engine first (engine-journey.js); without an answer from it, the public timetable below
-      const own = window.KanteJourney ? await KanteJourney.find(fromLL, r, journeyQuery) : null;
+      const own = window.KanteJourney ? await KanteJourney.plans(fromLL, r, journeyQuery) : null;
       if (own) return own;
       const from = coordParam(fromLL), to = coordParam(r.lngLat);
       let c = await connections(from, to);
@@ -5787,6 +6186,9 @@
       clearInterval(kanteTimer);
       journeyConn = null;
       journeyDest = null;
+      journeyOptions = null;
+      journeyList = false;
+      journeyMore = null;
       onboard = null;
       vehUpdate(); // live vehicles come back (from zoom 14)
       updateCards(); // events and places come back if they were on

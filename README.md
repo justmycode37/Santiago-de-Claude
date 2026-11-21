@@ -6,7 +6,7 @@ A Swiss community event map and public transport journey planner. Team project f
 
 ## Features
 
-- **Journey planner & live tracking**: Plans Swiss public transport trips via the team's [Kante engine](kante/README.md) (`transport.opendata.ch` fallback) to exact train platforms (Gleis) and bus/tram stop edges (Kante), with live vehicle tracking, delay/platform updates, GPS route following, and SBB ticket links.
+- **Journey planner & live tracking**: Plans Swiss public transport and walking trips via the team's [Kante engine](kante/README.md) (`transport.opendata.ch` fallback) with route alternatives, exact train platforms (Gleis) and bus/tram stop edges (Kante), live vehicle tracking, delay/platform updates, GPS route following, and SBB ticket links.
 - **3D station navigation**: Interactive 3D models for Bern, Europaplatz, Wankdorf, Brünnen Westside, and Bümpliz Nord with bird's-eye and first-person indoor transfer routes.
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo), with draggable start/destination map pins.
 - **Events & amenities**: Shows community events alongside public toilets across Switzerland and Bern's public amenities and local places.
