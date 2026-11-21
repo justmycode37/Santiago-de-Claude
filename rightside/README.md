@@ -23,3 +23,64 @@ Bundled third-party models and their licences are listed in
 `redesign/apps/ios/RightSide/Resources/TransportPacks/model-manifest.json` (YOLOE, AGPL-3.0, needs a licensing
 review before any proprietary release) and `redesign/apps/ios/RightSide/Resources/VehicleDisplayRecognition/v1/`
 (PP-OCRv5 latin recogniser, Apache-2.0).
+
+## Changes made here (21 Nov 2026)
+
+### Bus and tram recognition: compare the display with the stop's departures
+
+The snapshot compared OCR text with the selected ride by exact spelling. On recorded Bern footage it never
+accepted the right vehicle and warned "wrong vehicle" for 25–49 % of right vehicles: "9 Wabern" is not spelled
+"Wabern, Tram-Endstation", "Soali" is a misread of "Saali", and adverts or a van's phone number parsed as
+"line e" or "line 031".
+
+- `Sensors/DepartureDisplayMatcher.swift` scores every display row of a vehicle against the services that can
+  actually stop here: the selected ride plus the departure board of the boarding stop. A service only wins if
+  it explains the glyphs clearly better than every other one (margin), with LED-aware edit costs (O/0, a/o, f/t,
+  W/M/U …), optional locality ("Bern Wankdorf, Bahnhof" → "Wankdorf Bhf"), via rows and brand words handled.
+  OCR text is never rewritten; the result is a scored choice or an honest "ambiguous / unlisted / unreadable".
+- `Sensors/VehicleEvidence.swift`: the decision uses that evidence over the existing 3-frame / 0.8 s window.
+  A clearly different listed service is **named** ("Display shows 10 Ostermundigen, Rüti · not your service").
+  The old exact rule now needs a credible contradiction in two distinct frames. Without a board the closed-set
+  path keeps the snapshot's 0.7 confidence floor. Authoritative trip binding rules are unchanged.
+- `Sensors/DepartureBoardCandidates.swift` + `UI/ContentView.swift`: opening the camera loads the boarding
+  stop's departures (OJP SLOID → stationboard id: `ch:1:sloid:2905` → `8502905`) and passes them in.
+- Measured on recorded video with a PC stand-in for the phone's OCR (`tools/display-bench`): on a held-out set
+  labelled after the code was frozen, right vehicles accepted 0 % → 66 %, false "wrong vehicle" alarms
+  49 % → 0 %, wrong vehicles accepted 0 % throughout. Matching costs ~2 ms per frame.
+
+### AR journey guidance without Apple geographic AR coverage
+
+- `Spatial/GeoARAlignment.swift` estimates the transform between ARKit's world (visual-inertial odometry) and
+  east/north metres from compass headings, GPS fixes and the shape of the walked path, with an honest σ.
+  `ARRouteGuidance` decides what may be drawn: ground arrows only if the lateral error 10 m ahead is ≤ 3.5 m,
+  one direction arrow up to 15 m, otherwise nothing ("use the map").
+- `Spatial/ARRouteGuide.swift` draws the walking route as ground chevrons and the boarding point (the resolved
+  edge/platform when known) in the journey camera. Skipped for simulated journeys and while Apple geo AR runs.
+- The journey camera opens directly when a journey is active (was the 3D mesh scanner).
+- Simulation (`tools/portable-tests`, 200 seeded walks, GPS σ ≈ 5 m with correlated drift, compass bias up to
+  ±24°): median heading error 15° standing (compass only) → 7° after 40 m of walking; the reported 2σ covered
+  the true error in 99–100 % of runs.
+
+### Validation status — what was and was not run
+
+| Check | Where | Result |
+| --- | --- | --- |
+| Portable logic (`tools/portable-tests`, 49 checks incl. restated snapshot XCTest assertions) | Swift 6.4.3, Linux (WSL) | pass |
+| Swift 6 strict-concurrency type-check of the portable files | same | pass |
+| Recorded-video benchmark, dev + held-out (`tools/display-bench`) | same + Python/ONNX on PC | see its README |
+| Syntax parse of every changed iOS file | swift-frontend `-parse` | pass |
+| **iOS compile, XCTest targets, UI tests** | needs Xcode on the Mac | **not run** |
+| **Physical iPhone: camera OCR rate, AR arrow placement, compass behaviour, thermal** | needs the phone | **not run** |
+
+The UIKit/ARKit/SceneKit code (`ARRouteGuide.swift`, the camera view and controller changes, `ContentView`)
+has only been syntax-checked and reviewed. Build it in Xcode before installing. On the phone, check in
+particular: the heading Core Location reports while the phone is held upright (used as the compass prior),
+chevron height (drawn 1.4 m below the camera), and whether Apple Vision reads LED displays more or less often
+than the PC stand-in.
+
+### Next steps worth doing
+
+- Restrict the candidate services to those leaving from the edge the rider stands at (Kante engine
+  `/api/departures` gives per-edge assignments), which shrinks the candidate set and raises margins.
+- Record a few real passes on the iPhone through the existing indoor/replay lab and add them to the benchmark.
+- Feed the walked-path alignment from ARKit plane detection (actual ground height instead of 1.4 m).

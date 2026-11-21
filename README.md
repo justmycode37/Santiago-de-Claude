@@ -66,4 +66,5 @@ Every push to `main` publishes the static site to GitHub Pages ([`.github/workfl
 
 - [`kante/`](kante/README.md) & [`deploy/`](deploy/README.md) — Rust journey planner engine (plans the app's journeys through `engine.js` and `engine-journey.js`) and deployment setup.
 - [`livemap/`](livemap/README.md) — Separate prototype showing live Swiss vehicles on the map.
+- [`rightside/`](rightside/README.md) — RightSide, the native iPhone companion (SwiftUI/ARKit): reads the route number and destination of an arriving bus or tram, matches it against the stop's departures and Kante's `/api/due`, and draws AR arrows to the boarding point. Built on a Mac with Xcode; not part of the website.
 - [`docs/`](docs/places-data.md) — Detailed documentation for place and amenity datasets.
