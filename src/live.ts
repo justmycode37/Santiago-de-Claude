@@ -318,9 +318,9 @@
     }
     return [w, s, e, n];
   }
-  const bboxContains = (o, i) => !!o && i[0] >= o[0] && i[1] >= o[1] && i[2] <= o[2] && i[3] <= o[3];
-  const bboxOk = (b) => distKm([b[0], b[1]], [b[2], b[3]]) <= MAX_BBOX_KM;
-  const bboxParam = (b) => b.map((x) => x.toFixed(5)).join(',');
+  const bboxContains = (o: KanteBbox | null | undefined, i: KanteBbox) => !!o && i[0] >= o[0] && i[1] >= o[1] && i[2] <= o[2] && i[3] <= o[3];
+  const bboxOk = (b: KanteBbox) => distKm([b[0], b[1]], [b[2], b[3]]) <= MAX_BBOX_KM;
+  const bboxParam = (b: KanteBbox) => b.map((x) => x.toFixed(5)).join(',');
 
   const KANTE: KanteLiveApi = {
     DEFAULT_URL, MAX_BBOX_KM, engineUrl, isLocalUrl, client, unixOf, matchParams, liveInfoOf, isLive, liveArr, liveDep,

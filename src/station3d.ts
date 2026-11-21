@@ -56,11 +56,11 @@
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, text?: string | null): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const reducedMotion = () => !!((window.matchMedia as typeof matchMedia | undefined) && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const isDark = () => document.documentElement.dataset.theme === 'dark';
-  const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
-  const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-  const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  const angDiff = (a: number, b: number) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+  const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  const lowerFirst = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
   // an end of the route inside a sentence: "platform 7", but a stop without a number keeps its name as it is
-  const lowName = (o) => (o && o.kind === 'stop' && !o.ref ? o.name : lowerFirst(o && o.name));
+  const lowName = (o: EndInfo) => (o && o.kind === 'stop' && !o.ref ? o.name : lowerFirst(o && o.name));
 
   // The app's --spring curve, cubic-bezier(.32,.72,0,1), as a function
   function bezier(x1: number, y1: number, x2: number, y2: number) {
@@ -859,6 +859,18 @@
     entry: StationDetailIndexEntry | null; data: StationDetailModel | null; h: Station3DDetailHandle | null;
     loading: boolean; show: boolean; bird: boolean; li: number; y0: number; add: number; k: number;
     shellBox: Box4 | null; tilt: Tilt | null;
+    /** The destination marked on the scene's own ground / only a destination is shown, and it lies in the scene. */
+    marks: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>[]; spot: boolean;
+  }
+  /** A lift the walk rides: from point i to point j of the route, t = 0..1 of dur milliseconds. */
+  interface LiftRide { i: number; j: number; t: number; dur: number }
+  /** Something worth a look on the way: where it is, how high, how strongly it pulls the head. */
+  interface Sight { x: number; y: number; h: number; w: number }
+  /** The walk that plays by itself. */
+  interface PlayState {
+    on: boolean; speed: number; v: number; gaze: number; gazeP: number; ride: LiftRide | null; slide: number;
+    by: Station3DArrivedBy; arrived: boolean; lastProg: number; lastAlong: number;
+    pois: Sight[] | null; poisOf: StationDetailModel | null;
   }
   /** Something of the scene that is given back when the scene is cleared. */
   interface Tracked { geometry?: THREE.BufferGeometry; material?: THREE.Material & { map?: THREE.Texture | null }; parent?: THREE.Object3D | null }
@@ -875,6 +887,9 @@
     setFollow(b: boolean): void;
     enableCompass(): Promise<Station3DCompass>;
     setPov(b: boolean): void;
+    play(o?: Station3DPlayOptions | null): boolean;
+    pause(): void;
+    isPlaying(): boolean;
     setPeel(v: number): void;
     orient(e: Station3DOrientation): void;
     depth(): number;
@@ -940,13 +955,15 @@
   interface InstCyl { x: number; y: number; lf: number; yo: number; r: number; h: number; col: THREE.Color }
   type InstMesh = THREE.InstancedMesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>;
   interface Inst { boxes: InstBox[]; cyls: InstCyl[]; box: InstMesh | null; cyl: InstMesh | null }
-  type RouteUniforms = Record<'uPx' | 'uRmin' | 'uA0' | 'uA1' | 'uThin' | 'uProg' | 'uGrow' | 'uSpacing' | 'uPhase' | 'uSquash' | 'uNear' | 'uFogN' | 'uFogF', { value: number }>
+  type RouteUniforms = Record<'uPx' | 'uRmin' | 'uA0' | 'uA1' | 'uThin' | 'uProg' | 'uGrow' | 'uSpacing' | 'uPhase' | 'uSquash' | 'uNear' | 'uEye' | 'uFogN' | 'uFogF', { value: number }>
     & Record<'uInk' | 'uDim' | 'uDone', { value: THREE.Color }>;
   /** The drawn route: one tube geometry, its three meshes, the uniforms they share. D / Dorig: the display distance at
       each point of the line / of route.points; A: metres along the route at each of route.points. */
   interface RouteDraw {
     geo: THREE.BufferGeometry; meshes: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[]; U: RouteUniforms;
     sm: SmoothPt[]; D: Float32Array; Dorig: Float32Array; total: number; K: number; A: number[];
+    /** Where on the line the eye stands (eyeD), and what that was worked out for. */
+    eyeKey?: number; eyeD?: number;
   }
   /** Where the camera looks from: the angle around, the distance, and the point it looks at (tx, level tl, tz). */
   interface Pose { az: number; dist: number; tx: number; tz: number; tl: number }
@@ -1022,7 +1039,7 @@
   /** An end chosen while exploring: the place, and what to call it. */
   interface ExploreEnd { end: RouteEnd; name: string }
   /** How a step is selected: where the selection came from, and what must not move because of it. */
-  interface SelectOpts { fromScroll?: boolean; fromPov?: boolean; instant?: boolean; keepCam?: boolean; follow?: boolean }
+  interface SelectOpts { fromScroll?: boolean; fromPov?: boolean; instant?: boolean; keepCam?: boolean; follow?: boolean; auto?: boolean }
   /** An <input type="range"> whose numbers are written as numbers (the browser turns them into strings). */
   type RangeInput = Omit<HTMLInputElement, 'min' | 'max' | 'step' | 'value'> & Record<'min' | 'max' | 'step' | 'value', string | number>;
   function createViewer(opts: Station3DOpenOptions): Viewer {
@@ -1059,20 +1076,20 @@
     const gridU = { value: 0 }; // how strongly the floor tiles show (only when you stand on them)
     let guides: Guide[] = [], activeGuide: Guide | null = null, povArriving = false, beacon: Label | null = null; // what the route takes next, shown as an object
     // the detail scene of this station, if it has one: { entry (manifest), data, h (the renderer's handle), show, bird }
-    const DT = { entry: null, data: null, h: null, loading: false, show: false, bird: false, li: 0, y0: 0, add: 0, k: 0, shellBox: null, tilt: null, marks: [], spot: false };
-    let clipHole = [], clipShell = []; // the plain model is cut out where the scene stands
+    const DT: DetailState = { entry: null, data: null, h: null, loading: false, show: false, bird: false, li: 0, y0: 0, add: 0, k: 0, shellBox: null, tilt: null, marks: [], spot: false };
+    let clipHole: THREE.Plane[] = [], clipShell: THREE.Plane[] = []; // the plain model is cut out where the scene stands
     // the walk that plays by itself: { on, speed (multiplier of WALK_MS), v (m/s now), gaze / gazeP (the head turned
     // towards something worth seeing), ride (in a lift), by (what moved the walk last), arrived (said once per open) }
-    const PL = { on: false, speed: PLAY_SPEED, v: 0, gaze: 0, gazeP: 0, ride: null, slide: 0, by: 'step', arrived: false, lastProg: 0, lastAlong: -1, pois: null, poisOf: null };
-    let playBtn = null, scrubRow = null;
-    let los = [];        // per level: wall segments [ax, ay, bx, by] that hide labels behind them (first-person view)
-    let disc = null;     // the accuracy disc of the user
-    let labels = [], labelsDirty = false, levelLabels = [], tip = null, tipTimer = 0;
-    let sel = -1, isolate = null, listMode = false;
-    let follow = false, user = null, userStep = -1, manualAt = null, compassOn = false, compassHeading = null, compassAsk = null;
-    let picked = null, exploreEnds = { from: null, to: null };
-    let raf = 0, slowTimer = 0, lastT = 0, lastActivity = 0, shadowDirty = true, grow = null, phase = 0;
-    let ro = null, mo = null, toastTimer = 0, scrollTimer = 0, progScroll = 0, openTimer = 0, orientTimer = 0;
+    const PL: PlayState = { on: false, speed: PLAY_SPEED, v: 0, gaze: 0, gazeP: 0, ride: null, slide: 0, by: 'step', arrived: false, lastProg: 0, lastAlong: -1, pois: null, poisOf: null };
+    let playBtn: HTMLButtonElement | null = null, scrubRow: HTMLDivElement | null = null;
+    let los: Seg4[][] = [];        // per level: wall segments [ax, ay, bx, by] that hide labels behind them (first-person view)
+    let disc: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial> | null = null;     // the accuracy disc of the user
+    let labels: Label[] = [], labelsDirty = false, levelLabels: Label[] = [], tip: Label | null = null, tipTimer = 0;
+    let sel = -1, isolate: number | null = null, listMode = false;
+    let follow = false, user: UserState | null = null, userStep = -1, manualAt: ManualAt | null = null, compassOn = false, compassHeading: number | null = null, compassAsk: Promise<Station3DCompass> | null = null;
+    let picked: Hit | null = null, exploreEnds: Record<'from' | 'to', ExploreEnd | null> = { from: null, to: null };
+    let raf = 0, slowTimer = 0, lastT = 0, lastActivity = 0, shadowDirty = true, grow: { t0: number; dur: number } | null = null, phase = 0;
+    let ro: ResizeObserver | null = null, mo: MutationObserver | null = null, toastTimer = 0, scrollTimer = 0, progScroll = 0, openTimer = 0, orientTimer = 0;
     // first-person view: where the eye is (x, y, level), which way the path goes (bearing), the head (yaw, pitch)
     let povT = 0, povAnim: Anim | null = null, camB: THREE.PerspectiveCamera = null!, fog: THREE.Fog = null!, hudEl: HTMLElement = null!, miniEl: HTMLCanvasElement = null!, scrubEl: RangeInput | null = null, hudKey = '', indoorT = 0;
     const pv: PovState = { x: 0, y: 0, level: 0, tx: 0, ty: 0, tl: 0, bearing: 0, tb: 0, slope: 0, yaw: 0, pitch: 0, along: 0, walk: null, free: false, device: false, dB: 0, dP: 0, orient: null };
@@ -1243,8 +1260,8 @@
     // A walk that goes through the scene (or along its edge) on the street, a destination in it, or an eye that
     // comes near on that floor. A route that passes at a distance, or underneath, does not pull the scene in.
     const streetLevel = () => P.levels[P.idxOf(P.levelOfZ(0))].id;
-    function routeInDetail(b) {
-      const pts = route.points, l0 = streetLevel();
+    function routeInDetail(b: Box4) {
+      const pts = route!.points, l0 = streetLevel();
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i], q = pts[i + 1] || p;
         const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 6));
@@ -1255,7 +1272,7 @@
       }
       return false;
     }
-    const eyeNearDetail = (b) => (pov || povT > .02) && pv.level > streetLevel() - .5 && pv.level < streetLevel() + 1.3 && inBB(b, pv.x, pv.y, 90); // not from a floor below the street
+    const eyeNearDetail = (b: Box4) => (pov || povT > .02) && pv.level > streetLevel() - .5 && pv.level < streetLevel() + 1.3 && inBB(b, pv.x, pv.y, 90); // not from a floor below the street
     function detailWanted() {
       const b = DT.entry && DT.entry.bbox;
       if (!b) return false;
@@ -1285,7 +1302,7 @@
       // flatten: the renderer takes the slope of the street out itself, so its ground lies on the model's level floor
       // (then no offset is wanted). featherColor / featherInside: its rim takes on the colour of the plain ground next
       // to it, so no seam shows from inside. A renderer that knows neither ignores them.
-      const o = { theme, quality: detailQuality(), flatten: true, zShift: 0, feather: 6, featherColor: T.ground, featherInside: 4, toScene: (x, y, z) => [x, DT.y0 + z, -y] };
+      const o: Station3DDetailOptions = { theme, quality: detailQuality(), flatten: true, zShift: 0, feather: 6, featherColor: T.ground, featherInside: 4, toScene: (x, y, z) => [x, DT.y0 + z, -y] };
       if (opts.season === 'summer' || opts.season === 'winter') o.season = opts.season;
       try {
         DT.h = RD.build(THREE, d, o);
@@ -1295,7 +1312,7 @@
         }
       } catch (e) { console.error('Station3D: the detail scene could not be drawn', e); DT.entry = null; DT.h = null; return; }
       // a renderer that does not move the scene by the offset its data asks for: we do it
-      DT.add = typeof DT.h.zShift === 'number' ? 0 : (isFinite(d.zOffset) ? +d.zOffset : 0);
+      DT.add = typeof DT.h.zShift === 'number' ? 0 : (isFinite(d.zOffset!) ? +d.zOffset! : 0);
       DT.tilt = DT.h.flattened === true ? null : fitTilt(d, typeof DT.h.zShift === 'number' ? DT.h.zShift : DT.add);
       DT.h.group.visible = false;
       DT.h.group.renderOrder = 20;
@@ -1364,14 +1381,14 @@
     }
     function buildSceneMarks() {
       dropSceneMarks();
-      const d = DT.data, b = DT.entry.bbox;
-      let area = null, at = null;
-      if (A.routed && !A.same) { if (!endInfo(toEnd, 'to').closed) { area = endArea('to'); at = route.points[route.points.length - 1]; } }
+      const d = DT.data!, b = DT.entry!.bbox;
+      let area: PArea | null = null, at: Pt | null = null;
+      if (A.routed && !A.same) { if (!endInfo(toEnd, 'to').closed) { area = endArea('to'); at = route!.points[route!.points.length - 1]; } }
       else if (!A.routed && focus && focus.hit) { area = focus.hit.area; at = focus.hit.xy; }
       if (!at || !inBB(b, at[0], at[1], 0)) return;
       if (area && (area.li !== DT.li || area.kind !== 'platform' || isClosed(area.src))) area = null;
-      const lf = P.levels[DT.li].id, g = new Geo(), W = [1, 1, 1, 1];
-      const top = (x, y) => { const z = groundOf(x, y); return (z == null || z < -.8 ? 0 : z) + .045; };
+      const lf = P.levels[DT.li].id, g = new (Geo as GeoCtor)(), W: RGBA = [1, 1, 1, 1];
+      const top = (x: number, y: number) => { const z = groundOf(x, y); return (z == null || z < -.8 ? 0 : z) + .045; };
       let made = 0;
       if (area) {
         let cx = 0, cy = 0;
@@ -1381,11 +1398,11 @@
           if (!e || e.kind !== 'kerb' || !Array.isArray(e.line)) continue;
           for (let i = 0; i + 1 < e.line.length; i++) {
             const p = e.line[i], q = e.line[i + 1], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, len = Math.hypot(q[0] - p[0], q[1] - p[1]);
-            if (len < .2 || !inBB(b, mx, my, -1) || nearestOn(area.ring, mx, my, true).d > 2.2) continue;
+            if (len < .2 || !inBB(b, mx, my, -1) || nearestOn(area.ring, mx, my, true)!.d > 2.2) continue;
             let nx = -(q[1] - p[1]) / len, ny = (q[0] - p[0]) / len; // across the kerb, towards the platform
             if ((cx - mx) * nx + (cy - my) * ny < 0) { nx = -nx; ny = -ny; }
             const k = Math.max(1, Math.ceil(len / .8)), o0 = -.06, o1 = .46;
-            const hAt = (v) => Math.max(top(v[0] + nx * .12, v[1] + ny * .12), top(v[0] + nx * o1, v[1] + ny * o1));
+            const hAt = (v: number[]) => Math.max(top(v[0] + nx * .12, v[1] + ny * .12), top(v[0] + nx * o1, v[1] + ny * o1));
             for (let j = 0; j < k; j++) {
               const a = [lerp(p[0], q[0], j / k), lerp(p[1], q[1], j / k)], c = [lerp(p[0], q[0], (j + 1) / k), lerp(p[1], q[1], (j + 1) / k)];
               const ya = hAt(a), yc = hAt(c);
@@ -1435,7 +1452,7 @@
       // ground to stand on. One that knows the street's plane (h.plane) never does: there the scene's ground counts,
       // also where the plain model climbs a ramp above it.
       if (up < -.8 && !DT.h.plane) return 0;
-      let t;
+      let t: number;
       if (up >= 0) t = 1 - d / HOLE_RAMP;
       else if (d > 0) return 0;
       else t = clamp(Math.min(x - x0, x1 - x, y - y0, y1 - y) / HOLE_RAMP, 0, 1);
@@ -1475,13 +1492,13 @@
     function syncDetail() {
       const h = DT.h;
       if (!h) return;
-      const b = DT.entry.bbox, lv = P.levels[DT.li];
+      const b = DT.entry!.bbox, lv = P.levels[DT.li];
       const above = !pov && povT < .02;
-      const bird = above && isolate == null && A.routed && A.shown.length === 1 && A.shown[0] === DT.li && route.points.every((p) => inBB(b, p[0], p[1], 3));
+      const bird = above && isolate == null && A.routed && A.shown.length === 1 && A.shown[0] === DT.li && route!.points.every((p) => inBB(b, p[0], p[1], 3));
       const eye = eyeNearDetail(b);
       // only a destination, and it lies in the scene: the whole station from above, the scene in its place
       const fx = !A.routed && focus && focus.hit && focus.hit.xy;
-      const spot = !!fx && (above || eye) && (isolate == null || isolate === DT.li) && inBB(b, fx[0], fx[1], 0) && Math.abs((focus.hit.level || 0) - lv.id) < .45;
+      const spot = !!fx && (above || eye) && (isolate == null || isolate === DT.li) && inBB(b, fx[0], fx[1], 0) && Math.abs((focus!.hit!.level || 0) - lv.id) < .45;
       const show = bird || eye || spot;
       DT.spot = spot && !eye;
       if (show !== DT.show || (show && bird !== DT.bird)) {
@@ -2799,8 +2816,8 @@
     // the smoothed line, which has more points than the route (rounded corners, close steps in a detail scene).
     function eyeD() {
       const key = pv.along + (PL.ride ? PL.ride.t : 0);
-      if (R.eyeKey === key) return R.eyeD;
-      const pt = pointAt(curPi()), sm = R.sm, D = R.D;
+      if (R!.eyeKey === key) return R!.eyeD!;
+      const pt = pointAt(curPi()), sm = R!.sm, D = R!.D;
       let best = Infinity, val = 0;
       for (let j = 0; j + 1 < sm.length; j++) {
         const a = sm[j], b = sm[j + 1], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
@@ -2809,7 +2826,7 @@
         const d = ex * ex + ey * ey + el * el;
         if (d < best) { best = d; val = lerp(D[j], D[j + 1], t); }
       }
-      R.eyeKey = key; R.eyeD = val;
+      R!.eyeKey = key; R!.eyeD = val;
       return val;
     }
     // display distance along the route at a (fractional) index into route.points
@@ -3192,8 +3209,8 @@
       for (let i = 0; i < st.length; i++) if (st[i].kind !== 'arrive' && pi < st[i].to - 1e-6) return i;
       return st.length - 1;
     };
-    function walkTo(along) {
-      along = clamp(along, 0, R.A[R.A.length - 1]);
+    function walkTo(along: number) {
+      along = clamp(along, 0, R!.A[R!.A.length - 1]);
       PL.ride = null;
       if (reducedMotion()) { pv.along = along; pv.walk = null; }
       else pv.walk = { from: pv.along, to: along, t0: performance.now(), dur: clamp(Math.abs(along - pv.along) * 55, 450, 3200) };
@@ -3213,8 +3230,8 @@
         pv.walk = null;
         if (A.routed && !A.same) {
           pv.free = false;
-          pv.along = userHere() && user.along != null ? user.along : opts.povAt != null ? clamp(+opts.povAt, 0, R.A[R.A.length - 1]) : R.A[route.steps[Math.max(0, sel)].from];
-          PL.by = userHere() && user.along != null ? 'position' : 'step';
+          pv.along = userHere() && user!.along != null ? user!.along : opts.povAt != null ? clamp(+opts.povAt, 0, R!.A[R!.A.length - 1]) : R!.A[route!.steps[Math.max(0, sel)].from];
+          PL.by = userHere() && user!.along != null ? 'position' : 'step';
           opts.povAt = null;
           const pt = pointAt(piAt(pv.along));
           pv.x = pv.tx = pt[0]; pv.y = pv.ty = pt[1]; pv.level = pv.tl = pt[2];
@@ -3259,10 +3276,10 @@
       if (!pov) return busy;
       const k = (tau: number) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
       if (!pv.free && A.routed) {
-        const total = R.A[R.A.length - 1];
-        if (follow && userHere() && user.salong != null) { // a live position leads; the walk by itself gives way
+        const total = R!.A[R!.A.length - 1];
+        if (follow && userHere() && user!.salong != null) { // a live position leads; the walk by itself gives way
           if (PL.on) setPlay(false);
-          pv.along = user.salong; pv.walk = null; PL.ride = null; PL.by = 'position';
+          pv.along = user!.salong; pv.walk = null; PL.ride = null; PL.by = 'position';
         } else if (pv.walk) {
           const t = clamp((now - pv.walk.t0) / pv.walk.dur, 0, 1);
           pv.along = lerp(pv.walk.from, pv.walk.to, easeInOut(t));
@@ -3281,7 +3298,7 @@
         busy = stepGaze(dt) || busy;
         if (pv.along !== PL.lastAlong && !progress(false)) busy = true; // the last change is always told
         if (pv.along >= total - .05) arrive(PL.by);
-      } else if (follow && userHere()) { pv.tx = user.sx; pv.ty = user.sy; pv.tl = user.sl; }
+      } else if (follow && userHere()) { pv.tx = user!.sx!; pv.ty = user!.sy!; pv.tl = user!.sl!; }
       const kk = k(140);
       pv.x += (pv.tx - pv.x) * kk; pv.y += (pv.ty - pv.y) * kk; pv.level += (pv.tl - pv.level) * kk;
       const db = angDiff(pv.tb, pv.bearing);
@@ -3304,16 +3321,16 @@
     // where on the route the eye is: metres along it, or, in a lift (no metres), how far up the shaft
     const curPi = () => (PL.ride ? PL.ride.i + (PL.ride.j - PL.ride.i) * easeInOut(PL.ride.t) : piAt(pv.along));
     const pausePlay = () => { if (PL.on) setPlay(false); };
-    function dirAt(along) {
-      const total = R.A[R.A.length - 1], p = pointAt(piAt(clamp(along, 0, total))), q = pointAt(piAt(clamp(along + 1.5, 0, total)));
+    function dirAt(along: number) {
+      const total = R!.A[R!.A.length - 1], p = pointAt(piAt(clamp(along, 0, total))), q = pointAt(piAt(clamp(along + 1.5, 0, total)));
       return Math.hypot(q[0] - p[0], q[1] - p[1]) > .2 ? Math.atan2(q[0] - p[0], q[1] - p[1]) : null;
     }
     // o.user: the traveller pressed the button (API calls and the open option are "by itself")
-    function setPlay(on, o) {
+    function setPlay(on: boolean, o?: { user?: boolean }) {
       on = !!on; o = o || {};
       if (on) {
         if (!self.ready || !A.routed || A.same || !R) return false;
-        if (follow && userHere() && user.along != null) { if (!o.user) return false; setFollow(false); } // a live position leads, unless the traveller says otherwise
+        if (follow && userHere() && user!.along != null) { if (!o.user) return false; setFollow(false); } // a live position leads, unless the traveller says otherwise
         if (!pov) setPov(true);
         const total = R.A[R.A.length - 1];
         if (pv.along >= total - .3) { // at the end: once more from the start (a cut, not a flight back)
@@ -3330,7 +3347,7 @@
       } else {
         if (!PL.on) return false;
         PL.on = false; PL.v = 0;
-        if (PL.ride) { if (PL.ride.t < .5) pv.along = Math.max(0, R.A[PL.ride.i] - .01); PL.ride = null; } // a ride that is broken off ends at the nearer door
+        if (PL.ride) { if (PL.ride.t < .5) pv.along = Math.max(0, R!.A[PL.ride.i] - .01); PL.ride = null; } // a ride that is broken off ends at the nearer door
       }
       syncPlay();
       if (root) say(PL.on ? 'The walk is playing' : 'The walk is paused');
@@ -3347,23 +3364,23 @@
       playBtn.title = PL.on ? 'Pause' : end ? 'Play the walk again' : 'Play the walk';
       playBtn.setAttribute('aria-label', PL.on ? 'Pause the walk' : end ? 'Play the walk again from the start' : 'Play the walk: the view walks the route by itself');
     }
-    function stepPlay(dt, now, total) {
+    function stepPlay(dt: number, now: number, total: number) {
       PL.by = 'play';
       if (povAnim && povT < .8) return; // still flying down from the model
       if (reducedMotion()) { // no gliding: one step after the other, like slides
         if (performance.now() < PL.slide) return;
         PL.slide = performance.now() + 2600;
-        if (sel < route.steps.length - 1) select(sel + 1, { auto: true });
-        if (sel >= route.steps.length - 1) setPlay(false); // the last slide: then the arrival is told, last
+        if (sel < route!.steps.length - 1) select(sel + 1, { auto: true });
+        if (sel >= route!.steps.length - 1) setPlay(false); // the last slide: then the arrival is told, last
         return;
       }
-      const dts = Math.min(dt, 120) / 1000, pts = route.points, Ar = R.A; // a slow phone still walks at walking pace
+      const dts = Math.min(dt, 120) / 1000, pts = route!.points, Ar = R!.A; // a slow phone still walks at walking pace
       if (PL.ride) { // in the lift: along stays, the floor changes
         PL.ride.t = Math.min(1, PL.ride.t + dt / PL.ride.dur);
         if (PL.ride.t >= 1) PL.ride = null;
         return;
       }
-      const st = route.steps[stepAtPi(piAt(pv.along))];
+      const st = route!.steps[stepAtPi(piAt(pv.along))];
       // a natural pace: slower on stairs, a little slower through a bend, coming to rest at the end
       let vt = WALK_MS * PL.speed * (st.kind === 'stairs' ? .6 : st.kind === 'escalator' ? .7 : st.kind === 'ramp' ? .85 : 1);
       const d0 = dirAt(pv.along), d1 = dirAt(pv.along + 3.5);
@@ -3375,7 +3392,7 @@
         if (Ar[i] > pv.along + 1e-6 && Ar[i + 1] - Ar[i] < .005 && Math.abs(pts[i + 1][2] - pts[i][2]) > .05) { // a lift ahead
           let j = i + 1;
           while (j < pts.length - 1 && Ar[j + 1] - Ar[j] < .005) j++;
-          const ls = route.steps.find((q) => q.kind !== 'arrive' && q.from <= i && q.to >= j);
+          const ls = route!.steps.find((q) => q.kind !== 'arrive' && q.from <= i && q.to >= j);
           PL.ride = { i, j, t: 0, dur: clamp(((ls && ls.seconds) || 14) / PL.speed, 3, 10) * 1000 };
           PL.v = 0;
           a = Ar[i];
@@ -3391,12 +3408,12 @@
       if (!DT.show || !DT.data) return [0, 0];
       if (PL.poisOf !== DT.data) {
         PL.poisOf = DT.data; PL.pois = [];
-        for (const p of DT.data.props || []) if (p && p.xy && /^(statue|fountain|clock)$/.test(p.kind)) PL.pois.push({ x: p.xy[0], y: p.xy[1], h: isFinite(p.height) ? +p.height : 4, w: 1 });
-        for (const t of DT.data.trees || []) if (t && t.xy) PL.pois.push({ x: t.xy[0], y: t.xy[1], h: isFinite(t.height) ? +t.height : 8, w: .14 });
+        for (const p of DT.data.props || []) if (p && p.xy && /^(statue|fountain|clock)$/.test(p.kind)) PL.pois.push({ x: p.xy[0], y: p.xy[1], h: isFinite(p.height!) ? +p.height! : 4, w: 1 });
+        for (const t of DT.data.trees || []) if (t && t.xy) PL.pois.push({ x: t.xy[0], y: t.xy[1], h: isFinite(t.height!) ? +t.height! : 8, w: .14 });
       }
-      const ss = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+      const ss = (a: number, b: number, v: number) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
       let sy = 0, sp = 0, sw = 0;
-      for (const p of PL.pois) {
+      for (const p of PL.pois!) {
         const dx = p.x - pv.x, dy = p.y - pv.y, d = Math.hypot(dx, dy);
         if (d > 12 || d < 1) continue;
         const rel = angDiff(Math.atan2(dx, dy), pv.bearing), ar = Math.abs(rel);
@@ -3408,7 +3425,7 @@
       const m = Math.max(1, sw), cap = clamp(Math.atan(Math.tan(POV_FOV * Math.PI / 360) * W / H) * .5, .08, .4);
       return [clamp(sy / m * .5, -cap, cap), clamp(sp / m * .3, 0, .16)];
     }
-    function stepGaze(dt) {
+    function stepGaze(dt: number) {
       let ty = 0, tp = 0;
       if (PL.on && !pv.device && !PL.ride && !reducedMotion()) {
         [ty, tp] = gazeTarget();
@@ -3425,7 +3442,7 @@
       return true;
     }
     // 'progress': how far the walk in the first-person view has come, a few times a second. → was it told?
-    function progress(force) {
+    function progress(force: boolean) {
       const t = performance.now();
       if (!R || (!force && t - PL.lastProg < 250)) return false;
       PL.lastProg = t; PL.lastAlong = pv.along;
@@ -3433,24 +3450,24 @@
       return true;
     }
     // 'arrived': once per open, however the walk got to the destination
-    function arrive(by) {
+    function arrive(by: Station3DArrivedBy) {
       if (PL.arrived || !A.routed || A.same || !R) return;
       PL.arrived = true;
       const total = Math.round(R.A[R.A.length - 1] * 10) / 10;
       PL.lastProg = performance.now(); PL.lastAlong = pv.along;
-      emit('progress', { along: total, total, step: route.steps.length - 1 });
+      emit('progress', { along: total, total, step: route!.steps.length - 1 });
       emit('arrived', { by });
     }
-    const placeAt = (st) => (st && st.place ? cap(String(st.place).replace(/^the /, '')) : levelName(st ? st.level : pv.level));
+    const placeAt = (st?: RouteStep | null) => (st && st.place ? cap(String(st.place).replace(/^the /, '')) : levelName(st ? st.level : pv.level));
     // The sign over the path and the card below say the same thing: the banner shows what you are doing now (the step
     // on the card) and, under it, what comes after and how far that is.
     function updateHud() {
       const routed = !pv.free && A.routed;
       if (hudEl.hidden !== !routed) { hudEl.hidden = !routed; miniEl.hidden = !routed; layout(); } // labels keep clear of both
       if (!routed) { subEl.textContent = `${levelName(pv.level)} · tap the floor to walk there`; return; }
-      const total = R.A[R.A.length - 1], pi = curPi(), cs = stepAtPi(pi), st = route.steps[cs], n = route.steps.length;
-      const next = route.steps[cs + 1];
-      const left = Math.max(0, R.A[Math.min(st.to, R.A.length - 1)] - pv.along), togo = Math.max(0, total - pv.along);
+      const total = R!.A[R!.A.length - 1], pi = curPi(), cs = stepAtPi(pi), st = route!.steps[cs], n = route!.steps.length;
+      const next = route!.steps[cs + 1];
+      const left = Math.max(0, R!.A[Math.min(st.to, R!.A.length - 1)] - pv.along), togo = Math.max(0, total - pv.along);
       const key = cs + ':' + Math.round(left / 5) + ':' + Math.round(togo / 5);
       if (key !== hudKey) {
         hudKey = key;
@@ -4223,9 +4240,9 @@
       on(canvas, 'contextmenu', (e) => e.preventDefault());
     }
     // forwards / backwards on foot: along the route, or straight ahead when there is none
-    function povMove(m) {
+    function povMove(m: number) {
       pausePlay();
-      if (!pv.free && A.routed) { setFollow(false); pv.walk = null; PL.by = 'scrub'; pv.along = clamp(pv.along + m, 0, R.A[R.A.length - 1]); }
+      if (!pv.free && A.routed) { setFollow(false); pv.walk = null; PL.by = 'scrub'; pv.along = clamp(pv.along + m, 0, R!.A[R!.A.length - 1]); }
       else {
         const b = pv.bearing + pv.yaw, x = pv.tx + Math.sin(b) * m, y = pv.ty + Math.cos(b) * m;
         if (areaAt(P, P.idxOf(pv.tl), x, y)) { pv.tx = x; pv.ty = y; }
@@ -4508,7 +4525,7 @@
       if (A.routed && A.same) { subEl.textContent = route!.steps[0] ? route!.steps[0].text : 'You are there'; return; }
       if (A.routed) {
         const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
-        subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowName(to) : to.name} · ${fmtMin(route.seconds)}`;
+        subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowName(to) : to.name} · ${fmtMin(route!.seconds)}`;
       } else if (focus && focus.hit) subEl.textContent = describe(focus.hit).sub;
       else subEl.textContent = 'Station plan in 3D';
     }
@@ -4577,7 +4594,7 @@
     }
     function arriveTitle(inSentence?: boolean) {
       const to = endInfo(toEnd, 'to');
-      if (route.incomplete) return inSentence ? 'the route ends: the way on is closed' : 'The route ends here: the way on is closed';
+      if (route!.incomplete) return inSentence ? 'the route ends: the way on is closed' : 'The route ends here: the way on is closed';
       const name = to.kind === 'stop' ? lowName(to) : to.name;
       return inSentence ? `arrive at ${name}` : `You’re at ${name}`;
     }
@@ -4670,7 +4687,7 @@
         const rb = rideBlock();
         if (rb) c.txt.append(rb);
         else if (from.assumed && from.kind === 'stop') c.txt.append(note('info', `${cap(from.assumed)} of ${lowName(from)}.`));
-        const used = route.notice || '';
+        const used = route!.notice || '';
         const nb = noticesBlock(stationNotices().filter((nt) => nt.text && !used.includes(nt.text) && !(to.note && to.note === nt.text)));
         if (nb) c.txt.append(nb);
         li.append(c.el);
@@ -4681,7 +4698,7 @@
         li.dataset.i = i as unknown as string;
         const climb = st.kind !== 'walk' && st.kind !== 'arrive';
         const arrive = st.kind === 'arrive';
-        const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route.incomplete && to.kind === 'stop' ? `Arrive at ${lowName(to)}` : arrive && route.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
+        const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route!.incomplete && to.kind === 'stop' ? `Arrive at ${lowName(to)}` : arrive && route!.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
         if (arrive) {
           if (to.sector && !to.closed) c.meta.append(tag('s3-tag-sector', null, sectorTag(to.sector)));
           else if (to.reach && !to.closed) c.meta.append(tag('', null, `You get onto it at sector ${to.reach}`));
@@ -4709,9 +4726,9 @@
       stepsEl.onclick = (e) => {
         const li = (e.target as HTMLElement).closest<HTMLElement>('.s3-step');
         if (!li) return;
-        const i = +li.dataset.i;
-        if (e.target.closest('.s3-here[aria-pressed]') && i >= 0) { pausePlay(); setManual(i); return; }
-        if (e.target.closest('button')) return;
+        const i = +li.dataset.i!;
+        if ((e.target as HTMLElement).closest('.s3-here[aria-pressed]') && i >= 0) { pausePlay(); setManual(i); return; }
+        if ((e.target as HTMLElement).closest('button')) return;
         pausePlay();
         setFollow(false);
         if (listMode) { toggleList(); select(i); } else select(i);
@@ -4748,7 +4765,7 @@
         pausePlay(); setFollow(false);
         pv.walk = null; PL.ride = null; PL.by = 'scrub';
         // the slider moves in half metres: its last notch is the end of the route
-        pv.along = +scrubEl.value >= +scrubEl.max - .26 ? R.A[R.A.length - 1] : +scrubEl.value;
+        pv.along = +scrubEl!.value >= +scrubEl!.max - .26 ? R!.A[R!.A.length - 1] : +scrubEl!.value;
         touch(); request();
       };
       // like a player: the walk plays by itself, or you pull it along
@@ -4766,10 +4783,10 @@
     function buildSame() {
       const to = endInfo(toEnd, 'to');
       const box = mk('div', 's3-explore');
-      const c = card(to.closed ? 'closed' : 'check', to.closed ? 's3-k-warn' : 's3-k-done', (route.steps[0] && route.steps[0].text) || `You’re at ${lowName(to)}`);
-      c.meta.textContent = /^stay/i.test((route.steps[0] && route.steps[0].text) || '') ? 'No walk: your next departure leaves from the platform you arrive on.' : 'No walk: it is where you already are.';
-      if (to.closed) c.txt.append(note('warn', to.note || route.notice || `${cap(to.name)} is closed.`));
-      else if (route.notice) c.txt.append(note('warn', route.notice));
+      const c = card(to.closed ? 'closed' : 'check', to.closed ? 's3-k-warn' : 's3-k-done', (route!.steps[0] && route!.steps[0].text) || `You’re at ${lowName(to)}`);
+      c.meta.textContent = /^stay/i.test((route!.steps[0] && route!.steps[0].text) || '') ? 'No walk: your next departure leaves from the platform you arrive on.' : 'No walk: it is where you already are.';
+      if (to.closed) c.txt.append(note('warn', to.note || route!.notice || `${cap(to.name)} is closed.`));
+      else if (route!.notice) c.txt.append(note('warn', route!.notice));
       const actions = mk('div', 's3-actions s3-one');
       const ok = mk('button', 's3-primary', 'Done');
       ok.type = 'button';
@@ -4837,8 +4854,8 @@
       setTargets();
       labels.forEach((L) => { if (L.kind === 'via') { L.el.classList.toggle('s3-active', L.step === sel); L.prio = L.step === sel ? 92 : 90; } });
       labelsDirty = true;
-      if (pov) { if (!o.fromPov && !o.follow) { setFollowQuiet(); PL.by = o.auto ? 'play' : 'step'; walkTo(R.A[route.steps[Math.max(0, i)].from]); } } // following: the position moves the eye, not the step
-      else if (!o.fromPov && i >= 0 && route.steps[i].kind === 'arrive') arrive(o.follow ? 'position' : 'step'); // from above there is no walk to wait for
+      if (pov) { if (!o.fromPov && !o.follow) { setFollowQuiet(); PL.by = o.auto ? 'play' : 'step'; walkTo(R!.A[route!.steps[Math.max(0, i)].from]); } } // following: the position moves the eye, not the step
+      else if (!o.fromPov && i >= 0 && route!.steps[i].kind === 'arrive') arrive(o.follow ? 'position' : 'step'); // from above there is no walk to wait for
       else if (!o.keepCam) {
         const pose = i < 0 ? overviewPose() : stepPose(i);
         if (o.follow && userHere()) {
@@ -5092,7 +5109,7 @@
       nu.mode = mode; nu.x = x; nu.y = y; nu.level = level; nu.along = alongM; nu.pi = pi;
       if (wasOut) { nu.sx = nu.sy = nu.sl = null; nu.salong = null; }
       user = nu;
-      if (mode === 'route' && R && (alongM >= R.A[R.A.length - 1] - 2 || (route.steps[step] && route.steps[step].kind === 'arrive'))) arrive('position');
+      if (mode === 'route' && R && (alongM! >= R.A[R.A.length - 1] - 2 || (route!.steps[step] && route!.steps[step].kind === 'arrive'))) arrive('position');
       followBtn.hidden = false;
       // the phone's compass is only needed for the direction wedge; where it needs a tap to allow, the follow button asks
       if (nu.heading == null && !compassOn && !(window.DeviceOrientationEvent && typeof (window.DeviceOrientationEvent as DeviceOrientationCtor).requestPermission === 'function')) enableCompass();
@@ -5107,11 +5124,11 @@
       request();
     }
     // "I'm here": the user says which step they are at; a position fix near the route takes over again
-    function setManual(i) {
-      const st = route.steps[i];
+    function setManual(i: number) {
+      const st = route!.steps[i];
       pausePlay();
-      manualAt = { step: i, pi: st.from, along: R.A[st.from], point: route.points[st.from].slice() };
-      const nu = user || { sx: null, sy: null, sl: null, salong: null, acc: 0, heading: null };
+      manualAt = { step: i, pi: st.from, along: R!.A[st.from], point: route!.points[st.from].slice() };
+      const nu = user || { sx: null, sy: null, sl: null, salong: null, acc: 0, heading: null } as UserState;
       const wasOut = nu.outside;
       nu.snap = null;
       nu.outside = false;
@@ -5389,7 +5406,7 @@
       request();
       emit('open', { key: m.key, route, focus: focus ? { which: focus.which, why: focus.why } : null });
       if (opts.play && A.routed && !A.same) { // after 'open' is told: the walk plays by itself; with reduced motion it waits for the Play button
-        if (isFinite(+opts.play.speed) && +opts.play.speed > 0) PL.speed = clamp(+opts.play.speed, .2, 8);
+        if (isFinite(+(opts.play as Station3DPlayOptions).speed!) && +(opts.play as Station3DPlayOptions).speed! > 0) PL.speed = clamp(+(opts.play as Station3DPlayOptions).speed!, .2, 8);
         if (!pov) setPov(true);
         if (!reducedMotion()) setPlay(true);
       }
@@ -5487,7 +5504,7 @@
     self.enableCompass = enableCompass;
     self.setPov = (b) => setPov(b);
     self.play = (o) => {
-      if (o && isFinite(+o.speed) && +o.speed > 0) PL.speed = clamp(+o.speed, .2, 8);
+      if (o && isFinite(+o.speed!) && +o.speed! > 0) PL.speed = clamp(+o.speed!, .2, 8);
       if (!self.ready) { opts.play = opts.play || true; return false; } // it starts when the view is ready
       if (!A.routed || A.same) return false;
       if (!pov) setPov(true);
@@ -5507,14 +5524,14 @@
       cam: Object.assign({ pol: polOf(peel) }, cam), peel, peelTo, tab: SH.tab.slice(), sel, isolate, follow, wantFollow, user: user && Object.assign({}, user), userStep, route, model, focus, ride,
       shown: A.shown.slice(), box: A.box, levels: lv3.map((l) => l.op), plates: lv3.map((l) => (l.plate ? l.plate.op * l.plate.gain : null)),
       draws: renderer ? renderer.info.render.calls : 0, tris: renderer ? renderer.info.render.triangles : 0, geoms: renderer ? renderer.info.memory.geometries : 0,
-      labels: labels.length, shownLabels: labels.filter((l) => l.shown).map((l) => ({ kind: l.kind, text: l.el.textContent, x: Math.round(parseFloat((l.el.style.transform.match(/translate\(([-\d.]+)px/) || [0, 0])[1])), y: Math.round(parseFloat((l.el.style.transform.match(/,\s*([-\d.]+)px/) || [0, 0])[1])), w: l.w, h: l.h, pinned: !!l.pinned })),
+      labels: labels.length, shownLabels: labels.filter((l) => l.shown).map((l) => ({ kind: l.kind, text: l.el.textContent, x: Math.round(parseFloat((l.el.style.transform.match(/translate\(([-\d.]+)px/) || [0, 0])[1] as string)), y: Math.round(parseFloat((l.el.style.transform.match(/,\s*([-\d.]+)px/) || [0, 0])[1] as string)), w: l.w, h: l.h, pinned: !!l.pinned })),
       free, safe, avoid, pov, povT, pv: Object.assign({}, pv), play: Object.assign({}, PL, { pois: PL.pois ? PL.pois.length : 0, poisOf: null }), listeners: offs.length, lost, inert: inerted.length, compassOn,
       pick, flyTo, request, renderer, rebuild, setPeel, select, project, boxRing, Yc, P,
       detail: DT.entry ? { loaded: !!DT.data, built: !!DT.h, show: DT.show, bird: DT.bird, spot: DT.spot, k: DT.k, tilt: DT.tilt, flattened: !!(DT.h && DT.h.flattened), marks: DT.marks.map((m) => ({ kerb: m.userData.kerb, visible: m.visible, tris: m.geometry.attributes.position.count / 3 })), stats: DT.h && DT.h.stats ? { triangles: DT.h.stats.triangles, drawCalls: DT.h.stats.drawCalls, buildMs: DT.h.stats.buildMs, warnings: DT.h.stats.warnings } : null, lift: liftRaw, ground: groundOf } : null,
       signs: signList.map((w) => ({ style: w.style, text: w.text, back: w.back, x: Math.round(w.x), y: Math.round(w.y), lf: w.lf })), props: inst ? { boxes: inst.boxes.length, cyls: inst.cyls.length } : null,
       // let time pass: sec seconds at hz frames a second, drawn one after the other (a tab without animation frames
       // can still watch the walk play)
-      run: (sec, hz) => {
+      run: (sec: number, hz?: number) => {
         const step = 1000 / (hz || 60);
         let t = Math.max(performance.now(), lastT);
         for (let i = 0; i < sec * (hz || 60) && self.alive; i++) {

@@ -687,10 +687,10 @@
       return openFirst(out, (x) => x.closedEntrance);
     }
     if (ep.xy || ep.ll) {
-      const xy = ep.xy || toLocal(model, ep.ll);
+      const xy = ep.xy || toLocal(model, ep.ll!);
       // The point the timetable data has for a stop without a number (stops[].at, within 3 m) is that stop, on the
       // level the model has it on: the level that comes with such a position is the timetable data's own guess.
-      let at = null, best = 3;
+      let at: StationStop | null = null, best = 3;
       for (const s of stops) {
         if (s.ref || !s.at) continue;
         const d = Math.hypot(s.at[0] - xy[0], s.at[1] - xy[1]);
@@ -1181,7 +1181,7 @@
     return ks ? ks.slice().sort((a, b) => (a as unknown as number) - (b as unknown as number)) : null;
   }
   /** What the walk after a level change starts on. */
-  interface WalkStart { firstPlatform: Place | null; edgeName: Place | null }
+  interface WalkStart { firstPlatform: Place | null; edgeName: Place | null; firstArea: Place | null }
   function arrivalPlace(P: Prepared, model: StationModel, pt: XYL, nextWalk: WalkStart | null, keys: string[]) {
     const list = areasAt(P, pt[0], pt[1], pt[2]);
     for (const A of list) if (A.kind === 'platform') { const pp = platformPlace(A, keys); if (pp) return pp; }
@@ -1353,12 +1353,12 @@
     };
     // what a walk starts on: the platform of its first ~10 m, the named floor or square of its first piece, the
     // first edge name in its first ~60 m
-    const walkStart = (r) => {
+    const walkStart = (r: Run | undefined): WalkStart | null => {
       if (!r || r.kind !== 'walk') return null;
       let d = 0, firstPlatform = null, edgeName = null, firstArea = null;
       for (let i = r.a; i < segs.length && segs[i].kind === 'walk' && d < 60; i++) {
-        if (d < 10 && !firstPlatform && place[i] && place[i].kind === 'platform' && place[i].text) firstPlatform = place[i];
-        if (i === r.a && place[i] && (place[i].kind === 'floor' || place[i].kind === 'plaza') && place[i].text) firstArea = place[i];
+        if (d < 10 && !firstPlatform && place[i] && place[i]!.kind === 'platform' && place[i]!.text) firstPlatform = place[i];
+        if (i === r.a && place[i] && (place[i]!.kind === 'floor' || place[i]!.kind === 'plaza') && place[i]!.text) firstArea = place[i];
         if (!edgeName && segs[i].edge >= 0) edgeName = edgePlace(P, P.edges[segs[i].edge]);
         d += segs[i].len;
       }
