@@ -34,3 +34,7 @@ To refresh it:
 ```bash
 python3 tools/build_platforms.py
 ```
+
+## Places and amenities data
+
+`data/` holds Bern toilets, drinking water, benches, AEDs and other public amenities, plus Google-Maps-style places (restaurants, shops, hotels, services) from OpenStreetMap and official city, canton and SBB layers. See [docs/places-data.md](docs/places-data.md).
