@@ -1,0 +1,49 @@
+{
+ "W": 390,
+ "H": 844,
+ "DPR": 2,
+ "length": 26.559,
+ "fps": 32.1,
+ "events": [
+  {
+   "name": "start",
+   "t": 0
+  },
+  {
+   "name": "tap-search",
+   "t": 0.368
+  },
+  {
+   "name": "typed",
+   "t": 1.194
+  },
+  {
+   "name": "results",
+   "t": 2.021
+  },
+  {
+   "name": "results-end",
+   "t": 3.822
+  },
+  {
+   "name": "journey-call",
+   "t": 3.837
+  },
+  {
+   "name": "routes",
+   "t": 4.054
+  },
+  {
+   "name": "tap-row",
+   "t": 7.439
+  },
+  {
+   "name": "row-open",
+   "t": 10.492
+  },
+  {
+   "name": "end",
+   "t": 26.527
+  }
+ ]
+}

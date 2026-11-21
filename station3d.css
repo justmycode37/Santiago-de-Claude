@@ -373,7 +373,7 @@ button.s3-l.s3-off { pointer-events: none; }
   z-index: 2;
   right: max(12px, env(safe-area-inset-right));
   top: calc(env(safe-area-inset-top) + 76px);
-  max-height: calc(100% - env(safe-area-inset-top) - 76px - env(safe-area-inset-bottom) - var(--s3-sheet-h) - 96px);
+  max-height: calc(100% - env(safe-area-inset-top) - 76px - env(safe-area-inset-bottom) - var(--s3-sheet-h) - 132px); /* clears the two 44px .s3-tools buttons + their 24px offset */
   display: flex;
   flex-direction: column;
   gap: 2px;

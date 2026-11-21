@@ -1,0 +1,125 @@
+// ---- ACT 5: every feature gets its own way of showing the app. Dark-mode click in a phone (D), language in a
+//      phone on the left (E), close-up of the access switches (F), split screen for the walking pace (G), big phone
+//      for search and the choice of journeys (H), full-frame live vehicles (I), the 3D walk in a phone on the right (J),
+//      map close-up (K), rows (L), the event walkthrough with a list (M), the ticket close-up (N), then the type
+{
+  const s0 = mark.a5, id = "act5", a = (i) => A("a5", i), l = (t) => L(t, s0);
+  let html = "", js = "";
+  // D — the click that turns the app dark, while the voice carries on
+  const fl = l(flip);
+  html += `
+    <div id="act5-n0" class="act5-t" style="left: 200px; top: 400px; font-size: 96px">And it goes further<br />than our problem.</div>
+    <div id="act5-n1" class="act5-t" style="left: 200px; top: 400px; font-size: 150px; font-weight: 900; color: ${C.accent}">It adapts<br />to you.</div>
+    <div id="act5-phd" class="act5-iph" style="left: 1330px; top: 126px" data-layout-allow-overflow>${media("act5-vd", "phD.mp4", 0, dD)}
+      <div id="act5-ring" class="act5-ring"></div>
+      <svg id="act5-cur" class="act5-cur" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15.5 L12.2 22.5 L15 21.2 L11.8 14.4 L18.5 14.2 Z" fill="#ffffff" stroke="#0b0c0f" stroke-width="1.6" stroke-linejoin="round" /></svg>
+    </div>`;
+  js += `    tl.fromTo("#act5-phd", { opacity: 0, y: 90, scale: 1, transformOrigin: "52% 14%" }, { opacity: 1, y: 0, duration: 0.6, ease: "expo.out" }, 0.05);
+    up("#act5-n0", ${r3(l(a(0).start) - 0.06)});
+    out("#act5-n0", ${r3(l(a(1).start) - 0.22)});
+    up("#act5-n1", ${r3(l(a(1).start) - 0.05)}, 60, 0.4);
+    tl.fromTo("#act5-cur", { opacity: 0, x: 300, y: 560 }, { opacity: 1, duration: 0.2 }, 0.25);
+    tl.to("#act5-cur", { x: 205, y: 100, duration: ${r3(Math.max(0.5, fl - 0.5))}, ease: "power2.inOut" }, 0.35);
+    tl.to("#act5-phd", { scale: 1.12, duration: 0.7, ease: "power2.inOut" }, ${r3(fl - 0.75)});
+    tl.to("#act5-cur", { scale: 0.78, duration: 0.08, ease: "power2.in" }, ${r3(fl - 0.13)});
+    tl.to("#act5-cur", { scale: 1, duration: 0.18, ease: "power2.out" }, ${r3(fl - 0.03)});
+    tl.fromTo("#act5-ring", { opacity: 0.95, scale: 0.35 }, { opacity: 0, scale: 2.1, duration: 0.55, ease: "power2.out", immediateRender: false }, ${r3(fl - 0.1)});
+    tl.to("#act5-cur", { opacity: 0, x: 250, y: 190, duration: 0.5, ease: "power2.inOut" }, ${r3(fl + 0.35)});
+    hide(["#act5-phd", "#act5-n1"], ${l(t5.E)});\n`;
+  // E — language: the list of languages glides by, Ukrainian is picked, the app answers in Ukrainian
+  html += `
+    <div id="act5-phe" class="act5-cph" style="left: 190px; top: 98px" data-layout-allow-overflow>${media("act5-ve", "phE.mp4", l(t5.E), t5.F - t5.E)}</div>
+    <div id="act5-e0" class="act5-t" style="left: 770px; top: 240px; font-size: 92px">New here?</div>
+    <div id="act5-e1" class="act5-t" style="left: 770px; top: 360px; font-size: 100px; font-weight: 900; color: ${C.accent}">Pick your language.</div>
+    <div id="act5-e2" class="act5-t" style="left: 762px; top: 520px; font-size: 250px; font-weight: 900; color: ${C.magenta}">249</div>
+    <div id="act5-e3" class="act5-t" style="left: 1250px; top: 690px; font-size: 60px">languages</div>`;
+  js += `    tl.fromTo("#act5-phe", { opacity: 0, x: -80, scale: 1.02, transformOrigin: "50% 50%" }, { opacity: 1, x: 0, duration: 0.5, ease: "expo.out" }, ${l(t5.E)});
+    tl.to("#act5-phe", { scale: 1.1, duration: ${r3(t5.F - t5.E - 0.5)}, ease: "sine.inOut" }, ${r3(l(t5.E) + 0.5)});
+    up("#act5-e0", ${r3(l(a(2).start) - 0.05)});
+    up("#act5-e1", ${r3(l(a(3).start) - 0.05)}, 60, 0.4);
+    up("#act5-e2", ${r3(l(a(4).start) + 0.12)}, 90, 0.42);
+    up("#act5-e3", ${r3(l(a(4).start) + 0.3)}, 30, 0.4);
+    hide(["#act5-phe", "#act5-e0", "#act5-e1", "#act5-e2", "#act5-e3"], ${l(t5.F)});\n`;
+  // F — close-up of the access question, the switch going on
+  const F = closeup(id, "F", "mF.mp4", l(t5.F), l(t5.G), [[l(a(5).start), "Can’t take stairs?", "navy"], [l(a(6).start), "Switch them off.", "yellow"]], "80% 50%", 1.16);
+  html += F.html; js += F.js;
+  // G — split screen: the walking-speed question fills the left half
+  html += `
+    <div id="act5-g" class="act5-half" data-layout-allow-overflow>${media("act5-vg", "gG.mp4", l(t5.G), t5.H - t5.G)}</div>
+    <div id="act5-g0" class="act5-t" style="left: 1050px; top: 320px; font-size: 104px">Walk slower?</div>
+    <div id="act5-g1" class="act5-t" style="left: 1050px; top: 450px; font-size: 128px; font-weight: 900; color: ${C.accent}">It learns<br />your pace.</div>`;
+  js += `    tl.fromTo("#act5-g", { x: -960 }, { x: 0, duration: 0.45, ease: "expo.out" }, ${l(t5.G)});
+    up("#act5-g0", ${r3(l(a(7).start) - 0.05)});
+    up("#act5-g1", ${r3(l(a(8).start) - 0.05)}, 60, 0.4);
+    hide(["#act5-g", "#act5-g0", "#act5-g1"], ${l(t5.H)});\n`;
+  // H — a big phone in the middle: the search, then the list of journeys and a tap on one
+  html += `
+    <div id="act5-phh" class="act5-cph" style="left: 751px; top: 98px" data-layout-allow-overflow>${media("act5-vh", "phH.mp4", l(t5.H), t5.I - t5.H)}</div>
+    <div id="act5-h0" class="act5-t" style="left: 70px; top: 440px; width: 600px; text-align: right; font-size: 92px; font-weight: 900">Search<br />anywhere.</div>
+    <div id="act5-h1" class="act5-t" style="left: 1250px; top: 440px; width: 640px; font-size: 92px; font-weight: 900; color: ${C.accent}">Choose<br />your route.</div>`;
+  js += `    tl.fromTo("#act5-phh", { opacity: 0, y: 120, scale: 1.0, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, scale: 1.1, duration: 0.55, ease: "expo.out" }, ${l(t5.H)});
+    up("#act5-h0", ${r3(l(a(9).start) - 0.05)}, 50, 0.4);
+    up("#act5-h1", ${r3(l(a(10).start) - 0.05)}, 50, 0.4);
+    hide(["#act5-phh", "#act5-h0", "#act5-h1"], ${l(t5.I)});\n`;
+  // I — live vehicles, full frame
+  const I = closeup(id, "I", "mI.mp4", l(t5.I), l(t5.J), [[l(a(11).start), "Your bus. Live.", "orange"]], "50% 55%", 1.12);
+  html += I.html; js += I.js;
+  // J — the first-person 3D walk in a phone on the right
+  html += `
+    <div id="act5-phj" class="act5-cph" style="left: 1330px; top: 98px" data-layout-allow-overflow>${media("act5-vj", "phJ.mp4", l(t5.J), t5.K - t5.J)}</div>
+    <div id="act5-j0" class="act5-t" style="left: 170px; top: 300px; font-size: 92px">Big station?</div>
+    <div id="act5-j1" class="act5-t" style="left: 170px; top: 420px; font-size: 150px; font-weight: 900; color: ${C.accent}">Walk it<br />in 3D.</div>
+    <div id="act5-j2" class="act5-t" style="left: 174px; top: 770px; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: ${C.dim}">Bern · Europaplatz · Wankdorf · Brünnen Westside · Bümpliz Nord</div>`;
+  js += `    tl.fromTo("#act5-phj", { opacity: 0, y: 110, scale: 1.04, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, duration: 0.55, ease: "expo.out" }, ${l(t5.J)});
+    tl.to("#act5-phj", { scale: 1.1, duration: ${r3(t5.K - t5.J - 0.55)}, ease: "sine.inOut" }, ${r3(l(t5.J) + 0.55)});
+    up("#act5-j0", ${r3(l(a(12).start) - 0.05)});
+    up("#act5-j1", ${r3(l(a(13).start) - 0.05)}, 60, 0.4);
+    up("#act5-j2", ${r3(l(a(13).start) + 0.3)}, 20, 0.4);
+    hide(["#act5-phj", "#act5-j0", "#act5-j1", "#act5-j2"], ${l(t5.K)});\n`;
+  // K — the map fills up, full frame
+  const K = closeup(id, "K", "mK.mp4", l(t5.K), l(t5.L), [[l(a(14).start), "Everything you need.", "navy"]], "50% 50%", 1.1);
+  html += K.html; js += K.js;
+  // L — rows of the app slide in, one per word
+  html += `
+    <div id="act5-i0" class="act5-t" style="left: 480px; top: 236px; font-size: 34px; letter-spacing: 0.12em; text-transform: uppercase; color: ${C.dim}">On your map</div>
+    <img id="act5-i1" class="act5-row" style="top: 310px" src="assets/i1.png" alt="" />
+    <img id="act5-i2" class="act5-row" style="top: 475px" src="assets/i2.png" alt="" />
+    <video id="act5-i3" class="clip act5-row" style="top: 640px" data-start="${r3(l(a(17).start) - 0.1)}" data-duration="${r3(t5.M - a(17).start + 0.1)}" data-track-index="1" src="assets/i3v.mp4" muted playsinline></video>`;
+  [["i1", 15], ["i2", 16], ["i3", 17]].forEach(([f, i]) => {
+    js += `    tl.fromTo("#act5-${f}", { opacity: 0, x: -120 }, { opacity: 1, x: 0, duration: 0.4, ease: "expo.out" }, ${r3(l(a(i).start) - 0.06)});\n`;
+  });
+  js += `    up("#act5-i0", ${r3(l(t5.L) + 0.05)}, 20, 0.3);
+    hide(["#act5-i0", "#act5-i1", "#act5-i2", "#act5-i3"], ${l(t5.M)});\n`;
+  // M — the event walkthrough in a phone, with the steps listed beside it
+  html += `
+    <div id="act5-phk" class="act5-iph" style="left: 1180px; top: 126px" data-layout-allow-overflow>${media("act5-vk", "phM.mp4", l(t5.M), t5.N - t5.M)}</div>`;
+  js += `    tl.fromTo("#act5-phk", { opacity: 0, y: 110, scale: 1.1, transformOrigin: "50% 50%" }, { opacity: 1, y: 0, duration: 0.55, ease: "expo.out" }, ${l(t5.M)});\n`;
+  [["A language café<br />near you.", a(18).start, 300, C.ink], ["One tap.", a(19).start, 520, C.ink], ["Santiago takes<br />you there.", wordAt("a5", 19, "and"), 630, C.accent]].forEach(([txt, t, top, col], k, all) => {
+    html += `\n    <div id="act5-s${k}" class="act5-t" style="left: 190px; top: ${top}px; font-size: 84px; color: ${col}">${txt}</div>`;
+    js += `    up("#act5-s${k}", ${r3(l(t) - 0.05)}, 40, 0.36);\n`;
+    if (k + 1 < all.length) js += `    dim("#act5-s${k}", ${r3(l(all[k + 1][1]) - 0.04)}, 0.32);\n`;
+  });
+  js += `    hide(["#act5-phk", "#act5-s0", "#act5-s1", "#act5-s2"], ${l(t5.N)});\n`;
+  // N — the ticket button and the fare under it, close up, with a tap on the button
+  const Nc = closeup(id, "N", "tk.png", l(t5.N), l(t5.end), [[l(a(20).start), "Your ticket?", "navy"], [l(a(21).start), "One tap.", "yellow"], [l(a(22).start), "Price included.", "orange"]], "42.3% 70.6%", 1.2, 110);
+  const tap = r3(l(a(21).start) + 0.12);
+  html += Nc.html + `\n    <div id="act5-tap" class="act5-tap"></div>`;
+  // immediateRender: false keeps the ring invisible until its moment (otherwise it sits on screen for the whole act)
+  js += Nc.js + `    tl.fromTo("#act5-tap", { opacity: 0.95, scale: 0.35 }, { opacity: 0, scale: 2.2, duration: 0.6, ease: "power2.out", immediateRender: false }, ${tap});\n`;
+  // the line that closes the act
+  const t18 = l(a(23).start), t19 = l(a(24).start);
+  html += `
+    <div id="act5-n18" class="act5-t" style="left: 0; right: 0; top: 330px; text-align: center; font-size: 84px">So you don’t just arrive.</div>
+    <div id="act5-n19" class="act5-t" style="left: 0; right: 0; top: 460px; text-align: center; font-size: 230px; font-weight: 900; color: ${C.accent}">You belong.</div>`;
+  js += `    up("#act5-n18", ${r3(t18 - 0.05)});
+    up("#act5-n19", ${r3(t19 - 0.05)}, 80, 0.45);
+    out(["#act5-n18", "#act5-n19"], ${r3(l(mark.a6) - 0.2)});\n`;
+  hosts.push(scene(id, mark.a5, mark.a6, `
+    .act5-ring { position: absolute; left: ${9 + 205 - 34}px; top: ${9 + 98 - 34}px; width: 68px; height: 68px; border-radius: 50%; border: 5px solid ${C.accent}; opacity: 0; }
+    .act5-cur { position: absolute; left: 9px; top: 9px; width: 46px; height: 46px; overflow: visible; opacity: 0; }
+    .act5-tap { position: absolute; left: ${812 - 80}px; top: ${763 - 80}px; width: 160px; height: 160px; border-radius: 50%; border: 10px solid ${C.navy}; opacity: 0; }
+    .act5-half { position: absolute; left: 0; top: 0; width: 960px; height: 1080px; overflow: hidden; }
+    .act5-half video { position: absolute; left: 0; top: 0; width: 960px; height: 1080px; display: block; }
+    .act5-row { position: absolute; left: 480px; width: 960px; height: 135px; border-radius: 26px; box-shadow: 0 16px 50px rgba(0,0,0,0.5); opacity: 0; }`, html, js));
+}
+

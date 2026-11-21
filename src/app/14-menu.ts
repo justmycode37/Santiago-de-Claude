@@ -18,10 +18,8 @@ function setMenu(open: boolean) {
   menuItems.forEach((b) => (b.tabIndex = open ? 0 : -1));
 }
 menuBtn.addEventListener('click', () => setMenu(!menu.classList.contains('open')));
-document.getElementById('themeBtn')!.addEventListener('click', () =>
-  setTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
 const eventsBtn = document.getElementById('eventsBtn')!;
-// Shows or hides everything switched on under "On the map" in Settings
+// Shows or hides everything switched on under "Events and places" in Settings
 eventsBtn.addEventListener('click', () => {
   setEventsOn(!eventsOn);
   setMenu(false);
@@ -30,13 +28,13 @@ eventsBtn.addEventListener('click', () => {
   if (journeyDest) { showToast('Events and places come back when you end the journey.'); return; }
   const groups = SETTINGS.mapGroups();
   const wantPlaces = groups.some((k) => k !== 'events');
-  if (!groups.length) showToast('Everything is switched off under On the map in Settings.');
+  if (!groups.length) showToast('Nothing is switched on under “Events and places” in Settings.');
   else if (!wantPlaces && !visibleEvents().length) showToast('No events match your settings.');
   else if (map.getZoom() < (groups.includes('events') ? EVENT_MIN_ZOOM : PLACE_MIN_ZOOM)) showToast('Zoom into a town or neighbourhood to see events and places.');
   else if (wantPlaces && !viewNearBern()) {
     // toilets are mapped everywhere, the other groups only for Bern
     const others = groups.some((k) => k !== 'events' && k !== 'toilets');
-    if (!groups.includes('toilets')) showToast('Places like drinking water are only mapped for Bern so far.');
+    if (!groups.includes('toilets')) showToast('Places other than toilets are only mapped for Bern so far.');
     else if (others) showToast('Outside Bern, only toilets in Switzerland are mapped so far.');
   }
 });
@@ -58,7 +56,7 @@ type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?
 document.getElementById('scanBtn')!.addEventListener('click', () => {
   setMenu(false);
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('The camera needs HTTPS. Open the app via https:// or localhost.', 6000);
+    showToast('The camera isn’t available here.', 6000);
   }
   // Both permissions are asked right here, while the tap still counts as a user gesture (iOS needs that)
   const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia

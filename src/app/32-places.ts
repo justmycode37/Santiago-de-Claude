@@ -1,5 +1,5 @@
 // ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
-// Shown with the events button, for the groups switched on under "On the map" in Settings.
+// Shown with the events button, for the groups switched on under "Events and places" in Settings.
 // The data (~2.5 MB: Bern, and the toilets of all of Switzerland) is loaded the first time it is needed.
 const PLACES_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlaceDotProps> = { type: 'FeatureCollection', features: [] };
 let PLACES: MapPlaces | null = null;
@@ -16,7 +16,8 @@ const BERN_BOX = [[7.34, 46.9], [7.5, 46.99]];
 
 // Place groups to draw now (none while the events button is off or a journey is on)
 const placeGroupsShown = (): MapGroupKey[] => (eventsOn && !journeyDest ? SETTINGS.mapGroups().filter((k) => k !== 'events') : []);
-const placeFilter = (groups: MapGroupKey[]): maplibregl.FilterSpecification => ['in', ['get', 'g'], ['literal', groups]];
+// not the 'sign' icons (platform sector signs, station furniture): they would bury the app's own platform dots
+const placeFilter = (groups: MapGroupKey[]): maplibregl.FilterSpecification => ['all', ['in', ['get', 'g'], ['literal', groups]], ['!=', ['get', 'gl'], 'sign']];
 
 function placeLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
@@ -116,7 +117,8 @@ function openPlace(i: number) {
   if (group.color === 'sun') dot.style.setProperty('--f', '#344D77');
   dot.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MAP_LAYERS.GLYPHS[glyph]}"/></svg>`;
   const title = mk('div', 'pf-name');
-  title.append(mk('b', null, name || label), mk('small', null, name ? label : group.label));
+  title.append(mk('b', null, name || label));
+  if (name) title.append(mk('small', null, label)); // unnamed: the group would only repeat the kind ("Public toilet" / "Toilets")
   const head = mk('div', 'pf-head');
   head.append(dot, title);
   const body = mk('div', 'pl-body');
@@ -127,7 +129,8 @@ function openPlace(i: number) {
   if (x.f === 'yes') tags.push(x.pr ? 'Fee ' + x.pr : 'Fee');
   if (x.f === 'mixed') tags.push('Partly free'); // a free and a paying toilet, by cabin or by time of day
   // w: getting to the place, tw: the toilet itself. Station toilets only say the second.
-  if (x.w || x.tw) tags.push(WHEELCHAIR[x.w || x.tw!]);
+  // (a toilet that is all that is known about the place says so once, not as "Wheelchair accessible" too)
+  if (x.w || (x.tw && x.tw !== 'yes')) tags.push(WHEELCHAIR[x.w || x.tw!]);
   if (x.tw === 'yes') tags.push('Wheelchair toilet');
   if (x.tw === 'no' && x.w && x.w !== 'no') tags.push('No wheelchair toilet');
   if (x.e) tags.push('Eurokey');

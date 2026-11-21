@@ -77,7 +77,7 @@ function routeLayers(theme: Theme): RouteLayers {
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 3.5, 18, 7], 'circle-color': WALK,
                  'circle-stroke-color': WALK_EDGE, 'circle-stroke-width': 2.5, 'circle-opacity': routeOpacity(.4), 'circle-stroke-opacity': routeOpacity(.4) } },
       // "Platform 7" / "Bay C" where you board
-      { id: 'route-signs', type: 'symbol', source: 'route', filter: kind('sign'),
+      { id: 'route-signs', type: 'symbol', source: 'route', filter: kind('sign'), minzoom: 13,
         layout: { ...fixed, 'icon-image': img, 'symbol-sort-key': ['get', 'sort'],
                   'icon-size': ['interpolate', ['linear'], ['zoom'], 14, .85, 16.6, 1, 18.5, 1.15] } },
     ],

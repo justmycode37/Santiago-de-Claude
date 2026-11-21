@@ -74,7 +74,7 @@ function onPositionError(err: GeolocationPositionError) {
 }
 
 if (!window.isSecureContext) {
-  showToast('Location needs HTTPS. Open the app via https:// or localhost.', 8000);
+  showToast('Open this page over HTTPS to use your location.', 8000);
 } else if (!('geolocation' in navigator)) {
   showToast('This browser does not support location.');
 } else {

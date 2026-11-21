@@ -1,6 +1,6 @@
 // What the events button can show on the map besides community events: public toilets, drinking water,
 // health, help, shops… (data/*.json, compacted into map-places.js by tools/build-map-places.mts).
-// GROUPS are the switches under "On the map" in Settings; classify() sorts every data category into one.
+// GROUPS are the switches under "Events and places" in Settings; classify() sorts every data category into one.
 (function () {
   // Palette: navy #344D77 · rose #C55A82 · sun #FFD34B (navy glyph) · tang #FF7241
   const COLORS = {
@@ -67,9 +67,9 @@
     briefcase: 'M4 8h16v11H4zM9 8V5.5h6V8M4 13h16',
   };
 
-  // The switches under "On the map", in this order. Earlier groups win where icons would overlap.
+  // The switches under "Events and places" in Settings, in this order. Earlier groups win where icons would overlap.
   const GROUPS: MapGroup[] = [
-    { key: 'events', label: 'Community events', color: 'rose', glyph: 'calendar', note: 'Filtered by About you and Events below' },
+    { key: 'events', label: 'Community events', color: 'rose', glyph: 'calendar', note: 'Filtered by “Events for you” below' },
     { key: 'toilets', label: 'Toilets', color: 'navy', glyph: 'wc' },
     { key: 'water', label: 'Drinking water', color: 'navy', glyph: 'drop', note: 'Fountains, taps and showers' },
     { key: 'health', label: 'Health & emergency', color: 'tang', glyph: 'cross', note: 'Pharmacies, doctors, hospitals, defibrillators' },

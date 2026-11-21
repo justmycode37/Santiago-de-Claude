@@ -1,0 +1,477 @@
+{
+ "text": "And it goes further than our problem. It adapts to you. New here? Pick your language. Any of two hundred and forty-nine. Can't take stairs? Switch them off. Walk slower? Santiago learns your pace. Search anywhere. Choose your route. Watch your bus arrive, live. Big station? Walk through it in 3D, before you get there. Then the map fills with what you need. Toilets. Drinking water. Free food. A language café near you. One tap, and Santiago takes you there. And your ticket? One tap. Price included. So you don't just arrive. You belong.",
+ "model": "eleven_v4",
+ "voice": "jon",
+ "words": [
+  {
+   "text": "And",
+   "start": 0,
+   "end": 0.16
+  },
+  {
+   "text": "it",
+   "start": 0.2,
+   "end": 0.24
+  },
+  {
+   "text": "goes",
+   "start": 0.28,
+   "end": 0.48
+  },
+  {
+   "text": "further",
+   "start": 0.64,
+   "end": 0.88
+  },
+  {
+   "text": "than",
+   "start": 0.96,
+   "end": 1.12
+  },
+  {
+   "text": "our",
+   "start": 1.2,
+   "end": 1.36
+  },
+  {
+   "text": "problem.",
+   "start": 1.52,
+   "end": 2.08
+  },
+  {
+   "text": "It",
+   "start": 2.24,
+   "end": 2.32
+  },
+  {
+   "text": "adapts",
+   "start": 2.44,
+   "end": 2.88
+  },
+  {
+   "text": "to",
+   "start": 2.96,
+   "end": 3.04
+  },
+  {
+   "text": "you.",
+   "start": 3.2,
+   "end": 3.72
+  },
+  {
+   "text": "New",
+   "start": 4,
+   "end": 4.16
+  },
+  {
+   "text": "here?",
+   "start": 4.24,
+   "end": 4.48
+  },
+  {
+   "text": "Pick",
+   "start": 4.8,
+   "end": 4.96
+  },
+  {
+   "text": "your",
+   "start": 5,
+   "end": 5.04
+  },
+  {
+   "text": "language.",
+   "start": 5.12,
+   "end": 5.72
+  },
+  {
+   "text": "Any",
+   "start": 5.84,
+   "end": 6
+  },
+  {
+   "text": "of",
+   "start": 6.08,
+   "end": 6.16
+  },
+  {
+   "text": "two",
+   "start": 6.32,
+   "end": 6.4
+  },
+  {
+   "text": "hundred",
+   "start": 6.48,
+   "end": 6.72
+  },
+  {
+   "text": "and",
+   "start": 6.8,
+   "end": 6.88
+  },
+  {
+   "text": "forty-nine.",
+   "start": 7,
+   "end": 7.72
+  },
+  {
+   "text": "Can't",
+   "start": 7.92,
+   "end": 8.16
+  },
+  {
+   "text": "take",
+   "start": 8.24,
+   "end": 8.32
+  },
+  {
+   "text": "stairs?",
+   "start": 8.4,
+   "end": 8.96
+  },
+  {
+   "text": "Switch",
+   "start": 9.12,
+   "end": 9.36
+  },
+  {
+   "text": "them",
+   "start": 9.44,
+   "end": 9.52
+  },
+  {
+   "text": "off.",
+   "start": 9.6,
+   "end": 10.04
+  },
+  {
+   "text": "Walk",
+   "start": 10.24,
+   "end": 10.48
+  },
+  {
+   "text": "slower?",
+   "start": 10.56,
+   "end": 11.08
+  },
+  {
+   "text": "Santiago",
+   "start": 11.28,
+   "end": 11.84
+  },
+  {
+   "text": "learns",
+   "start": 12,
+   "end": 12.32
+  },
+  {
+   "text": "your",
+   "start": 12.4,
+   "end": 12.48
+  },
+  {
+   "text": "pace.",
+   "start": 12.56,
+   "end": 13.2
+  },
+  {
+   "text": "Search",
+   "start": 13.44,
+   "end": 13.76
+  },
+  {
+   "text": "anywhere.",
+   "start": 13.92,
+   "end": 14.56
+  },
+  {
+   "text": "Choose",
+   "start": 14.72,
+   "end": 14.96
+  },
+  {
+   "text": "your",
+   "start": 15,
+   "end": 15.04
+  },
+  {
+   "text": "route.",
+   "start": 15.12,
+   "end": 15.6
+  },
+  {
+   "text": "Watch",
+   "start": 15.76,
+   "end": 16
+  },
+  {
+   "text": "your",
+   "start": 16.04,
+   "end": 16.08
+  },
+  {
+   "text": "bus",
+   "start": 16.16,
+   "end": 16.4
+  },
+  {
+   "text": "arrive,",
+   "start": 16.52,
+   "end": 17.04
+  },
+  {
+   "text": "live.",
+   "start": 17.2,
+   "end": 17.84
+  },
+  {
+   "text": "Big",
+   "start": 18.08,
+   "end": 18.24
+  },
+  {
+   "text": "station?",
+   "start": 18.32,
+   "end": 18.88
+  },
+  {
+   "text": "Walk",
+   "start": 19.04,
+   "end": 19.28
+  },
+  {
+   "text": "through",
+   "start": 19.4,
+   "end": 19.52
+  },
+  {
+   "text": "it",
+   "start": 19.56,
+   "end": 19.6
+  },
+  {
+   "text": "in",
+   "start": 19.68,
+   "end": 19.84
+  },
+  {
+   "text": "3D,",
+   "start": 19.92,
+   "end": 20.6
+  },
+  {
+   "text": "before",
+   "start": 20.72,
+   "end": 21.12
+  },
+  {
+   "text": "you",
+   "start": 21.2,
+   "end": 21.28
+  },
+  {
+   "text": "get",
+   "start": 21.36,
+   "end": 21.52
+  },
+  {
+   "text": "there.",
+   "start": 21.64,
+   "end": 21.96
+  },
+  {
+   "text": "Then",
+   "start": 22.16,
+   "end": 22.32
+  },
+  {
+   "text": "the",
+   "start": 22.36,
+   "end": 22.4
+  },
+  {
+   "text": "map",
+   "start": 22.48,
+   "end": 22.64
+  },
+  {
+   "text": "fills",
+   "start": 22.8,
+   "end": 23.12
+  },
+  {
+   "text": "with",
+   "start": 23.2,
+   "end": 23.28
+  },
+  {
+   "text": "what",
+   "start": 23.36,
+   "end": 23.44
+  },
+  {
+   "text": "you",
+   "start": 23.52,
+   "end": 23.6
+  },
+  {
+   "text": "need.",
+   "start": 23.68,
+   "end": 24.12
+  },
+  {
+   "text": "Toilets.",
+   "start": 24.32,
+   "end": 24.92
+  },
+  {
+   "text": "Drinking",
+   "start": 25.04,
+   "end": 25.36
+  },
+  {
+   "text": "water.",
+   "start": 25.44,
+   "end": 25.84
+  },
+  {
+   "text": "Free",
+   "start": 26,
+   "end": 26.16
+  },
+  {
+   "text": "food.",
+   "start": 26.32,
+   "end": 26.76
+  },
+  {
+   "text": "A",
+   "start": 26.88,
+   "end": 26.92
+  },
+  {
+   "text": "language",
+   "start": 26.96,
+   "end": 27.36
+  },
+  {
+   "text": "café",
+   "start": 27.44,
+   "end": 27.84
+  },
+  {
+   "text": "near",
+   "start": 27.96,
+   "end": 28.08
+  },
+  {
+   "text": "you.",
+   "start": 28.16,
+   "end": 28.6
+  },
+  {
+   "text": "One",
+   "start": 28.8,
+   "end": 28.96
+  },
+  {
+   "text": "tap,",
+   "start": 29.04,
+   "end": 29.44
+  },
+  {
+   "text": "and",
+   "start": 29.52,
+   "end": 29.6
+  },
+  {
+   "text": "Santiago",
+   "start": 29.68,
+   "end": 30.32
+  },
+  {
+   "text": "takes",
+   "start": 30.4,
+   "end": 30.64
+  },
+  {
+   "text": "you",
+   "start": 30.72,
+   "end": 30.8
+  },
+  {
+   "text": "there.",
+   "start": 30.92,
+   "end": 31.24
+  },
+  {
+   "text": "And",
+   "start": 31.44,
+   "end": 31.52
+  },
+  {
+   "text": "your",
+   "start": 31.6,
+   "end": 31.68
+  },
+  {
+   "text": "ticket?",
+   "start": 31.76,
+   "end": 32.08
+  },
+  {
+   "text": "One",
+   "start": 32.4,
+   "end": 32.56
+  },
+  {
+   "text": "tap.",
+   "start": 32.64,
+   "end": 33.08
+  },
+  {
+   "text": "Price",
+   "start": 33.2,
+   "end": 33.44
+  },
+  {
+   "text": "included.",
+   "start": 33.52,
+   "end": 34.2
+  },
+  {
+   "text": "So",
+   "start": 34.4,
+   "end": 34.48
+  },
+  {
+   "text": "you",
+   "start": 34.52,
+   "end": 34.56
+  },
+  {
+   "text": "don't",
+   "start": 34.6,
+   "end": 34.72
+  },
+  {
+   "text": "just",
+   "start": 34.8,
+   "end": 34.96
+  },
+  {
+   "text": "arrive.",
+   "start": 35.08,
+   "end": 35.72
+  },
+  {
+   "text": "You",
+   "start": 35.92,
+   "end": 36
+  },
+  {
+   "text": "belong.",
+   "start": 36.08,
+   "end": 36.88
+  }
+ ]
+}

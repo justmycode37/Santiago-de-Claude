@@ -1,0 +1,1102 @@
+[
+{
+"kind": "clock",
+"xy": [
+19.07,
+16.94
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858275"
+},
+{
+"kind": "clock",
+"xy": [
+41.48,
+13.42
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38861269"
+},
+{
+"kind": "clock",
+"xy": [
+74.43,
+-60.02
+],
+"mounting": "BA-Dach_BE Perronhalle 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175989"
+},
+{
+"kind": "clock",
+"xy": [
+229.57,
+-176.78
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857092"
+},
+{
+"kind": "clock",
+"xy": [
+-182.53,
+18.92
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "328119050"
+},
+{
+"kind": "clock",
+"xy": [
+-87.24,
+-20.19
+],
+"mounting": "BA-Dach_BE Perrondach 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856160"
+},
+{
+"kind": "clock",
+"xy": [
+-79.23,
+-4.57
+],
+"mounting": "BA-Dach_BE Perrondach 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38853760"
+},
+{
+"kind": "clock",
+"xy": [
+-111.58,
+-64.47
+],
+"mounting": "BA-Dach_BE Perrondach 7",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856128"
+},
+{
+"kind": "clock",
+"xy": [
+-13.16,
+-148.63
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175978"
+},
+{
+"kind": "clock",
+"xy": [
+0.85,
+-120.08
+],
+"mounting": "BA-Dach_BE Perrondach 7",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38861115"
+},
+{
+"kind": "clock",
+"xy": [
+24.89,
+-114.5
+],
+"mounting": "BA-Dach_BE Perrondach 6",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856440"
+},
+{
+"kind": "clock",
+"xy": [
+47.94,
+-16.73
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175999"
+},
+{
+"kind": "clock",
+"xy": [
+32.22,
+-75.99
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "328401166"
+},
+{
+"kind": "clock",
+"xy": [
+77.89,
+-118.21
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856421"
+},
+{
+"kind": "clock",
+"xy": [
+133.74,
+-107.07
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "313988171"
+},
+{
+"kind": "clock",
+"xy": [
+141.19,
+-92.31
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "313988170"
+},
+{
+"kind": "clock",
+"xy": [
+239.84,
+-159.09
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857095"
+},
+{
+"kind": "clock",
+"xy": [
+255.25,
+-132.03
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38855771"
+},
+{
+"kind": "clock",
+"xy": [
+-184.51,
+55.14
+],
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857238"
+},
+{
+"kind": "clock",
+"xy": [
+-186.48,
+10.69
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175983"
+},
+{
+"kind": "clock",
+"xy": [
+-181.43,
+21.03
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "328119063"
+},
+{
+"kind": "clock",
+"xy": [
+-55.24,
+62.68
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "66990793"
+},
+{
+"kind": "clock",
+"xy": [
+-76.51,
+1.03
+],
+"mounting": "BA-Dach_BE Perrondach 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38857233"
+},
+{
+"kind": "clock",
+"xy": [
+-58.56,
+4.64
+],
+"mounting": "BA-Dach_BE Vord.S.Warts.+Buffet",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38855514"
+},
+{
+"kind": "clock",
+"xy": [
+6.95,
+32.95
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38859818"
+},
+{
+"kind": "clock",
+"xy": [
+3.64,
+-9.24
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858279"
+},
+{
+"kind": "clock",
+"xy": [
+-258.97,
+-56.96
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175985"
+},
+{
+"kind": "clock",
+"xy": [
+-223.52,
+-66.36
+],
+"mounting": null,
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "351053664"
+},
+{
+"kind": "clock",
+"xy": [
+-204.91,
+-27.5
+],
+"mounting": null,
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175990"
+},
+{
+"kind": "clock",
+"xy": [
+-114.28,
+-70.36
+],
+"mounting": "BA-Dach_BE Perrondach 7",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856133"
+},
+{
+"kind": "clock",
+"xy": [
+-114.08,
+-111.93
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "351053756"
+},
+{
+"kind": "clock",
+"xy": [
+-117.35,
+-119.71
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "351053710"
+},
+{
+"kind": "clock",
+"xy": [
+-57.6,
+-118.6
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "118937533"
+},
+{
+"kind": "clock",
+"xy": [
+27.9,
+-109.13
+],
+"mounting": "BA-Dach_BE Perrondach 6",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856435"
+},
+{
+"kind": "clock",
+"xy": [
+40.77,
+-12.6
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399176000"
+},
+{
+"kind": "clock",
+"xy": [
+24.21,
+-91.96
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "313988191"
+},
+{
+"kind": "clock",
+"xy": [
+84.78,
+-42.12
+],
+"mounting": "BA-Dach_BE Perronhalle 1",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175998"
+},
+{
+"kind": "clock",
+"xy": [
+148.44,
+-78.35
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "313988169"
+},
+{
+"kind": "clock",
+"xy": [
+248.02,
+-144.9
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38855793"
+},
+{
+"kind": "clock",
+"xy": [
+-181.15,
+73.56
+],
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38853537"
+},
+{
+"kind": "clock",
+"xy": [
+-192.77,
+-2.21
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175986"
+},
+{
+"kind": "clock",
+"xy": [
+-174.3,
+35.99
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175980"
+},
+{
+"kind": "clock",
+"xy": [
+-111.47,
+49.8
+],
+"mounting": "BA-Dach_BE Halle S.PavillonSNCF",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175992"
+},
+{
+"kind": "clock",
+"xy": [
+-94.95,
+-35.79
+],
+"mounting": "BA-Dach_BE Perrondach 5",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856152"
+},
+{
+"kind": "clock",
+"xy": [
+-42.07,
+-58.74
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858300"
+},
+{
+"kind": "clock",
+"xy": [
+-33.4,
+-43.65
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858292"
+},
+{
+"kind": "clock",
+"xy": [
+1.98,
+-11.75
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "118938680"
+},
+{
+"kind": "clock",
+"xy": [
+-256.36,
+-52.16
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175995"
+},
+{
+"kind": "clock",
+"xy": [
+-225.28,
+-69.99
+],
+"mounting": null,
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "351053740"
+},
+{
+"kind": "clock",
+"xy": [
+-214.69,
+-47.48
+],
+"mounting": null,
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175977"
+},
+{
+"kind": "clock",
+"xy": [
+-206.31,
+-29.87
+],
+"mounting": null,
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175979"
+},
+{
+"kind": "clock",
+"xy": [
+-136.81,
+-104.12
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175996"
+},
+{
+"kind": "clock",
+"xy": [
+-124.36,
+-94.35
+],
+"mounting": "BA-Dach_BE Perron 18 Ost",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "360569055"
+},
+{
+"kind": "clock",
+"xy": [
+222.0,
+-190.21
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856797"
+},
+{
+"kind": "clock",
+"xy": [
+40.01,
+-60.41
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "313988206"
+},
+{
+"kind": "clock",
+"xy": [
+-326.55,
+72.77
+],
+"mounting": "BA-Dach_BE SNCF Perrondach",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38855509"
+},
+{
+"kind": "clock",
+"xy": [
+-111.49,
+80.13
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "66990790"
+},
+{
+"kind": "clock",
+"xy": [
+-84.46,
+-14.59
+],
+"mounting": "BA-Dach_BE Perrondach 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856165"
+},
+{
+"kind": "clock",
+"xy": [
+-92.09,
+-30.05
+],
+"mounting": "BA-Dach_BE Perrondach 5",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856156"
+},
+{
+"kind": "clock",
+"xy": [
+-24.66,
+-28.51
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858283"
+},
+{
+"kind": "clock",
+"xy": [
+-290.08,
+3.06
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175981"
+},
+{
+"kind": "clock",
+"xy": [
+-118.84,
+-81.39
+],
+"mounting": "BA-Dach_BE Perrondach 8",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851348"
+},
+{
+"kind": "clock",
+"xy": [
+-102.71,
+-50.94
+],
+"mounting": "BA-Dach_BE Perrondach 6",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856142"
+},
+{
+"kind": "clock",
+"xy": [
+-60.33,
+-93.11
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858315"
+},
+{
+"kind": "clock",
+"xy": [
+-14.46,
+-156.07
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175994"
+},
+{
+"kind": "clock",
+"xy": [
+-1.7,
+-124.6
+],
+"mounting": "BA-Dach_BE Perrondach 7",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856445"
+},
+{
+"kind": "clock",
+"xy": [
+118.37,
+-138.2
+],
+"mounting": "BA-Dach_BE Perronhalle 5",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "328119012"
+},
+{
+"kind": "clock",
+"xy": [
+125.93,
+-122.69
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "313988164"
+},
+{
+"kind": "clock",
+"xy": [
+-193.98,
+-4.67
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175987"
+},
+{
+"kind": "clock",
+"xy": [
+-187.72,
+8.26
+],
+"mounting": "IB-Bruecke_Baueinheit",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175988"
+},
+{
+"kind": "clock",
+"xy": [
+-108.44,
+78.73
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "66990791"
+},
+{
+"kind": "clock",
+"xy": [
+-104.57,
+74.44
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175982"
+},
+{
+"kind": "clock",
+"xy": [
+-99.88,
+-45.48
+],
+"mounting": "BA-Dach_BE Perrondach 6",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856146"
+},
+{
+"kind": "clock",
+"xy": [
+13.61,
+25.18
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175997"
+},
+{
+"kind": "clock",
+"xy": [
+-298.41,
+-17.04
+],
+"mounting": "BA-Ausruestungsstaender Kandelaber <6m",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175991"
+},
+{
+"kind": "clock",
+"xy": [
+-215.62,
+-49.66
+],
+"mounting": null,
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175984"
+},
+{
+"kind": "clock",
+"xy": [
+-139.38,
+-108.96
+],
+"mounting": "BA-Dach_BE PD19/20",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "399175993"
+},
+{
+"kind": "clock",
+"xy": [
+-50.73,
+-73.68
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858305"
+},
+{
+"kind": "clock",
+"xy": [
+-79.01,
+-156.04
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38858331"
+},
+{
+"kind": "clock",
+"xy": [
+103.74,
+-151.91
+],
+"mounting": "BA-Dach_BE Perrondach 6",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856431"
+},
+{
+"kind": "clock",
+"xy": [
+105.55,
+-148.25
+],
+"mounting": "BA-Dach_BE Perrondach 6",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38856426"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-71.21,
+-113.98
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010268"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-231.76,
+-73.25
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+132.09,
+-183.97
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "ID 10289"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-121.14,
+61.13
+],
+"mounting": "Andere",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-117.63,
+59.12
+],
+"mounting": "andere",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-15.58,
+-45.72
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010286"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-64.72,
+69.64
+],
+"mounting": "BVB",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-128.44,
+33.68
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010268"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-15.55,
+-47.09
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010283"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+12.49,
+-9.16
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010288"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+23.55,
+2.22
+],
+"mounting": "S-POS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "10285"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+190.11,
+-81.98
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010278"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+9.1,
+-7.24
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010282"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+10.27,
+-7.9
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010253"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+11.38,
+-8.53
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010277"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+6.89,
+-5.99
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010290"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+7.98,
+-6.62
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010280"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+80.27,
+-32.73
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "00010281"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+84.74,
+-49.59
+],
+"mounting": "DB",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+}
+]

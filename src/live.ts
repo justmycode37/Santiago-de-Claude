@@ -278,7 +278,7 @@
     if (spare < 0) return { text: `Hurry: about ${Math.max(1, Math.round(-spare / 60))} min short`, level: 'late' };
     const m = Math.floor(spare / 60);
     if (spare < 180) return { text: `Hurry: ${m < 1 ? 'less than 1 min' : m + ' min'} to spare`, level: 'tight' };
-    return { text: `Take your time: ${m} min to spare`, level: 'ok' };
+    return { text: `${m} min to spare`, level: 'ok' };
   }
 
   // ---- Vehicles on the map ----

@@ -84,7 +84,7 @@ function parseResult(attrs: SwisstopoLocationAttrs): Pick<SearchResult, 'title' 
       const munis = (stripTags(label).split(' - ')[1] || '').split(',').map((x) => x.trim()).filter(Boolean);
       const [kind, typeLabel] = gazetteerKind(italic, attrs.objectclass || '');
       let where = munis[0] && munis[0] !== bold ? munis[0] + (munis.length > 1 ? ` +${munis.length - 1}` : '') : '';
-      where = [where, cantonName(canton)].filter(Boolean).join(', ');
+      where = [...new Set([where, cantonName(canton)])].filter(Boolean).join(', '); // not "Bern, Bern"
       return { title: bold, subtitle: [typeLabel, where].filter(Boolean).join(' · '), kind };
     }
   }

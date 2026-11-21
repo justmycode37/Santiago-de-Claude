@@ -13,7 +13,7 @@ const planOpen = () => document.body.classList.contains('plan-open');
 function setPlanOpen(on: boolean) {
   document.body.classList.toggle('plan-open', on);
   tripBtn.setAttribute('aria-label', on ? 'Swap start and destination' : 'Choose where the trip starts');
-  inputs.to.placeholder = on ? 'Where to?' : 'Search places, addresses…';
+  inputs.to.placeholder = on ? 'Where to?' : 'Search places';
   inputs.from.placeholder = userLngLat ? 'Your location' : 'Map centre';
 }
 // Under way (after Start): the card folds into the progress pill. Changing either end brings it back.
@@ -21,6 +21,7 @@ function setFollowing(on: boolean) {
   if (on === document.body.classList.contains('following')) return;
   document.body.classList.toggle('following', on);
   if (on) closeSearch();
+  if (journeyConn) { renderHead(true); renderFoot(); } // Start has done its work; the pill has the times
   layoutTop();
   if (document.body.classList.contains('journey-mode')) placeSheet(sheetDetent, true);
 }

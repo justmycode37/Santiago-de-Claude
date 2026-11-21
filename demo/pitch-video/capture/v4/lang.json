@@ -1,0 +1,53 @@
+{
+ "W": 390,
+ "H": 844,
+ "DPR": 2,
+ "length": 16.263,
+ "fps": 42.3,
+ "events": [
+  {
+   "name": "start",
+   "t": 0
+  },
+  {
+   "name": "tap-menu",
+   "t": 0.37
+  },
+  {
+   "name": "tap-settings",
+   "t": 1.343
+  },
+  {
+   "name": "tap-language",
+   "t": 2.993
+  },
+  {
+   "name": "list",
+   "t": 4.217
+  },
+  {
+   "name": "list-end",
+   "t": 7.127
+  },
+  {
+   "name": "tap-ukrainian",
+   "t": 8.016
+  },
+  {
+   "name": "translated",
+   "t": 12.534
+  },
+  {
+   "name": "settings-uk",
+   "t": 14.046
+  },
+  {
+   "name": "settings-uk-end",
+   "t": 16.26
+  },
+  {
+   "name": "end",
+   "t": 16.26
+  }
+ ]
+}
