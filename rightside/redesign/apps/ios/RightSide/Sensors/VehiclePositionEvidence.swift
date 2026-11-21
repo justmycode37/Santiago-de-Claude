@@ -137,6 +137,8 @@ struct KanteDue: Decodable, Equatable {
     let cancelled: Bool?
     /// Direction the vehicle drives in when it arrives (from the stop before), degrees.
     let approachBearing: Double?
+    /// Direction it drives in when it leaves (to the next stop), degrees: the travel direction at the boarding edge.
+    var departBearing: Double? = nil
     /// "approaching", "at-stop" or "departed".
     let state: String
     let etaS: Double?

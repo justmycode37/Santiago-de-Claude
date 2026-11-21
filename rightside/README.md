@@ -91,11 +91,35 @@ accepted the right vehicle and warned "wrong vehicle" for 25–49 % of right veh
   ±24°): median heading error 15° standing (compass only) → 7° after 40 m of walking; the reported 2σ covered
   the true error in 99–100 % of runs.
 
+### Boarding edge, kerb side and real floor heights (from the web app's data)
+
+- **Packs** (`rightside/tools/build-edge-packs.py`): `stop-edges.json` from `platforms.js` — every Swiss bus, tram
+  and train edge with position, ref ("A", "7"), the direction vehicles travel there, and OSM level (25,844 stops,
+  50,346 edges, 1.96 MB). `station-levels.json` from `stations3d/` — real floor heights of the modelled multi-level
+  stations and the floor of each edge (Bern, Wankdorf, Europaplatz, Brünnen, Bümpliz Nord; 3.7 KB). Rebuild with
+  `python3 rightside/tools/build-edge-packs.py [--stations DIR]` when either source changes.
+- **AR boarding target** (`StopEdgePack.boardingEdge`): the edge with the trip's ref — Kante `/api/due` quay label,
+  else the journey's planned platform — else the one edge whose travel direction matches the trip's `departBearing`
+  within 45°. When none is unique the camera keeps the previous target (resolved stop point / stop).
+- **Kerb side** (`KerbSide.assess`): Switzerland boards on the right, so the waiting area is right of the travel
+  direction at the edge. The rider's fix is placed relative to that line (road middle taken as 3 m left of the edge
+  point) and the answer must hold by one sigma of the fix's accuracy; a much nearer edge serving the opposite
+  direction also counts as "across the street". Otherwise no claim. Simulated on 40 real Bern edges that have an
+  opposite-direction partner (rider 2.5 m behind the kerb, or across a 12 m street): GPS σ 3 m → right 90 %, wrong
+  0.1 %, no claim 10 %; σ 5 m → 73 % / 1.1 % / 25 %; σ 10 m → 45 % / 3.5 % / 51 %. Only shown for street-level edges.
+- **Floors** (`ARFloorHeights`, `StationLevelPack`): the arrows sit on the floor ARKit finds under the rider
+  (horizontal plane 0.8–2.2 m below the camera; 1.4 m only until one is found). The boarding target is drawn on its
+  own floor: e.g. Europaplatz platform 1 at −6.1 m, platforms 3/4 and Brünnen at +5.0 m, Bern RBS at −8.5 m. The
+  rider is assumed to start the camera at street level (level 0), and ARKit tracks height changes from there.
+- **Not used**: the `stop-images/` photo fingerprints (the most similar photo of the same stop shows the right edge
+  25 % of the time across 7,916 stops, below the 31 % of a random photo), and `walkgraph/` (a routing network, not on
+  `main` yet; no per-edge refs or travel directions — useful later for the walking route itself and exact kerbs).
+
 ### Validation status — what was and was not run
 
 | Check | Where | Result |
 | --- | --- | --- |
-| Portable logic (`tools/portable-tests`, 63 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
+| Portable logic (`tools/portable-tests`, 82 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
 | Swift 6 strict-concurrency type-check of the portable files | same | pass |
 | Recorded-video benchmark, dev + held-out (`tools/display-bench`) | same + Python/ONNX on PC | see its README |
 | Syntax parse of every changed iOS file | swift-frontend `-parse` | pass |

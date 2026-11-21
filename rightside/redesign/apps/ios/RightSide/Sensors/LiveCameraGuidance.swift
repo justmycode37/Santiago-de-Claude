@@ -38,6 +38,14 @@ private final class VisionWorkGate: @unchecked Sendable {
     private var kanteVehicles: [KanteVehicle] = []
     private var kanteSupportsDue: Bool?
     private var kanteTask: Task<Void, Never>?
+    /// Exact boarding edge (platforms.js) and its floor (stations3d/), and which side of the street the rider is on.
+    private lazy var edgePack: StopEdgePack? = Bundle.main.url(forResource: "stop-edges", withExtension: "json", subdirectory: "TransportPacks")
+        .flatMap { try? Data(contentsOf: $0) }.flatMap { try? StopEdgePack(data: $0) }
+    private lazy var levelPack: StationLevelPack? = Bundle.main.url(forResource: "station-levels", withExtension: "json", subdirectory: "TransportPacks")
+        .flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(StationLevelPack.self, from: $0) }
+    @Published private(set) var boardingEdgeDescription: String?
+    @Published private(set) var kerbMessage: String?
+    private var lastKerbCheck = 0.0
     var onObservation: ((JSONValue) -> Void)?
     let view = ARSCNView(frame: .zero)
     private let worker = DispatchQueue(label: "rightside.live-ocr", qos: .userInitiated)
@@ -167,6 +175,23 @@ private final class VisionWorkGate: @unchecked Sendable {
         }
     }
 
+    /// The boarding edge: its ref from Kante /api/due (the trip's quay label) or the journey's planned platform;
+    /// else the edge whose travel direction matches the trip's departure bearing. Nil when not unique.
+    private func boardingTarget(_ context: CameraJourneyContext) -> (edge: StopEdge, floor: StationLevelPack.Floor?, label: String)? {
+        guard let uic = context.boardingStationID, let pack = edgePack else { return nil }
+        let line = context.line.map(DisplayText.lineKey), destination = context.destination
+        let due = kanteDue.first { item in
+            item.state != "departed" && DisplayText.lineKey(item.line.name) == line
+                && destination.map { DepartureDisplayMatcher.destinationSimilarity(item.headsign, $0) >= 0.85 } == true
+        }
+        let ref = due?.quayLabel ?? context.boardingQuayLabel
+        guard let edge = pack.boardingEdge(uic: uic, ref: ref, departBearing: due?.departBearing) else { return nil }
+        let floor = levelPack?.floor(uic: uic, ref: edge.ref)
+        var label = edge.ref.isEmpty ? (context.stop ?? "Boarding point") : "Kante \(edge.ref)"
+        if let floor, abs(floor.z) >= 1 { label += " · \(floor.name)" }
+        return (edge, floor, label)
+    }
+
     /// GPS fix, camera heading (fused alignment when available, else the compass) and horizontal field of view.
     private func cameraPose(_ frame: ARFrame, portrait: Bool) -> CameraPose? {
         guard let location, let fix = location.latestLocation, fix.horizontalAccuracy > 0, !location.isStale() else { return nil }
@@ -216,6 +241,8 @@ private final class VisionWorkGate: @unchecked Sendable {
         geo = false; localized = false; targetAnchor = nil
         visual?.observation = nil
         let configuration = ARWorldTrackingConfiguration()
+        // Horizontal planes give the real floor under the rider for the AR arrows (instead of a fixed 1.4 m).
+        configuration.planeDetection = [.horizontal]
         if let localSite, !((context?.simulated) ?? true) {
             configuration.detectionImages = localSite.references
             configuration.maximumNumberOfTrackedImages = min(4, localSite.references.count)
@@ -324,8 +351,24 @@ private final class VisionWorkGate: @unchecked Sendable {
         // Route arrows in plain world tracking. With Apple geographic AR active its anchor is used instead;
         // a simulated journey has no real position to align with.
         if !geo, !context.simulated {
-            routeGuide.update(frame: frame, location: location, route: context.route, target: context.routeEnd ?? context.target,
-                              targetLabel: context.stop ?? context.targetLabel, contextID: context.id)
+            let boarding = boardingTarget(context)
+            let target = boarding.map { CLLocationCoordinate2D(latitude: $0.edge.point.latitude, longitude: $0.edge.point.longitude) }
+            routeGuide.update(frame: frame, location: location, route: context.route, target: target ?? context.routeEnd ?? context.target,
+                              targetLabel: boarding?.label ?? context.stop ?? context.targetLabel, contextID: context.id,
+                              targetZ: boarding?.floor?.z)
+            if boardingEdgeDescription != boarding?.label { boardingEdgeDescription = boarding?.label }
+            if frame.timestamp - lastKerbCheck >= 1 {
+                lastKerbCheck = frame.timestamp
+                var message: String?
+                if let boarding, boarding.floor == nil || abs(boarding.floor!.z) < 1,
+                   let fix = location?.latestLocation, fix.horizontalAccuracy > 0, location?.isStale() == false {
+                    let user = GeoPoint(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
+                    let siblings = edgePack?.edges(uic: boarding.edge.uic) ?? []
+                    message = KerbSide.assess(user: user, accuracy: fix.horizontalAccuracy, edge: boarding.edge, siblings: siblings)
+                        .message(edgeName: boarding.edge.ref.isEmpty ? "your stop" : "Kante \(boarding.edge.ref)")
+                }
+                if kerbMessage != message { kerbMessage = message }
+            }
             if routePlan != routeGuide.plan { routePlan = routeGuide.plan }
         }
         if let localSite, !context.simulated, frame.timestamp - lastLocalFrame >= 0.2 {
@@ -614,6 +657,12 @@ struct LiveCameraGuidanceView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Label(controller.status, systemImage: controller.localized ? "location.viewfinder" : "camera.viewfinder")
                     .font(.headline).accessibilityIdentifier("geographic-ar-status")
+                if let edge = controller.boardingEdgeDescription {
+                    Label("Board at \(edge)", systemImage: "mappin.and.ellipse").font(.subheadline).accessibilityIdentifier("ar-boarding-edge")
+                }
+                if let kerb = controller.kerbMessage {
+                    Label(kerb, systemImage: "road.lanes").font(.subheadline).accessibilityIdentifier("ar-kerb-side")
+                }
                 if let plan = controller.routePlan {
                     Label(plan.summary, systemImage: plan.mode == .path ? "arrow.triangle.turn.up.right.diamond" : "location.north.line")
                         .font(.subheadline).accessibilityIdentifier("ar-route-status")

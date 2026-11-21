@@ -263,6 +263,83 @@ do {
     check(m.state != .visualCandidate, "a confident contradicting frame blocks acceptance, got \(m.state) \(m.reason)")
 }
 
+// MARK: - Stop edges, kerb side and floor heights (packs built from platforms.js and stations3d/)
+
+let packs = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "packs"
+if let data = try? Data(contentsOf: URL(fileURLWithPath: packs + "/stop-edges.json")), let edgePack = try? StopEdgePack(data: data) {
+    let bahnhof = edgePack.edges(uic: "8576646") // Bern, Bahnhof (tram/bus)
+    check(bahnhof.contains { $0.ref == "B" && $0.bearing != nil }, "Bern, Bahnhof edge B with travel direction")
+    let b = edgePack.boardingEdge(uic: "8576646", ref: "Kante B")
+    check(b?.ref == "B", "boarding edge by ref, 'Kante B' → B")
+    check(edgePack.boardingEdge(uic: "8576646", ref: "X") == nil, "unknown ref resolves to nothing, never a guess")
+    // By travel direction alone: only when exactly one edge agrees within 45°.
+    let wankdorf = edgePack.edges(uic: "8590129")
+    if let a = wankdorf.first(where: { $0.ref == "A" }), let bearing = a.bearing {
+        let byDirection = edgePack.boardingEdge(uic: "8590129", ref: nil, departBearing: bearing)
+        check(byDirection == nil || byDirection?.ref == "A", "direction-only choice is unique or nothing")
+    }
+    if let edge = b, let bearing = edge.bearing {
+        let plane = LocalTangentPlane(origin: edge.point)
+        let r = bearing * .pi / 180
+        func at(lateral: Double, along: Double = 0) -> GeoPoint {
+            plane.geo(Vec2(x: cos(r) * lateral + sin(r) * along, y: -sin(r) * lateral + cos(r) * along))
+        }
+        let right = KerbSide.assess(user: at(lateral: 3), accuracy: 4, edge: edge, siblings: [])
+        let across = KerbSide.assess(user: at(lateral: -14), accuracy: 4, edge: edge, siblings: [])
+        let vague = KerbSide.assess(user: at(lateral: -14), accuracy: 25, edge: edge, siblings: [])
+        check(right.side == .boarding && abs(right.lateral - 3) < 0.1, "3 m right of the travel line: boarding side")
+        check(across.side == .opposite, "14 m left: across the street")
+        check(vague.side == .unknown, "poor fix: no claim")
+        check(across.message(edgeName: "Kante B")?.contains("across the street") == true, "opposite-side message")
+    }
+    // Measured on real geometry: every Bern stop with refs on edges serving opposite directions. The rider waits
+    // 2.5 m behind the kerb of one edge, or stands at the same place across a 12 m street; the fix is off by
+    // a Gaussian error of σ metres (reported accuracy = σ).
+    var rng = Rng(state: 99)
+    var pairs: [(StopEdge, [StopEdge])] = []
+    for uic in ["8576646", "8507110", "8590129", "8579896", "8507060", "8590020", "8588989", "8580939", "8590048"] {
+        let edges = edgePack.edges(uic: uic).filter { !$0.ref.isEmpty && $0.bearing != nil }
+        for e in edges where edges.contains(where: { StopEdgePack.angle($0.bearing!, e.bearing!) >= 120 }) { pairs.append((e, edges)) }
+    }
+    for sigma in [3.0, 5.0, 10.0] {
+        var tally = [String: Int]()
+        for (edge, siblings) in pairs {
+            let plane = LocalTangentPlane(origin: edge.point)
+            let r = edge.bearing! * .pi / 180
+            for (truth, lateral) in [("boarding", 2.5), ("opposite", -14.5)] {
+                for _ in 0..<50 {
+                    let l = lateral + rng.gaussian() * sigma, a = rng.gaussian() * sigma
+                    let p = plane.geo(Vec2(x: cos(r) * l + sin(r) * a, y: -sin(r) * l + cos(r) * a))
+                    let side = KerbSide.assess(user: p, accuracy: sigma, edge: edge, siblings: siblings).side
+                    tally[side == .unknown ? "unknown" : side.rawValue == truth ? "right" : "WRONG", default: 0] += 1
+                }
+            }
+        }
+        let n = max(1, tally.values.reduce(0, +))
+        print(String(format: "Kerb side, %d Bern edges, GPS σ %.0f m: right %.0f%%, wrong %.1f%%, no claim %.0f%%",
+                     pairs.count, sigma, Double(tally["right"] ?? 0) * 100 / Double(n), Double(tally["WRONG"] ?? 0) * 100 / Double(n),
+                     Double(tally["unknown"] ?? 0) * 100 / Double(n)))
+        check(Double(tally["WRONG"] ?? 0) / Double(n) < 0.1, "kerb side wrong < 10 % at σ \(sigma) m")
+    }
+} else { check(false, "stop-edges.json missing or undecodable") }
+if let data = try? Data(contentsOf: URL(fileURLWithPath: packs + "/station-levels.json")),
+   let levels = try? JSONDecoder().decode(StationLevelPack.self, from: data) {
+    let europaplatz1 = levels.floor(uic: "8507082", ref: "1")
+    let europaplatz3 = levels.floor(uic: "8504108", ref: "3")
+    let bruennen = levels.floor(uic: "8516154", ref: "Gleis 2")
+    check(europaplatz1 == .init(level: -1, z: -6.1, name: "Platforms 1/2"), "Europaplatz platform 1 is 6.1 m below the street, got \(String(describing: europaplatz1))")
+    check(europaplatz3?.z == 5.0, "Europaplatz platform 3 is 5 m above the street")
+    check(bruennen?.z == 5.0, "Brünnen platform 2 on the 5 m platform level")
+    check(levels.floor(uic: "8576646", ref: "X") == nil, "unknown edge: no floor")
+    if let bern = levels.stations.first(where: { $0.key == "bern" }) {
+        check(StationLevelPack.z(-1.5, in: bern) == -6.75, "half-way between levels interpolates")
+    }
+    let floor = ARFloorHeights.floorY(cameraY: 1.6, detectedPlaneYs: [0.1, 1.5, -4.9])
+    check(floor.detected && floor.y == 0.1, "detected floor under the camera is used")
+    check(ARFloorHeights.floorY(cameraY: 1.6, detectedPlaneYs: []).y == 1.6 - 1.4, "fallback phone height without a plane")
+    check(abs(ARFloorHeights.targetY(startFloorY: -1.2, targetZ: europaplatz1?.z) - (-7.3)) < 1e-9, "target drawn on its real floor")
+} else { check(false, "station-levels.json missing or undecodable") }
+
 // MARK: - Geo/AR alignment
 
 struct Rng { var state: UInt64
