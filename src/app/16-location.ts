@@ -56,7 +56,7 @@ function onPosition(pos: PositionFix) {
   if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
   updateAccuracy();
   // through the indoor filter (indoornav.js) while a station is open in 3D: it adds the floor and the phone's steps
-  if (window.Station3D) (window.INDOORNAV || Station3D).setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined });
+  if (window.Station3D) (window.INDOORNAV || Station3D).setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined, at: takenAt });
   inputs.from.placeholder = 'Your location';
   if (!centeredOnUser && !destMarker._map && !startMarker._map) {
     centeredOnUser = true;

@@ -122,6 +122,14 @@
     if (S3()) S3().setUser(lastGps ? lastGps.u : null);
   }
 
+  // the traveller says where they are: { level } (a floor), and maybe { xy } (a tap on the model, or "I'm here")
+  function here(o) {
+    if (!ses || !ses.filter || !o) return;
+    ses.filter.prior({ level: o.level, x: o.xy && o.xy[0], y: o.xy && o.xy[1], r: o.xy ? 15 : 60 });
+    ses.live = true;
+    push();
+  }
+
   // called from a tap on iOS: motion + orientation permission (GPS is fed by the app)
   function startSensors() {
     if (!ses || !ses.filter || ses.sensors) return Promise.resolve(ses && ses.sensors && ses.sensors.state);
@@ -134,8 +142,11 @@
   // one already here is dropped, so the position never steps back
   function setUser(u, replay, at) {
     if (!hook.done) hook();   // the viewer may load after the page (lazy loading): hook in as soon as it is there
-    if (at != null && !replay && lastGps && lastGps.at >= at) return;
-    if (u && u.ll && !replay) lastGps = { u, at: at != null ? at : performance.now(), heading: u.heading };
+    if (at != null && !replay && lastGps && lastGps.got >= at) return;
+    const got = at != null ? at : performance.now();
+    // when the fix was taken (u.at, ms since 1970, from the page): a cached fix can arrive minutes old
+    const taken = u && u.at != null ? Math.min(got, performance.now() - Math.max(0, Date.now() - u.at)) : got;
+    if (u && u.ll && !replay) lastGps = { u, at: taken, got, heading: u.heading };
     if (!ses || !ses.filter || !u || !u.ll) { if (S3() && !(ses && ses.open && ses.filter)) S3().setUser(u); return; }
     const [x, y] = ses.model.fromLngLat(u.ll[0], u.ll[1]);
     const wasAway = away;
@@ -143,7 +154,7 @@
     if (away || !ses.open) { if (S3()) S3().setUser(u); } // not here (the viewer says so), or the viewer is closed
     if (away) return;
     if (recorder) recorder.add('gps', { lon: u.ll[0], lat: u.ll[1], acc: u.accuracy });
-    if (performance.now() - (at != null ? at : performance.now()) < GPS_FRESH_MS) ses.live = true;  // near, and recent
+    if (performance.now() - taken < GPS_FRESH_MS) ses.live = true;  // near, and recent
     ses.filter.gps({ t: nowS(), lon: u.ll[0], lat: u.ll[1], acc: u.accuracy || 30 });
     if (wasAway) lastPush = 0;
     push();
@@ -173,6 +184,11 @@
     hook.done = true;
     s3.on('open', opened);
     s3.on('close', closed);
+    // another station replaces the one showing (no 'close' then): that session ends its showing now, so neither its
+    // estimate nor its local coordinates reach the next station
+    s3.on('opening', (o) => { if (ses && ses.open && o && ses.key !== o.key) closed(); });
+    // "I'm here" in the viewer: the traveller says where they are
+    s3.on('here', (o) => { if (ses && ses.filter && ses.open && o) here({ level: o.level, xy: o.xy }); });
   }
   // iOS: motion access may only be asked from a tap. The first tap while a station is open is that tap (the
   // viewer's own compass request, for its heading, comes from a tap too, so the traveller sees one prompt).
@@ -190,8 +206,8 @@
     setUser: (u, at) => setUser(u, false, at), sign: (text) => sign(text), startSensors,
     // a viewer that was already opening when this script arrived (a late load): start with that opening
     attach: (info) => { hook(); return opened(info); },
-    // the traveller says where they are: { level } (a floor), and maybe { xy } (a tap on the model)
-    here: (o) => { if (ses && ses.filter) { ses.filter.prior({ level: o.level, x: o.xy && o.xy[0], y: o.xy && o.xy[1], r: o.xy ? 15 : 60 }); ses.live = true; push(); } },
+    // the traveller says where they are (see here() above)
+    here,
     record: () => { recorder = new window.INDOORLOC.Recorder({ key: ses && ses.key }); return recorder; },
     stopRecording: () => { const r = recorder; recorder = null; return r; },
     exportLog: (r) => new Blob([JSON.stringify((r || recorder).toJSON())], { type: 'application/json' }),

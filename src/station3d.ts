@@ -5149,6 +5149,9 @@
       if (sel !== i) select(i); else request();
       say(`You are at step ${i + 1}`);
       touch();
+      // last: a listener (the indoor position) may answer with a position at once
+      const pt = route!.points[st.from];
+      emit('here', { step: i, xy: [pt[0], pt[1]], level: pt[2] });
     }
     function stepUser(dt: number) {
       if (!user || !disc || user.outside) return false;
@@ -5401,7 +5404,8 @@
       });
       mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
       on(document, 'visibilitychange', () => { if (!document.hidden) { touch(); request(); } });
-      if (pendingUser) setUser(pendingUser);
+      // the last position, unless it is a GPS fix that has gone stale meanwhile (the phone may have been in a pocket)
+      if (pendingUser && !(pendingUser.at != null && Date.now() - pendingUser.at > USER_STALE_MS)) setUser(pendingUser);
       if (opts.step != null && A.routed) select(+opts.step);
       if (opts.level != null && P.levels.some((l) => l.id === +opts.level!)) setIsolate(P.idxOf(+opts.level));
       if (opts.follow) setFollow(true);
@@ -5573,6 +5577,7 @@
   // ---------- public API ----------
   let V: Viewer | null = null;
   let pendingUser: Station3DUser | null = null; // the last position: also shown when it arrived before the model was ready
+  const USER_STALE_MS = 60e3;                    // a GPS fix older than this (Station3DUser.at) is not shown on opening
   let lastFocus: HTMLElement | null = null;
   let skipPops = 0, skipTimer = 0; // history steps we took ourselves: their popstate is not the user's back gesture
 
@@ -5618,6 +5623,7 @@
   function open(opts: Station3DOpenOptions) {
     opts = Object.assign({}, opts);
     if (!opts.key) throw new Error('Station3D.open needs a key');
+    emit('opening', { key: opts.key, replaces: V ? V.opts.key : null });   // a station replaced by another says no 'close'
     const again = !!V;
     let depth = 1;
     if (V) { const v = V; V = null; depth = v.depth(); v.destroy(true); }

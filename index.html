@@ -1902,6 +1902,8 @@
             // every opening of the real viewer, however it came: the indoor position loads (or is tried again)
             real.on('open', (info) => { lastOpen = info; if (!window.INDOORNAV) loadIndoor(); });
             real.on('close', () => { lastOpen = null; });
+            // another station on its way (it replaces the one showing without a 'close'): only its own 'open' counts
+            real.on('opening', () => { lastOpen = null; });
             if (user !== undefined) real.setUser(user);
             // until indoornav.js is there, the page's GPS goes straight to the real viewer: keep noting the latest
             // fix, so the indoor position starts from it and not from an older one the stand-in had

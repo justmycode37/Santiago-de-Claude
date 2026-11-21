@@ -91,8 +91,15 @@ not say otherwise. The journey's start alone never shows a position (the trip ma
 off): the dot appears once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they
 are there (`INDOORNAV.state().live`).
 
-`station3d.js` got one small addition for this: `setUser` takes `levelSure: true` from the indoor position, so a
-floor the filter is sure of beats the floor of the viewer's previous route snap.
+`station3d.js` got a few small additions for this:
+- `setUser` takes `levelSure: true` from the indoor position, so a floor the filter is sure of beats the floor of the
+  viewer's previous route snap; and `at` (when the GPS fix was taken, ms since 1970). The app passes it, a fix older
+  than a minute does not count as "here" for the indoor position, and a remembered fix that old is not shown when the
+  view opens.
+- `'opening'` (`{ key, replaces }`) at every `open()`: a station that replaces another one says no `'close'`, so the
+  indoor position ends the old station's showing there and the stand-in in `index.html` forgets the old opening.
+- `'here'` (`{ step, xy, level }`) when the traveller taps "I'm here" at a step: the indoor position takes it like
+  `INDOORNAV.here()`, so later steps move the dot even without GPS.
 
 ## Research behind the choices (November 2026)
 
