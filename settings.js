@@ -2,8 +2,7 @@
 // The journey options are the ones from the Kante app (niknal357's branch): accessibility, walking speed,
 // change time, maximum walk and transport types. "On the map" picks what the events button shows (map-layers.js),
 // "About you" and "Events" narrow down which community events show. "Live data" switches the live vehicles on the
-// map, and whether your position is sent to the Kante engine while you ride (the on-board check and on-board reports;
-// off unless switched on: live.js, kante/docs/LIVE-API.md).
+// map (live.js).
 // "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.js); "Developer options" at the very
 // bottom shows the tools to test that.
 // Everything is saved on this device only.
@@ -24,10 +23,8 @@
     modes: null, // null = every transport type
     // On the map: groups switched off (map-layers.js GROUPS keys); everything is on at first
     mapHidden: [],
-    // Live data (live.js): vehicles on the map; your position goes to the engine (on-board check and reports) only
-    // when shareOnboard is switched on here
+    // Live data (live.js): vehicles on the map
     liveVehicles: true,
-    shareOnboard: false,
     // Events
     newcomer: false,
     lowVision: false,
