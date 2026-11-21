@@ -29,6 +29,7 @@ interface SavedPricingTrip extends TicketFare {
   departure?: string;
   /** Not written by this version. A record with false is neither listed nor counted. */
   confirmed?: boolean;
+  dummy?: boolean;
 }
 
 interface PricingProfile {
@@ -57,6 +58,8 @@ interface PricingHistoryApi {
   update(id: string, fare: TicketFare): boolean;
   remove(id: string): boolean;
   clear(): boolean;
+  setDummy(on: boolean): boolean;
+  hasDummy(): boolean;
 }
 
 declare var PRICING_HISTORY: PricingHistoryApi;

@@ -56,7 +56,15 @@ function liveUpdated(before: string) {
   if (journeyConn.kante) {
     // a journey planned by the engine names its boarding points itself (engine-journey.js): move them there
     const id = journeyReq;
-    KanteJourney.requay(journeySteps, () => { if (id === journeyReq) { geoVersion++; routeKey = ''; queueSheet(); updateProgress(); } });
+    const moved = () => {
+      if (id !== journeyReq) return;
+      syncEnds(journeySteps);
+      refineWalks(id, true); // the moved walks again on the network (older answers are dropped by their revision)
+      geoVersion++; routeKey = ''; queueSheet(); updateProgress();
+    };
+    KanteJourney.requay(journeySteps, moved);
+    // a platform named anew where the engine's boarding point stays: its walks again too (to the platform by name)
+    if (platSig() !== platKey) { platKey = platSig(); moved(); }
   } else if (platSig() !== platKey) {
     platKey = platSig();
     journeySteps = buildSteps(journeyConn, journeyDest ? journeyDest.title : '');

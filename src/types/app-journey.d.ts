@@ -232,8 +232,9 @@ type JourneyStep = JourneyWalkStep | JourneyChangeStep | JourneyRideStep | Journ
 
 /** What a feature of the 'route' source says: the layers of routeLayers() filter and paint by it. */
 interface RouteFeatureProps {
-  /** ride, walk: a line; stop: a stop of a ride; sign: where a ride is boarded; lvl: a floor change; pin: the start. */
-  kind: 'ride' | 'walk' | 'stop' | 'sign' | 'lvl' | 'pin';
+  /** ride, walk: a line; stop: a stop of a ride; sign: where a ride is boarded; lvl: a floor change; pin: the start;
+   *  wcov: a covered stretch of a walk (arcade, passage, underpass, indoors); door: the door a walk ends at. */
+  kind: 'ride' | 'walk' | 'stop' | 'sign' | 'lvl' | 'pin' | 'wcov' | 'door';
   /** The step it belongs to (its index in journeySteps). */
   step: number;
   /** Already behind you: drawn faded. */
@@ -246,6 +247,8 @@ interface RouteFeatureProps {
   /** sign, lvl, pin: the sprite (42-sprites.ts), without the theme. */
   img?: string;
   sort?: number;
+  /** walk: a straight line, not a routed path (drawn dashed, without arrows). */
+  approx?: boolean;
 }
 type RouteFeature = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Point, RouteFeatureProps>;
 type RouteCollection = GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Point, RouteFeatureProps>;

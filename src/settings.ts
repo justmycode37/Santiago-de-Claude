@@ -229,6 +229,7 @@
   const pricingSummary = document.getElementById('pricingSummary')!;
   const pricingClearPaused = document.getElementById('pricingClearPaused')!;
   const pricingStorageStatus = document.getElementById('pricingStorageStatus')!;
+  const devDummyTrips = document.getElementById('devDummyTrips') as HTMLInputElement;
   const layerSwitches = [...layerGroup.querySelectorAll<HTMLInputElement>('input[data-layer]')];
   const switches = [...page.querySelectorAll<HTMLInputElement>('input[data-setting]')];
   const modeSwitches = [...page.querySelectorAll<HTMLInputElement>('input[data-mode]')];
@@ -295,6 +296,7 @@
 
   function renderPricing() {
     pricingHalfFare.checked = PRICING_HISTORY.profile().hasHalfFare === true;
+    devDummyTrips.checked = PRICING_HISTORY.hasDummy();
     const count = PRICING_HISTORY.list().length;
     pricingSuggestions.hidden = !state.fareTracking;
     pricingClearPaused.hidden = state.fareTracking || !count;
@@ -330,6 +332,16 @@
     window.dispatchEvent(new Event('pricing-history-change'));
   });
   pricingSuggestions.addEventListener('click', () => window.openFareSuggestions(pricingSuggestions));
+  // Developer options: dummy trips need trip history on, or the suggestions ignore them
+  devDummyTrips.addEventListener('change', () => {
+    const on = devDummyTrips.checked; // read first: update() re-renders the switch from storage
+    if (on && !state.fareTracking) update({ fareTracking: true });
+    const saved = PRICING_HISTORY.setDummy(on);
+    pricingStorageStatus.hidden = saved;
+    if (!saved) pricingStorageStatus.textContent = 'Could not save the dummy trips.';
+    renderPricing();
+    window.dispatchEvent(new Event('pricing-history-change'));
+  });
 
   pricingClearPaused.addEventListener('click', () => {
     if (!window.confirm('Clear all confirmed trips saved in this browser?')) return;

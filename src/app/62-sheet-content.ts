@@ -607,9 +607,22 @@ function renderSheet() {
   renderFoot();
   if (document.body.classList.contains('journey-mode') && sheetDetent === 'low') placeSheet('low', true); // the header's height may have changed
 }
-let sheetQueued = false;
-function queueSheet() {
+let sheetQueued = false, timesQueued = false;
+// times: the trip's times have changed too, so the pill, the bar and the footer follow
+function queueSheet(times?: boolean) {
+  if (times) timesQueued = true;
   if (sheetQueued) return;
   sheetQueued = true;
-  requestAnimationFrame(() => { sheetQueued = false; if (journeyConn) { renderHead(); renderBody(); } });
+  requestAnimationFrame(() => {
+    const t = timesQueued;
+    sheetQueued = timesQueued = false;
+    if (!journeyConn) return;
+    renderHead();
+    renderBody();
+    if (!t) return;
+    document.getElementById('jDep')!.textContent = fmtTime(journeyConn.from.departure);
+    updatePillTimes();
+    renderBar();
+    renderFoot();
+  });
 }

@@ -1519,7 +1519,7 @@
           <input class="switch" type="checkbox" role="switch" data-setting="autoSpeed" aria-labelledby="setAutoT" aria-describedby="setAutoD setAutoPrivacy" />
         </label>
       </div>
-      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible.</p>
+      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible. Walking routes follow paths from © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL) and © swisstopo (swissTLM3D).</p>
       <p class="set-foot">With “Adjust to how I walk” on, the app measures your pace while it is open. When another step between Slow and Fast fits you better, the speed changes at the next start and the app tells you. Moving the slider yourself starts the measuring again.</p>
       <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your walking pace is measured and kept only in this app, on this device. It is never sent anywhere, no places are stored, and turning the setting off deletes it.</p>
 
@@ -1653,6 +1653,13 @@
         </div>
         <p class="set-foot dev-result" id="devPaceResult" role="status"></p>
         <p class="set-foot">Walks logged here are instant, at the speed set here. They replace what was recorded, count however short they are, and turn “Adjust to how I walk” on. The app changes the walking speed when it starts, so reload it after logging, or run the start-up check here.</p>
+        <h2 class="set-head" id="devFareHead">Test: fare suggestions</h2>
+        <div class="set-group" role="group" aria-labelledby="devFareHead">
+          <label class="set-row">
+            <span class="set-text"><b id="devTripsT">Dummy trips</b><small id="devTripsD">Fill trip history with four weeks of Bern ↔ Zürich commutes. Turning it off removes them; your own trips stay.</small></span>
+            <input class="switch" type="checkbox" role="switch" id="devDummyTrips" aria-labelledby="devTripsT" aria-describedby="devTripsD" />
+          </label>
+        </div>
       </div>
     </div>
 
@@ -1771,6 +1778,7 @@
   <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
   <script src="live.js"></script>
   <script src="places.js"></script>
+  <script src="walkroute.js" defer></script>
   <script src="stations3d/index.js"></script>
   <!-- build: src/inline/station3d-loader.ts -->
   <!-- build: src/app -->
