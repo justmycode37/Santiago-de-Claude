@@ -8,7 +8,7 @@ Not wired into the UI.
 Rebuild (Node 24, no npm deps, about 1 minute, about 400 HTTP requests):
 
 ```
-node tools/build-services.mjs            # writes data/services.json (about 1.9 MB)
+node tools/build-services.mts            # writes data/services.json (about 1.9 MB)
 ```
 
 A source that fails is recorded with `fetched_ok: false` and `error`, and the build continues. The script asserts that

@@ -1,5 +1,5 @@
 {
-  // The scripts the browser runs (src/). They are plain scripts, not modules: what a file declares at its top
+  // The scripts the app's page runs (src/). Most are plain scripts, not modules: what a file declares at its top
   // level is global, as it is in the browser. Types are only checked here; scripts/build.mts makes the .js.
   "compilerOptions": {
     "target": "es2023",
@@ -11,5 +11,7 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // the other pages' scripts have their own tsconfig.json: each is checked on its own
+  "exclude": ["src/pages"]
 }

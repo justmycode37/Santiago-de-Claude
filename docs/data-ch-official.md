@@ -3,7 +3,7 @@
 Rebuild (about 30 s, Node 24, no npm deps; needs `data/raw/actual-date-toilet.csv` and `data/raw/service-point.csv` from `tools/fetch-raw.sh`):
 
 ```
-node tools/build-official-ch.mjs [data/ch/official-ch.json]
+node tools/build-official-ch.mts [data/ch/official-ch.json]
 ```
 
 The file holds official open data that complements and cross-checks OSM (`data/ch/osm-*.json`). If a source fails, it shows up in `sources` with `fetched_ok:false` and an `error`, and the build carries on. The build has self-checks:

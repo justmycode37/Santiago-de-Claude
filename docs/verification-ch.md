@@ -96,30 +96,30 @@ The stored attributes also equal the source. No record is gone upstream. The pro
 ## Systematic issues and fixes
 
 1. **OSM `fee` overrides missing city data, and is wrong in Lausanne (#9).** Lausanne publishes all 37 city WCs on a Google My Maps map. Each entry has `statut` (Gratuit, Gratuit/payant, …), `handicap` and `eurokey`, and the map can be exported as KML: `https://www.google.com/maps/d/kml?mid=1729ii2aNgl_iZjCDe0vGCVgBqfVyqjw_&forcekml=1`.
-   - **Fix:** add a `vd.lausanne.wc` source in `tools/build-official-ch.mjs` and map Gratuit → free, Gratuit/payant → mixed. Its "official wins" merge in `tools/build-toilets-ch.mjs` already handles the rest.
+   - **Fix:** add a `vd.lausanne.wc` source in `tools/build-official-ch.mts` and map Gratuit → free, Gratuit/payant → mixed. Its "official wins" merge in `tools/build-toilets-ch.mts` already handles the rest.
    - The licence is unstated, so ask the Service de la propreté urbaine. Otherwise use the map only as a verification list.
-2. **OSM↔OSM near-duplicates are never merged** in `tools/build-toilets-ch.mjs`. Matching is only city↔OSM, ATLAS↔OSM and Nette↔OSM.
+2. **OSM↔OSM near-duplicates are never merged** in `tools/build-toilets-ch.mts`. Matching is only city↔OSM, ATLAS↔OSM and Nette↔OSM.
    - In the sample, 3 of 16 OSM toilets have a second OSM toilet within 12 m (#3 12 m, #14 node+way 1 m, #15 5 m). The shower in #24 has one at 3 m.
    - Across the file there are at least 333 toilet pairs under 15 m (lower bound out of 7,139 items).
    - **Fix:** add an OSM self-merge pass.
      - Merge a node into a way within 10 m, or two nodes within 5 m when their tags don't conflict.
      - When one is free and the other paid, or one is a wheelchair-only cabin, combine them into one item with `paid` = mixed.
      - Otherwise, write `possible_duplicate_of` into `notes`.
-3. **Zürich wheelchair flag is too optimistic** (`zhWc()` in `tools/build-official-ch.mjs`). `wheelchair: "yes"` comes from `kategorie` "(rollstuhlgängig)" even when `hindernisfreiheit` = "0__" or the text says "Zufahrt Rollstuhl … erschwert" (#12).
+3. **Zürich wheelchair flag is too optimistic** (`zhWc()` in `tools/build-official-ch.mts`). `wheelchair: "yes"` comes from `kategorie` "(rollstuhlgängig)" even when `hindernisfreiheit` = "0__" or the text says "Zufahrt Rollstuhl … erschwert" (#12).
    - **Fix:** set "limited" when `kommentar` or `infrastruktur` matches /erschwert|eingeschränkt/.
-4. **Address clean-up in the official sources** (`tools/build-official-ch.mjs`).
+4. **Address clean-up in the official sources** (`tools/build-official-ch.mts`).
    - `zhPoi()`: strip "(erst.)" from `adresse` (12 items).
    - `ge.pharmacies` mapper: split "Route de Thonon 60B, 1222 Vésenaz" into address, postcode and city. All 132 of 132 affected; 149 items CH-wide have ", NNNN City" in `address`.
-5. **Derived GWR addresses with sub-numbers** (`tools/enrich-addresses-ch.mjs`). 14,448 of 66,628 derived addresses (21.7%) end in a register sub-number, e.g. "Altgasse 11.1", "Alpenquai 1.1", "Burgweiherweg 23.02", "Bahnhofstrasse 12a.1".
+5. **Derived GWR addresses with sub-numbers** (`tools/enrich-addresses-ch.mts`). 14,448 of 66,628 derived addresses (21.7%) end in a register sub-number, e.g. "Altgasse 11.1", "Alpenquai 1.1", "Burgweiherweg 23.02", "Bahnhofstrasse 12a.1".
    - These are real register entries for outbuildings and they geocode, but people don't use them.
    - **Fix:** keep `address` but add the parent number (strip `\.\d+$`) as the display address, or prefer a main-number entrance within the same 25 m.
    - For OSM ways (hospital campus #23), derive from the way's own `addr:*` or from the main building's address rather than the entrance nearest the centroid.
 6. **Stale SITG post-office layer** (#32). `GEO_POSTE_PT` still has "Petit-Lancy 2 Place des Ormeaux", but Swiss Post has moved it to Chemin Daniel-Ihly 10.
-   - **Fix:** in `tools/build-official-ch.mjs`, replace `ge.poste` with Swiss Post's own open data for locations and opening hours, which is maintained and covers all of Switzerland. Or drop `ge.poste` and rely on OSM.
+   - **Fix:** in `tools/build-official-ch.mts`, replace `ge.poste` with Swiss Post's own open data for locations and opening hours, which is maintained and covers all of Switzerland. Or drop `ge.poste` and rely on OSM.
 7. **`sg.wc` ids are row numbers in the export order.** This is already a `shortcut:`, and it is confirmed fragile: the ODS records API returns the same WC as row 21, not 11. One of the 33 rows has no `bezeichnun`.
    - **Fix:** build the id from rounded LV95 coordinates (e.g. `sg.wc/2746…_1254…`).
 8. **The BAZL helipad as a hospital proxy** includes non-emergency clinics (La Lignière is a rehabilitation clinic), and the upstream name is misspelled. Document this in `docs/data-ch-official.md`, or join helipads to hospitals that have an emergency department before using them as "emergency hospital".
-9. **No source for the price of station and rest-stop toilets.** SBB publishes national prices: WC-Center/Hygienecenter CHF 1.50, module WC CHF 1.00. `fromOfficial()` in `tools/build-toilets-ch.mjs` could set `paid`/`price` for ATLAS toilets of operator SBB when OSM is silent. That would only be a heuristic, and must be noted as such.
+9. **No source for the price of station and rest-stop toilets.** SBB publishes national prices: WC-Center/Hygienecenter CHF 1.50, module WC CHF 1.00. `fromOfficial()` in `tools/build-toilets-ch.mts` could set `paid`/`price` for ATLAS toilets of operator SBB when OSM is silent. That would only be a heuristic, and must be noted as such.
 
 ## Not checked or weak
 

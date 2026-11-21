@@ -5,16 +5,16 @@ Two post-processing steps on top of the OSM builds in [places-data.md](places-da
 ## Rebuild order (Node 24, no npm deps, `unzip` on PATH)
 
 ```sh
-node tools/build-places.mjs            # data/places.json     (OSM)
-node tools/build-amenities.mjs         # data/amenities.json  (OSM)
+node tools/build-places.mts            # data/places.json     (OSM)
+node tools/build-amenities.mts         # data/amenities.json  (OSM)
 bash tools/fetch-raw.sh                # data/raw/: ATLAS toilet + service-point CSVs (and transit files)
-node tools/enrich-addresses.mjs        # fills addresses in both files in place, writes *.min.json
-node tools/build-toilets.mjs           # data/toilets.json (needs the outputs of the three steps above)
+node tools/enrich-addresses.mts        # fills addresses in both files in place, writes *.min.json
+node tools/build-toilets.mts           # data/toilets.json (needs the outputs of the three steps above)
 ```
 
-`enrich-addresses.mjs` downloads the swisstopo register once (~143 MB zip) into `data/raw/` and keeps a bbox extract (`data/raw/gebaeudeadressen-bern.csv`, ~7 MB, ~50,700 addresses). Delete the extract to force a re-read of the zip, and the zip to force a re-download. It is idempotent: values it derived on an earlier run are reset first.
+`enrich-addresses.mts` downloads the swisstopo register once (~143 MB zip) into `data/raw/` and keeps a bbox extract (`data/raw/gebaeudeadressen-bern.csv`, ~7 MB, ~50,700 addresses). Delete the extract to force a re-read of the zip, and the zip to force a re-download. It is idempotent: values it derived on an earlier run are reset first.
 
-## 1. Address enrichment (`tools/enrich-addresses.mjs`)
+## 1. Address enrichment (`tools/enrich-addresses.mts`)
 
 Source: swisstopo, *Amtliches Gebäudeadressverzeichnis*, national CSV in LV95 (`ch.swisstopo.amtliches-gebaeudeadressverzeichnis`, found via the STAC API at data.geo.admin.ch). Licence: open government data, free use with attribution ("Source: swisstopo / Amtliches Gebäudeadressverzeichnis"). Only addresses with `ADR_STATUS = real` are used.
 
@@ -33,7 +33,7 @@ Results (run of 2026-11-21):
 
 Median distance to the derived address: 8.3 m for places, 12.5 m for amenities. Treat a mismatch as "check this", not as "OSM is wrong". There are real errors (Amante: Flughafenstrasse 57 should be Flugplatzstrasse 57; Hühnerbühlstrasse should be Hühnerhubelstrasse; Ostermundigen station WC: `addr:place=Bahnhoraeral`). But many flags are businesses with a correct address in large buildings whose register entrance is on another street (Bahnhofplatz vs Bubenbergplatz, Schanzenstrasse vs Laupenstrasse).
 
-## 2. Toilets (`tools/build-toilets.mjs` → `data/toilets.json`)
+## 2. Toilets (`tools/build-toilets.mts` → `data/toilets.json`)
 
 `{ generated, bbox, sources: [{key,name,url,licence,count}], items: Toilet[] }`, where `Toilet = { id, lat, lon, name, address, sources[], wheelchair, toilets_wheelchair, eurokey, changing_table, fee, opening_hours, unisex, operator, level, check_date, notes }`. Every field except `id/lat/lon/sources` may be null. Values are OSM-style strings (`yes|no|limited|...`).
 

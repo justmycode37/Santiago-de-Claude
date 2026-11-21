@@ -42,7 +42,7 @@ interface Station3DOpenOptions {
   /** false: leave the rest of the page usable (development page). */
   modal?: boolean;
   /** Where the view is put (default: document.body). */
-  mount?: HTMLElement | null;
+  mount?: HTMLElement | ShadowRoot | null;
   /** A tap anywhere on the model is a 'pick', not only on something with a name. */
   pickAnywhere?: boolean;
 }

@@ -1,6 +1,6 @@
 # Help data for all of Switzerland (`data/ch/help-ch.json`)
 
-Checked on 2026-11-21. Rebuild with `node tools/build-help-ch.mjs`. It needs internet for the 6 live feeds and swisstopo,
+Checked on 2026-11-21. Rebuild with `node tools/build-help-ch.mts`. It needs internet for the 6 live feeds and swisstopo,
 and takes about 15 s. If a live feed fails, the build stops so a good file is never overwritten. `ALLOW_PARTIAL=1` writes anyway
 and marks the feed `fetched_ok: false`.
 

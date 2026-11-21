@@ -27,7 +27,7 @@ Camera integration may submit `observeVision(_ observation: JSONValue)` containi
 
 `DomainBridge.routeWalk(_ request: JSONValue)` lazily loads `bern-walking-graph.json` and calls the existing bounded router. Supply existing WalkingRequest fields (`from`, `to`, `now`, optional `stepFree`, `wheelchair`, `closures`). Returned paths remain `pedestrianTargetStatus: unverified`, `currentAccess: unknown`. Include `bern-walking-manifest.json` for attribution/provenance. The store does not replace itinerary gaps with these paths automatically.
 
-Build resources with `node scripts/build-ios-resources.mjs`. Include generated `Resources/domain.js`, `Resources/bern-demo.json`, `Resources/bern-walking-graph.json`, and `Resources/bern-walking-manifest.json` as bundle resources. Core imports Foundation, Combine and JavaScriptCore, and uses the Sensors LocationController; no WebView or Windows API dependency. Portable Mac validation is recorded in `apps/ios/README.md`; full iOS compilation and hosted XCTest still require full Xcode. JS tests do not establish native compilation.
+Build resources with `node scripts/build-ios-resources.mts`. Include generated `Resources/domain.js`, `Resources/bern-demo.json`, `Resources/bern-walking-graph.json`, and `Resources/bern-walking-manifest.json` as bundle resources. Core imports Foundation, Combine and JavaScriptCore, and uses the Sensors LocationController; no WebView or Windows API dependency. Portable Mac validation is recorded in `apps/ios/README.md`; full iOS compilation and hosted XCTest still require full Xcode. JS tests do not establish native compilation.
 
 ## Isolated native redesign
 
