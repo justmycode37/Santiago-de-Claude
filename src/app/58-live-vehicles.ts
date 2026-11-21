@@ -1,18 +1,18 @@
 // ---- Live vehicles on the map, from zoom 14: the engine's stream when it has one, else every 15 s. Not during
 //      a journey (the trip's own vehicle is shown on it), not while the page is hidden. ----
 const VEH_MIN_ZOOM = 14;
-const VEH_FC = { type: 'FeatureCollection', features: [] };
+const VEH_FC: LiveVehicleCollection = { type: 'FeatureCollection', features: [] };
 const VEH_MAX = 300; // enough for a city centre, light enough for a phone
-let vehList = [], vehBox = null, vehES = null, vehPollTimer = null, vehDrawTimer = null, vehBusy = false, vehReq = 0;
+let vehList: LiveVehicle[] = [], vehBox: KanteBbox | null = null, vehES: EventSource | null = null, vehPollTimer: number | null = null, vehDrawTimer: number | null = null, vehBusy = false, vehReq = 0;
 // When the vehicles' data came in (vehAt, ms) and the engine's time it is for (vehT, unix s). Older than VEH_DIM_MS
 // (the stream stalled, polls fail) they are drawn faded; older than VEH_DROP_MS they are taken off the map.
 let vehAt = 0, vehT = 0;
 const VEH_DIM_MS = 45000, VEH_DROP_MS = 120000;
 // The engine's "now" for the vehicles: their t plus the time since they came (so a wrong phone clock doesn't matter)
 const vehNow = () => vehT + (Date.now() - vehAt) / 1000;
-function vehLayers(theme) {
+function vehLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
-  const fade = ['case', ['get', 'dim'], .45, 1];
+  const fade: maplibregl.ExpressionSpecification = ['case', ['get', 'dim'], .45, 1];
   return [
     { id: 'kveh-dot', type: 'circle', source: 'kveh', minzoom: VEH_MIN_ZOOM,
       paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], VEH_MIN_ZOOM, 5, 18, 8],
@@ -44,7 +44,7 @@ function vehStop() {
 }
 function vehUpdate() {
   if (!vehWanted()) { if (vehBox || vehList.length) vehStop(); return; }
-  const b = map.getBounds(), view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  const b = map.getBounds(), view: KanteBbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
   if (vehBox && KANTE_LIVE.bboxContains(vehBox, view)) return; // still covered: keep the stream / poll as it is
   vehStop();
   vehBox = KANTE_LIVE.padBbox(view, .35);
@@ -63,14 +63,14 @@ function vehUpdate() {
   }
   vehDrawTimer = setInterval(vehDraw, 1000); // glide between stops
 }
-async function vehFetch(bbox, id) {
+async function vehFetch(bbox: string, id: number) {
   if (vehBusy || document.hidden) return;
   vehBusy = true;
   const data = await kante.get('/api/vehicles', { bbox });
   vehBusy = false;
   if (data && id === vehReq) vehSet(data);
 }
-function vehSet(data) {
+function vehSet(data: KanteVehiclesResponse) {
   vehAt = Date.now();
   vehT = data && Number.isFinite(data.t) ? data.t : vehAt / 1000;
   // each vehicle is placed from its frac at the response's t
@@ -86,7 +86,7 @@ function vehDraw() {
     return { type: 'Feature', geometry: { type: 'Point', coordinates: KANTE_LIVE.vehicleAt(v, now) },
       properties: { i, label: v.line.name, bg: c.bg, dfg: c.dfg, extra: !!v.extra, dim: old || st === 'stale' || st === 'timetable' } };
   });
-  const src = map.getSource('kveh');
+  const src = map.getSource<maplibregl.GeoJSONSource>('kveh');
   if (src) src.setData(VEH_FC);
 }
 const vehPopup = new maplibregl.Popup({ closeButton: false, className: 'pf-pop vh-pop', maxWidth: 'none', offset: 12 });
@@ -94,7 +94,7 @@ map.on('click', (e) => {
   if (!vehList.length || !map.getLayer('kveh-dot')) return;
   const r = 14; // forgiving tap, as for platforms
   const hits = map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['kveh-dot'] });
-  const dist = (x) => map.project(x.geometry.coordinates).dist(e.point);
+  const dist = (x: maplibregl.MapGeoJSONFeature) => map.project((x.geometry as GeoJSON.Point).coordinates as LngLat).dist(e.point);
   const f = hits.length ? hits.reduce((a, b) => (dist(b) < dist(a) ? b : a)) : null, v = f && vehList[f.properties.i];
   if (!v) return;
   const now = vehNow(), old = Date.now() - vehAt > VEH_DIM_MS;
@@ -108,27 +108,27 @@ map.on('click', (e) => {
     h('p', 'vh-how', how.text),
     h('p', 'pf-note', 'Not GPS: placed from its stop times'));
   platformPopup.remove();
-  vehPopup.setLngLat(f.geometry.coordinates).setDOMContent(body).addTo(map);
+  vehPopup.setLngLat((f!.geometry as GeoJSON.Point).coordinates as LngLat).setDOMContent(body).addTo(map);
 });
 map.on('mouseenter', 'kveh-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
 map.on('mouseleave', 'kveh-dot', () => { map.getCanvas().style.cursor = ''; });
 map.on('moveend', vehUpdate);
 
-const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const badge = (j) => lineVars(mk('span', 'j-badge', lineLabel(j)), j);
+const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, text?: string | null): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const badge = (j: LineLike) => lineVars(mk('span', 'j-badge', lineLabel(j)), j);
 // Platform (rail, cable cars) · Bay (bus and tram edges, "Kante") · Pier (boats)
-const nounOf = (mode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
-const platformWord = (j) => nounOf(modeOf(j.category));
-const platformOf = (stop) => (stop.prognosis && stop.prognosis.platform) || stop.platform || '–';
+const nounOf = (mode: LineMode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
+const platformWord = (j: LineLike) => nounOf(modeOf(j.category));
+const platformOf = (stop: OdCheckpoint) => (stop.prognosis && stop.prognosis.platform) || stop.platform || '–';
 
 const COMPASS8 = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
-const compassWord = (deg) => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const levelShort = (l) => (l < 0 ? '−' + -l : String(l));
-const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
+const compassWord = (deg: number) => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const levelShort = (l: number) => (l < 0 ? '−' + -l : String(l));
+const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
 
 // "7A-D" → { num: '7', sectors: 'A–D' }; "H" → { num: 'H', sectors: '' }
-function splitPlatform(p) {
+function splitPlatform(p: string | null | undefined): PlatformParts {
   const m = /^(\d+)\s*([A-Z](?:\s*-\s*[A-Z])?|[A-Z]{2,})$/i.exec(p || '');
   if (!m) return { num: p || '', sectors: '' };
   let s = m[2].toUpperCase().replace(/\s*-\s*/, '–');

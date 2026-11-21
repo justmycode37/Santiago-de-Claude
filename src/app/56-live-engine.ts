@@ -6,10 +6,10 @@ const kante = KANTE_LIVE.client(location.search, window.APP_CONFIG);
 const shareHost = document.getElementById('setShareHost');
 if (shareHost) shareHost.textContent = kante.url ? new URL(kante.url).host : 'none (live data is switched off)';
 if (kante.ignored) console.warn('Kante engine: ?kante= only accepts an engine on this machine; ignored', kante.ignored);
-let kanteTimer = null, kanteRetryTimer = null;
+let kanteTimer: number | null = null, kanteRetryTimer: number | null = null;
 // /api/meta: an engine that can't be reached when the page loads is asked again every 30 s (and when the tab
 // comes back), so it is not off for the rest of the visit
-function kanteConnect(force) {
+function kanteConnect(force?: boolean) {
   if (!kante.url) return;
   clearTimeout(kanteRetryTimer);
   kante.ready(force).then((m) => {
@@ -20,14 +20,14 @@ function kanteConnect(force) {
 }
 kanteConnect();
 // The engine's answer for a ride is recent (and, unless anyState, has live data): then it is the ride's source
-function engineFresh(s, anyState) {
+function engineFresh(s: OdSection | null | undefined, anyState?: boolean) {
   const k = s && s._k;
   if (!k || k.state !== 'ok' || !k.trip || Date.now() - k.at > 100000) return false;
   return anyState || KANTE_LIVE.isLive(KANTE_LIVE.liveInfoOf(k.trip));
 }
 // Rides still to be matched: never asked, or the engine could not be reached (again after 25 s, 3 tries at most)
-const needsMatch = (s) => s.journey && (!s._k || (s._k.state === 'error' && s._k.tries < 3 && Date.now() - s._k.tried > 25000));
-async function kanteMatch(id) {
+const needsMatch = (s: OdSection) => s.journey && (!s._k || (s._k.state === 'error' && s._k.tries! < 3 && Date.now() - s._k.tried! > 25000));
+async function kanteMatch(id: number) {
   await kante.ready();
   if (id !== journeyReq || !journeyConn) return;
   // rides planned elsewhere need /api/match; rides of an engine journey do not
@@ -42,8 +42,8 @@ async function kanteMatch(id) {
         match: { tripId: leg.tripId, serviceDate: leg.serviceDate, fromSeq: leg.from.seq, toSeq: leg.to.seq } };
       return;
     }
-    const k = (s._k = { state: 'matching', tries: ((s._k && s._k.tries) || 0) + 1, tried: Date.now() });
-    const j = s.journey;
+    const k: KanteRideLink = (s._k = { state: 'matching', tries: ((s._k && s._k.tries) || 0) + 1, tried: Date.now() });
+    const j = s.journey!;
     const r = await kante.get('/api/match', KANTE_LIVE.matchParams(s, lineLabel(j), modeOf(j.category) === 'train'));
     if (!r) k.state = 'error';
     // only a sure match: "ambiguous" or "none" leaves the ride with transport.opendata.ch's forecasts. A ride that
@@ -66,7 +66,7 @@ async function kantePoll() {
   const before = liveSig();
   let lost = false;
   await Promise.all(rides.map(async (s) => {
-    const k = s._k;
+    const k = s._k as KanteRideMatched;
     k.busy = true; // one request per ride at a time
     const trip = await kante.get('/api/trip', { id: k.match.tripId, date: k.match.serviceDate });
     k.busy = false;
@@ -75,7 +75,7 @@ async function kantePoll() {
       k.trip = trip;
       k.at = Date.now();
       k.fails = 0;
-      k.seqIdx = KANTE_LIVE.seqIndex(KANTE_LIVE.alignCalls(trip, k.match, s.journey.passList));
+      k.seqIdx = KANTE_LIVE.seqIndex(KANTE_LIVE.alignCalls(trip, k.match, s.journey!.passList));
       // an engine journey keeps its stops in the engine's shape (stop.kante: boarding point, platform)
       if (s.kanteLegs) KanteJourney.applyTrip(s, trip);
       else KANTE_LIVE.applyTrip(s, trip, k.match);
@@ -92,7 +92,7 @@ async function kantePoll() {
 // ---- On board (only with Settings › Live data › send my position switched on; off by default): every 20 s while
 //      GPS shows you moving on a ride, ask the engine which vehicles you could be on. If it is clearly another one
 //      twice in a row, the status line asks (never claims) and offers Replan. ----
-let onboard = null; // { step, ours, byTrip, top, streak, at }
+let onboard: OnboardState | null = null; // { step, ours, byTrip, top, streak, at }
 let onboardAt = 0, onboardBusy = false, observeAt = 0;
 function movingNow() {
   const last = recentFixes[recentFixes.length - 1];
@@ -106,13 +106,13 @@ async function kanteOnboard() {
   const t = track, now = Date.now();
   if (!SETTINGS.prefs().shareOnboard || !kante.ok() || !kante.trusted || onboardBusy || !t || !gpsOn() || now - onboardAt < 20000) return;
   const st = journeySteps[t.i];
-  if (!st || st.type !== 'ride' || t.arrived || now < st.t0 - 60000 || !movingNow()) return;
+  if (!st || st.type !== 'ride' || t.arrived || now < st.t0! - 60000 || !movingNow()) return;
   const id = journeyReq, k = st.s._k, j = st.s.journey, line = lineLabel(j);
   const mine = { tripId: k && k.state === 'ok' ? k.match.tripId : null, line, headsign: (k && k.trip && k.trip.headsign) || j.to };
-  const at = { lat: KANTE_LIVE.roundLL(userLngLat[1]), lon: KANTE_LIVE.roundLL(userLngLat[0]) };
+  const at = { lat: KANTE_LIVE.roundLL(userLngLat![1]), lon: KANTE_LIVE.roundLL(userLngLat![0]) };
   onboardBusy = true;
   onboardAt = now;
-  let v = null;
+  let v: KanteOnboardVerdict | null = null;
   try {
     const r = await kante.get('/api/onboard', { ...at, q: line.replace(/\s+/g, '') });
     if (r) v = KANTE_LIVE.onboardVerdict(r.candidates, mine);
@@ -125,7 +125,7 @@ async function kanteOnboard() {
   }
   if (!v || id !== journeyReq) return;
   const same = onboard && onboard.step === t.i && v.top && onboard.top && onboard.top.tripId === v.top.tripId;
-  onboard = { step: t.i, ours: v.ours, byTrip: v.byTrip, top: v.clear ? v.top : null, streak: v.clear ? (same ? onboard.streak + 1 : 1) : 0, at: Date.now() };
+  onboard = { step: t.i, ours: v.ours, byTrip: v.byTrip, top: v.clear ? v.top : null, streak: v.clear ? (same ? onboard!.streak + 1 : 1) : 0, at: Date.now() };
   renderLive();
 }
 // On-board reports (Settings › Live data, off by default): only while you are on the planned, matched vehicle
@@ -137,6 +137,6 @@ function kanteObserve() {
   const st = journeySteps[t.i], k = st && st.s && st.s._k;
   if (!k || k.state !== 'ok' || !gpsOn() || fixAge() > 10000 || !(userAccuracy > 0 && userAccuracy <= 50) || now - observeAt < 10000) return;
   observeAt = now;
-  kante.post('/api/observe', { tripId: k.match.tripId, serviceDate: k.match.serviceDate, lat: KANTE_LIVE.roundLL(userLngLat[1]),
-    lon: KANTE_LIVE.roundLL(userLngLat[0]), t: Math.round(lastFixAt / 1000), accuracy: Math.round(userAccuracy) });
+  kante.post('/api/observe', { tripId: k.match.tripId, serviceDate: k.match.serviceDate, lat: KANTE_LIVE.roundLL(userLngLat![1]),
+    lon: KANTE_LIVE.roundLL(userLngLat![0]), t: Math.round(lastFixAt / 1000), accuracy: Math.round(userAccuracy) });
 }
