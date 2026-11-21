@@ -25,7 +25,10 @@
     // when shareOnboard is switched on here
     liveVehicles: true,
     shareOnboard: false,
-    // Events
+    // Guidance (a11y.js): this phone's voice says each step of a journey; a buzz at each step
+    readAloud: false,
+    vibrate: false,
+    // Events ("lowVision" also opens journeys as a list and names tactile paving and sound signals: index.html)
     newcomer: false,
     lowVision: false,
     freeFood: false,
@@ -310,9 +313,21 @@
     changeListeners.forEach((fn) => fn());
   }
 
+  // Guidance switches only show where the phone can do it (iOS Safari has no vibration)
+  const aloudRow = document.getElementById('setAloudRow'), vibrateRow = document.getElementById('setVibrateRow');
+  if (aloudRow && !window.speechSynthesis) aloudRow.hidden = true;
+  if (vibrateRow && !navigator.vibrate) vibrateRow.hidden = true;
+
   page.addEventListener('change', (e) => {
     const t = e.target;
-    if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
+    if (t.dataset.setting) {
+      update({ [t.dataset.setting]: t.checked });
+      // switched on: say so with the voice (this tap is also what lets the page speak later, on iOS), or buzz once
+      if (t.checked && window.A11Y) {
+        if (t.dataset.setting === 'readAloud') A11Y.speak('Read aloud is on.', { force: true });
+        if (t.dataset.setting === 'vibrate') A11Y.buzz(false);
+      } else if (!t.checked && t.dataset.setting === 'readAloud' && window.A11Y) A11Y.hush();
+    }
     else if (t.dataset.layer) {
       const hidden = state.mapHidden.filter((k) => k !== t.dataset.layer);
       if (!t.checked) hidden.push(t.dataset.layer);

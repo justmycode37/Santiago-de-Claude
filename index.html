@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
-  <title>Maps</title>
+  <meta name="apple-mobile-web-app-title" content="Maps" />
+  <title>Maps: Swiss journey planner and community events</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <script>
     // Pick the theme before first paint: saved choice, else the system setting
@@ -125,6 +126,15 @@
       overscroll-behavior: none;
     }
     #map { position: fixed; inset: 0; }
+    /* For screen readers only: on the page, not on the screen */
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0; border: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
     .maplibregl-control-container { display: none; }
 
     /* Shared round floating button */
@@ -210,7 +220,7 @@
       bottom: calc(env(safe-area-inset-bottom) + 12px);
       z-index: 10;
       display: flex;
-      flex-direction: column;
+      flex-direction: column-reverse; /* the results come after the field in the page (for screen readers), above it on screen */
       gap: 8px;
       pointer-events: none; /* only the bar/list catch taps, so the map stays draggable beside the circle */
     }
@@ -231,21 +241,35 @@
     }
     .results.open { display: block; }
     .results::-webkit-scrollbar { display: none; }
-    .results li {
+    /* Every row you can pick is a button filling its list item */
+    .results li > button, .results li.empty, .results li.attr {
       display: flex;
       align-items: center;
       gap: 12px;
       padding: 10px 16px;
-      cursor: pointer;
     }
-    .results li.more {
+    .results li > button {
+      width: 100%;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .results li > button:focus-visible { outline: 3px solid var(--you); outline-offset: -3px; border-radius: 14px; }
+    .results li.more > button {
       justify-content: center;
       color: var(--bar-secondary);
       font-size: 15px;
       font-weight: 500;
     }
     .results li .text { flex: 1; min-width: 0; padding: 2px 0; }
-    .results li:active { background: var(--pressed); }
+    .results li > button:active { background: var(--pressed); }
     .results .icon {
       flex: none;
       width: 36px;
@@ -266,10 +290,9 @@
     .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
     .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
     .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
-    .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
+    .results li.on-map > button { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
     .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
-    .results li.attr:active { background: none; }
 
     .search {
       height: 52px;
@@ -432,6 +455,7 @@
     .kj b, .kj strong { font-weight: 700; }
     .kj small { font-size: 12px; line-height: 16px; }
     .kj :focus-visible { outline: 3px solid var(--you); outline-offset: 2px; border-radius: 6px; }
+    #journey:focus { outline: none; } /* focused by the app when a journey opens, so a screen reader starts there */
     .kj .icon { flex: none; display: inline-block; vertical-align: -.2em; }
     .kj .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .kj .trunc2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -606,6 +630,7 @@
     .kj .step { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 36px; padding: 8px; border-radius: 8px; font-size: 14px; }
     .kj .step-icon { flex: none; color: var(--ink-2); }
     .kj .step-text { flex: 1; min-width: 0; }
+    .kj .step-note { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--ink-2); }
     .kj .step.active { background: var(--brand-tint); font-weight: 700; }
     .kj .step.active .step-icon { color: var(--ink); }
     .kj .step.k-arrive { font-weight: 700; }
@@ -753,7 +778,11 @@
     }
     .t-sheet.open { transform: none; }
     .t-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--clear-bg); margin: 0 auto 14px; }
-    .t-title { font-size: 20px; font-weight: 800; margin-bottom: 14px; }
+    .t-title { font-size: 20px; font-weight: 800; margin: 0 44px 14px 0; }
+    .t-close { position: absolute; top: 18px; right: 14px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: var(--row-bg); color: var(--bar-secondary); display: grid; place-items: center; cursor: pointer; }
+    .t-close::after { content: ""; position: absolute; inset: -4px; } /* 44 px tap target */
+    .t-close svg { width: 14px; height: 14px; }
+    .t-sheet :focus-visible { outline: 3px solid var(--you); outline-offset: 2px; }
     .t-seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; margin-bottom: 14px; border-radius: 12px; background: var(--row-bg); }
     .t-seg button { border: 0; padding: 9px; border-radius: 10px; background: transparent; color: var(--bar-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
     .t-seg button.active { background: var(--bar-bg); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
@@ -958,6 +987,7 @@
     .set-link:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; border-radius: 4px; }
     .set-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 16px; cursor: pointer; }
     .set-row:has(.switch:disabled) { cursor: default; }
+    .set-row[hidden] { display: none; }
     .set-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--c); color: var(--f, #fff); display: grid; place-items: center; }
     .set-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
     .set-text { flex: 1; min-width: 0; }
@@ -1081,6 +1111,10 @@
   </style>
 </head>
 <body>
+  <!-- What screen readers are told when something happens by itself (a11y.js): one polite, one that interrupts -->
+  <div class="sr-only sr-live" id="srStatus" role="status" aria-live="polite"></div>
+  <div class="sr-only sr-live" id="srAlert" role="alert" aria-live="assertive"></div>
+
   <div id="map"></div>
 
   <div class="menu" id="menu">
@@ -1133,17 +1167,20 @@
   </div>
 
   <div class="t-dim" id="tDim"></div>
-  <div class="t-sheet" id="tSheet" role="dialog" aria-label="Choose time" aria-hidden="true">
+  <div class="t-sheet" id="tSheet" role="dialog" aria-modal="true" aria-labelledby="tTitle" aria-hidden="true" inert>
     <div class="t-grab"></div>
-    <div class="t-title">When do you want to travel?</div>
-    <div class="t-seg" id="tSeg">
-      <button type="button" data-mode="dep">Depart at</button>
-      <button type="button" data-mode="arr">Arrive by</button>
+    <button class="t-close" id="tClose" type="button" aria-label="Close without changing the time">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" /></svg>
+    </button>
+    <h2 class="t-title" id="tTitle">When do you want to travel?</h2>
+    <div class="t-seg" id="tSeg" role="group" aria-label="Depart or arrive">
+      <button type="button" data-mode="dep" aria-pressed="false">Depart at</button>
+      <button type="button" data-mode="arr" aria-pressed="false">Arrive by</button>
     </div>
     <label class="t-field"><span>Date</span><input type="date" id="tDate" /></label>
     <label class="t-field"><span>Time</span><input type="time" id="tTime" /></label>
     <div class="t-actions">
-      <button class="t-btn secondary" id="tNow" type="button">Now</button>
+      <button class="t-btn secondary" id="tNow" type="button" aria-label="Leave now">Now</button>
       <button class="t-btn primary" id="tDone" type="button">Search</button>
     </div>
   </div>
@@ -1181,6 +1218,21 @@
         </label>
       </div>
       <p class="set-foot">Stairs, lifts and ramps come from OpenStreetMap and may be incomplete. Step-free journeys get at least 7 minutes at every change, wheelchair journeys 10. The timetable doesn’t say which trains and buses have step-free boarding, so check with the operator when it matters.</p>
+
+      <h2 class="set-head" id="setGuideHead">Guidance</h2>
+      <div class="set-group" role="group" aria-labelledby="setGuideHead">
+        <label class="set-row" id="setAloudRow">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /></svg></span>
+          <span class="set-text"><b id="setAloudT">Read aloud</b><small id="setAloudD">This phone’s voice says each step. Leave off if you use VoiceOver or TalkBack.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="readAloud" aria-labelledby="setAloudT" aria-describedby="setAloudD" />
+        </label>
+        <label class="set-row" id="setVibrateRow">
+          <span class="set-ic" style="--c:var(--tang)" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="4" width="8" height="16" rx="2" /><path d="M4 9v6M20 9v6" /></svg></span>
+          <span class="set-text"><b id="setVibrateT">Vibrate</b><small id="setVibrateD">A short buzz at each new step, two when something needs you now.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="vibrate" aria-labelledby="setVibrateT" aria-describedby="setVibrateD" />
+        </label>
+      </div>
+      <p class="set-foot">Tap Start on a journey and the app tells you what to do next: when to leave, where to board, when to get off, and when a platform or a time changes. Tap Start again to hear the current step once more. VoiceOver and TalkBack read all of this by themselves. Guidance works while the app is open and the screen is on.</p>
 
       <h2 class="set-head" id="setSpeedHead">Walking speed</h2>
       <div class="set-group set-pad" role="group" aria-labelledby="setSpeedHead">
@@ -1281,7 +1333,7 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg></span>
-          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">See events and groups for blind and low-vision people.</small></span>
+          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">Journeys open as a list, the screen stays on during guidance, and tactile paving and sound signals are named where they are mapped. Also shows events for blind and low-vision people.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="lowVision" aria-labelledby="setVisionT" aria-describedby="setVisionD" />
         </label>
       </div>
@@ -1312,7 +1364,7 @@
     </div>
   </section>
 
-  <article class="ev-page" id="evPage" aria-hidden="true">
+  <article class="ev-page" id="evPage" aria-labelledby="evTitle" aria-hidden="true" inert>
     <div class="ev-hero" id="evHero">
       <button class="fab ev-back" id="evBack" type="button" aria-label="Back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
@@ -1339,7 +1391,7 @@
       <p id="evAbout"></p>
       <h2>Who it’s for</h2>
       <p id="evAudience"></p>
-      <label class="ev-related" hidden>Events at this map pin
+      <label class="ev-related" hidden>Other dates and events here
         <select id="evRelated"></select>
       </label>
       <a class="ev-map-btn" id="evOrganizer" target="_blank" rel="noopener noreferrer">Organizer details</a>
@@ -1349,21 +1401,21 @@
   </article>
 
   <div class="search-wrap" id="searchWrap">
-    <ul class="results" id="results" role="listbox"></ul>
     <form class="search" id="searchForm" role="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
         <circle cx="10.5" cy="10.5" r="7" />
         <path d="M16 16l5 5" />
       </svg>
       <input id="q" type="search" placeholder="Search places, food, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search places, food, shops and addresses" />
-      <button class="clear" id="clear" type="button" aria-label="Clear">
-        <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
+      <button class="clear" id="clear" type="button" aria-label="Clear search">
+        <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
       </button>
     </form>
+    <ul class="results" id="results" aria-label="Search results"></ul>
   </div>
 
   <!-- Journey: the Kante app's journey sheet (nikitas-implementation) — header, timeline, and the action bar below -->
-  <section class="kj ksheet" id="journey" aria-label="Journey details" data-detent="low">
+  <section class="kj ksheet" id="journey" aria-label="Journey" tabindex="-1" data-detent="low">
     <div class="sheet-top">
       <button class="sheet-handle" id="jHandle" type="button" aria-label="Expand panel"><span></span></button>
       <div class="sheet-head" id="jHead"></div>
@@ -1379,6 +1431,7 @@
   <script src="events.js"></script>
   <script src="map-layers.js"></script>
   <script src="settings.js"></script>
+  <script src="a11y.js"></script>
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
   <script src="engine.js"></script>
@@ -1627,10 +1680,12 @@
       button.classList.toggle('no-photo', !event.image);
       if (event.image) photo.src = event.image;
       title.textContent = event.title;
+      A11Y.setLang(title, A11Y.textLang(event.title));
       time.textContent = (event.areaOnly ? 'Town area · ' : '') + event.when;
       button.addEventListener('click', (e) => {
         e.stopPropagation();
         eventsAtPin = features;
+        eventBack = () => button;
         openEvent(event.id);
       });
       return card;
@@ -1739,7 +1794,12 @@
       setMenu(false);
       SETTINGS.open();
     });
-    SETTINGS.onChange(() => { updateCards(); updatePlaces(); vehUpdate(); });
+    SETTINGS.onChange(() => {
+      updateCards(); updatePlaces(); vehUpdate();
+      loadAccessData(); // Blind or low vision switched on: tactile guidance and sound signals for the journey
+      if (journeyConn) queueSheet();
+      if (!SETTINGS.prefs().lowVision) A11Y.keepAwake(false);
+    });
     // Accessibility options changed during a journey → plan it again with them
     SETTINGS.onClose((journeyChanged) => {
       if (journeyChanged && journeyDest) startJourney(journeyDest, true);
@@ -1760,14 +1820,15 @@
         ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');
       camera.catch(() => {}); orientation.catch(() => {});
       const hooks = {
-        PLATFORMS, OPENDATA, platformLL, coordOf, badge,
+        PLATFORMS, OPENDATA, platformLL, coordOf, badge, lineName,
         position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
         openStop: (id, i) => {
           const st = PLATFORMS.get(String(id));
           if (!st) return;
           const ll = i != null && st.edges[i] ? st.edges[i].ll : st.edges[0].ll;
           map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 18) });
-          openPlatform({ properties: { id: String(id), i } });
+          // from Scan: the card takes the focus and its departures are said, so it is not only a bubble on the map
+          openPlatform({ properties: { id: String(id), i } }, { focus: true });
         },
         toast: (t) => showToast(t),
         onClose: () => menuBtn.focus(),
@@ -1955,6 +2016,7 @@
     let results = [];
     let placeCategory = null; // "Restaurants" when the query names a kind of place: the nearest ones are listed
     let expanded = false;
+    let eventsAsked = false;  // the query asks for events ("events", "events near me"): only they are listed
     let debounce;
     let reqId = 0;
 
@@ -2047,6 +2109,54 @@
       return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)), toilets };
     }
 
+    // Community events (events.js): on the map they are cards you have to see, so the search lists them too.
+    // "events" (or "Events near you", offered while the field is empty) → the nearest ones that match your settings;
+    // with more words ("free food events") those among them. Any other query → events with every word in their
+    // title, category or tags.
+    const EVENT_WORDS = new Set(['event', 'events', 'veranstaltung', 'veranstaltungen', 'anlass', 'anlasse', 'evenement', 'evenements',
+      'evento', 'eventi', 'meetup', 'meetups']);
+    const EVENT_FILLER = new Set([...NEAR_WORDS, 'you', 'for', 'on', 'what', 'whats', 's', 'today', 'this', 'week', 'community', 'local', 'all']);
+    function eventResult(f, km, all = [f]) {
+      const p = f.properties, dates = all.length;
+      return {
+        series: all, // every date of it, to choose from on its page
+        title: p.title,
+        // "300 m · 23 Nov 2026 · 14:00–15:00 · 4 more dates · Language": what tells two events apart comes first
+        subtitle: [fmtDist(km * 1000) + (p.areaOnly ? ' (town area)' : ''), p.when, dates > 1 ? `${dates - 1} more ${dates === 2 ? 'date' : 'dates'}` : '', p.category].filter(Boolean).join(' · '),
+        kind: 'event',
+        origin: 'event',
+        eventId: p.id,
+        distance: km * 1000,
+        icon: { color: p.color, fg: p.ink && p.ink !== '#FFFFFF' ? p.ink : '', svg: `<path d="${EVENTS.GLYPHS[p.cat]}"/>` },
+        lngLat: f.geometry.coordinates,
+      };
+    }
+    // → { asked: the query asks for events, list: results nearest first }
+    function searchEvents(text) {
+      const words = wordsOf(text);
+      const asked = words.some((w) => EVENT_WORDS.has(w));
+      const plain = words.filter((w) => !EVENT_WORDS.has(w) && !(asked ? EVENT_FILLER : NEAR_WORDS).has(w)).map(stem);
+      if (!asked && (!plain.length || plain.join('').length < 3)) return { asked, list: [] };
+      const from = gpsOn() ? userLngLat : map.getCenter().toArray();
+      const fits = (f) => {
+        const p = f.properties;
+        const hay = wordsOf([p.title, p.category, p.tags.join(' '), asked ? [p.city, p.audience, p.venue].join(' ') : ''].join(' ')).map(stem);
+        return plain.every((w) => hay.some((x) => x === w || (w.length >= 3 && x.startsWith(w))));
+      };
+      // an event held on several dates is listed once, with its next date; its page lets you choose the others
+      const series = new Map();
+      const until = (f) => (f.properties.through ? Date.parse(f.properties.through) : Infinity);
+      for (const f of visibleEvents().filter(fits)) {
+        const key = f.properties.title + '|' + f.geometry.coordinates.join(',');
+        if (!series.has(key)) series.set(key, []);
+        series.get(key).push(f);
+      }
+      const list = [...series.values()].map((all) => all.sort((a, b) => until(a) - until(b)))
+        .map((all) => [all, distKm(from, all[0].geometry.coordinates)])
+        .sort((a, b) => a[1] - b[1]).slice(0, asked ? 30 : 3).map(([all, km]) => eventResult(all[0], km, all));
+      return { asked, list };
+    }
+
     // Addresses, towns, postcodes, mountains, lakes: swisstopo
     async function searchSwisstopo(text) {
       const url = 'https://api3.geo.admin.ch/rest/services/api/SearchServer?' + new URLSearchParams({
@@ -2133,8 +2243,13 @@
       ]);
       if (id !== reqId) return; // a newer query is in flight
       const local = searchPlaces(text);
+      const events = searchEvents(text);
+      eventsAsked = events.asked && events.list.length > 0;
       const show = (final) => {
         results = combineResults(text, swiss, online, local);
+        // asked for: the events alone. Otherwise the ones that match by name join after the top results.
+        if (eventsAsked) { results = events.list; placeCategory = null; }
+        else if (events.list.length) results.splice(Math.min(2, results.length), 0, ...events.list);
         render(!final ? 'Searching…' : swiss || online ? 'No results' : 'Search unavailable');
       };
       // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow
@@ -2177,7 +2292,7 @@
         placeMarkers.push(new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, -14] }).setLngLat(r.lngLat).addTo(map));
         bounds.extend(r.lngLat);
       }
-      list.classList.remove('open');
+      closeResults();
       input.blur();
       const bottom = window.innerHeight * 0.2 + 90; // clear of the search bar
       map.fitBounds(bounds, { padding: { top: 90, left: 50, right: 50, bottom }, maxZoom: 16.5, duration: 900 });
@@ -2208,9 +2323,53 @@
       el.addEventListener('click', fn);
     }
 
+    // A row you can pick: a real button, so a screen reader names it as one and a double tap presses it
+    function rowButton(cls, onPick, ...kids) {
+      const li = document.createElement('li');
+      if (cls) li.className = cls;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.append(...kids);
+      onTap(b, onPick);
+      li.append(b);
+      return li;
+    }
+    // "5 results", said to screen readers once typing pauses (not after every letter)
+    let countTimer = 0, countSaid = '';
+    function sayCount(text) {
+      clearTimeout(countTimer);
+      if (!text) { countSaid = ''; return; }
+      countTimer = setTimeout(() => {
+        if (text === countSaid || !list.classList.contains('open')) return;
+        countSaid = text;
+        A11Y.say(text, { quiet: true });
+      }, 700);
+    }
+    function closeResults() {
+      list.classList.remove('open');
+      sayCount('');
+    }
     function render(emptyText = 'No results') {
       list.innerHTML = '';
-      if (!input.value.trim()) { list.classList.remove('open'); return; }
+      if (!input.value.trim()) {
+        // Nothing typed yet: offer the community events near you, which are otherwise only cards on the map
+        if (document.activeElement !== input || journeyDest || !visibleEvents().length) { closeResults(); return; }
+        const icon = document.createElement('div');
+        icon.className = 'icon';
+        icon.style.background = 'var(--rose)';
+        icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${EVENTS.GLYPHS.community}"/></svg>`;
+        const text = document.createElement('div');
+        text.className = 'text';
+        text.append(mk('div', 'title', 'Events near you'), mk('div', 'subtitle', SETTINGS.eventTags().length ? 'Those that match your settings, nearest first' : 'Community events, nearest first'));
+        list.appendChild(rowButton('', () => {
+          input.value = 'Events near you';
+          clearBtn.classList.add('show');
+          clearTimeout(debounce);
+          search(input.value);
+        }, icon, text));
+        list.classList.add('open');
+        return;
+      }
       if (!results.length) {
         const li = document.createElement('li');
         li.className = 'empty';
@@ -2219,18 +2378,15 @@
       }
       const placeCount = results.filter((r) => r.origin === 'place').length;
       if (placeCount >= 2 && results[0].origin === 'place') {
-        const onMap = document.createElement('li');
-        onMap.className = 'on-map';
-        onMap.setAttribute('role', 'option');
-        onMap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/></svg>';
-        onMap.append(placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
-        onTap(onMap, showPlacesOnMap);
-        list.appendChild(onMap);
+        const ic = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        ic.setAttribute('viewBox', '0 0 24 24');
+        ic.setAttribute('aria-hidden', 'true');
+        ic.innerHTML = '<path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/>';
+        list.appendChild(rowButton('on-map', showPlacesOnMap, ic,
+          placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`));
       }
-      const visible = expanded ? results : results.slice(0, placeCategory ? 5 : COLLAPSED_COUNT);
+      const visible = expanded ? results : results.slice(0, eventsAsked ? 6 : placeCategory ? 5 : COLLAPSED_COUNT);
       visible.forEach((r, i) => {
-        const li = document.createElement('li');
-        li.setAttribute('role', 'option');
         const icon = document.createElement('div');
         const k = r.icon || KIND[r.kind] || KIND.other;
         icon.className = 'icon';
@@ -2239,23 +2395,20 @@
         icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
         const text = document.createElement('div');
         text.className = 'text';
-        const t = document.createElement('div');
-        t.className = 'title';
-        t.textContent = r.title;
-        const s = document.createElement('div');
-        s.className = 'subtitle';
-        s.textContent = r.subtitle;
-        text.append(t, s);
-        li.append(icon, text);
-        onTap(li, () => select(i));
-        list.appendChild(li);
+        // names are in the language of where they are (or, for an event, of its title), so they are pronounced right
+        const t = A11Y.setLang(mk('div', 'title', r.title), r.origin === 'event' ? A11Y.textLang(r.title) : A11Y.placeLang(r.lngLat));
+        text.append(t, mk('div', 'subtitle', r.subtitle));
+        list.appendChild(rowButton('', () => select(i), icon, text));
       });
-      if (!expanded && results.length > visible.length) {
-        const more = document.createElement('li');
-        more.className = 'more';
-        more.textContent = 'Show more…';
-        onTap(more, () => { expanded = true; render(); });
-        list.appendChild(more);
+      const hidden = results.length - visible.length;
+      if (!expanded && hidden > 0) {
+        list.appendChild(rowButton('more', () => {
+          expanded = true;
+          render();
+          // a screen reader was on "Show more": carry on at the first row that is new
+          const next = list.querySelectorAll('li:not(.on-map) > button')[visible.length];
+          if (next && document.activeElement !== input) next.focus();
+        }, 'Show more…'));
       }
       if (window.PlaceSearch && results.some((r) => r.source)) { // places from places.js: credit their source
         const attr = document.createElement('li');
@@ -2265,17 +2418,32 @@
       }
       list.classList.add('open');
       if (!expanded) list.scrollTop = 0;
+      if (emptyText !== 'Searching…' || results.length) {
+        sayCount(!results.length ? emptyText : `${visible.length} ${visible.length === 1 ? 'result' : 'results'}${!expanded && hidden > 0 ? `, ${hidden} more` : ''}`);
+      }
     }
 
     function select(i) {
       const r = results[i];
-      if (r) showDestinationJourney(r);
+      if (!r) return;
+      if (r.origin !== 'event') { showDestinationJourney(r); return; }
+      // an event opens its page (with "Show journey" on it); the search keeps what was typed for the way back
+      closeResults();
+      input.blur();
+      eventsAtPin = r.series || [];
+      // back from the event: the list again, on the row you picked (not the search field, which would open the keyboard)
+      eventBack = () => {
+        if (results[i] !== r || wrap.classList.contains('journey-open')) return null;
+        render();
+        return list.querySelectorAll('li:not(.on-map):not(.more) > button')[i] || null;
+      };
+      openEvent(r.eventId);
     }
 
     function showDestinationJourney(r) {
       input.value = r.title;
       clearBtn.classList.add('show');
-      list.classList.remove('open');
+      closeResults();
       input.blur();
       clearPlacePins();
       destMarker.setLngLat(r.lngLat).addTo(map);
@@ -2287,7 +2455,7 @@
       clearBtn.classList.toggle('show', !!input.value);
       clearTimeout(debounce);
       clearPlacePins();
-      if (text.length < 2) { reqId++; results = []; placeCategory = null; render(); return; }
+      if (text.length < 2) { reqId++; results = []; placeCategory = null; eventsAsked = false; render(); return; }
       // Google Places is paid per request: wait a little longer for a pause in typing
       debounce = setTimeout(() => search(text), window.PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
     });
@@ -2295,7 +2463,7 @@
     input.addEventListener('focus', () => {
       setMenu(false);
       loadPlaces(); // so places (toilets, pharmacies…) are ready to be searched
-      if (input.value.trim()) render();
+      render(); // what was found before, or "Events near you" while nothing is typed
     });
 
     form.addEventListener('submit', (e) => {
@@ -2324,6 +2492,7 @@
       if (!e.originalEvent) return; // ignore programmatic moves (flyTo after a search)
       if (wrap.classList.contains('journey-open')) { setMenu(false); return; } // keep the journey widget open
       input.blur();
+      closeResults();
       setMenu(false);
       wrap.classList.add('collapsed');
     });
@@ -2334,9 +2503,11 @@
     });
 
     // Tapping the map closes the keyboard, results and menu
-    map.on('mousedown', () => { input.blur(); setMenu(false); });
-    map.on('touchstart', () => { input.blur(); setMenu(false); });
-    input.addEventListener('blur', () => list.classList.remove('open'));
+    map.on('mousedown', () => { input.blur(); closeResults(); setMenu(false); });
+    map.on('touchstart', () => { input.blur(); closeResults(); setMenu(false); });
+    // The list closes when you leave the search, but not when focus goes from the field to the clear button or
+    // into the list: a screen reader (TalkBack) focuses a row before it presses it
+    wrap.addEventListener('focusout', (e) => { if (!wrap.contains(e.relatedTarget)) closeResults(); });
 
     // ---------- Platforms & stop edges ----------
     // Exact position of every platform (Gleis) and bus/tram stop edge (Kante) in Switzerland, from the
@@ -2448,7 +2619,7 @@
       if (hit.layer.id === 'platform-dot') openPlatform(hit);
       else openPlace(hit.properties.i);
     });
-    async function openPlatform(f) {
+    async function openPlatform(f, opts = {}) {
       popupPlace = null;
       const st = PLATFORMS.get(String(f.properties.id));
       // i = null: the stop as a whole (e.g. recognised by Scan without knowing which edge), all its departures
@@ -2462,12 +2633,17 @@
       const dot = mk('span', 'pf-dot', edge.ref);
       const name = mk('div', 'pf-name');
       const kind = (edge.ref ? `${word} ${edge.ref}` : word) + (edge.level ? ` · Level ${levelShort(edge.level)}` : '');
-      name.append(mk('b', null, st.name), mk('small', null, kind));
+      name.append(named(mk('b', null, st.name), edge.ll), mk('small', null, kind));
       const head = mk('div', 'pf-head');
+      dot.setAttribute('aria-hidden', 'true'); // the platform is named in words next to it
       head.append(dot, name);
       const note = mk('p', 'pf-note', 'Loading departures…');
       const list = mk('ul', 'pf-list');
+      list.setAttribute('aria-label', 'Next departures');
       const box = mk('div');
+      box.setAttribute('role', 'group');
+      box.setAttribute('aria-label', `${st.name}, ${kind}`);
+      box.tabIndex = -1;
       box.append(head, note, list);
       // a station with a 3D model: show this platform in it, with the way there when you are nearby
       const key3d = window.Station3D && Station3D.has(f.properties.id);
@@ -2487,6 +2663,7 @@
         box.append(view3d);
       }
       platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
+      if (opts.focus) box.focus({ preventScroll: true });
       try {
         // The Kante engine knows the edge of every departure (engine-departures.js: d.edges). Without it,
         // transport.opendata.ch and the rule below.
@@ -2497,15 +2674,25 @@
         // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
         const here = whole ? all : all.filter((d) => (d.edges ? d.edges.includes(f.properties.i) : platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll));
         note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st.name}:`;
-        list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
+        const shown = (here.length ? here : all).slice(0, 6);
+        const depTime = (d) => fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure);
+        list.replaceChildren(...shown.map((d) => {
           const li = mk('li');
-          li.append(mk('time', null, fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure)), badge(d), mk('span', 'pf-to', d.to));
-          if (d.stop.delay > 0) li.append(mk('span', 'j-delay', `+${d.stop.delay}′`));
+          li.append(mk('time', null, depTime(d)), badge(d), named(mk('span', 'pf-to', d.to), edge.ll));
+          // drawn "+3′", read out "3 minutes late"
+          if (d.stop.delay > 0) li.append(A11Y.seen(mk('span', 'j-delay', `+${d.stop.delay}′`)), A11Y.sr(`${A11Y.minutes(d.stop.delay)} late`));
           return li;
         }));
         platformPopup.setLngLat(edge.ll); // re-fit now that the card is taller
+        if (opts.focus) {
+          A11Y.say(`${st.name}, ${kind}. ${!all.length ? 'No departures in the next hours.' : `${here.length ? 'Next' : 'All departures from this stop'}: ${shown.slice(0, 3)
+            .map((d) => `${lineName(d)} to ${d.to} at ${depTime(d)}${d.stop.delay > 0 ? `, ${A11Y.minutes(d.stop.delay)} late` : ''}`).join('; ')}.`}`);
+        }
       } catch {
-        if (req === popupReq) note.textContent = 'Departures could not be loaded.';
+        if (req === popupReq) {
+          note.textContent = 'Departures could not be loaded.';
+          if (opts.focus) A11Y.say(`${st.name}, ${kind}. Departures could not be loaded.`);
+        }
       }
     }
     map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
@@ -2686,6 +2873,8 @@
         showDestinationJourney({ title: name || label, lngLat: [lon, lat] });
       });
       body.append(go, mk('p', 'pl-src', 'Source: ' + PLACES.sources[x.s || 0]));
+      body.setAttribute('role', 'group');
+      body.setAttribute('aria-label', `${name || label}${name ? ', ' + label : ''}`);
       platformPopup.setLngLat([lon, lat]).setDOMContent(body).addTo(map);
     }
     for (const id of PLACE_LAYERS) {
@@ -3395,9 +3584,12 @@
 
     // Snap a GPS position onto the trip. Ties go to the earlier step (waiting at the stop, not yet riding);
     // going backwards and boarding before the vehicle has left are penalised, so loops and parallel lines stay right.
+    // near: how far you are from the nearest part of the trip, whichever step that is. It decides "off the route":
+    // on the platform before your train leaves, the step you are counted on is still the walk there, whose drawn
+    // line can end well short of the platform, and that distance must not make you off the route.
     function snapToTrip(p, ref, now) {
       const lay = tripLayout();
-      let best = null;
+      let best = null, near = Infinity;
       journeySteps.forEach((st, i) => {
         const cs = stepLine(st);
         if (!cs.length) return;
@@ -3405,6 +3597,7 @@
         const consider = (d, kmIn) => {
           const km = lay.km0[i] + kmIn;
           const cost = d + early + (km < ref ? (ref - km) * 500 : (km - ref) * 20);
+          if (d < near) near = d;
           if (!best || cost < best.cost) best = { cost, d, i, kmIn, km };
         };
         if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
@@ -3414,7 +3607,7 @@
           consider(q.d, cum[j] + q.t * (cum[j + 1] - cum[j]));
         }
       });
-      return best;
+      return best && { ...best, near };
     }
 
     // Still at (or on the way to) the stop of a ride that has left without you?
@@ -3436,7 +3629,7 @@
       const s = snapToTrip(userLngLat, ref, now);
       if (!s) { track = null; return; }
       const tol = Math.max(35, Math.min(userAccuracy, 150)) + 30;
-      const offCount = s.d > tol ? ((track && track.offCount) || 0) + 1 : 0;
+      const offCount = s.near > tol ? ((track && track.offCount) || 0) + 1 : 0;
       track = { ...s, v: geoVersion, offCount, off: offCount >= 2 }; // two fixes in a row, so one stray fix doesn't count
       if (track.off) return;
       const dest = destMarker._map && destMarker.getLngLat().toArray();
@@ -3566,7 +3759,7 @@
         const sameLine = KANTE_LIVE.norm(top.line.name) === KANTE_LIVE.norm(lineLabel(mine));
         return { kind: 'off', replan: true, parts: sameLine ? ['On ', kBadge(tj), ` towards ${top.headsign}?`] : ['On the ', kBadge(tj), ' instead of the ', kBadge(mine), '?'] };
       }
-      if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.d)} away`], replan: true };
+      if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.near)} away`], replan: true };
       if (t && t.missed) {
         const r = t.missed;
         return { kind: 'off', parts: ['Missed ', kBadge(r.s.journey), `? It left at ${fmtTime(r.t0)}`], replan: true };
@@ -3975,7 +4168,20 @@
     map.on('moveend', vehUpdate);
 
     const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-    const badge = (j) => lineVars(mk('span', 'j-badge', lineLabel(j)), j);
+    // A line as it is said: "IC 8", "Tram 9", "Bus 10" (a bare number needs its kind of vehicle)
+    const lineName = (j) => {
+      const mode = modeOf(j.category), label = lineLabel(j);
+      return (mode === 'train' && label ? label : `${MODE_NAME[mode] || 'Bus'} ${label}`).trim();
+    };
+    const badge = (j) => {
+      const b = lineVars(mk('span', 'j-badge', lineLabel(j)), j);
+      b.setAttribute('role', 'img');
+      b.setAttribute('aria-label', lineName(j));
+      return b;
+    };
+    // Names of stations, stops and streets are in the language spoken where they are: marked so (lang="de"),
+    // a screen reader pronounces "Zürich Hauptbahnhof" with a German voice instead of the page's English one
+    const named = (el, ll) => A11Y.setLang(el, A11Y.placeLang(ll));
     // Platform (rail, cable cars) · Bay (bus and tram edges, "Kante") · Pier (boats)
     const nounOf = (mode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
     const platformWord = (j) => nounOf(modeOf(j.category));
@@ -4060,6 +4266,13 @@
       const hh = Math.floor(m / 60), r = m % 60;
       return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
     }
+    // …and in words, for what is read out: "23 minutes", "1 hour 5 minutes"
+    function durWords(s) {
+      if (s > 0 && s < 60) return 'less than 1 minute';
+      const m = Math.max(0, Math.round(s / 60)), hh = Math.floor(m / 60), r = m % 60;
+      const hours = hh ? `${hh} ${hh === 1 ? 'hour' : 'hours'}` : '';
+      return [hours, r || !hh ? A11Y.minutes(r) : ''].filter(Boolean).join(' ');
+    }
     // where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
     function kDurExact(s) {
       s = Math.max(0, Math.round(s));
@@ -4068,11 +4281,11 @@
       return kDur(Math.floor(s / 60) * 60);
     }
     // "+4 min" after a time, in the alarm colour; nothing when on time
+    // (drawn "+4 min", read out "4 minutes late": an aria-label on a plain span is not read by every screen reader)
     function kDelay(min) {
       if (!min) return null;
-      const e = h('span', 'delay ' + (min > 0 ? 'late' : 'early'), `${min > 0 ? '+' : '−'}${Math.abs(min)} min`);
-      e.setAttribute('aria-label', `${Math.abs(min)} ${Math.abs(min) === 1 ? 'minute' : 'minutes'} ${min > 0 ? 'late' : 'early'}`);
-      return e;
+      return h('span', 'delay ' + (min > 0 ? 'late' : 'early'), A11Y.seen(`${min > 0 ? '+' : '−'}${Math.abs(min)} min`),
+        A11Y.sr(` ${A11Y.minutes(Math.abs(min))} ${min > 0 ? 'late' : 'early'} `));
     }
     // Line badge: a plain rounded rectangle in the line's colour ("IC 8", "S3"; a bare number gets its mode icon)
     function kBadge(j, size, withIcon) {
@@ -4098,9 +4311,9 @@
     // The boarding point in its fixed slot: right-aligned, bold ("Pl. 7", "Bay C"); nothing for an unsigned stop
     function kPlat(q, long) {
       if (!q || !q.label) return null;
-      const e = h('span', 'plat' + (q.planned ? ' changed' : ''), h('span', 'plat-noun', long ? q.word : q.short), h('b', null, q.label));
-      e.setAttribute('aria-label', `${q.word} ${q.label}${q.planned ? `, changed from ${q.planned}` : ''}`);
-      return e;
+      // drawn "Pl. 7", read out "Platform 7"
+      return h('span', 'plat' + (q.planned ? ' changed' : ''), A11Y.seen(h('span', 'plat-noun', long ? q.word : q.short)), A11Y.seen(h('b', null, q.label)),
+        A11Y.sr(` ${q.word} ${q.label}${q.planned ? `, changed from ${q.planned}` : ''} `));
     }
 
     // ---- Sheet: low (fitted to its header), middle (half the screen), expanded (stopping below the top bar) ----
@@ -4384,6 +4597,7 @@
       const tr = Math.max(0, rides.length - 1);
       const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
       head.append(
+        h('h1', 'sr-only', `Journey to ${journeyDest ? journeyDest.title : 'your destination'}`),
         h('div', 'sheet-title', legChain(), sheetActions()),
         h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.from.departure)} – ${fmtTime(end)}`),
           h('span', null, !rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`)));
@@ -4403,20 +4617,51 @@
       if (act.childNodes.length) head.append(act);
       return head;
     }
+    // ---- Redrawing the sheet without taking a button away from under a screen reader ----
+    // A screen reader sits on one element. When that element is replaced by a new copy, the reader loses its place
+    // and starts somewhere else. So: (1) only the parts that changed are swapped in (patch), and (2) when the element
+    // you were on had to be replaced, focus goes to the one that took its place (keepFocus).
+    function keepFocus(box, change) {
+      const el = document.activeElement, had = !!el && el !== box && box.contains(el);
+      const path = [];
+      if (had) for (let n = el; n !== box; n = n.parentElement) path.unshift([...n.parentElement.children].indexOf(n));
+      change();
+      if (!had || box.contains(document.activeElement)) return;
+      let n = box;
+      for (const i of path) { n = n.children[i]; if (!n) return; }
+      if (n.tagName === el.tagName && n.matches('button:not(:disabled), a[href], [tabindex]')) n.focus({ preventScroll: true });
+    }
+    // Children are compared in order and only the ones that differ are replaced; `deep`: containers whose own
+    // children are compared the same way (the list of steps). False when the two don't have the same shape.
+    // A part that is kept keeps its click handlers, so this is only used where the same markup always does the same.
+    function patch(old, fresh, deep) {
+      const a = [...old.children], b = [...fresh.children];
+      if (a.length !== b.length || a.some((x, i) => x.tagName !== b[i].tagName || x.className !== b[i].className)) return false;
+      a.forEach((x, i) => {
+        if (x.isEqualNode(b[i])) return;
+        if (!(deep && x.matches(deep) && patch(x, b[i], null))) x.replaceWith(b[i]);
+      });
+      return true;
+    }
     let headKey = '';
     function renderHead(force) {
       const node = buildHead();
       const key = node.outerHTML;
       if (!force && key === headKey) return; // unchanged: leave it alone (and its buttons pressable)
       headKey = key;
-      jHead.replaceChildren(node);
+      const old = jHead.firstElementChild;
+      keepFocus(jHead, () => {
+        // the summary header: the line that changed (the minutes count down) is swapped in, its buttons stay
+        if (!(old && old.className === 'jhead' && node.className === 'jhead' && patch(old, node, null))) jHead.replaceChildren(node);
+      });
     }
 
     function placeRow(t, name, kind) {
       return h('li', 'tl-row tl-place ' + kind,
         h('span', 'tl-time', h('b', null, fmtTime(t))),
         h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
-        h('span', 'tl-name', h('strong', null, name), h('small', null, kind === 'from' ? 'Start' : 'Destination')));
+        h('span', 'tl-name', kind === 'to' && journeyDest ? named(h('strong', null, name), journeyDest.lngLat) : h('strong', null, name),
+          h('small', null, kind === 'from' ? 'Start' : 'Destination')));
     }
     // Spare time on a change: from getting off to the next departure, less the walk
     function spareLine(st) {
@@ -4428,9 +4673,9 @@
         level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
           : h('span', null, h('b', null, `${kDurExact(s)} to spare`), extra > 0 && s < extra * 60 ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
     }
-    function stepRow(d, active, onClick) {
+    function stepRow(d, active, onClick, note) {
       const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
-        h('span', 'step-icon', kIcon(STEP_K[d.kind] || 'walk', 18)), h('span', 'step-text', d.text),
+        h('span', 'step-icon', kIcon(STEP_K[d.kind] || 'walk', 18)), h('span', 'step-text', d.text, note ? h('small', 'step-note', note) : null),
         d.from != null && d.to != null ? h('span', 'tag lvl', levelShort(d.from), kIcon('go', 11), levelShort(d.to)) : null);
       if (active) b.setAttribute('aria-current', 'step');
       return h('li', null, b);
@@ -4464,19 +4709,73 @@
           h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
       if (transfer) main.append(spareLine(st));
       else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
+      const sounds = soundCrossings(stepCoords(st));
+      if (sounds) main.append(h('div', 'quiet-line', `${soundWords(sounds)} on this walk`));
       if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget), kIcon('cube', 16), '3D view')));
       if (dirs.length > 1) {
-        main.append(kBtn('expander', null, () => {
+        const ex = kBtn('expander', `Walking directions, ${dirs.length} steps`, () => {
           if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
           renderBody();
-        }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`));
-        if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k)))));
+        }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`);
+        ex.setAttribute('aria-expanded', String(expanded));
+        main.append(ex);
+        if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k),
+          sounds && d.kind !== 'arrive' && soundCrossings((d.coords || []).filter(Boolean)) ? 'Sound signal at a crossing here' : ''))));
       }
       return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
         h('span', 'tl-time', h('small', null, kDur(mins * 60))),
         h('span', 'tl-rail walk', kIcon('walk', 18)),
         main);
     }
+
+    // ---- For blind and low-vision travellers (Settings › Blind or low vision): tactile guidance and sound, in words.
+    //      Stops: ATLAS accessibility data per stop edge (stop-access.js, built by tools/build-stop-access.mjs; Bern
+    //      so far). Crossings with a sound signal: Stadt Bern (map-places.js). Only what is mapped is said: where
+    //      nothing is known, nothing is claimed either way. Both are loaded when the setting is on. ----
+    const lowVision = () => !!SETTINGS.prefs().lowVision;
+    let STOP_ACCESS = null, stopAccessLoading = false;
+    function loadAccessData() {
+      if (!lowVision()) return;
+      if (!PLACES) loadPlaces().then((ok) => { if (ok && journeyConn) queueSheet(); });
+      if (STOP_ACCESS || stopAccessLoading) return;
+      stopAccessLoading = true;
+      const el = document.createElement('script');
+      el.src = 'stop-access.js';
+      el.async = true;
+      el.onload = () => { STOP_ACCESS = (window.STOP_ACCESS && window.STOP_ACCESS.stops) || {}; if (journeyConn) queueSheet(); };
+      el.onerror = () => { stopAccessLoading = false; el.remove(); };
+      document.head.appendChild(el);
+    }
+    const ACCESS_WORDS = { t: 'Tactile guide lines', f: 'Tactile field at the boarding point', a: 'Spoken announcements', s: 'Departure display with speech' };
+    // What is known at the edge a ride leaves from → ['Tactile field at the boarding point', …]
+    function stopAccess(st) {
+      const rows = lowVision() && STOP_ACCESS && STOP_ACCESS[String(st.s.departure.station.id)];
+      if (!rows) return [];
+      const q = quayOf(st, 'dep'), ll = (q.edge && q.edge.ll) || st.depLL;
+      // the edge itself by its position (the same official points as ours), else by its label when that is unambiguous
+      let row = ll && rows.find((r) => r[0] && distKm([r[0] / 1e5, r[1] / 1e5], ll) < 0.015);
+      if (!row && q.label) {
+        const same = rows.filter((r) => r[2] === String(q.label).toUpperCase());
+        if (same.length && same.every((r) => r[3] === same[0][3])) row = same[0];
+      }
+      return row ? [...row[3]].map((f) => ACCESS_WORDS[f]).filter(Boolean) : [];
+    }
+    // Crossings with a sound signal along a line: the signal posts within 12 m of it, posts of one crossing counted once
+    let soundPosts = null;
+    function soundCrossings(coords) {
+      if (!lowVision() || !PLACES || !coords || coords.length < 2) return 0;
+      if (!soundPosts) {
+        const cat = PLACES.cats.findIndex((c) => c[3] === 'Acoustic crossing signal');
+        soundPosts = PLACES.items.filter((r) => r[2] === cat).map((r) => [r[0], r[1]]);
+      }
+      const [w, s0, e, n] = coords.reduce((b, c) => [Math.min(b[0], c[0]), Math.min(b[1], c[1]), Math.max(b[2], c[0]), Math.max(b[3], c[1])], [180, 90, -180, -90]);
+      const near = soundPosts.filter((p) => p[0] > w - 0.0003 && p[0] < e + 0.0003 && p[1] > s0 - 0.0002 && p[1] < n + 0.0002
+        && coords.some((c, k) => k < coords.length - 1 && projectSeg(p, c, coords[k + 1]).d < 12));
+      const groups = [];
+      near.forEach((p) => { if (!groups.some((g) => distKm(g, p) < 0.03)) groups.push(p); });
+      return groups.length;
+    }
+    const soundWords = (n) => (n === 1 ? '1 crossing with a sound signal' : `${n} crossings with sound signals`);
 
     // "Where to stand": the boarding point as a sign, with everything known about it in words
     function standCard(st, i) {
@@ -4506,10 +4805,12 @@
         q.sectors || level ? h('div', 'stand-tags',
           q.sectors ? h('span', 'tag strong', `${q.sectors.replace(/[^A-Za-z0-9]/g, '').length === 1 ? 'Sector' : 'Sectors'} ${q.sectors}`) : null,
           level ? h('span', 'tag', level) : null) : null,
-        next ? h('div', 'stand-dir', compass, h('span', null, 'Next stop: ', h('b', null, next))) : null);
+        next ? h('div', 'stand-dir', compass, h('span', null, 'Next stop: ', named(h('b', null, next), coordOf(j.passList[1])))) : null);
       const card = h('div', 'stand', h('div', 'stand-main', sign, info));
       if (q.planned) card.append(h('div', 'stand-note warn', kIcon('alert', 16), `${q.word} ${q.planned} → ${q.label}: changed today`));
       if (!edge) card.append(h('div', 'stand-note', kIcon('info', 16), 'Exact platform or bay unknown — map pin shows the stop'));
+      const access = stopAccess(st);
+      if (access.length) card.append(h('div', 'stand-note', kIcon('info', 16), access.join(' · ')));
       card.append(h('div', 'stand-foot', h('span'), kBtn('link-btn', null, () => showQuay(i), 'Show on map ', kIcon('right', 14))));
       return card;
     }
@@ -4524,6 +4825,12 @@
       const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
       return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Expected' : 'Timetable');
     }
+    function stopsExpander(i, open, stops, rideS) {
+      const b = kBtn('expander', `Ride ${stops + 1} stops, ${durWords(rideS)}. The stops on the way`, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); },
+        kIcon(open ? 'up' : 'down', 16), `Ride ${stops + 1} stops · ${kDur(rideS)}`);
+      b.setAttribute('aria-expanded', String(open));
+      return b;
+    }
     function rideBlock(st, i) {
       const s = st.s, j = s.journey, mode = modeOf(j.category);
       const list = j.passList || [];
@@ -4534,22 +4841,22 @@
       li.append(h('div', 'tl-row board',
         callTime(s.departure, 'departure', true),
         h('span', 'tl-rail ride first', h('i', 'tl-node', kIcon(MODE_K[mode] || 'bus', 15))),
-        h('span', 'tl-name', h('strong', null, s.departure.station.name)),
+        h('span', 'tl-name', named(h('strong', null, s.departure.station.name), coordOf(s.departure))),
         kPlat(quayOf(st, 'dep'))));
       li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
         h('div', 'tl-main',
           standCard(st, i),
-          h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', j.to)),
+          h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), A11Y.sr(' towards '), named(h('span', 'ride-head', j.to), coordOf(s.departure))),
           h('div', 'ride-sum',
-            stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `Ride ${stops + 1} stops · ${kDur(rideS)}`)
+            stops > 0 ? stopsExpander(i, open, stops, rideS)
               : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),
             liveTag(st)))));
       if (open) list.slice(1, -1).forEach((stop) => li.append(h('div', 'tl-row mid',
         h('span', 'tl-time', h('span', null, fmtTime(liveMs(stop, 'arrival') || liveMs(stop, 'departure')))),
         h('span', 'tl-rail ride', h('i', 'tl-stopdot')),
-        h('span', 'tl-name', (stop.station && stop.station.name) || ''))));
+        named(h('span', 'tl-name', (stop.station && stop.station.name) || ''), coordOf(stop)))));
       li.append(h('div', 'tl-row alight', callTime(s.arrival, 'arrival'), h('span', 'tl-rail ride last', h('i', 'tl-enddot')),
-        h('span', 'tl-name', s.arrival.station.name), kPlat(quayOf(st, 'arr'))));
+        named(h('span', 'tl-name', s.arrival.station.name), coordOf(s.arrival)), kPlat(quayOf(st, 'arr'))));
       return li;
     }
     function footNote() {
@@ -4572,6 +4879,7 @@
       }
       if (!routeOverview) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
       const tl = h('ol', 'tl');
+      tl.setAttribute('aria-label', 'Steps of the journey');
       const first = journeySteps[0];
       if (first && first.type === 'walk') tl.append(placeRow(first.t0, journeyFrom, 'from'));
       journeySteps.forEach((st, i) => {
@@ -4583,19 +4891,29 @@
       frag.append(tl, footNote(), h('div', 'sheet-end'));
       return frag;
     }
+    let bodyFor = null; // the steps the body was last drawn for
     function renderBody() {
       const top = jBody.scrollTop;
-      jBody.replaceChildren(buildBody());
+      const fresh = buildBody();
+      keepFocus(jBody, () => {
+        // the same steps again (new times, a list opened): step by step, so the rest of the list stays as it is
+        if (!(bodyFor === journeySteps && journeyConn && patch(jBody, fresh, 'ol.tl'))) jBody.replaceChildren(fresh);
+      });
+      bodyFor = journeyConn ? journeySteps : null;
       jBody.scrollTop = top;
     }
     function renderFoot() {
       if (!journeyConn) { jFoot.replaceChildren(); return; }
       const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
-      jFoot.replaceChildren(h('div', 'actionbar',
-        kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+      const bar = h('div', 'actionbar',
+        // Start: the map follows you, and from now on each step is said (guidance). Again: the current step once more.
+        kBtn('pill-btn start', guiding ? 'Start: say the current step again' : 'Start guidance', startFollowing, kIcon('nav', 18), 'Start'),
         ticketLink(),
         kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
-        h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
+        h('span', 'actionbar-sum', h('small', null, A11Y.seen(`Arrive ${fmtTime(end)}`), A11Y.sr(`Arrives ${fmtTime(end)}, `)),
+          h('b', null, A11Y.seen(kDur((end - start) / 1000)), A11Y.sr(durWords((end - start) / 1000)))));
+      const old = jFoot.firstElementChild;
+      keepFocus(jFoot, () => { if (!(old && patch(old, bar, null))) jFoot.replaceChildren(bar); });
     }
     function renderSheet() {
       renderHead(true);
@@ -4652,9 +4970,11 @@
       if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
       }
-      setDetent('low');
+      // the sheet steps aside for the map, unless you asked for journeys as a list (Settings › Blind or low vision)
+      if (!SETTINGS.prefs().lowVision) setDetent('low');
       const p = journeyProgress();
       goToStep(p && !p.ended ? p.i : 0, true);
+      startGuidance();
     }
     // "Get ticket": SBB's ticket page for this exact connection, ready to buy. SBB's own link format (read from sbb.ch):
     //   /en/offer?stops=Name_I<stop id>~Name_I<stop id>&day=YYYY-MM-DD&time=HH_mm&moment=dep&trip=0_0
@@ -4812,9 +5132,193 @@
       goToStep(i);
     });
 
+    // ---- Guidance: what a screen reader (and Read aloud) is told during a trip ----
+    // After Start, each new step and each change is said once, as one sentence: where to walk, where you are,
+    // when to get off, a platform that changed. Never the minutes counting down. Tapping Start again says the
+    // current step once more. Everything said is also in the sheet, to be read at your own pace.
+    let guiding = false;
+    const guideSaid = new Set();   // what has been said on this journey ("~…": may be said again once it is over)
+    const guideDelay = new Map();  // ride (step number) → the delay last said, in minutes
+    const rideName = (st) => lineName(st.s.journey);
+    const leavesWords = (t, now) => {
+      const m = Math.round((t - now) / 60000);
+      return m > 0 ? `leaves in ${A11Y.minutes(m)}` : m === 0 ? 'is leaving now' : `left ${A11Y.minutes(-m)} ago`;
+    };
+    // "sector B" / "sectors A to C", where the platform has them
+    const sectorWords = (q) => (q.sectors ? ` Stand in ${q.sectors.replace(/[^A-Za-z0-9]/g, '').length === 1 ? 'sector' : 'sectors'} ${q.sectors}.` : '');
+    const stepNo = (st) => journeySteps.indexOf(st);
+    const destName = () => (journeyDest ? journeyDest.title : 'your destination');
+    // What comes after getting off a ride
+    function guideThen(i) {
+      const next = journeySteps[i + 1];
+      if (!next) return '';
+      if (next.type === 'change') return ` Then change to ${rideName(next.nextRide)} at ${boardName(next.nextRide)}.`;
+      if (next.type === 'walk' && next.final) return ` Then walk to ${next.toName || destName()}.`;
+      return '';
+    }
+    function guideAt(r, now) {
+      const q = quayOf(r, 'dep'), where = q.label ? `${q.word} ${q.label}` : r.s.departure.station.name;
+      const access = stopAccess(r);
+      return { key: `at|${stepNo(r)}`, step: stepNo(r), text: `You are at ${where}. ${rideName(r)} to ${r.s.journey.to} ${leavesWords(r.t0, now)}.${sectorWords(q)}${access.length ? ` Here: ${access.join(', ').toLowerCase()}.` : ''}` };
+    }
+    function guideLast(st, lead) {
+      return { key: `last|${stepNo(st)}`, step: stepNo(st), urgent: true, text: `${lead} Get off there.${guideThen(stepNo(st))}` };
+    }
+    // Where you are on the trip → { key (changes only when the step does), text, urgent, step }, or null
+    function guidePosition(now) {
+      const t = track && gpsOn() ? track : null;
+      if (t) {
+        const ob = onboard && !onboard.ours && onboard.streak >= 2 && onboard.step === t.i && now - onboard.at < 60000 && journeySteps[t.i];
+        if (ob && ob.type === 'ride') {
+          return { key: `~other|${t.i}|${onboard.top.line.name}`, step: t.i, urgent: true,
+            text: `You may be on ${onboard.top.line.name} towards ${onboard.top.headsign}, not on ${rideName(ob)}.` };
+        }
+        if (t.off) return { key: '~off', step: t.i, urgent: true, text: `You are off the route, about ${A11Y.metres(t.near)} away.` };
+        if (t.missed) return { key: `missed|${stepNo(t.missed)}`, step: t.i, urgent: true, text: `${rideName(t.missed)} may have left without you. It left at ${fmtTime(t.missed.t0)}. Replan finds another way.` };
+        if (t.arrived) return { key: 'arrived', step: t.i, text: `You have arrived at ${destName()}.` };
+        const st = journeySteps[t.i], left = Math.max(0, tripLayout().lens[t.i] - t.kmIn) * 1000;
+        if (st.type === 'ride') {
+          if (now < st.t0 && t.kmIn < 0.05) return guideAt(st, now);
+          const n = stopKms(st).filter((k) => k > t.kmIn + 0.03).length, to = st.s.arrival.station.name;
+          const on = `You are on ${rideName(st)} towards ${st.s.journey.to}.`;
+          if (n > 1) return { key: `ride|${t.i}`, step: t.i, text: `${on} ${n} stops to ${to}, arriving at ${fmtTime(st.t1)}.` };
+          // Your stop is the next one. Close to it (in time or metres) that interrupts; on a long run to it, as on a
+          // non-stop train, it is first said calmly, and again when you are nearly there.
+          if (st.t1 - now <= 180000 || left < 400) return guideLast(st, `Next stop: ${to}.`);
+          return { key: `next|${t.i}`, step: t.i, text: `${guideSaid.has(`ride|${t.i}`) ? '' : on + ' '}The next stop is ${to}, at ${fmtTime(st.t1)}. Get off there.` };
+        }
+        const r = st.nextRide;
+        if (st.final || !r) return { key: `walk|${t.i}`, step: t.i, text: `Walk ${A11Y.metres(left)} to ${st.toName || destName()}.` };
+        if (left < 30) return guideAt(r, now);
+        const lvl = levelChange(st), sounds = soundCrossings(stepCoords(st));
+        return { key: `walk|${t.i}`, step: t.i, text: `${st.type === 'change' ? 'Change' : 'Walk'}: ${A11Y.metres(left)} to ${boardName(r)}.${lvl ? ` ${lvl.text}.` : ''}${sounds ? ` ${soundWords(sounds)} on the way.` : ''} ${rideName(r)} to ${r.s.journey.to} ${leavesWords(r.t0, now)}.` };
+      }
+      // without GPS: where the live timetable puts the trip, said as such
+      const ride = journeySteps.find((st) => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1);
+      if (ride) {
+        const to = ride.s.arrival.station.name, i = stepNo(ride);
+        if (ride.t1 - now <= 120000) return guideLast(ride, `By the timetable, ${rideName(ride)} reaches ${to} in about ${A11Y.minutes(Math.max(1, Math.round((ride.t1 - now) / 60000)))}.`);
+        return { key: `ride|${i}`, step: i, text: `By the timetable you are now on ${rideName(ride)} towards ${ride.s.journey.to}. Get off at ${to} at ${fmtTime(ride.t1)}.` };
+      }
+      const tp = timeProgress(now);
+      if (tp && tp.ended) return { key: 'ended', step: journeySteps.length - 1, text: 'By the timetable, this journey has ended.' };
+      const next = journeySteps.find((st) => st.type === 'ride' && st.t0 != null && st.t0 > now);
+      const cur = tp ? journeySteps[tp.i] : null;
+      if (next) {
+        const i = stepNo(next), q = quayOf(next, 'dep');
+        if (next.t0 - now <= 5 * 60000) {
+          return { key: `soon|${i}`, step: i, text: `${rideName(next)} to ${next.s.journey.to} ${leavesWords(next.t0, now)} from ${boardName(next)}.${sectorWords(q)}` };
+        }
+        const walk = cur && cur.nextRide === next && (cur.type === 'walk' || cur.type === 'change') && now < cur.t1 ? cur : null;
+        if (walk) {
+          const d = walkDist(walk), lvl = levelChange(walk);
+          return { key: `walk|${tp.i}`, step: tp.i, text: `${walk.type === 'change' ? 'Change' : 'Walk'} to ${boardName(next)} now${d ? `, ${A11Y.metres(d)}` : ''}.${lvl ? ` ${lvl.text}.` : ''} ${rideName(next)} to ${next.s.journey.to} leaves at ${fmtTime(next.t0)}.` };
+        }
+        const first = journeySteps[0];
+        if (!tp && first && first.type === 'walk' && first.nextRide === next && now < first.t0) {
+          const day = dayLabel(first.t0);
+          return { key: 'before', step: 0, text: `Leave at ${fmtTime(first.t0)}${day === 'Today' ? '' : ' ' + day.toLowerCase()} to walk to ${boardName(next)}. ${rideName(next)} to ${next.s.journey.to} leaves at ${fmtTime(next.t0)}.` };
+        }
+        const day = dayLabel(next.t0);
+        return { key: `wait|${i}`, step: i, text: `${rideName(next)} to ${next.s.journey.to} leaves from ${boardName(next)} at ${fmtTime(next.t0)}${day === 'Today' ? '' : ' ' + day.toLowerCase()}.${sectorWords(q)}` };
+      }
+      if (cur && cur.type === 'walk' && cur.final && now < cur.t1) {
+        const d = walkDist(cur);
+        return { key: `walk|${tp.i}`, step: tp.i, text: `Walk to ${cur.toName || destName()}${d ? `, ${A11Y.metres(d)}` : ''}.` };
+      }
+      const only = journeySteps[0];
+      if (!tp && only && only.type === 'walk' && only.final) {
+        const d = walkDist(only);
+        return { key: 'before', step: 0, text: `Walk to ${only.toName || destName()}${d ? `, ${A11Y.metres(d)}` : ''}, about ${durWords((only.min || 0) * 60)}.` };
+      }
+      return null;
+    }
+    // Things that changed on the rides still ahead: cancelled, another platform, a delay, a change that won't work
+    function guideAlerts(now, from) {
+      const out = [];
+      const upcoming = journeySteps.find((st, i) => st.type === 'ride' && i >= from && now < st.t0);
+      journeySteps.forEach((st, i) => {
+        if (st.type !== 'ride' || i < from || now > st.t1) return;
+        const name = rideName(st), q = quayOf(st, 'dep');
+        if (engineFresh(st.s, true) && st.s._k.trip.cancelled) { out.push({ key: `cancel|${i}`, urgent: true, text: `${name} is cancelled. Replan finds another way.` }); return; }
+        if (now < st.t0 && q.planned && q.label) out.push({ key: `plat|${i}|${q.label}`, urgent: true, text: `${q.word} change: ${name} now leaves from ${q.word.toLowerCase()} ${q.label}, not ${q.planned}.` });
+        if (st !== upcoming) return;
+        const late = lateMin(st.s.departure, 'departure'), said = guideDelay.get(i) || 0;
+        if (late >= 3 && Math.abs(late - said) >= 3) {
+          out.push({ key: `delay|${i}|${late}`, after: () => guideDelay.set(i, late), text: `${name} is ${A11Y.minutes(late)} late. It now leaves at ${fmtTime(st.t0)}.` });
+        } else if (said >= 3 && late < 1) {
+          out.push({ key: `delay|${i}|0|${said}`, after: () => guideDelay.set(i, 0), text: `${name} is on time again. It leaves at ${fmtTime(st.t0)}.` });
+        }
+      });
+      const broken = brokenChange(now, from);
+      if (broken) {
+        out.push({ key: `broken|${stepNo(broken)}`, urgent: true,
+          text: `The change at ${broken.next.departure.station.name} will not work: ${rideName(broken.nextRide)} leaves at ${fmtTime(liveMs(broken.next.departure, 'departure'))}. Replan finds another way.` });
+      }
+      return out;
+    }
+    // Little time for the walk to the next ride, at your walking speed (with GPS only): said once per walk
+    function guideHurry(now) {
+      const t = track && gpsOn() && !track.off && !track.arrived ? track : null, st = t && journeySteps[t.i];
+      if (!st || st.type === 'ride' || st.final || !st.nextRide) return null;
+      const left = Math.max(0, tripLayout().lens[t.i] - t.kmIn) * 1000, r = st.nextRide;
+      const hr = left >= 30 ? hurry(left, r, now) : null;
+      if (!hr || hr.level === 'ok') return null;
+      // the header's "1 min to spare" is always there to read; said out loud only when it is really close
+      const spare = (r.t0 - now) / 1000 - left / (((SETTINGS.prefs().walkKmh) || 4.7) / 3.6);
+      if (spare >= 60) return null;
+      return { key: `hurry|${t.i}`, urgent: true, text: hr.level === 'late'
+        ? `At your walking speed you may miss ${rideName(r)}: ${A11Y.metres(left)} to go and it ${leavesWords(r.t0, now)}.`
+        : `Less than a minute to spare: ${A11Y.metres(left)} to ${boardName(r)} and ${rideName(r)} ${leavesWords(r.t0, now)}.` };
+    }
+    // A new place on the trip is only said once it has held for a moment: one stray GPS fix can put you on the
+    // next ride for an instant. atOnce: it was asked for (Start, a new journey), so it is said without waiting.
+    let guideHeld = { key: '', since: 0 };
+    function guideNews(now, atOnce) {
+      const pos = guidePosition(now), from = pos && pos.step != null ? pos.step : 0;
+      // an "off the route" that is over may be said again the next time it happens
+      for (const k of [...guideSaid]) if (k[0] === '~' && (!pos || pos.key !== k)) guideSaid.delete(k);
+      let settled = true;
+      if (pos && !atOnce && !guideSaid.has(pos.key)) {
+        if (guideHeld.key !== pos.key) guideHeld = { key: pos.key, since: now };
+        settled = now - guideHeld.since >= (pos.key[0] === '~' ? 10000 : 3000); // "off the route" interrupts: it has to be sure
+      }
+      return { pos, news: [...guideAlerts(now, from), settled ? pos : null, settled ? guideHurry(now) : null].filter((e) => e && !guideSaid.has(e.key)) };
+    }
+    function guideSay(news, lead = '') {
+      news.forEach((e) => { guideSaid.add(e.key); if (e.after) e.after(); });
+      const text = [lead, ...news.map((e) => e.text)].filter(Boolean).join(' ');
+      if (text) A11Y.say(text, { urgent: news.some((e) => e.urgent) });
+    }
+    function guideTick() {
+      if (!guiding || !journeyConn || !journeySteps.length) return;
+      const { news } = guideNews(Date.now());
+      if (news.length) guideSay(news);
+    }
+    // Start: guidance on. Start again: the current step once more.
+    function startGuidance() {
+      if (!journeyConn || !journeySteps.length) return;
+      const again = guiding, now = Date.now();
+      guiding = true;
+      if (SETTINGS.prefs().lowVision) A11Y.keepAwake(true); // a browser stops a page whose screen is off
+      const { pos, news } = guideNews(now, true);
+      const all = pos && !news.includes(pos) ? [...news, pos] : news; // the current step is said again when asked for
+      guideSay(all, again ? '' : 'Guidance is on.');
+      if (!again) renderFoot(); // the Start button now says what it does next
+    }
+    // A journey was found (or found again): what a screen reader is told about it, in one go
+    function journeySummary() {
+      const rides = journeySteps.filter((st) => st.type === 'ride'), end = journeyEnd();
+      const start = new Date(journeyConn.from.departure).getTime(), day = dayLabel(start);
+      const changes = rides.length - 1;
+      const how = !rides.length ? 'on foot' : `${changes <= 0 ? 'direct' : changes === 1 ? '1 change' : `${changes} changes`} with ${rides.map(rideName).join(', then ')}`;
+      return `Journey to ${destName()}: ${fmtTime(start)} to ${fmtTime(end)}${day === 'Today' ? '' : ' ' + day.toLowerCase()}, ${durWords((end - start) / 1000)}, ${how}.`;
+    }
+
     function updateProgress() {
       if (!journeyConn) return;
       trackJourney();
+      guideTick();
       renderBar();
       renderLive();
       if (journeySteps.length) { redrawRoute(); updateNowMarker(); }
@@ -4855,6 +5359,11 @@
       updateNowMarker();
       refreshRouteHighlight();
       fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it
+      // Said to screen readers: the journey in a sentence and what to do first (while guidance is on, where you are now)
+      guideSaid.clear();
+      guideDelay.clear();
+      const { pos, news } = guideNews(Date.now(), true);
+      guideSay(guiding ? news : [], [journeySummary(), !guiding && pos ? pos.text : ''].filter(Boolean).join(' '));
     }
 
     // Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you
@@ -4917,8 +5426,17 @@
       document.getElementById('jArr').textContent = '--:--';
       sheetMsg = 'Finding a connection…';
       track = null;
+      if (!keepQuery) guiding = false; // a new destination: guidance starts again with Start
       renderSheet();
-      if (!wasOpen) openSheet();
+      if (!wasOpen) {
+        openSheet();
+        if (SETTINGS.prefs().lowVision) setDetent('full'); // Settings › Blind or low vision: the journey as a list
+      }
+      loadAccessData();
+      // A screen reader goes to the journey, which says where it leads, then hears what is found
+      journeyEl.setAttribute('aria-label', `Journey to ${r.title}`);
+      journeyEl.focus({ preventScroll: true });
+      A11Y.say(`Finding a connection to ${r.title}.`, { quiet: true });
       vehMarker.remove();
       nowMarker.remove();
       setRoute([]);
@@ -4938,12 +5456,12 @@
         startPlatforms();
         const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
         if (id !== journeyReq) return;
-        if (!conn) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
+        if (!conn) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); A11Y.say(sheetMsg, { urgent: true }); return; }
         renderJourney(conn, r.title);
         refineJourney(id); // swap straight lines for real walking paths and tracks/roads
         kanteMatch(id);    // the engine's trip for every ride, for its live data
       } catch (e) {
-        if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); }
+        if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); A11Y.say(sheetMsg, { urgent: true }); }
       }
     }
 
@@ -4958,9 +5476,12 @@
     const timeValue = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     function setTMode(m) {
       tMode = m;
-      document.querySelectorAll('#tSeg button').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+      document.querySelectorAll('#tSeg button').forEach((b) => {
+        b.classList.toggle('active', b.dataset.mode === m);
+        b.setAttribute('aria-pressed', String(b.dataset.mode === m)); // which of the two is chosen, for screen readers
+      });
     }
-    function openTimeSheet(mode) {
+    function openTimeSheet(mode, opener) {
       if (!journeyDest) return;
       setTMode(mode);
       const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.to.arrival : journeyConn.from.departure) : new Date();
@@ -4970,24 +5491,31 @@
       tSheet.classList.add('open');
       tDim.classList.add('open');
       tSheet.setAttribute('aria-hidden', 'false');
+      // a dialog: the page behind is out of reach, focus starts on the choice you came for and returns to its button
+      A11Y.openDialog(tSheet, { focus: document.querySelector(`#tSeg button[data-mode="${mode}"]`), returnTo: opener, keep: [tDim] });
     }
-    function closeTimeSheet() {
+    function closeTimeSheet(restore = true) {
+      if (!tSheet.classList.contains('open')) return;
       tSheet.classList.remove('open');
       tDim.classList.remove('open');
       tSheet.setAttribute('aria-hidden', 'true');
+      A11Y.closeDialog(tSheet, { restore, fallback: journeyEl });
+      tSheet.inert = true;
     }
-    document.getElementById('jDepBtn').addEventListener('click', () => openTimeSheet('dep'));
-    document.getElementById('jArrBtn').addEventListener('click', () => openTimeSheet('arr'));
+    document.getElementById('tClose').addEventListener('click', () => closeTimeSheet());
+    tSheet.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTimeSheet(); });
+    document.getElementById('jDepBtn').addEventListener('click', (e) => openTimeSheet('dep', e.currentTarget));
+    document.getElementById('jArrBtn').addEventListener('click', (e) => openTimeSheet('arr', e.currentTarget));
     document.querySelectorAll('#tSeg button').forEach((b) => b.addEventListener('click', () => setTMode(b.dataset.mode)));
-    tDim.addEventListener('click', closeTimeSheet);
+    tDim.addEventListener('click', () => closeTimeSheet());
     document.getElementById('tNow').addEventListener('click', () => {
       journeyQuery = { mode: 'dep', date: '', time: '' };
-      closeTimeSheet();
+      closeTimeSheet(false); // the journey is searched again and takes the focus
       startJourney(journeyDest, true);
     });
     document.getElementById('tDone').addEventListener('click', () => {
       journeyQuery = { mode: tMode, date: tDate.value, time: tTime.value };
-      closeTimeSheet();
+      closeTimeSheet(false);
       startJourney(journeyDest, true);
     });
 
@@ -5210,6 +5738,11 @@
       journeyConn = null;
       journeyDest = null;
       onboard = null;
+      guiding = false;
+      guideSaid.clear();
+      guideDelay.clear();
+      A11Y.keepAwake(false);
+      A11Y.hush();
       vehUpdate(); // live vehicles come back (from zoom 14)
       updateCards(); // events and places come back if they were on
       updatePlaces();
@@ -5223,7 +5756,7 @@
       sheetY = window.innerHeight;
       nowMarker.remove();
       vehMarker.remove();
-      closeTimeSheet();
+      closeTimeSheet(false);
       setRoute([]);
       journeySteps = [];
       destMarker.remove();
@@ -5249,6 +5782,7 @@
     }
 
     let eventsAtPin = [];
+    let eventBack = null; // → the card or the search result an event was opened from, for the way back
     const related = document.getElementById('evRelated');
     related.addEventListener('change', () => {
       history.replaceState(null, '', '#event/' + encodeURIComponent(related.value));
@@ -5279,16 +5813,20 @@
         img.onerror = () => img.remove();
         evHero.appendChild(img);
       }
+      // Titles are often German (or French) and the descriptions English: each is marked with its own language,
+      // the venue and town with the language spoken there, so a screen reader reads each with the right voice
+      const fill = (id, text, lang) => { const el = document.getElementById(id); el.textContent = text; A11Y.setLang(el, lang); };
+      const here = A11Y.placeLang(f.geometry.coordinates);
       document.getElementById('evCat').textContent = p.category;
-      document.getElementById('evTitle').textContent = p.title;
-      document.getElementById('evWhen').textContent = p.when;
-      document.getElementById('evCost').textContent = p.cost;
-      document.getElementById('evAttendance').textContent = p.attendance;
+      fill('evTitle', p.title, A11Y.textLang(p.title));
+      fill('evWhen', p.when, A11Y.textLang(p.when));
+      fill('evCost', p.cost, A11Y.textLang(p.cost));
+      fill('evAttendance', p.attendance, A11Y.textLang(p.attendance));
       document.getElementById('evOrganizer').href = p.url;
-      document.getElementById('evVenue').textContent = p.venue;
-      document.getElementById('evCity').textContent = p.city;
-      document.getElementById('evAbout').textContent = p.about;
-      document.getElementById('evAudience').textContent = p.audience;
+      fill('evVenue', p.venue, /confirm meeting point/i.test(p.venue || '') ? '' : here);
+      fill('evCity', p.city, here);
+      fill('evAbout', p.about, A11Y.textLang(p.about));
+      fill('evAudience', p.audience, A11Y.textLang(p.audience));
       evPage.scrollTop = 0;
     }
 
@@ -5308,12 +5846,20 @@
         setMenu(false);
         evPage.classList.add('open');
         evPage.setAttribute('aria-hidden', 'false');
-        document.getElementById('evBack').focus();
+        // a page of its own: what is behind it is out of reach, and Back returns to where you came from
+        A11Y.openDialog(evPage, { focus: document.getElementById('evBack'), returnTo: () => (eventBack ? eventBack() : null) });
+        document.getElementById('evBack').focus({ preventScroll: true }); // also when another event is chosen on the open page
       } else {
-        evPage.classList.remove('open');
-        evPage.setAttribute('aria-hidden', 'true');
+        if (evPage.classList.contains('open')) {
+          evPage.classList.remove('open');
+          evPage.setAttribute('aria-hidden', 'true');
+          A11Y.closeDialog(evPage, { fallback: wrap.classList.contains('journey-open') ? journeyEl : menuBtn });
+          eventBack = null;
+        }
+        evPage.inert = true;
       }
     }
+    evPage.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeEvent(); });
 
     function closeEvent() {
       if (pushedHash) { pushedHash = false; history.back(); }

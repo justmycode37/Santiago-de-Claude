@@ -172,9 +172,15 @@
   .sv-photo img { flex: none; width: 56px; height: 42px; object-fit: cover; border-radius: 6px; background: #333; }
   .sv-photo a { color: #c7c7cc; }
   .sv-alt { list-style: none; margin: 12px 0 0; padding: 0; }
-  .sv-alt li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); font-size: 14px; cursor: pointer; }
-  .sv-alt li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sv-alt li small { color: #aeaeb2; }
+  .sv-alt li { border-top: 1px solid rgba(255,255,255,.1); }
+  .sv-alt button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; border: 0; background: none; color: inherit;
+                   font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+  .sv-alt button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sv-alt button small { color: #aeaeb2; }
+  .sv :focus-visible { outline: 3px solid #0a84ff; outline-offset: 2px; }
+  .sv:focus { outline: none; }
+  /* said to screen readers, not shown */
+  .sv-say, .sv-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .sv-file { display: none; }
   .sv-debug { position: absolute; left: 12px; top: calc(env(safe-area-inset-top) + 64px); margin: 0; padding: 8px 10px; border-radius: 10px;
               background: rgba(0,0,0,.66); color: #9f9; font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: none; display: none; }
@@ -206,18 +212,20 @@
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-label', 'Scan for stops');
+    root.tabIndex = -1; // focus goes here when Scan opens, so a screen reader starts in it
     const video = $('video');
     video.setAttribute('playsinline', ''); video.muted = true; video.autoplay = true;
     const still = $('img', 'sv-still');
     still.alt = '';
     const ar = $('div', 'sv-ar');
     const ring = $('div', 'sv-ring');
+    // the camera picture and what is drawn over it say nothing to a screen reader: what is found is put in words below
+    for (const el of [video, still, ar, ring]) el.setAttribute('aria-hidden', 'true');
     const top = $('div', 'sv-top');
     const close = $('button', 'sv-btn');
     close.type = 'button'; close.setAttribute('aria-label', 'Close scan');
     close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
-    const status = $('div', 'sv-status');
-    status.setAttribute('role', 'status');
+    const status = $('div', 'sv-status'); // read when moved to; what happens by itself is said through `say` below
     const shoot = $('button', 'sv-btn');
     shoot.type = 'button'; shoot.setAttribute('aria-label', 'Use a photo instead');
     shoot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -225,9 +233,13 @@
     file.type = 'file'; file.accept = 'image/*'; file.setAttribute('capture', 'environment');
     top.append(close, status, shoot);
     const sheet = $('div', 'sv-sheet');
-    sheet.setAttribute('aria-live', 'polite');
+    // One sentence when a stop is recognised ("Recognised: Zytglogge, Bay C, 15 metres ahead. Next: …"): the whole
+    // card as a live region would be read out again at every small change
+    const say = $('div', 'sv-say');
+    say.setAttribute('role', 'status');
+    say.setAttribute('aria-live', 'polite');
     const debug = $('pre', 'sv-debug');
-    root.append(video, still, ar, ring, top, sheet, file, debug);
+    root.append(video, still, ar, ring, top, sheet, say, file, debug);
     // diagnostics: open the app with ?scandebug, or tap the status text three times
     let taps = 0, tapAt = 0;
     status.addEventListener('click', () => {
@@ -251,7 +263,10 @@
       lastOcr = 0;
     });
     document.addEventListener('keydown', onKey);
-    return { root, video, still, ar, ring, status, sheet, debug, tags: new Map(), shownKey: '' };
+    // a dialog: the app behind it is out of reach while Scan is open (a11y.js; scan-bench.html has none)
+    if (window.A11Y) window.A11Y.openDialog(root);
+    else root.focus({ preventScroll: true });
+    return { root, video, still, ar, ring, status, sheet, say, debug, tags: new Map(), shownKey: '', statusKey: '', spoken: { pending: '', since: 0, said: new Map(), last: '' } };
   }
   const onKey = (e) => { if (e.key === 'Escape') closeScan(); };
 
@@ -265,7 +280,38 @@
   }
 
   function setStatus(title, detail) {
-    ui.status.replaceChildren($('b', null, title), document.createTextNode(detail || ''));
+    const key = title + '|' + (detail || '');
+    if (ui.statusKey === key) return; // unchanged: leave it, a screen reader may be on it
+    ui.statusKey = key;
+    ui.status.replaceChildren($('b', null, title), document.createTextNode(' ' + (detail || '')));
+  }
+
+  // ---------------------------------------------------------------- said to screen readers (and Read aloud)
+  function announce(text) {
+    if (!ui || !ui.say || !text) return;
+    if (window.A11Y) window.A11Y.say(text, { region: ui.say });
+    else ui.say.textContent = text;
+  }
+  const clock = (t) => new Date(t).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+  const lineWords = (d) => (app.lineName ? app.lineName(d.raw) : d.line || d.cat || 'Departure');
+  const depWords = (d) => `${lineWords(d)} to ${d.to} at ${clock(d.time)}${d.delay > 0 ? `, ${d.delay} ${d.delay === 1 ? 'minute' : 'minutes'} late` : ''}`;
+  const depsWords = (deps) => (!deps ? '' : deps.length ? `Next: ${deps.slice(0, 3).map(depWords).join('; ')}.` : 'No departures in the next hours.');
+  // The stop at the top, once it has held for a moment, and its departures when they are in: each said once
+  function speakTop(c, how, edge, e, deps, pos, failed) {
+    const sp = ui.spoken, now = Date.now();
+    const k = `${c.uic}|${edge ? edge.i : ''}|${how ? 1 : 0}`;
+    if (k !== sp.pending) { sp.pending = k; sp.since = now; }
+    if (now - sp.since < 1500) return; // a stop that only flickers to the top is not read out
+    const had = sp.said.get(k); // undefined, 'name' (said without departures) or 'all'
+    if (had === 'all' || (had === 'name' && !deps)) return;
+    if (had === 'name') { sp.said.set(k, 'all'); if (sp.last === k) announce(depsWords(deps)); return; }
+    if (!deps && !failed && now - sp.since < 4500) return; // a little patience, to say the stop and its departures in one go
+    const parts = [`${how ? 'Recognised' : !pos ? 'Possible match' : 'Nearest stop'}: ${c.st.name}`];
+    if (e && e.ref) parts.push(`${EDGE_WORD(c.st.mode)} ${e.ref}${edge.maybe ? ', probably' : ''}`);
+    if (pos) parts.push(`${Math.max(5, Math.round(c.dist / 5) * 5)} metres${c.ahead ? ' ahead' : ''}`);
+    sp.said.set(k, deps ? 'all' : 'name');
+    sp.last = k;
+    announce(`${parts.join(', ')}. ${depsWords(deps)}`.trim());
   }
 
   // ---------------------------------------------------------------- compass
@@ -1013,7 +1059,12 @@
       const msg = !pos
         ? (app.position() ? 'Waiting for a precise location…' : 'Location is off: point the camera at a stop sign and tap it to read the name.')
         : 'No stops within a few hundred metres.';
-      if (ui.shownKey !== msg) { ui.shownKey = msg; ui.sheet.replaceChildren($('p', 'sv-hint', msg)); }
+      if (ui.shownKey !== msg) {
+        ui.shownKey = msg;
+        ui.sheet.replaceChildren($('p', 'sv-hint', msg));
+        // a screen reader can't tap the picture: signs in view are read by themselves every few seconds
+        announce(!pos && !app.position() ? 'Location is off. Point the camera at a stop sign: its name is read by itself.' : msg);
+      }
       return;
     }
     const ev = evidence.get(c.uic) || {};
@@ -1021,9 +1072,13 @@
     const edge = edgeOf(c);
     const e = edge ? c.st.edges[edge.i] : null;
     const deps = ev.departures ? ev.departures.filter((d) => !e || (d.edges ? d.edges.includes(edge.i) : d.edge === edge.i) || d.edge == null && c.st.edges.length === 1) : null;
+    speakTop(c, how, edge, e, deps, pos, ev.depFailed);
     const key = [c.uic, how, edge && edge.i, ev.depAt, ev.departures && ev.departures.length, ev.depFailed, ev.visRef && ev.visRef.page, ev.ocrAt, c.ahead, candidates.slice(1, 4).map((x) => x.uic).join()].join('|');
     if (key === ui.shownKey) return;
     ui.shownKey = key;
+    // the card is drawn again: a screen reader that was on one of its buttons goes to the new copy of it
+    const focused = ui.sheet.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused && focused.dataset.k;
 
     const state = $('span', 'sv-state' + (how ? ' ok' : ''), how ? 'Recognised' : !pos ? 'Possible match' : c.ahead ? 'Nearby · ahead' : 'Nearby');
     const main = $('div', 'sv-main');
@@ -1048,9 +1103,13 @@
       const ul = $('ul', 'sv-deps');
       for (const d of deps.slice(0, 4)) {
         const li = $('li');
-        li.append($('time', null, new Date(d.time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })),
+        li.append($('time', null, clock(d.time)),
           app.badge ? app.badge(d.raw) : $('span', 'sv-line', d.line || d.cat), $('span', 'sv-to', d.to));
-        if (d.delay > 0) li.append($('span', 'sv-late', `+${d.delay}′`));
+        if (d.delay > 0) {
+          const late = $('span', 'sv-late', `+${d.delay}′`);
+          late.setAttribute('aria-hidden', 'true'); // drawn "+3′", read out "3 minutes late"
+          li.append(late, $('span', 'sv-sr', `${d.delay} ${d.delay === 1 ? 'minute' : 'minutes'} late`));
+        }
         ul.appendChild(li);
       }
       nodes.push(ul);
@@ -1063,6 +1122,7 @@
     const actions = $('div', 'sv-actions');
     const show = $('button', null, 'Show on map');
     show.type = 'button';
+    show.dataset.k = 'show';
     show.addEventListener('click', () => { const uic = c.uic, i = edge ? edge.i : null; closeScan(); app.openStop(uic, i); });
     actions.append(show);
     nodes.push(actions);
@@ -1080,14 +1140,20 @@
     if (alts.length) {
       const ul = $('ul', 'sv-alt');
       for (const a of alts) {
-        const li = $('li');
-        li.append(icon(a.st.mode), $('span', null, a.st.name), $('small', null, pos ? Math.round(a.dist) + ' m' : ''));
-        li.addEventListener('click', () => { closeScan(); app.openStop(a.uic, null); });
+        // a button, so it can be picked with a screen reader too
+        const li = $('li'), b = $('button');
+        b.type = 'button';
+        b.dataset.k = 'alt' + a.uic;
+        b.setAttribute('aria-label', `${a.st.name}${pos ? `, ${Math.round(a.dist)} metres` : ''}. Show its departures on the map`);
+        b.append(icon(a.st.mode), $('span', null, a.st.name), $('small', null, pos ? Math.round(a.dist) + ' m' : ''));
+        b.addEventListener('click', () => { closeScan(); app.openStop(a.uic, null); });
+        li.appendChild(b);
         ul.appendChild(li);
       }
       nodes.push(ul);
     }
     ui.sheet.replaceChildren(...nodes);
+    if (focusKey) { const again = ui.sheet.querySelector(`[data-k="${focusKey}"]`); if (again) again.focus({ preventScroll: true }); }
   }
 
   function renderStatus() {
@@ -1210,6 +1276,7 @@
     ocr = null; ocrState = 'idle'; ocrLang = '';
     tiles.clear(); tileBytes.clear(); nameIndex = null;
     candidates = []; candidatesBy = ''; prevTop = null;
+    if (window.A11Y) window.A11Y.closeDialog(ui.root, { restore: false }); // the app behind is in reach again
     ui.root.remove();
     ui = null;
     if (app && app.onClose) app.onClose();
