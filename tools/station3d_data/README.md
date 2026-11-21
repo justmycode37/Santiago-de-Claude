@@ -10,6 +10,8 @@ y north. Heights are metres relative to level 0.
 | --- | --- | --- | --- | --- |
 | `bern/heights.json` | 52 measured heights around Bern station; zero = surface of the SBB platforms, 540.74 m above sea level (LN02) | level table (in the builder's station table) and the spot heights of the streets | swisstopo swissSURFACE3D and swissBUILDINGS3D 3.0; cadastral survey of the City of Bern (fixed points) | `© swisstopo`, `Geodaten Stadt Bern` |
 | `bern/shell_mesh.json` | roofs and walls of 9 key structures, 2,541 triangles | `shellMesh` | swisstopo swissBUILDINGS3D 3.0 (LoD2) | `© swisstopo` |
+| `bern/shell.geojson` | footprints with base and top of 45 buildings and structures (WGS84) | heights of the neighbouring buildings in `shell` | swisstopo swissBUILDINGS3D 3.0, LiDAR | `© swisstopo` |
+| `bern/platform_edges.geojson` | one line per track along the platform kerb, 1 m points (WGS84); track 3 coarse, track 4 only its western 179 m, no 11 and 21–24 | check of the platform outlines, sector spans along curved kerbs, extending platforms that OSM draws short | SBB open data | `data.sbb.ch` |
 | `<key>/sectors.json` | sector centres per track: `{ ref, name, xy }` | `sectors` | SBB open data (sector boards, platform edges) | `data.sbb.ch` |
 | `<key>/spans.json` | from–to of each sector along the platform edge | `sectorSpans`, heading of the sector signs | SBB open data | `data.sbb.ch` |
 | `<key>/boards.json` | the sector boards themselves (position, letters on both faces, how they are mounted) | `props` (`sector-sign`) | SBB open data | `data.sbb.ch` |

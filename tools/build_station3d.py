@@ -97,7 +97,10 @@ OVERPASS = ['https://overpass-api.de/api/interpreter',
 #             'from' / 'until' are dates, 'remark' is a note on the stop that does not close it
 #   opens     {'date': ...}: paths OSM has as highway=construction with a start date in the future are in the model,
 #             closed until this date (the official one, where OSM's differs)
+#   exit_names  [x, y, name]: the stairs, escalators and lifts that end within 8 m of the point get this name
 #   notices   texts for the app: [{'text', 'from'?, 'until'?}]
+#   extend_platforms  island platforms (one of their numbers each) to extend along the SBB kerb lines of
+#             platform_edges.geojson where the OSM outline stops short
 #   layers    files in tools/station3d_data/<key>/ the model is meant to have (a message is printed when one is
 #             missing; the model is then built without it)
 #   credits   attribution for sources used in this table
@@ -112,8 +115,10 @@ STATIONS = {
         'name': 'Bern',
         'origin': (7.4391, 46.9488),
         'bbox': (46.9448, 7.4300, 46.9530, 7.4445),
-        'extent': (-520, -350, 285, 390),
-        'extent_cut': [(-520, -350, -290, -130)],   # Kocherpark and Laupenstrasse west: not part of the complex
+        'extent': (-620, -350, 285, 390),
+        'extent_cut': [(-520, -350, -290, -130),    # Kocherpark and Laupenstrasse west: not part of the complex
+                       # west of -520 only the strip with platform 49/50, whose SBB kerb runs to -602 (sector N)
+                       (-620, -350, -520, -80), (-620, -40, -520, 390)],
         'uics': ['8507000', '8507785', '8576646', '8588990', '8579896', '8581351', '8579748', '8571357'],
         # Heights relative to the surface of the SBB platforms, 540.74 m above sea level (measured: swissSURFACE3D
         # along the SBB platform edges; tools/station3d_data/bern/heights.json and its README).
@@ -194,7 +199,14 @@ STATIONS = {
             [94, 107, 1, 'Gallery footbridge'],
             [-69, 90, 3, 'Parking deck'],
         ],
-        'layers': ['heights.json', 'sectors.json', 'spans.json', 'boards.json', 'furniture.json', 'shell_mesh.json'],
+        # SBB's description for blind travellers: from the Christoffel-Unterführung stairs lead up under the
+        # Baldachin (edges A to E) on the left and to the exit Loeb-Egge (edges I to L) on the right. OSM has stairs
+        # and escalators at both and calls them "Bubenbergplatz".
+        'exit_names': [[96, -100, 'Baldachin'], [112, -145, 'Loeb-Egge'], [104, -152, 'Loeb-Egge']],
+        'layers': ['heights.json', 'sectors.json', 'spans.json', 'boards.json', 'furniture.json', 'shell_mesh.json',
+                   'shell.geojson', 'platform_edges.geojson'],
+        # OSM draws these two islands 50 to 80 m shorter at the west end than the SBB kerb lines run
+        'extend_platforms': ['12', '49'],
         # Survey fixed points and LiDAR medians of heights.json (ids as in that file) ...
         'spot_heights': [
             ['bahnhofplatz_1', 'ground'], ['bahnhofplatz_2', 'ground'],
@@ -296,6 +308,7 @@ RAMP_MAX_MAPPED = 0.16   # a way OSM maps between two levels counts as a step-fr
 RAMP_MAX_INFERRED = 0.12  # a slope whose heights are inferred counts as step-free up to this slope
 STEP_RISE = 0.17         # metres per step
 STEEPEST_PATH = 0.35     # a path that climbs more than this per metre is steps, whatever it is mapped as
+LIFT_LINK = 9.0          # a lift stop without a mapped path is linked to a path on its level within this many metres
 ISLAND_LINK = 30.0       # a platform without a mapped way to it is linked to the nearest path within this many metres
 STOP_SEARCH = 45.0       # an ATLAS edge looks for its OSM platform within this many metres
 
@@ -785,6 +798,7 @@ class Builder:
                 self.lift_of[n] = i
 
         self.merge_platforms()
+        self.extend_platforms()
         for a in self.areas:
             a['osm_level'] = a['level']
         for l in self.lifts:
@@ -804,6 +818,48 @@ class Builder:
         """Tagged as not lying on the ground: bridge, tunnel or a layer."""
         return (t.get('bridge') not in (None, 'no') or t.get('tunnel') not in (None, 'no')
                 or t.get('layer') not in (None, '0'))
+
+    def extend_platforms(self):
+        """Island platforms listed under extend_platforms get the stretch between their two SBB kerb lines that the
+        OSM outline does not cover; for every platform the distance between kerb lines and outline is reported."""
+        file = self.data('platform_edges.geojson', ['data.sbb.ch'])
+        if not file:
+            return
+        kerbs = {key_of(f['properties']['ref']): LineString([self.xy(c[0], c[1]) for c in f['geometry']['coordinates']])
+                 for f in file['features']}
+        want = {key_of(r) for r in self.cfg.get('extend_platforms', [])}
+        for a in self.areas:
+            keys = sorted({key_of(r) for r in a['refs']} & set(kerbs), key=lambda k: (len(k), k))
+            if a['kind'] != 'platform' or not keys:
+                continue
+            for k in keys:
+                off = sorted(a['poly'].exterior.distance(kerbs[k].interpolate(d))
+                             for d in np.arange(0, kerbs[k].length, 5.0) if a['poly'].distance(kerbs[k].interpolate(d)) < 3)
+                out = kerbs[k].difference(a['poly'].buffer(3)).length
+                if off:
+                    self.note('SBB kerb lines against the OSM platform outlines',
+                              f'track {k}: median {off[len(off) // 2]:.2f} m, largest {off[-1]:.1f} m; '
+                              f'{out:.0f} of {kerbs[k].length:.0f} m of the kerb lie beyond the OSM platform')
+            if len(keys) != 2 or not (set(keys) & want):
+                continue
+            near = a['poly'].buffer(0.8)
+            parts = [[g for g in getattr(kerbs[k].difference(near), 'geoms', [kerbs[k].difference(near)])
+                      if g.geom_type == 'LineString' and g.length > 8] for k in keys]
+            added = []
+            for g0 in parts[0]:
+                for g1 in parts[1]:
+                    if g0.distance(g1) > 20:
+                        continue   # (not the same end of the island)
+                    c0, c1 = list(g0.coords), list(g1.coords)
+                    ring = max((Polygon(c0 + c1[::-1]), Polygon(c0 + c1)), key=lambda q: q.area if q.is_valid else -1)
+                    if ring.is_valid and ring.area > 20:
+                        added.append(ring)
+            if added:
+                before = a['poly'].area
+                joined = unary_union([a['poly']] + added).buffer(1.0, join_style=2).buffer(-1.0, join_style=2)
+                a['poly'] = max(clean_polys(joined), key=lambda q: q.area)
+                self.note('platforms extended along the SBB kerb', f'{"/".join(a["refs"])}: +{a["poly"].area - before:.0f} m2, '
+                          + ', '.join(f'{max(g.length for g in ps):.0f} m of kerb {k}' for k, ps in zip(keys, parts) if ps))
 
     def merge_platforms(self):
         """A platform mapped in sections (same refs, same level, touching) becomes one area."""
@@ -1591,6 +1647,19 @@ class Builder:
             if not hubs:
                 continue
             x, y = lift['xy']
+            for lvl, h in sorted(hubs.items()):
+                if deg[h] > 0 or lvl not in lift['osm_levels'] or not float(lvl).is_integer():
+                    continue
+                near = [(dist(n, (x, y)), i) for i, n in enumerate(self.gn)
+                        if n[2] == lvl and deg[i] > 0 and self.gmeta[i].get('lift') is None]
+                if near and min(near)[0] <= LIFT_LINK:
+                    d, i = min(near)
+                    self.edge(h, i, 'walk', inferred=True)
+                    deg[h] += 1
+                    deg[i] += 1
+                    self.note('inferred links', f'lift {lift["src"]} at ({x:.0f}, {y:.0f}): OSM gives it level '
+                                                f'{lvl:g} but draws no path to it there; linked to the nearest path '
+                                                f'on that level, {d:.1f} m away')
             live = [(lvl, h) for lvl, h in sorted(hubs.items()) if deg[h] > 0]
             dead = [f'{lvl:g}' for lvl, h in sorted(hubs.items()) if deg[h] == 0]
             if len(live) < 2:
@@ -1998,8 +2067,17 @@ class Builder:
                 gap = seg.distance(a['poly'])
                 if gap > ISLAND_LINK:
                     continue
-                on_seg, _ = nearest_points(seg, a['poly'])
-                i = min(nodes, key=lambda i: dist(self.gn[i], (on_seg.x, on_seg.y)))
+                # from the node of the platform that is nearest to a path (a link from the tip of the platform
+                # makes routes run past the stop and back)
+                best = None
+                for j2 in tree.query(a['poly'].buffer(ISLAND_LINK), predicate='intersects'):
+                    for i2 in nodes:
+                        d = tree.geometries[int(j2)].distance(Point(self.gn[i2][:2]))
+                        if best is None or d < best[0]:
+                            best = (d, int(j2), i2)
+                _, j, i = best
+                k, seg = ks[j], tree.geometries[j]
+                on_seg = seg.interpolate(seg.project(Point(self.gn[i][:2])))
                 m = self.split(k, (on_seg.x, on_seg.y))
                 e = self.edges[k]
                 self.edge(i, m, 'walk', outdoor=e.get('outdoor'), covered=e.get('covered'), inferred=True)
@@ -2440,6 +2518,8 @@ class Builder:
                     o[k] = True
             if e.get('closed'):
                 o['closed'] = e['closed']
+            if e.get('inferred'):
+                o['inferred'] = True
             rise = abs(self.z_of(self.gn[e['a']][2]) - self.z_of(self.gn[e['b']][2]))
             if e['kind'] in ('walk', 'ramp') and rise > 0.5 and rise > STEEPEST_PATH * max(e['len'], 0.3):
                 # Nobody walks up a slope like this: OSM lacks the steps here, or two level=* tags that meet here
@@ -2490,6 +2570,19 @@ class Builder:
                     o['oneway'] = c['oneway']
                 if c.get('closed'):
                     o['closed'] = c['closed']
+                rise = abs(self.z_of(c['line'][0][2]) - self.z_of(c['line'][-1][2]))
+                run = line_len(c['line'])
+                if c['kind'] == 'escalator' and len(c['line']) == 2 and rise > 1 and run < rise / math.tan(math.radians(35)):
+                    (x0, y0, l0), (x1, y1, l1) = c['line']
+                    grow = (rise / math.tan(math.radians(30)) - run) / 2 / max(run, 0.1)
+                    ends = [[x0 - (x1 - x0) * grow, y0 - (y1 - y0) * grow, l0], [x1 + (x1 - x0) * grow, y1 + (y1 - y0) * grow, l1]]
+                    if any(r['level'] == q[2] and r['poly'].covers(Point(q[0], q[1])) for q in ends for r in self.rooms):
+                        self.note('escalators drawn steeper than 35 degrees', f'way {c.get("way")} at ({x0:.0f}, {y0:.0f}): '
+                                  f'{run:.1f} m for {rise:.1f} m; left, a longer line would run into a room')
+                    else:
+                        o['line'] = [[round(q[0], 2), round(q[1], 2), lvl(q[2])] for q in ends]
+                        self.note('escalators drawn steeper than 35 degrees', f'way {c.get("way")} at ({x0:.0f}, {y0:.0f}): '
+                                  f'{run:.1f} m for {rise:.1f} m in OSM; drawn {line_len(ends):.1f} m long (30 degrees)')
                 o['_way'] = c.get('way')
                 connectors.append(o)
         connectors += steps
@@ -2632,6 +2725,13 @@ class Builder:
                     n += 1
             self.note('closures', f'platform {",".join(a["refs"])}: closed {c}; with it {n} connectors '
                                   f'({len(ways)} stairs / escalators / ramps, {len(lifts)} lifts)')
+        # -- exits named after where they come out (OSM names the stairs after the street behind them)
+        for x, y, name in self.cfg.get('exit_names', []):
+            hit = [o for o in E if o['kind'] != 'walk' and min(dist(N[o['a']], (x, y)), dist(N[o['b']], (x, y))) <= 8]
+            for o in hit:
+                o['name'] = name
+            self.note('exits', f'{name}: {len(hit)} stairs / escalator / lift edges within 8 m of ({x}, {y}) named '
+                               f'({", ".join(sorted({o["kind"] for o in hit})) or "none found"})')
         notices = [{k: n[k] for k in ('text', 'from', 'until') if n.get(k)} for n in self.cfg.get('notices', [])
                    if not n.get('until') or n['until'] > self.today]
         if notices:
@@ -2736,6 +2836,23 @@ class Builder:
             model['sectorSpans'] = [{'ref': ref, 'name': sp['name'], 'a': [round(v, 2) for v in sp['a']],
                                      'b': [round(v, 2) for v in sp['b']]}
                                     for ref, track in spans.items() for sp in track['sectors']]
+            # on a curved platform the straight line from a to b leaves the edge: the kerb between them, when known
+            kerbs = self.data('platform_edges.geojson', sbb)
+            lines = {key_of(f['properties']['ref']): LineString([self.xy(c[0], c[1]) for c in f['geometry']['coordinates']])
+                     for f in (kerbs or {}).get('features', [])}
+            bent = 0
+            for sp in model['sectorSpans']:
+                kerb = lines.get(key_of(sp['ref']))
+                if kerb is None or max(kerb.distance(Point(sp['a'])), kerb.distance(Point(sp['b']))) > 3:
+                    continue
+                d0, d1 = sorted((kerb.project(Point(sp['a'])), kerb.project(Point(sp['b']))))
+                part = shapely.ops.substring(kerb, d0, d1).simplify(0.3)
+                if part.geom_type == 'LineString' and len(part.coords) > 2:
+                    pts = [[round(x, 2), round(y, 2)] for x, y in part.coords]
+                    sp['line'] = pts if dist(pts[0], sp['a']) <= dist(pts[-1], sp['a']) else pts[::-1]
+                    bent += 1
+            self.note('layers', f'sector spans: {len(model["sectorSpans"])}, {bent} of them with the kerb line between '
+                                f'their ends (curved platform)')
         props = []
         boards = self.data('boards.json', sbb)
         for b in boards or []:
@@ -2806,6 +2923,27 @@ class Builder:
             self.note('layers', f'shellMesh: {len(out)} structures, {sum(len(o["indices"]) for o in out) // 3} '
                                 f'triangles (clipped at {floor:g} m); {before - len(model["shell"])} OSM prisms under '
                                 f'them left out, {len(model["shell"])} kept')
+
+        # -- heights of the buildings around from swissBUILDINGS3D, where the same building is in both
+        prisms = self.data('shell.geojson', ['© swisstopo'])
+        if prisms:
+            n = 0
+            for f in prisms['features']:
+                geo = f['geometry']
+                rings = [geo['coordinates']] if geo['type'] == 'Polygon' else geo['coordinates']
+                theirs = unary_union([q for r in rings for q in clean_polys(Polygon([self.xy(c[0], c[1]) for c in r[0]]))])
+                top, base = f['properties'].get('top'), f['properties'].get('base')
+                if theirs.is_empty or top is None or base is None or top <= base:
+                    continue
+                for sh in model['shell']:
+                    if sh['kind'] != 'building':
+                        continue
+                    ours = Polygon(sh['ring']).buffer(0)
+                    if ours.intersection(theirs).area >= 0.6 * max(ours.area, 0.1) or \
+                            ours.intersection(theirs).area >= 0.6 * theirs.area:
+                        sh['base'], sh['top'] = round(max(base, -1.0), 1), round(top, 1)
+                        n += 1
+            self.note('layers', f'heights of {n} shell buildings taken from swissBUILDINGS3D (shell.geojson)')
 
         # -- checks: every stair / escalator / ramp / lift edge is drawn and the other way round; built ramps
         drawn = {c.get('_way') for c in model['connectors']} - {None}

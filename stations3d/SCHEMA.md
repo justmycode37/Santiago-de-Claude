@@ -72,6 +72,7 @@ Three pieces share this format. Change it only together with all three:
     { kind: "stairs" | "escalator" | "ramp", line: [[x, y, level], ...], width: 2.4, oneway: "up" | "down" | undefined },
     { kind: "elevator", xy: [x, y], levels: [-1, 0, 1] },
     // optional on any connector: closed: { ... } (the edges of the connector carry the same)
+    // An escalator OpenStreetMap draws steeper than 35° is drawn longer here (30°); its graph edge keeps its ends.
   ],
 
   // Massing for context: station building, platform roofs, neighbours. base/top in metres relative to level 0.
@@ -94,8 +95,9 @@ Three pieces share this format. Change it only together with all three:
   // Sectors of a platform edge (SBB open data), when known. xy = the middle of the sector on the platform;
   // node (optional) = the graph node of that platform nearest to it.
   sectors: [{ ref: "7", name: "A", xy: [x, y], node: 431 }],
-  // optional: the stretch of the platform edge each sector covers, from a to b, for drawing sector bands
-  sectorSpans: [{ ref: "7", name: "A", a: [x, y], b: [x, y] }],
+  // optional: the stretch of the platform edge each sector covers, from a to b, for drawing sector bands.
+  // line (optional) = the kerb between a and b where the platform curves and the straight line would leave it
+  sectorSpans: [{ ref: "7", name: "A", a: [x, y], b: [x, y], line: [[x, y], ...] }],
   // optional: station furniture, for the first-person view. heading = compass bearing (0 = north, clockwise) of the
   // platform edge at a sector sign, which hangs or stands across it; name = the letters on its two faces.
   props: [{ kind: "sector-sign" | "clock" | "ticket-machine" | "meeting-point", xy: [x, y], level: 0,
@@ -112,6 +114,8 @@ Three pieces share this format. Change it only together with all three:
       { a: 0, b: 1, kind: "walk", len: 12.4 },
       { a: 1, b: 2, kind: "stairs" | "escalator" | "ramp" | "elevator", len: 8, oneway: true, name: "" },
       // optional on any edge: outdoor: true, covered: true, wheelchair: false, closed: { ... },
+      //   inferred: true the builder added this link: OpenStreetMap has no path there (a platform or a lift
+      //                  stop nobody mapped a way to, joined to the nearest path)
       //   incline: 0.1   the real slope (rise / length) of a ramp, and of a walk that follows a sloping street
     ],
   },

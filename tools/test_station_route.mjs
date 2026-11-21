@@ -626,7 +626,7 @@ function modelTests(B, sampleDefs) {
       worstAll = Math.min(worstAll, worst);
     }
     console.log(`        ${routes} routes, ${fixes} fixes: worst step back ${(-worstAll).toFixed(1)} m, ${wrongFloor} on another floor than the truth (at lifts, where both floors are in the same spot)`);
-    assert(worstAll > -6.5, `went back ${-worstAll} m`);
+    assert(worstAll > -5, `went back ${-worstAll} m`);
     assert(wrongFloor < fixes * 0.01, 'too many fixes on the wrong floor');
   });
 
