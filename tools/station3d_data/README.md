@@ -44,9 +44,10 @@ Known problems that matter here:
   the walking floor of the Welle.
 - The deck walls of the mesh reach down to −3.5 m; the builder clips the mesh at −1 m.
 - Sector boards without a track number in the SBB data were assigned to the nearest edge (nine, all track 3).
-- Furniture has no level in the source: the builder takes `level` from the file when it is set there, else puts a
-  piece on level 0 when it lies on a platform, else on the level of the nearest walkable area within 15 m, else
-  leaves it out.
+- Furniture has no level in the source: the builder takes `level` from the file when it is set there by hand (a
+  level the model does not have leaves the piece out rather than putting it on 0), else puts a piece on level 0 when
+  it lies on a platform, else on the level of the nearest walkable area within 15 m, else leaves it out. A level that
+  came from SBB's section name (`"level_from": "sbb_section"`, Zürich HB) is only a hint, see below.
 ## Zürich HB (`zurich/`)
 
 `boards.json`, `sectors.json` and `furniture.json` are made by `tools/station3d_sbb_layers.py zurich` straight from
@@ -57,4 +58,13 @@ data.sbb.ch (`sektortafel`, `haltestelle-uhr`, `billetautomat`), for the stop id
   a centre midway between the two borders; checked on Wankdorf against the centres there: median 3 m, at most 7 m.)
 - data.sbb.ch has no sector signs for Löwenstrasse (31-34) and Museumstrasse (41-44), and no platform-edge lines any
   more (`perronkante` was withdrawn), so Zürich has no `spans.json` and no `platform_edges.geojson`.
-- Clocks and ticket machines are all those inside the model's extent; the builder gives them a level.
+- Clocks and ticket machines are all those inside the model's extent. Where SBB files one under the section
+  "Zurich HB Lowenstrasse" or "Zurich HB Museumstrasse" (`sbb_sections` in `STATIONS`), the script writes −4 or −3
+  with `"level_from": "sbb_section"`. These sections are operating areas, not floors: SBB files many street-level
+  clocks under them, among them clocks hung from the hall roofs (`BA-Dach_BE Langshalle`, `Alte Haupthalle`) and from
+  catenary masts (`FS-Mast`). So the builder keeps a section's level only for a piece within 15 m of a walkable area
+  on that floor and not hung from a roof or mast (`BA-Dach…`, `FS-…`: it goes on the highest floor walkable within
+  15 m). The rest are placed like any other furniture. With the 2026-11-21 data the model has 8 clocks and 7 ticket
+  machines on −4 and 17 clocks and 3 ticket machines on −3; 42 of the section-filed pieces went to street level. The Museumstrasse clocks
+  without a mounting (`montage_an` empty) stay on −3: nothing in the data says where they hang, and they lie over
+  that floor's platforms.

@@ -1,0 +1,13 @@
+{
+  // The scripts written into the pages beside the app (dev pages, the scan bench, the demo pages). Each page is
+  // its own world, so every file is checked on its own ("moduleDetection": "force"): what one declares at its
+  // top level, the others do not see. What the app's scripts put on window comes from ../types.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "moduleDetection": "force",
+    // a page imports the scripts next to it in dist/ ("./station3d-solid.js"); their sources are one folder up
+    "rootDirs": [".", ".."]
+  },
+  "include": ["*.ts", "../types"],
+  "exclude": []
+}

@@ -2,7 +2,7 @@
 
 Four files in `data/`, bbox S,W,N,E = 46.9, 7.34, 46.99, 7.5. Not wired into the map yet.
 
-Rebuild all four (Node 24, no npm deps, ~1 min): `node tools/build-streets.mjs`. Each part is built independently; a failed part is reported, the others are still written, exit code 1. Every part runs `assert` self-checks (all coordinates inside the bbox, required properties present, privacy check on construction sites).
+Rebuild all four (Node 24, no npm deps, ~1 min): `node tools/build-streets.mts`. Each part is built independently; a failed part is reported, the others are still written, exit code 1. Every part runs `assert` self-checks (all coordinates inside the bbox, required properties present, privacy check on construction sites).
 
 | File | Items (2026-11-21) | Size | Source | Licence |
 |---|---|---|---|---|

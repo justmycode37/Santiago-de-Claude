@@ -1,0 +1,307 @@
+// Usage: node tools/build-streets.mts
+// Mobility hazard data for Bern: street slopes + construction sites (Stadt Bern geoportal), holidays (OpenHolidays API),
+// station lifts/escalators/ramps (OSM via overpass.osm.ch). Writes data/street-slopes.geojson,
+// data/construction-sites.geojson, data/holidays.json, data/station-lifts.json. See docs/data-streets.md.
+import { writeFileSync, readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+
+const [S, W, N, E] = [46.9, 7.34, 46.99, 7.5];
+const inBbox = (lat: number, lon: number) => lat >= S && lat <= N && lon >= W && lon <= E;
+const generated = new Date().toISOString();
+const TODAY = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Zurich" }).format(new Date()); // YYYY-MM-DD
+const TERMS_OPEN = "opendata.swiss terms_open (https://opendata.swiss/terms-of-use#terms_open); © Geodaten Stadt Bern";
+const ODBL = "© OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)";
+const CITY = "https://map.bern.ch/arcgis/rest/services/Geoportal";
+
+type Position = number[]; // [lon, lat] or [lon, lat, z]
+type Coords = Position | Coords[]; // the `coordinates` of any GeoJSON geometry: a position, or positions nested 1 to 3 deep
+interface Geometry { type: string; coordinates: Coords }
+// ArcGIS REST query answer with f=geojson.
+interface Feature<P> { type: "Feature"; geometry: Geometry | null; properties: P }
+interface FeatureCollection<P> { features: Feature<P>[] }
+
+// Copied from tools/build-official-places.mts (importing it runs its build). map.bern.ch needs a browser UA.
+async function get<T>(url: string, init: RequestInit = {}): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, headers: { "User-Agent": "Mozilla/5.0 (bern-access-hackathon)", ...init.headers }, signal: AbortSignal.timeout(180000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = (await res.json()) as T & { error?: unknown };
+      if (j.error) throw new Error(JSON.stringify(j.error));
+      return j;
+    } catch (e) {
+      if (attempt === 3) throw new Error(`${url.slice(0, 200)}: ${(e as Error).message}`);
+      await new Promise((r) => setTimeout(r, 10000 * attempt));
+    }
+  }
+}
+const metres = (lat1: number, lon1: number, lat2: number, lon2: number) => Math.hypot((lat1 - lat2) * 111320, (lon1 - lon2) * 111320 * Math.cos((lat1 * Math.PI) / 180));
+const round6 = (c: Coords): Coords => (typeof c[0] === "number" ? [+c[0].toFixed(6), +(c[1] as number).toFixed(6)] : (c as Coords[]).map(round6)); // also drops Z
+const points = (coords: Coords): Position[] => (typeof coords[0] === "number" ? [coords as Position] : (coords as Coords[]).flatMap(points));
+const geomInBbox = (g: Geometry) => points(g.coordinates).every(([lon, lat]) => inBbox(lat, lon));
+const write = (path: string, obj: unknown) => { writeFileSync(path, JSON.stringify(obj)); console.log(`${path}: ${(JSON.stringify(obj).length / 1024).toFixed(0)} KB`); };
+
+async function arcgis<P>(service: string, layer: number, outFields: string) {
+  const out = [];
+  for (let off = 0; ; off += 1000) {
+    const fc = await get<FeatureCollection<P>>(`${CITY}/${service}/MapServer/${layer}/query?where=1%3D1&outFields=${outFields}&outSR=4326&f=geojson&resultOffset=${off}&resultRecordCount=1000`);
+    out.push(...fc.features);
+    if (fc.features.length < 1000) return out;
+  }
+}
+
+// ---------- 1. Street slopes ----------
+interface SlopeProps { Objectid: number; Strassenname: string | null; Steig: number | null; Steigung: number }
+type SlopeClass = "flat" | "moderate" | "steep" | "very_steep";
+// One feature of data/street-slopes.geojson.
+interface SlopeFeature {
+  type: "Feature";
+  geometry: { type: "LineString"; coordinates: Coords };
+  properties: {
+    id: string; // "strassensteigung/<Objectid>", plus "-<n>" for the parts of a MultiLineString
+    street: string | null;
+    slope_pct: number; // absolute
+    direction: "up_along_line" | "down_along_line" | null;
+    class: SlopeClass;
+  };
+}
+async function slopes() {
+  const raw = await arcgis<SlopeProps>("Strassensteigungen", 0, "Objectid,Strassenname,Steig,Steigung");
+  const cls = (s: number): SlopeClass => (s < 3 ? "flat" : s <= 6 ? "moderate" : s <= 10 ? "steep" : "very_steep");
+  const features: SlopeFeature[] = [];
+  for (const f of raw) {
+    const p = f.properties, g = f.geometry;
+    if (!g || !geomInBbox(g)) continue;
+    // Steigung is signed along the digitised line direction; Steig is its absolute value.
+    const parts = (g.type === "MultiLineString" ? g.coordinates : [g.coordinates]) as Coords[];
+    parts.forEach((line, i) => features.push({
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: round6(line) },
+      properties: {
+        id: `strassensteigung/${p.Objectid}${parts.length > 1 ? `-${i}` : ""}`, street: p.Strassenname ?? null,
+        slope_pct: +Math.abs(p.Steig ?? p.Steigung).toFixed(2),
+        direction: p.Steigung > 0 ? "up_along_line" : p.Steigung < 0 ? "down_along_line" : null,
+        class: cls(Math.abs(p.Steig ?? p.Steigung)),
+      },
+    }));
+  }
+  for (const f of features) {
+    assert.ok(geomInBbox(f.geometry) && f.geometry.coordinates.length >= 2, f.properties.id);
+    assert.ok(Number.isFinite(f.properties.slope_pct) && ["flat", "moderate", "steep", "very_steep"].includes(f.properties.class), f.properties.id);
+  }
+  const counts = Object.fromEntries(["flat", "moderate", "steep", "very_steep"].map((c) => [c, features.filter((f) => f.properties.class === c).length]));
+  console.log(`slopes: ${raw.length} source segments, ${features.length} kept in bbox`, counts);
+  write("data/street-slopes.geojson", {
+    type: "FeatureCollection", generated, source: `${CITY}/Strassensteigungen/MapServer/0`, licence: TERMS_OPEN,
+    note: "Automatically generated by Stadt Bern, to be checked case by case. class: flat <3%, moderate 3-6%, steep >6-10%, very_steep >10% (>6% is hard for manual wheelchairs). direction = sign of the slope along the LineString coordinate order.",
+    source_count: raw.length, counts, features,
+  });
+}
+
+// ---------- 2. Construction sites ----------
+// Privacy by construction: only these fields are requested, never Bauherrschaft_*/Bauleitung_*/Baukontrolleur_* (names, phones, e-mails).
+const SITE_FIELDS = "Objectid,Locality,Project,Startdate,Enddate,Displaynumber,Statustxt";
+interface SiteProps {
+  Objectid: number;
+  Locality: string | null;
+  Project: string | null;
+  Startdate: number | null; // epoch ms
+  Enddate: number | null;
+  Displaynumber: string | null; // permit number
+  Statustxt: string | null;
+}
+type SiteKind = "construction_site" | "installation_area";
+interface SiteStats { source: number; kept: number; ended_before_today: number; outside_bbox: number }
+// One feature of data/construction-sites.geojson (Polygon or MultiPolygon).
+interface SiteFeature {
+  type: "Feature";
+  geometry: Geometry;
+  properties: {
+    id: string; // "baustelle/<permit number>"
+    kind: SiteKind;
+    title: string | null;
+    description: null;
+    street: string | null;
+    start: string | null; // YYYY-MM-DD, Europe/Zurich
+    end: string | null;
+    end_unknown: boolean;
+    status: string | null;
+    impact_pedestrians: null;
+    impact_traffic: null;
+    center: [lon: number, lat: number];
+  };
+}
+const zDate = (ms: number | null | undefined) => (ms == null ? null : new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Zurich" }).format(new Date(ms)));
+const scrub = (s: string | null | undefined) => s?.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[e-mail removed]").replace(/(\+41|0041|\b0)[\s\d/.-]{8,}\d/g, "[phone removed]") ?? null;
+function centroid(g: Geometry): [number, number] { const pts = points(g.coordinates); return [+(pts.reduce((s, p) => s + p[0], 0) / pts.length).toFixed(6), +(pts.reduce((s, p) => s + p[1], 0) / pts.length).toFixed(6)]; }
+
+async function construction() {
+  const layers: [number, SiteKind][] = [[2, "construction_site"], [1, "installation_area"]]; // 2 = Baustelle, 1 = Installationsplatz (site storage/crane area)
+  const features: SiteFeature[] = [], stats: Record<string, SiteStats> = {};
+  for (const [layer, kind] of layers) {
+    const raw = await arcgis<SiteProps>("Baustellen_2", layer, SITE_FIELDS);
+    let kept = 0, ended = 0, outside = 0;
+    for (const f of raw) {
+      const p = f.properties, end = zDate(p.Enddate);
+      if (end && end < TODAY) { ended++; continue; }
+      if (!f.geometry || !geomInBbox(f.geometry)) { outside++; continue; }
+      kept++;
+      features.push({
+        type: "Feature", geometry: { type: f.geometry.type, coordinates: round6(f.geometry.coordinates) },
+        properties: {
+          id: `baustelle/${p.Displaynumber ?? `${layer}-${p.Objectid}`}`, kind, title: scrub(p.Project), description: null,
+          street: scrub(p.Locality), start: zDate(p.Startdate), end, end_unknown: !end, status: p.Statustxt ?? null,
+          impact_pedestrians: null, impact_traffic: null, // not published by the source
+          center: centroid(f.geometry),
+        },
+      });
+    }
+    stats[kind] = { source: raw.length, kept, ended_before_today: ended, outside_bbox: outside };
+  }
+  for (const f of features) {
+    assert.ok(geomInBbox(f.geometry), f.properties.id);
+    assert.ok(f.properties.id && f.properties.kind && (f.properties.end_unknown || f.properties.end! >= TODAY), f.properties.id);
+    const txt = JSON.stringify(f.properties);
+    assert.ok(!/telefon|vorname|nachname|email|bauleitung|bauherr|kontrolleur/i.test(Object.keys(f.properties).join()) && !/@[\w-]+\./.test(txt), `privacy ${f.properties.id}`);
+  }
+  console.log("construction:", stats);
+  write("data/construction-sites.geojson", {
+    type: "FeatureCollection", generated, valid_from: TODAY, source: `${CITY}/Baustellen_2/MapServer (layers 2 Baustelle, 1 Installationsplatz)`, licence: TERMS_OPEN,
+    note: "Polygons only (the source has no point layer); properties.center = [lon,lat] for markers. Contractor/person names, phones and e-mails are never fetched.",
+    stats, features,
+  });
+}
+
+// ---------- 3. Holidays ----------
+// A holiday of the OpenHolidays API (PublicHolidays / SchoolHolidays), as far as it is read.
+interface OpenHoliday {
+  startDate: string; // YYYY-MM-DD
+  endDate: string;
+  name: { language: string; text: string }[];
+  groups?: { code: string }[];
+}
+async function holidays() {
+  const q = "countryIsoCode=CH&subdivisionCode=CH-BE&validFrom=2026-01-01&validTo=2027-12-31"; // no languageIsoCode = all languages
+  const [pub, sch] = await Promise.all([get<OpenHoliday[]>(`https://openholidaysapi.org/PublicHolidays?${q}`), get<OpenHoliday[]>(`https://openholidaysapi.org/SchoolHolidays?${q}`)]);
+  const nm = (h: OpenHoliday, l: string) => h.name.find((n) => n.language === l)?.text ?? null;
+  const out = {
+    generated, source: "OpenHolidays API (https://openholidaysapi.org), subdivision CH-BE", licence: "ODbL 1.0 (OpenHolidays data)",
+    note: "school[].group: CH-BE-VS = Volksschulen (German-speaking public schools, applies to Stadt Bern), CH-BE-EO = Écoles obligatoires (French-speaking part). Dates inclusive.",
+    public: pub.map((h) => ({ date: h.startDate, end: h.endDate !== h.startDate ? h.endDate : undefined, name_en: nm(h, "EN"), name_de: nm(h, "DE") })),
+    school: sch.map((h) => ({ start: h.startDate, end: h.endDate, name: nm(h, "EN"), name_de: nm(h, "DE"), group: h.groups?.map((g) => g.code).join(",") ?? null })),
+  };
+  for (const h of out.public) assert.ok(/^\d{4}-\d\d-\d\d$/.test(h.date) && h.name_en && h.name_de);
+  for (const h of out.school) assert.ok(h.start <= h.end && h.name);
+  assert.ok(out.public.length >= 10 && out.school.length >= 5, "holiday counts look wrong");
+  console.log(`holidays: ${out.public.length} public, ${out.school.length} school`);
+  write("data/holidays.json", out);
+}
+
+// ---------- 4. Station lifts / escalators / ramps ----------
+// Overpass answer for `out center tags`: nodes carry lat/lon, ways and relations a centre.
+interface OverpassElement {
+  type: "node" | "way" | "relation";
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags: Record<string, string>;
+}
+interface OverpassAnswer { elements: OverpassElement[] }
+// A row of data/official-places.json (written by tools/build-official-places.mts), as far as it is read here.
+interface OfficialPlaceRow { category: string; name: string | null; lat: number; lon: number }
+// A stop a lift can belong to.
+interface Stop { name: string; lat: number; lon: number; rail: boolean; src: "official" | "osm" }
+type LiftKind = "lift" | "escalator" | "ramp";
+// One row of `items` in data/station-lifts.json.
+interface StationLift {
+  id: string; // "osm/<type>/<id>"
+  kind: LiftKind;
+  lat: number;
+  lon: number;
+  level: string | null; // raw OSM `level`
+  levels_connected: string[];
+  station_name: string; // the nearest stop, at most 150 m away
+  station_distance_m: number;
+  wheelchair: string | null; // raw OSM value
+  operator: string | null;
+  conveying: string | null;
+  incline: string | null;
+  indoor: string | null;
+  source: "osm";
+}
+async function lifts() {
+  const bb = `(${S},${W},${N},${E})`;
+  // Two smaller queries: overpass.osm.ch answers "duplicate_query" for a while after a big identical query was aborted.
+  const overpass = async (body: string) => (await get<OverpassAnswer>("https://overpass.osm.ch/api/interpreter", { method: "POST", body: new URLSearchParams({ data: `[out:json][timeout:120];(${body});out center tags;` }) })).elements;
+  const els = [
+    ...(await overpass(`nwr["highway"="elevator"]${bb};nwr["conveying"]${bb};nwr["ramp:wheelchair"="yes"]${bb};nwr["ramp"="yes"]["highway"!="steps"]${bb};`)),
+    ...(await overpass(`nwr["public_transport"~"^(station|platform)$"]["name"]${bb};nwr["railway"~"^(station|halt|tram_stop)$"]["name"]${bb};nwr["highway"="bus_stop"]["name"]${bb};`)),
+  ];
+  const ll = (e: OverpassElement) => (e.type === "node" ? [e.lat, e.lon] : [e.center?.lat, e.center?.lon]) as [number, number] | [undefined, undefined];
+
+  // Stop candidates: official Stadt Bern stops/stations first, OSM stops cover Köniz/Ostermundigen/Ittigen.
+  const official: OfficialPlaceRow[] = JSON.parse(readFileSync("data/official-places.json", "utf8")).items.filter((i: OfficialPlaceRow) => ["transit_stop", "railway_station"].includes(i.category) && i.name);
+  const stops = [
+    ...official.map((i) => ({ name: i.name, lat: i.lat, lon: i.lon, rail: i.category === "railway_station", src: "official" })),
+    ...els.filter((e) => e.tags.name && (e.tags.public_transport || e.tags.railway || e.tags.highway === "bus_stop")).map((e) => {
+      const [lat, lon] = ll(e);
+      return { name: e.tags.name, lat, lon, rail: ["station", "halt"].includes(e.tags.railway) || e.tags.train === "yes", src: "osm" };
+    }),
+  ].filter((s) => s.lat != null) as Stop[];
+
+  const kindOf = (t: Record<string, string>): LiftKind | null => (t.highway === "elevator" ? "lift" : t.conveying ? "escalator" : t["ramp:wheelchair"] === "yes" || t.ramp === "yes" ? "ramp" : null);
+  const lvls = (l: string | undefined) => (l ? l.split(";").map((x) => x.trim()).filter(Boolean) : []);
+  const items: StationLift[] = [];
+  for (const e of els) {
+    const kind = kindOf(e.tags);
+    if (!kind) continue;
+    const [lat, lon] = ll(e);
+    if (lat == null || !inBbox(lat, lon)) continue;
+    let best = null, bestD = Infinity;
+    for (const s of stops) { const d = metres(lat, lon, s.lat, s.lon); if (d < bestD) [best, bestD] = [s, d]; }
+    if (bestD > 150) continue;
+    const t = e.tags;
+    items.push({
+      id: `osm/${e.type}/${e.id}`, kind, lat: +lat.toFixed(7), lon: +lon.toFixed(7), level: t.level ?? null,
+      levels_connected: kind === "lift" ? lvls(t.level) : lvls(t.level).length > 1 ? lvls(t.level) : [], // escalator/ramp levels come from its way tag, if any
+      station_name: best!.name, station_distance_m: Math.round(bestD), wheelchair: t.wheelchair ?? (kind === "ramp" && t["ramp:wheelchair"] === "yes" ? "yes" : null),
+      operator: t.operator ?? null, conveying: t.conveying ?? null, incline: t.incline ?? null, indoor: t.indoor ?? null, source: "osm",
+    });
+  }
+  for (const i of items) {
+    assert.ok(inBbox(i.lat, i.lon) && ["lift", "escalator", "ramp"].includes(i.kind) && i.station_name && i.station_distance_m <= 150, i.id);
+  }
+
+  // Coverage: railway stations (official Stadt Bern "Bahnhof" layer first, then OSM railway=station|halt; anything within
+  // 300 m of an already listed station is the same station under another name) with >= 1 lift within 150 m.
+  const railStations = new Map<string, Stop>();
+  for (const s of stops.filter((s) => s.rail)) {
+    if (![...railStations.values()].some((r) => metres(r.lat, r.lon, s.lat, s.lon) < 300)) railStations.set(s.name, s);
+  }
+  const liftItems = items.filter((i) => i.kind === "lift");
+  const withLift = [...railStations.values()].filter((s) => liftItems.some((i) => metres(i.lat, i.lon, s.lat, s.lon) <= 150)).map((s) => s.name).sort();
+  const stopNames = new Set(stops.map((s) => s.name));
+  const coverage = {
+    rail_stations: railStations.size, rail_stations_with_lift: withLift.length, rail_stations_with_lift_names: withLift,
+    rail_stations_without_lift_names: [...railStations.keys()].filter((n) => !withLift.includes(n)).sort(),
+    stop_names_total: stopNames.size, stop_names_with_lift: new Set(liftItems.map((i) => i.station_name)).size,
+  };
+  const counts = Object.fromEntries(["lift", "escalator", "ramp"].map((k) => [k, items.filter((i) => i.kind === k).length]));
+  console.log("lifts:", counts, `coverage: ${withLift.length}/${railStations.size} rail stations`);
+  write("data/station-lifts.json", {
+    generated,
+    sources: [
+      { key: "osm", name: "OpenStreetMap via overpass.osm.ch (highway=elevator, conveying=*, ramp:wheelchair=yes, ramp=yes on non-steps)", licence: ODBL, count: items.length },
+      { key: "official-places", name: "Stop names from data/official-places.json (Stadt Bern Haltestellen/Bahnhoefe) + OSM stops", licence: TERMS_OPEN },
+      { key: "sbb", name: "data.sbb.ch / opentransportdata.swiss: no open lift or escalator dataset and no keyless lift-status feed found (checked " + TODAY + ")", count: 0 },
+    ],
+    counts, coverage, items,
+  });
+}
+
+const failed = [];
+for (const [name, fn] of Object.entries({ slopes, construction, holidays, lifts })) {
+  try { await fn(); } catch (e) { failed.push(name); console.error(`${name} FAILED:`, (e as Error).stack ?? (e as Error).message); }
+}
+if (failed.length) { console.error("failed:", failed.join(", ")); process.exit(1); }

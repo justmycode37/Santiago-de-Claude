@@ -27,6 +27,8 @@ interface TrackState extends TripSnap {
   /** Fixes in a row that were off the line; two make it `off`. */
   offCount: number;
   off: boolean;
+  /** You have been on the route at some fix (a trip that starts elsewhere is not "off the route" before that). */
+  onRoute?: boolean;
   /** The ride that has left without you (missedRide()). */
   missed?: JourneyRideStep | null;
   /** Within 25 m of the trip's end, or 40 m of the destination. */
@@ -122,6 +124,8 @@ interface KanteRideUnmatched {
 }
 
 interface OdSection {
+  /** 70-routing.ts: a walk before the first ride, in seconds, as the walking network routed it (the option's row). */
+  _netWalkS?: number;
   /** 56-live-engine.ts: the engine's trip for this ride. */
   _k?: KanteRideLink;
   /** 54-live-timetable.ts: when transport.opendata.ch's forecasts for this ride were last refreshed (ms). */

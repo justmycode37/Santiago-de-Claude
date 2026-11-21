@@ -59,10 +59,17 @@ function s3HasSolid(key: string): Promise<boolean> {
   return s3SolidIndex.then((ix) => !!ix[key]);
 }
 type S3SolidEnd = { stop?: { uic: string; ref?: string; sector?: string }; ll?: LngLat; level?: number | null };
-function s3SolidUrl(plan: StationWalkPlan, prefs: object): string {
-  const end = (e: S3SolidEnd) => (e.stop ? `stop:${e.stop.uic}:${e.stop.ref || ''}${e.stop.sector ? '@' + e.stop.sector : ''}`
-    : e.ll ? `ll:${e.ll[0]},${e.ll[1]}${e.level != null ? ',' + e.level : ''}` : '');
-  const p = Object.entries(prefs).filter(([, v]) => v === true).map(([k]) => k).join(',');
+function s3SolidUrl(plan: StationWalkPlan, prefs: StationRoutePrefs): string {
+  // a stop keeps its position too ("stop:…;ll:…"): the router falls back to it for a platform the model does not know
+  const end = (e: S3SolidEnd) => [
+    e.stop ? `stop:${e.stop.uic}:${e.stop.ref || ''}${e.stop.sector ? '@' + e.stop.sector : ''}` : '',
+    e.ll ? `ll:${e.ll[0]},${e.ll[1]}${e.level != null ? ',' + e.level : ''}` : '',
+  ].filter(Boolean).join(';');
+  // every preference the router uses: the step-free kind (true ones by name), walking speed, and the journey's day
+  // (closures in the model have dates)
+  const p = Object.entries(prefs).flatMap(([k, v]) => (v === true ? [k]
+    : typeof v === 'number' && Number.isFinite(v) ? [`${k}:${v}`]
+    : k === 'date' && typeof v === 'string' && v ? [`date:${v}`] : [])).join(',');
   return `station3d-solid.html?key=${encodeURIComponent(plan.key)}&from=${encodeURIComponent(end(plan.from as S3SolidEnd))}`
     + `&to=${encodeURIComponent(end(plan.to as S3SolidEnd))}${p ? '&prefs=' + p : ''}`;
 }
@@ -193,7 +200,7 @@ function optionRow(conn: OdConnection, now: number) {
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
   const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m >= 1) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
   conn.sections.forEach((s) => {
-    if (!s.journey) { walkS += (s.walk && s.walk.duration) || 0; return; }
+    if (!s.journey) { walkS += s._netWalkS != null ? s._netWalkS : (s.walk && s.walk.duration) || 0; return; }
     addWalk();
     add(kBadge(s.journey, null, chainIcon(s.journey)));
   });
@@ -607,9 +614,22 @@ function renderSheet() {
   renderFoot();
   if (document.body.classList.contains('journey-mode') && sheetDetent === 'low') placeSheet('low', true); // the header's height may have changed
 }
-let sheetQueued = false;
-function queueSheet() {
+let sheetQueued = false, timesQueued = false;
+// times: the trip's times have changed too, so the pill, the bar and the footer follow
+function queueSheet(times?: boolean) {
+  if (times) timesQueued = true;
   if (sheetQueued) return;
   sheetQueued = true;
-  requestAnimationFrame(() => { sheetQueued = false; if (journeyConn) { renderHead(); renderBody(); } });
+  requestAnimationFrame(() => {
+    const t = timesQueued;
+    sheetQueued = timesQueued = false;
+    if (!journeyConn) return;
+    renderHead();
+    renderBody();
+    if (!t) return;
+    document.getElementById('jDep')!.textContent = fmtTime(journeyConn.from.departure);
+    updatePillTimes();
+    renderBar();
+    renderFoot();
+  });
 }

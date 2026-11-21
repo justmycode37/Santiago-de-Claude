@@ -454,7 +454,7 @@ enum VehicleServiceMatcher {
             if let alightingIndex = expected.downstreamCalls.firstIndex(where: { $0.id == expected.alightingCallID }),
                other.lineKey == DisplayText.lineKey(expected.line),
                expected.downstreamCalls.prefix(alightingIndex).contains(where: {
-                   DepartureDisplayMatcher.destinationSimilarity($0.name, other.destination) >= 0.9 }) {
+                   DepartureDisplayMatcher.sameDestination($0.name, other.destination) }) {
                 return VehicleDecision(state: .conflicting, reason: "display_short_turn_before_alighting", observedService: service)
             }
             return VehicleDecision(state: .conflicting, reason: "display_matches_other_departure", observedService: service)

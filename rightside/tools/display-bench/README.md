@@ -62,6 +62,12 @@ thresholds were fixed before the run. `--positions` / `--positions-degraded` add
 Kante vehicle positions (the videos have none); held-out wrong vehicles flagged 72 % → 79 % / 75 %, no wrong
 vehicle accepted. The basis of every decision is printed at the end of each run.
 
+**After the review fixes (fix/rightside-review):** two destinations that only share a generic word ("Bern, Bahnhof"
+and "Bern Wankdorf, Bahnhof") are no longer treated as the same display. That removed an advantage the earlier
+numbers got from a bug: a real competing service had been dropped from the comparison. Now: dev 64.9 % right
+vehicles accepted, 64.5 % wrong vehicles flagged (225/225 named correctly); held-out 74.3 % accepted, 68.1 %
+flagged (77/77); still 0 % false alarms and 0 % wrong vehicles accepted.
+
 Per frame on the held-out set, the board matcher names the display correctly in 24 % of frames and wrongly in
 0.9 % (all 8 wrong frames are one pass where a second bus, "19 Blinzern", follows the labelled one). Most other
 frames are honestly unresolved: LED displays blanked by the camera's rolling shutter, side views, adverts.

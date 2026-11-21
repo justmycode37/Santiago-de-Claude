@@ -1,0 +1,7 @@
+{
+  // The data builders and the tests. Node runs them as they are (node tools/build-map-places.mts).
+  "extends": "../scripts/tsconfig.json",
+  "include": [".", "../src/types/data.d.ts", "../src/types/map-layers.d.ts", "../src/types/station-model.d.ts", "../src/types/station-route.d.ts"],
+  // not typed yet (in progress); remove this line when it is
+  "exclude": ["build-official-ch.mts"]
+}

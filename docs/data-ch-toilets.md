@@ -1,23 +1,23 @@
 # Swiss toilets (`data/ch/toilets-ch.json`) and CH address enrichment
 
 Two steps on top of [data-ch-osm.md](data-ch-osm.md) and [data-ch-official.md](data-ch-official.md). They are the Switzerland-wide
-versions of Bern's `tools/build-toilets.mjs` and `tools/enrich-addresses.mjs` (see `docs/data-enrichment.md` on the toilets-ch branch).
+versions of Bern's `tools/build-toilets.mts` and `tools/enrich-addresses.mts` (see `docs/data-enrichment.md` on the toilets-ch branch).
 
 ## Rebuild order (Node 24, no npm deps, `unzip` on PATH for the first enrichment run)
 
 ```sh
-node tools/build-amenities-ch.mjs     # data/ch/osm-*.json            (~10 min, Overpass)
-node tools/build-official-ch.mjs      # data/ch/official-ch.json      (~30 s, needs data/raw ATLAS CSVs)
-node tools/build-toilets.mjs          # data/toilets.json             (Bern; only its Nette Toilette records are used)
-node tools/build-toilets-ch.mjs       # data/ch/toilets-ch.json       (<1 s)
-node tools/enrich-addresses-ch.mjs    # fills addresses in all of the above data/ch files in place (~40 s)
+node tools/build-amenities-ch.mts     # data/ch/osm-*.json            (~10 min, Overpass)
+node tools/build-official-ch.mts      # data/ch/official-ch.json      (~30 s, needs data/raw ATLAS CSVs)
+node tools/build-toilets.mts          # data/toilets.json             (Bern; only its Nette Toilette records are used)
+node tools/build-toilets-ch.mts       # data/ch/toilets-ch.json       (<1 s)
+node tools/enrich-addresses-ch.mts    # fills addresses in all of the above data/ch files in place (~40 s)
 ```
 
-`build-toilets-ch.mjs [out] [bern-toilets.json]` takes the Bern file path as its 2nd argument (default `data/toilets.json`).
-Re-running a build step resets the addresses of its output, so run `enrich-addresses-ch.mjs` again afterwards. Running
-`build-toilets-ch.mjs` after the enrichment is also fine: it carries `address_source` over, so derived addresses stay marked.
+`build-toilets-ch.mts [out] [bern-toilets.json]` takes the Bern file path as its 2nd argument (default `data/toilets.json`).
+Re-running a build step resets the addresses of its output, so run `enrich-addresses-ch.mts` again afterwards. Running
+`build-toilets-ch.mts` after the enrichment is also fine: it carries `address_source` over, so derived addresses stay marked.
 
-## 1. Merged toilets (`tools/build-toilets-ch.mjs`)
+## 1. Merged toilets (`tools/build-toilets-ch.mts`)
 
 ```
 { generated, sources: [{ key, name, url?, licence, count }],
@@ -69,7 +69,7 @@ Every field except `id/lat/lon/canton/sources` may be null (= unknown). OSM `"un
 - `paid`: you pay to use it. OSM `fee=yes` / non-zero `charge`; city text with a price or "kostenpflichtig". "Eurokey gratis" or "Pissoir gratis"
   alone does not make it free.
 - `mixed`: the site has both a free and a paying WC, by cabin or by time of day. Re-derived from the raw fee text (`official-ch.json` `fee` =
-  Zürich `gebuehren`), because `build-official-ch.mjs` calls these `free`. Examples: "Behinderten-WC Fr. 1.-- oder Eurokey, Multifunktions-WC
+  Zürich `gebuehren`), because `build-official-ch.mts` calls these `free`. Examples: "Behinderten-WC Fr. 1.-- oder Eurokey, Multifunktions-WC
   gratis", "Gebührenfrei. Behinderten-WC mit Eurokey oder Fr. 1.--", "06:00-22:00 Gratis. Nachts 1.- oder Eurokey", Geneva "Gratuit de 8h à 20h,
   payant de 20h à 8h". Typically the accessible WC costs CHF 1 (free with Eurokey) and the standard one is free.
 - null: unknown.
@@ -137,7 +137,7 @@ Self-checks (build fails, nothing written): fee parser and price unit cases (Zü
 ids, every point inside CH, `paid` in the allowed set, `price` format and never on a free toilet, canton on every item, item count =
 inputs − matches, at least 30 mixed sites, file < 40 MB (it is 3.3 MB).
 
-## 2. Address enrichment (`tools/enrich-addresses-ch.mjs`)
+## 2. Address enrichment (`tools/enrich-addresses-ch.mts`)
 
 Source: swisstopo *Amtliches Gebäudeadressverzeichnis*, national CSV in LV95, `data/raw/gebaeudeadressen_ch.csv.zip` (469 MB unzipped).
 Licence: open government data, free use with attribution ("Source: swisstopo / Amtliches Gebäudeadressverzeichnis").

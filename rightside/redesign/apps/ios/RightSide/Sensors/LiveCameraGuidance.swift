@@ -35,17 +35,25 @@ private final class VisionWorkGate: @unchecked Sendable {
     /// Live "what is about to stop here" from the Kante engine (/api/due), or vehicle positions as a fallback.
     private let kante = KanteVehicleFeed()
     private var kanteDue: [KanteDue] = []
+    /// When the current `/api/due` answer was received; evidence older than a minute is not used.
+    private var kanteDueAt: Date?
+    private var kanteVehiclesAt: Date?
     private var kanteVehicles: [KanteVehicle] = []
     private var kanteSupportsDue: Bool?
     private var kanteTask: Task<Void, Never>?
     /// Exact boarding edge (platforms.js) and its floor (stations3d/), and which side of the street the rider is on.
-    private lazy var edgePack: StopEdgePack? = Bundle.main.url(forResource: "stop-edges", withExtension: "json", subdirectory: "TransportPacks")
-        .flatMap { try? Data(contentsOf: $0) }.flatMap { try? StopEdgePack(data: $0) }
-    private lazy var levelPack: StationLevelPack? = Bundle.main.url(forResource: "station-levels", withExtension: "json", subdirectory: "TransportPacks")
-        .flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(StationLevelPack.self, from: $0) }
+    /// Loaded once, off the main thread (stop-edges.json is ~2 MB); nil until then.
+    private var edgePack: StopEdgePack?
+    private var levelPack: StationLevelPack?
+    private var packLoad: Task<Void, Never>?
+    /// The resolved boarding target, recomputed at most once a second or when the context or Kante answer changes.
+    private var boarding: (edge: StopEdge, floor: StationLevelPack.Floor?, label: String)?
+    private var boardingKey = ""
+    private var lastBoardingCheck = 0.0
     @Published private(set) var boardingEdgeDescription: String?
     @Published private(set) var kerbMessage: String?
     private var lastKerbCheck = 0.0
+    private var kantePollKey: String?
     var onObservation: ((JSONValue) -> Void)?
     let view = ARSCNView(frame: .zero)
     private let worker = DispatchQueue(label: "rightside.live-ocr", qos: .userInitiated)
@@ -97,6 +105,7 @@ private final class VisionWorkGate: @unchecked Sendable {
         cameraEvidence.start()
         invalidateLocalCameraEvidence(.restarted)
         startKante(context: context, token: token)
+        loadPacks()
         boardingReferences = location.latestLocation.map { boardingPack?.nearby($0, at: Date()) ?? [] } ?? []
         startup = Task { [weak self] in
             let allowed: Bool
@@ -151,27 +160,50 @@ private final class VisionWorkGate: @unchecked Sendable {
     /// Polls the Kante engine every 15 s while the camera runs. The boarding stop id is sent when known;
     /// otherwise the current position (150 m radius). Nothing is sent offline or for simulated journeys.
     private func startKante(context: CameraJourneyContext, token: UUID) {
-        kanteTask?.cancel(); kanteDue = []; kanteVehicles = []
-        guard !context.offline, !context.simulated, context.line != nil else { return }
+        kanteTask?.cancel(); kanteDue = []; kanteVehicles = []; kanteDueAt = nil; kanteVehiclesAt = nil
+        kantePollKey = KanteVehicleFeed.pollKey(station: context.boardingStationID, line: context.line, destination: context.destination,
+                                                offline: context.offline, simulated: context.simulated)
+        guard kantePollKey != nil else { return }
+        /// Body only when the server answered 2xx: URLSession does not throw on 404/502/503 (e.g. during a redeploy).
+        func fetch(_ request: URLRequest) async -> (Data, Int)? {
+            guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            return (data, status)
+        }
         let feed = kante
         kanteTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.running, self.epoch == token else { return }
                 let fix = self.location?.latestLocation.map { GeoPoint(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude) }
                 if self.kanteSupportsDue == nil,
-                   let meta = try? await URLSession.shared.data(for: URLRequest(url: feed.base.appendingPathComponent("api/meta"), timeoutInterval: 8)) {
-                    self.kanteSupportsDue = KanteVehicleFeed.supportsDue(meta.0)
+                   let meta = await fetch(URLRequest(url: feed.base.appendingPathComponent("api/meta"), timeoutInterval: 8)) {
+                    // Latch only on a readable answer; an error page leaves it undecided for the next poll.
+                    self.kanteSupportsDue = KanteVehicleFeed.supportsDue(meta.0, status: meta.1)
                 }
                 if self.kanteSupportsDue == true, let request = feed.dueRequest(station: context.boardingStationID, around: fix),
-                   let response = try? await URLSession.shared.data(for: request), let due = try? KanteVehicleFeed.decodeDue(response.0) {
-                    if self.running, self.epoch == token { self.kanteDue = due }
+                   let response = await fetch(request), (200..<300).contains(response.1), let due = try? KanteVehicleFeed.decodeDue(response.0) {
+                    if self.running, self.epoch == token { self.kanteDue = due; self.kanteDueAt = Date() }
                 } else if self.kanteSupportsDue == false, let fix,
-                          let response = try? await URLSession.shared.data(for: feed.request(around: fix)),
+                          let response = await fetch(feed.request(around: fix)), (200..<300).contains(response.1),
                           let vehicles = try? KanteVehicleFeed.decode(response.0) {
-                    if self.running, self.epoch == token { self.kanteVehicles = vehicles }
+                    if self.running, self.epoch == token { self.kanteVehicles = vehicles; self.kanteVehiclesAt = Date() }
                 }
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
             }
+        }
+    }
+
+    private func loadPacks() {
+        guard edgePack == nil, packLoad == nil else { return }
+        packLoad = Task { [weak self] in
+            let packs = await Task.detached(priority: .utility) { () -> (StopEdgePack?, StationLevelPack?) in
+                func data(_ name: String) -> Data? {
+                    Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "TransportPacks").flatMap { try? Data(contentsOf: $0) }
+                }
+                return (data("stop-edges").flatMap { try? StopEdgePack(data: $0) },
+                        data("station-levels").flatMap { try? JSONDecoder().decode(StationLevelPack.self, from: $0) })
+            }.value
+            self?.edgePack = packs.0; self?.levelPack = packs.1; self?.boardingKey = ""
         }
     }
 
@@ -179,12 +211,12 @@ private final class VisionWorkGate: @unchecked Sendable {
     /// else the edge whose travel direction matches the trip's departure bearing. Nil when not unique.
     private func boardingTarget(_ context: CameraJourneyContext) -> (edge: StopEdge, floor: StationLevelPack.Floor?, label: String)? {
         guard let uic = context.boardingStationID, let pack = edgePack else { return nil }
-        let line = context.line.map(DisplayText.lineKey), destination = context.destination
-        let due = kanteDue.first { item in
-            item.state != "departed" && DisplayText.lineKey(item.line.name) == line
-                && destination.map { DepartureDisplayMatcher.destinationSimilarity(item.headsign, $0) >= 0.85 } == true
-        }
-        let ref = due?.quayLabel ?? context.boardingQuayLabel
+        // The rider's own trip (by planned departure), never just the first trip of the same line; an empty
+        // Kante label counts as no label, so the journey's planned platform is used instead.
+        let fresh = kanteDueAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? kanteDue : []
+        let due = VehiclePositionEvidence.dueItem(line: context.line, destination: context.destination,
+                                                  plannedDeparture: context.boardingDeparture, in: fresh, now: Date())
+        let ref = due?.label ?? context.boardingQuayLabel
         guard let edge = pack.boardingEdge(uic: uic, ref: ref, departBearing: due?.departBearing) else { return nil }
         let floor = levelPack?.floor(uic: uic, ref: edge.ref)
         var label = edge.ref.isEmpty ? (context.stop ?? "Boarding point") : "Kante \(edge.ref)"
@@ -212,6 +244,11 @@ private final class VisionWorkGate: @unchecked Sendable {
 
     func updateContext(_ context: CameraJourneyContext) {
         guard running else { return }
+        // Another boarding stop or ride, or offline toggled: poll for the new one (or stop polling).
+        if KanteVehicleFeed.pollKey(station: context.boardingStationID, line: context.line, destination: context.destination,
+                                    offline: context.offline, simulated: context.simulated) != kantePollKey {
+            startKante(context: context, token: epoch)
+        }
         if CameraEvidenceLifecycle.contextChanged(self.context, context) {
             invalidateCameraEvidence(.contextChanged)
             invalidateLocalCameraEvidence(.contextChanged)
@@ -298,7 +335,8 @@ private final class VisionWorkGate: @unchecked Sendable {
     func stop() {
         epoch = UUID(); running = false; processing = false
         routeGuide.reset(); routePlan = nil
-        kanteTask?.cancel(); kanteTask = nil; kanteDue = []; kanteVehicles = []
+        kanteTask?.cancel(); kanteTask = nil; kanteDue = []; kanteVehicles = []; kanteDueAt = nil; kanteVehiclesAt = nil; kantePollKey = nil
+        boarding = nil; boardingKey = ""; kerbMessage = nil; boardingEdgeDescription = nil
         cameraReady = false
         invalidateCameraEvidence(.stopped)
         invalidateLocalCameraEvidence(.stopped)
@@ -351,7 +389,12 @@ private final class VisionWorkGate: @unchecked Sendable {
         // Route arrows in plain world tracking. With Apple geographic AR active its anchor is used instead;
         // a simulated journey has no real position to align with.
         if !geo, !context.simulated {
-            let boarding = boardingTarget(context)
+            let key = context.id + "|" + (kanteDueAt.map { String($0.timeIntervalSince1970) } ?? "-") + "|" + (edgePack == nil ? "0" : "1")
+            if key != boardingKey || frame.timestamp - lastBoardingCheck >= 1 {
+                boardingKey = key; lastBoardingCheck = frame.timestamp
+                boarding = boardingTarget(context)
+            }
+            let boarding = self.boarding
             let target = boarding.map { CLLocationCoordinate2D(latitude: $0.edge.point.latitude, longitude: $0.edge.point.longitude) }
             routeGuide.update(frame: frame, location: location, route: context.route, target: target ?? context.routeEnd ?? context.target,
                               targetLabel: boarding?.label ?? context.stop ?? context.targetLabel, contextID: context.id,
@@ -360,7 +403,8 @@ private final class VisionWorkGate: @unchecked Sendable {
             if frame.timestamp - lastKerbCheck >= 1 {
                 lastKerbCheck = frame.timestamp
                 var message: String?
-                if let boarding, boarding.floor == nil || abs(boarding.floor!.z) < 1,
+                if let boarding,
+                   KerbSide.applies(to: boarding.edge, floor: boarding.floor, stationModelled: levelPack?.station(uic: boarding.edge.uic) != nil),
                    let fix = location?.latestLocation, fix.horizontalAccuracy > 0, location?.isStale() == false {
                     let user = GeoPoint(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
                     let siblings = edgePack?.edges(uic: boarding.edge.uic) ?? []
@@ -454,8 +498,9 @@ private final class VisionWorkGate: @unchecked Sendable {
                     ?? context.line.flatMap { line in context.destination.map {
                         VehicleServiceExpectation(line: line, destination: $0, requiresRouteContext: true)
                     } }
-                // Services Kante says are about to stop here join the departure-board candidates.
-                let dueCandidates = VehiclePositionEvidence.candidates(from: self.kanteDue)
+                // Services Kante says are about to stop here join the departure-board candidates (fresh answers only).
+                let freshDue = self.kanteDueAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? self.kanteDue : []
+                let dueCandidates = VehiclePositionEvidence.candidates(from: freshDue)
                 if var e = expected, !dueCandidates.isEmpty {
                     for c in dueCandidates where !e.boardAlternatives.contains(where: { $0.identity == c.identity }) { e.boardAlternatives.append(c) }
                     expected = e
@@ -463,9 +508,12 @@ private final class VisionWorkGate: @unchecked Sendable {
                 let candidates = expected.map { [DisplayCandidate(line: $0.line, destination: $0.destination, isExpected: true)] + $0.boardAlternatives } ?? []
                 let now = Date()
                 let decisions = result.tracks.map { track -> VehicleDecision in
-                    let positions = !self.kanteDue.isEmpty
-                        ? VehiclePositionEvidence.dueLikelihoods(for: track.detection.box, pose: cameraPose, due: self.kanteDue, candidates: candidates, now: now)
-                        : VehiclePositionEvidence.likelihoods(for: track.detection.box, pose: cameraPose, vehicles: self.kanteVehicles, candidates: candidates)
+                    let positions = !freshDue.isEmpty
+                        ? VehiclePositionEvidence.dueLikelihoods(for: track.detection.box, pose: cameraPose, due: freshDue, candidates: candidates,
+                                                                 now: now, fetchedAt: self.kanteDueAt)
+                        : VehiclePositionEvidence.likelihoods(for: track.detection.box, pose: cameraPose,
+                              vehicles: self.kanteVehiclesAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? self.kanteVehicles : [],
+                              candidates: candidates)
                     return VehicleServiceMatcher.decide(track, expected: expected, now: now, positions: positions)
                 }
                 func viewBox(_ upright: CGRect) -> CGRect {

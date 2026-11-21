@@ -42,7 +42,7 @@ interface Station3DOpenOptions {
   /** false: leave the rest of the page usable (development page). */
   modal?: boolean;
   /** Where the view is put (default: document.body). */
-  mount?: HTMLElement | null;
+  mount?: HTMLElement | ShadowRoot | null;
   /** A tap anywhere on the model is a 'pick', not only on something with a name. */
   pickAnywhere?: boolean;
   /** The end of the walk in the first-person view: over the last metres the head turns to `look` (model metres x, y),
@@ -70,6 +70,10 @@ interface Station3DUser {
   accuracy?: number;
   /** Compass bearing in degrees. */
   heading?: number | null;
+  /** The floor comes from an indoor position that is sure of it (indoornav.js): it beats the floor of the route snap. */
+  levelSure?: boolean;
+  /** When the GPS fix was taken (ms since 1970): a remembered fix older than a minute is not shown at the next opening. */
+  at?: number;
 }
 
 type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'css' | 'broken' | 'lost';
@@ -77,6 +81,10 @@ type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'css' | 'broken' | 'lo
 interface Station3DEventMap {
   open: { key: string; route: StationRouteResult | null; focus: { which: 'from' | 'to'; why: StationRouteWhy | 'no-router' | null } | null };
   close: undefined;
+  /** open() was called: before the model loads, and also when it replaces a station that is showing (which says no 'close'). */
+  opening: { key: string; replaces: string | null };
+  /** The traveller said "I'm here" at a step of the route: that step's start, in the model's metres. */
+  here: { step: number; xy: XY; level: number };
   /** The Done button. */
   done: { route: StationRouteResult | null };
   /** index −1, step null: the overview. */

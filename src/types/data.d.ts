@@ -31,7 +31,7 @@ declare var SWISS_EVENT_SERIES: EventSeries[];
 /** Local programmes (language courses, sport clubs, …); some are known by their town only (`areaOnly`). */
 declare var COMMUNITY_PROGRAMMES: EventListing[];
 
-// ---- map-places.js (tools/build-map-places.mjs): toilets, drinking water, health, help, shops… ----
+// ---- map-places.js (tools/build-map-places.mts): toilets, drinking water, health, help, shops… ----
 
 /** What is known about a place besides its name. Every field may be missing. */
 interface MapPlaceDetails {

@@ -494,10 +494,11 @@
     hear('close', () => { if (!switching) finish(); });   // the view's own way out (the back gesture)
     hear('open', () => {                                 // also after the view's "Try again"
       if (act === 1) wait(5000).then(() => built1());     // a street that is not built by then is not coming: the plain model shows
+      // the cover has gone already (the viewer came late, or after "Try again"): the walk sets off now
+      if (act === 1 && walking1 && !still) wait(600).then(() => { if (!ended && !failed && S().isOpen() && !S().isPlaying()) S().play({ speed: pace(SPEED_1) }); });
       if (!failed) return;
       failed = false;
       if (act !== 2) onState('playing', act);
-      if (act === 1 && walking1 && !still) wait(600).then(() => { if (!ended && !failed && S().isOpen()) S().play({ speed: pace(SPEED_1) }); });
       if (act === 3) setOff3();                         // "Try again" worked: the second walk was opened waiting
     });
     try {

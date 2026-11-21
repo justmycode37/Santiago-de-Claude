@@ -104,12 +104,19 @@ enum DepartureDisplayMatcher {
 
     /// Same as `match`, memoised per camera frame: the live matcher re-evaluates each recent frame
     /// several times while it stays in the 2 s decision window.
-    static func match(_ texts: [VehicleText], candidates: [DisplayCandidate], frameID: UUID,
+    static func match(_ vehicleTexts: [VehicleText], candidates: [DisplayCandidate], frameID: UUID,
                       positions: [String: Double] = [:]) -> DisplayBoardMatch {
-        let key = frameID.uuidString + "|" + candidates.map(\.identity).joined(separator: ";")
-            + "|" + positions.sorted { $0.key < $1.key }.map { "\($0.key)=\(Int($0.value * 100))" }.joined(separator: ";")
+        // Several vehicles share a frame: the key includes this vehicle's own text and boxes, not just the frame.
+        var parts: [String] = [frameID.uuidString]
+        for t in vehicleTexts {
+            let box = [t.box.minX, t.box.minY, t.box.width, t.box.height].map { String(Int(Double($0) * 10_000)) }.joined(separator: ",")
+            parts.append(t.text + "@" + box + "," + String(Int(t.score * 1000)))
+        }
+        parts.append(candidates.map(\.identity).joined(separator: ";"))
+        for (identity, value) in positions.sorted(by: { $0.key < $1.key }) { parts.append(identity + "=" + String(Int(value * 100))) }
+        let key = parts.joined(separator: "|")
         if let cached = cache.value(key) { return cached }
-        let result = match(texts, candidates: candidates, positions: positions)
+        let result = match(vehicleTexts, candidates: candidates, positions: positions)
         cache.store(key, result)
         return result
     }
@@ -155,10 +162,20 @@ enum DepartureDisplayMatcher {
     }
 
     static func sameDisplay(_ a: DisplayCandidate, _ b: DisplayCandidate) -> Bool {
-        a.lineKey == b.lineKey && destinationSimilarity(a.destination, b.destination) >= 0.9
+        a.lineKey == b.lineKey && sameDestination(a.destination, b.destination)
     }
 
-    /// Similarity of two destination names as a display would render them (locality prefix optional).
+    /// Whether two names are the same destination. Only full renderings count (weight 1 variants), so a shared
+    /// generic part ("Bahnhof" of "Bern, Bahnhof" and "Bern Wankdorf, Bahnhof") or a shared locality alone
+    /// ("Wabern" of two Wabern stops) never makes two destinations one.
+    static func sameDestination(_ a: String, _ b: String, threshold: Double = 0.9) -> Bool {
+        let x = DisplayText.weightedVariants(a).filter { $0.weight >= 1 }, y = DisplayText.weightedVariants(b).filter { $0.weight >= 1 }
+        for u in x { for v in y where DisplayText.similarity(u.words.joined(), v.words.joined()) >= threshold { return true } }
+        return false
+    }
+
+    /// Similarity of two destination names as a display would render them (locality prefix optional). Loose on
+    /// purpose: used only to tell a misread or shortened display of the expected destination from a different one.
     static func destinationSimilarity(_ a: String, _ b: String) -> Double {
         var best = 0.0
         for x in DisplayText.variants(a) { for y in DisplayText.variants(b) {

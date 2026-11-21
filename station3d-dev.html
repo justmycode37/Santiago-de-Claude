@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Station 3D · development page</title>
   <!--
-    Opens the 3D station viewer (station3d.js) on its own, without the app. The page's script is src/station3d-dev.ts.
+    Opens the 3D station viewer (station3d.js) on its own, without the app.
 
     URL parameters
       key=bern | europaplatz | wankdorf | _fixture     station model (stations3d/<key>.js). Default: bern
@@ -44,14 +44,7 @@
       ui=0                           hide this page's own buttons (for screenshots)
       quiet=1                        put the viewer in a closed shadow tree (keeps automated snapshots small)
   -->
-  <script>
-    (function () {
-      const q = new URLSearchParams(location.search);
-      const sys = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      const t = q.get('theme');
-      document.documentElement.dataset.theme = t === 'dark' || t === 'light' ? t : sys;
-    })();
-  </script>
+  <!-- build: src/pages/station3d-dev.theme.ts -->
   <style>
     /* The app's tokens, copied from index.html */
     :root {
@@ -123,6 +116,6 @@
   </div>
 
   <script src="stations3d/index.js"></script>
-  <script src="station3d-dev.js"></script>
+  <!-- build: src/pages/station3d-dev.ts -->
 </body>
 </html>
