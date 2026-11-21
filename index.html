@@ -1793,11 +1793,96 @@
   <script src="live.js"></script>
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
-  <script src="station3d.js"></script>
-  <!-- indoor position in the 3D view: phone sensors, signs read by Scan, floor (indoorloc.js, signloc.js, indoornav.js) -->
-  <script src="indoorloc.js" defer></script>
-  <script src="signloc.js" defer></script>
-  <script src="indoornav.js" defer></script>
+  <script>
+    // The 3D station viewer (station3d.js, ~260 KB) loads the first time it is needed, not at start-up: a tap on
+    // "3D view", or a journey through a station that has a model (its walk is drawn from the model, and the viewer
+    // is preloaded). Until then this stand-in answers has() from stations3d/index.js and passes every other call on
+    // once the viewer is there. station3d.js then replaces window.Station3D with itself.
+    // The indoor position (indoorloc.js, signloc.js, indoornav.js) loads with it, after station3d.js and before the
+    // first open() / preload() resolves; if those three fail, the viewer still opens and they are tried again next time.
+    (function () {
+      let loading = null, indoor = null, retrying = false;
+      let user;
+      let wanted = null;      // the latest open() asked for while loading (close() cancels it)
+      const listeners = [];
+      const scans = [];       // text Scan read before the indoor scripts were there: { text, at }
+      const onScan = (e) => { if (!window.INDOORNAV && e.detail && e.detail.text) scans.push({ text: e.detail.text, at: e.detail.at || Date.now() }); };
+      window.addEventListener('scan:text', onScan);
+      const script = (src) => new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => { s.remove(); reject(new Error('Could not load ' + src)); };
+        document.head.appendChild(s);
+      });
+      function loadIndoor() {
+        if (!indoor) indoor = Promise.all([window.INDOORLOC ? null : script('indoorloc.js'), window.SIGNLOC ? null : script('signloc.js')])
+          .then(() => (window.INDOORNAV ? null : script('indoornav.js')))
+          .then(() => {
+            // what the stand-in kept: the last GPS fix, and signs read before (they still count if recent)
+            if (user !== undefined && window.INDOORNAV) window.INDOORNAV.setUser(user);
+            window.removeEventListener('scan:text', onScan);
+            for (const s of scans.splice(0)) window.dispatchEvent(new CustomEvent('scan:text', { detail: s }));
+          })
+          .catch((e) => {
+            // not fatal: the viewer works without it. Once the real viewer has replaced this stand-in, its next
+            // open() is the next chance: try again then, and hand that opening to the indoor position.
+            indoor = null;
+            console.warn(e.message);
+            const real = window.Station3D;
+            if (real && real !== stub && !retrying) {
+              retrying = true;
+              const off = real.on('open', (info) => {
+                loadIndoor().then(() => {
+                  if (!window.INDOORNAV) return;
+                  off(); retrying = false;
+                  if (real.isOpen()) window.INDOORNAV.attach(info);
+                });
+              });
+            }
+          });
+        return indoor;
+      }
+      function load() {
+        if (!loading) loading = new Promise((resolve, reject) => {
+          script('station3d.js').then(() => {
+            const real = window.Station3D;
+            if (!real || real === stub) { loading = null; reject(new Error('station3d.js did not start')); return; }
+            for (const [name, fn] of listeners) real.on(name, fn);
+            if (user !== undefined) real.setUser(user);
+            resolve(real);
+          }, (e) => { loading = null; reject(e); });
+        });
+        return loading.then((real) => loadIndoor().then(() => real));
+      }
+      const stub = window.Station3D = {
+        has: (uic) => (window.STATION3D_INDEX && window.STATION3D_INDEX[String(uic)]) || null,
+        open: (opts) => {
+          wanted = opts;
+          load().then((real) => {
+            // only the latest open() counts, and not if close() came meanwhile
+            if (wanted !== opts) return;
+            wanted = null;
+            real.open(opts);
+          }, () => { if (wanted === opts) wanted = null; if (window.showToast) window.showToast('The 3D view could not be loaded.'); });
+        },
+        setUser: (u) => { user = u || null; },
+        close: () => { wanted = null; },
+        isOpen: () => false,
+        on: (name, fn) => { listeners.push([name, fn]); return () => stub.off(name, fn); },
+        off: (name, fn) => {
+          const i = listeners.findIndex(([n, f]) => n === name && f === fn);
+          if (i >= 0) listeners.splice(i, 1);
+          if (window.Station3D !== stub) window.Station3D.off(name, fn);
+        },
+        selectStep: () => {}, setFollow: () => {}, setPov: () => {}, setPeel: () => {},
+        play: () => false, pause: () => {}, isPlaying: () => false,   // nothing can be playing before the viewer is there
+        enableCompass: () => load().then((real) => real.enableCompass(), () => 'unavailable'),
+        preload: (key) => load().then((real) => real.preload(key), () => false),
+        loadData: (key) => load().then((real) => real.loadData(key), () => null),
+      };
+    })();
+  </script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;

@@ -27,6 +27,8 @@
   let recorder = null, lastGps = null, away = false;
   let lastPush = 0, pushTimer = null;
   const recentSigns = new Map();
+  const PENDING_SIGN_MS = 120e3; // a sign read before a station is open still counts when it opens within this time
+  let pendingSigns = [];          // [{ text, at }] (at: Date.now() of the reading)
 
   const S3 = () => window.Station3D;
   const nowS = () => performance.now() / 1000;
@@ -97,6 +99,10 @@
     if (fresh) setUser(fresh.u, true);           // what GPS knows now (also decides whether we are here at all)
     journeyPrior(mine.pendingRoute || info.route);
     mine.pendingRoute = null;
+    // signs Scan read before the station was open (even before this script loaded): recent ones count now
+    const keep = pendingSigns.filter((p) => Date.now() - p.at < PENDING_SIGN_MS);
+    pendingSigns = [];
+    for (const p of keep) sign(p.text);
     // no permission to ask (Android, desktop): start the sensors now; iOS asks on the first tap in the view
     const D = window.DeviceMotionEvent, O = window.DeviceOrientationEvent;
     if (!(D && typeof D.requestPermission === 'function') && !(O && typeof O.requestPermission === 'function')) startSensors();
@@ -137,8 +143,12 @@
   }
 
   // a sign read by Scan (or typed in) → evidence; the same text again within 15 s is the same sign
-  function sign(text) {
-    if (!ses || !ses.filter || !window.SIGNLOC || !text) return null;
+  function sign(text, at) {
+    if (!text) return null;
+    if (!ses || !ses.filter || !window.SIGNLOC) {
+      pendingSigns = pendingSigns.filter((p) => Date.now() - p.at < PENDING_SIGN_MS).concat([{ text, at: at || Date.now() }]).slice(-5);
+      return null;
+    }
     const key = window.SIGNLOC.norm(text);
     const t = performance.now();
     for (const [k, at] of recentSigns) if (t - at > SIGN_REPEAT_MS) recentSigns.delete(k);
@@ -166,11 +176,13 @@
     const has = (cls) => path.some((n) => n && n.classList && n.classList.contains(cls));
     if (has('s3') && !has('s3-close')) startSensors();
   }, true);
-  window.addEventListener('scan:text', (e) => sign(e.detail && e.detail.text));
+  window.addEventListener('scan:text', (e) => sign(e.detail && e.detail.text, e.detail && e.detail.at));
   if (S3()) hook(); else window.addEventListener('load', hook);
 
   window.INDOORNAV = {
-    setUser: (u) => setUser(u, false), sign, startSensors,
+    setUser: (u) => setUser(u, false), sign: (text) => sign(text), startSensors,
+    // a viewer that was already opening when this script arrived (a late load): start with that opening
+    attach: (info) => { hook(); return opened(info); },
     // the traveller says where they are: { level } (a floor), and maybe { xy } (a tap on the model)
     here: (o) => { if (ses && ses.filter) { ses.filter.prior({ level: o.level, x: o.xy && o.xy[0], y: o.xy && o.xy[1], r: o.xy ? 15 : 60 }); push(); } },
     record: () => { recorder = new window.INDOORLOC.Recorder({ key: ses && ses.key }); return recorder; },
