@@ -615,3 +615,64 @@ pub struct Due {
     pub live_info: LiveInfo,
     pub extra: bool,
 }
+
+// ------------------------------------------------------------------ /api/identify
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentifyResponse {
+    pub t: i64,
+    /// `match`, `ambiguous` or `none`.
+    pub result: &'static str,
+    /// The winner's score, only for `match` (a ranking, not a probability).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f32>,
+    /// Best first, at most five; for `match` the first is the match.
+    pub candidates: Vec<IdentifyCandidate>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentifyCandidate {
+    pub trip_id: String,
+    pub service_date: String,
+    pub score: f32,
+    pub line: LineBadge,
+    pub headsign: String,
+    /// The call the vehicle is at or heading for.
+    pub seq: u16,
+    /// The boarding point when the vehicle was found at a stop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quay_id: Option<String>,
+    /// That call and the ones after it (skipped stops left out).
+    pub downstream: Vec<DownstreamStop>,
+    pub evidence: IdentifyEvidence,
+    pub live_info: LiveInfo,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub extra: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownstreamStop {
+    pub seq: u16,
+    pub station: String,
+    pub quay_id: String,
+    /// Live arrival, unix seconds (scheduled where there is no live data).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arr: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentifyEvidence {
+    /// `exact`, `confusable`, `unseen` (`contradicted` candidates are left out).
+    pub line: &'static str,
+    /// How well the destination text read fits the headsign or a via, 0…1; absent when none was read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<f32>,
+    pub distance_m: u32,
+    pub time_off_s: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearing_diff: Option<f32>,
+}

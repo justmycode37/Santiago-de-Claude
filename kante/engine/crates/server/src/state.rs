@@ -79,6 +79,9 @@ pub struct App {
     pub station_grid: PointGrid,
     pub station_ids: FxHashMap<String, StationIdx>,
     pub stop_ids: FxHashMap<String, StopIdx>,
+    /// ATLAS SLOID → the engine's quays on it. Usually one, whose id is the SLOID; a platform
+    /// whose sectors the timetable splits has one quay per part (`…_pf:5A-C`).
+    pub sloid_stops: FxHashMap<String, Vec<StopIdx>>,
     /// Normalised station names for the fallback search.
     pub station_norm: Vec<String>,
     pub live: RwLock<LiveState>,
@@ -305,6 +308,12 @@ impl App {
         let station_grid = PointGrid::new(tt.stations.iter().enumerate().map(|(i, s)| (i as u32, s.pos)), 500.0);
         let station_ids = tt.stations.iter().enumerate().map(|(i, s)| (s.gtfs_id.clone(), i as u32)).collect();
         let stop_ids = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.clone(), i as u32)).collect();
+        let mut sloid_stops: FxHashMap<String, Vec<StopIdx>> = FxHashMap::default();
+        for (i, s) in tt.stops.iter().enumerate() {
+            if !s.sloid.is_empty() {
+                sloid_stops.entry(s.sloid.clone()).or_default().push(i as StopIdx);
+            }
+        }
         let station_norm = tt.stations.iter().map(|s| text::normalize(&s.name)).collect();
 
         eprintln!(
@@ -331,6 +340,7 @@ impl App {
             station_grid,
             station_ids,
             stop_ids,
+            sloid_stops,
             station_norm,
             live: RwLock::new(LiveState { view: None, meta: Default::default() }),
             feeds: Default::default(),
@@ -342,6 +352,15 @@ impl App {
             walk_bbox,
             data_dir: data_dir.to_path_buf(),
         })
+    }
+
+    /// The quays a `quay=` parameter names: an engine quay id, or an ATLAS SLOID (all the
+    /// engine's quays on that boarding point). Empty when unknown.
+    pub fn quays_of(&self, id: &str) -> Vec<StopIdx> {
+        if let Some(v) = self.sloid_stops.get(id) {
+            return v.clone();
+        }
+        self.stop_ids.get(id).map(|&s| vec![s]).unwrap_or_default()
     }
 
     pub fn live_view(&self) -> Option<Arc<dyn LiveView>> {

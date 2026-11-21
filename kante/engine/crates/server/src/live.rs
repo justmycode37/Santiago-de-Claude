@@ -209,6 +209,36 @@ fn failed(app: &App, kind: FeedKind, e: String) {
     live.meta = meta_of(&feeds, u, t, x);
 }
 
+/// A feed that has not been fetched for this long is dropped from the snapshot: its delays are
+/// too old to plan with (they are shown as `stale` well before, after 5 minutes).
+const EXPIRE_S: i64 = 1800;
+
+/// Every minute: drop the data of a feed that has been failing for [`EXPIRE_S`].
+fn expire(app: Arc<App>) {
+    std::thread::Builder::new()
+        .name("live-expiry".into())
+        .spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(60));
+            let now = now_unix();
+            let mut guard = app.feeds.lock();
+            let feeds = &mut *guard;
+            let mut dropped = false;
+            for (name, f) in [("siri-et", &mut feeds.siri), ("gtfs-rt", &mut feeds.gtfs)] {
+                if f.ok_at.is_some_and(|t| now - t > EXPIRE_S) && (!f.trips.is_empty() || !f.extras.is_empty()) {
+                    eprintln!("live: {name}: no data for {} min, dropping it until the feed answers again", EXPIRE_S / 60);
+                    f.trips.clear();
+                    f.extras.clear();
+                    f.meta = None;
+                    dropped = true;
+                }
+            }
+            if dropped {
+                publish(&app, feeds);
+            }
+        })
+        .expect("spawn live expiry thread");
+}
+
 fn poll(app: Arc<App>, kind: FeedKind, key: String) {
     app.feeds.lock().gtfs.enabled |= kind == FeedKind::GtfsRt;
     app.feeds.lock().siri.enabled |= kind == FeedKind::SiriEt;
@@ -245,6 +275,7 @@ pub fn start(app: Arc<App>) {
         eprintln!("live: no API key (KANTE_OTD_KEY or data/secrets/otd.json) — running on the timetable only");
         return;
     }
+    expire(app.clone());
     if let Some(k) = siri {
         poll(app.clone(), FeedKind::SiriEt, k);
     }

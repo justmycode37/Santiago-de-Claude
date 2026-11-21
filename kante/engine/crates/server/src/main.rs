@@ -9,6 +9,7 @@ mod api;
 mod build;
 mod json;
 mod live;
+mod identify;
 mod liveapi;
 mod profiles;
 mod plan;
