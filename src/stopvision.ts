@@ -358,10 +358,13 @@
   const depsWords = (deps: StopVisionDeparture[] | null) => (!deps ? '' : deps.length ? `Next: ${deps.slice(0, 3).map(depWords).join('; ')}.` : 'No departures in the next hours.');
   // The stop at the top, once it has held for a moment, and its departures when they are in: each said once.
   // With it, where you are and where your ride leaves (ui.placeWords), and that again whenever it changes.
+  // e: the edge the camera looks at, named when it is not known where you stand (as on the card); focus: the edge
+  // whose departures are listed (your ride's, else where you stand, else what you look at). A change of that edge
+  // is a new thing to say: its departures are other ones.
   function speakTop(c: StopVisionCandidate, how: 'sign' | 'photo' | null, edge: StopVisionEdgeGuess | null, e: StopVisionEdge | null,
-    deps: StopVisionDeparture[] | null, pos: StopVisionPosition | null, failed: boolean | undefined) {
+    focus: number | null, deps: StopVisionDeparture[] | null, pos: StopVisionPosition | null, failed: boolean | undefined) {
     const sp = ui!.spoken, now = Date.now(), place = ui!.placeWords;
-    const k = `${c.uic}|${edge ? edge.i : ''}|${how ? 1 : 0}`;
+    const k = `${c.uic}|${focus == null ? '' : focus}|${how ? 1 : 0}`;
     if (k !== sp.pending) { sp.pending = k; sp.since = now; }
     if (place !== sp.placePending) { sp.placePending = place; sp.placeSince = now; }
     if (now - sp.since < 1500) return; // a stop that only flickers to the top is not read out
@@ -1448,7 +1451,7 @@
     const focus = routeHere && route!.edge != null ? route!.edge : stand && stand.i != null ? stand.i : edge ? edge.i : null;
     const e = edge ? c.st.edges[edge.i] : null;
     const deps = ev.departures ? ev.departures.filter((d) => focus == null || (d.edges ? d.edges.includes(focus) : d.edge === focus) || d.edge == null && c.st.edges.length === 1) : null;
-    speakTop(c, how, edge, e, deps, pos, ev.depFailed);
+    speakTop(c, how, edge, stand && stand.i != null ? null : e, focus, deps, pos, ev.depFailed);
     const key = [c.uic, how, edge && edge.i, edge && edge.why, edge && edge.maybe, stand && stand.i, stand && stand.why, stand && stand.maybe,
       stand && stand.unsure, route && route.uic + route.edge + route.exact, routeLive && routeLive.at, conflict && fresh(conflict.at, 15000) && conflict.at, fresh(ev.ocrAt, 12000), ev.depAt, ev.departures && ev.departures.length, ev.depFailed, ev.visRef && ev.visRef.page, ev.ocrAt, c.ahead, candidates.slice(1, 4).map((x) => x.uic).join()].join('|');
     if (key === ui!.shownKey) return;

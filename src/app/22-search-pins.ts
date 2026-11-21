@@ -111,6 +111,7 @@ let listBusy = false; // the list is being redrawn: a row that had the focus and
 function render(emptyText = 'No results') {
   // a screen reader is on a row: which one, to go on there when the list is drawn again
   const focusRow = list.contains(document.activeElement) ? [...list.querySelectorAll('li > button')].indexOf(document.activeElement as HTMLButtonElement) : -1;
+  const focusText = focusRow >= 0 ? document.activeElement!.textContent : null;
   listBusy = true;
   list.innerHTML = '';
   listBusy = false;
@@ -187,8 +188,9 @@ function render(emptyText = 'No results') {
   // the row that had the focus is gone ("Events near you" has become its results, or more results have come in):
   // go on at the row now in its place
   if (focusRow >= 0 && !list.contains(document.activeElement)) {
-    const rows = list.querySelectorAll<HTMLElement>('li > button');
-    const row = rows[Math.min(focusRow, rows.length - 1)];
+    // the same row if it is still there (another may have come in above it), else the one now in its place
+    const rows = [...list.querySelectorAll<HTMLElement>('li > button')];
+    const row = rows.find((b) => b.textContent === focusText) || rows[Math.min(focusRow, rows.length - 1)];
     if (row) row.focus({ preventScroll: true });
   }
   if (emptyText !== 'Searching…' || results.length) {

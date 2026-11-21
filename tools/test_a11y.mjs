@@ -23,6 +23,8 @@ for (const [text, lang] of [
   // codes, short forms and addresses that look like a word of another language (all from the app's own events)
   ['Alpha lecture 1 - AL0051', ''],
   ['Alpha francophone - AL 006', ''],
+  ['AL 006 / AL 007', ''],
+  ['al al al', ''],
   ['Di. 17.30-18.30', ''],
   ['CHF 2 per visit', ''],
   ['Schwimmen Kinder Obere Au · BTV Behindertensport Chur', ''],

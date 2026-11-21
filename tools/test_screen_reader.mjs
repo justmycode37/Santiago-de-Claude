@@ -199,7 +199,13 @@ if (want('guide')) {
     check('…and a second change to the other one', new RegExp('^! .*now leaves from \\w+ ' + other).test(hp), hp);
     hp = await to(plat);
     check('…and back once more', /after all/.test(hp), hp);
-    await ev(`window.__dep.prognosis = window.__prog0; window.__heard.length = 0`);
+    // a ride the timetable plans no platform for: the first one seen is quiet, a move from it is said
+    await ev(`window.__dep.platform = ''; guidePlat.clear(); guideSaid.clear(); guideSaid.add(guidePosition(Date.now()).key);`);
+    hp = await to(other);
+    check('a first platform where none was planned is not a change', !/change/.test(hp), hp);
+    hp = await to(plat);
+    check('…a move from it is', new RegExp('^! .*now leaves from \\w+ ' + plat + ', not ' + other).test(hp), hp);
+    await ev(`window.__dep.platform = window.__plat0; window.__dep.prognosis = window.__prog0; window.__heard.length = 0`);
   } else console.log('      (the first ride has no platform, or has left: platform changes not checked)');
   // GPS: stand at the boarding point of the first ride
   // (the boarding point itself, which can lie some way from where the drawn walk to it ends)
@@ -272,9 +278,11 @@ if (want('access')) {
     const of = (ref) => { const e = st.edges.find(x => x.ref === ref); return e ? stopAccess({ s: { departure: { station: { id: '8590129' }, platform: ref }, journey: { category: 'B' } }, depLL: e.ll, depAt: { edge: e } }).join('+') : 'no edge'; };
     return of('A') + ' | ' + of('B');
   })()`) === 'Tactile guide lines+Tactile field at the boarding point+Departure display with speech | ', await ev(`(() => { const st = PLATFORMS.get('8590129'); if (!st) return 'no stop'; return st.edges.map(e => e.ref + ':' + stopAccess({ s: { departure: { station: { id: '8590129' }, platform: e.ref }, journey: { category: 'B' } }, depLL: e.ll, depAt: { edge: e } }).length).join(' '); })()`));
-  const many = await ev(`(() => { const r = journeySteps.find(st => st.type === 'ride' && stopKms(st).length >= 3); if (!r) return null; const k = stopKms(r); window.__r = r; return { before: pointAtKm(r.path, k[k.length - 2] - 0.022), past: pointAtKm(r.path, k[k.length - 2] + 0.06), i: journeySteps.indexOf(r) }; })()`);
+  const many = await ev(`(() => { const r = journeySteps.find(st => st.type === 'ride' && stopKms(st).length >= 3); if (!r) return null; const k = stopKms(r); window.__r = r; return { before: pointAtKm(r.path, k[k.length - 2] - 0.022), past: pointAtKm(r.path, k[k.length - 2] + 0.12), i: journeySteps.indexOf(r) }; })()`);
   if (many) {
     const at = (ll) => ev(`(() => { const r = window.__r, i = ${many.i}, now = r.t1 - 100000; track = { i, kmIn: snapToTrip(${JSON.stringify(ll)}, tripLayout().km0[i], now).kmIn, km: 0, d: 0, near: 0, cost: 0, v: geoVersion, offCount: 0, off: false }; const g = guidePosition(now); return g ? g.key + ' :: ' + g.text : 'nothing'; })()`);
+    const standing = await ev(`(() => { const r = window.__r, k = stopKms(r), i = ${many.i}, now = r.t1 - 100000; track = { i, kmIn: k[k.length - 2] + 0.035, km: 0, d: 0, near: 0, cost: 0, v: geoVersion, offCount: 0, off: false }; const g = guidePosition(now); return g ? g.key + ' :: ' + g.text : 'nothing'; })()`);
+    check('standing at the stop before yours (its place on the line measured 35 m short): not yet "get off"', !/Get off|next stop/i.test(standing), standing);
     const before = await at(many.before), past = await at(many.past);
     check('22 m before the stop before yours: not yet "get off at the next stop"', !/Get off|next stop/i.test(before), before);
     check('once that stop is behind you: "Next stop … Get off there"', /^last\|.*Next stop: .+\. Get off there\./.test(past), past);
@@ -344,7 +352,7 @@ if (want('language')) {
     check('translated rows are kept from one redraw to the next', kept.translated && kept.unchanged > 0 && kept.kept, JSON.stringify(kept));
   } else console.log('      (one journey only: the list is not checked)');
   // an alert still being translated when the journey closes is dropped
-  await ev(`window.__heard.length = 0; A11Y.say('The change at Bern will not work.', { urgent: true }); A11Y.hush();`); await sleep(2500);
+  await ev(`window.__heard.length = 0; A11Y.say('The change at Bern will not work.', { urgent: true }); A11Y.hush(true);`); await sleep(2500);
   check('a sentence still being translated is dropped when the journey closes', (await heard()) === '', await heard());
   await ev(`localStorage.removeItem('app-language'); location.reload()`); await sleep(8000);
   await ev(hear);
@@ -362,8 +370,14 @@ if (want('intro')) {
   for (const go of ['speed', 'access', 'done']) { await ev(`document.querySelector('#onboarding [data-page]:not([hidden]) [data-go="${go}"]').click()`); await sleep(900); }
   await sleep(1500);
   check('after it, the event page can be used', await ev(`document.getElementById('evPage').classList.contains('open') && !document.getElementById('evPage').inert`), await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id || e.className).join(',')`));
+  check('…has the focus, and what is behind it is out of reach again', await ev(`document.activeElement.id === 'evBack' && document.getElementById('map').inert && document.getElementById('menu').inert`), await active());
   await ev(`document.getElementById('evBack').click()`); await sleep(1200);
   check('…and closed, with nothing left out of reach', await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id).join(',')`) === 'tSheet,evPage', await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id).join(',')`));
+  // the introduction is still in the page, hidden: a dialog opened now is not under it
+  await ev(`showDestinationJourney({ title: 'Zürich HB', lngLat: [8.5403, 47.3782] })`); await sleep(9000);
+  await ev(`document.getElementById('whenChip').click()`); await sleep(500);
+  check('a dialog opened after the introduction still takes the focus', await ev(`document.getElementById('tSheet').contains(document.activeElement)`), await active());
+  await ev(`document.getElementById('tClose').click()`);
   await send('Page.navigate', { url: URL_ }); await sleep(8000);
   await ev(hear);
 }

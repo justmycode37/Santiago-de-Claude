@@ -25,8 +25,8 @@ interface A11yApi {
   say(text: string, options?: A11ySayOptions): void;
   /** This phone's own voice (Read aloud). false when nothing was said. */
   speak(text: string, options?: { urgent?: boolean; force?: boolean }): boolean;
-  /** Stop the voice. */
-  hush(): void;
+  /** Stop the voice. drop: also drop a sentence still on its way to a live region (what it was about is over). */
+  hush(drop?: boolean): void;
   /** A short buzz, or two for something urgent (Vibrate; Android only). */
   buzz(urgent?: boolean): void;
   /** Lets the page speak later: call it inside the tap that switches Read aloud on (iOS). */

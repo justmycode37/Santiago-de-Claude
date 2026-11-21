@@ -12,7 +12,7 @@
 
   // ---- Which language a piece of text is in, so the screen reader picks the right voice (lang="de") ----
   // Counted on the commonest words of each language; only an answer that is clear is given, the rest stays
-  // in the page's language: a wrong voice is worse than the page's own. So it takes two hits and a clear lead,
+  // in the page's language: a wrong voice is worse than the page's own. So it takes two different hits and a clear lead,
   // and codes ("AL0051"), e-mail and web addresses are not counted as words.
   type TextLang = 'de' | 'fr' | 'it' | 'en';
   const WORDS: Record<TextLang, string> = {
@@ -29,7 +29,7 @@
     const words = plain.match(/(?<![\p{L}\d])\p{L}+(?![\p{L}\d])/gu) || [];
     if (!words.length) return '';
     const score: Record<TextLang, number> = { de: 0, fr: 0, it: 0, en: 0 };
-    for (const w of words) {
+    for (const w of new Set(words)) { // each word once: "AL 006 / AL 007" is one "al", not two
       for (const k of LANGS) if (WORD_SETS[k].has(w)) score[k]++;
       if (/[äöüß]/.test(w) || (w.length > 5 && DE_END.test(w))) score.de += 1;
       if (/[éèêçœ]/.test(w)) score.fr += 0.5;
@@ -121,8 +121,10 @@
       return true;
     } catch (e) { return false; }
   }
-  let hushed = 0; // goes up with every hush(): a sentence still waiting for its translation is then dropped
-  const hush = () => { hushed++; try { if (synth) synth.cancel(); } catch (e) { /* nothing was being said */ } };
+  // hush(): the voice stops. hush(true), when what it was about is over (the journey was closed): a sentence still
+  // on its way to a live region is dropped as well (one still being translated, or waiting its turn in put()).
+  let hushed = 0;
+  const hush = (drop?: boolean) => { if (drop) hushed++; try { if (synth) synth.cancel(); } catch (e) { /* nothing was being said */ } };
 
   // ---- Vibration (Android; iOS Safari has none): a short buzz for a new step, two for something urgent ----
   function buzz(urgent?: boolean) {
@@ -138,7 +140,8 @@
     if (!el) return;
     clearTimeout(timers.get(el));
     el.textContent = '';
-    timers.set(el, root.setTimeout(() => { el.textContent = text; }, 60));
+    const h = hushed;
+    timers.set(el, root.setTimeout(() => { if (h === hushed) el.textContent = text; }, 60));
   }
   // say('Platform changed…', { urgent: true }). region: a live region inside an open dialog (a screen reader
   // inside a modal dialog does not hear the page behind it). quiet: no voice and no buzz, the live region only.
@@ -179,19 +182,34 @@
   const usable = (el: HTMLElement | null): el is HTMLElement => !!el && el !== page.body && page.contains(el) && !el.closest('[inert]') && el.getClientRects().length > 0;
   // A modal dialog that is open already (the first-visit introduction, over a page that is still starting) is on
   // top of this one: it stays usable and keeps the focus.
-  const onTop = (x: Element) => x.getAttribute('aria-modal') === 'true' && x.getAttribute('aria-hidden') !== 'true' && !(x as HTMLElement).inert;
+  const onTop = (x: Element) => x.getAttribute('aria-modal') === 'true' && x.getAttribute('aria-hidden') !== 'true'
+    && !(x as HTMLElement).inert && !(x as HTMLElement).hidden && x.getClientRects().length > 0;
   function openDialog(el: HTMLElement, { focus = null, returnTo = null, keep = [] }: A11yDialogOptions = {}) {
     if (openDialogs.has(el)) return;
-    const others = ([...page.body.children] as HTMLElement[]).filter((x) => x !== el);
-    const covered = others.some(onTop);
-    const made = others.filter((x) => !KEEP(x) && !keep.includes(x) && !x.inert && !onTop(x));
+    const rest = () => ([...page.body.children] as HTMLElement[]).filter((x) => x !== el);
+    const covers = rest().filter(onTop);
+    const cover = () => rest().filter((x) => !KEEP(x) && !keep.includes(x) && !x.inert && !onTop(x));
+    const made = cover();
     made.forEach((x) => { x.inert = true; });
     openDialogs.set(el, { made, returnTo: returnTo || page.activeElement as HTMLElement | null });
     el.inert = false;
-    if (covered) return;
     const target = focus || el;
     if (target === el && !el.hasAttribute('tabindex')) el.tabIndex = -1;
-    try { target.focus({ preventScroll: true }); } catch (e) { /* not focusable yet */ }
+    const enter = () => { try { target.focus({ preventScroll: true }); } catch (e) { /* not focusable yet */ } };
+    if (!covers.length) { enter(); return; }
+    // Under another dialog: once that one is gone, this one is on top. What it gave back to the page is covered
+    // again, and the focus comes in (after the other one has put it where it thought it belonged).
+    const watch = new MutationObserver(() => {
+      const d = openDialogs.get(el);
+      if (!d) { watch.disconnect(); return; }
+      if (covers.some(onTop)) return;
+      watch.disconnect();
+      const more = cover();
+      more.forEach((x) => { x.inert = true; });
+      d.made.push(...more);
+      root.setTimeout(() => { if (openDialogs.has(el)) enter(); }, 0);
+    });
+    covers.forEach((c) => watch.observe(c, { attributes: true }));
   }
   function closeDialog(el: HTMLElement, { fallback = null, restore = true }: { fallback?: HTMLElement | null; restore?: boolean } = {}) {
     const d = openDialogs.get(el);

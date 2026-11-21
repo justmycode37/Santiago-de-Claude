@@ -22,7 +22,8 @@ const ACCESS_WORDS: Record<string, string> = { t: 'Tactile guide lines', f: 'Tac
 function stopAccess(st: JourneyRideStep): string[] {
   const rows = lowVision() && stopAccessData ? stopAccessData[String(st.s.departure.station!.id)] : null;
   if (!rows) return [];
-  const q = quayOf(st, 'dep'), ll = (q.edge && q.edge.ll) || st.depLL;
+  // (without the edge itself there is only the station's middle, which may happen to lie on one of its bays)
+  const q = quayOf(st, 'dep'), ll = q.edge ? q.edge.ll : null;
   // The edge itself: the row nearest to it, within 5 m (the same official points as ours, so it is at 0 m; bays
   // stand 6 m apart and less). Else the row with its label, when that is unambiguous.
   let row: StopAccessEdge | undefined;
@@ -36,11 +37,11 @@ function stopAccess(st: JourneyRideStep): string[] {
   }
   return row ? [...row[3]].map((f) => ACCESS_WORDS[f]).filter(Boolean) : [];
 }
-// The way a walk really goes: its lines once they have been routed (a line not routed yet, or one no router
-// found a way for, is drawn straight across the blocks and says nothing about the crossings on the way)
+// The way a walk really goes: its lines once they have been routed (a line not routed yet, one no router found
+// a way for, or a short one drawn straight is no path, and says nothing about the crossings on the way)
 function walkPaths(st: JourneyStep): LngLat[][] {
   const lines = st.lines || [], walks = st.walks || [];
-  return lines.filter((l, k) => l.length > 1 && !!walks[k] && walks[k].dist != null);
+  return lines.filter((l, k) => l.length > 1 && !!walks[k] && walks[k].dist != null && !walks[k].approx);
 }
 // Crossings with a sound signal along a walk: the signal posts within 12 m of one of its lines, posts of one
 // crossing counted once. The lines are taken one by one: the end of one is not joined to the start of the next.
