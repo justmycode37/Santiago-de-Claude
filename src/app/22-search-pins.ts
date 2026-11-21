@@ -3,6 +3,7 @@ const placeMarkers: maplibregl.Marker[] = [];
 const areaChip = document.getElementById('areaChip')!;
 let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map
 function clearPlacePins() {
+  exitCategory();
   for (const m of placeMarkers) m.remove();
   placeMarkers.length = 0;
   pins = null;
@@ -46,6 +47,7 @@ function showPlacesOnMap() {
 }
 // "Search this area": the same search again, for the part of the map now in view. The camera stays put.
 async function searchArea() {
+  if (activeCategory && !activeCategory.events) { areaChip.hidden = true; loadCategory(activeCategory, true); return; }
   if (!pins) return;
   const { text, field } = pins, id = ++reqId, view = map.getBounds();
   areaChip.hidden = true;
@@ -88,7 +90,14 @@ function onTap(el: HTMLElement, fn: () => void) {
 
 function render(emptyText = 'No results') {
   list.innerHTML = '';
-  if (!inputs[activeField].value.trim()) { list.classList.remove('open'); return; }
+  if (!inputs[activeField].value.trim()) {
+    // nothing typed: the categories (where to, not where from, and not while a trip is on show)
+    if (activeField === 'to' && !journeyDest && document.activeElement === inputs.to) renderCategories();
+    else list.classList.remove('open');
+    return;
+  }
+  const typedCategory = categoryForText(inputs[activeField].value);
+  if (typedCategory && activeField === 'to') list.appendChild(categoryRow(typedCategory));
   if (!results.length) {
     const li = document.createElement('li');
     li.className = 'empty';
@@ -97,7 +106,7 @@ function render(emptyText = 'No results') {
   }
   const placeCount = results.filter((r) => r.origin === 'place').length;
   let onMapLast: HTMLElement | null = null;
-  if (placeCount >= 2 && results[0].origin === 'place') {
+  if (placeCount >= 2 && results[0].origin === 'place' && !(typedCategory && activeField === 'to')) {
     const onMap = document.createElement('li');
     onMap.className = 'on-map';
     onMap.setAttribute('role', 'option');

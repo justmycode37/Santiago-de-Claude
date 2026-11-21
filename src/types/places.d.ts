@@ -39,6 +39,18 @@ interface PlaceSearchResult {
   rating?: number | null;
   /** Google: open at this moment. */
   openNow?: boolean | null;
+  /** Google: how many people rated it. */
+  ratingCount?: number;
+  /** Its website, '' when none is known (Google, or OpenStreetMap after enrich()). */
+  website?: string;
+  /** A photo of it to show on its card, '' when there is none. */
+  photo?: string;
+  /** OpenStreetMap after enrich(): its opening hours as mapped ('Mo-Fr 08:00-18:00'). */
+  hours?: string;
+  /** OpenStreetMap after enrich(): how well known it is, the stand-in for a rating. */
+  score?: number;
+  /** Website, photo and score have been looked up (always for Google, after enrich() for OpenStreetMap). */
+  details?: boolean;
 }
 
 interface PlaceSearchAnswer {
@@ -52,6 +64,8 @@ interface PlaceSearchApi {
   search(text: string, options?: PlaceSearchOptions): Promise<PlaceSearchAnswer>;
   /** What stands at a point ('Kramgasse 12', 'Near Bärenpark'), or null when nothing is known there. */
   reverse(lngLat: LngLat): Promise<{ title: string } | null>;
+  /** OpenStreetMap places: adds website, opening hours, a photo and a score from OpenStreetMap and Wikidata (in place). */
+  enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]>;
   /** The kind of place a text asks for ('Pharmacies' for "apotheke"), or null. */
   matchCategory(text: string): string | null;
   source: 'osm' | 'google';
