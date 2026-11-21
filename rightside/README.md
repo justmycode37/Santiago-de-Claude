@@ -115,11 +115,24 @@ accepted the right vehicle and warned "wrong vehicle" for 25–49 % of right veh
   25 % of the time across 7,916 stops, below the 31 % of a random photo), and `walkgraph/` (a routing network, not on
   `main` yet; no per-edge refs or travel directions — useful later for the walking route itself and exact kerbs).
 
+### Review fixes (cross-provider review of #15 and #24)
+
+Fixed, each with a portable check: per-vehicle match cache (two vehicles in one frame got the same answer); a
+shared generic word or locality no longer merges two destinations; no ground arrows without a walking route; Kante
+evidence expires by absolute time and after 60 s; HTTP status checked and the Kante poll restarts on a new stop or
+ride and stops offline; no path yaw from repeated identical fixes (underpass) and old compass samples drop out;
+kerb side bounded sideways (40 m) and limited to street-level bus/tram edges; "Board at" uses the rider's own trip
+(matched by planned departure) and treats an empty Kante label as none; the street floor baseline is set once
+(the platform floor found after going down no longer doubles the descent); the target marker relabels when the
+edge becomes known; the 2 MB edge pack loads off the main thread and the target is recomputed at most once a
+second. Display bench after the fixes: held-out 74.3 % right vehicles accepted (was 77.1 %, partly from the
+destination-merging bug), 0 % false alarms, 0 % wrong vehicles accepted. Portable checks: 111/111.
+
 ### Validation status — what was and was not run
 
 | Check | Where | Result |
 | --- | --- | --- |
-| Portable logic (`tools/portable-tests`, 82 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
+| Portable logic (`tools/portable-tests`, 111 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
 | Swift 6 strict-concurrency type-check of the portable files | same | pass |
 | Recorded-video benchmark, dev + held-out (`tools/display-bench`) | same + Python/ONNX on PC | see its README |
 | Syntax parse of every changed iOS file | swift-frontend `-parse` | pass |
