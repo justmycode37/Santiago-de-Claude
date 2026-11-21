@@ -468,6 +468,7 @@
     .j-delay { color: var(--alert); font-size: 15px; font-weight: 600; margin-left: 5px; letter-spacing: 0; }
 
     /* Tapped platform: name + next departures from exactly that platform / stop edge */
+    .maplibregl-popup.pf-pop { z-index: 5; } /* above event cards and your position */
     .pf-pop .maplibregl-popup-tip { display: none; }
     .pf-pop .maplibregl-popup-content {
       width: min(280px, calc(100vw - 32px));
@@ -491,6 +492,21 @@
     .pf-list time { flex: none; width: 42px; font-weight: 600; font-variant-numeric: tabular-nums; }
     .pf-to { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pf-list .j-delay { margin-left: 0; font-size: 13px; }
+    /* Tapped place (toilet, fountain, pharmacy…): what it is and the details the data has */
+    .pl-body { max-height: min(52vh, 420px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+    .pl-body::-webkit-scrollbar { display: none; }
+    .pl-dot { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: var(--f, #fff); }
+    .pl-dot svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .pl-body .pf-name b { white-space: normal; }
+    .pl-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .pl-tags span { padding: 3px 9px; border-radius: 10px; background: var(--row-bg); font-size: 12px; font-weight: 600; }
+    .pl-rows { list-style: none; margin: 8px 0 0; padding: 0; }
+    .pl-rows li { padding: 6px 0; border-top: 1px solid var(--hair); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+    .pl-rows small { display: block; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: var(--bar-secondary); }
+    .pl-rows a { color: var(--accent-ink); text-decoration: none; }
+    .pl-go { width: 100%; height: 40px; margin-top: 10px; border: 0; border-radius: 12px; background: var(--user-blue); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .pl-go:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
+    .pl-src { margin: 8px 0 0; font-size: 11px; color: var(--bar-secondary); }
     .j-tag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
     .j-tag svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     .j-tag.warn { background: color-mix(in srgb, var(--tang) 16%, transparent); color: var(--warn); }
@@ -714,6 +730,12 @@
     .set-close svg { width: 14px; height: 14px; }
     .set-head { margin: 28px 16px 8px; font-size: 13px; font-weight: 400; letter-spacing: .02em; text-transform: uppercase; color: var(--bar-secondary); }
     .set-group { background: var(--sp-card); border-radius: 20px; padding: 4px 0; }
+    .set-headrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 28px 16px 8px; }
+    .set-headrow .set-head { margin: 0; }
+    .set-link { position: relative; flex: none; padding: 0; border: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 15px; cursor: pointer; }
+    .set-link::after { content: ""; position: absolute; inset: -12px -10px; } /* 44 px tap target */
+    .set-link:active { opacity: .55; }
+    .set-link:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; border-radius: 4px; }
     .set-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 16px; cursor: pointer; }
     .set-row:has(.switch:disabled) { cursor: default; }
     .set-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--c); color: var(--f, #fff); display: grid; place-items: center; }
@@ -850,7 +872,7 @@
         <path d="M12 2v1.4M12 20.6V22M2 12h1.4M20.6 12H22M4.93 4.93l1 1M18.07 18.07l1 1M4.93 19.07l1-1M18.07 5.93l1-1" />
       </svg>
     </button>
-    <button class="fab menu-item" id="eventsBtn" data-slot="1" type="button" aria-label="Events" aria-pressed="false" tabindex="-1">
+    <button class="fab menu-item" id="eventsBtn" data-slot="1" type="button" aria-label="Show events and places" aria-pressed="false" tabindex="-1">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
         <path d="M3.5 10h17M8 3v4M16 3v4" />
@@ -1002,6 +1024,13 @@
         </label>
       </div>
 
+      <div class="set-headrow">
+        <h2 class="set-head" id="setMapHead">On the map</h2>
+        <button class="set-link" id="setMapAll" type="button">Hide all</button>
+      </div>
+      <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setMapHead"></div>
+      <p class="set-foot">The events button in the ••• menu shows or hides everything switched on here. Places such as toilets and drinking water are only mapped for Bern so far (OpenStreetMap, Stadt Bern, Kanton Bern, SBB and Velospot).</p>
+
       <h2 class="set-head" id="setYouHead">About you</h2>
       <div class="set-group" role="group" aria-labelledby="setYouHead">
         <label class="set-row">
@@ -1111,6 +1140,7 @@
   <script src="bern-events.js"></script>
   <script src="community-programmes.js"></script>
   <script src="events.js"></script>
+  <script src="map-layers.js"></script>
   <script src="settings.js"></script>
   <script>
     // ---------- Theme helpers ----------
@@ -1243,7 +1273,8 @@
     function updateCards() {
       for (const marker of eventMarkers) marker.remove();
       eventMarkers.length = 0;
-      if (!eventsOn || map.getZoom() < EVENT_MIN_ZOOM) return;
+      // during a journey the map shows only the trip and the destination
+      if (!eventsOn || journeyDest || !SETTINGS.mapGroups().includes('events') || map.getZoom() < EVENT_MIN_ZOOM) return;
 
       const { clientWidth, clientHeight } = map.getContainer();
       const venues = new Map();
@@ -1339,6 +1370,7 @@
       eventsBtn.setAttribute('aria-pressed', String(enabled));
       eventsBtn.classList.toggle('active', enabled);
       updateCards();
+      updatePlaces();
     }
 
     function applyMapTheme(diff) {
@@ -1347,10 +1379,11 @@
       const style = structuredClone(STYLES[theme]);
       style.sources.platforms = { type: 'geojson', data: PLATFORM_FC };
       style.sources.route = { type: 'geojson', data: ROUTE_FC };
+      style.sources.places = { type: 'geojson', data: PLACES_FC };
       const route = routeLayers(theme);
       const firstSymbol = style.layers.findIndex((l) => l.type === 'symbol');
       style.layers.splice(firstSymbol < 0 ? style.layers.length : firstSymbol, 0, ...route.below);
-      style.layers.push(...platformLayers(theme), ...route.above);
+      style.layers.push(...placeLayers(theme), ...platformLayers(theme), ...route.above);
       map.setStyle(style, { diff });
     }
 
@@ -1404,23 +1437,25 @@
     document.getElementById('themeBtn').addEventListener('click', () =>
       setTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
     const eventsBtn = document.getElementById('eventsBtn');
+    // Shows or hides everything switched on under "On the map" in Settings
     eventsBtn.addEventListener('click', () => {
       setEventsOn(!eventsOn);
       setMenu(false);
       menuBtn.focus();
       if (!eventsOn) return;
-      const events = visibleEvents();
-      if (!events.length) {
-        showToast('No events match your settings.');
-        return;
-      }
-      if (map.getZoom() < EVENT_MIN_ZOOM) showToast('Zoom into a town or neighbourhood to see events.');
+      if (journeyDest) { showToast('Events and places come back when you end the journey.'); return; }
+      const groups = SETTINGS.mapGroups();
+      const wantPlaces = groups.some((k) => k !== 'events');
+      if (!groups.length) showToast('Everything is switched off under On the map in Settings.');
+      else if (!wantPlaces && !visibleEvents().length) showToast('No events match your settings.');
+      else if (map.getZoom() < (groups.includes('events') ? EVENT_MIN_ZOOM : PLACE_MIN_ZOOM)) showToast('Zoom into a town or neighbourhood to see events and places.');
+      else if (wantPlaces && !viewNearBern()) showToast('Places like toilets and drinking water are only mapped for Bern so far.');
     });
     document.getElementById('settingsBtn').addEventListener('click', () => {
       setMenu(false);
       SETTINGS.open();
     });
-    SETTINGS.onChange(updateCards);
+    SETTINGS.onChange(() => { updateCards(); updatePlaces(); });
     // Accessibility options changed during a journey → plan it again with them
     SETTINGS.onClose((journeyChanged) => {
       if (journeyChanged && journeyDest) startJourney(journeyDest, true);
@@ -1572,36 +1607,138 @@
 
     const stripTags = (s) => s.replace(/<[^>]*>/g, '').trim();
 
+    // ---- Places in the search (map-places.js, Bern): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
+    //      lists the nearest ones; a name ("Migros", "Amavita") lists the places called that, nearest first ----
+    const fold = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+    const stem = (w) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
+      : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+    const wordsOf = (s) => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
+    // "closest pharmacy", "nächste Apotheke", "toilet near me" → pharmacy, apotheke, toilet
+    const NEAR_WORDS = new Set(['closest', 'nearest', 'near', 'nearby', 'me', 'next', 'the', 'a', 'an', 'find', 'where', 'is',
+      'around', 'here', 'my', 'nachste', 'nachster', 'nachstes', 'nachsten', 'in', 'der', 'die', 'das', 'nahe', 'wo', 'ist',
+      'ein', 'eine', 'mir', 'bei', 'plus', 'proche', 'le', 'la']);
+    const NEAR_PHRASE = /^(closest|nearest|next|n[aä]chste[rsn]?)\s+|\s+(near me|nearby|in der n[aä]he)$/gi;
+    const SEARCH_ALIASES = Object.fromEntries(Object.entries(MAP_LAYERS.SEARCH_ALIASES).map(([k, v]) => [stem(fold(k)), v]));
+    const NAMED_BY_PLACE = new Set(['Info stand / kiosk', 'Mobile recycling point', 'Recycling', 'Bike pump', 'Bike parking',
+      'Disabled parking', 'Taxi rank', 'Car sharing', 'EV parking', 'Tactile paving', 'Acoustic crossing signal']);
+    let placeIndex = null;
+    function placeSearchIndex() {
+      if (!placeIndex && PLACES) {
+        const labelWords = (s) => wordsOf(s).map(stem);
+        placeIndex = {
+          cat: PLACES.cats.map(([, , , label]) => labelWords(label)),
+          group: PLACES.cats.map(([g]) => labelWords(GROUP_BY_KEY[g].label)),
+          names: PLACES.items.map((r) => (r[3] ? fold(r[3]) : '')),
+        };
+      }
+      return placeIndex;
+    }
+    function placeResult(row, km) {
+      const [g, glyph, , label] = PLACES.cats[row[2]];
+      const group = GROUP_BY_KEY[g];
+      return {
+        title: row[3] || label,
+        // "Pharmacy · 120 m · Neuengasse 15": the street tells apart branches with the same name
+        subtitle: [row[3] ? label : '', fmtDist(km * 1000), row[4] && row[4].a && /\d/.test(row[4].a.split(',')[0]) ? row[4].a.split(',')[0] : ''].filter(Boolean).join(' · '),
+        kind: 'place',
+        origin: 'place',
+        icon: { color: `var(--${group.color})`, fg: group.color === 'sun' ? '#344D77' : '', svg: `<path d="${MAP_LAYERS.GLYPHS[glyph]}"/>` },
+        lngLat: [row[0], row[1]],
+      };
+    }
+    // → { kinds: nearest places of the kind asked for, names: places whose name matches }
+    function searchPlaces(text) {
+      const idx = placeSearchIndex();
+      const plain = wordsOf(text).filter((w) => !NEAR_WORDS.has(w));
+      if (!idx || !plain.length) return { kinds: [], names: [] };
+      const from = gpsOn() ? userLngLat : map.getCenter().toArray();
+      const near = (rows, n) => rows.map((r) => [r, distKm(from, r)]).sort((a, b) => a[1] - b[1]).slice(0, n);
+
+      // a kind of place: every word of the query (after aliases) starts a word of its label or of its group's name
+      // ("health" → pharmacies, doctors, hospitals…)
+      const tokens = plain.map(stem).flatMap((w) => (SEARCH_ALIASES[w] ? wordsOf(SEARCH_ALIASES[w]).map(stem) : [w]));
+      const fits = (label) => tokens.every((t) => label.some((w) => w === t || (t.length >= 3 && w.startsWith(t))));
+      const cats = idx.cat.map((label, i) => (fits(label) || fits(idx.group[i]) ? i : -1)).filter((i) => i >= 0);
+      const catSet = new Set(cats);
+      const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2])), 6) : [];
+
+      // a name: every word appears in it. Stops and stations come from the swisstopo search instead, and some official
+      // items are only named after where they stand ("Bahnhofplatz 1"), so they don't count as names.
+      const names = [];
+      if (plain.join('').length >= 3) {
+        const shown = new Set(kinds.map(([r]) => r));
+        const rows = [];
+        idx.names.forEach((name, i) => {
+          const r = PLACES.items[i];
+          if (!name || shown.has(r) || !plain.every((w) => name.includes(w))) return;
+          const [g, , , label] = PLACES.cats[r[2]];
+          if (g === 'transit' || NAMED_BY_PLACE.has(label) || (r[4] && r[4].a && fold(r[4].a).startsWith(name))) return;
+          rows.push(r);
+        });
+        const starts = (r) => (fold(r[3]).startsWith(plain[0]) ? 0 : 1);
+        names.push(...rows.map((r) => [r, distKm(from, r)]).sort((a, b) => starts(a[0]) - starts(b[0]) || a[1] - b[1]).slice(0, 5));
+      }
+      return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)) };
+    }
+
     async function search(text) {
       const id = ++reqId;
+      const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
       const url = 'https://api3.geo.admin.ch/rest/services/api/SearchServer?' + new URLSearchParams({
-        searchText: text,
+        searchText: remoteText,
         type: 'locations',
         origins: 'zipcode,gg25,gazetteer,address',
         sr: '4326',
         limit: '15',
         lang: 'en',
       });
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (id !== reqId) return; // a newer query is in flight
-        const seen = new Set();
-        results = (data.results || []).map((r) => ({
-          ...parseResult(r.attrs),
-          origin: r.attrs.origin,
-          lngLat: [r.attrs.lon, r.attrs.lat],
-        })).filter((r) => {
-          const key = (r.title + '|' + r.subtitle).toLowerCase();
-          if (!r.title || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        expanded = false;
-        render();
-      } catch (e) {
-        if (id === reqId) { results = []; render('Search unavailable'); }
-      }
+      const [data] = await Promise.all([
+        fetch(url).then((res) => res.json()).catch(() => null),
+        loadPlaces(), // usually loaded already (when the search bar got focus)
+      ]);
+      if (id !== reqId) return; // a newer query is in flight
+      const seen = new Set();
+      const remote = ((data && data.results) || []).map((r) => ({
+        ...parseResult(r.attrs),
+        origin: r.attrs.origin,
+        lngLat: [r.attrs.lon, r.attrs.lat],
+      })).filter((r) => {
+        const key = (r.title + '|' + r.subtitle).toLowerCase();
+        if (!r.title || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      // Nearest places of the kind asked for first, then a place or town called exactly that, then places by name
+      const { kinds, names } = searchPlaces(text);
+      const exact = remote.length && fold(remote[0].title) === fold(remoteText) ? remote.splice(0, 1) : [];
+      results = [...kinds, ...exact, ...names, ...remote];
+      expanded = false;
+      render(data || results.length ? 'No results' : 'Search unavailable');
+    }
+
+    // A tap on a result row. On phones the click only comes after the browser has moved focus away from the
+    // search box, and that blur hides the list (and on iOS the closing keyboard slides the bar down), so the
+    // click never reaches the row. Touches are therefore handled on touchend, before any of that happens, and
+    // the click that would follow is cancelled. Mouse, keyboard and screen readers still use the click.
+    function onTap(el, fn) {
+      let start = null;
+      el.addEventListener('pointerdown', (e) => e.preventDefault()); // mouse: keep focus in the search box
+      el.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        start = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
+      }, { passive: true });
+      el.addEventListener('touchmove', (e) => {
+        const t = e.touches[0];
+        if (start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) start = null; // scrolling the list
+      }, { passive: true });
+      el.addEventListener('touchcancel', () => { start = null; });
+      el.addEventListener('touchend', (e) => {
+        if (!start || !e.cancelable) return; // not cancelable: leave it to the click
+        start = null;
+        e.preventDefault(); // no focus change, no late click on whatever opens underneath
+        fn();
+      });
+      el.addEventListener('click', fn);
     }
 
     function render(emptyText = 'No results') {
@@ -1618,7 +1755,7 @@
         const li = document.createElement('li');
         li.setAttribute('role', 'option');
         const icon = document.createElement('div');
-        const k = KIND[r.kind] || KIND.other;
+        const k = r.icon || KIND[r.kind] || KIND.other;
         icon.className = 'icon';
         icon.style.background = k.color;
         if (k.fg) icon.style.color = k.fg;
@@ -1633,17 +1770,14 @@
         s.textContent = r.subtitle;
         text.append(t, s);
         li.append(icon, text);
-        // pointerdown + preventDefault keeps focus so the list doesn't vanish before the tap registers
-        li.addEventListener('pointerdown', (e) => e.preventDefault());
-        li.addEventListener('click', () => select(i));
+        onTap(li, () => select(i));
         list.appendChild(li);
       });
       if (!expanded && results.length > COLLAPSED_COUNT) {
         const more = document.createElement('li');
         more.className = 'more';
         more.textContent = 'Show more…';
-        more.addEventListener('pointerdown', (e) => e.preventDefault());
-        more.addEventListener('click', () => { expanded = true; render(); });
+        onTap(more, () => { expanded = true; render(); });
         list.appendChild(more);
       }
       list.classList.add('open');
@@ -1672,7 +1806,11 @@
       debounce = setTimeout(() => search(text), 200);
     });
 
-    input.addEventListener('focus', () => { setMenu(false); if (input.value.trim()) render(); });
+    input.addEventListener('focus', () => {
+      setMenu(false);
+      loadPlaces(); // so places (toilets, pharmacies…) are ready to be searched
+      if (input.value.trim()) render();
+    });
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -1784,16 +1922,21 @@
     // Tap a platform: its name and the next departures from exactly that platform / edge (live)
     const platformPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'pf-pop', maxWidth: 'none', offset: 16 });
     let popupReq = 0;
-    // Forgiving tap: the nearest dot within ~16 px, so small dots are easy to hit on a phone
+    let popupPlace = null; // the place (toilet, pharmacy…) whose card is open
+    // Forgiving tap: the nearest dot or place icon within ~16 px, so small dots are easy to hit on a phone
     map.on('click', (e) => {
       const r = 16;
-      const hits = map.getLayer('platform-dot')
-        ? map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['platform-dot'] }) : [];
-      if (!hits.length) { popupReq++; platformPopup.remove(); return; }
+      const layers = ['platform-dot', ...PLACE_LAYERS].filter((id) => map.getLayer(id));
+      const hits = layers.length
+        ? map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers }) : [];
+      if (!hits.length) { popupReq++; popupPlace = null; platformPopup.remove(); return; }
       const dist = (f) => map.project(f.geometry.coordinates).dist(e.point);
-      openPlatform(hits.reduce((a, b) => (dist(b) < dist(a) ? b : a)));
+      const hit = hits.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+      if (hit.layer.id === 'platform-dot') openPlatform(hit);
+      else openPlace(hit.properties.i);
     });
     async function openPlatform(f) {
+      popupPlace = null;
       const st = PLATFORMS.get(String(f.properties.id));
       const edge = st && st.edges[f.properties.i];
       if (!edge) return;
@@ -1830,6 +1973,172 @@
     }
     map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'platform-dot', () => { map.getCanvas().style.cursor = ''; });
+
+    // ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
+    // Shown with the events button, for the groups switched on under "On the map" in Settings.
+    // The data (~1.5 MB, Bern only) is loaded the first time it is needed.
+    const PLACES_FC = { type: 'FeatureCollection', features: [] };
+    let PLACES = null;
+    let placesLoading = null;
+    // Even density: about the same number of icons on screen at every zoom (~70 on a phone). Each icon keeps
+    // PLACE_SPACING px of room around it; where icons would crowd, the higher-ranked ones (map-layers.js) are placed
+    // first and the rest appear as you zoom in. The room shrinks with zoom because icons grow (0.8× → 1×), and close
+    // in, where few places are left to add, it lets nearly all of them show.
+    const PLACE_MIN_ZOOM = 12.5;
+    const PLACE_SPACING = ['interpolate', ['linear'], ['zoom'], 13, 16, 17, 8, 18.5, 3];
+    const PLACE_LAYERS = ['places'];
+    const GROUP_BY_KEY = Object.fromEntries(MAP_LAYERS.GROUPS.map((g) => [g.key, g]));
+    const BERN_BOX = [[7.34, 46.9], [7.5, 46.99]];
+
+    // Place groups to draw now (none while the events button is off or a journey is on)
+    const placeGroupsShown = () => (eventsOn && !journeyDest ? SETTINGS.mapGroups().filter((k) => k !== 'events') : []);
+    const placeFilter = (groups) => ['in', ['get', 'g'], ['literal', groups]];
+
+    function placeLayers(theme) {
+      const dark = theme === 'dark';
+      const groups = placeGroupsShown();
+      return [{
+        id: 'places', type: 'symbol', source: 'places', minzoom: PLACE_MIN_ZOOM, filter: placeFilter(groups),
+        layout: {
+          visibility: groups.length ? 'visible' : 'none',
+          'icon-image': ['concat', 'pl|', ['get', 'gl'], '|', ['get', 'c'], '|' + theme],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], PLACE_MIN_ZOOM, .8, 17, 1],
+          'icon-padding': PLACE_SPACING,
+          'symbol-sort-key': ['get', 'o'],
+          // names once you are close in, under the icon, dropped where there is no room
+          'text-field': ['step', ['zoom'], '', 18, ['coalesce', ['get', 'n'], '']],
+          'text-font': ['Frutiger Neue Regular'],
+          'text-size': 12,
+          'text-anchor': 'top',
+          'text-offset': [0, 1.15],
+          'text-max-width': 9,
+          'text-optional': true,
+        },
+        paint: {
+          'icon-opacity': ['interpolate', ['linear'], ['zoom'], PLACE_MIN_ZOOM, 0, PLACE_MIN_ZOOM + .4, 1],
+          'text-color': dark ? '#E5E5EA' : '#1C1C1E',
+          'text-halo-color': dark ? '#1C1C1E' : '#FFFFFF',
+          'text-halo-width': 1.4,
+        },
+      }];
+    }
+
+    function loadPlaces() {
+      if (!placesLoading) placesLoading = new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'map-places.js';
+        s.async = true;
+        s.onload = () => { indexPlaces(window.MAP_PLACES); resolve(true); };
+        s.onerror = () => { placesLoading = null; s.remove(); showToast('Places could not be loaded.'); resolve(false); };
+        document.head.appendChild(s);
+      });
+      return placesLoading;
+    }
+    function indexPlaces(data) {
+      if (!data) return;
+      PLACES = data;
+      delete window.MAP_PLACES;
+      const order = Object.fromEntries(MAP_LAYERS.GROUPS.map((g, i) => [g.key, i]));
+      PLACES_FC.features = data.items.map(([lon, lat, ci, name], i) => {
+        const [g, gl, rank] = data.cats[ci];
+        // o: who gets the room where icons would overlap: higher rank, then earlier group, then named before unnamed
+        const properties = { i, g, gl, c: GROUP_BY_KEY[g].color, o: rank * 100 + order[g] * 2 + (name ? 0 : 1) };
+        if (name) properties.n = name;
+        return { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties };
+      });
+      const src = map.getSource('places');
+      if (src) src.setData(PLACES_FC);
+    }
+
+    function updatePlaces() {
+      const groups = placeGroupsShown();
+      if (groups.length && !PLACES) loadPlaces();
+      for (const id of PLACE_LAYERS) {
+        if (!map.getLayer(id)) continue;
+        map.setLayoutProperty(id, 'visibility', groups.length ? 'visible' : 'none');
+        map.setFilter(id, placeFilter(groups));
+      }
+      if (popupPlace && !groups.includes(popupPlace)) { popupPlace = null; platformPopup.remove(); }
+    }
+
+    const viewNearBern = () => {
+      const b = map.getBounds();
+      return b.getEast() > BERN_BOX[0][0] && b.getWest() < BERN_BOX[1][0] && b.getNorth() > BERN_BOX[0][1] && b.getSouth() < BERN_BOX[1][1];
+    };
+
+    const WHEELCHAIR = { yes: 'Wheelchair accessible', limited: 'Partly wheelchair accessible', no: 'Not wheelchair accessible' };
+    const ACCESS = { customers: 'Customers only', private: 'Private', permit: 'Permit needed', permissive: 'Open to the public' };
+    function openPlace(i) {
+      const row = PLACES && PLACES.items[i];
+      if (!row) return;
+      popupReq++;
+      const [lon, lat, ci, name, x = {}] = row;
+      const [g, glyph, , label] = PLACES.cats[ci];
+      const group = GROUP_BY_KEY[g];
+      popupPlace = g;
+
+      const dot = mk('span', 'pl-dot');
+      dot.style.setProperty('--c', `var(--${group.color})`);
+      if (group.color === 'sun') dot.style.setProperty('--f', '#344D77');
+      dot.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MAP_LAYERS.GLYPHS[glyph]}"/></svg>`;
+      const title = mk('div', 'pf-name');
+      title.append(mk('b', null, name || label), mk('small', null, name ? label : group.label));
+      const head = mk('div', 'pf-head');
+      head.append(dot, title);
+      const body = mk('div', 'pl-body');
+      body.append(head);
+
+      const tags = [];
+      if (x.f === 'no') tags.push('Free');
+      if (x.f === 'yes') tags.push('Fee');
+      if (x.w) tags.push(WHEELCHAIR[x.w]);
+      if (x.tw === 'yes') tags.push('Wheelchair toilet');
+      if (x.c) tags.push('Baby changing');
+      if (x.k && ACCESS[x.k]) tags.push(ACCESS[x.k]);
+      if (tags.length) {
+        const t = mk('div', 'pl-tags');
+        t.append(...tags.map((s) => mk('span', null, s)));
+        body.append(t);
+      }
+
+      const rows = mk('ul', 'pl-rows');
+      const addRow = (what, content) => {
+        const li = mk('li');
+        li.append(mk('small', null, what), content);
+        rows.append(li);
+      };
+      const link = (href, text) => {
+        const a = mk('a', null, text);
+        a.href = href;
+        if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+        return a;
+      };
+      if (x.a) addRow('Address', document.createTextNode(x.a));
+      if (x.h) addRow(x.h === '24/7' ? 'Open' : 'Opening hours', document.createTextNode(x.h === '24/7' ? 'Day and night' : x.h));
+      if (x.l) addRow('Floor', document.createTextNode(x.l));
+      if (x.d) addRow('About', document.createTextNode(x.d));
+      if (x.p) addRow('Phone', link('tel:' + x.p.replace(/[^\d+]/g, ''), x.p));
+      if (x.u) {
+        let host = x.u;
+        try { host = new URL(x.u).hostname.replace(/^www\./, ''); } catch { /* show it as it is */ }
+        addRow('Website', link(x.u, host));
+      }
+      if (rows.children.length) body.append(rows);
+
+      const go = mk('button', 'pl-go', 'Directions');
+      go.type = 'button';
+      go.addEventListener('click', () => {
+        popupPlace = null;
+        platformPopup.remove();
+        showDestinationJourney({ title: name || label, lngLat: [lon, lat] });
+      });
+      body.append(go, mk('p', 'pl-src', 'Source: ' + PLACES.sources[x.s || 0]));
+      platformPopup.setLngLat([lon, lat]).setDOMContent(body).addTo(map);
+    }
+    for (const id of PLACE_LAYERS) {
+      map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+    }
 
     function bearingDeg(a, b) {
       const toRad = Math.PI / 180;
@@ -1984,7 +2293,31 @@
       if (p[0] === 'arr') return arrowSprite(ratio);
       if (p[0] === 'pin') return fromSprite(ratio);
       if (p[0] === 'lv') return levelSprite(p[1] === 'u', p[2] || '', dark, ratio);
+      if (p[0] === 'pl') return placeSprite(p[1], p[2], dark, ratio);
       return null;
+    }
+    // A place on the map: a palette-coloured disc with a white rim and the group's glyph
+    function placeSprite(glyph, color, dark, ratio) {
+      const path = MAP_LAYERS.GLYPHS[glyph];
+      const col = MAP_LAYERS.COLORS[color];
+      if (!path || !col) return null;
+      const d = 26, m = 3, r = d / 2, cx = m + r;
+      const [c, ctx] = spriteCanvas(d + m * 2, d + m * 2, ratio);
+      ctx.shadowColor = 'rgba(8,10,14,.35)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(cx, cx, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = dark && color === 'navy' ? '#4A6AA3' : col.fill; // navy lifted on the dark map, like --navy
+      ctx.beginPath(); ctx.arc(cx, cx, r - 1.75, 0, Math.PI * 2); ctx.fill();
+      const g = 15; // glyph size, from its 24-unit grid
+      ctx.translate(cx - g / 2, cx - g / 2);
+      ctx.scale(g / 24, g / 24);
+      ctx.strokeStyle = col.ink;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke(new Path2D(path));
+      return spriteOut(c, ctx, ratio);
     }
     // The boarding point as a sign: ink plate with a yellow stripe, "Platform 7"; a round marker when it has no name
     function signSprite(label, noun, dark, ratio) {
@@ -3194,6 +3527,8 @@
       journeyDest = r;
       journeyConn = null;
       journeySteps = [];
+      updateCards(); // hide events and places: only the trip and the destination
+      updatePlaces();
       wrap.classList.remove('collapsed');
       wrap.classList.add('journey-open');
       document.body.classList.add('journey-mode');
@@ -3434,6 +3769,8 @@
       clearInterval(liveTimer);
       journeyConn = null;
       journeyDest = null;
+      updateCards(); // events and places come back if they were on
+      updatePlaces();
       track = null;
       liveKey = '';
       jLive.replaceChildren();

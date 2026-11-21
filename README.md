@@ -49,3 +49,13 @@ During a trip the app follows you along the route:
 - **Vehicles:** Switzerland has no open live feed of vehicle GPS positions, so the vehicle of the ride
   under way is placed using its live stop times. When GPS shows you are on board, your blue dot stands in for the vehicle.
 - **Without GPS**, a fainter blue dot shows where the live timetable puts you.
+
+## Places and amenities data
+
+`data/` holds Bern toilets, drinking water, benches, AEDs and other public amenities, plus Google-Maps-style places (restaurants, shops, hotels, services) from OpenStreetMap and official city, canton and SBB layers. See [docs/places-data.md](docs/places-data.md).
+
+The events button in the ••• menu shows them on the map as icons, together with the community events. Settings › On the map picks which groups it shows (all of them at first). The map uses `map-places.js`, built from `data/` with:
+
+```bash
+node tools/build-map-places.mjs
+```

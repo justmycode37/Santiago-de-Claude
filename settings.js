@@ -1,6 +1,7 @@
 // Settings: a page of its own (URL #settings, so the back gesture closes it).
 // The journey options are the ones from the Kante app (niknal357's branch): accessibility, walking speed,
-// change time, maximum walk and transport types. "About you" and "Events" pick which community events show.
+// change time, maximum walk and transport types. "On the map" picks what the events button shows (map-layers.js),
+// "About you" and "Events" narrow down which community events show.
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
@@ -16,6 +17,8 @@
     extraChangeMin: 2,
     maxWalkMin: 20,
     modes: null, // null = every transport type
+    // On the map: groups switched off (map-layers.js GROUPS keys); everything is on at first
+    mapHidden: [],
     // Events
     newcomer: false,
     lowVision: false,
@@ -35,6 +38,7 @@
     extraChangeMin: { min: 0, max: 15, step: 1 },
     maxWalkMin: { min: 5, max: 60, step: 5 },
   };
+  const LAYER_KEYS = window.MAP_LAYERS.GROUPS.map((g) => g.key);
   const JOURNEY_KEYS = ['stepFree', 'fewerStairs', 'noEscalators', 'wheelchair', 'walkKmh', 'extraChangeMin', 'maxWalkMin', 'modes'];
   // Event tags (events.js, swiss-workshops.js) each setting shows
   const EVENT_TAGS = {
@@ -59,6 +63,7 @@
       const v = saved[k], r = STEPPERS[k];
       if (Number.isInteger(v) && v >= r.min && v <= r.max) s[k] = v;
     }
+    if (Array.isArray(saved.mapHidden)) s.mapHidden = LAYER_KEYS.filter((k) => saved.mapHidden.includes(k));
     if (Array.isArray(saved.modes)) {
       const m = MODES.filter((x) => saved.modes.includes(x));
       s.modes = m.length && m.length < MODES.length ? m : null;
@@ -93,6 +98,8 @@
 
   // ---- What the settings change ----
   const eventTags = () => Object.keys(EVENT_TAGS).filter((k) => state[k]).flatMap((k) => EVENT_TAGS[k]);
+  // Map groups the events button shows, e.g. ['events', 'toilets', …]
+  const mapGroups = () => LAYER_KEYS.filter((k) => !state.mapHidden.includes(k));
 
   // Valhalla pedestrian costing for walks, or null for the normal walking router.
   // OpenStreetMap maps escalators as moving steps, so avoiding escalators means avoiding steps.
@@ -168,6 +175,40 @@
   // ---- Page ----
   const page = document.getElementById('settingsPage');
   const closeBtn = document.getElementById('settingsClose');
+  // "On the map": one switch per group in map-layers.js
+  const { GROUPS, GLYPHS } = window.MAP_LAYERS;
+  const layerGroup = document.getElementById('setMapGroup');
+  const layerAll = document.getElementById('setMapAll');
+  for (const g of GROUPS) {
+    const row = document.createElement('label');
+    row.className = 'set-row';
+    const ic = document.createElement('span');
+    ic.className = 'set-ic';
+    ic.setAttribute('aria-hidden', 'true');
+    ic.style.setProperty('--c', `var(--${g.color})`);
+    if (g.color === 'sun') ic.style.setProperty('--f', '#344D77');
+    ic.innerHTML = `<svg viewBox="0 0 24 24"><path d="${GLYPHS[g.glyph]}" /></svg>`;
+    const text = document.createElement('span');
+    text.className = 'set-text';
+    const b = document.createElement('b');
+    b.id = 'setLayer-' + g.key;
+    b.textContent = g.label;
+    text.append(b);
+    if (g.note) {
+      const small = document.createElement('small');
+      small.textContent = g.note;
+      text.append(small);
+    }
+    const input = document.createElement('input');
+    input.className = 'switch';
+    input.type = 'checkbox';
+    input.setAttribute('role', 'switch');
+    input.dataset.layer = g.key;
+    input.setAttribute('aria-labelledby', b.id);
+    row.append(ic, text, input);
+    layerGroup.append(row);
+  }
+  const layerSwitches = [...layerGroup.querySelectorAll('input[data-layer]')];
   const switches = [...page.querySelectorAll('input[data-setting]')];
   const modeSwitches = [...page.querySelectorAll('input[data-mode]')];
   const slider = document.getElementById('speedSlider');
@@ -242,6 +283,8 @@
       input.checked = on.includes(input.dataset.mode);
       input.disabled = input.checked && on.length === 1; // keep at least one
     }
+    for (const input of layerSwitches) input.checked = !state.mapHidden.includes(input.dataset.layer);
+    layerAll.textContent = state.mapHidden.length ? 'Show all' : 'Hide all';
     const speed = nearestPreset(state.walkKmh);
     if (!dragging) drawSlider(speed, true);
     slider.setAttribute('aria-valuenow', String(speed));
@@ -264,6 +307,11 @@
   page.addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
+    else if (t.dataset.layer) {
+      const hidden = state.mapHidden.filter((k) => k !== t.dataset.layer);
+      if (!t.checked) hidden.push(t.dataset.layer);
+      update({ mapHidden: LAYER_KEYS.filter((k) => hidden.includes(k)) });
+    }
     else if (t.dataset.mode) {
       const cur = new Set(state.modes || MODES);
       t.checked ? cur.add(t.dataset.mode) : cur.delete(t.dataset.mode);
@@ -276,6 +324,7 @@
       const k = step.dataset.stepper, r = STEPPERS[k];
       return update({ [k]: Math.min(r.max, Math.max(r.min, state[k] + r.step * +step.dataset.dir)) });
     }
+    if (e.target.closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
     if (e.target.closest('#settingsReset')) update({ ...DEFAULTS });
   });
 
@@ -334,6 +383,7 @@
     open,
     close,
     eventTags,
+    mapGroups,
     walkCosting,
     transportations,
     retime,

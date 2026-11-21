@@ -1,0 +1,5 @@
+# Build inputs and docs, not served by the site
+data/
+docs/
+tools/
+README.md
