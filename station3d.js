@@ -2682,6 +2682,8 @@
     setPov: (b) => { if (V) V.setPov(b); },
     _orient: (e) => { if (V) V.orient(e); },
     preload: (key) => Promise.all([loadCss(), loadThree(), key ? loadModel(key) : null, loadRouter()]).then(() => true, () => false),
+    // just the model and the router (no three.js): for drawing a station walk on the 2D map → model | null
+    loadData: (key) => Promise.all([loadModel(key), loadRouter()]).then(([m, r]) => (m && r ? m : null), () => null),
     _debug: () => (V ? V.debug() : null),
   };
 

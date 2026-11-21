@@ -2299,8 +2299,10 @@
           pt(st.arrLL, { kind: 'stop', step: i, end: true, ...colors });
           pt(st.depLL, { kind: 'sign', step: i, img: signId(st), sort: 10 });
         }
-        const lvl = levelChange(st);
+        // floor changes: every one on a walk through a modelled station (st.floors), else the one the platform levels imply
+        const lvl = st.floors ? null : levelChange(st);
         if (lvl && lvl.at) pt(lvl.at, { kind: 'lvl', step: i, img: `lv|${lvl.to > lvl.from ? 'u' : 'd'}|${levelShort(lvl.to)}` });
+        (st.floors || []).forEach((m) => pt(m.at, { kind: 'lvl', step: i, img: `lv|${m.to > m.from ? 'u' : 'd'}|${levelShort(m.to)}` }));
       });
       const first = steps[0];
       if (first && first.type === 'walk' && first.lines[0]) pt(first.lines[0][0], { kind: 'pin', step: 0, img: 'pin|from' });
@@ -2960,6 +2962,38 @@
       return plausible(g, path) ? [path[0], ...g, path[path.length - 1]] : path;
     }
 
+    // A walk that passes through a station with a 3D model: the model's route for the part inside it, the street
+    // router for what lies before and after. Falls back to the street router alone when the model has no route.
+    async function stationWalk(st, plan) {
+      const lines = st.lines.map((l) => l.slice());
+      const a = lines[0][0], last = lines[lines.length - 1], b = last[last.length - 1];
+      const street = async () => {
+        const walks = await Promise.all(lines.map((l) => routeWalk(l[0], l[l.length - 1])));
+        return { lines: walks.map((w) => w.coords), walks, floors: null };
+      };
+      let model = null, route = null;
+      try {
+        model = await Station3D.loadData(plan.key);
+        route = model && StationRoute.route(model, plan.from, plan.to, SETTINGS.journey());
+      } catch (e) { route = null; }
+      if (!route || route.points.length < 2) return street();
+      const inside = route.points.map((p) => StationRoute.toLngLat(model, p));
+      const parts = [], walks = [];
+      const join = async (p, q) => { // the stretch between the walk's end and where the model's paths begin
+        if (distKm(p, q) < 0.03) return;
+        const w = await routeWalk(p, q);
+        parts.push(w.coords);
+        walks.push(w);
+      };
+      await join(a, inside[0]);
+      parts.push(inside);
+      walks.push({ coords: inside, steps: null, dist: route.length });
+      await join(inside[inside.length - 1], b);
+      const floors = route.steps.filter((s) => s.toLevel !== s.level && Number.isInteger(s.toLevel))
+        .map((s) => ({ at: inside[s.from], from: s.level, to: s.toLevel }));
+      return { lines: parts, walks, floors };
+    }
+
     function refineJourney(id) {
       let pending = 0, scheduled = false;
       const redraw = () => {
@@ -2972,7 +3006,16 @@
         promise.then((res) => { if (id !== journeyReq) return; apply(res); redraw(); });
       };
       journeySteps.forEach((st) => {
-        (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
+        const plan = (st.lines || []).length ? s3Plan(st) : null;
+        if (plan) {
+          // through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router
+          task(stationWalk(st, plan), (res) => {
+            st.lines = res.lines;
+            st.walks = res.walks;
+            st.floors = res.floors;
+            updateWalk(st);
+          });
+        } else (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
           st.lines[k] = res.coords;
           (st.walks || (st.walks = []))[k] = res;
           updateWalk(st);
