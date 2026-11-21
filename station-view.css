@@ -1,0 +1,122 @@
+/* The 3D view of a station inside the app (src/station-view.ts). Uses the app's tokens from index.html
+   (:root / [data-theme="dark"]); the fallbacks only matter on pages that don't define them. */
+.stv {
+  --stv-text: var(--bar-text, #1c1c1e);
+  --stv-sub: var(--bar-secondary, #6b6b70);
+  --stv-card: var(--bar-bg, #ffffff);
+  --stv-hair: var(--hair, rgba(60,60,67,.14));
+  --stv-pressed: var(--pressed, #f2f2f7);
+  --stv-you: var(--user-blue, #0a84ff);
+  --stv-route: #ffc928;
+  --stv-up: #0f9d8a;
+  --stv-down: #e07b00;
+  --stv-warn: var(--warn, #b25000);
+  --stv-safe-t: env(safe-area-inset-top, 0px);
+  --stv-safe-b: env(safe-area-inset-bottom, 0px);
+  position: fixed; inset: 0; z-index: 70;
+  background: #eef1f4;
+  color: var(--stv-text);
+  font: 15px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-theme="dark"] .stv { background: #101317; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stv { background: #101317; } }
+html.stv-open, html.stv-open body { overflow: hidden; }
+.stv button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; }
+.stv button:focus-visible { outline: 3px solid var(--stv-you); outline-offset: 2px; }
+.stv-ic { flex: none; display: block; }
+.stv-canvas { position: absolute; inset: 0; touch-action: none; }
+.stv-canvas canvas { display: block; }
+
+/* top: close, the station, the walk, where you are */
+.stv-top { position: absolute; top: calc(10px + var(--stv-safe-t)); left: 10px; right: 66px; z-index: 5; display: flex; align-items: flex-start; gap: 8px; }
+.stv-close { flex: none; width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center;
+  background: var(--stv-card); box-shadow: 0 2px 10px rgba(0,0,0,.16); }
+.stv-head { min-width: 0; padding: 6px 12px 7px; border-radius: 14px; background: var(--stv-card); box-shadow: 0 2px 10px rgba(0,0,0,.12); display: flex; flex-direction: column; }
+.stv-title { font-size: 16px; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stv-sub { font-size: 13px; color: var(--stv-sub); }
+.stv-you { font-size: 13px; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.stv-you:empty { display: none; }
+.stv-you::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--stv-you); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--stv-hair); }
+.stv-you.unsure::before { background: #7d8aa3; }
+.stv-you.off::before { background: transparent; }
+
+/* the floors: only the route's (and ⌂), with the indoor position's probability as a bar */
+.stv-floors { position: absolute; top: calc(10px + var(--stv-safe-t)); right: 10px; z-index: 5; display: flex; flex-direction: column; gap: 2px;
+  padding: 4px; border-radius: 16px; background: var(--stv-card); box-shadow: 0 2px 10px rgba(0,0,0,.12); max-height: calc(100% - 300px); overflow-y: auto; }
+.stv-floor { position: relative; min-width: 44px; min-height: 40px; border-radius: 12px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; display: grid; place-items: center; }
+.stv-floor.used::after { content: ""; position: absolute; right: 5px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--stv-route); box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.stv-floor.on { background: var(--stv-text) !important; color: var(--stv-card) !important; }
+.stv-floor.here { box-shadow: inset 0 0 0 2px var(--stv-you); }
+.stv-pb { position: absolute; left: 4px; bottom: 6px; width: 4px; height: calc(var(--p, 0) * 28px); border-radius: 2px; background: var(--stv-you); }
+.stv-all { border-top: 1px solid var(--stv-hair) !important; border-radius: 0 0 12px 12px !important; }
+
+/* bottom: what the route could not keep, and the step you are at */
+.stv-bottom { position: absolute; left: 10px; right: 10px; bottom: calc(10px + var(--stv-safe-b)); z-index: 5; display: flex; flex-direction: column; gap: 8px; max-width: 560px; margin: 0 auto; pointer-events: none; }
+.stv-bottom > * { pointer-events: auto; }
+.stv-notice { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: #fff4e0; color: #6b3a00; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.stv-notice[hidden] { display: none; }
+.stv-guide { padding: 12px 14px; border-radius: 18px; background: var(--stv-card); box-shadow: 0 4px 20px rgba(0,0,0,.16); max-height: 46vh; overflow-y: auto; }
+.stv-step { display: flex; gap: 10px; align-items: flex-start; }
+.stv-step-main { min-width: 0; flex: 1; }
+.stv-text { font-size: 17px; font-weight: 650; line-height: 22px; }
+.stv-meta { font-size: 13px; color: var(--stv-sub); margin-top: 2px; }
+.stv-then { font-size: 13px; color: var(--stv-sub); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--stv-hair); }
+.stv-then span { color: var(--stv-text); }
+.stv-step.warn .stv-text::after { content: " ⚠"; color: var(--stv-warn); }
+.stv-kind { position: relative; flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--stv-pressed); color: var(--stv-text); }
+.stv-k-escalator { background: #dff3ef; color: #0b6e61; }
+.stv-k-stairs { background: #efe9dd; color: #5d5446; }
+.stv-k-elevator { background: #e0edfb; color: #1d5ea8; }
+.stv-k-arrive { background: #fde6e9; color: #b01b30; }
+.stv-dir { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 9px; display: grid; place-items: center; background: var(--stv-text); color: var(--stv-card); }
+.stv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.stv-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 12px; font-size: 13px; font-weight: 600; background: var(--stv-pressed); }
+.stv-chip .stv-kind { width: 26px; height: 26px; border-radius: 8px; }
+.stv-chip .stv-dir { width: 14px; height: 14px; right: -3px; bottom: -3px; }
+.stv-chip .stv-dir svg { width: 9px; height: 9px; }
+.stv-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.stv-grow { flex: 1; }
+.stv-btn { min-height: 40px; min-width: 44px; padding: 0 14px !important; border-radius: 20px !important; font-weight: 650 !important; border: 1px solid var(--stv-hair) !important; }
+.stv-btn.stv-icon { padding: 0 !important; display: grid; place-items: center; }
+.stv-btn.stv-primary { background: var(--stv-text) !important; color: var(--stv-card) !important; border-color: var(--stv-text) !important; }
+.stv-btn:disabled { opacity: .4; cursor: default; }
+.stv-list { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--stv-hair); }
+.stv-li { display: flex !important; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 4px 6px !important; border-radius: 10px !important; text-align: left; font-size: 14px !important; }
+.stv-li .stv-kind { width: 28px; height: 28px; border-radius: 8px; }
+.stv-li .stv-dir { width: 14px; height: 14px; }
+.stv-li .stv-dir svg { width: 9px; height: 9px; }
+.stv-li.on { background: var(--stv-pressed) !important; font-weight: 700 !important; }
+
+/* loading and errors */
+.stv-state { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: var(--stv-sub); }
+.stv-state[hidden] { display: none; }
+.stv-state b { color: var(--stv-text); font-size: 17px; }
+.stv-state-bar { display: flex; gap: 8px; margin-top: 6px; }
+.stv-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--stv-hair); border-top-color: var(--stv-text); animation: stv-spin .8s linear infinite; }
+@keyframes stv-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .stv-spin { animation-duration: 3s; } }
+
+/* labels in the model (placed by station3d-solid.js) */
+.stv .sx-labels { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
+.stv .sx-label { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 6px;
+  background: var(--stv-card); border: 1px solid var(--stv-hair); color: var(--stv-text); will-change: transform; }
+.stv .sx-level { background: transparent; border: 0; color: var(--stv-sub); font-size: 13px; font-weight: 800; text-shadow: 0 0 3px var(--stv-card), 0 0 6px var(--stv-card); }
+.stv .sx-plat { background: #14161a; color: #fff; border-color: #14161a; font-size: 13px; }
+.stv .sx-place { font-style: italic; }
+.stv .sx-entr { background: #1f8a4c; color: #fff; border-color: #1f8a4c; }
+.stv .sx-sector { background: #1f3a8a; color: #fff; border-color: #1f3a8a; padding: 1px 5px; }
+.stv .sx-pin { font-weight: 500; font-size: 11px; }
+.stv .sx-step { background: var(--stv-route); color: #14161a; border-color: #14161a; font-size: 13px; }
+.stv .sx-step.sx-on { outline: 3px solid #14161a; }
+.stv .sx-start { background: #1f8a4c; color: #fff; border-color: #1f8a4c; }
+.stv .sx-end { background: #d7263d; color: #fff; border-color: #d7263d; }
+.stv .sx-you { background: var(--stv-you); color: #fff; border-color: #fff; font-size: 13px; }
+
+@media (max-width: 480px) {
+  .stv-text { font-size: 16px; line-height: 21px; }
+  .stv-guide { padding: 10px 12px; }
+  .stv .sx-label { font-size: 11px; }
+}

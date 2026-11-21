@@ -1,4 +1,4 @@
-// ---- 3D station view (station3d.js): for walks and changes in a station that has a 3D model (stations3d/) ----
+// ---- 3D station view (station-view.js through Station3D): for walks and changes in a station that has a 3D model (stations3d/) ----
 const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
 const s3Key = (stop: OdCheckpoint | null | undefined) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id!)) || null;
 // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
@@ -44,35 +44,6 @@ function s3Plan(st: JourneyStep): StationWalkPlan | null {
 }
 // The journey options for the station router, for the day of that step (closures in the model have dates)
 const s3Prefs = (st: JourneyStep | null | undefined) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
-// The continuous "inside" view (station3d-solid.html) for the stations that have its companion stations3d/<key>.solid.js,
-// listed in stations3d/solid-index.js (written by tools/station3d_solid.py; loaded once, when a walk card needs it)
-let s3SolidIndex: Promise<Record<string, { file: string }>> | null = null;
-function s3HasSolid(key: string): Promise<boolean> {
-  if (!s3SolidIndex) s3SolidIndex = new Promise((resolve) => {
-    if (window.STATION3D_SOLID_INDEX) { resolve(window.STATION3D_SOLID_INDEX); return; }
-    const s = document.createElement('script');
-    s.src = 'stations3d/solid-index.js';
-    s.onload = () => resolve(window.STATION3D_SOLID_INDEX || {});
-    s.onerror = () => { s.remove(); s3SolidIndex = null; resolve({}); };   // offline: try again for the next card
-    document.head.appendChild(s);
-  });
-  return s3SolidIndex.then((ix) => !!ix[key]);
-}
-type S3SolidEnd = { stop?: { uic: string; ref?: string; sector?: string }; ll?: LngLat; level?: number | null };
-function s3SolidUrl(plan: StationWalkPlan, prefs: StationRoutePrefs): string {
-  // a stop keeps its position too ("stop:…;ll:…"): the router falls back to it for a platform the model does not know
-  const end = (e: S3SolidEnd) => [
-    e.stop ? `stop:${e.stop.uic}:${e.stop.ref || ''}${e.stop.sector ? '@' + e.stop.sector : ''}` : '',
-    e.ll ? `ll:${e.ll[0]},${e.ll[1]}${e.level != null ? ',' + e.level : ''}` : '',
-  ].filter(Boolean).join(';');
-  // every preference the router uses: the step-free kind (true ones by name), walking speed, and the journey's day
-  // (closures in the model have dates)
-  const p = Object.entries(prefs).flatMap(([k, v]) => (v === true ? [k]
-    : typeof v === 'number' && Number.isFinite(v) ? [`${k}:${v}`]
-    : k === 'date' && typeof v === 'string' && v ? [`date:${v}`] : [])).join(',');
-  return `station3d-solid.html?key=${encodeURIComponent(plan.key)}&from=${encodeURIComponent(end(plan.from as S3SolidEnd))}`
-    + `&to=${encodeURIComponent(end(plan.to as S3SolidEnd))}${p ? '&prefs=' + p : ''}`;
-}
 let s3Step: JourneyStep | null = null; // the journey step the 3D view was opened from
 function s3Open(st: JourneyStep, button: HTMLElement | null) {
   const plan = s3Plan(st); // now, not when the sheet was drawn: the start follows your position
@@ -453,20 +424,10 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
   const row = h('div', 'step-views');
-  const s3p = s3Plan(st);
-  if (s3p) {
-    row.append(kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
-    // and, where the station has one, the whole building in one continuous 3D view (opens in a new tab)
-    s3HasSolid(s3p.key).then((ok) => {
-      if (ok) row.insertBefore(kBtn('view3d', 'Show this walk inside the station building, in one continuous 3D view', () => {
-        const p = s3Plan(st);
-        if (p) window.open(s3SolidUrl(p, s3Prefs(st)), '_blank', 'noopener');
-      }, kIcon('cube', 16), 'Inside view'), row.querySelector('.ar-btn')); // the 3D buttons first, AR last
-    });
-  }
+  if (s3Plan(st)) row.append(kBtn('view3d', 'Show this walk in 3D, inside the station', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
   const ar = arStepButton(st);
   if (ar) row.append(ar);
-  if (row.childNodes.length || s3p) main.append(row);
+  if (row.childNodes.length) main.append(row);
   if (dirs.length > 1) {
     const toggle = kBtn('expander', null, () => {
       if (expanded) { openDirs.delete(i); if (jFocus && jFocus.step === i) jFocus = null; } else openDirs.add(i);
