@@ -216,6 +216,7 @@
     layerGroup.append(row);
   }
   const layerSwitches = [...layerGroup.querySelectorAll('input[data-layer]')];
+  const pricingHalfFare = document.getElementById('pricingHalfFare');
   const pricingSuggestions = document.getElementById('pricingSuggestions');
   const pricingSummary = document.getElementById('pricingSummary');
   const pricingClearPaused = document.getElementById('pricingClearPaused');
@@ -283,6 +284,7 @@
   });
 
   function renderPricing() {
+    pricingHalfFare.checked = PRICING_HISTORY.profile().hasHalfFare === true;
     const count = PRICING_HISTORY.list().length;
     pricingSuggestions.hidden = !state.fareTracking;
     pricingClearPaused.hidden = state.fareTracking || !count;
@@ -310,6 +312,13 @@
       }
     }
   };
+  pricingHalfFare.addEventListener('change', () => {
+    const saved = PRICING_HISTORY.setHalfFare(pricingHalfFare.checked);
+    pricingStorageStatus.hidden = saved;
+    if (!saved) pricingStorageStatus.textContent = 'Could not save your ticket preference.';
+    renderPricing();
+    window.dispatchEvent(new Event('pricing-history-change'));
+  });
   pricingSuggestions.addEventListener('click', () => window.openFareSuggestions(pricingSuggestions));
 
   pricingClearPaused.addEventListener('click', () => {
@@ -376,7 +385,11 @@
       return update({ [k]: Math.min(r.max, Math.max(r.min, state[k] + r.step * +step.dataset.dir)) });
     }
     if (e.target.closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
-    if (e.target.closest('#settingsReset')) update({ ...DEFAULTS });
+    if (e.target.closest('#settingsReset')) {
+      if (pricingHalfFare.checked) PRICING_HISTORY.setHalfFare(false);
+      update({ ...DEFAULTS });
+      window.dispatchEvent(new Event('pricing-history-change'));
+    }
   });
 
   const journeySnapshot = () => JSON.stringify(JOURNEY_KEYS.map((k) => state[k]));
@@ -444,6 +457,10 @@
         window.dispatchEvent(new Event('pricing-history-change'));
       }
     } else if (isOpen && event.key === 'pricing-trip-history-v1') renderPricing();
+    if (event.key === 'pricing-profile-v1' || event.key === null) {
+      renderPricing();
+      window.dispatchEvent(new Event('pricing-history-change'));
+    }
   });
   closeBtn.addEventListener('click', close);
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });

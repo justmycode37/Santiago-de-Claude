@@ -1388,6 +1388,11 @@
       <h2 class="set-head" id="pricingHeading">Tickets &amp; travelcards</h2>
       <div class="set-group" role="group" aria-labelledby="pricingHeading">
         <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M3 10h18M6 15h4"/></svg></span>
+          <span class="set-text"><b id="halfFareTitle">I have a Half Fare Travelcard</b><small id="halfFareHelp">Show my reduced price under Get ticket.</small></span>
+          <input class="switch" type="checkbox" role="switch" id="pricingHalfFare" aria-labelledby="halfFareTitle" aria-describedby="halfFareHelp" />
+        </label>
+        <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4zM15 7v2m0 3v1m0 3v1" /></svg></span>
           <span class="set-text"><b id="pricingToggleTitle">Trip history</b><small id="pricingToggleHelp">Save rides you confirm on this device for fare suggestions.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="fareTracking" aria-labelledby="pricingToggleTitle" aria-describedby="pricingToggleHelp" />
@@ -5570,6 +5575,8 @@
       };
       let quote = null;
       const fare = h('input'), halfFare = h('input');
+      const fullField = h('label', null, 'Full fare (CHF)', fare);
+      const reducedField = h('label', null, 'Half Fare (CHF)', halfFare);
       const edited = new Set();
       const submit = h('button', 'pill-btn ticket-fare-save');
       submit.type = 'submit';
@@ -5591,19 +5598,23 @@
           if (!edited.has(input)) input.value = ticketAmount(value) ? value.toFixed(2) : '';
         }
         const previous = tracking ? PRICING_HISTORY.routeFare(trip.from, trip.to) : null;
-        const source = quote ? '2nd class' : previous ? 'Previous fare' : '';
-        const amounts = quote || previous;
-        const prices = amounts ? [
-          ticketAmount(amounts.fare) && `${ticketMoney(amounts.fare)} full`,
-          ticketAmount(amounts.halfFare) && `${ticketMoney(amounts.halfFare)} Half Fare`,
-        ].filter(Boolean) : [];
-        summary.replaceChildren(...(prices.length ? [h('span', null, source),
-          ...prices.map((price) => h('span', 'ticket-fare-price', ' · ', price))]
-          : [hasTicket ? 'Check fare on SBB' : 'Trip fares']));
-        summary.title = quote ? 'Standard point-to-point fare from NOVA' : '';
-        detail.textContent = quote ? 'Standard fare from NOVA. Adjust the amounts if you paid a different fare.'
-          : previous ? `Previous fare saved for ${previous.date}. Enter the fare for this trip.`
-            : 'Enter the fares for your trip if you know them.';
+        const reduced = PRICING_HISTORY.profile().hasHalfFare === true;
+        fullField.hidden = fare.disabled = reduced;
+        reducedField.hidden = halfFare.disabled = !reduced;
+        const field = reduced ? 'halfFare' : 'fare';
+        const rate = reduced ? 'Half Fare' : 'Full fare';
+        const live = ticketAmount(quote?.[field]);
+        const amount = live ? quote[field] : previous?.[field];
+        const priceKnown = ticketAmount(amount);
+        const caption = live ? '2nd class' : 'Previous fare';
+        summary.replaceChildren(...(priceKnown ? [
+          h('span', 'ticket-fare-price', ticketMoney(amount)),
+          h('span', null, rate + ' · ' + caption),
+        ] : [hasTicket ? 'Check fare on SBB' : 'Trip fares']));
+        summary.title = live ? 'Standard second-class fare' : '';
+        detail.textContent = live ? 'If you paid a different price, enter it here.'
+          : priceKnown ? `Saved on ${previous.date}. Enter the price for this trip.`
+            : 'Enter the price you paid, if known.';
       }
       showFare();
       const pendingQuote = hasTicket ? quoteTicket(conn) : Promise.resolve(null);
@@ -5611,7 +5622,7 @@
         quote = result;
         if (result && summary.isConnected) showFare();
       });
-      if (!tracking) return { row: h('div', 'ticket-fare-row', summary) };
+      if (!tracking) return { row: h('div', 'ticket-fare-row', summary), refresh: showFare };
 
       const form = h('form', 'ticket-fare-form', detail);
       form.id = 'journeyFareForm';
@@ -5630,8 +5641,7 @@
       const suggestions = kBtn('ticket-fare-suggestions', null, (event) => {
         window.openFareSuggestions(event.currentTarget);
       }, 'Fare suggestions');
-      form.append(h('div', 'ticket-fare-fields', h('label', null, 'Full fare (CHF)', fare),
-        h('label', null, 'Half Fare (CHF)', halfFare)),
+      form.append(h('div', 'ticket-fare-fields', fullField, reducedField),
         h('div', 'ticket-fare-actions', submit, suggestions), status);
       form.addEventListener('submit', async (event) => {
         event.preventDefault();

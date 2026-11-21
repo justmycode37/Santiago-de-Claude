@@ -8,6 +8,10 @@
 }
 
 .kj .ticket-fare-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 9px;
   font-size: 13px;
   line-height: 1.35;
   text-align: start;
@@ -63,7 +67,7 @@
 
 .kj .ticket-fare-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 9px;
 }
 
@@ -71,6 +75,8 @@
   display: grid;
   gap: 3px;
 }
+
+.kj .ticket-fare-fields [hidden] { display: none; }
 
 .kj .ticket-fare-fields input {
   width: 100%;

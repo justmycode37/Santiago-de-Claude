@@ -59,7 +59,7 @@
 .fare-card h3 { font-size: 19px; line-height: 1.25; overflow-wrap: anywhere; }
 .fare-card a { margin-top: 4px; }
 .fare-eyebrow { color: var(--accent-ink); font-weight: 650; }
-.fare-price { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fare-price { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .fare-note { color: var(--bar-text); font-size: 13px; }
 .fare-status { position: sticky; bottom: 0; background: var(--sheet-bg); font-weight: 600; }
 
@@ -123,6 +123,9 @@
 .fare-fields label { display: grid; align-content: start; gap: 4px; font-size: 13px; font-weight: 600; }
 .fare-check { display: flex; gap: 8px; align-items: baseline; }
 .fare-profile-hint { display: grid; gap: 6px; }
+.fare-current-rate { margin-inline-start: 6px; font-size: 13px; color: var(--accent-ink); }
+.fare-rate-setting { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--hair); }
+.fare-rate-setting label { font-weight: 650; }
 .fare-form > label:has(select) { display: grid; gap: 4px; }
 .fare-check input { accent-color: var(--user-blue); margin: 0; }
 

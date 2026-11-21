@@ -35,6 +35,14 @@
 
   function setProfile(patch) {
     if (window.SETTINGS?.prefs().fareTracking !== true || !patch || typeof patch !== 'object') return false;
+    return saveProfile(patch);
+  }
+
+  function setHalfFare(confirmed) {
+    return typeof confirmed === 'boolean' && saveProfile({ hasHalfFare: confirmed });
+  }
+
+  function saveProfile(patch) {
     try {
       const existing = profile();
       const next = cleanProfile({ ...existing, ...patch });
@@ -134,6 +142,7 @@
     findConfirmed,
     profile,
     setProfile,
+    setHalfFare,
     routeFare,
     update(id, { fare, halfFare }) {
       if (window.SETTINGS?.prefs().fareTracking !== true) return false;

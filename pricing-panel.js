@@ -77,6 +77,8 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
   const status = el('p', '', 'fare-status');
   status.setAttribute('role', 'status');
   const profileBox = disclosure('Travel profile');
+  const fareStatus = el('span', '', 'fare-current-rate');
+  profileBox.querySelector('summary').append(' ', fareStatus);
   const tripBox = disclosure('Trip history');
   const tripList = el('div', undefined, 'fare-trips');
   tripBox.append(tripList);
@@ -86,6 +88,7 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
 
   function renderResults() {
     const profile = history.profile();
+    fareStatus.textContent = profile.hasHalfFare ? 'Half Fare' : 'Full fare';
     const trips = history.list();
     const { ranked, dayCount, tripCount, missingCount, monthlySpend, repeatedRoute } =
       recommendFromHistory(trips, profile);
@@ -129,8 +132,8 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
     if (savings > 0) card.append(personal('p', `Estimated savings of ${money.format(savings)} over ${period} compared with buying the same route tickets.`, 'fare-note'));
     results.append(card);
 
-    const basis = `Based on ${dayCount} priced travel ${dayCount === 1 ? 'day' : 'days'} in the last 30 days.`;
-    const spend = Number.isFinite(monthlySpend) ? ` Estimated route ticket cost for those days is ${money.format(monthlySpend)}.` : '';
+    const basis = `Last 30 days · ${dayCount} priced travel ${dayCount === 1 ? 'day' : 'days'}`;
+    const spend = Number.isFinite(monthlySpend) ? ` · ${money.format(monthlySpend)} in estimated route tickets.` : '';
     const missing = missingCount ? ` ${missingCount} ${missingCount === 1 ? 'travel day has missing fares' : 'travel days have missing fares'}.` : '';
     const receipt = el('p', basis + spend + missing, 'fare-note');
     receipt.setAttribute('translate', 'no');
@@ -202,9 +205,13 @@ export function openSuggestions({ history, trigger = document.activeElement, onC
     values.groupSize.disabled = group.hidden;
     youth.hidden = group.hidden || !(numeric(values.groupSize) > 1);
   }
-  settings.append(fields, senior,
-    checkbox('I already have Half Fare for this period', 'hasHalfFare', profile.hasHalfFare),
-    coverage, youth, saver, button('Save profile'));
+  const halfFare = checkbox('I have a valid Half Fare Travelcard for this period', 'hasHalfFare', profile.hasHalfFare);
+  const fareHelp = el('p', 'Select and save to show Half Fare ticket prices. Clear and save to show full fares.', 'fare-note');
+  fareHelp.id = 'fare-rate-help';
+  halfFare.querySelector('input').setAttribute('aria-describedby', fareHelp.id);
+  const rateSetting = el('div', undefined, 'fare-rate-setting');
+  rateSetting.append(halfFare, fareHelp);
+  settings.append(rateSetting, fields, senior, coverage, youth, saver, button('Save profile'));
   function showSaver() { saver.hidden = !values.covered.checked; }
   values.covered.addEventListener('change', showSaver);
   showSaver();
