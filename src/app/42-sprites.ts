@@ -1,16 +1,16 @@
 // ---- Map symbols drawn on a canvas when MapLibre first needs them (ids: "sg|l|7|Platform|dark", "arr|k|light", …) ----
 const SPRITE_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const INK = '#14161A';
-function spriteCanvas(w, h, ratio) {
+function spriteCanvas(w: number, h: number, ratio: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
   c.width = Math.ceil(w * ratio);
   c.height = Math.ceil(h * ratio);
-  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
   ctx.scale(ratio, ratio);
   return [c, ctx];
 }
-const spriteOut = (c, ctx, ratio) => ({ data: ctx.getImageData(0, 0, c.width, c.height), ratio });
-function makeSprite(id) {
+const spriteOut = (c: HTMLCanvasElement, ctx: CanvasRenderingContext2D, ratio: number): MapSprite => ({ data: ctx.getImageData(0, 0, c.width, c.height), ratio });
+function makeSprite(id: string): MapSprite | null {
   const ratio = Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1)));
   const p = id.split('|');
   const dark = p[p.length - 1] === 'dark';
@@ -22,7 +22,7 @@ function makeSprite(id) {
   return null;
 }
 // A place on the map: a palette-coloured disc with a white rim and the group's glyph
-function placeSprite(glyph, color, dark, ratio) {
+function placeSprite(glyph: string, color: string, dark: boolean, ratio: number) {
   const path = MAP_LAYERS.GLYPHS[glyph];
   const col = MAP_LAYERS.COLORS[color];
   if (!path || !col) return null;
@@ -45,10 +45,10 @@ function placeSprite(glyph, color, dark, ratio) {
   return spriteOut(c, ctx, ratio);
 }
 // The boarding point as a sign: ink plate with a yellow stripe, "Platform 7"; a round marker when it has no name
-function signSprite(label, noun, dark, ratio) {
+function signSprite(label: string, noun: string, dark: boolean, ratio: number) {
   const fs = 21, h = 38, m = 6;
   const bg = dark ? '#F2F3F5' : INK, ink = dark ? INK : '#FFFFFF', outline = dark ? '#0B0D10' : '#FFFFFF';
-  const shadow = (ctx) => { ctx.shadowColor = 'rgba(8,12,24,.4)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2; };
+  const shadow = (ctx: CanvasRenderingContext2D) => { ctx.shadowColor = 'rgba(8,12,24,.4)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2; };
   if (!label) {
     const d = 32, r = d / 2;
     const [c, ctx] = spriteCanvas(d + m * 2, d + m * 2, ratio);
@@ -62,7 +62,7 @@ function signSprite(label, noun, dark, ratio) {
     ctx.beginPath(); ctx.arc(m + r, m + r, r * .36, 0, Math.PI * 2); ctx.fill();
     return spriteOut(c, ctx, ratio);
   }
-  const probe = document.createElement('canvas').getContext('2d');
+  const probe = document.createElement('canvas').getContext('2d')!;
   probe.font = `800 ${fs}px ${SPRITE_FONT}`;
   const tw = probe.measureText(label).width;
   probe.font = `600 11px ${SPRITE_FONT}`;
@@ -88,14 +88,14 @@ function signSprite(label, noun, dark, ratio) {
   return spriteOut(c, ctx, ratio);
 }
 // Arrowhead pointing east; MapLibre turns it along the walking route
-function arrowSprite(ratio) {
+function arrowSprite(ratio: number) {
   const [c, ctx] = spriteCanvas(9, 9, ratio);
   ctx.fillStyle = INK;
   ctx.beginPath(); ctx.moveTo(1.2, 1); ctx.lineTo(8, 4.5); ctx.lineTo(1.2, 8); ctx.lineTo(2.8, 4.5); ctx.closePath(); ctx.fill();
   return spriteOut(c, ctx, ratio);
 }
 // Where the journey starts: a ring
-function fromSprite(ratio) {
+function fromSprite(ratio: number) {
   const d = 18;
   const [c, ctx] = spriteCanvas(d + 8, d + 8, ratio);
   ctx.shadowColor = 'rgba(8,10,14,.35)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
@@ -107,8 +107,8 @@ function fromSprite(ratio) {
   return spriteOut(c, ctx, ratio);
 }
 // Pill on the route where it changes level: ↓ −4
-function levelSprite(up, label, dark, ratio) {
-  const probe = document.createElement('canvas').getContext('2d');
+function levelSprite(up: boolean, label: string, dark: boolean, ratio: number) {
+  const probe = document.createElement('canvas').getContext('2d')!;
   probe.font = `700 13px ${SPRITE_FONT}`;
   const tw = probe.measureText(label).width;
   const h = 24, w = tw + 32, m = 4;

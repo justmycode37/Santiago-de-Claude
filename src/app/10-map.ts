@@ -1,19 +1,19 @@
 // ---------- Theme helpers ----------
 const root = document.documentElement;
-const themeMeta = document.querySelector('meta[name="theme-color"]');
+const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
 const currentTheme = () => root.dataset.theme === 'dark' ? 'dark' : 'light';
 
 // ---------- Map ----------
 const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
-const CH_BOUNDS = [[5.7, 45.6], [10.7, 48.0]];
-const FALLBACK = [7.4474, 46.9480]; // Bern
+const CH_BOUNDS: [LngLat, LngLat] = [[5.7, 45.6], [10.7, 48.0]];
+const FALLBACK: LngLat = [7.4474, 46.9480]; // Bern
 // Where the user was last time: the map opens there straight away (and loads those tiles) instead of in Bern
 // and then jumping once GPS answers. Only kept on this device.
-const SAVED_LOC = (() => {
+const SAVED_LOC = ((): LngLat | null => {
   try {
-    const v = JSON.parse(localStorage.getItem('lastLocation'));
+    const v = JSON.parse(localStorage.getItem('lastLocation')!);
     return Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)
-      && v[0] >= CH_BOUNDS[0][0] && v[0] <= CH_BOUNDS[1][0] && v[1] >= CH_BOUNDS[0][1] && v[1] <= CH_BOUNDS[1][1] ? v : null;
+      && v[0] >= CH_BOUNDS[0][0] && v[0] <= CH_BOUNDS[1][0] && v[1] >= CH_BOUNDS[0][1] && v[1] <= CH_BOUNDS[1][1] ? v as LngLat : null;
   } catch (e) { return null; }
 })();
 
@@ -49,9 +49,9 @@ map.keyboard.disableRotation();
 
 // swisstopo has no dark vector basemap. Same as the Kante app: a dark variant of the light base map,
 // made by remapping the lightness of every colour in the style (ground, roads, casings and text separately).
-const STYLES = { light: null, dark: null };
+const STYLES: Record<Theme, maplibregl.StyleSpecification | null> = { light: null, dark: null };
 
-function parseColor(c) {
+function parseColor(c: unknown): Rgba | null {
   const s = String(c).trim().toLowerCase();
   let m = /^#([0-9a-f]{3,8})$/.exec(s);
   if (m) {
@@ -72,7 +72,7 @@ function parseColor(c) {
   }
   return null;
 }
-function toHsl(r, g, b) {
+function toHsl(r: number, g: number, b: number): Hsl {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
   const l = (max + min) / 2;
@@ -82,20 +82,20 @@ function toHsl(r, g, b) {
   const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return [h * 60, s, l];
 }
-function fromHsl(h, s, l) {
-  const k = (n) => (n + h / 30) % 12;
+function fromHsl(h: number, s: number, l: number): [r: number, g: number, b: number] {
+  const k = (n: number) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
-  const f = (n) => Math.round((l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))) * 255);
+  const f = (n: number) => Math.round((l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))) * 255);
   return [f(0), f(8), f(4)];
 }
 // land, water, buildings: lightness inverted into a narrow dark range with a cool tint
-const darkGround = (h, s, l) => (s < 0.1 ? [222, 0.2, 0.075 + (1 - l) * 0.5] : [h, s * 0.55, 0.08 + (1 - l) * 0.62]);
+const darkGround: HslRemap = (h, s, l) => (s < 0.1 ? [222, 0.2, 0.075 + (1 - l) * 0.5] : [h, s * 0.55, 0.08 + (1 - l) * 0.62]);
 // road surfaces: lighter than the land so the network stays readable
-const darkRoad = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.16 : s * 0.5, 0.2 + l * 0.12];
-const darkRoadCasing = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.18 : s * 0.5, 0.1 + (1 - l) * 0.12];
-const darkText = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.12 : s * 0.7, Math.min(0.86, 0.5 + (1 - l) * 0.4)];
-const darkHalo = () => [222, 0.25, 0.08];
-function remapColors(v, f) {
+const darkRoad: HslRemap = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.16 : s * 0.5, 0.2 + l * 0.12];
+const darkRoadCasing: HslRemap = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.18 : s * 0.5, 0.1 + (1 - l) * 0.12];
+const darkText: HslRemap = (h, s, l) => [s < 0.1 ? 222 : h, s < 0.1 ? 0.12 : s * 0.7, Math.min(0.86, 0.5 + (1 - l) * 0.4)];
+const darkHalo: HslRemap = () => [222, 0.25, 0.08];
+function remapColors(v: unknown, f: HslRemap): unknown {
   if (typeof v === 'string') {
     const p = parseColor(v);
     if (!p) return v;
@@ -104,21 +104,21 @@ function remapColors(v, f) {
   }
   if (Array.isArray(v)) return v.map((x) => remapColors(x, f));
   if (v && typeof v === 'object') {
-    const o = {};
-    for (const k in v) o[k] = remapColors(v[k], f);
+    const o: Record<string, unknown> = {};
+    for (const k in v) o[k] = remapColors((v as Record<string, unknown>)[k], f);
     return o;
   }
   return v;
 }
 const DARK_HIDE = /^(hillshade|scree|hachure|pattern_landcover|contour_line)/;
-function makeDarkStyle(base) {
+function makeDarkStyle(base: maplibregl.StyleSpecification): maplibregl.StyleSpecification {
   const style = structuredClone(base);
   for (const layer of style.layers) {
     if (DARK_HIDE.test(layer.id)) {
       layer.layout = { ...(layer.layout || {}), visibility: 'none' };
       continue;
     }
-    const paint = layer.paint;
+    const paint = layer.paint as Record<string, unknown> | undefined;
     if (!paint) continue;
     const isRoadFill = /(^|_)fill$/.test(layer.id) && layer.type === 'line';
     const isRoadCasing = /road_casing|tunnel_road|pedestrian|footway|parking/.test(layer.id);
