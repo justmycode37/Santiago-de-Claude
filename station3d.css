@@ -12,11 +12,13 @@
   --s3-blue: var(--user-blue, #0a84ff);
   --s3-spring: var(--spring, cubic-bezier(.32,.72,0,1));
   --s3-ink: #14161A;
-  --s3-walk: #FFD23F;
+  --s3-walk: #007AFF;            /* the route, and what belongs to it */
+  --s3-on-walk: #ffffff;
+  --s3-walk-soft: #6DB8FF;       /* the same on a dark plate */
   --s3-plate: #14161A;
   --s3-plate-text: #ffffff;
   --s3-plate-edge: #ffffff;
-  --s3-bg: radial-gradient(120% 85% at 50% 36%, #f8f9fb 0%, #e7eaef 100%);
+  --s3-bg: radial-gradient(120% 85% at 50% 36%, #EEF2F6 0%, #DCE2E9 100%);
   --s3-sheet-h: 0px;
   position: fixed;
   inset: 0;
@@ -29,16 +31,18 @@
   user-select: none;
   transform: translateY(100%);
   visibility: hidden;
-  transition: transform .5s var(--s3-spring), visibility 0s linear .5s;
+  transition: transform .32s var(--s3-spring), visibility 0s linear .32s;
   contain: strict;
 }
 .s3.s3-dark {
   --s3-plate: #F2F3F5;
   --s3-plate-text: #14161A;
   --s3-plate-edge: #0B0D10;
-  --s3-bg: radial-gradient(120% 85% at 50% 36%, #262a31 0%, #131518 100%);
+  --s3-walk: #0A84FF;
+  --s3-walk-soft: #0A62C9;
+  --s3-bg: radial-gradient(120% 85% at 50% 36%, #1B1D22 0%, #0F1013 100%);
 }
-.s3.s3-open { transform: none; visibility: visible; transition: transform .5s var(--s3-spring), visibility 0s; }
+.s3.s3-open { transform: none; visibility: visible; transition: transform .32s var(--s3-spring), visibility 0s; }
 .s3 *, .s3 *::before, .s3 *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 .s3 button { font: inherit; color: inherit; margin: 0; }
 .s3 button:focus-visible, .s3-stage canvas:focus-visible { outline: 2px solid var(--s3-blue); outline-offset: 2px; }
@@ -100,7 +104,7 @@ button.s3-l.s3-off { pointer-events: none; }
   font-variant-numeric: tabular-nums;
 }
 .s3-lv.s3-active { background: var(--s3-plate) !important; color: var(--s3-plate-text); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.s3-lv.s3-active i { background: var(--s3-walk); color: var(--s3-ink); }
+.s3-lv.s3-active i { background: var(--s3-walk); color: var(--s3-on-walk); }
 
 /* A platform island: its numbers side by side, each on the side its edge is on (the viewer swaps them as you turn) */
 .s3-isl {
@@ -134,7 +138,7 @@ button.s3-l.s3-off { pointer-events: none; }
 .s3-isl.s3-own span { min-width: 26px; padding: 0 6px; }
 .s3-isl.s3-own.s3-col { height: auto; }
 .s3-isl.s3-own.s3-col span { height: 24px; }
-.s3-isl span.s3-dest { background: var(--s3-walk); color: var(--s3-ink); }
+.s3-isl span.s3-dest { background: var(--s3-walk); color: var(--s3-on-walk); }
 .s3-isl span.s3-from { background: var(--s3-ink); color: #fff; }
 .s3-isl span.s3-shut { color: #b25f00; text-decoration: line-through; background: repeating-linear-gradient(135deg, rgba(255,149,0,.22) 0 4px, transparent 4px 8px); }
 .s3-isl svg, .s3-stop svg { flex: none; width: 15px; height: 15px; margin: 0 -1px 0 4px; align-self: center; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
@@ -163,7 +167,7 @@ button.s3-l.s3-off { pointer-events: none; }
 
 /* A sector of a platform: the white letter on blue of the boards over the platform */
 .s3-sector { min-width: 17px; height: 17px; padding: 0 3px; display: grid; place-items: center; border-radius: 3px; background: #1f3a8a; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; box-shadow: 0 0 0 1px rgba(255,255,255,.75); }
-.s3-sector.s3-pick { min-width: 21px; height: 21px; font-size: 13px; background: var(--s3-walk); color: var(--s3-ink); box-shadow: 0 0 0 1.5px var(--s3-ink); }
+.s3-sector.s3-pick { min-width: 21px; height: 21px; font-size: 13px; background: var(--s3-walk); color: var(--s3-on-walk); box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(0,0,0,.35); }
 
 /* Destination: the app's boarding sign (ink plate, yellow stripe), on a stem */
 .s3-sign, .s3-start { display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 2px 5px rgba(8,12,24,.35)); }
@@ -203,6 +207,30 @@ button.s3-l.s3-off { pointer-events: none; }
 .s3-pinned .s3-arrow::before { top: -34px; }
 .s3-pinned .s3-stem, .s3-pinned .s3-foot { visibility: hidden; }
 .s3-pinned { opacity: .96; }
+
+/* What you take next (first-person view): a pin over the staircase, lift or doorway, in the route's blue.
+   Out of view it waits on the edge of the screen and points the way. */
+.s3-beacon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 13px 5px 5px;
+  border-radius: 23px;
+  background: var(--s3-walk);
+  color: #fff;
+  box-shadow: 0 0 0 2px #fff, 0 6px 18px rgba(0,52,140,.4);
+  white-space: nowrap;
+}
+.s3-beacon::after { content: ""; position: absolute; left: 50%; bottom: -10px; margin-left: -7px; border: 7px solid transparent; border-bottom-width: 0; border-top: 9px solid #fff; }
+.s3-beacon-ico { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: var(--s3-walk); }
+.s3-beacon-ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.s3-beacon b { display: block; font-size: 14.5px; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; }
+.s3-beacon small { display: block; margin-top: 1px; font-size: 11.5px; line-height: 1.2; opacity: .92; max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.s3-beacon small:empty { display: none; }
+.s3-beacon.s3-pinned::after { display: none; }
+.s3-beacon.s3-pinned { opacity: 1; }
+.s3-beacon .s3-arrow::before { border-bottom-color: var(--s3-walk); filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff); }
+.s3-beacon.s3-pinned .s3-arrow::before { top: calc(-1 * var(--s3-r, 34px)); }
 
 /* Start of the route: named like the destination, lighter and smaller */
 .s3-plate2 {
@@ -247,7 +275,7 @@ button.s3-l.s3-off { pointer-events: none; }
 }
 .s3-via svg { flex: none; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
 .s3-via svg:only-child { margin: 0 -1px; }
-.s3-via.s3-active { background: var(--s3-walk) !important; color: var(--s3-ink) !important; box-shadow: 0 0 0 1.5px var(--s3-ink), 0 2px 8px rgba(0,0,0,.3); }
+.s3-via.s3-active { background: var(--s3-walk) !important; color: var(--s3-on-walk) !important; box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,.3); }
 .s3-via.s3-warn { box-shadow: 0 0 0 2px #ff9500, 0 2px 6px rgba(0,0,0,.25); }
 .s3-via::after { content: ""; position: absolute; inset: -7px -4px; }
 
@@ -280,8 +308,8 @@ button.s3-l.s3-off { pointer-events: none; }
 
 /* You are here: the app's blue dot, with a heading cone. Approximate = hollow, no pulse */
 .s3-user { width: 22px; height: 22px; }
-.s3-user::before { content: ""; position: absolute; inset: -14px; border-radius: 50%; background: rgba(10,132,255,.22); animation: s3-pulse 2.4s ease-out infinite; }
-.s3-user::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--s3-blue); border: 3.5px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.3); }
+.s3-user::before { content: ""; position: absolute; inset: -14px; border-radius: 50%; background: rgba(255,255,255,.55); box-shadow: 0 0 0 1px rgba(10,132,255,.35); animation: s3-pulse 2.4s ease-out infinite; }
+.s3-user::after { content: ""; position: absolute; inset: -1px; border-radius: 50%; background: var(--s3-blue); border: 4.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.45); }
 .s3-user i {
   position: absolute;
   left: 50%;
@@ -290,7 +318,7 @@ button.s3-l.s3-off { pointer-events: none; }
   height: 76px;
   margin: -38px 0 0 -38px;
   border-radius: 50%;
-  background: conic-gradient(from -32deg, rgba(10,132,255,.55) 0deg, rgba(10,132,255,.55) 64deg, transparent 64deg);
+  background: conic-gradient(from -32deg, rgba(0,64,170,.6) 0deg, rgba(0,64,170,.6) 64deg, transparent 64deg);
   -webkit-mask: radial-gradient(circle, #000 0, rgba(0,0,0,.75) 30%, transparent 70%);
   mask: radial-gradient(circle, #000 0, rgba(0,0,0,.75) 30%, transparent 70%);
   transform: rotate(var(--s3-heading, 0deg));
@@ -407,10 +435,10 @@ button.s3-l.s3-off { pointer-events: none; }
 .s3-pov .s3-levels .s3-povonly { display: grid; }
 .s3-levels .s3-povbtn[aria-pressed="true"], .s3-levels .s3-lookbtn[aria-pressed="true"] { background: var(--s3-blue); color: #fff; }
 /* outdoors a sky, indoors the grey of a hall */
-.s3.s3-pov { --s3-bg: linear-gradient(#b9d2ee 0%, #dbe6f3 44%, #dbe6f3 100%); }
-.s3.s3-pov.s3-dark { --s3-bg: linear-gradient(#070b14 0%, #101722 44%, #101722 100%); }
-.s3.s3-pov.s3-indoor { --s3-bg: linear-gradient(#e4e6ea, #e4e6ea); }
-.s3.s3-pov.s3-indoor.s3-dark { --s3-bg: linear-gradient(#1b1d22, #1b1d22); }
+.s3.s3-pov { --s3-bg: linear-gradient(#CFE3F8 0%, #E6EEF4 30%, #F4F1EA 47%, #F4F1EA 100%); }
+.s3.s3-pov.s3-dark { --s3-bg: linear-gradient(#101216 0%, #1B1D22 46%, #1B1D22 100%); }
+.s3.s3-pov.s3-indoor { --s3-bg: linear-gradient(#EFEBE3, #EFEBE3); }
+.s3.s3-pov.s3-indoor.s3-dark { --s3-bg: linear-gradient(#1E2024, #1E2024); }
 
 /* North, and a tap turns the plan north up */
 .s3-north {
@@ -455,7 +483,7 @@ button.s3-l.s3-off { pointer-events: none; }
 }
 .s3-chip::before { content: ""; position: absolute; left: 10px; top: 50%; margin-top: -4.5px; width: 9px; height: 9px; border-radius: 50%; border: 2.5px solid var(--s3-blue); }
 .s3-chip[hidden] { display: none; }
-.s3-pov .s3-chip { left: max(12px, env(safe-area-inset-left)); top: calc(env(safe-area-inset-top) + 156px); }
+.s3-pov .s3-chip { left: max(12px, env(safe-area-inset-left)); top: calc(env(safe-area-inset-top) + 84px + var(--s3-hud-h, 76px)); }
 
 /* What comes next, like a sign over the path */
 .s3-callout {
@@ -474,10 +502,10 @@ button.s3-l.s3-off { pointer-events: none; }
   pointer-events: none;
 }
 .s3-callout[hidden] { display: none; }
-.s3-callout-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--s3-walk); color: var(--s3-ink); }
+.s3-callout-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--s3-walk); color: var(--s3-on-walk); }
 .s3-callout-ico svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .s3-callout div { min-width: 0; }
-.s3-callout b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 16px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; text-wrap: pretty; }
+.s3-callout b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; text-wrap: pretty; }
 .s3-callout div span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 3px; font-size: 13px; line-height: 1.25; opacity: .8; }
 .s3-callout div span[hidden] { display: none; }
 /* The little plan that keeps your bearings: the route around you, the way you look is up */
@@ -514,6 +542,16 @@ button.s3-l.s3-off { pointer-events: none; }
 .s3-scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; margin-top: -8px; border-radius: 50%; background: #fff; border: 5px solid var(--s3-ink); box-shadow: 0 1px 5px rgba(0,0,0,.3); }
 .s3-scrub::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 5px solid var(--s3-ink); box-shadow: 0 1px 5px rgba(0,0,0,.3); }
 .s3-scrub:focus-visible { outline: 2px solid var(--s3-blue); outline-offset: 2px; border-radius: 8px; }
+/* … or let it play: the button sits where a player has it, left of the line */
+.s3-scrubrow { display: flex; align-items: center; gap: 2px; margin: -6px 20px -1px 10px; }
+.s3-scrubrow[hidden] { display: none; }
+.s3-scrubrow .s3-scrub { flex: 1; width: auto; min-width: 0; margin: 0; }
+.s3-play { flex: none; position: relative; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--s3-on-walk); display: grid; place-items: center; cursor: pointer; }
+.s3-play::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--s3-walk); box-shadow: 0 1px 4px rgba(0,0,0,.22); transition: transform .15s var(--s3-spring); }
+.s3-play:active::before { transform: scale(.92); }
+.s3-play svg { position: relative; width: 19px; height: 19px; fill: currentColor; stroke: none; }
+.s3 button.s3-play:focus-visible { outline: 2px solid var(--s3-blue); outline-offset: -2px; border-radius: 50%; }
+.s3-sheet.s3-list .s3-scrubrow { display: none; }
 
 /* ---- Round buttons above the sheet ---- */
 .s3-tools {
@@ -586,9 +624,9 @@ button.s3-l.s3-off { pointer-events: none; }
 }
 .s3-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #8e8e93; }
 .s3-ico svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.s3-ico.s3-k-level { background: var(--s3-walk); color: var(--s3-ink); }
+.s3-ico.s3-k-level { background: var(--s3-walk); color: var(--s3-on-walk); }
 .s3-ico.s3-k-arrive { background: var(--pin-red, #ff3b30); }
-.s3-ico.s3-k-route { background: var(--s3-plate); color: var(--s3-walk); }
+.s3-ico.s3-k-route { background: var(--s3-walk); color: var(--s3-on-walk); }
 .s3-ico.s3-k-info { background: var(--s3-blue); }
 .s3-txt { flex: 1; min-width: 0; }
 .s3-step-title { font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; padding-right: 44px; text-wrap: pretty; }
@@ -597,8 +635,7 @@ button.s3-l.s3-off { pointer-events: none; }
 .s3-tag { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 4px 10px; border-radius: 999px; background: var(--s3-hair); color: var(--s3-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .s3-tag svg { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .s3-tag.s3-tag-level { background: var(--s3-plate); color: var(--s3-plate-text); }
-.s3-tag.s3-tag-level svg { color: var(--s3-walk); }
-.s3-dark .s3-tag.s3-tag-level svg { color: #9a7400; }
+.s3-tag.s3-tag-level svg { color: var(--s3-walk-soft); }
 .s3-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .s3-flow svg { width: 13px; height: 13px; fill: none; stroke: var(--s3-sub); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 button.s3-here { position: relative; border: 0; cursor: pointer; margin-left: auto; background: transparent; color: var(--s3-blue) !important; padding: 4px 6px 4px 8px; }
@@ -741,10 +778,10 @@ button.s3-notices u { text-decoration: none; margin-left: auto; font-weight: 600
 .s3-sectors.s3-stack button { flex-direction: column; gap: 1px; }
 .s3-sectors b { font-size: 14px; font-weight: 800; line-height: 1; }
 .s3-sectors span { font-size: 11.5px; line-height: 1; color: var(--s3-sub); }
-.s3-sectors .s3-best { background: var(--s3-walk); color: var(--s3-ink) !important; }
-.s3-sectors .s3-best span { color: rgba(20,22,26,.7); }
+.s3-sectors .s3-best { background: var(--s3-walk); color: var(--s3-on-walk) !important; }
+.s3-sectors .s3-best span { color: rgba(255,255,255,.82); }
 .s3-sectors button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--s3-text); }
-.s3-sectors .s3-best[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--s3-ink); }
+.s3-sectors .s3-best[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--s3-text), inset 0 0 0 3.5px var(--s3-card); }
 .s3-sectors .s3-warn span::after { content: " !"; color: #ff9500; font-weight: 800; }
 .s3-sectors button:active { opacity: .6; }
 
