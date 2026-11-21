@@ -535,7 +535,7 @@ pub struct Position {
     pub from: [f64; 2],
     pub to: [f64; 2],
     pub frac: f32,
-    /// `observed-stop`, `forecast`, `timetable` or `crowd`.
+    /// `observed-stop`, `forecast` or `timetable`.
     pub basis: &'static str,
     pub t: i64,
     /// `between`: the stop it is heading for (`seq` + 1, or later when stops are skipped).
@@ -614,22 +614,4 @@ pub struct Due {
     pub eta_s: i64,
     pub live_info: LiveInfo,
     pub extra: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ObserveRequest {
-    pub trip_id: String,
-    pub service_date: String,
-    pub lat: f64,
-    pub lon: f64,
-    pub t: i64,
-    pub accuracy: f32,
-}
-
-#[derive(Serialize)]
-pub struct ObserveResponse {
-    pub accepted: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<&'static str>,
 }
