@@ -21,7 +21,7 @@ interface Settings {
   maxWalkMin: number;
   /** The transport types to travel with; null = all of them. */
   modes: TransportMode[] | null;
-  /** On the map: the groups switched off. */
+  /** Events and places: the groups switched off. */
   mapHidden: MapGroupKey[];
   // Live data
   /** Show the vehicles on the map. */

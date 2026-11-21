@@ -4527,8 +4527,7 @@
       if (A.routed) {
         const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
         subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowName(to) : to.name} · ${fmtMin(route!.seconds)}`;
-      } else if (focus && focus.hit) subEl.textContent = describe(focus.hit).sub;
-      else subEl.textContent = 'Station plan in 3D';
+      } else subEl.textContent = 'Station plan in 3D'; // the focus card already says what is picked
     }
     function card(iconName: string, iconCls: string, title: string, count?: string) {
       const c = mk('div', 's3-card');
@@ -4921,7 +4920,8 @@
       exploreEndsEl.hidden = !from && !to;
       for (const [which, e] of [['from', from], ['to', to]] as ['from' | 'to', ExploreEnd | null][]) {
         const chip = mk('span', 's3-endchip' + (e ? ' s3-set' : ''));
-        chip.append(mk('small', null, which === 'from' ? 'From' : 'To'), mk('b', null, e ? cap(e.name) : 'tap a place'));
+        if (which === 'to' || e) chip.append(mk('small', null, which === 'from' ? 'From' : 'To'));
+        chip.append(mk('b', null, e ? cap(e.name) : which === 'from' ? 'Tap a place' : 'tap a place'));
         if (e) {
           const x = mk('button', null, '×');
           x.type = 'button';
@@ -5046,7 +5046,7 @@
     function syncChip() {
       const out = !!user && user.outside;
       chipEl.hidden = !out;
-      if (out) chipEl.textContent = `You’re about ${fmtFar(user!.far!)} from this station${wantFollow ? '. Following starts when you get there.' : ' — not shown on this plan.'}`;
+      if (out) chipEl.textContent = `You’re ${fmtFar(user!.far!)} away${wantFollow ? '. Following starts when you get there.' : ''}`;
       followBtn.setAttribute('aria-pressed', follow ? 'true' : wantFollow ? 'mixed' : 'false');
       followBtn.setAttribute('aria-label', follow ? 'Stop following my position' : wantFollow ? 'Following is waiting for your position. Tap to stop' : 'Follow my position');
     }

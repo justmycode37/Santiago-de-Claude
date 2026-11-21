@@ -176,8 +176,8 @@
 
   function subtitle(r: Found) {
     const parts = [];
-    if (r.distance != null) parts.push(formatDistance(r.distance));
     if (r.category) parts.push(r.category);
+    if (r.distance != null) parts.push(formatDistance(r.distance));
     if (r.rating) parts.push(`★ ${r.rating.toFixed(1)}`);
     if (r.openNow === true) parts.push('Open');
     else if (r.openNow === false) parts.push('Closed');

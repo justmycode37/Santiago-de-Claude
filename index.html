@@ -125,7 +125,12 @@
     .menu.open .menu-item[data-slot="1"] { transform: translateY(54px) scale(1); }
     .menu.open .menu-item[data-slot="2"] { transform: translateY(108px) scale(1); transition-delay: .02s; }
     .menu.open .menu-item[data-slot="3"] { transform: translateY(162px) scale(1); transition-delay: .04s; }
-    .menu.open .menu-item[data-slot="4"] { transform: translateY(216px) scale(1); transition-delay: .06s; }
+    /* What each button is, beside it (the icons alone do not say) */
+    .menu-label {
+      position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+      padding: 6px 12px; border-radius: 16px; background: var(--bar-bg); box-shadow: var(--shadow);
+      color: var(--icon); font: 600 14px/20px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; white-space: nowrap;
+    }
     /* Toggled-on button (e.g. events shown) */
     .fab.active { background: var(--user-blue); color: #fff; }
     .fab.active:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
@@ -134,12 +139,6 @@
     .menu-main .ic-close { opacity: 0; transform: rotate(-90deg) scale(.5); }
     .menu.open .menu-main .ic-dots { opacity: 0; transform: rotate(90deg) scale(.5); }
     .menu.open .menu-main .ic-close { opacity: 1; transform: none; }
-
-    /* Theme icon: moon in light mode (tap → dark), sun in dark mode (tap → light) */
-    .theme-btn svg { transition: transform .3s var(--spring), opacity .2s ease; }
-    .theme-btn .ic-sun { opacity: 0; transform: rotate(-90deg) scale(.5); }
-    :root[data-theme="dark"] .theme-btn .ic-moon { opacity: 0; transform: rotate(90deg) scale(.5); }
-    :root[data-theme="dark"] .theme-btn .ic-sun { opacity: 1; transform: none; }
 
     /* Small status toast (e.g. location unavailable) */
     .toast {
@@ -399,6 +398,7 @@
     .chip:active { opacity: .7; }
     .chip[hidden] { display: none; }
     .chip.quiet { margin-left: auto; background: none; color: var(--bar-secondary); }
+    body.journey-mode #tripClose { display: none; }
     /* Under the card: "Search this area" once the map has moved away from the places shown, and the hint while a pin is armed */
     .float-chip {
       flex: none;
@@ -486,7 +486,6 @@
     .j-edit:active { background: var(--pressed); }
     .j-edit svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     .j-time:active { background: var(--pressed); }
-    .j-time small { display: block; font-size: 11px; font-weight: 500; color: var(--bar-secondary); }
     .j-time b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
     .j-bar { flex: 1; min-width: 0; position: relative; height: 40px; margin: 0 2px; color: var(--bar-text); cursor: pointer; }
     .j-bar svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -603,7 +602,8 @@
     .kj .sheet-handle span { position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--handle); }
     .kj .sheet-handle::after { content: ""; position: absolute; left: 50%; top: -14px; width: 96px; height: 48px; margin-left: -48px; } /* 48 px touch zone */
     .kj .sheet-head { padding: 0 16px 8px; }
-    .kj .sheet-body { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; padding: 0 8px; }
+    .kj .sheet-body { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; padding: 0 8px; scrollbar-width: none; }
+    .kj .sheet-body::-webkit-scrollbar { display: none; }
     .kj.ksheet[data-detent="full"] .sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .kj .sheet-end { height: calc(88px + var(--safe-b)); }
     .kj.sheet-foot { display: none; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 16px calc(8px + var(--safe-b)); }
@@ -703,6 +703,7 @@
     .kj .jhead-times { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
     .kj .jhead-times b { font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; }
     .kj .jhead-times span { font-size: 14px; color: var(--ink-2); }
+    .kj .live-lead { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; } /* "260 m ·" keeps to its badge */
     .kj .jhead-act { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 2px; }
     .kj .jhead-act .pill-btn { align-self: center; }
     .kj .jhead-rest { flex: none; color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -719,13 +720,20 @@
     .kj .jrow-act .badge { align-self: center; }
     .kj .actionbar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
     #pricingSuggestions[hidden] { display: none; }
-    .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
-    .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
-    .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
+    /* the fare, at the end of the bar (ticket-pricing.css draws it as a row of its own when Trip history is on) */
+    .kj .actionbar .ticket-fare-row.aside { flex: none; margin: 0 0 0 auto; padding: 0; min-height: 0; }
+    .kj .actionbar .ticket-fare-row.aside .ticket-fare-summary { flex-direction: column; flex-wrap: nowrap; align-items: flex-end; gap: 0; font-size: 12px; line-height: 16px; white-space: nowrap; }
+    .kj .actionbar .ticket-fare-row.aside .ticket-fare-price { font-size: 16px; line-height: 22px; }
+    @media (max-width: 400px) { /* room for a three-figure fare beside the buttons */
+      .kj .actionbar:has(.ticket-fare-price) .pill-btn.start, .kj .actionbar:has(.ticket-fare-price) .pill-btn.ticket { padding: 0 12px; }
+    }
+    .kj .actionbar .ticket-fare-class { display: none; } /* "· 2nd class": the standard fare; the row of its own says it (Trip history on) */
+    /* with the fare beside it, the ticket button takes its short label at every width */
+    .kj .actionbar:has(.ticket-fare-price) .pill-btn.ticket .tk-long { display: none; }
+    .kj .actionbar:has(.ticket-fare-price) .pill-btn.ticket .tk-short { display: inline; }
     .kj a.pill-btn { text-decoration: none; }
     .kj .pill-btn.ticket .tk-short { display: none; }
-    /* A longer label (another app language) shortens the ticket button, never the arrival time beside it */
-    .kj .actionbar-sum { flex: none; }
+    /* A longer label (another app language) shortens the ticket button */
     .kj .pill-btn.ticket { min-width: 0; }
     .kj .pill-btn.ticket span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     @media (max-width: 400px) {
@@ -807,26 +815,18 @@
     .kj .ride-head { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
     /* where to stand */
-    .kj .stand { margin: 2px 0 10px; padding: 12px; border-radius: 16px; background: var(--card); }
-    .kj .stand-main { display: flex; gap: 12px; }
-    .kj .sign { flex: none; align-self: flex-start; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 76px; min-height: 76px; padding: 6px 4px 4px; border-radius: 12px; border-bottom: 7px solid var(--sun); background: #14161a; color: #fff; text-align: center; }
-    :root[data-theme="dark"] .kj .sign { box-shadow: inset 0 0 0 1px #3a3f48; }
-    .kj .sign-noun { font-size: 12px; line-height: 14px; font-weight: 500; color: #d5d9df; }
-    .kj .sign-label { font-size: 34px; line-height: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .kj .sign.long .sign-label { font-size: 24px; line-height: 32px; }
-    .kj .sign-arrow { display: grid; place-items: center; height: 38px; color: var(--sun); }
-    .kj .stand-info { flex: 1; min-width: 0; }
-    .kj .stand-kicker { font-size: 12px; line-height: 16px; font-weight: 700; color: var(--ink-2); }
-    .kj .stand-side { font-size: 16px; line-height: 20px; font-weight: 700; overflow-wrap: anywhere; }
-    .kj .stand-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-    .kj .stand-dir { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
+    .kj .stand { display: flex; align-items: center; gap: 10px; width: 100%; margin: 2px 0 8px; padding: 10px 12px; border-radius: 14px; background: var(--card); }
+    .kj .stand:active { background: var(--tonal-2); }
+    .kj .stand-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .kj .stand-side { font-size: 15px; line-height: 20px; font-weight: 700; overflow-wrap: anywhere; }
+    .kj .stand-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .kj .stand-dir { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
     .kj .stand-dir b { color: var(--ink); }
-    .kj .stand-compass { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--surface); }
-    .kj .stand-note { display: flex; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
-    .kj .stand-note .icon { margin-top: 2px; }
-    .kj .stand-note.warn { padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
-    .kj .stand-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 12px; line-height: 16px; color: var(--ink-2); }
-    .kj .stand-foot .link-btn { flex: none; white-space: nowrap; margin-left: auto; color: var(--ink); }
+    .kj .stand-compass { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--surface); }
+    .kj .stand-note { display: flex; gap: 8px; font-size: 14px; color: var(--ink-2); }
+    .kj .stand-note .icon { flex: none; margin-top: 2px; }
+    .kj .stand-note.warn { padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+    .kj .stand-go { flex: none; color: var(--ink-2); }
     @media (prefers-reduced-motion: reduce) {
       .kj.ksheet { transition: none; }
       .kj .skeleton, .kj .live-dot { animation: none; }
@@ -940,8 +940,6 @@
       transition: transform .3s var(--spring), background-color .3s ease;
     }
     .t-sheet.open { transform: none; }
-    .t-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--clear-bg); margin: 0 auto 14px; }
-    .t-title { font-size: 20px; font-weight: 800; margin-bottom: 14px; }
     .t-seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; margin-bottom: 14px; border-radius: 12px; background: var(--row-bg); }
     .t-seg button { border: 0; padding: 9px; border-radius: 10px; background: transparent; color: var(--bar-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
     .t-seg button.active { background: var(--bar-bg); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
@@ -1039,7 +1037,7 @@
     .ev-caption small { margin-top: 3px; font-size: 11px; line-height: 1.25; -webkit-line-clamp: 1; }
     .ev-related { display: block; margin: 0 0 20px; }
     .ev-related[hidden] { display: none; }
-    .ev-related select { display: block; width: 100%; margin-top: 6px; font: inherit; }
+    .ev-related select { display: block; width: 100%; height: 44px; margin-top: 6px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--row-bg); color: var(--bar-text); font: inherit; }
     @keyframes ev-in {
       from { transform: scale(.5); opacity: 0; }
       to   { transform: none; opacity: 1; }
@@ -1248,6 +1246,8 @@
     .set-nav:active { background: var(--sp-fill); }
     .set-nav:focus-visible { outline: 2px solid var(--user-blue); outline-offset: -2px; }
     .set-value { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; color: var(--bar-secondary); }
+    .set-more[aria-expanded="true"] .set-chev { transform: rotate(90deg); }
+    .lang-note { margin: 0 16px 16px; }
     .set-chev { flex: none; width: 14px; height: 14px; margin-left: -6px; fill: none; stroke: var(--bar-secondary); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
     /* Settings → Language: slides in from the right over the settings */
     .lang-page {
@@ -1293,7 +1293,8 @@
     @media (prefers-reduced-motion: reduce) {
       .set-page, .lang-page, .switch, .switch::before, .set-thumb, .set-fill { transition: none !important; }
     }
-    #evOrganizer { text-decoration: none; display: grid; place-items: center; margin-bottom: 10px; }
+    /* external link: plain text, so it does not compete with Show journey */
+    #evOrganizer { display: grid; place-items: center; min-height: 44px; margin-bottom: 10px; color: var(--accent-ink); font-size: 17px; font-weight: 600; text-decoration: none; }
     .ev-map-btn:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
 
     .user-accuracy {
@@ -1335,34 +1336,6 @@
   <div id="map"></div>
 
   <div class="menu" id="menu">
-    <button class="fab menu-item" id="scanBtn" data-slot="4" type="button" aria-label="Scan for stops with the camera" tabindex="-1">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
-        <circle cx="12" cy="12" r="3.6" />
-      </svg>
-    </button>
-    <button class="fab menu-item theme-btn" id="themeBtn" data-slot="3" type="button" aria-label="Toggle dark mode" tabindex="-1">
-      <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M11.73 3.51A8.5 8.5 0 1 0 20.49 12.27A6.5 6.5 0 0 1 11.73 3.51Z" />
-      </svg>
-      <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="5.2" />
-        <path d="M12 2v1.4M12 20.6V22M2 12h1.4M20.6 12H22M4.93 4.93l1 1M18.07 18.07l1 1M4.93 19.07l1-1M18.07 5.93l1-1" />
-      </svg>
-    </button>
-    <button class="fab menu-item" id="eventsBtn" data-slot="1" type="button" aria-label="Show events and places" aria-pressed="false" tabindex="-1">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
-        <path d="M3.5 10h17M8 3v4M16 3v4" />
-        <path d="M8 14.5h.01M12 14.5h.01M16 14.5h.01" stroke-width="3.2" />
-      </svg>
-    </button>
-    <button class="fab menu-item" id="settingsBtn" data-slot="2" type="button" aria-label="Settings" aria-haspopup="dialog" tabindex="-1">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    </button>
     <button class="fab menu-main" id="menuBtn" type="button" aria-label="More" aria-expanded="false">
       <svg class="ic-dots" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <circle cx="4.8" cy="12" r="2.4" />
@@ -1371,6 +1344,28 @@
       </svg>
       <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true">
         <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+      </svg>
+    </button>
+    <button class="fab menu-item" id="eventsBtn" data-slot="1" type="button" aria-label="Show events and places" aria-pressed="false" tabindex="-1">
+      <span class="menu-label" aria-hidden="true">Events and places</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+        <path d="M3.5 10h17M8 3v4M16 3v4" />
+        <path d="M8 14.5h.01M12 14.5h.01M16 14.5h.01" stroke-width="3.2" />
+      </svg>
+    </button>
+    <button class="fab menu-item" id="settingsBtn" data-slot="2" type="button" aria-label="Settings" aria-haspopup="dialog" tabindex="-1">
+      <span class="menu-label" aria-hidden="true">Settings</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    </button>
+    <button class="fab menu-item" id="scanBtn" data-slot="3" type="button" aria-label="Scan a stop with the camera" tabindex="-1">
+      <span class="menu-label" aria-hidden="true">Scan a stop</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
+        <circle cx="12" cy="12" r="3.6" />
       </svg>
     </button>
   </div>
@@ -1409,15 +1404,13 @@
 
   <div class="j-pill glass" id="jPill">
     <button class="j-edit" id="jEdit" type="button" aria-label="Change the start or the destination"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg></button>
-    <button class="j-time" id="jDepBtn" type="button" aria-label="Change departure time"><small>Depart</small><b id="jDep">--:--</b></button>
+    <button class="j-time" id="jDepBtn" type="button" aria-label="Change departure time"><b id="jDep">--:--</b></button>
     <div class="j-bar" id="jBar"></div>
-    <button class="j-time" id="jArrBtn" type="button" aria-label="Change arrival time"><small>Arrive</small><b id="jArr">--:--</b></button>
+    <button class="j-time" id="jArrBtn" type="button" aria-label="Change arrival time"><b id="jArr">--:--</b></button>
   </div>
 
   <div class="t-dim" id="tDim"></div>
-  <div class="t-sheet" id="tSheet" role="dialog" aria-label="Choose time" aria-hidden="true">
-    <div class="t-grab"></div>
-    <div class="t-title">When do you want to travel?</div>
+  <div class="t-sheet" id="tSheet" role="dialog" aria-label="Choose travel time" aria-hidden="true">
     <div class="t-seg" id="tSeg">
       <button type="button" data-mode="dep">Depart at</button>
       <button type="button" data-mode="arr">Arrive by</button>
@@ -1425,7 +1418,7 @@
     <label class="t-field"><span>Date</span><input type="date" id="tDate" /></label>
     <label class="t-field"><span>Time</span><input type="time" id="tTime" /></label>
     <div class="t-actions">
-      <button class="t-btn secondary" id="tNow" type="button">Now</button>
+      <button class="t-btn secondary" id="tNow" type="button">Leave now</button>
       <button class="t-btn primary" id="tDone" type="button">Search</button>
     </div>
   </div>
@@ -1439,22 +1432,20 @@
         </button>
       </header>
 
-      <h2 class="set-head" id="setLangHead">Language</h2>
-      <div class="set-group" role="group" aria-labelledby="setLangHead">
+      <div class="set-group">
         <button class="set-row set-nav" id="setLangBtn" type="button" aria-haspopup="dialog">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z" /></svg></span>
-          <span class="set-text"><b>App language</b></span>
+          <span class="set-text"><b>Language</b></span>
           <span class="set-value" id="setLangVal" translate="no">English</span>
           <svg class="set-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
         </button>
       </div>
-      <p class="set-foot">Other languages are translated by Google Translate, so the text on the screen is sent to Google. Stop, line and place names stay as they are written on the signs.</p>
 
-      <h2 class="set-head" id="pricingHeading">Tickets &amp; travelcards</h2>
+      <h2 class="set-head" id="pricingHeading">Tickets and travelcards</h2>
       <div class="set-group" role="group" aria-labelledby="pricingHeading">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M3 10h18M6 15h4"/></svg></span>
-          <span class="set-text"><b id="halfFareTitle">I have a Half Fare Travelcard</b><small id="halfFareHelp">Show my reduced price under Get ticket.</small></span>
+          <span class="set-text"><b id="halfFareTitle">I have a Half Fare Travelcard</b><small id="halfFareHelp">Show reduced prices on journeys.</small></span>
           <input class="switch" type="checkbox" role="switch" id="pricingHalfFare" aria-labelledby="halfFareTitle" aria-describedby="halfFareHelp" />
         </label>
         <label class="set-row">
@@ -1493,7 +1484,7 @@
           <input class="switch" type="checkbox" role="switch" data-setting="wheelchair" aria-labelledby="setWheelT" aria-describedby="setWheelD" />
         </label>
       </div>
-      <p class="set-foot">Stairs, lifts and ramps come from OpenStreetMap and may be incomplete. Step-free journeys get at least 7 minutes at every change, wheelchair journeys 10. The timetable doesn’t say which trains and buses have step-free boarding, so check with the operator when it matters.</p>
+      <p class="set-foot">Stairs, lifts and ramps from OpenStreetMap may be incomplete. Step-free changes get at least 7 minutes, wheelchair changes 10. Timetables do not show step-free boarding, so check with the operator.</p>
 
       <h2 class="set-head" id="setSpeedHead">Walking speed</h2>
       <div class="set-group" role="group" aria-labelledby="setSpeedHead">
@@ -1515,13 +1506,12 @@
         </div>
         <label class="set-row set-line">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 3 7-8M15 7h5v5" /></svg></span>
-          <span class="set-text"><b id="setAutoT">Adjust to how I walk</b><small id="setAutoD">The app measures your walking pace and sets the speed above for you.</small></span>
+          <span class="set-text"><b id="setAutoT">Adjust to how I walk</b><small id="setAutoD">The app measures your walking pace and sets the speed above.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="autoSpeed" aria-labelledby="setAutoT" aria-describedby="setAutoD setAutoPrivacy" />
         </label>
       </div>
-      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible. Walking routes follow paths from © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL) and © swisstopo (swissTLM3D).</p>
-      <p class="set-foot">With “Adjust to how I walk” on, the app measures your pace while it is open. When another step between Slow and Fast fits you better, the speed changes at the next start and the app tells you. Moving the slider yourself starts the measuring again.</p>
-      <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your walking pace is measured and kept only in this app, on this device. It is never sent anywhere, no places are stored, and turning the setting off deletes it.</p>
+      <p class="set-foot">Walking routes follow paths from © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL) and © swisstopo (swissTLM3D).</p>
+      <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your pace is measured and kept only on this device, never sent anywhere, and deleted if you turn this setting off. No places are stored.</p>
 
       <h2 class="set-head" id="setChangeHead">Changes and walking</h2>
       <div class="set-group" role="group" aria-labelledby="setChangeHead">
@@ -1542,7 +1532,6 @@
           </span>
         </div>
       </div>
-      <p class="set-foot">Extra change time is added to the walking time at every change. Maximum walk is the longest single walk to, from or between stops.</p>
 
       <h2 class="set-head" id="setModesHead">Transport types</h2>
       <div class="set-group" role="group" aria-labelledby="setModesHead">
@@ -1568,43 +1557,52 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4l18 4M12 6v4" /><rect x="5" y="10" width="14" height="10" rx="2.5" /><path d="M5 15h14" /></svg></span>
-          <span class="set-text"><b id="setCableT">Cable car &amp; funicular</b></span>
+          <span class="set-text"><b id="setCableT">Cable car and funicular</b></span>
           <input class="switch" type="checkbox" role="switch" data-mode="cableway" aria-labelledby="setCableT" />
         </label>
       </div>
 
-      <h2 class="set-head" id="setLiveHead">Live data</h2>
-      <div class="set-group" role="group" aria-labelledby="setLiveHead">
+      <h2 class="set-head" id="setMapHead">Map and display</h2>
+      <div class="set-group" role="group" aria-labelledby="setMapHead">
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11.73 3.51A8.5 8.5 0 1 0 20.49 12.27A6.5 6.5 0 0 1 11.73 3.51Z" /></svg></span>
+          <span class="set-text"><b id="setDarkT">Dark mode</b></span>
+          <input class="switch" type="checkbox" role="switch" id="setDark" aria-labelledby="setDarkT" />
+        </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" /></svg></span>
-          <span class="set-text"><b id="setVehiclesT">Live vehicles on the map</b><small id="setVehiclesD">Buses, trams and trains near you when you zoom in. Placed from their stop times, not GPS.</small></span>
+          <span class="set-text"><b id="setVehiclesT">Live vehicles</b><small id="setVehiclesD">Buses, trams and trains near you when you zoom in. Based on stop times, not GPS.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="liveVehicles" aria-labelledby="setVehiclesT" aria-describedby="setVehiclesD" />
         </label>
+        <button class="set-row set-nav set-more" id="setMapMore" type="button" aria-expanded="false" aria-controls="setMapBox">
+          <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></svg></span>
+          <span class="set-text"><b id="setLayersT">Events and places</b></span>
+          <span class="set-value" id="setMapCount"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+      </div>
+      <div id="setMapBox" hidden>
+        <div class="set-headrow">
+          <h2 class="set-head" id="setLayersHead">Shown on the map</h2>
+          <button class="set-link" id="setMapAll" type="button">Hide all</button>
+        </div>
+        <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setLayersHead"></div>
+        <p class="set-foot">Use “Events and places” in the ••• menu to show or hide what you switch on here. Toilets are mapped across Switzerland; other places are only mapped in Bern so far.</p>
+        <p class="set-foot">Sources, merged and shortened by us: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL), opentransportdata.swiss, SBB, Velospot, Kanton Bern, the cities of Bern, Zürich, Geneva, Luzern and Zug, Kanton Basel-Stadt and Stadt St.Gallen (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), and swisstopo (Amtliches Gebäudeadressverzeichnis) for addresses.</p>
       </div>
 
-      <div class="set-headrow">
-        <h2 class="set-head" id="setMapHead">On the map</h2>
-        <button class="set-link" id="setMapAll" type="button">Hide all</button>
-      </div>
-      <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setMapHead"></div>
-      <p class="set-foot">The events button in the ••• menu shows or hides everything switched on here. Toilets are mapped for all of Switzerland, other places such as drinking water only for Bern so far. Sources, merged and shortened by us: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL), opentransportdata.swiss, SBB, Velospot, Kanton Bern, the cities of Bern, Zürich, Geneva, Luzern and Zug, Kanton Basel-Stadt and Stadt St.Gallen (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), and for addresses swisstopo (Amtliches Gebäudeadressverzeichnis).</p>
-
-      <h2 class="set-head" id="setYouHead">About you</h2>
-      <div class="set-group" role="group" aria-labelledby="setYouHead">
+      <h2 class="set-head" id="setEventsHead">Events for you</h2>
+      <div class="set-group" role="group" aria-labelledby="setEventsHead">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg></span>
-          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Still learning the language? See newcomer meetups, language cafés and courses.</small></span>
+          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Newcomer meetups, language cafés and courses.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="newcomer" aria-labelledby="setNewcomerT" aria-describedby="setNewcomerD" />
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg></span>
-          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">See events and groups for blind and low-vision people.</small></span>
+          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">Events and groups for blind and low-vision people.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="lowVision" aria-labelledby="setVisionT" aria-describedby="setVisionD" />
         </label>
-      </div>
-
-      <h2 class="set-head" id="setEventsHead">Events</h2>
-      <div class="set-group" role="group" aria-labelledby="setEventsHead">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--tang)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M16 21V3c-2 1.5-3 4-3 7h3" /></svg></span>
           <span class="set-text"><b id="setFoodT">Free food</b></span>
@@ -1617,18 +1615,18 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--sun);--f:#344D77" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 8l3.8 2.8-1.5 4.5H9.7L8.2 10.8z" /></svg></span>
-          <span class="set-text"><b id="setSportT">Adaptive sport</b></span>
-          <input class="switch" type="checkbox" role="switch" data-setting="adaptiveSport" aria-labelledby="setSportT" />
+          <span class="set-text"><b id="setSportT">Adaptive sport</b><small id="setSportD">Sport for disabled people.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="adaptiveSport" aria-labelledby="setSportT" aria-describedby="setSportD" />
         </label>
       </div>
-      <p class="set-foot">The events map shows what matches anything you turn on under About you or Events. With all of them off, you see every event.</p>
+      <p class="set-foot">You see events matching any option you turn on. With all off, you see every event.</p>
 
       <div class="set-group set-gap">
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
       </div>
 
       <!-- Developer options: tools to test "Adjust to how I walk" with logged walks (walk-pace.js) -->
-      <div class="set-group set-gap">
+      <div class="set-group set-gap" id="devSwitch" hidden>
         <label class="set-row">
           <span class="set-ic" style="--c:#8e8e93" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8.5 7l-5 5 5 5M15.5 7l5 5-5 5" /></svg></span>
           <span class="set-text"><b id="setDevT">Developer options</b><small id="setDevD">Tools for testing. Not needed to use the app.</small></span>
@@ -1670,6 +1668,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg><span>Settings</span>
         </button>
         <h1 class="lang-title" id="langTitle">Language</h1>
+        <p class="set-foot lang-note">Languages other than English use Google Translate, so text on the screen is sent to Google. Stop, line and place names stay as written on the signs.</p>
         <label class="lang-find">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5l5 5" /></svg>
           <input id="langSearch" type="search" placeholder="Search languages" aria-label="Search languages" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
@@ -1703,18 +1702,17 @@
           <div><span id="evVenue"></span><small id="evCity"></small></div>
         </div>
         <div class="ev-row">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2.5a2.5 2.5 0 0 0 0 5V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.5a2.5 2.5 0 0 0 0-5zM14 6.5v1.5M14 11.25v1.5M14 16v1.5" /></svg>
           <div><span id="evCost"></span><small id="evAttendance"></small></div>
         </div>
       </div>
-      <h2>About</h2>
       <p id="evAbout"></p>
       <h2>Who it’s for</h2>
       <p id="evAudience"></p>
       <label class="ev-related" hidden>Events at this map pin
         <select id="evRelated"></select>
       </label>
-      <a class="ev-map-btn" id="evOrganizer" target="_blank" rel="noopener noreferrer">Organizer details</a>
+      <a id="evOrganizer" target="_blank" rel="noopener noreferrer">Organiser details</a>
       <button class="ev-map-btn" id="evShowJourney" type="button">Show journey</button>
       <p id="evJourneyStatus" role="status"></p>
     </div>
@@ -1730,7 +1728,7 @@
         </div>
         <div class="trip-row to">
           <button class="pin-tok" type="button" data-pin="to" aria-label="Destination pin: drag it onto the map, or tap it and then tap the map"><span><svg class="pin-art to" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg></span></button>
-          <input id="q" type="search" placeholder="Search places, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Destination: search places, food, shops and addresses" />
+          <input id="q" type="search" placeholder="Search places" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Destination: search places, food, shops and addresses" />
           <button class="clear" id="clear" type="button" data-clear="to" aria-label="Clear the destination"><span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span></button>
         </div>
         <button class="trip-btn" id="tripBtn" type="button" aria-label="Choose where the trip starts">
@@ -1740,7 +1738,7 @@
       </div>
       <div class="trip-chips">
         <button class="chip" id="whenChip" type="button" aria-haspopup="dialog" hidden><span id="whenText">Leave now</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5" /></svg></button>
-        <button class="chip quiet" id="tripClose" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>Close</button>
+        <button class="chip quiet" id="tripClose" type="button">Close</button>
       </div>
     </form>
     <div class="float-chip hint" id="pinHint" role="status" hidden><span id="pinHintText"></span><button type="button" id="pinHintCancel">Cancel</button></div>
@@ -1751,7 +1749,7 @@
   <!-- Journey: the Kante app's journey sheet (nikitas-implementation) — header, timeline, and the action bar below -->
   <section class="kj ksheet" id="journey" aria-label="Journey details" data-detent="low">
     <div class="sheet-top">
-      <button class="sheet-handle" id="jHandle" type="button" aria-label="Expand panel"><span></span></button>
+      <button class="sheet-handle" id="jHandle" type="button" aria-label="Show more of the journey"><span></span></button>
       <div class="sheet-head" id="jHead"></div>
     </div>
     <div class="sheet-body" id="jBody"></div>

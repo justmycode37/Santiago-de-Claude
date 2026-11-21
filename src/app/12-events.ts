@@ -30,7 +30,8 @@ function updateCards() {
     let venue = venues.get(key);
     if (!venue) {
       const point = map.project(coordinates);
-      if (point.x < -75 || point.x > clientWidth + 75 || point.y < 0 || point.y > clientHeight + 186) continue;
+      // the card's middle on screen (no half-cards at the sides); a card above an off-screen point still shows
+      if (point.x < 0 || point.x > clientWidth || point.y < 0 || point.y > clientHeight + 186) continue;
       venue = { point, coordinates, features: [] };
       venues.set(key, venue);
     }
