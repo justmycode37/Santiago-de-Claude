@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-11-21",
+  "expiresAt": "2026-12-21T00:00:00Z",
+  "entries": [
+    {
+      "operatorName": "BERNMOBIL",
+      "manufacturer": "Volvo",
+      "model": "7900A Hybrid 1.GEN",
+      "kind": "bus",
+      "fleetNumbers": [
+        "871",
+        "872",
+        "873",
+        "874",
+        "875",
+        "876",
+        "877",
+        "878",
+        "879",
+        "880",
+        "881",
+        "882",
+        "883",
+        "884",
+        "885",
+        "886",
+        "887",
+        "888",
+        "889",
+        "890",
+        "891"
+      ],
+      "source": "https://www.bernmobil.ch/de/fahrzeugpark/busse/gelenkbus-volvo-7900-hybrid-cs83"
+    },
+    {
+      "operatorName": "BERNMOBIL",
+      "manufacturer": "Siemens",
+      "model": "Combino Advanced VL Be 6/8",
+      "kind": "tram",
+      "fleetNumbers": [
+        "751",
+        "752",
+        "760",
+        "761",
+        "762",
+        "763",
+        "764",
+        "765"
+      ],
+      "source": "https://www.bernmobil.ch/de/fahrzeugpark/trams/siemens-combino-tram-vl"
+    }
+  ],
+  "coverage": "Two documented fleet groups only. Factual reference data transcribed from operator pages. No operator photographs or logos redistributed."
+}

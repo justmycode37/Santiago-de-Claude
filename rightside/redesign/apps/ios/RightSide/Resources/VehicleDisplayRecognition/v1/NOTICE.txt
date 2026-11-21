@@ -1,0 +1,13 @@
+Vehicle display recognition v1
+PaddlePaddle latin_PP-OCRv5_mobile_rec model, Apache-2.0.
+Original model revision89d3a50e2c27e2e7cceeab0e944c25c807d5db4f.
+https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx
+Same weights converted locally ONNX→Torch→FLOAT32 CoreML; fixed1x3x48x320 CPU.
+
+Resize arithmetic adapted to bounded scalarSwift from KleidiCV26.09:
+Copyright2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
+Apache-2.0; modifications: Swift scalar implementation, bounded buffers, no SIMD overreads.
+https://gitlab.arm.com/kleidi/kleidicv/-/blob/26.09/kleidicv/src/resize/resize_linear_generic_u8_neon.h
+
+DEVELOPMENT evidence only. Raw character scores are not calibrated service probability.
+No expected route words, remote inference or authoritative vehicle-trip binding.

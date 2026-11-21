@@ -57,5 +57,6 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
 
 - [`kante/`](kante/README.md) & [`deploy/`](deploy/README.md) — Rust journey planner and live-tracking engine ([live API docs](kante/docs/LIVE-API.md)) and server deployment setup.
 - [`livemap/`](livemap/README.md) — Separate prototype showing live Swiss vehicles on the map.
+- [`rightside/`](rightside/README.md) — Native iPhone companion (SwiftUI/ARKit): reads bus/tram displays and shows AR guidance to the boarding point; built with Xcode, not part of the site.
 - [`docs/`](docs/places-data.md) — Detailed documentation for place and amenity datasets.
 - [`.github/workflows/pages.yml`](.github/workflows/pages.yml) — Builds the site and publishes it to GitHub Pages on pushes to `main`.

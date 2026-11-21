@@ -1,0 +1,200 @@
+{
+ "source": "transport.opendata.ch stationboards (limit 200) at 10 Bern stops, fetched 2026-11-21; bus and tram line/destination pairs",
+ "candidates": [
+  {
+   "line": "10",
+   "destination": "Bern, Bahnhof",
+   "category": "B"
+  },
+  {
+   "line": "10",
+   "destination": "Ostermundigen, Rüti",
+   "category": "B"
+  },
+  {
+   "line": "10",
+   "destination": "Schliern, Bus-Endstation",
+   "category": "B"
+  },
+  {
+   "line": "11",
+   "destination": "Bern, Neufeld P+R",
+   "category": "B"
+  },
+  {
+   "line": "12",
+   "destination": "Bern, Holligen",
+   "category": "B"
+  },
+  {
+   "line": "12",
+   "destination": "Bern, Zentrum Paul Klee",
+   "category": "B"
+  },
+  {
+   "line": "17",
+   "destination": "Bern, Bahnhof",
+   "category": "B"
+  },
+  {
+   "line": "17",
+   "destination": "Köniz, Weiermatt",
+   "category": "B"
+  },
+  {
+   "line": "19",
+   "destination": "Bern, Elfenau",
+   "category": "B"
+  },
+  {
+   "line": "19",
+   "destination": "Spiegel, Blinzern",
+   "category": "B"
+  },
+  {
+   "line": "20",
+   "destination": "Bern Wankdorf, Bahnhof",
+   "category": "B"
+  },
+  {
+   "line": "20",
+   "destination": "Bern, Bahnhof",
+   "category": "B"
+  },
+  {
+   "line": "20",
+   "destination": "Bern, Länggasse",
+   "category": "B"
+  },
+  {
+   "line": "21",
+   "destination": "Bremgarten BE, Stuckishaus",
+   "category": "B"
+  },
+  {
+   "line": "22",
+   "destination": "Köniz, Bahnhof",
+   "category": "B"
+  },
+  {
+   "line": "22",
+   "destination": "Wabern, Kleinwabern",
+   "category": "B"
+  },
+  {
+   "line": "28",
+   "destination": "Bern, Brunnadernstrasse",
+   "category": "B"
+  },
+  {
+   "line": "31",
+   "destination": "Niederwangen, Bahnhof",
+   "category": "B"
+  },
+  {
+   "line": "570",
+   "destination": "Mühleberg, Post",
+   "category": "B"
+  },
+  {
+   "line": "M18",
+   "destination": "Bern, Bahnhof",
+   "category": "BN"
+  },
+  {
+   "line": "M18",
+   "destination": "Laupen BE, Bahnhof",
+   "category": "BN"
+  },
+  {
+   "line": "3",
+   "destination": "Bern, Bahnhof",
+   "category": "T"
+  },
+  {
+   "line": "3",
+   "destination": "Bern, Guisanplatz Expo",
+   "category": "T"
+  },
+  {
+   "line": "3",
+   "destination": "Bern, Weissenbühl (Tram)",
+   "category": "T"
+  },
+  {
+   "line": "6",
+   "destination": "Bern, Fischermätteli",
+   "category": "T"
+  },
+  {
+   "line": "6",
+   "destination": "Worb Dorf",
+   "category": "T"
+  },
+  {
+   "line": "7",
+   "destination": "Bern, Bümpliz",
+   "category": "T"
+  },
+  {
+   "line": "7",
+   "destination": "Bern, Guisanplatz Expo",
+   "category": "T"
+  },
+  {
+   "line": "7",
+   "destination": "Bern, Kaufmännischer Verband",
+   "category": "T"
+  },
+  {
+   "line": "7",
+   "destination": "Bern, Ostring",
+   "category": "T"
+  },
+  {
+   "line": "8",
+   "destination": "Bern Brünnen Westside, Bahnhof",
+   "category": "T"
+  },
+  {
+   "line": "8",
+   "destination": "Bern, Bahnhof",
+   "category": "T"
+  },
+  {
+   "line": "8",
+   "destination": "Bern, Guisanplatz Expo",
+   "category": "T"
+  },
+  {
+   "line": "8",
+   "destination": "Bern, Kaufmännischer Verband",
+   "category": "T"
+  },
+  {
+   "line": "8",
+   "destination": "Bern, Saali",
+   "category": "T"
+  },
+  {
+   "line": "9",
+   "destination": "Bern Wankdorf, Bahnhof",
+   "category": "T"
+  },
+  {
+   "line": "9",
+   "destination": "Bern, Bahnhof",
+   "category": "T"
+  },
+  {
+   "line": "9",
+   "destination": "Bern, Guisanplatz Expo",
+   "category": "T"
+  },
+  {
+   "line": "9",
+   "destination": "Wabern, Tram-Endstation",
+   "category": "T"
+  }
+ ]
+}
