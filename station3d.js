@@ -5,6 +5,8 @@
    Station3D.has(uic) → key | null
    Station3D.open({ key, from, to, prefs, title,      from / to as for StationRoute.route (a stop may carry sector);
                     date,                               the day closures and notices are judged for (or prefs.date)
+                    season: "winter" | "summer",        detail scenes: bare or leafy trees (default: what the data says)
+                    quality: "high" | "low",            detail scenes: how fine they are drawn (default: by the device)
                     peel, still, step, level, list,     how it opens: floors apart 0..1, no intro, a step, one floor, the step list
                     follow, pov, povAt, povYaw, povPitch,
                     returnFocus,                        the element that gets the focus back on close
@@ -28,7 +30,7 @@
   const SRC = (me && me.src) || '';
   const BASE = SRC.replace(/[^/]*(\?.*)?$/, '');
   const BUST = SRC.includes('?') ? SRC.slice(SRC.indexOf('?')) : ''; // a cache-busting query is passed on to what we load
-  const WALK = '#FFD23F', INK = '#14161A', WARN = '#ff9500', SIGN_BLUE = '#1f3a8a';
+  const INK = '#14161A', WARN = '#ff9500', SIGN_BLUE = '#1f3a8a';
   const FOV = 30;
   const POV_FOV = 76, EYE = 1.6;
   const HS_MODEL = .6;        // rooms and buildings are drawn at this part of their height in the model view
@@ -48,6 +50,8 @@
   const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  // an end of the route inside a sentence: "platform 7", but a stop without a number keeps its name as it is
+  const lowName = (o) => (o && o.kind === 'stop' && !o.ref ? o.name : lowerFirst(o && o.name));
 
   // The app's --spring curve, cubic-bezier(.32,.72,0,1), as a function
   function bezier(x1, y1, x2, y2) {
@@ -95,6 +99,7 @@
     warn: '<path d="M12 4.2l8.8 15.3H3.2zM12 10.2v4.3M12 17.3v.1"/>',
     closed: '<circle cx="12" cy="12" r="9"/><path d="M7.5 12h9"/>',
     check: '<path d="M5 12.8l4.4 4.4L19 7.6"/>',
+    door: '<path d="M6.5 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M4 21h16M14.3 12.3v.1"/>',
     tram: '<rect x="6.5" y="5.5" width="11" height="11.5" rx="2.6"/><path d="M9.5 20.5l1.2-3.5M14.5 20.5L13.3 17M6.5 11.5h11M9 2.8h6M12 2.8v2.7"/>',
     bus: '<rect x="5" y="4.5" width="14" height="12.5" rx="2.4"/><path d="M5 11.5h14M8.2 20v-3M15.8 20v-3"/>',
     tickets: '<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 6v12"/>',
@@ -164,6 +169,24 @@
     if (window.StationRoute) return Promise.resolve(window.StationRoute);
     return loadScript(BASE + 'station-route.js' + BUST).then(() => window.StationRoute || null, () => null);
   }
+
+  // Detail scenes (stations3d/DETAIL.md): a short stretch drawn with everything you would recognise on the spot.
+  // Which stations have one is in a tiny manifest, loaded with the model (and not missed if it is not there); the
+  // renderer and the scene itself are loaded only when a walk or the eye comes near.
+  let detailIndexPromise = null;
+  function loadDetailIndex() {
+    if (!detailIndexPromise) {
+      detailIndexPromise = (window.STATION3D_DETAIL_INDEX ? Promise.resolve() : loadScript(BASE + 'stations3d/detail-index.js' + BUST))
+        .then(() => window.STATION3D_DETAIL_INDEX || {}, () => ({}));
+    }
+    return detailIndexPromise;
+  }
+  function loadDetail(entry, key) {
+    const have = () => (window.Station3DDetail && window.STATION3D_DETAIL && window.STATION3D_DETAIL[key]) || null;
+    if (have()) return Promise.resolve(have());
+    return Promise.all([window.Station3DDetail ? null : loadScript(BASE + 'station3d-detail.js' + BUST), loadScript(BASE + entry.file + BUST)]).then(have, () => null);
+  }
+  const inBB = (b, x, y, m) => x >= b[0] - m && x <= b[2] + m && y >= b[1] - m && y <= b[3] + m;
 
   // ---------- model helpers ----------
   const toLocal = (model, ll) => {
@@ -390,29 +413,37 @@
   const inArea = (a, x, y) => x >= a.box[0] && x <= a.box[2] && y >= a.box[1] && y <= a.box[3] && inRing(a.ring, x, y) && !a.holes.some((h) => inRing(h, x, y));
 
   // ---------- colours of the model, per theme ----------
-  // level(): the plate of a floor (ground you do not walk on). What you walk on is mixed from it.
+  // The calm look of a 3D city map: warm cream ground, soft beige blocks with lighter tops, a pale sky, and one
+  // saturated colour, kept for the route: blue. Everything the scene draws takes its colour from here.
+  // level(): the plate of a floor (ground you do not walk on); [colour, amount] pairs are mixed into it.
   const THEME = {
     light: {
-      level: (id) => (id <= -2 ? '#7d90aa' : id < 0 ? '#a9b7ca' : id < 1 ? '#bdb9ac' : id < 2 ? '#c9c6ba' : '#d3d1c7'),
-      floor: ['#ffffff', .68], platform: ['#3b382f', .36], plaza: ['#f6f4ea', .52], room: ['#39424f', .42], plateSide: ['#20242b', .5],
-      bed: '#6f6c64', rail: '#3f4247', safety: '#ffffff', stairs: '#fbfaf7', ramp: '#e9e6dc', tread: '#4d535d', glass: ['#7f9ab8', .42],
-      shaft: ['#42566f', .22], cab: '#5b6878', shell: '#8d97a8', shellAlpha: .13, ceil: ['#ffffff', .6], wall: ['#3a4250', .2], ground: '#cfd2d0',
-      strip: '#f2f0e8', band: ['#ffffff', '#d9dde6'], closed: '#c9772b',
-      line: '#14161A', lineOpacity: .34, shellLine: .2, plateLine: .62,
-      route: WALK, casing: INK, chevron: INK, dim: '#e9d9a3', done: '#b9bdc6',
-      hemiSky: '#ffffff', hemiGround: '#c9cfda', hemi: 2.25, sun: 1.3, shadow: .32,
-      fogIn: '#e4e6ea', fogOut: '#dbe6f3',
+      level: (id) => (id <= -2 ? '#D9D3C6' : id < 0 ? '#E3DED2' : id < 1 ? '#EEEAE0' : id < 2 ? '#F1EEE6' : '#F4F1EA'),
+      plateSide: ['#8E8676', .5],
+      floor: '#FAF7F1', plaza: '#F6F3EC', platform: '#DEDAD1', platformSide: '#C6C1B4', room: '#EFEBE1', roomSide: '#DDD7CA',
+      wall: '#D6CFC0', wallBase: '#A9A190', wallTop: '#F3F0E8', ceil: '#DFDACF', lamp: '#FFFFFF', lampGlow: '#F2EEE5', contact: ['#6B6455', .24],
+      shell: '#EDEAE3', shellSide: '#D6D1C6', shellAlpha: .3, ground: '#F3EFE7', green: '#CDE6B8',
+      bed: '#CBC7BE', rail: '#9A968E', safety: '#FFFFFF',
+      stairs: '#F2EFE8', riser: '#D2CCBF', ramp: '#ECE8DE', tread: '#BDB7AA', glass: ['#CFE3F2', .5], shaft: ['#CFE3F2', .4], cab: '#BFC3C9', door: '#D6D9DD', frame: '#8E9299',
+      strip: '#F6F3EC', band: ['#FFFFFF', '#E4DFD3'], closed: '#E08A2E',
+      line: '#7A7364', lineOpacity: .5, shellLine: .3, plateLine: .75,
+      route: '#007AFF', casing: '#0A5FCC', chevron: '#FFFFFF', dim: '#8FC0FA', done: '#A9C7EE', glow: '#5AAEFF',
+      hemiSky: '#FFFFFF', hemiGround: '#EAE3D4', hemi: 2.2, sun: 1.15, shadow: .22,
+      fogIn: '#EFEBE3', fogOut: '#F4F1EA', text: '#1C1C1E',
     },
     dark: {
-      level: (id) => (id <= -2 ? '#1c2532' : id < 0 ? '#243040' : id < 1 ? '#2f3136' : id < 2 ? '#37393f' : '#3f4147'),
-      floor: ['#ffffff', .2], platform: ['#ffffff', .34], plaza: ['#b9cdb4', .14], room: ['#ffffff', .1], plateSide: ['#000000', .45],
-      bed: '#17191c', rail: '#8a8e96', safety: '#e9ebee', stairs: '#8f939b', ramp: '#676a72', tread: '#a2a8b2', glass: ['#a9c4e2', .3],
-      shaft: ['#c5d9f5', .16], cab: '#c3ccd8', shell: '#aab4c6', shellAlpha: .1, ceil: ['#000000', .25], wall: ['#ffffff', .3], ground: '#1b1d21',
-      strip: '#4a4d54', band: ['#6b7079', '#4a4e56'], closed: '#b5651d',
-      line: '#ffffff', lineOpacity: .24, shellLine: .16, plateLine: .5,
-      route: WALK, casing: '#0B0D10', chevron: INK, dim: '#7d6f3a', done: '#5c6068',
-      hemiSky: '#ffffff', hemiGround: '#7a8296', hemi: 2.5, sun: 1.3, shadow: .42,
-      fogIn: '#1b1d22', fogOut: '#101722',
+      level: (id) => (id <= -2 ? '#2A2C32' : id < 0 ? '#303238' : id < 1 ? '#35373E' : id < 2 ? '#393B42' : '#3D3F46'),
+      plateSide: ['#000000', .38],
+      floor: '#383A40', plaza: '#34363B', platform: '#4C4E56', platformSide: '#35373C', room: '#3A3C42', roomSide: '#33353A',
+      wall: '#474950', wallBase: '#28292D', wallTop: '#61636B', ceil: '#222327', lamp: '#FFF1CC', lampGlow: '#3A3830', contact: ['#000000', .34],
+      shell: '#3B3D43', shellSide: '#2F3136', shellAlpha: .3, ground: '#26282C', green: '#22372A',
+      bed: '#1F2023', rail: '#6A6C72', safety: '#E9EBEE',
+      stairs: '#5A5C63', riser: '#404248', ramp: '#4B4D53', tread: '#7C7F87', glass: ['#2B3A4A', .55], shaft: ['#5C7896', .3], cab: '#8A8F98', door: '#6E737B', frame: '#9AA0A8',
+      strip: '#34363B', band: ['#5A5D65', '#3F4147'], closed: '#B5651D',
+      line: '#FFFFFF', lineOpacity: .2, shellLine: .16, plateLine: .62,
+      route: '#0A84FF', casing: '#0057C2', chevron: '#FFFFFF', dim: '#1F4F8F', done: '#2A4A75', glow: '#3D9BFF',
+      hemiSky: '#FFFFFF', hemiGround: '#8A8E99', hemi: 2.3, sun: 1.2, shadow: .4,
+      fogIn: '#1E2024', fogOut: '#1B1D22', text: '#FFFFFF',
     },
   };
 
@@ -433,6 +464,11 @@
   Geo.prototype.quadUV = function (a, b, c, d, uv) {
     this.tri(a, b, c); this.tri(a, c, d);
     this.uv.push(uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[1], uv[2], uv[3], uv[0], uv[3]);
+  };
+  // a quad that fades: a, b in colour c0, c and d in colour c1
+  Geo.prototype.quadGrad = function (a, b, c, d, c0, c1) {
+    this.tri(a, b, c); this.tri(a, c, d);
+    for (const k of [c0, c0, c1, c0, c1, c1]) this.c.push(k[0], k[1], k[2], k[3]);
   };
   Geo.prototype.seg = function (a, b) { // for LineSegments
     this.p.push(a[0], a[3], -a[1], b[0], b[3], -b[1]);
@@ -544,7 +580,9 @@
   }
 
   // One staircase / escalator / ramp, following its line. Levels on the line may be fractional.
-  function addConnector(g, ln, P, c, col) {
+  // Each kind reads as what it is: stairs have treads and handrails, an escalator has glass sides, steps and arrows
+  // the way it runs, a ramp shows its slope. glow = the one the route takes: a soft sleeve along its sides.
+  function addConnector(g, ln, P, c, col, glow) {
     const w = clamp((c.width || 2.2), 1.2, 9) / 2;
     const line = c.line;
     for (let i = 0; i < line.length - 1; i++) {
@@ -559,6 +597,13 @@
       const lAt = (u) => lp + (lq - lp) * u;
       ln.seg(at(0, -1, lp, .05), at(1, -1, lq, .05));
       ln.seg(at(0, 1, lp, .05), at(1, 1, lq, .05));
+      const rails = () => { // a handrail on posts along both sides
+        const n = Math.max(1, Math.round(len / 2.4));
+        for (const s of [-1, 1]) {
+          ln.seg(at(0, s, lp, .95), at(1, s, lq, .95));
+          for (let k = 0; k <= n; k++) ln.seg(at(k / n, s, lAt(k / n), 0), at(k / n, s, lAt(k / n), .95));
+        }
+      };
       if (c.kind === 'stairs' && rise > 0.2) {
         const n = clamp(Math.round(len / 0.8), 4, 18);
         for (let k = 0; k < n; k++) {
@@ -568,20 +613,50 @@
           for (const s of [-1, 1]) g.quad(at(u0, s, lb, -.45), at(u1, s, lt, -.45), at(u1, s, lt, 0), at(u0, s, lt, 0), col.riser); // cheek
           ln.seg(at(u0, -1, lt, .02), at(u0, 1, lt, .02)); // the edge of each step
         }
+        rails();
       } else {
-        const top = c.kind === 'escalator' ? col.tread : c.kind === 'stairs' ? col.stairs : col.ramp;
+        const esc = c.kind === 'escalator';
+        const top = esc ? col.tread : c.kind === 'stairs' ? col.stairs : col.ramp;
         g.quad(at(0, -1, lp, 0), at(1, -1, lq, 0), at(1, 1, lq, 0), at(0, 1, lp, 0), top);
-        for (const s of [-1, 1]) g.quad(at(0, s, lp, -.4), at(1, s, lq, -.4), at(1, s, lq, 0), at(0, s, lp, 0), top);
-        if (c.kind === 'escalator') {
+        for (const s of [-1, 1]) g.quad(at(0, s, lp, -.4), at(1, s, lq, -.4), at(1, s, lq, 0), at(0, s, lp, 0), esc ? col.riser : top);
+        if (esc) {
           for (const s of [-1, 1]) {
             g.quad(at(0, s, lp, 0), at(1, s, lq, 0), at(1, s, lq, 1.05), at(0, s, lp, 1.05), col.glass); // balustrade
             ln.seg(at(0, s, lp, 1.05), at(1, s, lq, 1.05)); // handrail
           }
           const n = clamp(Math.round(len / 1.2), 3, 14); // steps, as lines across
           for (let k = 1; k < n; k++) ln.seg(at(k / n, -1, lAt(k / n), .03), at(k / n, 1, lAt(k / n), .03));
+          if (c.oneway === 'up' || c.oneway === 'down') { // arrows the way it runs
+            const m = clamp(Math.round(len / 2.2), 2, 8);
+            for (let k = 0; k < m; k++) {
+              const a = (k + .25) / m, b = (k + .7) / m, tip = c.oneway === 'up' ? b : a, tail = c.oneway === 'up' ? a : b;
+              g.tri(at(tail, -.55, lAt(tail), .06), at(tail, .55, lAt(tail), .06), at(tip, 0, lAt(tip), .06), col.arrow);
+            }
+          }
+        } else if (c.kind === 'ramp') {
+          const n = clamp(Math.round(len / 1.8), 2, 30); // lines across, so the slope shows
+          for (let k = 1; k < n; k++) ln.seg(at(k / n, -1, lAt(k / n), .03), at(k / n, 1, lAt(k / n), .03));
+          rails();
         }
       }
+      if (glow) for (const s of [-1, 1]) g.quad(at(0, s, lp, 0), at(1, s, lq, 0), at(1, s, lq, 1.15), at(0, s, lp, 1.15), col.glass);
     }
+  }
+  // A lift: a glass shaft with the car inside, and on every floor a door in a frame on the side people come from.
+  function addLift(g, ln, P, c, col, faces) {
+    const ls = c.levels.slice().sort((a, b) => a - b), x = c.xy[0], y = c.xy[1];
+    for (const l of ls) {
+      g.box(x, y, 1.0, l, 0, l, 2.3, col.cab);
+      const f = (faces && faces.get(l)) || [0, -1], tx = -f[1], ty = f[0];
+      const at = (a, d, yo) => [x + f[0] * (1.32 + d) + tx * a, y + f[1] * (1.32 + d) + ty * a, l, yo];
+      g.quad(at(-1.0, 0, 0), at(1.0, 0, 0), at(1.0, 0, 2.5), at(-1.0, 0, 2.5), col.frame);
+      g.quad(at(-.72, .02, 0), at(.72, .02, 0), at(.72, .02, 2.15), at(-.72, .02, 2.15), col.door);
+      ln.seg(at(0, .04, 0), at(0, .04, 2.15));
+      ln.seg(at(-.72, .04, 0), at(-.72, .04, 2.15)); ln.seg(at(.72, .04, 0), at(.72, .04, 2.15)); ln.seg(at(-.72, .04, 2.15), at(.72, .04, 2.15));
+    }
+    const r = g.box(x, y, 1.3, ls[0], 0, ls[ls.length - 1], 3.1, col.shaft);
+    for (const p of r) ln.seg([p[0], p[1], ls[0], 0], [p[0], p[1], ls[ls.length - 1], 3.1]);
+    ln.loop(r, ls[ls.length - 1], 3.1);
   }
 
   // The walking route as a tube along its points. Its width is set on screen by the shader, so only the
@@ -610,7 +685,7 @@
     attribute vec3 aRad;
     attribute vec3 aTan;
     attribute float aD;
-    uniform float uPx, uRmin, uScale, uA0, uA1, uThin, uSquash;
+    uniform float uPx, uRmin, uScale, uA0, uA1, uThin, uSquash, uNear;
     varying float vDepth;
     varying float vD;
     varying float vR;
@@ -618,7 +693,7 @@
     void main() {
       vec3 c = position;
       float depth = -(modelViewMatrix * vec4(c, 1.0)).z;
-      float base = max(uRmin, uPx * depth);
+      float base = max(uRmin * mix(uNear, 1.0, smoothstep(1.5, 7.0, depth)), uPx * depth);
       float act = step(uA0 - 0.05, aD) * step(aD, uA1 + 0.05);
       float r = base * mix(uThin, 1.0, act);
       c.y += base * 0.9 * uSquash + (1.0 - uSquash) * 0.06;
@@ -652,7 +727,7 @@
         float q = f + across * 1.25;
         float aa = min(0.14, fwidth(q) * 1.2 + 0.02);
         float chev = smoothstep(2.0 - aa, 2.0 + aa, q) * (1.0 - smoothstep(3.1 - aa, 3.1 + aa, q)) * (1.0 - smoothstep(0.72, 0.8, across)) * step(0.0, face);
-        col = mix(col, uInk, chev * mix(0.35, 0.92, act));
+        col = mix(col, uInk, chev * mix(0.2, 0.5, act));
         col *= 0.93 + 0.07 * face;
       }
       gl_FragColor = vec4(col, uAlpha * (1.0 - 0.92 * smoothstep(uFogN, uFogF, vDepth)));
@@ -720,6 +795,12 @@
     let povOnly = [];    // things that only exist when you stand in the model: ground, signs, furniture
     let R = null;        // the route: { geo, meshes, U, D, Dorig, total, sm, steps }
     let hl = [];         // highlighted areas and edges: { mesh, li, base }
+    let liftFaces = new Map(); // lift → floor → the side its door is on
+    const gridU = { value: 0 }; // how strongly the floor tiles show (only when you stand on them)
+    let guides = [], activeGuide = null, povArriving = false, beacon = null; // what the route takes next, shown as an object
+    // the detail scene of this station, if it has one: { entry (manifest), data, h (the renderer's handle), show, bird }
+    const DT = { entry: null, data: null, h: null, loading: false, show: false, bird: false, li: 0, y0: 0, add: 0, k: 0, shellBox: null, tilt: null };
+    let clipHole = [], clipShell = []; // the plain model is cut out where the scene stands
     let los = [];        // per level: wall segments [ax, ay, bx, by] that hide labels behind them (first-person view)
     let disc = null;     // the accuracy disc of the user
     let labels = [], labelsDirty = false, levelLabels = [], tip = null, tipTimer = 0;
@@ -861,6 +942,8 @@
       v3 = new THREE.Vector3();
       // the four sides of the plate box: with a route only the part of each floor inside it is drawn
       clip = [0, 1, 2, 3].map(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e7));
+      clipHole = [0, 1, 2, 3].map(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e7));
+      clipShell = [0, 1, 2, 3].map(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e7));
       // The device can take the graphics memory away (a tab in the background, memory pressure). Ask for it back
       // and draw everything again when it returns.
       on(canvas, 'webglcontextlost', (e) => {
@@ -889,8 +972,180 @@
       clip[3].normal.set(-b.uy, 0, -b.ux); clip[3].constant = b.hh - cv;
     }
 
+    // ----- the detail scene -----
+    const detailQuality = () => (opts.quality === 'low' || opts.quality === 'high' ? opts.quality
+      : (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ? 'low' : 'high');
+    // is a walk, or the eye, near the scene?
+    function detailWanted() {
+      const b = DT.entry && DT.entry.bbox;
+      if (!b) return false;
+      if (A.routed && route.points.some((p) => inBB(b, p[0], p[1], 40))) return true;
+      return (pov || povT > .02) && inBB(b, pv.x, pv.y, 90);
+    }
+    function ensureDetail() {
+      if (!DT.entry || DT.loading || !self.alive || !self.ready) return;
+      if (!detailWanted()) { if (DT.h) dropDetail(); return; } // left behind: its geometry is given back
+      if (DT.h) return;
+      if (DT.data) { buildDetail(); return; }
+      DT.loading = true;
+      loadDetail(DT.entry, model.key).then((d) => {
+        DT.loading = false;
+        if (!self.alive) return;
+        if (!d) { DT.entry = null; return; }
+        DT.data = d;
+        if (detailWanted()) buildDetail();
+      });
+    }
+    function buildDetail() {
+      const RD = window.Station3DDetail, d = DT.data;
+      if (!RD || !d || DT.h || !self.ready || lost) return;
+      DT.li = P.idxOf(P.levelOfZ(0)); // the scene's heights are metres above the model's level 0
+      DT.y0 = Yc(P.levels[DT.li].id) - P.levels[DT.li].z;
+      const o = { theme, quality: detailQuality(), zShift: true, toScene: (x, y, z) => [x, DT.y0 + z, -y] };
+      if (opts.season === 'summer' || opts.season === 'winter') o.season = opts.season;
+      try { DT.h = RD.build(THREE, d, o); } catch (e) { console.error('Station3D: the detail scene could not be drawn', e); DT.entry = null; DT.h = null; return; }
+      // a renderer that does not move the scene by the offset its data asks for: we do it
+      DT.add = typeof DT.h.zShift === 'number' ? 0 : (isFinite(d.zOffset) ? +d.zOffset : 0);
+      DT.tilt = fitTilt(d, typeof DT.h.zShift === 'number' ? DT.h.zShift : DT.add);
+      DT.h.group.visible = false;
+      DT.h.group.renderOrder = 20;
+      scene.add(DT.h.group);
+      // where the plain model gives way: its ground and furniture inside the scene's area, its houses wherever the scene has its own
+      const b = DT.entry.bbox, s = [b[0], b[1], b[2], b[3]];
+      for (const B of d.buildings || []) {
+        const pos = (B.mesh && B.mesh.positions) || [];
+        for (let i = 0; i + 1 < pos.length; i += 3) { s[0] = Math.min(s[0], pos[i]); s[1] = Math.min(s[1], pos[i + 1]); s[2] = Math.max(s[2], pos[i]); s[3] = Math.max(s[3], pos[i + 1]); }
+        for (const p of B.ring || []) { s[0] = Math.min(s[0], p[0]); s[1] = Math.min(s[1], p[1]); s[2] = Math.max(s[2], p[0]); s[3] = Math.max(s[3], p[1]); }
+      }
+      DT.shellBox = [s[0] - 1.5, s[1] - 1.5, s[2] + 1.5, s[3] + 1.5];
+      DT.show = false; DT.bird = false;
+      dropRoute(); buildRoute(); // the line now follows the real ground
+      setTargets();
+      syncDetail();
+      request();
+    }
+    // The real ground falls across a scene (Hirschengraben: two metres from north to south) while the floor of the
+    // plain model is level, so no single offset joins both at every edge. The plane that fits the scene's ground best
+    // is taken out of it (a shear: what stands upright stays upright); what is left is kerbs, ledges and bumps.
+    // → { a, b, c }: that plane, metres above the model's floor at (x, y) = c + a x + b y.
+    function fitTilt(d, shift) {
+      const S = [], flat = { a: 0, b: 0, c: 0 };
+      for (const sf of (d && d.surfaces) || []) {
+        if (!Array.isArray(sf.ring) || !Array.isArray(sf.zs)) continue; // a flat surface (a plinth) says nothing about the street
+        for (let i = 0; i < sf.ring.length && i < sf.zs.length; i++) { const p = sf.ring[i], z = sf.zs[i]; if (p && isFinite(p[0]) && isFinite(p[1]) && isFinite(z)) S.push([p[0], p[1], z + shift]); }
+      }
+      if (S.length < 12) return flat;
+      let t = flat, use = S;
+      for (let it = 0; it < 4 && use.length >= 12; it++) {
+        const m = use.length;
+        let mx = 0, my = 0, mz = 0, xx = 0, xy = 0, yy = 0, xz = 0, yz = 0;
+        for (const q of use) { mx += q[0]; my += q[1]; mz += q[2]; }
+        mx /= m; my /= m; mz /= m;
+        for (const q of use) { const dx = q[0] - mx, dy = q[1] - my, dz = q[2] - mz; xx += dx * dx; xy += dx * dy; yy += dy * dy; xz += dx * dz; yz += dy * dz; }
+        const det = xx * yy - xy * xy;
+        if (!(Math.abs(det) > 1e-6)) return flat;
+        const a = (xz * yy - yz * xy) / det, b = (yz * xx - xz * xy) / det;
+        t = { a, b, c: mz - a * mx - b * my };
+        use = S.filter((q) => Math.abs(q[2] - (t.c + t.a * q[0] + t.b * q[1])) < .6); // a stray point does not tip the street
+      }
+      return isFinite(t.a + t.b + t.c) && Math.hypot(t.a, t.b) < .12 ? t : flat; // steeper than any street: leave it alone
+    }
+    const tiltAt = (x, y) => (DT.tilt ? DT.tilt.c + DT.tilt.a * x + DT.tilt.b * y : 0);
+    // the scene on the level it belongs to (the floors move when they are pulled apart), with the tilt taken out
+    function placeDetail() {
+      const g = DT.h && DT.h.group;
+      if (!g) return;
+      const lv = P.levels[DT.li], t = DT.tilt || { a: 0, b: 0, c: 0 };
+      g.matrixAutoUpdate = false; // scene X = x, Z = -y
+      g.matrix.set(1, 0, 0, 0, -t.a, 1, t.b, (Yc(lv.id) - lv.z) - DT.y0 + DT.add - t.c, 0, 0, 1, 0, 0, 0, 0, 1);
+      g.matrixWorldNeedsUpdate = true;
+    }
+    function dropDetail() {
+      if (!DT.h) return;
+      if (DT.show) { DT.show = false; try { applyHole(false, false); } catch (e) {} }
+      try { DT.h.dispose(); } catch (e) {}
+      if (DT.h.group && DT.h.group.parent) DT.h.group.parent.remove(DT.h.group);
+      DT.h = null; DT.bird = false;
+      if (R) routeFrames();
+    }
+    const groundOf = (x, y) => { const h = DT.h; if (!h) return null; const g = h.groundAt ? h.groundAt(x, y) : window.Station3DDetail && window.Station3DDetail.groundAt ? window.Station3DDetail.groundAt(h, x, y) : null; return g == null || !isFinite(g) ? null : g + DT.add - tiltAt(x, y); };
+    // How far the scene's ground lies above the plain model's floor at (x, y), for the line and the eye. Inside the
+    // hole that is cut into the plain model: the real ground. Around it a ramp of a few metres, so nothing jumps: where
+    // the scene is higher the ramp lies outside (inside, it would dive under the scene's ground), where it is lower
+    // the ramp lies inside (outside, the plain floor would cover it).
+    const HOLE_IN = 1, HOLE_RAMP = 5;
+    function liftRaw(x, y, level) {
+      if (!DT.h || Math.abs(level - P.levels[DT.li].id) > .45) return 0;
+      const b = DT.entry.bbox, x0 = b[0] + HOLE_IN, y0 = b[1] + HOLE_IN, x1 = b[2] - HOLE_IN, y1 = b[3] - HOLE_IN;
+      const cx = clamp(x, x0, x1), cy = clamp(y, y0, y1), d = Math.hypot(x - cx, y - cy); // d: how far outside the hole
+      if (d >= HOLE_RAMP) return 0;
+      const g = groundOf(cx, cy);
+      if (g == null) return 0;
+      const up = g - (P.zOf(level) - P.levels[DT.li].z);
+      if (up < -.8) return 0; // no surface there (under a house the renderer answers with its base plane, far below)
+      let t;
+      if (up >= 0) t = 1 - d / HOLE_RAMP;
+      else if (d > 0) return 0;
+      else t = clamp(Math.min(x - x0, x1 - x, y - y0, y1 - y) / HOLE_RAMP, 0, 1);
+      return up * t * t * (3 - 2 * t);
+    }
+    const detailLift = (x, y, level) => (DT.show ? liftRaw(x, y, level) : 0);
+    // a box cut out of whatever uses these four planes (material.clipIntersection = true): only what is inside all is dropped
+    function setHole(planes, b) {
+      if (!b) { for (const p of planes) { p.normal.set(1, 0, 0); p.constant = 1e7; } return; }
+      planes[0].normal.set(1, 0, 0); planes[0].constant = -b[2];
+      planes[1].normal.set(-1, 0, 0); planes[1].constant = b[0];
+      planes[2].normal.set(0, 0, -1); planes[2].constant = -b[3];
+      planes[3].normal.set(0, 0, 1); planes[3].constant = b[1];
+    }
+    // on: the scene is drawn. From the eye: the plain model is cut out where the scene stands. From above (bird): the
+    // scene is what the plate carries, cut to the plate's box.
+    function applyHole(on, bird) {
+      const hole = on && !bird;
+      const set = (mat, planes, inter) => { if (!mat) return; mat.clippingPlanes = planes; mat.clipIntersection = !!inter; mat.needsUpdate = true; };
+      const b = DT.entry && DT.entry.bbox;
+      setHole(clipHole, hole && b ? [b[0] + HOLE_IN, b[1] + HOLE_IN, b[2] - HOLE_IN, b[3] - HOLE_IN] : null);
+      setHole(clipShell, hole ? DT.shellBox : null);
+      const l = lv3[DT.li];
+      if (l) {
+        for (const m of [l.mesh, l.lines]) set(m.material, hole ? clipHole : clip, hole);
+        l.cut = on && bird;
+      }
+      for (const hh of hl) if (hh.li === DT.li) set(hh.mesh.material, hole ? clipHole : clip, hole);
+      for (const o of povOnly) if (o.material && !o.userData.ground) set(o.material, hole ? clipHole : null, hole);
+      if (strip) for (const m of [strip.mesh, strip.lines]) set(m.material, hole ? clipHole : null, hole);
+      for (const s of shellParts) for (const m of [s.mesh, s.lines]) set(m.material, hole ? clipShell : null, hole);
+      if (DT.h) DT.h.group.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) { m.clippingPlanes = on && bird ? clip : null; m.clipIntersection = false; m.needsUpdate = true; } });
+      applyOpacity();
+      shadowDirty = true;
+    }
+    // every frame: is the scene to be drawn, and how?
+    function syncDetail() {
+      const h = DT.h;
+      if (!h) return;
+      const b = DT.entry.bbox, lv = P.levels[DT.li];
+      const bird = !pov && povT < .02 && isolate == null && A.routed && A.shown.length === 1 && A.shown[0] === DT.li && route.points.every((p) => inBB(b, p[0], p[1], 3));
+      const eye = (pov || povT > .02) && inBB(b, pv.x, pv.y, 90);
+      const show = bird || eye;
+      if (show !== DT.show || (show && bird !== DT.bird)) {
+        DT.show = show; DT.bird = show && bird;
+        h.group.visible = show;
+        applyHole(show, DT.bird);
+        routeFrames();
+        request();
+      }
+      if (show) placeDetail();
+    }
+    function dropRoute() {
+      if (!R) return;
+      for (const m of R.meshes) { scene.remove(m); m.material.dispose(); const i = disposables.indexOf(m); if (i >= 0) disposables.splice(i, 1); }
+      R.geo.dispose();
+      R = null;
+    }
+
     const track = (o) => { disposables.push(o); return o; };
     function clearScene() {
+      dropDetail();
       for (const o of disposables) {
         if (o.geometry) o.geometry.dispose();
         if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
@@ -898,6 +1153,7 @@
       }
       disposables.length = 0;
       lv3 = []; conns = []; parts = []; shellParts = []; foot = null; strip = null; povOnly = []; R = null; hl = []; disc = null; los = [];
+      guides = []; activeGuide = null; liftFaces = new Map();
     }
 
     // ----- what the route is, and what of the model it uses -----
@@ -1124,6 +1380,17 @@
         mesh.castShadow = mesh.receiveShadow = !o.ghost;
         mesh.frustumCulled = false;
         mesh.renderOrder = order;
+        if (o.grid) { // large floor tiles, faint, drawn in the shader so they cost no geometry
+          const m = mesh.material;
+          m.onBeforeCompile = (sh) => {
+            sh.uniforms.uGrid = gridU;
+            sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nvarying float vUp;')
+              .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvUp = normal.y;');
+            sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uGrid;\nvarying vec3 vWPos;\nvarying float vUp;')
+              .replace('#include <dithering_fragment>', 'if (uGrid > 0.001 && vUp > 0.9) {\n  vec2 gq = vWPos.xz / 2.4;\n  vec2 gw = max(fwidth(gq), vec2(1e-5));\n  vec2 gd = abs(fract(gq - 0.5) - 0.5) / gw;\n  float gl = 1.0 - min(min(gd.x, gd.y) / 1.5, 1.0);\n  gl_FragColor.rgb *= 1.0 - uGrid * gl * (1.0 - smoothstep(0.08, 0.35, max(gw.x, gw.y)));\n}\n#include <dithering_fragment>');
+          };
+          m.customProgramCacheKey = () => 's3grid';
+        }
         const lineBase = o.line || T.lineOpacity;
         const lines = track(new THREE.LineSegments(ln.build(SH, false), lineMat(lineBase, o)));
         lines.frustumCulled = false;
@@ -1146,13 +1413,18 @@
         for (const p of t.line) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
         tracksBy[P.idxOf(t.level || 0)].push({ t, box: [x0, y0, x1, y1] });
       }
+      const flatBy = P.levels.map(() => []); // level walks on each floor: where the ceiling lights hang
       const edgesBy = P.levels.map(() => []); // walking edges that touch each floor: where they cross a wall there is an opening
       {
         const N = (model.graph && model.graph.nodes) || [];
         for (const e of (model.graph && model.graph.edges) || []) {
           const a = N[e.a], b = N[e.b];
           if (!a || !b) continue;
-          for (const lv of P.levels) if (Math.abs(a[2] - lv.id) < .35 || Math.abs(b[2] - lv.id) < .35) edgesBy[lv.i].push([a[0], a[1], b[0], b[1]]);
+          for (const lv of P.levels) {
+            const ua = Math.abs(a[2] - lv.id) < .35, ub = Math.abs(b[2] - lv.id) < .35;
+            if (ua || ub) edgesBy[lv.i].push([a[0], a[1], b[0], b[1]]);
+            if (ua && ub && e.kind === 'walk') flatBy[lv.i].push([a[0], a[1], b[0], b[1]]);
+          }
         }
       }
       const cBed = C(T.bed), cRail = C(T.rail), cSafe = C(T.safety);
@@ -1160,7 +1432,7 @@
       P.levels.forEach((lv, li) => {
         const g = new Geo(), ln = new Geo(), cg = new Geo(), wg = new Geo();
         const base = T.level(lv.id);
-        const cFloor = mix(base, T.floor), cPlat = mix(base, T.platform), cPlaza = mix(base, T.plaza), cRoom = mix(base, T.room), cCeil = mix(base, T.ceil), cWall = mix(base, T.wall);
+        const cFloor = C(T.floor), cPlat = C(T.platform), cPlatSide = C(T.platformSide), cPlaza = C(T.plaza), cRoom = C(T.room), cRoomSide = C(T.roomSide), cCeil = C(T.ceil);
         const cClosed = mix(base, [T.closed, .5]);
         const next = P.levels[li + 1];
         const gapUp = next ? next.z - lv.z : 99;
@@ -1168,6 +1440,27 @@
         const under = lv.z < -1.5;
         lv.ceilH = gapUp <= 9 ? clamp(gapUp - .7, 2.5, 5) : 3.4;
         los[li] = [];
+        const cWall = C(T.wall), cWallEnd = mix(T.wall, [T.wallBase, .4]), cWallBase = C(T.wallBase), cWallTop = C(T.wallTop);
+        const cShade = C(T.contact[0], T.contact[1]), cShade0 = C(T.contact[0], 0), cLamp = C(T.lamp), cGlow = C(T.lampGlow);
+        const shg = new Geo(), lg = new Geo();
+        // where a wall meets the floor: a darker base line, a light line under the ceiling, and a soft shade on the
+        // floor in front of it. (ox, oy) is the side people stand on.
+        const trim = (ax, ay, bx, by, ox, oy, lf, h) => {
+          if (Math.hypot(bx - ax, by - ay) < .3) return;
+          const e = .03, sx0 = ax + ox * e, sy0 = ay + oy * e, sx1 = bx + ox * e, sy1 = by + oy * e;
+          wg.quad([sx0, sy0, lf, 0], [sx1, sy1, lf, 0], [sx1, sy1, lf, .16], [sx0, sy0, lf, .16], cWallBase);
+          wg.quad([sx0, sy0, lf, h - .12], [sx1, sy1, lf, h - .12], [sx1, sy1, lf, h], [sx0, sy0, lf, h], cWallTop);
+          shg.quadGrad([ax, ay, lf, .02], [bx, by, lf, .02], [bx + ox * .9, by + oy * .9, lf, .02], [ax + ox * .9, ay + oy * .9, lf, .02], cShade, cShade0);
+        };
+        // a wall along the edge of a floor: it has thickness, so its end shows where a doorway cuts it. (nx, ny) points out of the floor.
+        const wall = (r, nx, ny, lf) => {
+          const [ax, ay, bx, by] = r, hh = lv.ceilH, t = .3;
+          const q = (x0, y0, x1, y1, c) => wg.quad([x0, y0, lf, 0], [x1, y1, lf, 0], [x1, y1, lf, hh], [x0, y0, lf, hh], c);
+          q(ax, ay, bx, by, cWall);
+          q(bx, by, bx + nx * t, by + ny * t, cWallEnd);
+          q(ax + nx * t, ay + ny * t, ax, ay, cWallEnd);
+          trim(ax, ay, bx, by, -nx, -ny, lf, hh);
+        };
         const rooms = lv.areas.filter((a) => a.kind === 'room'), walk = lv.areas.filter((a) => a.kind !== 'room');
         for (const a of lv.areas) {
           const lf = a.level;
@@ -1177,12 +1470,16 @@
           if (a.kind === 'room') { // a low block in the model, a full wall when you stand beside it
             const h = indoor ? lv.ceilH : clamp(a.src.height || 3, 2.2, 5);
             a.topH = h;
-            g.prism(a.ring, a.holes, lf, 0, lf, 0, cRoom, cRoom, h);
+            g.prism(a.ring, a.holes, lf, 0, lf, 0, cRoom, cRoomSide, h);
             ln.loop(a.ring, lf, .03, h);
-            for (let i = 0; i < a.ring.length; i++) { const p = a.ring[i], q = a.ring[(i + 1) % a.ring.length]; los[li].push([p[0], p[1], q[0], q[1]]); }
+            for (let i = 0; i < a.ring.length; i++) {
+              const p = a.ring[i], q = a.ring[(i + 1) % a.ring.length], l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+              los[li].push([p[0], p[1], q[0], q[1]]);
+              trim(p[0], p[1], q[0], q[1], (q[1] - p[1]) / l, -(q[0] - p[0]) / l, lf, h); // a shop front is a wall too
+            }
           } else if (a.kind === 'platform') {
             a.top = .05;
-            g.prism(a.ring, a.holes, lf, -1.05, lf, .05, shut ? cClosed : cPlat, shut ? cClosed : cPlat);
+            g.prism(a.ring, a.holes, lf, -1.05, lf, .05, shut ? cClosed : cPlat, shut ? cClosed : cPlatSide);
             ln.loop(a.ring, lf, .08);
             a.holes.forEach((h) => ln.loop(h, lf, .08));
             if (under) cg.prism(a.ring, a.holes, lf, 0, lf, lv.ceilH, cCeil, null, 0, true);
@@ -1208,7 +1505,7 @@
                 let run = null;
                 const flush = () => {
                   if (!run) return;
-                  wg.quad([run[0], run[1], lf, 0], [run[2], run[3], lf, 0], [run[2], run[3], lf, lv.ceilH], [run[0], run[1], lf, lv.ceilH], cWall);
+                  wall(run, nx, ny, lf);
                   los[li].push(run);
                   run = null;
                 };
@@ -1279,11 +1576,30 @@
             }
           }
         }
-        const main = addPart(g, ln, li * 10 + 1, { extra: { li, kind: 'level' } });
+        // indoors the light comes from above: panels in the ceiling along the ways through
+        if (indoor) {
+          const seen = new Set();
+          for (const e of flatBy[li]) {
+            const len = Math.hypot(e[2] - e[0], e[3] - e[1]);
+            if (len < 1) continue;
+            const dx = (e[2] - e[0]) / len, dy = (e[3] - e[1]) / len, n = Math.max(1, Math.round(len / 5));
+            for (let k = 0; k < n; k++) {
+              const u = (k + .5) / n, x = e[0] + dx * len * u, y = e[1] + dy * len * u, key = Math.round(x / 4.2) + ':' + Math.round(y / 4.2);
+              if (seen.has(key)) continue;
+              const ar = areaAt(P, li, x, y);
+              if (!ar || ar.kind !== 'floor') continue;
+              seen.add(key);
+              const panel = (hl, hw, yo, c) => { const hx = dx * hl, hy = dy * hl, wx = -dy * hw, wy = dx * hw; lg.quad([x - hx - wx, y - hy - wy, lv.id, yo], [x + hx - wx, y + hy - wy, lv.id, yo], [x + hx + wx, y + hy + wy, lv.id, yo], [x - hx + wx, y - hy + wy, lv.id, yo], c); };
+              panel(1.25, .55, lv.ceilH - .04, cGlow); // the lit patch of ceiling around it
+              panel(.95, .2, lv.ceilH - .07, cLamp);
+            }
+          }
+        }
+        const main = addPart(g, ln, li * 10 + 1, { grid: true, extra: { li, kind: 'level' } });
         main.ceil = main.walls = main.plate = null;
         main.has = g.count() > 0;
         if (cg.count()) {
-          const m = track(new THREE.Mesh(cg.build(SH, true), new THREE.MeshLambertMaterial({ vertexColors: true })));
+          const m = track(new THREE.Mesh(cg.build(SH, false), new THREE.MeshBasicMaterial({ vertexColors: true }))); // its own even tone: a ceiling is not lit by the sky
           m.frustumCulled = false;
           m.visible = false;
           scene.add(m);
@@ -1295,6 +1611,16 @@
           m.visible = false;
           scene.add(m);
           main.walls = m;
+        }
+        for (const [geo, mat, order] of [
+          [shg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), li * 10 + 3],
+          [lg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false }), li * 10 + 4],
+        ]) {
+          if (!geo.count()) { mat.dispose(); continue; }
+          const m = track(new THREE.Mesh(geo.build(SH, false), mat));
+          m.frustumCulled = false; m.visible = false; m.renderOrder = order;
+          scene.add(m);
+          povOnly.push(m);
         }
         // with a route: the plate this floor lies on (only the box around the route)
         if (A.routed && A.levels.has(li)) {
@@ -1310,8 +1636,8 @@
       });
 
       // stairs, escalators, ramps and lifts, grouped by the floors they join (and by whether the route uses them)
-      const col = { stairs: C(T.stairs), riser: mix(T.stairs, [T.tread, .3]), ramp: C(T.ramp), tread: C(T.tread), glass: C(T.glass[0], T.glass[1]), shaft: C(T.shaft[0], T.shaft[1]), cab: C(T.cab) };
-      const shutCol = { stairs: C(T.closed), riser: C(T.closed), ramp: C(T.closed), tread: C(T.closed), glass: C(T.closed, .3), shaft: C(T.closed, .25), cab: C(T.closed) };
+      const col = { stairs: C(T.stairs), riser: C(T.riser), ramp: C(T.ramp), tread: C(T.tread), glass: C(T.glass[0], T.glass[1]), shaft: C(T.shaft[0], T.shaft[1]), cab: C(T.cab), door: C(T.door), frame: C(T.frame), arrow: C(T.safety) };
+      const shutCol = { stairs: C(T.closed), riser: C(T.closed), ramp: C(T.closed), tread: C(T.closed), glass: C(T.closed, .3), shaft: C(T.closed, .25), cab: C(T.closed), door: C(T.closed), frame: C(T.closed), arrow: C(T.closed) };
       const groups = new Map();
       const groupFor = (lo, hi, touched) => {
         const k = lo + ':' + hi + ':' + touched;
@@ -1326,10 +1652,19 @@
           const ls = c.levels.slice().sort((a, b) => a - b);
           const idx = ls.map((l) => P.idxOf(l));
           const G = groupFor(Math.min(...idx), Math.max(...idx), touched);
-          for (const l of ls) G.g.box(c.xy[0], c.xy[1], 1.0, l, 0, l, 2.3, cc.cab);
-          const r = G.g.box(c.xy[0], c.xy[1], 1.3, ls[0], 0, ls[ls.length - 1], 3.1, cc.shaft);
-          for (const p of r) G.ln.seg([p[0], p[1], ls[0], 0], [p[0], p[1], ls[ls.length - 1], 3.1]);
-          G.ln.loop(r, ls[ls.length - 1], 3.1);
+          const faces = new Map(); // the door is on the side of the nearest way past it
+          for (const l of ls) {
+            let best = null;
+            for (const e of edgesBy[P.idxOf(l)]) {
+              if (Math.min(e[0], e[2]) > c.xy[0] + 14 || Math.max(e[0], e[2]) < c.xy[0] - 14 || Math.min(e[1], e[3]) > c.xy[1] + 14 || Math.max(e[1], e[3]) < c.xy[1] - 14) continue;
+              const n = nearestOn([[e[0], e[1]], [e[2], e[3]]], c.xy[0], c.xy[1], false);
+              if (n.d > .6 && (!best || n.d < best.d)) best = n;
+            }
+            const fx = best ? best.x - c.xy[0] : 0, fy = best ? best.y - c.xy[1] : -1;
+            faces.set(l, Math.abs(fx) > Math.abs(fy) ? [Math.sign(fx) || 1, 0] : [0, Math.sign(fy) || -1]);
+          }
+          liftFaces.set(c, faces);
+          addLift(G.g, G.ln, P, c, cc, faces);
         } else if (c.line && c.line.length > 1) {
           const ls = c.line.map((p) => p[2]);
           const br0 = P.bracket(Math.min(...ls)), br1 = P.bracket(Math.max(...ls));
@@ -1347,7 +1682,7 @@
       {
         const G = { solid: [new Geo(), new Geo()], roof: [new Geo(), new Geo()], glass: [new Geo(), new Geo()] };
         const fg = new Geo(), fl = new Geo();
-        const c = C(T.shell);
+        const cTop = C(T.shell), cs2 = C(T.shellSide), cGlass = C(T.glass[0]);
         const kindOf = (s) => (/glass|canopy|baldachin/i.test((s.kind || '') + ' ' + (s.name || '')) ? 'glass' : /roof/i.test(s.kind || '') ? 'roof' : 'solid');
         for (const s of model.shell || []) {
           const ring = cleanRing(s.ring, true);
@@ -1355,15 +1690,16 @@
           const holes = (s.holes || []).map((h) => cleanRing(h, false)).filter(Boolean);
           const base = s.base || 0, top = s.top == null ? base + 4 : s.top;
           const fi = P.floorOfZ(base), lf = P.levels[fi].id, y0 = base - P.levels[fi].z;
-          const [g, ln] = G[kindOf(s)];
+          const kd = kindOf(s), [g, ln] = G[kd];
+          const c = kd === 'glass' ? cGlass : cTop;
           if (s.kind === 'building') { // lower in the model view than in reality
             const h = clamp(top - base, 3, 45);
-            g.prism(ring, holes, lf, y0, lf, y0, c, c, h);
+            g.prism(ring, holes, lf, y0, lf, y0, c, cs2, h);
             ln.loop(ring, lf, y0, h);
             if (A.routed && A.levels.has(fi) && y0 < 2.5) fl.loop(ring, lf, Math.max(y0, PLATE_TOP + .05));
           } else {
             const y1 = y0 + (top - base);
-            g.prism(ring, holes, lf, y0, lf, y1, c, top - base > 1.2 ? c : null);
+            g.prism(ring, holes, lf, y0, lf, y1, c, top - base > 1.2 ? cs2 : null);
             g.prism(ring, holes, lf, y0, lf, y0, c, null, 0, true); // seen from below
             ln.loop(ring, lf, y1);
             if (top - base <= 1.2) ln.loop(ring, lf, y0);
@@ -1376,7 +1712,8 @@
           let zmin = Infinity;
           for (let i = 2; i < pos.length; i += 3) zmin = Math.min(zmin, pos[i]);
           const fi = P.floorOfZ(zmin), lf = P.levels[fi].id, z0 = P.levels[fi].z;
-          const [g, ln] = G[kindOf(m)];
+          const kd = kindOf(m), [g, ln] = G[kd];
+          const c = kd === 'glass' ? cGlass : cTop;
           const vtx = (i) => [pos[i * 3], pos[i * 3 + 1], lf, pos[i * 3 + 2] - z0];
           const seen = new Set();
           for (let i = 0; i + 2 < idx.length; i += 3) {
@@ -1444,6 +1781,7 @@
       shadowDirty = true;
 
       buildRoute();
+      buildGuides();
       buildMarks();
       buildUserDisc();
       buildStreetView(groundLi);
@@ -1459,8 +1797,81 @@
         if (l.walls) l.walls.visible = inside;
       }
       for (const o of povOnly) o.visible = inside;
-      for (const s of shellParts) s.gain = pov ? (s.shell === 'glass' ? .2 : s.shell === 'roof' ? .5 : .92) : T.shellAlpha;
+      for (const s of shellParts) s.gain = pov ? (s.shell === 'glass' ? .34 : s.shell === 'roof' ? .6 : .96) : T.shellAlpha;
       shadowDirty = true;
+    }
+
+    // ----- what you must take next, as an object -----
+    // Every staircase, escalator, ramp and lift of the route, and every named doorway it goes through, has a second
+    // skin in the route's blue with a landing on the floor before it. Only the one of the step you are on and of the
+    // step after it is shown (from above: of the step that is selected), so it cannot be mistaken for another.
+    function buildGuides() {
+      guides = []; activeGuide = null;
+      if (!A.routed || A.same) return;
+      const C = (hex, a) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b, a == null ? 1 : a]; };
+      const blue = { stairs: C(T.route), riser: C(T.casing), ramp: C(T.route, .9), tread: C(T.route), glass: C(T.glow, .3), shaft: C(T.glow, .2), cab: C(T.route), door: C(T.route), frame: C(T.casing), arrow: C('#ffffff') };
+      const rp = route.points;
+      const add = (g, ln, o) => {
+        const mesh = track(new THREE.Mesh(g.build(SH, false), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })));
+        const lines = track(new THREE.LineSegments(ln.build(SH, false), new THREE.LineBasicMaterial({ color: T.glow, transparent: true, opacity: .95, depthWrite: false })));
+        for (const m of [mesh, lines]) { m.frustumCulled = false; m.visible = false; m.renderOrder = 590; scene.add(m); }
+        guides.push(Object.assign({ mesh, lines, lift: 3 }, o));
+      };
+      const dirAt = (i) => { // the way the route runs where it reaches point i
+        for (let k = i; k > 0; k--) { const a = rp[k - 1], b = rp[k], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > .3) return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; }
+        for (let k = i; k < rp.length - 1; k++) { const a = rp[k], b = rp[k + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > .3) return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; }
+        return [1, 0];
+      };
+      const pad = (g, p, d, w) => { // a landing on the floor in front of it, fading back along the way you come
+        const px = -d[1], py = d[0], hw = w / 2, L = 3.2;
+        g.quadGrad([p[0] - px * hw, p[1] - py * hw, p[2], .04], [p[0] + px * hw, p[1] + py * hw, p[2], .04],
+          [p[0] + px * hw - d[0] * L, p[1] + py * hw - d[1] * L, p[2], .04], [p[0] - px * hw - d[0] * L, p[1] - py * hw - d[1] * L, p[2], .04], C(T.glow, .6), C(T.glow, 0));
+      };
+      route.steps.forEach((st, i) => {
+        if (st.kind === 'walk' || st.kind === 'arrive') return;
+        let c = null;
+        for (let k = st.from; k < st.to && !c; k++) c = A.segConn[k] || null;
+        const g = new Geo(), ln = new Geo(), p0 = rp[st.from], d = dirAt(st.from);
+        if (c && c.kind === 'elevator') addLift(g, ln, P, c, blue, liftFaces.get(c));
+        else if (c) addConnector(g, ln, P, c, blue, true);
+        if (Math.abs(p0[2] - P.near(p0[2])) < .3) pad(g, p0, d, c && c.width ? clamp(c.width, 1.6, 6) + .8 : 3);
+        const up = st.dir === 'up' || (st.dir == null && st.toLevel > st.level);
+        add(g, ln, {
+          kind: st.kind, step: i, entry: p0, along0: R.A[st.from], along1: R.A[Math.min(st.to, R.A.length - 1)], icon: st.kind,
+          title: `${CONN_WORD[st.kind] || 'Way'}${st.toLevel != null && st.toLevel !== st.level ? (up ? ' up' : ' down') : ''}`, sub: st.place ? placeName(st.place) : '',
+        });
+      });
+      // doorways: the named ways in and out that the route goes through
+      for (const e of model.entrances || []) {
+        if (!e.xy || !e.name) continue;
+        let bi = -1, bd = 4.5;
+        rp.forEach((p, i) => { const dd = Math.hypot(p[0] - e.xy[0], p[1] - e.xy[1]); if (Math.abs(p[2] - (e.level || 0)) < .35 && dd < bd) { bd = dd; bi = i; } });
+        if (bi < 0) continue;
+        const p = rp[bi], d = dirAt(Math.max(1, bi)), px = -d[1], py = d[0], g = new Geo(), ln = new Geo();
+        const hgt = 3, hw = 1.9, cB = C(T.route), cD = C(T.casing);
+        for (const s of [-1, 1]) g.block(p[0] + px * hw * s, p[1] + py * hw * s, px, py, .3, .3, p[2], 0, hgt, cB, cD);
+        g.block(p[0], p[1], px, py, hw * 2 + .3, .3, p[2], hgt - .3, hgt, cB, cD);
+        pad(g, p, d, hw * 2);
+        const inAt = (q) => { const a = q && areaAt(P, P.idxOf(q[2]), q[0], q[1]); return !!a && a.kind === 'floor'; };
+        const was = inAt(rp[Math.max(0, bi - 2)]), will = inAt(rp[Math.min(rp.length - 1, bi + 2)]);
+        let stepI = -1;
+        route.steps.forEach((st, i) => { if (stepI < 0 && st.kind !== 'arrive' && bi >= st.from && bi <= st.to) stepI = i; });
+        if (stepI < 0) continue;
+        add(g, ln, { kind: 'portal', step: stepI, entry: p, along0: R.A[bi], along1: R.A[bi], icon: 'door', title: was && !will ? 'Way out' : !was && will ? 'Way in' : 'Through', sub: e.name });
+      }
+      guides.sort((a, b) => a.along0 - b.along0);
+    }
+    function syncGuides() {
+      activeGuide = null; povArriving = false;
+      const fpv = pov && !pv.free && A.routed && !A.same && !!R;
+      const cs = fpv ? stepAtPi(piAt(pv.along)) : sel;
+      for (const gd of guides) {
+        const on = fpv ? (gd.step === cs || gd.step === cs + 1) && gd.along1 >= pv.along - 2 : !pov && sel >= 0 && gd.step === sel;
+        if (gd.mesh.visible !== on) gd.mesh.visible = gd.lines.visible = on;
+        if (on) gd.mesh.material.opacity = fpv && gd.kind !== 'portal' && pv.along > gd.along0 + .5 ? .28 : 1;
+        if (on && fpv && !activeGuide) activeGuide = gd;
+      }
+      if (fpv) { const st = route.steps; povArriving = st[cs].kind === 'arrive' || (!!st[cs + 1] && st[cs + 1].kind === 'arrive'); }
     }
 
     // ----- marks on the floors: the destination, closed things, sectors -----
@@ -1513,7 +1924,7 @@
       const spans = (model.sectorSpans || []).filter((s) => pkey(s.ref) === k && s.a && s.b && nearestOn(area.ring, (s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2, true).d < 7);
       if (!spans.length) return;
       const g = new Geo();
-      const c = [new THREE.Color(T.band[0]), new THREE.Color(T.band[1])], cb = new THREE.Color(WALK);
+      const c = [new THREE.Color(T.band[0]), new THREE.Color(T.band[1])], cb = new THREE.Color(T.route);
       spans.forEach((s, i) => {
         const l = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) || 1, nx = -(s.b[1] - s.a[1]) / l, ny = (s.b[0] - s.a[0]) / l;
         const mx = (s.a[0] + s.b[0]) / 2, my = (s.a[1] + s.b[1]) / 2;
@@ -1531,17 +1942,17 @@
         const to = endInfo(toEnd, 'to'), from = endInfo(fromEnd, 'from');
         const d = endArea('to'), s = endArea('from');
         if (d && !to.closed && !isClosed(d.src)) {
-          highlight(d, WALK, theme === 'dark' ? .3 : .42);
+          highlight(d, T.route, theme === 'dark' ? .3 : .2); // the platform you are going to: a blue wash
           const lines = to.ref ? edgeLines(d, to.ref) : null;
-          if (lines) stripe(lines, d, WALK, .95, 1.0, .1); // the edge your train leaves from
+          if (lines) stripe(lines, d, T.route, .95, 1.1, .1); // the edge your train leaves from: a blue band
         }
         if (s && from.ref && ride) sectorBands(s, from.ref, ride.pick);
         if (d && to.ref && d !== s && !to.closed) sectorBands(d, to.ref, to.sector && to.sector.length === 1 ? to.sector : null);
       } else if (focus && focus.hit && focus.hit.area && focus.hit.area.kind !== 'plaza' && !isClosed(focus.hit.area.src)) {
-        pickHl = highlight(focus.hit.area, WALK, theme === 'dark' ? .45 : .55);
+        pickHl = highlight(focus.hit.area, T.route, theme === 'dark' ? .38 : .26);
         const ref = focus.hit.stop && focus.hit.stop.ref;
         const lines = ref && focus.hit.area.kind === 'platform' ? edgeLines(focus.hit.area, ref) : null;
-        if (lines) stripe(lines, focus.hit.area, WALK, .95, 1.0, .1);
+        if (lines) stripe(lines, focus.hit.area, T.route, .95, 1.1, .1);
       }
     }
 
@@ -1559,7 +1970,7 @@
         const c = new THREE.Color(T.ground);
         g.quad([x0 - m, y0 - m, lf, yo], [x1 + m, y0 - m, lf, yo], [x1 + m, y1 + m, lf, yo], [x0 - m, y1 + m, lf, yo], [c.r, c.g, c.b, 1]);
         const mesh = track(new THREE.Mesh(g.build(SH, true), new THREE.MeshLambertMaterial({ vertexColors: true })));
-        mesh.frustumCulled = false; mesh.renderOrder = -5; mesh.receiveShadow = true; mesh.visible = false;
+        mesh.frustumCulled = false; mesh.renderOrder = -5; mesh.receiveShadow = true; mesh.visible = false; mesh.userData.ground = true;
         scene.add(mesh);
         povOnly.push(mesh);
       }
@@ -1812,7 +2223,7 @@
             g.fillStyle = dark ? '#f1f2f4' : '#1d2026'; fit(text, Wd - 36, 50, 600); g.fillText(text, cx, cy + 2);
           } else if (style === 'stop') {
             g.fillStyle = INK; rr(X, Y, Wd, CH, 12); g.fill();
-            g.fillStyle = WALK; g.fillRect(X, Y + CH - 13, Wd, 13);
+            g.fillStyle = T.route; g.fillRect(X, Y + CH - 13, Wd, 13);
             g.fillStyle = '#fff'; fit(text, Wd - 22, 60, 800); g.fillText(text, cx, cy - 3);
           } else if (style === 'meet') {
             g.fillStyle = SIGN_BLUE; g.fillRect(X, Y, Wd, CH);
@@ -1912,7 +2323,19 @@
     function buildRoute() {
       R = null;
       if (!A.routed) return;
-      const sm = smoothPath(route.points);
+      let sm = smoothPath(route.points);
+      if (DT.h) { // inside a detail scene the line lies on the real ground and steps over kerbs: it needs close points to bend there
+        const b = DT.entry.bbox, out = [];
+        for (let j = 0; j < sm.length; j++) {
+          const a = sm[j], c = sm[j + 1];
+          out.push(a);
+          if (!c || Math.abs(c.l - a.l) > 1e-6 || !(inBB(b, a.x, a.y, HOLE_RAMP + 1) || inBB(b, c.x, c.y, HOLE_RAMP + 1))) continue;
+          const n = Math.min(500, Math.floor(Math.hypot(c.x - a.x, c.y - a.y) / .28));
+          for (let k = 1; k <= n; k++) { const t = k / (n + 1); out.push({ x: lerp(a.x, c.x, t), y: lerp(a.y, c.y, t), l: a.l, o: -1 }); }
+        }
+        sm = out;
+        for (const p of sm) p.g = liftRaw(p.x, p.y, p.l);
+      }
       const m = sm.length, K = 10;
       const D = new Float32Array(m);
       const Dorig = new Float32Array(route.points.length);
@@ -1956,15 +2379,15 @@
         uPx: { value: .01 }, uRmin: { value: .5 }, uA0: { value: -1 }, uA1: { value: 1e9 }, uThin: { value: .7 },
         uInk: { value: col(T.chevron) }, uDim: { value: col(T.dim) }, uDone: { value: col(T.done) },
         uProg: { value: -1 }, uGrow: { value: 1e9 }, uSpacing: { value: 8 }, uPhase: { value: 0 },
-        uSquash: { value: 1 }, uFogN: { value: 1e8 }, uFogF: { value: 1e9 },
+        uSquash: { value: 1 }, uNear: { value: 1 }, uFogN: { value: 1e8 }, uFogF: { value: 1e9 },
       };
       const make = (extra, o) => new THREE.ShaderMaterial(Object.assign({
         uniforms: Object.assign({}, shared, extra), vertexShader: ROUTE_VERT, fragmentShader: ROUTE_FRAG, transparent: true,
       }, o));
       const mats = [
-        make({ uCol: { value: col(T.casing) }, uScale: { value: 1.36 }, uAlpha: { value: 1 }, uFlat: { value: 1 } }, { side: THREE.BackSide }),
+        make({ uCol: { value: col(T.casing) }, uScale: { value: 1.3 }, uAlpha: { value: 1 }, uFlat: { value: 1 } }, { side: THREE.BackSide }),
         make({ uCol: { value: col(T.route) }, uScale: { value: 1 }, uAlpha: { value: 1 }, uFlat: { value: 0 } }, {}),
-        make({ uCol: { value: col(T.route) }, uScale: { value: 1 }, uAlpha: { value: .7 }, uFlat: { value: 0 } }, { depthFunc: THREE.GreaterDepth, depthWrite: false }),
+        make({ uCol: { value: col(T.route) }, uScale: { value: 1 }, uAlpha: { value: .42 }, uFlat: { value: 0 } }, { depthFunc: THREE.GreaterDepth, depthWrite: false }),
       ];
       const meshes = mats.map((mat, i) => {
         const mesh = track(new THREE.Mesh(geo, mat));
@@ -1988,7 +2411,7 @@
       const { sm, K, geo } = R, m = sm.length;
       const pos = geo.attributes.position.array, rad = geo.attributes.aRad.array, tan = geo.attributes.aTan.array;
       const ys = new Float32Array(m);
-      for (let j = 0; j < m; j++) ys[j] = Yc(sm[j].l);
+      for (let j = 0; j < m; j++) ys[j] = Yc(sm[j].l) + (DT.show ? sm[j].g || 0 : 0);
       let bx = 1, by = 0, bz = 0, tx = 1, ty = 0, tz = 0;
       for (let j = 0; j < m; j++) {
         const a = Math.max(0, j - 1), b = Math.min(m - 1, j + 1);
@@ -2091,6 +2514,7 @@
       }
       for (const h of hl) stretch(h.mesh.geometry, SH, finish);
       for (const o of povOnly) if (o.geometry && o.geometry.userData && o.geometry.userData.lk) stretch(o.geometry, SH, finish);
+      for (const gd of guides) { stretch(gd.mesh.geometry, SH, finish); stretch(gd.lines.geometry, SH, finish); }
       placeInst();
       routeFrames();
       shadowDirty = true;
@@ -2136,8 +2560,8 @@
       const e = povT;
       if (e > 0) {
         const b = pv.device ? pv.dB : pv.bearing + pv.yaw;
-        const ph = clamp(pv.device ? pv.dP : pv.pitch + pv.slope - .1, -1.25, 1.25);
-        camB.position.set(pv.x, Yc(pv.level) + EYE, -pv.y);
+        const ph = clamp(pv.device ? pv.dP : pv.pitch + pv.slope - lerp(.1, .015, DT.k), -1.25, 1.25); // in a detail scene the eye looks up from the floor: the place is the point
+        camB.position.set(pv.x, Yc(pv.level) + EYE + detailLift(pv.x, pv.y, pv.level), -pv.y);
         v3.set(Math.sin(b) * Math.cos(ph), Math.sin(ph), -Math.cos(b) * Math.cos(ph)).add(camB.position);
         camB.lookAt(v3);
         camera.position.lerp(camB.position, e);
@@ -2148,8 +2572,8 @@
       camera.far = lerp(cam.dist + P.diag * 3 + 400, 700, e);
       camera.updateProjectionMatrix();
       const f = Math.pow(e, 3);
-      fog.near = lerp(1e6, 30, f);
-      fog.far = lerp(1e7, 230, f);
+      fog.near = lerp(1e6, lerp(42, 95, DT.k), f); // depth reads, but a wall 40 m away is still a wall;
+      fog.far = lerp(1e7, lerp(320, 800, DT.k), f); // in a detail scene the houses across the square stay clear
     }
     const focal = () => H / (2 * Math.tan(FOV * Math.PI / 360));
     // The pose (looking from az / pol) that just fits the points into the free part of the screen
@@ -2351,6 +2775,8 @@
         if (st.toLevel != null) for (const i of P.bracket(st.toLevel)) active.add(i);
       } else if (isolate != null) active.add(isolate);
       levelLabels.forEach((L) => L.el.classList.toggle('s3-active', active.has(L.li)));
+      syncGuides();
+      syncDetail();
       request();
     }
     function applyOpacity() {
@@ -2360,14 +2786,14 @@
         const solid = m.opacity >= .45 && !p.ghost;
         if (m.depthWrite !== solid) { m.depthWrite = solid; shadowDirty = true; }
         p.mesh.castShadow = solid;
-        p.lines.visible = p.op > .01;
-        p.mesh.visible = p.op * p.gain > .008;
+        p.lines.visible = p.op > .01 && !p.cut;
+        p.mesh.visible = p.op * p.gain > .008 && !p.cut; // cut: a detail scene stands in its place
         p.lines.material.opacity = p.ghost ? p.lineBase * p.op * (p.kind === 'shell' ? Math.min(1, p.gain / T.shellAlpha) : 1) : p.lineBase * (.3 + .7 * p.op) * (p.op < .5 ? 1.3 : 1);
       }
       hl.forEach((h) => {
         const o = lv3[h.li].op;
         if (h.uniform) h.mesh.material.uniforms.uAlpha.value = h.base * o; else h.mesh.material.opacity = h.base * o;
-        h.mesh.visible = o > .3;
+        h.mesh.visible = o > .3 && !lv3[h.li].cut;
       });
     }
     function stepOpacity(dt) {
@@ -2414,7 +2840,7 @@
           opts.povAt = null;
           const pt = pointAt(piAt(pv.along));
           pv.x = pv.tx = pt[0]; pv.y = pv.ty = pt[1]; pv.level = pv.tl = pt[2];
-          const q = pointAt(piAt(Math.min(R.A[R.A.length - 1], pv.along + 4)));
+          const q = pointAt(piAt(Math.min(R.A[R.A.length - 1], pv.along + 6.5)));
           pv.bearing = pv.tb = Math.hypot(q[0] - pt[0], q[1] - pt[1]) > .3 ? Math.atan2(q[0] - pt[0], q[1] - pt[1]) : -cam.az;
         } else {
           pv.free = true;
@@ -2448,6 +2874,8 @@
         if (t >= 1) { povT = povAnim.to; povAnim = null; povScene(); }
         busy = true;
       }
+      if (DT.entry) { ensureDetail(); syncDetail(); }
+      { const kt = DT.show && pov && inBB(DT.entry.bbox, pv.x, pv.y, 4) ? 1 : 0; if (DT.k !== kt) { DT.k += (kt - DT.k) * (reducedMotion() ? 1 : 1 - Math.exp(-dt / 500)); if (Math.abs(kt - DT.k) < .01) DT.k = kt; else busy = true; } }
       if (!pov) return busy;
       const k = (tau) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
       if (!pv.free && A.routed) {
@@ -2460,13 +2888,14 @@
           busy = true;
         }
         const pi = piAt(pv.along), pt = pointAt(pi);
-        const q = pointAt(piAt(Math.min(total, pv.along + 4)));
+        const q = pointAt(piAt(Math.min(total, pv.along + 6.5)));
         const dh = Math.hypot(q[0] - pt[0], q[1] - pt[1]);
         if (dh > .3) pv.tb = Math.atan2(q[0] - pt[0], q[1] - pt[1]);
         pv.slope = lerp(pv.slope, Math.atan2(P.zOf(q[2]) - P.zOf(pt[2]), Math.max(2, dh)) * .55, k(300));
         pv.tx = pt[0]; pv.ty = pt[1]; pv.tl = pt[2];
         const cs = stepAtPi(pi);
         if (cs !== sel) select(cs, { fromPov: true });
+        syncGuides();
       } else if (follow && userHere()) { pv.tx = user.sx; pv.ty = user.sy; pv.tl = user.sl; }
       const kk = k(140);
       pv.x += (pv.tx - pv.x) * kk; pv.y += (pv.ty - pv.y) * kk; pv.level += (pv.tl - pv.level) * kk;
@@ -2491,8 +2920,7 @@
     // on the card) and, under it, what comes after and how far that is.
     function updateHud() {
       const routed = !pv.free && A.routed;
-      hudEl.hidden = !routed;
-      miniEl.hidden = !routed;
+      if (hudEl.hidden !== !routed) { hudEl.hidden = !routed; miniEl.hidden = !routed; layout(); } // labels keep clear of both
       if (!routed) { subEl.textContent = `${levelName(pv.level)} · tap the floor to walk there`; return; }
       const total = R.A[R.A.length - 1], pi = piAt(pv.along), cs = stepAtPi(pi), st = route.steps[cs], n = route.steps.length;
       const next = route.steps[cs + 1];
@@ -2509,6 +2937,7 @@
         const line = hudEl.querySelector(':scope > div > span');
         line.textContent = then;
         line.hidden = !then;
+        root.style.setProperty('--s3-hud-h', hudEl.offsetHeight + 'px');
         subEl.textContent = `${placeAt(st)} · step ${cs + 1} of ${n} · ${togo < 4 ? 'there' : fmtM(togo) + ' to go'}`;
       }
       if (scrubEl && document.activeElement !== scrubEl) scrubEl.value = pv.along;
@@ -2540,8 +2969,8 @@
         g.lineWidth = width; g.strokeStyle = color; g.stroke();
       };
       stroke(false, 2.2, theme === 'dark' ? 'rgba(255,255,255,.28)' : 'rgba(20,22,26,.22)');
-      stroke(true, 5.2, theme === 'dark' ? '#0B0D10' : INK);
-      stroke(true, 3.4, WALK);
+      stroke(true, 4.6, T.casing);
+      stroke(true, 3, T.route);
       const e = rp[rp.length - 1];
       g.fillStyle = theme === 'dark' ? '#F2F3F5' : INK;
       g.beginPath(); g.arc(e[0], e[1], 3.2, 0, Math.PI * 2); g.fill();
@@ -2673,17 +3102,21 @@
       applyCam();
       if (R) {
         const px = 2 * Math.tan(camera.fov * Math.PI / 360) / H, e = povT;
-        const half = lerp(4.6, 2.2, e);
+        // from above: a line of fixed width on screen. Standing on it: a band about a metre wide on the floor, which
+        // narrows with distance as a real one would (and never below a hair's width)
+        const half = lerp(3.1, 1.1, e);
         R.U.uPx.value = half * px;
-        R.U.uRmin.value = lerp(.5, .17, e);
-        R.U.uSquash.value = lerp(1, .14, e);
+        R.U.uRmin.value = lerp(.36, .33, e);
+        R.U.uNear.value = lerp(1, .45, e);
+        R.U.uSquash.value = lerp(1, .1, e);
         R.U.uFogN.value = fog.near; R.U.uFogF.value = fog.far * .9;
         const r = Math.max(R.U.uRmin.value, half * px * cam.dist);
-        R.U.uSpacing.value = e > .5 ? 2 : 2 * Math.pow(2, Math.round(Math.log2(Math.max(1, r * 9) / 2)));
+        R.U.uSpacing.value = e > .5 ? 3.2 : 2 * Math.pow(2, Math.round(Math.log2(Math.max(1, r * 9) / 2)));
       }
       if (!fogCol.a) { fogCol.a = new THREE.Color(); fogCol.b = new THREE.Color(); }
       fogCol.a.set(T.fogOut); fogCol.b.set(T.fogIn);
       fog.color.copy(fogCol.a).lerp(fogCol.b, indoorT);
+      gridU.value = povT > .5 ? (theme === 'dark' ? .3 : .13) : 0;
       if (R && R.meshes[2]) R.meshes[2].visible = !A.same && povT < .5; // seen through floors from above, never through walls when you stand inside
       if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
       renderer.render(scene, camera);
@@ -2698,7 +3131,7 @@
     let userLabel = null, safe = { x0: 0, y0: 0, x1: 1, y1: 1 }, avoid = [];
     function clearLabels() {
       labelsEl.textContent = '';
-      labels = []; levelLabels = []; tip = null; userLabel = null;
+      labels = []; levelLabels = []; tip = null; userLabel = null; beacon = null;
     }
     function addLabel(el, o) {
       el.classList.add('s3-l', 's3-off');
@@ -2709,7 +3142,7 @@
       return L;
     }
     function project(x, y, level, lift) {
-      v3.set(x, Yc(level) + (lift || 0), -y).project(camera);
+      v3.set(x, Yc(level) + (lift || 0) + detailLift(x, y, level), -y).project(camera);
       if (v3.z < -1 || v3.z > 1) return null;
       return [(v3.x * .5 + .5) * W, (-v3.y * .5 + .5) * H];
     }
@@ -2935,6 +3368,12 @@
           addLabel(b, { kind: 'via', step: i, x: p[0], y: p[1], level: p[2], lift: 3.2, prio: 90, always: true, alts: [[0, -30], [0, 30], [40, 0], [-40, 0], [0, -58], [64, -24], [-64, -24], [0, 58], [70, 20], [-70, 20]] });
         });
       }
+      if (routed && !A.same) {
+        const b = mk('div', 's3-beacon');
+        b.innerHTML = '<span class="s3-beacon-ico"></span><div><b></b><small></small></div><i class="s3-arrow"></i>';
+        b.setAttribute('aria-hidden', 'true');
+        beacon = addLabel(b, { kind: 'beacon', prio: 97, always: true, yield: false });
+      }
       tip = addLabel(mk('div', 's3-tip'), { kind: 'tip', prio: 98, always: true, on: false, ax: .5, ay: 1.25, yield: false, block: false, keepIn: true });
       const u = mk('div', 's3-user');
       u.append(mk('i'));
@@ -3011,7 +3450,8 @@
       const clear = (x0, y0, x1, y1) => { for (const h of hits) if (x0 < h[2] && x1 > h[0] && y0 < h[3] && y1 > h[1]) return false; return true; };
       for (const L of labels) {
         let show = L.on !== false, x0 = 0, y0 = 0, pinned = false;
-        if (show && fp && (L.kind === 'level' || L.kind === 'start' || L.kind === 'ent')) show = false;
+        if (show && fp && (L.kind === 'level' || L.kind === 'start' || L.kind === 'ent' || L.kind === 'via')) show = false;
+        if (show && fp && L.kind === 'sign' && Math.abs(L.level - pv.level) > .7) show = false; // it is on another floor
         if (show && L.kind === 'level') {
           show = false;
           if (L.want) for (const s of L.cands) { // the leftmost corner of its plate that is free
@@ -3036,6 +3476,42 @@
               }
             }
           }
+        } else if (show && L.kind === 'beacon') {
+          const gd = fp ? activeGuide : null;
+          show = !!gd;
+          if (show) {
+            const left = Math.max(0, gd.along0 - pv.along);
+            const key = gd.step + ':' + gd.kind + ':' + Math.round(left / 5);
+            if (L.key !== key) {
+              L.key = key;
+              L.el.querySelector('.s3-beacon-ico').innerHTML = svg(gd.icon);
+              L.el.querySelector('b').textContent = gd.title;
+              L.el.querySelector('small').textContent = [gd.sub, left < 4 ? 'here' : fmtM(left)].filter(Boolean).join(' · ');
+              L.w = L.el.offsetWidth; L.h = L.el.offsetHeight;
+            }
+            v3.set(gd.entry[0], Yc(gd.entry[2]) + gd.lift, -gd.entry[1]).applyMatrix4(camera.matrixWorldInverse);
+            const behind = v3.z > -.4;
+            let sx, sy;
+            if (behind) { sx = v3.x < 0 ? -1e5 : 1e5; sy = H * .42; }
+            else { v3.applyMatrix4(camera.projectionMatrix); sx = (v3.x * .5 + .5) * W; sy = (-v3.y * .5 + .5) * H; }
+            x0 = sx - L.w / 2; y0 = sy - L.h - 11;
+            let cx = clamp(x0, safe.x0, safe.x1 - L.w), cy = clamp(y0, safe.y0, safe.y1 - L.h);
+            pinned = behind || Math.abs(cx - x0) > 2 || Math.abs(cy - y0) > 2;
+            const offCtl = (ax, ay) => { for (const h of avoid) if (ax < h[2] && ax + L.w > h[0] && ay < h[3] && ay + L.h > h[1]) return false; return true; };
+            if (!offCtl(cx, cy)) {
+              find: for (let k = 1; k <= 12; k++) for (const [dx, dy] of [[0, k * 16], [-k * 16, 0], [k * 16, 0]]) {
+                const ax = clamp(cx + dx, safe.x0, safe.x1 - L.w), ay = clamp(cy + dy, safe.y0, safe.y1 - L.h);
+                if (offCtl(ax, ay)) { cx = ax; cy = ay; pinned = true; break find; }
+              }
+            }
+            x0 = cx; y0 = cy;
+            if (pinned !== L.pinned) { L.pinned = pinned; L.el.classList.toggle('s3-pinned', pinned); }
+            if (pinned) { // the arrow sits on the rim of the pill, on the side the thing is
+              const ang = Math.atan2(sx - (x0 + L.w / 2), -(sy + 11 - (y0 + L.h / 2))), s = Math.abs(Math.sin(ang)), c = Math.abs(Math.cos(ang));
+              L.el.style.setProperty('--s3-to', (ang * 180 / Math.PI).toFixed(0) + 'deg');
+              L.el.style.setProperty('--s3-r', Math.round(Math.min(s > .01 ? L.w / 2 / s : 1e4, c > .01 ? L.h / 2 / c : 1e4) + 12) + 'px');
+            }
+          }
         } else if (show) {
           if (!L.always && L.li >= 0 && vis(L.li) < .5) show = false;
           if (show && !fp && L.minPpm && ppm < L.minPpm) show = false;
@@ -3043,7 +3519,8 @@
           if (show && fp) {
             const far = Math.hypot(L.x - pv.x, L.y - pv.y) > (REACH[L.kind] || 60);
             const other = L.kind !== 'via' && L.kind !== 'sign' && L.kind !== 'tip' && Math.abs(L.level - pv.level) > .7;
-            if (far || other || (L.kind !== 'tip' && hiddenFromEye(L.x, L.y, L.level))) show = false;
+            const nextUp = L.kind === 'sign' && povArriving; // where you are going next is shown even round a corner
+            if (far || other || (L.kind !== 'tip' && !nextUp && hiddenFromEye(L.x, L.y, L.level))) show = false;
           }
           let s = null;
           if (show) {
@@ -3071,7 +3548,7 @@
               // kept on screen: beside its place when that is in view, else on the edge with an arrow towards it
               let cx = clamp(x0, safe.x0, safe.x1 - L.w), cy = clamp(y0, safe.y0, safe.y1 - L.h);
               pinned = !inside && (Math.abs(cx - x0) > 1 || Math.abs(cy - y0) > 1);
-              if (fp && pinned) show = false;
+              if (fp && pinned && !(L.kind === 'sign' && povArriving)) show = false; // the destination stays in sight when it is next
               const offCtl = (ax, ay) => { for (const h of avoid) if (ax < h[2] && ax + L.w > h[0] && ay < h[3] && ay + L.h > h[1]) return false; return true; };
               if (!pinned && !offCtl(cx, cy)) { // its place is on screen but under a control: step aside, and point back at it
                 side: for (let k = 1; k <= 8; k++) for (const [dx, dy] of [[-k * 16, 0], [k * 16, 0], [0, k * 16], [0, -k * 16]]) {
@@ -3315,7 +3792,7 @@
       labels.forEach((L) => { if (L.kind === 'stop') L.el.classList.toggle('s3-picked', !!hit.stop && L.stop === hit.stop); });
       if (!A.routed) {
         dropHighlight(pickHl);
-        pickHl = hit.area && hit.area.kind !== 'plaza' && !d.closed ? highlight(hit.area, WALK, .55) : null;
+        pickHl = hit.area && hit.area.kind !== 'plaza' && !d.closed ? highlight(hit.area, T.route, theme === 'dark' ? .38 : .26) : null;
         applyOpacity();
         fillExplore(d);
       } else {
@@ -3500,7 +3977,7 @@
       if (A.routed && A.same) { subEl.textContent = route.steps[0] ? route.steps[0].text : 'You are there'; return; }
       if (A.routed) {
         const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
-        subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowerFirst(to.name) : to.name} · ${fmtMin(route.seconds)}`;
+        subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowName(to) : to.name} · ${fmtMin(route.seconds)}`;
       } else if (focus && focus.hit) subEl.textContent = describe(focus.hit).sub;
       else subEl.textContent = 'Station plan in 3D';
     }
@@ -3570,7 +4047,7 @@
     function arriveTitle(inSentence) {
       const to = endInfo(toEnd, 'to');
       if (route.incomplete) return inSentence ? 'the route ends: the way on is closed' : 'The route ends here: the way on is closed';
-      const name = to.kind === 'stop' ? lowerFirst(to.name) : to.name;
+      const name = to.kind === 'stop' ? lowName(to) : to.name;
       return inSentence ? `arrive at ${name}` : `You’re at ${name}`;
     }
     function arriveLine() {
@@ -3661,7 +4138,7 @@
         if (to.far) c.txt.append(note('info', `The plan ends ${fmtFar(to.dist)} before ${to.name}.`));
         const rb = rideBlock();
         if (rb) c.txt.append(rb);
-        else if (from.assumed && from.kind === 'stop') c.txt.append(note('info', `${cap(from.assumed)} of ${lowerFirst(from.name)}.`));
+        else if (from.assumed && from.kind === 'stop') c.txt.append(note('info', `${cap(from.assumed)} of ${lowName(from)}.`));
         const used = route.notice || '';
         const nb = noticesBlock(stationNotices().filter((nt) => nt.text && !used.includes(nt.text) && !(to.note && to.note === nt.text)));
         if (nb) c.txt.append(nb);
@@ -3673,7 +4150,7 @@
         li.dataset.i = i;
         const climb = st.kind !== 'walk' && st.kind !== 'arrive';
         const arrive = st.kind === 'arrive';
-        const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route.incomplete && to.kind === 'stop' ? `Arrive at ${lowerFirst(to.name)}` : arrive && route.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
+        const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route.incomplete && to.kind === 'stop' ? `Arrive at ${lowName(to)}` : arrive && route.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
         if (arrive) {
           if (to.sector && !to.closed) c.meta.append(tag('s3-tag-sector', null, sectorTag(to.sector)));
           else if (to.reach && !to.closed) c.meta.append(tag('', null, `You get onto it at sector ${to.reach}`));
@@ -3744,7 +4221,7 @@
     function buildSame() {
       const to = endInfo(toEnd, 'to');
       const box = mk('div', 's3-explore');
-      const c = card(to.closed ? 'closed' : 'check', to.closed ? 's3-k-warn' : 's3-k-done', (route.steps[0] && route.steps[0].text) || `You’re at ${lowerFirst(to.name)}`);
+      const c = card(to.closed ? 'closed' : 'check', to.closed ? 's3-k-warn' : 's3-k-done', (route.steps[0] && route.steps[0].text) || `You’re at ${lowName(to)}`);
       c.meta.textContent = /^stay/i.test((route.steps[0] && route.steps[0].text) || '') ? 'No walk: your next departure leaves from the platform you arrive on.' : 'No walk: it is where you already are.';
       if (to.closed) c.txt.append(note('warn', to.note || route.notice || `${cap(to.name)} is closed.`));
       else if (route.notice) c.txt.append(note('warn', route.notice));
@@ -3933,6 +4410,10 @@
       const mkHit = (xy, level, extra) => { const li = P.idxOf(level || 0); return Object.assign({ li, level: P.levels[li].id, xy: [xy[0], xy[1]], area: areaAt(P, li, xy[0], xy[1]) }, extra); };
       if (end.stop) { const s = findStop(end.stop); if (s && s.xy) return mkHit(s.xy, s.level, { stop: s }); }
       if (end.entrance) { const e = (model.entrances || []).find((x) => x.name === end.entrance); if (e && e.xy) return mkHit(e.xy, e.level, { entrance: e }); }
+      // a position the router takes for a stop without a number (stops[].at): that stop, on the level it has here
+      if ((end.xy || end.ll) && router && router.resolve) {
+        try { const c = (router.resolve(model, end, day) || [])[0]; if (c && c.stop && !c.stop.ref && c.stop.xy) return mkHit(c.stop.xy, c.stop.level, { stop: c.stop }); } catch (e) {}
+      }
       let xy = end.xy || (end.ll ? toLocal(model, end.ll) : null), level = end.level;
       if (xy && distOutside(xy) > 40) xy = null;
       if (!xy && router && router.resolve) {
@@ -4117,7 +4598,7 @@
         else { user.sx = tx; user.sy = ty; user.sl = tl; }
       }
       disc.visible = user.mode !== 'manual' && user.acc > 0;
-      disc.position.set(user.sx, Yc(user.sl) + .3, -user.sy);
+      disc.position.set(user.sx, Yc(user.sl) + .3 + detailLift(user.sx, user.sy, user.sl), -user.sy);
       disc.scale.setScalar(Math.max(2.5, user.acc));
       disc.material.opacity = user.mode === 'approx' ? .1 : .16;
       if (follow) {
@@ -4285,6 +4766,8 @@
         if (wasPov) setPov(true);
       }
       syncPov();
+      DT.show = false; DT.bird = false;
+      ensureDetail();
       request();
     }
     function start(m, r) {
@@ -4348,6 +4831,7 @@
       if (opts.follow) setFollow(true);
       if (opts.pov) { setPov(true); if (opts.povYaw != null) pv.yaw = +opts.povYaw * Math.PI / 180; if (opts.povPitch != null) pv.pitch = +opts.povPitch * Math.PI / 180; }
       if (opts.list && stepsEl) toggleList();
+      ensureDetail();
       touch();
       request();
       emit('open', { key: m.key, route, focus: focus ? { which: focus.which, why: focus.why } : null });
@@ -4404,8 +4888,10 @@
         try { root.querySelector('.s3-close').focus({ preventScroll: true }); } catch (e) {}
         const three = loadThree().catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'three' }); });
         const mdl = loadModel(opts.key).catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'model' }); });
-        return Promise.all([three, mdl, loadRouter()]).then(([, m, r]) => {
+        return Promise.all([three, mdl, loadRouter(), loadDetailIndex()]).then(([, m, r, di]) => {
           if (!self.alive) return;
+          DT.entry = (di && (di[opts.key] || di[m.key])) || null;
+          if (DT.entry && !(DT.entry.bbox && DT.entry.bbox.length === 4 && DT.entry.file)) DT.entry = null;
           // from here on a failure is not the connection: it is the model or this code
           try { start(m, r); } catch (e) { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'broken' }); }
         });
@@ -4457,6 +4943,7 @@
       labels: labels.length, shownLabels: labels.filter((l) => l.shown).map((l) => ({ kind: l.kind, text: l.el.textContent, x: Math.round(parseFloat((l.el.style.transform.match(/translate\(([-\d.]+)px/) || [0, 0])[1])), y: Math.round(parseFloat((l.el.style.transform.match(/,\s*([-\d.]+)px/) || [0, 0])[1])), w: l.w, h: l.h, pinned: !!l.pinned })),
       free, safe, avoid, pov, povT, pv: Object.assign({}, pv), listeners: offs.length, lost, inert: inerted.length, compassOn,
       pick, flyTo, request, renderer, rebuild, setPeel, select, project, boxRing, Yc, P,
+      detail: DT.entry ? { loaded: !!DT.data, built: !!DT.h, show: DT.show, bird: DT.bird, k: DT.k, tilt: DT.tilt, stats: DT.h && DT.h.stats ? { triangles: DT.h.stats.triangles, drawCalls: DT.h.stats.drawCalls, buildMs: DT.h.stats.buildMs, warnings: DT.h.stats.warnings } : null, lift: liftRaw, ground: groundOf } : null,
       signs: signList.map((w) => ({ style: w.style, text: w.text, back: w.back, x: Math.round(w.x), y: Math.round(w.y), lf: w.lf })), props: inst ? { boxes: inst.boxes.length, cyls: inst.cyls.length } : null,
       // run every animation to its end and draw (for tests in a tab that gets no animation frames)
       settle: () => {
@@ -4467,6 +4954,7 @@
         if (user && !user.outside && user.sx != null) { user.sx = user.x; user.sy = user.y; user.sl = user.level; if (follow) { cam.tx = user.sx; cam.tl = user.sl; cam.tz = -user.sy; } }
         if (pov) { pv.x = pv.tx; pv.y = pv.ty; pv.level = pv.tl; pv.bearing = pv.tb; }
         indoorT = Math.round(indoorT);
+        DT.k = DT.show && pov && DT.entry && inBB(DT.entry.bbox, pv.x, pv.y, 4) ? 1 : 0;
         grow = null; if (R) R.U.uGrow.value = 1e9;
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
         frame(performance.now() + 5e6);

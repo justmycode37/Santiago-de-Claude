@@ -622,6 +622,20 @@
     }
     if (ep.xy || ep.ll) {
       const xy = ep.xy || toLocal(model, ep.ll);
+      // The point the timetable data has for a stop without a number (stops[].at, within 3 m) is that stop, on the
+      // level the model has it on: the level that comes with such a position is the timetable data's own guess.
+      let at = null, best = 3;
+      for (const s of stops) {
+        if (s.ref || !s.at) continue;
+        const d = Math.hypot(s.at[0] - xy[0], s.at[1] - xy[1]);
+        if (d <= best) { best = d; at = s; }
+      }
+      if (at) {
+        const extra = { stop: at, closedStop: activeOn(at.closed, day) };
+        const ns = stopNodes(P, model, at);
+        if (ns.length) return ns.map((n) => fromNode(n, Object.assign({ onPlatform: ns.length > 1 }, extra)));
+        if (at.xy) return fromXY(at.xy, at.level, extra, false);
+      }
       return fromXY(xy, ep.level != null && isFinite(ep.level) ? +ep.level : null, {});
     }
     return [];
@@ -1009,6 +1023,7 @@
     if (lr === 0 || Math.abs(lv - lr) > 0.15) return null; // whole levels only; level 0 is the obvious one
     const l = levelObj(model, lr);
     if (!l || !l.name || /^level\s*-?\d+$/i.test(l.name.trim())) return null; // "Level 2" says nothing on a walk
+    if (/^(street|ground|track|platform) level$/i.test(l.name.trim())) return null; // nor does "through platform level"
     return placeObj('level', articled(l.name), /(deck|terrace|square|platz|plaza)$/i.test(l.name) ? 'across' : 'through');
   }
 
@@ -1055,6 +1070,8 @@
     }
     if (nextWalk && nextWalk.firstPlatform) return nextWalk.firstPlatform;
     for (const A of list) { const ap = areaPlace(P, A); if (ap) return ap; }
+    // a lift door on the very edge of a floor lies in no area: the floor the walk from it starts on is where it arrives
+    if (!list.length && nextWalk && nextWalk.firstArea) return nextWalk.firstArea;
     if (nextWalk && nextWalk.edgeName) return nextWalk.edgeName;
     const l = levelObj(model, pt[2]);
     return placeObj('level', l && l.name ? articled(l.name) : `level ${levelShort(Math.round(pt[2]))}`, 'through');
@@ -1208,16 +1225,18 @@
       for (let i = r.a; i < r.b; i++) if (place[i] && place[i].key === bk) return place[i];
       return null;
     };
-    // what a walk starts on: the platform of its first ~10 m, the first edge name in its first ~60 m
+    // what a walk starts on: the platform of its first ~10 m, the named floor or square of its first piece, the
+    // first edge name in its first ~60 m
     const walkStart = (r) => {
       if (!r || r.kind !== 'walk') return null;
-      let d = 0, firstPlatform = null, edgeName = null;
+      let d = 0, firstPlatform = null, edgeName = null, firstArea = null;
       for (let i = r.a; i < segs.length && segs[i].kind === 'walk' && d < 60; i++) {
         if (d < 10 && !firstPlatform && place[i] && place[i].kind === 'platform' && place[i].text) firstPlatform = place[i];
+        if (i === r.a && place[i] && (place[i].kind === 'floor' || place[i].kind === 'plaza') && place[i].text) firstArea = place[i];
         if (!edgeName && segs[i].edge >= 0) edgeName = edgePlace(P, P.edges[segs[i].edge]);
         d += segs[i].len;
       }
-      return { firstPlatform, edgeName };
+      return { firstPlatform, edgeName, firstArea };
     };
     const lastWalk = (() => { for (let i = runs.length - 1; i >= 0; i--) if (runs[i].kind === 'walk') return i === runs.length - 1 ? i : -1; return -1; })();
     const endPt = pts[pts.length - 1];

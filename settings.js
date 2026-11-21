@@ -1,8 +1,11 @@
 // Settings: a page of its own (URL #settings, so the back gesture closes it).
 // The journey options are the ones from the Kante app (niknal357's branch): accessibility, walking speed,
 // change time, maximum walk and transport types. "On the map" picks what the events button shows (map-layers.js),
-// "About you" and "Events" narrow down which community events show. "Adjust to how I walk" lets the app move the
-// walking speed by itself (walk-pace.js); "Developer options" at the very bottom shows the tools to test that.
+// "About you" and "Events" narrow down which community events show. "Live data" switches the live vehicles on the
+// map, and whether your position is sent to the Kante engine while you ride (the on-board check and on-board reports;
+// off unless switched on: live.js, kante/docs/LIVE-API.md).
+// "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.js); "Developer options" at the very
+// bottom shows the tools to test that.
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
@@ -21,6 +24,10 @@
     modes: null, // null = every transport type
     // On the map: groups switched off (map-layers.js GROUPS keys); everything is on at first
     mapHidden: [],
+    // Live data (live.js): vehicles on the map; your position goes to the engine (on-board check and reports) only
+    // when shareOnboard is switched on here
+    liveVehicles: true,
+    shareOnboard: false,
     // Events
     newcomer: false,
     lowVision: false,
@@ -364,8 +371,11 @@
     closeListeners.forEach((fn) => fn(journeyChanged));
   }
 
+  // #settings, or one of its own pages (#settings/language)
+  const onSettings = () => location.hash === '#settings' || location.hash.startsWith('#settings/');
+
   function sync() {
-    const want = location.hash === '#settings';
+    const want = onSettings();
     if (want !== isOpen) (want ? show : hide)();
   }
 
@@ -379,7 +389,7 @@
   function open(anchor) {
     scrollTo = anchor || '';
     if (isOpen) return reveal();
-    if (location.hash === '#settings') return sync();
+    if (onSettings()) return sync();
     pushed = true;
     location.hash = 'settings';
   }
@@ -391,7 +401,7 @@
   }
 
   window.addEventListener('hashchange', () => {
-    if (location.hash !== '#settings') pushed = false;
+    if (!onSettings()) pushed = false;
     sync();
   });
   closeBtn.addEventListener('click', close);

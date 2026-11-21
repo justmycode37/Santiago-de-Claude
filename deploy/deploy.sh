@@ -20,14 +20,18 @@ build_release() { # build_release <commit> <release dir>
   echo "$commit" > "$rel/COMMIT"
   ln -s "$ROOT/raw" "$rel/data/raw"
   ln -s "$ROOT/secrets" "$rel/data/secrets"
+  mkdir -p "$ROOT/profiles"
+  ln -s "$ROOT/profiles" "$rel/data/profiles"
+  # which timetable this release was built from (refresh-data.sh compares it with the one in force)
+  cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
   "$rel/kante" build --data "$rel/data"
 }
 
-healthy() { # the engine answers and has a timetable and a search index
+healthy() { # the engine answers, has a timetable that is valid today, and a search index
   local i
   for i in $(seq 1 90); do
     if curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null \
-        | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["counts"]["trips"] > 0 else 1)' 2>/dev/null \
+        | python3 -c 'import datetime,json,sys; m=json.load(sys.stdin); sys.exit(0 if m["counts"]["trips"] > 0 and m["validTo"] >= datetime.date.today().isoformat() else 1)' 2>/dev/null \
       && curl -fsS -m 10 "http://127.0.0.1:$PORT/api/search?q=Bern" 2>/dev/null \
         | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["results"] else 1)' 2>/dev/null; then
       return 0
@@ -37,6 +41,37 @@ healthy() { # the engine answers and has a timetable and a search index
     sleep 2
   done
   return 1
+}
+
+sync_units() { # new or changed systemd units from the repository (e.g. a new timer) take effect without a reinstall
+  local d=$HOME/.config/systemd/user f changed=0
+  mkdir -p "$d"
+  [[ -d deploy/units ]] || return 0
+  for f in deploy/units/*; do
+    cmp -s "$f" "$d/$(basename "$f")" || { cp "$f" "$d/"; changed=1; }
+  done
+  if (( changed )); then
+    systemctl --user daemon-reload
+    log "updated the systemd units"
+  fi
+  # also when an earlier attempt failed
+  if ! systemctl --user is-active --quiet kante-data.timer 2>/dev/null; then
+    systemctl --user enable --now kante-data.timer >/dev/null 2>&1 && log "started kante-data.timer"
+  fi
+  return 0
+}
+
+live_note() { # not a reason to go back (the key may be missing or the feed down), but worth a line in the log
+  local i
+  [[ -s $ROOT/secrets/otd.json ]] || return 0
+  for i in $(seq 1 18); do
+    if curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null         | python3 -c 'import json,sys; sys.exit(0 if (json.load(sys.stdin)["realtime"].get("trips") or 0) > 0 else 1)' 2>/dev/null; then
+      log "live data is coming in"
+      return 0
+    fi
+    sleep 10
+  done
+  log "warning: no live data three minutes after the start (see /api/meta realtime.feeds)"
 }
 
 main() {
@@ -49,9 +84,16 @@ main() {
   export PATH="$HOME/.cargo/bin:$PATH"
   mkdir -p "$ROOT/state" "$ROOT/releases"
   exec 9>"$ROOT/state/lock"
-  flock -n 9 || { log "another deploy is running"; exit 0; }
+  if [[ -n ${KANTE_DEPLOY_WAIT:-} ]]; then
+    flock 9   # refresh-data.sh waits its turn instead of giving up
+  else
+    flock -n 9 || { log "another deploy is running"; exit 0; }
+  fi
 
   cd "$ROOT/repo"
+  # Also on the fast path: a host whose release came from an older deploy.sh catches up here.
+  sync_units
+  [[ -d $ROOT/current/data && ! -e $ROOT/current/data/profiles ]] && mkdir -p "$ROOT/profiles" && ln -s "$ROOT/profiles" "$ROOT/current/data/profiles"
   git fetch --quiet origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
   local new seen tree cur
   new=$(git rev-parse "origin/$BRANCH")
@@ -59,6 +101,7 @@ main() {
   if (( ! force )) && [[ $new == "$seen" ]]; then exit 0; fi
 
   git checkout --quiet --force --detach "$new"
+  sync_units
   tree=$(git rev-parse "$new:kante/engine")
   cur=$(cat "$ROOT/state/tree" 2>/dev/null || true)
   if (( ! force )) && [[ $tree == "$cur" ]]; then
@@ -88,6 +131,7 @@ main() {
   if healthy; then
     echo "$tree" > "$ROOT/state/tree"
     log "${new:0:7} is live"
+    live_note
     # keep this release and the one before it
     find "$ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -2 | xargs -r rm -rf
   else
