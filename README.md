@@ -9,6 +9,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Journey planner & live tracking**: Plans Swiss public transport trips with the team's own Kante engine (`kante/`; `transport.opendata.ch` when it is unreachable) to exact train platforms (Gleis) and bus/tram stop edges (Kante), with live delay/platform updates and GPS route tracking.
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo).
 - **Events & amenities**: Shows community events on the map alongside public toilets all over Switzerland and Bern's public amenities and local places.
+- **Any language**: Settings › **Language** translates the app into any of Google Translate's 249 languages (`translate.js`); English is the default. The text on screen is sent to Google to translate it; stop, line and place names stay as written on the signs.
 - **Camera stop scan**: Menu › **Scan** identifies nearby stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
 
 ## Live tracking

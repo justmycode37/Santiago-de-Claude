@@ -361,13 +361,16 @@
     closeListeners.forEach((fn) => fn(journeyChanged));
   }
 
+  // #settings, or one of its own pages (#settings/language)
+  const onSettings = () => location.hash === '#settings' || location.hash.startsWith('#settings/');
+
   function sync() {
-    const want = location.hash === '#settings';
+    const want = onSettings();
     if (want !== isOpen) (want ? show : hide)();
   }
 
   function open() {
-    if (location.hash === '#settings') return sync();
+    if (onSettings()) return sync();
     pushed = true;
     location.hash = 'settings';
   }
@@ -379,7 +382,7 @@
   }
 
   window.addEventListener('hashchange', () => {
-    if (location.hash !== '#settings') pushed = false;
+    if (!onSettings()) pushed = false;
     sync();
   });
   closeBtn.addEventListener('click', close);
