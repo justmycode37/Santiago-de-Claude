@@ -1,7 +1,7 @@
 // The introduction for a first visit: a welcome page, the demo (a first-person walk in the 3D station view),
 // then two short questions that set existing settings (walking speed, access needs), then the map.
 // Whether it shows is decided in the <head> of index.html (localStorage 'onboarding', ?intro), which also holds back
-// the location prompt until it is over. Settings › "Show the introduction again" opens it once more.
+// the location prompt until it is over. Settings › "Show introduction again" opens it once more.
 // Nothing is kept here: every answer goes straight into settings.js (window.SETTINGS).
 (function () {
   'use strict';
@@ -28,7 +28,7 @@
 
   // The five stops of the walking speed slider: settings.js exports them once the walking-speed-auto branch is in
   // (SETTINGS.speedPresets); until then this is the same list
-  const SPEED_NOTES = ['A careful pace, or with small children', 'A stroll', 'The pace timetables assume', 'Walking with a purpose', 'Almost a jog'];
+  const SPEED_NOTES = ['Careful pace, or with children', '', 'The pace timetables assume', '', 'Almost a jog'];
   const SPEEDS = ((SETTINGS && SETTINGS.speedPresets) || [
     { label: 'Slow', kmh: 3 },
     { label: 'Relaxed', kmh: 4 },
@@ -38,15 +38,15 @@
   ]).map((s, i, all) => ({ label: s.label, kmh: s.kmh, note: all.length === SPEED_NOTES.length ? SPEED_NOTES[i] : '' }));
   // Access needs → the switches of the settings page (same keys, icons and colours)
   const NEEDS: Need[] = [
-    { key: 'wheelchair', color: 'navy', title: 'I use a wheelchair', note: 'Step-free routes that also avoid barriers a wheelchair can’t pass.',
+    { key: 'wheelchair', color: 'navy', title: 'I use a wheelchair', note: 'Step-free routes that avoid barriers.',
       icon: '<circle cx="10" cy="4.5" r="1.7" fill="currentColor" stroke="none" /><path d="M10 8v6h5.5l2.5 5M10 10.8h4.5M7.3 12.2a5 5 0 1 0 5.9 7" />' },
-    { key: 'stepFree', color: 'sun', title: 'I can’t take stairs or escalators', note: 'For example with a pushchair, a walking aid or heavy luggage.',
+    { key: 'stepFree', color: 'sun', title: 'No stairs or escalators', note: 'For pushchairs, walking aids or luggage.',
       icon: '<path d="M3 18.5h18V9.5z" />' },
-    { key: 'fewerStairs', color: 'tang', title: 'Stairs are hard for me', note: 'Takes a lift or ramp when the detour is small.',
+    { key: 'fewerStairs', color: 'tang', title: 'Stairs are hard for me', note: 'Takes a lift or ramp if nearby.',
       icon: '<path d="M4 20h5v-5h5v-5h5V5" />' },
     { key: 'noEscalators', color: 'rose', title: 'I avoid escalators', note: '',
       icon: '<path d="M3 15.5h4.5L15 7h6M3 20h6.5L17 11.5h4" />' },
-    { key: 'lowVision', color: 'rose', title: 'I’m blind or have low vision', note: 'For now this adds events and groups for blind and low-vision people to the map. It doesn’t change routes yet.',
+    { key: 'lowVision', color: 'rose', title: 'Blind or low vision', note: 'Adds events and groups to the map. Does not change routes yet.',
       icon: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" />' },
   ];
   // A stricter need includes the milder ones (settings.js, effective()): those show as on and can't be switched off
@@ -164,8 +164,7 @@
   const speedRows = SPEEDS.map((s, i) => `
         <label class="set-row">
           <span class="set-text"><b id="obSpeedT${i}">${s.label}</b>${s.note ? `<small id="obSpeedD${i}">${s.note}</small>` : ''}</span>
-          <span class="ob-kmh" id="obSpeedK${i}">${s.kmh} km/h</span>
-          <input class="ob-pick" type="radio" name="obSpeed" value="${s.kmh}" aria-labelledby="obSpeedT${i}" aria-describedby="obSpeedK${i}${s.note ? ` obSpeedD${i}` : ''}" />
+          <input class="ob-pick" type="radio" name="obSpeed" value="${s.kmh}" aria-labelledby="obSpeedT${i}"${s.note ? ` aria-describedby="obSpeedD${i}"` : ''} />
         </label>`).join('');
 
   const needRows = NEEDS.map((n) => `
@@ -179,8 +178,8 @@
     <div class="ob-page ob-welcome" data-page="welcome" hidden>
       <div class="ob-scroll"><div class="ob-inner">
         ${ART}
-        <h1 id="obT-welcome" tabindex="-1">Want to see what the app can do for you?</h1>
-        <p class="ob-lead">Take a short walk across Hirschengraben in Bern, from one tram stop to the next, seen the way the app guides you there. It takes about 20 seconds.</p>
+        <h1 id="obT-welcome" tabindex="-1">Want to see how the app guides you?</h1>
+        <p class="ob-lead">Take a 20-second walk across Hirschengraben in Bern, from one tram stop to the next.</p>
       </div></div>
       <div class="ob-actions">
         <button class="ob-btn primary" type="button" data-go="demo">Yes, show me</button>
@@ -192,7 +191,7 @@
       <h1 class="ob-sr" id="obT-demo" tabindex="-1">The demo: a walk across Hirschengraben</h1>
       <div id="obDemoHost"></div>
       <div class="ob-actions">
-        <button class="ob-btn soft" id="obSkip" type="button">Skip the demo</button>
+        <button class="ob-btn soft" id="obSkip" type="button">Skip demo</button>
       </div>
       <p class="ob-sr" id="obDemoSay" role="status"></p>
     </div>
@@ -201,12 +200,12 @@
       <div class="ob-scroll"><div class="ob-inner">
         <p class="ob-step">Question 1 of 2</p>
         <h1 id="obT-speed" tabindex="-1">How fast do you walk?</h1>
-        <p class="ob-lead">The app uses this for every walk: to the stop, between vehicles and to the door. If you are not sure, leave it on Normal.</p>
+        <p class="ob-lead">Used for every walk on a journey. If you are not sure, leave it on Normal.</p>
         <div class="set-group" role="radiogroup" aria-labelledby="obT-speed">${speedRows}
         </div>
         <div class="set-group" id="obAutoGroup" hidden>
           <label class="set-row">
-            <span class="set-text"><b id="obAutoT">Adjust to how I walk</b><small id="obAutoD">The app measures your walking pace and sets the speed above for you. The pace is kept only on this device and never sent anywhere.</small></span>
+            <span class="set-text"><b id="obAutoT">Adjust to how I walk</b><small id="obAutoD">Measures your pace and sets speed. Kept only on this device.</small></span>
             <input class="switch" type="checkbox" role="switch" id="obAuto" aria-labelledby="obAutoT" aria-describedby="obAutoD" />
           </label>
         </div>
@@ -220,12 +219,12 @@
     <div class="ob-page" data-page="access" hidden>
       <div class="ob-scroll"><div class="ob-inner">
         <p class="ob-step">Question 2 of 2</p>
-        <h1 id="obT-access" tabindex="-1">Is there anything the app should plan around?</h1>
-        <p class="ob-lead">Switch on what applies to you. If nothing does, leave everything off.</p>
+        <h1 id="obT-access" tabindex="-1">Do any of these apply to you?</h1>
+        <p class="ob-lead">Leave all off if none apply.</p>
         <div class="set-group" role="group" aria-labelledby="obT-access">${needRows}
         </div>
-        <p class="set-foot">Your answers stay on this device. You can change them at any time in Settings.</p>
-        <p class="set-foot" id="obGeoNote" hidden>Next, your browser asks whether the app may use your location. The app uses it to show where you are and to start journeys from there.</p>
+        <p class="set-foot">Answers stay on this device. Change them in Settings.</p>
+        <p class="set-foot" id="obGeoNote" hidden>Next, your browser asks for your location to show where you are and start journeys from there.</p>
       </div></div>
       <div class="ob-actions">
         <button class="ob-btn primary" type="button" data-go="done">Open the map</button>
@@ -326,7 +325,7 @@
   function runDemo() {
     const skip = $('#obSkip'), say = $('#obDemoSay');
     const waiting = () => {
-      skip.textContent = 'Skip the demo';
+      skip.textContent = 'Skip demo';
       skip.className = 'ob-btn soft';
       say.textContent = '';
     };
@@ -400,7 +399,7 @@
     release();
   }
 
-  // ---------- Settings › "Show the introduction again" ----------
+  // ---------- Settings › "Show introduction again" ----------
   let replay = false;
   const reset = document.getElementById('settingsReset');
   if (reset && reset.parentElement && SETTINGS) {
@@ -410,7 +409,7 @@
     b.className = 'set-reset';
     b.id = 'settingsIntro';
     b.type = 'button';
-    b.textContent = 'Show the introduction again';
+    b.textContent = 'Show introduction again';
     group.append(b);
     reset.parentElement.before(group);
     b.addEventListener('click', () => { replay = true; SETTINGS.close(); });

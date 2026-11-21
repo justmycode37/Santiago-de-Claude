@@ -7,7 +7,7 @@ a welcome page, a demo, two questions, then the map.
 
 | Part | State |
 |---|---|
-| The introduction: welcome page, first-visit rule, the two questions, the way into the app, "Show the introduction again" | **Complete and tested** (Chromium at phone size, light and dark) |
+| The introduction: welcome page, first-visit rule, the two questions, the way into the app, "Show introduction again" | **Complete and tested** (Chromium at phone size, light and dark) |
 | The demo walk it shows | **Not complete yet** |
 
 **The demo walk is not finished.** What plays today is the 3D station view's first-person walk across
@@ -21,8 +21,8 @@ load leads on to the questions.
 
 ## Flow
 
-1. **Welcome**: "Want to see what the app can do for you?" with "Yes, show me" and "Not now" (straight to the questions).
-2. **Demo**: the 3D view fills the screen above a bottom bar. The bar's button reads "Skip the demo" and becomes
+1. **Welcome**: "Want to see how the app guides you?" with "Yes, show me" and "Not now" (straight to the questions).
+2. **Demo**: the 3D view fills the screen above a bottom bar. The bar's button reads "Skip demo" and becomes
    "Continue" on arrival. The view's own close button and the back gesture also lead on.
 3. **Question 1, walking speed**: the five speeds of Settings (`walkKmh`), plus "Adjust to how I walk" (`autoSpeed`).
 4. **Question 2, access needs**: `wheelchair`, `stepFree`, `fewerStairs`, `noEscalators`, `lowVision`.
@@ -35,7 +35,7 @@ Every answer is written straight into the settings (`SETTINGS.set`, `settings.js
 
 | File | Role |
 |---|---|
-| `onboarding.js` | The pages and the demo seam (`startDemo`). Adds the row "Show the introduction again" to Settings. |
+| `onboarding.js` | The pages and the demo seam (`startDemo`). Adds the row "Show introduction again" to Settings. |
 | `onboarding.css` | Its styles, loaded only when the introduction shows. Rows, icons and switches are the settings page's own classes. |
 | `index.html`, `<head>` | Decides whether it shows, covers the map until it is over (`:root[data-onboarding]`), and holds back the location prompt (`EARLY_GEO.start()`). |
 
@@ -46,7 +46,7 @@ Every answer is written straight into the settings (`SETTINGS.set`, `settings.js
 - A device with none of `app-settings`, `app-language`, `lastLocation`, `theme`, `event-preferences` is new and sees it.
   Any of them means the app was used before: it is marked `done` without showing.
 - `?intro` shows it again (dropped from the address afterwards). `?intro=0` switches it off, for tests and screen recordings.
-- Settings › "Show the introduction again".
+- Settings › "Show introduction again".
 - If `onboarding.js` or `onboarding.css` cannot load, the app starts as usual.
 
 ## The demo
@@ -64,7 +64,7 @@ and listens to the viewer's events:
 |---|---|
 | `arrived`, or `step` with the arriving step | The walk is at its end: the button becomes "Continue". |
 | `error` | The view could not be shown. It says why and offers "Try again"; the button becomes "Continue". |
-| `open` after an error | It runs after all: the button goes back to "Skip the demo". |
+| `open` after an error | It runs after all: the button goes back to "Skip demo". |
 | `close` | The demo is over (its own close button, Done, the back gesture): on to the questions. |
 
 A different demo only has to be started inside `host` and report the same four things.

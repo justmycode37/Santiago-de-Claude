@@ -147,7 +147,7 @@
     note.hidden = false;
     document.getElementById('paceNoteTitle')!.textContent = `Walking speed set to ${labelOf(n.to)}`;
     document.getElementById('paceNoteBody')!.textContent =
-      `Based on how you walk, it changed from ${labelOf(n.from)} to ${labelOf(n.to)}. You can change it back in Settings.`;
+      `Changed from ${labelOf(n.from)} to ${labelOf(n.to)} to match your pace.`;
     document.body.style.setProperty('--pace-note-h', note.offsetHeight + 'px'); // other messages show below it
     document.body.classList.add('pace-note-on');
   }

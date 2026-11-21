@@ -52,8 +52,8 @@
 .ob .set-group + .set-group { margin-top: 16px; }
 
 /* Welcome: a drawing of the walk, the question, the two answers */
-.ob-welcome .ob-scroll { display: flex; }
-.ob-welcome .ob-inner { width: 100%; margin: auto; padding-bottom: 8px; }
+/* (from the top of the page, like the question pages that follow) */
+.ob-welcome .ob-inner { padding-bottom: 8px; }
 .ob-art { display: block; width: 100%; height: auto; margin-bottom: 28px; border-radius: 28px; background: var(--ob-art); }
 .ob-art .a-block { fill: var(--ob-art-2); }
 .ob-art .a-case { fill: none; stroke: #14161a; stroke-width: 21; stroke-linecap: round; stroke-linejoin: round; }
@@ -69,8 +69,9 @@
 .ob-actions {
   flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row-reverse; /* the answer that leads on at the right edge, the way back at the left */
+  align-items: center;
+  gap: 8px;
   width: 100%;
   max-width: 632px;
   margin: 0 auto;
@@ -79,7 +80,8 @@
 .ob-btn { width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-radius: 14px; font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; }
 .ob-btn.primary { background: var(--user-blue); color: #fff; }
 .ob-btn.primary:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
-.ob-btn.quiet { min-height: 48px; background: transparent; color: var(--accent-ink); font-weight: 400; }
+.ob-btn.primary, .ob-btn.soft { flex: 1; width: auto; }
+.ob-btn.quiet { flex: none; width: auto; padding: 0 16px 0 8px; background: transparent; color: var(--accent-ink); font-weight: 400; }
 .ob-btn.quiet:active { opacity: .55; }
 .ob-btn:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
 :root[data-theme="dark"] .ob-btn:focus-visible { outline-color: var(--accent-ink); }
@@ -105,7 +107,6 @@
 }
 .ob-pick:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
 :root[data-theme="dark"] .ob-pick:focus-visible, :root[data-theme="dark"] .ob .switch:focus-visible { outline-color: var(--accent-ink); }
-.ob-kmh { flex: none; font-size: 15px; color: var(--ob-dim); font-variant-numeric: tabular-nums; }
 
 /* The demo: the 3D view in the space above, and our button below it, where the buttons of the other pages are */
 .ob-demo { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sp-bg); }

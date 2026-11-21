@@ -314,7 +314,7 @@
     pricingClearPaused.hidden = state.fareTracking || !count;
     pricingSummary.textContent = count
       ? `${count} saved ${count === 1 ? 'trip' : 'trips'}`
-      : 'See how your saved trips compare';
+      : 'Compare your saved trips';
   }
 
   window.openFareSuggestions = async (trigger) => {

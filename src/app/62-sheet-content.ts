@@ -213,9 +213,8 @@ function optionRow(conn: OdConnection, now: number) {
 }
 function walkCard(conn: OdConnection) {
   const m = conn.kante ? conn.kante.walkM : null;
-  const kmh = SETTINGS.prefs ? Number(SETTINGS.prefs().walkKmh).toFixed(1).replace('.0', '') : '';
   return kBtn('walkcard', null, () => openOption(conn),
-    h('span', 'walkcard-big', h('b', null, kDur(connSecs(conn))), h('span', null, [m ? fmtDist(m) : '', kmh ? `at ${kmh} km/h` : ''].filter(Boolean).join(' '))),
+    h('span', 'walkcard-big', h('b', null, kDur(connSecs(conn))), m ? h('span', null, fmtDist(m)) : null),
     h('span', 'walkcard-sub', `${fmtTime(conn.from.departure)} – ${fmtTime(conn.to.arrival)}`),
     h('span', 'walkcard-cta', 'Walking directions', kIcon('right', 16)));
 }
@@ -381,8 +380,8 @@ function spareOf(st: JourneyChangeStep) {
 function spareLine(st: JourneyChangeStep) {
   const { s, level, extra, short, text } = spareOf(st);
   return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
-    level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
-      : h('span', null, h('b', null, text), short ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
+    level === 'missed' ? h('span', null, h('b', null, `Missed by ${kDurExact(-s)}`))
+      : h('span', null, h('b', null, text), short ? h('small', null, ` — less than your ${extra} min extra`) : null));
 }
 function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
   const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
@@ -400,7 +399,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     const samePlace = st.prev.arrival.station!.name === st.next.departure.station!.name;
     if (!mins && !(st.lines && st.lines.length) && samePlace && pq.label && pq.word === nq.word && pq.label === nq.label) {
       return h('li', 'tl-row tl-walk same', h('span', 'tl-time'), h('span', 'tl-rail walk'),
-        h('div', 'tl-main', h('strong', null, `Change at the same ${nq.word.toLowerCase()}`), spareLine(st)));
+        h('div', 'tl-main', h('strong', null, `Same ${nq.word.toLowerCase()}`), spareLine(st)));
     }
   }
   const dist = walkDist(st);
@@ -429,7 +428,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
       renderSheet();
       const again = jBody.querySelector<HTMLElement>(`.expander[data-dirs="${i}"]`);
       if (again) again.focus({ preventScroll: true });
-    }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`);
+    }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Directions (${dirs.length})`);
     toggle.setAttribute('aria-expanded', String(expanded));
     toggle.dataset.dirs = String(i);
     main.append(toggle);
@@ -441,13 +440,14 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     main);
 }
 
-// Where to stand: what the boarding row above it does not say (which side of the road, the sectors, the level,
-// the way the vehicle leaves). One row; a tap shows the boarding point on the map. Nothing when nothing is known.
+// Where to stand: the boarding point as the sign you look for ("Bay E"), and beside it what the sign does not say
+// (which side of the road, the sectors, the level, the way the vehicle leaves). One row; a tap shows the boarding
+// point on the map. A stop without signed bays has no sign, and nothing shows when nothing is known.
 function standCard(st: JourneyRideStep, i: number) {
   const q = quayOf(st, 'dep'), j = st.s.journey, mode = modeOf(j.category), edge = q.edge;
   const bearing = edge && edge.bearing != null ? edge.bearing : q.travel;
   const side = edge && edge.side ? cap(edge.side) // the engine names the street
-    : mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
+    : mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side` : ''; // edges sit right of travel
   const level = edge && edge.level ? `Level ${levelShort(edge.level)}` : '';
   const next = j.passList && j.passList[1] && j.passList[1].station && j.passList[1].station.name;
   let compass = null;
@@ -462,11 +462,12 @@ function standCard(st: JourneyRideStep, i: number) {
     q.sectors || level ? h('span', 'stand-tags',
       q.sectors ? h('span', 'tag strong', `${q.sectors.replace(/[^A-Za-z0-9]/g, '').length === 1 ? 'Sector' : 'Sectors'} ${q.sectors}`) : null,
       level ? h('span', 'tag', level) : null) : null,
-    next ? h('span', 'stand-dir', compass, h('span', null, 'Next stop: ', h('b', null, next))) : null,
-    q.planned ? h('span', 'stand-note warn', kIcon('alert', 16), `Changed today: ${q.word} ${q.label} (was ${q.planned})`) : null,
-    !edge ? h('span', 'stand-note', kIcon('info', 16), 'Platform or bay unknown. Map pin shows the stop.') : null);
-  if (!info.childNodes.length) return null;
-  const card = kBtn('stand', null, () => showQuay(i), info, kIcon('map', 18, 'stand-go'));
+    next ? h('span', 'stand-dir', compass, h('span', null, 'Next: ', h('b', null, next))) : null,
+    q.planned ? h('span', 'stand-note warn', kIcon('alert', 16), `Changed today (was ${q.planned})`) : null,
+    !edge ? h('span', 'stand-note', kIcon('info', 16), 'Platform or bay unknown. See map pin.') : null);
+  const sign = q.label ? h('span', 'sign' + (q.label.length > 2 ? ' long' : ''), h('span', 'sign-noun', q.word), h('span', 'sign-label', q.label)) : null;
+  if (!sign && !info.childNodes.length) return null;
+  const card = kBtn('stand', null, () => showQuay(i), sign, info, sign ? null : kIcon('map', 18, 'stand-go'));
   card.title = 'Show on map';
   return card;
 }
@@ -476,10 +477,12 @@ function callTime(stop: OdCheckpoint, which: 'departure' | 'arrival', strong?: b
   if (!t) return h('span', 'tl-time');
   return h('span', 'tl-time', strong ? h('b', null, fmtTime(t)) : h('span', null, fmtTime(t)), kDelay(lateMin(stop, which)));
 }
-// Real-time state as a word, never by colour alone
+// Times are the operator's forecast unless said otherwise: a ride that leaves within the hour and has none says
+// "Timetable" (a delay shows as "+4 min" beside the time, so live times need no label of their own)
 function liveTag(st: JourneyRideStep) {
   const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
-  return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Live times' : 'Timetable');
+  const soon = st.t0 != null && st.t0 - Date.now() < 3600000 && st.t1! > Date.now();
+  return p || !soon ? null : h('span', 'live-tag timetable', kIcon('clock', 12), 'Timetable');
 }
 function rideBlock(st: JourneyRideStep, i: number) {
   const s = st.s, j = s.journey, mode = modeOf(j.category);
@@ -491,8 +494,7 @@ function rideBlock(st: JourneyRideStep, i: number) {
   li.append(h('div', 'tl-row board',
     callTime(s.departure, 'departure', true),
     h('span', 'tl-rail ride first', h('i', 'tl-node', kIcon(MODE_K[mode] || 'bus', 15))),
-    h('span', 'tl-name', h('strong', null, s.departure.station!.name)),
-    kPlat(quayOf(st, 'dep'))));
+    h('span', 'tl-name', h('strong', null, s.departure.station!.name))));
   li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
     h('div', 'tl-main',
       standCard(st, i),

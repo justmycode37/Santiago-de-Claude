@@ -11,7 +11,7 @@ function armPin(f: TripField | null) {
   document.body.classList.toggle('pin-armed', !!f);
   pinHint.hidden = !f;
   if (!f) return;
-  document.getElementById('pinHintText')!.textContent = `Tap the map to set the ${PIN_WORD[f]}`;
+  document.getElementById('pinHintText')!.textContent = `Tap to set the ${PIN_WORD[f]}`;
   closeSearch();
   setMenu(false);
   pinMenu.remove();

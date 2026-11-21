@@ -211,23 +211,22 @@
     /* Small status toast (e.g. location unavailable) */
     .toast {
       position: fixed;
-      left: 50%;
+      left: 12px;
       top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 10px);
-      transform: translate(-50%, -8px);
-      max-width: calc(100% - 32px);
+      transform: translateY(-8px);
+      max-width: min(calc(100% - 24px), 440px);
       padding: 10px 16px;
       border-radius: 18px;
       background: var(--bar-bg);
       color: var(--bar-text);
       box-shadow: var(--shadow);
       font-size: 14px;
-      text-align: center;
       opacity: 0;
       pointer-events: none;
       transition: opacity .25s ease, transform .35s var(--spring);
       z-index: 30;
     }
-    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.show { opacity: 1; transform: none; }
 
     /* Notice that the walking speed was changed to match how you walk (walk-pace.js). It stays until closed,
        above everything up to the settings page; the toast moves below it. */
@@ -335,7 +334,7 @@
       cursor: pointer;
     }
     .results li.more {
-      justify-content: center;
+      padding-left: 64px; /* under the names: 16 + the 36 px icon + 12 */
       color: var(--bar-secondary);
       font-size: 15px;
       font-weight: 500;
@@ -362,9 +361,9 @@
     .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
     .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
     .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
-    .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
-    .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-    .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
+    .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; }
+    .results li.on-map svg { flex: none; width: 18px; height: 18px; margin: 0 9px; /* in the icon column */ fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .results li.attr { padding: 4px 16px 8px 64px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
     .results li.attr:active { background: none; }
 
     .trip {
@@ -470,7 +469,7 @@
     /* Under the card: "Search this area" once the map has moved away from the places shown, and the hint while a pin is armed */
     .float-chip {
       flex: none;
-      align-self: center;
+      align-self: flex-start;
       height: 36px;
       padding: 0 16px;
       border: 0;
@@ -758,7 +757,8 @@
     .kj .tbar-end { position: absolute; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
     .kj .tbar-end.a { left: 0; }
     .kj .tbar-end.b { right: 0; }
-    .kj .more { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 40px; margin-bottom: 8px; border-radius: 20px; box-shadow: inset 0 0 0 1px var(--tonal-2); font-size: 14px; font-weight: 700; }
+    .kj .more { display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; margin-bottom: 4px; padding: 0 16px; border-radius: 12px; font-size: 14px; font-weight: 700; }
+    .kj .more:active { background: var(--tonal); }
     .kj .more:disabled { color: var(--ink-3); cursor: default; }
     .kj .walkcard { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 16px; border-radius: 16px; background: var(--card); }
     .kj .walkcard-big { display: flex; align-items: baseline; gap: 12px; }
@@ -881,12 +881,17 @@
     .kj .ride-head { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
     /* where to stand */
-    .kj .stand { display: flex; align-items: center; gap: 10px; width: 100%; margin: 2px 0 8px; padding: 10px 12px; border-radius: 14px; background: var(--card); }
+    .kj .stand { display: flex; align-items: center; gap: 12px; width: 100%; margin: 2px 0 8px; padding: 10px 12px 10px 10px; border-radius: 16px; background: var(--card); }
+    .kj .sign { flex: none; align-self: flex-start; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 68px; min-height: 68px; padding: 5px 4px 3px; border-radius: 12px; border-bottom: 6px solid var(--sun); background: #14161a; color: #fff; text-align: center; }
+    :root[data-theme="dark"] .kj .sign { box-shadow: inset 0 0 0 1px #3a3f48; }
+    .kj .sign-noun { font-size: 12px; line-height: 14px; font-weight: 500; color: #d5d9df; }
+    .kj .sign-label { font-size: 32px; line-height: 36px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .kj .sign.long .sign-label { font-size: 22px; line-height: 30px; }
     .kj .stand:active { background: var(--tonal-2); }
     .kj .stand-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
     .kj .stand-side { font-size: 15px; line-height: 20px; font-weight: 700; overflow-wrap: anywhere; }
     .kj .stand-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-    .kj .stand-dir { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
+    .kj .stand-dir { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
     .kj .stand-dir b { color: var(--ink); }
     .kj .stand-compass { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--surface); }
     .kj .stand-note { display: flex; gap: 8px; font-size: 14px; color: var(--ink-2); }
@@ -1128,7 +1133,8 @@
       position: relative;
       height: calc(env(safe-area-inset-top) + 260px);
       display: grid;
-      place-items: center;
+      place-items: end start;
+      padding: 0 20px 20px;
       overflow: hidden;
       background: linear-gradient(140deg, var(--c), color-mix(in srgb, var(--c) 72%, #000));
     }
@@ -1510,12 +1516,12 @@
       <div class="set-group" role="group" aria-labelledby="pricingHeading">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M3 10h18M6 15h4"/></svg></span>
-          <span class="set-text"><b id="halfFareTitle">I have a Half Fare Travelcard</b><small id="halfFareHelp">Show reduced prices on journeys.</small></span>
+          <span class="set-text"><b id="halfFareTitle">Half Fare Travelcard</b><small id="halfFareHelp">Show reduced prices</small></span>
           <input class="switch" type="checkbox" role="switch" id="pricingHalfFare" aria-labelledby="halfFareTitle" aria-describedby="halfFareHelp" />
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4zM15 7v2m0 3v1m0 3v1" /></svg></span>
-          <span class="set-text"><b id="pricingToggleTitle">Trip history</b><small id="pricingToggleHelp">Save rides you confirm on this device for fare suggestions.</small></span>
+          <span class="set-text"><b id="pricingToggleTitle">Trip history</b><small id="pricingToggleHelp">On this device, to suggest fares</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="fareTracking" aria-labelledby="pricingToggleTitle" aria-describedby="pricingToggleHelp" />
         </label>
         <button class="set-row set-nav" id="pricingSuggestions" type="button" aria-haspopup="dialog" hidden>
@@ -1530,12 +1536,12 @@
       <div class="set-group" role="group" aria-labelledby="setAccessHead">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--sun);--f:#344D77" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18.5h18V9.5z" /></svg></span>
-          <span class="set-text"><b id="setStepFreeT">Step-free</b><small id="setStepFreeD">No stairs and no escalators, for wheelchairs, pushchairs and heavy luggage.</small></span>
+          <span class="set-text"><b id="setStepFreeT">Step-free</b><small id="setStepFreeD">No stairs or escalators</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="stepFree" aria-labelledby="setStepFreeT" aria-describedby="setStepFreeD" />
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--tang)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h5v-5h5v-5h5V5" /></svg></span>
-          <span class="set-text"><b id="setStairsT">Fewer stairs</b><small id="setStairsD">Take a lift or ramp when the detour is small.</small></span>
+          <span class="set-text"><b id="setStairsT">Fewer stairs</b><small id="setStairsD">Take a lift or ramp if nearby</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="fewerStairs" aria-labelledby="setStairsT" aria-describedby="setStairsD" />
         </label>
         <label class="set-row">
@@ -1545,11 +1551,11 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10" cy="4.5" r="1.7" fill="currentColor" stroke="none" /><path d="M10 8v6h5.5l2.5 5M10 10.8h4.5M7.3 12.2a5 5 0 1 0 5.9 7" /></svg></span>
-          <span class="set-text"><b id="setWheelT">Wheelchair accessible</b><small id="setWheelD">Also avoids paths marked unsuitable and barriers a wheelchair can’t pass.</small></span>
+          <span class="set-text"><b id="setWheelT">Wheelchair accessible</b><small id="setWheelD">Step-free and avoids barriers</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="wheelchair" aria-labelledby="setWheelT" aria-describedby="setWheelD" />
         </label>
       </div>
-      <p class="set-foot">Stairs, lifts and ramps from OpenStreetMap may be incomplete. Step-free changes get at least 7 minutes, wheelchair changes 10. Timetables do not show step-free boarding, so check with the operator.</p>
+      <p class="set-foot">OpenStreetMap data may be incomplete. Step-free changes get at least 7 min, wheelchair 10. Timetables don’t show step-free boarding; check operators.</p>
 
       <h2 class="set-head" id="setSpeedHead">Walking speed</h2>
       <div class="set-group" role="group" aria-labelledby="setSpeedHead">
@@ -1571,11 +1577,11 @@
         </div>
         <label class="set-row set-line">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 3 7-8M15 7h5v5" /></svg></span>
-          <span class="set-text"><b id="setAutoT">Adjust to how I walk</b><small id="setAutoD">The app measures your walking pace and sets the speed above.</small></span>
+          <span class="set-text"><b id="setAutoT">Adjust to how I walk</b><small id="setAutoD">Measures your walking pace</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="autoSpeed" aria-labelledby="setAutoT" aria-describedby="setAutoD setAutoPrivacy" />
         </label>
       </div>
-      <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your pace is measured and kept only on this device, never sent anywhere, and deleted if you turn this setting off. No places are stored.</p>
+      <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your pace stays on this device, is never sent, and is deleted if turned off. No places are stored.</p>
 
       <h2 class="set-head" id="setChangeHead">Changes and walking</h2>
       <div class="set-group" role="group" aria-labelledby="setChangeHead">
@@ -1621,7 +1627,7 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4l18 4M12 6v4" /><rect x="5" y="10" width="14" height="10" rx="2.5" /><path d="M5 15h14" /></svg></span>
-          <span class="set-text"><b id="setCableT">Cable car and funicular</b></span>
+          <span class="set-text"><b id="setCableT">Cable car or funicular</b></span>
           <input class="switch" type="checkbox" role="switch" data-mode="cableway" aria-labelledby="setCableT" />
         </label>
       </div>
@@ -1635,7 +1641,7 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" /></svg></span>
-          <span class="set-text"><b id="setVehiclesT">Live vehicles</b><small id="setVehiclesD">Buses, trams and trains near you when you zoom in. Based on stop times, not GPS.</small></span>
+          <span class="set-text"><b id="setVehiclesT">Live vehicles</b><small id="setVehiclesD">Based on stop times, not GPS</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="liveVehicles" aria-labelledby="setVehiclesT" aria-describedby="setVehiclesD" />
         </label>
         <button class="set-row set-nav set-more" id="setMapMore" type="button" aria-expanded="false" aria-controls="setMapBox">
@@ -1651,7 +1657,7 @@
           <button class="set-link" id="setMapAll" type="button">Hide all</button>
         </div>
         <div class="set-group" id="setMapGroup" role="group" aria-labelledby="setLayersHead"></div>
-        <p class="set-foot">Use “Events and places” in the ••• menu to show or hide what you switch on here. Toilets are mapped across Switzerland; other places are only mapped in Bern so far.</p>
+        <p class="set-foot">Show or hide in ••• (“Events and places”). Toilets are mapped across Switzerland; other places only in Bern.</p>
         <p class="set-foot">Sources, merged and shortened by us: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL), opentransportdata.swiss, SBB, Velospot, Kanton Bern, the cities of Bern, Zürich, Geneva, Luzern and Zug, Kanton Basel-Stadt and Stadt St.Gallen (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), and swisstopo (Amtliches Gebäudeadressverzeichnis) for addresses.</p>
       </div>
 
@@ -1659,12 +1665,12 @@
       <div class="set-group" role="group" aria-labelledby="setEventsHead">
         <label class="set-row">
           <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg></span>
-          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Newcomer meetups, language cafés and courses.</small></span>
+          <span class="set-text"><b id="setNewcomerT">New to Switzerland</b><small id="setNewcomerD">Meetups, language cafés, courses</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="newcomer" aria-labelledby="setNewcomerT" aria-describedby="setNewcomerD" />
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg></span>
-          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">Events and groups for blind and low-vision people.</small></span>
+          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">Events and groups only</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="lowVision" aria-labelledby="setVisionT" aria-describedby="setVisionD" />
         </label>
         <label class="set-row">
@@ -1679,11 +1685,11 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--sun);--f:#344D77" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 8l3.8 2.8-1.5 4.5H9.7L8.2 10.8z" /></svg></span>
-          <span class="set-text"><b id="setSportT">Adaptive sport</b><small id="setSportD">Sport for disabled people.</small></span>
+          <span class="set-text"><b id="setSportT">Adaptive sport</b><small id="setSportD">Sport for disabled people</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="adaptiveSport" aria-labelledby="setSportT" aria-describedby="setSportD" />
         </label>
       </div>
-      <p class="set-foot">You see events matching any option you turn on. With all off, you see every event.</p>
+      <p class="set-foot">Shows events for any option on, or all if none are on.</p>
 
       <div class="set-group set-gap">
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
@@ -1693,7 +1699,7 @@
       <div class="set-group set-gap" id="devSwitch" hidden>
         <label class="set-row">
           <span class="set-ic" style="--c:#8e8e93" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8.5 7l-5 5 5 5M15.5 7l5 5-5 5" /></svg></span>
-          <span class="set-text"><b id="setDevT">Developer options</b><small id="setDevD">Tools for testing. Not needed to use the app.</small></span>
+          <span class="set-text"><b id="setDevT">Developer options</b><small id="setDevD">Tools for testing only</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="devOptions" aria-labelledby="setDevT" aria-describedby="setDevD" />
         </label>
       </div>
@@ -1725,7 +1731,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg><span>Settings</span>
         </button>
         <h1 class="lang-title" id="langTitle">Language</h1>
-        <p class="set-foot lang-note">Languages other than English use Google Translate, so text on the screen is sent to Google. Stop, line and place names stay as written on the signs.</p>
+        <p class="set-foot lang-note">Other than English, screen text is sent to Google Translate. Stop, line and place names stay as on signs.</p>
         <label class="lang-find">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5l5 5" /></svg>
           <input id="langSearch" type="search" placeholder="Search languages" aria-label="Search languages" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
