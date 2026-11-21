@@ -206,7 +206,7 @@ enum DisplayRows {
         let routeTokens: [String]
         let destinationWords: [String]
         /// "via Bahnhof": an intermediate stop, weaker evidence for the destination itself.
-        var isVia: Bool { words.first == "via" || words.first == "uber" }
+        var isVia: Bool { words.count > 1 && ["via", "uber", "ia", "vla", "vio", "va"].contains(words[0]) }
         var letterCount: Int { destinationWords.joined().filter(\.isLetter).count }
     }
 
@@ -271,7 +271,17 @@ enum DisplayText {
             else if !current.isEmpty { result.append(current); current = "" }
         }
         if !current.isEmpty { result.append(current) }
-        return result.map { abbreviations[$0] ?? $0 }
+        // OCR often glues the route numeral to the destination ("9Wankdorf"): split 1–3 leading digits
+        // from three or more letters.
+        var split: [String] = []
+        for word in result {
+            let digits = word.prefix { $0.isASCII && $0.isNumber }
+            let rest = word.dropFirst(digits.count)
+            if (1...3).contains(digits.count), rest.count >= 3, rest.allSatisfy({ $0.isASCII && $0.isLetter }) {
+                split.append(String(digits)); split.append(String(rest))
+            } else { split.append(word) }
+        }
+        return split.map { abbreviations[$0] ?? $0 }
     }
 
     static func canonical(_ value: String) -> String { words(value).joined(separator: " ") }
@@ -307,9 +317,12 @@ enum DisplayText {
     /// "Wankdorf Bahnhof", and "Bern, Bahnhof" as "Bahnhof" or "Bern Bahnhof".
     static func variants(_ destination: String) -> [[String]] { weightedVariants(destination).map(\.words) }
 
-    /// Terminus words after the comma that displays usually drop ("Wabern, Tram-Endstation" shows "Wabern").
+    /// Stop names after the comma that say little on their own ("Bern, Bahnhof" fits every "<Place>, Bahnhof").
     private static let genericStopWords: Set<String> = ["endstation", "busendstation", "tramendstation", "bahnhof", "post",
                                                         "dorf", "zentrum", "schleife", "station", "gare", "stazione"]
+    /// Terminus words a display drops entirely ("Wabern, Tram-Endstation" shows "Wabern"). A station is not
+    /// one of them: "Bern" alone is never a destination display, but it is on adverts ("SC Bern", "BERNMOBIL").
+    private static let droppedTerminusWords: Set<String> = ["endstation", "busendstation", "tramendstation", "schleife", "post", "dorf"]
 
     /// Variants with a weight: the locality alone is slightly weaker evidence than a full name.
     static func weightedVariants(_ destination: String) -> [(words: [String], weight: Double)] {
@@ -331,7 +344,9 @@ enum DisplayText {
             let stop = words(parts[1])
             if genericStopWords.contains(stop.joined()) || stop.allSatisfy({ genericStopWords.contains($0) }) {
                 // "Bahnhof" alone fits every "<Place>, Bahnhof"; the locality is the distinctive part.
-                add(words(parts[0]), 0.92)
+                if droppedTerminusWords.contains(stop.joined()) || stop.allSatisfy({ droppedTerminusWords.contains($0) }) {
+                    add(words(parts[0]), 0.92)
+                }
                 add(stop, 0.75)
             } else {
                 add(stop, 1)
@@ -349,19 +364,28 @@ enum DisplayText {
     static func similarity(bytes x: [UInt8], _ y: [UInt8]) -> Double {
         guard !x.isEmpty || !y.isEmpty else { return 1 }
         guard !x.isEmpty, !y.isEmpty else { return 0 }
-        var previous = Array(0...y.count)
-        var current = [Int](repeating: 0, count: y.count + 1)
+        var previous = (0...y.count).map(Double.init)
+        var current = [Double](repeating: 0, count: y.count + 1)
         for i in 1...x.count {
-            current[0] = i
+            current[0] = Double(i)
             let xi = x[i - 1]
             for j in 1...y.count {
                 let yj = y[j - 1]
-                let cost = xi == yj || confusableBytes(xi, yj) ? 0 : 1
+                let cost = xi == yj || confusableBytes(xi, yj) ? 0 : similarLetters(xi, yj) ? 0.5 : 1
                 current[j] = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost)
             }
             swap(&previous, &current)
         }
-        return 1 - Double(previous[y.count]) / Double(max(x.count, y.count))
+        return 1 - previous[y.count] / Double(max(x.count, y.count))
+    }
+
+    /// Letters that dot-matrix and LED displays render alike (a/o, c/e, f/t, h/b/n, i/l, u/v/w, m/w): half an edit.
+    private static func similarLetters(_ a: UInt8, _ b: UInt8) -> Bool {
+        switch (min(a, b), max(a, b)) {
+        case (97, 111), (99, 101), (102, 116), (98, 104), (104, 110), (105, 108), (117, 118), (118, 119),
+             (117, 119), (109, 119), (109, 110), (101, 111), (99, 111): return true
+        default: return false
+        }
     }
 
     /// O/0, I/1, L/1, I/L, S/5, B/8, Z/2, G/6: the same glyph shape on LED matrices.

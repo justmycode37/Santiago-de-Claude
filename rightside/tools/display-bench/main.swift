@@ -90,7 +90,7 @@ var positive = ["A": Tally(), "B": Tally(), "C": Tally()]
 var negative = ["A": Tally(), "B": Tally(), "C": Tally()]
 var perFrame = [String: Int]()
 var details: [String] = []
-for label in (args.contains("--bench") ? [] : labels) {
+for label in (args.contains("--bench") || args.contains("--why") ? [] : labels) {
     guard let event = eventsByID[label.event] else { continue }
     let truth = DisplayCandidate(line: label.line, destination: label.destination)
     // Per-frame closed-set identification (strategy C's evidence).
@@ -164,4 +164,20 @@ if args.contains("--bench") {
     }
     print(String(format: "\nPer frame (busiest %d frames, %d-%d texts): VehicleTextRules.read %.1f ms, board match (%d candidates) %.1f ms",
                  n, sample.last?.vehicles[0].texts.count ?? 0, sample.first?.vehicles[0].texts.count ?? 0, readTime / Double(n) * 1000, board.count, matchTime / Double(n) * 1000))
+}
+
+if args.contains("--why") {
+    // For each labelled pass that strategy C did not accept, show what each frame's matcher saw.
+    for label in labels {
+        guard let event = eventsByID[label.event] else { continue }
+        let (o, _) = run(event, expected: expectation(label.line, label.destination, board: true), keepObserved: true)
+        guard o != .accepted else { continue }
+        print("#\(label.event) truth \(label.line) \(label.destination) → \(o.rawValue)")
+        for reading in readings(event, keepObserved: true).0.readings {
+            let m = DepartureDisplayMatcher.match(reading.observed, candidates: board)
+            let b = m.best.map { "\($0.candidate.line) \($0.candidate.destination) d=\(String(format: "%.2f", $0.destination)) \($0.line.rawValue) '\($0.observed)'" } ?? "-"
+            let r = m.runnerUp.map { "\($0.candidate.line) \($0.candidate.destination) d=\(String(format: "%.2f", $0.destination))" } ?? "-"
+            print("   \(m.outcome.rawValue.padding(toLength: 10, withPad: " ", startingAt: 0)) best[\(b)] 2nd[\(r)] texts=\(reading.observed.map { "\($0.text)(\(String(format: "%.2f", $0.score)))" }.prefix(8))")
+        }
+    }
 }

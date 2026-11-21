@@ -29,6 +29,9 @@ private final class VisionWorkGate: @unchecked Sendable {
     var recognition: String { cameraEvidence.recognition }
     @Published private(set) var diagnostics = "Local model starting…"
     @Published private(set) var boardingReferences: [BoardingPointPack.Point] = []
+    /// World-tracked route guidance (compass + GPS + walked path), independent of Apple's geographic AR.
+    @Published private(set) var routePlan: ARRouteGuidance.Plan?
+    private let routeGuide = ARRouteGuide()
     var onObservation: ((JSONValue) -> Void)?
     let view = ARSCNView(frame: .zero)
     private let worker = DispatchQueue(label: "rightside.live-ocr", qos: .userInitiated)
@@ -70,6 +73,7 @@ private final class VisionWorkGate: @unchecked Sendable {
         view.delegate = self
         view.automaticallyUpdatesLighting = true
         view.scene = SCNScene()
+        view.scene.rootNode.addChildNode(routeGuide.root)
     }
     func start(context: CameraJourneyContext, location: LocationController, visual: VisualLocationStore) {
         stop()
@@ -156,6 +160,7 @@ private final class VisionWorkGate: @unchecked Sendable {
         invalidateCameraEvidence(.restarted)
         invalidateLocalCameraEvidence(.restarted)
         cameraReady = true
+        routeGuide.reset(); routePlan = nil
         geo = false; localized = false; targetAnchor = nil
         visual?.observation = nil
         let configuration = ARWorldTrackingConfiguration()
@@ -213,6 +218,7 @@ private final class VisionWorkGate: @unchecked Sendable {
     }
     func stop() {
         epoch = UUID(); running = false; processing = false
+        routeGuide.reset(); routePlan = nil
         cameraReady = false
         invalidateCameraEvidence(.stopped)
         invalidateLocalCameraEvidence(.stopped)
@@ -261,6 +267,13 @@ private final class VisionWorkGate: @unchecked Sendable {
             invalidateLocalCameraEvidence(.thermal)
             invalidateCameraEvidence(.thermal)
             return
+        }
+        // Route arrows in plain world tracking. With Apple geographic AR active its anchor is used instead;
+        // a simulated journey has no real position to align with.
+        if !geo, !context.simulated {
+            routeGuide.update(frame: frame, location: location, route: context.route, target: context.routeEnd ?? context.target,
+                              targetLabel: context.stop ?? context.targetLabel, contextID: context.id)
+            if routePlan != routeGuide.plan { routePlan = routeGuide.plan }
         }
         if let localSite, !context.simulated, frame.timestamp - lastLocalFrame >= 0.2 {
             lastLocalFrame = frame.timestamp
@@ -523,11 +536,24 @@ struct LiveCameraGuidanceView: View {
                             .frame(width: match.box.width * proxy.size.width, height: match.box.height * proxy.size.height)
                             .offset(x: match.box.minX * proxy.size.width, y: match.box.minY * proxy.size.height)
                     }
+                    if let plan = controller.routePlan, plan.mode == .direction, let turn = plan.turn {
+                        // Direction only: one arrow, rotated towards the route ahead (positive turn = left).
+                        Image(systemName: "arrow.up.circle.fill").font(.system(size: 56)).foregroundStyle(.white, Color.rightSideTeal)
+                            .rotationEffect(.radians(-turn)).shadow(radius: 4)
+                            .position(x: proxy.size.width / 2, y: proxy.size.height - 60)
+                    }
                 }.allowsHitTesting(false)
             }.frame(height: 420).clipped().accessibilityLabel("Live camera. Vehicle masks are model estimates; an orange match needs service verification.")
             VStack(alignment: .leading, spacing: 14) {
                 Label(controller.status, systemImage: controller.localized ? "location.viewfinder" : "camera.viewfinder")
                     .font(.headline).accessibilityIdentifier("geographic-ar-status")
+                if let plan = controller.routePlan {
+                    Label(plan.summary, systemImage: plan.mode == .path ? "arrow.triangle.turn.up.right.diamond" : "location.north.line")
+                        .font(.subheadline).accessibilityIdentifier("ar-route-status")
+                    if let distance = plan.targetDistance {
+                        Text("About \(Int(distance.rounded())) m to \(context.stop ?? "the stop") in a straight line").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Toggle("Geographic AR", isOn: Binding(get: { !controller.offlineCameraOnly }, set: { controller.setGeographicAR($0) }))
                     .accessibilityIdentifier("geographic-ar-toggle")
                 if !controller.offlineCameraOnly {

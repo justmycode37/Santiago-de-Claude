@@ -269,17 +269,21 @@ struct ContentView: View {
         let eligible = !onBoard && store.boardingServiceEligible(for: ride)
         let stop = leg?.kind == "ride" ? (onBoard ? leg?.to : leg?.from) : leg?.to
         var target = MapGeometry.coordinate(stop?.coordinate)
+        let routeEnd = target
         var label = language.text(.referenceLocation, stop?.name ?? language.text(.journeyStop))
-        if let leg, leg.kind != "ride", let detail = walking.displayedSnapshot(for: journey, leg: leg), let fix = store.locationController.latestLocation,
-           let point = MapGeometry.lookAhead(on: detail.points, from: fix) {
-            target = point; label = language.text(.mappedWalk)
+        var route: [CLLocationCoordinate2D] = []
+        if let leg, leg.kind != "ride", let detail = walking.displayedSnapshot(for: journey, leg: leg) {
+            route = detail.points
+            if let fix = store.locationController.latestLocation, let point = MapGeometry.lookAhead(on: detail.points, from: fix) {
+                target = point; label = language.text(.mappedWalk)
+            }
         }
         return CameraJourneyContext(id: "\(store.navigationSessionID)-\(journey?.id ?? "none")-\(journey?.revision ?? 0)-\(leg?.id ?? "none")-\(active?.phase ?? "preview")-\(active?.overlays.offline ?? false)-service-\(eligible)",
             title: nextTitle, line: onBoard ? nil : ride?.line, destination: onBoard ? nil : ride?.headsign,
             stop: stop?.name, target: target, targetLabel: label, simulated: simulated,
             boardingStopID: onBoard ? nil : ride?.from.id,
             boardingPointID: eligible ? spatialResolution?.boardingPointID : nil,
-            serviceExpectation: boardingExpectation(eligible: eligible))
+            serviceExpectation: boardingExpectation(eligible: eligible), route: route, routeEnd: routeEnd)
     }
     /// The selected ride plus the other departures listed at its boarding stop, so the camera can tell a
     /// misread of the right display from a different bus or tram, and name the one it sees.

@@ -34,6 +34,10 @@ struct CameraJourneyContext {
     // Specific, resolved boarding-point identity. A station/parent stop is insufficient for roadside selection.
     var boardingPointID: String? = nil
     var serviceExpectation: VehicleServiceExpectation? = nil
+    /// Walking route towards the stop (map points), for world-tracked AR route arrows. Empty when not walking.
+    var route: [CLLocationCoordinate2D] = []
+    /// The stop or boarding point the route leads to (not the look-ahead point used for geographic anchors).
+    var routeEnd: CLLocationCoordinate2D? = nil
 
     func match(_ text: String) -> String? {
         if let stop, Self.containsPhrase(text, phrase: stop) { return "Stop text · check sign" }

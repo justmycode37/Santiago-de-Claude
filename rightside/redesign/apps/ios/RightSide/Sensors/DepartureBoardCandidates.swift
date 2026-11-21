@@ -1,17 +1,16 @@
 import Foundation
 
 extension DisplayCandidate {
-    /// Services that may pull in at the boarding stop around `now`, from a departure board snapshot of that
-    /// same stop. A stale or foreign snapshot gives no alternatives (the matcher then stays strict).
-    static func board(_ snapshot: DepartureSnapshot?, boardingStop: Place?, now: Date,
-                      before: TimeInterval = 10 * 60, after: TimeInterval = 45 * 60) -> [DisplayCandidate] {
+    /// Services that may pull in at the boarding stop: every row of a departure-board snapshot of that same
+    /// stop (the board lists upcoming departures when it was fetched). Deliberately independent of the clock,
+    /// so the camera context only changes when the board is refreshed. A stale or foreign snapshot gives no
+    /// alternatives, and the matcher then stays strict.
+    static func board(_ snapshot: DepartureSnapshot?, boardingStop: Place?, now: Date) -> [DisplayCandidate] {
         guard let snapshot, snapshot.valid(at: now), let boardingStop,
               let id = DepartureStop.id(for: boardingStop), id == snapshot.stopID else { return [] }
         var result: [DisplayCandidate] = []
         for row in snapshot.rows {
-            let time = row.predicted ?? row.scheduled
-            guard time >= now.addingTimeInterval(-before), time <= now.addingTimeInterval(after),
-                  let line = row.line, let destination = row.destination else { continue }
+            guard let line = row.line, let destination = row.destination else { continue }
             // Displays sometimes show an important intermediate stop; offer the next few calls as vias.
             let vias = row.calls.dropFirst().prefix(6).map(\.place.name).filter { $0 != destination }
             let candidate = DisplayCandidate(line: line, destination: destination, vias: Array(vias))
