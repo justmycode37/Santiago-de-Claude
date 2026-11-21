@@ -1,6 +1,6 @@
 // The Bern measurements for any built city: doors reached, metres through buildings following no mapped way, route
 // length against OSRM (from the main station to ~70 Photon places), and platform pairs crossing ground-level tracks.
-// usage: node city_eval.mjs CITY
+// usage: node city_eval.mts CITY
 import fs from 'node:fs'; import vm from 'node:vm'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');

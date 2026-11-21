@@ -1,6 +1,6 @@
 // Walks to stops: from a city's main station to every tram, bus and train stop edge (platforms.js) within 1.5 km,
 // boarding from that edge's own platform or bay. Counts the walks the network finds no route for.
-// usage: node stops_eval.mjs CITY [--list]
+// usage: node stops_eval.mts CITY [--list]
 import fs from 'node:fs'; import vm from 'node:vm'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');

@@ -1,5 +1,5 @@
 // AR core: the decisions behind the AR camera (src/arview.ts), without the DOM, the camera or the network, so that
-// Node can test them (tools/test_arcore.mjs) and the iOS app (rightside/) can share them.
+// Node can test them (tools/test_arcore.mts) and the iOS app (rightside/) can share them.
 //
 // 1. Which vehicle is this? A port of RightSide's DepartureDisplayMatcher + VehicleTextRules + VehicleServiceMatcher
 //    (rightside/redesign/apps/ios/RightSide/Sensors/DepartureDisplayMatcher.swift, VehicleEvidence.swift): the text read
@@ -7,7 +7,7 @@
 //    stop's other departures). A service only wins when it explains the glyphs clearly better than every other one.
 //    OCR text is never rewritten; the answer is a scored choice or an honest "ambiguous / unlisted / unreadable".
 //    Same constants, same rules, same order as the Swift, so the display bench gives the same numbers
-//    (tools/test_arcore.mjs replays rightside/tools/display-bench through this file).
+//    (tools/test_arcore.mts replays rightside/tools/display-bench through this file).
 //
 // Boxes are [x, y, width, height], normalised to the picture (0–1), top-left origin, as in the Swift.
 (function (root) {
@@ -32,7 +32,7 @@
     return area / Math.max(0.000001, a[2] * a[3] + b[2] * b[3] - area);
   }
 
-  /** Swappable for tests: tools/test_arcore.mjs replays the Swift bench as it runs on Linux (see there). */
+  /** Swappable for tests: tools/test_arcore.mts replays the Swift bench as it runs on Linux (see there). */
   const OPTIONS = { containsBox };
 
   // ---------------------------------------------------------------- DisplayText: normalisation, no dictionary

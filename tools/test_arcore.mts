@@ -1,7 +1,7 @@
 // Tests for src/arcore.ts (window.ARCORE): the vehicle-display decision ported from RightSide.
 //
-//   node tools/test_arcore.mjs                 # unit checks + both display-bench sets, compared with the Swift numbers
-//   node tools/test_arcore.mjs --details       # also each labelled pass's outcome
+//   node tools/test_arcore.mts                 # unit checks + both display-bench sets, compared with the Swift numbers
+//   node tools/test_arcore.mts --details       # also each labelled pass's outcome
 //
 // The display bench (rightside/tools/display-bench) replays labelled Bern video passes: per-frame OCR (PP-OCRv5 on a
 // PC, the same text the Swift sees) through read() → decide(), frame by frame with a sliding 2 s window, exactly as
