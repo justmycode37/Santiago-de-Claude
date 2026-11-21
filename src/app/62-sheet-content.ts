@@ -157,18 +157,18 @@ function stepNav(): HTMLDivElement {
 //      its vehicles, times and first boarding point; walking all the way, when that is near enough, on a tab of
 //      its own. The one shown first is drawn on the map; a tap on a row opens that journey. ----
 const optionCount = () => (journeyOptions ? journeyOptions.list.length + (journeyOptions.walk ? 1 : 0) : 0);
-const connStart = (c) => new Date(c.from.departure).getTime();
-const connEnd = (c) => new Date(c.to.arrival).getTime();
-const connSecs = (c) => Math.max(0, connEnd(c) - connStart(c)) / 1000;
+const connStart = (c: OdConnection) => new Date(c.from.departure!).getTime();
+const connEnd = (c: OdConnection) => new Date(c.to.arrival!).getTime();
+const connSecs = (c: OdConnection) => Math.max(0, connEnd(c) - connStart(c)) / 1000;
 
-function optionRow(conn, now) {
-  const rides = conn.sections.filter((s) => s.journey), first = rides[0];
+function optionRow(conn: OdConnection, now: number) {
+  const rides = conn.sections.filter((s) => s.journey) as RideSection[], first = rides[0];
   const t0 = connStart(conn), t1 = Math.max(connEnd(conn), t0 + 60000);
   // line 1: every vehicle's badge, with the walks between them, and how long it all takes
   const chain = h('span', 'chain');
   chain.setAttribute('aria-hidden', 'true');
   let walkS = 0;
-  const add = (node) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
+  const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
   const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m >= 1) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
   conn.sections.forEach((s) => {
     if (!s.journey) { walkS += (s.walk && s.walk.duration) || 0; return; }
@@ -179,28 +179,28 @@ function optionRow(conn, now) {
   // line 2: the two times, and between them the rides to scale (a ring where you change)
   const bar = h('span', 'tbar', h('i', 'tbar-base'));
   bar.setAttribute('aria-hidden', 'true');
-  const pct = (t) => Math.min(100, Math.max(0, ((t - t0) / (t1 - t0)) * 100));
+  const pct = (t: number) => Math.min(100, Math.max(0, ((t - t0) / (t1 - t0)) * 100));
   rides.forEach((s, k) => {
-    const a = pct(liveMs(s.departure, 'departure')), b = pct(liveMs(s.arrival, 'arrival'));
+    const a = pct(liveMs(s.departure, 'departure')!), b = pct(liveMs(s.arrival, 'arrival')!);
     const ride = lineVars(h('i', 'tbar-ride'), s.journey);
     ride.style.left = a + '%';
     ride.style.width = Math.max(4, b - a) + '%';
     bar.append(ride);
     if (!k) return;
     const change = h('i', 'tbar-change');
-    change.style.left = pct((liveMs(rides[k - 1].arrival, 'arrival') + liveMs(s.departure, 'departure')) / 2) + '%';
+    change.style.left = pct((liveMs(rides[k - 1].arrival, 'arrival')! + liveMs(s.departure, 'departure')!) / 2) + '%';
     bar.append(change);
   });
   bar.append(h('i', 'tbar-end a'), h('i', 'tbar-end b'));
   // line 3: where it leaves from, in how long, and the changes (with the time there is for the tightest)
   const walkFirst = !conn.sections[0].journey;
-  const secs = ((walkFirst || !first ? t0 : liveMs(first.departure, 'departure')) - now) / 1000;
+  const secs = ((walkFirst || !first ? t0 : liveMs(first.departure, 'departure')!) - now) / 1000;
   const gone = secs < -45;
   const text = gone ? `Left ${kDur(-secs)} ago` : secs < 60 ? (walkFirst ? 'Leave now' : 'Leaves now')
     : secs < 3600 ? `${walkFirst ? 'Leave' : 'Leaves'} in ${kDur(Math.floor(secs / 60) * 60)}` : '';
   const late = first ? lateMin(first.departure, 'departure') : 0;
   const forecast = first && first.departure.prognosis && first.departure.prognosis.departure;
-  const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.departure, 'departure') - liveMs(rides[k].arrival, 'arrival')) / 60000)));
+  const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.departure, 'departure')! - liveMs(rides[k].arrival, 'arrival')!) / 60000)));
   const changes = !rides.length ? ['On foot'] : !gaps.length ? ['Direct']
     : [`${gaps.length} ${gaps.length === 1 ? 'change' : 'changes'}`, `· ${gaps.length === 1 ? '' : '≥ '}${Math.min(...gaps)} min`];
   const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), null, () => openOption(conn),
@@ -213,7 +213,7 @@ function optionRow(conn, now) {
   if (conn === journeyConn) row.setAttribute('aria-current', 'true'); // the one drawn on the map
   return row;
 }
-function walkCard(conn) {
+function walkCard(conn: OdConnection) {
   const m = conn.kante ? conn.kante.walkM : null;
   const kmh = SETTINGS.prefs ? Number(SETTINGS.prefs().walkKmh).toFixed(1).replace('.0', '') : '';
   return kBtn('walkcard', null, () => openOption(conn),
@@ -222,11 +222,11 @@ function walkCard(conn) {
     h('span', 'walkcard-cta', 'Walking directions', kIcon('right', 16)));
 }
 function listHead() {
-  const o = journeyOptions;
+  const o = journeyOptions!;
   let title = h('h2', 'trunc', 'Journeys'); // (an h1 here is a place name, which the translator leaves alone)
   if (o.walk && o.list.length) {
     // public transport (its quickest journey) · on foot
-    const tab = (key, icon, secs, label) => {
+    const tab = (key: JourneyTab, icon: KIconName, secs: number, label: string) => {
       const b = kBtn(journeyTab === key ? 'on' : '', `${label}, ${kDur(secs)}`, () => setJourneyTab(key), kIcon(icon, 20), kDur(secs));
       b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(journeyTab === key));
@@ -239,12 +239,12 @@ function listHead() {
   return h('div', 'jhead', h('div', 'sheet-title', title, sheetActions()));
 }
 function listBody() {
-  const o = journeyOptions, now = Date.now(), frag = document.createDocumentFragment();
+  const o = journeyOptions!, now = Date.now(), frag = document.createDocumentFragment();
   if (journeyTab === 'walk' && o.walk) {
     frag.append(walkCard(o.walk), h('div', 'list-end'));
     return frag;
   }
-  const more = (dir) => {
+  const more = (dir: JourneyMoreDir) => {
     const b = kBtn('more', null, () => loadMoreJourneys(dir), kIcon(dir === 'earlier' ? 'up' : 'down', 16),
       journeyMore === dir ? `Loading ${dir} journeys…` : cap(dir));
     b.disabled = !!journeyMore;
@@ -254,7 +254,7 @@ function listBody() {
   const ol = h('ol', 'journeys');
   let lastDay = 'Today';
   o.list.forEach((conn) => {
-    const day = dayLabel(conn.from.departure);
+    const day = dayLabel(conn.from.departure!);
     ol.append(h('li', null, day !== lastDay ? h('div', 'day-sep', day) : null, optionRow(conn, now)));
     lastDay = day;
   });
@@ -264,7 +264,7 @@ function listBody() {
   return frag;
 }
 // Make one of the journeys the one on the map (and the one the sheet is about, once it is opened)
-function showOption(conn) {
+function showOption(conn: OdConnection) {
   if (conn === journeyConn || !journeyDest) return;
   const id = ++journeyReq; // what was still being fetched for the last one is dropped
   openDirs.clear();
@@ -275,7 +275,7 @@ function showOption(conn) {
   kanteMatch(id);
 }
 // A row tapped: that journey, as before (the header gets a way back to the list)
-function openOption(conn) {
+function openOption(conn: OdConnection) {
   journeyList = false;
   if (conn === journeyConn) renderSheet();
   else showOption(conn);
@@ -290,7 +290,7 @@ function showOptions() {
   if (sheetDetent === 'low') setDetent('mid', true);
   else fitJourney();
 }
-function setJourneyTab(tab) {
+function setJourneyTab(tab: JourneyTab) {
   const o = journeyOptions;
   if (!o || tab === journeyTab) return;
   journeyTab = tab;
@@ -299,7 +299,7 @@ function setJourneyTab(tab) {
   else renderSheet();
 }
 // "Earlier" / "Later": more journeys for the same trip (from the Kante engine)
-async function loadMoreJourneys(dir) {
+async function loadMoreJourneys(dir: JourneyMoreDir) {
   const o = journeyOptions;
   if (!o || journeyMore || !window.KanteJourney) return;
   journeyMore = dir;
@@ -318,7 +318,7 @@ function refreshList() {
   if (fresh.innerHTML !== jBody.innerHTML) renderBody();
 }
 
-function buildHead() {
+function buildHead(): HTMLDivElement {
   if (journeyList && journeyOptions) return listHead();
   if (jFocus) return stepNav();
   const head = h('div', 'jhead');
@@ -542,7 +542,7 @@ function renderBody() {
 }
 function renderFoot() {
   if (!journeyConn || journeyList) { jFoot.replaceChildren(); return; } // Start belongs to a journey that has been chosen
-  const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
+  const end = journeyEnd(), start = new Date(journeyConn.from.departure!).getTime();
   jFoot.replaceChildren(h('div', 'actionbar',
     kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
     ticketLink(),

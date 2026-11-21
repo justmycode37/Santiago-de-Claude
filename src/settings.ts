@@ -230,7 +230,7 @@
   const speedLabel = document.getElementById('speedName')!;
   const LAST = SPEED_PRESETS.length - 1;
   const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
-  const changeListeners: (() => void)[] = [];
+  const changeListeners: SettingsChangeListener[] = [];
   const closeListeners: ((journeyChanged: boolean) => void)[] = [];
   let isOpen = false;
   let pushed = false;
@@ -314,7 +314,7 @@
   }
 
   // by: 'auto' when the app changed the setting itself (walk-pace.js), otherwise it was you
-  function update(patch, by) {
+  function update(patch: Partial<Settings>, by?: SettingsChangedBy) {
     const before = state;
     state = { ...state, ...patch };
     save();
@@ -353,7 +353,7 @@
     journeyBefore = journeySnapshot();
     render();
     // (the walking-speed notice stays usable: it can show on top of this page)
-    madeInert = [...document.body.children].filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
+    madeInert = ([...document.body.children] as HTMLElement[]).filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
     madeInert.forEach((el) => { el.inert = true; });
     themeBefore = themeMeta.getAttribute('content')!;
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
@@ -390,7 +390,7 @@
   }
 
   // anchor: id of a heading on the page to open it at (optional)
-  function open(anchor) {
+  function open(anchor?: string) {
     scrollTo = anchor || '';
     if (isOpen) return reveal();
     if (onSettings()) return sync();
