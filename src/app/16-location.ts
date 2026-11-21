@@ -5,16 +5,16 @@ const accMarker = new maplibregl.Marker({ element: accEl });
 const dotEl = document.createElement('div');
 dotEl.className = 'user-dot';
 const userMarker = new maplibregl.Marker({ element: dotEl });
-let userLngLat = null;
+let userLngLat: LngLat | null = null;
 let userAccuracy = 0;
 let lastFixAt = 0;
-const recentFixes = [];
+const recentFixes: GpsFix[] = [];
 let centeredOnUser = false;
 const fixAge = () => (lastFixAt ? Date.now() - lastFixAt : Infinity);
 // A recent, usable GPS fix (watchPosition can stay quiet while you stand still, so allow a while)
 const gpsOn = () => !!userLngLat && fixAge() < 90000 && userAccuracy < 400;
 
-const inSwitzerland = ([lng, lat]) =>
+const inSwitzerland = ([lng, lat]: LngLat) =>
   lng >= CH_BOUNDS[0][0] && lng <= CH_BOUNDS[1][0] &&
   lat >= CH_BOUNDS[0][1] && lat <= CH_BOUNDS[1][1];
 
@@ -31,8 +31,8 @@ function updateAccuracy() {
 map.on('zoom', updateAccuracy);
 
 let lastSavedAt = 0;
-function onPosition(pos) {
-  const lngLat = [pos.coords.longitude, pos.coords.latitude];
+function onPosition(pos: GeolocationPosition) {
+  const lngLat: LngLat = [pos.coords.longitude, pos.coords.latitude];
   if (!inSwitzerland(lngLat)) {
     showToast('You are outside Switzerland');
     return;
@@ -64,7 +64,7 @@ function onPosition(pos) {
   if (journeyConn) scheduleProgress(); // follow the trip with every fix
 }
 
-function onPositionError(err) {
+function onPositionError(err: GeolocationPositionError) {
   if (userLngLat) return; // keep the last known position
   const msg = err.code === 1
     ? 'Location access is off. Allow it in Settings › Safari › Location.'

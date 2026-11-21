@@ -12,7 +12,7 @@ let journeyConn = null;
 let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
 let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
 let journeyDest = null;
-let journeyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
+let journeyQuery: JourneyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
 let progressTimer = null;
 let liveTimer = null;
 
