@@ -9,7 +9,8 @@
 // vehicles on the map; see kante/docs/LIVE-API.md). Leave it out for the hosted engine
 // (https://kante.omniroute.app), set e.g. 'http://127.0.0.1:8080' for one on this machine, or '' to switch
 // live data from the engine off (the app then uses transport.opendata.ch's forecasts only).
-// For a quick test without config.js, add ?kante=<url> to the page address; ?kante=off or ?engine=off switches it off.
+// For a quick test without config.js, add ?kante=http://127.0.0.1:8080 to the page address (only an engine on this
+// machine is accepted that way; any other ?kante=<url> is ignored); ?kante=off or ?engine=off switches it off.
 // engine.js (the general engine client) and live.js (live data) both read kanteUrl.
 window.APP_CONFIG = {
   googlePlacesKey: '',
