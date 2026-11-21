@@ -1,0 +1,48 @@
+# The inside of a station in 3D (continuous view)
+
+`station3d-solid.html?key=zurich` shows a station as **one building at true heights**, not as floors pulled apart:
+
+- floors as slabs at their real heights (stretched ×2.2 upwards by default, so the floors read; ↕ switches to 1×),
+  with the **wells** cut out where stairs and escalators go up or down through them;
+- every **escalator** as a band with chevrons in its running direction (teal = up, orange = down, grey = unknown) and
+  glass balustrades; every **stair** with a few clear steps (stairs OpenStreetMap draws steeper than 40° as a striped
+  slope); **lifts** as glass shafts with a ring at each floor they stop at; ramps as slopes;
+- walls where OpenStreetMap has them (doorways left open), kerbs at the edges of indoor floors, railings round the
+  wells, named rooms, and **pins for shops and services** (209 at Zürich HB, all of ShopVille and the passages);
+- tracks with their beds, platform numbers, sector letters, the names of the halls and passages, entrances;
+- **your way** as a yellow tube through it all: through the escalators and down the lift shafts. The floors above the
+  way are cut open along it (a corridor cutaway: the rest of each floor stays), and a faint copy of the tube shows
+  through any floor that still hides it.
+
+Step by step (**Next ›**), the camera looks across each floor change so the climb shows in profile; **Whole way**
+shows it all. The floor buttons lift away everything above a floor (its outlines stay, as a ghost). Labels are
+limited to about 15 at a time, the way's own first.
+
+## Data
+
+| File | Made by | From |
+| --- | --- | --- |
+| `stations3d/<key>.js` | `tools/build_station3d.py` | OpenStreetMap, ATLAS, SBB open data (see `stations3d/SCHEMA.md`) |
+| `stations3d/<key>.solid.js` | `tools/station3d_solid.py <key>` | the model above + OpenStreetMap from the builder's cache (`tools/cache/<key>.osm.json`) |
+| `tools/station3d_data/<key>/{boards,sectors,furniture}.json` | `tools/station3d_sbb_layers.py <key>` | data.sbb.ch (sector signs, clocks, ticket machines) |
+
+```bash
+python tools/station3d_sbb_layers.py zurich   # SBB layers (cached in tools/cache/)
+python tools/build_station3d.py zurich         # the model (downloads OSM once, cached)
+python tools/station3d_solid.py zurich         # the 3D companion
+```
+
+The companion file is separate on purpose: the model format and the existing viewer (`station3d.js`) are unchanged.
+
+## What the data does not have yet (Zürich HB)
+
+- **Walls below ground**: OpenStreetMap has none (its 35 indoor walls are on level 0), and the shops of ShopVille and
+  the passages are points, not outlines. So underground the view shows floors, kerbs and pins, not walls; edges of
+  floors the builder made from paths (their outline is a guess) get no kerb at all. Nothing is invented.
+- **Real heights of each floor** come from step counts and track heights in OpenStreetMap (see the level table in
+  `tools/build_station3d.py`); room heights are schematic (2.6 m).
+- **SZU (tracks 21/22)** is left out while it is closed for its rebuild (until 13 December 2026); OSM has no platform.
+
+The next step for detail is SBB's own indoor plans (the Journey Maps tiles behind the SBB app, layer `rokas_indoor`):
+they need an API key from developer.sbb.ch, and their terms of reuse must be checked first. They would replace the
+OSM rooms and walls in `station3d_solid.py` and keep everything else.
