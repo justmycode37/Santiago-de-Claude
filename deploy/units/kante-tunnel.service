@@ -1,0 +1,13 @@
+[Unit]
+Description=Cloudflare tunnel to the Kante engine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/kante-host/repo/deploy/tunnel.sh
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

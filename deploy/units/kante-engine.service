@@ -1,0 +1,18 @@
+[Unit]
+Description=Kante engine (journey planner API on 127.0.0.1:8080)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/kante-host/current
+EnvironmentFile=-%h/kante-host/config.env
+# "--app none": serve the API (and the debug page at /playground/), not the Kante web app
+ExecStart=/bin/sh -c 'exec ./kante serve --data data --bind 127.0.0.1 --port "$${KANTE_PORT:-8080}" --app none'
+KillSignal=SIGINT
+TimeoutStopSec=15
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

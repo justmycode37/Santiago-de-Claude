@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy the Kante engine if main has changed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/kante-host/repo/deploy/deploy.sh
+Nice=10
+TimeoutStartSec=45min
