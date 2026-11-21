@@ -16,6 +16,25 @@ For a phone, use `python3 tools/serve.py` instead: it sends the files gzipped (p
 and lets the browser cache them, so the app opens much faster. The phone needs HTTPS for GPS, for example
 through `tailscale serve`.
 
+## Search: places, food, shops, anything
+
+The search bar finds places the way Google Maps does, not only addresses and stops (`places.js`):
+
+- **A kind of place**, in English, German, French or Italian: "restaurant", "coffee", "Apotheke", "toilet near me",
+  "supermarket", "ATM", "museum", … lists the nearest ones around the part of the map you are looking at, with the
+  distance from you. Enter, or **Show on the map**, puts them all on the map as pins.
+- **A name**: "Migros", "Einstein Kaffee", "Zentrum Paul Klee", … lists the matching places, nearest first.
+- Addresses, towns, postcodes, mountains and lakes still come from swisstopo, in the same list.
+
+Tap a result or a pin and the app plans the trip there with its own journey planner, as for any destination.
+
+By default the places come from OpenStreetMap through [Photon](https://photon.komoot.io), which is free and needs no
+key. The public Photon server is meant for light use: for many users, run your own Photon or switch to Google.
+To use **Google Places** instead (Google's places, with ratings and open/closed), copy `config.example.js` to
+`config.js`, enable "Places API (New)" in Google Cloud, and put the API key there. `config.js` is not committed.
+Restrict the key to your site's address: the page sends it from the browser. Each search is a paid Google
+request (Text Search, with the rating and opening-hours fields), so the search waits a little longer for you to stop typing.
+
 ## Platforms and stop edges
 
 The map shows the exact position of every train platform (Gleis) and bus/tram stop edge (Kante) in

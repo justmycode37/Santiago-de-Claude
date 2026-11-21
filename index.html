@@ -21,6 +21,7 @@
   <!-- Open the connections the app needs while the page is still loading (map tiles, search, timetable) -->
   <link rel="preconnect" href="https://vectortiles.geo.admin.ch" crossorigin />
   <link rel="preconnect" href="https://api3.geo.admin.ch" crossorigin />
+  <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
   <link rel="preconnect" href="https://transport.opendata.ch" crossorigin />
   <link rel="preconnect" href="https://unpkg.com" />
   <script>
@@ -263,6 +264,10 @@
     .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
     .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
     .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
+    .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
+    .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
+    .results li.attr:active { background: none; }
 
     .search {
       height: 52px;
@@ -616,6 +621,21 @@
     .dest-pin circle { fill: var(--sun); }
     :root[data-theme="dark"] .dest-pin path { fill: #F2F3F5; }
     :root[data-theme="dark"] .dest-pin circle { fill: #14161A; }
+    /* Search results shown on the map ("Show on map"): a round icon with the name under it; tap to go there */
+    .place-pin { display: flex; flex-direction: column; align-items: center; cursor: pointer; border: 0; padding: 0; background: none; font: inherit; }
+    .place-pin .icon {
+      width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+      border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.35);
+    }
+    .place-pin .icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .place-pin span {
+      max-width: 120px; margin-top: 2px; font-size: 11.5px; font-weight: 600; line-height: 1.2; text-align: center; color: #1c1c1e;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
+    }
+    :root[data-theme="dark"] .place-pin .icon { border-color: #1c1c1e; }
+    :root[data-theme="dark"] .place-pin span { color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000; }
+    .place-pin:active .icon { transform: scale(.9); }
     .j-badge {
       flex: none;
       display: inline-flex;
@@ -1282,7 +1302,7 @@
         <circle cx="10.5" cy="10.5" r="7" />
         <path d="M16 16l5 5" />
       </svg>
-      <input id="q" type="search" placeholder="Search destination" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search destination" />
+      <input id="q" type="search" placeholder="Search places, food, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search places, food, shops and addresses" />
       <button class="clear" id="clear" type="button" aria-label="Clear">
         <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
       </button>
@@ -1306,6 +1326,9 @@
   <script src="events.js"></script>
   <script src="map-layers.js"></script>
   <script src="settings.js"></script>
+  <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
+  <script src="config.js" onerror="void 0"></script>
+  <script src="places.js"></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
@@ -1757,7 +1780,18 @@
       building: { color: 'var(--rose)', svg: '<path d="M5 21V4h14v17M3 21h18M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>' },
       station:  { color: 'var(--navy)', svg: '<path d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM4 10h16M8 17l-2 4M16 17l2 4"/>' },
       nature:   { color: 'var(--sun)', fg: '#344D77', svg: '<path d="M12 3l6 8.5h-3.5L19 17H5l4.5-5.5H6zM12 17v4"/>' },
-      other:    { color: 'var(--navy)', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
+      // Places (places.js)
+      food:     { color: 'var(--tang)', svg: '<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v5M17 21V3c-2 1-3 4-3 8h3"/>' },
+      cafe:     { color: 'var(--tang)', svg: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3c0 1.5 1 1.5 1 3M12 3c0 1.5 1 1.5 1 3"/>' },
+      bar:      { color: 'var(--rose)', svg: '<path d="M5 4h14l-7 8zM12 12v8M8 20h8"/>' },
+      shop:     { color: 'var(--sun)', fg: '#344D77', svg: '<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>' },
+      health:   { color: 'var(--rose)', svg: '<path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z"/>' },
+      money:    { color: 'var(--navy)', svg: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/>' },
+      toilet:   { color: 'var(--navy)', svg: '<circle cx="7.5" cy="5" r="1.6"/><circle cx="16.5" cy="5" r="1.6"/><path d="M5.5 21v-6H4.5l1.5-6h3l1.5 6h-1v6M14.5 21V9h4v12M12 3v18"/>' },
+      drink:    { color: 'var(--navy)', svg: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>' },
+      bed:      { color: 'var(--navy)', svg: '<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11" r="2"/>' },
+      sport:    { color: 'var(--navy)', svg: '<path d="M6.5 7v10M17.5 7v10M3.5 10v4M20.5 10v4M6.5 12h11"/>' },
+      other:   { color: 'var(--navy)', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
     };
     const CANTONS = { AG: 'Aargau', AI: 'Appenzell I.Rh.', AR: 'Appenzell A.Rh.', BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
       FR: 'Fribourg', GE: 'Geneva', GL: 'Glarus', GR: 'Graubünden', JU: 'Jura', LU: 'Lucerne', NE: 'Neuchâtel', NW: 'Nidwalden',
@@ -1807,6 +1841,7 @@
 
     const COLLAPSED_COUNT = 3;
     let results = [];
+    let placeCategory = null; // "Restaurants" when the query names a kind of place: the nearest ones are listed
     let expanded = false;
     let debounce;
     let reqId = 0;
@@ -1887,24 +1922,20 @@
       return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)) };
     }
 
-    async function search(text) {
-      const id = ++reqId;
-      const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
+    // Addresses, towns, postcodes, mountains, lakes: swisstopo
+    async function searchSwisstopo(text) {
       const url = 'https://api3.geo.admin.ch/rest/services/api/SearchServer?' + new URLSearchParams({
-        searchText: remoteText,
+        searchText: text,
         type: 'locations',
         origins: 'zipcode,gg25,gazetteer,address',
         sr: '4326',
         limit: '15',
         lang: 'en',
       });
-      const [data] = await Promise.all([
-        fetch(url).then((res) => res.json()).catch(() => null),
-        loadPlaces(), // usually loaded already (when the search bar got focus)
-      ]);
-      if (id !== reqId) return; // a newer query is in flight
+      const res = await fetch(url);
+      const data = await res.json();
       const seen = new Set();
-      const remote = ((data && data.results) || []).map((r) => ({
+      return (data.results || []).map((r) => ({
         ...parseResult(r.attrs),
         origin: r.attrs.origin,
         lngLat: [r.attrs.lon, r.attrs.lat],
@@ -1914,12 +1945,107 @@
         seen.add(key);
         return true;
       });
-      // Nearest places of the kind asked for first, then a place or town called exactly that, then places by name
-      const { kinds, names } = searchPlaces(text);
-      const exact = remote.length && fold(remote[0].title) === fold(remoteText) ? remote.splice(0, 1) : [];
-      results = [...kinds, ...exact, ...names, ...remote];
+    }
+
+    // Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.js: OpenStreetMap, or Google
+    // with a key): around the part of the map in view, with distances from you
+    function searchPlacesOnline(text) {
+      if (!window.PlaceSearch) return Promise.resolve(null);
+      const center = map.getCenter().toArray();
+      const corner = map.getBounds().getNorthEast().toArray();
+      const viewKm = Math.hypot((corner[0] - center[0]) * 76, (corner[1] - center[1]) * 111); // km at Swiss latitudes
+      const radiusKm = Math.min(Math.max(viewKm, 1), 10);
+      const timeout = new Promise((_, fail) => setTimeout(() => fail(new Error('timeout')), 4000));
+      return Promise.race([PlaceSearch.search(text, { center, origin: userLngLat, radiusKm }), timeout]);
+    }
+
+    const nearM = (a, b, m) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
+
+    // One list from the three sources: Bern's own places (map-places.js), places online (places.js), swisstopo
+    function combineResults(text, swiss, online, local) {
+      const { kinds, names } = local;
+      const bern = [...kinds, ...names];
+      // a place in both the Bern data and online keeps the Bern entry
+      const found = (online ? online.results : [])
+        .filter((p) => !bern.some((b) => fold(b.title) === fold(p.title) && nearM(b.lngLat, p.lngLat, 150)));
+      const places = [...kinds, ...found, ...names];
+      // a place swisstopo also knows keeps the place (it has the category and the distance)
+      const s = (swiss || []).filter((r) => !places.some((p) => fold(p.title) === fold(r.title) && nearM(p.lngLat, r.lngLat, 150)));
+      placeCategory = (online && online.category) || null;
+      // Places first for "restaurant", "Migros", "Einstein Kaffee"; swisstopo first for "Bern", "3011", "Kramgasse 1":
+      // whichever top result has more of the typed words in its name, swisstopo on a tie if its name is the query
+      const qw = wordsOf(text);
+      const matched = (r) => {
+        if (!r) return 0;
+        const tw = wordsOf(r.title);
+        return qw.filter((w) => tw.some((t) => t.startsWith(w) || (t.length >= 3 && w.startsWith(t)))).length / (qw.length || 1);
+      };
+      const pm = matched(places[0]), sm = matched(s[0]);
+      const placesFirst = kinds.length > 0 || !!placeCategory || (!/\d/.test(text) && places.length > 0
+        && (pm > sm || (pm === sm && pm > 0 && fold(s[0] ? s[0].title : '') !== fold(text))));
+      return placesFirst ? [...places, ...s] : [...s, ...places];
+    }
+
+    async function search(text) {
+      const id = ++reqId;
+      const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
+      let online = null;
+      let onlineDone = false;
+      const onlineReq = searchPlacesOnline(text).catch(() => null).then((v) => { online = v; onlineDone = true; });
+      const [swiss] = await Promise.all([
+        searchSwisstopo(remoteText).catch(() => null),
+        loadPlaces(), // usually loaded already (downloaded after the first map view)
+      ]);
+      if (id !== reqId) return; // a newer query is in flight
+      const local = searchPlaces(text);
+      const show = (final) => {
+        results = combineResults(text, swiss, online, local);
+        render(!final ? 'Searching…' : swiss || online ? 'No results' : 'Search unavailable');
+      };
+      // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow
+      // answer from one source never holds up the others
+      if (!onlineDone) await Promise.race([onlineReq, new Promise((ok) => setTimeout(ok, 250))]);
+      if (id !== reqId) return;
       expanded = false;
-      render(data || results.length ? 'No results' : 'Search unavailable');
+      show(onlineDone);
+      if (onlineDone) return;
+      await onlineReq;
+      if (id === reqId) show(true);
+    }
+
+    // "Show on map": every place result as a pin; tap one to plan the trip there
+    const placeMarkers = [];
+    function clearPlacePins() {
+      for (const m of placeMarkers) m.remove();
+      placeMarkers.length = 0;
+    }
+    function showPlacesOnMap() {
+      clearPlacePins();
+      const places = results.filter((r) => r.origin === 'place');
+      if (!places.length) return;
+      const bounds = new maplibregl.LngLatBounds();
+      for (const r of places) {
+        const k = r.icon || KIND[r.kind] || KIND.other;
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'place-pin';
+        el.setAttribute('aria-label', `${r.title}, ${r.subtitle}`);
+        const icon = document.createElement('div');
+        icon.className = 'icon';
+        icon.style.background = k.color;
+        if (k.fg) icon.style.color = k.fg;
+        icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
+        const name = document.createElement('span');
+        name.textContent = r.title;
+        el.append(icon, name);
+        el.addEventListener('click', (e) => { e.stopPropagation(); showDestinationJourney(r); });
+        placeMarkers.push(new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, -14] }).setLngLat(r.lngLat).addTo(map));
+        bounds.extend(r.lngLat);
+      }
+      list.classList.remove('open');
+      input.blur();
+      const bottom = window.innerHeight * 0.2 + 90; // clear of the search bar
+      map.fitBounds(bounds, { padding: { top: 90, left: 50, right: 50, bottom }, maxZoom: 16.5, duration: 900 });
     }
 
     // A tap on a result row. On phones the click only comes after the browser has moved focus away from the
@@ -1956,7 +2082,17 @@
         li.textContent = emptyText;
         list.appendChild(li);
       }
-      const visible = expanded ? results : results.slice(0, COLLAPSED_COUNT);
+      const placeCount = results.filter((r) => r.origin === 'place').length;
+      if (placeCount >= 2 && results[0].origin === 'place') {
+        const onMap = document.createElement('li');
+        onMap.className = 'on-map';
+        onMap.setAttribute('role', 'option');
+        onMap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/></svg>';
+        onMap.append(placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
+        onTap(onMap, showPlacesOnMap);
+        list.appendChild(onMap);
+      }
+      const visible = expanded ? results : results.slice(0, placeCategory ? 5 : COLLAPSED_COUNT);
       visible.forEach((r, i) => {
         const li = document.createElement('li');
         li.setAttribute('role', 'option');
@@ -1979,12 +2115,18 @@
         onTap(li, () => select(i));
         list.appendChild(li);
       });
-      if (!expanded && results.length > COLLAPSED_COUNT) {
+      if (!expanded && results.length > visible.length) {
         const more = document.createElement('li');
         more.className = 'more';
         more.textContent = 'Show more…';
         onTap(more, () => { expanded = true; render(); });
         list.appendChild(more);
+      }
+      if (window.PlaceSearch && results.some((r) => r.source)) { // places from places.js: credit their source
+        const attr = document.createElement('li');
+        attr.className = 'attr';
+        attr.textContent = PlaceSearch.attribution;
+        list.appendChild(attr);
       }
       list.classList.add('open');
       if (!expanded) list.scrollTop = 0;
@@ -2000,6 +2142,7 @@
       clearBtn.classList.add('show');
       list.classList.remove('open');
       input.blur();
+      clearPlacePins();
       destMarker.setLngLat(r.lngLat).addTo(map);
       startJourney(r);
     }
@@ -2008,8 +2151,10 @@
       const text = input.value.trim();
       clearBtn.classList.toggle('show', !!input.value);
       clearTimeout(debounce);
-      if (text.length < 2) { reqId++; results = []; render(); return; }
-      debounce = setTimeout(() => search(text), 200);
+      clearPlacePins();
+      if (text.length < 2) { reqId++; results = []; placeCategory = null; render(); return; }
+      // Google Places is paid per request: wait a little longer for a pause in typing
+      debounce = setTimeout(() => search(text), window.PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
     });
 
     input.addEventListener('focus', () => {
@@ -2020,16 +2165,20 @@
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (results.length) select(0);
+      // "restaurants" + Enter shows them all on the map; a name or address goes straight there
+      if (placeCategory && results.filter((r) => r.origin === 'place').length >= 2) showPlacesOnMap();
+      else if (results.length) select(0);
     });
 
     clearBtn.addEventListener('pointerdown', (e) => e.preventDefault());
     clearBtn.addEventListener('click', () => {
       input.value = '';
       results = [];
+      placeCategory = null;
       reqId++;
       clearBtn.classList.remove('show');
       render();
+      clearPlacePins();
       destMarker.remove();
       if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
       input.focus();
