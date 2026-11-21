@@ -124,6 +124,8 @@ interface KanteRideUnmatched {
 }
 
 interface OdSection {
+  /** 70-routing.ts: a walk before the first ride, in seconds, as the walking network routed it (the option's row). */
+  _netWalkS?: number;
   /** 56-live-engine.ts: the engine's trip for this ride. */
   _k?: KanteRideLink;
   /** 54-live-timetable.ts: when transport.opendata.ch's forecasts for this ride were last refreshed (ms). */

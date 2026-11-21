@@ -21,7 +21,7 @@ interface WalkRouteOptions {
   to?: WalkEnd & { wide?: boolean };
 }
 /** A moment of a walk worth a word ("Stairs down to level −2", "Under the arcades of Kramgasse"). */
-interface WalkCue { at: LngLat; kind: string; text: string; m: number }
+interface WalkCue { at: LngLat; kind: string; text: string; m: number; /** A floor change: the floor it starts on, when known. */ from?: number }
 /** A walk on the pedestrian network. */
 interface WalkRouteResult {
   net: true;

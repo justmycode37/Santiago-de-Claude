@@ -527,21 +527,21 @@
         : k === 'cr' ? 'crossing' : k === 'ar' && attr.n ? 'square' : null;
     };
     const cues = [], lastAt = {};
-    const push = (i, kind, text) => {
+    const push = (i, kind, text, from) => { // from: the floor a floor change starts on, when known
       const key = kind + '|' + text;
       if (lastAt[key] != null && cum[i] - lastAt[key] < 80) { lastAt[key] = cum[i]; return; } // the same arcade, block after block
       lastAt[key] = cum[i];
-      cues.push({ at: all[i][0], kind, text, m: Math.round(cum[i]) });
+      cues.push({ at: all[i][0], kind, text, m: Math.round(cum[i]), ...(from != null ? { from } : {}) });
     };
     for (let i = 1; i < all.length; i++) {
       const attr = all[i][1], kind = kindOf(attr);
       // a lift drawn as a point where paths on different floors meet
       if (all[i - 1][3] && i >= 2) {
         const before = single(all[i - 1][1]), after = single(attr);
-        if (before != null && after != null && before !== after) push(i - 1, 'lift', 'Lift to ' + levelText(after));
+        if (before != null && after != null && before !== after) push(i - 1, 'lift', 'Lift to ' + levelText(after), before);
       }
       if (!kind || kind === kindOf(all[i - 1][1]) && (all[i - 1][1] || {}).n === attr.n) continue; // still on the same one
-      let text;
+      let text, fromLv = null;
       if (kind === 'steps' || kind === 'escalator' || kind === 'lift' || kind === 'ramp') {
         let j = i;
         while (j + 1 < all.length && kindOf(all[j + 1][1]) === kind) j++;
@@ -550,6 +550,7 @@
         if (from != null && to != null && from !== to) {
           text = kind === 'lift' ? `Lift to ${levelText(to)}` : `${word} ${to > from ? 'up' : 'down'} to ${levelText(to)}`.trim();
           text = text[0].toUpperCase() + text.slice(1);
+          fromLv = from;
         } else if (kind === 'ramp') continue;
         else if (attr.i && kind !== 'lift') text = `${word} ${(attr.i === 'u') === (all[i][2] !== false) ? 'up' : 'down'}`;
         else text = word;
@@ -558,7 +559,7 @@
           crossing: 'Cross the street', square: 'Straight across' }[kind];
         if (attr.n && kind !== 'crossing') text += (kind === 'arcade' ? ' of ' : ' ') + attr.n;
       }
-      push(i - 1, kind, text);
+      push(i - 1, kind, text, fromLv);
     }
     // the floor changes where paths simply meet (stairs or a lift not drawn): still say so
     const VERTICAL = { steps: 1, escalator: 1, lift: 1, ramp: 1 };
@@ -567,7 +568,7 @@
       const l = single(all[i][1]);
       if (l == null) continue;
       if (lastLv != null && l !== lastLv && !cues.some((c) => VERTICAL[c.kind] && c.m >= cum[lastI] - 1 && c.m <= cum[i] + 1)) {
-        cues.push({ at: all[i - 1][0], kind: 'ramp', text: `${l > lastLv ? 'Up' : 'Down'} to ${levelText(l)}`, m: Math.round(cum[i - 1]) });
+        cues.push({ at: all[i - 1][0], kind: 'ramp', text: `${l > lastLv ? 'Up' : 'Down'} to ${levelText(l)}`, m: Math.round(cum[i - 1]), from: lastLv });
       }
       lastLv = l;
       lastI = i;
