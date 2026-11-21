@@ -15,7 +15,7 @@ y north. Heights are metres relative to level 0.
 | `<key>/sectors.json` | sector centres per track: `{ ref, name, xy }` | `sectors` | SBB open data (sector boards, platform edges) | `data.sbb.ch` |
 | `<key>/spans.json` | from–to of each sector along the platform edge | `sectorSpans`, heading of the sector signs | SBB open data | `data.sbb.ch` |
 | `<key>/boards.json` | the sector boards themselves (position, letters on both faces, how they are mounted) | `props` (`sector-sign`) | SBB open data | `data.sbb.ch` |
-| `<key>/furniture.json` | clocks and ticket machines (no level in the source) | `props` (`clock`, `ticket-machine`) | SBB open data | `data.sbb.ch` |
+| `<key>/furniture.json` | clocks and ticket machines (no level in the source; `level` is set by hand in the files of `bruennen` and `buempliz-nord`, see below) | `props` (`clock`, `ticket-machine`) | SBB open data | `data.sbb.ch` |
 
 Licences: all three sources are open data that may be used in a public app when the source is named with the
 strings in the last column (as recorded in the README of the research folder the files come from). Check the terms
@@ -27,15 +27,26 @@ Where they come from in this project: `heights.json` and `shell_mesh.json` are c
 `Santiago-de-Claude-research/reuse/<key>.*.json` (built by `reuse/tools/extract_sectors.py` and
 `extract_furniture.py` with the origins `7.4391, 46.9488` for `bern` and `7.4655, 46.9672` for `wankdorf`).
 
+`bruennen/furniture.json` (2 clocks, 2 ticket machines) and `buempliz-nord/furniture.json` (4 clocks, 2 ticket
+machines) were made on 2026-11-21 with the same `extract_furniture.py` from the station files of
+`Santiago-de-Claude-research/bern-transit-3d/bern-research/stations/data/focus/` (origins `7.3752, 46.9440` and
+`7.3900, 46.9459`). Neither station has sector boards in the SBB data. Their `level` was then set by hand, because
+the rule below picks the wrong floor for two of the ten pieces: at Brünnen Westside all four are on the train
+platforms (level 1; both ticket machines are BLS machines and lie within 3.5 m of the two BLS machines OSM has on
+platforms 1 and 2, and both clocks lie on the outlines of the train platforms; one machine also lies on the outline
+of the tram platform drawn below platform 1), at Bümpliz Nord all six are on the platforms, in the station building
+or on the forecourt (level 0; one clock on the building is nearer to the floor of the underpass than to any
+level-0 area of the model).
+
 Known problems that matter here:
 
 - Not measurable from these sources, so estimates in the level table: the underpass floor, today's RBS platforms and
   the walking floor of the Welle.
 - The deck walls of the mesh reach down to −3.5 m; the builder clips the mesh at −1 m.
 - Sector boards without a track number in the SBB data were assigned to the nearest edge (nine, all track 3).
-- Furniture has no level: the builder puts a piece on level 0 when it lies on a platform, else on the level of the
-  nearest walkable area within 15 m, else leaves it out.
-
+- Furniture has no level in the source: the builder takes `level` from the file when it is set there, else puts a
+  piece on level 0 when it lies on a platform, else on the level of the nearest walkable area within 15 m, else
+  leaves it out.
 ## Zürich HB (`zurich/`)
 
 `boards.json`, `sectors.json` and `furniture.json` are made by `tools/station3d_sbb_layers.py zurich` straight from
