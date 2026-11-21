@@ -23,10 +23,10 @@ The rules for those sentences:
 
 | Task | How |
 |---|---|
-| Find a place, an address or a stop | Search. Results follow the search field, each one is a button, and the number of results is announced. |
+| Find a place, an address or a stop | Search. Results follow the search fields, each one is a button, and the number of results is announced. |
 | Find a toilet, a pharmacy, drinking water | Search for the kind of place ("toilet"). The nearest are listed with their distance. |
-| Find community events | Tap the empty search field and pick **Events near you**, or search "events" ("free food events"). An event held on several dates is listed once. |
-| Plan a journey | Pick a result. Focus moves to the journey and it is announced in one sentence, with what to do first. |
+| Find community events | Tap the empty destination field and pick **Events near you**, or search "events" ("free food events"). An event held on several dates is listed once, and its page offers the other dates. |
+| Plan a journey | Pick a result. Focus moves to the journey sheet. With several journeys on offer, their number and the one on the map are announced, and each row of the list reads as one sentence. Picking one announces it, with what to do first. |
 | Be guided | **Start** on a journey. From then on each new step and each change is said once. **Start** again says the current step once more. |
 | Know where to stand | "Where to stand" in the journey gives platform, sector, side of the road and level in words. |
 | Know which stop you are at | Menu › **Scan**. With location on, the nearest stop and its next departures are said in one sentence, without tapping anything. |
@@ -55,13 +55,17 @@ After **Start**, `guidePosition()` and `guideAlerts()` in `index.html` turn the 
 | Off the route, or a missed ride | "You are off the route, about 270 metres away." | yes |
 | Arrived | "You have arrived at Zytglogge." | no |
 
-With GPS the position decides. Without it, the live timetable does, and the sentence says so ("By the timetable you are now on…"). A new position is only said once it has held for three seconds, so one stray GPS fix says nothing.
+With GPS the position decides. Without it, the live timetable does, and the sentence says so ("By the timetable you are now on…"). A new position is only said once it has held for three seconds (ten for "off the route"), so one stray GPS fix says nothing.
+
+Guidance is on while you are under way: from **Start** until the start or the destination is changed, or the journey is closed.
 
 ## Languages
 
 The page is in English. Station, stop and street names are marked with the language spoken where they are (`lang="de"`, `"fr"`, `"it"`), so a screen reader says "Zürich Hauptbahnhof" with a German voice. `A11Y.placeLang()` decides by position, along a rough language border. Event titles and descriptions are marked by the words they use (`A11Y.textLang()`), and left alone when that is not clear.
 
-Sentences in the live regions can't carry a language per word, so names inside them are read with the English voice.
+Sentences in the live regions can't carry a language per word, so names inside them are read with the voice of the app's language.
+
+**Another app language** (Settings › Language, `translate.js`) translates the text on the screen through Google Translate. Announcements are translated before they are put into a live region, and the regions are marked `translate="no"`: put in English and translated afterwards, a sentence would be read out twice. If Google does not answer within 1.5 seconds, the sentence is said in English. Names keep `translate="no"` and their own language.
 
 ## Data for blind and low-vision travellers
 
@@ -80,12 +84,20 @@ Both cover Bern only. The app says what is mapped and claims nothing where nothi
 - **Vibration** exists on Android only. iOS Safari has none, and the switch is hidden there.
 - **The map** itself is a picture. Everything on it that matters is reachable through search, the journey sheet or Scan.
 
+## Rebuilding the data
+
+```bash
+node tools/build-stop-access.mjs    # stop-access.js from data/bern-stop-accessibility.json
+```
+
 ## Testing
 
 ```bash
 node tools/test_a11y.mjs            # language helpers
 node tools/test_screen_reader.mjs   # the app in headless Chrome: roles, names, focus, announcements
 ```
+
+The browser test needs Chrome or Chromium and the internet, and takes a few minutes.
 
 The browser test drives the real app through search, events, a journey, guidance with a simulated GPS position, the blind or low-vision mode and Scan. It checks what the app hands to a screen reader. It does not replace trying a change with VoiceOver and TalkBack on a phone.
 

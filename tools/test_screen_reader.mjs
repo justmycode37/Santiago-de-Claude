@@ -4,7 +4,7 @@
 // names, focus, and what is put into the live regions.
 //
 //   node tools/test_screen_reader.mjs                 everything
-//   node tools/test_screen_reader.mjs search,journey  some parts: search, events, journey, guide, access, scan
+//   node tools/test_screen_reader.mjs search,journey  some parts: search, events, journey, guide, access, scan, language
 //   SHOTS=/some/dir node tools/test_screen_reader.mjs shots   screenshots of the screens that changed
 //
 // Needs Chrome or Chromium (CHROME=/path/to/chrome when it is not on the PATH) and python3 for the local server.
@@ -75,7 +75,7 @@ check('title names the app', /journey planner/i.test(await ev('document.title'))
 check('zoom is allowed', !/user-scalable|maximum-scale/.test(await ev(`document.querySelector('meta[name=viewport]').content`)));
 check('live regions are in the page', await ev(`!!document.querySelector('#srStatus[aria-live=polite]') && !!document.querySelector('#srAlert[aria-live=assertive]')`));
 check('closed time picker and event page are out of reach', await ev(`document.getElementById('tSheet').inert && document.getElementById('evPage').inert`));
-check('results list follows the search field in the page, and is above it on screen', await ev(`(() => { const f = document.getElementById('searchForm'), l = document.getElementById('results'); return !!(f.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING) && getComputedStyle(f.parentElement).flexDirection === 'column-reverse'; })()`));
+check('results list follows the search fields in the page', await ev(`(() => { const f = document.getElementById('searchForm'), l = document.getElementById('results'); return !!(f.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING) && !l.hasAttribute('role'); })()`));
 
 if (want('search')) {
   section('search');
@@ -87,13 +87,12 @@ if (want('search')) {
   check('"Show more" is a button', await ev(`!!document.querySelector('#results li.more > button')`));
   check('result count is announced', /\d+ results?/.test(await said()), await said());
   check('names carry their language', await ev(`document.querySelector('#results .title').lang`) === 'de', await ev(`document.querySelector('#results .title').outerHTML`));
-  await key('Tab', 'Tab', 9); await key('Tab', 'Tab', 9); await sleep(200);
+  await ev(`document.querySelector('#results li > button').focus()`); await sleep(200); // as TalkBack does before it presses a row
   const a1 = await active();
-  check('focus can move from the field into the list, which stays open', /^button/.test(a1) && await ev(`document.getElementById('results').classList.contains('open') && document.getElementById('results').contains(document.activeElement)`), a1);
+  check('focus can move from the field into the list, which stays open', /^button/.test(a1) && await ev(`document.getElementById('results').classList.contains('open') && document.getElementById('results').contains(document.activeElement) && document.getElementById('q').value === 'Zytglogge'`), a1);
   await ev(`document.querySelector('#results li.more > button').focus(); document.querySelector('#results li.more > button').click()`); await sleep(300);
   check('after "Show more" focus is on the first new row', await ev(`document.getElementById('results').contains(document.activeElement) && document.activeElement.tagName === 'BUTTON' && !document.activeElement.closest('.more')`), await active());
-  const shot = await ev(`(() => { const r = document.getElementById('results').getBoundingClientRect(), f = document.getElementById('searchForm').getBoundingClientRect(); return r.bottom <= f.top + 1 && r.height > 50; })()`);
-  check('list is drawn above the search bar', shot);
+  check('list is drawn below the search card', await ev(`(() => { const r = document.getElementById('results').getBoundingClientRect(), f = document.getElementById('searchForm').getBoundingClientRect(); return r.top >= f.bottom - 1 && r.height > 50; })()`));
   await ev(`document.getElementById('clear').click()`); await sleep(400);
 }
 
@@ -126,7 +125,16 @@ if (want('journey')) {
   await sleep(300);
   check('focus moves to the journey', /section#journey/.test(await active()), await active());
   await sleep(9000);
-  const h1 = await heard();
+  let h1 = await heard();
+  if (await ev('journeyList')) {
+    check('several journeys: their number and the one on the map are announced', /\d+ journeys to .+\. On the map: \d\d:\d\d to \d\d:\d\d/.test(h1), h1);
+    check('each journey in the list is worded as one sentence', /^\d\d:\d\d to \d\d:\d\d, .+(direct|change|on foot)/.test(await ev(`document.querySelector('#jBody .jrow').getAttribute('aria-label')`)), await ev(`document.querySelector('#jBody .jrow').getAttribute('aria-label')`));
+    await ev(`window.__rows = [...document.querySelectorAll('#jBody ol.journeys > li')]; document.querySelector('#jBody .jrow').focus(); refreshList(); renderBody();`);
+    check('the list keeps its rows while the clock moves on', await ev(`document.activeElement.classList.contains('jrow') && [...document.querySelectorAll('#jBody ol.journeys > li')].every((li, i) => li === window.__rows[i])`), await active());
+    await ev(`window.__heard.length = 0; document.querySelector('#jBody .jrow').click()`); await sleep(1200);
+    h1 = await heard();
+    check('picking one moves the focus to the journey', /section#journey/.test(await active()), await active());
+  } else console.log('      (one journey only: no list to choose from)');
   check('the journey is announced in one sentence', /Journey to .*: \d\d:\d\d to \d\d:\d\d.*(direct|change)/.test(h1), h1);
   check('…with what to do first', /(Walk|leaves|Leave at)/.test(h1));
   check('sheet is named after the destination', /^Journey to /.test(await ev(`document.getElementById('journey').getAttribute('aria-label')`)), await ev(`document.getElementById('journey').getAttribute('aria-label')`));
@@ -146,17 +154,18 @@ if (want('journey')) {
   check('header redraw keeps its buttons', await ev(`document.contains(window.__close) && document.activeElement === window.__close`));
 
   section('time picker');
-  await ev(`document.getElementById('jDepBtn').focus(); document.getElementById('jDepBtn').click()`); await sleep(500);
+  await ev(`document.getElementById('whenChip').focus(); document.getElementById('whenChip').click()`); await sleep(500);
   check('opens with focus on the chosen option', await ev(`document.activeElement.dataset.mode`) === 'dep' && await ev(`document.activeElement.getAttribute('aria-pressed')`) === 'true', await active());
   check('page behind is out of reach, backdrop still closes it', await ev(`document.getElementById('journey').inert && document.getElementById('map').inert && !document.getElementById('tDim').inert`));
   await key('Escape', 'Escape', 27); await sleep(400);
-  check('Escape closes it and focus returns to its button', await ev(`!document.getElementById('tSheet').classList.contains('open') && document.getElementById('tSheet').inert && document.activeElement.id`) === 'jDepBtn', await active());
+  check('Escape closes it and focus returns to its button', await ev(`!document.getElementById('tSheet').classList.contains('open') && document.getElementById('tSheet').inert && document.activeElement.id`) === 'whenChip', await active());
   check('nothing is left out of reach', await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id).join(',')`) === 'tSheet,evPage', await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id).join(',')`));
 }
 
 if (want('guide')) {
   section('guidance');
   if (!(await ev('!!journeyConn'))) { await ev(`document.getElementById('q').focus()`); await send('Input.insertText', { text: 'Zürich HB' }); await sleep(3500); await ev(`document.getElementById('searchForm').requestSubmit()`); await sleep(9000); }
+  if (await ev('journeyList')) { await ev(`document.querySelector('#jBody .jrow').click()`); await sleep(1200); }
   console.log('      steps:', await ev(`journeySteps.map((st, i) => i + ':' + st.type + (st.type === 'ride' ? ' ' + lineName(st.s.journey) + ' ' + fmtTime(st.t0) + '-' + fmtTime(st.t1) : '')).join(', ')`));
   await ev(`window.__heard.length = 0; (() => { const b = document.querySelector('#jFoot .start'); b.focus(); b.click(); })()`); await sleep(600);
   let h = await heard();
@@ -195,7 +204,7 @@ if (want('guide')) {
   console.log('      track:', await ev(`JSON.stringify(track && { i: track.i, kmIn: +track.kmIn.toFixed(2), off: track.off, missed: !!track.missed })`));
   check('every announcement is one sentence group, none empty', !/undefined|null|NaN/.test(h + (await heard())), h);
   await ev(`document.querySelector('#jHead [aria-label="Close journey"]').click()`); await sleep(500);
-  check('closing the journey ends guidance', await ev(`guiding === false && guideSaid.size === 0`));
+  check('closing the journey ends guidance', await ev(`guiding === false && guideSaid.size === 0 && !document.body.classList.contains('following')`));
 }
 
 if (want('access')) {
@@ -212,8 +221,11 @@ if (want('access')) {
   await send('Input.insertText', { text: 'Bern Wankdorf Bahnhof' }); await sleep(3500);
   console.log('      top result:', await ev(`results[0] && results[0].title + ' — ' + results[0].subtitle`));
   await ev(`window.__heard.length = 0; window.__spoken.length = 0; document.getElementById('searchForm').requestSubmit()`); await sleep(11000);
+  check('journeys open as a list', await ev(`document.getElementById('journey').dataset.detent`) === 'full', await ev(`document.getElementById('journey').dataset.detent`));
+  check('what was found is read aloud', /Journey to|journeys to/.test(await ev(`window.__spoken.join('|')`)), await ev(`window.__spoken.join(' | ')`));
+  if (await ev('journeyList')) { await ev(`document.querySelector('#jBody .jrow').click()`); await sleep(1500); }
   console.log('      steps:', await ev(`journeySteps.map((st, i) => i + ':' + st.type + (st.type === 'ride' ? ' ' + lineName(st.s.journey) + ' from ' + st.s.departure.station.name + ' ' + (quayOf(st, 'dep').label || '-') : '')).join(', ')`));
-  check('journey opens as a list', await ev(`document.getElementById('journey').dataset.detent`) === 'full', await ev(`document.getElementById('journey').dataset.detent`));
+  check('the journey stays a list once picked', await ev(`document.getElementById('journey').dataset.detent`) === 'full', await ev(`document.getElementById('journey').dataset.detent`));
   check('the journey is read aloud', (await ev(`window.__spoken.join('|')`)).includes('Journey to'), await ev(`window.__spoken.join(' | ')`));
   const acc = await ev(`JSON.stringify(journeySteps.filter(st => st.type === 'ride').map(st => stopAccess(st)))`);
   check('tactile / speech data found for the boarding points', /Tactile|Spoken|speech/.test(acc), acc);
@@ -249,6 +261,25 @@ if (want('scan')) {
   check('its departures are said', /Next|departures/.test(await heard()), await heard());
 }
 
+if (want('language')) {
+  section('another app language (Settings › Language, through Google Translate)');
+  await ev(`localStorage.setItem('app-language', 'de'); location.reload()`); await sleep(9000);
+  await ev(hear);
+  await geo(BERN);
+  await ev(`document.getElementById('q').focus()`);
+  await send('Input.insertText', { text: 'Zytglogge' }); await sleep(5000);
+  const said = await heard();
+  if (/\d+ results/.test(said)) console.log('      (Google Translate did not answer: the sentence was said in English, as intended)  →', said);
+  else {
+    check('an announcement is said in the app language', /\d+ \S*rgebnis/i.test(said), said);
+    check('…and only once, not first in English', said.split('\n').length === 1, JSON.stringify(said));
+  }
+  check('names stay as they are and keep their language', await ev(`(() => { const t = document.querySelector('#results .title'); return t.getAttribute('translate') === 'no' && /Zytglogge/.test(t.textContent); })()`), await ev(`document.querySelector('#results .title').outerHTML`));
+  check('the page says which language it is in', await ev(`document.documentElement.lang`) === 'de');
+  await ev(`localStorage.removeItem('app-language'); location.reload()`); await sleep(8000);
+  await ev(hear);
+}
+
 if (want('shots')) {
   section('screenshots');
   await geo(BERN);
@@ -258,10 +289,12 @@ if (want('shots')) {
   await send('Input.insertText', { text: 'events' }); await sleep(2500); await shot('3-events');
   await ev(`document.getElementById('q').value = ''; document.getElementById('q').dispatchEvent(new Event('input'))`);
   await send('Input.insertText', { text: 'Bern Wankdorf Bahnhof' }); await sleep(3500);
-  await ev(`document.getElementById('searchForm').requestSubmit()`); await sleep(11000); await shot('4-journey-low');
+  await ev(`document.getElementById('searchForm').requestSubmit()`); await sleep(11000); await shot('4-journeys');
+  if (await ev('journeyList')) { await ev(`document.querySelector('#jBody .jrow').click()`); await sleep(1500); }
+  await shot('4-journey-low');
   await ev(`setDetent('full')`); await sleep(900); await shot('5-journey-full');
   await ev(`document.querySelector('#jBody .expander').click()`); await sleep(500); await shot('6-directions');
-  await ev(`document.getElementById('jDepBtn').click()`); await sleep(900); await shot('7-time');
+  await ev(`document.getElementById('whenChip').click()`); await sleep(900); await shot('7-time');
   await ev(`document.getElementById('tClose').click()`); await sleep(500);
   await ev(`document.querySelector('input[data-setting=lowVision]').click()`); await sleep(1500); await shot('8-journey-blind-mode');
   await ev(`document.querySelector('input[data-setting=lowVision]').click()`);

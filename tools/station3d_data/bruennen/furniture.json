@@ -1,0 +1,46 @@
+[
+{
+"kind": "ticket_machine",
+"xy": [
+4.08,
+12.82
+],
+"mounting": "AFA 460",
+"level": 1,
+"source": "SBB billetautomat",
+"source_id": "BLS"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+38.36,
+5.63
+],
+"mounting": "AFA 460",
+"level": 1,
+"source": "SBB billetautomat",
+"source_id": "BLS"
+},
+{
+"kind": "clock",
+"xy": [
+19.27,
+1.88
+],
+"mounting": null,
+"level": 1,
+"source": "SBB haltestelle-uhr",
+"source_id": "38859566"
+},
+{
+"kind": "clock",
+"xy": [
+1.87,
+8.09
+],
+"mounting": "BA-Dach_BE automatisiert",
+"level": 1,
+"source": "SBB haltestelle-uhr",
+"source_id": "38861424"
+}
+]

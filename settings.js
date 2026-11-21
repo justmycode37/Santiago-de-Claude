@@ -4,6 +4,8 @@
 // "About you" and "Events" narrow down which community events show. "Live data" switches the live vehicles on the
 // map, and whether your position is sent to the Kante engine while you ride (the on-board check and on-board reports;
 // off unless switched on: live.js, kante/docs/LIVE-API.md).
+// "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.js); "Developer options" at the very
+// bottom shows the tools to test that.
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
@@ -16,6 +18,7 @@
     wheelchair: false,
     // Walking and changing
     walkKmh: 4.7,
+    autoSpeed: false, // measure how fast you walk and move the walking speed to match (walk-pace.js); off unless you turn it on
     extraChangeMin: 2,
     maxWalkMin: 20,
     modes: null, // null = every transport type
@@ -34,6 +37,8 @@
     freeFood: false,
     women: false,
     adaptiveSport: false,
+    // Developer options (bottom of the page)
+    devOptions: false,
   };
   const NORMAL_KMH = 4.7; // the timetable's walking times are taken as this pace
   const SPEED_PRESETS = [
@@ -228,6 +233,7 @@
   const closeListeners = [];
   let isOpen = false;
   let pushed = false;
+  let scrollTo = ''; // id of the heading to open the page at
   let journeyBefore = '';
   let madeInert = [];
   let themeBefore = '';
@@ -306,11 +312,13 @@
     }
   }
 
-  function update(patch) {
+  // by: 'auto' when the app changed the setting itself (walk-pace.js), otherwise it was you
+  function update(patch, by) {
+    const before = state;
     state = { ...state, ...patch };
     save();
     render();
-    changeListeners.forEach((fn) => fn());
+    changeListeners.forEach((fn) => fn(patch, by, before));
   }
 
   // Guidance switches only show where the phone can do it (iOS Safari has no vibration)
@@ -324,7 +332,7 @@
       update({ [t.dataset.setting]: t.checked });
       // switched on: say so with the voice (this tap is also what lets the page speak later, on iOS), or buzz once
       if (t.checked && window.A11Y) {
-        if (t.dataset.setting === 'readAloud') A11Y.speak('Read aloud is on.', { force: true });
+        if (t.dataset.setting === 'readAloud') { A11Y.unlock(); A11Y.say('Read aloud is on.'); }
         if (t.dataset.setting === 'vibrate') A11Y.buzz(false);
       } else if (!t.checked && t.dataset.setting === 'readAloud' && window.A11Y) A11Y.hush();
     }
@@ -355,11 +363,13 @@
     isOpen = true;
     journeyBefore = journeySnapshot();
     render();
-    madeInert = [...document.body.children].filter((el) => el !== page && el.tagName !== 'SCRIPT' && !el.inert);
+    // (the walking-speed notice stays usable: it can show on top of this page)
+    madeInert = [...document.body.children].filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
     madeInert.forEach((el) => { el.inert = true; });
     themeBefore = themeMeta.getAttribute('content');
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
     page.scrollTop = 0;
+    reveal();
     page.classList.add('open');
     page.setAttribute('aria-hidden', 'false');
     closeBtn.focus({ preventScroll: true });
@@ -376,13 +386,25 @@
     closeListeners.forEach((fn) => fn(journeyChanged));
   }
 
+  // #settings, or one of its own pages (#settings/language)
+  const onSettings = () => location.hash === '#settings' || location.hash.startsWith('#settings/');
+
   function sync() {
-    const want = location.hash === '#settings';
+    const want = onSettings();
     if (want !== isOpen) (want ? show : hide)();
   }
 
-  function open() {
-    if (location.hash === '#settings') return sync();
+  function reveal() {
+    const el = scrollTo && document.getElementById(scrollTo);
+    scrollTo = '';
+    if (el) el.scrollIntoView({ block: 'start' });
+  }
+
+  // anchor: id of a heading on the page to open it at (optional)
+  function open(anchor) {
+    scrollTo = anchor || '';
+    if (isOpen) return reveal();
+    if (onSettings()) return sync();
     pushed = true;
     location.hash = 'settings';
   }
@@ -394,7 +416,7 @@
   }
 
   window.addEventListener('hashchange', () => {
-    if (location.hash !== '#settings') pushed = false;
+    if (!onSettings()) pushed = false;
     sync();
   });
   closeBtn.addEventListener('click', close);
@@ -412,7 +434,9 @@
     connectionFits,
     // the journey options as the 3D station view's router wants them (station-route.js)
     journey: () => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
-    onChange: (fn) => changeListeners.push(fn),
+    speedPresets: SPEED_PRESETS.map((p) => ({ ...p })), // the five stops of the walking speed slider
+    set: (patch, by) => update(patch, by),
+    onChange: (fn) => changeListeners.push(fn), // fn(patch, by, settingsBefore)
     onClose: (fn) => closeListeners.push(fn),
   };
 

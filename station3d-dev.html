@@ -19,6 +19,8 @@
       prefs=stepFree,fewerStairs,noEscalators,wheelchair      journey settings; walkKmh=4.7
       date=YYYY-MM-DD                the day closures and notices are judged for (default: today). Bern: platform 3/4
                                      is closed until 2026-12-13, track 1 from then on
+      season=winter | summer         detail scenes (stations3d/DETAIL.md): bare or leafy trees; default: what the data says
+      quality=high | low             detail scenes: how fine they are drawn; default: by the device
       theme=light | dark             default: the system setting
       title=…                        text for the title bar
       step=<n>                       select this step after opening (0 = first)
@@ -32,7 +34,10 @@
       pov=1                          open in the street-level view; at=<m> metres along the route,
                                      yaw=<deg> pitch=<deg> head turned by hand,
                                      face=<deg> tilt=<deg> a pretend phone: compass bearing its back points to, tilt up
-      sim=walk                       walk along the route: speed=<m/s> (1.35), rate=<time factor> (3),
+      play=1                         the walk plays by itself in the street-level view; speed=<multiplier of walking
+                                     pace> (1.5). 'arrived', 'progress' and 'play' events are logged to the console
+                                     and kept in DEV.events
+      sim=walk                       walk along the route: speed=<m/s> (1.35; without play=1), rate=<time factor> (3),
                                      noise=<m> GPS error (0), acc=<m> reported accuracy (8),
                                      heading=move (default: direction of travel) | none | <deg>, start=<m>
       place=1                        tap / click the model to put the position there
@@ -94,6 +99,11 @@
     <a href="?key=bern&from=stop:8507000:7&to=stop:8507000:11">Bern: a platform the plan does not have</a>
     <a href="?key=bern&from=ll:8.5402,47.3782&to=stop:8507000:7&user=far&follow=1">Bern: from far away, follow on</a>
     <a href="?key=bern&from=stop:8507000:5&to=stop:8507000:22&pov=1&at=60">Bern: first-person view in the main underpass</a>
+    <a href="?key=bern&from=stop:8579896:B&to=stop:8579896:C&pov=1">Bern, Hirschengraben: the detail scene, walk from tram platform B to C (first-person)</a>
+    <a href="?key=bern&from=stop:8579896:B&to=stop:8579896:C&play=1">Showcase, auto-walk: Hirschengraben, tram platform B to C plays by itself</a>
+    <a href="?key=bern&from=stop:8507000:5&to=stop:8507000:22&play=1&speed=3">Bern: platform 5 to RBS 22, auto-walk over stairs and floors (three times walking pace)</a>
+    <a href="?key=bern&from=stop:8579896:B&to=stop:8579896:C&pov=1&season=summer&theme=dark">Bern, Hirschengraben: the same in summer, at night</a>
+    <a href="?key=bern&from=stop:8507000:7&to=stop:8579896:B&pov=1&at=150">Bern: platform 7 to Hirschengraben B, walking into the detail scene</a>
     <a href="?key=bern">Bern: explore</a>
     <a href="?key=europaplatz&from=stop:8507082:1&to=stop:8504108:3">Europaplatz: platform 1 to platform 3</a>
     <a href="?key=wankdorf&from=stop:8516161:1&to=stop:8516161:7">Wankdorf: platform 1 to platform 7</a>
@@ -164,6 +174,8 @@
         level: q.has('level') ? +q.get('level') : undefined,
         peel: q.has('peel') ? +q.get('peel') : undefined,
         still: q.get('still') === '1',
+        season: q.get('season') || undefined,
+        quality: q.get('quality') || undefined,
         list: q.get('list') === '1',
         modal: q.get('ui') === '0', // with this page's own buttons showing, they must stay usable
         follow: q.get('follow') === '1',
@@ -172,6 +184,7 @@
         povAt: q.has('at') ? +q.get('at') : undefined,
         povYaw: q.has('yaw') ? +q.get('yaw') : undefined,
         povPitch: q.has('pitch') ? +q.get('pitch') : undefined,
+        play: q.get('play') === '1' ? (q.has('speed') && isFinite(+q.get('speed')) ? { speed: +q.get('speed') } : true) : undefined,
       };
       // a pretend phone: face=<compass bearing the back of the phone points to>, tilt=<degrees up>
       const face = (bearing, tilt) => Station3D._orient({ absolute: true, alpha: (360 - bearing) % 360, beta: 90 + (tilt || 0), gamma: 0 });
@@ -199,7 +212,7 @@
       function startSim() {
         stopSim();
         if (!route || !window.StationRoute) { out.textContent = 'no route to walk'; return; }
-        const speed = num('speed', 1.35), rate = num('rate', 3), tick = 250;
+        const speed = q.get('play') === '1' ? 1.35 : num('speed', 1.35), rate = num('rate', 3), tick = 250;
         const total = route.dists ? route.dists[route.dists.length - 1] : route.length;
         sim = { along: num('start', 0), timer: 0 };
         press('dWalk', true);
@@ -238,7 +251,18 @@
         });
         Station3D.on('step', (e) => { if (!sim) out.textContent = e.index < 0 ? 'overview' : `step ${e.index + 1}`; });
         Station3D.on('close', () => { stopSim(); out.textContent = 'closed'; });
+        // the walk that plays by itself: what it tells the page
+        for (const name of ['arrived', 'progress', 'play']) {
+          Station3D.on(name, (e) => {
+            events.push({ t: Math.round(performance.now()), name, e });
+            if (events.length > 600) events.shift();
+            if (name === 'progress') return;
+            console.log('Station3D', name, e);
+            out.textContent = name === 'arrived' ? `arrived by ${e.by}` : e ? 'playing' : 'paused';
+          });
+        }
       }
+      const events = [];
       wire();
       // DEV.reload({ key, from, to, theme, … }): load the current station3d.js / .css again and reopen, without
       // reloading the page. from / to as in the URL ("stop:8507000:7"); null clears one.
@@ -297,7 +321,7 @@
         else { glExt.restoreContext(); glExt = null; press('dGl', false); }
       };
 
-      window.DEV = { options, startSim, stopSim, reload, face };
+      window.DEV = { options, startSim, stopSim, reload, face, events };
       if (q.get('quiet') === '1') {
         // The viewer goes into a closed shadow tree: automated snapshots then show the picture without listing
         // every label and step. Styles have to be loaded inside it as well.

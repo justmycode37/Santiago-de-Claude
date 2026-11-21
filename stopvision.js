@@ -238,6 +238,7 @@
     const say = $('div', 'sv-say');
     say.setAttribute('role', 'status');
     say.setAttribute('aria-live', 'polite');
+    say.setAttribute('translate', 'no'); // put in already in the app's language (a11y.js), so it is not read out twice
     const debug = $('pre', 'sv-debug');
     root.append(video, still, ar, ring, top, sheet, say, file, debug);
     // diagnostics: open the app with ?scandebug, or tap the status text three times

@@ -61,13 +61,19 @@
     if (inside(FRENCH, ll)) return 'fr';
     return 'de';
   }
+  // The app's own language: English, or the one chosen under Settings › Language (translate.js)
+  const appLang = () => (root.APP_LANG && root.APP_LANG.code) || 'en';
+  const pageLang = () => ((doc && doc.documentElement.lang) || 'en').split('-')[0].toLowerCase();
   // Mark an element's text as being in a language (nothing for the page's own, or when not known)
   function setLang(el, lang) {
     if (!el) return el;
-    if (lang && lang !== 'en') el.lang = lang;
+    if (lang && lang !== pageLang()) el.lang = lang;
     else el.removeAttribute('lang');
     return el;
   }
+  // …for a text whose language was read from its words (textLang): an event's title or description. Only while
+  // the app is in English: in another app language these texts are translated, and are then in that language.
+  const inLang = (el, lang) => setLang(el, appLang() === 'en' ? lang : '');
 
   // ---- Units in words, for sentences that are spoken ("12 min" is read as "12 min", "750 m" as "750 em") ----
   const minutes = (n) => `${n} ${n === 1 ? 'minute' : 'minutes'}`;
@@ -87,8 +93,9 @@
   let unlocked = false;
   // iOS only lets a page speak once it has spoken inside a tap. With read aloud on, the first tap anywhere
   // says nothing, quietly, so that later sentences (a journey found, the next stop) may be spoken.
-  function unlock() {
-    if (unlocked || !synth || !prefs().readAloud) return;
+  function unlock(e) {
+    // (called with true from Settings, in the tap that switches read aloud on)
+    if (unlocked || !synth || !(e === true || prefs().readAloud)) return;
     unlocked = true;
     try {
       const u = new SpeechSynthesisUtterance(' ');
@@ -129,13 +136,29 @@
   }
   // say('Platform changed…', { urgent: true }). region: a live region inside an open dialog (a screen reader
   // inside a modal dialog does not hear the page behind it). quiet: no voice and no buzz, the live region only.
+  // The sentences are written in English. In another app language (Settings › Language) a sentence is translated
+  // first, and put into the region already translated (the regions are translate="no"): put in English and
+  // translated afterwards, it would be read out twice. If the translator does not answer in time, it is said in
+  // English rather than late.
+  const turn = new WeakMap(); // region → the number of the sentence last asked for: only the latest is said
   function say(text, { urgent = false, region = null, quiet = false } = {}) {
     text = String(text || '').replace(/\s+/g, ' ').trim();
     if (!text) return;
-    put(region || doc.getElementById(urgent ? 'srAlert' : 'srStatus'), text);
-    if (quiet) return;
-    speak(text, { urgent });
-    buzz(urgent);
+    const el = region || doc.getElementById(urgent ? 'srAlert' : 'srStatus');
+    const out = (t) => {
+      put(el, t);
+      if (quiet) return;
+      speak(t, { urgent });
+      buzz(urgent);
+    };
+    const L = root.APP_LANG;
+    if (!L || !L.translate || appLang() === 'en') { out(text); return; }
+    const n = (turn.get(el) || 0) + 1;
+    turn.set(el, n);
+    let done = false;
+    const once = (t) => { if (done || turn.get(el) !== n) return; done = true; out(t); };
+    setTimeout(() => once(text), 1500);
+    Promise.resolve(L.translate(text)).then((t) => once(t || text), () => once(text));
   }
 
   // ---- A dialog over the page: everything behind it is out of reach while it is open ----
@@ -200,6 +223,6 @@
   }
   doc.addEventListener('visibilitychange', () => { if (!doc.hidden) acquire(); });
 
-  root.A11Y = { say, speak, hush, buzz, textLang, placeLang, setLang, minutes, metres, openDialog, closeDialog, sr, seen, keepAwake,
+  root.A11Y = { say, speak, hush, buzz, unlock: () => unlock(true), textLang, placeLang, setLang, inLang, minutes, metres, openDialog, closeDialog, sr, seen, keepAwake,
     canSpeak: !!synth, canVibrate: !!root.navigator.vibrate, canKeepAwake: !!root.navigator.wakeLock };
 })(typeof window !== 'undefined' ? window : globalThis);

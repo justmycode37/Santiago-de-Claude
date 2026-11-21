@@ -1,0 +1,398 @@
+{
+ "_about": {
+  "made": "2026-11-21",
+  "method": "Read by eye from the photos and the City of Bern Orthofoto 2026 (flown March/April 2026, 10 cm). Hex colours are median pixel values of a hand-placed box in the named photo (sRGB, no colour calibration); 'light' says how neutral the light was. Positions: estimated on the orthophoto, accuracy ~2-5 m.",
+  "confidence_scale": "high = clearly visible in a recent photo; medium = visible but old photo (<=2018) or partly hidden; low = inferred from aerial or a single blurry view; needs an on-site photo",
+  "trees_source": "City of Bern tree register (baumkataster_station.geojson from the geometry agent, Letzte_Aenderung up to 2026-05-28) for species and planting year; photos for shape and season",
+  "season_note": "Late November: horse chestnuts bare or with last brown leaves; low sun from the south-south-west at midday (about 20 deg elevation) - long shadows across the square."
+ },
+ "top_candidate": {
+  "key": "hirschengraben",
+  "stretch": "Hirschengraben north head (candidates.md choice): tram stop Hirschengraben platform B (7.437785, 46.946896) past the Bubenberg monument to platform C (7.438195, 46.946983), 38 m heading ENE; facts below also cover the promenade ~40 m south of the monument",
+  "status_nov_2026": {
+   "summary": "Not yet rebuilt. The city's ZBB plan (new underpass to Hirschengraben, monument to be moved to the middle of the square, 5 of 25 trees felled and replaced, bike parking removed) is approved by the canton (30 Oct 2025) but under appeal; start 'end of 2026 realistic' (Der Bund) / '2027/2028 depending on appeals' (bern.ch). The Mar/Apr 2026 orthophoto shows a row of site skips/containers and a long site cabin along the west edge of the square next to the tram track, and a food/market stand with parasols in the middle of the square.",
+   "source": [
+    "hirschengraben/aerial_bern2026_hirschengraben_grid.png",
+    "https://www.bern.ch/politik-und-verwaltung/stadtverwaltung/tvs/tiefbau/projekte/projekte-in-vorbereitung/zukunft-bahnhof-bern-zbb-bau-verkehrsmassnahmen-im-bahnhofsumfeld",
+    "https://www.derbund.ch/zukunft-bahnhof-bern-arbeiten-verzoegern-sich-377421653778"
+   ],
+   "confidence": "medium (aerial is 7 months old; whether hoardings went up since is unknown - needs an on-site photo)"
+  },
+  "buildings": [
+   {
+    "id": "HG-W1",
+    "name": "Hirschengraben west row, north part (between Bubenbergplatz and the monument)",
+    "position": {
+     "lon": 7.437345,
+     "lat": 46.946855,
+     "lv95_E": 2599902,
+     "lv95_N": 1199530
+    },
+    "storeys": "5 full + mansard attic with dormers (photo count)",
+    "ground_floor": "shop fronts with large glazing and small awnings; no arcade",
+    "wall_colour": "#a9a499",
+    "wall_colour_note": "Bernese sandstone, light greenish-grey; sampled on a pier, overcast light (snow on ground)",
+    "wall_colour_source": "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+    "roof": "mansard / steep hipped, red-brown clay tiles with many dormers; snow-covered in the photo",
+    "roof_colour_est": "#9a6a55 (estimate, typical weathered Bern clay tile; aerial sampling disturbed by shadows)",
+    "distinctive": "neo-classical facades with stone bay windows (Erker) on the upper floors, cornices, balconies with iron railings; tram span-wires anchored to the facades",
+    "source": "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+    "confidence": "high"
+   },
+   {
+    "id": "HG-W2",
+    "name": "Hirschengraben west row, south part (opposite the middle of the square)",
+    "position": {
+     "lon": 7.437385,
+     "lat": 46.94645,
+     "lv95_E": 2599905,
+     "lv95_N": 1199485
+    },
+    "storeys": "4-5 + attic (estimate from aerial roof form and the 2024 photo far view)",
+    "ground_floor": "shop fronts (estimate)",
+    "wall_colour": "#a9a499 (assumed same sandstone as HG-W1)",
+    "roof": "red-brown clay tiles with dormers (aerial)",
+    "source": [
+     "hirschengraben/aerial_bern2026_hirschengraben_grid.png",
+     "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg"
+    ],
+    "confidence": "low"
+   },
+   {
+    "id": "HG-E1",
+    "name": "Hirschengraben east side, north building with 'Ski + Velo-Center' (corner to Bubenbergplatz)",
+    "position": {
+     "lon": 7.438304,
+     "lat": 46.946873,
+     "lv95_E": 2599975,
+     "lv95_N": 1199532
+    },
+    "storeys": "5 + attic (photo)",
+    "ground_floor": "shop front: Ski+Velo-Center, black fascia with orange lettering, white fabric awnings; long row of parked bikes along the kerb in front",
+    "wall_colour": "#a9a499 (same family; sunlit samples from the 2017 phone photo are over-exposed)",
+    "wall_colour_source": "hirschengraben/photos/commons_Mapillary__a2n2FqAIMQMnvh1qz5fHAw___habi__2017-07-17_10H35M54S161.jpg",
+    "roof": "red-brown tiles, dormers (aerial)",
+    "distinctive": "flags (Swiss + Bern) on poles from the first floor; shop name may have changed since 2017",
+    "source": [
+     "hirschengraben/photos/commons_Mapillary__a2n2FqAIMQMnvh1qz5fHAw___habi__2017-07-17_10H35M54S161.jpg",
+     "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg"
+    ],
+    "confidence": "medium (2017 + 2024 photos)"
+   },
+   {
+    "id": "HG-E2",
+    "name": "Hirschengraben east side, large block south of HG-E1",
+    "position": {
+     "lon": 7.438501,
+     "lat": 46.94636,
+     "lv95_E": 2599990,
+     "lv95_N": 1199475
+    },
+    "storeys": "5 (estimate)",
+    "ground_floor": "shops / offices (estimate)",
+    "wall_colour": "unknown - no usable photo",
+    "roof": "large hipped roof, red-brown tiles with skylights and solar panels on the south slope (aerial)",
+    "source": "hirschengraben/aerial_bern2026_hirschengraben_grid.png",
+    "confidence": "low"
+   },
+   {
+    "id": "HG-N1",
+    "name": "Bubenberg-Zentrum (Bubenbergplatz, closes the view north)",
+    "position": {
+     "lon": 7.437385,
+     "lat": 46.947485,
+     "lv95_E": 2599905,
+     "lv95_N": 1199600
+    },
+    "storeys": "6-7 (photo count)",
+    "ground_floor": "continuous shop front under a projecting canopy; orange 'BUBENBERG ZENTRUM' lettering",
+    "wall_colour": "#8c2a3c (estimate: burgundy spandrel panels alternating with ribbon windows; second wing grey-blue metal grid)",
+    "distinctive": "1960s/70s curtain-wall block - strong landmark at the north end",
+    "source": "hirschengraben/photos/commons_Mapillary__a2n2FqAIMQMnvh1qz5fHAw___habi__2017-07-17_10H36M02S090.jpg",
+    "confidence": "medium (2017 photo; check for refurbishment)"
+   },
+   {
+    "id": "HG-S1",
+    "name": "Hotel National, Hirschengraben 24 (corner Maulbeerstrasse; south end, outside the 40 m stretch but in view)",
+    "position": {
+     "lon": 7.437385,
+     "lat": 46.945866,
+     "lv95_E": 2599905,
+     "lv95_N": 1199420
+    },
+    "storeys": "5 + 2 attic levels",
+    "ground_floor": "plain stone base with tall arched windows; restaurant with yellow awning on the corner",
+    "wall_colour": "#8b8777",
+    "wall_colour_note": "greenish-grey sandstone, overcast neutral light",
+    "roof": "steep hipped roof, brown clay tiles (#5a4a44 est.), two rows of dormers",
+    "distinctive": "large curved (baroque-revival) gable with oval window; vertical HOTEL sign in red letters; 'RESTAURANT NATIONAL' gold letters",
+    "source": "hirschengraben/photos/commons_Hotel_National_in_Bern.jpg",
+    "confidence": "high (2022)"
+   }
+  ],
+  "objects": {
+   "monument": {
+    "what": "Adrian von Bubenberg monument (Max Leu, 1897; restored 2015): bronze standing figure in armour on a tall stepped plinth of light reddish-grey granite with inscription 'ADRIAN VON BUBENBERG 1424-1479' in red letters, bronze helmet/weapon trophy and Bern bear shield on the plinth",
+    "position": {
+     "lon": 7.43791,
+     "lat": 46.946927,
+     "lv95_E": 2599945,
+     "lv95_N": 1199538
+    },
+    "colours": {
+     "bronze": "#444e56 (overcast)",
+     "plinth": "#a59b93 (estimate from overcast photos)"
+    },
+    "size": "not measured - no reference of known size close enough; plinth with steps visibly about 3-4 times a person's height (rough estimate)",
+    "plan": "ZBB plan moves it to the middle of the square (not before construction)",
+    "source": [
+     "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+     "hirschengraben/photos/commons_Bubenberg-Denkmal__Bronzestandbild_-_Max_Leu_1897__01.JPG",
+     "hirschengraben/photos/commons_Bubenbergdenkmal1.jpg"
+    ],
+    "confidence": "high"
+   },
+   "trees": {
+    "species": "horse chestnut (Aesculus hippocastanum) x19 + double-flowered horse chestnut x2 in two rows; 3 Kobushi magnolias",
+    "planted": "mostly 1900s-1920s, some 1940s and 2000s replacements (register)",
+    "shape": "heavily pollarded / box-pruned: short trunks (~3 m to the first knuckles, estimate) with knobbly 'fist' heads - very characteristic in winter",
+    "season_nov": "bare or nearly bare; summer crown dense, light green",
+    "layout": "two rows along the long axis of the square, ~6-8 m spacing (aerial estimate)",
+    "source": [
+     "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+     "hirschengraben/aerial_bern2026_hirschengraben_grid.png",
+     "data/stadt_bern/baumkataster_station.geojson"
+    ],
+    "confidence": "high"
+   },
+   "benches": {
+    "what": "a few benches along the east tree row and next to the monument; aerial shows dark-green rectangles ~2-2.5 m long and one larger brown wooden element ~3.5 m (estimates from the 10 cm aerial)",
+    "type": "unknown from available imagery - likely the standard dark-green Bern park bench (wood slats, cast-iron frame, with backrest) - NOT confirmed",
+    "source": "hirschengraben/aerial_bern2026_hirschengraben_grid.png",
+    "confidence": "low - needs on-site photo"
+   },
+   "bike_parking": {
+    "what": "long rows of bike stands along the east kerb and around the monument; ZBB plan removes the Hirschengraben bike parking",
+    "source": [
+     "hirschengraben/photos/commons_Mapillary__a2n2FqAIMQMnvh1qz5fHAw___habi__2017-07-17_10H35M54S161.jpg",
+     "hirschengraben/aerial_bern2026_hirschengraben_grid.png"
+    ],
+    "confidence": "medium"
+   },
+   "lamps_and_wires": {
+    "what": "tall grey steel tram poles (ring-banded, on a concrete foot) carrying the tram/trolleybus catenary and transverse span-wires; street lighting appears to be hung from span-wires (catenary lights) rather than on own poles - typical for Bern, not clearly visible in the available photos",
+    "source": [
+     "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+     "hirschengraben/photos/commons_Hotel_National_in_Bern.jpg"
+    ],
+    "confidence": "medium for poles/wires, low for lamp type"
+   },
+   "tram": {
+    "what": "tram tracks along the west side of the square, curving into Bubenbergplatz at the north end; tram stop 'Hirschengraben' (lines 3/6/7/8 area, red Bernmobil vehicles); 2 small transport buildings in OSM at Hirschengraben 2a/2b (shelters/kiosk)",
+    "source": [
+     "hirschengraben/aerial_bern2026_hirschengraben_grid.png",
+     "hirschengraben/photos/commons_Hotel_National_in_Bern.jpg"
+    ],
+    "confidence": "medium"
+   },
+   "signs": {
+    "what": "red-brown Swiss cycle-route signposts (Thun/Belp, Biel/Aarberg, Neuchatel/Kerzers, Konolfingen) on a tram pole at the north tip; no-entry sign 'ausgenommen Velo'; yellow bike symbols painted on the asphalt",
+    "source": "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+    "confidence": "high (2024)"
+   },
+   "fountain_south": {
+    "what": "J. V. Widmann fountain: round open temple (6 stone columns, copper-green ribbed dome with gilt crown) with bronze youth figure, at the south end (Hirschengraben/Bundesgasse) - landmark at the end of the view",
+    "position": {
+     "lon": 7.437779,
+     "lat": 46.946,
+     "lv95_E": 2599935,
+     "lv95_N": 1199435
+    },
+    "source": "hirschengraben/photos/commons_J._V._Widmann-Brunnen_in_Bern__2022_.jpg",
+    "confidence": "high (2022); position approximate (+-15 m)"
+   }
+  },
+  "surfaces": [
+   {
+    "surface": "roadways both sides",
+    "material": "asphalt, medium grey (#7e8184 overcast)",
+    "markings": "yellow bike lanes/symbols, white lane lines",
+    "source": "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+    "confidence": "high"
+   },
+   {
+    "surface": "square under the trees",
+    "material": "pale grey-beige water-bound gravel (Mergel) with a granite edging strip; ZBB plan keeps Mergel in the middle with a paved rim",
+    "colour": "#8b8a8e (shaded) - lighter in sun",
+    "source": [
+     "hirschengraben/photos/commons_Hotel_National_in_Bern.jpg",
+     "hirschengraben/aerial_bern2026_hirschengraben_grid.png"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "surface": "north tip around the monument",
+    "material": "asphalt (photo) with the monument on a raised granite step platform",
+    "source": "hirschengraben/photos/commons_Bern_Hirschengraben_2024.jpg",
+    "confidence": "high"
+   },
+   {
+    "surface": "sidewalks along the buildings",
+    "material": "asphalt",
+    "kerb": "light grey granite kerb, low (about 6-10 cm, estimate)",
+    "source": "hirschengraben/photos/commons_Mapillary__a2n2FqAIMQMnvh1qz5fHAw___habi__2017-07-17_10H35M54S161.jpg",
+    "confidence": "medium"
+   },
+   {
+    "surface": "tram track bed",
+    "material": "rails set in asphalt / concrete strips",
+    "source": "hirschengraben/photos/commons_Hotel_National_in_Bern.jpg",
+    "confidence": "high"
+   }
+  ],
+  "landmarks_for_a_visitor": [
+   "Bubenberg statue",
+   "pollarded chestnut rows",
+   "Bubenberg-Zentrum burgundy facade to the north",
+   "Hotel National curved gable to the south",
+   "Widmann fountain temple at the south end",
+   "cycle-route signpost cluster at the north tip"
+  ]
+ },
+ "runner_up": {
+  "key": "grosse-schanze",
+  "stretch": "terrace in front of the University main building (Hochschulstrasse 4), lifts -> main entrance",
+  "status_nov_2026": {
+   "summary": "site compound west of the lifts (visible in the 2026 orthophoto, lower left); ZBB news of 20 July 2026: from about October 2026 a site access road and a fenced area in the middle of the lawn. Expect fences.",
+   "source": [
+    "grosse-schanze/aerial_bern2026_grosse-schanze_grid.png",
+    "showcase/candidates.md"
+   ],
+   "confidence": "medium"
+  },
+  "buildings": [
+   {
+    "id": "GS-1",
+    "name": "University of Bern main building (Hochschulstrasse 4, 1903)",
+    "position": {
+     "lon": 7.438304,
+     "lat": 46.950498,
+     "lv95_E": 2599975,
+     "lv95_N": 1199935
+    },
+    "storeys": "3 + high mansard; raised ground floor on a rusticated base; central pavilion with a dome",
+    "ground_floor": "plain, rusticated sandstone base, three arched main doors in the centre",
+    "wall_colour": "#bdb6a2 (estimate from an overcast photo; light grey-beige sandstone, rusticated)",
+    "roof": "mansard with dark grey slate / metal (#4a4d52 est.), copper-green lantern details",
+    "distinctive": "neo-renaissance palace front with central dome pavilion, clock-less; figure group on the pediment",
+    "source": [
+     "grosse-schanze/photos/commons_Hauptgebäude_der_Universität_Bern_an_der_Hochschulstrasse.jpg",
+     "grosse-schanze/photos/commons_2025-01-23-Hauptgebaeude-Universitaet-Bern.jpg"
+    ],
+    "confidence": "high for form, medium for hex"
+   }
+  ],
+  "objects": {
+   "benches": {
+    "what": "Bern park bench: brown wooden slats with backrest on dark grey metal frame, ~1.8-2 m (estimate, compared with the life-size Einstein figure sitting on it); one carries the bronze 'Einstein on a bench' sculpture next to the university wall",
+    "source": "grosse-schanze/photos/commons_Einstein_on_a_bench__Bern_University-01.jpg",
+    "confidence": "high (2022/2023)"
+   },
+   "trees": {
+    "species": "mostly common lime (Tilia x europaea 'Holländische Linde'), some Crimean and silver limes, 3 Austrian black pines (register)",
+    "shape": "pollarded lime rows on the gravel terrace (aerial + register)",
+    "source": [
+     "grosse-schanze/aerial_bern2026_grosse-schanze_grid.png",
+     "data/stadt_bern/baumkataster_station.geojson"
+    ],
+    "confidence": "medium"
+   },
+   "monuments": {
+    "what": "Einstein-on-a-bench bronze; Jakob Stämpfli bronze bust on a granite pillar by the university wall; copper 'Finder'-style steel/copper installation by the lift tower (Panoramax 2024)",
+    "source": [
+     "grosse-schanze/photos/commons_Stämpfli-Denkmal__Bronzebüste_-_Alfred_Lanz_1884__02.jpg",
+     "grosse-schanze/photos/panoramax_2024-12-19_43582c6e_az118.jpg"
+    ],
+    "confidence": "high"
+   }
+  },
+  "surfaces": [
+   {
+    "surface": "path along the university front",
+    "material": "granite setts laid in fan (segmental arc) pattern, grey",
+    "source": "grosse-schanze/photos/commons_Einstein_on_a_bench__Bern_University-01.jpg",
+    "confidence": "high"
+   },
+   {
+    "surface": "terrace",
+    "material": "light grey water-bound gravel under the lime rows; large lawn with a diagonal gravel path; concrete slabs around the lift tower",
+    "source": [
+     "grosse-schanze/aerial_bern2026_grosse-schanze_grid.png",
+     "grosse-schanze/photos/panoramax_2024-12-19_43582c6e_az118.jpg"
+    ],
+    "confidence": "medium"
+   }
+  ]
+ },
+ "also_collected_bahnhofplatz": {
+  "key": "bahnhofplatz-heiliggeist",
+  "buildings": [
+   {
+    "id": "BP-1",
+    "name": "Heiliggeistkirche (Reformed church, 1726-29)",
+    "position": {
+     "lon": 7.440734,
+     "lat": 46.948024,
+     "lv95_E": 2600160,
+     "lv95_N": 1199660
+    },
+    "storeys": "church nave ~3 storeys high + clock tower with copper spire",
+    "ground_floor": "portal front, no shops",
+    "wall_colour": "#c9c3a9",
+    "wall_colour_note": "sunlit greenish-yellow sandstone, clear afternoon light (not neutral)",
+    "roof": "steep hipped red-brown tiles (#74645d sampled), copper-green spire and lantern (#859993)",
+    "distinctive": "baroque facade with pediment and pilasters, clock faces on the tower, stone balustrade with urns along the eaves",
+    "source": "bahnhofplatz-heiliggeist/photos/commons_Bern_Bahnhof_20260530_153343.jpg",
+    "confidence": "high (May 2026)"
+   },
+   {
+    "id": "BP-2",
+    "name": "Burgerspital / Berner GenerationenHaus (Bubenbergplatz 4)",
+    "position": {
+     "lon": 7.439224,
+     "lat": 46.947845,
+     "lv95_E": 2600045,
+     "lv95_N": 1199640
+    },
+    "storeys": "3 + attic (dormer row)",
+    "ground_floor": "plain, sandstone base with arched entrances; tram stop and Christophorus sculpture in front",
+    "wall_colour": "white render with sandstone window frames, pilasters and quoins (render shaded in the only 2026 photo, hex not reliable; estimate #e8e6df)",
+    "roof": "large hipped roof, dark brown clay tiles with small dormers",
+    "source": "bahnhofplatz-heiliggeist/photos/commons_Bern_Generationenhaus_und_Baldachin_von_oben.jpg",
+    "confidence": "high for form, low for hex"
+   },
+   {
+    "id": "BP-3",
+    "name": "Baldachin (glass canopy over the tram/bus stop, 2008)",
+    "position": {
+     "lon": 7.440274,
+     "lat": 46.947665,
+     "lv95_E": 2600125,
+     "lv95_N": 1199620
+    },
+    "what": "free-form glass roof on steel ribs, ~8-10 m high (estimate), pear-shaped in plan (aerial)",
+    "source": [
+     "bahnhofplatz-heiliggeist/aerial_bern2026_bahnhofplatz-heiliggeist_grid.png",
+     "bahnhofplatz-heiliggeist/photos/commons_Bern_Heiliggeistkirche_und_Baldachin.jpg"
+    ],
+    "confidence": "high"
+   }
+  ],
+  "objects": {
+   "lamps": "double-arm street lamps on tall grey poles at the crossing (photo)",
+   "paving": "asphalt roads with very wide yellow zebra crossings; station forecourt in light concrete slabs (estimate)",
+   "source": "bahnhofplatz-heiliggeist/photos/commons_Bern_Bahnhof_20260530_153343.jpg",
+   "confidence": "medium"
+  }
+ }
+}

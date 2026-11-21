@@ -35,9 +35,9 @@ jobs:
           mkdir -p _site/demo
           # The app: every page, script and stylesheet in the repository root ...
           cp ./*.html ./*.js ./*.css _site/
-          # ... except the development page and the config template
-          rm _site/station3d-dev.html _site/config.example.js
-          cp -r event-images stop-images stations3d _site/
+          # ... except the development pages and the config template
+          rm _site/station3d-dev.html _site/station3d-detail-dev.html _site/config.example.js
+          cp -r event-images stop-images stations3d demo-media _site/
           # The demo page and the two files it plays, not the raw screen recordings next to them
           cp demo/index.html demo/opening.jpg demo/santiago.mp4 _site/demo/
 
