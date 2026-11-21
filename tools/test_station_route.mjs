@@ -439,12 +439,19 @@ const MODELS = [
     ['Platform 6 → entrance Stauffacherstrasse', ['stop', 'train', '6'], ['entrance', /Stauffacher/]],
   ]],
   ['bruennen', [
+    ['Tram terminus → platform 2', ['stop', 'bus', '', /east side/], ['stop', 'train', '2']],
     ['Platform 1 → platform 2', ['stop', 'train', '1'], ['stop', 'train', '2']],
-    ['Tram / bus stop → platform 2', ['stop', 'bus', ''], ['stop', 'train', '2']],
+    ['Bus stop → platform 1', ['stop', 'bus', '', /west side/], ['stop', 'train', '1']],
+    ['Entrance Westside centre → platform 1', ['entrance', /Westside/], ['stop', 'train', '1']],
+    ['Platform 2 → entrance Winterholzstrasse', ['stop', 'train', '2'], ['entrance', /Winterholz/]],
   ]],
   ['buempliz-nord', [
-    ['Platform 2 → platform 4', ['stop', 'train', '2'], ['stop', 'train', '4']],
-    ['Bus stop → platform 5', ['stop', 'bus', ''], ['stop', 'train', '5']],
+    ['Bus stop (far side of Mühledorfstrasse) → platform 4', ['stop', 'bus', '', /east side/], ['stop', 'train', '4']],
+    ['Bus stop (station side) → platform 5', ['stop', 'bus', '', /west side/], ['stop', 'train', '5']],
+    ['Entrance Mühledorfstrasse → platform 4', ['entrance', /^Mühledorfstrasse$/], ['stop', 'train', '4']],
+    ['Entrance Mühledorfstrasse → platform 2', ['entrance', /^Mühledorfstrasse$/], ['stop', 'train', '2']],
+    ['Platform 2 → platform 5', ['stop', 'train', '2'], ['stop', 'train', '5']],
+    ['North exit of the underpass → platform 5', ['entrance', /north exit/], ['stop', 'train', '5']],
   ]],
 ];
 for (const [key, samples] of MODELS) {
@@ -642,7 +649,8 @@ function modelTests(B, sampleDefs) {
       return en ? { entrance: en.name } : null;
     }
     const s = find(d[1], d[2], d[3]);
-    return s ? { stop: { uic: s.uic, ref: s.ref } } : null;
+    // (a stop without a number goes by its node: { stop: { uic, ref: '' } } means any of the stop's edges without one)
+    return s ? (s.ref ? { stop: { uic: s.uic, ref: s.ref } } : { node: s.node }) : null;
   };
   const samples = sampleDefs.map(([title, a, b]) => [title, ep(a), ep(b)]);
   console.log(`\n  Sample routes in ${B.key} (for review):`);
