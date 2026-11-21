@@ -1,4 +1,4 @@
-const film = document.getElementById('film');
+const film = document.getElementById('film') as HTMLVideoElement;
 async function restartFilm() {
   // Start a fresh media session after navigation, including a cached Back visit.
   film.src = 'demo-media/play-1e5ef0e1b62a.mp4';
@@ -8,7 +8,7 @@ async function restartFilm() {
   try {
     await film.play();
   } catch (error) {
-    if (error.name !== 'NotAllowedError') return;
+    if ((error as Error).name !== 'NotAllowedError') return;
     film.muted = true;
     await film.play().catch(() => {});
   }

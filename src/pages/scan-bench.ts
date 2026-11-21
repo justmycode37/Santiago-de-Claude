@@ -1,7 +1,7 @@
-const $ = (id) => document.getElementById(id);
-const row = (k, v, cls) => { const d = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd');
-  dt.textContent = k; dd.textContent = v; if (cls) dd.className = cls; d.append(dt, dd); $('out').append(d); };
-const log = (t) => { $('log').textContent += t + '\n'; };
+const $ = (id: string) => document.getElementById(id)!;
+const row = (k: string, v: string | number, cls?: string) => { const d = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd');
+  dt.textContent = k; dd.textContent = v as string; if (cls) dd.className = cls; d.append(dt, dd); $('out').append(d); };
+const log = (t: string) => { $('log').textContent += t + '\n'; };
 // device facts that decide the speed
 row('Cores', navigator.hardwareConcurrency || '?');
 row('Memory (approx.)', navigator.deviceMemory ? navigator.deviceMemory + ' GB' : '?');
@@ -9,15 +9,15 @@ row('WASM threads', self.crossOriginIsolated ? 'yes' : 'no (static hosting: sing
 row('WebGPU', 'gpu' in navigator ? 'available' : 'no');
 
 $('go').addEventListener('click', async () => {
-  $('go').disabled = true;
+  ($('go') as HTMLButtonElement).disabled = true;
   // count frames the page could not draw in time while the engines work
   let last = 0, long = 0, frames = 0, worst = 0, on = true;
-  const tick = (t) => { if (last) { const d = t - last; frames++; if (d > 50) long++; worst = Math.max(worst, d); } last = t; if (on) requestAnimationFrame(tick); };
+  const tick = (t: number) => { if (last) { const d = t - last; frames++; if (d > 50) long++; worst = Math.max(worst, d); } last = t; if (on) requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
   try {
-    const img = $('img');
+    const img = $('img') as HTMLImageElement;
     if (!img.complete || !img.naturalWidth) await new Promise((r, j) => { img.onload = r; img.onerror = () => j(new Error('sample image did not load')); });
-    const r = await STOPVISION.bench($('img'), 8, (t) => log(t));
+    const r = await STOPVISION!.bench($('img') as HTMLImageElement, 8, (t) => log(t));
     on = false;
     row('Sign reader load', r.ocrLoadMs + ' ms');
     row('Image model load', r.modelLoadMs + ' ms (' + r.engine + ')');
@@ -29,7 +29,7 @@ $('go').addEventListener('click', async () => {
     row('Verdict', realtime ? 'Fast enough for live scanning' : 'Slow: Scan will update less often', realtime ? 'ok' : 'bad');
   } catch (err) {
     on = false;
-    log('Failed: ' + (err && err.message || err));
+    log('Failed: ' + (err && (err as Error).message || err));
   }
-  $('go').disabled = false;
+  ($('go') as HTMLButtonElement).disabled = false;
 });
