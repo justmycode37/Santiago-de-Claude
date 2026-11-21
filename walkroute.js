@@ -587,7 +587,7 @@
   async function route(a, b, opt = {}) {
     const straight = distM(a, b);
     if (straight > 4000) return null;
-    if (!(await ensure(a, b, Math.max(300, straight * 0.4)))) return null;
+    if (!(await ensure(a, b, Math.max(450, straight * 0.4)))) return null; // the nearest path can be up to 400 m off
     // a network gap can send the search on a huge detour: that counts as no route (the next try, or the online router)
     const ok = (r) => r && r.dist <= Math.max(straight * 4, straight + 1200);
     const from = opt.from || {}, to = opt.to || {};

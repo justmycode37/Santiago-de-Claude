@@ -12,7 +12,7 @@ release it is fetched straight out of swisstopo's shapefile zip with HTTP range 
   python3 tools/swisstlm3d.py            # download the current release's roads-and-paths layer (resumable)
   python3 tools/swisstlm3d.py --fields   # list its attribute columns and the values of the type column
 """
-import io, json, math, os, struct, sys, urllib.request, zipfile
+import http.client, io, json, os, struct, sys, urllib.request, zipfile
 
 STAC = 'https://data.geo.admin.ch/api/stac/v0.9/collections/ch.swisstopo.swisstlm3d/items?limit=100'
 CACHE = os.path.join(os.path.expanduser('~'), '.cache', 'walkgraph', 'tlm')
@@ -58,7 +58,7 @@ class HttpFile(io.RawIOBase):
                         raise OSError(f'no range answer (HTTP {res.status}, Content-Range {cr!r})')
                     data = res.read(n)
                 break
-            except OSError as e:
+            except (OSError, http.client.HTTPException) as e:
                 if attempt == 5:
                     raise
                 print(f'  retrying ({e})', file=sys.stderr)
@@ -76,13 +76,25 @@ def latest_release():
 
 def fetch(release=None):
     """Download the roads-and-paths layer (once) → path prefix of the local .shp/.dbf/.shx files."""
-    rel, url = latest_release() if release is None else (release, None)
+    have = lambda r: all(os.path.exists(os.path.join(CACHE, r, os.path.basename(LAYER)) + e) for e in ('.shp', '.dbf', '.shx', '.prj'))
+    url = None
+    if release is None:
+        try:
+            release, url = latest_release()
+        except (OSError, ValueError, KeyError, http.client.HTTPException):  # offline: the newest one downloaded before
+            cached = sorted(r for r in (os.listdir(CACHE) if os.path.isdir(CACHE) else []) if have(r))
+            if not cached:
+                raise
+            release = cached[-1]
+    rel = release
     folder = os.path.join(CACHE, rel)
     base = os.path.join(folder, os.path.basename(LAYER))
-    if all(os.path.exists(base + ext) for ext in ('.shp', '.dbf', '.shx', '.prj')):
+    if have(rel):
         return base, rel
     if url is None:
-        rel, url = latest_release()
+        items = json.loads(urllib.request.urlopen(urllib.request.Request(STAC, headers=UA), timeout=60).read())['features']
+        item = next(f for f in items if f['id'] == rel)
+        url = next(a['href'] for a in item['assets'].values() if a['href'].endswith('.shp.zip'))
     os.makedirs(folder, exist_ok=True)
     z = zipfile.ZipFile(io.BufferedReader(HttpFile(url), buffer_size=1 << 22))
     for ext in ('.prj', '.shx', '.dbf', '.shp'):
@@ -135,7 +147,13 @@ class Dbf:
         out = {}
         for c, (_, typ, size, off) in self.cols:
             v = rec[off:off + size].decode(self.enc, 'replace').strip()
-            out[c] = (int(float(v)) if v else None) if typ in 'NF' and v.replace('.', '', 1).lstrip('-').isdigit() else v
+            if typ in 'NF':
+                try:
+                    out[c] = (float(v) if '.' in v else int(v)) if v else None
+                except ValueError:
+                    out[c] = None
+            else:
+                out[c] = v
         return out
 
 

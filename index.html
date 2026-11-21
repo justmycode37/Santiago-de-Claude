@@ -3276,7 +3276,7 @@
           if (!w || w.approx) doneLine(l, 'walk', i, from, { approx: true });
           else {
             const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
-            const b = w.approxFrom != null && w.approxFrom > a ? w.approxFrom : l.length - 1;
+            const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
             let at = from;
             [[0, a, true], [a, b, false], [b, l.length - 1, true]].forEach(([x, y, guess]) => {
               if (y <= x) return;

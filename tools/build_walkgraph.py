@@ -340,8 +340,10 @@ def levels_of(a):
 # ------------------------------------------------------------------ swissTLM3D: swisstopo's paths that OpenStreetMap lacks
 
 TLM_SKIP = {'Autobahn', 'Autostrasse', 'Einfahrt', 'Ausfahrt', 'Zufahrt', 'Dienstzufahrt', 'Raststaette', 'Autozug',
-            'Verbindung', 'Klettersteig'}
+            'Verbindung', 'Klettersteig', 'Faehre'}
 TLM_CLOSED = {'Gesperrt', 'Rennstrecke', 'Teststrecke', 'Panzerpiste', 'Gesicherte Kletterpartie'}
+TLM_ID = 10 ** 15  # swisstopo points get ids from their position, far above OSM's node ids (and multipolygon
+                   # outline corners are negative): same point, same id; never the same as an OSM node
 TLM_NEAR = 12.0   # m: a swisstopo line this close to an OSM way is the same way (the two maps differ by a few metres)
 TLM_MIN = 15.0    # m: shorter stretches only OSM lacks are left out (noise, not paths)
 
@@ -351,6 +353,9 @@ def tlm_attrs(r):
     art, kb = r.get('OBJEKTART') or '', r.get('KUNSTBAUTE') or ''
     if art in TLM_SKIP or (r.get('VERKEHRSBE') or '') in TLM_CLOSED:
         return None
+    opens = (r.get('EROEFFNUNG') or '').strip()
+    if opens.isdigit() and len(opens) == 8 and opens > time.strftime('%Y%m%d'):
+        return None  # not open yet
     # STUFE is a structure's layer: bridges 1, underpasses -2. Lines in or on buildings (station halls) are left to
     # OSM, which draws their floors; so are road tunnels (no walking) and the few other lines off the ground
     stufe = r.get('STUFE') or '0'
@@ -365,7 +370,7 @@ def tlm_attrs(r):
         a['c'] = 't'
     if layer or outdoor:
         a['y'] = layer or (1 if kb.startswith('Bruecke') or kb in ('Steg', 'Gedeckte Bruecke') else -1)
-    if a['k'] == 'st' or art == 'Markierte Spur' or (r.get('WANDERWEGE') or '') in ('Bergwanderweg', 'Alpinwanderweg') \
+    if a['k'] == 'st' or kb == 'Furt' or art == 'Markierte Spur' or (r.get('WANDERWEGE') or '') in ('Bergwanderweg', 'Alpinwanderweg') \
             or ('Weg' in art and (r.get('BELAGSART') or '') == 'Natur'):
         a['w'] = 1
     name = (r.get('NAME') or r.get('STRNAME') or '').strip()
@@ -405,7 +410,7 @@ def add_tlm(bbox, nodes, walk, proj, walls, closed=None):
             return False
         a = walk[wid][0]
         lv = levels_of(a)
-        return (lv is None or 0.0 in lv) and not a.get('y') and a.get('c') not in ('t', 'i')
+        return (lv is None or 0.0 in lv) and not a.get('y') and a.get('c') not in ('t', 'i') and a['k'] not in ('es', 'el')
 
     def nearest_osm(pt, only_ground=False):
         best = None
@@ -418,8 +423,8 @@ def add_tlm(bbox, nodes, walk, proj, walls, closed=None):
         return best
 
     dbf = swisstlm3d.Dbf(base + '.dbf', ['OBJEKTART', 'KUNSTBAUTE', 'VERKEHRSBE', 'STUFE', 'WANDERWEGE', 'BELAGSART',
-                                         'NAME', 'STRNAME'])
-    tid = lambda lon, lat: -(round(lat * 1e6) * 10_000_000 + round(lon * 1e6))  # same point, same id (as relation rings)
+                                         'NAME', 'STRNAME', 'EROEFFNUNG'])
+    tid = lambda lon, lat: TLM_ID + round(lat * 1e6) * 100_000_000 + round(lon * 1e6)  # same point, same id
     added, metres, splits = 0, 0.0, {}
 
     def join(key, nid, pt):
@@ -431,7 +436,8 @@ def add_tlm(bbox, nodes, walk, proj, walls, closed=None):
         L2 = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2
         t = 0 if not L2 else max(0.0, min(1.0, ((pt[0] - p[0]) * (q[0] - p[0]) + (pt[1] - p[1]) * (q[1] - p[1])) / L2))
         nds = walk[wid][1]
-        if t < 0.05 or t > 0.95:  # close to one of the way's own nodes: use it
+        seg = math.sqrt(L2)
+        if t * seg < 1.5 or (1 - t) * seg < 1.5:  # within 1.5 m of one of the way's own nodes: use it
             target, txy = (nds[si], p) if t < 0.5 else (nds[si + 1], q)
         else:
             txy = (p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t)
@@ -502,7 +508,9 @@ def add_tlm(bbox, nodes, walk, proj, walls, closed=None):
         out = []
         for si in range(len(nds)):
             out.append(nds[si])
-            out += [n for _, _, n in sorted((x for x in ins if x[0] == si), key=lambda x: x[1]) if n != nds[si]]
+            for _, _, n in sorted((x for x in ins if x[0] == si), key=lambda x: x[1]):
+                if n != out[-1] and (si + 1 >= len(nds) or n != nds[si + 1]):
+                    out.append(n)
         walk[wid] = (a, out)
     print(f'swissTLM3D {rel}: {added} stretches OSM lacks, {metres / 1000:.1f} km added', file=sys.stderr)
     return added, metres
@@ -587,9 +595,6 @@ def build(bbox, refresh, tlm=True):
         elif t.get('highway') and t.get('highway') not in ('construction', 'proposed', 'abandoned', 'razed'):
             closed_ways.append(nds)  # a way you may not walk (foot=no, private, motorway): swisstopo must not reopen it
 
-    if tlm:
-        add_tlm(bbox, nodes, walk, proj, walls, closed_ways)
-
     for rid, (t, rings, holes) in rels.items():
         if area_polygon({**t, 'area': t.get('area', 'yes')}):
             a = walk_attrs({**t, 'highway': t.get('highway') or t.get('area:highway') or 'footway'})
@@ -600,10 +605,14 @@ def build(bbox, refresh, tlm=True):
                 for i, ring in enumerate(rings):
                     ids = []
                     for lon, lat in ring:
-                        nid = -(round(lat * 1e6) * 10_000_000 + round(lon * 1e6))
+                        nid = -(round(lat * 1e6) * 100_000_000 + round(lon * 1e6))
                         nodes.setdefault(nid, (lon, lat))
                         ids.append(nid)
                     walk[f'o{rid}.{i}'] = (a, ids)
+
+    # swisstopo's paths OSM lacks (after all OSM ways, multipolygon outlines included, are in)
+    if tlm:
+        add_tlm(bbox, nodes, walk, proj, walls, closed_ways)
 
     # lifts: the shaft outlines of one lift on different floors stand on top of each other; join them
     lifts, shaft_nodes = [], set()
