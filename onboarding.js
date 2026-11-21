@@ -44,10 +44,11 @@
   };
 
   // ---------- The demo: the one seam to the showcase ----------
-  // The showcase is the 3D station view opened on this walk, in first person. On the `showcase-path` branch the
-  // viewer draws the detailed Hirschengraben scene there, walks by itself (`play: true`) and says when it has arrived
-  // ('arrived'). Without that branch the same call shows the plain model, and we move the viewer's own
-  // "Walk along the route" slider instead.
+  // STATUS: the introduction is complete, the demo walk is NOT complete yet (docs/onboarding.md). What plays is the
+  // 3D station view opened on this walk in first person, as station3d.js draws and moves it today; the walk itself
+  // is still being worked on. Nothing else in this file depends on what the demo is.
+  // The viewer walks by itself (`play: true`) and says when it has arrived ('arrived'). A viewer without that
+  // (Station3D.play missing) gets its own "Walk along the route" slider moved instead.
   const DEMO_WALK = { key: 'bern', from: { stop: { uic: '8579896', ref: 'B' } }, to: { stop: { uic: '8579896', ref: 'C' } }, title: 'Bern, Hirschengraben' };
   const WALK_MPS = 2.2;      // stand-in walk: metres of the route per second (38 m in about 17 s)
   const WALK_DELAY = 1700;   // …and how long after the view opened it sets off (the view first swings down to eye level)
