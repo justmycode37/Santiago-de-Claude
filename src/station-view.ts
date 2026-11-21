@@ -370,6 +370,9 @@
       const chips = el('div', 'stv-chips');
       for (const s of changes) chips.append(el('span', 'stv-chip stv-k-' + s.kind, stepIcon(s), `${kindName(s.kind)} ${s.dir === 'down' ? 'down' : 'up'} to ${levelTag(s.toLevel)}`));
       g.append(el('div', 'stv-text', r.same ? 'You are already there.' : `The way to ${endName(r)}`), changes.length ? chips : el('div', 'stv-meta', 'All on one floor.'));
+      // what the colours in the model mean (escalators run the way their arrows point)
+      g.append(el('div', 'stv-legend', ...([['stv-lg-up', 'Escalator up'], ['stv-lg-down', 'Escalator down'], ['stv-lg-stairs', 'Stairs'], ['stv-lg-lift', 'Lift'], ['stv-lg-route', 'Your way']] as const)
+        .map(([c, t]) => el('span', null, el('i', c), t))));
       bar.append(btn('stv-btn stv-primary', null, () => goStep(0), 'Start ›'));
     } else {
       const s = r.steps[step];
