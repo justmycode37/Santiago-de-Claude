@@ -316,14 +316,20 @@
   function requay(steps: KanteStep[], changed: () => void) {
     const same = (a: LngLat | null | undefined, b: LngLat | null | undefined) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
     const lastOf = (st: KanteStep) => { const l = st.lines && st.lines[st.lines.length - 1]; return l && l[l.length - 1]; };
+    const sameEdge = (x: KantePlatformAt, y: JourneyPlatformAt | null | undefined) => {
+      const e = x.edge, f = y && y.edge;
+      return (e ? e.ref : null) === (f ? f.ref : null) && (e ? e.level : null) === (f ? f.level : null);
+    };
     const rewalk = new Map<KanteStep, [LngLat, LngLat]>(); // step → [from, to]
     let moved = false;
     steps.forEach((st, i) => {
       if (st.type !== 'ride') return;
       const d = at(st.s!.departure), a = at(st.s!.arrival);
-      if (!d || !a || (same(d.ll, st.depLL) && same(a.ll, st.arrLL))) return;
+      if (!d || !a || (same(d.ll, st.depLL) && same(a.ll, st.arrLL) && sameEdge(d, st.depAt) && sameEdge(a, st.arrAt))) return;
       const prev = steps[i - 1], next = steps[i + 1], final = steps[steps.length - 1];
       moved = true;
+      // the same point, another platform (its name or floor): the walks stay, and are routed again to it (refineWalks())
+      if (same(d.ll, st.depLL) && same(a.ll, st.arrLL)) { Object.assign(st, { depAt: d, arrAt: a }); return; }
       if (!same(d.ll, st.depLL) && prev && prev.type !== 'ride') {
         const from = prev.type === 'change' ? prev.points![0] : prev.lines![0] && prev.lines![0][0];
         if (prev.type === 'change') prev.points![1] = d.ll; else prev.board = d.ll;

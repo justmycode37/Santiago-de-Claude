@@ -499,6 +499,9 @@ interface KanteStep {
   path?: LngLat[];
   depLL?: LngLat | null;
   arrLL?: LngLat | null;
+  /** ride: where it is boarded and left (the platform edge, when the engine knows it). */
+  depAt?: JourneyPlatformAt | null;
+  arrAt?: JourneyPlatformAt | null;
   // What decorate() and requay() add to a walk or change of an engine journey:
   /** The engine's walk. */
   kante?: KanteWalk;

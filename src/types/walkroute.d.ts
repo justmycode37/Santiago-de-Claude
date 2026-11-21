@@ -77,6 +77,8 @@ interface JourneyFootStep {
   ends?: [WalkEnd, WalkEnd][];
   walkRev?: number;
   _netFor?: LngLat[][];
+  /** …and the ends and platforms it was routed for (walkSig()). */
+  _netSig?: string;
   toLL?: LngLat;
 }
 

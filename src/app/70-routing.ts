@@ -189,7 +189,7 @@ function refineWalks(id: number, onlyMoved?: boolean) {
   const task: WalkTask = (promise, apply) => { promise.then((res) => { if (id !== journeyReq) return; apply(res); geoVersion++; redraw(); }); };
   journeySteps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
-    if (onlyMoved && st._netFor === st.lines) return;
+    if (onlyMoved && st._netFor === st.lines && st._netSig === walkSig(st)) return;
     // no walk any more (both rides at the same point now): an answer still on its way must not bring it back
     if (!(st.lines || []).length) { newWalkRev(st); return; }
     const plan = s3Plan(st);
@@ -197,10 +197,19 @@ function refineWalks(id: number, onlyMoved?: boolean) {
   });
 }
 type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
+// What a walk was routed for besides its line: what its ends are and the platforms it leaves from and goes to (a
+// platform can change without its point moving, and a station model routes to the platform by its name)
+const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
+  const stops = st.type === 'change' ? [st.prev.arrival, st.next.departure] : [st.from && st.from.arrival, st.next && st.next.departure];
+  return JSON.stringify([st.ends || [], stops.map((s) => (s ? platformOf(s) : ''))]);
+};
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since) are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
-  const rev = (st.walkRev = (st.walkRev || 0) + 1);
-  return () => st.walkRev === rev && journeySteps.includes(st);
+  const rev = (st.walkRev = (st.walkRev || 0) + 1), sig = walkSig(st);
+  const current = () => st.walkRev === rev && journeySteps.includes(st);
+  // the answer is in: this line, for these ends and platforms, has its route
+  const done = () => { st._netFor = st.lines; st._netSig = sig; };
+  return Object.assign(current, { done });
 }
 // Through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router or the
 // engine's path, so the map shows the same way as the 3D view
@@ -214,7 +223,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
       st.floors = res.floors;
       queueSheet();
     }
-    st._netFor = st.lines;
+    current.done();
   });
 }
 const walkKmh = () => Number(SETTINGS.prefs && SETTINGS.prefs().walkKmh) || 4.7;
@@ -238,7 +247,7 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
         st.floors = res.floors && res.floors.length ? res.floors : null;
         queueSheet();
       }
-      st._netFor = st.lines; // routed, or the engine's path kept: either way this line has its answer
+      current.done(); // routed, or the engine's path kept: either way this line has its answer
     });
     return;
   }
@@ -250,7 +259,7 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     // floor changes where the walking route actually takes them (else the platform levels imply one)
     const floors = st.walks.flatMap((w) => (w && w.floors) || []);
     st.floors = floors.length ? floors : null;
-    st._netFor = st.lines;
+    current.done();
     if (res.net && !journeySteps.some((x) => x.type === 'ride')) retimeWalkConn(journeyConn, res.dist); // walking all the way
     queueSheet(); // metres and written directions
   }));
