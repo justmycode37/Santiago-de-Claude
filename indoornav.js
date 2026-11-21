@@ -122,6 +122,7 @@
 
   // GPS from the app (same argument as Station3D.setUser: { ll, accuracy, heading })
   function setUser(u, replay) {
+    if (!hook.done) hook();   // the viewer may load after the page (lazy loading): hook in as soon as it is there
     if (u && u.ll && !replay) lastGps = { u, at: performance.now(), heading: u.heading };
     if (!ses || !ses.filter || !u || !u.ll) { if (S3() && !(ses && ses.open && ses.filter)) S3().setUser(u); return; }
     const [x, y] = ses.model.fromLngLat(u.ll[0], u.ll[1]);
