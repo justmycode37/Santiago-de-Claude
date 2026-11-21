@@ -8,7 +8,7 @@
     "types": [],
     "noEmit": true,
     "erasableSyntaxOnly": true,
-    "strict": false,
+    "strict": true,
     "skipLibCheck": true
   },
   "include": ["src"]
