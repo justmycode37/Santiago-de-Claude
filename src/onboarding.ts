@@ -6,12 +6,25 @@
 (function () {
   'use strict';
 
+  /** The access needs asked for: switches of the settings page. */
+  type NeedKey = 'wheelchair' | 'stepFree' | 'fewerStairs' | 'noEscalators' | 'lowVision';
+  interface Need { key: NeedKey; color: string; title: string; note: string; icon: string }
+  /** What the demo reports while it runs, and how it ended. */
+  type DemoState = 'arrived' | 'error' | 'playing';
+  type DemoEnd = 'finished' | 'skipped' | 'unavailable';
+  interface Demo { over: Promise<DemoEnd>; close(): void }
+  /** The stand-in walk that moves the viewer's slider. */
+  interface Walker { stop(): void }
+  /** A listener for one of the viewer's events, kept to take it off again. */
+  type Heard = [name: keyof Station3DEventMap, fn: (detail: never) => void];
+  type PageName = 'welcome' | 'demo' | 'speed' | 'access';
+
   const KEY = 'onboarding';
   const html = document.documentElement;
-  const me = document.currentScript;
+  const me = document.currentScript as HTMLScriptElement | null;
   const BASE = ((me && me.src) || '').replace(/[^/]*(\?.*)?$/, '');
   const SETTINGS = window.SETTINGS;
-  const reducedMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const reducedMotion = () => !!((window.matchMedia as typeof matchMedia | undefined) && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   // The five stops of the walking speed slider: settings.js exports them once the walking-speed-auto branch is in
   // (SETTINGS.speedPresets); until then this is the same list
@@ -24,7 +37,7 @@
     { label: 'Fast', kmh: 6.5 },
   ]).map((s, i, all) => ({ label: s.label, kmh: s.kmh, note: all.length === SPEED_NOTES.length ? SPEED_NOTES[i] : '' }));
   // Access needs → the switches of the settings page (same keys, icons and colours)
-  const NEEDS = [
+  const NEEDS: Need[] = [
     { key: 'wheelchair', color: 'navy', title: 'I use a wheelchair', note: 'Step-free routes that also avoid barriers a wheelchair can’t pass.',
       icon: '<circle cx="10" cy="4.5" r="1.7" fill="currentColor" stroke="none" /><path d="M10 8v6h5.5l2.5 5M10 10.8h4.5M7.3 12.2a5 5 0 1 0 5.9 7" />' },
     { key: 'stepFree', color: 'sun', title: 'I can’t take stairs or escalators', note: 'For example with a pushchair, a walking aid or heavy luggage.',
@@ -37,7 +50,7 @@
       icon: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" />' },
   ];
   // A stricter need includes the milder ones (settings.js, effective()): those show as on and can't be switched off
-  const impliedBy = {
+  const impliedBy: Partial<Record<NeedKey, (p: Settings) => boolean>> = {
     stepFree: (p) => p.wheelchair,
     fewerStairs: (p) => p.stepFree,
     noEscalators: (p) => p.stepFree,
@@ -57,15 +70,15 @@
   // 'error' (it could not be shown; the view says why and offers "Try again") and 'playing' (it runs after all).
   // `over` resolves once the view has gone:
   // 'finished' (after arriving), 'skipped' (before) or 'unavailable'. close() ends it from outside.
-  function startDemo(host, onState) {
+  function startDemo(host: HTMLElement, onState: (state: DemoState) => void): Demo {
     // Always window.Station3D as it is now: the viewer may be loaded on first use and replace a stand-in object
     const S = () => window.Station3D;
     if (!S() || !SETTINGS) return { over: Promise.resolve('unavailable'), close() {} };
-    let end, arrived = false, failed = false, ended = false, walker = null;
-    const over = new Promise((resolve) => { end = resolve; });
-    const heard = [];
-    const hear = (name, fn) => { heard.push([name, fn]); S().on(name, fn); };
-    const deaf = () => { for (const [name, fn] of heard.splice(0)) S().off(name, fn); };
+    let end: (how: DemoEnd) => void, arrived = false, failed = false, ended = false, walker: Walker | null = null;
+    const over = new Promise<DemoEnd>((resolve) => { end = resolve; });
+    const heard: Heard[] = [];
+    const hear = <K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void) => { heard.push([name, fn]); S().on(name, fn); };
+    const deaf = () => { for (const [name, fn] of heard.splice(0)) S().off(name, fn as (detail: unknown) => void); };
     const finish = () => {
       if (ended) return;
       ended = true;
@@ -100,8 +113,8 @@
 
   // Until the viewer walks by itself: move its slider along the route at walking-demo pace. Using the slider or the
   // step buttons yourself stops it; looking around does not.
-  function standInWalk(host, onEnd) {
-    const scrub = host.querySelector('.s3-scrub');
+  function standInWalk(host: HTMLElement, onEnd: () => void): Walker | null {
+    const scrub = host.querySelector<HTMLInputElement>('.s3-scrub');
     if (!scrub) return null;
     const max = +scrub.max, step = scrub.step;
     let raf = 0, timer = 0, last = 0, pos = +scrub.value || 0, stopped = false;
@@ -115,11 +128,11 @@
       sheet.removeEventListener('pointerdown', stop, true);
       sheet.removeEventListener('keydown', stop, true);
     };
-    const tick = (now) => {
+    const tick = (now: number) => {
       if (stopped) return;
       if (last) pos = Math.min(max, pos + Math.min(.25, (now - last) / 1000) * WALK_MPS);
       last = now;
-      scrub.value = pos;
+      scrub.value = pos as unknown as string;
       scrub.dispatchEvent(new Event('input'));
       if (pos < max) raf = requestAnimationFrame(tick);
     };
@@ -221,14 +234,14 @@
       </div>
     </div>`;
 
-  let el = null;        // the layer, built on first use
+  let el: HTMLElement | null = null;        // the layer, built on first use
   let isOpen = false;
-  let demo = null;      // the running demo
-  let madeInert = [];
+  let demo: Demo | null = null;      // the running demo
+  let madeInert: HTMLElement[] = [];
   const themeMeta = document.querySelector('meta[name="theme-color"]');
-  const $ = (sel) => el.querySelector(sel);
+  const $ = <E extends HTMLElement = HTMLElement>(sel: string) => el!.querySelector<E>(sel)!;
 
-  let cssPromise = null;
+  let cssPromise: Promise<unknown> | null = null;
   function loadCss() {
     if (!cssPromise) cssPromise = new Promise((resolve, reject) => {
       const link = document.createElement('link');
@@ -252,12 +265,12 @@
     document.body.appendChild(el);
 
     el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-go]');
-      if (b) go(b.dataset.go);
-      else if (e.target.closest('#obSkip') && demo) demo.close();
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-go]');
+      if (b) go(b.dataset.go as PageName | 'done');
+      else if ((e.target as HTMLElement).closest('#obSkip') && demo) demo.close();
     });
     el.addEventListener('change', (e) => {
-      const t = e.target;
+      const t = e.target as HTMLInputElement;
       if (t.name === 'obSpeed') SETTINGS.set({ walkKmh: +t.value });
       else if (t.dataset.need) SETTINGS.set({ [t.dataset.need]: t.checked });
       else if (t.id === 'obAuto') SETTINGS.set({ autoSpeed: t.checked });
@@ -270,41 +283,41 @@
     const p = SETTINGS.prefs();
     let best = 0;
     SPEEDS.forEach((s, i) => { if (Math.abs(s.kmh - p.walkKmh) < Math.abs(SPEEDS[best].kmh - p.walkKmh)) best = i; });
-    el.querySelectorAll('input[name="obSpeed"]').forEach((input, i) => { input.checked = i === best; });
-    el.querySelectorAll('input[data-need]').forEach((input) => {
-      const k = input.dataset.need;
+    el.querySelectorAll<HTMLInputElement>('input[name="obSpeed"]').forEach((input, i) => { input.checked = i === best; });
+    el.querySelectorAll<HTMLInputElement>('input[data-need]').forEach((input) => {
+      const k = input.dataset.need as NeedKey;
       input.checked = !!p[k];
       input.disabled = impliedBy[k] ? !!impliedBy[k](p) : false;
     });
     // "Adjust to how I walk" exists once the walking-speed-auto branch is in
     const auto = 'autoSpeed' in p;
     $('#obAutoGroup').hidden = !auto;
-    if (auto) $('#obAuto').checked = !!p.autoSpeed;
+    if (auto) $<HTMLInputElement>('#obAuto').checked = !!p.autoSpeed;
   }
 
   function setInert() {
-    for (const n of document.body.children) {
+    for (const n of document.body.children as HTMLCollectionOf<HTMLElement>) {
       if (n === el || n.inert || /^(SCRIPT|STYLE|LINK)$/.test(n.tagName)) continue;
       n.inert = true;
       madeInert.push(n);
     }
   }
-  const paintChrome = () => { if (themeMeta && isOpen) themeMeta.setAttribute('content', getComputedStyle(el).getPropertyValue('--sp-bg').trim()); };
+  const paintChrome = () => { if (themeMeta && isOpen) themeMeta.setAttribute('content', getComputedStyle(el!).getPropertyValue('--sp-bg').trim()); };
   // The app is still starting behind a first visit: what it adds or sets after us is covered too
   const again = () => { if (isOpen) { setInert(); paintChrome(); } };
   document.addEventListener('DOMContentLoaded', again);
   window.addEventListener('load', again);
 
-  function page(name) {
-    for (const p of el.querySelectorAll('[data-page]')) p.hidden = p.dataset.page !== name;
-    el.setAttribute('aria-labelledby', 'obT-' + name);
-    const sc = el.querySelector(`[data-page="${name}"] .ob-scroll`);
+  function page(name: PageName) {
+    for (const p of el!.querySelectorAll<HTMLElement>('[data-page]')) p.hidden = p.dataset.page !== name;
+    el!.setAttribute('aria-labelledby', 'obT-' + name);
+    const sc = el!.querySelector(`[data-page="${name}"] .ob-scroll`);
     if (sc) sc.scrollTop = 0;
     const h = document.getElementById('obT-' + name);
     if (h) h.focus({ preventScroll: true });
   }
 
-  function go(name) {
+  function go(name: PageName | 'done') {
     if (name === 'demo') return runDemo();
     if (name === 'done') return finish();
     render();
@@ -340,8 +353,8 @@
     if (!html.dataset.onboarding) html.dataset.onboarding = 'again'; // the cover (index.html)
     loadCss().then(() => {
       if (!el) build();
-      el.classList.remove('leaving');
-      el.hidden = false;
+      el!.classList.remove('leaving');
+      el!.hidden = false;
       setInert();
       paintChrome();
       // Say on the last page that the location prompt comes next, if it does
@@ -374,7 +387,7 @@
       if (u.searchParams.has('intro')) { u.searchParams.delete('intro'); history.replaceState(history.state, '', u); }
     } catch (e) {}
     if (demo) { const d = demo; demo = null; d.close(); }
-    const layer = el;
+    const layer = el!;
     layer.classList.add('leaving');
     setTimeout(() => { if (!isOpen) layer.hidden = true; }, reducedMotion() ? 0 : 380);
     release();
