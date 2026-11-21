@@ -79,6 +79,7 @@
   let stillImage: string | null = null;   // a photo taken with the file input instead of the live camera
   let stillFrames = 0;     // photo comparisons done on that photo (one is enough: it does not change)
   let stillReads = 0;      // sign readings done on it
+  let noCamera = false;    // camera refused: nothing to read until a photo is taken
   let sourceGen = 0;       // +1 whenever the picture source changes (a photo chosen): older readings are dropped
 
   // ---------------------------------------------------------------- small helpers
@@ -205,7 +206,7 @@
   .sv-photo a { color: #c7c7cc; }
   .sv-alt { list-style: none; margin: 12px 0 0; padding: 0; }
   .sv-alt li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); font-size: 14px; cursor: pointer; }
-  .sv-alt li span:not(.sv-ic) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sv-alt li > span:not(.sv-ic) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sv-alt li small { color: #aeaeb2; }
   .sv-file { display: none; }
   .sv-hl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -279,12 +280,7 @@
     hl.setAttribute('class', 'sv-hl'); hl.setAttribute('aria-hidden', 'true'); hl.style.display = 'none';
     const hlLabel = $('div', 'sv-hl-label'); hlLabel.style.display = 'none';
     root.append(video, still, hl, ar, hlLabel, ring, top, sheet, file, debug);
-    // diagnostics: open the app with ?scandebug, or tap the status text three times
-    let taps = 0, tapAt = 0;
-    status.addEventListener('click', () => {
-      taps = Date.now() - tapAt < 600 ? taps + 1 : 1; tapAt = Date.now();
-      if (taps >= 3) { debugOn = !debugOn; root.classList.toggle('debug', debugOn); taps = 0; }
-    });
+    // diagnostics: open the app with ?scandebug
     if (debugOn) root.classList.add('debug');
     document.body.appendChild(root);
     close.addEventListener('click', closeScan);
@@ -552,7 +548,14 @@
     stats.ocr.push(performance.now() - t0);
     if (!running || mine !== session || gen !== sourceGen) return; // Scan closed, or another picture by now
     if (tap && tapRead === tap) { tapRead = null; ui.ring.classList.remove('on'); }
-    await useText(data.text || '', !!tap, layoutOf(data, shot), shotHeading);
+    const layout = layoutOf(data, shot);
+    // other parts of the app can use the words with their place in the picture (the AR camera: vehicle displays)
+    try {
+      const [fw, fh] = sourceSize();
+      const detail: ScanWordsDetail = { words: layout.words.map((w) => ({ text: w.text, box: w.box, conf: w.conf })), width: fw || 0, height: fh || 0, tap: !!tap };
+      window.dispatchEvent(new CustomEvent('scan:words', { detail }));
+    } catch (e) {}
+    await useText(data.text || '', !!tap, layout, shotHeading);
   }
 
   // ---- where the words are: Tesseract's blocks → words with boxes in picture pixels (confident words only)
@@ -571,7 +574,7 @@
           // big lettering (the stop name) often reads with a low confidence: keep every word for matching names
           // (a match with a real stop name is itself the evidence); the typical text size uses confident words only
           const bx = box(w.bbox);
-          words.push({ n, toks, box: bx, h: bx.y1 - bx.y0, block: bi, line: lineNo, conf: w.confidence });
+          words.push({ text: w.text, n, toks, box: bx, h: bx.y1 - bx.y0, block: bi, line: lineNo, conf: w.confidence });
         }
       }
     });
@@ -1399,7 +1402,6 @@
     if (ev.visStreak! >= VIS_FRAMES) why.append(chip('Looks like its photos', how === 'photo'));
     else if (ev.vis != null && ev.visRel! > 0.02) why.append(chip('Similar to its photos', false));
     if (c.ahead) why.append(chip('In front of the camera', false));
-    if (pos && c === candidates.slice().sort((a, b) => a.dist - b.dist)[0]) why.append(chip('Closest stop', false));
     if (!refsOf(c.uic)) why.append(chip('No reference photos yet', false));
 
     const nodes = [state, main, why];
@@ -1481,13 +1483,11 @@
   }
 
   function renderStatus() {
-    const busy: string[] = [];
-    if (ocrState === 'loading') busy.push('loading the sign reader');
-    if (modelState === 'loading') busy.push('loading the image model (24 MB, once)');
+    if (noCamera && !stillImage) return; // keep the "No camera" message
+    const busy = ocrState === 'loading' || modelState === 'loading';
     const pos = position();
     const title = stillImage ? 'Photo' : !pos ? 'Point at a stop sign' : headingOk() ? 'Look around' : 'Point at a stop';
-    let detail = busy.length ? busy.join(', ') + '…' : 'Tap a sign to read it.';
-    if (pos && !headingOk() && !stillImage) detail = 'No compass: using distance only. ' + detail;
+    let detail = busy ? 'Loading…' : 'Tap a sign to read it.';
     if (pos && pos.acc > 60) detail = `Location ±${Math.round(pos.acc)} m. ` + detail;
     setStatus(title, detail);
   }
@@ -1519,7 +1519,7 @@
       score();
       placeTags();
       renderSheet();
-      if (!busy) {
+      if (!busy && (stillImage || ui!.video.videoWidth > 0)) { // nothing to read yet (no frames, or no camera): load nothing
         const ocrDue = tapRead ? Infinity : now - lastOcr - 1500;
         // comparing photos only helps while it can still change the answer: not once a sign has settled it,
         // and not when fewer than two stops around have photos
@@ -1561,6 +1561,7 @@
     app = hooks;
     ui = buildUI();
     running = true;
+    noCamera = false;
     evidence.clear();
     findCandidates();
     renderStatus();
@@ -1577,9 +1578,10 @@
     } catch (err) {
       if (mine !== session) return;
       console.warn('Scan: no camera', err);
+      noCamera = true;
       setStatus('No camera', 'Allow camera access, or take a photo with the camera button.');
     }
-    if (mine !== session) return;
+    if (mine !== session || noCamera) return; // a photo loads the readers on demand
     ensureOcr();
     loadIndex().then((idx) => { if (idx) setTimeout(() => { if (running && mine === session) ensureModel(); }, 1500); }); // after the sign reader
   }

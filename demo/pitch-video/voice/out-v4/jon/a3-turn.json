@@ -1,0 +1,67 @@
+{
+ "text": "That night, we stopped being angry, and started building. This is Santiago.",
+ "model": "eleven_v4",
+ "voice": "jon",
+ "words": [
+  {
+   "text": "That",
+   "start": 0,
+   "end": 0.24
+  },
+  {
+   "text": "night,",
+   "start": 0.32,
+   "end": 0.8
+  },
+  {
+   "text": "we",
+   "start": 0.88,
+   "end": 1.04
+  },
+  {
+   "text": "stopped",
+   "start": 1.2,
+   "end": 1.36
+  },
+  {
+   "text": "being",
+   "start": 1.44,
+   "end": 1.68
+  },
+  {
+   "text": "angry,",
+   "start": 1.76,
+   "end": 2.48
+  },
+  {
+   "text": "and",
+   "start": 2.56,
+   "end": 2.64
+  },
+  {
+   "text": "started",
+   "start": 2.72,
+   "end": 3.04
+  },
+  {
+   "text": "building.",
+   "start": 3.12,
+   "end": 3.88
+  },
+  {
+   "text": "This",
+   "start": 4.16,
+   "end": 4.56
+  },
+  {
+   "text": "is",
+   "start": 4.64,
+   "end": 4.72
+  },
+  {
+   "text": "Santiago.",
+   "start": 4.8,
+   "end": 5.76
+  }
+ ]
+}

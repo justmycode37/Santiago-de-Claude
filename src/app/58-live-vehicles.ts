@@ -1,6 +1,7 @@
 // ---- Live vehicles on the map, from zoom 14: the engine's stream when it has one, else every 15 s. Not during
 //      a journey (the trip's own vehicle is shown on it), not while the page is hidden. ----
 const VEH_MIN_ZOOM = 14;
+const VEH_PILL_ZOOM = 16; // from here the vehicle shows its line number too
 const VEH_FC: LiveVehicleCollection = { type: 'FeatureCollection', features: [] };
 const VEH_MAX = 300; // enough for a city centre, light enough for a phone
 let vehList: LiveVehicle[] = [], vehBox: KanteBbox | null = null, vehES: EventSource | null = null, vehPollTimer: number | null = null, vehDrawTimer: number | null = null, vehBusy = false, vehReq = 0;
@@ -13,19 +14,14 @@ const vehNow = () => vehT + (Date.now() - vehAt) / 1000;
 function vehLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
   const fade: maplibregl.ExpressionSpecification = ['case', ['get', 'dim'], .45, 1];
+  // What each vehicle is, as a pictogram in its line's colour (42-sprites.ts); from VEH_PILL_ZOOM with the line
+  // number in it. It grows with the map: small among the streets, about vehicle size close in.
   return [
-    { id: 'kveh-dot', type: 'circle', source: 'kveh', minzoom: VEH_MIN_ZOOM,
-      paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], VEH_MIN_ZOOM, 5, 18, 8],
-               'circle-color': ['get', dark ? 'dfg' : 'bg'],
-               // extra journeys (not in the timetable, e.g. replacement buses) get a yellow ring
-               'circle-stroke-color': ['case', ['get', 'extra'], WALK, dark ? '#0B0D10' : '#FFFFFF'],
-               'circle-stroke-width': ['case', ['get', 'extra'], 3, 1.5],
-               'circle-opacity': fade, 'circle-stroke-opacity': fade } },
-    { id: 'kveh-label', type: 'symbol', source: 'kveh', minzoom: VEH_MIN_ZOOM + .5,
-      layout: { 'text-field': ['get', 'label'], 'text-font': ['Frutiger Neue Bold'],
-                'text-size': ['interpolate', ['linear'], ['zoom'], VEH_MIN_ZOOM + .5, 10, 18, 12.5],
-                'text-anchor': 'left', 'text-offset': [.75, 0], 'text-padding': 1, 'text-optional': true },
-      paint: { 'text-color': ['get', dark ? 'dfg' : 'bg'], 'text-halo-color': dark ? '#0B0D10' : '#FFFFFF', 'text-halo-width': 1.6, 'text-opacity': fade } },
+    { id: 'kveh-dot', type: 'symbol', source: 'kveh', minzoom: VEH_MIN_ZOOM,
+      layout: { 'icon-image': ['step', ['zoom'], ['get', dark ? 'iconD' : 'icon'], VEH_PILL_ZOOM, ['get', dark ? 'pillD' : 'pill']],
+                'icon-size': ['interpolate', ['exponential', 1.5], ['zoom'], VEH_MIN_ZOOM, .62, 16, .8, 18, 1.15, 20, 1.9],
+                'icon-allow-overlap': true, 'icon-ignore-placement': true },
+      paint: { 'icon-opacity': fade } },
   ];
 }
 const vehWanted = () => kante.ok() && !journeyDest && !document.hidden && map.getZoom() >= VEH_MIN_ZOOM
@@ -83,8 +79,11 @@ function vehDraw() {
   const now = vehNow(), old = age > VEH_DIM_MS;
   VEH_FC.features = vehList.map((v, i) => {
     const c = lineColor(v.j), st = v.info && v.info.state;
+    const glyph = vehicleGlyph(v.line.mode), x = v.extra ? 'x' : '', label = lineLabel(v.j);
+    const id = (bg: string, fg: string, text: string, theme: string) => ['vh', glyph, bg.slice(1), fg.slice(1), text, x, theme].join('|');
     return { type: 'Feature', geometry: { type: 'Point', coordinates: KANTE_LIVE.vehicleAt(v, now) },
-      properties: { i, label: v.line.name, bg: c.bg, dfg: c.dfg, extra: !!v.extra, dim: old || st === 'stale' || st === 'timetable' } };
+      properties: { i, label, extra: !!v.extra, dim: old || st === 'stale' || st === 'timetable',
+        icon: id(c.bg, c.fg, '', 'light'), pill: id(c.bg, c.fg, label, 'light'), iconD: id(c.dbg, c.dfg, '', 'dark'), pillD: id(c.dbg, c.dfg, label, 'dark') } };
   });
   const src = map.getSource<maplibregl.GeoJSONSource>('kveh');
   if (src) src.setData(VEH_FC);
@@ -105,8 +104,7 @@ map.on('click', (e) => {
   const body = h('div', null,
     h('div', 'pf-head', kBadge(v.j), h('span', 'pf-name', h('b', null, `to ${v.headsign}`), h('small', null, `Next stop: ${v.nextStop}`))),
     v.extra ? h('p', 'pf-note vh-extra', 'Extra journey, not in the timetable') : null,
-    h('p', 'vh-how', how.text),
-    h('p', 'pf-note', 'Not GPS: placed from its stop times'));
+    h('p', 'vh-how', how.text));
   platformPopup.remove();
   vehPopup.setLngLat((f!.geometry as GeoJSON.Point).coordinates as LngLat).setDOMContent(body).addTo(map);
 });

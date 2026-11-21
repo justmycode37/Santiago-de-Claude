@@ -1,0 +1,9 @@
+# the repository ignores every build/ folder; this one holds the generator
+!build/
+build/work*/
+build/node_modules/
+capture/node_modules/
+capture/v4/*-frames/
+pitch-v4/renders/
+pitch-v4/.hyperframes/
+pitch-v4/render.log

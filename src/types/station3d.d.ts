@@ -45,6 +45,12 @@ interface Station3DOpenOptions {
   mount?: HTMLElement | ShadowRoot | null;
   /** A tap anywhere on the model is a 'pick', not only on something with a name. */
   pickAnywhere?: boolean;
+  /** The end of the walk in the first-person view: over the last metres the head turns to `look` (model metres x, y),
+      the walk brakes gently, and the view comes to rest looking there. Without it: facing the way of the last piece. */
+  arrive?: { look?: [x: number, y: number] | null } | null;
+  /** 'demo': only the picture, the instruction card (at the top) and the signs: no title bar, close button, sheet,
+      mini-map or rail; with `pov` it opens at eye level straight away (no flight down from the model). */
+  chrome?: 'demo' | null;
 }
 
 /** `Station3D.play(options)` and `open({ play })`. */
@@ -92,6 +98,8 @@ interface Station3DEventMap {
   progress: { along: number; total: number; step: number };
   /** The walk started or stopped playing by itself. */
   play: boolean;
+  /** A detail scene (stations3d/DETAIL.md) was built and is showing; id = its key in STATION3D_DETAIL. */
+  detail: { id: string };
   error: { code: Station3DErrorCode; message: string };
 }
 /** What brought the walk to the destination: it played by itself, the scrubber (or the keys), a step that was chosen, the live position. */
@@ -133,6 +141,10 @@ interface Station3DApi {
   preload(key?: string | null): Promise<boolean>;
   /** Just the model and the router (no three.js): for drawing a station walk on the 2D map. */
   loadData(key: string): Promise<StationModel | null>;
+  /** The handle of the detail scene that is built now (`Station3DDetail.build`), or null. */
+  detail(): Station3DDetailHandle | null;
+  /** Draw again (after something was added to the detail scene from outside). */
+  redraw(): void;
   /** Development page: a pretend phone compass. */
   _orient(e: Station3DOrientation): void;
   /** Development page and tests: the state of the open viewer. */

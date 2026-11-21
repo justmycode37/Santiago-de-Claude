@@ -103,7 +103,7 @@ interface StationDetailTree extends StationDetailItem {
 }
 
 type StationDetailPropKind = 'bench' | 'lamp' | 'bollard' | 'bin' | 'bike-stand' | 'fountain' | 'planter' | 'hydrant' |
-  'sign-post' | 'pole' | 'shelter' | 'clock' | 'statue' | 'ticket-machine';
+  'sign-post' | 'pole' | 'shelter' | 'clock' | 'statue' | 'ticket-machine' | 'canopy';
 /** Other names the renderer understands for a prop kind. */
 type StationDetailPropAlias = 'street-lamp' | 'streetlamp' | 'street_lamp' | 'waste-basket' | 'waste_basket' |
   'bicycle-parking' | 'bike-rack' | 'sign' | 'signpost' | 'monument' | 'mast' | 'bus-shelter';
@@ -130,6 +130,13 @@ interface StationDetailProp extends StationDetailItem {
   plinthHeight?: number;
   plinthColor?: string;
   color?: string;
+  /** Canopy (a glass roof on columns): its outline in plan. `xy` is not needed; `height` is the underside of the
+      roof edge above the ground. */
+  ring?: XY[];
+  /** Canopy: how much higher the roof is in the middle than at its edge. */
+  rise?: number;
+  /** Canopy: where the columns stand. Missing: about every 12 m, 1.5 m inside the edge. */
+  columns?: XY[];
   /** Hanging lamp: the two points its wire is fixed at (missing: the nearest house fronts on both sides). */
   wire?: [x: number, y: number, z?: number][];
 }
@@ -222,7 +229,11 @@ interface StationDetailModel {
 }
 
 /** One station of stations3d/detail-index.js: where its scene is loaded from and the bbox of its area (model metres). */
-interface StationDetailIndexEntry { file: string; bbox: [minX: number, minY: number, maxX: number, maxY: number] }
+interface StationDetailIndexEntry {
+  /** With several scenes per station: the key of this one in STATION3D_DETAIL (default: the model key). */
+  id?: string;
+  file: string; bbox: [minX: number, minY: number, maxX: number, maxY: number];
+}
 
 // ---------- the renderer ----------
 
@@ -353,6 +364,41 @@ interface Station3DDetailHandle {
   groundAt(x: number, y: number): number | null;
   /** Removes the group from its parent and frees geometries, materials and textures. */
   dispose(): void;
+  /** Adds a vehicle that can drive along a path. It is kept through `update` (drawn again in the new look). */
+  addVehicle(spec: Station3DDetailVehicleSpec): Station3DDetailVehicle;
+  /** Advances what moves (vehicles, their doors). Call it every frame with `performance.now()`; true: something
+      changed in this call, so the frame has to be drawn (the last step of a movement still returns true). */
+  tick(nowMs: number): boolean;
+  /** The centre lines of the scene's `tram-track` surfaces, model coordinates. Pieces, in no particular direction. */
+  tracks(): XY[][];
+}
+
+interface Station3DDetailVehicleSpec {
+  kind: 'tram';
+  /** The line number on the front (digits). */
+  line?: string;
+  /** The track centre line in driving direction, model coordinates [x east, y north]. Before its first and after
+      its last point the vehicle goes on straight. */
+  path: XY[];
+  /** Metres. Default 42 (seven sections). */
+  length?: number;
+}
+interface Station3DDetailVehicle {
+  /** Metres, front to rear. */
+  length: number;
+  /** Where the front is: metres along the path. */
+  at: number;
+  stats: { triangles: number; drawCalls: number };
+  /** Puts the front at `s` metres along the path; every section follows the path. Ends a running `run`. */
+  place(s: number): void;
+  /** Drives from `from` to `to` (animated by `handle.tick`). 'arrive' brakes to a stop at `to`, 'depart' pulls away
+      from `from`, 'linear' (default) keeps one speed. Resolves when it is there, or when it is replaced or removed. */
+  run(o: { from: number; to: number; seconds: number; ease?: 'arrive' | 'depart' | 'linear' }): Promise<void>;
+  /** The doors (right side in driving direction) slide open or closed in about 0.8 s (animated by `handle.tick`). */
+  doors(open: boolean): void;
+  show(visible: boolean): void;
+  /** Takes it out of the scene and frees it. */
+  remove(): void;
 }
 
 interface Station3DDetailApi {
@@ -373,5 +419,5 @@ interface Station3DDetailApi {
 declare var Station3DDetail: Station3DDetailApi | undefined;
 /** stations3d/<key>.detail.js adds its scene here when it is loaded. */
 declare var STATION3D_DETAIL: Record<string, StationDetailModel> | undefined;
-/** stations3d/detail-index.js (loaded on demand): model key → where its detail scene is. */
-declare var STATION3D_DETAIL_INDEX: Record<string, StationDetailIndexEntry> | undefined;
+/** stations3d/detail-index.js (loaded on demand): model key → where its detail scene is, or its scenes are. */
+declare var STATION3D_DETAIL_INDEX: Record<string, StationDetailIndexEntry | StationDetailIndexEntry[]> | undefined;

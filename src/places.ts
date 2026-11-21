@@ -47,6 +47,9 @@
     primaryTypeDisplayName?: { text?: string };
     types?: string[];
     rating?: number;
+    userRatingCount?: number;
+    websiteUri?: string;
+    photos?: { name: string }[];
     currentOpeningHours?: { openNow?: boolean };
     businessStatus?: string;
   }
@@ -80,6 +83,11 @@
     { label: 'Cash machines', words: ['atm', 'atms', 'cash', 'bancomat', 'geldautomat', 'cash machine', 'postomat'], tags: ['amenity:atm'] },
     { label: 'Banks', words: ['bank', 'banks', 'banque', 'banca'], tags: ['amenity:bank'] },
     { label: 'Post offices', words: ['post office', 'post', 'poste', 'posta', 'postfiliale'], tags: ['amenity:post_office'] },
+    { label: 'Town halls & migration offices', words: ['town hall', 'townhall', 'town halls', 'immigration office', 'migration office', 'immigration',
+      'migrationsamt', 'migrationsdienst', 'einwohnerdienste', 'einwohnerkontrolle', 'gemeindeverwaltung', 'residence permit', 'permit', 'mairie',
+      'municipio', 'integration office'], tags: ['amenity:townhall', 'office:government'],
+      // office:government is any office: keep the ones newcomers deal with
+      names: /migra|einwohner|bev[oö]lkerung|population|integration|gemeinde|stadtverwaltung|commune|ausl[aä]nder|zivilstand|etat civil|state secretariat|sem\b/i },
     { label: 'Police', words: ['police', 'polizei', 'polizia'], tags: ['amenity:police'] },
     { label: 'Hotels', words: ['hotel', 'hotels', 'hostel', 'hostels', 'accommodation', 'unterkunft', 'albergo', 'b&b', 'guest house'], tags: ['tourism:hotel', 'tourism:hostel', 'tourism:guest_house', 'tourism:motel'] },
     { label: 'Museums', words: ['museum', 'museums', 'musee', 'museo', 'gallery', 'galerie'], tags: ['tourism:museum', 'tourism:gallery'] },
@@ -145,7 +153,7 @@
   const LABELS: Record<string, string> = { fast_food: 'Fast food', cafe: 'Café', toilets: 'Toilets', doctors: 'Doctor', atm: 'Cash machine', chemist: 'Drugstore',
     place_of_worship: 'Place of worship', fitness_centre: 'Gym', sports_centre: 'Sports centre', drinking_water: 'Drinking water',
     convenience: 'Convenience store', kiosk: 'Kiosk', department_store: 'Department store', mall: 'Shopping centre', clothes: 'Clothes shop',
-    hairdresser: 'Hairdresser', yes: '' };
+    hairdresser: 'Hairdresser', townhall: 'Town hall', government: 'Public office', yes: '' };
   const humanize = (v: string) => (v in LABELS ? LABELS[v] : (v || '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()));
 
   // Photon features that are not destinations (paths, signposts, platforms: the stop search covers those)
@@ -176,8 +184,8 @@
 
   function subtitle(r: Found) {
     const parts = [];
-    if (r.distance != null) parts.push(formatDistance(r.distance));
     if (r.category) parts.push(r.category);
+    if (r.distance != null) parts.push(formatDistance(r.distance));
     if (r.rating) parts.push(`★ ${r.rating.toFixed(1)}`);
     if (r.openNow === true) parts.push('Open');
     else if (r.openNow === false) parts.push('Closed');
@@ -217,7 +225,8 @@
       const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
       cat.tags.forEach((t) => params.append('osm_tag', t));
       const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
-      found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[]);
+      found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[])
+        .filter((r) => !cat.names || r.category === 'Town hall' || cat.names.test(r.title));
       if (found.length >= 6 || r >= 25) break;
     }
     const from = origin || center;
@@ -239,7 +248,7 @@
   // Google Places Text Search (New). Called straight from the page; restrict the key to your site's address.
   const GOOGLE_FIELDS = ['places.id', 'places.displayName', 'places.shortFormattedAddress', 'places.formattedAddress',
     'places.location', 'places.primaryType', 'places.primaryTypeDisplayName', 'places.types', 'places.rating',
-    'places.currentOpeningHours.openNow', 'places.businessStatus'].join(',');
+    'places.currentOpeningHours.openNow', 'places.businessStatus', 'places.userRatingCount', 'places.websiteUri', 'places.photos'].join(',');
   async function google(text: string, center: LngLat, origin: Origin, radiusKm: number, bbox: Bbox) {
     const where = bbox
       ? { locationRestriction: { rectangle: { low: { latitude: +round(bbox[1]), longitude: +round(bbox[0]) }, high: { latitude: +round(bbox[3]), longitude: +round(bbox[2]) } } } }
@@ -268,6 +277,11 @@
         source: 'google',
         id: `google:${p.id}`,
         rating: p.rating || null,
+        ratingCount: p.userRatingCount || 0,
+        website: p.websiteUri || '',
+        // the first photo, 400 px wide (Places API (New) photo media, same key)
+        photo: p.photos && p.photos[0] ? `https://places.googleapis.com/v1/${p.photos[0].name}/media?maxWidthPx=400&key=${encodeURIComponent(GOOGLE_KEY)}` : '',
+        details: true,
         openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : null,
         distance: origin ? distance(origin, lngLat) : null,
       };
@@ -290,6 +304,65 @@
     return { category: cat ? cat.label : null, results: list as PlaceSearchResult[] };
   }
 
+  // ---- Details for the best places of a category (OpenStreetMap has no ratings or photos of its own) ----
+  // OpenStreetMap's API gives the tags of the places found (website, opening hours, a photo on Wikimedia Commons,
+  // a Wikidata entry); a second one asks Wikidata for the photo of those that only have an entry there.
+  // How well known a place is stands in for its rating: it ranks the places of a category.
+  interface OsmTags { [k: string]: string | undefined }
+  interface WikidataClaims { entities?: Record<string, { claims?: { P18?: { mainsnak?: { datavalue?: { value?: string } } }[] } }> }
+  const commonsFile = (file: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/^File:/i, ''))}?width=400`;
+  const OSM_TYPES = { N: 'node', W: 'way', R: 'relation' } as const;
+  async function enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]> {
+    const osm = list.filter((r) => r.source === 'osm' && /^osm:[NWR]\d+$/.test(r.id) && !r.details);
+    if (!osm.length) return list;
+    const ids: Record<keyof typeof OSM_TYPES, string[]> = { N: [], W: [], R: [] };
+    for (const r of osm) ids[r.id[4] as keyof typeof OSM_TYPES].push(r.id.slice(5));
+    type Elements = { elements?: { type: string; id: number; tags?: OsmTags }[] };
+    const types = (Object.keys(OSM_TYPES) as (keyof typeof OSM_TYPES)[]).filter((t) => ids[t].length);
+    const tagsById = new Map<string, OsmTags>();
+    const keep = (data: Elements) => { for (const e of data.elements || []) tagsById.set(`osm:${e.type[0].toUpperCase()}${e.id}`, e.tags || {}); };
+    try {
+      // OpenStreetMap's own API: fast, one request per type (nodes, ways, relations)
+      const answers = await Promise.all(types.map((t) => getJSON<Elements>(
+        `https://api.openstreetmap.org/api/0.6/${OSM_TYPES[t]}s.json?${OSM_TYPES[t]}s=${ids[t].join(',')}`, { signal: AbortSignal.timeout(5000) })));
+      answers.forEach(keep);
+    } catch (e) {
+      // one of them deleted since Photon's copy (the API then answers nothing at all): Overpass skips those
+      const query = encodeURIComponent(`[out:json][timeout:8];(${types.map((t) => `${OSM_TYPES[t]}(id:${ids[t].join(',')});`).join('')});out tags;`);
+      try { keep(await getJSON<Elements>(`https://overpass-api.de/api/interpreter?data=${query}`, { signal: AbortSignal.timeout(6000) })); }
+      catch (err) { console.warn('No details for the places found', err); }
+    }
+    const wikidata: Record<string, PlaceSearchResult[]> = {};
+    for (const r of osm) {
+      const t = tagsById.get(r.id) || {};
+      const site = t.website || t['contact:website'] || '';
+      r.website = /^https?:\/\//.test(site) ? site : site ? 'https://' + site : '';
+      r.hours = t.opening_hours || '';
+      const image = t.image && /^https?:\/\/.+\.(jpe?g|png|webp)$/i.test(t.image) ? t.image : '';
+      r.photo = image || (t.wikimedia_commons && /^File:/i.test(t.wikimedia_commons) ? commonsFile(t.wikimedia_commons) : '');
+      if (!r.photo && t.wikidata) (wikidata[t.wikidata] ||= []).push(r);
+      const extra = t.cuisine ? t.cuisine.split(';')[0].replace(/_/g, ' ') : t.stars ? `${t.stars}★ hotel` : '';
+      if (extra && !r.category.toLowerCase().includes(extra.toLowerCase())) r.category = r.category ? `${r.category}, ${extra}` : extra;
+      // well known: on Wikidata, with a photo, a website, its opening hours, more of its details mapped
+      r.score = (t.wikidata ? 3 : 0) + (r.photo ? 2 : 0) + (r.website ? 1.5 : 0) + (r.hours ? 1 : 0)
+        + (t.stars ? (+t.stars || 0) * 0.4 : 0) + Math.min(Object.keys(t).length, 25) / 10;
+      r.details = true;
+    }
+    const qids = Object.keys(wikidata).filter((q) => /^Q\d+$/.test(q)).slice(0, 40);
+    if (qids.length) {
+      try {
+        const data = await getJSON<WikidataClaims>(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids=${qids.join('|')}`, { signal: AbortSignal.timeout(5000) });
+        for (const q of qids) {
+          const p18 = data.entities && data.entities[q] && data.entities[q].claims && data.entities[q].claims!.P18;
+          const file = p18 && p18[0] && p18[0].mainsnak && p18[0].mainsnak.datavalue && p18[0].mainsnak.datavalue.value;
+          if (file) for (const r of wikidata[q]) { r.photo = commonsFile(file); r.score = (r.score || 0) + 2; }
+        }
+      } catch (e) { /* no photos from Wikidata this time */ }
+    }
+    return list;
+  }
+
   // What stands at a point, for a pin dropped on the map: the place it is on, else the nearest address
   // ("Kramgasse 12"), "Near …" when that is some way off
   async function reverse(lngLat: LngLat) {
@@ -309,6 +382,7 @@
   window.PlaceSearch = {
     search,
     reverse,
+    enrich,
     matchCategory: (t) => { const c = matchCategory(t); return c ? c.label : null; },
     source: GOOGLE_KEY ? 'google' : 'osm',
     attribution: GOOGLE_KEY ? 'Google Maps' : 'Places © OpenStreetMap contributors',

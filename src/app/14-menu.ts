@@ -18,10 +18,8 @@ function setMenu(open: boolean) {
   menuItems.forEach((b) => (b.tabIndex = open ? 0 : -1));
 }
 menuBtn.addEventListener('click', () => setMenu(!menu.classList.contains('open')));
-document.getElementById('themeBtn')!.addEventListener('click', () =>
-  setTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
 const eventsBtn = document.getElementById('eventsBtn')!;
-// Shows or hides everything switched on under "On the map" in Settings
+// Shows or hides everything switched on under "Events and places" in Settings
 eventsBtn.addEventListener('click', () => {
   setEventsOn(!eventsOn);
   setMenu(false);
@@ -30,13 +28,13 @@ eventsBtn.addEventListener('click', () => {
   if (journeyDest) { showToast('Events and places come back when you end the journey.'); return; }
   const groups = SETTINGS.mapGroups();
   const wantPlaces = groups.some((k) => k !== 'events');
-  if (!groups.length) showToast('Everything is switched off under On the map in Settings.');
+  if (!groups.length) showToast('Nothing is switched on under “Events and places” in Settings.');
   else if (!wantPlaces && !visibleEvents().length) showToast('No events match your settings.');
   else if (map.getZoom() < (groups.includes('events') ? EVENT_MIN_ZOOM : PLACE_MIN_ZOOM)) showToast('Zoom into a town or neighbourhood to see events and places.');
   else if (wantPlaces && !viewNearBern()) {
     // toilets are mapped everywhere, the other groups only for Bern
     const others = groups.some((k) => k !== 'events' && k !== 'toilets');
-    if (!groups.includes('toilets')) showToast('Places like drinking water are only mapped for Bern so far.');
+    if (!groups.includes('toilets')) showToast('Places other than toilets are only mapped for Bern so far.');
     else if (others) showToast('Outside Bern, only toilets in Switzerland are mapped so far.');
   }
 });
@@ -58,7 +56,7 @@ type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?
 document.getElementById('scanBtn')!.addEventListener('click', () => {
   setMenu(false);
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('The camera needs HTTPS. Open the app via https:// or localhost.', 6000);
+    showToast('The camera isn’t available here.', 6000);
   }
   // Both permissions are asked right here, while the tap still counts as a user gesture (iOS needs that)
   const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
@@ -67,7 +65,28 @@ document.getElementById('scanBtn')!.addEventListener('click', () => {
   const orientation = window.DeviceOrientationEvent && typeof (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission === 'function'
     ? (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission!() : Promise.resolve('granted');
   camera.catch(() => {}); orientation.catch(() => {});
-  const hooks: StopVisionHooks = {
+  const hooks = scanHooks();
+  openScanWith(hooks, camera, orientation);
+});
+// Scan's screen with these hooks, once stopvision.js and the stop positions are loaded (also used by the AR camera)
+function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation: Promise<unknown>, then?: () => void) {
+  startPlatforms(); // the stop positions are needed straight away
+  const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation)).then(() => { if (then) then(); });
+  if (window.STOPVISION) go();
+  else {
+    const s = document.createElement('script');
+    s.src = 'stopvision.js';
+    s.onload = go;
+    s.onerror = () => {
+      showToast('Scan could not be loaded.');
+      camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
+    };
+    document.head.appendChild(s);
+  }
+}
+// What Scan (and the AR camera) gets from the page
+function scanHooks(): StopVisionHooks {
+  return {
     PLATFORMS, OPENDATA, platformLL, coordOf, badge,
     position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
     openStop: (id, i) => {
@@ -107,17 +126,4 @@ document.getElementById('scanBtn')!.addEventListener('click', () => {
                time: (r.s.departure.prognosis && r.s.departure.prognosis.departure) || r.s.departure.departure || undefined }; // live time
     },
   };
-  startPlatforms(); // the stop positions are needed straight away
-  const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation));
-  if (window.STOPVISION) go();
-  else {
-    const s = document.createElement('script');
-    s.src = 'stopvision.js';
-    s.onload = go;
-    s.onerror = () => {
-      showToast('Scan could not be loaded.');
-      camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
-    };
-    document.head.appendChild(s);
-  }
-});
+}

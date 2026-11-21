@@ -45,8 +45,8 @@ Known problems that matter here:
 - The deck walls of the mesh reach down to −3.5 m; the builder clips the mesh at −1 m.
 - Sector boards without a track number in the SBB data were assigned to the nearest edge (nine, all track 3).
 - Furniture has no level in the source: the builder takes `level` from the file when it is set there by hand (a
-  level the model does not have leaves the piece out rather than putting it on 0), else puts a piece on level 0 when
-  it lies on a platform, else on the level of the nearest walkable area within 15 m, else leaves it out. A level that
+  level the model does not have leaves the piece out rather than putting it on 0), else puts a piece on the level of
+  the train platforms (0 at most stations) when it lies on one of them, else on the level of the nearest walkable area within 15 m, else leaves it out. A level that
   came from SBB's section name (`"level_from": "sbb_section"`, Zürich HB) is only a hint, see below.
 ## Zürich HB (`zurich/`)
 
@@ -68,3 +68,43 @@ data.sbb.ch (`sektortafel`, `haltestelle-uhr`, `billetautomat`), for the stop id
   machines on −4 and 17 clocks and 3 ticket machines on −3; 42 of the section-filed pieces went to street level. The Museumstrasse clocks
   without a mounting (`montage_an` empty) stay on −3: nothing in the data says where they hang, and they lie over
   that floor's platforms.
+
+## Basel SBB (`basel/`) and Luzern (`luzern/`)
+
+`boards.json`, `sectors.json` and `furniture.json` are made by `tools/station3d_sbb_layers.py basel` and
+`... luzern` from data.sbb.ch, like Zürich's (2026-11-21):
+
+- **Basel SBB**: 86 sector signs on tracks 1-4, 6-11, 14-16, 18-20 and the French tracks 30-35 (data.sbb.ch has 106 in
+  the extent; 20 carry no track number and are left out). Most carry their own sector's letter on both faces
+  ("A|A"); on tracks 14-20 there are also signs at the borders ("E|D", "C|B", 27 of them), which the script only uses
+  where a sector has no sign of its own. No signs for tracks 5 and 12. 79 sector centres: median 0.0 m from the OSM
+  platform of their track (76 on it, at most 6.6 m off). 81 clocks and 19 ticket machines; SBB files them all under
+  one section ("Basel SBB"), so the builder gives them their level (one clock lies near no walkable area and is left
+  out).
+- **Luzern**: 60 sector signs on tracks 2-15, all "A|A" style, 54 of them hanging; 60 sector centres, median 0.5 m
+  from their platform (30 on it, at most 5.2 m off; the builder moves the others onto it). 52 clocks (11 of them filed
+  under the section "Luzern Cargo") and 14 ticket machines.
+- Neither station has platform-edge lines (`perronkante` was withdrawn) or measured heights here: no `spans.json`,
+  no `heights.json`. The level heights in the builder's station table come from OSM step counts, ATLAS platform
+  heights and swisstopo terrain (see the comments there).
+
+## Lausanne (`lausanne/`) and Genève (`geneve/`)
+
+Made by `tools/station3d_sbb_layers.py lausanne` and `... geneve` (2026-11-21), as for Zürich HB.
+
+- **Signs at the borders.** At both stations the sector signs mark the border between two sectors ("B|A", "G|H"),
+  so the script puts each centre midway between the two borders, and an end sector as far beyond its one border
+  as its neighbour reaches on the other side. A few signs carry their own letter on both faces ("F|F" and "G|G"
+  on track 1 at Lausanne, "A|A" on 70, on 2 and 3 at Genève) or one face only, at the platform ends ("A|-").
+  About nine in ten hang from the platform roofs.
+- **Lausanne:** 56 signs, 54 sector centres: A-G on tracks 1, 3, 4 and 8, A-H on 5, 6 and 7, A-B on 70. 49 centres
+  lie on their OSM platform, the median distance is 0 m. The worst is 7H, 34 m past the west end of the OSM outline
+  of platform 7/8 (the builder snaps it to that end). 14 clocks and 15 ticket machines.
+- **Genève:** 60 signs, 55 sector centres: A-G on track 1, A-H on 2-7. Track 10 has one sign under "10" and one
+  under "010" and no centres. 54 centres lie on their platform, the median distance is 0 m, the worst is 1 m.
+  27 clocks and 21 ticket machines.
+- **Furniture levels.** SBB lists all the furniture of each station in one section ("Lausanne", "Geneve"), so
+  `sbb_sections` cannot place any of it below ground. The builder sets the level. At Genève the train platforms
+  are level 2, and the sector signs and the furniture standing on a platform go on that level.
+- **Not available.** There is no `spans.json` and no `platform_edges.geojson`: data.sbb.ch no longer offers its
+  platform-edge lines.

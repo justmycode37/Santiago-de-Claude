@@ -27,6 +27,9 @@
       feather=<m> featherinside=<m> feathercolor=<hex without #>   the rim of the ground (see the renderer's header)
       route=0                        hide the blue route band        fog=0   no haze
       ui=0                           hide the controls (for screenshots)
+      tram=1                         a tram on the scene's track beside the end of the walk (line=<digits>, default 9).
+                                     The Tram button or the keys T (it arrives), O (doors), G (it leaves) move it;
+                                     for scripts: DEV.tram = { vehicle, path, stop, arrive(seconds), depart(seconds), doors(open) }
     For scripts: window.__ready is a promise that resolves with the stats once the first frame is drawn;
     DEV.set({ at, yaw, … }) changes the view, DEV.rebuild({ theme, quality, season }) the look.
   -->
@@ -82,6 +85,7 @@
         <button type="button" id="bNight" aria-pressed="false">Night</button>
         <button type="button" id="bLeaves" aria-pressed="false">Leaves</button>
         <button type="button" id="bLow" aria-pressed="false">Coarse</button>
+        <button type="button" id="bTram" hidden>Tram</button>
       </div>
     </div>
     <div class="tape" id="tape"><div class="ticks" id="ticks"></div><div class="nums" id="nums"></div>

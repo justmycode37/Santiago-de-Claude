@@ -1,14 +1,17 @@
 // Settings: a page of its own (URL #settings, so the back gesture closes it).
 // The journey options are the ones from the Kante app (niknal357's branch): accessibility, walking speed,
-// change time, maximum walk and transport types. "On the map" picks what the events button shows (map-layers.js),
-// "About you" and "Events" narrow down which community events show. "Live data" switches the live vehicles on the
-// map (live.js).
+// change time, maximum walk and transport types. "Map and display" has dark mode, the live vehicles on the map
+// (live.js) and, folded behind one row, "Events and places": what the events button shows (map-layers.js).
+// "Events for you" narrows down which community events show.
 // "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.js); "Developer options" at the very
-// bottom shows the tools to test that.
+// bottom (only with ?dev in the address) shows the tools to test that.
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
   const MODES: TransportMode[] = ['train', 'tram', 'bus', 'ship', 'cableway']; // transport.opendata.ch "transportations"
+  const LAYER_KEYS = window.MAP_LAYERS.GROUPS.map((g) => g.key);
+  // What the events button shows on a device that has not chosen yet: the rest waits to be switched on
+  const FIRST_LAYERS: MapGroupKey[] = ['events', 'toilets', 'water'];
   const DEFAULTS: Settings = {
     // Accessibility (stricter ones switch on the ones they include)
     stepFree: false,
@@ -21,10 +24,10 @@
     extraChangeMin: 2,
     maxWalkMin: 20,
     modes: null, // null = every transport type
-    // On the map: groups switched off (map-layers.js GROUPS keys); everything is on at first
-    mapHidden: [],
-    // Live data (live.js): vehicles on the map
-    liveVehicles: true,
+    // Events and places: groups switched off (map-layers.js GROUPS keys); only FIRST_LAYERS are on at first
+    mapHidden: LAYER_KEYS.filter((k) => !FIRST_LAYERS.includes(k)),
+    // Live data (live.js): vehicles on the map; off unless you turn it on (a journey shows its own vehicle either way)
+    liveVehicles: false,
     // Events
     newcomer: false,
     lowVision: false,
@@ -47,7 +50,6 @@
     extraChangeMin: { min: 0, max: 15, step: 1 },
     maxWalkMin: { min: 5, max: 60, step: 5 },
   };
-  const LAYER_KEYS = window.MAP_LAYERS.GROUPS.map((g) => g.key);
   const JOURNEY_KEYS: (keyof Settings)[] = ['stepFree', 'fewerStairs', 'noEscalators', 'wheelchair', 'walkKmh', 'extraChangeMin', 'maxWalkMin', 'modes'];
   // Event tags (events.js, swiss-workshops.js) each setting shows
   const EVENT_TAGS = {
@@ -191,10 +193,22 @@
   // ---- Page ----
   const page = document.getElementById('settingsPage')!;
   const closeBtn = document.getElementById('settingsClose')!;
-  // "On the map": one switch per group in map-layers.js
+  // "Events and places": one switch per group in map-layers.js
   const { GROUPS, GLYPHS } = window.MAP_LAYERS;
   const layerGroup = document.getElementById('setMapGroup')!;
   const layerAll = document.getElementById('setMapAll')!;
+  // The switches stay folded away behind one row that says how many are on
+  const layerMore = document.getElementById('setMapMore')!;
+  const layerBox = document.getElementById('setMapBox')!;
+  const layerCount = document.getElementById('setMapCount')!;
+  layerMore.addEventListener('click', () => {
+    layerBox.hidden = !layerBox.hidden;
+    layerMore.setAttribute('aria-expanded', String(!layerBox.hidden));
+  });
+  // Dark mode: the app follows the system until this is used (setTheme is the page's own, in src/app)
+  const darkSwitch = document.getElementById('setDark') as HTMLInputElement;
+  // Developer options: only with ?dev in the address, or once they have been switched on
+  document.getElementById('devSwitch')!.hidden = !(/[?&]dev(=|&|$)/.test(location.search) || state.devOptions);
   for (const g of GROUPS) {
     const row = document.createElement('label');
     row.className = 'set-row';
@@ -366,6 +380,8 @@
     }
     for (const input of layerSwitches) input.checked = !state.mapHidden.includes(input.dataset.layer as MapGroupKey);
     layerAll.textContent = state.mapHidden.length ? 'Show all' : 'Hide all';
+    layerCount.textContent = `${LAYER_KEYS.length - state.mapHidden.length} of ${LAYER_KEYS.length}`;
+    darkSwitch.checked = document.documentElement.dataset.theme === 'dark';
     const speed = nearestPreset(state.walkKmh);
     if (!dragging) drawSlider(speed, true);
     slider.setAttribute('aria-valuenow', String(speed));
@@ -388,9 +404,16 @@
     changeListeners.forEach((fn) => fn(patch, by, before));
   }
 
+  // The browser bar takes the settings page's colour while it is open, and the map's again when it closes
+  function themeChanged() {
+    themeBefore = themeMeta.getAttribute('content')!;
+    themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
+    darkSwitch.checked = document.documentElement.dataset.theme === 'dark';
+  }
   page.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
-    if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
+    if (t === darkSwitch) { setTheme(t.checked ? 'dark' : 'light', true); themeChanged(); }
+    else if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
     else if (t.dataset.layer) {
       const hidden = state.mapHidden.filter((k) => k !== t.dataset.layer);
       if (!t.checked) hidden.push(t.dataset.layer as MapGroupKey);
@@ -411,6 +434,10 @@
     if ((e.target as HTMLElement).closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
     if ((e.target as HTMLElement).closest('#settingsReset')) {
       if (pricingHalfFare.checked) PRICING_HISTORY.setHalfFare(false);
+      // the theme follows the system again
+      try { localStorage.removeItem('theme'); } catch { /* it stays as it is */ }
+      setTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', false);
+      themeChanged();
       update({ ...DEFAULTS });
       window.dispatchEvent(new Event('pricing-history-change'));
     }
@@ -428,6 +455,8 @@
     themeBefore = themeMeta.getAttribute('content')!;
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());
     page.scrollTop = 0;
+    layerBox.hidden = true;
+    layerMore.setAttribute('aria-expanded', 'false');
     reveal();
     page.classList.add('open');
     page.setAttribute('aria-hidden', 'false');

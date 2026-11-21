@@ -13,7 +13,7 @@ const planOpen = () => document.body.classList.contains('plan-open');
 function setPlanOpen(on: boolean) {
   document.body.classList.toggle('plan-open', on);
   tripBtn.setAttribute('aria-label', on ? 'Swap start and destination' : 'Choose where the trip starts');
-  inputs.to.placeholder = on ? 'Where to?' : 'Search places, addresses…';
+  inputs.to.placeholder = on ? 'Where to?' : 'Search places';
   inputs.from.placeholder = userLngLat ? 'Your location' : 'Map centre';
 }
 // Under way (after Start): the card folds into the progress pill. Changing either end brings it back.
@@ -21,6 +21,7 @@ function setFollowing(on: boolean) {
   if (on === document.body.classList.contains('following')) return;
   document.body.classList.toggle('following', on);
   if (on) closeSearch();
+  if (journeyConn) { renderHead(true); renderFoot(); } // Start has done its work; the pill has the times
   layoutTop();
   if (document.body.classList.contains('journey-mode')) placeSheet(sheetDetent, true);
 }
@@ -108,8 +109,10 @@ for (const f of FIELDS) {
     pinMenu.remove();
     loadPlaces(); // so places (toilets, pharmacies…) are ready to be searched
     const p = pointOf(f);
-    // the place already chosen: typing replaces it · your own unfinished search: its results again
-    if (p && input.value === p.title) { input.select(); list.classList.remove('open'); }
+    // the place already chosen, or the category on the map: typing replaces it · your own unfinished search: its
+    // results again · nothing typed: the categories
+    if ((p && input.value === p.title) || (f === 'to' && activeCategory && input.value === activeCategory.label)) { input.select(); list.classList.remove('open'); }
+    else if (!input.value.trim()) render();
     else if (lastSearch && lastSearch.field === f && lastSearch.text === input.value.trim()) render();
     else list.classList.remove('open');
   });
@@ -140,8 +143,11 @@ for (const f of FIELDS) {
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
-  // "restaurants" + Enter shows them all on the map; a name or address goes straight there
-  if (placeCategory && results.filter((r) => r.origin === 'place').length >= 2) showPlacesOnMap();
+  // "restaurants" + Enter: the best restaurants here, as if the category had been tapped; "Migros" + Enter shows them
+  // all on the map; a name or address goes straight there
+  const typed = activeField === 'to' ? categoryForText(inputs.to.value) : null;
+  if (typed) enterCategory(typed);
+  else if (placeCategory && results.filter((r) => r.origin === 'place').length >= 2) showPlacesOnMap();
   else if (results.length) select(0);
 });
 tripBtn.addEventListener('click', () => { if (planOpen()) swapEnds(); else setPlanOpen(true); });
@@ -157,6 +163,6 @@ map.on('movestart', (e) => {
   blurSearch();
   setMenu(false);
 });
-map.on('moveend', () => { if (userMove && pins) areaChip.hidden = false; });
+map.on('moveend', () => { if (userMove && (pins || (activeCategory && !activeCategory.events))) areaChip.hidden = false; });
 map.on('mousedown', () => { blurSearch(); setMenu(false); });
 map.on('touchstart', () => { blurSearch(); setMenu(false); });

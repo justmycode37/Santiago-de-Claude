@@ -127,6 +127,8 @@ interface WalkNetEnd extends WalkEnd {
   onlyOwn?: boolean;
   /** Not onto a path only swisstopo's map has. */
   osmOnly?: boolean;
+  /** Not onto a piece of network that is joined to nothing else. */
+  noIslands?: boolean;
   stepFree?: boolean;
 }
 /** A way into (or out of) the network at an end of a walk: at a node (a door standing on a path), or at a point on a
@@ -141,12 +143,16 @@ type WalkNetAccess = (
   from: LngLat;
   /** Through the wall of a building without a door there: a guess. */
   guess?: boolean;
+  /** A stop position given on the track itself: the walk starts or ends on the platform beside it. */
+  onTrack?: boolean;
   noStepFreeDoor?: boolean;
 };
 interface WalkRouteDebug {
   nodes: Map<number, WalkNetNode>;
   buildings: Map<number, WalkNetBuilding>;
   entrances: Map<number, WalkNetEntrance>;
+  /** Keys of the tiles in the network. */
+  inGraph: Set<string>;
   endpoint(p: LngLat, o: WalkNetEnd): WalkNetAccess[];
   buildingsAt(p: LngLat, rM: number): WalkNetBuilding[];
   cutsBuilding(p: LngLat, q: LngLat, allow: Set<WalkNetBuilding>): boolean;

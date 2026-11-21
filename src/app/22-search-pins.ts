@@ -3,6 +3,7 @@ const placeMarkers: maplibregl.Marker[] = [];
 const areaChip = document.getElementById('areaChip')!;
 let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map
 function clearPlacePins() {
+  exitCategory();
   for (const m of placeMarkers) m.remove();
   placeMarkers.length = 0;
   pins = null;
@@ -46,6 +47,7 @@ function showPlacesOnMap() {
 }
 // "Search this area": the same search again, for the part of the map now in view. The camera stays put.
 async function searchArea() {
+  if (activeCategory && !activeCategory.events) { areaChip.hidden = true; loadCategory(activeCategory, true); return; }
   if (!pins) return;
   const { text, field } = pins, id = ++reqId, view = map.getBounds();
   areaChip.hidden = true;
@@ -88,7 +90,14 @@ function onTap(el: HTMLElement, fn: () => void) {
 
 function render(emptyText = 'No results') {
   list.innerHTML = '';
-  if (!inputs[activeField].value.trim()) { list.classList.remove('open'); return; }
+  if (!inputs[activeField].value.trim()) {
+    // nothing typed: the categories (where to, not where from, and not while a trip is on show)
+    if (activeField === 'to' && !journeyDest && document.activeElement === inputs.to) renderCategories();
+    else list.classList.remove('open');
+    return;
+  }
+  const typedCategory = categoryForText(inputs[activeField].value);
+  if (typedCategory && activeField === 'to') list.appendChild(categoryRow(typedCategory));
   if (!results.length) {
     const li = document.createElement('li');
     li.className = 'empty';
@@ -96,14 +105,17 @@ function render(emptyText = 'No results') {
     list.appendChild(li);
   }
   const placeCount = results.filter((r) => r.origin === 'place').length;
-  if (placeCount >= 2 && results[0].origin === 'place') {
+  let onMapLast: HTMLElement | null = null;
+  if (placeCount >= 2 && results[0].origin === 'place' && !(typedCategory && activeField === 'to')) {
     const onMap = document.createElement('li');
     onMap.className = 'on-map';
     onMap.setAttribute('role', 'option');
     onMap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/></svg>';
     onMap.append(placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
     onTap(onMap, showPlacesOnMap);
-    list.appendChild(onMap);
+    // a kind of place ("restaurant"): all of them on the map comes first; a name ("Migros"): its matches come first
+    if (placeCategory) list.appendChild(onMap);
+    else onMapLast = onMap;
   }
   const visible = expanded ? results : results.slice(0, placeCategory ? 5 : COLLAPSED_COUNT);
   visible.forEach((r, i) => {
@@ -128,6 +140,7 @@ function render(emptyText = 'No results') {
     onTap(li, () => select(i));
     list.appendChild(li);
   });
+  if (onMapLast) list.appendChild(onMapLast);
   if (!expanded && results.length > visible.length) {
     const more = document.createElement('li');
     more.className = 'more';
@@ -135,7 +148,7 @@ function render(emptyText = 'No results') {
     onTap(more, () => { expanded = true; render(); });
     list.appendChild(more);
   }
-  if (window.PlaceSearch && results.some((r) => r.source)) { // places from places.js: credit their source
+  if (window.PlaceSearch && visible.some((r) => r.source)) { // places from places.js: credit their source
     const attr = document.createElement('li');
     attr.className = 'attr';
     attr.textContent = PlaceSearch.attribution;

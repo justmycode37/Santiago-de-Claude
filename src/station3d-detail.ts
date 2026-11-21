@@ -38,6 +38,16 @@
  *     h.stats        { triangles, drawCalls, vertices, textures, buildMs, timing, counts, parts, warnings }
  *     h.dispose()    removes the group from its parent and frees geometries, materials and textures
  *     h.groundAt(x, y)   same as Station3DDetail.groundAt(h, x, y)
+ *     h.addVehicle({ kind: "tram", line: "9", path: [[x, y], …], length: 42 }) → vehicle
+ *         A tram in the look of the scene (its own three draw calls, about 5,000 triangles) on the track centre line
+ *         `path` (model coordinates, in driving direction). It stands on the ground of the scene, each of its
+ *         sections on two points of the path, so it bends through curves. It is kept through update().
+ *         vehicle.place(s)       the front at s metres along the path (it goes on straight beyond both ends)
+ *         vehicle.run({ from, to, seconds, ease: "arrive" | "depart" | "linear" }) → Promise, resolved on arrival
+ *         vehicle.doors(open)    the doors on the right side slide open or closed in 0.8 s
+ *         vehicle.show(visible), vehicle.remove(), vehicle.length, vehicle.at, vehicle.stats
+ *     h.tick(performance.now()) → true while something moved in this call (draw the frame); call it every frame
+ *     h.tracks()         the centre lines of the scene's tram-track surfaces (pieces, either direction)
  *     h.zShift       the shift that was applied (a number)
  *     h.plane        { a, b, c }: the plane fitted to the street, z = c + a·x + b·y (model metres, before zShift).
  *                    Always there; h.flattened says whether it was taken out.
@@ -98,6 +108,12 @@
  *   face.awnings: true | false | { color: "#…" }      shop fronts: an awning over every window (in that colour) / none
  *   face.style: "townhouse"  (or building.style)      an old town house front: a lintel over every window and, on
  *       fronts of five bays or more, the middle bays standing 16 cm forward. Nothing of this without the field.
+ *   Tram tracks get their contact wire 5.4 m up wherever a mast stands within 28 m (kind "mast", or a pole whose
+ *       variant says tram, catenary or span). No masts in the data: no wire.
+ *   prop kind "canopy": { ring: [[x, y], …], z, height: 9.5, rise: 3, columns: [[x, y], …] }   a glass roof on
+ *       steel ribs and branching columns. ring: its outline; height: the underside of its edge above the ground;
+ *       rise: how much higher its middle is; columns: where they stand (missing: every 12 m, 1.5 m inside the
+ *       edge). No xy. The glass is see-through and shades the ground only faintly.
  *   lamp.wire: [[x, y, z], [x, y, z]]                 where the wire of a hanging lamp is fixed (else: the nearest
  *       house fronts on both sides); fountain variant "… temple …": an open round temple over the fountain
  *   detail.groundPlane: { origin: [x, y], z, dzdx, dzdy, nearWalk: { z, dzdx, dzdy } }   the plane of the street as
@@ -325,7 +341,7 @@
   interface MeshTri { A: V3; B: V3; D: V3; n: V3; ar: number }
 
   type Res = THREE.BufferGeometry | THREE.Material | THREE.Texture;
-  interface Handle extends Station3DDetailHandle { _res: Res[]; _THREE: ThreeModule; _ground: Ground | null; _base: Ground | null }
+  interface Handle extends Station3DDetailHandle { _res: Res[]; _THREE: ThreeModule; _ground: Ground | null; _base: Ground | null; _vehicles: Veh[]; _map: ToScene; _flip: boolean; _tracks: XY[][] }
   /** What build() makes itself; fill() and the end of build() add the rest of a Handle. */
   type HandleDraft = Pick<Handle, 'group' | 'detail' | 'opts' | 'lamps' | '_res' | '_THREE'> & { stats: null; parts: {} };
 
@@ -1442,6 +1458,9 @@
       strip(C, st.map((s) => ({ f: s.f, top: s.top, gl: s.top - capH, gr: s.top - capH })), closed, { w: w + 0.07, top: mix(c, WHITE, C.dark ? 0.1 : 0.4), face: mix(c, WHITE, C.dark ? 0.03 : 0.12), arris: 0.025, arrisCol: mix(c, WHITE, C.dark ? 0.3 : 0.8) });
     } else { // ledge, and anything unknown that has a line: a plain stone block
       const c = pal.stone;
+      // the rim of a raised surface (the base of a monument): its top would lie in the plane of that surface and
+      // flicker with it, so it stands 3 cm proud of it, as a lip all the way round
+      if (st.filter((s) => s.top - Math.max(s.gl, s.gr) < 0.02).length * 2 >= st.length) for (const s of st) s.top += 0.03;
       strip(C, st, closed, { w, top: mix(c, WHITE, C.dark ? 0.08 : 0.3), face: tone(c, 0.9), arris: Math.min(0.03, w * 0.25), arrisCol: mix(c, WHITE, C.dark ? 0.3 : 0.8), shadow: 0.24, shadowA: 1.5, walk: C.walk });
     }
   }
@@ -2242,7 +2261,92 @@
     }
     return best;
   }
+  // A glass roof on columns (kind 'canopy'): panes on a grid of steel ribs over the outline, higher in the middle
+  // by `rise`, an edge beam, and columns that branch into the roof. The glass is see-through and throws only a
+  // faint shade; you walk under it, so the underside counts as much as the top.
+  function buildCanopy(C: Ctx, p: Prop) {
+    const ring = cleanRing(p.ring);
+    if (!ring) { C.warn('canopy without a ring'); return; }
+    const n = ring.length, cen = centroid(ring), z0 = num(p.z) != null ? p.z! : groundZ(C, cen[0], cen[1]);
+    const H = or(p.height, 6), rise = Math.max(0, or(p.rise, 0)), ccw = area2(ring) > 0 ? 1 : -1, dark = C.dark, high = C.opts.quality !== 'low';
+    const inside = (q: XY) => inRing(ring, q[0], q[1]);
+    const edgeD = (x: number, y: number) => { let d = Infinity; for (let i = 0; i < n; i++) d = Math.min(d, segDist(x, y, ring[i], ring[(i + 1) % n])); return d; };
+    const ax = longAxis(ring)!, ux = ax.ux, uy = ax.uy, step = high ? 3 : 4.5;
+    const nu = Math.max(1, Math.round((ax.u1 - ax.u0) / step)), nv = Math.max(1, Math.round((ax.v1 - ax.v0) / step)), su = (ax.u1 - ax.u0) / nu, sv = (ax.v1 - ax.v0) / nv;
+    const at = (u: number, v: number): XY => [ux * u - uy * v, uy * u + ux * v], node = (i: number, j: number) => at(ax.u0 + i * su, ax.v0 + j * sv);
+    let D = 0.5; // how far the middle is from the edge
+    for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) { const q = node(i, j); if (inside(q)) D = Math.max(D, edgeD(q[0], q[1])); }
+    const top = (x: number, y: number) => { const t = sat(edgeD(x, y) / D); return z0 + H + rise * (1 - (1 - t) * (1 - t)); };
+    const WG = C.W.glass.world(), WS = C.W.solid.world();
+    // the panes: pale green-blue by day, dark with the warm light under them by night
+    const gcol = dark ? mix(hex('#18222B')!, C.pal.lamp, 0.22) : hex('#BDE3DC')!, ga = dark ? 0.46 : 0.28, gm: Mode = dark ? 1 : 0;
+    const shade = !dark && C.cast, sdx = -C.sun[0] / C.sun[2], sdy = -C.sun[1] / C.sun[2], sa = 0.3 * C.pal.shadowAlpha;
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+      const ua = ax.u0 + i * su, ub = ua + su, va = ax.v0 + j * sv, vb = va + sv, cm = at((ua + ub) / 2, (va + vb) / 2);
+      let poly: XY[] = [at(ua, va), at(ub, va), at(ub, vb), at(ua, vb)], tris: number[][] = [[0, 1, 2], [0, 2, 3]];
+      if (!(inside(cm) && edgeD(cm[0], cm[1]) > Math.hypot(su, sv) / 2)) { // the edge runs through this pane: cut it
+        poly = clipPoly(clipPoly(clipPoly(clipPoly(ring, ux, uy, -ua), -ux, -uy, ub), -uy, ux, -va), uy, -ux, vb);
+        if (poly.length < 3) continue;
+        tris = triangulate(C.THREE, poly);
+      }
+      const tint = tone(gcol, (i + j) & 1 ? 1.035 : 0.965);
+      for (const t of tris) {
+        const P = t.map((k): V3 => [poly[k][0], poly[k][1], top(poly[k][0], poly[k][1])]);
+        WG.tri(P[0], P[1], P[2], tint, { n: [0, 0, 1], a: ga, mode: gm });
+        if (shade) { // the faint shade of the glass on the ground
+          const b = C.shadow, q = P.map((v) => { const x = v[0] + sdx * (v[2] - z0), y = v[1] + sdy * (v[2] - z0); return b.vert([x, y, groundZ(C, x, y, z0) + 0.012], C.pal.shadow, sa); });
+          b.i.push(q[0], q[1], q[2], q[0], q[2], q[1]);
+        }
+      }
+    }
+    // steel: the ribs under the panes, the beam around the edge
+    const steel = mix(C.pal.steel, C.pal.metal, 0.45);
+    const bar = (a: XY, b: XY, hw: number, hh: number, drop: number, skip?: string) => {
+      const za = top(a[0], a[1]) - drop, zb = top(b[0], b[1]) - drop, dx = (b[0] - a[0]) / 2, dy = (b[1] - a[1]) / 2, l = Math.hypot(dx, dy);
+      if (l < 0.05) return;
+      WS.obox([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (za + zb) / 2], [dx, dy, (zb - za) / 2], [-dy / l * hw, dx / l * hw, 0], [0, 0, hh], steel, skip ? { skip } : undefined);
+    };
+    const cut = (a: XY, b: XY): [XY, XY] | null => { // the part of a rib that lies under the roof
+      const ia = inside(a), ib = inside(b);
+      if (ia && ib) return [a, b];
+      if (!ia && !ib) return null;
+      let lo = ia ? a : b, hi = ia ? b : a;
+      for (let k = 0; k < 10; k++) { const m: XY = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2]; if (inside(m)) lo = m; else hi = m; }
+      return ia ? [a, lo] : [lo, b];
+    };
+    const rib = (a: XY, b: XY) => { const c = cut(a, b); if (c) bar(c[0], c[1], 0.035, 0.07, 0.085, '-x+x'); };
+    for (let i = 0; i <= nu; i++) for (let j = 0; j < nv; j++) rib(node(i, j), node(i, j + 1));
+    for (let j = 0; j <= nv; j++) for (let i = 0; i < nu; i++) rib(node(i, j), node(i + 1, j));
+    for (let i = 0; i < n; i++) bar(ring[i], ring[(i + 1) % n], 0.09, 0.17, 0.06);
+    // columns: where the data says, else about every 12 m, 1.5 m inside the edge
+    let cols = (p.columns || []).filter((q) => q && isFinite(q[0]) && isFinite(q[1])).map((q): XY => [+q[0], +q[1]]);
+    if (!cols.length) {
+      const el: number[] = [];
+      let per = 0;
+      for (let i = 0; i < n; i++) { const a = ring[i], b = ring[(i + 1) % n]; el.push(Math.hypot(b[0] - a[0], b[1] - a[1])); per += el[i]; }
+      const cnt = Math.max(3, Math.round(per / 12));
+      for (let k = 0; k < cnt; k++) {
+        let s = (k + 0.5) * per / cnt, i = 0;
+        while (i < n - 1 && s > el[i]) { s -= el[i]; i++; }
+        const a = ring[i], b = ring[(i + 1) % n], tx = (b[0] - a[0]) / el[i], ty = (b[1] - a[1]) / el[i];
+        const q: XY = [a[0] + tx * s - ty * 1.5 * ccw, a[1] + ty * s + tx * 1.5 * ccw];
+        if (inside(q)) cols.push(q);
+      }
+    }
+    for (const c of cols) {
+      const zg = groundZ(C, c[0], c[1], z0), zt = top(c[0], c[1]) - 0.1, zb = zg + (zt - zg) * 0.7;
+      WS.cyl(c[0], c[1], zg, zt, 0.16, 0.11, high ? 10 : 6, steel);
+      for (const d of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) { // four struts that reach into the roof like branches
+        const q: XY = [c[0] + (ux * d[0] - uy * d[1]) * 1.6, c[1] + (uy * d[0] + ux * d[1]) * 1.6];
+        if (inside(q)) WS.tube([[c[0], c[1], zb, 0.065], [q[0], q[1], top(q[0], q[1]) - 0.12, 0.045]], high ? 6 : 4, steel);
+      }
+      blob(C, c[0], c[1], 0.5, 0.5, 0, 0.5, zg);
+      if (dark) pool(C, c[0], c[1], Math.max(5, H * 0.7), 0.3, zg); // the light under the roof
+    }
+    C.counts.props++;
+  }
   function buildProp(C: Ctx, p: Prop) {
+    if (p.kind === 'canopy') { buildCanopy(C, p); return; }
     const xy = p.xy;
     if (!xy || !isFinite(xy[0]) || !isFinite(xy[1])) return;
     const kind = ALIAS[p.kind] || p.kind, fn = PROPS[kind];
@@ -2823,6 +2927,389 @@
     }
   }
 
+  // The centre line of every track on a tram-track surface (where rails() lays its pairs of rails)
+  function trackCentres(s: Surf): XY[][] {
+    const t = trackLine(s);
+    if (!t || !t.line || t.line.length < 2) return [];
+    const line = densify(t.line, 3), width = t.width || 2.6, tracks = clamp(Math.round(or(s.src.tracks, width / 3.3)), 1, 4), pitch = width / tracks, fr = lineFrames(line, false), out: XY[][] = [];
+    for (let k = 0; k < tracks; k++) { const c = (k - (tracks - 1) / 2) * pitch; out.push(fr.map((f) => offPt(f, c))); }
+    return out;
+  }
+
+  // The contact wire over the tracks, 5.4 m up, on the stretches that have a mast for it nearby. No masts in the
+  // data: no wire (none are invented).
+  function contactWires(C: Ctx, surfaces: Surf[]) {
+    const masts = (C.detail.props || []).filter((p) => p && p.xy && isFinite(p.xy[0]) && isFinite(p.xy[1]) && (p.kind === 'mast' || ((ALIAS[p.kind] || p.kind) === 'pole' && /tram|fahrleit|catenary|span/i.test(p.variant || '')))).map((p) => p.xy);
+    if (!masts.length) return;
+    const W = C.W.solid.world(), col = tone(C.pal.metal, C.dark ? 0.85 : 0.6);
+    for (const s of surfaces) {
+      if (s.kind !== 'tram') continue;
+      for (const line of trackCentres(s)) {
+        let run: P4[] = [];
+        const flush = () => { if (run.length > 1) W.tube(run, 3, col); run = []; };
+        for (const q of line) {
+          if (masts.some((m) => Math.hypot(m[0] - q[0], m[1] - q[1]) < 28)) run.push([q[0], q[1], groundZ(C, q[0], q[1], s.zMean) + 5.42, 0.014]);
+          else flush();
+        }
+        flush();
+      }
+    }
+  }
+
+  // ---------- vehicles: a tram that drives along a path ----------
+  // Not part of the merged scene: one group of three meshes (the body with what is inside it, the panes of its
+  // windows, and what lies see-through on the ground).
+  // The model is written once in the frame of each section (x to the right, y the way it drives, z up from the
+  // rails); place() moves every vertex with its section, so the tram bends through curves in three draw calls.
+  type VSlide = [from: number, to: number, dx: number, dy: number];
+  interface VModel { body: Batch; glass: Batch; veil: Batch; secB: number[]; secG: number[]; secV: number[]; slides: VSlide[]; slidesG: VSlide[]; secs: [number, number][]; length: number }
+  interface VPart { local: Float32Array; sec: Uint8Array; slide: Float32Array | null; mesh: THREE.Mesh; pos: THREE.BufferAttribute }
+  interface VRun { from: number; to: number; ms: number; ease: string; t0: number | null; done: () => void }
+  interface Veh extends Station3DDetailVehicle {
+    _run: VRun | null; _door: number; _doorTo: number; _last: number | null; _shown: boolean;
+    _parts: VPart[]; _group: THREE.Group | null; _res: Res[];
+    _make(): void; _free(): void; _end(): void; _tick(now: number): boolean;
+  }
+  const SEG7: Record<string, string> = { 0: 'ABCDEF', 1: 'BC', 2: 'ABGED', 3: 'ABGCD', 4: 'FGBC', 5: 'AFGCD', 6: 'AFGECD', 7: 'ABC', 8: 'ABCDEFG', 9: 'ABCDFG' };
+  function tramModel(dark: boolean, pal: Pal, spec: Station3DDetailVehicleSpec, high: boolean): VModel {
+    const total = clamp(or(spec.length, 42), 12, 90), N = Math.max(3, Math.round(total / 6)), GAP = 0.5;
+    const L = (total - GAP * (N - 1)) / N, hl = L / 2, HW = 1.15, RW = HW - 0.22, NOSE = Math.min(1.9, L * 0.4);
+    // inside: the lining stands IW from the middle, the floor lies at FZ, the ceiling at CZ; the windows reach from WZ0 to WZ1
+    const IW = HW - 0.07, FZ = 0.38, CZ = 2.52, WZ0 = 1.22, WZ1 = 2.4;
+    const K = (h: string): RGB => { const c = hex(h)!; return dark ? mix(tone(c, 0.58), [0.07, 0.08, 0.12], 0.16) : c; };
+    const red = K('#D6001C'), doorRed = K('#C60019'), skirt = K('#C6C9CE'), stripe = K('#F2F3F4'), under = K('#2B2D31'), roof = K('#B4B8BD'), roofLine = K('#3D4046'), gear = K('#8B8F95'), gear2 = K('#6C7178'), bellows = K('#3B3E44'), fold = K('#232529'), pillar = K('#191C20'), arm = K('#55595F'), wheel = K('#1D1F22'), hub = K('#50545A');
+    // what is seen through the glass: plain by day, lit warm from the ceiling by night
+    const IC = (h: string): RGB => { const c = hex(h)!; return dark ? [Math.min(1, c[0] * 1.08 + 0.08), Math.min(1, c[1] + 0.04), c[2] * 0.84] : c; };
+    const gm: Mode = dark ? 1 : 0;
+    const liner = IC('#A3A8AE'), floorC = IC('#5F6369'), ceil = IC('#C9CCD0'), endC = IC('#6E737A'), seat = IC('#3E6A80'), seatTop = IC('#5E8DA6');
+    const strip = hex(dark ? '#FFF1CF' : '#F4F3EC')!, grab = hex(dark ? '#F2C94C' : '#E3B62B')!, step = hex(dark ? '#FFE27A' : '#F4D23C')!;
+    // the panes, bottom and top: tinted with the sky in them by day, clear over the lit inside by night
+    const g0 = hex(dark ? '#E8B66E' : '#1B242E')!, g1 = hex(dark ? '#FFE2A8' : '#8AA6C0')!, ga0 = dark ? 0.1 : 0.5, ga1 = dark ? 0.24 : 0.74, sky = hex('#EAF3FB')!;
+    const dest = hex('#0D0F12')!, amber = hex('#FFB52E')!, head = hex(dark ? '#FFF4D2' : '#F3F1E4')!, tail = hex(dark ? '#FF3B3B' : '#9E1420')!, green = hex(dark ? '#5BE08A' : '#2FB866')!;
+    // the same top and side light as the scene, but the same from every side: the tram turns
+    const shade: Shade = (col, n, _p, mode) => {
+      if (mode === 1) return col;
+      const m = dark ? 0.9 + 0.1 * n[2] : 0.9 + 0.13 * Math.max(0, n[2]) + (n[2] < 0 ? 0.22 * n[2] : 0) + 0.02 * n[0];
+      return [col[0] * m, col[1] * m, col[2] * m];
+    };
+    const body = new (Batch as BatchNew)(), glassB = new (Batch as BatchNew)(true), veil = new (Batch as BatchNew)(true);
+    const W = new (Writer as WriterNew)(body, shade).world(), WG = new (Writer as WriterNew)(glassB, (c) => c).world();
+    const secB: number[] = [], secG: number[] = [], secV: number[] = [], slides: VSlide[] = [], slidesG: VSlide[] = [], secs: [number, number][] = [];
+    const Q = (a: V3, b: V3, c: V3, d: V3, col: RGB | RGB[], n: V3, mode?: Mode) => W.quad(a, b, c, d, col, mode ? { n, mode } : { n });
+    const disc = (c: V3, r: number, col: RGB, n: V3, half?: boolean) => { // in a plane across x
+      const pts: V3[] = [], k = half ? 7 : 10;
+      for (let i = 0; i < k; i++) { const a = half ? (i / (k - 1)) * Math.PI : (i / k) * TAU; pts.push([c[0], c[1] + Math.cos(a) * r, c[2] + Math.sin(a) * r]); }
+      W.fan(pts, col, { n, mode: half ? 0 : 1 });
+    };
+    // a piece of pane in the plane x, its corners [y, z]: coloured and see-through by its height between z0 and z1
+    const gq = (x: number, sg: number, P: number[][], z0: number, z1: number, c0: RGB, c1: RGB, al0: number, al1: number) => {
+      const t = (z: number) => (z - z0) / (z1 - z0);
+      WG.quad([x, P[0][0], P[0][1]], [x, P[1][0], P[1][1]], [x, P[2][0], P[2][1]], [x, P[3][0], P[3][1]], P.map((q) => mix(c0, c1, t(q[1]))), { n: [sg, 0, 0], a: P.map((q) => lerp(al0, al1, t(q[1]))) });
+    };
+    // one window: a dark frame around a pane with cut corners, the sky as a slanted streak in it
+    const win = (x: number, sg: number, A: number, B: number, Z0: number, Z1: number, fr: number, two?: boolean) => {
+      const n: V3 = [sg, 0, 0], a = A + fr, b = B - fr, z0 = Z0 + fr, z1 = Z1 - fr, c = Math.min(0.1, (b - a) / 4), w = b - a;
+      const p = (y: number, z: number): V3 => [x, y, z];
+      const O = [p(A, Z0), p(B, Z0), p(B, Z1), p(A, Z1)];
+      const In = [p(a + c, z0), p(b - c, z0), p(b, z0 + c), p(b, z1 - c), p(b - c, z1), p(a + c, z1), p(a, z1 - c), p(a, z0 + c)];
+      for (let k = 0; k < 4; k++) {
+        W.quad(O[k], O[(k + 1) % 4], In[2 * k + 1], In[2 * k], pillar, { n, two });
+        W.tri(O[(k + 1) % 4], In[(2 * k + 2) % 8], In[2 * k + 1], pillar, { n, two });
+      }
+      gq(x, sg, [[a + c, z0], [b - c, z0], [b - c, z1], [a + c, z1]], z0, z1, g0, g1, ga0, ga1);
+      gq(x, sg, [[a, z0 + c], [a + c, z0], [a + c, z1], [a, z1 - c]], z0, z1, g0, g1, ga0, ga1);
+      gq(x, sg, [[b - c, z0], [b, z0 + c], [b, z1 - c], [b - c, z1]], z0, z1, g0, g1, ga0, ga1);
+      if (high && !dark && w > 0.45) gq(x, sg, [[a + w * 0.22, z0], [a + w * 0.42, z0], [a + w * 0.8, z1], [a + w * 0.6, z1]], z0, z1, sky, sky, 0.02, 0.2);
+    };
+    // a stretch of side wall (sg 1: the right side): skirt, body with its stripe, windows between posts, the band
+    // above and the roof edge; behind it the lining, seat backs and a pole
+    const wall = (sg: number, y0: number, y1: number, opening?: boolean) => {
+      const x = sg * HW, xi = sg * IW, n: V3 = [sg, 0, 0], ni: V3 = [-sg, 0, 0], zs = opening ? 0.36 : 0.5;
+      Q([x, y0, 0.16], [x, y1, 0.16], [x, y1, zs], [x, y0, zs], skirt, n);
+      Q([sg * (HW - 0.12), y0, 0.05], [sg * (HW - 0.12), y1, 0.05], [sg * (HW - 0.12), y1, 0.16], [sg * (HW - 0.12), y0, 0.16], under, n);
+      if (!opening) {
+        Q([x, y0, 0.5], [x, y1, 0.5], [x, y1, 1.07], [x, y0, 1.07], red, n);
+        Q([x, y0, 1.07], [x, y1, 1.07], [x, y1, 1.14], [x, y0, 1.14], stripe, n);
+        Q([x, y0, 1.14], [x, y1, 1.14], [x, y1, WZ0], [x, y0, WZ0], red, n);
+        Q([xi, y0, FZ], [xi, y1, FZ], [xi, y1, WZ0], [xi, y0, WZ0], liner, ni, gm);
+        Q([xi, y0, WZ1], [xi, y1, WZ1], [xi, y1, CZ], [xi, y0, CZ], liner, ni, gm);
+        const k = Math.max(1, Math.round((y1 - y0) / 1.4)), w = (y1 - y0) / k, po = 0.07;
+        for (let j = 0; j < k; j++) {
+          const a = y0 + j * w, b = a + w;
+          Q([x, a, WZ0], [x, a + po, WZ0], [x, a + po, WZ1], [x, a, WZ1], red, n);
+          Q([x, b - po, WZ0], [x, b, WZ0], [x, b, WZ1], [x, b - po, WZ1], red, n);
+          Q([xi, a, WZ0], [xi, a + po + 0.05, WZ0], [xi, a + po + 0.05, WZ1], [xi, a, WZ1], liner, ni, gm);
+          Q([xi, b - po - 0.05, WZ0], [xi, b, WZ0], [xi, b, WZ1], [xi, b - po - 0.05, WZ1], liner, ni, gm);
+          win(x, sg, a + po, b - po, WZ0, WZ1, 0.05);
+          if (high && w > 0.9) {
+            const xa = sg * (IW - 0.01), xb = sg * (IW - 0.46), px = sg * (IW - 0.52), py = a + w * 0.51;
+            for (const f of [0.26, 0.76]) W.box(Math.min(xa, xb), a + w * f - 0.045, FZ, Math.max(xa, xb), a + w * f + 0.045, 1.4, seat, { top: seatTop, mode: gm });
+            W.box(px - 0.018, py - 0.018, FZ, px + 0.018, py + 0.018, CZ, grab, { mode: gm });
+          }
+        }
+      }
+      Q([x, y0, WZ1], [x, y1, WZ1], [x, y1, 2.84], [x, y0, 2.84], red, n);
+      Q([x, y0, 2.84], [x, y1, 2.84], [x, y1, 2.9], [x, y0, 2.9], roofLine, n);
+      Q([x, y0, 2.9], [x, y1, 2.9], [sg * RW, y1, 3.15], [sg * RW, y0, 3.15], roofLine, [sg, 0, 1]);
+    };
+    // lit strokes of the line number: P(a, b) is the point a to the reader's right and b up from the middle
+    const digits = (P: (a: number, b: number) => V3, nn: V3, hh: number) => {
+      const txt = String(spec.line == null ? '' : spec.line).split('').filter((ch) => SEG7[ch]).slice(0, 3);
+      const w = hh * 0.53, th = hh * 0.13, sp = hh * 0.23, tw = txt.length * w + (txt.length - 1) * sp;
+      const R: Record<string, number[]> = { A: [0, hh - th, w, hh], B: [w - th, hh / 2, w, hh], C: [w - th, 0, w, hh / 2], D: [0, 0, w, th], E: [0, 0, th, hh / 2], F: [0, hh / 2, th, hh], G: [0, hh / 2 - th / 2, w, hh / 2 + th / 2] };
+      txt.forEach((ch, i) => {
+        const a0 = -tw / 2 + i * (w + sp), b0 = -hh / 2;
+        for (const s of SEG7[ch]) { const r = R[s]; Q(P(a0 + r[0], b0 + r[1]), P(a0 + r[2], b0 + r[1]), P(a0 + r[2], b0 + r[3]), P(a0 + r[0], b0 + r[3]), amber, nn, 1); }
+      });
+    };
+    // a doorway with two leaves that slide apart: a lit step, the pole in the middle, the button beside it
+    const door = (y0: number, y1: number) => {
+      const x = HW, n: V3 = [1, 0, 0], ym = (y0 + y1) / 2;
+      wall(1, y0, y1, true);
+      Q([x, y0, 0.36], [x, y1, 0.36], [x, y1, 0.415], [x, y0, 0.415], step, n, 1);
+      Q([x - 0.14, y0, FZ + 0.005], [x, y0, FZ + 0.005], [x, y1, FZ + 0.005], [x - 0.14, y1, FZ + 0.005], step, [0, 0, 1], 1);
+      W.box(x - 0.42, ym - 0.02, FZ, x - 0.38, ym + 0.02, CZ, grab, { mode: gm });
+      for (const lf of [[y0, ym, -1], [ym, y1, 1]]) {
+        const n0 = body.n, m0 = glassB.n, xl = x - 0.03, a = lf[0] + 0.02, b = lf[1] - 0.02;
+        W.quad([xl, a, 0.42], [xl, b, 0.42], [xl, b, 0.62], [xl, a, 0.62], doorRed, { n, two: true }); // a leaf is seen from inside too
+        win(xl, 1, a, b, 0.62, 2.32, 0.05, true);
+        W.quad([xl, a, 2.32], [xl, b, 2.32], [xl, b, 2.38], [xl, a, 2.38], doorRed, { n, two: true });
+        slides.push([n0, body.n, 0.075, lf[2] * (b - a + 0.01)]);
+        slidesG.push([m0, glassB.n, 0.075, lf[2] * (b - a + 0.01)]);
+      }
+      disc([x + 0.012, y1 + 0.13, 0.9], 0.062, green, n);
+      disc([x + 0.02, y1 + 0.13, 0.9], 0.036, pillar, n);
+    };
+    // where two sections meet: the end wall and half of the bellows, in folds
+    const joint = (sg: number) => {
+      const y = sg * hl, np = high ? 3 : 1, d = (GAP / 2 + 0.04) / np;
+      W.fan([[-HW, y, 0.16], [HW, y, 0.16], [HW, y, 2.9], [RW, y, 3.15], [-RW, y, 3.15], [-HW, y, 2.9]], pillar, { n: [0, sg, 0] });
+      Q([-IW, y - sg * 0.01, FZ], [IW, y - sg * 0.01, FZ], [IW, y - sg * 0.01, CZ], [-IW, y - sg * 0.01, CZ], endC, [0, -sg, 0], gm);
+      for (let k = 0; k < np; k++) {
+        const ya = y + sg * d * k, yb = y + sg * d * (k + 1), inn = k % 2 ? 0.21 : 0.11;
+        W.box(-(HW - inn), Math.min(ya, yb), 0.3, HW - inn, Math.max(ya, yb), k % 2 ? 2.97 : 3.05, k % 2 ? fold : bellows);
+      }
+    };
+    // the cab end: the body narrows and the windscreen leans back. dir 1: the front, -1: the rear
+    const nose = (dir: number) => {
+      const KN = 4, yB = hl - NOSE;
+      // [height, how far the tip stands back, how far it is drawn in at the tip]
+      const LV = [[0.16, 0.12, 0.03], [0.5, 0, 0], [1.2, 0.04, 0], [2.4, 0.6, 0.05], [2.9, 0.74, 0.1], [3.15, 0.95, 0.3]];
+      const pt = (k: number, lv: number, sg: number): V3 => {
+        const t = k / KN, l = LV[lv], w = HW * (1 - 0.32 * Math.pow(t, 2.2)) - lerp(lv === 5 ? 0.22 : 0, l[2], t);
+        return [sg * w, dir * (yB + NOSE * t - l[1] * t * t), l[0]];
+      };
+      const c0 = hex(dark ? '#1B222B' : '#27323E')!, c1 = hex(dark ? '#2C3744' : '#7D97AE')!, cab: RGB[] = [c0, c0, c1, c1]; // the driver sits in the dark
+      const side: (RGB | RGB[])[] = [skirt, red, cab, red, roofLine], face: (RGB | RGB[])[] = [skirt, red, cab, dir > 0 ? dest : red, roofLine];
+      for (let lv = 0; lv < 5; lv++) {
+        for (let k = 0; k < KN; k++) for (const sg of [-1, 1]) Q(pt(k, lv, sg), pt(k + 1, lv, sg), pt(k + 1, lv + 1, sg), pt(k, lv + 1, sg), side[lv], [sg, dir * 0.5, lv === 4 ? 1 : 0.1]);
+        Q(pt(KN, lv, -1), pt(KN, lv, 1), pt(KN, lv + 1, 1), pt(KN, lv + 1, -1), face[lv], [0, dir, lv === 4 ? 1 : 0.2]);
+      }
+      for (let k = 0; k < KN; k++) Q(pt(k, 5, -1), pt(k, 5, 1), pt(k + 1, 5, 1), pt(k + 1, 5, -1), roof, [0, 0, 1]);
+      Q(pt(0, 0, -1), pt(0, 0, 1), pt(KN, 0, 1), pt(KN, 0, -1), under, [0, 0, -1]);
+      // the stripe runs on around the cab, and a bumper stands out below
+      for (let k = 0; k < KN; k++) for (const sg of [-1, 1]) {
+        const a = pt(k, 2, sg), b = pt(k + 1, 2, sg), o = 0.012;
+        Q([a[0] + sg * o, a[1], 1.07], [b[0] + sg * o, b[1] + dir * o, 1.07], [b[0] + sg * o, b[1] + dir * o, 1.14], [a[0] + sg * o, a[1], 1.14], stripe, [sg, dir * 0.5, 0.1]);
+      }
+      const yt = hl - 0.04, bw = HW * 0.68 + 0.03;
+      Q([-bw, dir * (yt + 0.05), 1.07], [bw, dir * (yt + 0.05), 1.07], [bw, dir * (yt + 0.05), 1.14], [-bw, dir * (yt + 0.05), 1.14], stripe, [0, dir, 0]);
+      W.box(-bw, Math.min(dir * (hl - 0.1), dir * (hl + 0.06)), 0.4, bw, Math.max(dir * (hl - 0.1), dir * (hl + 0.06)), 0.56, under);
+      // lamps: white ahead, red behind
+      const yF = dir * (hl + 0.014);
+      for (const sx of [-0.5, 0.5]) {
+        const pts: V3[] = [];
+        for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU; pts.push([sx + Math.cos(a) * 0.11, yF, 0.86 + Math.sin(a) * 0.11]); }
+        W.fan(pts, dir > 0 ? head : tail, { n: [0, dir, 0], mode: 1 });
+      }
+      if (dir < 0) return;
+      // the wiper, at rest across the windscreen
+      const wn = norm([0, 1.2, 0.56]), wp = (xx: number, z: number): V3 => [xx, yt - ((z - 1.2) * 0.56) / 1.2 + wn[1] * 0.014, z + wn[2] * 0.014];
+      Q(wp(-0.08, 1.26), wp(-0.035, 1.26), wp(0.4, 2.02), wp(0.355, 2.02), dest, wn);
+      Q(wp(-0.14, 1.22), wp(0.02, 1.22), wp(0.02, 1.27), wp(-0.14, 1.27), dest, wn);
+      // the line number on the dark band above the windscreen
+      const u = norm([0, -0.14, 0.5]), nn = norm([0, 0.5, 0.14]), c: V3 = [0, hl - 0.67 + nn[1] * 0.014, 2.65 + nn[2] * 0.014];
+      digits((a, b) => [c[0] - a, c[1] + u[1] * b, c[2] + u[2] * b], nn, 0.32);
+    };
+    for (let i = 0; i < N; i++) {
+      const front = i === 0, rear = i === N - 1, y0 = rear ? -(hl - NOSE) : -hl, y1 = front ? hl - NOSE : hl, yc = (y0 + y1) / 2;
+      wall(-1, y0, y1);
+      if (!front && !rear && i % 2 === 1) {
+        const dw = 0.66, dc = Math.min(1.4, hl - dw - 0.45);
+        wall(1, y0, -dc - dw); door(-dc - dw, -dc + dw); wall(1, -dc + dw, dc - dw); door(dc - dw, dc + dw); wall(1, dc + dw, y1);
+        if (i === 1 && y1 - dc - dw > 0.62) { // the line number again, beside the first door
+          const ym = (dc + dw + y1) / 2 + 0.05;
+          Q([HW + 0.01, ym - 0.27, 2.47], [HW + 0.01, ym + 0.27, 2.47], [HW + 0.01, ym + 0.27, 2.79], [HW + 0.01, ym - 0.27, 2.79], dest, [1, 0, 0], 1);
+          digits((a, b) => [HW + 0.02, ym + a, 2.63 + b], [1, 0, 0], 0.22);
+        }
+      } else wall(1, y0, y1);
+      // the room inside: floor, ceiling with its strip of light, the wall to the cab
+      Q([-IW, y0, FZ], [HW - 0.04, y0, FZ], [HW - 0.04, y1, FZ], [-IW, y1, FZ], floorC, [0, 0, 1], gm);
+      Q([-IW, y0, CZ], [-0.28, y0, CZ], [-0.28, y1, CZ], [-IW, y1, CZ], ceil, [0, 0, -1], gm);
+      Q([0.28, y0, CZ], [HW - 0.04, y0, CZ], [HW - 0.04, y1, CZ], [0.28, y1, CZ], ceil, [0, 0, -1], gm);
+      Q([-0.28, y0, CZ], [0.28, y0, CZ], [0.28, y1, CZ], [-0.28, y1, CZ], strip, [0, 0, -1], 1);
+      if (front) Q([-IW, y1, FZ], [IW, y1, FZ], [IW, y1, CZ], [-IW, y1, CZ], endC, [0, -1, 0], gm);
+      if (rear) Q([-IW, y0, FZ], [IW, y0, FZ], [IW, y0, CZ], [-IW, y0, CZ], endC, [0, 1, 0], gm);
+      for (const sg of [-1, 1]) {
+        // a small turn light near the front of every section; on the sections that stand on bogies, the wheels in their arches
+        Q([sg * (HW + 0.012), y1 - 0.3, 0.92], [sg * (HW + 0.012), y1 - 0.14, 0.92], [sg * (HW + 0.012), y1 - 0.14, 0.99], [sg * (HW + 0.012), y1 - 0.3, 0.99], amber, [sg, 0, 0], 1);
+        if (i % 2 === 0) for (const wy of [yc - 0.95, yc + 0.95]) {
+          disc([sg * (HW + 0.012), wy, 0.16], 0.33, wheel, [sg, 0, 0], true);
+          disc([sg * (HW + 0.02), wy, 0.16], 0.2, hub, [sg, 0, 0], true);
+        }
+      }
+      Q([-RW, y0, 3.15], [RW, y0, 3.15], [RW, y1, 3.15], [-RW, y1, 3.15], roof, [0, 0, 1]);
+      if (front) nose(1); else joint(1);
+      if (rear) nose(-1); else joint(-1);
+      // what stands on the roof: two units on the sections with bogies, a low cover on the others
+      if (i % 2 === 0) {
+        W.box(-0.7, yc - 1.45, 3.15, 0.7, yc - 0.15, 3.43, gear, { top: roof });
+        W.box(-0.55, yc + 0.3, 3.15, 0.55, yc + 1.35, 3.33, gear2, { top: gear });
+      } else W.box(-0.6, y0 + 0.9, 3.15, 0.6, y1 - 0.9, 3.3, gear, { top: roof });
+      if (i === (N >> 1)) { // the pantograph: two arms and the bar that touches the wire
+        const bar = (a: V3, b: V3) => { const d = norm(sub(b, a)); W.obox(mul3(add3(a, b), 0.5), mul3(sub(b, a), 0.5), [0.035, 0, 0], [0, -d[2] * 0.035, d[1] * 0.035], arm); };
+        for (const sx of [-0.28, 0.28]) { bar([sx, -0.9, 3.4], [sx, 0.35, 4.38]); bar([sx * 0.6, 0.35, 4.38], [sx * 0.2, -0.45, 5.32]); }
+        W.box(-0.6, -0.56, 5.3, 0.6, -0.34, 5.36, arm, { bottom: true });
+      }
+      while (secB.length < body.n) secB.push(i);
+      while (secG.length < glassB.n) secG.push(i);
+      // the shadow it stands on: dark under the body, gone 0.75 m beside it
+      const sc = pal.shadow, sa = dark ? 0.36 : 0.3, ex = 0.75, xi = HW - 0.15, ya = -hl - (rear ? 0 : GAP / 2), yb = hl + (front ? 0 : GAP / 2), oa = rear ? ex : 0, ob = front ? ex : 0;
+      const b0 = veil.n;
+      for (const p of [[-xi, ya], [xi, ya], [xi, yb], [-xi, yb]]) veil.vert([p[0], p[1], 0.03], sc, sa);
+      for (const p of [[-xi - ex, ya - oa], [xi + ex, ya - oa], [xi + ex, yb + ob], [-xi - ex, yb + ob]]) veil.vert([p[0], p[1], 0.03], sc, 0);
+      veil.i.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);
+      for (let k = 0; k < 4; k++) { const k1 = (k + 1) % 4; veil.i.push(b0 + k, b0 + 4 + k, b0 + 4 + k1, b0 + k, b0 + 4 + k1, b0 + k1); }
+      if (dark && front) { // the light of the headlamps on the ground ahead
+        const c0 = veil.vert([0, hl + 2.6, 0.04], pal.lamp, 0.3), n = 12;
+        for (let k = 0; k < n; k++) { const a = (k / n) * TAU; veil.vert([Math.cos(a) * 1.9, hl + 3 + Math.sin(a) * 3.4, 0.04], pal.lamp, 0); }
+        for (let k = 0; k < n; k++) veil.i.push(c0, c0 + 1 + k, c0 + 1 + ((k + 1) % n));
+      }
+      while (secV.length < veil.n) secV.push(i);
+      secs.push([i * (L + GAP), i * (L + GAP) + L]);
+    }
+    return { body, glass: glassB, veil, secB, secG, secV, slides, slidesG, secs, length: total };
+  }
+  function vehiclePart(THREE: ThreeModule, b: Batch, sec: number[], slides: VSlide[] | null, flip: boolean, mat: THREE.Material): VPart {
+    const n = b.n, g = new THREE.BufferGeometry(), k = b.alpha ? 4 : 3, col = new Float32Array(n * k);
+    for (let i = 0; i < n; i++) { for (let j = 0; j < 3; j++) col[i * k + j] = toLin(sat(b.c[i * k + j])); if (b.alpha) col[i * k + 3] = b.c[i * k + 3]; }
+    const pos = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+    pos.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('position', pos); g.setAttribute('color', new THREE.BufferAttribute(col, k));
+    const idx = n > 65535 ? new Uint32Array(b.i) : new Uint16Array(b.i);
+    if (flip) for (let i = 0; i + 2 < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.frustumCulled = false; mesh.matrixAutoUpdate = false; // it moves: no bounds to keep up to date
+    let sl: Float32Array | null = null;
+    if (slides && slides.length) { sl = new Float32Array(n * 2); for (const s of slides) for (let i = s[0]; i < s[1]; i++) { sl[i * 2] = s[2]; sl[i * 2 + 1] = s[3]; } }
+    return { local: new Float32Array(b.p), sec: Uint8Array.from(sec), slide: sl, mesh, pos };
+  }
+  function addVehicle(h: Handle, spec: Station3DDetailVehicleSpec): Station3DDetailVehicle {
+    const pts = cleanLine(spec && spec.path);
+    if (!pts) throw new Error('addVehicle: the path needs at least two points');
+    const THREE = h._THREE, cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    const along = (a: XY, b: XY, f: number): XY => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+    const at = (s: number): XY => { // the point s metres along the path; straight on before its start and after its end
+      const n = pts.length, T = cum[n - 1];
+      if (s <= 0) return along(pts[0], pts[1], s / cum[1]);
+      if (s >= T) return along(pts[n - 2], pts[n - 1], (s - cum[n - 2]) / (T - cum[n - 2]));
+      let lo = 1, hi = n - 1;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < s) lo = m + 1; else hi = m; }
+      return along(pts[lo - 1], pts[lo], (s - cum[lo - 1]) / (cum[lo] - cum[lo - 1]));
+    };
+    let secs: [number, number][] = [], M = new Float32Array(0), zLast: number | null = null;
+    const gz = (p: XY) => { const z = groundAt(h, p[0], p[1]); if (z == null) return zLast == null ? h.zShift || 0 : zLast; zLast = z; return z; };
+    // every section stands on two points of the path, its two ends: where it is, which way it looks, how it tilts
+    const skin = () => {
+      if (!v._group) return;
+      const map = h._map, open = smooth(0, 1, v._door), out = sat(open * 4);
+      for (let i = 0; i < secs.length; i++) {
+        const A = at(v.at - secs[i][0]), B = at(v.at - secs[i][1]);
+        let fx = A[0] - B[0], fy = A[1] - B[1];
+        const len = Math.hypot(fx, fy) || 1, zA = gz(A), zB = gz(B), cx = (A[0] + B[0]) / 2, cy = (A[1] + B[1]) / 2, cz = (zA + zB) / 2, tilt = (zA - zB) / len;
+        fx /= len; fy /= len;
+        const O = map(cx, cy, cz), X = map(cx + fy, cy - fx, cz), Y = map(cx + fx, cy + fy, cz + tilt), Z = map(cx, cy, cz + 1), m = i * 12;
+        for (let j = 0; j < 3; j++) { M[m + j] = O[j]; M[m + 3 + j] = X[j] - O[j]; M[m + 6 + j] = Y[j] - O[j]; M[m + 9 + j] = Z[j] - O[j]; }
+      }
+      for (const p of v._parts) {
+        const arr = p.pos.array as Float32Array, L = p.local, S = open > 0 ? p.slide : null, n = p.sec.length;
+        for (let j = 0; j < n; j++) {
+          const m = p.sec[j] * 12, z = L[j * 3 + 2];
+          let x = L[j * 3], y = L[j * 3 + 1];
+          if (S) { x += S[j * 2] * out; y += S[j * 2 + 1] * open; }
+          arr[j * 3] = M[m] + M[m + 3] * x + M[m + 6] * y + M[m + 9] * z;
+          arr[j * 3 + 1] = M[m + 1] + M[m + 4] * x + M[m + 7] * y + M[m + 10] * z;
+          arr[j * 3 + 2] = M[m + 2] + M[m + 5] * x + M[m + 8] * y + M[m + 11] * z;
+        }
+        p.pos.needsUpdate = true;
+      }
+    };
+    const v: Veh = {
+      length: 0, at: 0, stats: { triangles: 0, drawCalls: 0 },
+      _run: null, _door: 0, _doorTo: 0, _last: null, _shown: true, _parts: [], _group: null, _res: [],
+      place(s) { v._end(); v.at = +s || 0; skin(); },
+      run(o) {
+        v._end();
+        v.at = +o.from || 0; skin();
+        return new Promise<void>((done) => { v._run = { from: +o.from || 0, to: +o.to || 0, ms: Math.max(0, or(o.seconds, 0)) * 1000, ease: o.ease || 'linear', t0: null, done }; });
+      },
+      doors(open) { v._doorTo = open ? 1 : 0; v._last = null; },
+      show(visible) { v._shown = !!visible; if (v._group) v._group.visible = v._shown; },
+      remove() { v._end(); v._free(); const i = h._vehicles.indexOf(v); if (i >= 0) h._vehicles.splice(i, 1); },
+      _end() { const r = v._run; v._run = null; if (r) r.done(); },
+      _free() {
+        for (const r of v._res) { try { r.dispose(); } catch (e) { /* already gone */ } }
+        v._res = []; v._parts = [];
+        if (v._group && v._group.parent) v._group.parent.remove(v._group);
+        v._group = null;
+      },
+      // drawn in the look the scene has now (again after every update())
+      _make() {
+        v._free();
+        const dark = h.theme === 'dark', md = tramModel(dark, paletteOf(h.theme, h.opts.palette), spec, h.quality !== 'low');
+        const g = v._group = new THREE.Group(), Basic = THREE.MeshBasicMaterial;
+        g.name = 'detail-vehicle'; g.visible = v._shown;
+        const bodyMat = new Basic({ vertexColors: true }), veilMat = new Basic({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -14 });
+        const glassMat = new Basic({ vertexColors: true, transparent: true, depthWrite: false });
+        const bp = vehiclePart(THREE, md.body, md.secB, md.slides, h._flip, bodyMat), vp = vehiclePart(THREE, md.veil, md.secV, null, h._flip, veilMat), gp = vehiclePart(THREE, md.glass, md.secG, md.slidesG, h._flip, glassMat);
+        bp.mesh.name = 'detail-vehicle-body'; vp.mesh.name = 'detail-vehicle-ground'; vp.mesh.renderOrder = 2.5; gp.mesh.name = 'detail-vehicle-glass'; gp.mesh.renderOrder = 3;
+        g.add(vp.mesh, bp.mesh, gp.mesh);
+        v._parts = [bp, vp, gp]; v._res = [bp.mesh.geometry, vp.mesh.geometry, gp.mesh.geometry, bodyMat, veilMat, glassMat];
+        secs = md.secs; M = new Float32Array(secs.length * 12);
+        v.length = md.length;
+        v.stats = { triangles: Math.round((md.body.i.length + md.glass.i.length + md.veil.i.length) / 3), drawCalls: 3 };
+        h.group.add(g);
+        skin();
+      },
+      _tick(now) {
+        let moved = false;
+        const r = v._run;
+        if (r) {
+          if (r.t0 == null) r.t0 = now;
+          const u = r.ms > 0 ? sat((now - r.t0) / r.ms) : 1;
+          // braking and pulling away: the speed falls to nothing (or rises from it) without a jolt
+          const e = r.ease === 'arrive' ? 1 - Math.pow(1 - u, 2.4) : r.ease === 'depart' ? Math.pow(u, 2.4) : u;
+          v.at = r.from + (r.to - r.from) * e;
+          moved = true;
+          if (u >= 1) { v.at = r.to; v._run = null; r.done(); }
+        }
+        if (v._door !== v._doorTo) {
+          const step = (v._last == null ? 0 : clamp(now - v._last, 0, 100)) / 800;
+          v._door = v._doorTo > v._door ? Math.min(v._doorTo, v._door + step) : Math.max(v._doorTo, v._door - step);
+          moved = true;
+        }
+        v._last = now;
+        if (moved) skin();
+        return moved;
+      },
+    };
+    h._vehicles.push(v);
+    v._make();
+    return v;
+  }
+
   // ---------- putting it together ----------
   const GLOW_VERT = [
     'attribute vec2 corner; attribute float gsize; attribute vec4 gcol;',
@@ -2889,6 +3376,7 @@
   function clear(h: Handle) {
     for (const r of h._res || []) { try { r.dispose(); } catch (e) { /* already gone */ } }
     h._res = [];
+    for (const v of h._vehicles || []) v._free(); // update() draws them again
     while (h.group.children.length) h.group.remove(h.group.children[0]);
     h.parts = {} as Station3DDetailParts;
   }
@@ -2944,6 +3432,7 @@
     each(detail.trees, 'tree', (t) => { if (t.xy) tier(t.xy[0], t.xy[1], 45, high ? 95 : 60); buildTree(C, t); });
     each(detail.props, 'prop', (p) => { if (p.xy) tier(p.xy[0], p.xy[1], 60, 95); buildProp(C, p); });
     C.high = high; C.far = false;
+    try { contactWires(C, surfaces); } catch (e) { C.warn('contact wire: ' + (e && (e as Error).message)); }
     each(detail.markings, 'marking', (m) => buildMarking(C, m));
     each(detail.surfaces, 'marking', (m) => { if (m.kind === 'marking') buildMarking(C, Object.assign({}, m, { kind: m.marking || m.variant || (m.line ? 'lane-line' : m.ring ? 'crossing' : 'bike-symbol') })); });
     lap('objects', tl); tl = now();
@@ -3047,6 +3536,8 @@
       per[m.name.replace('detail-', '')] = Math.round(t);
     }
     h._ground = C.ground; h._base = C.base;
+    h._map = map; h._flip = flip;
+    h._tracks = ([] as XY[][]).concat(...surfaces.filter((s) => s.kind === 'tram').map(trackCentres));
     h.theme = dark ? 'dark' : 'light'; h.quality = high ? 'high' : 'low';
     h.stats = { triangles: Math.round(tris), drawCalls: calls, vertices: verts, textures: nTex, buildMs: Math.round(now() - t0), timing, counts: C.counts, parts: per, warnings };
   }
@@ -3056,7 +3547,11 @@
     h.group.name = 'detail:' + ((detail && detail.key) || '');
     fill(THREE, h);
     h.groundAt = (x, y) => groundAt(h, x, y);
-    h.dispose = () => { clear(h); if (h.group.parent) h.group.parent.remove(h.group); h._ground = h._base = null; };
+    h._vehicles = [];
+    h.addVehicle = (spec) => addVehicle(h, spec);
+    h.tick = (now) => { let moved = false; for (const v of h._vehicles) if (v._tick(now)) moved = true; return moved; };
+    h.tracks = () => h._tracks.map((l) => l.map((p): XY => [p[0], p[1]]));
+    h.dispose = () => { for (const v of h._vehicles) v._end(); clear(h); h._vehicles = []; if (h.group.parent) h.group.parent.remove(h.group); h._ground = h._base = null; };
     return h;
   }
   function update(h: Handle, change?: Station3DDetailOptions) {
@@ -3067,6 +3562,7 @@
     h.opts = o;
     clear(h);
     fill(h._THREE, h);
+    for (const v of h._vehicles) v._make();
     return h;
   }
   function groundAt(h: Handle | null | undefined, x: number, y: number) {

@@ -1,0 +1,302 @@
+{
+ "text": "For us, it was just a bus. We speak the language. We can run. We can read the signs. Now arrive in a country you have never seen. In a language you can't read. With two heavy bags. And four minutes to change. Then it's not a bus. It's the job interview. The doctor. The first day of school.",
+ "model": "eleven_v4",
+ "voice": "jon",
+ "words": [
+  {
+   "text": "For",
+   "start": 0,
+   "end": 0.16
+  },
+  {
+   "text": "us,",
+   "start": 0.24,
+   "end": 0.8
+  },
+  {
+   "text": "it",
+   "start": 0.88,
+   "end": 0.92
+  },
+  {
+   "text": "was",
+   "start": 0.96,
+   "end": 1.04
+  },
+  {
+   "text": "just",
+   "start": 1.12,
+   "end": 1.28
+  },
+  {
+   "text": "a",
+   "start": 1.32,
+   "end": 1.36
+  },
+  {
+   "text": "bus.",
+   "start": 1.44,
+   "end": 2.08
+  },
+  {
+   "text": "We",
+   "start": 2.32,
+   "end": 2.4
+  },
+  {
+   "text": "speak",
+   "start": 2.48,
+   "end": 2.64
+  },
+  {
+   "text": "the",
+   "start": 2.72,
+   "end": 2.76
+  },
+  {
+   "text": "language.",
+   "start": 2.8,
+   "end": 3.48
+  },
+  {
+   "text": "We",
+   "start": 3.6,
+   "end": 3.64
+  },
+  {
+   "text": "can",
+   "start": 3.68,
+   "end": 3.84
+  },
+  {
+   "text": "run.",
+   "start": 3.92,
+   "end": 4.48
+  },
+  {
+   "text": "We",
+   "start": 4.52,
+   "end": 4.56
+  },
+  {
+   "text": "can",
+   "start": 4.64,
+   "end": 4.72
+  },
+  {
+   "text": "read",
+   "start": 4.8,
+   "end": 4.88
+  },
+  {
+   "text": "the",
+   "start": 4.92,
+   "end": 4.96
+  },
+  {
+   "text": "signs.",
+   "start": 5.04,
+   "end": 5.6
+  },
+  {
+   "text": "Now",
+   "start": 6.24,
+   "end": 6.48
+  },
+  {
+   "text": "arrive",
+   "start": 6.6,
+   "end": 6.8
+  },
+  {
+   "text": "in",
+   "start": 6.88,
+   "end": 6.92
+  },
+  {
+   "text": "a",
+   "start": 6.96,
+   "end": 7.04
+  },
+  {
+   "text": "country",
+   "start": 7.12,
+   "end": 7.44
+  },
+  {
+   "text": "you",
+   "start": 7.52,
+   "end": 7.6
+  },
+  {
+   "text": "have",
+   "start": 7.68,
+   "end": 7.76
+  },
+  {
+   "text": "never",
+   "start": 7.92,
+   "end": 8.16
+  },
+  {
+   "text": "seen.",
+   "start": 8.32,
+   "end": 8.8
+  },
+  {
+   "text": "In",
+   "start": 8.96,
+   "end": 9.04
+  },
+  {
+   "text": "a",
+   "start": 9.08,
+   "end": 9.12
+  },
+  {
+   "text": "language",
+   "start": 9.2,
+   "end": 9.68
+  },
+  {
+   "text": "you",
+   "start": 9.76,
+   "end": 9.84
+  },
+  {
+   "text": "can't",
+   "start": 9.92,
+   "end": 10.16
+  },
+  {
+   "text": "read.",
+   "start": 10.24,
+   "end": 10.8
+  },
+  {
+   "text": "With",
+   "start": 10.92,
+   "end": 11.04
+  },
+  {
+   "text": "two",
+   "start": 11.12,
+   "end": 11.28
+  },
+  {
+   "text": "heavy",
+   "start": 11.36,
+   "end": 11.6
+  },
+  {
+   "text": "bags.",
+   "start": 11.68,
+   "end": 12.32
+  },
+  {
+   "text": "And",
+   "start": 12.4,
+   "end": 12.48
+  },
+  {
+   "text": "four",
+   "start": 12.64,
+   "end": 12.8
+  },
+  {
+   "text": "minutes",
+   "start": 12.88,
+   "end": 13.12
+  },
+  {
+   "text": "to",
+   "start": 13.2,
+   "end": 13.28
+  },
+  {
+   "text": "change.",
+   "start": 13.36,
+   "end": 14.12
+  },
+  {
+   "text": "Then",
+   "start": 14.4,
+   "end": 14.72
+  },
+  {
+   "text": "it's",
+   "start": 14.88,
+   "end": 15.04
+  },
+  {
+   "text": "not",
+   "start": 15.12,
+   "end": 15.28
+  },
+  {
+   "text": "a",
+   "start": 15.32,
+   "end": 15.36
+  },
+  {
+   "text": "bus.",
+   "start": 15.44,
+   "end": 16.04
+  },
+  {
+   "text": "It's",
+   "start": 16.24,
+   "end": 16.44
+  },
+  {
+   "text": "the",
+   "start": 16.48,
+   "end": 16.56
+  },
+  {
+   "text": "job",
+   "start": 16.64,
+   "end": 16.88
+  },
+  {
+   "text": "interview.",
+   "start": 16.96,
+   "end": 17.48
+  },
+  {
+   "text": "The",
+   "start": 17.6,
+   "end": 17.68
+  },
+  {
+   "text": "doctor.",
+   "start": 17.76,
+   "end": 18.36
+  },
+  {
+   "text": "The",
+   "start": 18.48,
+   "end": 18.56
+  },
+  {
+   "text": "first",
+   "start": 18.64,
+   "end": 18.88
+  },
+  {
+   "text": "day",
+   "start": 18.96,
+   "end": 19.04
+  },
+  {
+   "text": "of",
+   "start": 19.08,
+   "end": 19.12
+  },
+  {
+   "text": "school.",
+   "start": 19.2,
+   "end": 19.92
+  }
+ ]
+}

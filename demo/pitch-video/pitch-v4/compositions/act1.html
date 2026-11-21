@@ -1,0 +1,79 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    .act1-t { position: absolute; font-family: Inter, sans-serif; font-weight: 700; letter-spacing: -0.035em; line-height: 1.04; color: #fcfcfc; }
+    .act1-ph { position: absolute; width: 418px; height: 884px; padding: 9px; border-radius: 54px; background: #1b1c21; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 120px rgba(0,0,0,0.6); }
+    .act1-scr { position: relative; width: 400px; height: 866px; border-radius: 45px; overflow: hidden; background: #e9e9ea; }
+    .act1-scr img { position: absolute; left: 0; top: 0; width: 400px; height: 866px; display: block; }
+    .act1-iph { position: absolute; width: 418px; height: 828px; padding: 9px; border-radius: 54px; background: #1b1c21; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 120px rgba(0,0,0,0.6); }
+    .act1-iph video { display: block; width: 400px; height: 810px; border-radius: 45px; }
+    .act1-cph { position: absolute; width: 418px; height: 884px; padding: 9px; border-radius: 54px; background: #1b1c21; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 40px 120px rgba(0,0,0,0.6); }
+    .act1-cph video { display: block; width: 400px; height: 866px; border-radius: 45px; }
+    .act1-full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .act1-full video, .act1-full img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    .act1-chip { position: absolute; left: 96px; top: 800px; padding: 22px 44px 26px; border-radius: 30px; font-family: Inter, sans-serif; font-weight: 900; font-size: 104px; letter-spacing: -0.04em; line-height: 1; white-space: nowrap; box-shadow: 0 18px 60px rgba(0,0,0,0.45); }
+    .act1-panel { position: absolute; left: 150px; top: 60px; width: 540px; height: 960px; border-radius: 28px; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+    #act1-vid { display: block; width: 540px; height: 960px; border-radius: 28px; }
+    .act1-q { font-size: 76px; color: #FFD34B; }
+    .act1-ql { font-size: 28px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #FF7241; margin-bottom: 18px; }
+  </style>
+  <div id="root" data-composition-id="act1" data-width="1920" data-height="1080">
+    <div id="act1-panel" class="act1-panel"><video id="act1-vid" class="clip" data-start="0" data-duration="23.383" data-track-index="1" src="assets/night-a1.mp4" muted playsinline></video></div>
+    <div id="act1-n0" class="act1-t" style="left: 800px; top: 354px; width: 980px; font-size: 108px">Friday night.</div>
+    <div id="act1-n1" class="act1-t" style="left: 800px; top: 478px; width: 980px; font-size: 108px">Bern station.</div>
+    <div id="act1-n2" class="act1-t" style="left: 800px; top: 602px; width: 980px; font-size: 108px">Rain.</div>
+    <div id="act1-q1" class="act1-t act1-q" style="left: 800px; top: 400px; width: 960px"><div class="act1-ql">That night</div><div>“Nobody knows.”</div></div>
+    <div id="act1-n3" class="act1-t" style="left: 800px; top: 416px; width: 980px; font-size: 108px">Five of us.</div>
+    <div id="act1-n4" class="act1-t" style="left: 800px; top: 540px; width: 980px; font-size: 108px">One bus.</div>
+    <div id="act1-n5" class="act1-t" style="left: 800px; top: 430px; width: 980px; font-size: 92px">We had the timetable app.</div>
+    <div id="act1-q2" class="act1-t act1-q" style="left: 800px; top: 400px; width: 960px"><div class="act1-ql">That night</div><div>“We're even at the correct spot, according to SBB.”</div></div>
+    <div id="act1-n6" class="act1-t" style="left: 800px; top: 430px; width: 980px; font-size: 92px">We had the map on the wall.</div>
+    <div id="act1-q3" class="act1-t act1-q" style="left: 800px; top: 400px; width: 960px"><div class="act1-ql">That night</div><div>“There's no indicator where we are.”</div></div>
+    <div id="act1-q4" class="act1-t act1-q" style="left: 800px; top: 400px; width: 960px"><div class="act1-ql">That night</div><div>“We're pulling out the big guns.”</div></div>
+    <div id="act1-n7" class="act1-t" style="left: 800px; top: 430px; width: 980px; font-size: 92px">We even asked an AI.</div>
+    <div id="act1-q5a" class="act1-t act1-q" style="left: 800px; top: 400px; width: 960px"><div class="act1-ql">That night</div><div>“That's the one!”</div></div>
+    <div id="act1-n8" class="act1-t" style="left: 800px; top: 430px; width: 980px; font-size: 92px">Twenty minutes later, we watched it leave.</div>
+    <div id="act1-q5b" class="act1-t act1-q" style="left: 800px; top: 400px; width: 960px"><div class="act1-ql">That night</div><div>“No! No way.”</div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    const up = (sel, t, y = 44, d = 0.42) => tl.fromTo(sel, { opacity: 0, y }, { opacity: 1, y: 0, duration: d, ease: "expo.out" }, Math.max(0, t));
+    const out = (sel, t, d = 0.16) => tl.to(sel, { opacity: 0, y: -22, duration: d, ease: "power2.in" }, Math.max(0, t));
+    const dim = (sel, t, o = 0.3) => tl.to(sel, { opacity: o, duration: 0.3, ease: "power2.out" }, Math.max(0, t));
+    const hide = (sel, t) => tl.set(sel, { opacity: 0 }, Math.max(0, t));
+    tl.fromTo("#act1-panel", { opacity: 0.4, scale: 1.05 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power2.out" }, 0);
+    up("#act1-n0", 0.29, 44, 0.35);
+    out("#act1-n0", 3.081, 0.13);
+    up("#act1-n1", 1.268, 44, 0.35);
+    out("#act1-n1", 3.081, 0.13);
+    up("#act1-n2", 2.468, 44, 0.35);
+    out("#act1-n2", 3.081, 0.13);
+    up("#act1-q1", 3.261, 30, 0.28);
+    out("#act1-q1", 4.628, 0.12);
+    up("#act1-n3", 4.708, 44, 0.35);
+    out("#act1-n3", 6.6659999999999995, 0.13);
+    up("#act1-n4", 5.757000000000001, 44, 0.35);
+    out("#act1-n4", 6.6659999999999995, 0.13);
+    up("#act1-n5", 6.766, 44, 0.35);
+    out("#act1-n5", 7.911, 0.13);
+    up("#act1-q2", 8.091, 30, 0.28);
+    out("#act1-q2", 10.458, 0.12);
+    up("#act1-n6", 10.538, 44, 0.35);
+    out("#act1-n6", 11.868, 0.13);
+    up("#act1-q3", 12.048, 30, 0.28);
+    out("#act1-q3", 13.527999999999999, 0.12);
+    up("#act1-q4", 13.687999999999999, 30, 0.28);
+    out("#act1-q4", 14.955, 0.12);
+    up("#act1-n7", 15.035, 44, 0.35);
+    out("#act1-n7", 16.534, 0.13);
+    up("#act1-q5a", 16.714, 30, 0.28);
+    out("#act1-q5a", 17.581, 0.12);
+    up("#act1-n8", 17.661, 44, 0.35);
+    out("#act1-n8", 19.783, 0.13);
+    up("#act1-q5b", 19.963, 30, 0.28);
+    out("#act1-q5b", 20.942999999999998, 0.12);
+    hide("#act1-panel", 23.383);
+
+    window.__timelines["act1"] = tl;
+  </script>
+</template>

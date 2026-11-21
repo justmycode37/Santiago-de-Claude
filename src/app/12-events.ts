@@ -1,9 +1,15 @@
 // ---------- Community events ----------
-// Which events show is set on the Settings page (settings.js)
+// Which events show is set on the Settings page (settings.js). Language courses and other events for newcomers only
+// show for those who said they are new to Switzerland; anyone can still pick them as a category in the search.
+const NEWCOMER_TAGS = ['newcomers', 'language'];
 function visibleEvents() {
   const preferences = SETTINGS.eventTags();
-  return EVENTS.features.filter((event) => EVENTS.matches(event, preferences));
+  const newcomer = SETTINGS.prefs().newcomer;
+  return EVENTS.features.filter((event) => EVENTS.matches(event, preferences)
+    && (newcomer || !event.properties.tags.some((tag) => NEWCOMER_TAGS.includes(tag))));
 }
+// The category picked in the search (25-categories.ts): its events or its places are the cards on the map
+let activeCategory: SearchCategory | null = null;
 
 const EVENT_MIN_ZOOM = 12.5;
 // Cards on the map, by venue + events shown. Cards that stay on screen after a move are kept as they are
@@ -20,17 +26,22 @@ function clearCards() {
 
 function updateCards() {
   // during a journey the map shows only the trip and the destination
-  if (!eventsOn || journeyDest || !SETTINGS.mapGroups().includes('events') || map.getZoom() < EVENT_MIN_ZOOM) { clearCards(); return; }
+  const categoryEvents = activeCategory && activeCategory.events;
+  if (activeCategory && !categoryEvents) { clearCards(); return; } // a kind of place: only its cards
+  if (!(eventsOn || categoryEvents) || journeyDest || (!categoryEvents && !SETTINGS.mapGroups().includes('events'))
+    || map.getZoom() < EVENT_MIN_ZOOM) { clearCards(); return; }
 
   const { clientWidth, clientHeight } = map.getContainer();
   const venues = new Map<string, EventVenue>();
-  for (const feature of visibleEvents()) {
+  const features = categoryEvents ? EVENTS.features.filter((f) => EVENTS.matches(f, []) && categoryEvents(f.properties)) : visibleEvents();
+  for (const feature of features) {
     const coordinates = feature.geometry.coordinates;
     const key = coordinates.join(',');
     let venue = venues.get(key);
     if (!venue) {
       const point = map.project(coordinates);
-      if (point.x < -75 || point.x > clientWidth + 75 || point.y < 0 || point.y > clientHeight + 186) continue;
+      // the card's middle on screen (no half-cards at the sides); a card above an off-screen point still shows
+      if (point.x < 0 || point.x > clientWidth || point.y < 0 || point.y > clientHeight + 186) continue;
       venue = { point, coordinates, features: [] };
       venues.set(key, venue);
     }
@@ -57,7 +68,7 @@ function updateCards() {
   for (const venue of candidates) {
     const overlap = shown.find(other => Math.abs(other.point.x - venue.point.x) < 158
       && Math.abs(other.point.y - venue.point.y) < 202);
-    if (!overlap) shown.push(venue);
+    if (!overlap) { if (!categoryEvents || shown.length < CATEGORY_CARDS) shown.push(venue); }
     // At maximum zoom, keep even adjacent doors accessible from the event details.
     else if (map.getZoom() >= map.getMaxZoom() - 0.01) overlap.features.push(...venue.features);
   }

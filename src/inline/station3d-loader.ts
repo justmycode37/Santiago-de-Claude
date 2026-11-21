@@ -113,6 +113,7 @@
     },
     selectStep: () => {}, setFollow: () => {}, setPov: () => {}, setPeel: () => {},
     play: () => false, pause: () => {}, isPlaying: () => false,   // nothing can be playing before the viewer is there
+    detail: () => null, redraw: () => {},                         // …and no detail scene is built
     enableCompass: () => loadViewer().then((real) => real.enableCompass(), () => 'unavailable'),
     // preloading fetches the indoor position too (alongside, not waited for), so it is ready when the view opens
     preload: (key) => loadViewer().then((real) => { loadIndoor(); return real.preload(key); }, () => false),

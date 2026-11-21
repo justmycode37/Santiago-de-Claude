@@ -1,0 +1,32 @@
+{
+    "model":  "eleven_v4",
+    "voices":  {
+                   "jon":  "MFZUKuGQUsGJPQjTS4wC"
+               },
+    "scenes":  [
+                   {
+                       "id":  "a1-night",
+                       "text":  "Friday night. Bern station. Rain. Five of us. One bus. We had the timetable app. We had the map on the wall. We even asked an AI. Twenty minutes later, we watched it leave."
+                   },
+                   {
+                       "id":  "a2-weight",
+                       "text":  "For us, it was just a bus. We speak the language. We can run. We can read the signs. Now arrive in a country you have never seen. In a language you can\u0027t read. With two heavy bags. And four minutes to change. Then it\u0027s not a bus. It\u0027s the job interview. The doctor. The first day of school."
+                   },
+                   {
+                       "id":  "a3-turn",
+                       "text":  "That night, we stopped being angry, and started building. This is Santiago."
+                   },
+                   {
+                       "id":  "a4-answer",
+                       "text":  "Nobody knew where the bus stops. Santiago does. Bay L. The app said: right spot. Santiago shows the exact one. Which bay. Which side of the road. We found out twenty minutes too late. Santiago tells you when to leave, and shows every turn of the walk."
+                   },
+                   {
+                       "id":  "a5-beyond",
+                       "text":  "And it goes further than our problem. It adapts to you. Can\u0027t take stairs? Switch them off. Need more time? Slow the pace. New here? Tell it once. Then the map fills with what you need. Toilets. Drinking water. A defibrillator. Free food. Women\u0027s groups. A language café near you. Tap it. See what it is, and who runs it. One more tap, and Santiago takes you there. And your ticket is one tap away. So you don\u0027t just arrive. You belong."
+                   },
+                   {
+                       "id":  "a6-return",
+                       "text":  "Friday night. Bern station. Rain. Bus ten. Bay L. Fifty metres away. Santiago. Know exactly where to stand."
+                   }
+               ]
+}

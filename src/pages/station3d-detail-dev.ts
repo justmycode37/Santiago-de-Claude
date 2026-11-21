@@ -35,8 +35,20 @@
   /** A point of the walk and the direction of the walk there. */
   interface DevPoint { p: number[]; t: number[] }
   type DevMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  /** `DEV.tram` (tram=1). */
+  interface DevTram {
+    vehicle: Station3DDetailVehicle;
+    path: XY[];
+    /** Metres along `path` where the front stands when the tram is at the platform. */
+    stop: number;
+    /** Open, close, or (without an argument) the other of the two. */
+    doors(open?: boolean | null): void;
+    arrive(seconds?: number): Promise<void>;
+    depart(seconds?: number): Promise<void>;
+  }
   /** window.DEV: what the page offers to the console and to the scripts that drive it. */
   interface Dev {
+    tram?: DevTram;
     state: DevState;
     set(change: Partial<DevState>): Promise<unknown>;
     rebuild(change: Partial<DevState>): Promise<unknown>;
@@ -83,6 +95,36 @@
     if (!detail) return fail('This scene could not be loaded. Check that stations3d/' + (state.scene || 'bern') + '.detail.js exists.');
     start(THREE, detail);
   }).catch((e) => fail('The 3D library or the renderer could not be loaded. Check the connection and reload. (' + (e && e.message) + ')'));
+
+  // The pieces of track joined into one line that passes `near`, driving with `near` on the right.
+  // Returns the line and how far along it `near` is.
+  function tramPath(tracks: XY[][], near: number[]): { path: XY[]; at: number } | null {
+    const gap = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const foot = (p: number[], a: number[], b: number[]) => { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)); return { t, d: Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t) }; };
+    const lineD = (l: XY[]) => { let d = Infinity; for (let i = 0; i + 1 < l.length; i++) d = Math.min(d, foot(near, l[i], l[i + 1]).d); return d; };
+    const rest = tracks.filter((l) => l.length > 1).map((l) => l.slice()).sort((a, b) => lineD(a) - lineD(b));
+    if (!rest.length) return null;
+    let line = rest.shift()!;
+    const dir = (a: number[], b: number[]) => { const l = gap(a, b) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+    const goesOn = (u: number[], w: number[]) => u[0] * w[0] + u[1] * w[1] > 0.8;
+    for (let again = true; again;) {
+      again = false;
+      for (let i = 0; i < rest.length; i++) {
+        const l = rest[i], n = line.length, m = l.length, e = dir(line[n - 2], line[n - 1]), s = dir(line[1], line[0]);
+        let made: XY[] | null = null;
+        if (gap(line[n - 1], l[0]) < 2 && goesOn(e, dir(l[0], l[1]))) made = line.concat(l);
+        else if (gap(line[n - 1], l[m - 1]) < 2 && goesOn(e, dir(l[m - 1], l[m - 2]))) made = line.concat(l.slice().reverse());
+        else if (gap(line[0], l[m - 1]) < 2 && goesOn(s, dir(l[m - 1], l[m - 2]))) made = l.concat(line);
+        else if (gap(line[0], l[0]) < 2 && goesOn(s, dir(l[0], l[1]))) made = l.slice().reverse().concat(line);
+        if (made) { line = made; rest.splice(i, 1); again = true; break; }
+      }
+    }
+    const where = () => { let best: { d: number; at: number; i: number } | null = null, s = 0; for (let i = 0; i + 1 < line.length; i++) { const f = foot(near, line[i], line[i + 1]), l = gap(line[i], line[i + 1]); if (!best || f.d < best.d) best = { d: f.d, at: s + f.t * l, i }; s += l; } return best!; };
+    let w = where();
+    const a = line[w.i], b = line[w.i + 1];
+    if ((b[0] - a[0]) * (near[1] - a[1]) - (b[1] - a[1]) * (near[0] - a[0]) > 0) { line.reverse(); w = where(); }
+    return { path: line, at: w.at };
+  }
 
   function start(THREE: ThreeModule, detail: StationDetailModel) {
     const canvas = $('gl') as HTMLCanvasElement;
@@ -255,6 +297,30 @@
 
     try { rebuild({}); } catch (e) { console.error(e); return fail('The scene could not be built: ' + (e && (e as Error).message)); }
     (window as DevWindow).DEV = { state, set, rebuild: (c) => { rebuild(c); return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); }, handle: () => handle, THREE, scene, camera, renderer, pointAt, total };
+    const built = handle!; // rebuild() made it
+    // tram=1: a tram on the track beside the end of the walk, the platform on its right (where its doors are)
+    if (q.get('tram') === '1') {
+      const tp = tramPath(built.tracks(), path.length ? path[path.length - 1] : mid);
+      if (tp) {
+        const v = built.addVehicle({ kind: 'tram', line: q.get('line') || '9', path: tp.path });
+        const stop = tp.at + v.length / 2, wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+        let open = false, step = 0;
+        const tram: DevTram = (window as DevWindow).DEV.tram = {
+          vehicle: v, path: tp.path, stop,
+          doors: (o) => { open = o == null ? !open : !!o; v.doors(open); },
+          arrive: (sec) => { tram.doors(false); return v.run({ from: stop - 75, to: stop, seconds: sec || 9, ease: 'arrive' }); },
+          depart: async (sec) => { if (open) { tram.doors(false); await wait(1000); } return v.run({ from: v.at, to: v.at + 90, seconds: sec || 10, ease: 'depart' }); },
+        };
+        v.place(stop);
+        // the page draws on demand; while the tram moves, every frame
+        const loop = (now: number) => { if (built.tick(now)) draw(); requestAnimationFrame(loop); };
+        requestAnimationFrame(loop);
+        const next = () => { step = (step + 1) % 3; if (step === 1) tram.arrive().then(() => tram.doors(true)); else if (step === 2) tram.depart(); else { v.place(stop); tram.doors(false); draw(); } };
+        $('bTram').hidden = false; $('bTram').onclick = next;
+        window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k === 't') tram.arrive(); else if (k === 'g') tram.depart(); else if (k === 'o') tram.doors(); });
+        draw();
+      } else console.warn('tram=1: this scene has no tram-track surface');
+    }
     requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => done(Object.assign({ scene: state.scene }, handle!.stats, (window as DevWindow).__info)))));
   }
 })();

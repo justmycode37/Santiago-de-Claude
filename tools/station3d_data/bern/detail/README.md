@@ -1,7 +1,9 @@
 # Source extracts for the detail scene of Bern (Hirschengraben)
 
-`tools/build_detail.py` reads these files and writes `stations3d/bern.detail.js` (format: `stations3d/DETAIL.md`)
-and the manifest `stations3d/detail-index.js` (which station has a scene, and the bounding box of its `area`).
+`tools/build_detail.py` (scene `hirschengraben`, the default) reads these files and writes `stations3d/bern.detail.js`
+(format: `stations3d/DETAIL.md`); with `--index-form array` it also writes the manifest `stations3d/detail-index.js`
+(which scenes a station has, and the bounding box of each `area`). The second scene of Bern, Bahnhofplatz, has its
+extracts in `../detail-bahnhofplatz/`.
 
 The scene is the whole Hirschengraben with the streets around it: model x −150 … −38, y −338 … −160, from the north
 pavement of Bubenbergplatz to the south side of Bundesgasse, with the houses within 26 m of that area. The walk it
@@ -11,8 +13,8 @@ monument (38 m), asked from the app's router.
 **Heights.** Every height in the scene is a real height in metres above level 0 of the station model (540.74 m above
 sea level, LN02). The real ground slopes: it falls 2.4 cm per metre to the south and 0.8 cm per metre to the west.
 The station model draws this square flat on level 0. The scene carries the plane that fits its ground
-(`groundPlane`: `z = 0.594 + 0.00793·(x + 85.43) + 0.02448·(y + 203.97)`, rms 0.24 m; `groundPlane.nearWalk` is the
-plane within 40 m of the walk, rms 0.20 m) and `zOffset = −0.80 m`, the one number that sets the scene on the model
+(`groundPlane`: `z = 0.598 + 0.00815·(x + 85.43) + 0.02445·(y + 203.97)`, rms 0.23 m; `groundPlane.nearWalk` is the
+plane within 40 m of the walk, rms 0.19 m) and `zOffset = −0.80 m`, the one number that sets the scene on the model
 at the walk. With `zOffset` the two ends of the walk come to −0.15 m (platform B) and −0.05 m (platform C) relative
 to the model floor. The first entry of the scene's `notes` says the same.
 
@@ -50,6 +52,12 @@ Things to know about the sources:
   (finished 2025): the LiDAR of 2023 shows a pit there. The scene has the new house as a prism with the outline and
   the height (22.5 m, roof at 564.85 m) the survey gives for the projected building; its number of floors (8) is
   from a web page and its front is not known.
+- Ground heights: at every point of a surface's outline the builder fits a plane through the LiDAR ground returns
+  on that surface within 5 m and throws out the returns that lie off it (the plinth of the monument, vehicles); where
+  a pavement and a square meet without a kerb, the points they share are fitted through the returns of both, so the
+  two outlines agree. Returns more than 1 m under the ground around them (ramps and stairs to an underpass, 2,065
+  here) are not used. Before 2026-11-21 it was the median of the returns within 0.8 m, which folded the ground at
+  the start of the walk.
 - The survey has no kerb heights. A kerb is the line where a pavement, island or square polygon meets a road
   polygon; its height is the difference of the LiDAR ground on both sides.
 

@@ -1,0 +1,530 @@
+[
+{
+"kind": "clock",
+"xy": [
+-19.46,
+-3.92
+],
+"mounting": "BA-Dach_BE Quai 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38850988"
+},
+{
+"kind": "clock",
+"xy": [
+-30.11,
+-19.72
+],
+"mounting": "BA-Dach_BE Quai 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208632251"
+},
+{
+"kind": "clock",
+"xy": [
+-74.0,
+-54.17
+],
+"mounting": "BA-Dach_BE Marquise 4/5 RV05",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208332134"
+},
+{
+"kind": "clock",
+"xy": [
+13.82,
+99.45
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851977"
+},
+{
+"kind": "clock",
+"xy": [
+-0.94,
+41.89
+],
+"mounting": "BA-Dach_BE Quai 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851014"
+},
+{
+"kind": "clock",
+"xy": [
+63.14,
+101.55
+],
+"mounting": "BA-Dach_BE Quai 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38852171"
+},
+{
+"kind": "clock",
+"xy": [
+75.74,
+89.51
+],
+"mounting": "BA-Dach_BE Marquise quai1",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208168780"
+},
+{
+"kind": "clock",
+"xy": [
+-90.06,
+-24.01
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851991"
+},
+{
+"kind": "clock",
+"xy": [
+64.77,
+164.59
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38860895"
+},
+{
+"kind": "clock",
+"xy": [
+52.01,
+125.32
+],
+"mounting": "BA-Dach_BE Quai 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "269198828"
+},
+{
+"kind": "clock",
+"xy": [
+31.25,
+88.13
+],
+"mounting": "BA-Dach_BE Quai 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851011"
+},
+{
+"kind": "clock",
+"xy": [
+-32.35,
+53.3
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851982"
+},
+{
+"kind": "clock",
+"xy": [
+93.0,
+131.18
+],
+"mounting": "BA-Dach_BE Quai 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38850977"
+},
+{
+"kind": "clock",
+"xy": [
+73.64,
+132.7
+],
+"mounting": "BA-Dach_BE Quai 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38850993"
+},
+{
+"kind": "clock",
+"xy": [
+35.06,
+61.25
+],
+"mounting": "BA-Dach_BE Quai 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38850981"
+},
+{
+"kind": "clock",
+"xy": [
+20.2,
+6.21
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "245432645"
+},
+{
+"kind": "clock",
+"xy": [
+-40.04,
+12.03
+],
+"mounting": "BA-Dach_BE Quai 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851969"
+},
+{
+"kind": "clock",
+"xy": [
+54.57,
+56.22
+],
+"mounting": "BA-Dach_BE Marquise quai1",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208627227"
+},
+{
+"kind": "clock",
+"xy": [
+13.78,
+29.96
+],
+"mounting": "BA-Dach_BE Quai 2",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38850984"
+},
+{
+"kind": "clock",
+"xy": [
+-7.29,
+-13.44
+],
+"mounting": "BA-Dach_BE Marquise quai1",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38850968"
+},
+{
+"kind": "clock",
+"xy": [
+-11.52,
+-28.84
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208632246"
+},
+{
+"kind": "clock",
+"xy": [
+39.71,
+143.93
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851973"
+},
+{
+"kind": "clock",
+"xy": [
+16.42,
+74.83
+],
+"mounting": "BA-Dach_BE Quai 3",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208544567"
+},
+{
+"kind": "clock",
+"xy": [
+79.24,
+81.13
+],
+"mounting": "BA-Gebaeude",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "245432612"
+},
+{
+"kind": "clock",
+"xy": [
+-52.64,
+14.87
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "38851987"
+},
+{
+"kind": "clock",
+"xy": [
+-60.85,
+4.72
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208632303"
+},
+{
+"kind": "clock",
+"xy": [
+-5.58,
+92.53
+],
+"mounting": "BA-Dach_BE Quai 4",
+"level": null,
+"source": "SBB haltestelle-uhr",
+"source_id": "208544222"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-10.11,
+39.15
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008256"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-9.31,
+38.53
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008261"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-8.79,
+39.86
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008258"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-9.64,
+88.11
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008279"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+69.02,
+40.74
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008277"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+61.75,
+36.31
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008271"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+33.69,
+0.05
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008282"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-67.14,
+7.02
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008 267"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+69.71,
+40.21
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008278"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+35.15,
+-1.09
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008283"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-8.4,
+-24.22
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008285"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+61.11,
+36.81
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008269"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+37.49,
+43.97
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008285"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-63.15,
+3.93
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008 257"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+38.79,
+45.6
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008266"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+29.3,
+3.48
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008281"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-7.2,
+-22.65
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008266"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+64.08,
+34.5
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008284"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+64.72,
+34.0
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008272"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+27.81,
+4.64
+],
+"mounting": "ePOS",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "01008280"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-70.79,
+-47.88
+],
+"mounting": "Autre",
+"level": null,
+"source": "SBB billetautomat",
+"source_id": "None"
+}
+]

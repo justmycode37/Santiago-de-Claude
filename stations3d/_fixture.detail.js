@@ -115,6 +115,9 @@
     { kind: 'clock', xy: P(23.2, -2.0), heading: ALONG, height: 3.8 },
     { kind: 'statue', xy: P(39.6, 1.5), z: Z(39.6, UP), heading: WEST, height: 4.6, length: 1.6, width: 1.6, name: 'The Unknown Surveyor' },
     { kind: 'statue', xy: P(-2.2, 1.5), heading: ALONG, height: 3.2, length: 1.0, variant: 'obelisk' },
+    // a glass roof over the tram road and the south pavement, with its own columns
+    { kind: 'canopy', ring: [P(5, -9.7), P(29, -9.7), P(32, -6.2), P(29, -2.7), P(5, -2.7), P(2, -6.2)], z: Z(17), height: 6.5, rise: 2,
+      columns: [P(7, -9.0), P(17, -9.0), P(27, -9.0), P(7, -3.2), P(17, -3.2), P(27, -3.2)], name: 'Fixture canopy', source: 'estimate' },
   ];
 
   // a small building given as a mesh: a shed roof falling to the street
