@@ -21,3 +21,6 @@ venv/
 
 # Vercel
 .vercel
+
+# Raw open-data downloads (tools/fetch-raw.sh)
+data/raw/

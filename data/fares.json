@@ -1,0 +1,237 @@
+{
+  "generated": "2026-11-21",
+  "source_checked": "2026-11-21",
+  "scope": "Libero tariff for the City of Bern (zones 100/101), for newcomers. Every value has its own source_url. null = not found.",
+  "price_change_warning": {
+    "text": "National public-transport prices change on 13 Dec 2026 (SBB already shows new Halbtax prices). On 2026-11-21 mylibero.ch still showed only the current Libero prices; re-check all Libero prices after 13 Dec 2026.",
+    "source_url": "https://www.sbb.ch/de/billette-angebote/abos/halbtax.html"
+  },
+  "zones": {
+    "concept": "Libero is zone-based. A ticket is valid for any number of trips, in any direction, inside the zones you paid for, until it expires. Zones crossed twice count once. You buy at least 2 and at most 15 zones; 15+ zones = whole Libero area (yellow and blue zones).",
+    "zone_colours": "Yellow zones: normal Libero tickets. Blue zones overlap with neighbouring tariff networks: Libero tickets are not valid for trips only inside blue zones. Green zones: only Libero season tickets (Abos) are valid, no single tickets or day passes.",
+    "bern_city_zones": "100/101",
+    "bern_city_note": "The Libero Abo and Tageskarte for Bern are sold as 'Zonen 100/101' and cost the same as a 1-2 zone ticket; Bernmobil machines have a quick button 'Einzelbillett Zonen 100 101'.",
+    "not_valid_on": "Single tickets and multi-trip cards are not valid on the Gurtenbahn, Marzilibahn and Matte-Plattform-Lift. Day passes are not valid on the Gurtenbahn (valid on Marzilibahn and Matte lift). Libero tickets are not valid on boats.",
+    "beyond_libero": "For trips out of the Libero area you need a national point-to-point ticket from the last stop inside your zones.",
+    "zone_finder_url": "https://www.mylibero.ch/de/ticketfinder",
+    "zone_map_url": "https://www.mylibero.ch/de/plan-bern",
+    "source_url": "https://www.mylibero.ch/de/faq"
+  },
+  "reduced_fare_means": "Reduced price ('ermässigt') applies with a Halbtax, for children aged 6-15 and for dogs.",
+  "tickets": [
+    {
+      "product": "Kurzstrecke (short trip, max 1.5 km)",
+      "zones": "short trip",
+      "validity_minutes": 30,
+      "price_chf": {
+        "adult_2nd": 3,
+        "adult_1st": null,
+        "reduced_2nd": 2,
+        "reduced_1st": null
+      },
+      "notes": "Available in Bern. Multi-trip card (6 trips): adult 16.20, reduced 10.80. Not valid on Gurtenbahn, Marzilibahn, Matte lift.",
+      "source_url": "https://www.mylibero.ch/de/tickets/kurzstrecke"
+    },
+    {
+      "product": "Einzelbillett (single ticket)",
+      "zones": "1-2 (e.g. 100/101 = city of Bern)",
+      "validity_minutes": 60,
+      "price_chf": {
+        "adult_2nd": 5.2,
+        "adult_1st": 9,
+        "reduced_2nd": 3,
+        "reduced_1st": 5.1
+      },
+      "notes": "Also available undated; undated tickets must be stamped before the trip.",
+      "source_url": "https://www.mylibero.ch/de/tickets/einzelbillette"
+    },
+    {
+      "product": "Tageskarte Bern (day pass)",
+      "zones": "100/101",
+      "validity_minutes": null,
+      "validity": "Day of validation until 05:00 next morning, unlimited trips",
+      "price_chf": {
+        "adult_2nd": 10.4,
+        "adult_1st": 18,
+        "reduced_2nd": 6,
+        "reduced_1st": 10.2
+      },
+      "notes": "Worth it from 2 trips a day (Libero). Also available undated (stamp before use).",
+      "source_url": "https://www.mylibero.ch/de/tickets/tageskarte-bern"
+    },
+    {
+      "product": "Mehrfahrtenkarte (6 single trips)",
+      "zones": "1-2",
+      "validity_minutes": 60,
+      "price_chf": {
+        "adult_2nd": 28.2,
+        "adult_1st": 48.6,
+        "reduced_2nd": 16.2,
+        "reduced_1st": 27.6
+      },
+      "notes": "Card valid 1 year; stamp before each trip. Can be stamped for several people travelling together with the same reduction.",
+      "source_url": "https://www.mylibero.ch/de/tickets/mehrfahrtenkarte"
+    },
+    {
+      "product": "Libero Abo Bern (season ticket)",
+      "zones": "100/101",
+      "price_chf": {
+        "month_adult_2nd": 82,
+        "month_adult_1st": 136,
+        "month_reduced_2nd": 62,
+        "year_adult_2nd": 738,
+        "year_adult_1st": 1224,
+        "year_reduced_2nd": 558
+      },
+      "notes": "Reduced = young people up to 25th birthday, women from 64, men from 65 (2nd class only). No Halbtax discount on Abos. Worth it from about 3 days a week.",
+      "source_url": "https://www.mylibero.ch/de/libero-abo/bern"
+    }
+  ],
+  "children": {
+    "under_6": "free",
+    "age_6_to_15": "reduced price",
+    "junior_karte": "Children under 16 travel free with mother/father (Junior-Karte) or with another accompanying person 16+ (Kinder-Mitfahrkarte); cards sold at any sales point. Price of the cards: null (not on source).",
+    "source_url": "https://www.mylibero.ch/de/faq/tarifinfos"
+  },
+  "where_to_buy": {
+    "apps": [
+      {
+        "name": "SBB Mobile",
+        "check_in_out": true,
+        "source_url": "https://www.mylibero.ch/de/einfach"
+      },
+      {
+        "name": "BLS Mobil",
+        "check_in_out": true,
+        "source_url": "https://www.mylibero.ch/de/einfach"
+      },
+      {
+        "name": "FAIRTIQ",
+        "check_in_out": true,
+        "source_url": "https://www.mylibero.ch/de/einfach"
+      },
+      {
+        "name": "öV Plus (Bernmobil and regional partners)",
+        "check_in_out": null,
+        "payment": "Credit/debit cards, TWINT, Reka-Card, Apple Pay, Samsung Pay, Swisscom Pay; Halbtax PLUS credit",
+        "source_url": "https://www.bernmobil.ch/de/abos-tickets/oev-plus-app"
+      }
+    ],
+    "check_in_out_note": "Check-in/check-out apps charge the cheapest valid fare at the end of the day; you do not need to know zones. Check in BEFORE the vehicle departs, ideally before boarding: checking in after departure counts as travelling without a ticket.",
+    "check_in_out_source_url": "https://www.bernmobil.ch/de/de/abos-tickets/e-ticket",
+    "machines_bernmobil": {
+      "payment": "Swiss francs in coins, all common credit/debit cards (contactless only) and TWINT. No banknotes mentioned.",
+      "cash_accepted": "coins",
+      "notes": "Staff at the Servicecenter (Bubenbergplatz 5) show you how to use a machine, e.g. at Bern Bahnhof Kante L.",
+      "source_url": "https://www.bernmobil.ch/de/abos-tickets/ticketautomaten"
+    },
+    "machines_bls": {
+      "payment": "Cashless since the renewal (Dec 2025 to mid-2026): debit/credit cards, Postcard, Reka Card, TWINT, SwissPass Pay, öV voucher, and an anonymous prepaid card.",
+      "cash_accepted": false,
+      "cash_workaround": "Buy the anonymous prepaid card at any BLS sales point and top it up with cash there.",
+      "source_url": "https://www.bls.ch/de/unternehmen/medien/medienmitteilungen/2025/10-07-erneuerung-automaten"
+    },
+    "staffed_bernmobil": {
+      "name": "BERNMOBIL Servicecenter Info & Tickets (also lost property)",
+      "address": "Bubenbergplatz 5, 3011 Bern",
+      "phone": "031 321 88 44",
+      "opening_hours": "Counter Mon-Fri 09:00-18:00, Sat 09:00-17:00, Sun closed; phone Mon-Fri 09:00-17:00. 23 Nov 2026 (Zibelemärit) 09:00-17:00; 24 and 31 Dec 09:00-17:00; closed 25-26 Dec, 1-2 Jan.",
+      "notes": "Free passport photo when buying a new Abo. Helps with the öV Plus app and the Libero webshop. Cash acceptance at the counter: null (not stated).",
+      "source_url": "https://www.bernmobil.ch/de/abos-tickets/verkaufsstelle"
+    },
+    "webshop": {
+      "url": "https://libero-webshop.ch/de/",
+      "source_url": "https://www.mylibero.ch/de/tickets"
+    },
+    "libero_advice_phone": {
+      "phone": "+41 31 321 82 22",
+      "source_url": "https://www.mylibero.ch/de/verkauf-beratung"
+    }
+  },
+  "fines": {
+    "operator": "BERNMOBIL",
+    "basis": "Number of incidents in the last 2 years.",
+    "without_valid_ticket_chf": {
+      "first": 100,
+      "second": 140,
+      "third": 170,
+      "includes_fare_flat_rate_chf": 10
+    },
+    "partly_valid_ticket_chf": {
+      "first": 75,
+      "second": 115,
+      "third": 145,
+      "includes_fare_flat_rate_chf": 5,
+      "examples": "missing class upgrade, reduced ticket without entitlement (e.g. reduced fare without Halbtax), wrong route"
+    },
+    "extra_chf": {
+      "misuse_false_personal_data_or_running_away": 100,
+      "identity_research_per_15_min": 25,
+      "reminder_after_30_days": 40,
+      "forgery": 200
+    },
+    "payment_terms": "Invoice within 30 days; reminder within 10 days.",
+    "reduced_surcharge_if": "You show a national ticket valid at least between two stops of the route, or a ticket of this or a neighbouring tariff network valid for part of the route.",
+    "source_url": "https://www.bernmobil.ch/de/abos-tickets/fahrausweiskontrolle"
+  },
+  "reduced_fare_options": [
+    {
+      "name": "Halbtax (half-fare card)",
+      "price_chf": {
+        "adult_25plus_new": 190,
+        "adult_25plus_renewal": 170,
+        "youth_16_24_new": 120,
+        "youth_16_24_renewal": 100
+      },
+      "price_from_2026_12_13_chf": {
+        "adult_25plus_new": 195,
+        "adult_25plus_renewal": 175,
+        "youth_16_24_new": 120,
+        "youth_16_24_renewal": 100
+      },
+      "notes": "Gives the reduced Libero price on single tickets, day passes and multi-trip cards. No discount on Libero Abos. Renews automatically (open-ended contract).",
+      "source_url": "https://www.sbb.ch/de/billette-angebote/abos/halbtax.html"
+    },
+    {
+      "name": "Halbtax PLUS",
+      "notes": "Valid for all Libero tickets except multi-trip cards, multi-day passes and Abos.",
+      "price_chf": null,
+      "source_url": "https://www.mylibero.ch/de/faq"
+    },
+    {
+      "name": "KulturLegi",
+      "notes": "The 2025 KulturLegi Kanton Bern flyer lists no public-transport discount. No refugee- or asylum-specific fare found in Bern.",
+      "price_chf": null,
+      "source_url": "https://www.kulturlegi.ch/fileadmin/Media_KuLe/Schweiz/Dokumente/BE_Dokumente/Flyer_mit_Antragsformular_2025.pdf"
+    },
+    {
+      "name": "IV-Libero Stadt Bern",
+      "notes": "Reduced Libero Abo for zones 100/101 for residents of the City of Bern who get an IV (disability) pension, or an AHV pension plus supplementary benefits (EL). Price: null (not on source).",
+      "source_url": "https://www.bernmobil.ch/de/abos-tickets/verguenstigungen"
+    },
+    {
+      "name": "Libero Schnupperabo (trial pass for new residents)",
+      "notes": "Some communes give newcomers a 5-day pass for the whole Libero area, plus CHF 20 off a later Libero Abo. Whether Stadt Bern does: null (ask the commune).",
+      "source_url": "https://www.mylibero.ch/de/faq/tarifinfos"
+    },
+    {
+      "name": "Commune contribution for IV/EL recipients",
+      "notes": "Some communes pay part of the Libero Abo; ask your commune.",
+      "source_url": "https://www.mylibero.ch/de/faq"
+    }
+  ],
+  "rules": [
+    {
+      "text": "You must have a valid ticket before boarding; for e-tickets and check-in, the purchase must be complete before the vehicle actually departs.",
+      "source_url": "https://www.bernmobil.ch/de/abos-tickets/fahrausweiskontrolle"
+    },
+    {
+      "text": "Undated tickets (single, day, multi-trip) must be stamped before the trip.",
+      "source_url": "https://www.mylibero.ch/de/tickets/einzelbillette"
+    },
+    {
+      "text": "A lost or broken SwissPass card is replaced for CHF 30 at a sales point with an official ID.",
+      "source_url": "https://www.mylibero.ch/de/faq"
+    }
+  ]
+}
