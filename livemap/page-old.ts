@@ -105,7 +105,10 @@ async function fetchShapes() {
   } catch { /* straight lines until the next try */ } finally { shapesLoading = false; }
 }
 
+let loading = false;
 async function load() {
+  if (loading) return;
+  loading = true;
   try {
     const res = await fetch("/vehicles");
     if (!res.ok) throw new Error("server answered " + res.status);
@@ -130,12 +133,12 @@ async function load() {
     renderChips();
   } catch (e) {
     fetchError = (e as Error).message;
-  }
+  } finally { loading = false; }
   renderStatus(); dirty = true;
 }
 
 function renderStatus() {
-  if (!vehicles.length && !fetchError) return;
+  if (!fetchedAt && !fetchError) return;
   const shown = vehicles.filter((v) => !hidden.has(v.group));
   const live = shown.filter((v) => v.live > 0).length;
   const age = feedUpdatedAt ? Math.max(0, Math.round(now() - feedUpdatedAt)) : null;
@@ -271,6 +274,7 @@ map.on("load", () => {
   map.addSource("trip", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   map.addLayer({ id: "trip-line", type: "line", source: "trip", filter: ["==", ["get", "kind"], "line"], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#16181d", "line-width": 3.5, "line-opacity": 0.6 } });
   map.addLayer({ id: "trip-stops", type: "circle", source: "trip", filter: ["==", ["get", "kind"], "stop"], paint: { "circle-radius": 3.5, "circle-color": "#fff", "circle-stroke-color": "#16181d", "circle-stroke-width": 1.5 } });
+  if (trip) setTripLine(trip.calls, trip.segments);
 });
 
 function delayCell(sec: number | null | undefined) {
