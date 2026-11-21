@@ -2,6 +2,8 @@
 
 A Swiss community event map and public transport journey planner. Team project for the Powercoders Hackathon.
 
+[Open the live app](https://santiago-de-claude.vercel.app/)
+
 ## Getting started
 
 ```bash
