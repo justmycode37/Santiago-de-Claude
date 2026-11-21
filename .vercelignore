@@ -11,3 +11,6 @@ deploy/
 
 # Development page of the 3D station view
 station3d-dev.html
+
+# Raw screen recordings: kept in the repository, not on the public site
+/demo/*.mov
