@@ -6,7 +6,7 @@ A Swiss community event map and public transport journey planner. Team project f
 
 ## Features
 
-- **Journey planner & live tracking**: Plans Swiss public transport trips (`transport.opendata.ch`) to exact train platforms (Gleis) and bus/tram stop edges (Kante), with live delay/platform updates and GPS route tracking.
+- **Journey planner & live tracking**: Plans Swiss public transport trips with the team's own Kante engine (`kante/`; `transport.opendata.ch` when it is unreachable) to exact train platforms (Gleis) and bus/tram stop edges (Kante), with live delay/platform updates and GPS route tracking.
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo).
 - **Events & amenities**: Shows community events on the map alongside public toilets all over Switzerland and Bern's public amenities and local places.
 - **Camera stop scan**: Menu › **Scan** identifies nearby stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
@@ -45,6 +45,6 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
 
 ## Other components
 
-- [`kante/`](kante/README.md) & [`deploy/`](deploy/README.md) — Rust journey planner engine (not wired into the main app yet) and deployment setup.
+- [`kante/`](kante/README.md) & [`deploy/`](deploy/README.md) — Rust journey planner engine (plans the app's journeys through `engine.js` and `engine-journey.js`) and deployment setup.
 - [`livemap/`](livemap/README.md) — Separate prototype showing live Swiss vehicles on the map.
 - [`docs/`](docs/places-data.md) — Detailed documentation for place and amenity datasets.

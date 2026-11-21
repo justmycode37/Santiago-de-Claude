@@ -1344,6 +1344,7 @@
   <script src="config.js" onerror="void 0"></script>
   <script src="engine.js"></script>
   <script src="engine-departures.js"></script>
+  <script src="engine-journey.js"></script>
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
@@ -2650,6 +2651,7 @@
     const platformLL = (stop, prev, next) => platformAt(stop, prev, next).ll;
     // → { ll, edge (null = only the station is known), travel (bearing of travel or null) }
     function platformAt(stop, prev, next) {
+      if (stop && stop.kante) return KanteJourney.at(stop); // a journey from the Kante engine names the boarding point itself
       const base = coordOf(stop);
       const st = stop && stop.station && PLATFORMS.get(String(stop.station.id));
       const out = (e) => ({ ll: e ? e.ll : base, edge: e || null, travel });
@@ -3074,6 +3076,7 @@
         st.prevRide = steps.slice(0, i).reverse().find((x) => x.type === 'ride');
         st.nextRide = steps.slice(i + 1).find((x) => x.type === 'ride');
       });
+      if (conn.kante) KanteJourney.decorate(steps, conn); // the engine's walks: their path, directions and floor changes
       applyLiveTimes(steps);
       return steps;
     }
@@ -3518,8 +3521,10 @@
       liveBusy = true;
       const before = liveSig();
       try {
+        // a journey from the Kante engine: its trips again from the engine (engine-journey.js)
+        if (conn.kante) await KanteJourney.refresh(todo);
         // ask from the first ride still to come; if the answer goes another way, ask again from the next one missing
-        for (let n = 0; n < 3 && todo.length; n++) {
+        for (let n = 0; n < 3 && todo.length && !conn.kante; n++) {
           const first = todo[0], last = rides[rides.length - 1], dep = new Date(first.departure.departure);
           const params = new URLSearchParams({ from: first.departure.station.id, to: last.arrival.station.id,
             date: dateValue(dep), time: timeValue(dep), limit: '4' });
@@ -3540,6 +3545,8 @@
         liveBusy = false;
       }
       if (id !== journeyReq || liveSig() === before) return;
+      // a platform change moves the boarding point, and with it the lines on the map
+      if (conn.kante) KanteJourney.requay(journeySteps, () => { if (id === journeyReq) { geoVersion++; routeKey = ''; queueSheet(); updateProgress(); } });
       applyLiveTimes(journeySteps);
       renderSheet();
       updatePillTimes();
@@ -3969,7 +3976,7 @@
       const rideNow = rides.some((st) => st.t0 != null && now >= st.t0 && now <= st.t1);
       if (now > end + 120000) act.append(h('span', 'jrow-act gone', 'This journey has ended'));
       else if (lp && lp.kind === 'off') act.append(h('span', 'jrow-act late', lp.parts), kBtn('pill-btn small', null, replan, kIcon('refresh', 16), 'Replan'));
-      else if (lp && (lp.kind === 'gps' || (lp.kind === 'est' && rideNow))) act.append(h('span', 'jrow-act', lp.parts), lp.rest ? h('span', 'jhead-rest', lp.rest) : null);
+      else if (lp && (lp.kind === 'gps' || (lp.kind === 'est' && rideNow))) act.append(h('span', 'jrow-act', lp.parts), lp.rest ? h('span', 'jhead-rest', lp.rest) : '');
       else {
         const a = firstAction(now);
         if (a.text) act.append(h('span', 'jrow-act ' + (a.gone ? 'gone' : a.state), a.text, a.gone ? null : kDelay(a.delay)));
@@ -3997,7 +4004,7 @@
     // Spare time on a change: from getting off to the next departure, less the walk
     function spareLine(st) {
       const wait = (liveMs(st.next.departure, 'departure') - liveMs(st.prev.arrival, 'arrival')) / 1000;
-      const s = wait - (st.walkMin || 0) * 60;
+      const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
       const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
       const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
       return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
@@ -4065,7 +4072,8 @@
         if (bearing != null) arrow.style.transform = `rotate(${bearing}deg)`;
         sign.append(arrow);
       }
-      const side = mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
+      const side = edge && edge.side ? cap(edge.side) // the engine names the street
+        : mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
       const level = edge && edge.level ? `Level ${levelShort(edge.level)}` : '';
       const next = j.passList && j.passList[1] && j.passList[1].station && j.passList[1].station.name;
       let compass = null;
@@ -4613,7 +4621,8 @@
         model = await Station3D.loadData(plan.key);
         route = model && StationRoute.route(model, plan.from, plan.to, s3Prefs(st));
       } catch (e) { route = null; }
-      if (!route || route.points.length < 2 || route.same) return street();
+      // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path
+      if (!route || route.points.length < 2 || route.same) return st.kanteWalk ? null : street();
       const inside = route.points.map((p) => StationRoute.toLngLat(model, p));
       const parts = [], walks = [];
       const join = async (p, q) => { // the stretch between the walk's end and where the model's paths begin
@@ -4656,15 +4665,18 @@
       if (keys3d.size) setTimeout(() => { if (id === journeyReq) keys3d.forEach((k) => Station3D.preload(k)); }, 2500);
       journeySteps.forEach((st) => {
         const plan = (st.lines || []).length ? s3Plan(st) : null;
+        const lines = plan || st.kanteWalk ? [] : st.lines || []; // a walk the Kante engine has routed is already drawn
         if (plan) {
           // through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router
+          // or the engine's path, so the map shows the same way as the 3D view
           task(stationWalk(st, plan), (res) => {
+            if (!res) return;
             st.lines = res.lines;
             st.walks = res.walks;
             st.floors = res.floors;
             queueSheet();
           });
-        } else (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
+        } else lines.forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
           st.lines[k] = res.coords;
           (st.walks || (st.walks = []))[k] = res;
           queueSheet(); // metres and written directions
@@ -4712,6 +4724,9 @@
     // Exact coordinates can fail when a point is far from any stop (e.g. a municipality's centre in the fields),
     // so fall back to the place name and then to the nearest stations at either end.
     async function findConnection(fromLL, r) {
+      // the team's own Kante engine first (engine-journey.js); without an answer from it, the public timetable below
+      const own = window.KanteJourney ? await KanteJourney.find(fromLL, r, journeyQuery) : null;
+      if (own) return own;
       const from = coordParam(fromLL), to = coordParam(r.lngLat);
       let c = await connections(from, to);
       if (c) return c;
