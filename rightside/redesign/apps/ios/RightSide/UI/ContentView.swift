@@ -287,7 +287,8 @@ struct ContentView: View {
             boardingPointID: eligible ? spatialResolution?.boardingPointID : nil,
             serviceExpectation: boardingExpectation(eligible: eligible), route: route, routeEnd: routeEnd,
             boardingStationID: onBoard ? nil : DepartureBoardStop.place(for: ride?.from).flatMap(DepartureStop.id(for:)),
-            offline: active?.overlays.offline ?? false)
+            offline: active?.overlays.offline ?? false,
+            boardingQuayLabel: onBoard ? nil : boardingQuayLabel)
     }
     /// The selected ride plus the other departures listed at its boarding stop, so the camera can tell a
     /// misread of the right display from a different bus or tram, and name the one it sees.
@@ -296,6 +297,12 @@ struct ContentView: View {
         expectation.boardAlternatives = DisplayCandidate.board(departures.snapshot,
             boardingStop: DepartureBoardStop.place(for: ride?.from), now: Date())
         return expectation
+    }
+    /// The planned (or currently assigned) platform / edge label of the ride's boarding call.
+    private var boardingQuayLabel: String? {
+        guard let ride, let callID = ride.raw["boardingCallId"].string,
+              let call = ride.calls.first(where: { $0.id == callID }) else { return nil }
+        return call.raw["currentAssignment"]["label"].string ?? call.raw["plannedAssignment"]["label"].string
     }
     private func loadBoardingDepartures() async {
         guard let stop = DepartureBoardStop.place(for: ride?.from), let id = DepartureStop.id(for: stop) else { return }
