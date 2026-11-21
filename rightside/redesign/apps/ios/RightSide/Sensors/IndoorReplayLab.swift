@@ -831,14 +831,14 @@ private extension IndoorLabRunner {
         let bytes = try IndoorLabFiles.read("vehicle-v2.json", hash: "6fb69405a429b003e1e15792a895549ad8b0e31ce9f180a5695b1bc4f8881133")
         let pack = try JSONDecoder().decode(VehicleLabManifest.self, from: bytes)
         guard pack.version == 1, pack.photos.count == 24, pack.photos.allSatisfy({ p in
-            p.box.count == 4 && p.box.allSatisfy(\.isFinite) && CGRect(x: 0, y: 0, width: 1, height: 1).contains(rect(p.box))
+            p.box.count == 4 && p.box.allSatisfy(\.isFinite) && CGRect(x: 0, y: 0, width: 1, height: 1).encloses(rect(p.box))
         }) else { throw LabError.invalid("Unsupported vehicle comparison") }
         for p in pack.photos { _ = try IndoorLabFiles.read(p.path, hash: p.sha256) }
         let reserveBytes = try IndoorLabFiles.read("vehicle-reserve.json", hash: "7472de7a0f881d89f63a0868bd4e3e476872004cc71a4b83cd1e429fb2a993e2")
         let reserve = try JSONDecoder().decode(VehicleLabManifest.self, from: reserveBytes)
         guard reserve.version == 1, reserve.photos.count == 8,
               reserve.photos.allSatisfy({ $0.box.count == 4 && $0.box.allSatisfy(\.isFinite)
-                  && CGRect(x:0,y:0,width:1,height:1).contains(rect($0.box)) }) else { throw LabError.invalid("Invalid reserved encounter") }
+                  && CGRect(x:0,y:0,width:1,height:1).encloses(rect($0.box)) }) else { throw LabError.invalid("Invalid reserved encounter") }
         for p in reserve.photos { _ = try IndoorLabFiles.read(p.path, hash: p.sha256) }
         let clock = Date(timeIntervalSince1970: 1_800_000_000)
         var variants: [[String: Any]] = []
@@ -967,7 +967,7 @@ private extension IndoorLabRunner {
         guard recording.version == 1, recording.frames.count == 80,
               recording.frames.allSatisfy({ f in f.pts.isFinite && f.pts >= 24 && f.pts < 44
                   && (f.box == nil || (f.box!.count == 4 && f.box!.allSatisfy(\.isFinite)
-                      && CGRect(x:0,y:0,width:1,height:1).contains(rect(f.box!)))) }),
+                      && CGRect(x:0,y:0,width:1,height:1).encloses(rect(f.box!)))) }),
               zip(recording.frames,recording.frames.dropFirst()).allSatisfy({ $0.pts < $1.pts })
         else { throw LabError.invalid("Invalid temporal vehicle contract") }
         let origin = recording.frames[0].pts, clock = Date(timeIntervalSince1970: 1_800_000_000)

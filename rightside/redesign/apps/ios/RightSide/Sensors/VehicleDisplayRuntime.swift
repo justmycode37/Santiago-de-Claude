@@ -66,7 +66,7 @@ final class VehicleDisplayRecognizer {
     /// padding to320 columns, then pixel/127.5-1. No language/route-conditioned transform.
     func makeInput(image: CIImage, region: CGRect) throws -> MLMultiArray {
         guard [region.minX,region.minY,region.width,region.height].allSatisfy(\.isFinite),
-              !region.isEmpty, CGRect(x:0,y:0,width:1,height:1).contains(region) else { throw Failure.invalidPixels }
+              !region.isEmpty, CGRect(x:0,y:0,width:1,height:1).encloses(region) else { throw Failure.invalidPixels }
         let pixels = CGRect(x:image.extent.minX+region.minX*image.extent.width,
             y:image.extent.minY+(1-region.maxY)*image.extent.height,
             width:region.width*image.extent.width,height:region.height*image.extent.height).integral.intersection(image.extent)

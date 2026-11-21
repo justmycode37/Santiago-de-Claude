@@ -125,14 +125,16 @@ kerb side bounded sideways (40 m) and limited to street-level bus/tram edges; "B
 (matched by planned departure) and treats an empty Kante label as none; the street floor baseline is set once
 (the platform floor found after going down no longer doubles the descent); the target marker relabels when the
 edge becomes known; the 2 MB edge pack loads off the main thread and the target is recomputed at most once a
-second. Display bench after the fixes: held-out 74.3 % right vehicles accepted (was 77.1 %, partly from the
-destination-merging bug), 0 % false alarms, 0 % wrong vehicles accepted. Portable checks: 111/111.
+second. Rect-in-rect tests use an explicit containment (`CGRect.encloses`): swift-corelibs' float-exact
+`contains(rect)` had made most text-to-vehicle associations fail in the Linux bench. Display bench after all
+fixes, with true containment: held-out 68.6 % right vehicles accepted, 0 % false alarms, 0 % wrong vehicles
+accepted (original rules: 60 % of right vehicles flagged wrong). Portable checks: 114/114.
 
 ### Validation status — what was and was not run
 
 | Check | Where | Result |
 | --- | --- | --- |
-| Portable logic (`tools/portable-tests`, 111 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
+| Portable logic (`tools/portable-tests`, 114 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
 | Swift 6 strict-concurrency type-check of the portable files | same | pass |
 | Recorded-video benchmark, dev + held-out (`tools/display-bench`) | same + Python/ONNX on PC | see its README |
 | Syntax parse of every changed iOS file | swift-frontend `-parse` | pass |

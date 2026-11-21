@@ -68,6 +68,17 @@ numbers got from a bug: a real competing service had been dropped from the compa
 vehicles accepted, 64.5 % wrong vehicles flagged (225/225 named correctly); held-out 74.3 % accepted, 68.1 %
 flagged (77/77); still 0 % false alarms and 0 % wrong vehicles accepted.
 
+**Rect containment (found while porting the matcher to TypeScript, `src/arcore.ts`):** on Linux, swift-corelibs'
+`CGRect.contains(rect)` compares `union(rect) == self` exactly, so most float boxes failed (dev: 4,710 of 8,725
+truly contained text boxes). The text-to-vehicle association in `read()` therefore rarely passed, and the numbers
+above mostly measured the board path. The app now uses an explicit containment (`CGRect.encloses`, 1e-9 tolerance)
+on every platform, and `run-baseline.sh` applies true containment to the original rules too (`EXACT_CONTAINS=1`
+for the old behaviour). With true containment: dev 63.1 % right vehicles accepted (70/111), 63.9 % wrong vehicles
+flagged (219/219 named); held-out 68.6 % (24/35) and 66.4 % (71/71); 0 % false alarms and 0 % wrong vehicles
+accepted with the board. Without a board, one held-out pass (#120, where a second vehicle fills the later frames)
+is now flagged wrong (2.9 %). Original rules with true containment: right vehicles flagged wrong 43.2 % dev,
+60.0 % held-out.
+
 Per frame on the held-out set, the board matcher names the display correctly in 24 % of frames and wrongly in
 0.9 % (all 8 wrong frames are one pass where a second bus, "19 Blinzern", follows the labelled one). Most other
 frames are honestly unresolved: LED displays blanked by the camera's rolling shutter, side views, adverts.

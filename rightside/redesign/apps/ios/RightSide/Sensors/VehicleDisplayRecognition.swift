@@ -123,7 +123,7 @@ enum VehicleDisplayRecognitionPolicy {
 
     static func associated(_ box: CGRect, detection: VehicleDetection, otherBoxes: [CGRect]) -> Bool {
         guard [box.minX,box.minY,box.width,box.height].allSatisfy(\.isFinite), !box.isEmpty,
-              detection.box.contains(box), !otherBoxes.contains(where: { $0.intersects(box) }) else { return false }
+              detection.box.encloses(box), !otherBoxes.contains(where: { $0.intersects(box) }) else { return false }
         return [CGPoint(x:box.minX,y:box.midY),CGPoint(x:box.midX,y:box.midY),CGPoint(x:box.maxX,y:box.midY)]
             .allSatisfy { detection.mask.contains($0) }
     }

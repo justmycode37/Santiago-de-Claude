@@ -5,6 +5,17 @@ import CoreGraphics
 
 enum TransportClass: String, Codable, CaseIterable { case bus, tram, train }
 
+extension CGRect {
+    /// Whether `other` lies inside this rect, by explicit edge comparison with a small tolerance. Not
+    /// `contains(_ rect:)`: swift-corelibs compares `union(other) == self` exactly, and recomputing width as
+    /// maxX − minX drifts in the last bits, so most float boxes fail (on the recorded bench, 4,710 of 8,725 truly
+    /// contained text boxes). Apple does not document CGRectContainsRect's float behaviour either.
+    func encloses(_ other: CGRect, tolerance: CGFloat = 1e-9) -> Bool {
+        !isNull && !other.isNull && other.minX >= minX - tolerance && other.maxX <= maxX + tolerance
+            && other.minY >= minY - tolerance && other.maxY <= maxY + tolerance
+    }
+}
+
 /// Every rectangle/mask uses upright image coordinates, top-left origin, in [0, 1].
 struct VehicleDetection {
     let kind: TransportClass
@@ -100,7 +111,7 @@ enum VehicleTextRules {
     }
 
     private static func isAssociated(_ text: VehicleText, detection: VehicleDetection, otherBoxes: [CGRect]) -> Bool {
-        guard !text.box.isEmpty, detection.box.contains(text.box),
+        guard !text.box.isEmpty, detection.box.encloses(text.box),
               !otherBoxes.contains(where: { $0.intersects(text.box) }) else { return false }
         let points = [CGPoint(x: text.box.midX, y: text.box.midY), CGPoint(x: text.box.minX, y: text.box.midY), CGPoint(x: text.box.maxX, y: text.box.midY)]
         return points.allSatisfy { detection.mask.contains($0) }

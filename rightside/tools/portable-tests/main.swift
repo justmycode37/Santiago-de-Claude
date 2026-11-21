@@ -451,6 +451,18 @@ do {
     check(refined.y == 0.08 && refined.detected, "still at the starting height: a detected street floor refines the fallback")
 }
 
+// MARK: - Rect containment (float-exact CGRect.contains on Linux)
+
+do {
+    let vehicle = CGRect(x: 0.1, y: 0.2, width: 0.30000000000000004, height: 0.5)
+    let display = CGRect(x: 0.15, y: 0.25, width: 0.1, height: 0.05)
+    check(vehicle.encloses(display), "text box inside a float vehicle box is enclosed")
+    check(!vehicle.encloses(CGRect(x: 0.35, y: 0.25, width: 0.1, height: 0.05)), "text box sticking out is not enclosed")
+    let d = VehicleDetection(kind: .tram, box: vehicle, score: 0.9, mask: VehicleMask(width: 4, height: 4, pixels: [UInt8](repeating: 1, count: 16)))
+    let r = VehicleTextRules.read([VehicleText(text: "9 Wabern", box: display, score: 0.95)], detection: d, otherBoxes: [], at: t0, frameID: UUID())
+    check(r.line == "9" && r.destination == "wabern", "reading inside a float box is associated, got \(r.line ?? "-") \(r.destination ?? "-")")
+}
+
 // MARK: - Geo/AR alignment
 
 struct Rng { var state: UInt64
