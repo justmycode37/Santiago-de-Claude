@@ -17,15 +17,18 @@ A Swiss community event map and public transport journey planner. Team project f
 
 ## Getting started
 
+Needs [Node.js](https://nodejs.org) 22.18 or newer.
+
 ```bash
 git clone https://github.com/justmycode37/Santiago-de-Claude.git
 cd Santiago-de-Claude
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
 
-Open `http://localhost:8000`.
+Open `http://localhost:8000`. `npm run dev` builds the site into `dist/`, serves it and rebuilds when you save a file. The code is TypeScript in `src/`; see [docs/development.md](docs/development.md) for the layout, the build and the checks.
 
-For testing on a phone, run `python3 tools/serve.py` instead (serves gzipped, cached assets) behind HTTPS (e.g. `tailscale serve`) so GPS, camera, and compass work.
+For testing on a phone, run `python3 tools/serve.py` next to it (serves `dist/` gzipped and cached) behind HTTPS (e.g. `tailscale serve`) so GPS, camera, and compass work.
 
 ### Optional configuration
 
@@ -56,4 +59,4 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
 - [`kante/`](kante/README.md) & [`deploy/`](deploy/README.md) — Rust journey planner and live-tracking engine ([live API docs](kante/docs/LIVE-API.md)) and server deployment setup.
 - [`livemap/`](livemap/README.md) — Separate prototype showing live Swiss vehicles on the map.
 - [`docs/`](docs/places-data.md) — Detailed documentation for place and amenity datasets.
-- [`.github/workflows/pages.yml`](.github/workflows/pages.yml) — Publishes the static site to GitHub Pages on pushes to `main`.
+- [`.github/workflows/pages.yml`](.github/workflows/pages.yml) — Builds the site and publishes it to GitHub Pages on pushes to `main`.

@@ -10,7 +10,7 @@
   const CACHE_MAX = 4000; // translations kept on the device, newest first
   const ENDPOINT = 'https://translate.googleapis.com/translate_a/t?client=gtx&sl=en&tl=';
   // Google Translate's target languages (translate.googleapis.com/translate_a/l), code → English name
-  const LANGS = {
+  const LANGS: Record<string, string> = {
     ab: 'Abkhaz', ace: 'Acehnese', ach: 'Acholi', aa: 'Afar', af: 'Afrikaans', sq: 'Albanian', alz: 'Alur',
     am: 'Amharic', ar: 'Arabic', hy: 'Armenian', as: 'Assamese', av: 'Avar', awa: 'Awadhi', ay: 'Aymara',
     az: 'Azerbaijani', ban: 'Balinese', bal: 'Baluchi', bm: 'Bambara', bci: 'Baoulé', ba: 'Bashkir', eu: 'Basque',
@@ -53,17 +53,17 @@
     yua: 'Yucatec Maya', zap: 'Zapotec', zu: 'Zulu',  };
 
   // Google's codes that differ from the standard language tags (for lang="…" and the browser's language names)
-  const TAGS = { iw: 'he', jw: 'jv', 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant', pt: 'pt-BR', 'ndc-ZW': 'ndc' };
-  const tagOf = (code) => TAGS[code] || code;
+  const TAGS: Record<string, string> = { iw: 'he', jw: 'jv', 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant', pt: 'pt-BR', 'ndc-ZW': 'ndc' };
+  const tagOf = (code: string) => TAGS[code] || code;
   // Written right to left. The layout stays as it is; each paragraph takes its own direction (CSS: .tr-rtl).
   const RTL = ['ar', 'iw', 'fa', 'fa-AF', 'ur', 'ps', 'sd', 'ug', 'yi', 'dv', 'ckb', 'pa-Arab', 'ms-Arab', 'bal', 'bm-Nkoo'];
   // A browser language ("de-CH", "zh-Hant-TW", "he") → Google's code, or null
-  function fromTag(t) {
+  function fromTag(t: string | null) {
     if (!t) return null;
     if (LANGS[t]) return t;
     const base = t.split('-')[0].toLowerCase();
     if (base === 'zh') return /hant|-tw|-hk|-mo/i.test(t) ? 'zh-TW' : 'zh-CN';
-    const alias = { he: 'iw', jv: 'jw', nb: 'no', nn: 'no', fil: 'tl', mni: 'mni-Mtei' }[base];
+    const alias = ({ he: 'iw', jv: 'jw', nb: 'no', nn: 'no', fil: 'tl', mni: 'mni-Mtei' } as Record<string, string | undefined>)[base];
     return alias || (LANGS[base] ? base : null);
   }
 
@@ -79,15 +79,17 @@
   const NAME_LABELS = '.place-pin'; // its aria-label is a place name and address
   const ATTRS = ['placeholder', 'aria-label', 'aria-valuetext', 'title', 'alt'];
   const NUM = /(?<![\p{L}\d])\d+(?:[.,:'’]\d+)*(?![\p{L}\d])/gu; // "4", "12:40", "4.7", "1'000"; not the 1 of "S1"
-  const worth = (s) => s.length < 4500 && /\p{L}/u.test(s);
-  const skipped = (el) => !el || !!el.closest(SKIP);
+  const worth = (s: string) => s.length < 4500 && /\p{L}/u.test(s);
+  const skipped = (el: Element | null) => !el || !!el.closest(SKIP);
 
+  /** What a text node or an attribute says in English, what it shows now, and for which language change. */
+  interface Shown { src: string; shown: string; gen: number }
   let gen = 0;                 // goes up when the language changes: work for the old one is dropped
-  const texts = new WeakMap(); // text node → { src: its English, shown: what it shows, gen }
-  const attrs = new WeakMap(); // element → { attribute: { src, shown, gen } }
-  let observer = null;
+  const texts = new WeakMap<Text, Shown>(); // text node → { src: its English, shown: what it shows, gen }
+  const attrs = new WeakMap<Element, Record<string, Shown>>(); // element → { attribute: { src, shown, gen } }
+  let observer: MutationObserver | null = null;
 
-  function visitText(node) {
+  function visitText(node: Text) {
     const rec = texts.get(node);
     let src = node.data;
     if (rec && src === rec.shown) {
@@ -108,18 +110,18 @@
     });
   }
 
-  function visitAttr(el, name) {
+  function visitAttr(el: Element, name: string) {
     const v = el.getAttribute(name);
     let recs = attrs.get(el);
     const rec = recs && recs[name];
-    if (v == null) { if (rec) delete recs[name]; return; }
+    if (v == null) { if (rec) delete recs![name]; return; }
     let src = v;
     if (rec && v === rec.shown) {
       if (rec.gen === gen) return;
       src = rec.src;
     }
     if (lang === 'en' || !worth(src)) {
-      if (rec) delete recs[name];
+      if (rec) delete recs![name];
       if (v !== src) el.setAttribute(name, src);
       return;
     }
@@ -132,39 +134,39 @@
     });
   }
 
-  function visitEl(el) {
+  function visitEl(el: Element) {
     if (!el.matches(NAME_LABELS)) for (const a of ATTRS) if (el.hasAttribute(a)) visitAttr(el, a);
   }
 
   // Every text and label in `root` (a node the app has just added or changed)
-  function scan(root) {
+  function scan(root: Node) {
     if (root.nodeType === Node.TEXT_NODE) {
       const p = root.parentElement;
-      if (!skipped(p) && !p.matches(NAMES)) visitText(root);
+      if (!skipped(p) && !p!.matches(NAMES)) visitText(root as Text);
       return;
     }
-    if (root.nodeType !== Node.ELEMENT_NODE || skipped(root)) return;
-    visitEl(root);
+    if (root.nodeType !== Node.ELEMENT_NODE || skipped(root as Element)) return;
+    visitEl(root as Element);
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (n.nodeType === Node.ELEMENT_NODE && n.matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      acceptNode: (n) => (n.nodeType === Node.ELEMENT_NODE && (n as Element).matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-      if (n.nodeType === Node.ELEMENT_NODE) visitEl(n);
-      else if (!n.parentElement.matches(NAMES)) visitText(n);
+      if (n.nodeType === Node.ELEMENT_NODE) visitEl(n as Element);
+      else if (!n.parentElement!.matches(NAMES)) visitText(n as Text);
     }
   }
 
   // Put the English back everywhere on the page
   function restore() {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-    for (let n = walk.currentNode; n; n = walk.nextNode()) {
+    for (let n: Node | null = walk.currentNode; n; n = walk.nextNode()) {
       if (n.nodeType === Node.TEXT_NODE) {
-        const r = texts.get(n);
-        if (r && n.data === r.shown && n.data !== r.src) n.data = r.src;
+        const r = texts.get(n as Text);
+        if (r && (n as Text).data === r.shown && (n as Text).data !== r.src) (n as Text).data = r.src;
         continue;
       }
-      const recs = attrs.get(n);
-      if (recs) for (const a in recs) if (n.getAttribute(a) === recs[a].shown && recs[a].shown !== recs[a].src) n.setAttribute(a, recs[a].src);
+      const recs = attrs.get(n as Element);
+      if (recs) for (const a in recs) if ((n as Element).getAttribute(a) === recs[a].shown && recs[a].shown !== recs[a].src) (n as Element).setAttribute(a, recs[a].src);
     }
   }
 
@@ -174,7 +176,7 @@
       for (const m of list) {
         if (m.type === 'childList') m.addedNodes.forEach(scan);
         else if (m.type === 'characterData') scan(m.target);
-        else if (!skipped(m.target) && !m.target.matches(NAME_LABELS)) visitAttr(m.target, m.attributeName);
+        else if (!skipped(m.target as Element) && !(m.target as Element).matches(NAME_LABELS)) visitAttr(m.target as Element, m.attributeName!);
       }
     });
     observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
@@ -182,32 +184,32 @@
 
   // English → `lang`. Numbers become {1}, {2}… so "In 3 min" and "In 4 min" are one translation;
   // when the translation loses one of them, the text is translated as it is.
-  function translate(src, cb) {
-    const [, lead, core, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(src);
-    const nums = [];
+  function translate(src: string, cb: (t: string) => void) {
+    const [, lead, core, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(src)!;
+    const nums: string[] = [];
     const masked = core.replace(NUM, (n) => `{${nums.push(n)}}`);
-    const done = (t) => cb(lead + t + trail);
+    const done = (t: string) => cb(lead + t + trail);
     ask(masked, (t) => {
       const out = nums.length ? unmask(t, nums) : t;
       if (out != null) done(out);
       else ask(core, done);
     });
   }
-  function unmask(t, nums) {
+  function unmask(t: string, nums: string[]) {
     for (let i = 1; i <= nums.length; i++) if (t.split(`{${i}}`).length !== 2) return null;
     return t.replace(/\{(\d+)\}/g, (m, i) => nums[i - 1] ?? m);
   }
 
   // ---- Google Translate: texts asked for within 30 ms go in one request; answers are kept on the device ----
-  let cache = new Map();   // English → translation, in `lang`
-  let waiting = new Map(); // English → callbacks, for texts asked for and not answered yet
-  let queue = [];          // English texts not sent yet
+  let cache = new Map<string, string>();   // English → translation, in `lang`
+  let waiting = new Map<string, ((t: string) => void)[]>(); // English → callbacks, for texts asked for and not answered yet
+  let queue: string[] = [];          // English texts not sent yet
   let flushTimer = 0;
   let saveTimer = 0;
   let retryTimer = 0;
   let failed = false;
 
-  function ask(text, cb) {
+  function ask(text: string, cb: (t: string) => void) {
     const t = cache.get(text);
     if (t !== undefined) return cb(t);
     const cbs = waiting.get(text);
@@ -221,7 +223,7 @@
     flushTimer = 0;
     const all = queue;
     queue = [];
-    let batch = [], chars = 0;
+    let batch: string[] = [], chars = 0;
     for (const text of all) {
       if (batch.length && (batch.length >= 100 || chars + text.length > 4500)) { send(batch); batch = []; chars = 0; }
       batch.push(text);
@@ -230,12 +232,12 @@
     if (batch.length) send(batch);
   }
 
-  const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
-  async function send(batch) {
+  const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+  async function send(batch: string[]) {
     const g = gen, w = waiting;
     const body = new URLSearchParams();
     batch.forEach((t) => body.append('q', t));
-    let out;
+    let out: unknown[];
     try {
       const res = await fetch(ENDPOINT + encodeURIComponent(lang), { method: 'POST', body });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -263,7 +265,7 @@
   function loadCache() {
     cache = new Map();
     try {
-      const saved = JSON.parse(localStorage.getItem(CACHE_KEY));
+      const saved = JSON.parse(localStorage.getItem(CACHE_KEY)!);
       if (saved && saved.lang === lang && Array.isArray(saved.items)) cache = new Map(saved.items);
     } catch { /* fetched again */ }
   }
@@ -278,7 +280,7 @@
   }
 
   // Offline or refused: the text stays in English and the page is tried again a little later
-  function setFailed(v) {
+  function setFailed(v: boolean) {
     if (failed === v) return;
     failed = v;
     status.textContent = v ? 'Google Translate can’t be reached right now, so some text is still in English. The app tries again by itself.' : '';
@@ -292,7 +294,7 @@
     gen++;
     waiting = new Map();
     scan(document.body);
-    observer.takeRecords();
+    observer!.takeRecords();
   }
   window.addEventListener('online', retry);
 
@@ -312,31 +314,31 @@
     loadCache();
     observe();
     scan(document.body);
-    observer.takeRecords(); // the changes it just made itself
+    observer!.takeRecords(); // the changes it just made itself
   }
 
   // ---- Settings → Language: a list of every language, with a search ----
-  const page = document.getElementById('settingsPage');
-  const main = page.querySelector('.set-inner');
-  const row = document.getElementById('setLangBtn');
-  const rowValue = document.getElementById('setLangVal');
-  const picker = document.getElementById('langPage');
-  const back = document.getElementById('langBack');
-  const search = document.getElementById('langSearch');
-  const sugHead = document.getElementById('langSugHead');
-  const sugGroup = document.getElementById('langSug');
-  const allHead = document.getElementById('langAllHead');
-  const allGroup = document.getElementById('langAll');
-  const none = document.getElementById('langNone');
-  const status = document.getElementById('langStatus');
+  const page = document.getElementById('settingsPage')!;
+  const main = page.querySelector<HTMLElement>('.set-inner')!;
+  const row = document.getElementById('setLangBtn')!;
+  const rowValue = document.getElementById('setLangVal')!;
+  const picker = document.getElementById('langPage')!;
+  const back = document.getElementById('langBack')!;
+  const search = document.getElementById('langSearch') as HTMLInputElement;
+  const sugHead = document.getElementById('langSugHead')!;
+  const sugGroup = document.getElementById('langSug')!;
+  const allHead = document.getElementById('langAllHead')!;
+  const allGroup = document.getElementById('langAll')!;
+  const none = document.getElementById('langNone')!;
+  const status = document.getElementById('langStatus')!;
   const HASH = '#settings/language';
 
   // The browser's name for language `code` in language `inCode`, or null when it doesn't know it
-  const namers = new Map();
-  function nameOf(code, inCode) {
+  const namers = new Map<string, Intl.DisplayNames | null>();
+  function nameOf(code: string, inCode: string) {
     const loc = tagOf(inCode);
     if (!namers.has(loc)) {
-      let dn = null;
+      let dn: Intl.DisplayNames | null = null;
       try {
         dn = new Intl.DisplayNames([loc], { type: 'language', fallback: 'none' });
         if (dn.resolvedOptions().locale.split('-')[0] !== loc.split('-')[0]) dn = null; // it fell back to another language
@@ -344,21 +346,21 @@
       namers.set(loc, dn);
     }
     try {
-      const n = namers.get(loc) && namers.get(loc).of(tagOf(code));
+      const n = namers.get(loc) && namers.get(loc)!.of(tagOf(code));
       return n ? n.charAt(0).toLocaleUpperCase(loc) + n.slice(1) : null;
     } catch { return null; }
   }
   // A language's name in the app's language, and in its own
-  const label = (code) => (lang === 'en' ? LANGS[code] : nameOf(code, lang) || LANGS[code]);
-  const ownName = (code) => (code === 'en' ? 'English' : nameOf(code, code));
-  const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  const label = (code: string) => (lang === 'en' ? LANGS[code] : nameOf(code, lang) || LANGS[code]);
+  const ownName = (code: string) => (code === 'en' ? 'English' : nameOf(code, code));
+  const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
   function showValue() {
     rowValue.textContent = ownName(lang) || LANGS[lang];
     rowValue.lang = tagOf(lang);
   }
 
-  function rowFor(code, group) {
+  function rowFor(code: string, group: string) {
     const lab = document.createElement('label');
     lab.className = 'set-row lang-row';
     const text = document.createElement('span');
@@ -396,17 +398,17 @@
     return out;
   }
 
-  let listIn = null; // the language the list is written in
+  let listIn: string | null = null; // the language the list is written in
   function renderList() {
     if (listIn === lang) {
-      for (const i of picker.querySelectorAll('.lang-check')) i.checked = i.value === lang;
+      for (const i of picker.querySelectorAll<HTMLInputElement>('.lang-check')) i.checked = i.value === lang;
       return;
     }
     listIn = lang;
     let coll;
     try { coll = new Intl.Collator(tagOf(lang)); } catch { coll = new Intl.Collator('en'); }
     const rows = Object.keys(LANGS).map((c) => rowFor(c, 'all'));
-    const name = (r) => r.querySelector('b').textContent;
+    const name = (r: HTMLElement) => r.querySelector('b')!.textContent;
     rows.sort((a, b) => coll.compare(name(a), name(b)));
     sugGroup.replaceChildren(...suggestions().map((c) => rowFor(c, 'sug')));
     allGroup.replaceChildren(...rows);
@@ -415,8 +417,8 @@
   function filter() {
     const q = fold(search.value.trim());
     let found = 0;
-    for (const r of allGroup.children) {
-      r.hidden = !!q && !r.dataset.find.includes(q);
+    for (const r of allGroup.children as HTMLCollectionOf<HTMLElement>) {
+      r.hidden = !!q && !r.dataset.find!.includes(q);
       if (!r.hidden) found++;
     }
     sugHead.hidden = sugGroup.hidden = !!q;
@@ -461,13 +463,13 @@
     syncPicker();
   }
 
-  function choose(code) {
+  function choose(code: string) {
     if (code === lang || !LANGS[code]) return;
     lang = code;
     try { localStorage.setItem(KEY, code); } catch { /* this visit only */ }
     apply();
     showValue();
-    for (const i of picker.querySelectorAll('.lang-check')) i.checked = i.value === lang;
+    for (const i of picker.querySelectorAll<HTMLInputElement>('.lang-check')) i.checked = i.value === lang;
     clearTimeout(closeTimer);
     closeTimer = setTimeout(() => { if (pickerOpen) closePicker(); }, 350); // a moment to see the tick move
   }
@@ -475,7 +477,7 @@
   row.addEventListener('click', openPicker);
   back.addEventListener('click', closePicker);
   search.addEventListener('input', filter);
-  picker.addEventListener('change', (e) => { if (e.target.classList.contains('lang-check')) choose(e.target.value); });
+  picker.addEventListener('change', (e) => { if ((e.target as HTMLInputElement).classList.contains('lang-check')) choose((e.target as HTMLInputElement).value); });
   picker.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || (e.target === search && search.value)) return; // Escape first clears the search
     e.stopPropagation(); // not the settings page's Escape

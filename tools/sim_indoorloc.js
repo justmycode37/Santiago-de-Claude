@@ -34,7 +34,7 @@ const TRACE = flag('trace');
 globalThis.window = globalThis;
 require(path.join(ROOT, 'stations3d', KEY + '.js'));
 const RAW = globalThis.STATION3D[KEY];
-const SR = require(path.join(ROOT, 'station-route.js'));
+const SR = require(path.join(ROOT, 'src', 'station-route.ts'));   // TypeScript since #16: Node runs it as is
 const M = new I.Model(RAW);
 
 // ------------------------------------------------------------------------------------------- replay a recording

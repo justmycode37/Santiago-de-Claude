@@ -34,7 +34,7 @@
 
   const THREE_URL = 'https://unpkg.com/three@0.170.0/build/three.module.min.js';
   const HASH = '#station3d';
-  const me = document.currentScript;
+  const me = document.currentScript as HTMLScriptElement | null;
   const SRC = (me && me.src) || '';
   const BASE = SRC.replace(/[^/]*(\?.*)?$/, '');
   const BUST = SRC.includes('?') ? SRC.slice(SRC.indexOf('?')) : ''; // a cache-busting query is passed on to what we load
@@ -52,10 +52,10 @@
   try { if (location.hash === HASH) history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
 
   // ---------- small helpers ----------
-  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-  const lerp = (a, b, t) => a + (b - a) * t;
-  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  const reducedMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, text?: string | null): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const reducedMotion = () => !!((window.matchMedia as typeof matchMedia | undefined) && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const isDark = () => document.documentElement.dataset.theme === 'dark';
   const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -64,10 +64,10 @@
   const lowName = (o) => (o && o.kind === 'stop' && !o.ref ? o.name : lowerFirst(o && o.name));
 
   // The app's --spring curve, cubic-bezier(.32,.72,0,1), as a function
-  function bezier(x1, y1, x2, y2) {
+  function bezier(x1: number, y1: number, x2: number, y2: number) {
     const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
     const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
-    return (x) => {
+    return (x: number) => {
       if (x <= 0) return 0;
       if (x >= 1) return 1;
       let t = x;
@@ -81,9 +81,9 @@
     };
   }
   const spring = bezier(.32, .72, 0, 1);
-  const easeInOut = (t) => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const easeInOut = (t: number) => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-  const ICON = {
+  const ICON: Record<string, string> = {
     walk: '<circle cx="13" cy="4.2" r="1.9"/><path d="M10.5 21l1.5-5.5 2.5 2.5v3M8.5 12.5l2.5-4.5 3 1 2 3.5M12 15.5l-1.2-6.5"/>',
     stairs: '<path d="M4 20h5v-5h5v-5h5V5"/>',
     escalator: '<path d="M3 15.5h4.5L15 7h6M3 20h6.5L17 11.5h4"/>',
@@ -119,27 +119,27 @@
     'meeting-point': '<circle cx="12" cy="12" r="2.2"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
     lockers: '<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M5 12h14M14.5 8h.01M14.5 16h.01"/>',
   };
-  const svg = (name, vb) => `<svg viewBox="${vb || '0 0 24 24'}" aria-hidden="true">${ICON[name] || ''}</svg>`;
+  const svg = (name: string, vb?: string) => `<svg viewBox="${vb || '0 0 24 24'}" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
-  const levelShort = (l) => { const a = String(Math.round(Math.abs(l) * 10) / 10); return l < 0 ? '−' + a : l > 0 ? '+' + a : '0'; };
-  const nounOf = (mode) => (mode === 'train' || mode === 'cable' || mode === 'cableway' || mode === 'rack' || mode === 'funicular' ? 'Platform' : mode === 'boat' || mode === 'ship' ? 'Pier' : 'Stop');
-  const fmtM = (m) => (m < 7.5 ? 'a few steps' : `${Math.round(m / 5) * 5} m`);
-  const fmtFar = (m) => (m >= 950 ? `${(m / 1000).toFixed(m < 9950 ? 1 : 0)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
-  const fmtSec = (s) => (s < 50 ? `${Math.max(10, Math.round(s / 10) * 10)} s` : `${Math.round(s / 60)} min`);
-  const fmtMin = (s) => (s < 45 ? 'under 1 min' : `${Math.max(1, Math.round(s / 60))} min`);
-  const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60) % 60).padStart(2, '0')}`;
-  const CONN_NOUN = { stairs: 'the stairs', escalator: 'the escalator', ramp: 'the ramp', elevator: 'the lift' };
-  const CONN_WORD = { stairs: 'Stairs', escalator: 'Escalator', ramp: 'Ramp', elevator: 'Lift' };
+  const levelShort = (l: number) => { const a = String(Math.round(Math.abs(l) * 10) / 10); return l < 0 ? '−' + a : l > 0 ? '+' + a : '0'; };
+  const nounOf = (mode: string) => (mode === 'train' || mode === 'cable' || mode === 'cableway' || mode === 'rack' || mode === 'funicular' ? 'Platform' : mode === 'boat' || mode === 'ship' ? 'Pier' : 'Stop');
+  const fmtM = (m: number) => (m < 7.5 ? 'a few steps' : `${Math.round(m / 5) * 5} m`);
+  const fmtFar = (m: number) => (m >= 950 ? `${(m / 1000).toFixed(m < 9950 ? 1 : 0)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
+  const fmtSec = (s: number) => (s < 50 ? `${Math.max(10, Math.round(s / 10) * 10)} s` : `${Math.round(s / 60)} min`);
+  const fmtMin = (s: number) => (s < 45 ? 'under 1 min' : `${Math.max(1, Math.round(s / 60))} min`);
+  const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60) % 60).padStart(2, '0')}`;
+  const CONN_NOUN: Record<string, string> = { stairs: 'the stairs', escalator: 'the escalator', ramp: 'the ramp', elevator: 'the lift' };
+  const CONN_WORD: Record<string, string> = { stairs: 'Stairs', escalator: 'Escalator', ramp: 'Ramp', elevator: 'Lift' };
   // The one rule for comparing platform names is the router's (StationRoute.platformKey); without the router only exact names match
-  const pkey = (r) => (window.StationRoute && window.StationRoute.platformKey ? window.StationRoute.platformKey(r) : String(r == null ? '' : r).toUpperCase().trim());
+  const pkey = (r: string | number | null | undefined) => (window.StationRoute && window.StationRoute.platformKey ? window.StationRoute.platformKey(r) : String(r == null ? '' : r).toUpperCase().trim());
 
   // ---------- loading (everything is lazy) ----------
-  let THREE = null;
-  let threePromise = null;
-  const scriptPromises = new Map();
-  function loadScript(src) {
+  let THREE: ThreeModule = null!;
+  let threePromise: Promise<ThreeModule> | null = null;
+  const scriptPromises = new Map<string, Promise<void>>();
+  function loadScript(src: string) {
     if (!scriptPromises.has(src)) {
-      scriptPromises.set(src, new Promise((resolve, reject) => {
+      scriptPromises.set(src, new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
         s.src = src;
         s.async = true;
@@ -148,17 +148,17 @@
         document.head.appendChild(s);
       }));
     }
-    return scriptPromises.get(src);
+    return scriptPromises.get(src)!;
   }
   function loadThree() {
-    if (!threePromise) threePromise = import(THREE_URL).then((m) => (THREE = m), (e) => { threePromise = null; throw e; });
+    if (!threePromise) threePromise = import(THREE_URL).then((m: ThreeModule) => (THREE = m), (e) => { threePromise = null; throw e; });
     return threePromise;
   }
-  let cssPromise = null;
+  let cssPromise: Promise<void> | null = null;
   function loadCss() {
     if (cssPromise) return cssPromise;
-    const have = [...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => /station3d\.css/.test(l.href));
-    cssPromise = have ? Promise.resolve() : new Promise((resolve, reject) => {
+    const have = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].some((l) => /station3d\.css/.test(l.href));
+    cssPromise = have ? Promise.resolve() : new Promise<void>((resolve, reject) => {
       const l = document.createElement('link');
       l.rel = 'stylesheet';
       l.href = BASE + 'station3d.css' + BUST;
@@ -169,12 +169,12 @@
     });
     return cssPromise;
   }
-  function loadModel(key) {
+  function loadModel(key: string) {
     const have = () => window.STATION3D && window.STATION3D[key];
-    if (have()) return Promise.resolve(have());
+    if (have()) return Promise.resolve(have()!);
     return loadScript(BASE + 'stations3d/' + key + '.js' + BUST).then(() => {
       if (!have()) throw new Error('No model "' + key + '"');
-      return have();
+      return have()!;
     });
   }
   function loadRouter() {
@@ -185,7 +185,7 @@
   // Detail scenes (stations3d/DETAIL.md): a short stretch drawn with everything you would recognise on the spot.
   // Which stations have one is in a tiny manifest, loaded with the model (and not missed if it is not there); the
   // renderer and the scene itself are loaded only when a walk or the eye comes near.
-  let detailIndexPromise = null;
+  let detailIndexPromise: Promise<Record<string, StationDetailIndexEntry>> | null = null;
   function loadDetailIndex() {
     if (!detailIndexPromise) {
       detailIndexPromise = (window.STATION3D_DETAIL_INDEX ? Promise.resolve() : loadScript(BASE + 'stations3d/detail-index.js' + BUST))
@@ -193,25 +193,31 @@
     }
     return detailIndexPromise;
   }
-  function loadDetail(entry, key) {
+  function loadDetail(entry: StationDetailIndexEntry, key: string) {
     const have = () => (window.Station3DDetail && window.STATION3D_DETAIL && window.STATION3D_DETAIL[key]) || null;
     if (have()) return Promise.resolve(have());
     return Promise.all([window.Station3DDetail ? null : loadScript(BASE + 'station3d-detail.js' + BUST), loadScript(BASE + entry.file + BUST)]).then(have, () => null);
   }
-  const inBB = (b, x, y, m) => x >= b[0] - m && x <= b[2] + m && y >= b[1] - m && y <= b[3] + m;
+  const inBB = (b: Box4, x: number, y: number, m: number) => x >= b[0] - m && x <= b[2] + m && y >= b[1] - m && y <= b[3] + m;
 
   // ---------- model helpers ----------
-  const toLocal = (model, ll) => {
+  /** A point of which only x and y are read: an XY or an XYL. */
+  type Pt = readonly [x: number, y: number, ...rest: number[]];
+  type Box4 = [x0: number, y0: number, x1: number, y1: number];
+  /** A rectangle at any angle: its centre, the direction of its long axis, its half sizes. */
+  interface Obb { cx: number; cy: number; ux: number; uy: number; hw: number; hh: number }
+  interface Nearest { x: number; y: number; d: number; dx: number; dy: number; i: number; t: number }
+  const toLocal = (model: StationModel, ll: LngLat): XY => {
     const [lng0, lat0] = model.origin;
     return [(ll[0] - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180), (ll[1] - lat0) * 110540];
   };
-  const toLngLat = (model, xy) => {
+  const toLngLat = (model: StationModel, xy: Pt): LngLat => {
     const [lng0, lat0] = model.origin;
     return [lng0 + xy[0] / (111320 * Math.cos(lat0 * Math.PI / 180)), lat0 + xy[1] / 110540];
   };
 
-  function cleanRing(ring, ccw) {
-    const out = [];
+  function cleanRing(ring: readonly Pt[] | null | undefined, ccw: boolean) {
+    const out: XY[] = [];
     for (const p of ring || []) {
       const q = out[out.length - 1];
       if (!q || Math.abs(q[0] - p[0]) > 1e-3 || Math.abs(q[1] - p[1]) > 1e-3) out.push([p[0], p[1]]);
@@ -226,7 +232,7 @@
     if ((area > 0) !== ccw) out.reverse();
     return out;
   }
-  function inRing(ring, x, y) {
+  function inRing(ring: readonly Pt[], x: number, y: number) {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
@@ -234,22 +240,22 @@
     }
     return inside;
   }
-  function hull(points) {
+  function hull(points: XY[]) {
     const p = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     if (p.length < 3) return p;
-    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-    const lower = [];
+    const cross = (o: XY, a: XY, b: XY) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lower: XY[] = [];
     for (const q of p) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop(); lower.push(q); }
-    const upper = [];
+    const upper: XY[] = [];
     for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop(); upper.push(q); }
     upper.pop(); lower.pop();
     return lower.concat(upper);
   }
   // The smallest rectangle (at any angle) around some points: { cx, cy, ux, uy (long axis), hw, hh (half sizes) }
-  function obb(points) {
+  function obb(points: XY[]): Obb {
     const h = hull(points);
-    let best = null;
-    const tryDir = (ux, uy) => {
+    let best = null as { area: number; ux: number; uy: number; a0: number; a1: number; b0: number; b1: number } | null;
+    const tryDir = (ux: number, uy: number) => {
       let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
       for (const p of h) {
         const a = p[0] * ux + p[1] * uy, b = -p[0] * uy + p[1] * ux;
@@ -272,23 +278,23 @@
     if (hh > hw) { [hw, hh] = [hh, hw]; [ux, uy] = [-uy, ux]; }
     return { cx, cy, ux, uy, hw, hh };
   }
-  const boxRing = (b) => { // corners, counter-clockwise
+  const boxRing = (b: Obb): XY[] => { // corners, counter-clockwise
     const vx = -b.uy, vy = b.ux;
     return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([s, t]) => [b.cx + b.ux * b.hw * s + vx * b.hh * t, b.cy + b.uy * b.hw * s + vy * b.hh * t]);
   };
-  const inBox = (b, x, y, m) => {
+  const inBox = (b: Obb, x: number, y: number, m?: number) => {
     const dx = x - b.cx, dy = y - b.cy;
     return Math.abs(dx * b.ux + dy * b.uy) <= b.hw + (m || 0) && Math.abs(-dx * b.uy + dy * b.ux) <= b.hh + (m || 0);
   };
   // Distance from a point to a segment
-  function segDist(x, y, ax, ay, bx, by) {
+  function segDist(x: number, y: number, ax: number, ay: number, bx: number, by: number) {
     const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
     const t = l2 > 1e-9 ? clamp(((x - ax) * dx + (y - ay) * dy) / l2, 0, 1) : 0;
     return Math.hypot(x - ax - dx * t, y - ay - dy * t);
   }
   // Nearest point on an open line (or a closed ring): { x, y, d, dx, dy (direction there) }
-  function nearestOn(line, x, y, closed) {
-    let best = null;
+  function nearestOn(line: readonly Pt[], x: number, y: number, closed?: boolean) {
+    let best: Nearest | null = null;
     const n = line.length;
     for (let i = 0; i < (closed ? n : n - 1); i++) {
       const a = line[i], b = line[(i + 1) % n];
@@ -299,22 +305,39 @@
     }
     return best;
   }
-  const segsCross = (a, b, c, d) => { // do segments a-b and c-d cross?
-    const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const segsCross = (a: Pt, b: Pt, c: Pt, d: Pt) => { // do segments a-b and c-d cross?
+    const o = (p: Pt, q: Pt, r: Pt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
     const o1 = o(a, b, c), o2 = o(a, b, d), o3 = o(c, d, a), o4 = o(c, d, b);
     return ((o1 > 0) !== (o2 > 0)) && ((o3 > 0) !== (o4 > 0));
   };
 
   // Everything derived from a model once: sorted levels, cleaned polygons per level, heights.
-  const prepared = new WeakMap();
-  const SEG = [0, 0]; // scratch: which piece of the level table a level falls in, and how far along it
-  function prepare(model) {
-    if (prepared.has(model)) return prepared.get(model);
+  /** What an area was made from: an area of the model, or a deck of the shell drawn as a plaza. */
+  interface AreaSrc extends Partial<StationArea> { kind: StationArea['kind']; level: number }
+  /** An area as the viewer uses it: its rings cleaned, on the floor it is drawn with. */
+  interface PArea {
+    src: AreaSrc; kind: StationArea['kind']; ring: XY[]; holes: XY[][]; box: Box4;
+    level: number; li: number; order: number; keys: string[]; top: number; topH: number;
+  }
+  /** A floor. `pts` is only there while prepare() runs; `box` and `hull` are filled in by it. */
+  interface PLevel { id: number; z: number; name: string; i: number; areas: PArea[]; pts?: XY[]; box: Box4 | null; hull: XY[]; ceilH: number }
+  interface Prepared {
+    model: StationModel; levels: PLevel[]; n: number;
+    zOf: (level: number) => number; levelOfZ: (z: number) => number;
+    seg: (level: number) => [k: number, t: number];
+    idxOf: (level: number) => number; bracket: (level: number) => [lo: number, hi: number]; floorOfZ: (z: number) => number;
+    decks: Set<StationShell>; core: Obb; near: (level: number) => number;
+    box: Box4; diag: number; zMin: number; zMax: number;
+  }
+  const prepared = new WeakMap<StationModel, Prepared>();
+  const SEG: [k: number, t: number] = [0, 0]; // scratch: which piece of the level table a level falls in, and how far along it
+  function prepare(model: StationModel): Prepared {
+    if (prepared.has(model)) return prepared.get(model)!;
     const levels = (model.levels || []).filter((l) => isFinite(l.id) && isFinite(l.z)).slice().sort((a, b) => a.id - b.id)
-      .map((l, i) => ({ id: l.id, z: l.z, name: l.name || `Level ${l.id}`, i, areas: [], pts: [] }));
-    if (!levels.length) levels.push({ id: 0, z: 0, name: 'Ground', i: 0, areas: [], pts: [] });
+      .map((l, i) => ({ id: l.id, z: l.z, name: l.name || `Level ${l.id}`, i, areas: [], pts: [] } as Partial<PLevel> as PLevel));
+    if (!levels.length) levels.push({ id: 0, z: 0, name: 'Ground', i: 0, areas: [], pts: [] } as Partial<PLevel> as PLevel);
     const n = levels.length;
-    const zOf = (level) => {
+    const zOf = (level: number) => {
       if (n === 1) return levels[0].z + (level - levels[0].id) * 5;
       let k = 0;
       while (k < n - 2 && level > levels[k + 1].id) k++;
@@ -322,63 +345,63 @@
       return a.z + ((level - a.id) / (b.id - a.id)) * (b.z - a.z);
     };
     // the level at a real height (the inverse of zOf)
-    const levelOfZ = (z) => {
+    const levelOfZ = (z: number) => {
       if (n === 1) return levels[0].id + (z - levels[0].z) / 5;
       let k = 0;
       while (k < n - 2 && z > levels[k + 1].z) k++;
       const a = levels[k], b = levels[k + 1];
       return Math.abs(b.z - a.z) < 1e-6 ? a.id : a.id + ((z - a.z) / (b.z - a.z)) * (b.id - a.id);
     };
-    const seg = (level) => {
+    const seg = (level: number) => {
       if (n === 1) { SEG[0] = 0; SEG[1] = level - levels[0].id; return SEG; }
       let k = 0;
       while (k < n - 2 && level > levels[k + 1].id) k++;
       SEG[0] = k; SEG[1] = (level - levels[k].id) / (levels[k + 1].id - levels[k].id);
       return SEG;
     };
-    const idxOf = (level) => {
+    const idxOf = (level: number) => {
       let best = 0;
       for (let k = 1; k < n; k++) if (Math.abs(levels[k].id - level) < Math.abs(levels[best].id - level)) best = k;
       return best;
     };
     // the floors a point at this (maybe fractional) level lies between
-    const bracket = (level) => {
+    const bracket = (level: number): [lo: number, hi: number] => {
       let lo = 0, hi = n - 1;
       for (let k = 0; k < n; k++) { if (levels[k].id <= level + .02) lo = k; }
       for (let k = n - 1; k >= 0; k--) { if (levels[k].id >= level - .02) hi = k; }
       return [Math.min(lo, hi), Math.max(lo, hi)];
     };
     // the floor at or below a real height
-    const floorOfZ = (z) => { let k = 0; for (let i = 0; i < n; i++) if (levels[i].z <= z + .3) k = i; return k; };
+    const floorOfZ = (z: number) => { let k = 0; for (let i = 0; i < n; i++) if (levels[i].z <= z + .3) k = i; return k; };
     const ORDER = { plaza: 0, floor: 1, platform: 2, room: 3 };
-    const wrap = (src, kind, ring, holes, level) => {
+    const wrap = (src: AreaSrc, kind: StationArea['kind'], ring: XY[], holes: XY[][], level: number) => {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const p of ring) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
       const lv = levels[idxOf(level)];
-      const a = { src, kind, ring, holes, box: [x0, y0, x1, y1], level: lv.id, li: lv.i, order: ORDER[kind] == null ? 1 : ORDER[kind], keys: (src.refs || []).map(pkey).filter(Boolean), top: 0, topH: 0 };
+      const a: PArea = { src, kind, ring, holes, box: [x0, y0, x1, y1], level: lv.id, li: lv.i, order: ORDER[kind] == null ? 1 : ORDER[kind], keys: (src.refs || []).map(pkey).filter(Boolean), top: 0, topH: 0 };
       lv.areas.push(a);
-      for (const p of ring) lv.pts.push(p);
+      for (const p of ring) lv.pts!.push(p);
       return a;
     };
     for (const a of model.areas || []) {
       const ring = cleanRing(a.ring, true);
       if (!ring) continue;
-      wrap(a, a.kind, ring, (a.holes || []).map((h) => cleanRing(h, false)).filter(Boolean), a.level || 0);
+      wrap(a, a.kind, ring, (a.holes || []).map((h) => cleanRing(h, false)).filter(Boolean) as XY[][], a.level || 0);
     }
     // A deck in the shell (a bridge, a bus deck) is ground you walk on: draw it as the floor it belongs to
-    const decks = new Set();
+    const decks = new Set<StationShell>();
     for (const sh of model.shell || []) {
       if (sh.kind !== 'deck' || sh.top == null) continue;
       const lv = levels.slice().sort((a, b) => Math.abs(a.z - sh.top) - Math.abs(b.z - sh.top))[0];
       const ring = cleanRing(sh.ring, true);
       if (!ring || Math.abs(lv.z - sh.top) > 2) continue;
-      wrap({ kind: 'plaza', name: sh.name || '', level: lv.id }, 'plaza', ring, (sh.holes || []).map((h) => cleanRing(h, false)).filter(Boolean), lv.id);
+      wrap({ kind: 'plaza', name: sh.name || '', level: lv.id }, 'plaza', ring, (sh.holes || []).map((h) => cleanRing(h, false)).filter(Boolean) as XY[][], lv.id);
       decks.add(sh);
     }
     let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
     for (const lv of levels) {
       lv.areas.sort((a, b) => a.order - b.order);
-      const h = hull(lv.pts);
+      const h = hull(lv.pts!);
       lv.box = null;
       for (const p of h) {
         if (!lv.box) lv.box = [p[0], p[1], p[0], p[1]];
@@ -395,14 +418,14 @@
     const stops = (model.stops || []).filter((s) => s.xy);
     const trains = stops.filter((s) => s.mode === 'train');
     const corePts = (trains.length >= 2 ? trains : stops).map((s) => s.xy);
-    let core;
+    let core: Obb;
     if (corePts.length) {
       core = obb(corePts);
       core.hw = clamp(core.hw + 30, 60, 125);
       core.hh = clamp(core.hh + 30, 45, 85);
     } else core = { cx: (bx0 + bx1) / 2, cy: (by0 + by1) / 2, ux: 1, uy: 0, hw: Math.min(125, (bx1 - bx0) / 2), hh: Math.min(85, (by1 - by0) / 2) };
     const zs = levels.map((l) => l.z);
-    const P = {
+    const P: Prepared = {
       model, levels, n, zOf, levelOfZ, seg, idxOf, bracket, floorOfZ, decks, core,
       near: (level) => levels[idxOf(level)].id,
       box: [bx0, by0, bx1, by1], diag: Math.hypot(bx1 - bx0, by1 - by0), zMin: Math.min(...zs), zMax: Math.max(...zs),
@@ -412,9 +435,9 @@
   }
 
   // Which area is at (x, y) on level index li? Platforms and rooms win over the floor they stand on.
-  function areaAt(P, li, x, y) {
+  function areaAt(P: Prepared, li: number, x: number, y: number) {
     const lv = P.levels[li];
-    let hit = null;
+    let hit: PArea | null = null;
     for (const a of lv.areas) {
       if (x < a.box[0] || x > a.box[2] || y < a.box[1] || y > a.box[3]) continue;
       if (!inRing(a.ring, x, y) || a.holes.some((h) => inRing(h, x, y))) continue;
@@ -422,13 +445,27 @@
     }
     return hit;
   }
-  const inArea = (a, x, y) => x >= a.box[0] && x <= a.box[2] && y >= a.box[1] && y <= a.box[3] && inRing(a.ring, x, y) && !a.holes.some((h) => inRing(h, x, y));
+  const inArea = (a: PArea, x: number, y: number) => x >= a.box[0] && x <= a.box[2] && y >= a.box[1] && y <= a.box[3] && inRing(a.ring, x, y) && !a.holes.some((h) => inRing(h, x, y));
 
   // ---------- colours of the model, per theme ----------
   // The calm look of a 3D city map: warm cream ground, soft beige blocks with lighter tops, a pale sky, and one
   // saturated colour, kept for the route: blue. Everything the scene draws takes its colour from here.
   // level(): the plate of a floor (ground you do not walk on); [colour, amount] pairs are mixed into it.
-  const THEME = {
+  type Mix = [colour: string, amount: number];
+  interface Theme {
+    level: (id: number) => string;
+    plateSide: Mix; contact: Mix; glass: Mix; shaft: Mix;
+    band: [string, string];
+    floor: string; plaza: string; platform: string; platformSide: string; room: string; roomSide: string;
+    wall: string; wallBase: string; wallTop: string; ceil: string; lamp: string; lampGlow: string;
+    shell: string; shellSide: string; ground: string; green: string; bed: string; rail: string; safety: string;
+    stairs: string; riser: string; ramp: string; tread: string; cab: string; door: string; frame: string;
+    strip: string; closed: string; line: string;
+    route: string; casing: string; chevron: string; dim: string; done: string; glow: string;
+    hemiSky: string; hemiGround: string; fogIn: string; fogOut: string; text: string;
+    shellAlpha: number; lineOpacity: number; shellLine: number; plateLine: number; hemi: number; sun: number; shadow: number;
+  }
+  const THEME: Record<'light' | 'dark', Theme> = {
     light: {
       level: (id) => (id <= -2 ? '#D9D3C6' : id < 0 ? '#E3DED2' : id < 1 ? '#EEEAE0' : id < 2 ? '#F1EEE6' : '#F4F1EA'),
       plateSide: ['#8E8676', .5],
@@ -464,43 +501,67 @@
   // metres above that level and a height ho that is scaled (rooms and buildings are lower in the model view).
   // Heights on screen come from a table with one entry per floor (the "shape"): real heights for the flat plan and
   // the first-person view, evenly spread ones when the floors are peeled apart.
-  function Geo() { this.p = []; this.lf = []; this.ho = []; this.c = []; this.uv = []; }
-  Geo.prototype.tri = function (a, b, c, col) {
+  /** A vertex: model x / y, its level, metres above the level, a height that is scaled with the model. */
+  type Vtx = [x: number, y: number, level: number, yo: number, ho?: number];
+  type RGBA = [r: number, g: number, b: number, a: number];
+  /** The shape of the model: the display height of every floor (see createViewer). */
+  interface Shape { P: Prepared | null; tab: number[]; dtab: number[]; Hs: number }
+  /** What build() leaves on a geometry, so that stretch() can move its heights. */
+  interface GeoData { lk: Uint8Array; lt: Float32Array; yo: Float32Array; ho: Float32Array; normals: boolean }
+  interface Geo {
+    p: number[]; lf: number[]; ho: number[]; c: number[]; uv: number[];
+    tri(a: Vtx, b: Vtx, c: Vtx, col?: RGBA | null): void;
+    quad(a: Vtx, b: Vtx, c: Vtx, d: Vtx, col?: RGBA | null): void;
+    quadUV(a: Vtx, b: Vtx, c: Vtx, d: Vtx, uv: number[]): void;
+    quadGrad(a: Vtx, b: Vtx, c: Vtx, d: Vtx, c0: RGBA, c1: RGBA): void;
+    seg(a: Vtx, b: Vtx): void;
+    loop(ring: readonly Pt[], lf: number, yo: number, ho?: number): void;
+    prism(ring: XY[], holes: XY[][] | null | undefined, lf0: number, y0: number, lf1: number, y1: number, top: RGBA | null, side: RGBA | null, h1?: number, down?: boolean): void;
+    ribbon(line: readonly Pt[], half: number, lfs: number | number[], yo: number, col: RGBA, off?: number): void;
+    box(cx: number, cy: number, half: number, lf0: number, y0: number, lf1: number, y1: number, col: RGBA, top?: RGBA): XY[];
+    block(cx: number, cy: number, dx: number, dy: number, w: number, d: number, lf: number, y0: number, y1: number, col: RGBA, top?: RGBA): XY[];
+    count(): number;
+    build(SH: Shape, normals?: boolean): THREE.BufferGeometry;
+  }
+  /** Geo is a constructor function: `new (Geo as GeoCtor)()`. */
+  type GeoCtor = { new (): Geo; (this: Geo): void };
+  function Geo(this: Geo) { this.p = []; this.lf = []; this.ho = []; this.c = []; this.uv = []; }
+  Geo.prototype.tri = function (this: Geo, a: Vtx, b: Vtx, c: Vtx, col?: RGBA | null) {
     this.p.push(a[0], a[3], -a[1], b[0], b[3], -b[1], c[0], c[3], -c[1]);
     this.lf.push(a[2], b[2], c[2]);
     this.ho.push(a[4] || 0, b[4] || 0, c[4] || 0);
     if (col) this.c.push(col[0], col[1], col[2], col[3], col[0], col[1], col[2], col[3], col[0], col[1], col[2], col[3]);
   };
-  Geo.prototype.quad = function (a, b, c, d, col) { this.tri(a, b, c, col); this.tri(a, c, d, col); };
+  Geo.prototype.quad = function (this: Geo, a: Vtx, b: Vtx, c: Vtx, d: Vtx, col?: RGBA | null) { this.tri(a, b, c, col); this.tri(a, c, d, col); };
   // a quad with a picture on it: a bottom left, b bottom right, c top right, d top left; uv = [u0, v0, u1, v1]
-  Geo.prototype.quadUV = function (a, b, c, d, uv) {
+  Geo.prototype.quadUV = function (this: Geo, a: Vtx, b: Vtx, c: Vtx, d: Vtx, uv: number[]) {
     this.tri(a, b, c); this.tri(a, c, d);
     this.uv.push(uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[1], uv[2], uv[3], uv[0], uv[3]);
   };
   // a quad that fades: a, b in colour c0, c and d in colour c1
-  Geo.prototype.quadGrad = function (a, b, c, d, c0, c1) {
+  Geo.prototype.quadGrad = function (this: Geo, a: Vtx, b: Vtx, c: Vtx, d: Vtx, c0: RGBA, c1: RGBA) {
     this.tri(a, b, c); this.tri(a, c, d);
     for (const k of [c0, c0, c1, c0, c1, c1]) this.c.push(k[0], k[1], k[2], k[3]);
   };
-  Geo.prototype.seg = function (a, b) { // for LineSegments
+  Geo.prototype.seg = function (this: Geo, a: Vtx, b: Vtx) { // for LineSegments
     this.p.push(a[0], a[3], -a[1], b[0], b[3], -b[1]);
     this.lf.push(a[2], b[2]);
     this.ho.push(a[4] || 0, b[4] || 0);
   };
-  Geo.prototype.loop = function (ring, lf, yo, ho) {
+  Geo.prototype.loop = function (this: Geo, ring: readonly Pt[], lf: number, yo: number, ho?: number) {
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], b = ring[(i + 1) % ring.length];
       this.seg([a[0], a[1], lf, yo, ho], [b[0], b[1], lf, yo, ho]);
     }
   };
-  function triangulate(ring, holes) {
+  function triangulate(ring: XY[], holes?: XY[][] | null) {
     const V2 = THREE.Vector2;
     const c = ring.map((p) => new V2(p[0], p[1]));
     const hs = (holes || []).map((h) => h.map((p) => new V2(p[0], p[1])));
     const all = c.concat(...hs);
-    let faces;
+    let faces: number[][];
     try { faces = THREE.ShapeUtils.triangulateShape(c, hs); } catch (e) { return []; }
-    const out = [];
+    const out: [THREE.Vector2, THREE.Vector2, THREE.Vector2][] = [];
     for (const f of faces) {
       const a = all[f[0]], b = all[f[1]], d = all[f[2]];
       if (!a || !b || !d) continue;
@@ -512,15 +573,15 @@
   }
   // Extruded polygon: a top cap at (lf1, y1 [, h1]) and walls down to (lf0, y0). No bottom: the camera never goes below.
   // down = true turns the cap to face down (a ceiling).
-  Geo.prototype.prism = function (ring, holes, lf0, y0, lf1, y1, top, side, h1, down) {
+  Geo.prototype.prism = function (this: Geo, ring: XY[], holes: XY[][] | null | undefined, lf0: number, y0: number, lf1: number, y1: number, top: RGBA | null, side: RGBA | null, h1?: number, down?: boolean) {
     if (top) {
       for (const t of triangulate(ring, holes)) {
-        const A = [t[0].x, t[0].y, lf1, y1, h1], B = [t[1].x, t[1].y, lf1, y1, h1], C = [t[2].x, t[2].y, lf1, y1, h1];
+        const A: Vtx = [t[0].x, t[0].y, lf1, y1, h1], B: Vtx = [t[1].x, t[1].y, lf1, y1, h1], C: Vtx = [t[2].x, t[2].y, lf1, y1, h1];
         if (down) this.tri(A, C, B, top); else this.tri(A, B, C, top);
       }
     }
     if (!side) return;
-    const wall = (r) => {
+    const wall = (r: XY[]) => {
       for (let i = 0; i < r.length; i++) {
         const a = r[i], b = r[(i + 1) % r.length];
         this.quad([a[0], a[1], lf0, y0], [b[0], b[1], lf0, y0], [b[0], b[1], lf1, y1, h1], [a[0], a[1], lf1, y1, h1], side);
@@ -530,10 +591,10 @@
     (holes || []).forEach(wall);
   };
   // Flat band along a line. lfs[i] is the level at point i; off shifts it sideways (to the left of travel).
-  Geo.prototype.ribbon = function (line, half, lfs, yo, col, off) {
+  Geo.prototype.ribbon = function (this: Geo, line: readonly Pt[], half: number, lfs: number | number[], yo: number, col: RGBA, off?: number) {
     const n = line.length;
     if (n < 2) return;
-    const L = [], R = [];
+    const L: XY[] = [], R: XY[] = [];
     for (let i = 0; i < n; i++) {
       const p = line[i], a = line[Math.max(0, i - 1)], b = line[Math.min(n - 1, i + 1)];
       let dx = b[0] - a[0], dy = b[1] - a[1];
@@ -542,33 +603,33 @@
       L.push([p[0] - dy * ((off || 0) + half), p[1] + dx * ((off || 0) + half)]);
       R.push([p[0] - dy * ((off || 0) - half), p[1] + dx * ((off || 0) - half)]);
     }
-    const lf = (i) => (typeof lfs === 'number' ? lfs : lfs[i]);
+    const lf = (i: number) => (typeof lfs === 'number' ? lfs : lfs[i]);
     for (let i = 0; i < n - 1; i++) {
       this.quad([R[i][0], R[i][1], lf(i), yo], [R[i + 1][0], R[i + 1][1], lf(i + 1), yo], [L[i + 1][0], L[i + 1][1], lf(i + 1), yo], [L[i][0], L[i][1], lf(i), yo], col);
     }
   };
-  Geo.prototype.box = function (cx, cy, half, lf0, y0, lf1, y1, col, top) {
-    const r = [[cx - half, cy - half], [cx + half, cy - half], [cx + half, cy + half], [cx - half, cy + half]];
+  Geo.prototype.box = function (this: Geo, cx: number, cy: number, half: number, lf0: number, y0: number, lf1: number, y1: number, col: RGBA, top?: RGBA) {
+    const r: XY[] = [[cx - half, cy - half], [cx + half, cy - half], [cx + half, cy + half], [cx - half, cy + half]];
     this.prism(r, null, lf0, y0, lf1, y1, top || col, col);
     return r;
   };
   // an upright box of any footprint: centre, direction along its width, width, depth, from y0 to y1 above the level
-  Geo.prototype.block = function (cx, cy, dx, dy, w, d, lf, y0, y1, col, top) {
+  Geo.prototype.block = function (this: Geo, cx: number, cy: number, dx: number, dy: number, w: number, d: number, lf: number, y0: number, y1: number, col: RGBA, top?: RGBA) {
     const px = -dy, py = dx, hw = w / 2, hd = d / 2;
-    const r = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([s, t]) => [cx + dx * hw * s + px * hd * t, cy + dy * hw * s + py * hd * t]);
+    const r: XY[] = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([s, t]) => [cx + dx * hw * s + px * hd * t, cy + dy * hw * s + py * hd * t]);
     this.prism(r, null, lf, y0, lf, y1, top || col, col);
     for (const t of triangulate(r, null)) this.tri([t[0].x, t[0].y, lf, y0], [t[2].x, t[2].y, lf, y0], [t[1].x, t[1].y, lf, y0], col); // underside
     return r;
   };
-  Geo.prototype.count = function () { return this.lf.length; };
+  Geo.prototype.count = function (this: Geo) { return this.lf.length; };
   // → BufferGeometry whose heights can be re-shaped later: y = table(level) + yo + ho × Hs
-  Geo.prototype.build = function (SH, normals) {
+  Geo.prototype.build = function (this: Geo, SH: Shape, normals?: boolean) {
     const g = new THREE.BufferGeometry();
     const pos = new Float32Array(this.p);
     const n = this.lf.length;
     const lk = new Uint8Array(n), lt = new Float32Array(n), ho = new Float32Array(this.ho), yo = new Float32Array(n);
     for (let i = 0; i < n; i++) {
-      const s = SH.P.seg(this.lf[i]);
+      const s = SH.P!.seg(this.lf[i]);
       lk[i] = s[0]; lt[i] = s[1];
       yo[i] = pos[i * 3 + 1];
     }
@@ -579,8 +640,8 @@
     stretch(g, SH, true);
     return g;
   };
-  function stretch(g, SH, finish) {
-    const { lk, lt, yo, ho, normals } = g.userData;
+  function stretch(g: THREE.BufferGeometry, SH: Shape, finish?: boolean) {
+    const { lk, lt, yo, ho, normals } = g.userData as GeoData;
     const pos = g.attributes.position;
     const a = pos.array, tab = SH.tab, dtab = SH.dtab, Hs = SH.Hs;
     for (let i = 0; i < lk.length; i++) a[i * 3 + 1] = tab[lk[i]] + lt[i] * dtab[lk[i]] + yo[i] + ho[i] * Hs;
@@ -594,7 +655,8 @@
   // One staircase / escalator / ramp, following its line. Levels on the line may be fractional.
   // Each kind reads as what it is: stairs have treads and handrails, an escalator has glass sides, steps and arrows
   // the way it runs, a ramp shows its slope. glow = the one the route takes: a soft sleeve along its sides.
-  function addConnector(g, ln, P, c, col, glow) {
+  type ConnCols = Record<'stairs' | 'riser' | 'ramp' | 'tread' | 'glass' | 'shaft' | 'cab' | 'door' | 'frame' | 'arrow', RGBA>;
+  function addConnector(g: Geo, ln: Geo, P: Prepared, c: StationSlopeConnector, col: ConnCols, glow?: boolean) {
     const w = clamp((c.width || 2.2), 1.2, 9) / 2;
     const line = c.line;
     for (let i = 0; i < line.length - 1; i++) {
@@ -603,10 +665,10 @@
       const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
       if (len < 0.05) continue;
       const dx = (q[0] - p[0]) / len, dy = (q[1] - p[1]) / len;
-      const at = (u, s, lf, yo) => [p[0] + dx * u * len - dy * s * w, p[1] + dy * u * len + dx * s * w, lf, yo];
+      const at = (u: number, s: number, lf: number, yo: number): Vtx => [p[0] + dx * u * len - dy * s * w, p[1] + dy * u * len + dx * s * w, lf, yo];
       const lp = p[2], lq = q[2];
       const rise = P.zOf(lq) - P.zOf(lp); // metres, to tell real stairs from a flat piece
-      const lAt = (u) => lp + (lq - lp) * u;
+      const lAt = (u: number) => lp + (lq - lp) * u;
       ln.seg(at(0, -1, lp, .05), at(1, -1, lq, .05));
       ln.seg(at(0, 1, lp, .05), at(1, 1, lq, .05));
       const rails = () => { // a handrail on posts along both sides
@@ -655,12 +717,12 @@
     }
   }
   // A lift: a glass shaft with the car inside, and on every floor a door in a frame on the side people come from.
-  function addLift(g, ln, P, c, col, faces) {
+  function addLift(g: Geo, ln: Geo, P: Prepared, c: StationElevator, col: ConnCols, faces?: Map<number, XY> | null) {
     const ls = c.levels.slice().sort((a, b) => a - b), x = c.xy[0], y = c.xy[1];
     for (const l of ls) {
       g.box(x, y, 1.0, l, 0, l, 2.3, col.cab);
       const f = (faces && faces.get(l)) || [0, -1], tx = -f[1], ty = f[0];
-      const at = (a, d, yo) => [x + f[0] * (1.32 + d) + tx * a, y + f[1] * (1.32 + d) + ty * a, l, yo];
+      const at = (a: number, d: number, yo: number): Vtx => [x + f[0] * (1.32 + d) + tx * a, y + f[1] * (1.32 + d) + ty * a, l, yo];
       g.quad(at(-1.0, 0, 0), at(1.0, 0, 0), at(1.0, 0, 2.5), at(-1.0, 0, 2.5), col.frame);
       g.quad(at(-.72, .02, 0), at(.72, .02, 0), at(.72, .02, 2.15), at(-.72, .02, 2.15), col.door);
       ln.seg(at(0, .04, 0), at(0, .04, 2.15));
@@ -673,8 +735,10 @@
 
   // The walking route as a tube along its points. Its width is set on screen by the shader, so only the
   // centre line, the direction around it and the distance along are stored.
-  function smoothPath(points) {
-    const out = [];
+  /** A point of the drawn line. o: the index of the route point it is (or -1); g: metres it is lifted onto a detail scene's ground. */
+  interface SmoothPt { x: number; y: number; l: number; o: number; g?: number }
+  function smoothPath(points: XYL[]) {
+    const out: SmoothPt[] = [];
     const n = points.length;
     for (let i = 0; i < n; i++) {
       const c = points[i];
@@ -773,45 +837,228 @@
     }`;
 
   // ---------- events for the page that embeds the viewer ----------
-  const listeners = {};
-  function emit(name, detail) {
-    (listeners[name] || []).slice().forEach((fn) => { try { fn(detail); } catch (e) { console.error(e); } });
+  type Listener<K extends keyof Station3DEventMap> = (detail: Station3DEventMap[K]) => void;
+  // every list holds listeners of its own event: emit() hands them that event's detail
+  const listeners: Record<string, Listener<never>[] | undefined> = {};
+  function emit<K extends keyof Station3DEventMap>(name: K, detail?: Station3DEventMap[K]) {
+    (listeners[name] || []).slice().forEach((fn) => { try { fn(detail as never); } catch (e) { console.error(e); } });
   }
 
+  // The router's types (src/types/station-route.d.ts), under the short names this file uses
+  type Router = StationRouteApi;
+  type Route = StationRouteResult;
+  type RouteStep = StationRouteStep;
+  type RouteEnd = Station3DEndpoint;
+  type RoutePrefs = StationRoutePrefs;
+  type EndStop = StationRouteStopRef;
+  /** Anything that can be closed for a while: an area, a connector, a stop, an entrance, an edge. */
+  type Closable = { closed?: StationClosure | boolean | null; note?: string } | null | undefined;
+  /** A plane that is taken out of a detail scene's ground: metres above the floor at (x, y) = c + a x + b y. */
+  interface Tilt { a: number; b: number; c: number }
+  /** The detail scene of a station: its manifest entry, its data, the renderer's handle, and how it is shown. */
+  interface DetailState {
+    entry: StationDetailIndexEntry | null; data: StationDetailModel | null; h: Station3DDetailHandle | null;
+    loading: boolean; show: boolean; bird: boolean; li: number; y0: number; add: number; k: number;
+    shellBox: Box4 | null; tilt: Tilt | null;
+  }
+  /** Something of the scene that is given back when the scene is cleared. */
+  interface Tracked { geometry?: THREE.BufferGeometry; material?: THREE.Material & { map?: THREE.Texture | null }; parent?: THREE.Object3D | null }
+  /** The events on() listens for. */
+  type Ev = HTMLElementEventMap & DocumentEventMap & WindowEventMap & { webglcontextlost: Event; webglcontextrestored: Event };
+  type StateKind = 'loading' | Station3DErrorCode;
+  /** What the public API holds of the open viewer. */
+  interface Viewer {
+    alive: boolean; ready: boolean; opts: Station3DOpenOptions;
+    boot(instant?: boolean): void;
+    destroy(instant?: boolean): void;
+    setUser(u: Station3DUser | null): void;
+    select(i: number): void;
+    setFollow(b: boolean): void;
+    enableCompass(): Promise<Station3DCompass>;
+    setPov(b: boolean): void;
+    setPeel(v: number): void;
+    orient(e: Station3DOrientation): void;
+    depth(): number;
+    back(): boolean;
+    debug(): Record<string, unknown>;
+  }
+  /** A wall segment, or a walking edge, on one floor. */
+  type Seg4 = [ax: number, ay: number, bx: number, by: number];
+  /** What the route uses of the model. */
+  interface Analysis {
+    routed: boolean; same: boolean; levels: Set<number>; shown: number[]; conn: Set<StationConnector>; areas: Set<PArea>;
+    /** The plate: one box around the whole route. */
+    box: Obb | null;
+    /** Per piece of the route: the connector it runs on, and whether it has no floor under it. */
+    segConn: (StationConnector | null)[]; float: boolean[];
+  }
+  /** What to call an end of the route, and what is known about it. */
+  interface EndInfo {
+    kind: 'free' | 'stop' | 'named' | 'entrance' | 'label'; name: string; ref: string; noun: string; sector: string;
+    dist: number; far: boolean; closed: boolean; note: string;
+    stop?: StationStop; mode?: string; reach?: string; assumed?: string;
+  }
+  /** A point on a platform edge. weak: only guessed from a stop point. */
+  interface EdgePt { x: number; y: number; d: number; weak?: boolean }
+  type PartKind = 'level' | 'plate' | 'conn' | 'shell' | 'foot' | 'strip';
+  type PartMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>;
+  type PartLines = THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  /** One mesh with its outlines, faded as a whole. cut: not drawn, a detail scene stands in its place. */
+  interface Part { mesh: PartMesh; lines: PartLines; op: number; target: number; lineBase: number; gain: number; ghost: boolean; kind: PartKind; cut?: boolean }
+  interface PlatePart extends Part { kind: 'plate'; li: number }
+  interface LevelPart extends Part {
+    kind: 'level'; li: number; has: boolean; plate: PlatePart | null;
+    ceil: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null; walls: PartMesh | null;
+  }
+  interface ConnPart extends Part { kind: 'conn'; lo: number; hi: number; touched: boolean }
+  interface ShellPart extends Part { kind: 'shell'; shell: 'solid' | 'roof' | 'glass' }
+  interface PartOpts { side?: THREE.Side; noclip?: boolean; ghost?: boolean; grid?: boolean; line?: number }
+  /** Something that only exists when you stand in the model. */
+  type PovThing = THREE.Mesh<THREE.BufferGeometry, THREE.Material> | THREE.LineSegments<THREE.BufferGeometry, THREE.Material>;
   // ---------- one open viewer ----------
-  function createViewer(opts) {
-    const self = { alive: true, ready: false, opts };
-    let model, P, router, route = null, T;
-    let fromEnd = opts.from || null, toEnd = opts.to || null;
+  /** Something of the model that was tapped, or an end of the route as a place in the model. */
+  interface Hit { li: number; level: number; xy: XY; area: PArea | null; stop?: StationStop | null; entrance?: StationEntrance }
+  /** No route, but one place to show. why: the reason there is no route to it. */
+  interface Focus { which: 'to' | 'from'; end: RouteEnd; hit: Hit | null; why: StationRouteWhy | 'no-router' | null }
+  /** "Where to ride": the router's sector times for the start platform, and the sector the route starts in. */
+  interface Ride { times: StationRouteSectorTimes; pick: string; chosen?: boolean }
+  /** What the route takes next, shown as an object: a level change, or a doorway ('portal'). */
+  interface GuideInfo { kind: StationRouteStepKind | 'portal'; step: number; entry: XYL; along0: number; along1: number; icon: string; title: string; sub: string }
+  interface Guide extends GuideInfo {
+    mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; lines: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>; lift: number;
+  }
+  /** A highlighted area or edge. uniform: its opacity is a uniform of its shader. */
+  type Highlight = { li: number; base: number } & ({ mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; uniform?: false } | { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; uniform: true });
+  type SignStyle = 'plat' | 'closed' | 'sides' | 'exit' | 'shop' | 'sector' | 'meet' | 'clock' | 'ticket' | 'stop';
+  /** A sign in the first-person view: what is on its front and its back, where it hangs and which way it faces. */
+  interface Sign {
+    style: SignStyle; text: string; back?: string; x: number; y: number; lf: number; yc: number; dx: number; dy: number; h: number;
+    maxW?: number; thick?: number; one?: boolean; key?: string; keyBack?: string;
+  }
+  interface SignCell { x: number; y: number; w: number; style: SignStyle; text: string }
+  /** Station furniture: boxes and poles, drawn as two instanced meshes. */
+  interface InstBox { x: number; y: number; lf: number; yo: number; sx: number; sy: number; sz: number; dx: number; dy: number; col: THREE.Color }
+  interface InstCyl { x: number; y: number; lf: number; yo: number; r: number; h: number; col: THREE.Color }
+  type InstMesh = THREE.InstancedMesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>;
+  interface Inst { boxes: InstBox[]; cyls: InstCyl[]; box: InstMesh | null; cyl: InstMesh | null }
+  type RouteUniforms = Record<'uPx' | 'uRmin' | 'uA0' | 'uA1' | 'uThin' | 'uProg' | 'uGrow' | 'uSpacing' | 'uPhase' | 'uSquash' | 'uNear' | 'uFogN' | 'uFogF', { value: number }>
+    & Record<'uInk' | 'uDim' | 'uDone', { value: THREE.Color }>;
+  /** The drawn route: one tube geometry, its three meshes, the uniforms they share. D / Dorig: the display distance at
+      each point of the line / of route.points; A: metres along the route at each of route.points. */
+  interface RouteDraw {
+    geo: THREE.BufferGeometry; meshes: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[]; U: RouteUniforms;
+    sm: SmoothPt[]; D: Float32Array; Dorig: Float32Array; total: number; K: number; A: number[];
+  }
+  /** Where the camera looks from: the angle around, the distance, and the point it looks at (tx, level tl, tz). */
+  interface Pose { az: number; dist: number; tx: number; tz: number; tl: number }
+  /** A point in the scene (three.js axes: y up, z = -model y). */
+  type P3 = [x: number, y: number, z: number];
+  /** A sloping piece of the route: its direction on the ground and its length. */
+  type Incline = [dx: number, dy: number, len: number];
+  /** A piece of the route for framing: its points, its slopes, the way it runs. */
+  interface Section { pts: P3[]; inclines: Incline[]; dir: XY | null }
+  /** What bestPose() weighs: az fixes the angle; otherwise the weights say what counts. */
+  interface PoseOpts {
+    az?: number | null; pad: number; inclines?: Incline[]; dir?: XY | null; near?: number | null; axis?: number | null;
+    wFit?: number; wSide?: number; wFront?: number; wCont?: number; wAcross?: number;
+  }
+  /** Something that runs from one value to another over a time (performance.now() milliseconds). */
+  interface Anim { from: number; to: number; t0: number; dur: number }
+  /** The first-person view: where the eye is, which way the path goes there (bearing), the head (yaw, pitch), how far
+      along the route it stands. device: the phone's compass and tilt turn the head (dB, dP; orient = what it reports). */
+  interface PovState {
+    x: number; y: number; level: number; tx: number; ty: number; tl: number; bearing: number; tb: number; slope: number;
+    yaw: number; pitch: number; along: number; walk: Anim | null; free: boolean; device: boolean; dB: number; dP: number;
+    orient: { b: number; p: number } | null;
+    /** Called once the phone first reports which way it points. */
+    waiting?: (() => void) | null;
+  }
+  /** The live position. sx, sy, sl, salong: the smoothed place that is drawn (null: not drawn yet). outside: too far
+      from the model to be shown (then `far` says how far). x, y, level: where it is, on the route when mode is
+      'route' or 'manual' (then along / pi say where on it). */
+  interface UserState {
+    sx: number | null; sy: number | null; sl: number | null; salong: number | null;
+    snap: StationRouteSnap | null; acc: number; heading: number | null;
+    outside?: boolean; far?: number; mode?: 'approx' | 'route' | 'manual';
+    x?: number; y?: number; level?: number; along?: number | null; pi?: number | null;
+  }
+  /** "I'm here": the step the user says they are at. */
+  interface ManualAt { step: number; pi: number; along: number; point: number[] }
+  /** Safari asks before it reports the orientation. */
+  type DeviceOrientationCtor = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
+  type LabelKind = 'level' | 'isl' | 'stop' | 'sector' | 'ent' | 'poi' | 'shut' | 'start' | 'sign' | 'end' | 'via' | 'beacon' | 'tip' | 'user';
+  /** A label pinned to the model: its element, where it is pinned (x, y, level, lift; ax / ay = the point of the
+      element that sits there), how it competes for room (prio, block, yield, alts) and what kind needs beyond that.
+      x, y and level are unset on the beacon and the user dot, which are placed another way, and on the tip until
+      something is picked. */
+  interface Label {
+    el: HTMLElement; kind: LabelKind; ax: number; ay: number; prio: number; li: number; lift: number;
+    shown: boolean; w: number; h: number; block: boolean; yield: boolean;
+    x: number; y: number; level: number;
+    /** Shown whatever the zoom and the floor / not shown until switched on / never placed off screen. */
+    always?: boolean; on?: boolean; keepIn?: boolean;
+    /** Not shown when a metre is fewer pixels than this. */
+    minPpm?: number;
+    /** Other offsets (pixels) to try when its place is taken. */
+    alts?: number[][];
+    /** Kept on screen, with an arrow to its place when that is out of view / hung below its point when there is no room above. */
+    pin?: boolean; pinned?: boolean; flip?: boolean; below?: boolean;
+    /** A floor name: where it may sit (corners of the plate, points of the floor's outline), and where that is on screen now. */
+    plate?: XY[] | null; rim?: XY[]; want?: boolean; cands?: XY[];
+    /** A platform island: its area, where the edges of its two numbers are, its size lying and upright, how it lies now. */
+    area?: PArea; ends?: [XY, XY] | null; own?: boolean; wc?: number; hc?: number; wr?: number; hr?: number; col?: boolean; rev?: boolean;
+    stop?: StationStop;
+    /** A level change of the route: its step. */
+    step?: number;
+    /** The beacon: what it shows now. */
+    key?: string;
+  }
+  type LabelInit = { kind: LabelKind } & Partial<Omit<Label, 'el' | 'kind'>>;
+  /** What the pointers on the canvas are doing: one finger turns (and peels) or pans, two pinch. */
+  type Gesture =
+    | { mode: 'pan' | 'orbit'; moved: number; t0: number; lt: number; vx: number; vy: number; drift: number; peeled: boolean | null | undefined }
+    | { mode: 'pinch'; moved: number; drift: number; span: number; cx: number; cy: number; peeled?: undefined };
+  /** What is said about a place that was tapped. */
+  interface Described { title: string; sub: string; icon: string; closed: boolean; note: string }
+  /** An end chosen while exploring: the place, and what to call it. */
+  interface ExploreEnd { end: RouteEnd; name: string }
+  /** How a step is selected: where the selection came from, and what must not move because of it. */
+  interface SelectOpts { fromScroll?: boolean; fromPov?: boolean; instant?: boolean; keepCam?: boolean; follow?: boolean }
+  /** An <input type="range"> whose numbers are written as numbers (the browser turns them into strings). */
+  type RangeInput = Omit<HTMLInputElement, 'min' | 'max' | 'step' | 'value'> & Record<'min' | 'max' | 'step' | 'value', string | number>;
+  function createViewer(opts: Station3DOpenOptions): Viewer {
+    const self = { alive: true, ready: false, opts } as Viewer;
+    let model: StationModel, P: Prepared, router: Router | null, route: Route | null = null, T: Theme;
+    let fromEnd: RouteEnd | null = opts.from || null, toEnd: RouteEnd | null = opts.to || null;
     let routeFromExplore = false;
-    let A = { routed: false, same: false, levels: new Set(), shown: [], conn: new Set(), areas: new Set(), box: null, segConn: [] }; // what the route uses
-    let focus = null;    // no route, but one place to show: { which: 'to' | 'from', end, hit, why }
-    let ride = null;     // "where to ride": the router's sector times for the start platform
+    let A = { routed: false, same: false, levels: new Set(), shown: [], conn: new Set(), areas: new Set(), box: null, segConn: [] } as Partial<Analysis> as Analysis; // what the route uses
+    let focus: Focus | null = null;    // no route, but one place to show: { which: 'to' | 'from', end, hit, why }
+    let ride: Ride | null = null;     // "where to ride": the router's sector times for the start platform
     const day = opts.date || (opts.prefs && opts.prefs.date) || undefined; // the day closures are judged for (default: today)
-    let root, topEl, titleEl, subEl, stage, canvas, labelsEl, levelsEl, toolsEl, followBtn, fitBtn, northBtn, chipEl, sheetEl, stepsEl, navEl, stateEl, toastEl, liveEl, creditEl, peelEl;
-    let renderer, scene, camera, sun, hemi, raycaster, ndc, v3, clip = [];
+    let root: HTMLElement, topEl: HTMLElement, titleEl: HTMLElement, subEl: HTMLElement, stage: HTMLElement, canvas: HTMLCanvasElement, labelsEl: HTMLElement, levelsEl: HTMLElement, toolsEl: HTMLElement, followBtn: HTMLButtonElement, fitBtn: HTMLButtonElement, northBtn: HTMLButtonElement, chipEl: HTMLElement, sheetEl: HTMLElement, stepsEl: HTMLOListElement | null | undefined, navEl: HTMLDivElement | null | undefined, stateEl: HTMLElement, toastEl: HTMLElement, liveEl: HTMLElement, creditEl: HTMLElement, peelEl: HTMLDivElement | undefined;
+    let renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, sun: THREE.DirectionalLight, hemi: THREE.HemisphereLight, raycaster: THREE.Raycaster, ndc: THREE.Vector2, v3: THREE.Vector3, clip: THREE.Plane[] = [];
     let W = 1, H = 1;
-    let theme = isDark() ? 'dark' : 'light';
+    let theme: 'light' | 'dark' = isDark() ? 'dark' : 'light';
     // the shape of the model: display height of every floor (SH.tab), from how far the floors are peeled apart
-    const SH = { P: null, tab: [0], dtab: [5], Hs: HS_MODEL };
-    let Yreal = [0], Yspread = [0], tabTo = [0], peel = 0, peelTo = 0, peelAnim = null, peelHome = 1;
+    const SH: Shape = { P: null, tab: [0], dtab: [5], Hs: HS_MODEL };
+    let Yreal = [0], Yspread = [0], tabTo = [0], peel = 0, peelTo = 0, peelAnim: Anim | null = null, peelHome = 1;
     let pov = false, lost = false;
-    const cam = { az: -.6, dist: 300, tx: 0, tz: 0, tl: 0 }; // looks at (tx, level tl, tz); the angle from above follows the peel
-    let tween = null, maxDist = 2000;
+    const cam: Pose = { az: -.6, dist: 300, tx: 0, tz: 0, tl: 0 }; // looks at (tx, level tl, tz); the angle from above follows the peel
+    let tween: { from: Pose; to: Pose; daz: number; t0: number; dur: number } | null = null, maxDist = 2000;
     const spin = { az: 0, x: 0, z: 0 };
     let free = { x0: 0, y0: 0, x1: 1, y1: 1, w: 1, h: 1, cx: .5, cy: .5 };
-    let parts = [];      // everything that fades as a whole: { mesh, lines, op, target, lineBase, gain }
-    let lv3 = [];        // per level: its part, with .plate, .ceil, .walls
-    let conns = [];      // connector groups: { mesh, lines, lo, hi, op, touched }
-    let shellParts = []; // the town and the roofs: { ..., kind: 'solid' | 'roof' | 'glass' }
-    let foot = null;     // outlines of the buildings on the plates (with a route)
-    let strip = null;    // a walkway drawn under route sections that have no floor in the model
-    let povOnly = [];    // things that only exist when you stand in the model: ground, signs, furniture
-    let R = null;        // the route: { geo, meshes, U, D, Dorig, total, sm, steps }
-    let hl = [];         // highlighted areas and edges: { mesh, li, base }
-    let liftFaces = new Map(); // lift → floor → the side its door is on
+    let parts: Part[] = [];      // everything that fades as a whole: { mesh, lines, op, target, lineBase, gain }
+    let lv3: LevelPart[] = [];        // per level: its part, with .plate, .ceil, .walls
+    let conns: ConnPart[] = [];      // connector groups: { mesh, lines, lo, hi, op, touched }
+    let shellParts: ShellPart[] = []; // the town and the roofs: { ..., kind: 'solid' | 'roof' | 'glass' }
+    let foot: Part | null = null;     // outlines of the buildings on the plates (with a route)
+    let strip: Part | null = null;    // a walkway drawn under route sections that have no floor in the model
+    let povOnly: PovThing[] = [];    // things that only exist when you stand in the model: ground, signs, furniture
+    let R: RouteDraw | null = null;        // the route: { geo, meshes, U, D, Dorig, total, sm, steps }
+    let hl: Highlight[] = [];         // highlighted areas and edges: { mesh, li, base }
+    let liftFaces = new Map<StationElevator, Map<number, XY>>(); // lift → floor → the side its door is on
     const gridU = { value: 0 }; // how strongly the floor tiles show (only when you stand on them)
-    let guides = [], activeGuide = null, povArriving = false, beacon = null; // what the route takes next, shown as an object
+    let guides: Guide[] = [], activeGuide: Guide | null = null, povArriving = false, beacon: Label | null = null; // what the route takes next, shown as an object
     // the detail scene of this station, if it has one: { entry (manifest), data, h (the renderer's handle), show, bird }
     const DT = { entry: null, data: null, h: null, loading: false, show: false, bird: false, li: 0, y0: 0, add: 0, k: 0, shellBox: null, tilt: null, marks: [], spot: false };
     let clipHole = [], clipShell = []; // the plain model is cut out where the scene stands
@@ -828,18 +1075,18 @@
     let raf = 0, slowTimer = 0, lastT = 0, lastActivity = 0, shadowDirty = true, grow = null, phase = 0;
     let ro = null, mo = null, toastTimer = 0, scrollTimer = 0, progScroll = 0, openTimer = 0, orientTimer = 0;
     // first-person view: where the eye is (x, y, level), which way the path goes (bearing), the head (yaw, pitch)
-    let povT = 0, povAnim = null, camB = null, fog = null, hudEl = null, miniEl = null, scrubEl = null, hudKey = '', indoorT = 0;
-    const pv = { x: 0, y: 0, level: 0, tx: 0, ty: 0, tl: 0, bearing: 0, tb: 0, slope: 0, yaw: 0, pitch: 0, along: 0, walk: null, free: false, device: false, dB: 0, dP: 0, orient: null };
-    const disposables = [];
-    const offs = [];
-    const on = (el, type, fn, o) => { el.addEventListener(type, fn, o); offs.push(() => el.removeEventListener(type, fn, o)); };
+    let povT = 0, povAnim: Anim | null = null, camB: THREE.PerspectiveCamera = null!, fog: THREE.Fog = null!, hudEl: HTMLElement = null!, miniEl: HTMLCanvasElement = null!, scrubEl: RangeInput | null = null, hudKey = '', indoorT = 0;
+    const pv: PovState = { x: 0, y: 0, level: 0, tx: 0, ty: 0, tl: 0, bearing: 0, tb: 0, slope: 0, yaw: 0, pitch: 0, along: 0, walk: null, free: false, device: false, dB: 0, dP: 0, orient: null };
+    const disposables: Tracked[] = [];
+    const offs: (() => void)[] = [];
+    const on = <K extends keyof Ev>(el: EventTarget, type: K, fn: (e: Ev[K]) => void, o?: boolean | AddEventListenerOptions) => { el.addEventListener(type, fn as EventListener, o); offs.push(() => el.removeEventListener(type, fn as EventListener, o)); };
 
-    const isClosed = (thing) => {
+    const isClosed = (thing: Closable) => {
       if (!thing || thing.closed == null || thing.closed === false) return false;
       if (router && router.isClosed) { try { return !!router.isClosed(thing, day); } catch (e) { return false; } }
       return thing.closed === true;
     };
-    const closedNote = (thing) => (thing && ((thing.closed && thing.closed.note) || thing.note)) || '';
+    const closedNote = (thing: Closable) => (thing && ((thing.closed && (thing.closed as StationClosure).note) || thing.note)) || '';
 
     // ----- DOM -----
     function buildDom() {
@@ -867,7 +1114,7 @@
         <div class="s3-toast" role="status"></div>
         <div class="s3-state" hidden></div>
         <div class="s3-sr" aria-live="polite"></div>`;
-      const q = (s) => root.querySelector(s);
+      const q = <E extends HTMLElement = HTMLElement>(s: string) => root.querySelector<E>(s)!;
       topEl = q('.s3-top'); titleEl = q('.s3-title b'); subEl = q('.s3-title span');
       stage = q('.s3-stage'); labelsEl = q('.s3-labels'); levelsEl = q('.s3-levels'); toolsEl = q('.s3-tools');
       followBtn = q('.s3-follow'); fitBtn = q('.s3-fit'); northBtn = q('.s3-north'); chipEl = q('.s3-chip');
@@ -886,7 +1133,7 @@
       (opts.mount || document.body).appendChild(root);
     }
 
-    function showState(kind) {
+    function showState(kind: StateKind | null) {
       const M = {
         loading: ['', 'Loading the station…'],
         nowebgl: ['3D isn’t available here', 'This browser or device can’t draw 3D graphics. The walking route is still on the map.'],
@@ -895,7 +1142,7 @@
         css: ['The 3D view didn’t load', 'Check your connection, then try again.'],
         broken: ['This station can’t be shown', 'Something in its plan is not as the 3D view expects. The walking route is still on the map.'],
         lost: ['The 3D view is paused', 'Your device took back its graphics memory. The view returns by itself; if it doesn’t, close it and open it again.'],
-      }[kind];
+      }[kind!];
       stateEl.hidden = !M;
       root.classList.toggle('s3-stateon', !!M && kind !== 'loading');
       if (!M) return;
@@ -922,15 +1169,15 @@
         b.onclick = () => api.close();
         stateEl.append(b);
       }
-      if (kind !== 'loading') emit('error', { code: kind, message: M[1] });
+      if (kind !== 'loading') emit('error', { code: kind!, message: M[1] });
     }
-    function toast(text, ms) {
+    function toast(text: string, ms?: number) {
       toastEl.textContent = text;
       toastEl.classList.add('s3-show');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => toastEl.classList.remove('s3-show'), ms || 3200);
     }
-    const say = (text) => { liveEl.textContent = text; };
+    const say = (text: string | null) => { liveEl.textContent = text; };
 
     // ----- WebGL -----
     function initGL() {
@@ -980,7 +1227,7 @@
         request();
       });
     }
-    function setClip(b) {
+    function setClip(b: Obb | null) {
       if (!b) { for (const p of clip) { p.normal.set(1, 0, 0); p.constant = 1e7; } return; }
       const cu = b.cx * b.ux + b.cy * b.uy, cv = -b.cx * b.uy + b.cy * b.ux;
       // model (x, y) is three (x, -z): a direction (dx, dy) is the vector (dx, 0, -dy)
@@ -1055,7 +1302,7 @@
       DT.h.group.renderOrder = 20;
       scene.add(DT.h.group);
       // where the plain model gives way: its ground and furniture inside the scene's area, its houses wherever the scene has its own
-      const b = DT.entry.bbox, s = [b[0], b[1], b[2], b[3]];
+      const b = DT.entry!.bbox, s = [b[0], b[1], b[2], b[3]];
       for (const B of d.buildings || []) {
         const pos = (B.mesh && B.mesh.positions) || [];
         for (let i = 0; i + 1 < pos.length; i += 3) { s[0] = Math.min(s[0], pos[i]); s[1] = Math.min(s[1], pos[i + 1]); s[2] = Math.max(s[2], pos[i]); s[3] = Math.max(s[3], pos[i + 1]); }
@@ -1073,8 +1320,8 @@
     // plain model is level, so no single offset joins both at every edge. The plane that fits the scene's ground best
     // is taken out of it (a shear: what stands upright stays upright); what is left is kerbs, ledges and bumps.
     // → { a, b, c }: that plane, metres above the model's floor at (x, y) = c + a x + b y.
-    function fitTilt(d, shift) {
-      const S = [], flat = { a: 0, b: 0, c: 0 };
+    function fitTilt(d: StationDetailModel | null, shift: number): Tilt {
+      const S: number[][] = [], flat = { a: 0, b: 0, c: 0 };
       for (const sf of (d && d.surfaces) || []) {
         if (!Array.isArray(sf.ring) || !Array.isArray(sf.zs)) continue; // a flat surface (a plinth) says nothing about the street
         for (let i = 0; i < sf.ring.length && i < sf.zs.length; i++) { const p = sf.ring[i], z = sf.zs[i]; if (p && isFinite(p[0]) && isFinite(p[1]) && isFinite(z)) S.push([p[0], p[1], z + shift]); }
@@ -1095,7 +1342,7 @@
       }
       return isFinite(t.a + t.b + t.c) && Math.hypot(t.a, t.b) < .12 ? t : flat; // steeper than any street: leave it alone
     }
-    const tiltAt = (x, y) => (DT.tilt ? DT.tilt.c + DT.tilt.a * x + DT.tilt.b * y : 0);
+    const tiltAt = (x: number, y: number) => (DT.tilt ? DT.tilt.c + DT.tilt.a * x + DT.tilt.b * y : 0);
     // the scene on the level it belongs to (the floors move when they are pulled apart), with the tilt taken out
     function placeDetail() {
       const g = DT.h && DT.h.group;
@@ -1171,15 +1418,15 @@
       DT.h = null; DT.bird = false;
       if (R) routeFrames();
     }
-    const groundOf = (x, y) => { const h = DT.h; if (!h) return null; const g = h.groundAt ? h.groundAt(x, y) : window.Station3DDetail && window.Station3DDetail.groundAt ? window.Station3DDetail.groundAt(h, x, y) : null; return g == null || !isFinite(g) ? null : g + DT.add - tiltAt(x, y); };
+    const groundOf = (x: number, y: number) => { const h = DT.h; if (!h) return null; const g = h.groundAt ? h.groundAt(x, y) : window.Station3DDetail && window.Station3DDetail.groundAt ? window.Station3DDetail.groundAt(h, x, y) : null; return g == null || !isFinite(g) ? null : g + DT.add - tiltAt(x, y); };
     // How far the scene's ground lies above the plain model's floor at (x, y), for the line and the eye. Inside the
     // hole that is cut into the plain model: the real ground. Around it a ramp of a few metres, so nothing jumps: where
     // the scene is higher the ramp lies outside (inside, it would dive under the scene's ground), where it is lower
     // the ramp lies inside (outside, the plain floor would cover it).
     const HOLE_IN = 1, HOLE_RAMP = 5;
-    function liftRaw(x, y, level) {
+    function liftRaw(x: number, y: number, level: number) {
       if (!DT.h || Math.abs(level - P.levels[DT.li].id) > .45) return 0;
-      const b = DT.entry.bbox, x0 = b[0] + HOLE_IN, y0 = b[1] + HOLE_IN, x1 = b[2] - HOLE_IN, y1 = b[3] - HOLE_IN;
+      const b = DT.entry!.bbox, x0 = b[0] + HOLE_IN, y0 = b[1] + HOLE_IN, x1 = b[2] - HOLE_IN, y1 = b[3] - HOLE_IN;
       const cx = clamp(x, x0, x1), cy = clamp(y, y0, y1), d = Math.hypot(x - cx, y - cy); // d: how far outside the hole
       if (d >= HOLE_RAMP) return 0;
       const g = groundOf(cx, cy);
@@ -1195,9 +1442,9 @@
       else t = clamp(Math.min(x - x0, x1 - x, y - y0, y1 - y) / HOLE_RAMP, 0, 1);
       return up * t * t * (3 - 2 * t);
     }
-    const detailLift = (x, y, level) => (DT.show ? liftRaw(x, y, level) : 0);
+    const detailLift = (x: number, y: number, level: number) => (DT.show ? liftRaw(x, y, level) : 0);
     // a box cut out of whatever uses these four planes (material.clipIntersection = true): only what is inside all is dropped
-    function setHole(planes, b) {
+    function setHole(planes: THREE.Plane[], b: Box4 | null) {
       if (!b) { for (const p of planes) { p.normal.set(1, 0, 0); p.constant = 1e7; } return; }
       planes[0].normal.set(1, 0, 0); planes[0].constant = -b[2];
       planes[1].normal.set(-1, 0, 0); planes[1].constant = b[0];
@@ -1206,9 +1453,9 @@
     }
     // on: the scene is drawn. From the eye: the plain model is cut out where the scene stands. From above (bird): the
     // scene is what the plate carries, cut to the plate's box.
-    function applyHole(on, bird) {
+    function applyHole(on: boolean, bird: boolean) {
       const hole = on && !bird;
-      const set = (mat, planes, inter) => { if (!mat) return; mat.clippingPlanes = planes; mat.clipIntersection = !!inter; mat.needsUpdate = true; };
+      const set = (mat: THREE.Material | null | undefined, planes: THREE.Plane[] | null, inter?: boolean) => { if (!mat) return; mat.clippingPlanes = planes; mat.clipIntersection = !!inter; mat.needsUpdate = true; };
       const b = DT.entry && DT.entry.bbox;
       setHole(clipHole, hole && b ? [b[0] + HOLE_IN, b[1] + HOLE_IN, b[2] - HOLE_IN, b[3] - HOLE_IN] : null);
       setHole(clipShell, hole ? DT.shellBox : null);
@@ -1221,7 +1468,7 @@
       for (const o of povOnly) if (o.material && !o.userData.ground) set(o.material, hole ? clipHole : null, hole);
       if (strip) for (const m of [strip.mesh, strip.lines]) set(m.material, hole ? clipHole : null, hole);
       for (const s of shellParts) for (const m of [s.mesh, s.lines]) set(m.material, hole ? clipShell : null, hole);
-      if (DT.h) DT.h.group.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) { m.clippingPlanes = on && bird ? clip : null; m.clipIntersection = false; m.needsUpdate = true; } });
+      if (DT.h) DT.h.group.traverse((o) => { if ((o as THREE.Mesh).material) for (const m of ([] as THREE.Material[]).concat((o as THREE.Mesh).material)) { m.clippingPlanes = on && bird ? clip : null; m.clipIntersection = false; m.needsUpdate = true; } });
       applyOpacity();
       shadowDirty = true;
     }
@@ -1255,13 +1502,13 @@
       R = null;
     }
 
-    const track = (o) => { disposables.push(o); return o; };
+    const track = <O extends Tracked>(o: O): O => { disposables.push(o); return o; };
     function clearScene() {
       dropDetail();
       for (const o of disposables) {
         if (o.geometry) o.geometry.dispose();
         if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
-        if (o.parent) o.parent.remove(o);
+        if (o.parent) o.parent.remove(o as THREE.Object3D);
       }
       disposables.length = 0;
       lv3 = []; conns = []; parts = []; shellParts = []; foot = null; strip = null; povOnly = []; R = null; hl = []; disc = null; los = [];
@@ -1269,8 +1516,8 @@
     }
 
     // ----- what the route is, and what of the model it uses -----
-    const samePlace = (r) => !!r && (!!r.same || !r.points || r.points.length < 2 || r.points.every((p) => Math.hypot(p[0] - r.points[0][0], p[1] - r.points[0][1]) < .05 && Math.abs(p[2] - r.points[0][2]) < .01));
-    function normaliseRoute(r) {
+    const samePlace = (r: Route | null) => !!r && (!!r.same || !r.points || r.points.length < 2 || r.points.every((p) => Math.hypot(p[0] - r.points[0][0], p[1] - r.points[0][1]) < .05 && Math.abs(p[2] - r.points[0][2]) < .01));
+    function normaliseRoute(r: Route | null): Route | null {
       if (!r || !r.points || !r.points.length) return null;
       if (r.points.length < 2) { // an older router: one point for "you are already there"
         r = Object.assign({}, r, { points: [r.points[0], r.points[0].slice()], same: true });
@@ -1280,7 +1527,7 @@
       return r;
     }
     // Which connector (stairs, ramp, escalator, lift) does a level-changing piece of the route run on?
-    function connectorOf(p, q) {
+    function connectorOf(p: XYL, q: XYL): StationConnector | null {
       const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
       const lo = Math.min(p[2], q[2]) - .05, hi = Math.max(p[2], q[2]) + .05;
       for (const c of model.connectors || []) {
@@ -1289,13 +1536,13 @@
           continue;
         }
         const ln = c.line || [];
-        const near = (pt) => ln.some((v) => Math.hypot(v[0] - pt[0], v[1] - pt[1]) < 2.5 && v[2] >= lo && v[2] <= hi);
+        const near = (pt: XYL) => ln.some((v) => Math.hypot(v[0] - pt[0], v[1] - pt[1]) < 2.5 && v[2] >= lo && v[2] <= hi);
         if (near(p) && near(q)) return c;
       }
       return null;
     }
     function analyse() {
-      const a = { routed: false, same: false, levels: new Set(), shown: [], conn: new Set(), areas: new Set(), box: null, segConn: [], float: [] };
+      const a: Analysis = { routed: false, same: false, levels: new Set(), shown: [], conn: new Set(), areas: new Set(), box: null, segConn: [], float: [] };
       A = a;
       const rp = route && route.points;
       if (!rp || rp.length < 2) {
@@ -1307,7 +1554,7 @@
       }
       a.routed = true;
       a.same = samePlace(route);
-      const mark = (x, y, li) => { const ar = areaAt(P, li, x, y); if (ar && ar.kind === 'platform') a.areas.add(ar); return ar; };
+      const mark = (x: number, y: number, li: number) => { const ar = areaAt(P, li, x, y); if (ar && ar.kind === 'platform') a.areas.add(ar); return ar; };
       for (let i = 0; i < rp.length; i++) {
         const p = rp[i], q = rp[i + 1];
         const br = P.bracket(p[2]);
@@ -1341,22 +1588,22 @@
       a.box = b;
     }
 
-    function findStop(q) { // by stop id and platform key; never just "some stop of this station"
+    function findStop(q: EndStop) { // by stop id and platform key; never just "some stop of this station"
       const all = model.stops || [], k = pkey(q.ref);
       if (!k) return null;
       const own = all.filter((s) => String(s.uic) === String(q.uic));
       return (own.length ? own : all).find((s) => pkey(s.ref) === k) || null;
     }
-    const stopTitle = (s) => (s.ref ? `${nounOf(s.mode)} ${s.ref}` : s.name);
-    const sectorsFor = (key) => (model.sectors || []).filter((s) => s.xy && pkey(s.ref) === key);
-    function sectorNear(ref, xy, reach) {
-      let best = null, bd = reach || 30;
+    const stopTitle = (s: StationStop) => (s.ref ? `${nounOf(s.mode)} ${s.ref}` : s.name);
+    const sectorsFor = (key: string) => (model.sectors || []).filter((s) => s.xy && pkey(s.ref) === key);
+    function sectorNear(ref: string | number | undefined, xy: Pt, reach?: number) {
+      let best: StationSector | null = null, bd = reach || 30;
       for (const s of sectorsFor(pkey(ref))) { const d = Math.hypot(s.xy[0] - xy[0], s.xy[1] - xy[1]); if (d < bd) { bd = d; best = s; } }
       return best ? String(best.name) : '';
     }
     // What to call an end of the route, and what is known about it
-    function endInfo(end, which) {
-      const o = { kind: 'free', name: which === 'from' ? 'your position' : 'your destination', ref: '', noun: '', sector: '', dist: 0, far: false, closed: false, note: '' };
+    function endInfo(end: RouteEnd | null, which: 'from' | 'to') {
+      const o: EndInfo = { kind: 'free', name: which === 'from' ? 'your position' : 'your destination', ref: '', noun: '', sector: '', dist: 0, far: false, closed: false, note: '' };
       if (!end) return o;
       const viaRoute = route ? (which === 'to' ? route.toStop : route.fromStop) : null;
       // with a route only the stop the router chose counts: a stop it could not find must not turn into another one
@@ -1392,9 +1639,9 @@
       }
       return o;
     }
-    const sectorTag = (s) => (s ? (/[–-]/.test(s) ? `sectors ${s}` : `sector ${s}`) : '');
+    const sectorTag = (s: string) => (s ? (/[–-]/.test(s) ? `sectors ${s}` : `sector ${s}`) : '');
     // The platform (area) an end of the route stands on
-    function endArea(which) {
+    function endArea(which: 'from' | 'to') {
       if (!route) return null;
       const pt = which === 'to' ? route.points[route.points.length - 1] : route.points[0];
       const st = which === 'to' ? route.toStop : route.fromStop;
@@ -1406,7 +1653,7 @@
         let bd = 40;
         for (const q of P.levels[li].areas) {
           if (q.kind !== 'platform' || !q.keys.includes(k)) continue;
-          const d = nearestOn(q.ring, pt[0], pt[1], true).d;
+          const d = nearestOn(q.ring, pt[0], pt[1], true)!.d;
           if (d < bd) { bd = d; a = q; }
         }
       }
@@ -1414,22 +1661,22 @@
     }
     // Where along a platform does `ref` stop? Lines along that edge, from the best source the model has:
     // sector spans, then the track with that number (laid onto the platform edge next to it).
-    const edgeCache = new Map();
-    function edgeLines(area, ref) {
+    const edgeCache = new Map<string, XY[][] | null>();
+    function edgeLines(area: PArea, ref: string | number | undefined): XY[][] | null {
       const k = pkey(ref), id = area.li + ':' + area.box.join(',') + ':' + k;
-      if (edgeCache.has(id)) return edgeCache.get(id);
-      const lines = [];
+      if (edgeCache.has(id)) return edgeCache.get(id)!;
+      const lines: XY[][] = [];
       for (const s of model.sectorSpans || []) {
         if (pkey(s.ref) !== k || !s.a || !s.b) continue;
         const mx = (s.a[0] + s.b[0]) / 2, my = (s.a[1] + s.b[1]) / 2;
-        if (nearestOn(area.ring, mx, my, true).d < 7 || inArea(area, mx, my)) lines.push([s.a, s.b]);
+        if (nearestOn(area.ring, mx, my, true)!.d < 7 || inArea(area, mx, my)) lines.push([s.a, s.b]);
       }
       if (!lines.length) {
         for (const t of model.tracks || []) {
           if (t.ref == null || pkey(t.ref) !== k || !t.line || P.idxOf(t.level || 0) !== area.li) continue;
-          let run = [];
+          let run: XY[] = [];
           const flush = () => { if (run.length > 1) lines.push(run); run = []; };
-          const pts = [];
+          const pts: XY[] = [];
           for (let i = 0; i < t.line.length; i++) { // short steps, so a long straight track still follows a curved edge
             const a = t.line[i], b = t.line[i + 1];
             pts.push(a);
@@ -1439,7 +1686,7 @@
           }
           for (const p of pts) {
             if (p[0] < area.box[0] - 6 || p[0] > area.box[2] + 6 || p[1] < area.box[1] - 6 || p[1] > area.box[3] + 6) { flush(); continue; }
-            const e = nearestOn(area.ring, p[0], p[1], true);
+            const e = nearestOn(area.ring, p[0], p[1], true)!;
             if (e.d > 5) { flush(); continue; }
             run.push([e.x, e.y]);
           }
@@ -1451,10 +1698,10 @@
       return out;
     }
     // The point on the edge of `ref` nearest to (x, y), or null when the model does not say where that edge is
-    function edgePoint(area, ref, x, y) {
+    function edgePoint(area: PArea, ref: string | number | undefined, x: number, y: number) {
       const ls = edgeLines(area, ref);
-      let best = null;
-      for (const l of ls || []) { const e = nearestOn(l, x, y, false); if (!best || e.d < best.d) best = e; }
+      let best: EdgePt | null = null;
+      for (const l of ls || []) { const e = nearestOn(l, x, y, false)!; if (!best || e.d < best.d) best = e; }
       if (!best) { // last resort: the stop point of that number, if it is clearly off the middle
         for (const s of model.stops || []) {
           if (!s.xy || pkey(s.ref) !== pkey(ref) || !inArea(area, s.xy[0], s.xy[1])) continue;
@@ -1465,7 +1712,7 @@
       return best;
     }
     // Looking along (dx, dy) from (x, y): is the edge of `ref` to the left or to the right?
-    function sideOf(area, ref, x, y, dx, dy) {
+    function sideOf(area: PArea, ref: string | number | undefined, x: number, y: number, dx: number, dy: number) {
       const e = edgePoint(area, ref, x, y);
       if (!e) return null;
       let ox = e.x - x, oy = e.y - y;
@@ -1481,12 +1728,12 @@
     function buildScene() {
       T = THEME[theme];
       edgeCache.clear();
-      const C = (hex, a) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b, a == null ? 1 : a]; };
-      const mix = (hex, m, a) => { const c = new THREE.Color(hex).lerp(new THREE.Color(m[0]), m[1]); return [c.r, c.g, c.b, a == null ? 1 : a]; };
-      const solid = (o) => new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, side: (o && o.side) || THREE.FrontSide, clippingPlanes: o && o.noclip ? null : clip });
-      const lineMat = (op, o) => new THREE.LineBasicMaterial({ color: T.line, transparent: true, opacity: op, depthWrite: false, clippingPlanes: o && o.noclip ? null : clip });
+      const C = (hex: THREE.ColorRepresentation, a?: number): RGBA => { const c = new THREE.Color(hex); return [c.r, c.g, c.b, a == null ? 1 : a]; };
+      const mix = (hex: string, m: Mix, a?: number): RGBA => { const c = new THREE.Color(hex).lerp(new THREE.Color(m[0]), m[1]); return [c.r, c.g, c.b, a == null ? 1 : a]; };
+      const solid = (o?: PartOpts) => new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, side: (o && o.side) || THREE.FrontSide, clippingPlanes: o && o.noclip ? null! : clip });
+      const lineMat = (op: number, o?: PartOpts) => new THREE.LineBasicMaterial({ color: T.line, transparent: true, opacity: op, depthWrite: false, clippingPlanes: o && o.noclip ? null! : clip });
       // a part = one mesh with its outlines, faded as a whole
-      const addPart = (g, ln, order, o) => {
+      const addPart = <X extends { kind: PartKind }>(g: Geo, ln: Geo, order: number, o?: PartOpts & { extra?: X }): Part & X => {
         o = o || {};
         const mesh = track(new THREE.Mesh(g.build(SH, true), solid(o)));
         mesh.castShadow = mesh.receiveShadow = !o.ghost;
@@ -1518,15 +1765,15 @@
       sun.shadow.intensity = T.shadow;
 
       // floors
-      const tracksBy = P.levels.map(() => []);
+      const tracksBy = P.levels.map((): { t: StationTrack; box: Box4 }[] => []);
       for (const t of model.tracks || []) {
         if (!t.line || t.line.length < 2) continue;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (const p of t.line) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
         tracksBy[P.idxOf(t.level || 0)].push({ t, box: [x0, y0, x1, y1] });
       }
-      const flatBy = P.levels.map(() => []); // level walks on each floor: where the ceiling lights hang
-      const edgesBy = P.levels.map(() => []); // walking edges that touch each floor: where they cross a wall there is an opening
+      const flatBy = P.levels.map((): Seg4[] => []); // level walks on each floor: where the ceiling lights hang
+      const edgesBy = P.levels.map((): Seg4[] => []); // walking edges that touch each floor: where they cross a wall there is an opening
       {
         const N = (model.graph && model.graph.nodes) || [];
         for (const e of (model.graph && model.graph.edges) || []) {
@@ -1542,7 +1789,7 @@
       const cBed = C(T.bed), cRail = C(T.rail), cSafe = C(T.safety);
       const groundLi = P.idxOf(P.levelOfZ(0));
       P.levels.forEach((lv, li) => {
-        const g = new Geo(), ln = new Geo(), cg = new Geo(), wg = new Geo();
+        const g = new (Geo as GeoCtor)(), ln = new (Geo as GeoCtor)(), cg = new (Geo as GeoCtor)(), wg = new (Geo as GeoCtor)();
         const base = T.level(lv.id);
         const cFloor = C(T.floor), cPlat = C(T.platform), cPlatSide = C(T.platformSide), cPlaza = C(T.plaza), cRoom = C(T.room), cRoomSide = C(T.roomSide), cCeil = C(T.ceil);
         const cClosed = mix(base, [T.closed, .5]);
@@ -1554,10 +1801,10 @@
         los[li] = [];
         const cWall = C(T.wall), cWallEnd = mix(T.wall, [T.wallBase, .4]), cWallBase = C(T.wallBase), cWallTop = C(T.wallTop);
         const cShade = C(T.contact[0], T.contact[1]), cShade0 = C(T.contact[0], 0), cLamp = C(T.lamp), cGlow = C(T.lampGlow);
-        const shg = new Geo(), lg = new Geo();
+        const shg = new (Geo as GeoCtor)(), lg = new (Geo as GeoCtor)();
         // where a wall meets the floor: a darker base line, a light line under the ceiling, and a soft shade on the
         // floor in front of it. (ox, oy) is the side people stand on.
-        const trim = (ax, ay, bx, by, ox, oy, lf, h) => {
+        const trim = (ax: number, ay: number, bx: number, by: number, ox: number, oy: number, lf: number, h: number) => {
           if (Math.hypot(bx - ax, by - ay) < .3) return;
           const e = .03, sx0 = ax + ox * e, sy0 = ay + oy * e, sx1 = bx + ox * e, sy1 = by + oy * e;
           wg.quad([sx0, sy0, lf, 0], [sx1, sy1, lf, 0], [sx1, sy1, lf, .16], [sx0, sy0, lf, .16], cWallBase);
@@ -1565,9 +1812,9 @@
           shg.quadGrad([ax, ay, lf, .02], [bx, by, lf, .02], [bx + ox * .9, by + oy * .9, lf, .02], [ax + ox * .9, ay + oy * .9, lf, .02], cShade, cShade0);
         };
         // a wall along the edge of a floor: it has thickness, so its end shows where a doorway cuts it. (nx, ny) points out of the floor.
-        const wall = (r, nx, ny, lf) => {
+        const wall = (r: Seg4, nx: number, ny: number, lf: number) => {
           const [ax, ay, bx, by] = r, hh = lv.ceilH, t = .3;
-          const q = (x0, y0, x1, y1, c) => wg.quad([x0, y0, lf, 0], [x1, y1, lf, 0], [x1, y1, lf, hh], [x0, y0, lf, hh], c);
+          const q = (x0: number, y0: number, x1: number, y1: number, c: RGBA) => wg.quad([x0, y0, lf, 0], [x1, y1, lf, 0], [x1, y1, lf, hh], [x0, y0, lf, hh], c);
           q(ax, ay, bx, by, cWall);
           q(bx, by, bx + nx * t, by + ny * t, cWallEnd);
           q(ax + nx * t, ay + ny * t, ax, ay, cWallEnd);
@@ -1577,7 +1824,7 @@
         for (const a of lv.areas) {
           const lf = a.level;
           const shut = isClosed(a.src);
-          const soft = (c) => (a.src.derived ? mix(base, [new THREE.Color(c[0], c[1], c[2]).getStyle(), .55]) : c);
+          const soft = (c: RGBA) => (a.src.derived ? mix(base, [new THREE.Color(c[0], c[1], c[2]).getStyle(), .55]) : c);
           a.top = 0; a.topH = 0;
           if (a.kind === 'room') { // a low block in the model, a full wall when you stand beside it
             const h = indoor ? lv.ceilH : clamp(a.src.height || 3, 2.2, 5);
@@ -1614,7 +1861,7 @@
                 if (len < .2) continue;
                 const nx = (q[1] - p[1]) / len, ny = -(q[0] - p[0]) / len; // to the right of travel: out of the floor
                 const n = Math.max(1, Math.round(len / 2));
-                let run = null;
+                let run: Seg4 | null = null;
                 const flush = () => {
                   if (!run) return;
                   wall(run, nx, ny, lf);
@@ -1638,7 +1885,7 @@
         // tracks: sunk beside the platforms, flush where they cross a square (trams)
         for (const { t } of tracksBy[li]) {
           const lf = t.level != null ? P.levels[li].id : lv.id;
-          let run = [], runFlush = null;
+          let run: XY[] = [], runFlush: boolean | null = null;
           const flushRun = () => {
             if (run.length < 2) return;
             if (runFlush) {
@@ -1679,10 +1926,10 @@
                 let beside = false;
                 for (const r of near) {
                   if (mx < r.box[0] - 2 || mx > r.box[2] + 2 || my < r.box[1] - 2 || my > r.box[3] + 2) continue;
-                  if (nearestOn(r.t.line, mx, my, false).d < 1.9) { beside = true; break; }
+                  if (nearestOn(r.t.line, mx, my, false)!.d < 1.9) { beside = true; break; }
                 }
                 if (!beside) continue;
-                const A0 = [lerp(p[0], q[0], u0) - nx * .8, lerp(p[1], q[1], u0) - ny * .8], A1 = [lerp(p[0], q[0], u1) - nx * .8, lerp(p[1], q[1], u1) - ny * .8];
+                const A0: XY = [lerp(p[0], q[0], u0) - nx * .8, lerp(p[1], q[1], u0) - ny * .8], A1: XY = [lerp(p[0], q[0], u1) - nx * .8, lerp(p[1], q[1], u1) - ny * .8];
                 g.ribbon([A0, A1], .11, a.level, .065, cSafe, 0);
               }
             }
@@ -1690,7 +1937,7 @@
         }
         // indoors the light comes from above: panels in the ceiling along the ways through
         if (indoor) {
-          const seen = new Set();
+          const seen = new Set<string>();
           for (const e of flatBy[li]) {
             const len = Math.hypot(e[2] - e[0], e[3] - e[1]);
             if (len < 1) continue;
@@ -1701,13 +1948,13 @@
               const ar = areaAt(P, li, x, y);
               if (!ar || ar.kind !== 'floor') continue;
               seen.add(key);
-              const panel = (hl, hw, yo, c) => { const hx = dx * hl, hy = dy * hl, wx = -dy * hw, wy = dx * hw; lg.quad([x - hx - wx, y - hy - wy, lv.id, yo], [x + hx - wx, y + hy - wy, lv.id, yo], [x + hx + wx, y + hy + wy, lv.id, yo], [x - hx + wx, y - hy + wy, lv.id, yo], c); };
+              const panel = (hl: number, hw: number, yo: number, c: RGBA) => { const hx = dx * hl, hy = dy * hl, wx = -dy * hw, wy = dx * hw; lg.quad([x - hx - wx, y - hy - wy, lv.id, yo], [x + hx - wx, y + hy - wy, lv.id, yo], [x + hx + wx, y + hy + wy, lv.id, yo], [x - hx + wx, y - hy + wy, lv.id, yo], c); };
               panel(1.25, .55, lv.ceilH - .04, cGlow); // the lit patch of ceiling around it
               panel(.95, .2, lv.ceilH - .07, cLamp);
             }
           }
         }
-        const main = addPart(g, ln, li * 10 + 1, { grid: true, extra: { li, kind: 'level' } });
+        const main = addPart(g, ln, li * 10 + 1, { grid: true, extra: { li, kind: 'level' } }) as LevelPart;
         main.ceil = main.walls = main.plate = null;
         main.has = g.count() > 0;
         if (cg.count()) {
@@ -1727,7 +1974,7 @@
         for (const [geo, mat, order] of [
           [shg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), li * 10 + 3],
           [lg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false }), li * 10 + 4],
-        ]) {
+        ] as [Geo, THREE.MeshBasicMaterial, number][]) {
           if (!geo.count()) { mat.dispose(); continue; }
           const m = track(new THREE.Mesh(geo.build(SH, false), mat));
           m.frustumCulled = false; m.visible = false; m.renderOrder = order;
@@ -1736,8 +1983,8 @@
         }
         // with a route: the plate this floor lies on (only the box around the route)
         if (A.routed && A.levels.has(li)) {
-          const pg = new Geo(), pl = new Geo();
-          const ring = boxRing(A.box), th = clamp(A.box.hh * .05, 2.2, 4.5);
+          const pg = new (Geo as GeoCtor)(), pl = new (Geo as GeoCtor)();
+          const ring = boxRing(A.box!), th = clamp(A.box!.hh * .05, 2.2, 4.5);
           pg.prism(ring, null, lv.id, PLATE_TOP - th, lv.id, PLATE_TOP, C(base), mix(base, T.plateSide));
           pl.loop(ring, lv.id, PLATE_TOP + .02);
           pl.loop(ring, lv.id, PLATE_TOP - th);
@@ -1750,11 +1997,12 @@
       // stairs, escalators, ramps and lifts, grouped by the floors they join (and by whether the route uses them)
       const col = { stairs: C(T.stairs), riser: C(T.riser), ramp: C(T.ramp), tread: C(T.tread), glass: C(T.glass[0], T.glass[1]), shaft: C(T.shaft[0], T.shaft[1]), cab: C(T.cab), door: C(T.door), frame: C(T.frame), arrow: C(T.safety) };
       const shutCol = { stairs: C(T.closed), riser: C(T.closed), ramp: C(T.closed), tread: C(T.closed), glass: C(T.closed, .3), shaft: C(T.closed, .25), cab: C(T.closed), door: C(T.closed), frame: C(T.closed), arrow: C(T.closed) };
-      const groups = new Map();
-      const groupFor = (lo, hi, touched) => {
+      interface ConnGroup { lo: number; hi: number; touched: boolean; g: Geo; ln: Geo }
+      const groups = new Map<string, ConnGroup>();
+      const groupFor = (lo: number, hi: number, touched: boolean) => {
         const k = lo + ':' + hi + ':' + touched;
-        if (!groups.has(k)) groups.set(k, { lo, hi, touched, g: new Geo(), ln: new Geo() });
-        return groups.get(k);
+        if (!groups.has(k)) groups.set(k, { lo, hi, touched, g: new (Geo as GeoCtor)(), ln: new (Geo as GeoCtor)() });
+        return groups.get(k)!;
       };
       for (const c of model.connectors || []) {
         const touched = !A.routed || A.conn.has(c);
@@ -1764,12 +2012,12 @@
           const ls = c.levels.slice().sort((a, b) => a - b);
           const idx = ls.map((l) => P.idxOf(l));
           const G = groupFor(Math.min(...idx), Math.max(...idx), touched);
-          const faces = new Map(); // the door is on the side of the nearest way past it
+          const faces = new Map<number, XY>(); // the door is on the side of the nearest way past it
           for (const l of ls) {
-            let best = null;
+            let best: Nearest | null = null;
             for (const e of edgesBy[P.idxOf(l)]) {
               if (Math.min(e[0], e[2]) > c.xy[0] + 14 || Math.max(e[0], e[2]) < c.xy[0] - 14 || Math.min(e[1], e[3]) > c.xy[1] + 14 || Math.max(e[1], e[3]) < c.xy[1] - 14) continue;
-              const n = nearestOn([[e[0], e[1]], [e[2], e[3]]], c.xy[0], c.xy[1], false);
+              const n = nearestOn([[e[0], e[1]], [e[2], e[3]]], c.xy[0], c.xy[1], false)!;
               if (n.d > .6 && (!best || n.d < best.d)) best = n;
             }
             const fx = best ? best.x - c.xy[0] : 0, fy = best ? best.y - c.xy[1] : -1;
@@ -1792,14 +2040,14 @@
       // the town and the roofs around it all: a ghost in the model view, solid when you stand in it.
       // Each piece hangs on the floor at or below its base, so roofs stay over their platforms when the floors spread.
       {
-        const G = { solid: [new Geo(), new Geo()], roof: [new Geo(), new Geo()], glass: [new Geo(), new Geo()] };
-        const fg = new Geo(), fl = new Geo();
+        const G = { solid: [new (Geo as GeoCtor)(), new (Geo as GeoCtor)()], roof: [new (Geo as GeoCtor)(), new (Geo as GeoCtor)()], glass: [new (Geo as GeoCtor)(), new (Geo as GeoCtor)()] };
+        const fg = new (Geo as GeoCtor)(), fl = new (Geo as GeoCtor)();
         const cTop = C(T.shell), cs2 = C(T.shellSide), cGlass = C(T.glass[0]);
-        const kindOf = (s) => (/glass|canopy|baldachin/i.test((s.kind || '') + ' ' + (s.name || '')) ? 'glass' : /roof/i.test(s.kind || '') ? 'roof' : 'solid');
+        const kindOf = (s: { kind?: string; name?: string }) => (/glass|canopy|baldachin/i.test((s.kind || '') + ' ' + (s.name || '')) ? 'glass' : /roof/i.test(s.kind || '') ? 'roof' : 'solid');
         for (const s of model.shell || []) {
           const ring = cleanRing(s.ring, true);
           if (!ring || P.decks.has(s)) continue;
-          const holes = (s.holes || []).map((h) => cleanRing(h, false)).filter(Boolean);
+          const holes = (s.holes || []).map((h) => cleanRing(h, false)).filter(Boolean) as XY[][];
           const base = s.base || 0, top = s.top == null ? base + 4 : s.top;
           const fi = P.floorOfZ(base), lf = P.levels[fi].id, y0 = base - P.levels[fi].z;
           const kd = kindOf(s), [g, ln] = G[kd];
@@ -1826,8 +2074,8 @@
           const fi = P.floorOfZ(zmin), lf = P.levels[fi].id, z0 = P.levels[fi].z;
           const kd = kindOf(m), [g, ln] = G[kd];
           const c = kd === 'glass' ? cGlass : cTop;
-          const vtx = (i) => [pos[i * 3], pos[i * 3 + 1], lf, pos[i * 3 + 2] - z0];
-          const seen = new Set();
+          const vtx = (i: number): Vtx => [pos[i * 3], pos[i * 3 + 1], lf, pos[i * 3 + 2] - z0];
+          const seen = new Set<string>();
           for (let i = 0; i + 2 < idx.length; i += 3) {
             const ia = idx[i], ib = idx[i + 1], ic = idx[i + 2];
             g.tri(vtx(ia), vtx(ib), vtx(ic), c);
@@ -1838,7 +2086,7 @@
           }
           if (seen.size < 4000) for (const k of seen) { const [u, v] = k.split(':').map(Number); ln.seg(vtx(u), vtx(v)); }
         }
-        for (const kind of ['solid', 'roof', 'glass']) {
+        for (const kind of ['solid', 'roof', 'glass'] as const) {
           const [g, ln] = G[kind];
           if (!g.count()) continue;
           const part = addPart(g, ln, 500, { ghost: true, noclip: true, side: THREE.DoubleSide, line: T.shellLine, extra: { gain: T.shellAlpha, kind: 'shell', shell: kind } });
@@ -1852,9 +2100,9 @@
 
       // a walkway under the parts of the route that have no floor in the model, so it never hangs in the air
       if (A.routed && !A.same) {
-        const sg = new Geo(), sl = new Geo();
-        const rp = route.points, cs = C(T.strip);
-        let run = [], lfs = [];
+        const sg = new (Geo as GeoCtor)(), sl = new (Geo as GeoCtor)();
+        const rp = route!.points, cs = C(T.strip);
+        let run: XYL[] = [], lfs: number[] = [];
         const flush = () => {
           if (run.length > 1) {
             sg.ribbon(run, 1.7, lfs, -.03, cs, 0);
@@ -1920,36 +2168,36 @@
     function buildGuides() {
       guides = []; activeGuide = null;
       if (!A.routed || A.same) return;
-      const C = (hex, a) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b, a == null ? 1 : a]; };
+      const C = (hex: THREE.ColorRepresentation, a?: number): RGBA => { const c = new THREE.Color(hex); return [c.r, c.g, c.b, a == null ? 1 : a]; };
       const blue = { stairs: C(T.route), riser: C(T.casing), ramp: C(T.route, .9), tread: C(T.route), glass: C(T.glow, .3), shaft: C(T.glow, .2), cab: C(T.route), door: C(T.route), frame: C(T.casing), arrow: C('#ffffff') };
-      const rp = route.points;
-      const add = (g, ln, o) => {
+      const rp = route!.points;
+      const add = (g: Geo, ln: Geo, o: GuideInfo) => {
         const mesh = track(new THREE.Mesh(g.build(SH, false), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })));
         const lines = track(new THREE.LineSegments(ln.build(SH, false), new THREE.LineBasicMaterial({ color: T.glow, transparent: true, opacity: .95, depthWrite: false })));
         for (const m of [mesh, lines]) { m.frustumCulled = false; m.visible = false; m.renderOrder = 590; scene.add(m); }
         guides.push(Object.assign({ mesh, lines, lift: 3 }, o));
       };
-      const dirAt = (i) => { // the way the route runs where it reaches point i
+      const dirAt = (i: number): XY => { // the way the route runs where it reaches point i
         for (let k = i; k > 0; k--) { const a = rp[k - 1], b = rp[k], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > .3) return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; }
         for (let k = i; k < rp.length - 1; k++) { const a = rp[k], b = rp[k + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > .3) return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; }
         return [1, 0];
       };
-      const pad = (g, p, d, w) => { // a landing on the floor in front of it, fading back along the way you come
+      const pad = (g: Geo, p: XYL, d: XY, w: number) => { // a landing on the floor in front of it, fading back along the way you come
         const px = -d[1], py = d[0], hw = w / 2, L = 3.2;
         g.quadGrad([p[0] - px * hw, p[1] - py * hw, p[2], .04], [p[0] + px * hw, p[1] + py * hw, p[2], .04],
           [p[0] + px * hw - d[0] * L, p[1] + py * hw - d[1] * L, p[2], .04], [p[0] - px * hw - d[0] * L, p[1] - py * hw - d[1] * L, p[2], .04], C(T.glow, .6), C(T.glow, 0));
       };
-      route.steps.forEach((st, i) => {
+      route!.steps.forEach((st, i) => {
         if (st.kind === 'walk' || st.kind === 'arrive') return;
-        let c = null;
+        let c: (StationConnector & { width?: number }) | null = null;
         for (let k = st.from; k < st.to && !c; k++) c = A.segConn[k] || null;
-        const g = new Geo(), ln = new Geo(), p0 = rp[st.from], d = dirAt(st.from);
+        const g = new (Geo as GeoCtor)(), ln = new (Geo as GeoCtor)(), p0 = rp[st.from], d = dirAt(st.from);
         if (c && c.kind === 'elevator') addLift(g, ln, P, c, blue, liftFaces.get(c));
         else if (c) addConnector(g, ln, P, c, blue, true);
         if (Math.abs(p0[2] - P.near(p0[2])) < .3) pad(g, p0, d, c && c.width ? clamp(c.width, 1.6, 6) + .8 : 3);
         const up = st.dir === 'up' || (st.dir == null && st.toLevel > st.level);
         add(g, ln, {
-          kind: st.kind, step: i, entry: p0, along0: R.A[st.from], along1: R.A[Math.min(st.to, R.A.length - 1)], icon: st.kind,
+          kind: st.kind, step: i, entry: p0, along0: R!.A[st.from], along1: R!.A[Math.min(st.to, R!.A.length - 1)], icon: st.kind,
           title: `${CONN_WORD[st.kind] || 'Way'}${st.toLevel != null && st.toLevel !== st.level ? (up ? ' up' : ' down') : ''}`, sub: st.place ? placeName(st.place) : '',
         });
       });
@@ -1959,17 +2207,17 @@
         let bi = -1, bd = 4.5;
         rp.forEach((p, i) => { const dd = Math.hypot(p[0] - e.xy[0], p[1] - e.xy[1]); if (Math.abs(p[2] - (e.level || 0)) < .35 && dd < bd) { bd = dd; bi = i; } });
         if (bi < 0) continue;
-        const p = rp[bi], d = dirAt(Math.max(1, bi)), px = -d[1], py = d[0], g = new Geo(), ln = new Geo();
+        const p = rp[bi], d = dirAt(Math.max(1, bi)), px = -d[1], py = d[0], g = new (Geo as GeoCtor)(), ln = new (Geo as GeoCtor)();
         const hgt = 3, hw = 1.9, cB = C(T.route), cD = C(T.casing);
         for (const s of [-1, 1]) g.block(p[0] + px * hw * s, p[1] + py * hw * s, px, py, .3, .3, p[2], 0, hgt, cB, cD);
         g.block(p[0], p[1], px, py, hw * 2 + .3, .3, p[2], hgt - .3, hgt, cB, cD);
         pad(g, p, d, hw * 2);
-        const inAt = (q) => { const a = q && areaAt(P, P.idxOf(q[2]), q[0], q[1]); return !!a && a.kind === 'floor'; };
+        const inAt = (q: XYL | undefined) => { const a = q && areaAt(P, P.idxOf(q[2]), q[0], q[1]); return !!a && a.kind === 'floor'; };
         const was = inAt(rp[Math.max(0, bi - 2)]), will = inAt(rp[Math.min(rp.length - 1, bi + 2)]);
         let stepI = -1;
-        route.steps.forEach((st, i) => { if (stepI < 0 && st.kind !== 'arrive' && bi >= st.from && bi <= st.to) stepI = i; });
+        route!.steps.forEach((st, i) => { if (stepI < 0 && st.kind !== 'arrive' && bi >= st.from && bi <= st.to) stepI = i; });
         if (stepI < 0) continue;
-        add(g, ln, { kind: 'portal', step: stepI, entry: p, along0: R.A[bi], along1: R.A[bi], icon: 'door', title: was && !will ? 'Way out' : !was && will ? 'Way in' : 'Through', sub: e.name });
+        add(g, ln, { kind: 'portal', step: stepI, entry: p, along0: R!.A[bi], along1: R!.A[bi], icon: 'door', title: was && !will ? 'Way out' : !was && will ? 'Way in' : 'Through', sub: e.name });
       }
       guides.sort((a, b) => a.along0 - b.along0);
     }
@@ -1983,46 +2231,46 @@
         if (on) gd.mesh.material.opacity = fpv && gd.kind !== 'portal' && pv.along > gd.along0 + .5 ? .28 : 1;
         if (on && fpv && !activeGuide) activeGuide = gd;
       }
-      if (fpv) { const st = route.steps; povArriving = st[cs].kind === 'arrive' || (!!st[cs + 1] && st[cs + 1].kind === 'arrive'); }
+      if (fpv) { const st = route!.steps; povArriving = st[cs].kind === 'arrive' || (!!st[cs + 1] && st[cs + 1].kind === 'arrive'); }
     }
 
     // ----- marks on the floors: the destination, closed things, sectors -----
-    function flatMesh(g, mat, li, order) {
+    function flatMesh<M extends THREE.Material>(g: Geo, mat: M, li: number, order?: number) {
       const mesh = track(new THREE.Mesh(g.build(SH, false), mat));
       mesh.frustumCulled = false;
       mesh.renderOrder = li * 10 + (order || 3);
       scene.add(mesh);
       return mesh;
     }
-    const markMat = (hex, alpha, o) => new THREE.MeshBasicMaterial(Object.assign({ color: hex, transparent: true, opacity: alpha, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, clippingPlanes: clip }, o));
-    function highlight(area, hex, alpha) {
-      const g = new Geo();
+    const markMat = (hex: THREE.ColorRepresentation, alpha: number, o?: THREE.MeshBasicMaterialParameters) => new THREE.MeshBasicMaterial(Object.assign({ color: hex, transparent: true, opacity: alpha, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, clippingPlanes: clip }, o));
+    function highlight(area: PArea, hex: string, alpha: number) {
+      const g = new (Geo as GeoCtor)();
       g.prism(area.ring, area.holes, area.level, 0, area.level, (area.top || 0) + .07, [1, 1, 1, 1], null, area.topH || 0);
-      const h = { mesh: flatMesh(g, markMat(hex, alpha), area.li), li: area.li, base: alpha };
+      const h: Highlight = { mesh: flatMesh(g, markMat(hex, alpha), area.li), li: area.li, base: alpha };
       hl.push(h);
       return h;
     }
-    function hatch(area) {
-      const g = new Geo();
+    function hatch(area: PArea) {
+      const g = new (Geo as GeoCtor)();
       g.prism(area.ring, area.holes, area.level, 0, area.level, (area.top || 0) + .09, [1, 1, 1, 1], null, 0);
       const mat = new THREE.ShaderMaterial({
         uniforms: { uCol: { value: new THREE.Color(WARN) }, uAlpha: { value: .8 }, uStep: { value: 3.2 } },
         vertexShader: HATCH_VERT, fragmentShader: HATCH_FRAG, transparent: true, depthWrite: false, clipping: true, clippingPlanes: clip,
         polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
       });
-      const h = { mesh: flatMesh(g, mat, area.li, 4), li: area.li, base: .8, uniform: true };
+      const h: Highlight = { mesh: flatMesh(g, mat, area.li, 4), li: area.li, base: .8, uniform: true };
       hl.push(h);
       return h;
     }
-    function stripe(lines, area, hex, alpha, half, yo) {
-      const g = new Geo();
+    function stripe(lines: XY[][], area: PArea, hex: string, alpha: number, half: number, yo: number) {
+      const g = new (Geo as GeoCtor)();
       for (const l of lines) g.ribbon(l, half, area.level, yo, [1, 1, 1, 1], 0);
       if (!g.count()) return null;
-      const h = { mesh: flatMesh(g, markMat(hex, alpha), area.li, 4), li: area.li, base: alpha };
+      const h: Highlight = { mesh: flatMesh(g, markMat(hex, alpha), area.li, 4), li: area.li, base: alpha };
       hl.push(h);
       return h;
     }
-    function dropHighlight(h) {
+    function dropHighlight(h: Highlight | null) {
       if (!h) return;
       hl = hl.filter((x) => x !== h);
       scene.remove(h.mesh);
@@ -2031,11 +2279,11 @@
       if (i >= 0) disposables.splice(i, 1);
     }
     // Sector bands along the edge of a platform number: alternating, the one to ride in marked
-    function sectorBands(area, ref, best) {
+    function sectorBands(area: PArea, ref: string | number, best?: string | null) {
       const k = pkey(ref);
-      const spans = (model.sectorSpans || []).filter((s) => pkey(s.ref) === k && s.a && s.b && nearestOn(area.ring, (s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2, true).d < 7);
+      const spans = (model.sectorSpans || []).filter((s) => pkey(s.ref) === k && s.a && s.b && nearestOn(area.ring, (s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2, true)!.d < 7);
       if (!spans.length) return;
-      const g = new Geo();
+      const g = new (Geo as GeoCtor)();
       const c = [new THREE.Color(T.band[0]), new THREE.Color(T.band[1])], cb = new THREE.Color(T.route);
       spans.forEach((s, i) => {
         const l = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) || 1, nx = -(s.b[1] - s.a[1]) / l, ny = (s.b[0] - s.a[0]) / l;
@@ -2047,7 +2295,7 @@
       const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, clippingPlanes: clip });
       hl.push({ mesh: flatMesh(g, mat, area.li, 4), li: area.li, base: .9 });
     }
-    let pickHl = null;
+    let pickHl: Highlight | null = null;
     function buildMarks() {
       for (const lv of P.levels) for (const a of lv.areas) if (a.kind !== 'room' && isClosed(a.src)) hatch(a);
       if (A.routed) {
@@ -2070,14 +2318,14 @@
 
     // ----- what you only see standing in the station: ground, signs, station furniture -----
     // Signs are pictures drawn once into one texture; boxes and poles are two instanced meshes.
-    let inst = null; // { box, cyl, boxes: [...], cyls: [...] }
-    let signList = []; // what hangs where (for tests)
-    function buildStreetView(groundLi) {
+    let inst: Inst | null = null; // { box, cyl, boxes: [...], cyls: [...] }
+    let signList: Sign[] = []; // what hangs where (for tests)
+    function buildStreetView(groundLi: number) {
       inst = null;
       const dark = theme === 'dark';
       // open ground around the station, so outdoors has a floor and a horizon
       {
-        const g = new Geo();
+        const g = new (Geo as GeoCtor)();
         const [x0, y0, x1, y1] = P.box, m = 220, lf = P.levels[groundLi].id, yo = -P.levels[groundLi].z + PLATE_TOP - .12;
         const c = new THREE.Color(T.ground);
         g.quad([x0 - m, y0 - m, lf, yo], [x1 + m, y0 - m, lf, yo], [x1 + m, y1 + m, lf, yo], [x0 - m, y1 + m, lf, yo], [c.r, c.g, c.b, 1]);
@@ -2086,66 +2334,66 @@
         scene.add(mesh);
         povOnly.push(mesh);
       }
-      const want = [];   // signs: { key, style, text, x, y, lf, yc, dx, dy, h, back, maxW }
-      const boxes = [], cyls = [];
+      const want: Sign[] = [];   // signs: { key, style, text, x, y, lf, yc, dx, dy, h, back, maxW }
+      const boxes: InstBox[] = [], cyls: InstCyl[] = [];
       const N = (model.graph && model.graph.nodes) || [], E = (model.graph && model.graph.edges) || [];
-      const edgesOn = P.levels.map(() => null);
-      const edgesAt = (li) => {
+      const edgesOn = P.levels.map((): [XYL, XYL][] | null => null);
+      const edgesAt = (li: number) => {
         if (!edgesOn[li]) {
-          const id = P.levels[li].id, out = [];
+          const id = P.levels[li].id, out: [XYL, XYL][] = [];
           for (const e of E) { const a = N[e.a], b = N[e.b]; if (a && b && Math.abs(a[2] - id) < .35 && Math.abs(b[2] - id) < .35) out.push([a, b]); }
           edgesOn[li] = out;
         }
-        return edgesOn[li];
+        return edgesOn[li]!;
       };
       // the direction of the nearest walkway (people look along it), and the point on it
-      const walkway = (li, x, y, reach) => {
-        let best = null;
+      const walkway = (li: number, x: number, y: number, reach: number) => {
+        let best: Nearest | null = null;
         for (const [a, b] of edgesAt(li)) {
           if (Math.min(a[0], b[0]) > x + reach || Math.max(a[0], b[0]) < x - reach || Math.min(a[1], b[1]) > y + reach || Math.max(a[1], b[1]) < y - reach) continue;
-          const e = nearestOn([a, b], x, y, false);
+          const e = nearestOn([a, b], x, y, false)!;
           if (e.d < reach && (!best || e.d < best.d)) best = e;
         }
         return best;
       };
-      const trackDir = (li, x, y) => {
-        let best = null;
+      const trackDir = (li: number, x: number, y: number) => {
+        let best: Nearest | null = null;
         for (const t of model.tracks || []) {
           if (!t.line || P.idxOf(t.level || 0) !== li) continue;
-          const e = nearestOn(t.line, x, y, false);
+          const e = nearestOn(t.line, x, y, false)!;
           if (e.d < 25 && (!best || e.d < best.d)) best = e;
         }
         return best;
       };
-      const headingDir = (deg) => { const r = deg * Math.PI / 180; return [Math.sin(r), Math.cos(r)]; }; // the way a thing faces → its normal
-      const ceilOf = (li) => P.levels[li].ceilH || 3.4;
-      const indoorAt = (li, x, y) => { const a = areaAt(P, li, x, y); return !!a && (a.kind === 'floor' || (a.kind === 'platform' && P.levels[li].z < -1.5)); };
-      const hangAt = (li, x, y, wantY) => (indoorAt(li, x, y) ? Math.min(wantY, ceilOf(li) - .5) : wantY);
-      const hasNear = (text, x, y, lf, r) => want.some((w) => w.text === text && Math.abs(w.lf - lf) < .2 && Math.hypot(w.x - x, w.y - y) < r);
+      const headingDir = (deg: number): XY => { const r = deg * Math.PI / 180; return [Math.sin(r), Math.cos(r)]; }; // the way a thing faces → its normal
+      const ceilOf = (li: number) => P.levels[li].ceilH || 3.4;
+      const indoorAt = (li: number, x: number, y: number) => { const a = areaAt(P, li, x, y); return !!a && (a.kind === 'floor' || (a.kind === 'platform' && P.levels[li].z < -1.5)); };
+      const hangAt = (li: number, x: number, y: number, wantY: number) => (indoorAt(li, x, y) ? Math.min(wantY, ceilOf(li) - .5) : wantY);
+      const hasNear = (text: string, x: number, y: number, lf: number, r: number) => want.some((w) => w.text === text && Math.abs(w.lf - lf) < .2 && Math.hypot(w.x - x, w.y - y) < r);
 
       // 1. platform numbers over every stair, ramp and lift that leads to a platform, and at its head on the platform
-      const platAt = (x, y, level) => { // the platform a stair head stands on (often in a hole cut out of the platform for it)
+      const platAt = (x: number, y: number, level: number) => { // the platform a stair head stands on (often in a hole cut out of the platform for it)
         const li = P.idxOf(level);
         if (Math.abs(P.levels[li].id - level) > .3) return null;
         const a = areaAt(P, li, x, y);
         if (a && a.kind === 'platform' && a.keys.length) return a;
         if (a && a.kind !== 'platform') return null;
-        let best = null, bd = 3.5;
+        let best: PArea | null = null, bd = 3.5;
         for (const q of P.levels[li].areas) {
           if (q.kind !== 'platform' || !q.keys.length || x < q.box[0] - 4 || x > q.box[2] + 4 || y < q.box[1] - 4 || y > q.box[3] + 4) continue;
-          let d = nearestOn(q.ring, x, y, true).d;
-          for (const h of q.holes) d = Math.min(d, nearestOn(h, x, y, true).d);
+          let d = nearestOn(q.ring, x, y, true)!.d;
+          for (const h of q.holes) d = Math.min(d, nearestOn(h, x, y, true)!.d);
           if (d < bd) { bd = d; best = q; }
         }
         return best;
       };
-      const refsText = (a) => (a.src.refs || []).filter(Boolean).join('   ');
+      const refsText = (a: PArea) => (a.src.refs || []).filter(Boolean).join('   ');
       for (const c of model.connectors || []) {
         if (c.kind === 'elevator') {
           if (!c.xy || !c.levels) continue;
           const plat = c.levels.map((l) => platAt(c.xy[0], c.xy[1], l)).find(Boolean) || c.levels.map((l) => { // a lift stands beside its platform
-            const li = P.idxOf(l); let b = null;
-            for (const a of P.levels[li].areas) if (a.kind === 'platform' && a.keys.length && nearestOn(a.ring, c.xy[0], c.xy[1], true).d < 2.5) b = a;
+            const li = P.idxOf(l); let b: PArea | null = null;
+            for (const a of P.levels[li].areas) if (a.kind === 'platform' && a.keys.length && nearestOn(a.ring, c.xy[0], c.xy[1], true)!.d < 2.5) b = a;
             return b;
           }).find(Boolean);
           if (!plat) continue;
@@ -2165,7 +2413,7 @@
         const ends = [[ln[0], ln[1]], [ln[ln.length - 1], ln[ln.length - 2]]];
         const pa = platAt(ln[0][0], ln[0][1], ln[0][2]), pb = platAt(ln[ln.length - 1][0], ln[ln.length - 1][1], ln[ln.length - 1][2]);
         if (!!pa === !!pb) continue; // neither end on a platform, or it joins two platforms
-        const plat = pa || pb, [pe, pin] = pa ? ends[0] : ends[1], [oe, oin] = pa ? ends[1] : ends[0];
+        const plat = pa || pb!, [pe, pin] = pa ? ends[0] : ends[1], [oe, oin] = pa ? ends[1] : ends[0];
         const shut = isClosed(c) || isClosed(plat.src);
         // the portal: over the way in, across the direction you walk into it
         {
@@ -2206,7 +2454,7 @@
         for (const a of lv.areas) {
           const name = a.kind === 'room' && a.src.name && !/^(vacant|leer)$/i.test(a.src.name) ? String(a.src.name) : '';
           if (!name) continue;
-          let best = null;
+          let best: { len: number; mx: number; my: number; nx: number; ny: number } | null = null;
           for (let i = 0; i < a.ring.length; i++) {
             const p = a.ring[i], q = a.ring[(i + 1) % a.ring.length], len = Math.hypot(q[0] - p[0], q[1] - p[1]);
             if (len < 2.4 || (best && len <= best.len)) continue;
@@ -2221,7 +2469,7 @@
       }
       // 4. station furniture at its surveyed place
       const cBody = new THREE.Color(dark ? '#3a3f48' : '#3c4350'), cPole = new THREE.Color(dark ? '#8d939c' : '#6f7682'), cBlue = new THREE.Color(SIGN_BLUE), cInk = new THREE.Color(INK), cWhite = new THREE.Color('#f4f5f7');
-      const plate = (p, li, style, text, back, size, hang, dirN, colr) => { // a small board, hung or on a pole
+      const plate = (p: { xy: XY }, li: number, style: SignStyle, text: string, back: string, size: number, hang: boolean, dirN: XY, colr: THREE.Color) => { // a small board, hung or on a pole
         const x = p.xy[0], y = p.xy[1], lf = P.levels[li].id;
         const yc = hang ? hangAt(li, x, y, 2.8) : 2.3;
         const dx = -dirN[1], dy = dirN[0];
@@ -2235,13 +2483,13 @@
         const hang = p.mount ? p.mount === 'hang' : indoorAt(li, x, y);
         if (p.kind === 'sector-sign') {
           const t = trackDir(li, x, y);
-          const n = p.heading != null ? headingDir(p.heading) : t ? [t.dx, t.dy] : [1, 0]; // it hangs across the platform and faces along it
+          const n: XY = p.heading != null ? headingDir(p.heading) : t ? [t.dx, t.dy] : [1, 0]; // it hangs across the platform and faces along it
           // "B|C": one letter per face. Walking towards sector C you see the C: it is on the face that looks away from C.
           const names = String(p.name || '').split('|').map((s) => s.trim().slice(0, 2)).filter(Boolean);
           if (!names.length) continue;
           let front = names[0], back = names[names.length - 1];
           if (names.length > 1 && p.ref != null) {
-            const side = (nm) => { const c = sectorsFor(pkey(p.ref)).find((s) => String(s.name) === nm); return c ? (c.xy[0] - x) * n[0] + (c.xy[1] - y) * n[1] : 0; };
+            const side = (nm: string) => { const c = sectorsFor(pkey(p.ref)).find((s) => String(s.name) === nm); return c ? (c.xy[0] - x) * n[0] + (c.xy[1] - y) * n[1] : 0; };
             if (side(names[0]) > side(names[1])) { front = names[1]; back = names[0]; }
           }
           plate(p, li, 'sector', front, back, .56, hang, n, cBlue);
@@ -2252,14 +2500,14 @@
           for (const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) want.push({ style: 'meet', text: '', x: x + nx * .43, y: y + ny * .43, lf, yc, dx: -ny, dy: nx, h: .8, one: true });
         } else if (p.kind === 'clock') {
           const w = walkway(li, x, y, 15);
-          const n = p.heading != null ? headingDir(p.heading) : w ? [w.dx, w.dy] : [1, 0];
+          const n: XY = p.heading != null ? headingDir(p.heading) : w ? [w.dx, w.dy] : [1, 0];
           const yc = hang ? hangAt(li, x, y, 3.05) : 2.9;
           boxes.push({ x, y, lf, yo: yc - .5, sx: 1.0, sy: 1.0, sz: .16, dx: -n[1], dy: n[0], col: cBody });
           if (!hang) cyls.push({ x, y, lf, yo: 0, r: .06, h: yc - .5, col: cPole });
           want.push({ style: 'clock', text: '', back: '', x: x + n[0] * .085, y: y + n[1] * .085, lf, yc, dx: -n[1], dy: n[0], h: .92, thick: .17 });
         } else if (p.kind === 'ticket-machine') {
           const w = walkway(li, x, y, 12);
-          let n = p.heading != null ? headingDir(p.heading) : null;
+          let n: XY | null = p.heading != null ? headingDir(p.heading) : null;
           if (!n && w) { const l = Math.hypot(w.x - x, w.y - y); n = l > .3 ? [(w.x - x) / l, (w.y - y) / l] : [-w.dy, w.dx]; }
           if (!n) n = [0, -1];
           boxes.push({ x, y, lf, yo: 0, sx: .86, sy: 1.86, sz: .56, dx: -n[1], dy: n[0], col: cBody });
@@ -2271,7 +2519,7 @@
         if (!s.xy || !s.ref || s.mode === 'train') continue;
         const li = P.idxOf(s.level || 0);
         const t = trackDir(li, s.xy[0], s.xy[1]) || walkway(li, s.xy[0], s.xy[1], 15);
-        const n = t ? [t.dx, t.dy] : [1, 0]; // it faces along the kerb
+        const n: XY = t ? [t.dx, t.dy] : [1, 0]; // it faces along the kerb
         const ref = String(s.ref).slice(0, 3);
         plate({ xy: s.xy }, li, isClosed(s) ? 'closed' : 'stop', ref, ref, .5, false, n, cInk);
       }
@@ -2280,10 +2528,10 @@
       // the pictures
       if (want.length) {
         const CH = 96, PAD = 2, AW = 2048;
-        const cv = document.createElement('canvas'), g = cv.getContext('2d');
-        const font = (px, w) => `${w || 700} ${px}px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif`;
-        const cells = new Map();
-        const measure = (style, text) => {
+        const cv = document.createElement('canvas'), g = cv.getContext('2d')!;
+        const font = (px: number, w?: number) => `${w || 700} ${px}px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif`;
+        const cells = new Map<string, SignCell>();
+        const measure = (style: SignStyle, text: string) => {
           if (style === 'sector' || style === 'meet' || style === 'clock' || style === 'stop') return CH;
           if (style === 'ticket') return CH; // drawn 1:1, shown taller
           g.font = font(style === 'shop' ? 50 : 58, style === 'shop' ? 600 : 700);
@@ -2291,7 +2539,7 @@
           return Math.round(clamp(g.measureText(t).width + (style === 'sides' ? 150 : 56), CH, 760));
         };
         let x = PAD, yRow = PAD;
-        const need = (style, text) => {
+        const need = (style: SignStyle, text: string) => {
           const key = style + '\n' + text;
           if (cells.has(key)) return key;
           const w = measure(style, text);
@@ -2304,8 +2552,8 @@
         let AH = 128;
         while (AH < yRow + CH + PAD) AH *= 2;
         cv.width = AW; cv.height = AH;
-        const rr = (X, Y, Wd, Hd, r) => { g.beginPath(); g.moveTo(X + r, Y); g.arcTo(X + Wd, Y, X + Wd, Y + Hd, r); g.arcTo(X + Wd, Y + Hd, X, Y + Hd, r); g.arcTo(X, Y + Hd, X, Y, r); g.arcTo(X, Y, X + Wd, Y, r); g.closePath(); };
-        const fit = (text, maxW, px, wgt) => { let s = px; g.font = font(s, wgt); while (s > 22 && g.measureText(text).width > maxW) { s -= 3; g.font = font(s, wgt); } };
+        const rr = (X: number, Y: number, Wd: number, Hd: number, r: number) => { g.beginPath(); g.moveTo(X + r, Y); g.arcTo(X + Wd, Y, X + Wd, Y + Hd, r); g.arcTo(X + Wd, Y + Hd, X, Y + Hd, r); g.arcTo(X, Y + Hd, X, Y, r); g.arcTo(X, Y, X + Wd, Y, r); g.closePath(); };
+        const fit = (text: string, maxW: number, px: number, wgt?: number) => { let s = px; g.font = font(s, wgt); while (s > 22 && g.measureText(text).width > maxW) { s -= 3; g.font = font(s, wgt); } };
         g.textBaseline = 'middle'; g.textAlign = 'center';
         for (const c of cells.values()) {
           const { x: X, y: Y, w: Wd, style, text } = c, cx = X + Wd / 2, cy = Y + CH / 2;
@@ -2364,10 +2612,10 @@
         const tex = new THREE.CanvasTexture(cv);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-        const sg = new Geo();
-        const uvOf = (key) => { const c = cells.get(key); return [c.x / AW, 1 - (c.y + CH) / AH, (c.x + c.w) / AW, 1 - c.y / AH, c.w / CH]; };
+        const sg = new (Geo as GeoCtor)();
+        const uvOf = (key: string) => { const c = cells.get(key)!; return [c.x / AW, 1 - (c.y + CH) / AH, (c.x + c.w) / AW, 1 - c.y / AH, c.w / CH]; };
         for (const w of want) {
-          const uv = uvOf(w.key);
+          const uv = uvOf(w.key!);
           let h = w.h, wd = h * uv[4];
           if (w.maxW && wd > w.maxW) { h *= w.maxW / wd; wd = w.maxW; }
           if (h < .15) continue;
@@ -2391,11 +2639,11 @@
         const mat = () => new THREE.MeshLambertMaterial();
         if (boxes.length) {
           inst.box = track(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat(), boxes.length));
-          boxes.forEach((b, i) => inst.box.setColorAt(i, b.col));
+          boxes.forEach((b, i) => inst!.box!.setColorAt(i, b.col));
         }
         if (cyls.length) {
           inst.cyl = track(new THREE.InstancedMesh(new THREE.CylinderGeometry(.5, .5, 1, 10), mat(), cyls.length));
-          cyls.forEach((b, i) => inst.cyl.setColorAt(i, b.col));
+          cyls.forEach((b, i) => inst!.cyl!.setColorAt(i, b.col));
         }
         for (const m of [inst.box, inst.cyl]) {
           if (!m) continue;
@@ -2407,7 +2655,7 @@
         placeInst();
       }
     }
-    let m4 = null, q4 = null, p4 = null, s4 = null, yAxis = null;
+    let m4: THREE.Matrix4 | null = null, q4: THREE.Quaternion = null!, p4: THREE.Vector3 = null!, s4: THREE.Vector3 = null!, yAxis: THREE.Vector3 = null!;
     function placeInst() {
       if (!inst) return;
       if (!m4) { m4 = new THREE.Matrix4(); q4 = new THREE.Quaternion(); p4 = new THREE.Vector3(); s4 = new THREE.Vector3(); yAxis = new THREE.Vector3(0, 1, 0); }
@@ -2416,7 +2664,7 @@
           p4.set(b.x, Yc(b.lf) + b.yo + b.sy / 2, -b.y);
           q4.setFromAxisAngle(yAxis, Math.atan2(b.dy, b.dx));
           s4.set(b.sx, b.sy, b.sz);
-          inst.box.setMatrixAt(i, m4.compose(p4, q4, s4));
+          inst!.box!.setMatrixAt(i, m4!.compose(p4, q4, s4));
         });
         inst.box.instanceMatrix.needsUpdate = true;
       }
@@ -2425,7 +2673,7 @@
         inst.cyls.forEach((b, i) => {
           p4.set(b.x, Yc(b.lf) + b.yo + b.h / 2, -b.y);
           s4.set(b.r * 2, b.h, b.r * 2);
-          inst.cyl.setMatrixAt(i, m4.compose(p4, q4, s4));
+          inst!.cyl!.setMatrixAt(i, m4!.compose(p4, q4, s4));
         });
         inst.cyl.instanceMatrix.needsUpdate = true;
       }
@@ -2435,9 +2683,9 @@
     function buildRoute() {
       R = null;
       if (!A.routed) return;
-      let sm = smoothPath(route.points);
+      let sm = smoothPath(route!.points);
       if (DT.h) { // inside a detail scene the line lies on the real ground and steps over kerbs: it needs close points to bend there
-        const b = DT.entry.bbox, out = [];
+        const b = DT.entry!.bbox, out: SmoothPt[] = [];
         for (let j = 0; j < sm.length; j++) {
           const a = sm[j], c = sm[j + 1];
           out.push(a);
@@ -2450,7 +2698,7 @@
       }
       const m = sm.length, K = 10;
       const D = new Float32Array(m);
-      const Dorig = new Float32Array(route.points.length);
+      const Dorig = new Float32Array(route!.points.length);
       for (let j = 0; j < m; j++) {
         if (j) {
           const a = sm[j - 1], b = sm[j];
@@ -2468,7 +2716,7 @@
         }
       }
       for (const [i, j] of [[m * K, 0], [m * K + 1, m - 1]]) { pos[i * 3] = sm[j].x; pos[i * 3 + 2] = -sm[j].y; dd[i] = D[j]; }
-      const index = [];
+      const index: number[] = [];
       for (let j = 0; j < m - 1; j++) {
         for (let k = 0; k < K; k++) {
           const a = j * K + k, b = (j + 1) * K + k, c = (j + 1) * K + (k + 1) % K, d = j * K + (k + 1) % K;
@@ -2486,14 +2734,14 @@
       geo.setAttribute('aTan', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
       geo.setIndex(index);
       const total = D[m - 1];
-      const col = (hex) => new THREE.Color(hex);
+      const col = (hex: string) => new THREE.Color(hex);
       const shared = {
         uPx: { value: .01 }, uRmin: { value: .5 }, uA0: { value: -1 }, uA1: { value: 1e9 }, uThin: { value: .7 },
         uInk: { value: col(T.chevron) }, uDim: { value: col(T.dim) }, uDone: { value: col(T.done) },
         uProg: { value: -1 }, uGrow: { value: 1e9 }, uSpacing: { value: 8 }, uPhase: { value: 0 },
         uSquash: { value: 1 }, uNear: { value: 1 }, uEye: { value: -1e6 }, uFogN: { value: 1e8 }, uFogF: { value: 1e9 },
       };
-      const make = (extra, o) => new THREE.ShaderMaterial(Object.assign({
+      const make = (extra: Record<string, THREE.IUniform>, o: THREE.ShaderMaterialParameters) => new THREE.ShaderMaterial(Object.assign({
         uniforms: Object.assign({}, shared, extra), vertexShader: ROUTE_VERT, fragmentShader: ROUTE_FRAG, transparent: true,
       }, o));
       const mats = [
@@ -2509,9 +2757,9 @@
         scene.add(mesh);
         return mesh;
       });
-      const Am = route.dists && route.dists.length === route.points.length ? route.dists : (() => {
+      const Am = route!.dists && route!.dists.length === route!.points.length ? route!.dists : (() => {
         const d = [0];
-        for (let i = 1; i < route.points.length; i++) d.push(d[i - 1] + Math.hypot(route.points[i][0] - route.points[i - 1][0], route.points[i][1] - route.points[i - 1][1]));
+        for (let i = 1; i < route!.points.length; i++) d.push(d[i - 1] + Math.hypot(route!.points[i][0] - route!.points[i - 1][0], route!.points[i][1] - route!.points[i - 1][1]));
         return d;
       })();
       R = { geo, meshes, U: shared, sm, D, Dorig, total, K, A: Am };
@@ -2566,12 +2814,12 @@
       return val;
     }
     // display distance along the route at a (fractional) index into route.points
-    function distAt(pi) {
-      const i = clamp(Math.floor(pi), 0, R.Dorig.length - 1), j = Math.min(R.Dorig.length - 1, i + 1);
-      return lerp(R.Dorig[i], R.Dorig[j], clamp(pi - i, 0, 1));
+    function distAt(pi: number) {
+      const i = clamp(Math.floor(pi), 0, R!.Dorig.length - 1), j = Math.min(R!.Dorig.length - 1, i + 1);
+      return lerp(R!.Dorig[i], R!.Dorig[j], clamp(pi - i, 0, 1));
     }
-    function pointAt(pi) {
-      const pts = route.points, i = clamp(Math.floor(pi), 0, pts.length - 1), j = Math.min(pts.length - 1, i + 1), t = clamp(pi - i, 0, 1);
+    function pointAt(pi: number): XYL {
+      const pts = route!.points, i = clamp(Math.floor(pi), 0, pts.length - 1), j = Math.min(pts.length - 1, i + 1), t = clamp(pi - i, 0, 1);
       return [lerp(pts[i][0], pts[j][0], t), lerp(pts[i][1], pts[j][1], t), lerp(pts[i][2], pts[j][2], t)];
     }
 
@@ -2584,10 +2832,10 @@
       disc = mesh;
     }
     // ----- the shape of the model: how far the floors are peeled apart -----
-    const evalTab = (tab, level) => { const s = P.seg(level); return tab[s[0]] + s[1] * (P.n > 1 ? tab[s[0] + 1] - tab[s[0]] : 5); };
-    const Yc = (level) => evalTab(SH.tab, level);  // height on screen now
-    const Yt = (level) => evalTab(tabTo, level);   // height once the running animation has settled
-    function levelOfY(tab, y) {
+    const evalTab = (tab: number[], level: number) => { const s = P.seg(level); return tab[s[0]] + s[1] * (P.n > 1 ? tab[s[0] + 1] - tab[s[0]] : 5); };
+    const Yc = (level: number) => evalTab(SH.tab, level);  // height on screen now
+    const Yt = (level: number) => evalTab(tabTo, level);   // height once the running animation has settled
+    function levelOfY(tab: number[], y: number) {
       const n = P.n;
       if (n === 1) return P.levels[0].id + (y - tab[0]) / 5;
       let k = 0;
@@ -2600,7 +2848,7 @@
     function setupShape() {
       const n = P.n, shown = A.shown;
       Yreal = P.levels.map((l) => l.z);
-      const gap = A.routed ? clamp(A.box.hh * 2 * Math.tan(Math.PI / 2 - POL_PEEL) * 1.3, 40, 110) : clamp(P.core.hh * 2 * .9 / Math.max(1, shown.length - 1), 15, 30);
+      const gap = A.routed ? clamp(A.box!.hh * 2 * Math.tan(Math.PI / 2 - POL_PEEL) * 1.3, 40, 110) : clamp(P.core.hh * 2 * .9 / Math.max(1, shown.length - 1), 15, 30);
       Yspread = new Array(n).fill(null);
       shown.forEach((li, r) => { Yspread[li] = r * gap; });
       const span = shown.length > 1 ? Yreal[shown[shown.length - 1]] - Yreal[shown[0]] : 0;
@@ -2625,12 +2873,12 @@
       SH.Hs = lerp(HS_MODEL, 1, povT);
       calcTab(tabTo, peelTo, pov ? 1 : 0);
     }
-    function calcTab(out, p, e) {
+    function calcTab(out: number[], p: number, e: number) {
       const k = clamp(p, 0, 1) * (1 - e);
       for (let i = 0; i < out.length; i++) out[i] = Yreal[i] + (Yspread[i] - Yreal[i]) * k;
     }
-    const plateGain = (li) => (li === A.shown[0] ? 1 : clamp((peel - .05) / .3, 0, 1)); // in the flat plan the upper plates are glass
-    function applyShape(finish) {
+    const plateGain = (li: number) => (li === A.shown[0] ? 1 : clamp((peel - .05) / .3, 0, 1)); // in the flat plan the upper plates are glass
+    function applyShape(finish?: boolean) {
       const n = P.n;
       calcTab(SH.tab, peel, povT);
       for (let i = 0; i < n; i++) SH.dtab[i] = i < n - 1 ? SH.tab[i + 1] - SH.tab[i] : n > 1 ? SH.tab[i] - SH.tab[i - 1] : 5;
@@ -2648,7 +2896,7 @@
       routeFrames();
       shadowDirty = true;
     }
-    function setPeel(v, o) {
+    function setPeel(v: number, o?: { live?: boolean; dur?: number; delay?: number }) {
       o = o || {};
       v = clamp(v, 0, 1);
       peelTo = v;
@@ -2658,7 +2906,7 @@
       syncPeel();
       request();
     }
-    function stepPeel(now) {
+    function stepPeel(now: number) {
       if (!peelAnim) return false;
       const t = clamp((now - peelAnim.t0) / peelAnim.dur, 0, 1);
       peel = lerp(peelAnim.from, peelAnim.to, spring(t));
@@ -2673,8 +2921,8 @@
     }
 
     // ----- camera -----
-    const polOf = (p) => lerp(POL_FLAT, POL_PEEL, clamp(p, 0, 1));
-    function limit(p) {
+    const polOf = (p: number) => lerp(POL_FLAT, POL_PEEL, clamp(p, 0, 1));
+    function limit(p: Pose) {
       const [bx0, by0, bx1, by1] = P.box, m = Math.max(20, P.diag * .15);
       p.dist = clamp(p.dist, 16, maxDist);
       p.tx = clamp(p.tx, bx0 - m, bx1 + m);
@@ -2706,7 +2954,7 @@
     }
     const focal = () => H / (2 * Math.tan(FOV * Math.PI / 360));
     // The pose (looking from az / pol) that just fits the points into the free part of the screen
-    function fitPose(pts, az, pol, pad) {
+    function fitPose(pts: P3[], az: number, pol: number, pad: number): Pose {
       const sp = Math.sin(pol), cp = Math.cos(pol), sa = Math.sin(az), ca = Math.cos(az);
       const f = [-sp * sa, -cp, -sp * ca], r = [ca, 0, -sa], u = [-sa * cp, sp, -ca * cp];
       let r0 = Infinity, r1 = -Infinity, u0 = Infinity, u1 = -Infinity, f0 = Infinity, f1 = -Infinity;
@@ -2724,17 +2972,17 @@
       return { az, dist, tx: r[0] * cr + u[0] * cu + f[0] * cf, tz: r[2] * cr + u[2] * cu + f[2] * cf, tl: levelOfY(tabTo, y) };
     }
     // Try the view from all around and keep the best: big on screen, stairs seen from the side, walking away from the eye
-    function bestPose(pts, o) {
+    function bestPose(pts: P3[], o: PoseOpts): Pose {
       const pol = polOf(peelTo);
       if (o.az != null) return fitPose(pts, o.az, pol, o.pad);
-      const cands = [];
+      const cands: Pose[] = [];
       let dmin = Infinity;
       for (let k = 0; k < 24; k++) {
         const pose = fitPose(pts, k * Math.PI / 12, pol, o.pad);
         cands.push(pose);
         dmin = Math.min(dmin, pose.dist);
       }
-      let best = null, bestScore = -Infinity;
+      let best: Pose | null = null, bestScore = -Infinity;
       for (const pose of cands) {
         const fx = -Math.sin(pose.az), fy = Math.cos(pose.az); // view direction on the ground (model x/y); right = (fy, -fx)
         let side = 0, wsum = 0;
@@ -2746,12 +2994,12 @@
         const score = (o.wFit || 1) * (dmin / pose.dist) + (o.wSide || 0) * side + (o.wFront || 0) * front + (o.wCont || 0) * cont + (o.wAcross || 0) * across;
         if (score > bestScore) { bestScore = score; best = pose; }
       }
-      return best;
+      return best!;
     }
-    const dpt = (x, y, level, lift) => [x, Yt(level) + (lift || 0), -y];
-    function routeSection(i0, i1) { // points of route.points[i0..i1] for framing, with what the scoring needs
-      const pts = [], inclines = [];
-      const rp = route.points;
+    const dpt = (x: number, y: number, level: number, lift?: number): P3 => [x, Yt(level) + (lift || 0), -y];
+    function routeSection(i0: number, i1: number): Section { // points of route.points[i0..i1] for framing, with what the scoring needs
+      const pts: P3[] = [], inclines: Incline[] = [];
+      const rp = route!.points;
       for (let i = i0; i <= i1; i++) {
         pts.push(dpt(rp[i][0], rp[i][1], rp[i][2], 0));
         if (i > i0 && Math.abs(rp[i][2] - rp[i - 1][2]) > 1e-3) {
@@ -2763,33 +3011,33 @@
       const dl = Math.hypot(b[0] - a[0], b[1] - a[1]);
       return { pts, inclines, dir: dl > 1 ? [(b[0] - a[0]) / dl, (b[1] - a[1]) / dl] : null };
     }
-    const boxPts = (b, levels, scale) => {
-      const k = scale || 1, bb = { cx: b.cx, cy: b.cy, ux: b.ux, uy: b.uy, hw: b.hw * k, hh: b.hh * k }, pts = [];
+    const boxPts = (b: Obb, levels: number[], scale?: number) => {
+      const k = scale || 1, bb = { cx: b.cx, cy: b.cy, ux: b.ux, uy: b.uy, hw: b.hw * k, hh: b.hh * k }, pts: P3[] = [];
       for (const l of levels) for (const p of boxRing(bb)) pts.push(dpt(p[0], p[1], l, 0));
       return pts;
     };
-    function overviewPose(o) {
+    function overviewPose(o?: { az?: number }) {
       o = o || {};
       if (A.routed) { // the plates the route runs over, all of them
-        const s = A.same ? { pts: [], inclines: [], dir: null } : routeSection(0, route.points.length - 1);
-        const pts = boxPts(A.box, A.shown.map((li) => P.levels[li].id), .86).concat(s.pts);
-        const e = route.points[route.points.length - 1];
+        const s: Section = A.same ? { pts: [], inclines: [], dir: null } : routeSection(0, route!.points.length - 1);
+        const pts = boxPts(A.box!, A.shown.map((li) => P.levels[li].id), .86).concat(s.pts);
+        const e = route!.points[route!.points.length - 1];
         pts.push(dpt(e[0], e[1], e[2], 9)); // room for the sign
         const multi = A.shown.length > 1;
-        return bestPose(pts, { az: o.az, pad: 5, inclines: s.inclines, dir: s.dir, wFit: 1, wSide: .2, wFront: .14, wAcross: multi ? 1.2 : 0, axis: Math.atan2(-A.box.ux, A.box.uy) });
+        return bestPose(pts, { az: o.az, pad: 5, inclines: s.inclines, dir: s.dir, wFit: 1, wSide: .2, wFront: .14, wAcross: multi ? 1.2 : 0, axis: Math.atan2(-A.box!.ux, A.box!.uy) });
       }
       if (focus && focus.hit) return focusPose(focus.hit, o);
       return levelPose(isolate, o);
     }
-    function focusPose(hit, o) {
+    function focusPose(hit: Hit, o?: { az?: number }) {
       const a = hit.area, r = a && a.kind === 'platform' ? 55 : 40;
-      const pts = [];
+      const pts: P3[] = [];
       for (const [x, y] of [[-r, -r], [r, -r], [r, r], [-r, r]]) pts.push(dpt(hit.xy[0] + x * .8, hit.xy[1] + y * .8, hit.level, 0));
       pts.push(dpt(hit.xy[0], hit.xy[1], hit.level, 9));
       return bestPose(pts, { az: o && o.az, pad: 6, wFit: 1, wCont: .2, near: tween ? tween.to.az : cam.az });
     }
-    function levelPose(li, o) {
-      const pts = [];
+    function levelPose(li: number | null, o?: { az?: number }) {
+      const pts: P3[] = [];
       if (li == null) {
         // all floors: the station itself (around its train platforms), not the whole neighbourhood
         const tr = (model.stops || []).filter((s) => s.mode === 'train' && s.xy).map((s) => P.idxOf(s.level || 0));
@@ -2797,7 +3045,7 @@
         for (const p of boxPts(P.core, lis.map((i) => P.levels[i].id), 1)) pts.push(p);
       } else {
         const lv = P.levels[li];
-        const b = A.routed ? { cx: A.box.cx, cy: A.box.cy, ux: A.box.ux, uy: A.box.uy, hw: A.box.hw * 1.5, hh: A.box.hh * 1.8 } : { cx: P.core.cx, cy: P.core.cy, ux: P.core.ux, uy: P.core.uy, hw: P.core.hw * 1.5, hh: P.core.hh * 1.6 };
+        const b = A.routed ? { cx: A.box!.cx, cy: A.box!.cy, ux: A.box!.ux, uy: A.box!.uy, hw: A.box!.hw * 1.5, hh: A.box!.hh * 1.8 } : { cx: P.core.cx, cy: P.core.cy, ux: P.core.ux, uy: P.core.uy, hw: P.core.hw * 1.5, hh: P.core.hh * 1.6 };
         const near = (lv.hull || []).filter((p) => inBox(b, p[0], p[1], 0));
         for (const a of lv.areas) for (const p of a.ring) if (inBox(b, p[0], p[1], 0)) near.push(p);
         const use = near.length >= 3 ? near : (lv.hull || []);
@@ -2807,18 +3055,18 @@
       if (!pts.length) pts.push([0, 0, 0]);
       return bestPose(pts, { az: o && o.az, pad: Math.max(4, P.core.hh * .04), wFit: 1, wCont: .25, near: tween ? tween.to.az : cam.az });
     }
-    function stepPose(i) {
-      const st = route.steps[i];
+    function stepPose(i: number) {
+      const st = route!.steps[i];
       const s = routeSection(st.from, Math.max(st.from, st.to));
-      const lift = st.kind === 'arrive' || i === route.steps.length - 1;
-      if (lift) { const e = route.points[st.to]; s.pts.push(dpt(e[0], e[1], e[2], 9)); }
+      const lift = st.kind === 'arrive' || i === route!.steps.length - 1;
+      if (lift) { const e = route!.points[st.to]; s.pts.push(dpt(e[0], e[1], e[2], 9)); }
       const xs = s.pts.map((p) => p[0]), zs = s.pts.map((p) => p[2]);
       const ext = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
       const pad = Math.max(11, 22 - ext / 2);
       const climb = st.kind !== 'walk' && st.kind !== 'arrive';
       const near = tween ? tween.to.az : cam.az;
       if (!s.dir && i > 0) { // a lift or the arrival: keep looking the way we came
-        const prev = routeSection(route.steps[i - 1].from, route.steps[i - 1].to);
+        const prev = routeSection(route!.steps[i - 1].from, route!.steps[i - 1].to);
         s.dir = prev.dir;
       }
       return bestPose(s.pts, climb
@@ -2830,14 +3078,14 @@
       if (isolate != null) return levelPose(isolate);
       return overviewPose();
     }
-    function flyTo(pose, dur) {
+    function flyTo(pose: Partial<Pose>, dur?: number) {
       pose = limit(Object.assign({}, cam, pose));
       spin.az = spin.x = spin.z = 0;
       if (reducedMotion() || dur === 0) { Object.assign(cam, pose); tween = null; }
-      else tween = { from: Object.assign({}, cam), to: pose, daz: angDiff(pose.az, cam.az), t0: performance.now(), dur: dur || 900 };
+      else tween = { from: Object.assign({}, cam), to: pose as Pose, daz: angDiff(pose.az!, cam.az), t0: performance.now(), dur: dur || 900 };
       request();
     }
-    function stepTween(now) {
+    function stepTween(now: number) {
       if (!tween) return false;
       const t = clamp((now - tween.t0) / tween.dur, 0, 1), e = spring(t), a = tween.from, b = tween.to;
       cam.az = a.az + tween.daz * e;
@@ -2846,7 +3094,7 @@
       if (t >= 1) tween = null;
       return true;
     }
-    function stepSpin(dt) {
+    function stepSpin(dt: number) {
       if (!spin.az && !spin.x && !spin.z) return false;
       cam.az += spin.az * dt; cam.tx += spin.x * dt; cam.tz += spin.z * dt;
       limit(cam);
@@ -2870,7 +3118,7 @@
       } else if (routed) {
         for (let i = 0; i < n; i++) { const on = A.levels.has(i); lvT[i] = on ? 1 : 0; plT[i] = on ? 1 : 0; }
         if (sel >= 0 && !A.same) { // one step: its floors in full, the floors above it cut away so they cannot cover it
-          const st = route.steps[sel], l2 = st.toLevel == null ? st.level : st.toLevel;
+          const st = route!.steps[sel], l2 = st.toLevel == null ? st.level : st.toLevel;
           top = P.bracket(Math.max(st.level, l2))[1] + 1;
           for (let i = top; i < n; i++) { lvT[i] = 0; plT[i] = 0; }
         }
@@ -2892,14 +3140,14 @@
       // the route: the selected step is bright, the rest thinner and paler
       if (R) {
         if (sel >= 0 && !pov && !A.same) {
-          const st = route.steps[sel];
+          const st = route!.steps[sel];
           R.U.uA0.value = distAt(st.from);
           R.U.uA1.value = distAt(st.to);
         } else { R.U.uA0.value = -1; R.U.uA1.value = 1e9; }
       }
-      const active = new Set();
+      const active = new Set<number>();
       if (routed && sel >= 0 && !A.same) {
-        const st = route.steps[sel];
+        const st = route!.steps[sel];
         for (const i of P.bracket(st.level)) active.add(i);
         if (st.toLevel != null) for (const i of P.bracket(st.toLevel)) active.add(i);
       } else if (isolate != null) active.add(isolate);
@@ -2925,7 +3173,7 @@
         h.mesh.visible = o > .3 && !lv3[h.li].cut;
       });
     }
-    function stepOpacity(dt) {
+    function stepOpacity(dt: number) {
       let busy = false;
       const k = reducedMotion() ? 1 : 1 - Math.exp(-dt / 110);
       for (const o of parts) {
@@ -2937,11 +3185,11 @@
       return busy;
     }
     const snapOpacity = () => { for (const p of parts) p.op = p.target; applyOpacity(); };
-    const vis = (li) => (lv3[li] ? lv3[li].op : 0); // how much of a floor shows
+    const vis = (li: number) => (lv3[li] ? lv3[li].op : 0); // how much of a floor shows
 
     // ----- first-person view -----
-    const stepAtPi = (pi) => {
-      const st = route.steps;
+    const stepAtPi = (pi: number) => {
+      const st = route!.steps;
       for (let i = 0; i < st.length; i++) if (st[i].kind !== 'arrive' && pi < st[i].to - 1e-6) return i;
       return st.length - 1;
     };
@@ -2954,7 +3202,7 @@
     }
     const userHere = () => !!user && !user.outside && user.sx != null;   // drawn on the plan
     const userKnown = () => !!user && !user.outside && user.x != null;   // a position at the station, drawn or not yet
-    function setPov(on) {
+    function setPov(on: boolean) {
       on = !!on;
       if (on === pov || !self.ready) return;
       pov = on;
@@ -2971,13 +3219,13 @@
           opts.povAt = null;
           const pt = pointAt(piAt(pv.along));
           pv.x = pv.tx = pt[0]; pv.y = pv.ty = pt[1]; pv.level = pv.tl = pt[2];
-          const q = pointAt(piAt(Math.min(R.A[R.A.length - 1], pv.along + 6.5)));
+          const q = pointAt(piAt(Math.min(R!.A[R!.A.length - 1], pv.along + 6.5)));
           pv.bearing = pv.tb = Math.hypot(q[0] - pt[0], q[1] - pt[1]) > .3 ? Math.atan2(q[0] - pt[0], q[1] - pt[1]) : -cam.az;
         } else {
           pv.free = true;
           // a position far outside the model is no place to stand: start at what was tapped, the destination, an entrance
-          const here = userHere() ? { xy: [user.sx, user.sy], level: user.sl } : null;
-          const at = picked || (focus && focus.hit) || (A.routed ? { xy: route.points[0], level: route.points[0][2] } : null) || here || ((model.entrances || []).find((e) => e.xy)) || { xy: [P.core.cx, P.core.cy], level: P.near(0) };
+          const here = userHere() ? { xy: [user!.sx!, user!.sy!], level: user!.sl } : null;
+          const at = picked || (focus && focus.hit) || (A.routed ? { xy: route!.points[0], level: route!.points[0][2] } : null) || here || ((model.entrances || []).find((e) => e.xy)) || { xy: [P.core.cx, P.core.cy], level: P.near(0) };
           pv.x = pv.tx = at.xy[0]; pv.y = pv.ty = at.xy[1]; pv.level = pv.tl = at.level || 0;
           pv.bearing = pv.tb = -cam.az;
         }
@@ -2999,7 +3247,7 @@
       touch();
       request();
     }
-    function stepPov(dt, now) {
+    function stepPov(dt: number, now: number) {
       let busy = false;
       if (povAnim) {
         const t = clamp((now - povAnim.t0) / povAnim.dur, 0, 1);
@@ -3008,9 +3256,9 @@
         busy = true;
       }
       if (DT.entry) { ensureDetail(); syncDetail(); }
-      { const kt = DT.show && pov && inBB(DT.entry.bbox, pv.x, pv.y, 4) ? 1 : 0; if (DT.k !== kt) { DT.k += (kt - DT.k) * (reducedMotion() ? 1 : 1 - Math.exp(-dt / 500)); if (Math.abs(kt - DT.k) < .01) DT.k = kt; else busy = true; } }
+      { const kt = DT.show && pov && inBB(DT.entry!.bbox, pv.x, pv.y, 4) ? 1 : 0; if (DT.k !== kt) { DT.k += (kt - DT.k) * (reducedMotion() ? 1 : 1 - Math.exp(-dt / 500)); if (Math.abs(kt - DT.k) < .01) DT.k = kt; else busy = true; } }
       if (!pov) return busy;
-      const k = (tau) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
+      const k = (tau: number) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
       if (!pv.free && A.routed) {
         const total = R.A[R.A.length - 1];
         if (follow && userHere() && user.salong != null) { // a live position leads; the walk by itself gives way
@@ -3210,10 +3458,10 @@
         const arrived = st.kind === 'arrive' || togo < 2;
         const turn = st.turn;
         const ic = arrived ? 'arrive' : st.kind !== 'walk' ? st.kind : turn === 'left' || turn === 'bear-left' ? 'tleft' : turn === 'right' || turn === 'bear-right' ? 'tright' : 'up';
-        hudEl.firstElementChild.innerHTML = svg(ic);
-        hudEl.querySelector('b').textContent = arrived ? arriveTitle() : st.text;
+        hudEl.firstElementChild!.innerHTML = svg(ic);
+        hudEl.querySelector('b')!.textContent = arrived ? arriveTitle() : st.text;
         const then = arrived ? arriveLine() : !next ? '' : `${left < 4 ? 'Next' : 'Then in ' + fmtM(left)}: ${lowerFirst(next.kind === 'arrive' ? arriveTitle(true) : next.text)}`;
-        const line = hudEl.querySelector(':scope > div > span');
+        const line = hudEl.querySelector<HTMLElement>(':scope > div > span')!;
         line.textContent = then;
         line.hidden = !then;
         root.style.setProperty('--s3-hud-h', hudEl.offsetHeight + 'px');
@@ -3224,7 +3472,7 @@
       drawMini();
     }
     function drawMini() {
-      const c = miniEl, g = c.getContext('2d'), w = c.width, r = w / 2, sc = w / 96; // 96 m across
+      const c = miniEl, g = c.getContext('2d')!, w = c.width, r = w / 2, sc = w / 96; // 96 m across
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.clearRect(0, 0, w, w);
       g.save();
@@ -3237,8 +3485,8 @@
       g.scale(sc, -sc);
       g.translate(-pv.x, -pv.y);
       g.lineJoin = g.lineCap = 'round';
-      const rp = route.points, lvl = P.near(pv.level);
-      const stroke = (same, width, color) => {
+      const rp = route!.points, lvl = P.near(pv.level);
+      const stroke = (same: boolean, width: number, color: string) => {
         g.beginPath();
         for (let i = 0; i < rp.length - 1; i++) {
           const on = Math.abs((rp[i][2] + rp[i + 1][2]) / 2 - lvl) < .75;
@@ -3271,7 +3519,7 @@
     }
     function syncPov() {
       for (const b of levelsEl.querySelectorAll('.s3-povbtn')) b.setAttribute('aria-pressed', String(pov));
-      const pb = levelsEl.querySelector('.s3-povbtn');
+      const pb = levelsEl.querySelector<HTMLElement>('.s3-povbtn');
       if (pb) {
         pb.innerHTML = svg(pov ? 'layers' : 'eye');
         pb.title = pov ? 'Back to the model from above' : 'See it as you walk';
@@ -3288,7 +3536,7 @@
     }
     // "Look where I'm facing": the phone's compass and tilt turn the head. Only once the phone really reports
     // which way it points; a refusal or silence is said, not left as a frozen view.
-    function setDeviceLook(want) {
+    function setDeviceLook(want: boolean) {
       clearTimeout(orientTimer);
       if (!want) {
         if (pv.device) { pv.yaw = angDiff(pv.dB, pv.bearing); pv.pitch = clamp(pv.dP + .1, -1.1, 1); }
@@ -3301,12 +3549,12 @@
       const start = () => {
         if (lb) lb.removeAttribute('aria-busy');
         if (!self.alive || !pov) return;
-        pv.dB = pv.orient.b; pv.dP = pv.orient.p;
+        pv.dB = pv.orient!.b; pv.dP = pv.orient!.p;
         pv.device = true;
         toast('Hold the phone upright and turn around: the view turns with you.', 3500);
         syncPov(); request();
       };
-      const fail = (why) => {
+      const fail = (why: string) => {
         if (lb) lb.removeAttribute('aria-busy');
         if (!self.alive) return;
         pv.device = false;
@@ -3330,14 +3578,14 @@
       request();
     }
     // Is a point on your floor hidden behind a wall or a shop from where you stand?
-    function hiddenFromEye(x, y, level) {
+    function hiddenFromEye(x: number, y: number, level: number) {
       const li = P.idxOf(pv.level);
       if (Math.abs(P.levels[li].id - pv.level) > .45 || Math.abs(level - pv.level) > .7) return false;
       const segs = los[li];
       if (!segs || !segs.length) return false;
       const ex = pv.x, ey = pv.y;
       const x0 = Math.min(ex, x), x1 = Math.max(ex, x), y0 = Math.min(ey, y), y1 = Math.max(ey, y);
-      const a = [ex, ey], b = [x, y];
+      const a: XY = [ex, ey], b: XY = [x, y];
       for (const s of segs) {
         if (Math.max(s[0], s[2]) < x0 || Math.min(s[0], s[2]) > x1 || Math.max(s[1], s[3]) < y0 || Math.min(s[1], s[3]) > y1) continue;
         if (segsCross(a, b, [s[0], s[1]], [s[2], s[3]])) return true;
@@ -3351,7 +3599,7 @@
       clearTimeout(slowTimer); slowTimer = 0;
       raf = requestAnimationFrame(frame);
     }
-    function frame(now) {
+    function frame(now: number) {
       raf = 0;
       if (!self.alive || !self.ready || lost) return;
       const dt = now - lastT > 250 ? 16 : Math.max(1, now - lastT);
@@ -3372,12 +3620,12 @@
       }
       // the arrows on the route keep drifting for a while after the last touch, then rest
       const flowing = R && !A.same && !reducedMotion() && !document.hidden && now - lastActivity < 14000;
-      if (flowing) { phase = (phase + dt * .00042) % 1; R.U.uPhase.value = phase; }
+      if (flowing) { phase = (phase + dt * .00042) % 1; R!.U.uPhase.value = phase; }
       render();
       if (busy) request();
       else if (flowing) slowTimer = setTimeout(request, 34);
     }
-    const fogCol = { a: null, b: null, c: null };
+    const fogCol: Record<'a' | 'b' | 'c', THREE.Color | null> = { a: null, b: null, c: null };
     function render() {
       applyCam();
       if (R) {
@@ -3395,8 +3643,8 @@
         R.U.uSpacing.value = e > .5 ? 3.2 : 2 * Math.pow(2, Math.round(Math.log2(Math.max(1, r * 9) / 2)));
       }
       if (!fogCol.a) { fogCol.a = new THREE.Color(); fogCol.b = new THREE.Color(); }
-      fogCol.a.set(T.fogOut); fogCol.b.set(T.fogIn);
-      fog.color.copy(fogCol.a).lerp(fogCol.b, indoorT);
+      fogCol.a.set(T.fogOut); fogCol.b!.set(T.fogIn);
+      fog.color.copy(fogCol.a).lerp(fogCol.b!, indoorT);
       gridU.value = povT > .5 ? (theme === 'dark' ? .3 : .13) : 0;
       if (R && R.meshes[2]) R.meshes[2].visible = !A.same && povT < .5; // seen through floors from above, never through walls when you stand inside
       if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
@@ -3409,29 +3657,29 @@
     // ----- labels pinned to the model (HTML, so they stay sharp and are real buttons) -----
     // Every label has a priority. Higher ones are placed first and keep their place; a lower one that would touch
     // them tries its other positions and is then left out. Nothing is placed under a control or cut by the screen edge.
-    let userLabel = null, safe = { x0: 0, y0: 0, x1: 1, y1: 1 }, avoid = [];
+    let userLabel: Label | null = null, safe = { x0: 0, y0: 0, x1: 1, y1: 1 }, avoid: Box4[] = [];
     function clearLabels() {
       labelsEl.textContent = '';
       labels = []; levelLabels = []; tip = null; userLabel = null; beacon = null;
     }
-    function addLabel(el, o) {
+    function addLabel(el: HTMLElement, o: LabelInit) {
       el.classList.add('s3-l', 's3-off');
       labelsEl.appendChild(el);
-      const L = Object.assign({ el, ax: .5, ay: .5, prio: 0, li: -1, lift: 0, shown: false, w: 0, h: 0, block: true, yield: true }, o);
+      const L = Object.assign({ el, ax: .5, ay: .5, prio: 0, li: -1, lift: 0, shown: false, w: 0, h: 0, block: true, yield: true }, o) as Label;
       labels.push(L);
       labelsDirty = true;
       return L;
     }
-    function project(x, y, level, lift) {
+    function project(x: number, y: number, level: number, lift?: number): XY | null {
       v3.set(x, Yc(level) + (lift || 0) + detailLift(x, y, level), -y).project(camera);
       if (v3.z < -1 || v3.z > 1) return null;
       return [(v3.x * .5 + .5) * W, (-v3.y * .5 + .5) * H];
     }
-    const modeIcon = (mode) => (mode === 'tram' ? 'tram' : mode === 'bus' ? 'bus' : null);
+    const modeIcon = (mode: string) => (mode === 'tram' ? 'tram' : mode === 'bus' ? 'bus' : null);
     // A point on a platform near (x, y), moved along the platform away from (tx, ty): room for a label beside the route
-    function along(area, x, y, tx, ty, d) {
-      const e = nearestOn(area.ring, x, y, true);
-      let best = [x, y], bd = -1;
+    function along(area: PArea, x: number, y: number, tx: number, ty: number, d: number) {
+      const e = nearestOn(area.ring, x, y, true)!;
+      let best: XY = [x, y], bd = -1;
       for (const s of [1, -1]) {
         const px = x + e.dx * d * s, py = y + e.dy * d * s;
         if (!inArea(area, px, py)) continue;
@@ -3448,14 +3696,14 @@
       const destA = routed ? endArea('to') : null, startA = routed ? endArea('from') : null;
       const destKey = routed && to.ref ? pkey(to.ref) : focus && focus.hit && focus.hit.stop ? pkey(focus.hit.stop.ref) : '';
       const startKey = routed && from.ref ? pkey(from.ref) : '';
-      const inPlate = (x, y) => !routed || inBox(A.box, x, y, -2);
+      const inPlate = (x: number, y: number) => !routed || inBox(A.box!, x, y, -2);
 
       // floors: a name on the corner of each plate. With a route it is the place the route uses on that floor.
       const fnames = floorNames();
       // where a floor's name may sit: the corners of its plate, then points along its edges
-      const plateRim = [];
+      const plateRim: XY[] = [];
       if (routed) {
-        const ring = boxRing(A.box);
+        const ring = boxRing(A.box!);
         for (const p of ring) plateRim.push(p);
         ring.forEach((p, i) => { const q = ring[(i + 1) % 4]; for (const t of [.5, .25, .75]) plateRim.push([lerp(p[0], q[0], t), lerp(p[1], q[1], t)]); });
       }
@@ -3474,7 +3722,7 @@
       }
 
       // platforms: one label per island, both numbers on it, each on the side its edge is on
-      const isl = (area, x, y, prio, own) => {
+      const isl = (area: PArea, x: number, y: number, prio: number, own: boolean) => {
         const refs = (area.src.refs || []).filter(Boolean);
         if (!refs.length) return null;
         const b = mk('button', 's3-isl' + (own ? ' s3-own' : ''));
@@ -3497,13 +3745,13 @@
         const noun = nounOf(mode);
         b.setAttribute('aria-label', `${refs.length > 1 ? noun + 's ' + refs.join(' and ') : noun + ' ' + refs[0]}${shut ? ', closed' : ''}`);
         b.onclick = (ev) => {
-          const cell = ev.target.closest('span');
+          const cell = (ev.target as HTMLElement).closest('span');
           const k = cell ? pkey(cell.textContent) : area.keys[0];
           const st = (model.stops || []).find((s) => pkey(s.ref) === k && s.xy && inArea(area, s.xy[0], s.xy[1]));
-          showPick({ stop: st || null, li: area.li, level: area.level, xy: st ? st.xy.slice() : [x, y], area });
+          showPick({ stop: st || null, li: area.li, level: area.level, xy: st ? st.xy.slice() as XY : [x, y], area });
         };
         // where each number's edge is, to put the numbers on the right sides of the label
-        let ends = null;
+        let ends: [XY, XY] | null = null;
         if (refs.length === 2) {
           const e0 = edgePoint(area, refs[0], x, y), e1 = edgePoint(area, refs[1], x, y);
           if (e0 && e1 && Math.hypot(e0.x - e1.x, e0.y - e1.y) > 2) ends = [[e0.x, e0.y], [e1.x, e1.y]];
@@ -3511,12 +3759,12 @@
         }
         return addLabel(b, { kind: 'isl', area, x, y, level: area.level, li: area.li, lift: .6, prio, ends, minPpm: own ? 0 : mode === 'train' ? .55 : 1.1, own: !!own });
       };
-      const placed = []; // [area, x, y]
-      const farFrom = (area, x, y, d) => !placed.some((q) => q[0] === area && Math.hypot(q[1] - x, q[2] - y) < d);
+      const placed: [PArea, number, number][] = []; // [area, x, y]
+      const farFrom = (area: PArea, x: number, y: number, d: number) => !placed.some((q) => q[0] === area && Math.hypot(q[1] - x, q[2] - y) < d);
       if (routed) {
-        const rp = route.points, e = rp[rp.length - 1], a0 = rp[0];
+        const rp = route!.points, e = rp[rp.length - 1], a0 = rp[0];
         for (const area of A.areas) {
-          let at = null;
+          let at: XY | null = null;
           if (area === destA && !A.same) at = along(area, e[0], e[1], rp[Math.max(0, rp.length - 3)][0], rp[Math.max(0, rp.length - 3)][1], 9);
           else if (area === startA) at = along(area, a0[0], a0[1], rp[Math.min(rp.length - 1, 2)][0], rp[Math.min(rp.length - 1, 2)][1], A.same ? 0 : 9);
           else { // a platform the route only crosses: where it does
@@ -3529,13 +3777,13 @@
         }
         for (const area of [destA, startA]) { // an end that lies off its platform polygon still gets its numbers
           if (!area || placed.some((q) => q[0] === area)) continue;
-          const p = area === destA ? e : a0, n = nearestOn(area.ring, p[0], p[1], true);
+          const p = area === destA ? e : a0, n = nearestOn(area.ring, p[0], p[1], true)!;
           isl(area, n.x, n.y, 86, true);
           placed.push([area, n.x, n.y]);
         }
       }
       // every other platform: at its stop points (the same number is named once per stretch)
-      const seenStop = [];
+      const seenStop: { k: string; mode: string; xy: XY }[] = [];
       for (const s of model.stops || []) {
         if (!s.xy) continue;
         const li = P.idxOf(s.level || 0), k = pkey(s.ref);
@@ -3560,19 +3808,19 @@
         if (ic) b.insertAdjacentHTML('beforeend', svg(ic));
         b.append(mk('b', null, s.ref));
         b.setAttribute('aria-label', `${stopTitle(s)}, ${s.name}${isClosed(s) ? ', closed' : ''}`);
-        b.onclick = () => showPick({ stop: s, li, level: P.levels[li].id, xy: s.xy.slice(), area });
+        b.onclick = () => showPick({ stop: s, li, level: P.levels[li].id, xy: s.xy.slice() as XY, area });
         addLabel(b, { kind: 'stop', stop: s, x: s.xy[0], y: s.xy[1], level: s.level || 0, li, lift: .6, prio: s.mode === 'train' ? 53 : 50, minPpm: s.mode === 'train' ? .55 : 1.15 });
       }
       // sector letters: along your own platforms always, along the others when you are close
       {
-        const seen = [];
+        const seen: { n: string; x: number; y: number }[] = [];
         for (const s of model.sectors || []) {
           if (!s.xy || s.name == null) continue;
           const k = pkey(s.ref);
           const st = (model.stops || []).find((q) => pkey(q.ref) === k && q.xy && Math.hypot(q.xy[0] - s.xy[0], q.xy[1] - s.xy[1]) < 600);
           const lvl = s.level != null ? s.level : st ? st.level || 0 : 0, li = P.idxOf(lvl);
           if (!inPlate(s.xy[0], s.xy[1])) continue;
-          const own = routed && ((k === startKey && startA && nearestOn(startA.ring, s.xy[0], s.xy[1], true).d < 8) || (k === destKey && destA && nearestOn(destA.ring, s.xy[0], s.xy[1], true).d < 8));
+          const own = routed && ((k === startKey && startA && nearestOn(startA.ring, s.xy[0], s.xy[1], true)!.d < 8) || (k === destKey && destA && nearestOn(destA.ring, s.xy[0], s.xy[1], true)!.d < 8));
           if (routed && !own) continue; // other platforms' sectors say nothing about this walk
           if (!own && seen.some((q) => q.n === String(s.name) && Math.hypot(q.x - s.xy[0], q.y - s.xy[1]) < 16)) continue;
           seen.push({ n: String(s.name), x: s.xy[0], y: s.xy[1] });
@@ -3603,12 +3851,12 @@
         const el = mk('div', 's3-shutmark');
         el.innerHTML = svg('closed');
         el.append(mk('span', null, `${CONN_WORD[c.kind] || 'Way'} closed`));
-        const onWay = routed && (route.closed || []).some((x) => x.what === 'connector' || x.what === 'edge');
+        const onWay = routed && (route!.closed || []).some((x) => x.what === 'connector' || x.what === 'edge');
         addLabel(el, { kind: 'shut', x: p[0], y: p[1], level: p[2], li: P.idxOf(p[2]), lift: 2.4, prio: onWay ? 88 : 42, minPpm: onWay ? 0 : routed ? 4.5 : 1.6 });
       }
       // the route's own marks
       if (routed) {
-        const rp = route.points, a = rp[0], e = rp[rp.length - 1];
+        const rp = route!.points, a = rp[0], e = rp[rp.length - 1];
         // the start: named like the destination, on its own stem
         if (!A.same) {
           const st = mk('div', 's3-start');
@@ -3628,13 +3876,13 @@
         sign.append(plate, mk('div', 's3-stem'), mk('div', 's3-foot'), mk('i', 's3-arrow'));
         sign.setAttribute('aria-hidden', 'true');
         // a closed destination the route cannot reach: the sign stands on the platform itself, the line ends short of it
-        const at = route.incomplete && route.toStop && route.toStop.xy ? [route.toStop.xy[0], route.toStop.xy[1], route.toStop.level || 0] : e;
+        const at = route!.incomplete && route!.toStop && route!.toStop.xy ? [route!.toStop.xy[0], route!.toStop.xy[1], route!.toStop.level || 0] : e;
         addLabel(sign, { kind: 'sign', x: at[0], y: at[1], level: at[2], lift: .5, prio: 100, always: true, ax: .5, ay: 1, yield: false, pin: true });
-        if (route.incomplete) {
+        if (route!.incomplete) {
           const el = mk('div', 's3-ent s3-shut', 'The route ends here');
           addLabel(el, { kind: 'end', x: e[0], y: e[1], level: e[2], lift: 1.2, prio: 94, always: true, ay: 1.3 });
         }
-        route.steps.forEach((st, i) => {
+        route!.steps.forEach((st, i) => {
           if (st.kind === 'walk' || st.kind === 'arrive') return;
           const p = pointAt((st.from + st.to) / 2);
           const b = mk('button', 's3-via');
@@ -3675,7 +3923,7 @@
     }
 
     // With a route the plates are solid: what lies on a lower floor under a plate cannot be seen, and its label goes too
-    function underPlate(x, y, level) {
+    function underPlate(x: number, y: number, level: number) {
       if (!A.routed || pov || isolate != null) return false;
       const cy = camera.position.y, cx = camera.position.x, cz = camera.position.z;
       const ly = Yc(level) + .5;
@@ -3684,12 +3932,12 @@
         const py = Yc(P.levels[li].id) + PLATE_TOP;
         const t = (py - cy) / (ly - cy);
         if (!(t > 0 && t < 1)) continue;
-        if (inBox(A.box, cx + (x - cx) * t, -(cz + (-y - cz) * t), 0)) return true;
+        if (inBox(A.box!, cx + (x - cx) * t, -(cz + (-y - cz) * t), 0)) return true;
       }
       return false;
     }
-    const hits = [];
-    const REACH = { stop: 80, isl: 80, via: 120, sign: 130, poi: 28, sector: 60, shut: 50, end: 80, tip: 1e9 };
+    const hits: Box4[] = [];
+    const REACH: Partial<Record<LabelKind, number>> = { stop: 80, isl: 80, via: 120, sign: 130, poi: 28, sector: 60, shut: 50, end: 80, tip: 1e9 };
     function placeLabels() {
       if (labelsDirty) {
         for (const L of labels) {
@@ -3712,7 +3960,7 @@
       for (const L of levelLabels) {
         L.want = false;
         if (fp || vis(L.li) < .5 || (routed && isolate == null && !A.levels.has(L.li))) continue;
-        const pts = L.plate && isolate == null ? L.plate : L.rim, lift = L.plate && isolate == null ? PLATE_TOP : 0;
+        const pts = L.plate && isolate == null ? L.plate : L.rim!, lift = L.plate && isolate == null ? PLATE_TOP : 0;
         L.cands = [];
         for (const p of pts) {
           const s = project(p[0], p[1], L.level, lift);
@@ -3728,14 +3976,14 @@
 
       hits.length = 0;
       for (const r of avoid) hits.push(r);
-      const clear = (x0, y0, x1, y1) => { for (const h of hits) if (x0 < h[2] && x1 > h[0] && y0 < h[3] && y1 > h[1]) return false; return true; };
+      const clear = (x0: number, y0: number, x1: number, y1: number) => { for (const h of hits) if (x0 < h[2] && x1 > h[0] && y0 < h[3] && y1 > h[1]) return false; return true; };
       for (const L of labels) {
         let show = L.on !== false, x0 = 0, y0 = 0, pinned = false;
         if (show && fp && (L.kind === 'level' || L.kind === 'start' || L.kind === 'ent' || L.kind === 'via')) show = false;
         if (show && fp && L.kind === 'sign' && Math.abs(L.level - pv.level) > .7) show = false; // it is on another floor
         if (show && L.kind === 'level') {
           show = false;
-          if (L.want) for (const s of L.cands) { // the leftmost corner of its plate that is free
+          if (L.want) for (const s of L.cands!) { // the leftmost corner of its plate that is free
             x0 = clamp(s[0] - 4, safe.x0, safe.x1 - L.w); y0 = clamp(s[1] - L.h / 2, safe.y0, safe.y1 - L.h);
             if (clear(x0, y0, x0 + L.w, y0 + L.h)) { show = true; break; }
           }
@@ -3743,16 +3991,16 @@
         else if (show && L.kind === 'user') {
           show = !!user && !user.outside && user.sx != null;
           if (show) {
-            const s = project(user.sx, user.sy, user.sl, .7);
+            const s = project(user!.sx!, user!.sy!, user!.sl!, .7);
             if (!s) show = false;
             else {
               x0 = s[0] - L.w / 2; y0 = s[1] - L.h / 2;
-              const hd = user.heading != null ? user.heading : compassHeading;
+              const hd = user!.heading != null ? user!.heading : compassHeading;
               L.el.classList.toggle('s3-heading', hd != null);
-              L.el.classList.toggle('s3-approx', user.mode === 'approx');
+              L.el.classList.toggle('s3-approx', user!.mode === 'approx');
               if (hd != null) {
                 const r = hd * Math.PI / 180;
-                const s2 = project(user.sx + Math.sin(r) * 4, user.sy + Math.cos(r) * 4, user.sl, .7);
+                const s2 = project(user!.sx! + Math.sin(r) * 4, user!.sy! + Math.cos(r) * 4, user!.sl!, .7);
                 if (s2) L.el.style.setProperty('--s3-heading', (Math.atan2(s2[0] - s[0], -(s2[1] - s[1])) * 180 / Math.PI).toFixed(1) + 'deg');
               }
             }
@@ -3761,24 +4009,24 @@
           const gd = fp ? activeGuide : null;
           show = !!gd;
           if (show) {
-            const left = Math.max(0, gd.along0 - pv.along);
-            const key = gd.step + ':' + gd.kind + ':' + Math.round(left / 5);
+            const left = Math.max(0, gd!.along0 - pv.along);
+            const key = gd!.step + ':' + gd!.kind + ':' + Math.round(left / 5);
             if (L.key !== key) {
               L.key = key;
-              L.el.querySelector('.s3-beacon-ico').innerHTML = svg(gd.icon);
-              L.el.querySelector('b').textContent = gd.title;
-              L.el.querySelector('small').textContent = [gd.sub, left < 4 ? 'here' : fmtM(left)].filter(Boolean).join(' · ');
+              L.el.querySelector('.s3-beacon-ico')!.innerHTML = svg(gd!.icon);
+              L.el.querySelector('b')!.textContent = gd!.title;
+              L.el.querySelector('small')!.textContent = [gd!.sub, left < 4 ? 'here' : fmtM(left)].filter(Boolean).join(' · ');
               L.w = L.el.offsetWidth; L.h = L.el.offsetHeight;
             }
-            v3.set(gd.entry[0], Yc(gd.entry[2]) + gd.lift, -gd.entry[1]).applyMatrix4(camera.matrixWorldInverse);
+            v3.set(gd!.entry[0], Yc(gd!.entry[2]) + gd!.lift, -gd!.entry[1]).applyMatrix4(camera.matrixWorldInverse);
             const behind = v3.z > -.4;
-            let sx, sy;
+            let sx: number, sy: number;
             if (behind) { sx = v3.x < 0 ? -1e5 : 1e5; sy = H * .42; }
             else { v3.applyMatrix4(camera.projectionMatrix); sx = (v3.x * .5 + .5) * W; sy = (-v3.y * .5 + .5) * H; }
             x0 = sx - L.w / 2; y0 = sy - L.h - 11;
             let cx = clamp(x0, safe.x0, safe.x1 - L.w), cy = clamp(y0, safe.y0, safe.y1 - L.h);
             pinned = behind || Math.abs(cx - x0) > 2 || Math.abs(cy - y0) > 2;
-            const offCtl = (ax, ay) => { for (const h of avoid) if (ax < h[2] && ax + L.w > h[0] && ay < h[3] && ay + L.h > h[1]) return false; return true; };
+            const offCtl = (ax: number, ay: number) => { for (const h of avoid) if (ax < h[2] && ax + L.w > h[0] && ay < h[3] && ay + L.h > h[1]) return false; return true; };
             if (!offCtl(cx, cy)) {
               find: for (let k = 1; k <= 12; k++) for (const [dx, dy] of [[0, k * 16], [-k * 16, 0], [k * 16, 0]]) {
                 const ax = clamp(cx + dx, safe.x0, safe.x1 - L.w), ay = clamp(cy + dy, safe.y0, safe.y1 - L.h);
@@ -3803,7 +4051,7 @@
             const nextUp = L.kind === 'sign' && povArriving; // where you are going next is shown even round a corner
             if (far || other || (L.kind !== 'tip' && !nextUp && hiddenFromEye(L.x, L.y, L.level))) show = false;
           }
-          let s = null;
+          let s: XY | null = null;
           if (show) {
             s = project(L.x, L.y, L.level, fp && (L.kind === 'stop' || L.kind === 'isl' || L.kind === 'sector') ? 2.7 : L.lift);
             if (!s) show = false;
@@ -3816,21 +4064,21 @@
                 if (col !== L.col || rev !== L.rev) {
                   L.col = col; L.rev = rev;
                   L.el.classList.toggle('s3-col', col); L.el.classList.toggle('s3-rev', rev);
-                  L.w = col ? L.wc : L.wr; L.h = col ? L.hc : L.hr;
+                  L.w = col ? L.wc! : L.wr!; L.h = col ? L.hc! : L.hr!;
                 }
                 // if its place is taken it may slide along the platform (never across it: the sides must stay true)
                 const l = Math.hypot(dx, dy) || 1, ux = -dy / l, uy = dx / l;
                 L.alts = [[ux * 32, uy * 32], [-ux * 32, -uy * 32], [ux * 64, uy * 64], [-ux * 64, -uy * 64]];
               }
             }
-            x0 = s[0] - L.ax * L.w; y0 = s[1] - L.ay * L.h;
-            const inside = s[0] >= safe.x0 && s[0] <= safe.x1 && s[1] >= safe.y0 && s[1] <= safe.y1;
+            x0 = s![0] - L.ax * L.w; y0 = s![1] - L.ay * L.h;
+            const inside = s![0] >= safe.x0 && s![0] <= safe.x1 && s![1] >= safe.y0 && s![1] <= safe.y1;
             if (L.pin) {
               // kept on screen: beside its place when that is in view, else on the edge with an arrow towards it
               let cx = clamp(x0, safe.x0, safe.x1 - L.w), cy = clamp(y0, safe.y0, safe.y1 - L.h);
               pinned = !inside && (Math.abs(cx - x0) > 1 || Math.abs(cy - y0) > 1);
               if (fp && pinned && !(L.kind === 'sign' && povArriving)) show = false; // the destination stays in sight when it is next
-              const offCtl = (ax, ay) => { for (const h of avoid) if (ax < h[2] && ax + L.w > h[0] && ay < h[3] && ay + L.h > h[1]) return false; return true; };
+              const offCtl = (ax: number, ay: number) => { for (const h of avoid) if (ax < h[2] && ax + L.w > h[0] && ay < h[3] && ay + L.h > h[1]) return false; return true; };
               if (!pinned && !offCtl(cx, cy)) { // its place is on screen but under a control: step aside, and point back at it
                 side: for (let k = 1; k <= 8; k++) for (const [dx, dy] of [[-k * 16, 0], [k * 16, 0], [0, k * 16], [0, -k * 16]]) {
                   const tx2 = clamp(cx + dx, safe.x0, safe.x1 - L.w), ty2 = clamp(cy + dy, safe.y0, safe.y1 - L.h);
@@ -3844,13 +4092,13 @@
               }
               x0 = cx; y0 = cy;
               if (pinned !== L.pinned) { L.pinned = pinned; L.el.classList.toggle('s3-pinned', pinned); }
-              if (pinned) L.el.style.setProperty('--s3-to', (Math.atan2(s[0] - (x0 + L.w / 2), -(s[1] - (y0 + L.h / 2))) * 180 / Math.PI).toFixed(0) + 'deg');
+              if (pinned) L.el.style.setProperty('--s3-to', (Math.atan2(s![0] - (x0 + L.w / 2), -(s![1] - (y0 + L.h / 2))) * 180 / Math.PI).toFixed(0) + 'deg');
             } else if (!inside) show = false;
             else if (L.flip) {
               let below = false;
               x0 = clamp(x0, safe.x0, safe.x1 - L.w);
               if (y0 < safe.y0 || !clear(x0, y0, x0 + L.w, y0 + L.h)) { // taken (often by the destination sign on a short route): hang it below its point
-                const yb = s[1] + 5;
+                const yb = s![1] + 5;
                 if (yb + L.h <= safe.y1 && clear(x0, yb + 2, x0 + L.w, yb + L.h)) { y0 = yb; below = true; }
               }
               y0 = clamp(y0, safe.y0, safe.y1 - L.h);
@@ -3877,7 +4125,7 @@
     }
 
     // ----- touch, mouse, keyboard -----
-    function panBy(dx, dy) {
+    function panBy(dx: number, dy: number) {
       const wpp = cam.dist / focal(), ca = Math.cos(cam.az), sa = Math.sin(cam.az), k = 1 / Math.max(.35, Math.cos(polOf(peel)));
       cam.tx += (-ca * dx - sa * dy * k) * wpp;
       cam.tz += (sa * dx - ca * dy * k) * wpp;
@@ -3888,8 +4136,8 @@
       setPeel(peelHome, { dur: 700 });
     }
     function buildControls() {
-      const ptrs = new Map();
-      let g = null, lastTap = null;
+      const ptrs = new Map<number, { x: number; y: number }>();
+      let g: Gesture | null = null, lastTap: { t: number; x: number; y: number } | null = null;
       const two = () => { const [a, b] = [...ptrs.values()]; return { span: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
       on(canvas, 'pointerdown', (e) => {
         try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -3902,7 +4150,7 @@
         spin.az = spin.x = spin.z = 0;
         const now = performance.now();
         if (ptrs.size === 1) g = { mode: e.button === 2 || e.button === 1 || e.shiftKey ? 'pan' : 'orbit', moved: 0, t0: now, lt: now, vx: 0, vy: 0, drift: 0, peeled: false };
-        else if (ptrs.size === 2) g = Object.assign({ mode: 'pinch', moved: 99, drift: 0 }, two());
+        else if (ptrs.size === 2) g = Object.assign({ mode: 'pinch' as const, moved: 99, drift: 0 }, two());
         canvas.classList.add('s3-grabbing');
       });
       on(canvas, 'pointermove', (e) => {
@@ -3936,7 +4184,7 @@
         limit(cam);
         request();
       });
-      const up = (e) => {
+      const up = (e: PointerEvent) => {
         if (!ptrs.has(e.pointerId)) return;
         ptrs.delete(e.pointerId);
         const now = performance.now();
@@ -3986,13 +4234,13 @@
       touch();
       request();
     }
-    function onKey(e) {
+    function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') { e.preventDefault(); if (listMode) toggleList(); else api.close(); return; }
       if (e.key === 'Tab') { // keep the focus inside the dialog
-        const f = [...root.querySelectorAll('button:not([disabled]):not([tabindex="-1"]), [role="slider"], input, canvas')].filter((el) => el.offsetParent !== null);
+        const f = [...root.querySelectorAll<HTMLElement>('button:not([disabled]):not([tabindex="-1"]), [role="slider"], input, canvas')].filter((el) => el.offsetParent !== null);
         if (!f.length) return;
         const first = f[0], last = f[f.length - 1];
-        const cur = root.getRootNode().activeElement || document.activeElement;
+        const cur = (root.getRootNode() as Document | ShadowRoot).activeElement || document.activeElement;
         if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
         return;
@@ -4025,19 +4273,19 @@
     }
 
     // ----- tapping the model -----
-    function pick(cx, cy) {
+    function pick(cx: number, cy: number): Hit | null {
       const r = canvas.getBoundingClientRect();
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
       raycaster.setFromCamera(ndc, camera);
       const o = raycaster.ray.origin, d = raycaster.ray.direction;
       const clipped = A.routed && !pov && isolate == null;
-      let ground = null;
+      let ground: Hit | null = null;
       for (let li = P.n - 1; li >= 0; li--) {
         if (vis(li) < .4) continue;
         const t = (Yc(P.levels[li].id) - o.y) / d.y;
         if (!(t > 0)) continue;
         const x = o.x + d.x * t, y = -(o.z + d.z * t);
-        if (clipped && !inBox(A.box, x, y, 0)) continue;
+        if (clipped && !inBox(A.box!, x, y, 0)) continue;
         const a = areaAt(P, li, x, y);
         if (a) return { li, level: P.levels[li].id, xy: [x, y], area: a };
         if (!ground && (isolate === li || clipped || (isolate == null && P.levels[li].id === P.near(0)))) ground = { li, level: P.levels[li].id, xy: [x, y], area: null };
@@ -4045,13 +4293,13 @@
       }
       return ground;
     }
-    function describe(hit) {
+    function describe(hit: Hit): Described {
       const lv = P.levels[hit.li];
       const where = `${lv.name} · level ${levelShort(lv.id)}`;
       const a = hit.area;
       const shutThing = hit.stop && isClosed(hit.stop) ? hit.stop : a && isClosed(a.src) ? a.src : null;
       const closed = !!shutThing, note = closed ? closedNote(shutThing) || closedNote(a && a.src) : '';
-      const out = (o) => Object.assign(o, { closed, note });
+      const out = (o: { title: string; sub: string; icon: string }): Described => Object.assign(o, { closed, note });
       if (hit.stop) return out({ title: stopTitle(hit.stop), sub: hit.stop.ref ? `${hit.stop.name} · ${lv.name}` : where, icon: 'arrive' });
       if (hit.entrance) return out({ title: hit.entrance.name || 'Entrance', sub: where, icon: 'arrive' });
       if (!a) return out({ title: lv.name, sub: `Level ${levelShort(lv.id)}`, icon: 'layers' });
@@ -4065,13 +4313,13 @@
       const title = a.src.name || (a.kind === 'room' ? 'Shop or office' : a.kind === 'plaza' ? 'Open ground' : a.kind === 'platform' ? 'Platform' : lv.name);
       return out({ title, sub: where, icon: a.kind === 'room' ? 'lockers' : 'layers' });
     }
-    function showPick(hit) {
+    function showPick(hit: Hit) {
       picked = hit;
       const d = describe(hit);
-      tip.el.textContent = d.closed ? `${d.title} · closed` : d.title;
-      tip.w = 0; labelsDirty = true;
-      tip.x = hit.xy[0]; tip.y = hit.xy[1]; tip.level = hit.level; tip.lift = hit.area && hit.area.topH > 1 ? hit.area.topH * SH.Hs : 1;
-      tip.on = true;
+      tip!.el.textContent = d.closed ? `${d.title} · closed` : d.title;
+      tip!.w = 0; labelsDirty = true;
+      tip!.x = hit.xy[0]; tip!.y = hit.xy[1]; tip!.level = hit.level; tip!.lift = hit.area && hit.area.topH > 1 ? hit.area.topH * SH.Hs : 1;
+      tip!.on = true;
       clearTimeout(tipTimer);
       labels.forEach((L) => { if (L.kind === 'stop') L.el.classList.toggle('s3-picked', !!hit.stop && L.stop === hit.stop); });
       if (!A.routed) {
@@ -4080,16 +4328,16 @@
         applyOpacity();
         fillExplore(d);
       } else {
-        tipTimer = setTimeout(() => { tip.on = false; request(); }, 2600);
+        tipTimer = setTimeout(() => { tip!.on = false; request(); }, 2600);
         if (d.closed && d.note) toast(d.note, 4500);
       }
       say(`${d.title}${d.closed ? ', closed' : ''}. ${d.sub}`);
-      emit('pick', { title: d.title, level: hit.level, xy: hit.xy.slice(), ll: toLngLat(model, hit.xy), stop: hit.stop || null, area: hit.area ? hit.area.src : null, endpoint: endOf(hit) });
+      emit('pick', { title: d.title, level: hit.level, xy: hit.xy.slice() as XY, ll: toLngLat(model, hit.xy), stop: hit.stop || null, area: hit.area ? hit.area.src : null, endpoint: endOf(hit) });
       touch();
       request();
     }
-    const endOf = (hit) => (hit.stop && hit.stop.ref ? { stop: { uic: hit.stop.uic, ref: hit.stop.ref } } : hit.entrance && hit.entrance.name ? { entrance: hit.entrance.name } : { xy: hit.xy.slice(), level: hit.level });
-    function onTap(x, y, dbl) {
+    const endOf = (hit: Hit): StationRouteEndpoint => (hit.stop && hit.stop.ref ? { stop: { uic: hit.stop.uic, ref: hit.stop.ref } } : hit.entrance && hit.entrance.name ? { entrance: hit.entrance.name } : { xy: hit.xy.slice() as XY, level: hit.level });
+    function onTap(x: number, y: number, dbl?: boolean | null) {
       const hit = pick(x, y);
       if (pov) {
         if (pv.free && hit && hit.area && hit.area.kind !== 'room') { pv.tx = hit.xy[0]; pv.ty = hit.xy[1]; pv.tl = hit.level; touch(); request(); }
@@ -4103,7 +4351,7 @@
         return;
       }
       if (hit && (hit.area || opts.pickAnywhere)) showPick(hit);
-      else if (hit) emit('pick', { title: '', level: hit.level, xy: hit.xy.slice(), ll: toLngLat(model, hit.xy), stop: null, area: null, endpoint: endOf(hit) });
+      else if (hit) emit('pick', { title: '', level: hit.level, xy: hit.xy.slice() as XY, ll: toLngLat(model, hit.xy), stop: null, area: null, endpoint: endOf(hit) });
       else if (tip && tip.on) { tip.on = false; request(); }
     }
 
@@ -4112,7 +4360,7 @@
       levelsEl.textContent = '';
       const list = A.routed ? A.shown.map((i) => P.levels[i]) : P.levels.filter((lv) => lv.areas.length);
       levelsEl.hidden = false;
-      const ctl = (cls, icon, label, fn) => {
+      const ctl = (cls: string, icon: string, label: string, fn: () => void) => {
         const b = mk('button', cls);
         b.type = 'button';
         b.innerHTML = svg(icon);
@@ -4131,7 +4379,7 @@
         for (const lv of list.slice().reverse()) {
           const b = mk('button', A.routed ? 's3-on-route' : '', levelShort(lv.id));
           b.type = 'button';
-          b.dataset.li = lv.i;
+          b.dataset.li = lv.i as unknown as string;
           b.title = lv.name;
           b.setAttribute('aria-label', `${lv.name}, level ${lv.id}: show only this floor`);
           b.setAttribute('aria-pressed', 'false');
@@ -4151,12 +4399,12 @@
       peelEl.setAttribute('aria-valuemax', '100');
       peelEl.title = 'Peel the floors apart, or lay them flat';
       peelEl.innerHTML = `${svg('layers')}<span class="s3-peel-track"><i></i></span>${svg('flat')}`;
-      const trackEl = peelEl.querySelector('.s3-peel-track');
+      const trackEl = peelEl.querySelector('.s3-peel-track')!;
       let dragging = false;
-      const at = (e) => { const r = trackEl.getBoundingClientRect(); return clamp(1 - (e.clientY - r.top - 13) / Math.max(1, r.height - 26), 0, 1); };
+      const at = (e: PointerEvent) => { const r = trackEl.getBoundingClientRect(); return clamp(1 - (e.clientY - r.top - 13) / Math.max(1, r.height - 26), 0, 1); };
       peelEl.onpointerdown = (e) => {
         dragging = true;
-        try { peelEl.setPointerCapture(e.pointerId); } catch (err) {}
+        try { peelEl!.setPointerCapture(e.pointerId); } catch (err) {}
         skipIntro(); touch();
         setPeel(at(e), { live: true });
         e.preventDefault();
@@ -4167,7 +4415,7 @@
         dragging = false;
         applyShape(true);
         if (!moved) flyTo(currentPose(), 600);
-        say(peelEl.getAttribute('aria-valuetext'));
+        say(peelEl!.getAttribute('aria-valuetext'));
         request();
       };
       peelEl.onkeydown = (e) => {
@@ -4184,9 +4432,9 @@
       syncPov();
     }
     function syncLevels() {
-      for (const b of levelsEl.querySelectorAll('button[data-li]')) b.setAttribute('aria-pressed', String(+b.dataset.li === isolate));
+      for (const b of levelsEl.querySelectorAll<HTMLElement>('button[data-li]')) b.setAttribute('aria-pressed', String(+b.dataset.li! === isolate));
     }
-    function setIsolate(li) {
+    function setIsolate(li: number | null) {
       skipIntro();
       isolate = li;
       syncLevels();
@@ -4199,21 +4447,21 @@
       touch();
     }
     // ----- the sheet: steps of the route, or what was tapped -----
-    const levelName = (level) => P.levels[P.idxOf(level)].name;
-    const prefs = () => Object.assign({}, opts.prefs, day ? { date: day } : null);
-    const placeName = (s) => cap(String(s).replace(/^the /, ''));
+    const levelName = (level: number) => P.levels[P.idxOf(level)].name;
+    const prefs = (): RoutePrefs => Object.assign({}, opts.prefs, day ? { date: day } : null);
+    const placeName = (s: string) => cap(String(s).replace(/^the /, ''));
     // What a floor is called on this walk: the place the route uses there (the model's level names are generic)
     function floorNames() {
-      const names = new Map();
+      const names = new Map<number, string>();
       if (!A.routed) return names;
-      const w = P.levels.map(() => new Map());
-      const add = (level, name, len) => { if (!name) return; for (const li of new Set(P.bracket(level))) { if (Math.abs(P.levels[li].id - level) > .3) continue; w[li].set(name, (w[li].get(name) || 0) + len); } };
-      for (const st of route.steps) {
+      const w = P.levels.map(() => new Map<string, number>());
+      const add = (level: number, name: string, len: number) => { if (!name) return; for (const li of new Set(P.bracket(level))) { if (Math.abs(P.levels[li].id - level) > .3) continue; w[li].set(name, (w[li].get(name) || 0) + len); } };
+      for (const st of route!.steps) {
         if (st.kind === 'walk' && st.place) add(st.level, placeName(st.place), Math.max(2, st.len || 0));
         else if (st.kind !== 'walk' && st.kind !== 'arrive' && st.place && st.toLevel != null) add(st.toLevel, placeName(st.place), 1);
       }
       // where the router names no place, the named ground the route crosses (a deck, a square) does
-      const rp = route.points;
+      const rp = route!.points;
       for (let i = 0; i < rp.length - 1; i++) {
         const p = rp[i], q = rp[i + 1], br = P.bracket(p[2]);
         if (br[0] !== br[1] || Math.abs(q[2] - p[2]) > 1e-3) continue;
@@ -4221,8 +4469,8 @@
         if (ar && ar.kind !== 'platform' && ar.kind !== 'room' && ar.src.name) add(p[2], placeName(ar.src.name), Math.hypot(q[0] - p[0], q[1] - p[1]) * .5);
       }
       const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
-      if (from.kind === 'stop') add(route.points[0][2], cap(from.name), 1);
-      if (to.kind === 'stop' && !route.incomplete) add(route.points[route.points.length - 1][2], cap(to.name), 1);
+      if (from.kind === 'stop') add(route!.points[0][2], cap(from.name), 1);
+      if (to.kind === 'stop' && !route!.incomplete) add(route!.points[route!.points.length - 1][2], cap(to.name), 1);
       w.forEach((m, li) => {
         if (!m.size) return;
         const all = [...m.entries()];
@@ -4252,20 +4500,20 @@
       if (!sheetEl) return;
       if (stepsEl) {
         const cur = stepsEl.children[sel + 1];
-        stepsEl.style.height = !listMode && cur && cur.firstElementChild ? cur.firstElementChild.offsetHeight + 'px' : '';
+        stepsEl.style.height = !listMode && cur && cur.firstElementChild ? (cur.firstElementChild as HTMLElement).offsetHeight + 'px' : '';
       }
       root.style.setProperty('--s3-sheet-h', (sheetEl.hidden ? 0 : sheetEl.offsetHeight) + 'px');
       if (self.ready || renderer) layout();
     }
     function buildSubtitle() {
-      if (A.routed && A.same) { subEl.textContent = route.steps[0] ? route.steps[0].text : 'You are there'; return; }
+      if (A.routed && A.same) { subEl.textContent = route!.steps[0] ? route!.steps[0].text : 'You are there'; return; }
       if (A.routed) {
         const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
         subEl.textContent = `${cap(from.name)} to ${to.kind === 'stop' ? lowName(to) : to.name} · ${fmtMin(route.seconds)}`;
       } else if (focus && focus.hit) subEl.textContent = describe(focus.hit).sub;
       else subEl.textContent = 'Station plan in 3D';
     }
-    function card(iconName, iconCls, title, count) {
+    function card(iconName: string, iconCls: string, title: string, count?: string) {
       const c = mk('div', 's3-card');
       const ico = mk('span', 's3-ico ' + (iconCls || ''));
       ico.innerHTML = svg(iconName);
@@ -4277,13 +4525,13 @@
       if (count) c.append(mk('span', 's3-count', count));
       return { el: c, ico, title: t, meta, txt };
     }
-    function tag(cls, iconName, text) {
+    function tag(cls: string, iconName: string | null, text: string) {
       const t = mk('span', 's3-tag ' + (cls || ''));
       if (iconName) t.innerHTML = svg(iconName);
       t.append(mk('span', null, text));
       return t;
     }
-    function note(kind, text) { // a line that must be read: orange for "not as you expect", grey for "good to know"
+    function note(kind: 'warn' | 'info', text: string) { // a line that must be read: orange for "not as you expect", grey for "good to know"
       const n = mk('div', 's3-note ' + (kind === 'warn' ? 's3-warnnote' : 's3-infonote'));
       n.innerHTML = svg(kind === 'warn' ? 'warn' : 'info');
       n.append(mk('span', null, text));
@@ -4291,7 +4539,7 @@
       return n;
     }
     // What the station has to announce (works, closures): said once, on the first card, folded away when it is long
-    function noticesBlock(list) {
+    function noticesBlock(list: StationNotice[]) {
       if (!list.length) return null;
       if (list.length === 1 && list[0].text.length <= 64) return note('info', list[0].text);
       const wrap = mk('div', 's3-noticewrap');
@@ -4307,19 +4555,19 @@
         e.stopPropagation();
         box.hidden = !box.hidden;
         b.setAttribute('aria-expanded', String(!box.hidden));
-        b.lastElementChild.textContent = box.hidden ? 'Show' : 'Hide';
+        b.lastElementChild!.textContent = box.hidden ? 'Show' : 'Hide';
         sizeSheet();
       };
       wrap.append(b, box);
       return wrap;
     }
-    const stationNotices = () => { try { return router && router.notices ? router.notices(model, day) || [] : []; } catch (e) { return []; } };
+    const stationNotices = (): StationNotice[] => { try { return router && router.notices ? router.notices(model, day) || [] : []; } catch (e) { return []; } };
     // On an island with two numbers: which side is yours as you arrive?
     function arriveSide() {
-      if (!A.routed || A.same || route.incomplete) return '';
+      if (!A.routed || A.same || route!.incomplete) return '';
       const to = endInfo(toEnd, 'to'), area = endArea('to');
       if (!area || !to.ref || area.keys.length !== 2) return '';
-      const rp = route.points, e = rp[rp.length - 1];
+      const rp = route!.points, e = rp[rp.length - 1];
       for (let i = rp.length - 2; i >= 0; i--) {
         const d = Math.hypot(e[0] - rp[i][0], e[1] - rp[i][1]);
         if (d < 1.5) continue;
@@ -4328,7 +4576,7 @@
       }
       return '';
     }
-    function arriveTitle(inSentence) {
+    function arriveTitle(inSentence?: boolean) {
       const to = endInfo(toEnd, 'to');
       if (route.incomplete) return inSentence ? 'the route ends: the way on is closed' : 'The route ends here: the way on is closed';
       const name = to.kind === 'stop' ? lowName(to) : to.name;
@@ -4345,9 +4593,9 @@
       if (!ride) return null;
       const t = ride.times, box = mk('div', 's3-ride');
       const best = t.sectors.find((s) => String(s.name) === String(t.best)) || t.sectors[0];
-      const cur = t.sectors.find((s) => String(s.name) === String(ride.pick));
-      const off = (s) => (s && s.via ? `You step off at ${CONN_NOUN[s.via] || 'the way down'}.` : 'You step off close to where you go.');
-      let line;
+      const cur = t.sectors.find((s) => String(s.name) === String(ride!.pick));
+      const off = (s: StationRouteSectorTime | undefined) => (s && s.via ? `You step off at ${CONN_NOUN[s.via] || 'the way down'}.` : 'You step off close to where you go.');
+      let line: string;
       if (t.spreadSeconds < 20) line = 'Ride anywhere: every sector is about as close.';
       else if (cur && String(cur.name) !== String(best.name)) line = `From sector ${cur.name}. Sector ${best.name} is ${fmtSec(Math.max(10, cur.seconds - best.seconds))} quicker.`;
       else line = `Ride in sector ${best.name}. ${off(best)}`;
@@ -4371,7 +4619,7 @@
     }
 
     function buildSteps() {
-      const n = route.steps.length;
+      const n = route!.steps.length;
       const from = endInfo(fromEnd, 'from'), to = endInfo(toEnd, 'to');
       const grab = mk('button', 's3-grab');
       grab.type = 'button';
@@ -4383,11 +4631,11 @@
       // overview
       {
         const li = mk('li', 's3-step');
-        li.dataset.i = -1;
+        li.dataset.i = -1 as unknown as string;
         const c = card('walk', 's3-k-route', `To ${to.kind === 'stop' ? to.name : to.name}`);
-        c.meta.append(mk('span', null, `${fmtMin(route.seconds)} · ${fmtM(route.length)}`));
-        const seq = [];
-        for (const st of route.steps) {
+        c.meta.append(mk('span', null, `${fmtMin(route!.seconds)} · ${fmtM(route!.length)}`));
+        const seq: number[] = [];
+        for (const st of route!.steps) {
           for (const l of [st.level, st.toLevel]) {
             if (l == null) continue;
             const i = P.idxOf(l);
@@ -4414,9 +4662,9 @@
           c.meta.append(b);
         }
         // what the traveller has to know before setting off, most important first
-        if (route.notice) c.txt.append(note('warn', route.notice));
+        if (route!.notice) c.txt.append(note('warn', route!.notice));
         else if (to.closed && to.note) c.txt.append(note('warn', to.note));
-        if (from.closed && from.note && !(route.notice || '').includes(from.note)) c.txt.append(note('warn', from.note));
+        if (from.closed && from.note && !(route!.notice || '').includes(from.note)) c.txt.append(note('warn', from.note));
         if (from.far) c.txt.append(note('info', `${from.dist > FAR_M ? `You’re about ${fmtFar(from.dist)} from here. ` : ''}This plan shows the last stretch, from ${from.name}.`));
         else if (from.kind === 'free' && from.dist > 15) c.txt.append(note('info', `The route starts ${fmtFar(from.dist)} from where you are, at the nearest path in this plan.`));
         if (to.far) c.txt.append(note('info', `The plan ends ${fmtFar(to.dist)} before ${to.name}.`));
@@ -4429,9 +4677,9 @@
         li.append(c.el);
         stepsEl.append(li);
       }
-      route.steps.forEach((st, i) => {
+      route!.steps.forEach((st, i) => {
         const li = mk('li', 's3-step');
-        li.dataset.i = i;
+        li.dataset.i = i as unknown as string;
         const climb = st.kind !== 'walk' && st.kind !== 'arrive';
         const arrive = st.kind === 'arrive';
         const c = card(arrive && to.closed ? 'closed' : st.kind, arrive ? (to.closed ? 's3-k-warn' : 's3-k-arrive') : climb ? 's3-k-level' : '', arrive && !route.incomplete && to.kind === 'stop' ? `Arrive at ${lowName(to)}` : arrive && route.incomplete ? 'The route ends here: the way on is closed' : st.text, `${i + 1} of ${n}`);
@@ -4441,7 +4689,7 @@
           const side = arriveSide();
           if (side) c.meta.append(tag('', null, side));
           if (!to.sector && !to.reach && !side) c.meta.append(tag('', null, placeName(levelName(st.level))));
-          if (to.closed) c.txt.append(note('warn', to.note || route.notice || `${cap(to.name)} is closed.`));
+          if (to.closed) c.txt.append(note('warn', to.note || route!.notice || `${cap(to.name)} is closed.`));
         } else if (climb && st.toLevel != null && st.toLevel !== st.level) {
           c.meta.append(tag('s3-tag-level', st.dir === 'up' || (st.dir == null && st.toLevel > st.level) ? 'up' : 'down', st.place ? placeName(st.place) : levelName(st.toLevel)));
         } else c.meta.append(tag('', null, st.place ? placeName(st.place) : levelName(st.level)));
@@ -4456,11 +4704,11 @@
           c.meta.append(here);
         }
         li.append(c.el);
-        stepsEl.append(li);
+        stepsEl!.append(li);
       });
       // the list is thrown away with every rebuild: its handlers go with it
       stepsEl.onclick = (e) => {
-        const li = e.target.closest('.s3-step');
+        const li = (e.target as HTMLElement).closest<HTMLElement>('.s3-step');
         if (!li) return;
         const i = +li.dataset.i;
         if (e.target.closest('.s3-here[aria-pressed]') && i >= 0) { pausePlay(); setManual(i); return; }
@@ -4474,7 +4722,7 @@
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => {
           if (listMode || progScroll || !stepsEl) return;
-          const w = stepsEl.firstElementChild.offsetWidth || 1;
+          const w = (stepsEl.firstElementChild as HTMLElement).offsetWidth || 1;
           const i = Math.round(stepsEl.scrollLeft / w) - 1;
           if (i !== sel) { pausePlay(); setFollow(false); select(i, { fromScroll: true }); }
         }, 90);
@@ -4495,7 +4743,7 @@
       navEl.append(prev, dots, next);
       scrubEl = mk('input', 's3-scrub');
       scrubEl.type = 'range';
-      scrubEl.min = 0; scrubEl.max = Math.round(R.A[R.A.length - 1] * 10) / 10; scrubEl.step = .5; scrubEl.value = 0;
+      scrubEl.min = 0; scrubEl.max = Math.round(R!.A[R!.A.length - 1] * 10) / 10; scrubEl.step = .5; scrubEl.value = 0;
       scrubEl.setAttribute('aria-label', 'Walk along the route');
       scrubEl.oninput = () => {
         pausePlay(); setFollow(false);
@@ -4531,9 +4779,9 @@
       box.append(c.el, actions);
       sheetEl.append(box);
     }
-    function syncSteps(o) {
+    function syncSteps(o: SelectOpts) {
       if (!stepsEl) return;
-      const n = route.steps.length, items = [...stepsEl.children];
+      const n = route!.steps.length, items = [...stepsEl.children] as HTMLElement[];
       items.forEach((li, k) => {
         const i = k - 1;
         if (i === sel) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
@@ -4542,15 +4790,15 @@
         if (here) {
           const on = userStep === i;
           here.setAttribute('aria-pressed', String(on));
-          here.lastElementChild.textContent = on ? 'You’re here' : 'I’m here';
+          here.lastElementChild!.textContent = on ? 'You’re here' : 'I’m here';
         }
       });
-      [...navEl.querySelector('.s3-dots').children].forEach((d, k) => { d.classList.toggle('s3-on', k === sel + 1); d.classList.toggle('s3-you', userStep >= 0 && k === userStep + 1 && k !== sel + 1); });
-      const prev = navEl.querySelector('.s3-prev'), next = navEl.querySelector('.s3-next');
+      [...navEl!.querySelector('.s3-dots')!.children].forEach((d, k) => { d.classList.toggle('s3-on', k === sel + 1); d.classList.toggle('s3-you', userStep >= 0 && k === userStep + 1 && k !== sel + 1); });
+      const prev = navEl!.querySelector<HTMLButtonElement>('.s3-prev')!, next = navEl!.querySelector('.s3-next')!;
       prev.disabled = sel < 0;
       const last = sel >= n - 1;
       next.classList.toggle('s3-donebtn', last);
-      next.firstElementChild.textContent = sel < 0 ? 'Start' : last ? 'Done' : 'Next';
+      next.firstElementChild!.textContent = sel < 0 ? 'Start' : last ? 'Done' : 'Next';
       next.setAttribute('aria-label', sel < 0 ? 'Start: first step' : last ? 'Done: close the station view' : 'Next step');
       sizeSheet();
       if (o.fromScroll) return;
@@ -4565,23 +4813,23 @@
       }
     }
     // The list of all steps is its own "page": the back gesture closes it before it closes the view
-    function toggleList(fromHistory) {
+    function toggleList(fromHistory?: boolean | Event) {
       if (!stepsEl) return;
       listMode = !listMode;
       if (listMode) pausePlay();
       sheetEl.classList.toggle('s3-list', listMode);
       root.classList.toggle('s3-listopen', listMode);
-      const grab = sheetEl.querySelector('.s3-grab');
+      const grab = sheetEl.querySelector('.s3-grab')!;
       grab.setAttribute('aria-expanded', String(listMode));
       grab.setAttribute('aria-label', listMode ? 'Show one step at a time' : 'Show all steps as a list');
       if (fromHistory !== true) historyList(listMode);
       syncSteps({ instant: true });
     }
-    function select(i, o) {
+    function select(i: number, o?: SelectOpts) {
       if (!A.routed || A.same) return;
       o = o || {};
       skipIntro();
-      const n = route.steps.length;
+      const n = route!.steps.length;
       i = clamp(i, -1, n - 1);
       const changed = i !== sel;
       sel = i;
@@ -4595,33 +4843,33 @@
       else if (!o.keepCam) {
         const pose = i < 0 ? overviewPose() : stepPose(i);
         if (o.follow && userHere()) {
-          pose.tx = user.sx; pose.tl = user.sl; pose.tz = -user.sy;
+          pose.tx = user!.sx!; pose.tl = user!.sl!; pose.tz = -user!.sy!;
           pose.dist = Math.min(pose.dist, 130);
         }
         flyTo(pose, 950);
       }
       if (changed) {
-        say(i < 0 ? 'Overview of the route' : `Step ${i + 1} of ${n}: ${route.steps[i].text}`);
-        emit('step', { index: i, step: i < 0 ? null : route.steps[i] });
+        say(i < 0 ? 'Overview of the route' : `Step ${i + 1} of ${n}: ${route!.steps[i].text}`);
+        emit('step', { index: i, step: i < 0 ? null : route!.steps[i] });
       }
       touch();
     }
 
     const setFollowQuiet = () => { if (follow) setFollow(false); };
-    let exploreCard = null, exploreActions = null, exploreEndsEl = null, exploreFrom = null;
+    let exploreCard: ReturnType<typeof card> | null = null, exploreActions: HTMLDivElement | null = null, exploreEndsEl: HTMLDivElement | null = null, exploreFrom: HTMLButtonElement | null = null;
     function buildExplore() {
       const box = mk('div', 's3-explore');
       const d = focus && focus.hit ? describe(focus.hit) : null;
       const failed = focus && focus.why;
       exploreCard = card(failed ? 'warn' : d ? d.icon : 'info', failed ? 's3-k-warn' : d ? 's3-k-route' : 's3-k-info', failed ? 'No route in this plan' : d ? d.title : 'Explore the station');
       if (failed) {
-        const name = endInfo(focus.end, focus.which).name;
-        exploreCard.meta.textContent = {
+        const name = endInfo(focus!.end, focus!.which).name;
+        exploreCard.meta.textContent = ({
           'not-connected': 'The plan has no walking link between these two places. That doesn’t mean there is none: follow the signs on site.',
           'unknown-stop': `${cap(name)} isn’t in this plan, so the way there can’t be shown.`,
           closed: 'Only closed ways lead there.',
           'no-router': 'Directions aren’t available right now. You can still look around.',
-        }[focus.why] || 'One of the two places isn’t in this plan, so the way can’t be shown. You can still look around.';
+        } as Record<string, string | undefined>)[focus!.why!] || 'One of the two places isn’t in this plan, so the way can’t be shown. You can still look around.';
       } else if (d) exploreCard.meta.textContent = d.sub;
       else exploreCard.meta.textContent = 'Tap a platform, a stop or a shop to see what it is.';
       if (d && d.closed) exploreCard.txt.append(note('warn', d.note || `${d.title} is closed.`));
@@ -4641,7 +4889,7 @@
       exploreFrom.hidden = true;
       exploreFrom.onclick = () => {
         if (!userKnown()) return;
-        exploreEnds.from = { end: { xy: [user.x, user.y], level: P.near(user.level) }, name: 'your position' };
+        exploreEnds.from = { end: { xy: [user!.x!, user!.y!], level: P.near(user!.level!) }, name: 'your position' };
         tryExploreRoute();
       };
       box.append(exploreCard.el, exploreEndsEl, exploreFrom, exploreActions);
@@ -4654,7 +4902,7 @@
       const { from, to } = exploreEnds;
       exploreEndsEl.textContent = '';
       exploreEndsEl.hidden = !from && !to;
-      for (const [which, e] of [['from', from], ['to', to]]) {
+      for (const [which, e] of [['from', from], ['to', to]] as ['from' | 'to', ExploreEnd | null][]) {
         const chip = mk('span', 's3-endchip' + (e ? ' s3-set' : ''));
         chip.append(mk('small', null, which === 'from' ? 'From' : 'To'), mk('b', null, e ? cap(e.name) : 'tap a place'));
         if (e) {
@@ -4667,11 +4915,11 @@
         exploreEndsEl.append(chip);
       }
       const canRoute = !!(router && router.route);
-      exploreFrom.hidden = !(canRoute && to && !from && userKnown());
-      exploreActions.hidden = !(canRoute && picked);
+      exploreFrom!.hidden = !(canRoute && to && !from && userKnown());
+      exploreActions!.hidden = !(canRoute && picked);
       sizeSheet();
     }
-    function fillExplore(d) {
+    function fillExplore(d: Described) {
       if (!exploreCard) return;
       exploreCard.title.textContent = d.title;
       exploreCard.meta.textContent = d.sub;
@@ -4686,28 +4934,28 @@
       syncExplore();
       if (from && !to) { toast('Start set. Now tap where you want to go, then “Go here”.'); return; }
       if (to && !from) { toast(userKnown() ? 'Destination set. Tap where you start, or use “Route from where I am”.' : 'Destination set. Now tap where you start, then “Start here”.'); return; }
-      const r = normaliseRoute(computeRoute(from.end, to.end));
-      if (!r) { toast(routeWhy(from.end, to.end) === 'not-connected' ? 'This plan has no walking link between these two places.' : 'The way between these two places can’t be shown.', 4500); return; }
+      const r = normaliseRoute(computeRoute(from!.end, to!.end));
+      if (!r) { toast(routeWhy(from!.end, to!.end) === 'not-connected' ? 'This plan has no walking link between these two places.' : 'The way between these two places can’t be shown.', 4500); return; }
       route = r;
-      fromEnd = Object.assign({ label: from.end.stop ? undefined : from.name }, from.end);
-      toEnd = Object.assign({ label: to.end.stop ? undefined : to.name }, to.end);
+      fromEnd = Object.assign({ label: from!.end.stop ? undefined : from!.name }, from!.end);
+      toEnd = Object.assign({ label: to!.end.stop ? undefined : to!.name }, to!.end);
       focus = null;
       routeFromExplore = true;
       computeRide(false);
       rebuild();
     }
-    function computeRoute(from, to) {
+    function computeRoute(from: RouteEnd | null, to: RouteEnd | null): Route | null {
       if (!router || !router.route) return null;
       try { return router.route(model, from, to, prefs()) || null; } catch (e) { console.error('Station3D: route failed', e); return null; }
     }
-    function routeWhy(from, to) {
+    function routeWhy(from: RouteEnd | null, to: RouteEnd | null): StationRouteWhy | 'no-router' {
       if (!router || !router.route) return 'no-router';
       try { return (router.why && router.why(model, from, to, prefs())) || 'not-connected'; } catch (e) { return 'not-connected'; }
     }
     // An end of a route as a place in the model (for showing it without a route)
-    function hitOfEnd(end) {
+    function hitOfEnd(end: RouteEnd | null): Hit | null {
       if (!end) return null;
-      const mkHit = (xy, level, extra) => { const li = P.idxOf(level || 0); return Object.assign({ li, level: P.levels[li].id, xy: [xy[0], xy[1]], area: areaAt(P, li, xy[0], xy[1]) }, extra); };
+      const mkHit = (xy: Pt, level: number | null | undefined, extra: Partial<Hit>): Hit => { const li = P.idxOf(level || 0); return Object.assign({ li, level: P.levels[li].id, xy: [xy[0], xy[1]], area: areaAt(P, li, xy[0], xy[1]) }, extra); };
       if (end.stop) { const s = findStop(end.stop); if (s && s.xy) return mkHit(s.xy, s.level, { stop: s }); }
       if (end.entrance) { const e = (model.entrances || []).find((x) => x.name === end.entrance); if (e && e.xy) return mkHit(e.xy, e.level, { entrance: e }); }
       // a position the router takes for a stop without a number (stops[].at): that stop, on the level it has here
@@ -4729,10 +4977,10 @@
       if (route.fromAssumed && route.fromAssumed.sector) return String(route.fromAssumed.sector);
       return route.fromStop ? sectorNear(route.fromStop.ref, route.points[0], 30) : '';
     }
-    function computeRide(mayMove) {
+    function computeRide(mayMove: boolean) {
       ride = null;
       if (!route || !route.fromStop || samePlace(route) || !router || !router.sectorTimes || !fromEnd || !fromEnd.stop) return;
-      let t = null;
+      let t: StationRouteSectorTimes | null = null;
       const whole = { stop: { uic: route.fromStop.uic, ref: pkey(route.fromStop.ref) } };
       try { t = router.sectorTimes(model, whole, toEnd, prefs()); } catch (e) { t = null; }
       if (!t || !t.sectors || t.sectors.length < 2) return;
@@ -4744,8 +4992,8 @@
         if (r && !samePlace(r)) { route = r; ride.pick = startSector() || String(t.best); }
       }
     }
-    const withSector = (name) => Object.assign({}, fromEnd, { stop: { uic: route.fromStop.uic, ref: pkey(route.fromStop.ref), sector: name } });
-    function chooseSector(name) {
+    const withSector = (name: string): RouteEnd => Object.assign({}, fromEnd, { stop: { uic: route!.fromStop!.uic, ref: pkey(route!.fromStop!.ref), sector: name } });
+    function chooseSector(name: string) {
       if (!ride || !route || !route.fromStop) return;
       const end = withSector(name);
       const r = normaliseRoute(computeRoute(end, toEnd));
@@ -4759,8 +5007,8 @@
     }
 
     // ----- you are here -----
-    function piAt(along) {
-      const Ar = R.A;
+    function piAt(along: number) {
+      const Ar = R!.A;
       if (!(along > 0)) return 0;
       if (along >= Ar[Ar.length - 1]) return Ar.length - 1;
       let lo = 0, hi = Ar.length - 1;
@@ -4768,24 +5016,24 @@
       const seg = Ar[hi] - Ar[lo];
       return lo + (seg > 0 ? (along - Ar[lo]) / seg : 0);
     }
-    function guessLevel(x, y) {
+    function guessLevel(x: number, y: number) {
       const order = P.levels.map((l) => l.i).sort((a, b) => Math.abs(P.levels[a].id) - Math.abs(P.levels[b].id) || P.levels[b].id - P.levels[a].id);
       for (const li of order) if (areaAt(P, li, x, y)) return P.levels[li].id;
       return P.near(0);
     }
     // how far outside the model a point is (0 inside)
-    function distOutside(xy) {
+    function distOutside(xy: Pt) {
       const [x0, y0, x1, y1] = P.box;
       return Math.hypot(Math.max(x0 - xy[0], 0, xy[0] - x1), Math.max(y0 - xy[1], 0, xy[1] - y1));
     }
     function syncChip() {
       const out = !!user && user.outside;
       chipEl.hidden = !out;
-      if (out) chipEl.textContent = `You’re about ${fmtFar(user.far)} from this station${wantFollow ? '. Following starts when you get there.' : ' — not shown on this plan.'}`;
+      if (out) chipEl.textContent = `You’re about ${fmtFar(user!.far!)} from this station${wantFollow ? '. Following starts when you get there.' : ' — not shown on this plan.'}`;
       followBtn.setAttribute('aria-pressed', follow ? 'true' : wantFollow ? 'mixed' : 'false');
       followBtn.setAttribute('aria-label', follow ? 'Stop following my position' : wantFollow ? 'Following is waiting for your position. Tap to stop' : 'Follow my position');
     }
-    function setUser(u) {
+    function setUser(u: Station3DUser | null | undefined) {
       if (!self.ready) return;
       if (!u || (!u.ll && !u.xy)) {
         user = null; manualAt = null;
@@ -4800,12 +5048,12 @@
         request();
         return;
       }
-      const xy = u.xy || toLocal(model, u.ll);
-      const acc = isFinite(u.accuracy) && u.accuracy > 0 ? u.accuracy : 15;
+      const xy = u.xy || toLocal(model, u.ll!);
+      const acc = isFinite(u.accuracy!) && u.accuracy! > 0 ? u.accuracy! : 15;
       const first = !user;
-      const nu = user || { sx: null, sy: null, sl: null, salong: null, snap: null };
+      const nu = user || { sx: null, sy: null, sl: null, salong: null, snap: null } as UserState;
       nu.acc = acc;
-      nu.heading = isFinite(u.heading) && u.heading != null ? ((u.heading % 360) + 360) % 360 : null;
+      nu.heading = isFinite(u.heading!) && u.heading != null ? ((u.heading % 360) + 360) % 360 : null;
       const out = distOutside(xy);
       if (out > FAR_M) {
         // not at the station: the dot is not drawn, nothing follows it, "you're here" stays where the traveller put it
@@ -4825,16 +5073,16 @@
       }
       const wasOut = nu.outside;
       nu.outside = false;
-      let mode = 'approx', x = xy[0], y = xy[1], level = u.level != null && isFinite(u.level) ? u.level : null, alongM = null, pi = null, step = userStep;
+      let mode: 'approx' | 'route' | 'manual' = 'approx', x = xy[0], y = xy[1], level = u.level != null && isFinite(u.level) ? u.level : null, alongM: number | null = null, pi: number | null = null, step = userStep;
       if (A.routed && !A.same && router && router.snap) {
         // levelSure: the floor comes from an indoor position (indoornav.js) that is sure of it: it beats the floor
         // of the previous snap, and a snap onto another floor of the route does not count
-        const sure = u.levelSure && level != null;
-        const hint = (sure && nu.snap && Math.abs(nu.snap.point[2] - level) >= 0.5) ? level
+        const sureLevel = u.levelSure && level != null ? level : null;
+        const hint = (sureLevel != null && nu.snap && Math.abs(nu.snap.point[2] - sureLevel) >= 0.5) ? sureLevel
           : nu.snap || (manualAt ? { along: manualAt.along, level: manualAt.point[2] } : level != null ? level : undefined);
-        let sn = null;
+        let sn: StationRouteSnap | null = null;
         try { sn = router.snap(model, route, xy, hint); } catch (e) { sn = null; }
-        if (sn && sure && Math.abs(sn.point[2] - level) >= 0.5) sn = null;
+        if (sn && sureLevel != null && Math.abs(sn.point[2] - sureLevel) >= 0.5) sn = null;
         // on the route while the fix could plausibly be there; GPS knows no floor, the route does
         if (sn && sn.dist <= clamp(acc * 1.5, 18, 70)) {
           mode = 'route'; alongM = sn.along; pi = sn.index + sn.t; [x, y, level] = sn.point; step = sn.step;
@@ -4853,7 +5101,7 @@
       if (mode === 'route' && R && (alongM >= R.A[R.A.length - 1] - 2 || (route.steps[step] && route.steps[step].kind === 'arrive'))) arrive('position');
       followBtn.hidden = false;
       // the phone's compass is only needed for the direction wedge; where it needs a tap to allow, the follow button asks
-      if (nu.heading == null && !compassOn && !(window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === 'function')) enableCompass();
+      if (nu.heading == null && !compassOn && !(window.DeviceOrientationEvent && typeof (window.DeviceOrientationEvent as DeviceOrientationCtor).requestPermission === 'function')) enableCompass();
       if (step !== userStep) {
         userStep = step;
         if (stepsEl) syncSteps({ fromScroll: true });
@@ -4885,41 +5133,41 @@
       say(`You are at step ${i + 1}`);
       touch();
     }
-    function stepUser(dt) {
+    function stepUser(dt: number) {
       if (!user || !disc || user.outside) return false;
-      let busy = false, tx, ty, tl;
-      const k = (tau) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
+      let busy = false, tx: number, ty: number, tl: number;
+      const k = (tau: number) => (reducedMotion() ? 1 : 1 - Math.exp(-dt / tau));
       if (user.along != null && R) {
         if (user.salong == null) user.salong = user.along;
         const d = user.along - user.salong;
         if (Math.abs(d) > .08) { user.salong += d * k(320); busy = !reducedMotion(); } else user.salong = user.along;
-        const pi = Math.abs(user.along - user.salong) <= .08 ? user.pi : piAt(user.salong);
+        const pi = Math.abs(user.along - user.salong) <= .08 ? user.pi! : piAt(user.salong);
         [tx, ty, tl] = pointAt(pi);
         R.U.uProg.value = distAt(pi);
-      } else { tx = user.x; ty = user.y; tl = user.level; user.salong = null; }
+      } else { tx = user.x!; ty = user.y!; tl = user.level!; user.salong = null; }
       if (user.sx == null) { user.sx = tx; user.sy = ty; user.sl = tl; }
       else {
         const kk = k(150);
-        user.sx += (tx - user.sx) * kk; user.sy += (ty - user.sy) * kk; user.sl += (tl - user.sl) * kk;
-        if (Math.hypot(tx - user.sx, ty - user.sy) > .04 || Math.abs(tl - user.sl) > .004) busy = true;
+        user.sx += (tx - user.sx) * kk; user.sy! += (ty - user.sy!) * kk; user.sl! += (tl - user.sl!) * kk;
+        if (Math.hypot(tx - user.sx, ty - user.sy!) > .04 || Math.abs(tl - user.sl!) > .004) busy = true;
         else { user.sx = tx; user.sy = ty; user.sl = tl; }
       }
       disc.visible = user.mode !== 'manual' && user.acc > 0;
-      disc.position.set(user.sx, Yc(user.sl) + .3 + detailLift(user.sx, user.sy, user.sl), -user.sy);
+      disc.position.set(user.sx, Yc(user.sl!) + .3 + detailLift(user.sx, user.sy!, user.sl!), -user.sy!);
       disc.scale.setScalar(Math.max(2.5, user.acc));
       disc.material.opacity = user.mode === 'approx' ? .1 : .16;
       if (follow) {
-        if (tween) { tween.to.tx = user.sx; tween.to.tl = user.sl; tween.to.tz = -user.sy; }
+        if (tween) { tween.to.tx = user.sx; tween.to.tl = user.sl!; tween.to.tz = -user.sy!; }
         else {
           const kk = k(240);
-          const dx = user.sx - cam.tx, dl = user.sl - cam.tl, dz = -user.sy - cam.tz;
+          const dx = user.sx - cam.tx, dl = user.sl! - cam.tl, dz = -user.sy! - cam.tz;
           if (Math.hypot(dx, dz) > .05 || Math.abs(dl) > .002) { cam.tx += dx * kk; cam.tl += dl * kk; cam.tz += dz * kk; busy = true; }
         }
       }
       return busy;
     }
     let wantFollow = false; // asked for, and waiting for a position at the station
-    function setFollow(b) {
+    function setFollow(b: boolean) {
       b = !!b;
       if (b && (!user || user.outside)) { // nothing to follow yet: wait, and say why
         wantFollow = true;
@@ -4935,18 +5183,18 @@
       if (follow) {
         pausePlay(); // a live position leads
         if (A.routed && !A.same && userStep >= 0) select(userStep, { follow: true });
-        else if (user.sx != null) flyTo({ tx: user.sx, tl: user.sl, tz: -user.sy, dist: Math.min(cam.dist, 140) }, 800);
+        else if (user!.sx != null) flyTo({ tx: user!.sx, tl: user!.sl!, tz: -user!.sy!, dist: Math.min(cam.dist, 140) }, 800);
       }
       emit('follow', follow);
       request();
     }
     // The phone's compass. → 'granted' | 'denied' | 'unavailable'. iOS asks once per tap; a refusal can be asked again.
     let lastOrient = 0;
-    function enableCompass() {
+    function enableCompass(): Promise<Station3DCompass> {
       if (compassAsk) return compassAsk;
-      const D = window.DeviceOrientationEvent;
+      const D = window.DeviceOrientationEvent as DeviceOrientationCtor | undefined;
       if (!D) return Promise.resolve('unavailable');
-      const attach = () => {
+      const attach = (): Station3DCompass => {
         if (self.alive && !compassOn) {
           compassOn = true;
           on(window, 'deviceorientationabsolute', onOrient, true);
@@ -4955,15 +5203,15 @@
         return 'granted';
       };
       if (typeof D.requestPermission === 'function') {
-        let ask;
+        let ask: Promise<'granted' | 'denied'>;
         try { ask = D.requestPermission(); } catch (e) { return Promise.resolve('denied'); }
         compassAsk = Promise.resolve(ask).then((s) => (s === 'granted' ? attach() : 'denied'), () => 'denied');
         compassAsk.then((s) => { if (s !== 'granted') compassAsk = null; });
       } else compassAsk = Promise.resolve(attach());
       return compassAsk;
     }
-    let O = null; // scratch objects for the orientation maths: nothing is allocated per event
-    function onOrient(e, force) {
+    let O: { eu: THREE.Euler; q: THREE.Quaternion; q1: THREE.Quaternion; q2: THREE.Quaternion; z: THREE.Vector3; f: THREE.Vector3 } | null = null; // scratch objects for the orientation maths: nothing is allocated per event
+    function onOrient(e: Station3DOrientation, force?: boolean) {
       // which way the back of the phone points: bearing and tilt, for "look where I'm facing" (only while that is wanted)
       if ((force || pv.waiting || (pov && pv.device)) && e.beta != null && (e.absolute || typeof e.webkitCompassHeading === 'number')) {
         if (!O) O = { eu: new THREE.Euler(0, 0, 0, 'YXZ'), q: new THREE.Quaternion(), q1: new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2), q2: new THREE.Quaternion(), z: new THREE.Vector3(0, 0, 1), f: new THREE.Vector3() };
@@ -4980,7 +5228,7 @@
       }
       // the compass heading, for the wedge on the blue dot when the position fix has no direction of its own
       if (!user || user.outside || user.heading != null) return;
-      let h = null;
+      let h: number | null = null;
       if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;
       else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
       if (h == null) return;
@@ -5004,7 +5252,7 @@
       const sr = sheetEl.hidden ? null : sheetEl.getBoundingClientRect();
       const wide = sr && sr.width < W * .7;
       const bottom = sr && !wide ? r.bottom - sr.top + 8 : 10;
-      free = { x0: 8, y0: top, x1: W - (levelsEl.hidden ? 8 : 64), y1: H - bottom };
+      free = { x0: 8, y0: top, x1: W - (levelsEl.hidden ? 8 : 64), y1: H - bottom } as typeof free;
       free.w = Math.max(40, free.x1 - free.x0); free.h = Math.max(40, free.y1 - free.y0);
       free.cx = (free.x0 + free.x1) / 2; free.cy = (free.y0 + free.y1) / 2;
       // labels may use the whole stage, but never lie under a control
@@ -5018,7 +5266,7 @@
       camera.aspect = W / H;
       camera.setViewOffset(W, H, W / 2 - free.cx, H / 2 - free.cy, W, H);
       const [bx0, by0, bx1, by1] = P.box;
-      const pts = [];
+      const pts: P3[] = [];
       for (const li of [0, P.n - 1]) for (const [x, y] of [[bx0, by0], [bx1, by0], [bx1, by1], [bx0, by1]]) pts.push([x, tabTo[li], -y]);
       // how far out you can go: the station still fills a good part of the screen
       maxDist = 1e9;
@@ -5034,13 +5282,13 @@
         if (route) computeRide(true);
         else focus = { which: 'to', end: toEnd, hit: hitOfEnd(toEnd), why: routeWhy(fromEnd, toEnd) };
       } else if (toEnd || fromEnd) { // one end only: show that place, and let the other be chosen
-        const which = toEnd ? 'to' : 'from', end = toEnd || fromEnd;
+        const which = toEnd ? 'to' : 'from', end = toEnd || fromEnd!;
         focus = { which, end, hit: hitOfEnd(end), why: null };
         if (focus.hit) exploreEnds[which] = { end, name: describe(focus.hit).title };
         else focus = null;
       }
     }
-    function rebuild(o) {
+    function rebuild(o?: { keep?: boolean }) {
       o = o || {};
       const keep = o.keep ? { sel, isolate, cam: Object.assign({}, cam), peel: peelTo } : null;
       const wasPov = pov;
@@ -5081,7 +5329,7 @@
       ensureDetail();
       request();
     }
-    function start(m, r) {
+    function start(m: StationModel, r: Router | null) {
       model = m; router = r; P = prepare(m);
       titleEl.textContent = opts.title || m.name || 'Station';
       creditEl.textContent = (m.attribution || []).join(' · ');
@@ -5138,7 +5386,7 @@
       on(document, 'visibilitychange', () => { if (!document.hidden) { touch(); request(); } });
       if (pendingUser) setUser(pendingUser);
       if (opts.step != null && A.routed) select(+opts.step);
-      if (opts.level != null && P.levels.some((l) => l.id === +opts.level)) setIsolate(P.idxOf(+opts.level));
+      if (opts.level != null && P.levels.some((l) => l.id === +opts.level!)) setIsolate(P.idxOf(+opts.level));
       if (opts.follow) setFollow(true);
       if (opts.pov) { setPov(true); if (opts.povYaw != null) pv.yaw = +opts.povYaw * Math.PI / 180; if (opts.povPitch != null) pv.pitch = +opts.povPitch * Math.PI / 180; }
       if (opts.list && stepsEl) toggleList();
@@ -5154,19 +5402,19 @@
     }
 
     // Everything else on the page is out of reach while the view is open (as in settings.js)
-    let inerted = [];
-    function setInert(onOff) {
+    let inerted: HTMLElement[] = [];
+    function setInert(onOff: boolean) {
       if (!onOff) { for (const el of inerted) el.inert = false; inerted = []; return; }
       if (opts.modal === false || !root) return;
-      let host = root;
+      let host: HTMLElement = root;
       for (;;) {
         const p = host.parentNode;
         if (!p || p === document.body) break;
-        host = p.nodeType === 11 ? p.host : p; // out of a shadow tree
+        host = p.nodeType === 11 ? (p as ShadowRoot).host as HTMLElement : p as HTMLElement; // out of a shadow tree
         if (!host) return;
       }
       if (host.parentNode !== document.body) return;
-      for (const el of document.body.children) {
+      for (const el of document.body.children as HTMLCollectionOf<HTMLElement>) {
         if (el === host || el.inert || /^(SCRIPT|STYLE|LINK)$/.test(el.tagName)) continue;
         el.inert = true;
         inerted.push(el);
@@ -5187,10 +5435,10 @@
       d.append(p, again, shutBtn);
       (opts.mount && opts.mount.nodeType === 1 ? opts.mount : document.body).appendChild(d);
       root = d;
-      emit('error', { code: 'css', message: p.textContent });
+      emit('error', { code: 'css', message: p.textContent! });
     }
 
-    const api = { close: () => close(), reopen: (o) => open(o) };
+    const api = { close: () => close(), reopen: (o: Station3DOpenOptions) => open(o) };
     self.boot = function (instant) {
       loadCss().then(() => {
         if (!self.alive) return null;
@@ -5201,7 +5449,7 @@
         void root.offsetWidth; // start from the closed position, also in a tab that gets no animation frames
         root.classList.add('s3-open');
         if (instant) { void root.offsetWidth; root.style.transition = ''; }
-        try { root.querySelector('.s3-close').focus({ preventScroll: true }); } catch (e) {}
+        try { root.querySelector<HTMLElement>('.s3-close')!.focus({ preventScroll: true }); } catch (e) {}
         const three = loadThree().catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'three' }); });
         const mdl = loadModel(opts.key).catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { s3: 'model' }); });
         return Promise.all([three, mdl, loadRouter(), loadDetailIndex()]).then(([, m, r, di]) => {
@@ -5290,8 +5538,8 @@
         if (openTimer) { clearTimeout(openTimer); openTimer = 0; setPeel(peelHome, { dur: 0 }); Object.assign(cam, limit(currentPose())); tween = null; }
         for (let i = 0; i < 3; i++) { if (raf) { cancelAnimationFrame(raf); raf = 0; } frame(performance.now() + 1e6 * (i + 1)); }
         for (const p of parts) p.op = p.target;
-        if (stepsEl && !listMode && stepsEl.firstElementChild) stepsEl.scrollTo({ left: stepsEl.firstElementChild.offsetWidth * (sel + 1), behavior: 'auto' });
-        if (user && !user.outside && user.sx != null) { user.sx = user.x; user.sy = user.y; user.sl = user.level; if (follow) { cam.tx = user.sx; cam.tl = user.sl; cam.tz = -user.sy; } }
+        if (stepsEl && !listMode && stepsEl.firstElementChild) stepsEl.scrollTo({ left: (stepsEl.firstElementChild as HTMLElement).offsetWidth * (sel + 1), behavior: 'auto' });
+        if (user && !user.outside && user.sx != null) { user.sx = user.x!; user.sy = user.y!; user.sl = user.level!; if (follow) { cam.tx = user.sx; cam.tl = user.sl; cam.tz = -user.sy; } }
         if (pov) { pv.x = pv.tx; pv.y = pv.ty; pv.level = pv.tl; pv.bearing = pv.tb; }
         indoorT = Math.round(indoorT);
         DT.k = DT.show && pov && DT.entry && inBB(DT.entry.bbox, pv.x, pv.y, 4) ? 1 : 0;
@@ -5306,9 +5554,9 @@
   }
 
   // ---------- public API ----------
-  let V = null;
-  let pendingUser = null; // the last position: also shown when it arrived before the model was ready
-  let lastFocus = null;
+  let V: Viewer | null = null;
+  let pendingUser: Station3DUser | null = null; // the last position: also shown when it arrived before the model was ready
+  let lastFocus: HTMLElement | null = null;
   let skipPops = 0, skipTimer = 0; // history steps we took ourselves: their popstate is not the user's back gesture
 
   // The view is one history entry (URL hash #station3d), so the back gesture closes it; the list of all steps is a
@@ -5333,13 +5581,13 @@
   }
   // the hash changed without a step through the history (another part of the app set it): the view gives way
   function onHash() { if (V && !skipPops && location.hash !== HASH) shut(); }
-  function historyList(open) { // called by the viewer when the step list opens or closes by a tap
+  function historyList(open: boolean) { // called by the viewer when the step list opens or closes by a tap
     try {
       if (open) history.pushState({ station3d: true, list: true }, '', HASH);
       else if (history.state && history.state.list) { expectPop(); history.back(); }
     } catch (e) {}
   }
-  function shut(instant) {
+  function shut(instant?: boolean) {
     if (!V) return;
     const v = V;
     V = null;
@@ -5350,13 +5598,13 @@
     try { if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true }); } catch (e) {}
     lastFocus = null;
   }
-  function open(opts) {
+  function open(opts: Station3DOpenOptions) {
     opts = Object.assign({}, opts);
     if (!opts.key) throw new Error('Station3D.open needs a key');
     const again = !!V;
     let depth = 1;
     if (V) { const v = V; V = null; depth = v.depth(); v.destroy(true); }
-    else lastFocus = opts.returnFocus || document.activeElement;
+    else lastFocus = opts.returnFocus || document.activeElement as HTMLElement | null;
     try {
       if (again && ours() && location.hash === HASH) {
         if (depth > 1) { expectPop(); history.back(); } // the old view's step list was open: drop its entry

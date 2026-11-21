@@ -17,9 +17,10 @@
 
   const available = () => !!BASE && Date.now() >= downUntil;
 
-  async function call(path, { params, body, timeout = 8000 } = {}) {
+  interface CallOptions { params?: KanteParams; body?: object; timeout?: number }
+  async function call(path: string, { params, body, timeout = 8000 }: CallOptions = {}) {
     if (!available()) throw new Error('engine unavailable');
-    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')) : '';
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '') as string[][]) : '';
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeout);
     try {
@@ -32,7 +33,7 @@
       if (!res.ok) throw Object.assign(new Error('engine: HTTP ' + res.status), { status: res.status });
       return await res.json();
     } catch (e) {
-      if (!e.status) downUntil = Date.now() + RETRY_MS; // network error or timeout
+      if (!(e as { status?: number }).status) downUntil = Date.now() + RETRY_MS; // network error or timeout
       throw e;
     } finally {
       clearTimeout(timer);
@@ -41,11 +42,11 @@
 
   // Station ids: the engine uses "st:Parentch:1:sloid:7000", the rest of the app the UIC number 8507000.
   // Swiss stations only; anything else gives null.
-  const uicOf = (stationId) => {
+  const uicOf = (stationId: string | null | undefined) => {
     const m = /^st:Parentch:1:sloid:(\d{1,5})$/.exec(stationId || '');
     return m ? String(8500000 + Number(m[1])) : null;
   };
-  const stationIdOf = (uic) => {
+  const stationIdOf = (uic: string | number) => {
     const n = Number(uic);
     return n > 8500000 && n < 8600000 ? 'st:Parentch:1:sloid:' + (n - 8500000) : null;
   };
