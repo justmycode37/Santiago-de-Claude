@@ -32,7 +32,7 @@ function arTargetOf(st: JourneyStep): ArTarget | null {
 /** The AR button for a journey step, or null (feature off, or nothing to board next). */
 function arStepButton(st: JourneyStep): HTMLElement | null {
   if (!AR_ON || !arTargetOf(st)) return null;
-  return kBtn('view3d', 'Find the stop, your vehicle and the way with the camera', () => arOpen(st), kIcon('nav', 16), 'AR');
+  return kBtn('view3d ar-btn', 'Find the stop, your vehicle and the way with the camera', () => arOpen(st), kIcon('nav', 16), 'AR');
 }
 
 // ---------------------------------------------------------------- the live view

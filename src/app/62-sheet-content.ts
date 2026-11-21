@@ -458,10 +458,10 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     row.append(kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
     // and, where the station has one, the whole building in one continuous 3D view (opens in a new tab)
     s3HasSolid(s3p.key).then((ok) => {
-      if (ok) row.append(kBtn('view3d', 'Show this walk inside the station building, in one continuous 3D view', () => {
+      if (ok) row.insertBefore(kBtn('view3d', 'Show this walk inside the station building, in one continuous 3D view', () => {
         const p = s3Plan(st);
         if (p) window.open(s3SolidUrl(p, s3Prefs(st)), '_blank', 'noopener');
-      }, kIcon('cube', 16), 'Inside view'));
+      }, kIcon('cube', 16), 'Inside view'), row.querySelector('.ar-btn')); // the 3D buttons first, AR last
     });
   }
   const ar = arStepButton(st);
