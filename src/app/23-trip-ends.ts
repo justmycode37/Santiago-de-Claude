@@ -1,6 +1,6 @@
 // ---- The two ends of the trip ----
-const pointOf = (f) => (f === 'from' ? tripStart : journeyDest);
-function setField(f, text) {
+const pointOf = (f: TripField) => (f === 'from' ? tripStart : journeyDest);
+function setField(f: TripField, text: string) {
   inputs[f].value = text;
   clears[f].classList.toggle('show', !!text);
 }
@@ -8,16 +8,16 @@ function blurSearch() { for (const f of FIELDS) inputs[f].blur(); }
 function closeSearch() { list.classList.remove('open'); blurSearch(); }
 
 // The card: one pill while you are only looking around; the start row shows once a trip is being planned
-const tripBtn = document.getElementById('tripBtn');
+const tripBtn = document.getElementById('tripBtn')!;
 const planOpen = () => document.body.classList.contains('plan-open');
-function setPlanOpen(on) {
+function setPlanOpen(on: boolean) {
   document.body.classList.toggle('plan-open', on);
   tripBtn.setAttribute('aria-label', on ? 'Swap start and destination' : 'Choose where the trip starts');
   inputs.to.placeholder = on ? 'Where to?' : 'Search places, addresses…';
   inputs.from.placeholder = userLngLat ? 'Your location' : 'Map centre';
 }
 // Under way (after Start): the card folds into the progress pill. Changing either end brings it back.
-function setFollowing(on) {
+function setFollowing(on: boolean) {
   if (on === document.body.classList.contains('following')) return;
   document.body.classList.toggle('following', on);
   if (on) closeSearch();
@@ -26,7 +26,7 @@ function setFollowing(on) {
 }
 // Bottom edge of what is at the top of the screen: the search card, or the progress pill once under way.
 // (Their boxes, not their rectangles on screen: the pill slides in.)
-const jPillEl = document.getElementById('jPill');
+const jPillEl = document.getElementById('jPill')!;
 function topUiBottom() {
   return Math.max(form.offsetHeight ? wrap.offsetTop + form.offsetTop + form.offsetHeight : 0,
     jPillEl.offsetHeight ? jPillEl.offsetTop + jPillEl.offsetHeight : 0);
@@ -42,7 +42,7 @@ layoutTop();
 
 // A destination has been chosen (a result, a place on the map, an event, a dropped pin): plan the trip there.
 // quiet: the camera stays where it is until the trip is found (you have just put the pin there yourself)
-function showDestinationJourney(r, quiet) {
+function showDestinationJourney(r: JourneyDest, quiet?: boolean) {
   const first = !journeyDest;
   if (first) journeyQuery = { mode: 'dep', date: '', time: '' };
   clearPlacePins();
@@ -55,7 +55,7 @@ function showDestinationJourney(r, quiet) {
   startJourney(r, !first || !!quiet);
 }
 // Where the trip starts: a place, a dropped pin, or null for where you are
-function setStart(r, fly) {
+function setStart(r: JourneyDest | null, fly?: boolean) {
   clearPlacePins();
   tripStart = r;
   setField('from', r ? r.title : '');
@@ -67,11 +67,11 @@ function setStart(r, fly) {
   if (journeyDest) startJourney(journeyDest, true);
   else if (r && fly) map.flyTo({ center: r.lngLat, zoom: Math.max(map.getZoom(), 15), speed: 1.4 });
 }
-function choose(r, field = activeField) {
+function choose(r: SearchResult, field = activeField) {
   if (field === 'from') setStart(r, true);
   else showDestinationJourney(r);
 }
-function select(i) {
+function select(i: number) {
   const r = results[i];
   if (r) choose(r);
 }
@@ -145,8 +145,8 @@ form.addEventListener('submit', (e) => {
   else if (results.length) select(0);
 });
 tripBtn.addEventListener('click', () => { if (planOpen()) swapEnds(); else setPlanOpen(true); });
-document.getElementById('tripClose').addEventListener('click', () => endJourney());
-document.getElementById('jEdit').addEventListener('click', () => setFollowing(false));
+document.getElementById('tripClose')!.addEventListener('click', () => endJourney());
+document.getElementById('jEdit')!.addEventListener('click', () => setFollowing(false));
 
 // Moving the map closes the keyboard, results and menu; once it has moved away from the places shown,
 // "Search this area" looks for them there

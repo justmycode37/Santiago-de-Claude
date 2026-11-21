@@ -1,14 +1,14 @@
 // ---- The places of a search as pins on the map ("Show on map"): tap one to make it that end of the trip ----
-const placeMarkers = [];
-const areaChip = document.getElementById('areaChip');
-let pins = null; // { text, field }: the search whose places are on the map
+const placeMarkers: maplibregl.Marker[] = [];
+const areaChip = document.getElementById('areaChip')!;
+let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map
 function clearPlacePins() {
   for (const m of placeMarkers) m.remove();
   placeMarkers.length = 0;
   pins = null;
   areaChip.hidden = true;
 }
-function drawPlacePins(places, text, field) {
+function drawPlacePins(places: SearchResult[], text: string, field: TripField) {
   clearPlacePins();
   for (const r of places) {
     const k = r.icon || KIND[r.kind] || KIND.other;
@@ -49,7 +49,7 @@ async function searchArea() {
   if (!pins) return;
   const { text, field } = pins, id = ++reqId, view = map.getBounds();
   areaChip.hidden = true;
-  const bbox = [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()];
+  const bbox: PlaceBbox = [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()];
   const [online] = await Promise.all([searchPlacesOnline(text, bbox).catch(() => null), loadPlaces()]);
   if (id !== reqId || !pins || pins.text !== text) return;
   const found = combineResults(text, null, online, searchPlaces(text, true))
@@ -65,8 +65,8 @@ areaChip.addEventListener('click', searchArea);
 // search box, and that blur hides the list, so the click never reaches the row. Touches are therefore handled
 // on touchend, before any of that happens, and the click that would follow is cancelled. Mouse, keyboard and
 // screen readers still use the click.
-function onTap(el, fn) {
-  let start = null;
+function onTap(el: HTMLElement, fn: () => void) {
+  let start: { x: number; y: number } | null = null;
   el.addEventListener('pointerdown', (e) => e.preventDefault()); // mouse: keep focus in the search box
   el.addEventListener('touchstart', (e) => {
     const t = e.touches[0];

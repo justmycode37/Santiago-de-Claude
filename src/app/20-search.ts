@@ -1,16 +1,16 @@
 // ---------- Search (swisstopo SearchServer) ----------
-const wrap = document.getElementById('searchWrap');
-const form = document.getElementById('searchForm');
+const wrap = document.getElementById('searchWrap')!;
+const form = document.getElementById('searchForm') as HTMLFormElement;
 // Two fields share one search and one results list: where the trip starts (empty = where you are) and where it goes
-const FIELDS = ['from', 'to'];
-const inputs = { from: document.getElementById('qFrom'), to: document.getElementById('q') };
-const clears = { from: form.querySelector('[data-clear="from"]'), to: form.querySelector('[data-clear="to"]') };
-const toks = { from: form.querySelector('[data-pin="from"]'), to: form.querySelector('[data-pin="to"]') };
-const list = document.getElementById('results');
-let activeField = 'to'; // the field being searched in
-const PIN_ART = (kind) => `<svg class="pin-art ${kind}" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg>`;
+const FIELDS: TripField[] = ['from', 'to'];
+const inputs = { from: document.getElementById('qFrom') as HTMLInputElement, to: document.getElementById('q') as HTMLInputElement };
+const clears = { from: form.querySelector<HTMLButtonElement>('[data-clear="from"]')!, to: form.querySelector<HTMLButtonElement>('[data-clear="to"]')! };
+const toks = { from: form.querySelector<HTMLButtonElement>('[data-pin="from"]')!, to: form.querySelector<HTMLButtonElement>('[data-pin="to"]')! };
+const list = document.getElementById('results')!;
+let activeField: TripField = 'to'; // the field being searched in
+const PIN_ART = (kind: TripField) => `<svg class="pin-art ${kind}" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg>`;
 // Start and destination on the map. Both can be dragged; the tip sits 2 px above the bottom of the box (room for the outline).
-const tripPin = (kind) => {
+const tripPin = (kind: TripField) => {
   const el = document.createElement('div');
   el.className = 'trip-pin';
   el.innerHTML = PIN_ART(kind);
@@ -18,11 +18,11 @@ const tripPin = (kind) => {
 };
 const destMarker = tripPin('to');
 const startMarker = tripPin('from');
-let tripStart = null; // where the trip starts: null = where you are, else a search result or a dropped pin ({ title, lngLat })
+let tripStart: JourneyDest | null = null; // where the trip starts: null = where you are, else a search result or a dropped pin ({ title, lngLat })
 
 const ZOOM_BY_ORIGIN = { address: 17, gazetteer: 15, zipcode: 13, gg25: 13 };
 // Result kinds → icon + colour (Apple Maps style: white glyph on a coloured circle)
-const KIND = {
+const KIND: SearchIcons = {
   address:  { color: 'var(--tang)', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
   city:     { color: 'var(--navy)', svg: '<path d="M3 21h18M5 21V11l5-3v13M10 21V5l9 4v12M14 10h2M14 14h2M14 18h2"/>' },
   postcode: { color: 'var(--navy)', svg: '<path d="M4 6h16v12H4zM4 7l8 6 8-6"/>' },
@@ -44,13 +44,13 @@ const KIND = {
   sport:    { color: 'var(--navy)', svg: '<path d="M6.5 7v10M17.5 7v10M3.5 10v4M20.5 10v4M6.5 12h11"/>' },
   other:   { color: 'var(--navy)', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
 };
-const CANTONS = { AG: 'Aargau', AI: 'Appenzell I.Rh.', AR: 'Appenzell A.Rh.', BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
+const CANTONS: Record<string, string> = { AG: 'Aargau', AI: 'Appenzell I.Rh.', AR: 'Appenzell A.Rh.', BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
   FR: 'Fribourg', GE: 'Geneva', GL: 'Glarus', GR: 'Graubünden', JU: 'Jura', LU: 'Lucerne', NE: 'Neuchâtel', NW: 'Nidwalden',
   OW: 'Obwalden', SG: 'St. Gallen', SH: 'Schaffhausen', SO: 'Solothurn', SZ: 'Schwyz', TG: 'Thurgau', TI: 'Ticino', UR: 'Uri',
   VD: 'Vaud', VS: 'Valais', ZG: 'Zug', ZH: 'Zurich' };
-const cantonName = (c) => CANTONS[c] || c || '';
+const cantonName = (c: string) => CANTONS[c] || c || '';
 
-function gazetteerKind(type, oc) {
+function gazetteerKind(type: string, oc: string): [kind: SearchKind, label: string] {
   const t = type.toLowerCase();
   if (/local name|field name/.test(t)) return ['nature', 'Area'];
   if (/SIEDLUNG/.test(oc) || /populated|settlement|place|quarter|district/.test(t)) return ['city', 'Place'];
@@ -64,7 +64,7 @@ function gazetteerKind(type, oc) {
 }
 
 // swisstopo labels → a short main name + a grey detail line
-function parseResult(attrs) {
+function parseResult(attrs: SwisstopoLocationAttrs): Pick<SearchResult, 'title' | 'subtitle' | 'kind'> {
   const label = attrs.label || '';
   const bold = stripTags((label.match(/<b>(.*?)<\/b>/i) || [])[1] || '');
   const italic = stripTags((label.match(/<i>(.*?)<\/i>/i) || [])[1] || '').replace(/\s+/g, ' ').trim();
@@ -91,10 +91,10 @@ function parseResult(attrs) {
 }
 
 const COLLAPSED_COUNT = 3;
-let results = [];
-let placeCategory = null; // "Restaurants" when the query names a kind of place: the nearest ones are listed
+let results: SearchResult[] = [];
+let placeCategory: string | null = null; // "Restaurants" when the query names a kind of place: the nearest ones are listed
 let expanded = false;
-let debounce;
+let debounce: number | undefined;
 let reqId = 0;
 
-const stripTags = (s) => s.replace(/<[^>]*>/g, '').trim();
+const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim();
