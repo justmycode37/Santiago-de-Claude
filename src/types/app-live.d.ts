@@ -144,9 +144,11 @@ interface LiveVehicle extends KanteVehicle {
 interface LiveVehicleProps {
   i: number;
   label: string;
-  /** The line's colour on the light and on the dark map. */
-  bg: string;
-  dfg: string;
+  /** Sprite ids (42-sprites.ts): the pictogram alone and with the line number, on the light and on the dark map. */
+  icon: string;
+  pill: string;
+  iconD: string;
+  pillD: string;
   /** Not in the timetable. */
   extra: boolean;
   /** Not live (or not updated for a while): drawn faded. */
