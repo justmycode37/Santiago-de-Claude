@@ -7,7 +7,8 @@
 //   node tools/test_screen_reader.mjs search,journey  some parts: search, events, journey, guide, access, scan, language
 //   SHOTS=/some/dir node tools/test_screen_reader.mjs shots   screenshots of the screens that changed
 //
-// Needs Chrome or Chromium (CHROME=/path/to/chrome when it is not on the PATH) and python3 for the local server.
+// Builds the site into dist/ first (scripts/build.mts) and serves that. Needs Chrome or Chromium
+// (CHROME=/path/to/chrome when it is not on the PATH) and python3 for the local server.
 // The app talks to its real services (search, timetable), so it needs the internet and takes a few minutes.
 // This does not replace trying it with VoiceOver and TalkBack on a phone: it checks what the app hands to them.
 import { spawn, spawnSync } from 'node:child_process';
@@ -18,12 +19,15 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ONLY = process.argv[2] || '';
-const WEB = 8765, PORT = 9333, URL_ = `http://127.0.0.1:${WEB}/index.html`;
+// ?intro=0: without the first-visit introduction (docs/onboarding.md)
+const WEB = 8765, PORT = 9333, URL_ = `http://127.0.0.1:${WEB}/index.html?intro=0`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const chrome = process.env.CHROME || ['google-chrome', 'chromium', 'chromium-browser', 'chrome'].find((c) => spawnSync('which', [c]).status === 0);
 if (!chrome) { console.error('No Chrome or Chromium found. Set CHROME=/path/to/chrome.'); process.exit(2); }
+const built = spawnSync(process.execPath, [join(ROOT, 'scripts', 'build.mts')], { cwd: ROOT, encoding: 'utf8' });
+if (built.status !== 0) { console.error('The build failed:\n' + built.stdout + built.stderr); process.exit(2); }
 const profile = mkdtempSync(join(tmpdir(), 'sr-test-'));
-const server = spawn('python3', ['-m', 'http.server', String(WEB), '--bind', '127.0.0.1'], { cwd: ROOT, stdio: 'ignore' });
+const server = spawn('python3', ['-m', 'http.server', String(WEB), '--bind', '127.0.0.1'], { cwd: join(ROOT, 'dist'), stdio: 'ignore' });
 const browser = spawn(chrome, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--disable-gpu',
   '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
   '--window-size=390,844', 'about:blank'], { stdio: 'ignore' });

@@ -9,7 +9,7 @@ A screen reader reads what its user moves to, in their own voice, speed and lang
 The app speaks up by itself in only two ways:
 
 - **It moves focus**, after something the user did: a journey opens, a dialog opens, a page closes.
-- **It writes one sentence into a live region** when something happens that the user did not cause and can't see. There are two regions in `index.html`: `#srStatus` waits for the screen reader to finish, `#srAlert` interrupts. `A11Y.say()` in `a11y.js` fills them.
+- **It writes one sentence into a live region** when something happens that the user did not cause and can't see. There are two regions in `index.html`: `#srStatus` waits for the screen reader to finish, `#srAlert` interrupts. `A11Y.say()` in `src/a11y.ts` fills them.
 
 The rules for those sentences:
 
@@ -40,7 +40,7 @@ The rules for those sentences:
 
 ## What is said during guidance
 
-After **Start**, `guidePosition()` and `guideAlerts()` in `index.html` turn the state of the trip into sentences. Each has a key, and a key is said once per journey.
+After **Start**, `guidePosition()` and `guideAlerts()` in `src/app/65-guidance.ts` turn the state of the trip into sentences. Each has a key, and a key is said once per journey.
 
 | Event | Example | Interrupts |
 |---|---|---|
@@ -65,14 +65,14 @@ The page is in English. Station, stop and street names are marked with the langu
 
 Sentences in the live regions can't carry a language per word, so names inside them are read with the voice of the app's language.
 
-**Another app language** (Settings › Language, `translate.js`) translates the text on the screen through Google Translate. Announcements are translated before they are put into a live region, and the regions are marked `translate="no"`: put in English and translated afterwards, a sentence would be read out twice. If Google does not answer within 1.5 seconds, the sentence is said in English. Names keep `translate="no"` and their own language.
+**Another app language** (Settings › Language, `src/translate.ts`) translates the text on the screen through Google Translate. Announcements are translated before they are put into a live region, and the regions are marked `translate="no"`: put in English and translated afterwards, a sentence would be read out twice. If Google does not answer within 1.5 seconds, the sentence is said in English. Names keep `translate="no"` and their own language.
 
 ## Data for blind and low-vision travellers
 
 | What | Source | Where |
 |---|---|---|
 | Tactile guide lines, tactile field at the boarding point, spoken announcements, departure display with speech | ATLAS accessibility data per stop edge (opentransportdata.swiss), via `data/bern-stop-accessibility.json` | `stop-access.js`, built by `node tools/build-stop-access.mjs` |
-| Crossings with a sound signal | Stadt Bern, in `map-places.js` | counted within 12 m of a walk |
+| Crossings with a sound signal | Stadt Bern, in `map-places.js` | counted within 12 m of a walk (`src/app/63-access-data.ts`) |
 
 Both cover Bern only. The app says what is mapped and claims nothing where nothing is: no sentence means "not known", never "none".
 
@@ -101,4 +101,4 @@ The browser test needs Chrome or Chromium and the internet, and takes a few minu
 
 The browser test drives the real app through search, events, a journey, guidance with a simulated GPS position, the blind or low-vision mode and Scan. It checks what the app hands to a screen reader. It does not replace trying a change with VoiceOver and TalkBack on a phone.
 
-When you change the journey sheet: it is redrawn often, and a screen reader loses its place when the element it is on is replaced. `patch()` swaps in only the parts that changed and `keepFocus()` puts focus back on a replaced button. Keep using them, and keep markup that looks the same doing the same, because a part that is kept keeps its click handlers.
+When you change the journey sheet (`src/app/62-sheet-content.ts`): it is redrawn often, and a screen reader loses its place when the element it is on is replaced. `patch()` swaps in only the parts that changed and `keepFocus()` puts focus back on a replaced button. Keep using them, and keep markup that looks the same doing the same, because a part that is kept keeps its click handlers.

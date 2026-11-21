@@ -1,7 +1,7 @@
-// Tests for the pure helpers in a11y.js: which language a text is in, and which language is spoken where.
+// Tests for the pure helpers in src/a11y.ts: which language a text is in, and which language is spoken where.
 //   node tools/test_a11y.mjs
 import { createRequire } from 'node:module';
-const A = createRequire(import.meta.url)('../a11y.js');
+const A = createRequire(import.meta.url)('../src/a11y.ts');
 let failed = 0;
 const eq = (what, got, want) => { if (got !== want) { failed++; console.log(`FAIL ${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 
