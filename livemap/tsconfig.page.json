@@ -1,0 +1,8 @@
+{
+  // The scripts of the live map's two pages (page.ts, page-old.ts): server.mts writes them into index.html and
+  // index-old.html. Each is checked on its own, as each runs in its own page.
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "moduleDetection": "force" },
+  "include": ["page.ts", "page-old.ts", "types.d.ts", "../src/types/vendor.d.ts"],
+  "exclude": []
+}

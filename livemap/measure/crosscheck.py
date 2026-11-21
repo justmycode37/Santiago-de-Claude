@@ -2,7 +2,7 @@
 fraction (not the page's own odometer), using the trip's hop lengths."""
 import collections, gzip, json, math, sys
 trips_raw = json.load(gzip.open(sys.argv[1], "rt", encoding="utf-8"))   # from fetch_trips.py
-trace = json.load(gzip.open(sys.argv[2], "rt", encoding="utf-8"))       # from browser_run.mjs
+trace = json.load(gzip.open(sys.argv[2], "rt", encoding="utf-8"))       # from browser_run.mts
 M = 111195.0
 def dm(a, b):
     c = math.cos(math.radians((a[1] + b[1]) / 2)); return math.hypot((b[0] - a[0]) * c * M, (b[1] - a[1]) * M)

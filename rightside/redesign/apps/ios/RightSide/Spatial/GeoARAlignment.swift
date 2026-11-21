@@ -115,7 +115,9 @@ struct GeoARAlignment {
 
     /// Yaw from compass samples: circular mean, weighted by reported accuracy. Compass errors are
     /// correlated (local magnetic disturbance), so averaging does not shrink sigma below the median accuracy.
-    func compassYaw() -> (yaw: Double, sigma: Double)? {
+    func compassYaw(at now: Date? = nil) -> (yaw: Double, sigma: Double)? {
+        // Samples older than the window are dropped even when no new heading arrives (compass lost).
+        let headings = now.map { now in self.headings.filter { now.timeIntervalSince($0.at) <= Self.headingWindow && $0.at <= now } } ?? self.headings
         guard !headings.isEmpty else { return nil }
         var sx = 0.0, sy = 0.0
         for h in headings {
@@ -141,15 +143,19 @@ struct GeoARAlignment {
         let total = weights.reduce(0, +)
         var ce = Vec2.zero, ca = Vec2.zero
         for (p, w) in zip(positions, weights) { ce = ce + p.enu * (w / total); ca = ca + p.ar * (w / total) }
-        var dot = 0.0, cross = 0.0, span = 0.0
+        var dot = 0.0, cross = 0.0, span = 0.0, enuSpan = 0.0
         for (p, w) in zip(positions, weights) {
             let e = p.enu - ce, a = p.ar - ca
             dot += w * (e.x * a.x + e.y * a.y)
             cross += w * (e.x * a.y - e.y * a.x)
             span = max(span, a.length)
+            enuSpan = max(enuSpan, e.length)
         }
-        // The AR path (visual odometry) measures the true spread; GPS noise alone can look like movement.
-        guard span * 2 >= Self.minimumPathSpan else { return nil }
+        // The AR path (visual odometry) measures the true spread; GPS noise alone can look like movement. The fixes
+        // must have moved too: in an underpass Core Location repeats one fix while the rider walks, and a path of
+        // identical fixes has no direction (atan2(0, 0) would claim yaw 0).
+        guard span * 2 >= Self.minimumPathSpan, enuSpan * 2 >= Self.minimumPathSpan / 2,
+              (dot * dot + cross * cross).squareRoot() > 1e-9 else { return nil }
         let yaw = atan2(cross, dot)
         let translation = ca - ce.rotated(by: yaw)
         var squared = 0.0
@@ -166,7 +172,7 @@ struct GeoARAlignment {
     }
 
     func solution(at now: Date) -> Solution? {
-        let compass = compassYaw()
+        let compass = compassYaw(at: now)
         let path = pathFit()
         let yaw: Double, yawSigma: Double, source: Source
         switch (compass, path) {
@@ -291,8 +297,10 @@ enum ARRouteGuidance {
         let lateral10 = alignment.pointSigma(atDistance: 10)
         let offRoute = bestDistance > max(25, 2 * alignment.positionSigma)
         let mode: Mode
+        // Ground arrows only along a real walking route: a straight line to the target may cross a road or tracks.
+        let hasRoute = route.count >= 2
         if offRoute { mode = .unavailable("You are away from the walking route") }
-        else if lateral10 <= pathLateralLimit { mode = .path }
+        else if lateral10 <= pathLateralLimit && hasRoute { mode = .path }
         else if lateral10 <= directionLateralLimit { mode = .direction }
         else { mode = .unavailable("Location or compass too uncertain") }
         let sigma = Int(lateral10.rounded())

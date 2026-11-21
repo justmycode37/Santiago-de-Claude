@@ -4,8 +4,8 @@ Three JSON files in `data/`, ported from the Powercoders hackathon repo and refr
 
 | File | Size | Content | Rebuild |
 |---|---|---|---|
-| `data/bern-stop-accessibility.json` | 387 stops, 983 edges | every stop edge (Haltekante) in greater Bern, with ATLAS accessibility (PRM), BfR wheelchair status and OSM comfort tags | `tools/build-bern-accessibility.mjs` |
-| `data/bern-stop-frequency.json` | 381 stops | scheduled departures per hour per stop (2026 timetable) | `tools/build-bern-frequency.mjs` |
+| `data/bern-stop-accessibility.json` | 387 stops, 983 edges | every stop edge (Haltekante) in greater Bern, with ATLAS accessibility (PRM), BfR wheelchair status and OSM comfort tags | `tools/build-bern-accessibility.mts` |
+| `data/bern-stop-frequency.json` | 381 stops | scheduled departures per hour per stop (2026 timetable) | `tools/build-bern-frequency.mts` |
 | `data/offices.json` | 59 rows | offices, help services and hotlines for newcomers, hand-curated | edit by hand |
 
 Bbox for both transit files: S,W,N,E = 46.90, 7.34, 46.99, 7.50 (same as `data/places.json`).
@@ -102,9 +102,9 @@ Node 24, no npm dependencies. bash with curl and unzip (Git Bash works).
 
 ```sh
 bash tools/fetch-raw.sh        # ~165 MB into data/raw/ (gitignored); resolves current URLs via the opendata.swiss catalogue
-node tools/build-bern-accessibility.mjs data/raw data/bern-stop-accessibility.json [data/official-places.json]
+node tools/build-bern-accessibility.mts data/raw data/bern-stop-accessibility.json [data/official-places.json]
 unzip -p data/raw/haltestellen_2026.zip haltestellen_2026/haltestellen26.csv \
-  | node tools/build-bern-frequency.mjs data/bern-stop-accessibility.json data/bern-stop-frequency.json   # ~1 min
+  | node tools/build-bern-frequency.mts data/bern-stop-accessibility.json data/bern-stop-frequency.json   # ~1 min
 ```
 
 Both scripts assert on their output before writing (stop counts, period length, every stop locatable, unfilled edges marked). For a new timetable year, change `haltestellen_2026` in `fetch-raw.sh` and in the command above. The Overpass step falls back to `overpass.osm.ch` when `overpass-api.de` fails. Without `osm-bern-platforms.json`, the build still runs, but `edge.osm` is `null`.

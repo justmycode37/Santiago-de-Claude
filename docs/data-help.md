@@ -1,6 +1,6 @@
 # Help data: needs with no open dataset (`data/help.json`, `data/fares.json`)
 
-Checked on 2026-11-21. Rebuild with `node tools/build-help.mjs` (writes `data/help.json`; needs internet for the two
+Checked on 2026-11-21. Rebuild with `node tools/build-help.mts` (writes `data/help.json`; needs internet for the two
 live feeds and swisstopo geocoding). `data/fares.json` is written by hand.
 
 ## What `data/help.json` contains

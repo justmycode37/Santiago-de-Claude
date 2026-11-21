@@ -22,9 +22,14 @@ interface IndoorNavApi {
   /** The traveller says where they are. */
   here(o: { level: number; xy?: XY }): void;
   state(): IndoorNavState;
+  /** The viewer opened before indoornav.js had loaded: join the opening that is showing (the stand-in in index.html calls this). */
+  attach(opened: Station3DEventMap['open']): void;
 }
 
 declare var INDOORNAV: IndoorNavApi | undefined;
+/** indoorloc.js and signloc.js, once loaded. The stand-in in index.html only asks whether they are there. */
+declare var INDOORLOC: object | undefined;
+declare var SIGNLOC: object | undefined;
 
 /** `window.dispatchEvent(new CustomEvent('scan:text', { detail }))`: text Scan read (indoornav.js listens). */
 interface ScanTextDetail { text: string; tap?: boolean; at?: number }

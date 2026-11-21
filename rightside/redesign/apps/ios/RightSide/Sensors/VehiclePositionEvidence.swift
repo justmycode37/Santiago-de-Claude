@@ -97,7 +97,7 @@ enum VehiclePositionEvidence {
         for candidate in candidates {
             var best = 0.0
             for vehicle in vehicles where DisplayText.lineKey(vehicle.line.name) == candidate.lineKey
-                && DepartureDisplayMatcher.destinationSimilarity(vehicle.headsign, candidate.destination) >= 0.85 {
+                && DepartureDisplayMatcher.sameDestination(vehicle.headsign, candidate.destination, threshold: 0.85) {
                 guard let position = vehicle.position(at: pose.at) else { continue }
                 let (direction, distance) = bearing(from: pose.user, to: position)
                 let slack = pose.userAccuracy + interpolationError
@@ -139,6 +139,12 @@ struct KanteDue: Decodable, Equatable {
     let approachBearing: Double?
     /// Direction it drives in when it leaves (to the next stop), degrees: the travel direction at the boarding edge.
     var departBearing: Double? = nil
+    /// Live delay, seconds; only where the time is live.
+    var delayS: Double? = nil
+    /// The quay label when there is one (Kante sends "" for a quay without a label).
+    var label: String? { quayLabel.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
+    /// Timetable departure (live time minus live delay).
+    var plannedDeparture: Double? { (dep ?? arr).map { $0 - (delayS ?? 0) } }
     /// "approaching", "at-stop" or "departed".
     let state: String
     let etaS: Double?
@@ -169,14 +175,41 @@ extension KanteVehicleFeed {
         guard data.count <= 3_000_000 else { throw URLError(.dataLengthExceedsMaximum) }
         return try JSONDecoder().decode(KanteDueResponse.self, from: data).due.filter { $0.cancelled != true }
     }
-    /// The engine says which optional parts it has; `due` may be missing on an older deployment.
-    static func supportsDue(_ meta: Data) -> Bool {
-        struct Meta: Decodable { let features: [String]? }
-        return (try? JSONDecoder().decode(Meta.self, from: meta))?.features?.contains("due") == true
+    /// The engine says which optional parts it has; `due` may be missing on an older deployment. Nil when the
+    /// answer is not a readable meta document (an error page during a redeploy): ask again later, do not decide.
+    static func supportsDue(_ meta: Data, status: Int = 200) -> Bool? {
+        struct Meta: Decodable { let features: [String] }
+        guard (200..<300).contains(status), let decoded = try? JSONDecoder().decode(Meta.self, from: meta) else { return nil }
+        return decoded.features.contains("due")
+    }
+
+    /// What the camera polls for. When this changes (another boarding stop or ride, offline toggled), polling restarts;
+    /// nil means do not poll at all.
+    static func pollKey(station: String?, line: String?, destination: String?, offline: Bool, simulated: Bool) -> String? {
+        guard !offline, !simulated, let line else { return nil }
+        return [station ?? "-", line, destination ?? "-"].joined(separator: "|")
     }
 }
 
 extension VehiclePositionEvidence {
+    /// The `/api/due` trip that is the rider's own ride: same line and destination and, when the journey's planned
+    /// departure is known, the same planned departure within 90 s. Nil unless exactly one trip fits, so the 10:00
+    /// from A is never mistaken for the rider's 10:10 from B.
+    static func dueItem(line: String?, destination: String?, plannedDeparture: Date?, in due: [KanteDue], now: Date) -> KanteDue? {
+        guard let line, let destination else { return nil }
+        let key = DisplayText.lineKey(line), t = now.timeIntervalSince1970
+        var fitting = due.filter { item in
+            DisplayText.lineKey(item.line.name) == key && item.cancelled != true
+                && DepartureDisplayMatcher.sameDestination(item.headsign, destination, threshold: 0.85)
+                && (item.dep ?? item.arr ?? t) >= t - 20
+        }
+        if let plannedDeparture {
+            let planned = plannedDeparture.timeIntervalSince1970
+            fitting = fitting.filter { $0.plannedDeparture.map { abs($0 - planned) <= 90 } ?? false }
+        }
+        return fitting.count == 1 ? fitting[0] : nil
+    }
+
     /// Display candidates from `/api/due`, one per line + headsign, with vias.
     static func candidates(from due: [KanteDue]) -> [DisplayCandidate] {
         var result: [DisplayCandidate] = []
@@ -192,23 +225,30 @@ extension VehiclePositionEvidence {
     ///   that left more than 20 s ago does not count. Timetable-only or stale times are flattened (less known).
     /// - direction: for a vehicle still approaching, the camera should see it on the side it comes from
     ///   (opposite its arrival bearing). Needs a camera heading and a fix within 30 m.
-    static func dueLikelihoods(for box: CGRect, pose: CameraPose?, due: [KanteDue], candidates: [DisplayCandidate], now: Date) -> [String: Double] {
+    /// A `/api/due` answer older than this is not used at all (polls every 15 s; a failed poll must not keep it alive).
+    static let dueMaximumAge: TimeInterval = 60
+
+    static func dueLikelihoods(for box: CGRect, pose: CameraPose?, due: [KanteDue], candidates: [DisplayCandidate], now: Date,
+                               fetchedAt: Date? = nil) -> [String: Double] {
+        if let fetchedAt, now.timeIntervalSince(fetchedAt) > dueMaximumAge || fetchedAt > now.addingTimeInterval(5) { return [:] }
         let t = now.timeIntervalSince1970
         let seen = pose.flatMap { $0.userAccuracy <= 30 ? detectionBearing(box, pose: $0) : nil }
         var result: [String: Double] = [:]
         for candidate in candidates {
             var best = 0.0
             for item in due where DisplayText.lineKey(item.line.name) == candidate.lineKey
-                && DepartureDisplayMatcher.destinationSimilarity(item.headsign, candidate.destination) >= 0.85 {
+                && DepartureDisplayMatcher.sameDestination(item.headsign, candidate.destination, threshold: 0.85) {
                 guard let reference = item.arr ?? item.dep else { continue }
-                if item.state == "departed", (item.dep ?? reference) < t - 20 { continue }
+                // Judged by absolute time, not by the state the answer had when it was fetched: once its departure
+                // (or, without one, its arrival) is more than 20 s past, the vehicle is gone, whatever the state said.
+                if (item.dep ?? reference) < t - 20 { continue }
                 let eta = reference - t
                 var timing = eta <= 60 ? 1 : exp(-(eta - 60) / 150)
                 if ["timetable", "stale"].contains(item.liveInfo?.state ?? "timetable") || item.liveInfo?.inaccurate == true {
                     timing = 0.5 + 0.5 * timing
                 }
                 var aligned = 1.0
-                if let seen, let pose, let approach = item.approachBearing, item.state == "approaching", eta > 8 {
+                if let seen, let pose, let approach = item.approachBearing, eta > 8 {
                     let from = (approach + 180).truncatingRemainder(dividingBy: 360)
                     let difference = abs(((from - seen) + 540).truncatingRemainder(dividingBy: 360) - 180)
                     // Roads bend before a stop and the rider is not exactly at it: generous 30° on top of the compass.

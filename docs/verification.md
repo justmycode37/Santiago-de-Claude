@@ -71,7 +71,7 @@ Pass rate 33/48 = **69 %**; PASS+WARN 47/48 = 98 %. No item was found at a wrong
 Most WARNs are artworks, area features and tiny shops that cannot be checked from outside OSM, not wrong coordinates.
 
 ### Systematic findings
-1. **No coordinate bug in `build-places.mjs`.** All 48 elements are live in OSM with identical node coordinates; lat/lon order and the `out center` handling are correct.
+1. **No coordinate bug in `build-places.mts`.** All 48 elements are live in OSM with identical node coordinates; lat/lon order and the `out center` handling are correct.
 2. **Way/relation centroids sit 40-75 m from the address/entrance** for big features: school, underground garage, minigolf, gardens, cemetery. That is fine for map pins but not for "walk me to the door". Suggestion: for ways/relations, prefer an `entrance=*` node or the GWR address point when one exists.
 3. **Address missing on 26/48 items**, yet the GWR building at the point gives the correct published address in almost every business case (e.g. Volver 4 m, Podologie 2 m, Hot Momo 4 m, lista 14 m). Suggestion: backfill `address` from the nearest GWR entrance within ~15 m, marked as derived (`address_source: "gwr"`). The script also ignores `contact:addr` (Vizlo).
 4. **Wrong address tags exist.** Amante's `addr:street` "Flughafenstrasse" should be "Flugplatzstrasse", so forward geocoding it lands 2.1 km off. Suggestion: check `addr:street` against GWR street names at build time and flag mismatches.

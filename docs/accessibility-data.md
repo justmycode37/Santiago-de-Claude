@@ -120,4 +120,4 @@ node -e "const d=require('./data/bern-stop-accessibility.json');const ok=e=>e.ac
 - `data/bern-stop-accessibility.json` (rebuilt 21 Nov 2026): 387 stops / 983 edges in greater Bern (bbox 46.90–46.99 N, 7.34–7.50 E). Each edge has coords (19 provisional edges have none, see [data-transit-access.md](data-transit-access.md)), compass, direction text, the ATLAS `access` block, BfR status and OSM comfort tags.
 - `data/bern-stop-frequency.json`: per stop (key = DiDok number, e.g. `8590012`): `avg_departures_per_hour[24]`, `peak_departures_per_hour`, `daily_departures_by_line` ("6 → Worb Dorf": 94).
 - `tools/fetch-raw.sh`: downloads the raw sources to `data/raw/` (gitignored, ~165 MB).
-- `tools/build-bern-accessibility.mjs`, `tools/build-bern-frequency.mjs`: rebuild the JSON files (commands are in each file's header).
+- `tools/build-bern-accessibility.mts`, `tools/build-bern-frequency.mts`: rebuild the JSON files (commands are in each file's header).

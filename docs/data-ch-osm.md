@@ -1,13 +1,13 @@
 # Switzerland basic-needs amenities (OpenStreetMap)
 
-`data/ch/osm-<category>.json`, built by `tools/build-amenities-ch.mjs`. Switzerland-wide version of the Bern build
-(`tools/build-amenities.mjs`): same Overpass tags, same `categorize()` (first match wins, so a library with free wifi stays a library),
+`data/ch/osm-<category>.json`, built by `tools/build-amenities-ch.mts`. Switzerland-wide version of the Bern build
+(`tools/build-amenities.mts`): same Overpass tags, same `categorize()` (first match wins, so a library with free wifi stays a library),
 same node/way dedupe (same category within ~1 m, or same category + name within 15 m; nodes win over ways).
 
 ## Rebuild
 
 ```sh
-node tools/build-amenities-ch.mjs            # writes data/ch/osm-*.json, ~10 min
+node tools/build-amenities-ch.mts            # writes data/ch/osm-*.json, ~10 min
 ```
 
 - Source: `https://overpass.osm.ch/api/interpreter` (Swiss instance; overpass-api.de times out from here).
