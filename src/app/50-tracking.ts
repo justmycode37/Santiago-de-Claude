@@ -128,9 +128,13 @@ function tripLive(now = Date.now()) {
 
 // Snap a GPS position onto the trip. Ties go to the earlier step (waiting at the stop, not yet riding);
 // going backwards and boarding before the vehicle has left are penalised, so loops and parallel lines stay right.
+// near: how far you are from the step you are counted on or one of its neighbours. It decides "off the route":
+// on the platform before your train leaves, the step you are counted on is still the walk there, whose drawn
+// line can end well short of the platform, and that distance must not make you off the route.
 function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
   const lay = tripLayout();
-  let best: TripSnap | null = null;
+  let best: Omit<TripSnap, 'near'> | null = null;
+  const off: number[] = []; // metres to each step's line
   journeySteps.forEach((st, i) => {
     const cs = stepLine(st);
     if (!cs.length) return;
@@ -138,6 +142,7 @@ function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
     const consider = (d: number, kmIn: number) => {
       const km = lay.km0[i] + kmIn;
       const cost = d + early + (km < ref ? (ref - km) * 500 : (km - ref) * 20);
+      if (off[i] == null || d < off[i]) off[i] = d;
       if (!best || cost < best.cost) best = { cost, d, i, kmIn, km };
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
@@ -147,7 +152,12 @@ function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
       consider(q.d, cum[j] + q.t * (cum[j + 1] - cum[j]));
     }
   });
-  return best;
+  const snap = best as Omit<TripSnap, 'near'> | null; // (assigned inside consider(), which the compiler does not follow)
+  if (!snap) return null;
+  // the step you are counted on, the one before and the one after: a later part of the trip that happens to
+  // pass by does not hide that you have left this one
+  const near = Math.min(...[snap.i - 1, snap.i, snap.i + 1].map((k) => (off[k] == null ? Infinity : off[k])));
+  return { ...snap, near };
 }
 
 // Still at (or on the way to) the stop of a ride that has left without you?
@@ -188,9 +198,9 @@ function trackOnce() {
   const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
   // (once you have been on it, leaving it again is "off the route", however long that lasts)
-  const onRoute = !!(track && track.onRoute) || s.d <= tol;
+  const onRoute = !!(track && track.onRoute) || s.near <= tol;
   if (tripStart && !onRoute) { track = null; return; }
-  const offCount = s.d > tol ? ((track && track.offCount) || 0) + 1 : 0;
+  const offCount = s.near > tol ? ((track && track.offCount) || 0) + 1 : 0;
   track = { ...s, v: geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (track.off) return;
   const dest = destMarker._map && destMarker.getLngLat().toArray();

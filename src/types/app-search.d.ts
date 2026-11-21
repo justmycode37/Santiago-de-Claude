@@ -21,7 +21,7 @@ type SearchIcons = Partial<Record<SearchKind, SearchIcon>> & { other: SearchIcon
 /** The swisstopo SearchServer's sources of locations: addresses, names on the map, postcodes, municipalities. */
 type SwisstopoOrigin = 'address' | 'gazetteer' | 'zipcode' | 'gg25';
 /** Where a result comes from: swisstopo, a place (ours or one found online), or a pin put on the map by hand. */
-type SearchOrigin = SwisstopoOrigin | 'place' | 'pin';
+type SearchOrigin = SwisstopoOrigin | 'place' | 'pin' | 'event';
 
 /**
  * One row of the results list, whichever source it is from (swisstopo, our own places, places online), and what a
@@ -40,6 +40,11 @@ interface SearchResult {
   icon?: SearchIcon;
   /** Places found online (places.ts): who knows them. */
   source?: 'osm' | 'google';
+  /** One of our own places that has no name: its title is its kind in English ("Public toilet"), not a name. */
+  generic?: boolean;
+  /** A community event (origin 'event'): its id, and every date it is held on, the next one first. Choosing it opens its page. */
+  eventId?: string;
+  series?: EventFeature[];
 }
 
 /** Anything that begins with a longitude and a latitude: a LngLat, or a row of map-places.js. */

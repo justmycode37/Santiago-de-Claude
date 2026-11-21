@@ -110,7 +110,8 @@ map.on('click', (e) => {
   if (hit.layer.id === 'platform-dot') openPlatform(hit as PlatformDotFeature);
   else openPlace(hit.properties.i);
 });
-async function openPlatform(f: PlatformTap) {
+// opts.focus (from Scan): the card takes the focus and its departures are said
+async function openPlatform(f: PlatformTap, opts: { focus?: boolean } = {}) {
   popupPlace = null;
   const st = PLATFORMS.get(String(f.properties.id));
   // i = null: the stop as a whole (e.g. recognised by Scan without knowing which edge), all its departures
@@ -124,12 +125,17 @@ async function openPlatform(f: PlatformTap) {
   const dot = mk('span', 'pf-dot', edge.ref);
   const name = mk('div', 'pf-name');
   const kind = (edge.ref ? `${word} ${edge.ref}` : word) + (edge.level ? ` · Level ${levelShort(edge.level)}` : '');
-  name.append(mk('b', null, st!.name), mk('small', null, kind));
+  name.append(named(mk('b', null, st!.name), edge.ll), mk('small', null, kind));
   const head = mk('div', 'pf-head');
+  dot.setAttribute('aria-hidden', 'true'); // the platform is named in words next to it
   head.append(dot, name);
   const note = mk('p', 'pf-note', 'Loading departures…');
   const list = mk('ul', 'pf-list');
+  list.setAttribute('aria-label', 'Next departures');
   const box = mk('div');
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', `${st!.name}, ${kind}`);
+  box.tabIndex = -1;
   box.append(head, note, list);
   // a station with a 3D model: show this platform in it, with the way there when you are nearby
   const key3d = window.Station3D && Station3D.has(f.properties.id);
@@ -148,7 +154,17 @@ async function openPlatform(f: PlatformTap) {
     });
     box.append(view3d);
   }
+  if (opts.focus) {
+    // Reached without the map (from Scan): a way out that needs no tap on the map beside the card
+    const shut = () => { popupReq++; platformPopup.remove(); menuBtn.focus(); };
+    const close = mk('button', 'pf-3d', 'Close');
+    close.type = 'button';
+    close.addEventListener('click', (e) => { e.stopPropagation(); shut(); });
+    box.addEventListener('keydown', (e) => { if (e.key === 'Escape') shut(); });
+    box.append(close);
+  }
   platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
+  if (opts.focus) box.focus({ preventScroll: true });
   try {
     // The Kante engine knows the edge of every departure (engine-departures.js: d.edges). Without it,
     // transport.opendata.ch and the rule below.
@@ -159,15 +175,25 @@ async function openPlatform(f: PlatformTap) {
     // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
     const here = whole ? all : all.filter((d) => (d.edges ? d.edges.includes(f.properties.i!) : platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll));
     note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st!.name}:`;
-    list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
+    const shown = (here.length ? here : all).slice(0, 6);
+    const depTime = (d: OdStationboardEntry) => fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure);
+    list.replaceChildren(...shown.map((d) => {
       const li = mk('li');
-      li.append(mk('time', null, fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure)), badge(d), mk('span', 'pf-to', d.to));
-      if (d.stop.delay! > 0) li.append(mk('span', 'j-delay', `+${d.stop.delay}′`));
+      li.append(mk('time', null, depTime(d)), badge(d), mk('span', 'pf-to', d.to));
+      // drawn "+3′", read out "3 minutes late"
+      if (d.stop.delay! > 0) li.append(A11Y.seen(mk('span', 'j-delay', `+${d.stop.delay}′`)), A11Y.sr(`${A11Y.minutes(d.stop.delay!)} late`));
       return li;
     }));
     platformPopup.setLngLat(edge.ll); // re-fit now that the card is taller
+    if (opts.focus) {
+      A11Y.say(`${st!.name}, ${kind}. ${!all.length ? 'No departures in the next hours.' : `${here.length ? 'Next' : 'All departures from this stop'}: ${shown.slice(0, 3)
+        .map((d) => `${lineName(d)} to ${d.to} at ${depTime(d)}${d.stop.delay! > 0 ? `, ${A11Y.minutes(d.stop.delay!)} late` : ''}`).join('; ')}.`}`);
+    }
   } catch {
-    if (req === popupReq) note.textContent = 'Departures could not be loaded.';
+    if (req === popupReq) {
+      note.textContent = 'Departures could not be loaded.';
+      if (opts.focus) A11Y.say(`${st!.name}, ${kind}. Departures could not be loaded.`);
+    }
   }
 }
 map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });

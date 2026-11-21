@@ -62,6 +62,13 @@ function kDur(s: number) {
   const hh = Math.floor(m / 60), r = m % 60;
   return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
 }
+// …and in words, for what is read out: "23 minutes", "1 hour 5 minutes"
+function durWords(s: number) {
+  if (s > 0 && s < 60) return 'less than 1 minute';
+  const m = Math.max(0, Math.round(s / 60)), hh = Math.floor(m / 60), r = m % 60;
+  const hours = hh ? `${hh} ${hh === 1 ? 'hour' : 'hours'}` : '';
+  return [hours, r || !hh ? A11Y.minutes(r) : ''].filter(Boolean).join(' ');
+}
 // where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
 function kDurExact(s: number) {
   s = Math.max(0, Math.round(s));
@@ -70,11 +77,11 @@ function kDurExact(s: number) {
   return kDur(Math.floor(s / 60) * 60);
 }
 // "+4 min" after a time, in the alarm colour; nothing when on time
+// (drawn "+4 min", read out "4 minutes late": an aria-label on a plain span is not read by every screen reader)
 function kDelay(min: number) {
   if (!min) return null;
-  const e = h('span', 'delay ' + (min > 0 ? 'late' : 'early'), `${min > 0 ? '+' : '−'}${Math.abs(min)} min`);
-  e.setAttribute('aria-label', `${Math.abs(min)} ${Math.abs(min) === 1 ? 'minute' : 'minutes'} ${min > 0 ? 'late' : 'early'}`);
-  return e;
+  return h('span', 'delay ' + (min > 0 ? 'late' : 'early'), A11Y.seen(`${min > 0 ? '+' : '−'}${Math.abs(min)} min`),
+    A11Y.sr(` ${A11Y.minutes(Math.abs(min))} ${min > 0 ? 'late' : 'early'} `));
 }
 // Line badge: a plain rounded rectangle in the line's colour ("IC 8", "S3"; a bare number gets its mode icon)
 function kBadge(j: LineLike, size?: 'lg' | null, withIcon?: boolean) {
@@ -95,14 +102,15 @@ function quayOf(r: QuayRide, end: 'dep' | 'arr'): Quay {
   const label = num || (edge && edge.ref) || '';
   const word = platformWord(s.journey); // Platform · Bay · Pier
   return { label, sectors, word, short: word === 'Platform' ? 'Pl.' : word, edge, travel: at.travel,
-    planned: live && plan && live !== plan ? splitPlatform(plan).num : null, station: stop.station!.name };
+    // (new sectors on the same platform, "7 A-B" → "7 C-D", are not another platform)
+    planned: live && plan && live !== plan && splitPlatform(plan).num !== num ? splitPlatform(plan).num : null, station: stop.station!.name };
 }
 // The boarding point in its fixed slot: right-aligned, bold ("Pl. 7", "Bay C"); nothing for an unsigned stop
 function kPlat(q: Quay | null | undefined, long?: boolean) {
   if (!q || !q.label) return null;
-  const e = h('span', 'plat' + (q.planned ? ' changed' : ''), h('span', 'plat-noun', long ? q.word : q.short), h('b', null, q.label));
-  e.setAttribute('aria-label', `${q.word} ${q.label}${q.planned ? `, changed from ${q.planned}` : ''}`);
-  return e;
+  // drawn "Pl. 7", read out "Platform 7"
+  return h('span', 'plat' + (q.planned ? ' changed' : ''), A11Y.seen(h('span', 'plat-noun', long ? q.word : q.short)), A11Y.seen(h('b', null, q.label)),
+    A11Y.sr(` ${q.word} ${q.label}${q.planned ? `, changed from ${q.planned}` : ''} `));
 }
 
 // ---- Sheet: low (fitted to its header), middle (half the screen), expanded (stopping below the top bar) ----

@@ -15,6 +15,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones). Details: [docs/scan.md](docs/scan.md).
 - **First-visit introduction**: A welcome page, a short 3D demo walk and two questions (walking speed, access needs) before the map; details and status in [docs/onboarding.md](docs/onboarding.md).
 - **Multilingual UI**: Settings › **Language** translates the interface into any of Google Translate's 249 languages.
+- **Usable without looking**: Works with VoiceOver and TalkBack: journeys are announced, **Start** talks you through the trip, and Scan says which stop you are at ([docs/screen-readers.md](docs/screen-readers.md)).
 
 ## Getting started
 

@@ -41,9 +41,11 @@ function startFollowing() {
   if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
   }
-  setDetent('low');
+  // the sheet steps aside for the map, unless you asked for journeys as a list (Settings › Blind or low vision)
+  if (!lowVision()) setDetent('low');
   const p = journeyProgress();
   goToStep(p && !(p as TimedPlace).ended ? p.i : 0, true);
+  startGuidance();
 }
 // "Get ticket": SBB's ticket page for this exact connection, ready to buy. SBB's own link format (read from sbb.ch):
 //   /en/offer?stops=Name_I<stop id>~Name_I<stop id>&day=YYYY-MM-DD&time=HH_mm&moment=dep&trip=0_0

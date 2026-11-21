@@ -8,7 +8,7 @@
     "dev": "node scripts/dev.mts",
     "build": "node scripts/build.mts",
     "check": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
-    "test": "node tools/test_station_route.mjs && node tools/test_station_route2.mjs && node tools/test_walkroute.mjs && node tools/test_walkrefine.mjs"
+    "test": "node tools/test_station_route.mjs && node tools/test_station_route2.mjs && node tools/test_walkroute.mjs && node tools/test_walkrefine.mjs && node tools/test_a11y.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

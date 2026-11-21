@@ -232,7 +232,14 @@ function optionRow(conn: OdConnection, now: number) {
   const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.departure, 'departure')! - liveMs(rides[k].arrival, 'arrival')!) / 60000)));
   const changes = !rides.length ? ['On foot'] : !gaps.length ? ['Direct']
     : [`${gaps.length} ${gaps.length === 1 ? 'change' : 'changes'}`, `· ${gaps.length === 1 ? '' : '≥ '}${Math.min(...gaps)} min`];
-  const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), null, () => openOption(conn),
+  // read out as one sentence: "14:50 to 16:01, 1 hour 11 minutes, direct with IC 8, from Platform 2, leaves in 6 min"
+  const fq = first ? quayOf({ s: first }, 'dep') : null;
+  const words = [`${fmtTime(conn.from.departure)} to ${fmtTime(conn.to.arrival)}`, durWords((t1 - t0) / 1000),
+    !rides.length ? 'on foot' : `${!gaps.length ? 'direct' : gaps.length === 1 ? '1 change' : `${gaps.length} changes`} with ${rides.map((x: RideSection) => lineName(x.journey)).join(', then ')}`,
+    fq && fq.label ? `from ${fq.word} ${fq.label}` : '',
+    text ? (text.charAt(0).toLowerCase() + text.slice(1)).replace('< 1 min', 'less than 1 minute').replace(/(\d+) min\b/, (m, n) => A11Y.minutes(+n)) : '',
+    !gone && late > 0 ? `${A11Y.minutes(late)} late` : '', conn === journeyConn ? 'shown on the map' : ''].filter(Boolean).join(', ');
+  const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), words, () => openOption(conn),
     h('span', 'jrow-l1', chain, h('b', 'jrow-dur', kDur((t1 - t0) / 1000))),
     h('span', 'jrow-l2', h('b', 'jrow-time', fmtTime(conn.from.departure)), bar, h('b', 'jrow-time end', fmtTime(conn.to.arrival))),
     h('span', 'jrow-l3', h('span', 'jrow-plat', first ? kPlat(quayOf({ s: first }, 'dep')) : null),
@@ -308,7 +315,11 @@ function openOption(conn: OdConnection) {
   journeyList = false;
   if (conn === journeyConn) renderSheet();
   else showOption(conn);
-  setDetent('low', true); // the map with that journey, its times, and Start
+  // the map with that journey, its times, and Start (as a list for Settings › Blind or low vision)
+  setDetent(lowVision() ? 'full' : 'low', true);
+  // the row that was pressed is gone: a screen reader goes to the journey and hears it in a sentence
+  journeyEl.focus({ preventScroll: true });
+  announceJourney();
 }
 function showOptions() {
   if (optionCount() < 2) return;
@@ -318,6 +329,8 @@ function showOptions() {
   renderSheet();
   if (sheetDetent === 'low') setDetent('mid', true);
   else fitJourney();
+  journeyEl.focus({ preventScroll: true }); // "All journeys" is gone with the header it was in
+  A11Y.say(`${optionCount()} journeys to ${destName()}.`, { quiet: true });
 }
 function setJourneyTab(tab: JourneyTab) {
   const o = journeyOptions;
@@ -361,6 +374,7 @@ function buildHead(): HTMLDivElement {
   const tr = Math.max(0, rides.length - 1);
   const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
   head.append(
+    h('h1', 'sr-only', `Journey to ${destName()}`),
     h('div', 'sheet-title',
       optionCount() > 1 && !document.body.classList.contains('following') ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
       legChain(), sheetActions()),
@@ -383,20 +397,66 @@ function buildHead(): HTMLDivElement {
   if (act.childNodes.length) head.append(act);
   return head;
 }
+// ---- Redrawing the sheet without taking a button away from under a screen reader ----
+// A screen reader sits on one element. When that element is replaced by a new copy, the reader loses its place
+// and starts somewhere else. So: (1) only the parts that changed are swapped in (patch), and (2) when the element
+// you were on had to be replaced, focus goes to the one that took its place (keepFocus).
+function keepFocus(box: HTMLElement, change: () => void) {
+  const el = document.activeElement, had = !!el && el !== box && box.contains(el);
+  const path: number[] = [];
+  if (had) for (let n = el!; n !== box; n = n.parentElement!) path.unshift([...n.parentElement!.children].indexOf(n));
+  change();
+  if (!had || box.contains(document.activeElement)) return;
+  let n: Element = box;
+  for (const i of path) { n = n.children[i]; if (!n) return; }
+  if (n.tagName === el!.tagName && n.matches('button:not(:disabled), a[href], [tabindex]')) (n as HTMLElement).focus({ preventScroll: true });
+}
+// Children are compared in order and only the ones that differ are replaced; `deep`: containers whose own
+// children are compared the same way (the list of steps, the list of journeys). False when the two don't have
+// the same shape. A part that is kept keeps its click handlers, so this is only used where the same markup
+// always does the same.
+//
+// What a part was drawn as is remembered (`drawn`), and a fresh part is compared with that, not with the part as
+// it is now: in another app language the translator (translate.ts) rewrites texts and labels after they are put
+// in, and compared with the page itself every part would look changed, and be replaced, at every redraw.
+const drawn = new WeakMap<Element, string>();
+function patch(old: Element, fresh: Element | DocumentFragment, deep: string | null): boolean {
+  const a = [...old.children], b = [...fresh.children];
+  if (a.length !== b.length || a.some((x, i) => x.tagName !== b[i].tagName || x.className !== b[i].className)) return false;
+  a.forEach((x, i) => {
+    const html = b[i].outerHTML, was = drawn.get(x);
+    if (was === undefined ? x.isEqualNode(b[i]) : was === html) return;
+    if (deep && x.matches(deep) && patch(x, b[i], null)) { drawn.set(x, html); return; }
+    remember(b[i]);
+    x.replaceWith(b[i]);
+  });
+  return true;
+}
+// A part about to be put on the page, and the rows of a list in it: as they are drawn now
+function remember(el: Element) {
+  drawn.set(el, el.outerHTML);
+  if (el.matches('ol.tl, ol.journeys')) for (const c of el.children) drawn.set(c, c.outerHTML);
+}
+const rememberAll = (parent: Element | DocumentFragment) => { for (const c of parent.children) remember(c); };
 let headKey = '';
 function renderHead(force?: boolean) {
   const node = buildHead();
   const key = node.outerHTML;
   if (!force && key === headKey) return; // unchanged: leave it alone (and its buttons pressable)
   headKey = key;
-  jHead.replaceChildren(node);
+  const old = jHead.firstElementChild;
+  keepFocus(jHead, () => {
+    // the summary header: the line that changed (the minutes count down) is swapped in, its buttons stay
+    if (!(old && old.className === 'jhead' && node.className === 'jhead' && patch(old, node, null))) { rememberAll(node); jHead.replaceChildren(node); }
+  });
 }
 
 function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to') {
   return h('li', 'tl-row tl-place ' + kind,
     h('span', 'tl-time', h('b', null, fmtTime(t))),
     h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
-    h('span', 'tl-name', h('strong', null, name), h('small', null, kind === 'from' ? 'Start' : 'Destination')));
+    h('span', 'tl-name', kind === 'to' && journeyDest ? named(h('strong', null, name), journeyDest.lngLat) : h('strong', null, name),
+      h('small', null, kind === 'from' ? 'Start' : 'Destination')));
 }
 // Spare time on a change: from getting off to the next departure, less the walk
 function spareLine(st: JourneyChangeStep) {
@@ -408,9 +468,9 @@ function spareLine(st: JourneyChangeStep) {
     level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
       : h('span', null, h('b', null, `${kDurExact(s)} to spare`), extra > 0 && s < extra * 60 ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
 }
-function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
+function stepRow(d: JourneyDirection, active: boolean, onClick: () => void, note?: string) {
   const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
-    h('span', 'step-icon', kIcon(STEP_K[d.kind] || 'walk', 18)), h('span', 'step-text', d.text),
+    h('span', 'step-icon', kIcon(STEP_K[d.kind] || 'walk', 18)), h('span', 'step-text', d.text, note ? h('small', 'step-note', note) : null),
     d.from != null && d.to != null ? h('span', 'tag lvl', levelShort(d.from), kIcon('go', 11), levelShort(d.to)) : null);
   if (active) b.setAttribute('aria-current', 'step');
   return h('li', null, b);
@@ -444,6 +504,8 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (transfer) main.append(spareLine(st));
   else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
+  const sounds = soundCrossings(walkPaths(st));
+  if (sounds) main.append(h('div', 'quiet-line', `${soundWords(sounds)} on this walk`));
   const s3p = s3Plan(st);
   if (s3p) {
     const row = h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
@@ -457,11 +519,14 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     });
   }
   if (dirs.length > 1) {
-    main.append(kBtn('expander', null, () => {
+    const ex = kBtn('expander', null, () => {
       if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
       renderBody();
-    }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`));
-    if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k)))));
+    }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`);
+    ex.setAttribute('aria-expanded', String(expanded));
+    main.append(ex);
+    if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k),
+      sounds && d.kind !== 'arrive' && soundCrossings([(d.coords || []).filter(Boolean)]) ? 'Sound signal at a crossing here' : ''))));
   }
   return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
     h('span', 'tl-time', h('small', null, kDur(mins * 60))),
@@ -497,10 +562,12 @@ function standCard(st: JourneyRideStep, i: number) {
     q.sectors || level ? h('div', 'stand-tags',
       q.sectors ? h('span', 'tag strong', `${q.sectors.replace(/[^A-Za-z0-9]/g, '').length === 1 ? 'Sector' : 'Sectors'} ${q.sectors}`) : null,
       level ? h('span', 'tag', level) : null) : null,
-    next ? h('div', 'stand-dir', compass, h('span', null, 'Next stop: ', h('b', null, next))) : null);
+    next ? h('div', 'stand-dir', compass, h('span', null, 'Next stop: ', named(h('b', null, next), coordOf(j.passList[1])))) : null);
   const card = h('div', 'stand', h('div', 'stand-main', sign, info));
   if (q.planned) card.append(h('div', 'stand-note warn', kIcon('alert', 16), `${q.word} ${q.planned} → ${q.label}: changed today`));
   if (!edge) card.append(h('div', 'stand-note', kIcon('info', 16), 'Exact platform or bay unknown — map pin shows the stop'));
+  const access = stopAccess(st);
+  if (access.length) card.append(h('div', 'stand-note', kIcon('info', 16), access.join(' · ')));
   card.append(h('div', 'stand-foot', h('span'), kBtn('link-btn', null, () => showQuay(i), 'Show on map ', kIcon('right', 14))));
   return card;
 }
@@ -515,6 +582,12 @@ function liveTag(st: JourneyRideStep) {
   const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
   return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Expected' : 'Timetable');
 }
+function stopsExpander(i: number, open: boolean, stops: number, rideS: number) {
+  const b = kBtn('expander', `Ride ${stops + 1} stops, ${durWords(rideS)}. The stops on the way`, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); },
+    kIcon(open ? 'up' : 'down', 16), `Ride ${stops + 1} stops · ${kDur(rideS)}`);
+  b.setAttribute('aria-expanded', String(open));
+  return b;
+}
 function rideBlock(st: JourneyRideStep, i: number) {
   const s = st.s, j = s.journey, mode = modeOf(j.category);
   const list = j.passList || [];
@@ -525,22 +598,22 @@ function rideBlock(st: JourneyRideStep, i: number) {
   li.append(h('div', 'tl-row board',
     callTime(s.departure, 'departure', true),
     h('span', 'tl-rail ride first', h('i', 'tl-node', kIcon(MODE_K[mode] || 'bus', 15))),
-    h('span', 'tl-name', h('strong', null, s.departure.station!.name)),
+    h('span', 'tl-name', named(h('strong', null, s.departure.station!.name), coordOf(s.departure))),
     kPlat(quayOf(st, 'dep'))));
   li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
     h('div', 'tl-main',
       standCard(st, i),
-      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', j.to)),
+      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), A11Y.sr(' towards '), asName(h('span', 'ride-head', j.to))),
       h('div', 'ride-sum',
-        stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `Ride ${stops + 1} stops · ${kDur(rideS)}`)
+        stops > 0 ? stopsExpander(i, open, stops, rideS)
           : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),
         liveTag(st)))));
   if (open) list.slice(1, -1).forEach((stop) => li.append(h('div', 'tl-row mid',
     h('span', 'tl-time', h('span', null, fmtTime(liveMs(stop, 'arrival') || liveMs(stop, 'departure')))),
     h('span', 'tl-rail ride', h('i', 'tl-stopdot')),
-    h('span', 'tl-name', (stop.station && stop.station.name) || ''))));
+    named(h('span', 'tl-name', (stop.station && stop.station.name) || ''), coordOf(stop)))));
   li.append(h('div', 'tl-row alight', callTime(s.arrival, 'arrival'), h('span', 'tl-rail ride last', h('i', 'tl-enddot')),
-    h('span', 'tl-name', s.arrival.station!.name), kPlat(quayOf(st, 'arr'))));
+    named(h('span', 'tl-name', s.arrival.station!.name), coordOf(s.arrival)), kPlat(quayOf(st, 'arr'))));
   return li;
 }
 function footNote() {
@@ -564,6 +637,7 @@ function buildBody() {
   }
   if (!routeOverview) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
   const tl = h('ol', 'tl');
+  tl.setAttribute('aria-label', 'Steps of the journey');
   const first = journeySteps[0];
   if (first && first.type === 'walk') tl.append(placeRow(first.t0, journeyFrom, 'from'));
   journeySteps.forEach((st, i) => {
@@ -575,17 +649,37 @@ function buildBody() {
   frag.append(tl, footNote(), h('div', 'sheet-end'));
   return frag;
 }
+// What the body was last drawn for: the steps of a journey, or the journeys of the list on one of its tabs
+interface SheetBody { list: boolean; tab?: string; items: unknown[] }
+let bodyFor: SheetBody | null = null;
+const bodyNow = (): SheetBody | null => (!journeyConn ? null : journeyList && journeyOptions
+  ? { list: true, tab: journeyTab, items: journeyOptions.list.slice() } : { list: false, items: journeySteps });
+const sameBody = (a: SheetBody | null, b: SheetBody | null) => !!a && !!b && a.list === b.list && a.tab === b.tab
+  && (a.list ? a.items.length === b.items.length && a.items.every((x, i) => x === b.items[i]) : a.items === b.items);
 function renderBody() {
   const top = jBody.scrollTop;
-  jBody.replaceChildren(buildBody());
+  const fresh = buildBody(), now = bodyNow();
+  keepFocus(jBody, () => {
+    // the same steps or the same journeys again (new times, a list opened): row by row, so the rest stays as it is
+    if (!(sameBody(bodyFor, now) && patch(jBody, fresh, 'ol.tl, ol.journeys'))) { rememberAll(fresh); jBody.replaceChildren(fresh); }
+  });
+  bodyFor = now;
   jBody.scrollTop = top;
 }
 let ticketFoot: { conn: OdConnection; tracking: boolean; arrival: HTMLElement; refresh?: () => void } | null = null;
+// What Start is called for a screen reader: it starts guidance, and once that is on it says the current step again.
+// The bar is kept while the journey stays the same, so the label is set on the button that is there (syncStartLabel).
+const startLabel = () => (guiding ? 'Start: say the current step again' : 'Start guidance');
+function syncStartLabel() {
+  const b = jFoot.querySelector('.start');
+  if (b) b.setAttribute('aria-label', startLabel());
+}
 function renderFoot() {
   if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
   const end = journeyEnd(), start = new Date(journeyConn.from.departure!).getTime();
-  const arrival = h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`),
-    h('b', null, kDur((end - start) / 1000)));
+  // (drawn "Arrive 16:01 · 1 h 11 min", read out "Arrives 16:01, 1 hour 11 minutes")
+  const arrival = h('span', 'actionbar-sum', h('small', null, A11Y.seen(`Arrive ${fmtTime(end)}`), A11Y.sr(`Arrives ${fmtTime(end)}, `)),
+    h('b', null, A11Y.seen(kDur((end - start) / 1000)), A11Y.sr(durWords((end - start) / 1000))));
   const tracking = SETTINGS.prefs().fareTracking;
   if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.arrival.isConnected) {
     ticketFoot.arrival.replaceWith(arrival);
@@ -595,7 +689,8 @@ function renderFoot() {
   const ticket = ticketLink();
   const pricing = ticketPricing(!!ticket);
   jFoot.replaceChildren(h('div', 'actionbar',
-    kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+    // Start: the map follows you, and from now on each step is said (guidance). Again: the current step once more.
+    kBtn('pill-btn start', startLabel(), startFollowing, kIcon('nav', 18), 'Start'),
     ticket,
     kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
     arrival),

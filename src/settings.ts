@@ -25,7 +25,10 @@
     mapHidden: [],
     // Live data (live.js): vehicles on the map
     liveVehicles: true,
-    // Events
+    // Guidance (a11y.ts): this phone's voice says each step of a journey; a buzz at each step
+    readAloud: false,
+    vibrate: false,
+    // Events ("lowVision" also opens journeys as a list and names tactile guidance and sound signals: src/app)
     newcomer: false,
     lowVision: false,
     freeFood: false,
@@ -388,9 +391,21 @@
     changeListeners.forEach((fn) => fn(patch, by, before));
   }
 
+  // Guidance switches only show where the phone can do it (iOS Safari has no vibration)
+  const aloudRow = document.getElementById('setAloudRow'), vibrateRow = document.getElementById('setVibrateRow');
+  if (aloudRow && !window.speechSynthesis) aloudRow.hidden = true;
+  if (vibrateRow && !navigator.vibrate) vibrateRow.hidden = true;
+
   page.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
-    if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
+    if (t.dataset.setting) {
+      update({ [t.dataset.setting]: t.checked });
+      // switched on: say so with the voice (this tap is also what lets the page speak later, on iOS), or buzz once
+      if (t.checked && window.A11Y) {
+        if (t.dataset.setting === 'readAloud') { A11Y.unlock(); A11Y.say('Read aloud is on.'); }
+        if (t.dataset.setting === 'vibrate') A11Y.buzz(false);
+      } else if (!t.checked && t.dataset.setting === 'readAloud' && window.A11Y) A11Y.hush();
+    }
     else if (t.dataset.layer) {
       const hidden = state.mapHidden.filter((k) => k !== t.dataset.layer);
       if (!t.checked) hidden.push(t.dataset.layer as MapGroupKey);
@@ -423,7 +438,7 @@
     journeyBefore = journeySnapshot();
     render();
     // (the walking-speed notice stays usable: it can show on top of this page)
-    madeInert = ([...document.body.children] as HTMLElement[]).filter((el) => el !== page && el.id !== 'paceNote' && el.tagName !== 'SCRIPT' && !el.inert);
+    madeInert = ([...document.body.children] as HTMLElement[]).filter((el) => el !== page && el.id !== 'paceNote' && el.id !== 'toast' && !el.classList.contains('sr-live') && el.tagName !== 'SCRIPT' && !el.inert);
     madeInert.forEach((el) => { el.inert = true; });
     themeBefore = themeMeta.getAttribute('content')!;
     themeMeta.setAttribute('content', getComputedStyle(page).getPropertyValue('--sp-bg').trim());

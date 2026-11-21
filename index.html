@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
-  <title>Maps</title>
+  <meta name="apple-mobile-web-app-title" content="Maps" />
+  <title>Maps: Swiss journey planner and community events</title>
   <link rel="stylesheet" href="pricing.css" />
   <link rel="stylesheet" href="ticket-pricing.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
@@ -151,6 +152,15 @@
       overscroll-behavior: none;
     }
     #map { position: fixed; inset: 0; }
+    /* For screen readers only: on the page, not on the screen */
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0; border: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
     /* First visit: the map stays covered until the introduction is over (onboarding.js, onboarding.css) */
     :root[data-onboarding] body::before { content: ""; position: fixed; inset: 0; z-index: 79; background: var(--page-bg); }
     .maplibregl-control-container { display: none; }
@@ -328,21 +338,35 @@
     }
     .results.open { display: block; }
     .results::-webkit-scrollbar { display: none; }
-    .results li {
+    /* Every row you can pick is a button filling its list item */
+    .results li > button, .results li.empty, .results li.attr {
       display: flex;
       align-items: center;
       gap: 12px;
       padding: 10px 16px;
-      cursor: pointer;
     }
-    .results li.more {
+    .results li > button {
+      width: 100%;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .results li > button:focus-visible { outline: 3px solid var(--you); outline-offset: -3px; border-radius: 14px; }
+    .results li.more > button {
       justify-content: center;
       color: var(--bar-secondary);
       font-size: 15px;
       font-weight: 500;
     }
     .results li .text { flex: 1; min-width: 0; padding: 2px 0; }
-    .results li:active { background: var(--pressed); }
+    .results li > button:active { background: var(--pressed); }
     .results .icon {
       flex: none;
       width: 36px;
@@ -363,10 +387,9 @@
     .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
     .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
     .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
-    .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
+    .results li.on-map > button { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
     .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
-    .results li.attr:active { background: none; }
 
     .trip {
       position: relative;
@@ -644,6 +667,7 @@
     .kj b, .kj strong { font-weight: 700; }
     .kj small { font-size: 12px; line-height: 16px; }
     .kj :focus-visible { outline: 3px solid var(--you); outline-offset: 2px; border-radius: 6px; }
+    #journey:focus { outline: none; } /* focused by the app when a journey opens, so a screen reader starts there */
     .kj .icon { flex: none; display: inline-block; vertical-align: -.2em; }
     .kj .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .kj .trunc2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -865,6 +889,7 @@
     .kj .step { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 36px; padding: 8px; border-radius: 8px; font-size: 14px; }
     .kj .step-icon { flex: none; color: var(--ink-2); }
     .kj .step-text { flex: 1; min-width: 0; }
+    .kj .step-note { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--ink-2); }
     .kj .step.active { background: var(--brand-tint); font-weight: 700; }
     .kj .step.active .step-icon { color: var(--ink); }
     .kj .step.k-arrive { font-weight: 700; }
@@ -1009,7 +1034,11 @@
     }
     .t-sheet.open { transform: none; }
     .t-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--clear-bg); margin: 0 auto 14px; }
-    .t-title { font-size: 20px; font-weight: 800; margin-bottom: 14px; }
+    .t-title { font-size: 20px; font-weight: 800; margin: 0 44px 14px 0; }
+    .t-close { position: absolute; top: 18px; right: 14px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: var(--row-bg); color: var(--bar-secondary); display: grid; place-items: center; cursor: pointer; }
+    .t-close::after { content: ""; position: absolute; inset: -4px; } /* 44 px tap target */
+    .t-close svg { width: 14px; height: 14px; }
+    .t-sheet :focus-visible { outline: 3px solid var(--you); outline-offset: 2px; }
     .t-seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; margin-bottom: 14px; border-radius: 12px; background: var(--row-bg); }
     .t-seg button { border: 0; padding: 9px; border-radius: 10px; background: transparent; color: var(--bar-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
     .t-seg button.active { background: var(--bar-bg); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
@@ -1216,6 +1245,7 @@
     .set-link:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; border-radius: 4px; }
     .set-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 16px; cursor: pointer; }
     .set-row:has(.switch:disabled) { cursor: default; }
+    .set-row[hidden] { display: none; }
     .set-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--c); color: var(--f, #fff); display: grid; place-items: center; }
     .set-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
     .set-text { flex: 1; min-width: 0; }
@@ -1400,6 +1430,11 @@
   </style>
 </head>
 <body>
+  <!-- What screen readers are told when something happens by itself (a11y.js): one polite, one that interrupts.
+       translate="no": a sentence is put in already in the app's language, so it is not read out twice. -->
+  <div class="sr-only sr-live" id="srStatus" role="status" aria-live="polite" translate="no"></div>
+  <div class="sr-only sr-live" id="srAlert" role="alert" aria-live="assertive" translate="no"></div>
+
   <div id="map"></div>
 
   <div class="menu" id="menu">
@@ -1483,17 +1518,20 @@
   </div>
 
   <div class="t-dim" id="tDim"></div>
-  <div class="t-sheet" id="tSheet" role="dialog" aria-label="Choose time" aria-hidden="true">
+  <div class="t-sheet" id="tSheet" role="dialog" aria-modal="true" aria-labelledby="tTitle" aria-hidden="true" inert>
     <div class="t-grab"></div>
-    <div class="t-title">When do you want to travel?</div>
-    <div class="t-seg" id="tSeg">
-      <button type="button" data-mode="dep">Depart at</button>
-      <button type="button" data-mode="arr">Arrive by</button>
+    <button class="t-close" id="tClose" type="button" aria-label="Close without changing the time">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" /></svg>
+    </button>
+    <h2 class="t-title" id="tTitle">When do you want to travel?</h2>
+    <div class="t-seg" id="tSeg" role="group" aria-label="Depart or arrive">
+      <button type="button" data-mode="dep" aria-pressed="false">Depart at</button>
+      <button type="button" data-mode="arr" aria-pressed="false">Arrive by</button>
     </div>
     <label class="t-field"><span>Date</span><input type="date" id="tDate" /></label>
     <label class="t-field"><span>Time</span><input type="time" id="tTime" /></label>
     <div class="t-actions">
-      <button class="t-btn secondary" id="tNow" type="button">Now</button>
+      <button class="t-btn secondary" id="tNow" type="button" aria-label="Leave now">Now</button>
       <button class="t-btn primary" id="tDone" type="button">Search</button>
     </div>
   </div>
@@ -1562,6 +1600,21 @@
         </label>
       </div>
       <p class="set-foot">Stairs, lifts and ramps come from OpenStreetMap and may be incomplete. Step-free journeys get at least 7 minutes at every change, wheelchair journeys 10. The timetable doesn’t say which trains and buses have step-free boarding, so check with the operator when it matters.</p>
+
+      <h2 class="set-head" id="setGuideHead">Guidance</h2>
+      <div class="set-group" role="group" aria-labelledby="setGuideHead">
+        <label class="set-row" id="setAloudRow">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /></svg></span>
+          <span class="set-text"><b id="setAloudT">Read aloud</b><small id="setAloudD">This phone’s voice says each step. Leave off if you use VoiceOver or TalkBack.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="readAloud" aria-labelledby="setAloudT" aria-describedby="setAloudD" />
+        </label>
+        <label class="set-row" id="setVibrateRow">
+          <span class="set-ic" style="--c:var(--tang)" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="4" width="8" height="16" rx="2" /><path d="M4 9v6M20 9v6" /></svg></span>
+          <span class="set-text"><b id="setVibrateT">Vibrate</b><small id="setVibrateD">A short buzz at each new step, two when something needs you now.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="vibrate" aria-labelledby="setVibrateT" aria-describedby="setVibrateD" />
+        </label>
+      </div>
+      <p class="set-foot">Tap Start on a journey and the app tells you what to do next: when to leave, where to board, when to get off, and when a platform or a time changes. Tap Start again to hear the current step once more. VoiceOver and TalkBack read all of this by themselves. Guidance works while the app is open and the screen is on.</p>
 
       <h2 class="set-head" id="setSpeedHead">Walking speed</h2>
       <div class="set-group" role="group" aria-labelledby="setSpeedHead">
@@ -1666,7 +1719,7 @@
         </label>
         <label class="set-row">
           <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></svg></span>
-          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">See events and groups for blind and low-vision people.</small></span>
+          <span class="set-text"><b id="setVisionT">Blind or low vision</b><small id="setVisionD">Journeys open as a list, the screen stays on during guidance, and tactile paving and sound signals are named where they are mapped. Also shows events for blind and low-vision people.</small></span>
           <input class="switch" type="checkbox" role="switch" data-setting="lowVision" aria-labelledby="setVisionT" aria-describedby="setVisionD" />
         </label>
       </div>
@@ -1752,7 +1805,7 @@
     </div>
   </section>
 
-  <article class="ev-page" id="evPage" aria-hidden="true">
+  <article class="ev-page" id="evPage" aria-labelledby="evTitle" aria-hidden="true" inert>
     <div class="ev-hero" id="evHero">
       <button class="fab ev-back" id="evBack" type="button" aria-label="Back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
@@ -1779,7 +1832,7 @@
       <p id="evAbout"></p>
       <h2>Who it’s for</h2>
       <p id="evAudience"></p>
-      <label class="ev-related" hidden>Events at this map pin
+      <label class="ev-related" hidden>Other dates and events here
         <select id="evRelated"></select>
       </label>
       <a class="ev-map-btn" id="evOrganizer" target="_blank" rel="noopener noreferrer">Organizer details</a>
@@ -1813,11 +1866,11 @@
     </form>
     <div class="float-chip hint" id="pinHint" role="status" hidden><span id="pinHintText"></span><button type="button" id="pinHintCancel">Cancel</button></div>
     <button class="float-chip" id="areaChip" type="button" hidden>Search this area</button>
-    <ul class="results" id="results" role="listbox"></ul>
+    <ul class="results" id="results" aria-label="Search results"></ul>
   </div>
 
   <!-- Journey: the Kante app's journey sheet (nikitas-implementation) — header, timeline, and the action bar below -->
-  <section class="kj ksheet" id="journey" aria-label="Journey details" data-detent="low">
+  <section class="kj ksheet" id="journey" aria-label="Journey" tabindex="-1" data-detent="low">
     <div class="sheet-top">
       <button class="sheet-handle" id="jHandle" type="button" aria-label="Expand panel"><span></span></button>
       <div class="sheet-head" id="jHead"></div>
@@ -1835,6 +1888,7 @@
   <script src="map-layers.js"></script>
   <script src="pricing-history.js"></script>
   <script src="settings.js"></script>
+  <script src="a11y.js"></script>
   <script src="walk-pace.js"></script>
   <!-- The introduction for a first visit (needs settings.js only). If it can't load, the app starts as usual -->
   <script src="onboarding.js" onerror="delete document.documentElement.dataset.onboarding; EARLY_GEO.start()"></script>

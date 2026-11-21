@@ -22,6 +22,8 @@ interface StopVisionHooks {
   coordOf(stop: OdCheckpoint): LngLat | null;
   /** The line's badge as the page draws it; without it Scan writes the line number itself. */
   badge?(departure: OdStationboardEntry): HTMLElement;
+  /** The line as it is said: "Tram 9", "IC 8". */
+  lineName?(departure: OdStationboardEntry): string;
   /** null = no position (yet, or location is off). */
   position(): StopVisionPosition | null;
   /** Close Scan and show the stop on the map; edge: index into the stop's edges, null = the stop as a whole. */

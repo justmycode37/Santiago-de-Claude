@@ -173,6 +173,8 @@ function openPlace(i: number) {
     showDestinationJourney({ title: name || label, lngLat: [lon, lat] });
   });
   body.append(go, mk('p', 'pl-src', 'Source: ' + PLACES!.sources[x.s || 0]));
+  body.setAttribute('role', 'group');
+  body.setAttribute('aria-label', `${name || label}${name ? ', ' + label : ''}`);
   platformPopup.setLngLat([lon, lat]).setDOMContent(body).addTo(map);
 }
 for (const id of PLACE_LAYERS) {

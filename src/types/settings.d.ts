@@ -26,8 +26,14 @@ interface Settings {
   // Live data
   /** Show the vehicles on the map. */
   liveVehicles: boolean;
+  // Guidance (src/a11y.ts)
+  /** This phone's own voice says each step of a journey. Off for people who use a screen reader. */
+  readAloud: boolean;
+  /** A buzz at each new step (Android). */
+  vibrate: boolean;
   // Events: show the ones for…
   newcomer: boolean;
+  /** Also: journeys open as a list, the screen stays on during guidance, tactile guidance and sound signals are named. */
   lowVision: boolean;
   freeFood: boolean;
   women: boolean;

@@ -115,7 +115,27 @@ map.on('mouseleave', 'kveh-dot', () => { map.getCanvas().style.cursor = ''; });
 map.on('moveend', vehUpdate);
 
 const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, text?: string | null): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const badge = (j: LineLike) => lineVars(mk('span', 'j-badge', lineLabel(j)), j);
+// A line as it is said: "IC 8", "Tram 9", "Bus 10" (a bare number needs its kind of vehicle)
+const lineName = (j: LineLike) => {
+  const mode = modeOf(j.category), label = lineLabel(j);
+  return (mode === 'train' && label ? label : `${MODE_NAME[mode] || 'Bus'} ${label}`).trim();
+};
+const badge = (j: LineLike) => {
+  const b = lineVars(mk('span', 'j-badge', lineLabel(j)), j);
+  b.setAttribute('role', 'img');
+  b.setAttribute('aria-label', lineName(j));
+  return b;
+};
+// Names of stations, stops and streets are in the language spoken where they are: marked so (lang="de"),
+// a screen reader says "Zürich Hauptbahnhof" with a German voice. Names stay as they are written on the
+// signs, so the app's translator (translate.ts) leaves them alone too.
+// A name whose place is not known (where a line ends): left untranslated, without a language of its own
+const asName = <T extends HTMLElement>(el: T): T => { el.setAttribute('translate', 'no'); return el; };
+const named = <T extends HTMLElement>(el: T, ll: LngLat | null | undefined): T => {
+  const lang = A11Y.placeLang(ll);
+  if (lang) el.setAttribute('translate', 'no');
+  return A11Y.setLang(el, lang);
+};
 // Platform (rail, cable cars) · Bay (bus and tram edges, "Kante") · Pier (boats)
 const nounOf = (mode: LineMode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
 const platformWord = (j: LineLike) => nounOf(modeOf(j.category));

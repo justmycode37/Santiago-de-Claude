@@ -115,6 +115,7 @@ jBar.addEventListener('click', (e) => {
 function updateProgress() {
   if (!journeyConn) return;
   trackJourney();
+  guideTick();
   renderBar();
   renderLive();
   if (journeySteps.length) { redrawRoute(); updateNowMarker(); }
@@ -146,6 +147,10 @@ function renderJourney(conn: OdConnection, destTitle: string) {
   autoStep = 0;
   jFocus = null;
   sheetMsg = '';
+  guideSaid.clear(); // another journey: nothing of it has been said yet
+  guideDelay.clear();
+  guidePlat.clear();
+  guideHeld = { key: '', since: 0 };
   document.getElementById('jDep')!.textContent = fmtTime(conn.from.departure);
   updatePillTimes();
   trackJourney();
@@ -225,6 +230,12 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   placeUserDot(); // plain GPS until the new trip follows you
   renderSheet();
   if (!wasOpen) openSheet();
+  if (lowVision() && sheetDetent !== 'full') setDetent('full'); // Settings › Blind or low vision: journeys as a list
+  loadAccessData();
+  // A screen reader goes to the journey, which says where it leads, then hears what is found
+  journeyEl.setAttribute('aria-label', `Journey to ${r.title}`);
+  journeyEl.focus({ preventScroll: true });
+  A11Y.say(`Finding a connection to ${r.title}.`, { quiet: true });
   vehMarker.remove();
   nowMarker.remove();
   setRoute([]);
@@ -243,7 +254,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
     startPlatforms();
     const [opts] = await Promise.all([findOptions(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
     if (id !== journeyReq) return;
-    if (!opts) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
+    if (!opts) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); A11Y.say(sheetMsg, { urgent: true }); return; }
     // More than one way to go: the list to choose from, with the best one on the map. (Under way, a new
     // plan goes straight to its best journey.)
     journeyOptions = opts;
@@ -251,10 +262,12 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
     journeyList = optionCount() > 1 && !document.body.classList.contains('following');
     if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
     renderJourney(opts.best, r.title);
+    if (journeyList) announceOptions();
+    else announceJourney();
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
     if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     kanteMatch(id);    // the engine's trip for every ride, for its live data
   } catch (e) {
-    if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); }
+    if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); A11Y.say(sheetMsg, { urgent: true }); }
   }
 }

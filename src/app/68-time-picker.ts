@@ -15,12 +15,15 @@ function updateWhenChip() {
     : `${mode === 'arr' ? 'Arrive by' : 'Leave'} ${time || ''}${day}`.replace(/\s+/g, ' ');
   document.getElementById('whenChip')!.hidden = !journeyDest;
 }
-document.getElementById('whenChip')!.addEventListener('click', () => openTimeSheet(journeyQuery.mode));
+document.getElementById('whenChip')!.addEventListener('click', (e) => openTimeSheet(journeyQuery.mode, e.currentTarget as HTMLElement));
 function setTMode(m: TimeMode) {
   tMode = m;
-  document.querySelectorAll<HTMLButtonElement>('#tSeg button').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+  document.querySelectorAll<HTMLButtonElement>('#tSeg button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.mode === m);
+    b.setAttribute('aria-pressed', String(b.dataset.mode === m)); // which of the two is chosen, for screen readers
+  });
 }
-function openTimeSheet(mode: TimeMode) {
+function openTimeSheet(mode: TimeMode, opener?: HTMLElement) {
   if (!journeyDest) return;
   setTMode(mode);
   const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.to.arrival! : journeyConn.from.departure!) : new Date();
@@ -30,23 +33,30 @@ function openTimeSheet(mode: TimeMode) {
   tSheet.classList.add('open');
   tDim.classList.add('open');
   tSheet.setAttribute('aria-hidden', 'false');
+  // a dialog: the page behind is out of reach, focus starts on the choice you came for and returns to its button
+  A11Y.openDialog(tSheet, { focus: document.querySelector<HTMLElement>(`#tSeg button[data-mode="${mode}"]`), returnTo: opener, keep: [tDim] });
 }
-function closeTimeSheet() {
+function closeTimeSheet(restore = true) {
+  if (!tSheet.classList.contains('open')) return;
   tSheet.classList.remove('open');
   tDim.classList.remove('open');
   tSheet.setAttribute('aria-hidden', 'true');
+  A11Y.closeDialog(tSheet, { restore, fallback: journeyEl });
+  tSheet.inert = true;
 }
-document.getElementById('jDepBtn')!.addEventListener('click', () => openTimeSheet('dep'));
-document.getElementById('jArrBtn')!.addEventListener('click', () => openTimeSheet('arr'));
+document.getElementById('tClose')!.addEventListener('click', () => closeTimeSheet());
+tSheet.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTimeSheet(); });
+document.getElementById('jDepBtn')!.addEventListener('click', (e) => openTimeSheet('dep', e.currentTarget as HTMLElement));
+document.getElementById('jArrBtn')!.addEventListener('click', (e) => openTimeSheet('arr', e.currentTarget as HTMLElement));
 document.querySelectorAll<HTMLButtonElement>('#tSeg button').forEach((b) => b.addEventListener('click', () => setTMode(b.dataset.mode as TimeMode)));
-tDim.addEventListener('click', closeTimeSheet);
+tDim.addEventListener('click', () => closeTimeSheet());
 document.getElementById('tNow')!.addEventListener('click', () => {
   journeyQuery = { mode: 'dep', date: '', time: '' };
-  closeTimeSheet();
+  closeTimeSheet(false); // the journey is searched again and takes the focus
   startJourney(journeyDest!, true);
 });
 document.getElementById('tDone')!.addEventListener('click', () => {
   journeyQuery = { mode: tMode, date: tDate.value, time: tTime.value };
-  closeTimeSheet();
+  closeTimeSheet(false);
   startJourney(journeyDest!, true);
 });

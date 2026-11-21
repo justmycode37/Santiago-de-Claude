@@ -102,10 +102,12 @@ function makeVenueCard(features: EventFeature[]) {
   button.classList.toggle('no-photo', !event.image);
   if (event.image) photo.src = event.image;
   title.textContent = event.title;
+  A11Y.inLang(title, A11Y.textLang(event.title));
   time.textContent = (event.areaOnly ? 'Town area · ' : '') + event.when;
   button.addEventListener('click', (e) => {
     e.stopPropagation();
     eventsAtPin = features;
+    eventBack = () => button;
     openEvent(event.id);
   });
   return card;

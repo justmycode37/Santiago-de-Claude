@@ -32,7 +32,7 @@ function hurry(left: number, r: JourneyRideStep, now: number) {
 }
 function liveParts(now: number): LiveLine | null {
   const t = track && gpsOn() ? track : null;
-  if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.d)} away`], replan: true };
+  if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.near)} away`], replan: true };
   if (t && t.missed) {
     const r = t.missed;
     return { kind: 'off', parts: ['Missed ', kBadge(r.s.journey), `? It left at ${fmtTime(r.t0)}`], replan: true };

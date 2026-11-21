@@ -463,6 +463,10 @@ function endJourney(keepPlan?: boolean) {
   journeyOptions = null;
   journeyList = false;
   journeyMore = null;
+  guideSaid.clear();
+  guideDelay.clear();
+  guidePlat.clear();
+  A11Y.hush(true);
   vehUpdate(); // live vehicles come back (from zoom 14)
   updateCards(); // events and places come back if they were on
   updatePlaces();
@@ -476,7 +480,7 @@ function endJourney(keepPlan?: boolean) {
   sheetY = window.innerHeight;
   nowMarker.remove();
   vehMarker.remove();
-  closeTimeSheet();
+  closeTimeSheet(false);
   setRoute([]);
   journeySteps = [];
   placeUserDot(); // back to plain GPS

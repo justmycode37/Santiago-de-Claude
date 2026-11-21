@@ -490,6 +490,12 @@
 
   window.APP_LANG = {
     get code() { return lang; },
+    // A sentence that is said instead of shown (a11y.js: what screen readers are told) → Promise of it in the
+    // app's language. It stays unanswered while Google Translate can't be reached: the caller does not wait long.
+    translate: (text) => new Promise((resolve) => {
+      if (lang === 'en' || !worth(text)) resolve(text);
+      else translate(text, resolve);
+    }),
     // The language to ask a service for, among the ones it offers (['de', 'fr', 'it', 'en']), else `fallback`
     pick: (offered, fallback = 'en') => {
       const base = tagOf(lang).split('-')[0];

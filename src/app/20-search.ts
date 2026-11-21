@@ -94,6 +94,7 @@ const COLLAPSED_COUNT = 3;
 let results: SearchResult[] = [];
 let placeCategory: string | null = null; // "Restaurants" when the query names a kind of place: the nearest ones are listed
 let expanded = false;
+let eventsAsked = false;  // the query asks for events ("events", "events near me"): only they are listed
 let debounce: number | undefined;
 let reqId = 0;
 

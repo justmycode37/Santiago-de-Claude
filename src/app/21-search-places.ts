@@ -37,6 +37,7 @@ function placeResult(row: MapPlaceRow, km: number): SearchResult {
   const [g, glyph, , label] = PLACES!.cats[row[2]];
   const group = GROUP_BY_KEY[g];
   return {
+    generic: !row[3],
     title: row[3] || label,
     // "Pharmacy · 120 m · Neuengasse 15": the street tells apart branches with the same name
     subtitle: [row[3] ? label : '', fmtDist(km * 1000), row[4] && row[4].a && /\d/.test(row[4].a.split(',')[0]) ? row[4].a.split(',')[0] : ''].filter(Boolean).join(' · '),
@@ -95,6 +96,54 @@ function searchPlaces(text: string, many?: boolean): PlaceMatches {
     names.push(...rows.map((r): [MapPlaceRow, number] => [r, distKm(from, r)]).sort((a, b) => starts(a[0]) - starts(b[0]) || a[1] - b[1]).slice(0, many ? 40 : 5));
   }
   return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)), toilets };
+}
+
+// Community events (events.ts): on the map they are cards you have to see, so the search lists them too.
+// "events" (or "Events near you", offered while the destination field is empty) → the nearest ones that match
+// your settings; with more words ("free food events") those among them. Any other query → events with every
+// word in their title, category or tags.
+const EVENT_WORDS = new Set(['event', 'events', 'veranstaltung', 'veranstaltungen', 'anlass', 'anlasse', 'evenement', 'evenements',
+  'evento', 'eventi', 'meetup', 'meetups']);
+const EVENT_FILLER = new Set([...NEAR_WORDS, 'you', 'for', 'on', 'what', 'whats', 's', 'today', 'this', 'week', 'community', 'local', 'all']);
+function eventResult(f: EventFeature, km: number, all: EventFeature[] = [f]): SearchResult {
+  const p = f.properties, dates = all.length;
+  return {
+    series: all, // every date of it, to choose from on its page
+    title: p.title,
+    // "300 m · 23 Nov 2026 · 14:00–15:00 · 4 more dates · Language": what tells two events apart comes first
+    subtitle: [fmtDist(km * 1000) + (p.areaOnly ? ' (town area)' : ''), p.when, dates > 1 ? `${dates - 1} more ${dates === 2 ? 'date' : 'dates'}` : '', p.category].filter(Boolean).join(' · '),
+    kind: 'place', // (brings its own icon)
+    origin: 'event',
+    eventId: p.id,
+    distance: km * 1000,
+    icon: { color: p.color, fg: p.ink && p.ink !== '#FFFFFF' ? p.ink : '', svg: `<path d="${EVENTS.GLYPHS[p.cat]}"/>` },
+    lngLat: f.geometry.coordinates,
+  };
+}
+// → { asked: the query asks for events, list: results nearest first }
+function searchEvents(text: string): { asked: boolean; list: SearchResult[] } {
+  const words = wordsOf(text);
+  const asked = words.some((w) => EVENT_WORDS.has(w));
+  const plain = words.filter((w) => !EVENT_WORDS.has(w) && !(asked ? EVENT_FILLER : NEAR_WORDS).has(w)).map(stem);
+  if (!asked && (!plain.length || plain.join('').length < 3)) return { asked, list: [] };
+  const from = gpsOn() ? userLngLat! : map.getCenter().toArray();
+  const fits = (f: EventFeature) => {
+    const p = f.properties;
+    const hay = wordsOf([p.title, p.category, p.tags.join(' '), asked ? [p.city, p.audience, p.venue].join(' ') : ''].join(' ')).map(stem);
+    return plain.every((w) => hay.some((x) => x === w || (w.length >= 3 && x.startsWith(w))));
+  };
+  // an event held on several dates is listed once, with its next date; its page lets you choose the others
+  const series = new Map<string, EventFeature[]>();
+  const until = (f: EventFeature) => (f.properties.through ? Date.parse(f.properties.through) : Infinity);
+  for (const f of visibleEvents().filter(fits)) {
+    const key = f.properties.title + '|' + f.geometry.coordinates.join(',');
+    if (!series.has(key)) series.set(key, []);
+    series.get(key)!.push(f);
+  }
+  const list = [...series.values()].map((all) => all.sort((a, b) => until(a) - until(b)))
+    .map((all): [EventFeature[], number] => [all, distKm(from, all[0].geometry.coordinates)])
+    .sort((a, b) => a[1] - b[1]).slice(0, asked ? 30 : 3).map(([all, km]) => eventResult(all[0], km, all));
+  return { asked, list };
 }
 
 // Addresses, towns, postcodes, mountains, lakes: swisstopo
@@ -185,9 +234,15 @@ async function search(text: string) {
   ]);
   if (id !== reqId) return; // a newer query is in flight
   const local = searchPlaces(text);
+  // events are somewhere to go, so they are offered for the destination only
+  const events = field === 'to' ? searchEvents(text) : { asked: false, list: [] };
+  eventsAsked = events.asked && events.list.length > 0;
   const show = (final: boolean) => {
     if (field !== activeField) return; // the other field has been picked meanwhile
     results = combineResults(text, swiss, online, local);
+    // asked for: the events alone. Otherwise the ones that match by name join after the top results.
+    if (eventsAsked) { results = events.list; placeCategory = null; }
+    else if (events.list.length) results.splice(Math.min(2, results.length), 0, ...events.list);
     render(!final ? 'Searching…' : swiss || online ? 'No results' : 'Search unavailable');
   };
   // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow

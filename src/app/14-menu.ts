@@ -44,7 +44,12 @@ document.getElementById('settingsBtn')!.addEventListener('click', () => {
   setMenu(false);
   SETTINGS.open();
 });
-SETTINGS.onChange(() => { updateCards(); updatePlaces(); vehUpdate(); });
+SETTINGS.onChange(() => {
+  updateCards(); updatePlaces(); vehUpdate();
+  loadAccessData(); // Blind or low vision switched on: tactile guidance and sound signals for the journey
+  if (journeyConn) queueSheet();
+  A11Y.keepAwake(guiding && lowVision());
+});
 // Accessibility options changed during a journey → plan it again with them
 SETTINGS.onClose((journeyChanged) => {
   if (journeyConn) renderFoot();
@@ -68,14 +73,15 @@ document.getElementById('scanBtn')!.addEventListener('click', () => {
     ? (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission!() : Promise.resolve('granted');
   camera.catch(() => {}); orientation.catch(() => {});
   const hooks: StopVisionHooks = {
-    PLATFORMS, OPENDATA, platformLL, coordOf, badge,
+    PLATFORMS, OPENDATA, platformLL, coordOf, badge, lineName,
     position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
     openStop: (id, i) => {
       const st = PLATFORMS.get(String(id));
       if (!st) return;
       const ll = i != null && st.edges[i] ? st.edges[i].ll : st.edges[0].ll;
       map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 18) });
-      openPlatform({ properties: { id: String(id), i } });
+      // from Scan: the card takes the focus and its departures are said, so it is not only a bubble on the map
+      openPlatform({ properties: { id: String(id), i } }, { focus: true });
     },
     toast: (t) => showToast(t),
     onClose: () => menuBtn.focus(),

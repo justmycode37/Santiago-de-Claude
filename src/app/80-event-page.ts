@@ -13,6 +13,7 @@ function openEvent(id: string) {
 }
 
 let eventsAtPin: EventFeature[] = [];
+let eventBack: (() => HTMLElement | null) | null = null; // → the card or the search result an event was opened from, for the way back
 const related = document.getElementById('evRelated') as HTMLSelectElement;
 related.addEventListener('change', () => {
   history.replaceState(null, '', '#event/' + encodeURIComponent(related.value));
@@ -43,16 +44,23 @@ function renderEventPage(f: EventFeature) {
     img.onerror = () => img.remove();
     evHero.appendChild(img);
   }
+  // Titles are often German (or French) and the descriptions English: while the app is in English each is
+  // marked with its own language, so a screen reader reads each with the right voice. (In another app language
+  // these texts are translated, and read in that language.) The venue and town are names: they stay as they are.
+  const fill = (id: string, text: string) => A11Y.inLang(Object.assign(document.getElementById(id)!, { textContent: text }), A11Y.textLang(text));
   document.getElementById('evCat')!.textContent = p.category;
-  document.getElementById('evTitle')!.textContent = p.title;
-  document.getElementById('evWhen')!.textContent = p.when;
-  document.getElementById('evCost')!.textContent = p.cost;
-  document.getElementById('evAttendance')!.textContent = p.attendance;
+  fill('evTitle', p.title);
+  // (dates, prices and how to register are a few words with numbers and addresses: no language is read from them)
+  for (const [id, text] of [['evWhen', p.when], ['evCost', p.cost], ['evAttendance', p.attendance]]) A11Y.setLang(Object.assign(document.getElementById(id)!, { textContent: text }), '');
   (document.getElementById('evOrganizer') as HTMLAnchorElement).href = p.url;
-  document.getElementById('evVenue')!.textContent = p.venue;
-  document.getElementById('evCity')!.textContent = p.city;
-  document.getElementById('evAbout')!.textContent = p.about;
-  document.getElementById('evAudience')!.textContent = p.audience;
+  const venue = document.getElementById('evVenue')!, city = document.getElementById('evCity')!;
+  venue.textContent = p.venue;
+  city.textContent = p.city;
+  if (/confirm meeting point/i.test(p.venue || '')) { venue.removeAttribute('lang'); venue.removeAttribute('translate'); } // a sentence, not a name
+  else named(venue, f.geometry.coordinates);
+  named(city, f.geometry.coordinates);
+  fill('evAbout', p.about);
+  fill('evAudience', p.audience);
   evPage.scrollTop = 0;
 }
 
@@ -72,12 +80,20 @@ function routeFromHash() {
     setMenu(false);
     evPage.classList.add('open');
     evPage.setAttribute('aria-hidden', 'false');
-    document.getElementById('evBack')!.focus();
+    // a page of its own: what is behind it is out of reach, and Back returns to where you came from
+    A11Y.openDialog(evPage, { focus: document.getElementById('evBack'), returnTo: () => (eventBack ? eventBack() : null) });
+    document.getElementById('evBack')!.focus({ preventScroll: true }); // also when another event is chosen on the open page
   } else {
-    evPage.classList.remove('open');
-    evPage.setAttribute('aria-hidden', 'true');
+    if (evPage.classList.contains('open')) {
+      evPage.classList.remove('open');
+      evPage.setAttribute('aria-hidden', 'true');
+      A11Y.closeDialog(evPage, { fallback: document.body.classList.contains('journey-mode') ? journeyEl : menuBtn });
+      eventBack = null;
+    }
+    evPage.inert = true;
   }
 }
+evPage.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeEvent(); });
 
 function closeEvent() {
   if (pushedHash) { pushedHash = false; history.back(); }

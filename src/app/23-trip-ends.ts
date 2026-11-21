@@ -4,7 +4,10 @@ function setField(f: TripField, text: string) {
   inputs[f].value = text;
   clears[f].classList.toggle('show', !!text);
 }
-function blurSearch() { for (const f of FIELDS) inputs[f].blur(); }
+function blurSearch() {
+  for (const f of FIELDS) inputs[f].blur();
+  if (list.contains(document.activeElement)) (document.activeElement as HTMLElement).blur(); // a row a screen reader was on
+}
 function closeSearch() { list.classList.remove('open'); blurSearch(); }
 
 // The card: one pill while you are only looking around; the start row shows once a trip is being planned
@@ -19,6 +22,7 @@ function setPlanOpen(on: boolean) {
 // Under way (after Start): the card folds into the progress pill. Changing either end brings it back.
 function setFollowing(on: boolean) {
   if (on === document.body.classList.contains('following')) return;
+  if (!on) stopGuidance(); // guidance belongs to being under way
   document.body.classList.toggle('following', on);
   if (on) closeSearch();
   layoutTop();
@@ -73,7 +77,21 @@ function choose(r: SearchResult, field = activeField) {
 }
 function select(i: number) {
   const r = results[i];
-  if (r) choose(r);
+  if (!r) return;
+  if (r.origin !== 'event' || !r.eventId) { choose(r); return; }
+  // an event opens its page (with "Show journey" on it); the search keeps what was typed for the way back
+  const typed = lastSearch;
+  closeSearch();
+  eventsAtPin = r.series || [];
+  // back from the event: the list again, on the row you picked (not the search field, which would open the keyboard)
+  eventBack = () => {
+    if (results[i] !== r || lastSearch !== typed || !typed || inputs.to.value.trim() !== typed.text || document.body.classList.contains('following')) return null;
+    activeField = 'to';
+    document.body.classList.add('searching');
+    render();
+    return list.querySelectorAll<HTMLElement>('li:not(.on-map):not(.more) > button')[i] || null;
+  };
+  openEvent(r.eventId);
 }
 // Start ⇄ destination. "Where you are" becomes a fixed point when it turns into the destination.
 function swapEnds() {
@@ -96,7 +114,8 @@ for (const f of FIELDS) {
     clears[f].classList.toggle('show', !!input.value);
     clearTimeout(debounce);
     clearPlacePins();
-    if (text.length < 2) { reqId++; results = []; placeCategory = null; lastSearch = null; render(); return; }
+    countSaid = '';
+    if (text.length < 2) { reqId++; results = []; placeCategory = null; eventsAsked = false; lastSearch = null; render(); return; }
     // Google Places is paid per request: wait a little longer for a pause in typing
     debounce = setTimeout(() => search(text), window.PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
   });
@@ -111,16 +130,14 @@ for (const f of FIELDS) {
     // the place already chosen: typing replaces it · your own unfinished search: its results again
     if (p && input.value === p.title) { input.select(); list.classList.remove('open'); }
     else if (lastSearch && lastSearch.field === f && lastSearch.text === input.value.trim()) render();
+    else if (!input.value.trim()) render(); // nothing typed: "Events near you" (destination only)
     else list.classList.remove('open');
   });
-  input.addEventListener('blur', () => {
-    list.classList.remove('open');
-    document.body.classList.remove('searching');
-    // back to what the field stands for, unless its search is on the map as pins
-    if (pins && pins.field === f) return;
-    const p = pointOf(f);
-    if (p) setField(f, p.title);
-    else if (f === 'from' && journeyDest) setField(f, ''); // the trip on show starts where you are
+  input.addEventListener('blur', (e) => {
+    // focus has gone into the list (a screen reader such as TalkBack focuses a row before it presses it):
+    // that is still this search
+    if (list.contains(e.relatedTarget as Node | null)) return;
+    leaveSearch(f);
   });
   clears[f].addEventListener('pointerdown', (e) => e.preventDefault());
   clears[f].addEventListener('click', () => {
@@ -137,6 +154,21 @@ for (const f of FIELDS) {
     input.focus();
   });
 }
+
+// The search has been left: the list closes and the field shows again what it stands for
+function leaveSearch(f: TripField) {
+  list.classList.remove('open');
+  document.body.classList.remove('searching');
+  // back to what the field stands for, unless its search is on the map as pins
+  if (pins && pins.field === f) return;
+  const p = pointOf(f);
+  if (p) setField(f, p.title);
+  else if (f === 'from' && journeyDest) setField(f, ''); // the trip on show starts where you are
+}
+list.addEventListener('focusout', (e) => {
+  if (listBusy || list.contains(e.relatedTarget as Node | null) || e.relatedTarget === inputs[activeField]) return;
+  leaveSearch(activeField);
+});
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
