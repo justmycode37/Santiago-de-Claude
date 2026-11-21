@@ -10,6 +10,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo).
 - **Events & amenities**: Shows community events on the map alongside public toilets all over Switzerland and Bern's public amenities and local places.
 - **Camera stop scan**: Menu › **Scan** identifies nearby stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
+- **Usable without looking**: Works with VoiceOver and TalkBack. A journey is announced when it is found, **Start** talks you through it step by step, Scan says which stop you are at, and events can be found through search. Settings › **Blind or low vision** adds tactile and sound information where it is mapped. See [docs/screen-readers.md](docs/screen-readers.md).
 
 ## Live tracking
 
@@ -49,12 +50,24 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
   ```bash
   node tools/build-map-places.mjs
   ```
+- **Tactile and speech information per stop edge (`stop-access.js`)** from `data/bern-stop-accessibility.json`:
+  ```bash
+  node tools/build-stop-access.mjs
+  ```
 - **Stop scan database (`stop-images/`)** from GTFS + open photo sources (requires `pip install onnxruntime pillow numpy`; optional `MAPILLARY_TOKEN` client token):
   ```bash
   python3 tools/build_stop_images.py --area bern     # one city
   python3 tools/build_stop_images.py --all --fast --resume  # all of Switzerland, per 2 km tile (~1 h)
   python3 tools/build_stop_images.py --gtfs GTFS.zip # lines & destinations per stop edge
   ```
+
+## Tests
+
+```bash
+node tools/test_a11y.mjs            # language helpers
+node tools/test_screen_reader.mjs   # the app in headless Chrome, as a screen reader gets it (needs Chrome and the internet)
+node tools/test_station_route.mjs   # 3D station routing
+```
 
 ## Deployment
 
