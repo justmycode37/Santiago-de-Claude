@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_395",{"s":{},"d":{"8576387":[[0,"103","Iseltwald, Dorfplatz"],[1,"103","Interlaken West, Bahnhof|Interlaken Ost, Bahnhof"]],"8576386":[[0,"103","Iseltwald, Dorfplatz"],[1,"103","Interlaken West, Bahnhof|Interlaken Ost, Bahnhof"]],"8576385":[[0,"103","Iseltwald, Dorfplatz"],[1,"103","Interlaken West, Bahnhof|Interlaken Ost, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2325_379",{"s":{},"d":{"8576308":[[null,"230 M45","Adelboden, Post|Kandersteg, Bahnhof|Frutigen, Bahnhof|Spiez, Bahnhof"]],"8507852":[[null,"230 M45","Adelboden, Post|Kandersteg, Bahnhof|Frutigen, Bahnhof|Spiez, Bahnhof"]],"8594920":[[null,"230 M45","Adelboden, Post|Kandersteg, Bahnhof|Frutigen, Bahnhof|Spiez, Bahnhof"]]}});

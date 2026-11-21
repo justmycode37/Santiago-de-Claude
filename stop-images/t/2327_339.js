@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2327_339",{"s":{},"d":{"8587545":[[0,"365","Lausanne, Sallaz|Savigny, Claie-aux-Moines"],[null,"365","Lausanne, gare|Mézières VD, station|Moudon, gare"],[1,"365","Mézières VD, station|Moudon, gare"]]}});

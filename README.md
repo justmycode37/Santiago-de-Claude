@@ -109,44 +109,70 @@ the picture to read it straight away. Without a camera (or on a desktop), the ca
 The stop is found from three kinds of evidence, strongest first:
 
 1. **Signs** (tesseract.js, in the browser): the stop name on the pole, matched to the stops around you (or, without
-   GPS, to all ~30,000 stops). A "Kante C" / "Gleis 7" next to it, or a destination that only leaves from one edge
-   (compared with the live departures), tells the edges apart. Tested on real photos of Swiss stop signs: 5 of 6
-   recognised, no wrong answers.
+   GPS, to all ~27,000 stops, and then only a name that fits one stop counts). A "Kante C" / "Gleis 7" next to it,
+   or a destination that only leaves from one edge, tells the edges apart: destinations and line numbers come from
+   the timetable (offline, for every stop) and the live departures. Tested on real photos of Swiss stop signs:
+   5 of 6 recognised, no wrong answers; a bare "Bahnhof" or a destination listed on the sign never counts as the stop.
 2. **Position and compass**: the exact position of every stop edge (`platforms.js`) against your GPS position and
    the direction the camera points. On their own they only say "Nearby · ahead", never "Recognised".
 3. **Reference photos** (`stop-images/`): the camera picture is compared with photos of the stops around you. On its
-   own, photo similarity picks the right stop only about 40–55 % of the time (neighbouring stops look alike and
-   share photos), so it only breaks ties, and only counts as recognition when the position agrees.
+   own a photo match is not reliable enough (neighbouring stops look alike and share photos), so it only breaks
+   ties, and only counts as recognition when the position agrees.
 
 The phone downloads the sign reader (~6 MB) and the image model (24 MB) once, when Scan is first used. Camera
 and compass need HTTPS (or localhost); on iPhone, allow motion access when asked.
 
-### The stop photo database
+### Speed on a phone
 
-`stop-images/` holds, for each stop, links to photos of it from open sources and a fingerprint of each photo
-(DINOv2-small, 768 numbers as int8). No photos are stored or downloaded on the phone, only fingerprints, in
-0.1° tiles loaded for where you are. Every photo keeps its author, licence and link.
+Both engines run outside the page (the sign reader in its own worker, the image model in a Web Worker), so the
+camera picture and the labels keep moving while they work; only one of the two runs at a time, a tapped sign goes
+first, and photos are only compared while they can still change the answer. The sign image is prepared with the
+browser's own (GPU) canvas filters and handed over as a JPEG, so the page never loops over the pixels itself.
+Measured in Chrome on a desktop PC (single-threaded WebAssembly, as on a phone with static hosting): sign reading
+~0.1 s on a sign photo and ~0.5 s on a busy street scene, photo fingerprint ~0.25 s, 59–60 fps during a scan. A phone
+is typically 2–3× slower, so expect a sign to be read in well under 2 s and a photo compared in about 0.5–0.7 s.
+
+To measure it on your phone, open **`scan-bench.html`** (same server as the app). It times both engines on a real
+Swiss stop sign and checks that the screen keeps drawing. During a scan, open the app with `?scandebug` (or tap the
+status text three times) for live numbers: fps, slow frames, ms per sign reading and photo, tiles loaded, GPS and
+compass accuracy.
+
+### The stop database
+
+`stop-images/` holds, per stop, links to photos of it from open sources with a fingerprint of each photo, and the
+lines and destinations of each edge. No photos are stored or downloaded on the phone: only fingerprints (DINOv2-small,
+reduced to 128 numbers, int8) in 0.02° tiles (~2 km), loaded for where you are and dropped when you walk away. Every
+photo keeps its author, licence and link.
 
 | Source | What it gives | Tied to the stop by |
 | --- | --- | --- |
+| Swiss timetable GTFS (opentransportdata.swiss) | Lines and destinations of every stop edge (26,000 stops, ~4 MB) | Platform SLOID + position (≤ 3 m) |
 | Wikidata (P18, P373) | Photos and Commons categories of stations | UIC/IBNR number, or position + name |
-| Wikimedia Commons | Category photos; geotagged photos near the stop that name it or a transit word | Category / place + words |
+| Wikimedia Commons | Category photos; geotagged photos near the stop that name it or a transit word | Stop's own category / place + words |
 | SBB open data | Official station photos (20 stations) | UIC number |
-| OpenStreetMap | `image=` / `wikimedia_commons=` / `panoramax=` / `mapillary=` on stops | The stop itself |
+| OpenStreetMap | `image=` / `wikimedia_commons=` on stops | The stop itself |
 | Panoramax | Street-level photos 3–35 m away that face the stop edge | Position + viewing direction |
 | Mapillary (optional) | Street-level photos 3–35 m away that face the stop edge | Position + viewing direction |
 
-To build or extend it (results are cached in `~/.cache/stopvision`, so runs can be stopped and continued):
+Only freely licensed photos are used (CC BY, CC BY-SA, CC0, public domain; no NC/ND).
+
+To build or extend it (downloads and fingerprints are cached in `~/.cache/stopvision`, so runs can be stopped and
+continued with `--resume`):
 
 ```bash
 pip install onnxruntime pillow numpy
 python3 tools/build_stop_images.py --area bern          # bern, zurich, basel, geneva, lausanne, luzern, ...
-python3 tools/build_stop_images.py --all --modes t      # every train station in Switzerland
-python3 tools/build_stop_images.py --all                # everything (many hours)
+python3 tools/build_stop_images.py --all --resume       # all of Switzerland (many hours; continue with --resume)
+python3 tools/build_stop_images.py --gtfs GTFS.zip      # lines + destinations of every stop edge
 python3 tools/build_stop_images.py --calibrate          # how well photos alone tell nearby stops apart
 ```
 
+The GTFS zip is the current "Fahrplan GTFS" of the year on [opentransportdata.swiss](https://opentransportdata.swiss)
+(e.g. `timetable-2027-gtfs2020` from mid-December 2026); run `--gtfs` again with each new timetable.
+
 Mapillary has by far the most street-level photos of bus and tram stops. To use it, register an app at
 [mapillary.com/dashboard/developers](https://www.mapillary.com/dashboard/developers) with the **Read** permission and
-run with `MAPILLARY_TOKEN=MLY|...` (or `--mapillary-token-file`). The token is only used by the build script; it is
-not stored in the database or the app. Google Street View is not used: its terms do not allow this.
+run with `MAPILLARY_TOKEN=MLY|...` (or `--mapillary-token-file`). Use the app's **Client token** (open it with
+"View" in the Client token column), not the client secret: both start with `MLY|`, but the secret cannot read photos.
+The token is only used by the build script; it is not stored in the database or the app. Google Street View is not
+used: its terms do not allow this.

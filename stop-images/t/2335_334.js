@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2335_334",{"s":{},"d":{"8507696":[[0,"665 662","Bercher, gare"],[1,"665 662","Yverdon-les-Bains, gare|Cronay, Moulin du Pont"]],"8581610":[[1,"430","Bercher, gare|Bercher, 7 Fontaines"],[0,"430","Prahins, village|Thierrens, gare routière"]]}});

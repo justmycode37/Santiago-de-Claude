@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_344",{"s":{},"d":{"8504155":[[0,"561","Payerne, gare"],[1,"561 564","Romont FR, gare|Granges-près-Marnand, gare"]],"8570474":[[0,"561 564","Payerne, gare|Sédeilles, village"],[1,"561 564","Romont FR, gare|Granges-près-Marnand, gare"]]}});

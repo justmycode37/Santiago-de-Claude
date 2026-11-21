@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2319_403",{"s":{},"d":{"8531039":[[0,"H5","Wurzenbord"]],"8530803":[[0,"M","Bettmergrat"]],"8530802":[[0,"H4","Schönbiel (Bettmeralp)"]],"8531040":[[0,"H5","Bettmeralp (Talst. Wurzenbord)"]]}});

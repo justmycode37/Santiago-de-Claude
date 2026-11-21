@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_402",{"s":{},"d":{"8582661":[[0,"151","Brienzwiler, Banholzfluh|Brünig-Hasliberg, Bahnhof|Ballenberg Ost, Museum|Brienzwiler, Bahnhof|Brienzwiler, Dorf"],[null,"151","Brienz BE, Bahnhof|Brienz BE, Rössliplatz"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_439",{"s":{},"d":{"8587603":[[null,"420 920","Dieni, Pendicularas|Ilanz, Bahnhof/Post|Disentis/Mustér, staziun/posta|Andermatt, Bahnhofplatz"]],"8505326":[[0,"PB","Sedrun Salins (pendiculara)"]],"8505177":[[null,"R45 R46 EXT","Disentis/Mustér|Andermatt|Zermatt|Visp|Dieni"]],"8512400":[[0,"420","Ilanz, Bahnhof/Post|Dieni, Pendicularas"]]}});

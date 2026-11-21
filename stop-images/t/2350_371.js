@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_371",{"s":{},"d":{"8571386":[[0,"106 107","Zollikofen, Bahnhof|Kirchlindach, Oberlindach"],[null,"106 107","Bern, Hauptbahnhof|Ortschwaben, Gehracker"]],"8507710":[[0,"106 107","Zollikofen, Bahnhof"],[null,"106","Bern, Hauptbahnhof|Zollikofen, Bahnhof"],[1,"106 107","Bern, Hauptbahnhof|Ortschwaben, Gehracker"]]}});

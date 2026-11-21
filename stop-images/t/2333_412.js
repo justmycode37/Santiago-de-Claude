@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2333_412",{"s":{},"d":{"8571608":[[0,"171 161","Handegg, Gelmerbahn|Guttannen, Dorf|Oberwald, Bahnhof|Grimsel Passhöhe"],[null,"171 161","Innertkirchen, Grimseltor|Meiringen, Bahnhof"]]}});

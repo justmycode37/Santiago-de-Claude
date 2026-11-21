@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_338",{"s":{},"d":{"8557078":[[1,"366","Syens, Clos du Château|Moudon, gare"],[0,"366","Montpreveyres, village"]],"8511099":[[1,"366","Syens, Clos du Château|Moudon, gare"],[0,"366","Montpreveyres, village"]],"8588153":[[1,"366","Syens, Clos du Château|Moudon, gare"],[0,"366","Montpreveyres, village"]]}});

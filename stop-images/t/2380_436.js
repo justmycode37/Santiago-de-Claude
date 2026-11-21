@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2380_436",{"s":{},"d":{"8573199":[[null,"",""],[2,"",""],[0,"",""],[1,"605","Oberstammheim, Rietweg"]],"8573200":[[0,"605","Andelfingen, Bahnhof"],[1,"605","Oberstammheim, Rietweg"]],"8506023":[[null,"S29","Stein am Rhein|Winterthur|Thalheim-Altikon|Seuzach|Stammheim"],[1,"S29","Stein am Rhein|Thalheim-Altikon|Seuzach"],[0,"S29","Stein am Rhein"]]}});

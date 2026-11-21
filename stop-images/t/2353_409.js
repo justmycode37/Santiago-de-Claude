@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2353_409",{"s":{},"d":{"8577289":[[0,"61 60 N60","Luzern, Bahnhof|Rothenburg Station, Bhf. West|Luzern, Pilatusplatz"],[1,"61 60 N60","Ettiswil, Post|Buttisholz, Dorf|Grosswangen, Post|Rüediswil"]],"8577288":[[0,"61 60 N60","Luzern, Bahnhof|Rothenburg Station, Bhf. West|Luzern, Pilatusplatz"],[1,"60 61","Buttisholz, Dorf|Rüediswil"]]}});

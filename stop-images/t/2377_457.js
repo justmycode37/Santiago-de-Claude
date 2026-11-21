@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_457",{"s":{},"d":{"8573290":[[null,"",""]],"8506106":[[0,"S5 S10 SN30 S3","Romanshorn|Sulgen|St. Gallen|St. Margrethen SG|Bischofszell Stadt|Weinfelden"],[1,"S5 S10 SN30 S3","Weinfelden|Wil SG|Romanshorn|Bussnang|Winterthur|St. Margrethen SG"]]}});

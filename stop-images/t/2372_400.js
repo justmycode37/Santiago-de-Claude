@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_400",{"s":{},"d":{"8500795":[[1,"136","Frick, Bahnhof|Frick, Unterdorf"],[null,"N96","Frick, Bahnhof"],[0,"136","Aarau, Bahnhof"]],"8500593":[[0,"136","Aarau, Bahnhof"],[1,"136","Frick, Unterdorf|Frick, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_444",{"s":{},"d":{"8573362":[[null,"834","Ettenhausen TG, Elggerstrasse|Frauenfeld, Bahnhof"],[0,"834","Ettenhausen TG, Elggerstrasse"],[1,"834","Frauenfeld, Bahnhof"]],"8506853":[[null,"834","Ettenhausen TG, Elggerstrasse|Frauenfeld, Bahnhof"],[0,"834","Ettenhausen TG, Elggerstrasse"],[1,"834","Frauenfeld, Bahnhof"]]}});

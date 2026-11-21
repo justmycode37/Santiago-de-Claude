@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_417",{"s":{},"d":{"8577164":[[0,"22 N1","Gisikon-Root, Bahnhof|Perlen, Fabrik|Gisikon, Weitblick"],[1,"22","Ebikon, Bahnhof"]],"8589658":[[0,"111","Waldibrücke, Bahnhof|Inwil, Dorf"],[1,"111","Ebikon, Bahnhof"]],"8577170":[[0,"22 N1","Gisikon-Root, Bahnhof|Perlen, Fabrik|Gisikon, Weitblick"],[2,"22 N1","Ebikon, Bahnhof|Obernau, Dorf"]]}});

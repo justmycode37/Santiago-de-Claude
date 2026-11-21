@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_429",{"s":{},"d":{"8573094":[[0,"405","Isenthal, Seilbahn St. Jakob|Isenthal, Dorf"],[1,"405","Schattdorf, Rossgiessen|Altdorf UR, Bahnhof Ost"]],"8573093":[[0,"405","Isenthal, Seilbahn St. Jakob|Isenthal, Dorf"],[1,"405","Schattdorf, Rossgiessen|Altdorf UR, Bahnhof Ost"]]}});

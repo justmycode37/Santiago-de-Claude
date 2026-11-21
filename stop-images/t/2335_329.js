@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2335_329",{"s":{},"d":{"8570199":[[0,"675 428","Chavornay, gare|Chavornay, route de Corcelles"],[1,"675 428","Yverdon-les-Bains, gare|Thierrens, gare routière|Belmont-sur-Yverdon, Battoir|Echallens, gare"]]}});

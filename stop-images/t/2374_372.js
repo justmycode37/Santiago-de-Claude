@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_372",{"s":{},"d":{"8500070":[[0,"10","Dornach, Bahnhof|Basel, St-Louis Grenze|Oberwil BL, Hüslimatt|Basel, Heuwaage|Münchenstein, Dorf|Arlesheim, Dorf"],[null,"10","Basel, Heuwaage|Oberwil BL, Hüslimatt"],[1,"69","Metzerlen, Challstrasse"]]}});

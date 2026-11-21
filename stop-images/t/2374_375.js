@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_375",{"s":{},"d":{"8500067":[[0,"10","Dornach, Bahnhof|Basel, St-Louis Grenze|Oberwil BL, Hüslimatt|Basel, Heuwaage|Rodersdorf, Station|Flüh, Station"],[1,"10","Rodersdorf, Station|Flüh, Station"]],"8502618":[[1,"68","Flüh, Station"],[null,"68","Flüh, Station|Ettingen, Dorf"],[0,"68","Aesch BL, Bahnhof|Hofstetten SO, Bergmattenweg"]]}});

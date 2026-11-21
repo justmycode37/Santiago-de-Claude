@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_343",{"s":{},"d":{"8557120":[[0,"",""],[null,"564","Granges-près-Marnand, gare"]],"8504141":[[0,"R9 SN","Allaman|Payerne|Murten/Morat|Lausanne|Palézieux|Renens VD"]],"8510141":[[null,"EV5","Palézieux, gare|Payerne, gare|Lausanne, gare|Murten/Morat, Bahnhof"]]}});

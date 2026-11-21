@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2384_427",{"s":{},"d":{"8578395":[[1,"28 N77","Beringen, Bahnhof|Schaffhausen, Bahnhof"],[0,"N77","Trasadingen, Langwis|Osterfingen, Lindenhof"]],"8595423":[[0,"28R 28","Beringen, Bahnhof|Beringen, Belvedere|Beringen, Oberdorf|Beringen, Sonne"]]}});

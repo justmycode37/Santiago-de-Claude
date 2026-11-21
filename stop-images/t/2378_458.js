@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_458",{"s":{},"d":{"8506193":[[1,"S14 SN14","Konstanz|Kreuzlingen|Kreuzlingen Hafen|Weinfelden|Herisau"],[0,"S14 SN14","Weinfelden|Wil SG|Winterthur|Konstanz"]],"8510943":[[null,"EV2 EV3","Weinfelden, BBZ|Konstanz, Schweizer Bahnhof"],[0,"",""]]}});

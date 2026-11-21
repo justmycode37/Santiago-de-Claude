@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_383",{"s":{},"d":{"8508999":[[0,"54","Wynigen, Bahnhof"],[1,"54 M12","Herzogenbuchsee, Bahnhof|Langenthal, Tell/Kantonalbank"],[null,"M12","Langenthal, Tell/Kantonalbank"]],"8500464":[[null,"15 M53","Steinhof SO|Aeschi SO, Kirche|Aeschi SO, Schulhaus|Solothurn, Hauptbahnhof|Aeschi SO, Dorf"]]}});

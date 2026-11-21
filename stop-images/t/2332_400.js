@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_400",{"s":{},"d":{"8576526":[[null,"126","Bussalp"],[0,"126","Grindelwald, Bahnhof"]],"8576525":[[null,"126 127","Grindelwald, Bahnhof|Bussalp"],[0,"126 127","Bussalp|Grindelwald, Waldspitz"]]}});

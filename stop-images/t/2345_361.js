@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_361",{"s":{},"d":{"8504198":[[0,"550","Gümmenen, Bahnhof"],[1,"550","Laupen BE, Bahnhof"]],"8512810":[[0,"M83 M18","Bern, Bahnhof"]],"8583735":[[0,"550 M18","Gümmenen, Bahnhof|Bern, Bahnhof"],[1,"550","Laupen BE, Bahnhof"]],"8511751":[[0,"550 M18","Gümmenen, Bahnhof|Bern, Bahnhof"],[1,"550","Laupen BE, Bahnhof"]]}});

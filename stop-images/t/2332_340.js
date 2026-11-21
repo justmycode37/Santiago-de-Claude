@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_340",{"s":{},"d":{"8577701":[[0,"474","Moudon, gare|Moudon, Sorbiers"],[1,"474","Romont FR, gare"]],"8577650":[[0,"475","Moudon, gare"],[1,"475","Lucens, gare"]],"8577700":[[0,"474","Moudon, gare|Moudon, Sorbiers"],[1,"474","Romont FR, gare"]],"8504903":[[0,"475","Moudon, gare"],[1,"475","Lucens, gare"]]}});

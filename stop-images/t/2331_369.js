@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_369",{"s":{},"d":{"8577764":[[0,"270 259","Zweisimmen, Bahnhof Ost|Jaun, Bergbahnen|Jaunpass, Restaurant"]],"8507292":[[0,"R11 RE8","Zweisimmen|Spiez|Bern"],[null,"GPX RE8 R11 EXT","Montreux|Interlaken Ost|Spiez|Bern|Interlaken West|Zweisimmen"]]}});

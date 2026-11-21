@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_370",{"s":{},"d":{"8577937":[[0,"27","Staad (Grenchen), Käserei|Grenchen, Postplatz"]],"8577917":[[null,"23","Büren an der Aare, Gehrweg|Grenchen Nord, Bahnhof"]],"8577936":[[0,"27","Staad (Grenchen), Käserei|Grenchen, Postplatz"]],"8577938":[[0,"27","Grenchen, Postplatz"]]}});

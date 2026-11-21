@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_329",{"s":{},"d":{"8507697":[[0,"620","Yverdon-les-Bains, gare|Vuiteboeuf, gare|Grandson, place du Château|Fontaines-sur-Grandson,collège"]],"8579729":[[1,"620","Yverdon-les-Bains, gare"],[0,"620","Vuiteboeuf, gare|Grandson, place du Château|Fontaines-sur-Grandson,collège"]]}});

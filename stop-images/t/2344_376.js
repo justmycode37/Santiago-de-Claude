@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_376",{"s":{},"d":{"8588261":[[0,"160","Konolfingen, Dorf|Rubigen, Bahnhof"],[1,"160","Bern Flughafen"]],"8588704":[[0,"160","Konolfingen, Dorf|Rubigen, Bahnhof"],[1,"160","Bern Flughafen"]],"8588260":[[0,"160","Konolfingen, Dorf|Rubigen, Bahnhof"],[1,"160","Bern Flughafen"]]}});

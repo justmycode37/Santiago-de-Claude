@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_355",{"s":{},"d":{"8504530":[[1,"245 262","Jaun, Bergbahnen|Broc-Village, gare"],[0,"245 262","Fribourg/Freiburg, gare rout.|Bulle, gare routière"]],"8577751":[[0,"245 262","Jaun, Bergbahnen|Broc-Village, gare"],[1,"245 262","Fribourg/Freiburg, gare rout.|Bulle, gare routière|Villarvolard, village"]]}});

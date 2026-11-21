@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_370",{"s":{},"d":{"8577929":[[null,"8 23","Büren an der Aare, Bahnhof|Büren an der Aare, Gehrweg"]],"8577934":[[null,"8 23","Büren an der Aare, Bahnhof|Solothurn, Hauptbahnhof|Büren an der Aare, Gehrweg|Grenchen Nord, Bahnhof"],[1,"M34","Arch, Arche|Büren an der Aare, Bahnhof"]]}});

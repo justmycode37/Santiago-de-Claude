@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2307_369",{"s":{},"d":{"8504685":[[0,"372 374","Les Collons, Cambuse|Sion, poste/gare|Sion, Les Cèdres|Pralong, (Val d'Hérémence)|Dixence, Le Chargeur|Vex, poste"],[1,"372 374","Les Collons, Cambuse|Sion, poste/gare|Sion, Les Cèdres|Hérémence, Riod|Hérémence|Les Masses, télésiège"],[null,"384","Eison, La Crettaz"]]}});

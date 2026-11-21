@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2320_484",{"s":{},"d":{"8509794":[[0,"610 604","Pontresina, Bahnhof|St. Moritz, Bahnhof"],[1,"604 631","Pontresina, Post|St. Moritz, Bahnhof|Chiavenna, Stazione|Lugano, Stazione Nord|Stampa, Val d'Arca|Bondo, Strada Cantonale"]]}});

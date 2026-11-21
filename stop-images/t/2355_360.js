@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_360",{"s":{},"d":{"8582704":[[null,"M32","Erlach, Stedtli|Biel/Bienne, Bahnhof/Gare"]],"8592490":[[0,"M33","La Neuveville, poste"]],"8504472":[[0,"S37","Biel/Bienne|Täuffelen|Ins|Lattrigen|Ins Dorf|Siselen-Finsterhennen"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_355",{"s":{},"d":{"8572071":[[0,"72","Beurnevésin, Couronne|Lugnez, Rauracienne"],[null,"72","Porrentruy, gare|Beurnevésin, Couronne|Bonfol, gare"],[1,"72","Porrentruy, gare"]],"8572073":[[0,"72","Beurnevésin, Couronne"],[null,"72","Porrentruy, gare|Beurnevésin, Couronne|Bonfol, gare"],[1,"72","Porrentruy, gare"]]}});

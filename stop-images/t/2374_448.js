@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_448",{"s":{},"d":{"8506177":[[0,"S15","Frauenfeld|Wängi"],[1,"S15","Wil SG"]],"8503445":[[0,"EV15 841","Frauenfeld, Bahnhof|Frauenfeld, Kantonsschule"],[1,"EV15","Wil SG, Bahnhof"]]}});

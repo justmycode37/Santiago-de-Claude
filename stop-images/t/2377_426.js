@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_426",{"s":{},"d":{"8575955":[[0,"540","Glattfelden, Schwimmbad"]],"8503401":[[0,"S9 S SN65 S65","Schaffhausen|Jestetten|Rafz|Eglisau|Singen (Hohentwiel)|Zürich HB"],[1,"S9 S SN65","Uster|Rapperswil SG|Zürich HB|Zürich Oerlikon|Bülach|Schaffhausen"]]}});

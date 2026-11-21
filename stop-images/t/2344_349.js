@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_349",{"s":{},"d":{"8577829":[[0,"544 556 N14","Fribourg/Freiburg, gare rout.|Gletterens, lac|Gletterens, village|Misery, village|Vallon, Musée romain"],[1,"556","Domdidier, gare|Domdidier, CO"]]}});

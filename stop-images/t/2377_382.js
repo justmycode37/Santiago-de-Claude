@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_382",{"s":{},"d":{"8530784":[[0,"3700","Basel Schifflände|Rheinfelden Schifflände"]],"8500853":[[null,"80 81","Basel, Aeschenplatz|Liestal, Bahnhof"],[0,"80 81","Basel, Aeschenplatz"],[1,"80 81","Liestal, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2346_382",{"s":{},"d":{"8571750":[[0,"472","Biglen, Bahnhof"],[1,"472","Lützelflüh-Goldbach, Bahnhof|Obergoldbach, Post|Moosegg, Hotel"]],"8508751":[[null,"272","Langnau i.E., Bahnhof|Biglen, Bahnhof"],[0,"472","Biglen, Bahnhof"],[1,"472","Lützelflüh-Goldbach, Bahnhof|Moosegg, Hotel"],[2,"472","Lützelflüh-Goldbach, Bahnhof"]]}});

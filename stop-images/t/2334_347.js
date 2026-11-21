@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_347",{"s":{},"d":{"8596070":[[0,"482","Estévenens, dessus|Sommentier, Abri PC"]],"8511536":[[1,"480","Romont FR, gare|Romont FR, école primaire|Romont FR, poste"],[0,"480","Berlens, village"]],"8511535":[[0,"480","Romont FR, gare|Romont FR, école primaire|Romont FR, poste"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_381",{"s":{},"d":{"8510918":[[null,"EV1","Hasle-Rüegsau, Bahnhof|Konolfingen, Bahnhof|Lützelflüh-Goldbach, Goldbach"]],"8508263":[[0,"S41 S42 EXT","Thun|Solothurn|Burgdorf|Konolfingen|Hasle-Rüegsau|Aefligen"]]}});

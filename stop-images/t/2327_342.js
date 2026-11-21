@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2327_342",{"s":{},"d":{"8570442":[[0,"385","La Rogivue"],[1,"385","Servion, Zoo-Tropiquarium|Palézieux, gare|Oron-la-Ville, gare routière"]],"8570441":[[0,"385","La Rogivue"],[null,"385","Servion, Zoo-Tropiquarium|Palézieux, gare|Oron-la-Ville, gare routière"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_452",{"s":{},"d":{"8588557":[[null,"546","Schwanden GL, Bahnhof|Linthal, Post"]],"8588558":[[null,"EV1 536 546","Linthal, Bahnhof|Ziegelbrücke, Bahnhof Süd|Schwanden GL, Bahnhof|Linthal, Post"]],"8503235":[[0,"S25 S6","Linthal|Zürich HB|Näfels-Mollis|Ziegelbrücke|Rapperswil SG|Pfäffikon SZ"],[null,"S25","Zürich HB"]]}});

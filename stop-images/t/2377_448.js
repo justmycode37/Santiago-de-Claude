@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_448",{"s":{},"d":{"8506964":[[0,"838","Weinfelden, Bahnhof"],[null,"838","Frauenfeld, Bahnhof"]],"8581614":[[0,"837 838","Tobel-Affeltrangen, Bahnhof|Weinfelden, Bahnhof"],[1,"837 838","Frauenfeld, Bahnhof"],[null,"837","Tobel-Affeltrangen, Bahnhof|Frauenfeld, Bahnhof"]],"8506949":[[0,"838","Weinfelden, Bahnhof"],[1,"838","Frauenfeld, Bahnhof"]]}});

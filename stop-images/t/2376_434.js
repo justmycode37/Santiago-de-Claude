@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_434",{"s":{},"d":{"8573679":[[2,"671","Winterthur, Hauptbahnhof|Winterthur, Museumstrasse/HB"],[1,"671 N64","Hettlingen, Föhrenstrasse|Humlikon, Dorfplatz"],[null,"N64","Humlikon, Dorfplatz"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2317_360",{"s":{},"d":{"8501793":[[0,"180","Les Diablerets, gare|Saanen, Bahnhof|Gstaad, Bahnhof"]],"8530590":[[0,"PB","Col-du-Pillon (téléphérique)|Glacier du Sex Rouge"]],"8530039":[[0,"PB","Cabane-des-Diablerets"]]}});

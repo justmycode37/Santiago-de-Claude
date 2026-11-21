@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_334",{"s":{},"d":{"8583400":[[0,"428","Thierrens, gare routière"],[1,"428","Chavornay, gare|Echallens, gare|Naz, laiterie"]],"8570220":[[0,"428","Thierrens, gare routière"],[1,"428","Chavornay, gare|Echallens, gare"]]}});

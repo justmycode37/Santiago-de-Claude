@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2379_448",{"s":{},"d":{"8506969":[[null,"829","Wigoltingen, Schulweg|Frauenfeld, Bahnhof"],[0,"920 829","Kreuzlingen, Bahnhof|Wigoltingen, Schulweg"],[1,"920 829","Frauenfeld, Bahnhof"]],"8506102":[[0,"S24 S30 SN30 SN14","Winterthur|Zug|Weinfelden|Zürich Flughafen|Thalwil|Zürich Wipkingen"],[1,"S24 S30 SN30","Weinfelden|Romanshorn|Winterthur"]]}});

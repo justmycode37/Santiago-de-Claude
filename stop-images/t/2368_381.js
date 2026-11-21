@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2368_381",{"s":{},"d":{"8500764":[[null,"113 130","Laufen, Bahnhof|Kleinlützel, Ölibächli|Erschwil, Dorf"],[0,"130","Balsthal, Bahnhof"]],"8572193":[[1,"130","Laufen, Bahnhof"],[0,"130","Balsthal, Bahnhof"]]}});

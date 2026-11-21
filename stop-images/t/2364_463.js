@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_463",{"s":{},"d":{"8581129":[[0,"791","Schwägalp, Säntis-Schwebebahn"]],"8574051":[[0,"791","Schwägalp, Säntis-Schwebebahn"],[1,"791","Urnäsch, Bahnhof|St. Gallen, Bahnhof"]]}});

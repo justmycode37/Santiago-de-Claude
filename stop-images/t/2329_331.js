@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_331",{"s":{},"d":{"8504178":[[1,"54 60","Croisettes|Riponne-M.Béjart|Lausanne-Gare|Froideville"],[0,"54 60","Renens VD, gare|Froideville"]],"8591940":[[1,"54 60","Croisettes|Riponne-M.Béjart|Lausanne-Gare|Froideville"],[0,"54 60","Renens VD, gare|Froideville"]],"8582065":[[0,"54 60","Croisettes|Lausanne-Gare"],[1,"54 60","Renens VD, gare|Froideville"]]}});

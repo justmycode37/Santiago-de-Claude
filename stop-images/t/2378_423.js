@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_423",{"s":{},"d":{"8574587":[[1,"540","Glattfelden, Bahnhof"],[0,"540","Zweidlen, Bahnhof"]],"8503405":[[null,"S36 EXT","Bülach|Waldshut|Koblenz|Bad Zurzach"]],"8575950":[[null,"",""],[0,"",""]],"8511474":[[0,"540","Glattfelden, Bahnhof"]]}});

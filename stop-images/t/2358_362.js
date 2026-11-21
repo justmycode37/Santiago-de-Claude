@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_362",{"s":{},"d":{"8504301":[[0,"R41 R42 R","Biel/Bienne|La Chaux-de-Fonds|Moutier|Sonceboz-Sombeval|Malleray-Bévilard|La Chaux-de-Fonds | Malleray-Bévilard"]],"8576402":[[1,"71","Romont BE"]],"8588061":[[1,"71","Romont BE"],[null,"EV3 EV2","Biel/Bienne, Bahnhof/Gare"]]}});

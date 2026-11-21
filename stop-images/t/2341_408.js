@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_408",{"s":{},"d":{"8572917":[[0,"361 362","Giswil, Bahnhof|Kleinteil, Post|Lungern, Dorfkapelle|Giswil, Rütimatt"],[null,"362","Mörlialp"]],"8572892":[[0,"361 362 363","Giswil, Bahnhof"],[1,"361 362 363","Kleinteil, Post|Grossteil, Schulhaus|Mörlialp|Lungern, Dorfkapelle|Glaubenbielen, Parkplatz|Giswil, Rütimatt"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_332",{"s":{},"d":{"8507958":[[0,"625","Villars-Burquin, Grange-Meule"],[1,"625","Yverdon-les-Bains, gare"]],"8507680":[[0,"625","Mauborget, village|Yverdon-les-Bains, gare|Villars-Burquin, Grange-Meule"]]}});

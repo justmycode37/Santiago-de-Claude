@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_367",{"s":{},"d":{"8571676":[[1,"612 615","Riedstätt, ob dem Wald|Schwarzenburg, Bahnhof|Riffenmatt, Kreuzung|Rüschegg Schwarzenbühl,Kurhaus"],[0,"612","Schwarzenburg, Bahnhof"]],"8571677":[[1,"612 615","Riedstätt, ob dem Wald|Schwarzenburg, Bahnhof|Riffenmatt, Kreuzung|Rüschegg Schwarzenbühl,Kurhaus"],[0,"612","Schwarzenburg, Bahnhof"]]}});

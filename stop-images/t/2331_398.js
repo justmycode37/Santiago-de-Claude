@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_398",{"s":{},"d":{"8507382":[[1,"R61","Grindelwald"],[0,"R61","Interlaken Ost|Zweilütschinen|Lütschental"]],"8594492":[[2,"",""]],"8507391":[[null,"GGM","Grindelwald Terminal|Männlichen (Gondelbahn)"]]}});

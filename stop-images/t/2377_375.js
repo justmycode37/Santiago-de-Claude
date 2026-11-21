@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_375",{"s":{},"d":{"8578164":[[0,"33","Basel, Schifflände|Basel, Claraplatz|Basel, Universitätsspital|Basel, Schützenhaus|Allschwil, Dorf"],[1,"33","Schönenbuch, Dorf"]],"8578165":[[0,"33","Basel, Schifflände|Basel, Claraplatz|Basel, Universitätsspital|Basel, Schützenhaus|Allschwil, Dorf"],[1,"33","Schönenbuch, Dorf"]]}});

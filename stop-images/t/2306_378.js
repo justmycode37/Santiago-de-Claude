@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2306_378",{"s":{},"d":{"8505697":[[0,"455 452","Moiry VS, glacier|Moiry VS, barrage"],[1,"455 452","Grimentz, télécabine|Zinal, village de vacances"]],"8501738":[[0,"455 452","Moiry VS, glacier|Grimentz, télécabine"],[1,"455","Zinal, village de vacances|Grimentz, télécabine"]]}});

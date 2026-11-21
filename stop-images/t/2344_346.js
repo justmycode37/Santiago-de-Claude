@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_346",{"s":{},"d":{"8577834":[[0,"544 556 551 N14","Fribourg/Freiburg, gare rout.|Gletterens, lac|Domdidier, gare|Estavayer-le-Lac, gare rout.|Vallon, Musée romain|Domdidier, CO"]]}});

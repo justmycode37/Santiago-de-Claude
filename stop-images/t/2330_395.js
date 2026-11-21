@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_395",{"s":{},"d":{"8579958":[[1,"142 311","Lauterbrunnen, Bahnhof"],[0,"142 311","Isenfluh, Dorf|Interlaken Ost, Bahnhof"]],"8507555":[[0,"63","Lauterbrunnen|Wengen|Kleine Scheidegg"]],"8577035":[[1,"142 311","Lauterbrunnen, Bahnhof"],[0,"142 311","Isenfluh, Dorf|Interlaken Ost, Bahnhof"]]}});

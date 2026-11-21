@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2388_430",{"s":{},"d":{"8589948":[[1,"23","Bargen SH, Dorf"],[0,"23","Schaffhausen, Bahnhof|Schaffhausen, Bahnhof Nord"]],"8573474":[[0,"23","Bargen SH, Dorf"],[1,"23","Schaffhausen, Bahnhof|Schaffhausen, Bahnhof Nord"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_356",{"s":{},"d":{"8577895":[[1,"546","Murten/Morat, Bahnhof"],[0,"546","Courtepin, gare"]],"8577896":[[0,"548 546 N15","Gümmenen, Bahnhof|Murten/Morat, Bahnhof|Fribourg/Freiburg, gare rout."],[1,"548 N15 546","Murten/Morat, Bahnhof|Sugiez, gare|Courtepin, gare|Murten, Orientierungsschule|Praz (Vully), village"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_370",{"s":{},"d":{"8507732":[[1,"322","Hinterfultigen, Sonnhalde"],[0,"322","Riggisberg, Post|Rüeggisberg, Post"]],"8571650":[[0,"322","Riggisberg, Post|Rüeggisberg, Post"]],"8571649":[[0,"322","Riggisberg, Post|Hinterfultigen, Sonnhalde|Hinterfultigen, Dorf|Rüeggisberg, Post"]]}});

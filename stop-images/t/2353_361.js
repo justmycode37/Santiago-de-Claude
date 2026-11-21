@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2353_361",{"s":{},"d":{"8571232":[[0,"366","Täuffelen, Bahnhof|Aarberg, Spital|Aarberg, Post/Bahnhof"]],"8575504":[[0,"366","Täuffelen, Bahnhof|Aarberg, Spital|Walperswil, Post"]],"8571233":[[0,"366","Täuffelen, Bahnhof|Aarberg, Spital|Walperswil, Post"]]}});

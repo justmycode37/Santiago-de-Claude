@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2328_369",{"s":{},"d":{"8594785":[[0,"270","Zweisimmen, Bahnhof Ost|Boltigen, Bahnhof"]],"8594787":[[0,"270","Zweisimmen, Bahnhof Ost|Boltigen, Bahnhof"]],"8507281":[[0,"R11","Spiez|Zweisimmen"]]}});

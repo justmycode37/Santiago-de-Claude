@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_404",{"s":{},"d":{"8572840":[[1,"64","Ruswil, Rottalcenter"],[0,"221 64","Romoos, Post|Romoos, Holzwäge|Wolhusen, Spital"],[3,"",""],[2,"",""],[null,"N66","Schangnau, Post"]],"8577337":[[0,"64","Ruswil, Rottalcenter"],[1,"64","Wolhusen, Spital|Wolhusen, Bahnhof"]]}});

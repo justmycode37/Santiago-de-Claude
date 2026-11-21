@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2383_453",{"s":{},"d":{"8506985":[[0,"833","Ermatingen, Bahnhof"],[1,"833","Weinfelden, Bahnhof"]],"8581947":[[0,"833","Ermatingen, Bahnhof"],[1,"833","Weinfelden, Bahnhof"]],"8581969":[[0,"833","Ermatingen, Bahnhof"],[1,"833","Weinfelden, Bahnhof"]]}});

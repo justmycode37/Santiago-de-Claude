@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2298_447",{"s":{},"d":{"8575308":[[null,"434","Carona, Paese|Lugano, Autosilo Balestra"],[0,"434","Carona, Paese"],[1,"434","Lugano, Autosilo Balestra"]],"8505370":[[0,"2652","Paradiso (funicolare)"]]}});

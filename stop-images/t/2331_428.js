@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_428",{"s":{},"d":{"8505164":[[null,"R43 R44 EXT","Andermatt|Realp|Göschenen|Oberwald|Visp|Brig Bahnhofplatz"]],"8573141":[[0,"110 422 681","Airolo, Stazione|Andermatt, Bahnhofplatz|Gletsch, Post|Oberwald, Bahnhof"],[null,"110 681","Andermatt, Bahnhofplatz"]]}});

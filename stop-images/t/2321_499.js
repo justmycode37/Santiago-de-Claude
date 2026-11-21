@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2321_499",{"s":{},"d":{"8574981":[[0,"602 701","Surlej, Corvatschbahn|Le Prese, Stazione|Ospizio Bernina, Albergo"],[null,"705 701","Samedan, Bahnhof|St. Moritz, Bahnhof|Livigno, Centro Bus Station|Ospizio Bernina, Albergo|Poschiavo, Stazione"]],"8509373":[[null,"R19 RE9","St. Moritz|Tirano|Poschiavo|Pontresina"]],"8509375":[[0,"PB","Piz Lagalb"]]}});

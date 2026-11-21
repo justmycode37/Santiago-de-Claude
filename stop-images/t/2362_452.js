@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2362_452",{"s":{},"d":{"8503979":[[1,"623","Rapperswil SG, Bahnhof"],[0,"632 628","Ricken SG, Uznacherstrasse|Uznach, Bahnhof|Gommiswald, Schulhaus|Ernetschwil, Dorf|Gebertingen, Schulhaus|Gommiswald, Dorf"]]}});

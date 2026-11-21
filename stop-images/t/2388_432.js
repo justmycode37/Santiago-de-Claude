@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2388_432",{"s":{},"d":{"8573486":[[0,"24","Thayngen, Bahnhof|Opfertshofen SH, Dorf|Barzheim, Dorf|Bibern SH, Dorf"],[1,"24","Schaffhausen, Bahnhof"]],"8573487":[[1,"24","Thayngen, Bahnhof|Opfertshofen SH, Dorf|Barzheim, Dorf|Bibern SH, Dorf"],[2,"24R 24","Thayngen, Bahnhof|Barzheim, Dorf"],[0,"24","Schaffhausen, Bahnhof"]]}});

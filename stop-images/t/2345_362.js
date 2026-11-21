@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_362",{"s":{},"d":{"8504199":[[0,"550 M18","Gümmenen, Bahnhof|Bern, Bahnhof"],[1,"550","Laupen BE, Bahnhof"]],"8504194":[[0,"S2","Langnau i.E.|Bern|Konolfingen|Gümligen|Bern Bümpliz Süd"]],"8588087":[[0,"550 M18","Gümmenen, Bahnhof|Bern, Bahnhof"],[null,"550","Laupen BE, Bahnhof"]],"8570555":[[null,"121 EV4","Bösingen, Cholholz|Flamatt, Post"],[1,"",""]]}});

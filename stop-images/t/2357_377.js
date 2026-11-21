@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_377",{"s":{},"d":{"8508087":[[0,"S44 S41 S46 S","Thun|Burgdorf|Solothurn|Konolfingen|Burgistein|Bern"],[1,"S41 S44","Solothurn|Thun"]],"8595644":[[0,"EV","Solothurn, Zuchwilerstr./Bhf"]]}});

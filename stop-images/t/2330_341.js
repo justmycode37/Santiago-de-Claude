@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_341",{"s":{},"d":{"8504978":[[0,"473 N24","Palézieux, gare"],[1,"473 N24","Romont FR, gare|Bulle, gare routière"]],"8504692":[[0,"473 N24","Palézieux, gare"],[1,"473 N24","Romont FR, gare|Bulle, gare routière"]]}});

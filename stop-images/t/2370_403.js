@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2370_403",{"s":{},"d":{"8578661":[[null,"4","Biberstein, Ihegi|Suhr, Bahnhof|Aarau, Bahnhof"]],"8578662":[[null,"4 N21","Biberstein, Ihegi|Suhr, Bahnhof|Aarau, Bahnhof"]],"8590259":[[null,"2 N22","Erlinsbach, Oberdorf|Aarau Rohr, Unterdorf|Aarau, Bahnhof|Aarau, Holzmarkt"]]}});

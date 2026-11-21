@@ -41,6 +41,7 @@ Areas built earlier are kept: each run merges into the existing tiles.
 """
 import argparse
 import base64
+import csv
 import concurrent.futures as cf
 import datetime
 import hashlib
@@ -149,10 +150,15 @@ def fetch(url, data=None, headers=None, cache=True, binary=False, tries=5):
     raise RuntimeError(f'gave up on {url[:120]}')
 
 
+_stop_state = threading.local()  # per worker thread: did a request fail while collecting the current stop?
+
+
 def try_fetch(*a, **k):
     try:
         return fetch(*a, **k)
     except Exception as e:  # one failing request must not stop a national build
+        if not (isinstance(e, urllib.error.HTTPError) and e.code == 404):
+            _stop_state.failed = True  # a source that did not answer: this stop is incomplete, not "no photos"
         log('  !', str(e)[:160])
         return None
 
@@ -193,8 +199,11 @@ def strip_html(s):
     return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', s or ''))).strip()
 
 
+TILE = 0.02  # degrees
+
+
 def tile_key(lon, lat):
-    return f'{math.floor(lat * 10)}_{math.floor(lon * 10)}'
+    return f'{math.floor(lat / TILE + 1e-9)}_{math.floor(lon / TILE + 1e-9)}'
 
 
 # ---------------------------------------------------------------- stops
@@ -656,18 +665,21 @@ class Embedder:
         return a.transpose(2, 0, 1)
 
     def embed(self, arrays):
+        """→ 768-value descriptors: [CLS, mean of patch tokens], each L2-normalised (the phone does the same)."""
         np = self.np
         out = self.sess.run(None, {'pixel_values': np.stack(arrays).astype(np.float32)})[0]
         cls, mean = out[:, 0], out[:, 1:].mean(axis=1)
         cls /= np.linalg.norm(cls, axis=1, keepdims=True)
         mean /= np.linalg.norm(mean, axis=1, keepdims=True)
-        v = np.concatenate([cls, mean], axis=1)
-        q = np.round(v / np.abs(v).max(axis=1, keepdims=True) * 127).astype(np.int8)
-        return [base64.b64encode(x.tobytes()).decode() for x in q]
+        return np.concatenate([cls, mean], axis=1) / math.sqrt(2)
+
+
+def photo_key(r):
+    return r.get('cache_key') or hashlib.sha1(r['thumb'].encode()).hexdigest()
 
 
 def image_bytes(ref):
-    key = ref.get('cache_key') or hashlib.sha1(ref['thumb'].encode()).hexdigest()
+    key = photo_key(ref)
     path = os.path.join(CACHE, 'img', key[-2:], key + '.jpg')
     if os.path.exists(path):
         with open(path, 'rb') as f:
@@ -682,9 +694,55 @@ def image_bytes(ref):
     return body
 
 
+# Full 768-value fingerprints of every photo, kept on this machine only (not shipped): a photo is fingerprinted
+# once, and the shipped 128-value version can be recomputed from these if the projection ever changes.
+EMB_CACHE = os.path.join(CACHE, 'emb768.tsv')
+_emb, _emb_lock = None, threading.Lock()
+
+
+def emb_cache():
+    global _emb
+    import numpy as np
+    with _emb_lock:
+        if _emb is None:
+            _emb = {}
+            if os.path.exists(EMB_CACHE):
+                with open(EMB_CACHE, encoding='utf-8') as f:
+                    for line in f:
+                        k, _, b = line.rstrip('\n').partition('\t')
+                        if b:
+                            _emb[k] = b
+        return _emb
+
+
+def emb_get(key):
+    import numpy as np
+    b = emb_cache().get(key)
+    if not b:
+        return None
+    v = np.frombuffer(base64.b64decode(b), dtype=np.int8).astype(np.float32)
+    return v / np.linalg.norm(v)
+
+
+def emb_put(items):
+    import numpy as np
+    cache = emb_cache()
+    os.makedirs(CACHE, exist_ok=True)
+    with _emb_lock, open(EMB_CACHE, 'a', encoding='utf-8') as f:
+        for key, v in items:
+            b = base64.b64encode(np.round(v / np.abs(v).max() * 127).astype(np.int8).tobytes()).decode()
+            cache[key] = b
+            f.write(f'{key}\t{b}\n')
+
+
 def fingerprint(refs_by_stop, embedder):
-    jobs = [(uic, r) for uic, refs in refs_by_stop.items() for r in refs if 'emb' not in r]
-    log(f'fingerprinting {len(jobs)} photos')
+    jobs = [(uic, r) for uic, refs in refs_by_stop.items() for r in refs if 'v' not in r]
+    for _, r in jobs:
+        v = emb_get(photo_key(r))
+        if v is not None:
+            r['v'] = v
+    jobs = [j for j in jobs if 'v' not in j[1]]
+    log(f'fingerprinting {len(jobs)} new photos')
     done = 0
     with cf.ThreadPoolExecutor(6) as pool:
         for i in range(0, len(jobs), 32):
@@ -698,79 +756,289 @@ def fingerprint(refs_by_stop, embedder):
                 except Exception:
                     r['bad'] = True
             if arrays:
-                for r, e in zip(keep, embedder.embed(arrays)):
-                    r['emb'] = e
+                vs = embedder.embed(arrays)
+                for r, v in zip(keep, vs):
+                    r['v'] = v
+                emb_put([(photo_key(r), v) for r, v in zip(keep, vs)])
             done += len(chunk)
-            log(f'  {done}/{len(jobs)}')
+            if done % 320 < 32:
+                log(f'  {done}/{len(jobs)}')
+    failed = {uic for uic, refs in refs_by_stop.items() if any(r.get('v') is None for r in refs)}
     for uic in refs_by_stop:
-        refs_by_stop[uic] = [r for r in refs_by_stop[uic] if r.get('emb')]
+        refs_by_stop[uic] = [r for r in refs_by_stop[uic] if r.get('v') is not None]
+    return failed  # stops with a photo that could not be downloaded or read this time
 
 
-# ---------------------------------------------------------------- output
-def write(refs_by_stop, stops, keep_srcs=()):
+# ---------------------------------------------------------------- projection (768 → 128 values)
+PCA_K = 128
+_pca = None
+
+
+def pca():
+    """mean (768), W (768 × K, dequantised from the int8 the phone gets) — from index.js, so builds stay comparable."""
+    global _pca
+    import numpy as np
+    if _pca is None:
+        idx = read_index()
+        p = idx.get('pca')
+        if p:
+            mean = np.frombuffer(base64.b64decode(p['mean']), dtype=np.float32)
+            scale = np.frombuffer(base64.b64decode(p['scale']), dtype=np.float32)
+            w = np.frombuffer(base64.b64decode(p['w']), dtype=np.int8).astype(np.float32).reshape(768, p['k']) * scale
+            _pca = (mean, w, p)
+    return _pca
+
+
+def fit_pca(vectors):
+    """Principal components of the photo fingerprints; the int8 version is what both sides use."""
+    global _pca
+    import numpy as np
+    if len(vectors) < 2 * PCA_K:
+        raise SystemExit(f'only {len(vectors)} photos: build a larger area first (the projection needs ≥ {2 * PCA_K})')
+    X = np.stack(vectors).astype(np.float32)
+    mean = X.mean(0)
+    _, _, vt = np.linalg.svd(X - mean, full_matrices=False)
+    w = vt[:PCA_K].T.astype(np.float32)  # 768 × K (K = actual number of components)
+    scale = (np.abs(w).max(0) / 127).astype(np.float32)
+    wq = np.round(w / scale).astype(np.int8)
+    p = {'k': int(w.shape[1]), 'n': len(vectors), 'mean': base64.b64encode(mean.tobytes()).decode(),
+         'w': base64.b64encode(wq.tobytes()).decode(), 'scale': base64.b64encode(scale.tobytes()).decode()}
+    _pca = (mean, wq.astype(np.float32) * scale, p)
+    log(f'fitted the {PCA_K}-value projection on {len(vectors)} photos')
+    return _pca
+
+
+def project(v):
+    """768 → K values, int8, base64 (what the tiles store)."""
+    import numpy as np
+    mean, w, _ = pca()
+    y = (v - mean) @ w
+    y /= np.linalg.norm(y) or 1
+    return base64.b64encode(np.round(y / np.abs(y).max() * 127).astype(np.int8).tobytes()).decode()
+
+
+# ---------------------------------------------------------------- output (format 2)
+# Tile file: STOP_IMAGES_TILE("<key>", { s: { "<uic>": [[src, prov, edge, heading, ref, credit, licence, emb], …] },
+#                                       d: { "<uic>": [[edge, "lines", "destination|destination|…"], …] } })
+# ref: "c:<Commons thumb path>" | "p:<Panoramax picture URL>" | "m:<Mapillary id>" | "u:<other image URL>"
+# key = "<floor(lat / 0.02)>_<floor(lon / 0.02)>" (0.02° tiles, ~2.2 × 1.5 km)
+def compact_ref(r):
+    if r['src'] == 'commons' and '/commons/thumb/' in (r.get('thumb') or ''):
+        return 'c:' + r['thumb'].split('/commons/thumb/', 1)[1]
+    if r['src'] == 'panoramax':
+        return 'p:' + r['thumb']
+    if r['src'] == 'mapillary':
+        return 'm:' + r['page'].rsplit('=', 1)[-1]
+    return 'u:' + (r.get('thumb') or r.get('page') or '')
+
+
+def read_index():
+    path = os.path.join(OUT, 'index.js')
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding='utf-8') as f:
+        t = f.read()
+    return json.loads(t[t.index('{'):t.rindex('}') + 1])
+
+
+def read_tile(path):
+    with open(path, encoding='utf-8') as f:
+        t = f.read()
+    d = json.loads(t[t.index('{'):t.rindex('}') + 1])
+    return d if 's' in d or 'd' in d else {'s': d, 'd': {}}  # format 1 tiles: photos only
+
+
+def write_tile(path, key, tile):
+    tile = {'s': {k: v for k, v in tile.get('s', {}).items() if v}, 'd': {k: v for k, v in tile.get('d', {}).items() if v}}
+    atomic_write(path, f'STOP_IMAGES_TILE({json.dumps(key)},{json.dumps(tile, ensure_ascii=False, separators=(",", ":"))});\n')
+
+
+def atomic_write(path, text):
+    """Write next to the file, then swap it in: a build stopped half-way never leaves a broken tile."""
+    tmp = f'{path}.{os.getpid()}.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def write(refs_by_stop, stops, keep_srcs=(), lines_by_stop=None, keep_all=()):
+    """Merge photos (and/or timetable lines) of some stops into their tiles, then rewrite index.js.
+    keep_srcs: sources not queried this run (their old photos stay); keep_all: stops whose collection was incomplete
+    (all their old photos stay, the new ones are added)."""
     os.makedirs(os.path.join(OUT, 't'), exist_ok=True)
-    idx_path = os.path.join(OUT, 'index.js')
-    index = {'tiles': {}}
-    if os.path.exists(idx_path):
-        with open(idx_path, encoding='utf-8') as f:
-            t = f.read()
-        index = json.loads(t[t.index('{'):t.rindex('}') + 1])
-    tiles = {}
-    for uic, refs in refs_by_stop.items():
-        st = stops[uic]
-        key = tile_key(*st['c'])
-        tiles.setdefault(key, {})[uic] = [
-            [r['src'], r['prov'], r['edge'], round(r['lon'] * 1e5) if r['lon'] is not None else None,
-             round(r['lat'] * 1e5) if r['lat'] is not None else None,
-             round(r['heading']) if r['heading'] is not None else None,
-             r['thumb'] if r['src'] != 'mapillary' else None,  # Mapillary thumb links expire: link the page instead
-             r['page'], r['credit'], r['licence'], r['emb']] for r in refs]
-    for key, data in tiles.items():
+    vectors = [r['v'] for refs in refs_by_stop.values() for r in refs]
+    if pca() is None and vectors:
+        fit_pca(vectors)
+    by_tile = {}
+    for uic in set(refs_by_stop) | set(lines_by_stop or {}):
+        by_tile.setdefault(tile_key(*stops[uic]['c']), []).append(uic)
+    for key, uics in by_tile.items():
         path = os.path.join(OUT, 't', key + '.js')
-        if os.path.exists(path):  # merge with stops built earlier in this tile
-            with open(path, encoding='utf-8') as f:
-                t = f.read()
-            old = json.loads(t[t.index('{'):t.rindex('}') + 1])
-            for uic, refs in data.items():
-                pages = {r[7] for r in refs}
-                kept = [r for r in old.get(uic, []) if r[0] in keep_srcs and r[7] not in pages]
-                data[uic] = refs + kept
-            old.update(data)
-            data = old
-        data = {k: v for k, v in data.items() if v}
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(f'STOP_IMAGES_TILE({json.dumps(key)},{json.dumps(data, ensure_ascii=False, separators=(",", ":"))});\n')
-        index['tiles'][key] = len(data)
-    counts = {}
-    index['tiles'] = {}
+        tile = read_tile(path) if os.path.exists(path) else {'s': {}, 'd': {}}
+        for uic in uics:
+            if uic in refs_by_stop:
+                refs = [[r['src'], r['prov'], r['edge'], round(r['heading']) if r['heading'] is not None else None,
+                         compact_ref(r), r['credit'], r['licence'], project(r['v'])] for r in refs_by_stop[uic]]
+                refs_new = {x[4] for x in refs}
+                kept = [x for x in tile['s'].get(uic, [])
+                        if (uic in keep_all or x[0] in keep_srcs) and x[4] not in refs_new]
+                tile['s'][uic] = refs + kept
+            if lines_by_stop and uic in lines_by_stop:
+                tile['d'][uic] = lines_by_stop[uic]
+        write_tile(path, key, tile)
+    write_index()
+    log(f'wrote {len(by_tile)} tiles')
+
+
+def write_index():
+    index = read_index()
+    tiles, counts, n_stops, n_lines, size = {}, {}, 0, 0, 0
     for name in sorted(os.listdir(os.path.join(OUT, 't'))):
         if not name.endswith('.js'):
             continue
-        with open(os.path.join(OUT, 't', name), encoding='utf-8') as f:
-            t = f.read()
-        tile = json.loads(t[t.index('{'):t.rindex('}') + 1])
-        if tile:
-            index['tiles'][name[:-3]] = len(tile)
-        for refs in tile.values():
+        tile = read_tile(os.path.join(OUT, 't', name))
+        size += os.path.getsize(os.path.join(OUT, 't', name))
+        if tile['s'] or tile['d']:
+            tiles[name[:-3]] = len(tile['s'])
+        n_stops += len(tile['s'])
+        n_lines += len(tile['d'])
+        for refs in tile['s'].values():
             for r in refs:
                 counts[r[1]] = counts.get(r[1], 0) + 1
-    index.update({'v': 1, 'date': datetime.date.today().isoformat(), 'tile': 0.1,
+    index.update({'v': 2, 'date': datetime.date.today().isoformat(), 'tile': TILE, 'tiles': tiles,
                   'model': {'repo': MODEL_REPO, 'rev': MODEL_REV, 'file': MODEL_FILE, 'input': INPUT,
-                            'mean': MEAN, 'std': STD, 'desc': 'cls+meanpatch, l2 each, int8'},
-                  'photos': counts, 'stops': sum(index['tiles'].values())})
-    with open(idx_path, 'w', encoding='utf-8') as f:
-        f.write('// Generated by tools/build_stop_images.py: reference photo fingerprints of Swiss stops, per 0.1° tile.\n')
-        f.write('window.STOP_IMAGES_INDEX = ' + json.dumps(index, separators=(',', ':')) + ';\n')
-    log(f'wrote {len(tiles)} tiles; database: {index["stops"]} stops, photos by source {counts}')
+                            'mean': MEAN, 'std': STD, 'desc': 'cls+meanpatch l2, /sqrt2, minus pca.mean, x pca.w*scale, l2'},
+                  'pca': pca()[2] if pca() else None, 'photos': counts, 'stops': n_stops, 'stops_with_lines': n_lines,
+                  'bytes': size})
+    atomic_write(os.path.join(OUT, 'index.js'),
+                 '// Generated by tools/build_stop_images.py: photo fingerprints and timetable lines of Swiss stops, '
+                 'per 0.02° tile.\n' + 'window.STOP_IMAGES_INDEX = ' + json.dumps(index, separators=(',', ':')) + ';\n')
+    log(f'database: {n_stops} stops with photos ({sum(counts.values())} photos: {counts}), '
+        f'{n_lines} stops with lines, {size / 1e6:.1f} MB')
+
+
+def migrate(stops):
+    """Format 1 (0.1° tiles, 768-value fingerprints) → format 2. Keeps every photo; fills the local fingerprint cache."""
+    import numpy as np
+    tdir = os.path.join(OUT, 't')
+    old = []
+    for name in os.listdir(tdir):
+        if name.endswith('.js'):
+            t = read_tile(os.path.join(tdir, name))
+            if any(refs and len(refs[0]) == 11 for refs in t['s'].values()):  # format 1: 11 fields per photo
+                old.append(name)
+    if not old:
+        return log('nothing to migrate: the database is already in format 2')
+    refs_by_stop, vecs = {}, []
+    for name in old:
+        tile = read_tile(os.path.join(tdir, name))
+        for uic, refs in tile['s'].items():
+            if uic not in stops or not refs or len(refs[0]) != 11:
+                continue
+            out = []
+            for src, prov, edge, lon, lat, head, thumb, page, credit, licence, emb in refs:
+                r = {'src': src, 'prov': prov, 'edge': edge, 'heading': head, 'thumb': thumb, 'page': page,
+                     'credit': credit, 'licence': licence}
+                if src == 'mapillary':
+                    r['cache_key'] = 'mly-' + page.rsplit('=', 1)[-1]
+                elif src == 'panoramax':
+                    r['cache_key'] = 'pnx-' + page.rsplit('=', 1)[-1]
+                v = np.frombuffer(base64.b64decode(emb), dtype=np.int8).astype(np.float32)
+                r['v'] = v / np.linalg.norm(v)
+                out.append(r)
+                vecs.append(r['v'])
+            refs_by_stop[uic] = out
+    log(f'migrating {len(old)} format-1 tiles: {len(refs_by_stop)} stops, {len(vecs)} photos')
+    emb_put([(photo_key(r), r['v']) for refs in refs_by_stop.values() for r in refs])
+    if pca() is None or 'pca' not in read_index():
+        fit_pca(vecs)
+    write(refs_by_stop, stops)  # the new tiles first; only then remove the old ones
+    new_keys = {tile_key(*stops[u]['c']) + '.js' for u in refs_by_stop}
+    for name in old:
+        if name not in new_keys:
+            os.remove(os.path.join(tdir, name))
+    write_index()
+
+
+# ---------------------------------------------------------------- timetable: lines + destinations per stop edge
+def build_lines(stops, zip_path, max_lines=10, max_dests=6):
+    """From the Swiss GTFS (opentransportdata.swiss): which lines leave from each stop edge and where they go.
+    A sign that shows "4 · 19 → Bern Brünnen" can then be tied to one edge of the stop, offline, for every stop.
+    GTFS platforms carry the ATLAS SLOID and the same coordinates as platforms.js, so each one is matched to the
+    edge at its position (≤ 3 m); platforms that match no single edge count for the stop as a whole (edge null)."""
+    import zipfile
+    from collections import Counter, defaultdict
+    z = zipfile.ZipFile(zip_path)
+
+    def rows(name):
+        with z.open(name) as f:
+            r = csv.reader(io.TextIOWrapper(f, encoding='utf-8-sig'))
+            hdr = next(r)
+            for row in r:
+                yield dict(zip(hdr, row))
+
+    where = {}  # GTFS stop_id → (uic, edge index or None)
+    for row in rows('stops.txt'):
+        uic = row.get('didok', '')
+        st = stops.get(uic)
+        if not st or row.get('location_type') == '1':
+            continue
+        ll = (float(row['stop_lon']), float(row['stop_lat']))
+        d = [dist_m(ll, e) for e in st['edges']]
+        i = min(range(len(d)), key=d.__getitem__)
+        where[row['stop_id']] = (uic, i if d[i] <= 3 and sorted(d)[1:2] != [d[i]] else None)
+    log(f'gtfs: {len(where)} platforms/stops matched to {len({u for u, _ in where.values()})} stops')
+    line_of = {row['route_id']: row['route_short_name'] for row in rows('routes.txt')}
+    pairs, trip = {}, {}
+    for row in rows('trips.txt'):
+        pr = (line_of.get(row['route_id'], ''), row.get('trip_headsign', ''))
+        trip[row['trip_id']] = pairs.setdefault(pr, len(pairs))
+    pair_list = list(pairs)
+    log(f'gtfs: {len(trip)} trips, {len(pairs)} line/destination pairs; reading stop_times (a few minutes)')
+    counts = defaultdict(Counter)  # (uic, edge) → Counter(pair index)
+    n = 0
+    with z.open('stop_times.txt') as f:
+        hdr = [h.strip('"') for h in f.readline().decode('utf-8-sig').strip().split(',')]
+        ti, si = hdr.index('trip_id'), hdr.index('stop_id')
+        pi = hdr.index('pickup_type') if 'pickup_type' in hdr else None
+        for raw in f:
+            parts = raw.decode('utf-8').rstrip().split(',')
+            sid = parts[si].strip('"')
+            w = where.get(sid)
+            if w and (pi is None or parts[pi].strip('"') != '1'):  # 1 = no boarding here (drop-off only)
+                p = trip.get(parts[ti].strip('"'))
+                if p is not None:
+                    counts[w][p] += 1
+            n += 1
+            if n % 20_000_000 == 0:
+                log(f'  {n // 1_000_000} M stop times')
+    out = defaultdict(list)
+    for (uic, edge), c in counts.items():
+        lines, dests = Counter(), Counter()
+        here = {norm(stops[uic]['name']), norm(stops[uic]['name'].split(',')[-1])}
+        for p, k in c.items():
+            line, dest = pair_list[p]
+            if dest and (norm(dest) in here or norm(dest.split(',')[-1]) in here):
+                continue  # trips that end here: nobody boards them towards "here"
+            if line:
+                lines[line] += k
+            if dest:
+                dests[dest] += k
+        out[uic].append([edge, ' '.join(l for l, _ in lines.most_common(max_lines)),
+                         '|'.join(d for d, _ in dests.most_common(max_dests))])
+    log(f'gtfs: lines for {len(out)} stops')
+    write({}, stops, lines_by_stop=out)
 
 
 def safe_collect(stop, *a):
-    """One stop that fails (odd data, a source down) must not stop a national build: it gets no photos this time."""
+    """One stop that fails must not stop a national build. → (refs, complete); refs None = keep what it had."""
+    _stop_state.failed = False
     try:
-        return collect(stop, *a)
+        refs = collect(stop, *a)
+        return refs, not _stop_state.failed
     except Exception as e:
         log(f'  ! {stop["uic"]} {stop["name"]}: {type(e).__name__}: {str(e)[:120]}')
-        return None
+        return None, False
 
 
 def calibrate(stops):
@@ -779,14 +1047,11 @@ def calibrate(stops):
     import numpy as np
     db = {}
     for name in os.listdir(os.path.join(OUT, 't')):
-        if not name.endswith('.js'):
-            continue
-        with open(os.path.join(OUT, 't', name), encoding='utf-8') as f:
-            t = f.read()
-        db.update(json.loads(t[t.index('{'):t.rindex('}') + 1]))
+        if name.endswith('.js'):
+            db.update(read_tile(os.path.join(OUT, 't', name))['s'])
     vecs = {}
     for uic, refs in db.items():
-        vs = [np.frombuffer(base64.b64decode(r[10]), dtype=np.int8).astype(np.float32) for r in refs]
+        vs = [np.frombuffer(base64.b64decode(r[7]), dtype=np.int8).astype(np.float32) for r in refs]
         vecs[uic] = [(r[1], v / np.linalg.norm(v)) for r, v in zip(refs, vs)]
     same, other, res = [], [], []
     uics = [u for u in vecs if u in stops]
@@ -823,11 +1088,18 @@ def main():
     ap.add_argument('--mapillary-token-file')
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--calibrate', action='store_true', help='measure how well photos alone tell nearby stops apart')
+    ap.add_argument('--migrate', action='store_true', help='convert format-1 tiles (0.1°, 768 values) to format 2')
+    ap.add_argument('--gtfs', metavar='ZIP', help='add the lines and destinations of every stop edge from a Swiss GTFS zip '
+                    '(opentransportdata.swiss "Fahrplan GTFS"), for all stops')
     ap.add_argument('--resume', action='store_true',
                     help='skip stops finished by an earlier run with the same area/modes (checkpoint in ~/.cache/stopvision)')
     a = ap.parse_args()
     if a.calibrate:
         return calibrate(load_stops())
+    if a.migrate:
+        return migrate(load_stops())
+    if a.gtfs:
+        return build_lines(load_stops(), a.gtfs)
     bbox = AREAS.get(a.area) if a.area else tuple(map(float, a.bbox.split(','))) if a.bbox else \
         (5.9, 45.8, 10.5, 47.85) if a.all else None
     if not bbox:
@@ -863,15 +1135,16 @@ def main():
         part = todo[i:i + batch]
         with cf.ThreadPoolExecutor(a.workers) as pool:
             got = list(pool.map(lambda s: safe_collect(s, wd, sbb, osm, token), part))
-        # empty lists too: they replace wrong photos from earlier runs; failed stops (None) keep what they had
-        chunk = {s['uic']: refs for s, refs in zip(part, got) if refs is not None}
-        fingerprint(chunk, embedder)
-        write(chunk, stops,
-              keep_srcs=() if token and MLY['ok'] else ('mapillary',))
+        # complete stops replace what they had (that is how wrong photos from earlier runs go away); incomplete ones
+        # (a source did not answer, a photo did not download) only add, and are not checkpointed, so --resume retries
+        chunk = {s['uic']: refs for s, (refs, _) in zip(part, got) if refs is not None}
+        incomplete = {s['uic'] for s, (refs, ok) in zip(part, got) if not ok}
+        incomplete |= fingerprint(chunk, embedder)
+        write(chunk, stops, keep_srcs=() if token and MLY['ok'] else ('mapillary',), keep_all=incomplete)
         refs_by_stop.update(chunk)
         os.makedirs(CACHE, exist_ok=True)
         with open(ckpt, 'a') as f:
-            f.writelines(f'{u}\n' for u in chunk)
+            f.writelines(f'{u}\n' for u in chunk if u not in incomplete)
         done += len(part)
         log(f'{done}/{len(todo)} stops, {sum(1 for v in refs_by_stop.values() if v)} with photos')
 

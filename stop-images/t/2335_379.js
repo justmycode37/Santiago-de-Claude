@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2335_379",{"s":{},"d":{"8576842":[[0,"3","Reutigen, Hintere Gasse"],[1,"3","Steffisburg, Alte Bernstrasse|Thun, Bahnhof|Blumenstein, Dorf|Heimberg, Dornhalde|Pohlern, Rohrmoos"]]}});

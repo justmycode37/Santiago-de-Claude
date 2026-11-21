@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_333",{"s":{},"d":{"8570167":[[0,"60 670","Froideville|Yverdon-les-Bains, gare|Echallens, gare|Riponne-M.Béjart|Lausanne-Gare"],[1,"60 670","Riponne-M.Béjart|Froideville, Laiterie|Lausanne-Gare"]]}});

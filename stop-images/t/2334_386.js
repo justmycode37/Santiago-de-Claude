@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_386",{"s":{},"d":{"8507155":[[0,"13 14 10 119 125 15 16 19 20 21","Thun (See)|Interlaken West (See)|Beatenbucht (See)"]],"8507177":[[0,"21","Interlaken Ost, Bahnhof|Beatenbucht"],[null,"21","Thun, Bahnhof"],[1,"21 M25","Thun, Bahnhof"]]}});

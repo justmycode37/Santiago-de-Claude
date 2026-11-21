@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_349",{"s":{},"d":{"8581638":[[0,"",""],[null,"334","Cousset, gare|Cousset, centre sportif|Payerne, gymnase"]],"8581636":[[0,"334 N13","Cousset, gare|Vallon, Musée romain|Fribourg/Freiburg, gare rout.|Cousset, centre sportif"]],"8581804":[[null,"334","Cousset, gare|Cousset, centre sportif"],[0,"334","Mannens, école"]]}});

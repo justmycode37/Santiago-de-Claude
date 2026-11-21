@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_421",{"s":{},"d":{"8573268":[[1,"535","Oberglatt ZH, Bahnhof"],[0,"535","Bülach, Bahnhof|Stadel b. N., Neuwis-Huus"]],"8573269":[[1,"535","Oberglatt ZH, Bahnhof"],[0,"535","Bülach, Bahnhof|Stadel b. N., Neuwis-Huus"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2316_371",{"s":{},"d":{"8570805":[[0,"352","Anzère, Barrage de Tseuzier"],[1,"352","Botyre (Ayent), Le Creux"]],"8570804":[[0,"352","Anzère, Barrage de Tseuzier"],[1,"352","Botyre (Ayent), Le Creux"]]}});

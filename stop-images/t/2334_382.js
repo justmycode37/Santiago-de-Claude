@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_382",{"s":{},"d":{"8588103":[[1,"1 M40 EV1","Steffisburg, Flühli|Thun, Bahnhof|Gwatt, Deltapark"],[0,"1 M40","Spiez, Bahnhof|Interlaken West, Bahnhof"]],"8507288":[[null,"R11","Zweisimmen|Spiez|Bern|Boltigen"]],"8509484":[[1,"",""],[0,"",""]],"8507299":[[0,"R11","Zweisimmen|Spiez|Bern|Boltigen"]]}});

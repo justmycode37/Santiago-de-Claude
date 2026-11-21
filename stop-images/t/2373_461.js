@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2373_461",{"s":{},"d":{"8506586":[[null,"740","Uzwil, Bahnhof|Sitterdorf, Bruggfeld"],[0,"740","Uzwil, Bahnhof"],[1,"740","Bischofszell Stadt, Bahnhof"]],"8506587":[[0,"740","Uzwil, Bahnhof|Sitterdorf, Bruggfeld"],[null,"740","Bischofszell Stadt, Bahnhof"]]}});

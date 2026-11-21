@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_379",{"s":{},"d":{"8500761":[[0,"129 131","Gänsbrunnen, Bahnhof|Welschenrohr, Zentrum|Herbetswil, Mieschegg|Herbetswil, Hinterer Brandberg"],[1,"129 131","Balsthal, Bahnhof|Balsthal, Thalbrücke|Oensingen, Bahnhof"],[null,"129","Welschenrohr, Zentrum|Balsthal, Bahnhof"]]}});

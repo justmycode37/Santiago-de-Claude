@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_342",{"s":{},"d":{"8583820":[[0,"424","Cernier, centre|Les Geneveys-sur-Coffrane,gare"],[null,"424","Les Geneveys-sur-Coffrane,gare"]],"8504745":[[0,"424 380 120","Cernier, centre|Neuchâtel, gare sud|Les Geneveys-sur-Coffrane,gare|Auvernier, Pacotte"],[1,"380 424","Le Locle, gare/centre ville|Rochefort, Carrefour"],[null,"424","Rochefort, Carrefour"]]}});

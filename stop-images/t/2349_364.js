@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_364",{"s":{},"d":{"8507776":[[0,"100","Aarberg, Post/Bahnhof"],[null,"100","Aarberg, Post/Bahnhof"],[1,"100","Bern, Hauptbahnhof"]],"8571352":[[0,"100","Aarberg, Post/Bahnhof"],[null,"100","Aarberg, Post/Bahnhof"],[1,"100","Bern, Hauptbahnhof"]]}});

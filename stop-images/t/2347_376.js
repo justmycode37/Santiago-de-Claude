@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_376",{"s":{},"d":{"8582744":[[0,"782","Boll-Utzigen, Bahnhof"]],"8507066":[[0,"S7","Worb Dorf|Bern|Worblaufen|Boll-Utzigen"]],"8589043":[[null,"M72","Boll-Utzigen, Bahnhof|Bern, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_439",{"s":{},"d":{"8506005":[[0,"S26 S11","Winterthur|Winterthur Grüze|Wila|Aarau|Lenzburg|Bauma"],[1,"S26 S11","Rüti ZH|Bauma|Aarau|Wila"]],"8580793":[[null,"EV7","Winterthur, Hauptbahnhof"],[0,"",""]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2368_454",{"s":{},"d":{"8574001":[[0,"768","Ganterschwil, alte Post|Bütschwil, Bahnhof"],[null,"768","Bütschwil, Bahnhof|Bütschwil, Hofwiesen"]],"8580582":[[0,"768","Ganterschwil, alte Post"],[1,"768","Bütschwil, Bahnhof|Bütschwil, Hofwiesen"],[null,"768","Bütschwil, Bahnhof"]]}});

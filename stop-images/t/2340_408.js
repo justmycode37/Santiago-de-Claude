@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_408",{"s":{},"d":{"8582460":[[0,"361","Lungern, Dorfkapelle"],[null,"361","Lungern, Dorfkapelle"]],"8508311":[[0,"LIX IRLIX EXT","Luzern|Interlaken Ost|Meiringen|Brünig-Hasliberg"],[null,"LIX","Luzern"]]}});

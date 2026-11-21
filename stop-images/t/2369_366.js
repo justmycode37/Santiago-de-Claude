@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2369_366",{"s":{},"d":{"8572003":[[0,"6","Pleigne, Place du 23-Juin"],[1,"6","Soyhières, place de la Liberté|Châtillon JU, haut du village|Delémont, gare|Movelier, Place du 23 Juin|Rossemaison, haut du village|Delémont, gare CFF sud"]]}});

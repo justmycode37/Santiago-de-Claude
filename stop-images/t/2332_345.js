@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_345",{"s":{},"d":{"8504265":[[0,"476","Romont FR, gare"]],"8596069":[[1,"482","Estévenens, dessus|Vuisternens-dt-Romont, école|Villariaz, village"],[0,"482","Sommentier, Abri PC"]]}});

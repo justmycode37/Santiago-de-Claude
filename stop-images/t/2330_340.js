@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_340",{"s":{},"d":{"8504018":[[0,"R9 R8 SN EXT","Payerne|Murten/Morat|Lausanne|La Conversion|Avenches"],[1,"R9 R8","Allaman|Lausanne|Palézieux|Morges|Renens VD|Puidoux"]],"8510140":[[null,"EV5","Murten/Morat, Bahnhof"]],"8577660":[[0,"473 N24","Palézieux, gare"],[1,"473 N24","Romont FR, gare|Bulle, gare routière"]]}});

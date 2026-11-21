@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_433",{"s":{},"d":{"8573435":[[null,"N69 630","Schaffhausen, Bahnhof"],[4,"621 N69 630","Ossingen, Bahnhof|Schaffhausen, Bahnhof"],[3,"621","Marthalen, Bahnhof"]],"8580722":[[0,"623 N60","Marthalen, Bahnhof|Rheinau, Unterstadt"],[1,"623 N60","Ossingen, Bahnhof|Andelfingen, Bahnhof"],[null,"N60","Rheinau, Unterstadt|Andelfingen, Bahnhof"]]}});

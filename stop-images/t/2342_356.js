@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_356",{"s":{},"d":{"8504183":[[0,"S21 S20","Fribourg/Freiburg|Givisiez"],[1,"S21 S20","Neuchâtel|Münchenwiler-Courgevaux|Ins|Murten/Morat|Sugiez"]],"8504032":[[0,"EV5 N14","Fribourg/Freiburg, gare rout.|Vallon, Musée romain|Neuchâtel, gare sud"],[null,"EV5","Neuchâtel, gare sud"],[1,"N14","Fribourg/Freiburg, gare rout."]]}});

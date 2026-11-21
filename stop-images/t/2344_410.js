@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_410",{"s":{},"d":{"8508790":[[0,"344","Sarnen, Bahnhof|Stalden (Sarnen), Sportplatz|Langis"],[null,"344","Sarnen, Bahnhof"]],"8572905":[[0,"344","Stalden (Sarnen), Sportplatz|Langis|Sarnen, Bahnhof"],[1,"344","Sarnen, Bahnhof"]],"8579959":[[0,"344","Sarnen, Bahnhof|Langis"],[null,"344","Sarnen, Bahnhof"]]}});

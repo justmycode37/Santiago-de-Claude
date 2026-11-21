@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2351_386",{"s":{},"d":{"8508285":[[0,"EXT R","Huttwil|Sumiswald-Grünen|Wasen i.E."]],"8593272":[[null,"483","Huttwil, Bahnhof|Sumiswald-Grünen, Bahnhof"]],"8508272":[[1,"EXT R","Huttwil|Wasen i.E."],[0,"S44 S45","Burgdorf|Thun|Ramsei|Burgistein|Hasle-Rüegsau"]],"8587244":[[null,"481 482","Wasen i.E., Stegmatt|Sumiswald, Post|Heimisbach, Thal"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_496",{"s":{},"d":{"8509257":[[0,"R15 RE3","Pontresina|Scuol-Tarasp|St. Moritz|Landquart|Sagliains|Zuoz"]],"8587850":[[1,"608 611 613 EV13","Chamues-ch, plaz|Samedan, Bahnhof|St. Moritz, Bahnhof"],[0,"608 611 613","Cinuos-chel-Brail, staziun|S-chanf, Chesa cumünela|S-chanf, Pradels|S-chanf, Parc Naziunal|Zuoz, staziun"]]}});

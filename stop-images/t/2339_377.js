@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_377",{"s":{},"d":{"8507071":[[null,"S4 S44","Thun|Langnau i.E.|Sumiswald-Grünen | Solothurn|Bern|Burgdorf | Solothurn|Hasle-Rüegsau"]],"8587421":[[0,"53 M28","Blumenstein, Dorf|Thierachern, Wegweiser|Wattenwil, Postgasse|Wattenwil, Bären"]]}});

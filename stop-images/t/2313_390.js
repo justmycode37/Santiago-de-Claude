@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2313_390",{"s":{},"d":{"8571060":[[0,"528","Bürchen, Station|Moosalp|Bürchen, Egga|Bürchen, Zenhäusern|Bürchen, Bürchneralp"],[1,"528","Visp, Bahnhof Süd|Visp, Lonzawerke|Visp, Forsthaus"]],"8571059":[[0,"528","Bürchen, Station|Moosalp|Bürchen, Egga|Bürchen, Zenhäusern|Bürchen, Bürchneralp"],[1,"528","Visp, Bahnhof Süd|Visp, Lonzawerke|Visp, Forsthaus"]]}});

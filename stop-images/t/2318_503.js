@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2318_503",{"s":{},"d":{"8575117":[[0,"702 701","S. Carlo GR, Percosta|Samedan, Bahnhof|La Rösa"],[1,"702 701","Campocologno, Stazione|Le Prese, Stazione|Poschiavo, Stazione|Miralago, Stazione|Tirano, Stazione"],[null,"702","S. Carlo GR, Percosta|Campocologno, Stazione"]]}});

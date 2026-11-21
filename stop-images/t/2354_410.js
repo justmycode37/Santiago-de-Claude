@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_410",{"s":{},"d":{"8502754":[[0,"70 72","Sempach Station|Neuenkirch, Lippenrüti"],[1,"72 70","Luzern, Bahnhof|Rothenburg Station, Bhf. West|Luzern, Pilatusplatz"],[null,"N72 70","Neuenkirch, Lippenrüti|Luzern, Bahnhof|Sempach Station|Rothenburg Station, Bhf. West"]]}});

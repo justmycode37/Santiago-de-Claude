@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_390",{"s":{},"d":{"8505444":[[1,"41","Eriz, Säge"],[0,"41","Thun, Bahnhof|Schwarzenegg, Dorf"]],"8576638":[[1,"41","Eriz, Säge"],[0,"41","Thun, Bahnhof|Schwarzenegg, Dorf"]]}});

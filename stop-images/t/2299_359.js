@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2299_359",{"s":{},"d":{"8593536":[[0,"210 211","Bourg-St-Pierre, Commune|Le Grand-St-Bernard, Hospice|Bourg-St-Bernard|Aosta, Autostazione"],[1,"210","Orsières, gare"]],"8501886":[[0,"210 211","Bourg-St-Pierre, Commune|Le Grand-St-Bernard, Hospice|Bourg-St-Bernard|Aosta, Autostazione"],[1,"210","Orsières, gare"]]}});

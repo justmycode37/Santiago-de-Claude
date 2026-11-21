@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2326_431",{"s":{},"d":{"8587462":[[0,"120 117","Osogna, Maestos|Dalpe, Villaggio|Piotta, Funicolare|Biasca, Stazione|Ambrì, centro scolastico"],[1,"120 117","Airolo, Stazione|Airolo, Caseificio/Funivia"],[null,"120","Airolo, Stazione"]]}});

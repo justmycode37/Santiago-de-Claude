@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_402",{"s":{},"d":{"8588697":[[0,"127","Grindelwald, Bahnhof"]],"8507352":[[0,"2440","First (Grindelwald)|Grindelwald (Firstbahn)"]],"8507354":[[0,"2440","Grindelwald (Firstbahn)"]]}});

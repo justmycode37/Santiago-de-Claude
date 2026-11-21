@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_402",{"s":{},"d":{"8572816":[[null,"",""],[0,"261","Menzberg, Dorfplatz"]],"8508297":[[0,"S7 S6 S77 EXT","Luzern|Langenthal|Willisau|Huttwil|Wolhusen|Malters"],[1,"S6 S77 S7","Luzern|Zell LU|Langenthal|Huttwil|Willisau"]]}});

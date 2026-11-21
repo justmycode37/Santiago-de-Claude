@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_401",{"s":{},"d":{"8530354":[[0,"2503","Sörenberg (Talst. Rossweid)"]],"8583236":[[0,"241","Sörenberg, Rothornbahn|Glaubenbielen, Parkplatz|Sörenberg, Platz"],[1,"241","Schüpfheim, Bahnhof|Sörenberg, Post|Sörenberg, Südelhöchi"]]}});

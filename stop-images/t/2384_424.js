@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2384_424",{"s":{},"d":{"8503465":[[null,"S64","Schaffhausen|Erzingen (Baden)"]],"8595654":[[0,"",""],[1,"21","Siblingen, Am Stei"]],"8595089":[[0,"N77","Trasadingen, Langwis|Osterfingen, Lindenhof"],[1,"N77","Schaffhausen, Bahnhof"]]}});

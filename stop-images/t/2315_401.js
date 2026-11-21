@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2315_401",{"s":{},"d":{"8505728":[[0,"632","Brig, Bahnhof|Glis, Saltina"]],"8530233":[[0,"2320","Rosswald"]],"8571192":[[0,"632","Ried-Brig, Talstation LRR"],[1,"632","Brig, Bahnhof|Glis, Saltina"]],"8505720":[[0,"632","Ried-Brig, Talstation LRR"],[1,"632","Brig, Bahnhof|Glis, Saltina"]]}});

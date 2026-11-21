@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_359",{"s":{},"d":{"8504629":[[1,"127 124","Fribourg/Freiburg, gare rout."],[0,"127 124","Plaffeien, Dorf|Düdingen, Bahnhof"],[null,"N16","Heitenried, Dorf|Fribourg/Freiburg, gare rout."]]}});

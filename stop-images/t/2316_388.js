@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2316_388",{"s":{},"d":{"8507473":[[1,"RE1 RE11","Brig|Domodossola (I)|Iselle di Trasquera|Spiez|Bern|Lalden"],[0,"RE1 RE RE11","Bern|Spiez|Brig|Domodossola (I)|Biel/Bienne|Thun"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2312_376",{"s":{},"d":{"8530136":[[0,"GB","Crêt du Midi (station amont)"]],"8530134":[[0,"2194","Chalais (station aval)"]],"8511681":[[0,"457","Vissoie, poste|Vercorin, poste"]],"8501714":[[0,"441 EV","Sierre/Siders, gare routière|Chalais, téléphérique"]]}});

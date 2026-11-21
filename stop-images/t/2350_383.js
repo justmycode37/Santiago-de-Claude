@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_383",{"s":{},"d":{"8510923":[[null,"EV2 EV1","Hasle-Rüegsau, Bahnhof|Sumiswald-Grünen, Bahnhof|Langnau i.E., Bahnhof"]],"8571529":[[null,"471","Hasle-Rüegsau, Bahnhof|Affoltern-Weier, Bahnhof|Vorderrinderbach|Affoltern i.E., Dorf"]],"8582597":[[1,"472","Lützelflüh-Goldbach, Bahnhof"],[0,"472","Biglen, Bahnhof|Arni BE, Tanne"]]}});

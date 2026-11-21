@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_382",{"s":{},"d":{"8588548":[[0,"M12","Langenthal, Tell/Kantonalbank"]],"8500463":[[null,"16","Kriegstetten, Dorfplatz|Subingen, Schulzentrum|Derendingen, Oberstufenzentrum|Solothurn, Hauptbahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_371",{"s":{},"d":{"8508715":[[null,"871","Jegenstorf, Bahnhof"],[0,"882","Bätterkinden, Bahnhof|Messen, Kindergarten|Schnottwil, Post|Schnottwil, Schulhaus|Schnottwil, Oberdorf"]],"8571503":[[0,"885 886","Schnottwil, Post|Schnottwil, Oberdorf"],[null,"885 886","Lohn-Lüterkofen, Bahnhof|Gächliwil, Wendeplatz|Bätterkinden, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_416",{"s":{},"d":{"8510451":[[null,"",""]],"8578783":[[null,"EV1","Bad Zurzach, Bahnhof|Bülach, Bahnhof"],[0,"358","Baldingen, Oberdorf|Bad Zurzach, Bahnhof"]],"8503408":[[0,"S36 EXT S27","Bülach|Baden"],[1,"S36 EXT","Waldshut|Koblenz|Bad Zurzach"],[null,"EV3","Bülach, Bahnhof"]]}});

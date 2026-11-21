@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_405",{"s":{},"d":{"8500553":[[0,"371","Brugg AG, Bahnhof/Zentrum|Thalheim AG, Dorfplatz"],[null,"N42 371","Thalheim AG, Dorfplatz|Brugg AG, Bahnhof/Zentrum|Brugg AG, Bahnhof/Campus"]]}});

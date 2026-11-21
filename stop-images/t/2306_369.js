@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2306_369",{"s":{},"d":{"8579530":[[0,"374 372","Pralong, (Val d'Hérémence)|Dixence, Le Chargeur"],[1,"374 372","Les Masses, télésiège|Sion, poste/gare|Sion, Les Cèdres|Prolin|Les Collons, Cambuse"]]}});

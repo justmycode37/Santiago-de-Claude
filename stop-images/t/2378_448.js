@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_448",{"s":{},"d":{"8585763":[[0,"EV1 EV","Weinfelden, Bahnhof|Romanshorn, Bahnhof"],[null,"EV1","Frauenfeld, Bahnhof|Winterthur, Hauptbahnhof"]],"8585762":[[0,"EV1 EV","Weinfelden, Bahnhof|Romanshorn, Bahnhof"],[1,"EV1","Frauenfeld, Bahnhof|Winterthur, Hauptbahnhof"]]}});

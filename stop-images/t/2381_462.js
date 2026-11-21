@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_462",{"s":{},"d":{"8588122":[[0,"S1 SN71 S","Wil SG|Schaffhausen|Feuerthalen|Kreuzlingen|Altnau|St. Gallen"]],"8510466":[[null,"EV1","Kreuzlingen, Bahnhof|Romanshorn, Bahnhof"]],"8573426":[[0,"908 925","Konstanz, Zähringerplatz|Altnau, Kirche|Konstanz, Bahnhof"]]}});

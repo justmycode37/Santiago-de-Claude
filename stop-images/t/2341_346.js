@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_346",{"s":{},"d":{"8557132":[[0,"571","Payerne, Grandes Rayes|Payerne, gare"],[1,"571","Fétigny, Pré de Ville"]],"8511701":[[null,"572","Payerne, hôpital|Payerne, gare"],[0,"572","Payerne, Aéropôle"]],"8557138":[[0,"571 572","Fétigny, Pré de Ville|Payerne, Aéropôle"]],"8511700":[[1,"572","Payerne, hôpital|Payerne, gare"],[0,"572","Payerne, Aéropôle"]]}});

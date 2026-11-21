@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_405",{"s":{},"d":{"8577333":[[0,"62","Ruswil, Rottalcenter|Buttisholz, Dorf"],[1,"62","Sursee, Bahnhof"]],"8577332":[[0,"62","Ruswil, Rottalcenter|Buttisholz, Dorf"],[1,"62","Sursee, Bahnhof"]]}});

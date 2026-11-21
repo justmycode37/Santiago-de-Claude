@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2315_386",{"s":{},"d":{"8579554":[[0,"491 493","Visp, Bahnhof Süd|Visp, Lonzawerke|Raron, Schulhaus"],[1,"491","Leuk, Bahnhof|Turtmann, Bini|Turtmann, Seilbahn LTUO"],[null,"492","Gampel-Steg, Bahnhof|Leuk, Bahnhof|Turtmann, Bini|Turtmann, Abzw. Bahnhof|Turtmann, Seilbahn LTUO"]],"8530183":[[0,"2247","Jeizinen (Bergstation)"]]}});

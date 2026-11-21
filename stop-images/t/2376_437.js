@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_437",{"s":{},"d":{"8590980":[[1,"1 N1","Winterthur, Töss|Winterthur, Dättnau|Winterthur, Hauptbahnhof"],[0,"",""]],"8590987":[[null,"EV1 N63 EV2","Winterthur, Hauptbahnhof|Seuzach, Bahnhof|Thalheim-Altikon, Bahnhof"],[3,"N63","Winterthur, Hauptbahnhof"],[2,"",""]],"8506036":[[0,"S11 S29","Seuzach|Winterthur|Aarau|Stein am Rhein|Lenzburg|Mägenwil"]]}});

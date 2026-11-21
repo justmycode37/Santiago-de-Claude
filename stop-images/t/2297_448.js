@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2297_448",{"s":{},"d":{"8579029":[[0,"439","Campione, Casino"],[1,"431 439","Lugano, Autosilo Balestra|Lugano, Centro|Lugano, Belvedere"],[null,"",""]],"8505650":[[null,"3624 3621","Lugano Centrale (lago)|Ponte Tresa (lago)|Porto Ceresio (lago)"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_389",{"s":{},"d":{"8508273":[[null,"R","Huttwil"]],"8588512":[[null,"481","Wasen i.E., Stegmatt|Sumiswald-Grünen, Bahnhof"]],"8576689":[[null,"481","Wasen i.E., Stegmatt"]],"8587247":[[null,"481 285","Wasen i.E., Stegmatt|Sumiswald-Grünen, Bahnhof|Langnau i.E., Bahnhof"]]}});

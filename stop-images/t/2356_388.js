@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_388",{"s":{},"d":{"8575344":[[0,"90","Kleindietwil, Post"]],"8571561":[[0,"90","Kleindietwil, Post"]],"8571550":[[0,"90","Kleindietwil, Post"]],"8571549":[[0,"90","Walterswil BE, Dorf"]]}});

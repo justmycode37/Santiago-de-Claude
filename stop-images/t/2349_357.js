@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_357",{"s":{},"d":{"8571246":[[0,"M22","Galmiz, Käserei"]],"8504484":[[0,"S5 S52 S IR66","Bern|Neuchâtel|Ins|Bern Brünnen Westside|Kerzers"],[1,"IR66 S5 S52","Bern|Ins|Neuchâtel|Kerzers|La Chaux-de-Fonds"]]}});

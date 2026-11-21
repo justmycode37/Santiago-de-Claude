@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_434",{"s":{},"d":{"8577456":[[0,"501","Muotathal, Hölloch"],[null,"501","Arth, Tafelstatt|Schwyz, Bahnhof|Lauerz, Dorf|Schwyz, Zentrum|Arth-Goldau, Bahnhof|Oberarth, Bifang"]],"8577455":[[0,"501","Muotathal, Hölloch"],[1,"501","Arth, Tafelstatt|Schwyz, Bahnhof|Lauerz, Dorf|Schwyz, Zentrum|Arth-Goldau, Bahnhof|Oberarth, Bifang"]]}});

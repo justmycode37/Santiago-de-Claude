@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2367_471",{"s":{},"d":{"8579826":[[null,"B21 EV","Appenzell, Bahnhof|Trogen, Bahnhof|St. Gallen, Bahnhof"],[1,"EV21 EV22","Gais, Bahnhof|Teufen AR, Bahnhof|Trogen, Bahnhof"],[0,"EV21 EV20","Appenzell, Bahnhof"]],"8506381":[[1,"S21 S22 S20","Appenzell"],[0,"S21 S22 S20","Trogen|St. Gallen|Teufen AR"],[null,"S21","Appenzell|Trogen|St. Gallen|Teufen AR"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2309_407",{"s":{},"d":{"8582817":[[0,"633","Zwischbergen, Bord|Gondo, Kirche"]],"8501797":[[0,"631 633","Iselle, stazione|Zwischbergen, Bord|Domodossola, stazione"],[1,"631","Brig, Bahnhof|Simplon Dorf, Post"]]}});

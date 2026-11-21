@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2343_379",{"s":{},"d":{"8588257":[[0,"EV5 160","Konolfingen, Bahnhof"],[1,"160 EV5 EV3","Bern Flughafen|Münsingen, Bahnhof|Bern, Bahnhof"],[null,"EV5 M20","Konolfingen, Bahnhof|Münsingen, Bahnhof|Langnau i.E., Bahnhof|Bern, Bahnhof|Trubschachen, Bahnhof"]]}});

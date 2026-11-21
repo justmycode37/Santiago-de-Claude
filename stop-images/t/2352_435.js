@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_435",{"s":{},"d":{"8573764":[[0,"554","Brunni SZ, Talstation LBH"],[1,"554","Einsiedeln, Bahnhof|Einsiedeln, Brüel"]],"8503750":[[0,"554","Einsiedeln, Bahnhof|Einsiedeln, Brüel"],[1,"",""]],"8530402":[[0,"PB","Holzegg"]],"8573763":[[0,"554","Brunni SZ, Talstation LBH"],[null,"554","Einsiedeln, Bahnhof|Einsiedeln, Brüel"]]}});

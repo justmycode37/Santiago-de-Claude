@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_322",{"s":{},"d":{"8570135":[[1,"750 752","Cossonay-Penthalaz, gare|Cossonay-Ville, centre"],[0,"750 752","Mont-la-Ville, Le Battoir|Montricher,Fondation Michalski|Le Pont, gare"]],"8570136":[[null,"750 752","Cossonay-Penthalaz, gare|Cossonay-Ville, centre"],[0,"750 752","Mont-la-Ville, Le Battoir|Montricher,Fondation Michalski|Le Pont, gare"]]}});

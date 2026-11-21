@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_404",{"s":{},"d":{"8585198":[[0,"174","Brienzwiler, Bahnhof|Meiringen, Bahnhof"],[null,"174","Meiringen, Bahnhof|Meiringen, Luftseilbahn"]],"8585197":[[0,"174","Brienzwiler, Bahnhof|Meiringen, Bahnhof"],[1,"174","Meiringen, Bahnhof|Meiringen, Luftseilbahn"]]}});

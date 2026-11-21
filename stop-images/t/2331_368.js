@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_368",{"s":{},"d":{"8504732":[[0,"270 EV1 259","Boltigen, Bahnhof|Spiez, Bahnhof"],[1,"270 EV1 259","Zweisimmen, Bahnhof Ost|Zweisimmen, Bahnhof|Jaun, Bergbahnen|Jaunpass, Restaurant"]]}});

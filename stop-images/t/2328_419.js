@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2328_419",{"s":{},"d":{"8580044":[[0,"681","Oberwald, Bahnhof|Gletsch, Post"],[1,"681","Andermatt, Bahnhofplatz|Furka Passhöhe"]],"8505754":[[0,"681","Oberwald, Bahnhof|Gletsch, Post"],[1,"681","Andermatt, Bahnhofplatz|Furka Passhöhe"]]}});

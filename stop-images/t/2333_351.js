@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2333_351",{"s":{},"d":{"8577777":[[0,"471","Bulle, gare routière"],[1,"471","Romont FR, gare|Romont FR, Esplanade Arruffens|Sorens, Camping"]],"8588598":[[0,"471","Bulle, gare routière"],[1,"471","Romont FR, gare|Romont FR, Esplanade Arruffens"]]}});

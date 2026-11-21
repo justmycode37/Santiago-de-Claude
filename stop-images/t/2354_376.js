@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_376",{"s":{},"d":{"8508061":[[0,"RE5 S8","Solothurn|Bern|Worblaufen|Zollikofen|Bätterkinden"],[1,"S8","Bätterkinden"]],"8587810":[[null,"M11","Zuchwil, Kornfeld|Solothurn, Hauptbahnhof|Solothurn, Amthausplatz"]],"8589025":[[null,"M11","Zuchwil, Kornfeld|Bern, Bahnhof|Solothurn, Hauptbahnhof|Solothurn, Amthausplatz"]]}});

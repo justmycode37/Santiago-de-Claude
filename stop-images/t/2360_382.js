@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2360_382",{"s":{},"d":{"8576902":[[0,"51","Melchnau, Oberdorf|Langenthal, Tell/Kantonalbank|Röthenbach b. H., Post|Herzogenbuchsee, Bahnhof"],[1,"51","Wangen a.d.Aare, Zytglogge"]],"8576903":[[0,"51","Melchnau, Oberdorf|Langenthal, Tell/Kantonalbank|Röthenbach b. H., Post|Herzogenbuchsee, Bahnhof"],[1,"51","Wangen a.d.Aare, Zytglogge"]]}});

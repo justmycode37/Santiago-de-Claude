@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_374",{"s":{},"d":{"8572340":[[0,"129","Gänsbrunnen, Bahnhof"],[1,"129","Balsthal, Bahnhof|Balsthal, Thalbrücke"]],"8572339":[[0,"129","Gänsbrunnen, Bahnhof"],[1,"129","Balsthal, Bahnhof|Balsthal, Thalbrücke"]]}});

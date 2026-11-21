@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2379_462",{"s":{},"d":{"8573419":[[0,"931","Amriswil, Bahnhof"],[1,"931","Münsterlingen, Spitaleingang"]],"8582191":[[0,"931","Amriswil, Bahnhof"],[1,"931","Münsterlingen, Spitaleingang"]],"8506611":[[0,"931","Amriswil, Bahnhof"],[1,"931","Münsterlingen, Spitaleingang"]],"8582171":[[0,"931","Amriswil, Bahnhof"],[1,"931","Münsterlingen, Spitaleingang"]]}});

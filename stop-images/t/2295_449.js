@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2295_449",{"s":{},"d":{"8575698":[[0,"541","Arogno, Paese|Rovio, Ala Materna"],[1,"541","Capolago, Stazione|Riva S. Vitale, Piazza Scuole"],[null,"541","Capolago, Stazione"]],"8587130":[[0,"541","Arogno, Paese|Rovio, Ala Materna"],[1,"541","Capolago, Stazione|Riva S. Vitale, Piazza Scuole"],[null,"541","Capolago, Stazione"]]}});

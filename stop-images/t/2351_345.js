@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2351_345",{"s":{},"d":{"8579603":[[1,"422","Villiers, centre|Cernier, centre"],[0,"422","Neuchâtel, Place Pury|Neuchâtel, Oriette"]],"8579604":[[1,"422","Villiers, centre|Cernier, centre"],[0,"422","Neuchâtel, Place Pury|Neuchâtel, Oriette"]]}});

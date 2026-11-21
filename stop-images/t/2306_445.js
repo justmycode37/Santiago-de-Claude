@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2306_445",{"s":{},"d":{"8510746":[[0,"455","Rivera, Passo del Ceneri"]],"8530459":[[0,"2640","Alpe Foppa"]],"8507230":[[null,"231","Cadenazzo, Stazione"],[0,"455 231","Rivera-Bironico, Posta/FFS|Cadenazzo, Stazione"]]}});

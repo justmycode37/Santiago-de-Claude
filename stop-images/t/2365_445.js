@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2365_445",{"s":{},"d":{"8503137":[[0,"S26","Rüti ZH|Winterthur|Winterthur Grüze|Bauma"]],"8587955":[[1,"854","Bauma, Bahnhof"],[0,"854","Rüti ZH, Bahnhof"]],"8587936":[[0,"",""],[null,"",""],[1,"",""]]}});

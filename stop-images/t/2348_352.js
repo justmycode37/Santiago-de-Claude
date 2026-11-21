@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_352",{"s":{},"d":{"8581750":[[0,"535","Ins, Bahnhof"],[1,"535","Avenches, gare"]],"8504571":[[null,"3212 3215","Murten/Morat (Schiff/bateau)|Neuchâtel (bateau)|Biel/Bienne (Schiff/bateau)"]]}});

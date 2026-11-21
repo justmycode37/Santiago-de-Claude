@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2380_438",{"s":{},"d":{"8506953":[[null,"",""],[0,"822","Frauenfeld, Bahnhof"]],"8506590":[[0,"822","Oberneunforn, Gemeindehaus"],[1,"822","Frauenfeld, Bahnhof"]],"8557098":[[0,"605","Andelfingen, Bahnhof"],[1,"605","Oberstammheim, Rietweg"]],"8573201":[[0,"605","Andelfingen, Bahnhof"],[1,"605","Oberstammheim, Rietweg"]]}});

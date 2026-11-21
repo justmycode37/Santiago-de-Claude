@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_479",{"s":{},"d":{"8574748":[[0,"41","Calfreisen, Abzw.|Chur, Postautostation|Arosa, Bahnhof"]],"8574747":[[0,"41","Peist, Schulhaus|Calfreisen, Dorf"],[null,"41","Arosa, Bahnhof"],[1,"41","Chur, Postautostation|Maladers, Dorf"]]}});

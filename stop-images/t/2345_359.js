@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_359",{"s":{},"d":{"8570542":[[0,"122","Kerzers, Bahnhof"],[1,"122","Düdingen, Bahnhof"]],"8504783":[[0,"122","Kerzers, Bahnhof"],[1,"122","Düdingen, Bahnhof"]],"8570541":[[0,"122","Kerzers, Bahnhof"],[1,"122","Düdingen, Bahnhof"]]}});

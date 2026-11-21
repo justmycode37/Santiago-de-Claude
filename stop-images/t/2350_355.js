@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_355",{"s":{},"d":{"8571245":[[1,"521 527 M22","Ins, Bahnhof|Galmiz, Käserei"],[null,"M32 521","Erlach, Stedtli|Ins, Bahnhof|Gals, Bethlehem"],[0,"521 527","Erlach, Stedtli|Le Landeron, gare"]],"8504468":[[0,"S37","Ins|Biel/Bienne|Lüscherz|Täuffelen|Siselen-Finsterhennen"]]}});

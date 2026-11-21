@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_384",{"s":{},"d":{"8589391":[[1,"32 42","Riehen, Rotengraben|Riehen, Bettingerstrasse|Riehen, Habermatten|Basel, Drei Linden"],[0,"32 42","Bettingen, Chrischonaklinik"]],"8589388":[[0,"32 42","Riehen, Rotengraben|Riehen, Bettingerstrasse|Riehen, Habermatten|Basel, Drei Linden"]]}});

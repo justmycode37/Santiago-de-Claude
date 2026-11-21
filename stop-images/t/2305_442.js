@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2305_442",{"s":{},"d":{"8505612":[[0,"352","Indemini, Paese"],[null,"352","Magadino, Casa Comunale"]],"8505602":[[0,"352","Indemini, Paese"],[1,"352","Magadino, Casa Comunale"]],"8505600":[[0,"352","Indemini, Paese"],[1,"352","Magadino, Casa Comunale"]],"8575540":[[0,"352","Indemini, Paese"],[1,"352","Magadino, Casa Comunale"]]}});

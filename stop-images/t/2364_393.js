@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_393",{"s":{},"d":{"8572692":[[null,"612","Rothrist, Bahnhof|Glashütten, Kirche|Rothrist, Oberwil|Rothrist, Sennhof-Dörfli"]],"8572693":[[null,"612","Rothrist, Bahnhof|Glashütten, Kirche|Rothrist, Oberwil|Rothrist, Sennhof-Dörfli"]],"8502713":[[null,"612","Rothrist, Bahnhof|Glashütten, Kirche|Rothrist, Sennhof-Dörfli"]]}});

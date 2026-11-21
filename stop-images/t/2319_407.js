@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2319_407",{"s":{},"d":{"8579365":[[0,"652","Binn, Dorf"],[1,"652","Fiesch, Bahnhof|Ernen, Dorfplatz"]],"8505743":[[0,"652","Binn, Dorf"],[null,"652","Fiesch, Bahnhof"]],"8578899":[[0,"652","Ernen, Dorfplatz|Binn, Dorf"],[null,"652","Fiesch, Bahnhof"]],"8501896":[[0,"652 655","Fiesch, Bahnhof|Binn, Dorf|Mühlebach (Goms), Ernergalen|Mühlebach (Goms), Dorf"]]}});

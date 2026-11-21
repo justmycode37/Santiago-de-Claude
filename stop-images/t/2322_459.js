@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2322_459",{"s":{},"d":{"8511939":[[0,"542","S. Bernardino, Campeggio|S. Bernardino, Albarella|S. Bernardino, Funivia"],[1,"542","S. Bernardino, Du Lagh"]],"8511940":[[0,"542","S. Bernardino, Campeggio|S. Bernardino, Albarella|S. Bernardino, Funivia"],[1,"542","S. Bernardino, Du Lagh|S. Bernardino, Bivio Fornas"]]}});

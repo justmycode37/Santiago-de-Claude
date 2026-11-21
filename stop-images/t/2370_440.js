@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2370_440",{"s":{},"d":{"8573514":[[0,"825","Turbenthal, Bahnhof"],[null,"825","Turbenthal, Bahnhof"],[1,"825","Pfäffikon ZH, Bahnhof"]],"8573513":[[null,"825","Turbenthal, Bahnhof"],[0,"825","Turbenthal, Bahnhof"],[1,"825","Pfäffikon ZH, Bahnhof"]]}});

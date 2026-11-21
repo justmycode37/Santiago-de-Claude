@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_434",{"s":{},"d":{"8503292":[[0,"S31 VAE","Arth-Goldau|Biberbrugg|Rapperswil SG|St. Gallen|Brunnadern-Neckertal"]],"8587856":[[1,"507","Schwyz, Zentrum"],[0,"507","Schindellegi, Chaltenboden|Biberbrugg, Bahnhof"],[null,"EV1","Arth-Goldau, Bahnhof|Biberbrugg, Bahnhof"]]}});

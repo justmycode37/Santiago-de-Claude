@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_358",{"s":{},"d":{"8504465":[[0,"S37","Ins|Biel/Bienne|Täuffelen|Ins Dorf|Siselen-Finsterhennen"]],"8576651":[[null,"M32 525","Erlach, Stedtli|Biel/Bienne, Bahnhof/Gare"],[0,"525","Erlach, Stedtli"]]}});

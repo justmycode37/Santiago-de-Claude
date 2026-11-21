@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2318_398",{"s":{},"d":{"8530566":[[0,"2324","Belalp Schönbiel|Blatten b. Naters (Belalpbahn)"]],"8530236":[[0,"2325","Belalp|Blatten b. Naters (Belalpbahn)"]],"8530974":[[0,"2324","Belalp Chiematte"]],"8501953":[[0,"2325","Blatten b. Naters (Belalpbahn)"]],"8530824":[[0,"2326","Belalp Hohbiel"]]}});

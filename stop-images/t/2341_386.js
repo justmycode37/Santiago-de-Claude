@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_386",{"s":{},"d":{"8576592":[[1,"42","Heimenschwand, Post"],[0,"42","Thun, Bahnhof|Unterlangenegg, Kreuzweg|Schwarzenegg, Dorf"]],"8588483":[[1,"42","Heimenschwand, Post"],[0,"42","Thun, Bahnhof|Unterlangenegg, Kreuzweg|Schwarzenegg, Dorf"]]}});

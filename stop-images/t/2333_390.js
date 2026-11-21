@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2333_390",{"s":{},"d":{"8507158":[[null,"13 14 10 19 20 21 22 7 8 9","Thun (See)|Interlaken West (See)"]],"8507187":[[0,"21","Interlaken Ost, Bahnhof"],[1,"21","Thun, Bahnhof"]],"8588812":[[1,"60 M40","Spiez, Bahnhof|Thun, Bahnhof"],[0,"60 M40","Interlaken Ost, Bahnhof|Interlaken, Gymnasium|Interlaken West, Bahnhof"]]}});

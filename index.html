@@ -1695,7 +1695,7 @@
       }
       // Both permissions are asked right here, while the tap still counts as a user gesture (iOS needs that)
       const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
-        ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+        ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
         : Promise.reject(new Error('no camera API'));
       const orientation = window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function'
         ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');

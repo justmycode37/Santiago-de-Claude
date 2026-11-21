@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_478",{"s":{},"d":{"8581492":[[0,"305 N24","Altenrhein, Dorf|Goldach, Bahnhof|St. Gallen, Bahnhof"]],"8581491":[[0,"305 N24","Altenrhein, Dorf|Goldach, Bahnhof|St. Gallen, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2323_383",{"s":{},"d":{"8588809":[[null,"241","Kandersteg, Bahnhof"]],"8576642":[[0,"240","Selden, Gasthaus Steinbock"]],"8589516":[[null,"241","Kandersteg, Talstat. Sunnbüel|Kandersteg, Bahnhof"]],"8507262":[[0,"2412","Sunnbüel"]],"8576643":[[0,"240","Kandersteg, Bahnhof|Selden, Gasthaus Steinbock"]]}});

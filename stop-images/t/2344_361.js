@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_361",{"s":{},"d":{"8570554":[[2,"121","Laupen BE, Bahnhof"],[null,"121","Düdingen, Bahnhof"]],"8570553":[[0,"121","Laupen BE, Bahnhof"],[1,"121","Düdingen, Bahnhof"]],"8504767":[[0,"121","Laupen BE, Bahnhof"],[1,"121","Düdingen, Bahnhof"]],"8581035":[[0,"121","Laupen BE, Bahnhof"],[1,"121","Düdingen, Bahnhof"]]}});

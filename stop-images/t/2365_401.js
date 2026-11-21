@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2365_401",{"s":{},"d":{"8502770":[[null,"613","Schöftland, Bahnhof|Zofingen, Bahnhof"]],"8572652":[[null,"613","Zofingen, Bahnhof"]],"8502768":[[null,"613","Zofingen, Bahnhof|Schöftland, Bahnhof|Bottenwil, Vorstatt"]],"8502769":[[null,"613","Zofingen, Bahnhof|Schöftland, Bahnhof|Bottenwil, Vorstatt"]]}});

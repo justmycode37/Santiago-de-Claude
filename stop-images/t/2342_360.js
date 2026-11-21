@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_360",{"s":{},"d":{"8582486":[[1,"121 547 122 12 N17 N15","Düdingen, Bahnhof|Fribourg/Freiburg, gare rout.|Düdingen, Gantrischweg"],[0,"547 121 122 N17 N15","Murten/Morat, Bahnhof|Laupen BE, Bahnhof|Kerzers, Bahnhof|Bern, Bahnhof|Sugiez, gare|Praz (Vully), village"]]}});

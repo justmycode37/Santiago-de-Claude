@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_366",{"s":{},"d":{"8587328":[[null,"",""],[0,"102","Säriswil, Wendeplatz"],[1,"102","Bern, Hauptbahnhof"]],"8571369":[[null,"M86","Innerberg BE, Dorf"],[0,"102","Bern, Hauptbahnhof"]]}});

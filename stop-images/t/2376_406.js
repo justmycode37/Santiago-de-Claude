@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_406",{"s":{},"d":{"8572448":[[0,"142","Brugg AG, Bahnhof/Zentrum|Hottwil, Wendeplatz"],[1,"142","Laufenburg, Bahnhof|Laufenburg, Kreisschule|Etzgen, Rheintalstrasse|Hottwil, Wendeplatz"]],"8500569":[[0,"142","Brugg AG, Bahnhof/Zentrum"],[1,"142","Laufenburg, Bahnhof|Laufenburg, Kreisschule|Etzgen, Rheintalstrasse|Hottwil, Wendeplatz"]]}});

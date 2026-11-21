@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_363",{"s":{},"d":{"8576403":[[1,"71","Romont BE"],[0,"71","Biel/Bienne, Bahnhof/Gare"]],"8587782":[[0,"71","Romont BE"]],"8588494":[[0,"71","Romont BE"],[1,"71","Biel/Bienne, Bahnhof/Gare"]]}});

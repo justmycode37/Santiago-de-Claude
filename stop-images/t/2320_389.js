@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2320_389",{"s":{},"d":{"8571019":[[1,"591","Goppenstein, Bahnhof|Gampel-Steg, Bahnhof"],[0,"591","Wiler (Lötschen), Gschteinät"]],"8579581":[[1,"591","Goppenstein, Bahnhof|Gampel-Steg, Bahnhof|Kippel, Dorf"]]}});

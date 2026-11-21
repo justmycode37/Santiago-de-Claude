@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2316_476",{"s":{},"d":{"8579684":[[0,"604","Chiavenna, Stazione|Castasegna, Vecchia Dogana"],[1,"604","Pontresina, Post|St. Moritz, Bahnhof|Promontogno, Posta"]],"8507645":[[0,"624","Soglio, Paese|Promontogno, Posta|Bondo, Strada Cantonale"]]}});

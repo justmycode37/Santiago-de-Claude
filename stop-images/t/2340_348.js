@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_348",{"s":{},"d":{"8581635":[[null,"EV5","Fribourg/Freiburg, gare rout."],[0,"334 N13","Mannens, école|Cousset, centre sportif|Vallon, Musée romain|Fribourg/Freiburg, gare rout.|Payerne, gymnase"]],"8504136":[[0,"S30 EXT","Fribourg/Freiburg|Yverdon-les-Bains|Payerne|Givisiez"],[null,"S30","Yverdon-les-Bains"]]}});

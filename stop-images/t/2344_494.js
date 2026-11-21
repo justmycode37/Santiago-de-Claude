@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_494",{"s":{},"d":{"8582863":[[1,"235 231 233","Klosters, Madrisabahn|Küblis, Bahnhof|Saas i.P., Ufm Ried|Serneus, Dorf"],[null,"233","Klosters Platz, Bahnhof"],[0,"235 231 233","Klosters Platz, Bahnhof"]]}});

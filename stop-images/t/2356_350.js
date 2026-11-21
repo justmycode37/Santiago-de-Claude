@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_350",{"s":{},"d":{"8504953":[[0,"121 425","Chasseral, Hôtel|St-Imier, gare|Neuchâtel, Place Pury"],[1,"121","St-Imier, gare"]],"8504578":[[0,"121 425","Savagnières, parc|Chasseral, Hôtel"],[1,"121 425","St-Imier, gare|Neuchâtel, Place Pury"]]}});

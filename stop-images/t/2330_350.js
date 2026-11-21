@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_350",{"s":{},"d":{"8507596":[[0,"202 454 258 N23 N24","Vuadens, Le Maupas|Romont FR, gare|Vuisternens-dt-Romont, forge|Palézieux, gare|Oron-la-Ville, gare routière"],[1,"202 454 258 N23 N24","Morlon, Eglise|Bulle, gare routière|Bulle, Place de la Gare|Riaz, CO"]]}});

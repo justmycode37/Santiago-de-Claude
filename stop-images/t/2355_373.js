@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_373",{"s":{},"d":{"8508719":[[0,"882","Bätterkinden, Bahnhof"],[1,"882","Balm b. Messen, Wendeplatz|Schnottwil, Post|Schnottwil, Schulhaus"]],"8508718":[[null,"363","Bätterkinden, Bahnhof|Lyss, Bahnhof"]]}});

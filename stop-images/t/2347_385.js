@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_385",{"s":{},"d":{"8508879":[[null,"272","Langnau i.E., Bahnhof|Biglen, Bahnhof"],[1,"472","Moosegg, Hotel"],[0,"472","Biglen, Bahnhof"]],"8508774":[[null,"272","Langnau i.E., Bahnhof|Biglen, Bahnhof|Waldhäusern BE, Kurhaus"],[0,"472","Biglen, Bahnhof"]],"8595990":[[null,"272","Langnau i.E., Bahnhof|Biglen, Bahnhof|Waldhäusern BE, Kurhaus"]]}});

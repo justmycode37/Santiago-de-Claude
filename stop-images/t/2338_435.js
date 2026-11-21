@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_435",{"s":{},"d":{"8505896":[[0,"407","Amsteg, Dorf"]],"8505916":[[0,"407","Amsteg, Dorf"],[1,"407","Bristen, Talstation Golzern"]],"8530426":[[null,"PB","Golzern (Bergstation)"]]}});

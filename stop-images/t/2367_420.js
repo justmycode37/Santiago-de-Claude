@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2367_420",{"s":{},"d":{"8572596":[[0,"350 444","Zürich Wiedikon, Bahnhof|Zürich, Triemli|Zürich Enge, Bahnhof/Bederstr."],[1,"350 444","Berikon-Widen, Bahnhof|Bremgarten AG, Obertorplatz"],[null,"350","Berikon-Widen, Bahnhof"]]}});

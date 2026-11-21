@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_348",{"s":{},"d":{"8583200":[[0,"334","Mannens, école|Payerne, gymnase"]],"8510142":[[1,"",""],[0,"EV2","Murten/Morat, Bahnhof|Kerzers, Bahnhof"],[null,"EV2 EV5","Murten/Morat, Bahnhof"]],"8504123":[[0,"R9 S52 SN EXT","Murten/Morat|Allaman|Lausanne|Payerne|Palézieux|Bern"]]}});

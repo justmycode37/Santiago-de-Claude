@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2313_457",{"s":{},"d":{"8580085":[[0,"216","Sta. Maria in Calanca, Paese"],[null,"216","Grono, Paese|Castaneda, Tevegno"]],"8582878":[[0,"217","Verdabbio, Piazza"],[null,"",""]],"8505985":[[0,"217","Grono, Paese"]],"8582004":[[0,"216","Sta. Maria in Calanca, Paese"],[1,"216","Grono, Paese|Castaneda, Tevegno"]],"8505984":[[0,"216","Castaneda, Tevegno"]]}});

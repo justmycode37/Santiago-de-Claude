@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_368",{"s":{},"d":{"8576477":[[0,"20","Moutier, gare"]],"8557051":[[0,"20","Moutier, gare"]],"8581147":[[0,"21","Moutier, Aux Laives|Perrefitte, poste|Moutier, Chantemerle|Souboz, village|Les Ecorcheresses|Bellelay, école"],[1,"21","Moutier, gare"]]}});

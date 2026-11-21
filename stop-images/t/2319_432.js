@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2319_432",{"s":{},"d":{"8575870":[[0,"334","Fusio, Paese|Peccia, Paese"],[1,"334","Bignasco, Posta"]],"8575871":[[0,"334","Fusio, Paese|Peccia, Paese"],[1,"334","Bignasco, Posta"]]}});

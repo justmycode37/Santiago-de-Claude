@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_374",{"s":{},"d":{"8571655":[[0,"56","Wattenwil, Grundbach"],[1,"56","Riggisberg, Post|Wattenwil, Postgasse"]],"8571657":[[0,"56","Riggisberg, Post|Wattenwil, Postgasse"]],"8571656":[[0,"56","Wattenwil, Grundbach"],[1,"56","Riggisberg, Post|Wattenwil, Postgasse"]]}});

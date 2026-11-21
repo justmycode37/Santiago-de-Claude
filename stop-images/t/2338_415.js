@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_415",{"s":{},"d":{"8595211":[[0,"349","Melchsee-Frutt, Tannalp|Melchsee-Frutt, alte Bergstat."]],"8595210":[[0,"349","Melchsee-Frutt, Tannalp|Melchsee-Frutt, alte Bergstat."]],"8595212":[[0,"349","Melchsee-Frutt, alte Bergstat."]]}});

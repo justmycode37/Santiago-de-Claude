@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2368_437",{"s":{},"d":{"8573505":[[1,"827","Fehraltorf, Schrännenbrunnen|Fehraltorf, Bahnhof"],[0,"827","Uster, Bahnhof"]],"8503873":[[null,"830","Uster, Bahnhof|Pfäffikon ZH, Bahnhof"],[0,"830","Pfäffikon ZH, Bahnhof"],[1,"830","Uster, Bahnhof"]],"8583225":[[0,"827","Fehraltorf, Schrännenbrunnen|Fehraltorf, Bahnhof"],[1,"827","Uster, Bahnhof"]]}});

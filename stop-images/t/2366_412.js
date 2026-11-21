@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2366_412",{"s":{},"d":{"8589511":[[null,"340 N32","Wohlen AG, Bahnhof|Meisterschwanden, Schulhaus|Sarmenstorf, Schulhaus"]],"8587560":[[null,"340 N32","Wohlen AG, Bahnhof|Meisterschwanden, Schulhaus|Sarmenstorf, Schulhaus"]]}});

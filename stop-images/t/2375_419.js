@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2375_419",{"s":{},"d":{"8503318":[[0,"S15","Niederweningen|Rapperswil SG|Zürich HB|Rüti ZH|Glattbrugg|Pfäffikon SZ"]],"8575027":[[0,"555 N51","Schöfflisdorf-Oberwen, Bahnhof|Oberglatt ZH, Bahnhof"],[null,"N51","Oberglatt ZH, Bahnhof"]]}});

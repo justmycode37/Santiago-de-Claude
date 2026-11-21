@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2380_425",{"s":{},"d":{"8576291":[[0,"545","Rafz, Bahnhof"],[1,"545","Hüntwangen-Wil, Bahnhof"],[null,"545","Hüntwangen-Wil, Bahnhof|Rafz, Pflegeheim Peteracker"]],"8575121":[[1,"545","Rafz, Bahnhof"],[0,"545","Hüntwangen-Wil, Bahnhof"],[null,"545","Hüntwangen-Wil, Bahnhof|Rafz, Pflegeheim Peteracker"]]}});

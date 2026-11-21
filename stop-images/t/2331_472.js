@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_472",{"s":{},"d":{"8509968":[[0,"541 171 551","Thusis, Bahnhof|Andeer, posta|Mesocco, Stazione|Bellinzona, Stazione|Chur, Postautostation|Andeer, Heilbad"]],"8579861":[[0,"551","Wergenstein, Dorf|Donat, vischnànca"],[null,"551","Andeer, posta|Andeer, Heilbad|Splügen, Dorf|Hinterrhein, Tunnel Nordportal"]]}});

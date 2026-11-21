@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_334",{"s":{},"d":{"8570212":[[0,"670 440 428","Froideville, Laiterie|Moudon, gare|Villars-Tiercelin, Fontaines|Thierrens, gare routière"],[1,"670 440","Yverdon-les-Bains, gare|Echallens, gare"]]}});

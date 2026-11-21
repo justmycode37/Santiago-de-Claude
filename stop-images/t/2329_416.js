@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_416",{"s":{},"d":{"8571613":[[0,"161","Oberwald, Bahnhof|Grimsel Passhöhe"],[1,"161","Meiringen, Bahnhof"]],"8571611":[[0,"161","Oberwald, Bahnhof|Grimsel Passhöhe"],[1,"161","Meiringen, Bahnhof"]]}});

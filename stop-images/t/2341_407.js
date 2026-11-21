@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_407",{"s":{},"d":{"8572890":[[0,"362 363","Giswil, Bahnhof"],[1,"363","Glaubenbielen, Parkplatz"]],"8572919":[[0,"361","Giswil, Bahnhof|Lungern, Dorfkapelle|Grossteil, Schulhaus"],[null,"361","Lungern, Dorfkapelle"]],"8572891":[[0,"362 363","Giswil, Bahnhof"],[1,"362 363","Mörlialp|Glaubenbielen, Parkplatz"]]}});

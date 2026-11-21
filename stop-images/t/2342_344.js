@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_344",{"s":{},"d":{"8510078":[[0,"551","Estavayer-le-Lac, gare rout.|Gletterens, village"]],"8577633":[[0,"551","Gletterens, village|Rueyres-les-Prés, école"],[1,"551","Estavayer-le-Lac, gare rout."]],"8577634":[[0,"551","Estavayer-le-Lac, gare rout.|Rueyres-les-Prés, école"]]}});

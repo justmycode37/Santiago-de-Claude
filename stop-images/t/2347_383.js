@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_383",{"s":{},"d":{"8571769":[[0,"472","Biglen, Bahnhof|Arni BE, Tanne"],[null,"472","Lützelflüh-Goldbach, Bahnhof"]],"8508664":[[0,"472","Lützelflüh-Goldbach, Bahnhof|Biglen, Bahnhof|Arni BE, Tanne"]]}});

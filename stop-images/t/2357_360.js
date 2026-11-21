@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_360",{"s":{},"d":{"8594278":[[null,"79","Magglingen, End der Welt|Evilard, école|Evilard, place du village"]],"8576399":[[0,"70","Orvin, place du village|Les Prés-d'Orvin, Le Grillon"],[null,"70","Biel/Bienne, Bahnhof/Gare"]],"8594276":[[1,"79","Magglingen, End der Welt"],[0,"79","Evilard, école|Evilard, place du village"]]}});

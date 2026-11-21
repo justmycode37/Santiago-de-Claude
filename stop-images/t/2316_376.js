@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2316_376",{"s":{},"d":{"8579494":[[0,"431 421","Crans-Montana, Crans Forest|Sierre/Siders,Place de la gare"],[1,"435","Aminona, Plumachit"]],"8511696":[[null,"435","Aminona, Plumachit"]],"8506543":[[0,"435","Aminona, Plumachit"]],"8512288":[[null,"435","Aminona, Plumachit"]]}});

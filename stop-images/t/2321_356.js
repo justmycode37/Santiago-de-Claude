@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2321_356",{"s":{},"d":{"8501700":[[0,"175","Leysin-Feydey|Col des Mosses"],[1,"175","Château d'Oex"]],"8507931":[[0,"175","Leysin-Feydey|Col des Mosses"],[1,"175","Château d'Oex"]],"8501345":[[1,"175","Leysin-Feydey|Col des Mosses"],[0,"175","Château d'Oex"]],"8501701":[[0,"175","Leysin-Feydey|Col des Mosses"],[1,"175","Château d'Oex"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_403",{"s":{},"d":{"8577301":[[1,"61 N60 60","Ettiswil, Post|Grosswangen, Post"],[0,"61 N60","Luzern, Bahnhof|Luzern, Pilatusplatz|Rothenburg Station, Bhf. West|Ruswil, Rottalcenter"]]}});

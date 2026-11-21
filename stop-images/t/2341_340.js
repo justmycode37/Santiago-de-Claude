@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_340",{"s":{},"d":{"8577610":[[1,"553","Cheyres, école"],[0,"553","Estavayer-le-Lac, gare rout.|Estavayer-le-Lac, CO"]],"8596066":[[0,"",""],[1,"553","Estavayer-le-Lac, gare rout.|Estavayer-le-Lac, CO"]]}});

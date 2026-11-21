@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_379",{"s":{},"d":{"8576141":[[1,"791","Worb Dorf, Bahnhof|Walkringen, Rüttihubelbad"],[0,"791","Walkringen, Bahnhof|Worb Dorf, Bahnhof"]],"8576144":[[2,"791","Worb Dorf, Bahnhof"],[0,"791","Walkringen, Bahnhof"],[1,"791","Worb Dorf, Bahnhof"]]}});

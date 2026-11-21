@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_361",{"s":{},"d":{"8504949":[[0,"129","Plaffeien, Dorf"],[1,"129 N11","Fribourg/Freiburg, gare rout."]],"8504854":[[0,"129","Plaffeien, Dorf"],[1,"129 N11","Fribourg/Freiburg, gare rout."]]}});

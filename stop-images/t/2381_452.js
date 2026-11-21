@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_452",{"s":{},"d":{"8580251":[[0,"832","Müllheim-Wigoltingen, Bahnhof"]],"8506984":[[0,"832","Raperswilen, Schulhaus"],[1,"832","Müllheim-Wigoltingen, Bahnhof"]],"8573349":[[0,"832","Raperswilen, Schulhaus|Homburg, Dorf"],[1,"832","Müllheim-Wigoltingen, Bahnhof"]]}});

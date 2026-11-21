@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_451",{"s":{},"d":{"8583654":[[0,"504","Klöntal, Richisau|Klöntal, Vorauen"],[null,"504","Glarus, Bahnhof"]],"8573905":[[0,"504","Klöntal, Richisau|Klöntal, Vorauen"],[null,"504","Glarus, Bahnhof"]]}});

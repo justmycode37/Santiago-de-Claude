@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_361",{"s":{},"d":{"8504303":[[0,"R41 R42 R","Biel/Bienne|La Chaux-de-Fonds|Moutier|Sonceboz-Sombeval|Malleray-Bévilard|La Chaux-de-Fonds | Malleray-Bévilard"]],"8589211":[[0,"M31 EV2 EV1","Tavannes, gare|Biel/Bienne, Bahnhof/Gare|Sonceboz-Sombeval, gare|Delémont, gare|Tavannes, Rue des Eaux"]]}});

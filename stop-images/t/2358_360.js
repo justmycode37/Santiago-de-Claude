@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_360",{"s":{},"d":{"8576397":[[1,"71","Romont BE"]],"8576398":[[2,"70","Biel/Bienne, Bahnhof/Gare"],[1,"70","Les Prés-d'Orvin, Le Grillon"],[0,"70","Biel/Bienne, Bahnhof/Gare"],[3,"71","Romont BE"]],"8592484":[[0,"70","Les Prés-d'Orvin, Le Grillon"],[null,"70","Biel/Bienne, Bahnhof/Gare"]]}});

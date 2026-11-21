@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2317_364",{"s":{},"d":{"8501899":[[0,"344","Sanetsch, hôtel|Savièse, St-Germain centre"]],"8570769":[[0,"344","Sanetsch, barrage"],[1,"344","Sanetsch, hôtel|Savièse, St-Germain centre"]]}});

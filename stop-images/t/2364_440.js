@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_440",{"s":{},"d":{"8587991":[[0,"883","Wetzikon ZH, Bahnhof Süd"],[1,"883","Bubikon, Bahnhof"]],"8587988":[[0,"883","Wetzikon ZH, Bahnhof Süd"],[1,"883","Bubikon, Bahnhof"]],"8587989":[[1,"883","Wetzikon ZH, Bahnhof Süd"],[0,"883","Bubikon, Bahnhof"]]}});

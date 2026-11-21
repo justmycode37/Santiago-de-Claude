@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_447",{"s":{},"d":{"8578632":[[1,"806","Dussnang, Kirche/Klinik"],[0,"806","Turbenthal, Bahnhof"]],"8595875":[[1,"806","Dussnang, Kirche/Klinik"],[0,"806","Turbenthal, Bahnhof"]]}});

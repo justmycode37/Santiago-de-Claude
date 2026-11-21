@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_355",{"s":{},"d":{"8504306":[[0,"R41 RE R","La Chaux-de-Fonds|Biel/Bienne|Sonceboz-Sombeval|St-Imier"]],"8506544":[[0,"EV6 156","La Chaux-de-F,gare/Av.L-Robert|Sonceboz-Sombeval, gare|Sonceboz-Sombeval, Couronne|La Chaux-de-Fonds, gare"]]}});

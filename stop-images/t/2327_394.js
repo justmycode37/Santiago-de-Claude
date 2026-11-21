@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2327_394",{"s":{},"d":{"8512008":[[0,"",""]],"8512009":[[0,"",""]],"8507455":[[0,"24602 2460 24603","Gimmelwald (Schilthornbahn)|Stechelberg (Schilthornbahn)|Birg (Schilthornbahn)"]],"8507454":[[0,"24602 2460","Mürren (Schilthornbahn)|Stechelberg (Schilthornbahn)"]]}});

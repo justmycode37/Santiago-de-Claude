@@ -37,12 +37,14 @@
   let headingAcc = 30;     // degrees
   let headingAt = 0;
   let candidates = [];     // stops around you, scored
+  let candidatesBy = '';   // 'gps' (around you) or 'sign' (no position: stops whose name was read)
   const evidence = new Map(); // uic → { ocr, ocrAt, ocrWhat, edgeOcr, vis, visRef, visStreak, departures }
   const tiles = new Map();    // photo tiles loaded: key → { uic: refs }
-  let model = null, modelState = 'idle';
+  let modelState = 'idle';
   let ocr = null, ocrState = 'idle', ocrLang = '', ocrFailedAt = 0;
-  let lastOcr = 0, lastVis = 0, ocrInvert = false;
+  let lastOcr = 0, lastVis = 0, ocrPass = 0;
   let tapRead = null;      // { x, y } in video pixels: read the sign there next
+  let debugOn = typeof location !== 'undefined' && /[?&]scandebug(&|$)/.test(location.search);
   let stillImage = null;   // a photo taken with the file input instead of the live camera
   let stillFrames = 0;     // photo comparisons done on that photo (one is enough: it does not change)
   let stillReads = 0;      // sign readings done on it
@@ -51,6 +53,8 @@
   const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const toRad = Math.PI / 180;
   const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+  // Is a reading still current? With the live camera it fades after a while (you have moved on); a photo does not change.
+  const fresh = (at, ms) => !!at && (!!stillImage || Date.now() - at < ms);
   function distM(a, b) {
     const k = Math.cos((a[1] + b[1]) / 2 * toRad);
     return Math.hypot((a[0] - b[0]) * k, a[1] - b[1]) * 111320;
@@ -123,13 +127,13 @@
   .sv-ar { position: absolute; inset: 0; pointer-events: none; }
   .sv-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center;
             transition: opacity .25s ease; will-change: transform; }
-  .sv-tag span { display: flex; align-items: center; gap: 6px; max-width: 44vw; padding: 6px 10px 6px 6px; border-radius: 18px;
+  .sv-tag > span { display: flex; align-items: center; gap: 6px; max-width: 44vw; padding: 6px 10px 6px 6px; border-radius: 18px;
                  background: rgba(28,28,30,.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
                  font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
-  .sv-tag span em { font-style: normal; overflow: hidden; text-overflow: ellipsis; }
+  .sv-tag > span em { font-style: normal; overflow: hidden; text-overflow: ellipsis; }
   .sv-tag small { font-weight: 500; color: #c7c7cc; }
   .sv-tag i { width: 2px; height: 26px; background: rgba(255,255,255,.75); }
-  .sv-tag.hit span { background: var(--navy, #344D77); outline: 2px solid #fff; }
+  .sv-tag.hit > span { background: var(--navy, #344D77); outline: 2px solid #fff; }
   .sv-ic { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #1c1c1e; }
   .sv-ic svg { width: 15px; height: 15px; }
   .sv-ref { flex: none; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; display: grid; place-items: center;
@@ -172,6 +176,9 @@
   .sv-alt li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sv-alt li small { color: #aeaeb2; }
   .sv-file { display: none; }
+  .sv-debug { position: absolute; left: 12px; top: calc(env(safe-area-inset-top) + 64px); margin: 0; padding: 8px 10px; border-radius: 10px;
+              background: rgba(0,0,0,.66); color: #9f9; font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: none; display: none; }
+  .sv.debug .sv-debug { display: block; }
   `;
 
   const ICONS = {
@@ -219,7 +226,15 @@
     top.append(close, status, shoot);
     const sheet = $('div', 'sv-sheet');
     sheet.setAttribute('aria-live', 'polite');
-    root.append(video, still, ar, ring, top, sheet, file);
+    const debug = $('pre', 'sv-debug');
+    root.append(video, still, ar, ring, top, sheet, file, debug);
+    // diagnostics: open the app with ?scandebug, or tap the status text three times
+    let taps = 0, tapAt = 0;
+    status.addEventListener('click', () => {
+      taps = Date.now() - tapAt < 600 ? taps + 1 : 1; tapAt = Date.now();
+      if (taps >= 3) { debugOn = !debugOn; root.classList.toggle('debug', debugOn); taps = 0; }
+    });
+    if (debugOn) root.classList.add('debug');
     document.body.appendChild(root);
     close.addEventListener('click', closeScan);
     shoot.addEventListener('click', () => file.click());
@@ -236,7 +251,7 @@
       lastOcr = 0;
     });
     document.addEventListener('keydown', onKey);
-    return { root, video, still, ar, ring, status, sheet, tags: new Map(), shownKey: '' };
+    return { root, video, still, ar, ring, status, sheet, debug, tags: new Map(), shownKey: '' };
   }
   const onKey = (e) => { if (e.key === 'Escape') closeScan(); };
 
@@ -302,7 +317,7 @@
 
   function findCandidates() {
     const pos = position();
-    if (!pos) { candidates = []; return; }
+    if (!pos) { if (candidatesBy === 'gps') { candidates = []; candidatesBy = ''; } return; }
     const radius = Math.min(600, Math.max(150, 3 * pos.acc + 60));
     const out = [];
     for (const [uic, st] of app.PLATFORMS) {
@@ -312,6 +327,7 @@
     }
     out.sort((a, b) => a.dist - b.dist);
     candidates = out.slice(0, 40);
+    candidatesBy = 'gps';
     loadTilesAround(pos.ll);
   }
 
@@ -337,7 +353,7 @@
         s += c.ahead ? 0.8 : -Math.min(1.5, (bestOff - slack) / 40); // soft: compasses can be off by tens of degrees
       }
       c.geo = s; // location + compass only
-      if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.72) s += 6 * (ev.ocr - 0.6) / 0.4; // a read name dominates
+      if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.72) s += 6 * (ev.ocr - 0.6) / 0.4; // a read name dominates
       if (ev.lines) s += Math.min(1, 0.4 * ev.lines);
       if (ev.vis != null && ev.visRel != null) s += Math.max(-0.5, Math.min(1.5, ev.visRel * 12)); // tie-breaker
       c.score = s;
@@ -366,13 +382,18 @@
     if (ocr && ocrLang === lang) return ocr;
     if (ocrState === 'loading' || (ocrState === 'failed' && Date.now() - ocrFailedAt < 30000)) return null;
     ocrState = 'loading';
+    const t0 = performance.now();
+    const mine = session;
     try {
       if (!window.Tesseract) await loadScript(TESSERACT);
-      if (ocr) await ocr.terminate();
-      ocr = await window.Tesseract.createWorker(lang.split('+'), 1); // LSTM engine; language data from jsDelivr
+      if (ocr) { const old = ocr; ocr = null; await old.terminate(); }
+      const reader = await window.Tesseract.createWorker(lang.split('+'), 1); // LSTM engine; language data from jsDelivr
+      if (mine !== session || !running) { reader.terminate(); ocrState = 'idle'; return null; } // closed meanwhile
+      ocr = reader;
       await ocr.setParameters({ tessedit_pageseg_mode: '11' });     // sparse text: signs scattered in a street scene
       ocrLang = lang;
       ocrState = 'ready';
+      stats.ocrLoadMs = Math.round(performance.now() - t0);
       return ocr;
     } catch (err) {
       ocrState = 'failed';
@@ -400,33 +421,61 @@
   function sourceSize() { const s = source(); return [s.videoWidth || s.naturalWidth, s.videoHeight || s.naturalHeight]; }
 
   // A frame (or the part around a tap) for OCR: grey, contrast stretched, optionally inverted (white on blue signs)
-  function ocrCanvas(region, invert) {
+  // The frame (or the part around a tap) for OCR, as a JPEG: grey, more contrast, inverted for light-on-dark signs.
+  // The browser's own canvas filters do the pixel work (no JS loop over a million pixels on the page), and the
+  // JPEG is encoded asynchronously; browsers without canvas filters fall back to a JS loop.
+  let ocrCanvasEl = null, lumaCanvas = null;
+  function isDark(region) {
+    if (!lumaCanvas) { lumaCanvas = document.createElement('canvas'); lumaCanvas.width = lumaCanvas.height = 24; }
+    const g = lumaCanvas.getContext('2d', { willReadFrequently: true });
+    g.drawImage(source(), region.x, region.y, region.w, region.h, 0, 0, 24, 24);
+    const d = g.getImageData(0, 0, 24, 24).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    return sum / 576 < 100; // mostly dark: the text is probably light
+  }
+  async function ocrImage(region, invert) {
     const [w, h] = sourceSize();
     const r = region || { x: w * 0.05, y: h * 0.05, w: w * 0.9, h: h * 0.75 }; // signs are rarely at the bottom
+    const flip = typeof invert === 'function' ? invert(isDark(r)) : invert;
     const scale = Math.min(1, 1400 / r.w);
-    const c = document.createElement('canvas');
+    if (!ocrCanvasEl) ocrCanvasEl = document.createElement('canvas');
+    const c = ocrCanvasEl;
     c.width = Math.round(r.w * scale); c.height = Math.round(r.h * scale);
     const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(source(), r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
-    const img = ctx.getImageData(0, 0, c.width, c.height);
-    const d = img.data;
-    let lo = 255, hi = 0;
-    for (let i = 0; i < d.length; i += 16) { const v = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11; if (v < lo) lo = v; if (v > hi) hi = v; }
-    const k = 255 / Math.max(40, hi - lo);
-    for (let i = 0; i < d.length; i += 4) {
-      let v = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11 - lo) * k;
-      if (invert) v = 255 - v;
-      d[i] = d[i + 1] = d[i + 2] = v;
+    if ('filter' in ctx) {
+      ctx.filter = `grayscale(1) contrast(1.35)${flip ? ' invert(1)' : ''}`;
+      ctx.drawImage(source(), r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+      ctx.filter = 'none';
+    } else {
+      ctx.drawImage(source(), r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+      const img = ctx.getImageData(0, 0, c.width, c.height);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+        d[i] = d[i + 1] = d[i + 2] = flip ? 255 - v : v;
+      }
+      ctx.putImageData(img, 0, 0);
     }
-    ctx.putImageData(img, 0, 0);
-    return c;
+    const blob = await new Promise((resolve) => (c.toBlob ? c.toBlob(resolve, 'image/jpeg', 0.92) : resolve(null)));
+    return blob || c;
   }
 
+  let gateCanvas = null;
   async function readSigns() {
-    const worker = await ensureOcr();
-    if (!worker) return;
+    const mine = session;
+    const reader = await ensureOcr();
+    if (!reader || !running || !ui || mine !== session) return;
     const [w, h] = sourceSize();
     if (!w) return;
+    if (!tapRead && !stillImage) {
+      // cheap check on a 160 px copy first: a blurred frame (phone moving) is not worth reading
+      if (!gateCanvas) gateCanvas = document.createElement('canvas');
+      gateCanvas.width = 160; gateCanvas.height = Math.round(160 * h / w);
+      const g = gateCanvas.getContext('2d', { willReadFrequently: true });
+      g.drawImage(source(), 0, 0, gateCanvas.width, gateCanvas.height);
+      if (sharpness(g, gateCanvas.width, gateCanvas.height) < 30) return;
+    }
     let region = null;
     const tap = tapRead;
     if (tap) {
@@ -434,24 +483,22 @@
       region = { x: Math.max(0, Math.min(w - rw, tap.x - rw / 2)), y: Math.max(0, Math.min(h - rh, tap.y - rh / 2)), w: rw, h: rh };
     } else if (stillImage && stillReads >= 2) return; // a photo does not change: read it twice (normal + inverted)
     if (stillImage && !tap) stillReads++;
-    const canvas = ocrCanvas(region, ocrInvert);
-    if (!region && !stillImage) {
-      const small = document.createElement('canvas');
-      small.width = 160; small.height = Math.round(160 * canvas.height / canvas.width);
-      const sctx = small.getContext('2d', { willReadFrequently: true });
-      sctx.drawImage(canvas, 0, 0, small.width, small.height);
-      if (sharpness(sctx, small.width, small.height) < 30) return; // blurred: the phone is moving
-    }
-    ocrInvert = !ocrInvert; // alternate dark-on-light and light-on-dark signs
-    const mine = session;
-    const { data } = await worker.recognize(canvas);
+    ocrPass++;
+    // polarity follows the picture (dark crop → light text); every 4th reading, and the second reading of a photo,
+    // tries the other one, for signs that fool the guess
+    const other = stillImage && !tap ? stillReads === 2 : ocrPass % 4 === 0;
+    const image = await ocrImage(region, (dark) => (other ? !dark : dark));
+    if (!running || !ui || mine !== session) return;
+    const t0 = performance.now();
+    const { data } = await reader.recognize(image);
+    stats.ocr.push(performance.now() - t0);
     if (!running || mine !== session) return;
     if (tap && tapRead === tap) { tapRead = null; ui.ring.classList.remove('on'); }
-    useText(data.text || '', !!tap);
+    await useText(data.text || '', !!tap);
   }
 
   // Compare read text with the stops around (or, without a position, all stops)
-  function useText(text, wasTap) {
+  async function useText(text, wasTap) {
     const all = norm(text).split(' ').filter(Boolean);
     const tokens = all.filter((t) => t.length >= 2 || /^\d$/.test(t));
     if (!tokens.length) { if (wasTap) app.toast('No text found there. Move closer to the sign.'); return; }
@@ -460,7 +507,14 @@
     if (!position()) pool = allStopsMatching(tokens);
     const hits = [];
     const located = !!position();
+    let sliceAt = performance.now();
+    const mine = session;
     for (const c of pool) {
+      if (pool.length > 200 && performance.now() - sliceAt > 8) { // long list: let the screen draw in between
+        await new Promise((r) => setTimeout(r, 0));
+        sliceAt = performance.now();
+        if (mine !== session) return; // Scan closed meanwhile
+      }
       let best = 0, what = '';
       for (const v of c.variants) {
         let m = matchIn(tokens, v);
@@ -484,15 +538,22 @@
         const ei = c.st.edges.findIndex((e) => e.key && refs.includes(e.key));
         if (ei >= 0) { ev.edgeOcr = ei; ev.edgeOcrAt = now; evidence.set(c.uic, ev); }
       }
-      // line numbers and destinations from its live departures
-      if (ev.departures) {
-        const lines = new Set(ev.departures.map((d) => norm(d.line)));
-        const hit = tokens.filter((t) => /^\d{1,3}[a-z]?$/.test(t) && lines.has(t));
-        ev.lines = new Set(hit).size >= 2 ? new Set(hit).size : 0;
+      // line numbers and destinations: from the timetable (offline, tools/build_stop_images.py --gtfs) and the
+      // live departures. They only confirm a stop and pick its edge; on their own they never recognise a stop.
+      const served = []; // [{ edge, line, to }]
+      for (const l of linesOf(c.uic) || []) {
+        for (const line of l.lines) served.push({ edge: l.edge, line, to: null });
+        for (const to of l.dests) served.push({ edge: l.edge, line: null, to });
+      }
+      for (const d of ev.departures || []) served.push({ edge: d.edge, line: norm(d.line), to: d.to });
+      if (served.length) {
+        const lines = new Set(served.filter((d) => d.line).map((d) => d.line));
+        const hit = new Set(tokens.filter((t) => /^\d{1,3}[a-z]?$/.test(t) && lines.has(t)));
+        ev.lines = hit.size >= 2 ? hit.size : 0;
         const dests = new Map(); // destination → edges it leaves from
-        for (const d of ev.departures) if (d.edge != null) dests.set(norm(d.to), (dests.get(norm(d.to)) || new Set()).add(d.edge));
+        for (const d of served) if (d.to) dests.set(norm(d.to.split(',').pop()), (dests.get(norm(d.to.split(',').pop())) || new Set()).add(d.edge));
         for (const [dest, edges] of dests) {
-          if (edges.size !== 1) continue;
+          if (edges.size !== 1 || edges.has(null)) continue; // goes from several edges: says nothing about which
           const edge = [...edges][0];
           const words = dest.split(' ').filter((t) => t.length >= 4 && !GENERIC.has(t));
           if (words.length && words.every((wd) => tokens.some((t) => ratio(t, wd) >= 0.85))) { ev.edgeDest = edge; ev.edgeDestAt = now; ev.destWhat = dest; }
@@ -512,6 +573,7 @@
       const clear = hits.length === 1 || hits[0].best - hits[1].best >= 0.1;
       hits.forEach((h, i) => { evidence.get(h.c.uic).ocrUnique = clear && i === 0; });
       candidates = hits.slice(0, 8).map((h) => h.c);
+      candidatesBy = 'sign';
       if (!clear) app.toast('Several stop names fit what was read (signs also list destinations). Turn on location to know which one is here.');
     }
     const bestHit = hits[0];
@@ -557,117 +619,283 @@
   }
 
   // ---------------------------------------------------------------- photo fingerprints
+  // Database format 2 (tools/build_stop_images.py): 0.02° tiles with, per stop, its reference photos
+  // [src, prov, edge, heading, ref, credit, licence, fingerprint] and its timetable lines per edge [edge, lines, dests].
+  // Fingerprints are 128 int8 values: DINOv2 [CLS, mean patch] (768), centred and projected with index.pca.
+  let index = null;
   function loadIndex() {
-    if (window.STOP_IMAGES_INDEX) return Promise.resolve(window.STOP_IMAGES_INDEX);
-    return loadScript('stop-images/index.js').then(() => window.STOP_IMAGES_INDEX).catch(() => null);
+    if (window.STOP_IMAGES_INDEX) return Promise.resolve(index = window.STOP_IMAGES_INDEX);
+    return loadScript('stop-images/index.js').then(() => (index = window.STOP_IMAGES_INDEX || null)).catch(() => null);
   }
 
-  function decode(b64) {
+  function b64bytes(b64) {
     const bin = atob(b64);
-    const v = new Int8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) v[i] = (bin.charCodeAt(i) << 24) >> 24;
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function decodeEmb(b64) {
+    const v = new Int8Array(b64bytes(b64).buffer);
     let n = 0;
     for (let i = 0; i < v.length; i++) n += v[i] * v[i];
     return { v, n: Math.sqrt(n) || 1 };
   }
-
-  window.STOP_IMAGES_TILE = (key, data) => {
-    const t = {};
-    for (const [uic, refs] of Object.entries(data)) {
-      t[uic] = refs.map(([src, prov, edge, lon, lat, head, thumb, page, credit, licence, emb]) =>
-        ({ src, prov, edge, ll: lon != null ? [lon / 1e5, lat / 1e5] : null, head, thumb, page, credit, licence, emb: decode(emb) }));
+  // Compact photo reference → picture + page links (see build_stop_images.py compact_ref)
+  function refLinks(ref) {
+    const kind = ref.slice(0, 2), rest = ref.slice(2);
+    if (kind === 'c:') return { thumb: 'https://upload.wikimedia.org/wikipedia/commons/thumb/' + rest, page: 'https://commons.wikimedia.org/wiki/File:' + rest.split('/')[2] };
+    if (kind === 'p:') {
+      const m = /\/derivat\w*\/(\w\w)\/(\w\w)\/(\w\w)\/(\w\w)\/([\w-]+)\//.exec(rest);
+      return { thumb: rest, page: m ? `https://api.panoramax.xyz/#focus=pic&pic=${m[1]}${m[2]}${m[3]}${m[4]}-${m[5]}` : '' };
     }
-    tiles.set(key, t);
+    if (kind === 'm:') return { thumb: null, page: 'https://www.mapillary.com/app/?pKey=' + rest };
+    return { thumb: rest, page: rest };
+  }
+
+  const tileBytes = new Map(); // key → size of its script (diagnostics)
+  window.STOP_IMAGES_TILE = (key, data) => {
+    const t = data.s || data.d ? data : { s: data, d: {} };
+    tiles.set(key, { s: t.s || {}, d: t.d || {}, refs: new Map(), at: Date.now() });
   };
 
   async function loadTilesAround(ll) {
-    const index = await loadIndex();
-    if (!index) return;
-    const la = Math.floor(ll[1] * 10), lo = Math.floor(ll[0] * 10);
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const key = `${la + dy}_${lo + dx}`;
-      if (!index.tiles[key] || tiles.has(key)) continue;
-      tiles.set(key, {}); // loading
-      loadScript(`stop-images/t/${key}.js`).catch(() => tiles.delete(key));
+    if (!(await loadIndex())) return;
+    const size = index.tile || 0.1;
+    // every tile that can hold a stop with an edge within the candidate radius (+ a margin for spread-out stops)
+    const pos = position();
+    const r = Math.min(600, Math.max(150, 3 * (pos ? pos.acc : 50) + 60)) + 300;
+    const dLat = r / 111320, dLon = r / (111320 * Math.cos(ll[1] * toRad));
+    const want = new Set();
+    for (let la = Math.floor((ll[1] - dLat) / size); la <= Math.floor((ll[1] + dLat) / size); la++) {
+      for (let lo = Math.floor((ll[0] - dLon) / size); lo <= Math.floor((ll[0] + dLon) / size); lo++) {
+        const key = `${la}_${lo}`;
+        if (!Object.prototype.hasOwnProperty.call(index.tiles, key)) continue; // 0 photos can still mean lines
+        want.add(key);
+        if (tiles.has(key)) { tiles.get(key).at = Date.now(); continue; }
+        tiles.set(key, { s: {}, d: {}, refs: new Map(), at: Date.now() }); // loading
+        const src = `stop-images/t/${key}.js`;
+        loadScript(src).then(() => {
+          const s = [...document.querySelectorAll('script')].find((e) => e.src.endsWith(src));
+          if (s) s.remove(); // the data is in memory now
+          const entry = performance.getEntriesByName(new URL(src, location.href).href).pop();
+          if (entry) tileBytes.set(key, entry.transferSize || entry.encodedBodySize || 0);
+        }).catch(() => tiles.delete(key));
+      }
+    }
+    // keep memory bounded: forget the tiles you walked away from
+    if (tiles.size > 24) {
+      [...tiles].filter(([k]) => !want.has(k)).sort((a, b) => a[1].at - b[1].at)
+        .slice(0, tiles.size - 24).forEach(([k]) => { tiles.delete(k); tileBytes.delete(k); });
     }
   }
 
+  // Photos of a stop, decoded on first use
   function refsOf(uic) {
-    for (const t of tiles.values()) if (t[uic]) return t[uic];
+    for (const t of tiles.values()) {
+      if (t.refs.has(uic)) return t.refs.get(uic);
+      const raw = t.s[uic];
+      if (raw) {
+        const refs = raw.map(([src, prov, edge, head, ref, credit, licence, emb]) =>
+          ({ src, prov, edge, head, ref, credit, licence, ...refLinks(ref), emb: decodeEmb(emb) }));
+        t.refs.set(uic, refs);
+        return refs;
+      }
+    }
+    return null;
+  }
+  // Timetable lines and destinations per edge of a stop (offline): [{ edge, lines: Set, dests: [] }]
+  function linesOf(uic) {
+    for (const t of tiles.values()) {
+      const raw = t.d[uic];
+      if (raw) return raw.map(([edge, lines, dests]) => ({ edge, lines: new Set(lines.split(' ').filter(Boolean).map(norm)), dests: dests ? dests.split('|') : [] }));
+    }
     return null;
   }
 
+  // ---- the image model runs in a worker, so the camera picture and the labels never wait for it
+  // Shared by the worker and the main-thread fallback: last_hidden_state → 128-value fingerprint
+  function describe(hs, dim, pca) {
+    const tokens = hs.length / dim;
+    const cls = hs.slice(0, dim), mean = new Float32Array(dim);
+    for (let t = 1; t < tokens; t++) for (let k = 0; k < dim; k++) mean[k] += hs[t * dim + k];
+    const unit = (v) => { let s = 0; for (let i = 0; i < v.length; i++) s += v[i] * v[i]; s = Math.sqrt(s) || 1; for (let i = 0; i < v.length; i++) v[i] /= s; return v; };
+    unit(cls); unit(mean);
+    const v = new Float32Array(2 * dim);
+    for (let i = 0; i < dim; i++) { v[i] = cls[i] / Math.SQRT2; v[dim + i] = mean[i] / Math.SQRT2; }
+    if (!pca) return v;
+    const k = pca.k, y = new Float32Array(k);
+    for (let i = 0; i < v.length; i++) {
+      const c = v[i] - pca.mean[i];
+      const row = i * k;
+      for (let j = 0; j < k; j++) y[j] += c * pca.w[row + j];
+    }
+    for (let j = 0; j < k; j++) y[j] *= pca.scale[j];
+    return unit(y);
+  }
+  function toTensor(rgba, n) {
+    const x = new Float32Array(3 * n);
+    for (let i = 0; i < n; i++) for (let ch = 0; ch < 3; ch++) x[ch * n + i] = (rgba[i * 4 + ch] / 255 - MEAN[ch]) / STD[ch];
+    return x;
+  }
+  const WORKER_SRC = `
+    const MEAN = ${JSON.stringify(MEAN)}, STD = ${JSON.stringify(STD)};
+    ${describe.toString()}
+    ${toTensor.toString()}
+    let session = null, pca = null;
+    onmessage = async (e) => {
+      const m = e.data;
+      try {
+        if (m.type === 'init') {
+          importScripts(m.ortDist + 'ort.wasm.min.js');
+          ort.env.wasm.wasmPaths = m.ortDist;
+          ort.env.wasm.numThreads = m.threads;
+          session = await ort.InferenceSession.create(new Uint8Array(m.model), { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+          pca = m.pca;
+          postMessage({ type: 'ready' });
+        } else if (m.type === 'embed') {
+          const t0 = performance.now();
+          const size = m.size, x = toTensor(new Uint8ClampedArray(m.rgba), size * size);
+          const out = await session.run({ pixel_values: new ort.Tensor('float32', x, [1, 3, size, size]) });
+          const v = describe(out.last_hidden_state.data, 384, pca);
+          postMessage({ type: 'emb', id: m.id, v, ms: performance.now() - t0 }, [v.buffer]);
+        }
+      } catch (err) {
+        postMessage({ type: 'error', id: m.id, message: String(err && err.message || err) });
+      }
+    };`;
+
+  let worker = null, workerUrl = null, mainSession = null, pcaData = null, embedId = 0;
+  const pending = new Map();
+  function pcaFromIndex() {
+    const p = index && index.pca;
+    if (!p) return null;
+    return { k: p.k, mean: new Float32Array(b64bytes(p.mean).buffer), w: new Int8Array(b64bytes(p.w).buffer), scale: new Float32Array(b64bytes(p.scale).buffer) };
+  }
+  async function modelBytes() {
+    const m = index.model;
+    const url = `https://huggingface.co/${m.repo}/resolve/${m.rev}/${m.file}`;
+    try { // keep the 24 MB model on the phone after the first time
+      const cache = await caches.open('stopvision-model');
+      let res = await cache.match(url);
+      if (!res) { res = await fetch(url); if (res.ok) await cache.put(url, res.clone()); }
+      return await res.arrayBuffer();
+    } catch { return (await fetch(url)).arrayBuffer(); }
+  }
+
   async function ensureModel() {
-    if (model || modelState === 'loading' || modelState === 'failed') return model;
-    const index = await loadIndex();
-    if (!index) { modelState = 'failed'; return null; }
+    if (modelState === 'ready') return true;
+    if (modelState === 'loading' || modelState === 'failed') return false;
+    if (!(await loadIndex())) { modelState = 'failed'; return false; }
     modelState = 'loading';
+    const t0 = performance.now();
+    const mine = session;
     try {
-      if (!window.ort) await loadScript(ORT_DIST + 'ort.wasm.min.js');
-      window.ort.env.wasm.wasmPaths = ORT_DIST;
-      window.ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
-      const m = index.model;
-      const url = `https://huggingface.co/${m.repo}/resolve/${m.rev}/${m.file}`;
-      let buf = null;
-      try { // keep the 24 MB model on the phone after the first time
-        const cache = await caches.open('stopvision-model');
-        let res = await cache.match(url);
-        if (!res) { res = await fetch(url); if (res.ok) await cache.put(url, res.clone()); }
-        buf = await res.arrayBuffer();
-      } catch { buf = await (await fetch(url)).arrayBuffer(); }
-      model = await window.ort.InferenceSession.create(new Uint8Array(buf), { executionProviders: ['wasm'] });
+      const buf = await modelBytes();
+      if (mine !== session || !running) { modelState = 'idle'; return false; } // closed while downloading
+      pcaData = pcaFromIndex();
+      const threads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
+      try {
+        workerUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+        worker = new Worker(workerUrl);
+        await new Promise((resolve, reject) => {
+          worker.onmessage = (e) => {
+            const m = e.data;
+            if (m.type === 'ready') resolve();
+            else if (m.type === 'emb') { const p = pending.get(m.id); pending.delete(m.id); if (p) p.resolve(m); }
+            else if (m.type === 'error') {
+              if (m.id == null) reject(new Error(m.message));
+              const p = pending.get(m.id); pending.delete(m.id); if (p) p.reject(new Error(m.message));
+            }
+          };
+          worker.onerror = (e) => reject(new Error(e.message || 'worker failed'));
+          worker.postMessage({ type: 'init', ortDist: ORT_DIST, threads, model: buf, pca: pcaData }, [buf]);
+        });
+        if (mine !== session || !running) { releaseModel(); return false; }
+        // from now on a crash fails what is waiting (the scan carries on with signs) instead of hanging it
+        worker.onerror = () => { const w = worker; releaseModel(); modelState = 'failed'; if (w) w.terminate(); };
+        stats.engine = 'worker';
+      } catch (err) {
+        // no worker (old browser, blocked importScripts): run on the page, less smooth but the same results
+        console.warn('Scan: model worker unavailable, using the page', err);
+        if (worker) worker.terminate();
+        worker = null;
+        if (!window.ort) await loadScript(ORT_DIST + 'ort.wasm.min.js');
+        window.ort.env.wasm.wasmPaths = ORT_DIST;
+        window.ort.env.wasm.numThreads = threads;
+        mainSession = await window.ort.InferenceSession.create(new Uint8Array(await modelBytes()), { executionProviders: ['wasm'] });
+        stats.engine = 'page';
+        if (mine !== session || !running) { releaseModel(); return false; }
+      }
+      stats.modelLoadMs = Math.round(performance.now() - t0);
       modelState = 'ready';
+      return true;
     } catch (err) {
       modelState = 'failed';
       console.warn('Scan: image model unavailable', err);
+      return false;
     }
-    return model;
   }
 
   // Fingerprint of the picture: same preprocessing as the database (shortest side → 224, centre crop, ImageNet norm)
+  let frameCanvas = null;
   async function embedFrame() {
     const [w, h] = sourceSize();
     if (!w) return null;
     const side = Math.min(w, h);
-    const c = document.createElement('canvas');
-    c.width = c.height = INPUT;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (!frameCanvas) { frameCanvas = document.createElement('canvas'); frameCanvas.width = frameCanvas.height = INPUT; }
+    const ctx = frameCanvas.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(source(), (w - side) / 2, (h - side) / 2, side, side, 0, 0, INPUT, INPUT);
-    const d = ctx.getImageData(0, 0, INPUT, INPUT).data;
-    const n = INPUT * INPUT;
-    const x = new Float32Array(3 * n);
-    for (let i = 0; i < n; i++) for (let ch = 0; ch < 3; ch++) x[ch * n + i] = (d[i * 4 + ch] / 255 - MEAN[ch]) / STD[ch];
-    const out = await model.run({ pixel_values: new window.ort.Tensor('float32', x, [1, 3, INPUT, INPUT]) });
-    const hs = out.last_hidden_state.data; // [1, 1 + patches, 384]
-    const dim = 384, tokens = hs.length / dim;
-    const cls = hs.slice(0, dim), mean = new Float32Array(dim);
-    for (let t = 1; t < tokens; t++) for (let k = 0; k < dim; k++) mean[k] += hs[t * dim + k];
-    const unit = (v) => { let s = 0; for (const a of v) s += a * a; s = Math.sqrt(s) || 1; return v.map((a) => a / s); };
-    const q = new Float32Array(2 * dim);
-    q.set(unit(cls), 0); q.set(unit(mean), dim);
-    return q.map((a) => a / Math.SQRT2);
+    const rgba = ctx.getImageData(0, 0, INPUT, INPUT).data;
+    if (worker) {
+      const id = ++embedId;
+      const res = await new Promise((resolve, reject) => {
+        // never wait forever: a stuck worker would block sign reading too (one job at a time)
+        const timer = setTimeout(() => { if (pending.delete(id)) reject(new Error('photo model timed out')); }, 15000);
+        pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+        worker.postMessage({ type: 'embed', id, size: INPUT, rgba: rgba.buffer }, [rgba.buffer]);
+      });
+      stats.photo.push(res.ms);
+      return res.v;
+    }
+    const t0 = performance.now();
+    const out = await mainSession.run({ pixel_values: new window.ort.Tensor('float32', toTensor(rgba, INPUT * INPUT), [1, 3, INPUT, INPUT]) });
+    const v = describe(out.last_hidden_state.data, 384, pcaData);
+    stats.photo.push(performance.now() - t0);
+    return v;
+  }
+
+  function releaseModel() {
+    if (worker) worker.terminate();
+    for (const p of pending.values()) p.reject(new Error('closed'));
+    pending.clear();
+    if (workerUrl) URL.revokeObjectURL(workerUrl);
+    if (mainSession && mainSession.release) mainSession.release().catch(() => {});
+    worker = null; workerUrl = null; mainSession = null; modelState = 'idle';
   }
 
   async function comparePhotos() {
     const withRefs = candidates.filter((c) => refsOf(c.uic));
+    const owner = session;
     if (!withRefs.length || (stillImage && stillFrames > 0) || !(await ensureModel())) return;
+    if (!running || !ui || owner !== session) return;
     if (stillImage) stillFrames++;
     // a photo linked to several of these stops (e.g. a view of the whole square) cannot tell them apart
     const shared = new Map();
-    for (const c of withRefs) for (const r of refsOf(c.uic)) shared.set(r.page, (shared.get(r.page) || 0) + 1);
+    for (const c of withRefs) for (const r of refsOf(c.uic)) shared.set(r.ref, (shared.get(r.ref) || 0) + 1);
+    const mine = session;
     const q = await embedFrame();
-    if (!q || !running) return;
+    if (!q || !running || mine !== session) return;
     const best = [];
     for (const c of withRefs) {
       let top = -1, topRef = null;
       for (const r of refsOf(c.uic)) {
-        if (shared.get(r.page) > 1) continue;
+        if (shared.get(r.ref) > 1 || r.emb.v.length !== q.length) continue;
         let dot = 0;
         for (let i = 0; i < q.length; i++) dot += q[i] * r.emb.v[i];
         let sim = dot / r.emb.n;
         if (!IDENTITY[r.prov] && r.prov === 'geo') sim -= 0.02; // photos tied only by place count a bit less
-        if (r.head != null && headingOk() && angleDiff(r.head, heading) < 45) sim += 0.02; // taken looking the same way
+        if (r.head != null && headingOk() && !stillImage && angleDiff(r.head, heading) < 45) sim += 0.02; // taken looking the same way
         if (sim > top) { top = sim; topRef = r; }
       }
       if (topRef) best.push({ c, sim: top, ref: topRef });
@@ -688,13 +916,30 @@
     });
   }
 
+  // ---------------------------------------------------------------- diagnostics (?scandebug, or tap the status 3×)
+  const stats = { frames: [], ocr: [], photo: [], engine: '-', modelLoadMs: 0, ocrLoadMs: 0, longFrames: 0 };
+  const pctl = (a, p) => { if (!a.length) return 0; const s = a.slice(-30).sort((x, y) => x - y); return Math.round(s[Math.min(s.length - 1, Math.floor(p * s.length))]); };
+  function diagnostics() {
+    const f = stats.frames.slice(-60);
+    const fps = f.length > 1 ? Math.round(1000 * (f.length - 1) / (f[f.length - 1] - f[0])) : 0;
+    const kb = [...tileBytes.values()].reduce((a, b) => a + b, 0) / 1024;
+    const pos = position();
+    return [
+      `${fps} fps · frames >50 ms: ${stats.longFrames}`,
+      `signs: ${pctl(stats.ocr, 0.5)} ms (p95 ${pctl(stats.ocr, 0.95)}) · loaded in ${stats.ocrLoadMs} ms · ${ocrLang || '-'}`,
+      `photos: ${pctl(stats.photo, 0.5)} ms (p95 ${pctl(stats.photo, 0.95)}) · ${stats.engine} · loaded in ${stats.modelLoadMs} ms`,
+      `tiles: ${tiles.size} (${Math.round(kb)} KB) · stops near: ${candidates.length}`,
+      `GPS ±${pos ? Math.round(pos.acc) : '-'} m · compass ${headingOk() ? Math.round(heading) + '° ±' + Math.round(headingAcc) : 'off'}`,
+    ].join('\n');
+  }
+
   // ---------------------------------------------------------------- what is shown
   // Which edge of a recognised stop you are looking at, and how we know (null = only the stop is known)
   function edgeOf(c) {
     const ev = evidence.get(c.uic) || {};
     const now = Date.now();
-    if (ev.edgeOcr != null && now - ev.edgeOcrAt < 20000) return { i: ev.edgeOcr, why: 'Platform sign read' };
-    if (ev.edgeDest != null && now - ev.edgeDestAt < 20000) return { i: ev.edgeDest, why: 'Destination read' };
+    if (ev.edgeOcr != null && fresh(ev.edgeOcrAt, 20000)) return { i: ev.edgeOcr, why: 'Platform sign read' };
+    if (ev.edgeDest != null && fresh(ev.edgeDestAt, 20000)) return { i: ev.edgeDest, why: 'Destination read' };
     if (ev.visRef && ev.visRef.edge != null && ev.visStreak >= VIS_FRAMES) return { i: ev.visRef.edge, why: 'Matches a photo of this side', maybe: true };
     if (c.st.edges.length === 1) return { i: 0, why: '' };
     // the camera points at one edge and the others are well outside the picture
@@ -710,9 +955,9 @@
 
   function recognised(c) {
     const ev = evidence.get(c.uic) || {};
-    if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
+    if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
     // photo match only together with the location: the stop that position + compass favour on their own
-    if (ev.visStreak >= VIS_FRAMES && Date.now() - ev.visAt < 6000 && c.geoTop && c.ahead !== false) return 'photo';
+    if (ev.visStreak >= VIS_FRAMES && Date.now() - ev.visAt < 6000 && c.geoTop && c.ahead !== false && position()) return 'photo';
     return null;
   }
 
@@ -777,7 +1022,7 @@
     if (key === ui.shownKey) return;
     ui.shownKey = key;
 
-    const state = $('span', 'sv-state' + (how ? ' ok' : ''), how ? 'Recognised' : c.ahead ? 'Nearby · ahead' : 'Nearby');
+    const state = $('span', 'sv-state' + (how ? ' ok' : ''), how ? 'Recognised' : !pos ? 'Possible match' : c.ahead ? 'Nearby · ahead' : 'Nearby');
     const main = $('div', 'sv-main');
     const txt = $('div');
     const sub = [MODE_WORD[c.st.mode] || 'Stop'];
@@ -787,7 +1032,7 @@
     main.append(icon(c.st.mode), txt);
 
     const why = $('ul', 'sv-why');
-    if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.72) why.append(chip(`Sign read “${ev.ocrWhat}”`, true));
+    if (fresh(ev.ocrAt, 12000) && ev.ocr >= 0.72) why.append(chip(`Sign read “${ev.ocrWhat}”`, true));
     if (edge && edge.why) why.append(chip(edge.why + (ev.destWhat && edge.why === 'Destination read' ? ` “${ev.destWhat}”` : ''), !edge.maybe));
     if (ev.visStreak >= VIS_FRAMES) why.append(chip('Looks like its photos', how === 'photo'));
     else if (ev.vis != null && ev.visRel > 0.02) why.append(chip('Similar to its photos', false));
@@ -860,25 +1105,39 @@
   const depDue = (ev) => !ev.depBusy && (!ev.depAt || Date.now() - ev.depAt > 60000);
 
   function loop(mine) {
-    let busyOcr = false, busyVis = false;
-    const frame = () => {
+    // One heavy job at a time (reading signs or comparing photos), so a phone never runs both at once:
+    // a tap goes first, otherwise whichever is more overdue. Frames keep drawing while a job runs in its worker.
+    let busy = false, lastFrame = 0, lastWork = 0;
+    const run = (job, done) => {
+      busy = true;
+      job().catch((e) => console.warn(e)).finally(() => { busy = false; done(Date.now()); });
+    };
+    const frame = (t) => {
       if (!running || mine !== session) return;
+      if (lastFrame && t - lastFrame > 50) stats.longFrames++;
+      lastFrame = t;
+      stats.frames.push(t);
+      if (stats.frames.length > 120) stats.frames.splice(0, 60);
       const now = Date.now();
+      if (t - lastWork < 50) { requestAnimationFrame(frame); return; } // ~20 updates a second are plenty, and cooler
+      lastWork = t;
       if (now - lastCand > 3000 && position()) { lastCand = now; findCandidates(); }
+      else if (!position() && candidatesBy === 'gps') { candidates = []; candidatesBy = ''; }
       score();
       placeTags();
       renderSheet();
-      if (!busyOcr && (tapRead || now - lastOcr > 1500)) {
-        busyOcr = true;
-        // the next reading waits 1.5 s after this one ends, so photo matching gets its turn in between
-        readSigns().catch((e) => console.warn(e)).finally(() => { busyOcr = false; lastOcr = Date.now(); });
-      }
-      if (!busyVis && !busyOcr && now - lastVis > 1500 && candidates.length) {
-        busyVis = true; lastVis = now;
-        comparePhotos().catch((e) => console.warn(e)).finally(() => { busyVis = false; });
+      if (!busy) {
+        const ocrDue = tapRead ? Infinity : now - lastOcr - 1500;
+        // comparing photos only helps while it can still change the answer: not once a sign has settled it,
+        // and not when fewer than two stops around have photos
+        const settled = candidates[0] && recognised(candidates[0]) === 'sign';
+        const photoStops = candidates.reduce((n, c) => n + (refsOf(c.uic) ? 1 : 0), 0);
+        const visDue = !settled && (photoStops >= 2 || stillImage) && modelState !== 'failed' ? now - lastVis - 1200 : -Infinity;
+        if (ocrDue >= 0 && ocrDue >= visDue) run(readSigns, (t2) => { lastOcr = t2; });
+        else if (visDue >= 0) run(comparePhotos, (t2) => { lastVis = t2; });
       }
       if (candidates[0] && depDue(evidence.get(candidates[0].uic) || {})) departures(candidates[0]).catch(() => {});
-      if (now - lastStatus > 1000) { lastStatus = now; renderStatus(); }
+      if (now - lastStatus > 1000) { lastStatus = now; renderStatus(); if (debugOn) ui.debug.textContent = diagnostics(); }
       requestAnimationFrame(frame);
     };
     renderStatus();
@@ -942,10 +1201,38 @@
     if (stillImage) URL.revokeObjectURL(stillImage);
     stillImage = null;
     tapRead = null;
+    // free the memory: both engines (the model stays in the browser cache), photo tiles, decoded fingerprints
+    releaseModel();
+    if (ocr) ocr.terminate().catch(() => {});
+    ocr = null; ocrState = 'idle'; ocrLang = '';
+    tiles.clear(); tileBytes.clear(); nameIndex = null;
+    candidates = []; candidatesBy = ''; prevTop = null;
     ui.root.remove();
     ui = null;
     if (app && app.onClose) app.onClose();
   }
 
-  window.STOPVISION = { open: openScan, close: closeScan, _debug: { evidence, candidates: () => candidates, tiles, matchIn, nameVariants, norm, distinctive, useText, setApp: (a) => { app = a; }, recognised, findCandidates, score, edgeOf } };
+  // Benchmark (scan-bench.html): load both engines, then time sign reading and photo fingerprints on an image
+  async function bench(img, runs = 8, log = () => {}) {
+    const fake = { videoWidth: 0, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight };
+    ui = { still: img, video: fake, ring: { classList: { remove() {} } }, root: { clientWidth: 390, clientHeight: 844 } };
+    stillImage = 'bench'; running = true; app = app || { position: () => null, PLATFORMS: new Map(), toast() {} };
+    const out = {};
+    let t = performance.now();
+    await ensureOcr(); out.ocrLoadMs = Math.round(performance.now() - t); log('sign reader ready', out);
+    t = performance.now();
+    await ensureModel(); out.modelLoadMs = Math.round(performance.now() - t); out.engine = stats.engine; log('image model ready', out);
+    for (let i = 0; i < runs; i++) { await embedFrame(); log(`photo ${i + 1}/${runs}`); }
+    for (let i = 0; i < Math.min(3, runs); i++) {
+      const img2 = await ocrImage(null, i % 2 === 1);
+      const t0 = performance.now(); const { data } = await ocr.recognize(img2); stats.ocr.push(performance.now() - t0);
+      out.text = (data.text || '').replace(/\s+/g, ' ').trim().slice(0, 80); log(`signs ${i + 1}/3`);
+    }
+    out.photoMs = { p50: pctl(stats.photo, 0.5), p95: pctl(stats.photo, 0.95) };
+    out.ocrMs = { p50: pctl(stats.ocr, 0.5), p95: pctl(stats.ocr, 0.95) };
+    running = false; stillImage = null; ui = null;
+    return out;
+  }
+
+  window.STOPVISION = { open: openScan, close: closeScan, bench, _debug: { evidence, candidates: () => candidates, tiles, matchIn, nameVariants, norm, distinctive, useText, setApp: (a) => { app = a; }, recognised, findCandidates, score, edgeOf } };
 })();

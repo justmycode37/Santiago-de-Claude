@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_327",{"s":{},"d":{"8571776":[[0,"392","La Côte-aux-Fées, garage|La Côte-aux-Fées, poste"]],"8504288":[[1,"R21","Neuchâtel"],[0,"R21","Neuchâtel|Fleurier|Noiraigue|Travers"]],"8530005":[[0,"2008","La Robella (télésiège)"]]}});

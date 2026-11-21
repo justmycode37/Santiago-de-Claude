@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_379",{"s":{},"d":{"8507009":[[0,"S1 EXT","Fribourg/Freiburg|Thun|Gümligen|Bern|Düdingen|Flamatt"],[1,"S1","Thun|Fribourg/Freiburg"]],"8596124":[[0,"EV1","Fribourg/Freiburg, Pl. Gare"]]}});

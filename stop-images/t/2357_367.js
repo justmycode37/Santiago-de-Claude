@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_367",{"s":{},"d":{"8594164":[[0,"72 M34","Meinisberg, Rütti|Arch, Arche|Lyss, Bahnhof|Büren an der Aare, Bahnhof"],[1,"72","Biel/Bienne, Bahnhof/Gare"]],"8504545":[[0,"72","Meinisberg, Rütti"],[1,"72","Biel/Bienne, Bahnhof/Gare"],[2,"M34","Arch, Arche|Lyss, Bahnhof|Büren an der Aare, Bahnhof"]]}});

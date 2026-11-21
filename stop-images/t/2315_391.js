@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2315_391",{"s":{},"d":{"8596010":[[0,"494","St. German, Dorfplatz|Raron, Bahnhof|Raron, Schulhaus|Gampel-Steg, Bahnhof|Steg VS, Kirche"]],"8571082":[[0,"522","Ausserberg, Dorf"],[1,"522","Visp, Bahnhof Süd|Visp, Lonzawerke"]],"8571074":[[0,"494","Raron, Bahnhof|Raron, Schulhaus|Gampel-Steg, Bahnhof|Steg VS, Kirche"]]}});

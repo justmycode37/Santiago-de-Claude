@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2333_344",{"s":{},"d":{"8504879":[[0,"473 474 N24","Palézieux, gare|Moudon, gare|Mossel, village|Moudon, Sorbiers"],[1,"473 474 N24","Romont FR, gare|Bulle, gare routière"]],"8504936":[[0,"473 474 N24","Palézieux, gare|Moudon, gare|Mossel, village|Moudon, Sorbiers"],[1,"473 474 N24","Romont FR, gare|Bulle, gare routière"]]}});

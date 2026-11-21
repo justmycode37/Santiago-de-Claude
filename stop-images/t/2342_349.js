@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_349",{"s":{},"d":{"8511509":[[0,"557","Domdidier, CO|Domdidier, gare"],[1,"557","Léchelles, village"]],"8504124":[[0,"R9 S52 SN EXT","Murten/Morat|Allaman|Lausanne|Payerne|Palézieux|Bern"]],"8509598":[[1,"EV2","Payerne, gare"],[0,"EV2","Murten/Morat, Bahnhof|Payerne, gare|Kerzers, Bahnhof"],[null,"EV2 EV5","Payerne, gare|Murten/Morat, Bahnhof"]]}});

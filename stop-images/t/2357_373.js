@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_373",{"s":{},"d":{"8571483":[[0,"886","Gächliwil, Wendeplatz"],[1,"886","Lohn-Lüterkofen, Bahnhof"]],"8571484":[[1,"886 885","Lohn-Lüterkofen, Bahnhof|Bätterkinden, Bahnhof"],[0,"886 885","Gächliwil, Wendeplatz|Schnottwil, Oberdorf"]]}});

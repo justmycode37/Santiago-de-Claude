@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_428",{"s":{},"d":{"8503857":[[1,"530 E","Zürich Flughafen, Bahnhof"],[null,"N54 530","Höri, Oberhöri|Zürich Flughafen, Bahnhof|Winkel, Zentrum"],[0,"530 N54 E","Bülach, Bahnhof|Höri, Oberhöri|Winkel, Zentrum|Bülach, Kantonsschule"]]}});

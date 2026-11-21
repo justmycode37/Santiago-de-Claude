@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_359",{"s":{},"d":{"8510811":[[0,"265","Charmey, Gros Mont"],[null,"265","Charmey (Gruyère), village"]],"8510809":[[0,"265","Charmey, Gros Mont"],[null,"265","Charmey (Gruyère), village"]],"8510808":[[0,"265","Charmey, Gros Mont"],[null,"265","Charmey (Gruyère), village"]]}});

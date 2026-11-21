@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2370_362",{"s":{},"d":{"8580762":[[1,"8","Delémont, gare|Rebeuvelier, poste|Moutier, Suisse Est|Delémont, gare CFF sud"],[0,"8","Lucelle|Charmoille, douane"]],"8572020":[[1,"8","Delémont, gare|Rebeuvelier, poste|Moutier, Suisse Est|Delémont, gare CFF sud"],[0,"8","Charmoille, douane"]]}});

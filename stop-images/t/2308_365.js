@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2308_365",{"s":{},"d":{"8570862":[[0,"362","Haute-Nendaz, télécabine|Sion, poste/gare"]],"8570869":[[0,"362","Siviez (Super-Nendaz)"],[1,"362","Haute-Nendaz, télécabine"]],"8570870":[[0,"362","Siviez (Super-Nendaz)"],[1,"362","Haute-Nendaz, télécabine"]]}});

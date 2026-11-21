@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_438",{"s":{},"d":{"8573791":[[0,"552","Einsiedeln, Spital|Einsiedeln, Bahnhof"]],"8583223":[[0,"552","Einsiedeln, Spital|Einsiedeln, Bahnhof"]],"8503730":[[0,"552","Einsiedeln, Spital|Einsiedeln, Bahnhof"]]}});

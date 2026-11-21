@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2353_359",{"s":{},"d":{"8571236":[[0,"366","Aarberg, Spital|Walperswil, Post"],[null,"M32","Erlach, Stedtli|Biel/Bienne, Bahnhof/Gare"]],"8504463":[[null,"S37","Biel/Bienne|Ins|Ins Dorf|Siselen-Finsterhennen"]]}});

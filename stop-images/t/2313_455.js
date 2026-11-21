@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2313_455",{"s":{},"d":{"8505876":[[0,"215","Rossa, Villaggio"],[1,"215","Grono, Bivio Calanca|Castaneda, Tevegno"]],"8580100":[[0,"215","Rossa, Villaggio"],[1,"215","Grono, Paese|Grono, Bivio Calanca|Castaneda, Tevegno"]]}});

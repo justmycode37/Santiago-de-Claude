@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_435",{"s":{},"d":{"8596117":[[null,"920","Disentis/Mustér, staziun/posta|Andermatt, Bahnhofplatz"]],"8505173":[[0,"R45","Disentis/Mustér|Andermatt|Zermatt|Visp"],[null,"EXT","Disentis/Mustér"]]}});

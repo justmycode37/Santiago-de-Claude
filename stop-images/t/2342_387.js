@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_387",{"s":{},"d":{"8588378":[[null,"271","Röthenbach i.E., Dorf|Signau, Bahnhof|Langnau i.E., Bahnhof|Röthenbach i.E., Chuderhüsi"]],"8508986":[[0,"271 252","Signau, Bahnhof|Thun, Bahnhof|Escholzmatt, Bahnhof|Langnau i.E., Bahnhof|Röthenbach i.E., Chuderhüsi"]]}});

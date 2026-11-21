@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2314_458",{"s":{},"d":{"8505959":[[0,"214","Castione, Stazione|Bellinzona, Stazione"],[1,"214","Mesocco, Stazione|Mesocco, Posta"],[null,"214","Mesocco, Stazione"]],"8575236":[[0,"214","Castione, Stazione|Bellinzona, Stazione"],[1,"214","Mesocco, Stazione|Mesocco, Posta"],[null,"214","Mesocco, Stazione"]]}});

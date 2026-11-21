@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_367",{"s":{},"d":{"8577762":[[0,"259","Boltigen, Bahnhof"],[1,"259","Jaun, Bergbahnen|Jaunpass, Restaurant"]],"8588866":[[0,"259","Boltigen, Bahnhof"],[1,"259","Jaun, Bergbahnen|Jaunpass, Restaurant"]],"8577763":[[0,"259","Boltigen, Bahnhof"],[1,"259","Jaun, Bergbahnen|Jaunpass, Restaurant"]]}});

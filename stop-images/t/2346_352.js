@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2346_352",{"s":{},"d":{"8583725":[[1,"538","Salavaux, école|Avenches, gare"],[0,"538","Mur, village"]],"8570511":[[1,"530 538","Sugiez, gare|Mur, village|Ins, Bahnhof"],[0,"538","Salavaux, école|Avenches, gare"]]}});
