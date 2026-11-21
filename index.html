@@ -1587,7 +1587,7 @@
           <input class="switch" type="checkbox" role="switch" data-setting="autoSpeed" aria-labelledby="setAutoT" aria-describedby="setAutoD setAutoPrivacy" />
         </label>
       </div>
-      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible.</p>
+      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible. Walking routes follow paths from © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL) and © swisstopo (swissTLM3D).</p>
       <p class="set-foot">With “Adjust to how I walk” on, the app measures your pace while it is open. When another step between Slow and Fast fits you better, the speed changes at the next start and the app tells you. Moving the slider yourself starts the measuring again.</p>
       <p class="set-foot set-private" id="setAutoPrivacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg><b>Private.</b> Your walking pace is measured and kept only in this app, on this device. It is never sent anywhere, no places are stored, and turning the setting off deletes it.</p>
 
@@ -1839,6 +1839,7 @@
   <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
   <script src="live.js"></script>
   <script src="places.js"></script>
+  <script src="walkroute.js" defer></script>
   <script src="stations3d/index.js"></script>
   <script>
     // The 3D station viewer (station3d.js, ~260 KB) loads the first time it is needed, not at start-up: a tap on
