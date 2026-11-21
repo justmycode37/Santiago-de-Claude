@@ -112,6 +112,20 @@ if (farDoor) {
   check(r && r.door && r.door.ll === farDoor.node.ll, 'a main door 50 m from any path is still where the walk ends');
   check(r && r.approxFrom != null, 'the stretch across open ground to that door is marked approximate');
 } else check(false, 'Schwarzenburgstrasse 326 in the tiles');
+// step-free to a building whose only door is mapped wheelchair=no: no door, the end marked approximate, and said
+await W.route([7.4358, 46.948], [7.4359, 46.9481], {}); // loads that corner
+const noWc = [...W._debug.entrances.values()].find((e) => /Mühlemattstrasse 70/.test(e.addr));
+if (noWc) {
+  const b = W._debug.buildings.get(noWc.bld);
+  const c = [b.ring.reduce((s, p) => s + p[0], 0) / b.ring.length, b.ring.reduce((s, p) => s + p[1], 0) / b.ring.length];
+  r = await W.route([7.4358, 46.948], c, { stepFree: true, to: {} });
+  check(r && !r.door && r.approxFrom != null && r.noStepFreeDoor, `step-free to Mühlemattstrasse 70 (door wheelchair=${noWc.wc}): no door, approximate end, "no step-free entrance"`);
+  r = await W.route([7.4358, 46.948], c, { to: {} });
+  check(r && r.door && !r.noStepFreeDoor, 'the same without step-free ends at its door');
+} else check(false, 'Mühlemattstrasse 70 in the tiles');
+// a straight connector that has to cross a building is marked approximate, however short
+r = await W.route([7.442453, 46.950341], [7.44293, 46.95039], {});
+check(r && (r.approx || r.approxTo != null || r.approxFrom != null), `a connector through a building is marked approximate (${r && r.dist} m)`);
 r = await W.route([7.43935, 46.94884], [7.4475, 46.948], { from: { accuracy: 10 }, to: {} });
 check(r && r.coords.length > 5 && r.dist < 1200, `Bahnhofplatz → Zytglogge area routed (${r && r.dist} m, ${r && r.via})`);
 

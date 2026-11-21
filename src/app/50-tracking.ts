@@ -187,9 +187,11 @@ function trackOnce() {
   const onFoot = here.type !== 'ride' && (here.walks || []).some((w) => w && w.net);
   const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
-  if (tripStart && s.d > tol && !(track && !track.off)) { track = null; return; }
+  // (once you have been on it, leaving it again is "off the route", however long that lasts)
+  const onRoute = !!(track && track.onRoute) || s.d <= tol;
+  if (tripStart && !onRoute) { track = null; return; }
   const offCount = s.d > tol ? ((track && track.offCount) || 0) + 1 : 0;
-  track = { ...s, v: geoVersion, offCount, off: offCount >= 2 }; // two fixes in a row, so one stray fix doesn't count
+  track = { ...s, v: geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (track.off) return;
   const dest = destMarker._map && destMarker.getLngLat().toArray();
   if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat!, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {

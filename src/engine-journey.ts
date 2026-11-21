@@ -330,7 +330,7 @@
         if (from) rewalk.set(prev, [(rewalk.get(prev) || [from])[0], d.ll]);
       }
       if (!same(a.ll, st.arrLL) && next && next.type !== 'ride') {
-        const to = next.type === 'change' ? next.points![1] : lastOf(next);
+        const to = next.type === 'change' ? next.points![1] : (next.type === 'walk' && next.toLL) || lastOf(next); // the place, not the door last found
         if (next.type === 'change') next.points![0] = a.ll;
         else if (next.type === 'walk') next.alight = a.ll;
         if (final.type === 'arrive' && final.from === st.s) final.end = a.ll;

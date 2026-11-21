@@ -45,6 +45,8 @@ interface WalkRouteResult {
   via: string;
   /** Metres on paths only swisstopo's map has (swissTLM3D). */
   swisstopo: number;
+  /** Step-free: the building has doors, but none is step-free (the walk ends at its wall, approximately). */
+  noStepFreeDoor?: boolean;
 }
 interface WalkRouteApi {
   route(a: LngLat, b: LngLat, opt?: WalkRouteOptions): Promise<WalkRouteResult | null>;
@@ -69,11 +71,13 @@ interface RoutedWalk {
   floors?: KanteFloorChange[];
 }
 
-/** A walk or change: what its ends are, the revision of its route, and the line its network route was made for. */
+/** A walk or change: what its ends are, the revision of its route, the lines its last answer drew (a walk moved
+ *  since has new ones), and for the walk to the destination the place it leads to. */
 interface JourneyFootStep {
   ends?: [WalkEnd, WalkEnd][];
   walkRev?: number;
-  _netFor?: string;
+  _netFor?: LngLat[][];
+  toLL?: LngLat;
 }
 
 /** A trip walked all the way: the network metres its times were set by (retimeWalkConn()). */

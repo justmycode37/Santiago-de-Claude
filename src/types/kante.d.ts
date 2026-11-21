@@ -481,6 +481,8 @@ interface KanteStep {
   from?: OdSection | null;
   /** walk, change: the lines drawn on the map. */
   lines?: LngLat[][];
+  /** walk (the last one): the place it leads to (its line may end at the door found for it). */
+  toLL?: LngLat;
   /** change: where you get off and where you board. */
   points?: (LngLat | null | undefined)[];
   /** walk: where you board, or where you got off. */

@@ -180,8 +180,9 @@ function buildSteps(conn: OdConnection, destTitle: string) {
   const end = lastRide ? at.get(lastRide)!.arr : null;
   if (w.min > 0 || !lastRide) {
     const t0 = new Date(w.start || (lastRide ? lastRide.arrival.arrival : conn.from.departure)!).getTime();
+    const last = w.lines[w.lines.length - 1];
     steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
-      from: lastRide, alight: end, t0, t1: t0 + w.min * 60000 });
+      from: lastRide, alight: end, t0, t1: t0 + w.min * 60000, toLL: last && last[last.length - 1] });
   }
   steps.push({ type: 'arrive', destTitle, time: conn.to.arrival, from: lastRide, end });
   steps.forEach((st, i) => {

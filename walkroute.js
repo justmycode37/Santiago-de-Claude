@@ -270,7 +270,7 @@
       if (own === false || (o.onlyOwn && !own)) return;
       // from the street you cannot step straight into an underpass below you (its floor is often not tagged)
       if (a.c === 't' && o.level === 0 && !o.platform) return;
-      let f = 1.3;
+      let f = 1.3, cuts = false;
       if (a.k === 'sep' || a.k === 'mr') f = 4;                     // onto a road whose sidewalks are drawn separately
       if (o.platform && (a.k === 'pl' || own) && (a.lv ? a.lv.includes(o.level) : !a.y)) f = own ? 0.3 : 0.5; // a platform point belongs on its platform
       if (o.level != null && o.level !== 0 && !a.lv) f *= 2;        // floor of the path unknown
@@ -283,9 +283,10 @@
         if (cutsBuilding(p, pr.q, under.length ? new Set([...allow, ...under]) : allow)) {
           if (a.c === 'p' || a.c === 'i' || a.c === 't') return;
           f = 6;
+          cuts = true;
         }
       }
-      best.set(e, { e, t: pr.t, q: pr.q, d: pr.d, cost: pr.d * f });
+      best.set(e, { e, t: pr.t, q: pr.q, d: pr.d, cost: pr.d * f, cuts });
     });
     return [...best.values()].sort((x, y) => x.cost - y.cost).slice(0, 8);
   }
@@ -310,9 +311,10 @@
       out.push({ ...x, cost: x.cost + extra, door, from: q }));
     // through a door of the building you are in / going to
     const doors = [];
+    let barred = 0; // doors the step-free setting rules out (wheelchair=no)
     inB.forEach((b) => b.entrances.forEach((d) => {
       const rank = DOOR_RANK[d.type] != null ? DOOR_RANK[d.type] : 10;
-      if (o.stepFree && d.wc === 'no') return;
+      if (o.stepFree && d.wc === 'no') { barred++; return; }
       doors.push({ d, rank: rank + (o.stepFree && d.wc === 'yes' ? -5 : 0) });
     }));
     doors.forEach(({ d, rank }) => {
@@ -328,6 +330,9 @@
       if (out.length || o.radius) break;
       attachments(p, o, allow, r).forEach((x) => out.push({ ...x, door: null, from: p }));
     }
+    // into (or out of) a building without a door: wherever that line meets the wall is a guess, however short, and
+    // when its doors are there but none is step-free, say so
+    if (inB.length) out.forEach((x) => { if (!x.door) { x.guess = true; if (barred && !doors.length) x.noStepFreeDoor = true; } });
     return out;
   }
 
@@ -476,8 +481,9 @@
     const offPath = first < 0; // no stretch of path left at all (both ends meet the same point): all of it is a guess
     if (offPath) { first = all.length - 1; last = 0; }
     const along = (i, j) => { let m = 0; for (let k = i + 1; k <= j; k++) m += distM(coords[k - 1], coords[k]); return m; };
-    const approxTo = first > 0 && along(0, first - 1) > 20 ? first - 1 : null;
-    const approxFrom = last < coords.length - 1 && along(last, coords.length - 1) > 20 ? last : null;
+    const unsure = (x) => !!(x && (x.guess || x.cuts));
+    const approxTo = first > 0 && (along(0, first - 1) > 20 || unsure(s)) ? first - 1 : null;
+    const approxFrom = last < coords.length - 1 && (along(last, coords.length - 1) > 20 || unsure(t)) ? last : null;
 
     let dist = 0;
     for (let i = 1; i < coords.length; i++) dist += distM(coords[i - 1], coords[i]);
@@ -498,7 +504,8 @@
     const via = summary(cues, door);
     let swisstopo = 0; // metres on paths only swisstopo's map has (swissTLM3D)
     for (let k = 1; k < all.length; k++) if (all[k][1] && all[k][1].s === 't') swisstopo += distM(coords[k - 1], coords[k]);
-    return { net: true, coords, approx: offPath || undefined, approxTo, approxFrom, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
+    return { net: true, coords, approx: offPath || undefined, approxTo, approxFrom,
+      noStepFreeDoor: !!(t.noStepFreeDoor || s.noStepFreeDoor) || undefined, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
       startDoor: s.door ? { ll: s.door.node.ll, type: s.door.type } : null, cues, via };
   }
   // The moments worth a word: stairs, escalators and lifts (with the floor they take you to), arcades, passages,
