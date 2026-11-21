@@ -1,4 +1,3 @@
-import { open } from './station3d-solid.js';
 import type { SolidChange, SolidView } from '../station3d-solid.js';
 declare global {
   /** The view, for the console. */
@@ -7,18 +6,32 @@ declare global {
 /** The page's elements, by id. */
 interface SolidPageElements {
   view: HTMLElement; title: HTMLElement; journey: HTMLSelectElement; sum: HTMLElement; floors: HTMLElement;
-  stepText: HTMLElement; stepMeta: HTMLElement; attrib: HTMLElement;
+  stepText: HTMLElement; stepMeta: HTMLElement; attrib: HTMLElement; fail: HTMLElement;
   prev: HTMLButtonElement; next: HTMLButtonElement; wholeBtn: HTMLButtonElement; stretch: HTMLButtonElement;
 }
 /** A journey of the menu: its label, its two ends and its preferences (comma-separated), as in the page's address. */
 type SolidPreset = [label: string, from: string, to: string, prefs: string];
 const $ = <K extends keyof SolidPageElements>(id: K) => document.getElementById(id) as SolidPageElements[K];
+// something it cannot do without (the station's data, three.js from its CDN, WebGL): say so instead of an empty view
+const fail = (title: string, text: string, e: unknown): never => {
+  $('fail').querySelector('h2')!.textContent = title;
+  $('fail').querySelector('p')!.textContent = text;
+  $('fail').hidden = false;
+  throw e;
+};
 const q = new URLSearchParams(location.search);
-const key = await window.SOLID_READY.catch((e) => { $('title').textContent = 'No 3D model: ' + e.message; throw e; });
+const key = await window.SOLID_READY.catch((e) => fail('No 3D model for this station', 'Its plan did not load. Check your connection, then try again.', e));
+const { open } = await import('./station3d-solid.js')
+  .catch((e) => fail('The 3D view didn’t load', 'Check your connection, then try again.', e));
 const model = window.STATION3D![key];
-// "stop:uic:ref[@sector]" | "entrance:Name" | "node:i" | "ll:lon,lat[,level]"
+// "stop:uic:ref[@sector]" | "entrance:Name" | "node:i" | "ll:lon,lat[,level]", or a stop with its position as
+// well, "stop:…;ll:…" (the router then falls back to the position for a platform the model does not know)
 const end = (t: string): StationRouteEndpoint | null => {
   if (!t) return null;
+  if (t.includes(';')) { const parts = t.split(';').map(end1); return parts.every(Boolean) ? Object.assign({}, ...parts) : null; }
+  return end1(t);
+};
+const end1 = (t: string): StationRouteEndpoint | null => {
   const [k, ...rest] = t.split(':');
   if (k === 'stop') { let ref = rest[1] || '', sector: string | undefined; if (ref.includes('@')) [ref, sector] = ref.split('@'); return { stop: Object.assign({ uic: rest[0], ref }, sector ? { sector } : {}) }; }
   if (k === 'entrance') return { entrance: rest.join(':') };
@@ -39,7 +52,13 @@ const presets = ({
     ['Platform 7 → bus terminal on the Welle', 'stop:8507000:7', 'stop:8507785:U', ''],
   ],
 } as Record<string, SolidPreset[] | undefined>)[key] || [];
-const prefsOf = (s: string | undefined): StationRoutePrefs => Object.fromEntries((s || '').split(',').filter(Boolean).map((p) => [p, true]));
+// "stepFree,walkKmh:3.5,date:2026-12-24": a bare name is true; walkKmh a number, date the journey's day
+const prefsOf = (s: string | undefined): StationRoutePrefs => Object.fromEntries((s || '').split(',').filter(Boolean).map((p) => {
+  const i = p.indexOf(':');
+  if (i < 0) return [p, true];
+  const k = p.slice(0, i), v = p.slice(i + 1);
+  return [k, k === 'date' ? v : Number.isFinite(+v) ? +v : v];
+}));
 let initial: SolidPreset | undefined = q.get('from') && q.get('to') ? ['Your journey', q.get('from')!, q.get('to')!, q.get('prefs') || ''] : presets[0];
 const opts = [...(initial && !presets.includes(initial) ? [initial] : []), ...presets];
 $('journey').innerHTML = opts.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('') + '<option value="x">Explore the station</option>';
@@ -47,11 +66,15 @@ $('title').textContent = model.name;
 $('attrib').textContent = (model.attribution || []).join(' · ');
 
 let view: SolidView | null = null;
-view = await open({
-  mount: $('view'), key,
-  from: initial && end(initial[1]), to: initial && end(initial[2]), prefs: prefsOf(initial && initial[3]),
-  onChange: sync,
-});
+try {
+  view = await open({
+    mount: $('view'), key,
+    from: initial && end(initial[1]), to: initial && end(initial[2]), prefs: prefsOf(initial && initial[3]),
+    onChange: sync,
+  });
+} catch (e) {
+  fail('3D isn’t available here', 'This browser or device can’t draw 3D graphics. The walking route is still in the app.', e);
+}
 const levels = view!.levels.slice().reverse();
 $('floors').innerHTML = levels.map((l) => `<button data-l="${l.id}" title="${l.name}">${l.id > 0 ? '+' + l.id : l.id}</button>`).join('') + '<hr><button data-l="all" title="Whole building">⌂</button>';
 $('floors').onclick = (e) => { const b = (e.target as HTMLElement).closest('button'); if (!b) return; b.dataset.l === 'all' ? view!.whole() : view!.floor(+b.dataset.l!); };

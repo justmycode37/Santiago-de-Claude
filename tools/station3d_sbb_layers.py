@@ -89,15 +89,20 @@ def main():
     # --- sector centres: per track, the border signs between two letters; a sector lies between its two borders
     sectors = []
     for ref in sorted({b['ref'] for b in boards}, key=lambda r: (len(r), r)):
-        borders = defaultdict(list)   # frozenset of the two letters (or one, at a platform end) → positions
+        # frozenset of the two letters → positions: {A, B} a border between two sectors, {A} a sign inside sector A
+        # (its letter on both faces, "A|A"), {A, END} the platform's end beyond A (one face blank, "A|-")
+        END = '|'
+        borders = defaultdict(list)
         for b in boards:
             if b['ref'] != ref:
                 continue
-            letters = frozenset(c for c in (b['front'], b['back']) if c and c != '-')
-            if letters:
-                borders[letters].append(b['xy'])
+            faces = [c for c in (b['front'], b['back']) if c and c != '-']
+            if not faces:
+                continue
+            letters = frozenset(faces + ([END] if len(faces) == 1 else []))
+            borders[letters].append(b['xy'])
         at = {k: [sum(p[0] for p in v) / len(v), sum(p[1] for p in v) / len(v)] for k, v in borders.items()}
-        names = sorted({c for k in at for c in k})
+        names = sorted({c for k in at for c in k if c != END})
         for name in names:
             # signs inside the sector, its letter on both faces ("A|A", as at Zürich HB): their middle
             own = borders.get(frozenset([name]))
@@ -110,14 +115,17 @@ def main():
                 a, b2 = max(((p, q) for p in sides for q in sides), key=lambda pq: math.dist(*pq))
                 c = [(a[0] + b2[0]) / 2, (a[1] + b2[1]) / 2]
             elif len(sides) == 1:
-                # an end sector: as far beyond its one border as the neighbour's centre is on the other side
+                # an end sector: as far beyond its one border as the neighbour sector reaches on the other side
                 border = sides[0]
                 key = next(k for k in at if name in k)
-                nb = next((x for x in key if x != name), None)
-                other = [at[k] for k in at if nb and nb in k and k != key]
+                nb = next((x for x in key if x != name and x != END), None)
+                # the neighbour's far border (between it and the next sector, or its own platform end); the
+                # nearest such, so the result does not depend on the order of the data
+                other = sorted((k for k in at if nb and nb in k and k != key and len(k) == 2),
+                               key=lambda k: math.dist(at[k], border))
                 if not other:
                     continue
-                far = other[0]
+                far = at[other[0]]
                 half = [(border[0] - far[0]) / 2, (border[1] - far[1]) / 2]
                 c = [border[0] + half[0], border[1] + half[1]]
             else:
@@ -135,8 +143,14 @@ def main():
                 continue
             p = xy(g)
             if inside(p):
-                furniture.append({'kind': kind, 'xy': p, 'mounting': r.get(mount_key), 'level': sections.get(r.get('bps_name')), 'source': src,
-                                  'source_id': str(r.get('fid') or r.get('id_automat'))})
+                level = sections.get(r.get('bps_name'))
+                item = {'kind': kind, 'xy': p, 'mounting': r.get(mount_key), 'level': level, 'source': src,
+                        'source_id': str(r.get('fid') or r.get('id_automat'))}
+                if level is not None:
+                    # only a hint: SBB's sections are operating areas, not floors (the build checks it against the
+                    # model); a level set by hand in the file has no level_from and is trusted as it is
+                    item['level_from'] = 'sbb_section'
+                furniture.append(item)
 
     for fname, data in (('boards.json', boards), ('sectors.json', sectors), ('furniture.json', furniture)):
         with open(os.path.join(out, fname), 'w', encoding='utf-8') as f:

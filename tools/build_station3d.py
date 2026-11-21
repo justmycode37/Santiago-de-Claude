@@ -3396,13 +3396,25 @@ class Builder:
         walk = [(Polygon(a['ring'], a.get('holes')), a['level'], a['kind']) for a in model['areas'] if a['kind'] != 'room']
         dropped = 0
         levels_here = {l['id'] for l in model['levels']}
+        unmodelled = doubted = 0
         for f in furniture or []:
             pt = Point(f['xy'])
             on = [l for poly, l, k in walk if k == 'platform' and l == 0 and poly.covers(pt)]
             near = sorted((poly.distance(pt), abs(l), l) for poly, l, k in walk)
             given = f.get('level')
-            if given is not None and given in levels_here:
-                level = given   # given by the data (SBB section, or the file): trusted on any level the station has
+            section = f.get('level_from') == 'sbb_section'
+            # hung from a roof or a catenary mast: out in the open, whatever SBB's section says
+            hung = section and (f.get('mounting') or '').startswith(('BA-Dach', 'FS-'))
+            if given is not None and not section:
+                if given not in levels_here:   # set by hand for a floor this model does not have: not put on 0
+                    unmodelled += 1
+                    continue
+                level = given   # set by hand in the file: trusted
+            elif given is not None and not hung and given in levels_here \
+                    and min((poly.distance(pt) for poly, l, k in walk if l == given), default=1e9) <= 15:
+                level = given   # SBB's section, and the model has somewhere to stand on that floor there
+            elif hung and any(d <= 15 for d, _, _ in near):
+                level = max(l for d, _, l in near if d <= 15)   # the highest floor walkable there
             elif on:
                 level = 0
             elif near and near[0][0] <= 15:
@@ -3410,6 +3422,8 @@ class Builder:
             else:
                 dropped += 1
                 continue
+            if section and given is not None and level != given:
+                doubted += 1
             props.append({'kind': f['kind'].replace('_', '-'), 'xy': [round(v, 1) for v in f['xy']], 'level': level})
         for poi in model['pois']:
             if poi['kind'] == 'meeting-point':
@@ -3421,7 +3435,9 @@ class Builder:
             for item in props:
                 kinds[item['kind']] += 1
             self.note('layers', 'props: ' + ', '.join(f'{n} {k}' for k, n in sorted(kinds.items()))
-                      + (f'; {dropped} pieces of furniture not near any walkable area, left out' if dropped else ''))
+                      + (f'; {dropped} pieces of furniture not near any walkable area, left out' if dropped else '')
+                      + (f'; {doubted} not on the floor of their SBB section (placed by the model)' if doubted else '')
+                      + (f'; {unmodelled} on a floor the model does not have, left out' if unmodelled else ''))
 
         # -- real roofs and walls of the key structures (swissBUILDINGS3D) instead of the OSM prisms under them
         mesh = self.data('shell_mesh.json', ['© swisstopo'])
