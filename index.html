@@ -526,6 +526,17 @@
     .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
     .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
     .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
+    .kj a.pill-btn { text-decoration: none; }
+    .kj .pill-btn.ticket .tk-short { display: none; }
+    @media (max-width: 400px) {
+      .kj .actionbar { gap: 8px; }
+      .kj .pill-btn.start { padding: 0 16px; }
+      .kj .pill-btn.ticket { padding: 0 14px; }
+    }
+    @media (max-width: 360px) {
+      .kj .pill-btn.ticket .tk-long { display: none; }
+      .kj .pill-btn.ticket .tk-short { display: inline; }
+    }
     .kj .overview-btn { margin: 4px 8px 8px; }
     .kj .stepnav { display: flex; align-items: center; gap: 12px; min-height: 56px; }
     .kj .stepnav-text { flex: 1; min-width: 0; }
@@ -3607,6 +3618,7 @@
       alert: '<path d="M12 4l9.3 16H2.7L12 4zM12 10v4.5"/><path d="M12 17.3h.01" stroke-width="2.6"/>',
       info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7h.01" stroke-width="2.6"/>',
       share: '<path d="M12 15V3.5M12 3.5L8 7.5M12 3.5l4 4M5 12.5V20h14v-7.5"/>',
+      ticket: '<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M15 7.5v1.5M15 11.25v1.5M15 15v1.5"/>',
       go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
       check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
       arrow: '<path d="M12 3.5l5.5 15-5.5-3.3-5.5 3.3z" fill="currentColor" stroke-linejoin="round"/>',
@@ -4176,6 +4188,7 @@
       const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
       jFoot.replaceChildren(h('div', 'actionbar',
         kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+        ticketLink(),
         kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
         h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
     }
@@ -4237,6 +4250,40 @@
       setDetent('low');
       const p = journeyProgress();
       goToStep(p && !p.ended ? p.i : 0, true);
+    }
+    // "Get ticket": this trip on sbb.ch, where it can be bought. SBB's own link format (read from sbb.ch):
+    //   stops=Name_I<stop id>~Name_I<stop id>, day=YYYY-MM-DD, time=HH:mm, moment=dep|arr, lowPrice=1.
+    // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
+    // result is this connection. lowPrice=1 turns on SBB's cheapest-price search (supersaver tickets);
+    // SBB ignores it where it doesn't offer that search.
+    function sbbTicketUrl() {
+      const rides = journeySteps.filter((st) => st.type === 'ride');
+      if (!rides.length) return null;
+      const a = rides[0].s.departure, b = rides[rides.length - 1].s.arrival;
+      const sbbId = (st) => !!st && /^\d{7}$/.test(String(st.id || '')); // Swiss stop number (UIC), as sbb.ch knows it
+      if (!sbbId(a.station) || !sbbId(b.station) || !a.departure) return null;
+      const stop = (st) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${st.id}`;
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).formatToParts(new Date(a.departure)).map((p) => [p.type, p.value]));
+      const q = new URLSearchParams({
+        stops: `${stop(a.station)}~${stop(b.station)}`,
+        day: `${parts.year}-${parts.month}-${parts.day}`,
+        time: `${parts.hour}:${parts.minute}`,
+        moment: 'dep',
+        lowPrice: '1',
+      });
+      return `https://www.sbb.ch/en/plan?${q}`;
+    }
+    function ticketLink() {
+      const url = sbbTicketUrl();
+      if (!url) return null; // nothing to buy: a walk only, or a stop without an id
+      const a = h('a', 'pill-btn ticket', kIcon('ticket', 18), h('span', 'tk-long', 'Get ticket'), h('span', 'tk-short', 'Ticket'));
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.setAttribute('aria-label', 'Get a ticket for this journey on sbb.ch');
+      return a;
     }
     async function shareJourney() {
       const title = `${journeyFrom} to ${journeyDest ? journeyDest.title : 'destination'}`;
