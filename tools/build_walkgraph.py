@@ -7,20 +7,24 @@ Lauben), passages through buildings, underpasses, station corridors and their fl
 building, building outlines, and straight lines across pedestrian squares and platforms (so routes cross a square
 instead of going round its edge).
 
-Source: OpenStreetMap through Overpass, fetched once per 0.02° block and cached in ~/.cache/walkgraph, so a run that
-stops can simply be started again. This is a build step; the app itself never calls Overpass.
+Sources: OpenStreetMap through Overpass, fetched once per 0.02° block and cached in ~/.cache/walkgraph, so a run that
+stops can simply be started again; and swisstopo's swissTLM3D roads and paths (tools/swisstlm3d.py, downloaded once),
+for the paths OpenStreetMap lacks, mostly outside towns: a swisstopo line more than 12 m from every OSM way is added
+(marked s: 't'), joined to the OSM way it meets at each end. This is a build step; the app itself never calls either.
 
 Usage:
   python3 tools/build_walkgraph.py --area bern            # bern, zurich, basel, geneva, lausanne, luzern, ...
   python3 tools/build_walkgraph.py --bbox 7.43,46.94,7.46,46.96
   python3 tools/build_walkgraph.py --area bern --refresh  # fetch OSM again instead of using the cache
+  python3 tools/build_walkgraph.py --area bern --no-tlm   # OpenStreetMap only
 
 Output: walkgraph/index.js (which tiles exist) and walkgraph/t/<lat*100>_<lon*100>.js, one per 0.01° tile:
   window.WALKGRAPH_TILE(key, {
     o: [lon0E6, lat0E6],                 tile origin; coordinates below are integers in 1e-6° from it
     n: [id, x, y, id, x, y, ...],        nodes by OSM id (so tiles join where they share nodes), each value a
                                          difference from the node before (ids ascending)
-    a: [{k, c?, l?, n?, i?, w?}, ...],   way attributes: k kind, c covered, l level, n name, i incline, w wheelchair=no
+    a: [{k, c?, l?, n?, i?, w?, s?}, ...],  way attributes: k kind, c covered, l level, n name, i incline,
+                                         w wheelchair=no, s: 't' a path only swisstopo's map (swissTLM3D) has
     w: [[wayId, attr, n0, n1, ...]],     walkable ways as node indices into n
     v: [[n0, n1, attr], ...],            straight lines across pedestrian areas (squares, platforms, station halls)
     b: [[bldId, x0, y0, dx, dy, ...]],   building outlines (first point absolute, then deltas)
@@ -41,6 +45,9 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import swisstlm3d  # noqa: E402  (next to this file)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'walkgraph')
@@ -285,6 +292,16 @@ class Grid:
             for gy in range(int(min(a[1], b[1]) // c), int(max(a[1], b[1]) // c) + 1):
                 self.cells.setdefault((gx, gy), []).append((a, b, tag))
 
+    def hits_kind(self, a, b, kind):
+        """Does a→b cross a segment of this kind ('r' tracks, 'w' walls, 'b' buildings)?"""
+        c = self.cell
+        for gx in range(int(min(a[0], b[0]) // c), int(max(a[0], b[0]) // c) + 1):
+            for gy in range(int(min(a[1], b[1]) // c), int(max(a[1], b[1]) // c) + 1):
+                for s in self.cells.get((gx, gy), ()):
+                    if s[2][0] == kind and segments_cross(a, b, s[0], s[1]):
+                        return True
+        return False
+
     def hits(self, a, b, skip=()):
         c = self.cell
         seen = set()
@@ -320,7 +337,152 @@ def levels_of(a):
     return out or None
 
 
-def build(bbox, refresh):
+# ------------------------------------------------------------------ swissTLM3D: swisstopo's paths that OpenStreetMap lacks
+
+TLM_SKIP = {'Autobahn', 'Autostrasse', 'Einfahrt', 'Ausfahrt', 'Zufahrt', 'Dienstzufahrt', 'Raststaette', 'Autozug',
+            'Verbindung', 'Klettersteig'}
+TLM_CLOSED = {'Gesperrt', 'Rennstrecke', 'Teststrecke', 'Panzerpiste'}
+TLM_NEAR = 12.0   # m: a swisstopo line this close to an OSM way is the same way (the two maps differ by a few metres)
+TLM_MIN = 15.0    # m: shorter stretches only OSM lacks are left out (noise, not paths)
+
+
+def tlm_attrs(r):
+    """Attributes of a swissTLM3D road or path (as walk_attrs gives for OSM), or None when not walkable."""
+    art, kb = r.get('OBJEKTART') or '', r.get('KUNSTBAUTE') or ''
+    if art in TLM_SKIP or (r.get('VERKEHRSBE') or '') in TLM_CLOSED:
+        return None
+    # floors in and under buildings (station halls, passages two floors down): OSM draws those with their levels;
+    # swisstopo's lines there would only join floors that do not meet
+    stufe = r.get('STUFE') or '0'
+    if kb == 'in/auf Gebaeude' or (stufe.lstrip('-').isdigit() and int(stufe) != 0):
+        return None
+    a = {'k': 'rd' if 'Strasse' in art else 'fw', 's': 't'}  # s: from swisstopo
+    if 'Treppe' in kb:
+        a['k'] = 'st'
+    if kb in ('Tunnel', 'Unterfuehrung', 'Unterfuehrung mit Treppe', 'Galerie'):
+        a['c'] = 't'
+        a['y'] = -1
+    if kb.startswith('Bruecke') or kb in ('Steg', 'Gedeckte Bruecke'):
+        a['y'] = 1
+    if a['k'] == 'st' or art == 'Markierte Spur' or (r.get('WANDERWEGE') or '') in ('Bergwanderweg', 'Alpinwanderweg') \
+            or ('Weg' in art and (r.get('BELAGSART') or '') == 'Natur'):
+        a['w'] = 1
+    name = (r.get('NAME') or r.get('STRNAME') or '').strip()
+    if name and name != 'k_W':
+        a['n'] = name
+    return a
+
+
+def add_tlm(bbox, nodes, walk, proj, walls):
+    """Add swissTLM3D stretches that no OSM way covers, joined to the OSM network at their ends. → count, metres"""
+    try:
+        base, rel = swisstlm3d.fetch()
+    except Exception as e:  # offline: build from OSM alone
+        print(f'swissTLM3D not available ({e}); OSM only', file=sys.stderr)
+        return 0, 0
+    w0, s0, e0, n0 = bbox
+    corners = [swisstlm3d.wgs84_to_lv95(x, y) for x in (w0, e0) for y in (s0, n0)]
+    box = (min(c[0] for c in corners), min(c[1] for c in corners), max(c[0] for c in corners), max(c[1] for c in corners))
+    # OSM ways in 20 m cells, to tell which swisstopo stretches OSM already has
+    grid = {}
+    for wid, (a, nds) in walk.items():
+        pts = [proj.xy(*nodes[n]) for n in nds]
+        for i in range(len(pts) - 1):
+            p, q = pts[i], pts[i + 1]
+            for gx in range(int(min(p[0], q[0]) // 20) - 1, int(max(p[0], q[0]) // 20) + 2):
+                for gy in range(int(min(p[1], q[1]) // 20) - 1, int(max(p[1], q[1]) // 20) + 2):
+                    grid.setdefault((gx, gy), []).append((wid, i, p, q))
+
+    def ground(wid):  # an OSM way at street level: where a swisstopo path can join it
+        a = walk[wid][0]
+        lv = levels_of(a)
+        return (lv is None or 0.0 in lv) and not a.get('y') and a.get('c') not in ('t', 'i')
+
+    def nearest_osm(pt, only_ground=False):
+        best = None
+        for wid, i, p, q in grid.get((int(pt[0] // 20), int(pt[1] // 20)), ()):
+            if only_ground and not ground(wid):
+                continue
+            d = dist_seg(pt, p, q)
+            if best is None or d < best[0]:
+                best = (d, wid, i, p, q)
+        return best
+
+    dbf = swisstlm3d.Dbf(base + '.dbf', ['OBJEKTART', 'KUNSTBAUTE', 'VERKEHRSBE', 'STUFE', 'WANDERWEGE', 'BELAGSART',
+                                         'NAME', 'STRNAME'])
+    tid = lambda lon, lat: -(round(lat * 1e6) * 10_000_000 + round(lon * 1e6))  # same point, same id (as relation rings)
+    added, metres, splits = 0, 0.0, {}
+    for rec, parts in swisstlm3d.lines_in(base, box):
+        a = tlm_attrs(dbf.row(rec))
+        if not a:
+            continue
+        for part_no, part in enumerate(parts):
+            ll = [swisstlm3d.lv95_to_wgs84(E, N) for E, N in part]
+            xy = [proj.xy(*p) for p in ll]
+            # which segments OSM lacks: any point along it (every 4 m) farther than TLM_NEAR from every OSM way
+            lacks = []
+            for i in range(len(xy) - 1):
+                p, q = xy[i], xy[i + 1]
+                if not a.get('y') and walls.hits_kind(p, q, 'r'):  # across tracks on the ground: never
+                    lacks.append(False)
+                    continue
+                k = max(1, int(math.hypot(q[0] - p[0], q[1] - p[1]) / 4))
+                lacks.append(any((lambda n: n is None or n[0] > TLM_NEAR)(nearest_osm((p[0] + (q[0] - p[0]) * j / k, p[1] + (q[1] - p[1]) * j / k)))
+                                 for j in range(k + 1)))
+            i = 0
+            while i < len(lacks):
+                if not lacks[i]:
+                    i += 1
+                    continue
+                j = i
+                while j + 1 < len(lacks) and lacks[j + 1]:
+                    j += 1
+                run = list(range(i, j + 2))  # vertex indices of segments i..j
+                length = sum(math.hypot(xy[v + 1][0] - xy[v][0], xy[v + 1][1] - xy[v][1]) for v in run[:-1])
+                i = j + 1
+                if length < TLM_MIN:
+                    continue
+                ids = []
+                for v in run:
+                    nid = tid(*ll[v])
+                    nodes.setdefault(nid, ll[v])
+                    ids.append(nid)
+                key = f't{rec}.{part_no}.{run[0]}'
+                walk[key] = (a, ids)
+                added += 1
+                metres += length
+                # join each end to the OSM way it meets (a new node on that way, or one of its own nodes)
+                for v, nid in ((run[0], ids[0]), (run[-1], ids[-1])):
+                    n = nearest_osm(xy[v], only_ground=True)
+                    if n is None or n[0] > TLM_NEAR:
+                        continue
+                    d, wid, si, p, q = n
+                    L2 = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2
+                    t = 0 if not L2 else max(0.0, min(1.0, ((xy[v][0] - p[0]) * (q[0] - p[0]) + (xy[v][1] - p[1]) * (q[1] - p[1])) / L2))
+                    nds = walk[wid][1]
+                    if t < 0.05 or t > 0.95:  # close to one of the way's own nodes: use it
+                        target = nds[si] if t < 0.5 else nds[si + 1]
+                    else:
+                        lon0, lat0 = nodes[nds[si]]
+                        lon1, lat1 = nodes[nds[si + 1]]
+                        target = tid(lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t)
+                        nodes.setdefault(target, (lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t))
+                        splits.setdefault(wid, []).append((si, t, target))
+                    if target != nid:
+                        walk[f'{key}.j{v}'] = ({'k': 'fw', 's': 't'}, [nid, target])
+    # put the new nodes into the OSM ways they split (in order along each segment)
+    for wid, ins in splits.items():
+        a, nds = walk[wid]
+        out = []
+        for si in range(len(nds)):
+            out.append(nds[si])
+            out += [n for _, _, n in sorted((x for x in ins if x[0] == si), key=lambda x: x[1]) if n != nds[si]]
+        walk[wid] = (a, out)
+    print(f'swissTLM3D {rel}: {added} stretches OSM lacks, {metres / 1000:.1f} km added', file=sys.stderr)
+    return added, metres
+
+
+def build(bbox, refresh, tlm=True):
     w0, s0, e0, n0 = bbox
     proj = Proj((s0 + n0) / 2)
     nodes = {}      # id → (lon, lat)
@@ -395,6 +557,9 @@ def build(bbox, refresh):
         a = walk_attrs(t)
         if a:
             walk[wid] = (a, nds)
+
+    if tlm:
+        add_tlm(bbox, nodes, walk, proj, walls)
 
     for rid, (t, rings, holes) in rels.items():
         if area_polygon({**t, 'area': t.get('area', 'yes')}):
@@ -709,6 +874,8 @@ def main():
     ap.add_argument('--area', choices=sorted(AREAS))
     ap.add_argument('--bbox', help='lon_min,lat_min,lon_max,lat_max')
     ap.add_argument('--refresh', action='store_true', help='fetch OSM again instead of using the cache')
+    ap.add_argument('--no-tlm', action='store_true', help="OSM only, without swisstopo's swissTLM3D paths")
+    ap.add_argument('--out', help='write the tiles here instead of walkgraph/ (for trying things out)')
     args = ap.parse_args()
     if args.bbox:
         bbox = tuple(float(v) for v in args.bbox.split(','))
@@ -718,7 +885,10 @@ def main():
         ap.error('give --area or --bbox')
     # fetch a margin around the area, so ways and squares on its edge are complete
     m = 0.004
-    g = build((bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m), args.refresh)
+    if args.out:
+        global OUT
+        OUT = os.path.abspath(args.out)
+    g = build((bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m), args.refresh, tlm=not args.no_tlm)
     write_tiles(g, bbox)
 
 

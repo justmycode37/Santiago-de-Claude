@@ -212,7 +212,7 @@
   const COVERED = { a: 'arcade', p: 'passage', t: 'underpass', i: 'indoors', c: 'covered' };
   function edgeCost(e, opt) {
     const a = e.attr, k = a.k;
-    let c = e.len * (FACTOR[k] || 1.2);
+    let c = e.len * (FACTOR[k] || 1.2) * (a.s === 't' ? 1.05 : 1); // s: 't' = a path only swisstopo's map has
     if (k === 'st') {
       if (opt.stepFree && a.w) return Infinity;
       c += opt.fewerStairs ? 40 + e.len * 3 : 3;
@@ -262,6 +262,7 @@
       const a = e.attr;
       if (!levelOk(a, o.level)) return;
       if (a.k === 'es' || (o.stepFree && a.w)) return; // never step onto the middle of an escalator
+      if (o.osmOnly && a.s === 't') return; // second try: a swisstopo path near the end may lead nowhere
       // a platform below or above the street: only paths known to be on its floor (not the street right above it)
       if (o.platform && !o.wide && o.level && !a.lv) return;
       // the platform of another track or bay is never where you board, however close (islands are metres apart)
@@ -322,7 +323,11 @@
     });
     // straight to the network: only when the building has no door that can be reached (the line is then a guess)
     if (!out.length) att(p, 0, null, allow);
-    if (!out.length && !o.radius) attachments(p, o, allow, 150).forEach((x) => out.push({ ...x, door: null, from: p }));
+    // nothing close: the nearest path up to 400 m away (the stretch across open ground to it is drawn dashed)
+    for (const r of [150, 400]) {
+      if (out.length || o.radius) break;
+      attachments(p, o, allow, r).forEach((x) => out.push({ ...x, door: null, from: p }));
+    }
     return out;
   }
 
@@ -465,9 +470,13 @@
     const raw = head.concat(pts, tail);
     const all = raw.filter((p, i, arr) => !i || distM(p[0], arr[i - 1][0]) > 0.3);
     const coords = all.map((p) => p[0]);
-    // no door known (or none reachable): the last bit into the building is a guess when it is long, so say so
-    let approxFrom = null;
-    if (!t.door && coords.length > 1 && distM(coords[coords.length - 2], b) > 20 && buildingsAt(b, 40).length) approxFrom = coords.length - 2;
+    // the straight bits from where you are onto the paths, and from the paths to the end (or its door), are guesses
+    // across open ground when they are long: say so (drawn dashed). approxTo / approxFrom: coordinate indices.
+    let first = all.findIndex((p) => p[1]), last = all.length - 1 - [...all].reverse().findIndex((p) => p[1]);
+    if (first < 0) { first = all.length - 1; last = 0; }
+    const along = (i, j) => { let m = 0; for (let k = i + 1; k <= j; k++) m += distM(coords[k - 1], coords[k]); return m; };
+    const approxTo = first > 0 && along(0, first - 1) > 20 ? first - 1 : null;
+    const approxFrom = last < coords.length - 1 && along(last, coords.length - 1) > 20 ? last : null;
 
     let dist = 0;
     for (let i = 1; i < coords.length; i++) dist += distM(coords[i - 1], coords[i]);
@@ -486,7 +495,9 @@
     const cues = cuesOf(raw); // before dropping repeated points: a lift ride has none of its own
     const door = t.door ? { ll: t.door.node.ll, type: t.door.type, addr: t.door.addr } : null;
     const via = summary(cues, door);
-    return { net: true, coords, approxFrom, levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
+    let swisstopo = 0; // metres on paths only swisstopo's map has (swissTLM3D)
+    for (let k = 1; k < all.length; k++) if (all[k][1] && all[k][1].s === 't') swisstopo += distM(coords[k - 1], coords[k]);
+    return { net: true, coords, approxTo, approxFrom, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
       startDoor: s.door ? { ll: s.door.node.ll, type: s.door.type } : null, cues, via };
   }
   // The moments worth a word: stairs, escalators and lifts (with the floor they take you to), arcades, passages,
@@ -576,16 +587,26 @@
     const straight = distM(a, b);
     if (straight > 4000) return null;
     if (!(await ensure(a, b, Math.max(300, straight * 0.4)))) return null;
-    let r = search(a, b, opt);
-    if (!r && opt.from && opt.from.accuracy != null) r = search(a, b, { ...opt, from: { ...opt.from, accuracy: null } });
-    // nothing from the platform's own paths (e.g. step-free and its lift is further along): look wider
-    if (!r && ((opt.from && opt.from.platform) || (opt.to && opt.to.platform)))
-      r = search(a, b, { ...opt, from: { ...opt.from, accuracy: null, wide: true }, to: { ...opt.to, wide: true } });
-    if (!r) return null;
-    // a network gap can send the search on a huge detour: leave that to the online router
-    if (r.dist > Math.max(straight * 4, straight + 1200)) return null;
-    return r;
+    // a network gap can send the search on a huge detour: that counts as no route (the next try, or the online router)
+    const ok = (r) => r && r.dist <= Math.max(straight * 4, straight + 1200);
+    const from = opt.from || {}, to = opt.to || {};
+    const tries = [
+      opt,
+      // GPS: if nothing within its accuracy leads anywhere, any path nearby
+      from.accuracy != null && { ...opt, from: { ...from, accuracy: null } },
+      // nothing from the platform's own paths (e.g. step-free and its lift is further along): look wider
+      (from.platform || to.platform) && { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true } },
+      // a path only swisstopo's map has, right by an end, can be a piece on its own: then from OSM's paths (dashed across)
+      { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true, osmOnly: true } },
+    ];
+    for (const t of tries) {
+      if (!t) continue;
+      const r = search(a, b, t);
+      if (ok(r)) return r;
+    }
+    return null;
   }
+
 
   root.WALKROUTE = {
     route,

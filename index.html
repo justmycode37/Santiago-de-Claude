@@ -1199,7 +1199,7 @@
           <span class="set-end" aria-hidden="true">Fast</span>
         </div>
       </div>
-      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible.</p>
+      <p class="set-foot">Used for every walk: to the stop, between vehicles and to the door. It decides whether a change is possible. Walking routes follow paths from © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors (ODbL) and © swisstopo (swissTLM3D).</p>
 
       <h2 class="set-head" id="setChangeHead">Changes and walking</h2>
       <div class="set-group" role="group" aria-labelledby="setChangeHead">
@@ -3270,14 +3270,21 @@
       steps.forEach((st, i) => {
         let from = 0;
         (st.lines || []).forEach((l, k) => {
-          // a straight line until a router has found the way (and the last bit into a building when no door is known)
+          // a straight line until a router has found the way, and the long straight bits across open ground onto and off
+          // the paths (approxTo / approxFrom): dashed
           const w = st.walks && st.walks[k];
-          const cut = w && w.approxFrom != null && w.approxFrom < l.length - 1 ? w.approxFrom : null;
-          if (cut != null) {
-            const head = l.slice(0, cut + 1);
-            doneLine(head, 'walk', i, from);
-            doneLine(l.slice(cut), 'walk', i, from + lengthKm(head), { approx: true });
-          } else doneLine(l, 'walk', i, from, !w || w.approx ? { approx: true } : undefined);
+          if (!w || w.approx) doneLine(l, 'walk', i, from, { approx: true });
+          else {
+            const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
+            const b = w.approxFrom != null && w.approxFrom > a ? w.approxFrom : l.length - 1;
+            let at = from;
+            [[0, a, true], [a, b, false], [b, l.length - 1, true]].forEach(([x, y, guess]) => {
+              if (y <= x) return;
+              const part = l.slice(x, y + 1);
+              doneLine(part, 'walk', i, at, guess ? { approx: true } : undefined);
+              at += lengthKm(part);
+            });
+          }
           from += lengthKm(l);
           if (!w) return;
           (w.covered || []).forEach((c) => line(c.coords, 'wcov', i, { done: !!p && i < p.i }));
@@ -5118,6 +5125,8 @@
         }
         dirs.push(d);
       });
+      // paths only swisstopo's map has (swissTLM3D), not OpenStreetMap: say where the way comes from
+      if (r.swisstopo >= 20) dirs.push({ kind: 'walk', text: `${fmtDist(r.swisstopo)} of this is on paths from swisstopo's map (© swisstopo)`, coords: null });
       if (r.door) dirs.push({ kind: 'walk', text: r.door.addr ? `In at the entrance, ${r.door.addr}` : r.door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [r.door.ll] });
       return dirs.length ? { dirs, floors } : { floors };
     }
