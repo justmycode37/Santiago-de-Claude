@@ -15,7 +15,7 @@ for c in git curl cc python3 flock cargo; do
   command -v "$c" >/dev/null || { echo "missing: $c"; exit 1; }
 done
 
-mkdir -p "$ROOT"/{raw,secrets,releases,state,bin}
+mkdir -p "$ROOT"/{raw,secrets,releases,state,bin,profiles}
 chmod 700 "$ROOT/secrets"
 [[ $BRANCH == main ]] || echo "KANTE_BRANCH=$BRANCH" > "$ROOT/config.env"
 [[ -d $ROOT/repo/.git ]] || git clone --quiet --branch "$BRANCH" "$REPO_URL" "$ROOT/repo"
@@ -28,13 +28,14 @@ fi
 
 KANTE_RAW=$ROOT/raw "$ROOT/repo/kante/scripts/fetch-data.sh"
 [[ -s $ROOT/secrets/otd.json ]] || echo "note: no $ROOT/secrets/otd.json, so the engine will run without live data"
+# Learned travel times are optional: built by the first run of kante-data (deploy/refresh-data.sh).
 
 mkdir -p "$HOME/.config/systemd/user"
 cp "$ROOT/repo/deploy/units/"* "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
-systemctl --user enable kante-engine.service kante-tunnel.service kante-deploy.timer
+systemctl --user enable kante-engine.service kante-tunnel.service kante-deploy.timer kante-data.timer
 
 "$ROOT/repo/deploy/deploy.sh" --force   # first release: a few minutes
-systemctl --user start kante-tunnel.service kante-deploy.timer
+systemctl --user start kante-tunnel.service kante-deploy.timer kante-data.timer
 loginctl enable-linger "$USER" 2>/dev/null || echo "to start at boot, run: sudo loginctl enable-linger $USER"
 "$ROOT/repo/deploy/status.sh"
