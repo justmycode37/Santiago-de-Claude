@@ -1,0 +1,354 @@
+//! kante-walk — snapping, pedestrian routing and turn-by-turn steps on a
+//! [`WalkGraph`]. See `docs/ARCHITECTURE.md` for the contract.
+//!
+//! # Cost model
+//!
+//! Reported time is always `var_m / speed + fix_s` ([`WalkCost`], the shared
+//! model of `kante_core::walk`):
+//!
+//! | edge | `var_m` | `fix_s` |
+//! |---|---|---|
+//! | footway, sidewalk, path, pedestrian, corridor, platform, road | length | – |
+//! | steps | length × `STAIRS_FACTOR` | – |
+//! | steps walked on their ramp (`EF_RAMP`, by walkers who avoid stairs) | length × 1.5 | – |
+//! | escalator / moving walkway | – | length / `ESCALATOR_MPS` |
+//! | crossing | length | `CROSSING_*_S`, once per crossing |
+//! | lift | – | `LIFT_S`, once per ride |
+//!
+//! Routes are chosen on a *generalised* cost = that time plus preferences that
+//! are never reported: `StairsPref::Avoid` makes stairs feel 3× as long plus
+//! 25 s per flight; walking on a road carriageway costs +5 % (`Road`) or
+//! +30 % (`RoadBusy`) unless the road has a sidewalk tagged on it; in
+//! wheelchair mode rough surfaces count ×1.8, unpaved paths ×1.3 and busy
+//! roads ×2 (the largest of these, not their product).
+//!
+//! Unusable: steps for `StairsPref::Never` and for wheelchairs (unless
+//! `EF_RAMP`), escalators without `escalators`, lifts without `lifts`, an
+//! edge against `EF_ONEWAY_*`, and for wheelchairs `EF_WHEELCHAIR_NO` edges
+//! and passing *through* an `NF_NO_WHEELCHAIR` node. A walk may start or end
+//! on an edge beside such a barrier; it is reached and left from its open
+//! end only, so the walk there costs the same as the walk back.
+//!
+//! # Unmapped level changes
+//!
+//! OSM joins ways in a node wherever they were drawn through the same point;
+//! nothing says they are at the same height. Where the ways meeting at a
+//! node are on different floors and no stairs, ramp or lift is mapped there,
+//! the router keeps the floors apart (one routing node per floor):
+//!
+//! * **flat ways with different `level` tags** — typically an underpass or
+//!   concourse polygon sharing outline nodes with the platform above it
+//!   (301 nodes nationally; 7 around Bern station). Carriageways of different
+//!   levels stay joined: vehicles drive there, so it is a slope (25 nodes,
+//!   among them all five half-level cases — car park ramps);
+//! * **a pedestrian tunnel or indoor way below ground and an untagged
+//!   street-level way that both run through the node** — the crossing on
+//!   Bahnhofplatz in Bern glued to Christoffelunterführung beneath it, a
+//!   platform glued to the underpass under it (48 nodes; the mirror case with
+//!   a levelled footbridge does not occur).
+//!
+//! A levelled way that simply *continues* as an untagged one (bridges and
+//! tunnels tagged `level=±1`, building exits; about 1 900 nodes) is a
+//! continuous surface or a plausible ramp and stays joined. Tunnels without
+//! any level crossing a street node are not decidable (most are arcades or
+//! covered passages with a real crossing) and stay joined too.
+//!
+//! Between the floors of such a node there is a virtual connection:
+//!
+//! * **never usable** by a walker with `StairsPref::Never` or `wheelchair` —
+//!   a step-free route changes floor only by a mapped ramp or lift;
+//! * for everyone else it is taken to be a flight of stairs
+//!   (3 m × `STAIRS_FACTOR` of walking per half level) and, for route choice
+//!   only, 20 s worse than that (plus the usual penalties when avoiding
+//!   stairs), so mapped stairs or a lift nearby win;
+//! * it is reported: a step "Go down to level −1 (connection not mapped in
+//!   detail)" of kind `Walk` with `level != to_level`, drawn as a point (the
+//!   geometry repeats the position once per floor, as at a lift), and counted
+//!   in [`WalkPath::unmapped_level_changes`].
+//!
+//! [`WalkRouter::level_joins`] lists the nodes; `walk-route check` prints them.
+//!
+//! Stairs, escalators and ramps whose two end levels are the wrong way round
+//! in the graph — at both ends the flat ways are on the level given to the
+//! other end; 43 edges nationally, 7 of them at Zürich HB — are read the
+//! other way round ([`WalkRouter::upside_down_edges`]).
+//!
+//! # Snapping for step-free walkers
+//!
+//! With a step-free or wheelchair profile in [`SnapOptions`], edges on a
+//! crumb of the step-free network are skipped: pieces with less than
+//! [`SNAP_MIN_PIECE_M`] of ways that only stairs, escalators, barriers or an
+//! unmapped level change connect to anything else (landings between flights).
+//! [`WalkRouter::components`] gives the pieces for any profile.
+//!
+//! # Conventions assumed about the graph
+//!
+//! * **Lifts** may be modelled in two ways:
+//!   - `EdgeKind::Lift` edges between the floors of a lift — what `kante-osm`
+//!     produces: one "port" node per floor (flagged `NF_ELEVATOR`), joined
+//!     pairwise by lift edges whose `level_a` / `level_b` are the two floors.
+//!     Entering a chain of lift edges from any other edge is one ride however
+//!     many lift edges follow; the edges themselves cost nothing, but their
+//!     length counts into `dist_m`. The ways meeting at a port are one floor.
+//!   - an `NF_ELEVATOR` node *without* lift edges at which ways of different
+//!     levels meet. Passing through it between two ways whose level at that
+//!     node differs is one ride; between ways of the same level it is free
+//!     (`LEVEL_NONE` counts as level 0).
+//!   Internally every lift gets an "inside" twin node; stepping in costs
+//!   `LIFT_S`, stepping out is free. A snap onto a lift edge starts inside
+//!   the lift (no charge) — exclude `EdgeKind::Lift` when snapping.
+//! * **Crossings and stair flights split into several edges** are recognised
+//!   by equal non-zero `edge_way` on adjoining edges of the same kind; the
+//!   wait (and the avoid-stairs flight penalty) is shared out by length, so
+//!   half a crossing costs half the wait. A crossing has signals if any of
+//!   its fragments has `EF_SIGNALS` or ends at an `NF_CROSSING_SIGNALS` node.
+//!   Crossing nodes on ways that are not `EdgeKind::Crossing` cost nothing.
+//! * `WalkEdge::len_dm` is the length of the edge polyline; `Snap::frac` is
+//!   a fraction of that length. (Internally an edge is never taken to be
+//!   shorter than the beeline between its end nodes, so distances can exceed
+//!   the sum of `len_dm` by the decimetre rounding.)
+//! * Stairs / escalator direction comes from `EF_UP_AB` / `EF_UP_BA`, else
+//!   from the two levels; an escalator with neither is a moving walkway.
+//!   Stairs of unknown direction count as "up" in the totals.
+//! * A way is "inside" if it has `EF_INDOOR` or is a `Corridor`.
+
+mod index;
+mod net;
+mod path;
+pub use net::{LevelJoin, LevelJoinKind};
+mod search;
+mod steps;
+#[cfg(test)]
+mod tests;
+
+use kante_core::*;
+use serde::Serialize;
+use std::sync::Arc;
+
+pub struct WalkRouter {
+    graph: Arc<WalkGraph>,
+    grid: index::Grid,
+    net: net::Net,
+    /// Step-free crumbs (see [`SNAP_MIN_PIECE_M`]).
+    crumbs: index::Crumbs,
+}
+
+/// A piece of the step-free network with less than this many metres of ways
+/// in total, cut off from more network around it by stairs, escalators,
+/// barriers or an unmapped floor change (a landing between two flights, the
+/// path between two staircases), is not a place a step-free walker can be:
+/// snapping with a step-free or wheelchair profile skips it and takes the
+/// nearest edge of a bigger piece instead. Around Bern station this was the
+/// cause of every "no step-free route" among random pairs of points. (Same
+/// size as the crumbs the importer drops from the whole network. A small
+/// piece that is simply not connected to anything else stays snappable.)
+pub const SNAP_MIN_PIECE_M: f32 = 150.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SnapOptions {
+    pub max_dist_m: f32,
+    /// Only edges on this level (edges without a level count as level 0; an
+    /// edge that spans levels matches every level in its range).
+    pub level: Option<Level2>,
+    /// Only edges this walker may use. For a step-free or wheelchair profile
+    /// that also leaves out crumbs of the step-free network cut off by stairs
+    /// (see [`SNAP_MIN_PIECE_M`]).
+    pub profile: Option<WalkProfile>,
+    /// Bitmask of `1 << EdgeKind as u8` to exclude (e.g. Steps, Lift, RoadBusy).
+    pub exclude_kinds: u32,
+}
+
+impl Default for SnapOptions {
+    fn default() -> Self {
+        SnapOptions { max_dist_m: 50.0, level: None, profile: None, exclude_kinds: 0 }
+    }
+}
+
+/// Real walking effort; never contains route-choice penalties.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+pub struct WalkCost {
+    pub var_m: f32,
+    pub fix_s: f32,
+}
+
+impl WalkCost {
+    #[inline]
+    pub fn secs(&self, speed_mps: f32) -> f32 {
+        walk_secs(self.var_m, self.fix_s, speed_mps)
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct WalkPath {
+    pub cost: WalkCost,
+    pub dist_m: f32,
+    /// Number of steps climbed / descended.
+    pub stairs_up: u16,
+    pub stairs_down: u16,
+    pub lifts: u8,
+    pub escalators: u8,
+    /// Floor changes at places where the map joins two floors without stairs,
+    /// ramp or lift (see "Unmapped level changes" in the crate docs). Always 0
+    /// for step-free and wheelchair profiles. A walk with any of these is not
+    /// known to be step-free even if `stairs_up + stairs_down == 0`.
+    pub unmapped_level_changes: u8,
+    /// Snapped start → edges → snapped end. At a lift the same position
+    /// appears twice, once per level.
+    pub geometry: Vec<LatLon>,
+    /// Level per geometry vertex, LEVEL_NONE where unknown.
+    pub levels: Vec<Level2>,
+    pub steps: Vec<PathStep>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
+pub enum StepKind {
+    Depart,
+    Walk,
+    Cross,
+    StairsUp,
+    StairsDown,
+    EscalatorUp,
+    EscalatorDown,
+    Lift,
+    RampUp,
+    RampDown,
+    Enter,
+    Exit,
+    Platform,
+    Arrive,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PathStep {
+    pub kind: StepKind,
+    /// English instruction.
+    pub text: String,
+    pub dist_m: f32,
+    pub cost: WalkCost,
+    /// Street / passage walked along, or the street crossed ("" if unnamed).
+    pub name: String,
+    /// Level at the start / end of the step, LEVEL_NONE where unknown.
+    pub level: Level2,
+    pub to_level: Level2,
+    /// Vertex range in `geometry`, inclusive. Consecutive steps share a vertex.
+    pub from: u32,
+    pub to: u32,
+}
+
+/// Sizes of the structures built by [`WalkRouter::new`].
+#[derive(Clone, Copy, Debug)]
+pub struct IndexStats {
+    pub grid_cell_m: f32,
+    pub grid_cells: usize,
+    pub grid_entries: usize,
+    pub grid_bytes: usize,
+    pub routing_nodes: usize,
+    pub arcs: usize,
+    pub net_bytes: usize,
+    /// Graph nodes that are lifts or touch a lift edge.
+    pub lift_nodes: usize,
+}
+
+impl WalkRouter {
+    pub fn new(graph: Arc<WalkGraph>) -> Self {
+        let (grid, (net, crumbs)) = rayon::join(
+            || index::Grid::build(&graph),
+            || {
+                let net = net::Net::build(&graph);
+                let crumbs = index::Crumbs::from_flags(net.step_free_crumbs(&graph).into_iter());
+                (net, crumbs)
+            },
+        );
+        WalkRouter { graph, grid, net, crumbs }
+    }
+
+    pub fn graph(&self) -> &Arc<WalkGraph> {
+        &self.graph
+    }
+
+    /// Nearest point on an allowed edge within `opts.max_dist_m`.
+    pub fn snap(&self, p: LatLon, opts: &SnapOptions) -> Option<Snap> {
+        let mut out = Vec::with_capacity(1);
+        self.grid.nearest(&self.graph, &self.crumbs, p, opts, 1, &mut out);
+        out.pop()
+    }
+
+    /// Up to `k` nearest distinct edges, nearest first.
+    pub fn snap_candidates(&self, p: LatLon, opts: &SnapOptions, k: usize) -> Vec<Snap> {
+        let mut out = Vec::with_capacity(k.min(64) + 1);
+        self.grid.nearest(&self.graph, &self.crumbs, p, opts, k, &mut out);
+        out
+    }
+
+    /// The point at fraction `frac` of edge `edge` as a [`Snap`] (`dist_m` = 0).
+    pub fn snap_at(&self, edge: u32, frac: f32) -> Snap {
+        let frac = frac.clamp(0.0, 1.0);
+        Snap { edge, frac, pos: path::point_on_edge(&self.graph, edge, frac), dist_m: 0.0 }
+    }
+
+    /// Shortest walks from one point to many, bounded by `max_time_s` at the
+    /// profile's speed. One result per target, in input order; `None` if the
+    /// walk this profile would choose takes longer than `max_time_s` (or does
+    /// not exist). The search runs on the generalised cost up to 1.3 ×
+    /// `max_time_s` (1.5 × when avoiding stairs, 2 × in wheelchair mode),
+    /// which covers every multiplicative penalty; only a walk that is close
+    /// to the bound *and* carries several avoided stair flights can be missed.
+    pub fn one_to_many(&self, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
+        search::one_to_many(&self.graph, &self.net, from, targets, profile, max_time_s)
+    }
+
+    /// Best walk between two snapped points with geometry and instructions.
+    /// Only `edge` and `frac` of the snaps decide the route. Gives up beyond
+    /// roughly an hour more than four times the beeline.
+    pub fn route(&self, from: &Snap, to: &Snap, profile: &WalkProfile) -> Option<WalkPath> {
+        let legs = search::route(&self.graph, &self.net, from, to, profile)?;
+        Some(path::build(self, from, to, profile, &legs))
+    }
+
+    /// The edges of the walk [`WalkRouter::route`] would return, in travel
+    /// order: (edge, fraction where it is entered, fraction where it is left).
+    /// Lift rides through an elevator node have no edge and are left out.
+    pub fn route_edges(&self, from: &Snap, to: &Snap, profile: &WalkProfile) -> Option<Vec<(u32, f32, f32)>> {
+        let legs = search::route(&self.graph, &self.net, from, to, profile)?;
+        Some(legs.iter().filter(|l| l.edge != net::NO_EDGE).map(|l| (l.edge, l.f0, l.f1)).collect())
+    }
+
+    /// Edges intersecting `bbox` (for map overlays), ascending.
+    pub fn edges_in(&self, bbox: &BBox) -> Vec<u32> {
+        self.grid.edges_in(&self.graph, bbox)
+    }
+
+    /// Nodes where ways of different floors meet without stairs, ramp or
+    /// lift; the router changes floor there only for walkers who may use
+    /// stairs, and reports it (for map overlays and data quality reports).
+    pub fn level_joins(&self) -> &[LevelJoin] {
+        &self.net.joins
+    }
+
+    /// Diagnostics: the connected pieces of the network for `profile`. One
+    /// id per graph edge (`u32::MAX` = unusable); two points can be joined
+    /// by a walk only if their edges carry the same id. Linear in the graph
+    /// size — not for use per query.
+    pub fn components(&self, profile: &WalkProfile) -> Vec<u32> {
+        self.net.components(&self.graph, profile)
+    }
+
+    /// Stairs, escalators and ramps whose end levels are the wrong way round
+    /// in the graph and are read the other way by this router (diagnostics).
+    pub fn upside_down_edges(&self) -> &[u32] {
+        &self.net.flipped
+    }
+
+    pub fn index_stats(&self) -> IndexStats {
+        IndexStats {
+            grid_cell_m: self.grid.cell_m(),
+            grid_cells: self.grid.cells(),
+            grid_entries: self.grid.entries(),
+            grid_bytes: self.grid.heap_bytes() + self.crumbs.heap_bytes(),
+            routing_nodes: self.net.n as usize,
+            arcs: self.net.arcs.len(),
+            net_bytes: self.net.heap_bytes(),
+            lift_nodes: self.net.n_lift_nodes as usize,
+        }
+    }
+}

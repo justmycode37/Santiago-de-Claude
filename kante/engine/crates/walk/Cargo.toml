@@ -1,0 +1,12 @@
+[package]
+name = "kante-walk"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+kante-core.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+serde.workspace = true
+serde_json.workspace = true

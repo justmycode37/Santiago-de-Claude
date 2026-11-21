@@ -1,0 +1,27 @@
+[package]
+name = "kante-server"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "kante"
+path = "src/main.rs"
+
+[dependencies]
+kante-core.workspace = true
+kante-gtfs.workspace = true
+kante-raptor.workspace = true
+kante-osm.workspace = true
+kante-walk.workspace = true
+kante-link.workspace = true
+kante-search.workspace = true
+kante-rt.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rustc-hash.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+axum.workspace = true
+tower-http.workspace = true

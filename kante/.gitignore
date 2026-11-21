@@ -1,0 +1,5 @@
+# Downloaded and built data, API keys
+data/
+
+# Build output
+engine/target*/

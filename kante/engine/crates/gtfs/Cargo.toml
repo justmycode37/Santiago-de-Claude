@@ -1,0 +1,20 @@
+[package]
+name = "kante-gtfs"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+kante-core.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+memchr.workspace = true
+zip.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+zip.workspace = true
+
+[[bin]]
+name = "gtfs-import"
+path = "src/bin/gtfs-import.rs"

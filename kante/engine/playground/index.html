@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kante playground</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root { --bg:#fff; --fg:#14181f; --mut:#667085; --line:#e4e7ec; --acc:#0b6e69; --warn:#b54708; --bad:#b42318; --card:#f7f8fa; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151a; --fg:#eef1f5; --mut:#98a2b3; --line:#2a2f38; --acc:#4fd1c5; --warn:#fdb022; --bad:#f97066; --card:#1a1e25; } }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #wrap { display:flex; flex-direction:column; height:100dvh; }
+  #map { flex:0 0 42dvh; position:relative; }
+  #panel { flex:1; overflow:auto; padding:10px 12px calc(16px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); }
+  @media (min-width: 900px) { #wrap { flex-direction:row-reverse; } #map { flex:1; } #panel { flex:0 0 430px; border-top:0; border-right:1px solid var(--line); } }
+  .row { display:flex; gap:6px; align-items:center; margin:6px 0; }
+  .field { position:relative; flex:1; }
+  input[type=text], input[type=datetime-local], select { width:100%; padding:10px 10px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--fg); font:inherit; }
+  button { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--fg); font:inherit; cursor:pointer; }
+  button.go { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; flex:1; }
+  @media (prefers-color-scheme: dark) { button.go { color:#06201f; } }
+  .sugg { position:absolute; z-index:20; left:0; right:0; top:100%; background:var(--bg); border:1px solid var(--line); border-radius:10px; overflow:hidden; box-shadow:0 8px 24px #0003; }
+  .sugg div { padding:9px 10px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .sugg div:last-child { border:0; } .sugg small { color:var(--mut); }
+  .mut { color:var(--mut); } .small { font-size:13px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chips label { border:1px solid var(--line); border-radius:999px; padding:5px 10px; font-size:13px; background:var(--card); }
+  .j { border:1px solid var(--line); border-radius:12px; padding:10px; margin:8px 0; background:var(--card); cursor:pointer; }
+  .j.sel { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc) inset; }
+  .j h3 { margin:0 0 4px; font-size:17px; display:flex; justify-content:space-between; }
+  .badge { display:inline-block; min-width:26px; text-align:center; padding:1px 6px; border-radius:6px; color:#fff; font-weight:700; font-size:13px; margin-right:3px; }
+  .leg { padding:8px 0 8px 10px; border-left:3px solid var(--line); margin:6px 0 6px 4px; }
+  .leg.walk { border-left-style:dotted; }
+  .stand { display:flex; gap:10px; align-items:center; margin:6px 0; }
+  .sign { flex:0 0 auto; min-width:52px; padding:6px 8px; border-radius:8px; background:var(--fg); color:var(--bg); text-align:center; font-weight:800; font-size:22px; line-height:1; }
+  .sign small { display:block; font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; opacity:.75; margin-bottom:3px; }
+  ol.steps { margin:6px 0 0; padding-left:20px; color:var(--mut); font-size:13.5px; } ol.steps li { margin:2px 0; cursor:pointer; }
+  .alert { font-size:13px; margin-top:4px; } .alert.warning { color:var(--warn); } .alert.severe { color:var(--bad); }
+  .late { color:var(--bad); font-weight:600; }
+  #hint { position:absolute; left:8px; top:8px; z-index:5; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:5px 8px; font-size:12.5px; max-width:70%; }
+  .qm { background:var(--fg); color:var(--bg); border-radius:6px; padding:1px 5px; font-weight:800; font-size:13px; border:2px solid var(--bg); white-space:nowrap; }
+  .qm.hot { background:var(--acc); color:#fff; font-size:16px; padding:3px 7px; }
+  .pin { width:16px; height:16px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 1px #0006; }
+  details summary { cursor:pointer; color:var(--mut); font-size:13px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="map"><div id="hint">Tap the map to set <b>From</b>, then <b>To</b> — or type below.</div></div>
+  <div id="panel">
+    <div class="row"><div class="field"><input id="from" type="text" placeholder="From: station, or tap the map" autocomplete="off"><div class="sugg" hidden></div></div>
+      <button id="swap" title="Swap">⇅</button></div>
+    <div class="row"><div class="field"><input id="to" type="text" placeholder="To: station, or tap the map" autocomplete="off"><div class="sugg" hidden></div></div>
+      <button id="clear" title="Clear">✕</button></div>
+    <div class="row"><input id="when" type="datetime-local"><select id="dir" style="flex:0 0 110px"><option value="dep">Depart</option><option value="arr">Arrive by</option></select></div>
+    <div class="row small"><span style="flex:0 0 92px">Walking <b id="spv"></b></span><input id="speed" type="range" min="2" max="8" step="0.1" value="4.7" style="flex:1"></div>
+    <div class="row chips">
+      <label><input type="radio" name="st" value="ok" checked> Stairs ok</label>
+      <label><input type="radio" name="st" value="avoid"> Fewer stairs</label>
+      <label><input type="radio" name="st" value="never"> Step-free</label>
+      <label><input type="checkbox" id="wc"> Wheelchair</label>
+      <label>Margin <select id="margin" style="width:auto;padding:2px"><option>0</option><option>60</option><option selected>120</option><option>240</option></select> s</label>
+    </div>
+    <div class="row"><button class="go" id="go">Plan</button><button id="board">I'm on board…</button><button id="deps">Departures</button></div>
+    <div id="status" class="mut small"></div>
+    <div id="out"></div>
+    <p class="mut small">Engine playground, not the app. Vehicle positions are estimates. Data: opentransportdata.swiss, © OpenStreetMap contributors, © swisstopo.</p>
+  </div>
+</div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = new Intl.DateTimeFormat("de-CH", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
+const hm = (t) => fmt.format(new Date(t * 1000));
+const mins = (s) => s < 90 ? `${Math.round(s)} s` : `${Math.round(s / 60)} min`;
+const api = async (path, body) => {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+};
+const MODE_COL = { rail: "#d92d20", tram: "#7a5af8", bus: "#1570ef", metro: "#dd2590", boat: "#0e9384", funicular: "#b54708", cableway: "#b54708", rack: "#b54708", lift: "#667085", ondemand: "#667085", other: "#667085" };
+const badge = (l) => `<span class="badge" style="background:${MODE_COL[l.mode] || "#667085"}">${esc(l.name || l.category)}</span>`;
+const NOUN = { track: "Track", bay: "Bay", edge: "Edge", pier: "Pier", stop: "Stop" };
+const lvl = (v) => (v == null ? "" : String(v).replace("-", "−"));
+
+// ---------------------------------------------------------------- state
+const S = { from: null, to: null, onboard: null, journeys: [], sel: -1, markers: [], next: "from" };
+
+// ---------------------------------------------------------------- map
+const map = new maplibregl.Map({ container: "map", style: "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json", center: [7.4398, 46.9482], zoom: 15.5, attributionControl: { compact: true } });
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: true }), "bottom-right");
+const empty = { type: "FeatureCollection", features: [] };
+map.on("load", () => {
+  map.addSource("indoor", { type: "geojson", data: empty });
+  map.addLayer({ id: "indoor", type: "line", source: "indoor", minzoom: 16.5, paint: { "line-color": ["match", ["get", "kind"], "steps", "#f79009", "escalator", "#f79009", "lift", "#dd2590", "platform", "#98a2b3", "#12b76a"], "line-width": 1.2, "line-opacity": 0.45 } });
+  map.addSource("rides", { type: "geojson", data: empty });
+  map.addLayer({ id: "rides", type: "line", source: "rides", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": ["get", "color"], "line-width": 5, "line-opacity": 0.8 } });
+  map.addSource("walks", { type: "geojson", data: empty });
+  map.addLayer({ id: "walks-bg", type: "line", source: "walks", layout: { "line-cap": "round" }, paint: { "line-color": "#fff", "line-width": 6 } });
+  map.addLayer({ id: "walks", type: "line", source: "walks", layout: { "line-cap": "round" }, paint: { "line-color": ["get", "color"], "line-width": 3.5, "line-dasharray": [0.2, 1.6] } });
+  map.addSource("focus", { type: "geojson", data: empty });
+  map.addLayer({ id: "focus", type: "line", source: "focus", paint: { "line-color": "#f04438", "line-width": 6, "line-opacity": 0.7 } });
+  map.addSource("veh", { type: "geojson", data: empty });
+  map.addLayer({ id: "veh", type: "circle", source: "veh", minzoom: 13, paint: { "circle-radius": 6, "circle-color": ["get", "color"], "circle-stroke-color": "#fff", "circle-stroke-width": 1.5, "circle-opacity": 0.85 } });
+  map.addLayer({ id: "veh-l", type: "symbol", source: "veh", minzoom: 14.5, layout: { "text-field": ["get", "name"], "text-size": 11, "text-offset": [0, -1.2], "text-font": ["Frutiger Neue Condensed Bold"], "text-allow-overlap": false }, paint: { "text-halo-color": "#fff", "text-halo-width": 1.5 } });
+  loadIndoor(); tickVehicles(); fetchVehicles();
+});
+let quayMarkers = [];
+async function loadIndoor() {
+  quayMarkers.forEach((m) => m.remove()); quayMarkers = [];
+  if (map.getZoom() < 16.5) { map.getSource("indoor")?.setData(empty); return; }
+  const b = map.getBounds(), bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].map((v) => v.toFixed(5)).join(",");
+  try {
+    const [g, q] = await Promise.all([api("/api/indoor?bbox=" + bbox), api("/api/quays?bbox=" + bbox)]);
+    map.getSource("indoor").setData(g);
+    for (const x of q.quays) {
+      if (!x.label || x.precision !== "edge") continue;
+      const d = el("div", "qm", esc(x.label + (x.sectors ? " " + x.sectors : "")));
+      d.title = `${x.stationName} · ${NOUN[x.noun]} ${x.label}${x.side ? " · " + x.side.text : ""}${x.level != null ? " · level " + x.level : ""}`;
+      d.style.opacity = 0.8;
+      quayMarkers.push(new maplibregl.Marker({ element: d }).setLngLat([x.lon, x.lat]).addTo(map));
+    }
+  } catch (e) { /* overlay is optional */ }
+}
+map.on("moveend", () => { loadIndoor(); fetchVehicles(); });
+
+// vehicles: estimated positions animated between stops
+let vehicles = [];
+async function fetchVehicles() {
+  if (map.getZoom() < 13) { vehicles = []; return; }
+  const b = map.getBounds();
+  try { vehicles = (await api(`/api/vehicles?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`)).vehicles; } catch (e) {}
+}
+setInterval(fetchVehicles, 15000);
+function tickVehicles() {
+  const now = Date.now() / 1000;
+  const feats = vehicles.map((v) => {
+    const f = v.arr > v.dep ? Math.min(1, Math.max(0, (now - v.dep) / (v.arr - v.dep))) : 0;
+    return { type: "Feature", geometry: { type: "Point", coordinates: [v.from[0] + (v.to[0] - v.from[0]) * f, v.from[1] + (v.to[1] - v.from[1]) * f] }, properties: { name: v.line.name || v.line.category, color: MODE_COL[v.line.mode] || "#667085" } };
+  });
+  map.getSource("veh")?.setData({ type: "FeatureCollection", features: feats });
+  setTimeout(tickVehicles, 1000);
+}
+
+map.on("click", (e) => {
+  const p = { lat: +e.lngLat.lat.toFixed(6), lon: +e.lngLat.lng.toFixed(6), name: `${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}` };
+  setPlace(S.next, p);
+  if (S.from && S.to) plan();
+});
+function setPlace(which, p) {
+  S[which] = p; if (which === "from") S.onboard = null;
+  $("#" + which).value = p ? p.name : "";
+  S.next = which === "from" ? "to" : (S.from ? "to" : "from");
+  drawPins();
+}
+let pins = [];
+function drawPins() {
+  pins.forEach((m) => m.remove()); pins = [];
+  for (const [k, col] of [["from", "#12b76a"], ["to", "#f04438"]]) {
+    if (!S[k] || S[k].lat == null) continue;
+    const d = el("div", "pin"); d.style.background = col;
+    pins.push(new maplibregl.Marker({ element: d }).setLngLat([S[k].lon, S[k].lat]).addTo(map));
+  }
+}
+
+// ---------------------------------------------------------------- search boxes
+for (const which of ["from", "to"]) {
+  const inp = $("#" + which), box = inp.nextElementSibling; let ctl;
+  inp.addEventListener("focus", () => { S.next = which; inp.select(); });
+  inp.addEventListener("input", async () => {
+    ctl?.abort(); ctl = new AbortController();
+    const q = inp.value.trim(); if (!q) { box.hidden = true; return; }
+    const c = map.getCenter();
+    try {
+      const r = await (await fetch(`/api/search?q=${encodeURIComponent(q)}&lat=${c.lat}&lon=${c.lng}&limit=7`, { signal: ctl.signal })).json();
+      box.innerHTML = ""; box.hidden = !r.results.length;
+      for (const p of r.results) {
+        const d = el("div", "", `${esc(p.name)} <small>${esc(p.detail || (p.modes || []).join(" · "))}</small>`);
+        d.onclick = () => { box.hidden = true; setPlace(which, p); map.easeTo({ center: [p.lon, p.lat] }); if (S.from && S.to) plan(); };
+        box.append(d);
+      }
+    } catch (e) {}
+  });
+  inp.addEventListener("blur", () => setTimeout(() => (box.hidden = true), 200));
+}
+$("#swap").onclick = () => { const a = S.from, b = S.to; setPlace("from", b); setPlace("to", a); if (S.from && S.to) plan(); };
+$("#clear").onclick = () => { S.from = S.to = S.onboard = null; S.next = "from"; $("#from").value = $("#to").value = ""; drawPins(); render([]); };
+
+// ---------------------------------------------------------------- options
+const speedEl = $("#speed");
+const showSpeed = () => ($("#spv").textContent = (+speedEl.value).toFixed(1) + " km/h");
+showSpeed();
+const options = () => ({ walkSpeed: +speedEl.value / 3.6, stairs: document.querySelector("input[name=st]:checked").value, escalators: !$("#wc").checked, wheelchair: $("#wc").checked, transferMarginS: +$("#margin").value, maxWalkMin: 20 });
+const replan = () => { if ((S.from || S.onboard) && S.to) plan(); };
+speedEl.addEventListener("input", showSpeed); speedEl.addEventListener("change", replan);
+document.querySelectorAll("input[name=st], #wc, #margin, #when, #dir").forEach((e) => e.addEventListener("change", replan));
+const ref = (p) => (p.id ? { id: p.id, lat: p.lat, lon: p.lon, name: p.name } : { lat: p.lat, lon: p.lon, name: p.name });
+const whenUnix = () => { const v = $("#when").value; return v ? Math.floor(new Date(v).getTime() / 1000) : undefined; };
+
+// ---------------------------------------------------------------- planning
+let planSeq = 0;
+async function plan(page) {
+  if (!S.to || !(S.from || S.onboard)) { $("#status").textContent = "Set a start and a destination."; return; }
+  const body = { to: ref(S.to), options: options(), time: whenUnix(), arriveBy: $("#dir").value === "arr", page };
+  if (S.onboard) body.onboard = S.onboard; else body.from = ref(S.from);
+  const seq = ++planSeq; $("#status").textContent = "Planning…";
+  try {
+    const t0 = performance.now(), r = await api("/api/plan", body);
+    if (seq !== planSeq) return;
+    $("#status").textContent = `${r.journeys.length} options · engine ${r.tookMs.toFixed(0)} ms, round trip ${(performance.now() - t0).toFixed(0)} ms · ${r.realtime ? "live data on" : "timetable only"}`;
+    S.cursors = { earlier: r.earlier, later: r.later };
+    render(r.walkOnly ? [r.walkOnly, ...r.journeys] : r.journeys);
+  } catch (e) { if (seq === planSeq) { $("#status").textContent = "Error: " + e.message; render([]); } }
+}
+$("#go").onclick = () => plan();
+
+function render(js) {
+  S.journeys = js; S.sel = -1;
+  const out = $("#out"); out.innerHTML = "";
+  if (js.length && S.cursors?.earlier) { const b = el("button", "", "Earlier"); b.onclick = () => plan(S.cursors.earlier); out.append(b); }
+  js.forEach((j, i) => {
+    const d = el("div", "j");
+    const lines = j.legs.map((l) => (l.type === "ride" ? badge(l.line) : `<span class="mut small">🚶${mins(l.durationS)}</span> `)).join("");
+    const first = j.legs.find((l) => l.type === "ride");
+    const q = first?.from.quay;
+    const where = first ? ` · ${first.onboard ? "you're on board" : `from ${NOUN[q.noun]} ${esc(q.label || q.stationName)}`}` : "";
+    d.innerHTML = `<h3><span>${hm(j.dep)} → ${hm(j.arr)}</span><span>${mins(j.durationS)}</span></h3><div>${lines}</div><div class="mut small">${j.transfers} change${j.transfers === 1 ? "" : "s"} · walk ${mins(j.walkS)} (${j.walkM} m)${where}</div>` +
+      (j.alerts || []).map((a) => `<div class="alert ${a.severity}">⚠ ${esc(a.text)}</div>`).join("") + `<div class="detail"></div>`;
+    d.onclick = (ev) => { if (!ev.target.closest(".detail")) select(i); };
+    out.append(d);
+  });
+  if (js.length && S.cursors?.later) { const b = el("button", "", "Later"); b.onclick = () => plan(S.cursors.later); out.append(b); }
+  if (js.length) select(js[0].legs.length === 1 && js.length > 1 ? 1 : 0);
+  else draw(null);
+}
+
+function standCard(call, leg) {
+  const q = call.quay;
+  const bits = [esc(q.stationName)];
+  if (q.side) bits.push(esc(q.side.text));
+  if (leg?.towards) bits.push(`vehicle heads towards ${esc(leg.towards)}`);
+  if (q.level != null && q.level !== 0) bits.push(`level ${lvl(q.level)}`);
+  if (q.precision !== "edge") bits.push("<i>exact spot unknown — shown at the stop</i>");
+  if (q.access) bits.push({ autonomous: "level boarding", assisted: "boarding with assistance", "assisted-on-notice": "assistance on notice", "not-accessible": "not wheelchair accessible" }[q.access]);
+  if (call.plannedLabel != null) bits.push(`<span class="late">changed from ${esc(call.plannedLabel || "?")}</span>`);
+  return `<div class="stand" data-lon="${q.lon}" data-lat="${q.lat}"><div class="sign"><small>${NOUN[q.noun]}</small>${esc(q.label || "•")}${q.sectors ? `<small>${esc(q.sectors)}</small>` : ""}</div><div class="small">${bits.join(" · ")}</div></div>`;
+}
+const delay = (s) => (s && Math.abs(s) >= 60 ? ` <span class="late">${s > 0 ? "+" : "−"}${Math.round(Math.abs(s) / 60)}′</span>` : "");
+
+function select(i) {
+  S.sel = i;
+  document.querySelectorAll(".j").forEach((n, k) => { n.classList.toggle("sel", k === i); if (k !== i) n.querySelector(".detail").innerHTML = ""; });
+  const j = S.journeys[i], box = document.querySelectorAll(".j")[i].querySelector(".detail");
+  box.innerHTML = "";
+  j.legs.forEach((l, li) => {
+    const d = el("div", "leg " + l.type);
+    if (l.type === "walk") {
+      const extra = [l.stairsUp && `${l.stairsUp} steps up`, l.stairsDown && `${l.stairsDown} steps down`, l.lifts && `${l.lifts} lift${l.lifts > 1 ? "s" : ""}`, l.escalators && `${l.escalators} escalator${l.escalators > 1 ? "s" : ""}`, l.stepFree && l.distanceM > 0 && "step-free", l.approximate && "estimated"].filter(Boolean).join(" · ");
+      const spare = l.slackS != null ? l.slackS + (l.kind === "transfer" ? +$("#margin").value : 0) : null;
+      const slack = spare != null ? ` · <span class="${spare < 60 ? "late" : ""}">${spare < 0 ? "missed by " + mins(-spare) : mins(spare) + " to spare"}</span>` : "";
+      const off = l.officialMinS ? ` · official minimum ${Math.round(l.officialMinS / 60)} min` : "";
+      const title = l.kind === "transfer" && l.distanceM === 0 ? "Change here" : `Walk ${mins(l.durationS)} · ${l.distanceM} m`;
+      d.innerHTML = `<b>${title}</b> <span class="mut small">${hm(l.dep)} → ${esc(l.to.name)}${slack}${off}</span><div class="mut small">${extra}</div>` +
+        (l.steps.length ? `<details ${l.kind === "transfer" ? "open" : ""}><summary>${l.steps.length} steps</summary><ol class="steps">${l.steps.map((s, si) => `<li data-leg="${li}" data-step="${si}">${esc(s.text)} <span class="mut">${s.distM ? s.distM + " m" : ""}</span></li>`).join("")}</ol></details>` : "");
+    } else {
+      const st = l.intermediate.length;
+      d.style.borderLeftColor = MODE_COL[l.line.mode];
+      d.innerHTML = `${badge(l.line)}<b>→ ${esc(l.headsign)}</b> <span class="mut small">${esc(l.number || "")} ${l.live !== "timetable" ? "· live" : ""}${l.headwayS ? ` · runs every ${Math.round(l.headwayS / 60) || 1} min` : ""}</span>` +
+        (l.onboard ? `<div class="small"><b>You're on board.</b> Next stop ${esc(l.from.quay.stationName)} at ${hm(l.from.arr ?? l.from.dep)}.</div>` : l.stayOnBoard ? `<div class="small"><b>Stay seated</b> — the vehicle continues.</div>` : `<div class="small">Board ${hm(l.from.dep)}${delay(l.from.depDelayS)}</div>${standCard(l.from, l)}`) +
+        `<div class="small mut">${st ? `${st} stop${st > 1 ? "s" : ""}: ${l.intermediate.map((c) => esc(c.quay.stationName)).join(", ")}` : "non-stop"}</div>` +
+        `<div class="small">Get off ${hm(l.to.arr)}${delay(l.to.arrDelayS)} · ${esc(l.to.quay.stationName)}${l.to.quay.label ? ` · ${NOUN[l.to.quay.noun]} ${esc(l.to.quay.label)}` : ""}</div>`;
+    }
+    box.append(d);
+  });
+  box.querySelectorAll(".stand").forEach((n) => (n.onclick = () => map.flyTo({ center: [+n.dataset.lon, +n.dataset.lat], zoom: 18.6 })));
+  box.querySelectorAll("ol.steps li").forEach((n) => (n.onclick = () => {
+    const l = j.legs[+n.dataset.leg], s = l.steps[+n.dataset.step], coords = l.geometry.slice(s.from, s.to + 1);
+    map.getSource("focus").setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords.length > 1 ? coords : [coords[0], coords[0]] } });
+    const bb = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
+    map.fitBounds(bb, { padding: 80, maxZoom: 18.8 });
+  }));
+  draw(j);
+}
+
+const LVL_COL = { "-2": "#7a5af8", "-1": "#1570ef", "0": "#0b6e69", "1": "#f79009", "2": "#dd2590" };
+function draw(j) {
+  S.markers.forEach((m) => m.remove()); S.markers = [];
+  map.getSource("focus")?.setData(empty);
+  if (!j) { map.getSource("rides")?.setData(empty); map.getSource("walks")?.setData(empty); return; }
+  const rides = [], walks = []; const bb = new maplibregl.LngLatBounds();
+  for (const l of j.legs) {
+    if (!l.geometry.length) continue;
+    l.geometry.forEach((c) => bb.extend(c));
+    if (l.type === "ride") {
+      rides.push({ type: "Feature", geometry: { type: "LineString", coordinates: l.geometry }, properties: { color: MODE_COL[l.line.mode] } });
+      for (const [c, hot] of [[l.from, !l.onboard && !l.stayOnBoard], [l.to, false]]) {
+        const q = c.quay, d = el("div", "qm" + (hot ? " hot" : ""), esc(q.label || "•"));
+        S.markers.push(new maplibregl.Marker({ element: d }).setLngLat([q.lon, q.lat]).addTo(map));
+      }
+    } else {
+      // split the walk where the level changes so each floor gets its own colour
+      let start = 0;
+      for (let k = 1; k <= l.geometry.length; k++) {
+        if (k === l.geometry.length || l.levels[k] !== l.levels[start]) {
+          const seg = l.geometry.slice(start, Math.min(k + 1, l.geometry.length));
+          if (seg.length > 1) walks.push({ type: "Feature", geometry: { type: "LineString", coordinates: seg }, properties: { color: LVL_COL[String(l.levels[start] ?? 0)] || "#0b6e69" } });
+          start = k;
+        }
+      }
+    }
+  }
+  map.getSource("rides").setData({ type: "FeatureCollection", features: rides });
+  map.getSource("walks").setData({ type: "FeatureCollection", features: walks });
+  if (!bb.isEmpty()) map.fitBounds(bb, { padding: 50, maxZoom: 17.5, duration: 500 });
+}
+
+// ---------------------------------------------------------------- on board + departures
+$("#board").onclick = async () => {
+  const c = map.getCenter(), q = prompt("Line you are on (optional), searching around the map centre:", "") ?? null;
+  if (q === null) return;
+  const t = whenUnix();
+  const r = await api(`/api/onboard?lat=${c.lat}&lon=${c.lng}${t ? "&t=" + t : ""}&q=${encodeURIComponent(q)}`);
+  const out = $("#out"); out.innerHTML = `<p class="small mut">${r.candidates.length ? "Which vehicle are you in? (estimated positions near the map centre)" : "No vehicle found near the map centre at that time."}</p>`;
+  for (const v of r.candidates) {
+    const d = el("div", "j", `${badge(v.line)}<b>→ ${esc(v.headsign)}</b><div class="small mut">${v.prevStop ? `between ${esc(v.prevStop)} and ` : "next: "}${esc(v.nextStop)} (${hm(v.nextArr)}) · ~${v.distM} m away</div>`);
+    d.onclick = () => {
+      S.onboard = { tripId: v.tripId, serviceDate: v.serviceDate, nextSeq: v.nextSeq }; S.from = null; drawPins();
+      $("#from").value = `On board ${v.line.name || v.line.category} → ${v.headsign}`; S.next = "to";
+      out.innerHTML = `<p class="small">On board <b>${esc(v.line.name)} → ${esc(v.headsign)}</b>. Now choose where you are going (type or tap the map).</p>`;
+      if (S.to) plan();
+    };
+    out.append(d);
+  }
+};
+$("#deps").onclick = async () => {
+  const p = S.from?.id?.startsWith("st:") ? S.from : null;
+  let st = p;
+  if (!st) { const c = map.getCenter(); const n = await api(`/api/nearby?lat=${c.lat}&lon=${c.lng}&radius=400&limit=1`); st = n.stations[0]?.place; }
+  if (!st) { $("#status").textContent = "No station near the map centre."; return; }
+  const t = whenUnix(), r = await api(`/api/departures?station=${encodeURIComponent(st.id)}&limit=40${t ? "&time=" + t : ""}`);
+  const qs = Object.fromEntries(r.quays.map((q) => [q.id, q]));
+  $("#out").innerHTML = `<h3 style="margin:8px 0">${esc(r.station.name)}</h3>` + r.departures.map((d) => { const q = qs[d.quayId] || {};
+    return `<div class="small" style="padding:5px 0;border-bottom:1px solid var(--line)"><b>${hm(d.dep)}</b>${delay(d.delayS)} ${badge(d.line)}${esc(d.headsign)} <span class="mut">· ${NOUN[q.noun] || ""} <b>${esc(q.label || "–")}</b>${q.sectors ? " " + esc(q.sectors) : ""}${d.plannedLabel != null ? ` <span class="late">(was ${esc(d.plannedLabel)})</span>` : ""}${d.cancelled ? ' <span class="late">cancelled</span>' : ""}</span></div>`; }).join("");
+};
+</script>
+</body>
+</html>

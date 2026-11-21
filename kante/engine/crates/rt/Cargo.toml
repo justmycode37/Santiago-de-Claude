@@ -1,0 +1,15 @@
+[package]
+name = "kante-rt"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+kante-core.workspace = true
+anyhow.workspace = true
+quick-xml.workspace = true
+flate2.workspace = true
+ureq.workspace = true
+
+[[bin]]
+name = "rt-inspect"
+path = "src/bin/rt-inspect.rs"

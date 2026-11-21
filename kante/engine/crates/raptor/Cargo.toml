@@ -1,0 +1,15 @@
+[package]
+name = "kante-raptor"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+kante-core.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+parking_lot.workspace = true
+
+[features]
+# Developer counters printed by `raptor-query plan`.
+stats = []
