@@ -386,6 +386,7 @@
     mapGroups,
     walkCosting,
     transportations,
+    prefs: () => ({ ...effective() }), // walking speed, extra change time, step-free…
     retime,
     connectionFits,
     onChange: (fn) => changeListeners.push(fn),

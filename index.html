@@ -321,125 +321,250 @@
     }
     .route-veh svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     :root[data-theme="dark"] .route-veh { background: var(--ldc, #3a3a3c); color: var(--ldf, #fff); box-shadow: 0 0 0 2px #1c1c1e, 0 2px 6px rgba(0,0,0,.5); }
-    /* Live line in the sheet: where you are on the trip right now */
-    .j-live { display: flex; align-items: center; gap: 8px; margin: 8px 20px 0; min-height: 26px; font-size: 14px; line-height: 1.4; }
-    .j-live:empty { display: none; }
-    .j-live-dot { flex: none; position: relative; width: 10px; height: 10px; border-radius: 50%; background: var(--you); }
-    .j-live-dot.gps::before { content: ""; position: absolute; inset: -5px; border-radius: 50%; background: color-mix(in srgb, var(--you) 30%, transparent); animation: pulse 2.4s ease-out infinite; }
-    .j-live-text { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-    .j-live-text .j-badge { display: inline-flex; vertical-align: 1px; font-size: 12px; }
-    .j-live-text .j-delay { font-size: 13px; margin-left: 4px; }
-    .j-live-rest { flex: none; color: var(--bar-secondary); font-variant-numeric: tabular-nums; }
-    .j-live-btn { flex: none; border: 0; border-radius: 999px; padding: 5px 12px; background: var(--user-blue); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .j-live-btn:active { opacity: .7; }
-
-    /* Bottom sheet: the search bar grows into it */
-    .journey {
-      display: none;
-      flex-direction: column;
-      color: var(--bar-text);
-      border-radius: 28px;
-      box-shadow: 0 10px 40px rgba(0,0,0,.22), 0 0 0 .5px var(--hair);
-      overflow: hidden;
-    }
+    /* ===== Journey sheet: the Kante app's journey screen (branch nikitas-implementation), in this app's palette.
+       A bottom sheet with three detents (low: its header, middle: half the screen, expanded), the trip as one
+       timeline on a fixed grid, "where to stand" at every boarding, and Start · share · arrival in a bar below.
+       Everything is scoped to .kj so it cannot touch the rest of the page. ===== */
     .search-wrap.journey-open .search,
     .search-wrap.journey-open .results { display: none; }
-    .search-wrap.journey-open .journey { display: flex; animation: j-grow .6s var(--spring) both; }
-    .journey > * { animation: j-fade .35s ease .18s both; }
-    @keyframes j-grow {
-      from { max-height: 52px; border-radius: 26px; }
-      to   { max-height: 620px; border-radius: 28px; }
+    .kj {
+      --surface: #ffffff;
+      --card: #f3f4f6;
+      --tonal: #eceef1;
+      --tonal-2: #dfe2e7;
+      --ink: #14161a;
+      --ink-2: #4a515c;
+      --ink-3: #68707d;
+      --line: #e3e5e9;
+      --handle: #c9ccd1;
+      --dot: #a3a9b4;
+      --brand: var(--sun);
+      --on-brand: #344D77;          /* glyphs on sun are navy */
+      --brand-tint: color-mix(in srgb, var(--sun) 30%, #fff);
+      --alarm: var(--alert);
+      --alarm-bg: color-mix(in srgb, var(--rose) 13%, #fff);
+      --warn-bg: color-mix(in srgb, var(--tang) 15%, #fff);
+      --ok: var(--accent-ink);
+      --ok-bg: color-mix(in srgb, var(--navy) 11%, #fff);
+      --shadow-2: 0 -1px 2px rgba(10, 12, 16, .1), 0 -6px 20px rgba(10, 12, 16, .1);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --ease: cubic-bezier(.2, .8, .2, 1);
+      color: var(--ink);
+      font: 400 16px/20px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-text-size-adjust: 100%;
     }
-    @keyframes j-fade {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: none; }
+    :root[data-theme="dark"] .kj {
+      --surface: #16191e;
+      --card: #1f2329;
+      --tonal: #262a31;
+      --tonal-2: #333842;
+      --ink: #f2f3f5;
+      --ink-2: #bcc2cc;
+      --ink-3: #9299a5;
+      --line: #2c3139;
+      --handle: #4d535d;
+      --dot: #5f6672;
+      --brand-tint: color-mix(in srgb, var(--sun) 24%, #16191e);
+      --alarm-bg: color-mix(in srgb, var(--rose) 24%, #16191e);
+      --warn-bg: color-mix(in srgb, var(--tang) 20%, #16191e);
+      --ok-bg: color-mix(in srgb, var(--navy) 38%, #16191e);
+      --shadow-2: 0 -1px 2px rgba(0, 0, 0, .5), 0 -6px 20px rgba(0, 0, 0, .4);
     }
-    .j-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--bar-secondary); opacity: .35; margin: 7px auto 0; }
-    .j-head { display: flex; align-items: flex-start; gap: 12px; padding: 8px 14px 0 20px; }
-    .j-dest { flex: 1; min-width: 0; }
-    .j-dest b { display: block; font-size: 24px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .j-dest span { display: block; margin-top: 1px; font-size: 15px; color: var(--bar-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .j-close {
-      flex: none;
-      width: 30px;
-      height: 30px;
-      margin-top: 2px;
-      border: 0;
-      padding: 0;
-      border-radius: 50%;
-      background: var(--hair);
-      color: var(--bar-secondary);
-      display: grid;
-      place-items: center;
-      cursor: pointer;
-    }
-    .j-close svg { width: 11px; height: 11px; }
+    /* a line's colour pair, picked for the theme */
+    .kj [style*="--lc"] { --L: var(--lc); --Lf: var(--lf); --Lbar: var(--lc); }
+    :root[data-theme="dark"] .kj [style*="--lc"] { --L: var(--ldc); --Lf: var(--ldf); --Lbar: var(--ldf); }
+    .kj button { font: inherit; color: inherit; border: 0; background: none; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
+    .kj h1, .kj p, .kj ol, .kj ul { margin: 0; padding: 0; }
+    .kj ol, .kj ul { list-style: none; }
+    .kj b, .kj strong { font-weight: 700; }
+    .kj small { font-size: 12px; line-height: 16px; }
+    .kj :focus-visible { outline: 3px solid var(--you); outline-offset: 2px; border-radius: 6px; }
+    .kj .icon { flex: none; display: inline-block; vertical-align: -.2em; }
+    .kj .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .kj .trunc2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .kj .late { color: var(--alarm); }
 
-    /* Route summary: walk › M15 › M13 › pin */
-    .j-strip { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 10px 20px 12px; scrollbar-width: none; }
-    .j-strip::-webkit-scrollbar { display: none; }
-    .j-chev { flex: none; color: var(--bar-secondary); opacity: .6; font-size: 15px; font-weight: 600; }
-    .j-chip {
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 3px 2px;
-      border: 0;
-      background: transparent;
-      color: var(--bar-secondary);
-      font: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      opacity: .75;
-      transition: opacity .2s ease, transform .2s ease;
-    }
-    .j-chip svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-    .j-chip.active { opacity: 1; color: var(--bar-text); transform: scale(1.06); }
-    .j-chip .j-badge { font-size: 13px; }
-
-    /* Card carousel: one step at a time, swiped sideways */
-    .j-viewport { margin: 0 12px; overflow: hidden; touch-action: pan-y; cursor: grab; }
-    .j-viewport:active { cursor: grabbing; }
-    .j-track { display: flex; transition: transform .42s var(--spring); will-change: transform; }
-    .j-track.dragging { transition: none; }
-    .j-slide { flex: 0 0 100%; min-width: 0; padding: 0 4px; }
-    .j-card {
-      height: 100%;
-      display: flex;
+    /* sheet */
+    .kj.ksheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 0;
+      z-index: 12;
+      display: none;
       flex-direction: column;
-      gap: 16px;
-      padding: 16px;
-      border-radius: 22px;
-      background: var(--card);
-      box-shadow: 0 1px 2px rgba(0,0,0,.06);
-      user-select: none;
-      -webkit-user-select: none;
+      background: var(--surface);
+      border-radius: 28px 28px 0 0;
+      box-shadow: var(--shadow-2);
+      transform: translate3d(0, 110vh, 0);
+      transition: transform .3s var(--ease);
+      will-change: transform;
     }
-    .j-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .j-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
-    .j-ico svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-    .j-ico.line { background: var(--lc); color: var(--lf); }
-    :root[data-theme="dark"] .j-ico.line { background: var(--ldf); color: var(--ldc); }
-    .j-txt { flex: 1; min-width: 0; }
-    .j-title { font-size: 18px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; }
-    .j-subtitle { margin-top: 3px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 14px; color: var(--bar-secondary); }
-    .j-step { font-size: 12px; font-weight: 500; color: var(--bar-secondary); align-self: flex-start; white-space: nowrap; }
-    .j-metrics { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; padding-left: 52px; }
-    .j-metrics.one { grid-template-columns: 1fr; }
-    .j-metric .k { font-size: 12px; font-weight: 500; color: var(--bar-secondary); }
-    .j-metric .v { margin-top: 1px; font-size: 30px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .j-metric .v small { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--bar-secondary); }
-    .j-foot { padding-left: 52px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; color: var(--bar-secondary); margin-top: auto; min-width: 0; }
-    .j-foot b { color: var(--bar-text); font-weight: 600; }
-    .j-foot.after { margin-top: -6px; }
-    .j-tag { max-width: 100%; min-width: 0; }
-    .j-tag > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .j-tag svg { flex: none; }
-    .j-dots { display: flex; justify-content: center; gap: 7px; padding: 12px 0 14px; }
-    .j-dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: var(--bar-text); opacity: .25; cursor: pointer; transition: opacity .2s ease, transform .2s ease; }
-    .j-dot.active { opacity: 1; transform: scale(1.15); }
+    body.journey-mode .kj.ksheet { display: flex; }
+    .kj .sheet-top { flex: none; touch-action: none; }
+    .kj .sheet-handle { position: relative; display: block; width: 100%; height: 20px; }
+    .kj .sheet-handle span { position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--handle); }
+    .kj .sheet-handle::after { content: ""; position: absolute; left: 50%; top: -14px; width: 96px; height: 48px; margin-left: -48px; } /* 48 px touch zone */
+    .kj .sheet-head { padding: 0 16px 8px; }
+    .kj .sheet-body { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; padding: 0 8px; }
+    .kj.ksheet[data-detent="full"] .sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .kj .sheet-end { height: calc(88px + var(--safe-b)); }
+    .kj.sheet-foot { display: none; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 16px calc(8px + var(--safe-b)); }
+    body.journey-mode .kj.sheet-foot:not(:empty) { display: block; }
+    .kj.sheet-foot.fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 13; }
+    @media (min-width: 700px) {
+      .kj.ksheet, .kj.sheet-foot.fixed { left: 12px; right: auto; width: 420px; }
+    }
+
+    /* sheet header pieces */
+    .kj .sheet-title { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+    .kj .sheet-title h1 { flex: 1; min-width: 0; font-size: 18px; line-height: 24px; font-weight: 700; }
+    .kj .sheet-actions { display: flex; gap: 12px; margin-left: auto; flex: none; }
+    .kj .round-btn { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--tonal); color: var(--ink); position: relative; }
+    .kj .round-btn::after { content: ""; position: absolute; inset: -6px; } /* 44 px touch target */
+    .kj .round-btn:disabled { opacity: .35; cursor: default; }
+    .kj .round-btn:active { background: var(--tonal-2); }
+    .kj .pill-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 20px; background: var(--tonal); color: var(--ink); font-size: 14px; font-weight: 700; white-space: nowrap; }
+    .kj .pill-btn.start { background: var(--brand); color: var(--on-brand); font-size: 16px; padding: 0 20px; }
+    .kj .pill-btn.small { min-height: 32px; padding: 0 12px; }
+    .kj .pill-btn:active { filter: brightness(.94); }
+    .kj .link-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--brand); text-decoration-thickness: 2px; }
+    .kj .foot-note { margin: 16px 8px 0; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+    .kj .tag { display: inline-flex; align-items: center; gap: 2px; height: 20px; padding: 0 6px; border-radius: 4px; background: var(--tonal); color: var(--ink-2); font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .kj .tag.strong { background: var(--ink); color: var(--surface); font-weight: 700; }
+    .kj .tag.ok { background: var(--ok-bg); color: var(--ok); }
+    .kj .tag.lvl { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }
+    .kj .skeleton { height: 64px; margin: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--tonal) 30%, var(--tonal-2) 50%, var(--tonal) 70%) 0 0 / 300% 100%; animation: kshimmer 1.4s linear infinite; }
+    @keyframes kshimmer { to { background-position: -150% 0; } }
+
+    /* line badge: a plain rounded rectangle, bold upright text */
+    .kj .badge { display: inline-flex; align-items: center; justify-content: center; gap: 3px; flex: none; min-width: 24px; height: 20px; padding: 0 5px; border-radius: 4px; background: var(--L); color: var(--Lf); font-size: 12px; line-height: 20px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .kj .badge.lg { min-width: 36px; height: 28px; padding: 0 7px; border-radius: 6px; font-size: 16px; }
+    :root[data-theme="dark"] .kj .badge { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--Lf) 45%, transparent); }
+    .kj .plat { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .kj .plat.changed { padding: 0 5px; margin: 0 -5px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); }
+    .kj .delay { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ok); }
+    .kj .delay.late { color: var(--alarm); }
+    .kj .live-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+    .kj .live-tag.predicted { color: var(--ok); }
+    .kj .live-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: kpulse 1.6s ease-in-out infinite; }
+    @keyframes kpulse { 50% { opacity: .35; } }
+    /* the two shapes that mean start and destination */
+    .kj .od-ring { display: block; width: 14px; height: 14px; border-radius: 50%; border: 4px solid var(--ink); background: var(--surface); }
+    .kj .od-pin { display: block; width: 14px; height: 14px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg) translate(1px, -1px); background: var(--ink); box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--brand); }
+
+    /* leg chain */
+    .kj .chain { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+    .kj .sheet-title .chain { flex: 1; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+    .kj .chain-sep { color: var(--ink-3); }
+    .kj .chain-walk { display: inline-flex; align-items: center; flex: none; gap: 1px; height: 20px; padding: 0 5px 0 3px; border-radius: 4px; background: var(--tonal-2); color: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .kj .chain-more { font-size: 12px; color: var(--ink-2); }
+
+    /* journey header */
+    .kj .jhead-times { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
+    .kj .jhead-times b { font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; }
+    .kj .jhead-times span { font-size: 14px; color: var(--ink-2); }
+    .kj .jhead-act { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 2px; }
+    .kj .jhead-act .pill-btn { align-self: center; }
+    .kj .jhead-rest { flex: none; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .kj .jrow-act { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; min-width: 0; font-weight: 700; color: var(--ink); }
+    .kj .jrow-act.ok { color: var(--ok); }
+    .kj .jrow-act.late { color: var(--alarm); }
+    .kj .jrow-act.gone { color: var(--ink-3); font-weight: 400; }
+    .kj .jrow-act .badge { align-self: center; }
+    .kj .actionbar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+    .kj .actionbar-sum { margin-left: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+    .kj .actionbar-sum small { font-size: 12px; line-height: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+    .kj .actionbar-sum b { font-size: 18px; line-height: 24px; font-weight: 500; }
+    .kj .overview-btn { margin: 4px 8px 8px; }
+    .kj .stepnav { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+    .kj .stepnav-text { flex: 1; min-width: 0; }
+    .kj .stepnav-text small { display: block; color: var(--ink-2); }
+    .kj .stepnav-text strong { -webkit-line-clamp: 3; }
+
+    /* timeline on a fixed grid: time, rail, names, platform right-aligned */
+    .kj .tl { padding: 4px 16px 0; }
+    .kj .tl-row { display: grid; grid-template-columns: 56px 16px minmax(0, 1fr) auto; column-gap: 0; align-items: start; min-height: 32px; }
+    .kj .tl-row > * { padding-top: 6px; padding-bottom: 6px; }
+    .kj .tl-time { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .kj .tl-time small { color: var(--ink-2); }
+    .kj .tl-time .delay { font-size: 12px; line-height: 14px; }
+    .kj .tl-rail { position: relative; align-self: stretch; padding: 0 !important; }
+    .kj .tl-name { padding-left: 13px; min-width: 0; overflow-wrap: anywhere; }
+    .kj .tl-name small { color: var(--ink-2); }
+    .kj .tl-row > .plat { padding-left: 12px; }
+    .kj .tl-main { grid-column: 3 / -1; padding-left: 13px; min-width: 0; }
+    .kj .tl-place .tl-rail { display: grid; place-items: start center; padding-top: 8px !important; }
+    .kj .tl-place .tl-name small { display: block; font-size: 14px; line-height: 20px; }
+    .kj .tl-place.to .tl-rail { padding-top: 7px !important; }
+    /* ride: a thick bar in the line colour with round ends */
+    .kj .tl-rail.ride::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: var(--Lbar); }
+    .kj .tl-rail.ride.first::before { top: 8px; border-radius: 8px 8px 0 0; }
+    .kj .tl-rail.ride.last::before { bottom: auto; height: 24px; border-radius: 0 0 8px 8px; }
+    .kj .tl-node { position: absolute; left: -4px; top: 4px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #14161a; box-shadow: 0 0 0 2px var(--Lbar), 0 1px 3px rgba(0, 0, 0, .3); }
+    .kj .tl-enddot { position: absolute; left: 3px; top: 11px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+    .kj .tl-stopdot { position: absolute; left: 5px; top: 13px; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+    .kj .tl-row.board > .plat { font-weight: 700; }
+    .kj .tl-row.alight, .kj .tl-row.mid { color: var(--ink-2); }
+    .kj .tl-row.alight .tl-name { color: var(--ink); }
+    .kj .tl-row.mid { min-height: 30px; font-size: 14px; }
+    .kj .tl-row.mid > * { padding-top: 5px; padding-bottom: 5px; }
+    .kj .tl-row.mid .tl-stopdot { top: 12px; }
+    /* walking: grey dots */
+    .kj .tl-rail.walk::before { content: ""; position: absolute; left: 3.5px; top: 0; bottom: 0; width: 9px; background: radial-gradient(circle, var(--dot) 4px, transparent 4.5px) 0 4px / 9px 18px repeat-y; }
+    .kj .tl-rail.walk .icon { position: absolute; left: -3px; top: 5px; width: 22px; height: 22px; padding: 2px; border-radius: 50%; background: var(--surface); color: var(--ink); }
+    .kj .tl-walk.same { min-height: 0; }
+    .kj .tl-walk.same .tl-main { font-size: 14px; color: var(--ink-2); }
+    .kj .tl-walk.same strong { font-weight: 400; }
+    .kj .walk-sum { display: block; width: 100%; }
+    .kj .walk-sum strong { display: block; }
+    .kj .walk-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 14px; color: var(--ink-2); }
+    .kj .tl-walk.active .walk-sum strong { text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 3px; text-underline-offset: 3px; }
+    .kj .spare { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 10px 4px 8px; border-radius: 8px; font-size: 14px; background: var(--ok-bg); color: var(--ok); }
+    .kj .spare.tight { background: var(--warn-bg); color: var(--warn); }
+    .kj .spare.missed { background: var(--alarm-bg); color: var(--alarm); }
+    .kj .spare small { font-size: 12px; font-weight: 400; }
+    .kj .quiet-line { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
+    .kj .quiet-line b { color: var(--ink); }
+    .kj .expander { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-top: 2px; font-size: 14px; font-weight: 700; }
+    .kj .steps { margin: 2px 0 6px -8px; }
+    .kj .step { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 36px; padding: 8px; border-radius: 8px; font-size: 14px; }
+    .kj .step-icon { flex: none; color: var(--ink-2); }
+    .kj .step-text { flex: 1; min-width: 0; }
+    .kj .step.active { background: var(--brand-tint); font-weight: 700; }
+    .kj .step.active .step-icon { color: var(--ink); }
+    .kj .step.k-arrive { font-weight: 700; }
+    .kj .ride-line { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; min-height: 28px; }
+    .kj .ride-line > .icon { margin-right: -2px; color: var(--ink-2); }
+    .kj .ride-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+    .kj .ride-sum .quiet-line { margin: 0; }
+    .kj .ride-head { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+    /* where to stand */
+    .kj .stand { margin: 2px 0 10px; padding: 12px; border-radius: 16px; background: var(--card); }
+    .kj .stand-main { display: flex; gap: 12px; }
+    .kj .sign { flex: none; align-self: flex-start; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 76px; min-height: 76px; padding: 6px 4px 4px; border-radius: 12px; border-bottom: 7px solid var(--sun); background: #14161a; color: #fff; text-align: center; }
+    :root[data-theme="dark"] .kj .sign { box-shadow: inset 0 0 0 1px #3a3f48; }
+    .kj .sign-noun { font-size: 12px; line-height: 14px; font-weight: 500; color: #d5d9df; }
+    .kj .sign-label { font-size: 34px; line-height: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .kj .sign.long .sign-label { font-size: 24px; line-height: 32px; }
+    .kj .sign-arrow { display: grid; place-items: center; height: 38px; color: var(--sun); }
+    .kj .stand-info { flex: 1; min-width: 0; }
+    .kj .stand-kicker { font-size: 12px; line-height: 16px; font-weight: 700; color: var(--ink-2); }
+    .kj .stand-side { font-size: 16px; line-height: 20px; font-weight: 700; overflow-wrap: anywhere; }
+    .kj .stand-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .kj .stand-dir { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
+    .kj .stand-dir b { color: var(--ink); }
+    .kj .stand-compass { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--surface); }
+    .kj .stand-note { display: flex; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+    .kj .stand-note .icon { margin-top: 2px; }
+    .kj .stand-note.warn { padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+    .kj .stand-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 12px; line-height: 16px; color: var(--ink-2); }
+    .kj .stand-foot .link-btn { flex: none; white-space: nowrap; margin-left: auto; color: var(--ink); }
+    @media (prefers-reduced-motion: reduce) {
+      .kj.ksheet { transition: none; }
+      .kj .skeleton, .kj .live-dot { animation: none; }
+    }
 
     /* Destination: an ink pin with a yellow dot (as in the Kante app) */
     .dest-pin { width: 26px; height: 34px; filter: drop-shadow(0 1.5px 2px rgba(8,10,14,.4)); cursor: default; }
@@ -1119,21 +1244,17 @@
         <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
       </button>
     </form>
-    <section class="journey glass" id="journey" aria-label="Journey">
-      <div class="j-grab"></div>
-      <div class="j-head">
-        <div class="j-dest"><b id="jTo"></b><span id="jSub"></span></div>
-        <button class="j-close" id="jClose" type="button" aria-label="End journey">
-          <svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>
-        </button>
-      </div>
-      <div class="j-live" id="jLive"></div>
-      <div class="j-strip" id="jStrip"></div>
-      <div class="j-viewport" id="jViewport"><div class="j-track" id="jTrack"></div></div>
-      <div class="j-dots" id="jDots"></div>
-      <div class="j-status" id="jStatus"></div>
-    </section>
   </div>
+
+  <!-- Journey: the Kante app's journey sheet (nikitas-implementation) — header, timeline, and the action bar below -->
+  <section class="kj ksheet" id="journey" aria-label="Journey details" data-detent="low">
+    <div class="sheet-top">
+      <button class="sheet-handle" id="jHandle" type="button" aria-label="Expand panel"><span></span></button>
+      <div class="sheet-head" id="jHead"></div>
+    </div>
+    <div class="sheet-body" id="jBody"></div>
+  </section>
+  <div class="kj sheet-foot fixed" id="jFoot"></div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="swiss-workshops.js"></script>
@@ -2194,12 +2315,13 @@
     let journeySteps = [];
     let journeyReq = 0;
     const journeyEl = document.getElementById('journey');
-    const jStrip = document.getElementById('jStrip');
-    const jViewport = document.getElementById('jViewport');
-    const jTrack = document.getElementById('jTrack');
-    const jDots = document.getElementById('jDots');
-    const jStatus = document.getElementById('jStatus');
+    const jHead = document.getElementById('jHead');
+    const jBody = document.getElementById('jBody');
+    const jFoot = document.getElementById('jFoot');
+    const jHandle = document.getElementById('jHandle');
     let journeyConn = null;
+    let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
+    let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
     let journeyDest = null;
     let journeyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
     let progressTimer = null;
@@ -2476,8 +2598,8 @@
     };
     const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${MODE_ICON[name]}</svg>`;
 
-    function modeOf(category = '') {
-      const c = category.toUpperCase();
+    function modeOf(category) {
+      const c = (category || '').toUpperCase(); // some rides come without a category
       if (/^(IC|ICE|ICN|IR|IRE|EC|EN|EXT|NJ|RE|R|RB|S|SN|PE|TGV|RJX|TER)$/.test(c)) return 'train';
       if (/^(T|TRAM|M)$/.test(c)) return 'tram';
       if (/^(BAT|FAE|BAV)$/.test(c)) return 'boat';
@@ -2486,11 +2608,12 @@
     }
     function lineLabel(j) {
       const c = (j.category || '').toUpperCase();
-      const n = j.number || '';
+      // "000063" → "63"; a placeholder like "?" (replacement buses) is no number
+      const n = /[A-Za-z0-9]/.test(j.number || '') ? String(j.number).replace(/^0+(?=\d)/, '') : '';
       if (!n) return c;
       if (/^(S|SN|R|RE|IR|IC|EC|ICE)$/.test(c)) return /^(S|SN)$/.test(c) ? c + n : `${c} ${n}`;
       if (c === 'B' || c === 'T' || c === 'BUS' || c === 'TRAM') return n;
-      return `${c} ${n}`;
+      return `${c} ${n}`.trim();
     }
 
     const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '--:--';
@@ -2923,8 +3046,7 @@
       else nowMarker.remove();
     }
 
-    // ---- The live line in the sheet: "120 m to Platform 7 · S1 in 4 min", "On 10 · 3 stops to Bern" ----
-    const jLive = document.getElementById('jLive');
+    // ---- The live line in the sheet's header: "120 m to Platform 7 · S1 in 4 min", "On 10 · 3 stops to Bern" ----
     function boardName(r) {
       const raw = platformOf(r.s.departure), edge = r.depAt && r.depAt.edge;
       const num = splitPlatform(raw === '–' ? '' : raw).num || (edge && edge.ref) || '';
@@ -2934,13 +3056,13 @@
       const m = Math.round((t - now) / 60000);
       return m > 0 ? `in ${m} min` : m === 0 ? 'leaving now' : `left ${-m} min ago`;
     };
-    const lateTag = (m) => (m > 0 ? mk('span', 'j-delay', `+${m}′`) : '');
+    const lateTag = (m) => (m > 0 ? kDelay(m) : '');
     function liveParts(now) {
       const t = track && gpsOn() ? track : null;
       if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.d)} away`], replan: true };
       if (t && t.missed) {
         const r = t.missed;
-        return { kind: 'off', parts: ['Missed ', badge(r.s.journey), `? It left at ${fmtTime(r.t0)}`], replan: true };
+        return { kind: 'off', parts: ['Missed ', kBadge(r.s.journey), `? It left at ${fmtTime(r.t0)}`], replan: true };
       }
       if (t) {
         const st = journeySteps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000;
@@ -2950,52 +3072,31 @@
         if (st.type === 'ride') {
           const j = st.s.journey;
           if (now < st.t0 && t.kmIn < 0.05) {
-            return { kind: 'gps', rest, parts: [`At ${boardName(st)} · `, badge(j), ` ${leaves(st.t0, now)}`, lateTag(lateMin(st.s.departure, 'departure'))] };
+            return { kind: 'gps', rest, parts: [`At ${boardName(st)} · `, kBadge(j), ` ${leaves(st.t0, now)}`, lateTag(lateMin(st.s.departure, 'departure'))] };
           }
           const n = stopKms(st).filter((k) => k > t.kmIn + 0.03).length;
           const to = st.s.arrival.station.name;
-          return { kind: 'gps', rest, parts: ['On ', badge(j), n > 1 ? ` · ${n} stops to ${to}` : ` · get off at ${to}`, lateTag(lateMin(st.s.arrival, 'arrival'))] };
+          return { kind: 'gps', rest, parts: ['On ', kBadge(j), n > 1 ? ` · ${n} stops to ${to}` : ` · get off at ${to}`, lateTag(lateMin(st.s.arrival, 'arrival'))] };
         }
         const r = st.nextRide;
         if (st.final || !r) return { kind: 'gps', parts: [`${fmtDist(left)} to ${st.toName || 'your destination'}`] };
         const where = left < 30 ? `At ${boardName(r)} · ` : `${fmtDist(left)} to ${boardName(r)} · `;
-        return { kind: 'gps', rest, parts: [where, badge(r.s.journey), ` ${leaves(r.t0, now)}`, lateTag(lateMin(r.s.departure, 'departure'))] };
+        return { kind: 'gps', rest, parts: [where, kBadge(r.s.journey), ` ${leaves(r.t0, now)}`, lateTag(lateMin(r.s.departure, 'departure'))] };
       }
       // no GPS: from the live timetable
       const ride = journeySteps.find((st) => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1);
       if (ride) {
         const v = vehicleState(ride, now);
         const where = !v ? '' : v.at ? ` at ${v.at}` : ` between ${v.from} and ${v.to}`;
-        return { kind: 'est', parts: [badge(ride.s.journey), where || ' under way', lateTag(lateMin(ride.s.arrival, 'arrival'))] };
+        return { kind: 'est', parts: [kBadge(ride.s.journey), where || ' under way', lateTag(lateMin(ride.s.arrival, 'arrival'))] };
       }
       const r = journeySteps.find((st) => st.type === 'ride' && st.t0 != null && st.t0 > now);
       if (r && r.t0 - now < 3600000) {
-        return { kind: 'est', parts: [badge(r.s.journey), ` leaves ${boardName(r)} ${leaves(r.t0, now)}`, lateTag(lateMin(r.s.departure, 'departure'))] };
+        return { kind: 'est', parts: [kBadge(r.s.journey), ` leaves ${boardName(r)} ${leaves(r.t0, now)}`, lateTag(lateMin(r.s.departure, 'departure'))] };
       }
       return null;
     }
-    let liveKey = '';
-    function renderLive() {
-      const now = Date.now();
-      const l = journeySteps.length ? liveParts(now) : null;
-      if (!l) { liveKey = ''; jLive.replaceChildren(); return; }
-      const text = mk('div', 'j-live-text');
-      l.parts.filter(Boolean).forEach((x) => text.append(x));
-      const key = [l.kind, text.textContent, l.rest || '', !!l.replan].join('|');
-      if (key === liveKey) return; // unchanged: leave it alone (and its button pressable)
-      liveKey = key;
-      const dot = mk('span', 'j-live-dot ' + l.kind);
-      dot.title = l.kind === 'est' ? 'No GPS: estimated from the live timetable' : l.kind === 'gps' ? 'Following you by GPS' : '';
-      const row = [dot, text];
-      if (l.rest) row.push(mk('span', 'j-live-rest', l.rest));
-      if (l.replan) {
-        const b = mk('button', 'j-live-btn', 'Replan');
-        b.type = 'button';
-        b.addEventListener('click', replan);
-        row.push(b);
-      }
-      jLive.replaceChildren(...row);
-    }
+    function renderLive() { renderHead(); }
     function replan() {
       if (!journeyDest) return;
       journeyQuery = { mode: 'dep', date: '', time: '' };
@@ -3063,7 +3164,7 @@
       }
       if (id !== journeyReq || liveSig() === before) return;
       applyLiveTimes(journeySteps);
-      renderCards();
+      renderSheet();
       updatePillTimes();
       updateProgress();
     }
@@ -3080,13 +3181,6 @@
     const platformWord = (j) => nounOf(modeOf(j.category));
     const platformOf = (stop) => (stop.prognosis && stop.prognosis.platform) || stop.platform || '–';
 
-    function tag(kind, iconName, text) {
-      const t = mk('span', 'j-tag ' + kind);
-      if (iconName) t.innerHTML = icon(iconName);
-      t.appendChild(mk('span', null, text));
-      return t;
-    }
-
     const COMPASS8 = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
     const compassWord = (deg) => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -3102,169 +3196,611 @@
       return { num: m[1], sectors: s };
     }
 
-    // ---- Cards: one per step, swiped sideways ----
-    const ICON_COLOR = { walk: 'var(--sun)', change: 'var(--tang)', pin: 'var(--rose)' }; // walk matches the yellow walk line
+    // ---- Journey sheet, as in the Kante app (branch nikitas-implementation, screens/journey.tsx): a bottom sheet with
+    //      three detents, the leg chain and times in its header, the trip as one timeline (time · rail · names ·
+    //      platform), "where to stand" at every boarding, written walking directions, and Start · share · arrival
+    //      in a bar below. The map and the bar at the top of the screen are this app's own. ----
+    const KICON = {
+      back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+      close: '<path d="M6 6l12 12M18 6L6 18"/>',
+      nav: '<path d="M12 3l7 17-7-4-7 4z" fill="currentColor"/>',
+      clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+      walk: '<circle cx="13" cy="4.5" r="1.7" fill="currentColor"/><path d="M9.5 21l2.2-6.2-2.4-2.6L10.6 8l3 3 3 .8M10.6 8L7.8 9.4 7 12.6M11.7 14.8l3.2 2.4.9 3.8"/>',
+      tram: '<rect x="6" y="5.5" width="12" height="11.5" rx="3"/><path d="M6 11.5h12M9.5 20.5l1-3.5M14.5 20.5l-1-3.5M12 5.5V3M9 3h6"/><path d="M9.5 14.2h.01M14.5 14.2h.01" stroke-width="2.6"/>',
+      bus: '<rect x="5" y="4" width="14" height="13" rx="3"/><path d="M5 11h14M8 17v2.5M16 17v2.5"/><path d="M8.6 14h.01M15.4 14h.01" stroke-width="2.6"/>',
+      rail: '<rect x="6" y="3" width="12" height="14" rx="3.5"/><path d="M6 10.5h12M9 21l2-4M15 21l-2-4"/><path d="M9.5 13.8h.01M14.5 13.8h.01" stroke-width="2.6"/>',
+      boat: '<path d="M3 18.5c1.5 1.4 3 1.4 4.5 0s3-1.4 4.5 0 3 1.4 4.5 0 3-1.4 4.5 0M5.2 15l-1-4h15.6l-1 4M8 11V6.5h8V11M12 6.5V4"/>',
+      cable: '<path d="M3 5.5l18-2.5M12 4.3V8"/><rect x="7" y="8" width="10" height="10.5" rx="2.5"/><path d="M7 13h10"/>',
+      'stairs-up': '<path d="M4 20h4v-4h4v-4h4V8h4M5 10l5-5M10 5H6.5M10 5v3.5"/>',
+      'stairs-down': '<path d="M4 20h4v-4h4v-4h4V8h4M5 4l5 5M10 9H6.5M10 9V5.5"/>',
+      flag: '<path d="M5 21V4M5 4.5h12l-2.5 4 2.5 4H5"/>',
+      dot: '<circle cx="12" cy="12" r="4" fill="currentColor"/>',
+      right: '<path d="M9 5l7 7-7 7"/>',
+      down: '<path d="M5 9l7 7 7-7"/>',
+      up: '<path d="M5 15l7-7 7 7"/>',
+      map: '<path d="M9 4L3 6.2V20l6-2.2 6 2.2 6-2.2V4l-6 2.2L9 4zM9 4v13.8M15 6.2V20"/>',
+      list: '<path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" stroke-width="2.8"/>',
+      alert: '<path d="M12 4l9.3 16H2.7L12 4zM12 10v4.5"/><path d="M12 17.3h.01" stroke-width="2.6"/>',
+      info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7h.01" stroke-width="2.6"/>',
+      share: '<path d="M12 15V3.5M12 3.5L8 7.5M12 3.5l4 4M5 12.5V20h14v-7.5"/>',
+      go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+      check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+      arrow: '<path d="M12 3.5l5.5 15-5.5-3.3-5.5 3.3z" fill="currentColor" stroke-linejoin="round"/>',
+      refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.4-5.5M19.5 4.5v4h-4"/>',
+    };
+    const MODE_K = { train: 'rail', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable' };
+    const MODE_NAME = { train: 'Train', tram: 'Tram', bus: 'Bus', boat: 'Boat', cable: 'Cable car' };
+    const STEP_K = { depart: 'nav', walk: 'walk', 'stairs-up': 'stairs-up', 'stairs-down': 'stairs-down', arrive: 'flag' };
+    const kTpl = document.createElement('template');
+    function kIcon(name, size = 20, cls) {
+      kTpl.innerHTML = `<svg class="icon${cls ? ' ' + cls : ''}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KICON[name] || KICON.dot}</svg>`;
+      return kTpl.content.firstChild;
+    }
+    // h('div', 'cls', …children): strings become text, null / false / '' are skipped, arrays are flattened
+    function h(tag, cls, ...kids) {
+      const e = mk(tag, cls);
+      kids.flat(Infinity).forEach((k) => { if (k != null && k !== false && k !== '') e.append(typeof k === 'object' ? k : String(k)); });
+      return e;
+    }
+    function kBtn(cls, label, onClick, ...kids) {
+      const b = h('button', cls, ...kids);
+      b.type = 'button';
+      if (label) b.setAttribute('aria-label', label);
+      b.addEventListener('click', onClick);
+      return b;
+    }
 
-    // Header: round icon · title · grey subtitle (may contain badges) · "2 of 5"
-    function cardHead(iconName, color, title, subParts, stepText) {
-      const row = mk('div', 'j-row');
-      const ico = mk('div', 'j-ico');
-      if (typeof color === 'string') { ico.style.background = color; if (color === ICON_COLOR.walk) ico.style.color = '#344D77'; }
-      else { ico.classList.add('line'); lineVars(ico, color); } // a ride: the line's colour, as on the map
-      ico.innerHTML = icon(iconName);
-      const txt = mk('div', 'j-txt');
-      txt.appendChild(mk('div', 'j-title', title));
-      if (subParts && subParts.length) {
-        const sub = mk('div', 'j-subtitle');
-        subParts.forEach((p) => sub.append(typeof p === 'string' ? document.createTextNode(p) : p));
-        txt.appendChild(sub);
+    // "< 1 min", "23 min", "1 h 05 min"; never "0 min" for a time that is not zero
+    function kDur(s) {
+      if (s > 0 && s < 60) return '< 1 min';
+      const m = Math.max(0, Math.round(s / 60));
+      if (m < 60) return `${m} min`;
+      const hh = Math.floor(m / 60), r = m % 60;
+      return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
+    }
+    // where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
+    function kDurExact(s) {
+      s = Math.max(0, Math.round(s));
+      if (s < 60) return `${s} s`;
+      if (s < 90) return s % 60 ? `1 min ${s % 60} s` : '1 min';
+      return kDur(Math.floor(s / 60) * 60);
+    }
+    // "+4 min" after a time, in the alarm colour; nothing when on time
+    function kDelay(min) {
+      if (!min) return null;
+      const e = h('span', 'delay ' + (min > 0 ? 'late' : 'early'), `${min > 0 ? '+' : '−'}${Math.abs(min)} min`);
+      e.setAttribute('aria-label', `${Math.abs(min)} ${Math.abs(min) === 1 ? 'minute' : 'minutes'} ${min > 0 ? 'late' : 'early'}`);
+      return e;
+    }
+    // Line badge: a plain rounded rectangle in the line's colour ("IC 8", "S3"; a bare number gets its mode icon)
+    function kBadge(j, size, withIcon) {
+      const label = lineLabel(j), mode = modeOf(j.category);
+      const b = h('span', 'badge' + (size ? ' ' + size : ''), withIcon || !label ? kIcon(MODE_K[mode] || 'bus', size === 'lg' ? 16 : 13) : null, label);
+      b.setAttribute('role', 'img');
+      b.setAttribute('aria-label', mode === 'train' ? label : `${MODE_NAME[mode] || 'Bus'} ${label}`);
+      return lineVars(b, j);
+    }
+    const chainIcon = (j) => !(modeOf(j.category) === 'train' && /[A-Za-z]/.test(lineLabel(j))); // "IC 8" says train by itself
+
+    // Where a ride stops: the label ("7", "C"), its noun, and the timetable's platform when it has changed today
+    function quayOf(r, end) {
+      const s = r.s, stop = end === 'dep' ? s.departure : s.arrival, at = (end === 'dep' ? r.depAt : r.arrAt) || {};
+      const live = stop.prognosis && stop.prognosis.platform, plan = stop.platform;
+      const { num, sectors } = splitPlatform(live || plan || '');
+      const edge = at.edge || null;
+      const label = num || (edge && edge.ref) || '';
+      const word = platformWord(s.journey); // Platform · Bay · Pier
+      return { label, sectors, word, short: word === 'Platform' ? 'Pl.' : word, edge, travel: at.travel,
+        planned: live && plan && live !== plan ? splitPlatform(plan).num : null, station: stop.station.name };
+    }
+    // The boarding point in its fixed slot: right-aligned, bold ("Pl. 7", "Bay C"); nothing for an unsigned stop
+    function kPlat(q, long) {
+      if (!q || !q.label) return null;
+      const e = h('span', 'plat' + (q.planned ? ' changed' : ''), h('span', 'plat-noun', long ? q.word : q.short), h('b', null, q.label));
+      e.setAttribute('aria-label', `${q.word} ${q.label}${q.planned ? `, changed from ${q.planned}` : ''}`);
+      return e;
+    }
+
+    // ---- Sheet: low (fitted to its header), middle (half the screen), expanded (stopping below the top bar) ----
+    let sheetDetent = 'low';
+    let sheetY = 0;
+    const SHEET_GRIP = 20;
+    function sheetPositions() {
+      const hgt = window.innerHeight;
+      const tops = [document.getElementById('jPill'), document.getElementById('menu')].map((el) => (el ? el.getBoundingClientRect().bottom : 0));
+      const full = Math.round(Math.max(...tops, 0) + 8);
+      const footH = jFoot.offsetHeight || 0, headH = jHead.offsetHeight || 60;
+      const low = Math.max(full + 40, hgt - SHEET_GRIP - headH - footH);
+      const mid = Math.min(low, Math.max(full, Math.round(hgt * 0.5)));
+      return { full, mid, low, h: hgt };
+    }
+    function placeSheet(d, animate) {
+      const pos = sheetPositions();
+      sheetDetent = d;
+      sheetY = pos[d];
+      journeyEl.style.height = `${pos.h - pos.full}px`;
+      journeyEl.style.transition = animate ? '' : 'none';
+      journeyEl.style.transform = `translate3d(0,${sheetY}px,0)`;
+      journeyEl.dataset.detent = d;
+      jHandle.setAttribute('aria-label', d === 'full' ? 'Show more of the map' : 'Expand panel');
+    }
+    // the camera refits its subject into the free part of the map once the sheet has settled
+    function setDetent(d, refit) {
+      const changed = d !== sheetDetent;
+      placeSheet(d, true);
+      if (!changed) return;
+      renderHead(true); // the list / map button follows the detent
+      if (refit && d !== 'full' && journeyConn) setTimeout(() => (routeOverview ? fitJourney() : fitStep(journeyStep)), 320);
+    }
+    function openSheet() {
+      journeyEl.style.transition = 'none';
+      journeyEl.style.transform = `translate3d(0,${window.innerHeight}px,0)`;
+      void journeyEl.offsetHeight;
+      placeSheet('low', true);
+    }
+    (function sheetDrag() {
+      const el = journeyEl;
+      let startY = 0, startX = 0, base = 0, mode = '', samples = [];
+      const begin = (cx, cy) => { startX = cx; startY = cy; base = sheetY; mode = ''; samples = [{ t: performance.now(), y: cy }]; };
+      const move = (cx, cy, target, ev) => {
+        const dy = cy - startY;
+        if (mode === '') {
+          const dx = cx - startX;
+          if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
+          if (Math.abs(dx) > Math.abs(dy)) mode = 'native';
+          else if (sheetDetent === 'full' && target && jBody.contains(target)) mode = jBody.scrollTop > 0 || dy < 0 ? 'native' : 'drag';
+          else mode = 'drag';
+          if (mode === 'drag') el.style.transition = 'none';
+        }
+        if (mode !== 'drag') return;
+        if (ev.cancelable) ev.preventDefault();
+        const pos = sheetPositions();
+        let ny = base + dy;
+        if (ny < pos.full) ny = pos.full - Math.sqrt(pos.full - ny) * 2; // rubber band above the top
+        if (ny > pos.low) ny = pos.low + (ny - pos.low) * 0.35;
+        sheetY = ny;
+        el.style.transform = `translate3d(0,${ny}px,0)`;
+        const now = performance.now();
+        samples.push({ t: now, y: cy });
+        while (samples.length > 2 && now - samples[0].t > 120) samples.shift();
+      };
+      const end = () => {
+        if (mode !== 'drag') { mode = ''; return; }
+        mode = '';
+        const a = samples[0], b = samples[samples.length - 1];
+        const v = b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0; // px per ms
+        const pos = sheetPositions(), order = ['full', 'mid', 'low'];
+        let best = order[0];
+        for (const d of order) if (Math.abs(pos[d] - sheetY) < Math.abs(pos[best] - sheetY)) best = d;
+        // a fling over 500 px/s moves one detent in its direction
+        const cur = sheetDetent;
+        if (Math.abs(v) > 0.5) {
+          const i = order.indexOf(cur) + (v > 0 ? 1 : -1);
+          if (order[i] && (best === cur || order.indexOf(best) === i)) best = order[i];
+        }
+        if (best === cur) placeSheet(cur, true);
+        else setDetent(best, true);
+      };
+      el.addEventListener('touchstart', (e) => { if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+      el.addEventListener('touchmove', (e) => { if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY, e.target, e); }, { passive: false });
+      el.addEventListener('touchend', end);
+      el.addEventListener('touchcancel', end);
+      // mouse: drag by the header only
+      el.querySelector('.sheet-top').addEventListener('pointerdown', (e) => {
+        if (e.pointerType !== 'mouse' || e.target.closest('button, a, input')) return;
+        begin(e.clientX, e.clientY);
+        const mm = (ev) => move(ev.clientX, ev.clientY, null, ev);
+        const mu = () => { removeEventListener('pointermove', mm); removeEventListener('pointerup', mu); end(); };
+        addEventListener('pointermove', mm);
+        addEventListener('pointerup', mu);
+      });
+      el.addEventListener('wheel', (e) => {
+        let next = null;
+        if (sheetDetent !== 'full' && e.deltaY > 0) next = 'full';
+        else if (sheetDetent === 'full' && e.deltaY < -30 && jBody.scrollTop <= 0) next = 'mid';
+        if (next) setDetent(next, true);
+      }, { passive: true });
+      jHandle.addEventListener('click', () => setDetent(sheetDetent === 'full' ? 'mid' : 'full', true));
+      const inJourney = () => document.body.classList.contains('journey-mode');
+      addEventListener('resize', () => { if (inJourney()) placeSheet(sheetDetent, false); });
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => { if (inJourney() && sheetDetent === 'low') placeSheet('low', false); });
+        ro.observe(jHead);
+        ro.observe(jFoot);
       }
-      row.append(ico, txt, mk('div', 'j-step', stepText));
-      return row;
-    }
-    function metric(k, v, delay, small) {
-      const m = mk('div', 'j-metric');
-      m.appendChild(mk('div', 'k', k));
-      const val = mk('div', 'v', v);
-      if (small) val.appendChild(mk('small', null, small));
-      if (delay > 0) val.appendChild(mk('span', 'j-delay', `+${delay}′`));
-      m.appendChild(val);
-      return m;
-    }
-    function metrics(...items) {
-      const g = mk('div', 'j-metrics' + (items.length === 1 ? ' one' : ''));
-      g.append(...items);
-      return g;
-    }
-    function foot(cls, ...parts) { // strings, {b: text}, nodes; empty parts are skipped
-      const f = mk('div', 'j-foot' + (cls ? ' ' + cls : ''));
-      parts.filter(Boolean).forEach((p) => f.append(typeof p === 'string' ? document.createTextNode(p) : p.b != null ? mk('b', null, p.b) : p));
-      return f;
-    }
-    // "Platform 7" for the step's metric, plus its sectors ("7A-D" → "7", "A–D")
-    function platformMetric(stop, j, edge) {
-      const raw = platformOf(stop);
-      const { num, sectors } = splitPlatform(raw === '–' ? '' : raw);
-      return metric(platformWord(j), num || (edge && edge.ref) || '–', 0, sectors ? ` ${sectors}` : '');
-    }
+    })();
 
-    // Where to stand (from the Kante app): sectors or side of the road, floor level, next stop and the way it leaves
-    function standTags(st) {
-      const s = st.s, j = s.journey, mode = modeOf(j.category), at = st.depAt || {}, edge = at.edge;
-      const raw = platformOf(s.departure);
-      const { sectors } = splitPlatform(raw === '–' ? '' : raw);
-      const bearing = edge && edge.bearing != null ? edge.bearing : at.travel;
-      const tags = [];
-      if (sectors) tags.push(tag('plain', null, `${sectors.length === 1 ? 'Sector' : 'Sectors'} ${sectors}`));
-      else if (mode !== 'train' && edge && edge.bearing != null) tags.push(tag('plain', null, `${cap(compassWord(edge.bearing + 90))} side of the road`)); // edges sit right of travel
-      if (edge && edge.level) tags.push(tag('plain', 'stairs', `Level ${levelShort(edge.level)}`));
-      const next = j.passList[1] && j.passList[1].station && j.passList[1].station.name;
-      if (next) {
-        const t = tag('plain next', 'up', `Next: ${next}`);
-        if (bearing != null) t.querySelector('svg').style.transform = `rotate(${bearing}deg)`;
-        tags.push(t);
-      }
-      return tags;
-    }
+    // ---- What the sheet says about the trip ----
+    let jFocus = null;              // { step, dir }: a walking direction picked in the list; the header then steps through them
+    const openDirs = new Set();     // walks whose directions you opened (changes start open)
+    const closedDirs = new Set();   // …and changes whose directions you closed
+    const openStops = new Set();    // rides with all their stops listed
 
-    // Minutes, then metres once the walking route is in
-    function walkText(st, minutes) {
-      const walks = (st.walks || []).filter(Boolean);
-      const dist = walks.length && walks.every((w) => w.dist != null) ? walks.reduce((sum, w) => sum + w.dist, 0) : null;
-      return [minutes ? `${minutes} min` : '', dist ? fmtDist(dist) : ''].filter(Boolean).join(' · ');
+    // Where a walk ends: "Bay C", "Platform 7", the stop's name, or your destination
+    function walkTarget(st) {
+      const r = st.type === 'change' || !st.final ? st.nextRide : null;
+      if (!r) return st.toName || (journeyDest && journeyDest.title) || 'your destination';
+      const q = quayOf(r, 'dep');
+      return q.label ? `${q.word} ${q.label}` : r.s.departure.station.name;
     }
-    function updateWalk(st) {
-      if (st.ui && st.ui.walk) st.ui.walk.textContent = walkText(st, st.ui.minutes) || st.ui.fallback;
+    // Metres on foot, once every part of the walk has been routed (null until then)
+    function walkDist(st) {
+      const lines = st.lines || [];
+      if (!lines.length) return 0;
+      const ws = st.walks || [];
+      return lines.every((_, k) => ws[k] && ws[k].dist != null) ? ws.reduce((sum, w) => sum + (w ? w.dist : 0), 0) : null;
     }
-    function walkSpan(st, minutes, fallback) {
-      const span = mk('span', null, walkText(st, minutes) || fallback);
-      st.ui = { walk: span, minutes, fallback };
-      return span;
-    }
+    const walkMinOf = (st) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
 
-    function walkCard(st, n, total) {
-      const card = mk('div', 'j-card');
+    // Written directions for a walk, from the walking router's turn-by-turn steps, with the floor change in its place
+    const TURN = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
+      'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
+    function walkDirections(st) {
+      if (st._dirsV === geoVersion) return st._dirs;
+      const out = [];
+      (st.walks || []).forEach((w) => ((w && w.steps) || []).forEach((s) => {
+        const m = s.maneuver || {}, d = Math.round(s.distance || 0);
+        if (m.type === 'arrive' || d < 3) return;
+        const along = s.name ? ` along ${s.name}` : '';
+        const verb = m.type === 'depart' ? 'Walk' : `${TURN[m.modifier] || 'Continue'} and walk`;
+        out.push({ kind: m.type === 'depart' ? 'depart' : 'walk', text: `${verb} ${fmtDist(d)}${along}`, coords: s.geometry && s.geometry.coordinates });
+      }));
       const lvl = levelChange(st);
-      const lvlTag = lvl && tag('plain', 'stairs', lvl.text);
-      if (st.next) {
-        const s = st.next, j = s.journey, raw = platformOf(s.departure);
-        const target = raw !== '–' ? `${platformWord(j)} ${splitPlatform(raw).num}` : s.departure.station.name;
-        card.appendChild(cardHead('walk', ICON_COLOR.walk, `Walk to ${target}`,
-          [walkSpan(st, st.min, ''), ' · then', badge(j), `→ ${j.to}`], `${n} of ${total}`));
-        card.appendChild(metrics(metric('Departs', fmtTime(s.departure.departure), s.departure.delay), platformMetric(s.departure, j, st.nextRide && st.nextRide.depAt.edge)));
-        card.appendChild(foot('', lvlTag, lvlTag ? null : 'Leave at ', lvlTag ? null : { b: fmtTime(st.start) }));
-      } else {
-        card.appendChild(cardHead('walk', ICON_COLOR.walk, `Walk to ${st.toName}`, [walkSpan(st, st.min, `${st.min} min`), ' · follow the yellow line'], `${n} of ${total}`));
-        card.appendChild(metrics(metric('Arrive', fmtTime(journeyConn.to.arrival))));
-        if (lvlTag) card.appendChild(foot('', lvlTag));
+      if (lvl) {
+        const item = { kind: lvl.to < lvl.from ? 'stairs-down' : 'stairs-up', text: lvl.text, from: lvl.from, to: lvl.to, coords: lvl.at ? [lvl.at] : null };
+        if (st.type === 'walk' && st.final) out.unshift(item);
+        else if (st.type === 'walk') out.push(item);
+        else out.splice(Math.ceil(out.length / 2), 0, item);
       }
+      if (out.length) {
+        const cs = (st.lines || []).flat();
+        out.push({ kind: 'arrive', text: `Arrive at ${walkTarget(st)}`, coords: cs.length ? [cs[cs.length - 1]] : null });
+      }
+      st._dirs = out;
+      st._dirsV = geoVersion;
+      return out;
+    }
+
+    // What to do first, and when: the verb is yours when the trip starts on foot ("Leave in 4 min"), the vehicle's otherwise
+    function firstAction(now) {
+      const first = journeySteps[0], ride = journeySteps.find((st) => st.type === 'ride');
+      const walkFirst = first && first.type === 'walk';
+      const when = walkFirst ? first.t0 : ride ? ride.t0 : null;
+      if (when == null) return { text: '', quay: ride && quayOf(ride, 'dep') };
+      const s = (when - now) / 1000;
+      let text = '';
+      if (s < -45) text = `Left ${kDur(-s)} ago`;
+      else if (s < 60) text = walkFirst ? 'Leave now' : 'Leaves now';
+      else if (s < 3600) text = `${walkFirst ? 'Leave' : 'Leaves'} in ${kDur(Math.floor(s / 60) * 60)}`;
+      const late = ride ? lateMin(ride.s.departure, 'departure') : 0;
+      const forecast = ride && ride.s.departure.prognosis && ride.s.departure.prognosis.departure;
+      return { text, gone: s < -45, state: !forecast ? 'plain' : late > 0 ? 'late' : 'ok', delay: late, quay: ride && quayOf(ride, 'dep') };
+    }
+
+    function legChain() {
+      const items = journeySteps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && walkMinOf(st) >= 1));
+      const max = 7, cut = items.length > max ? items.slice(0, max - 1) : items;
+      const chain = h('span', 'chain');
+      chain.setAttribute('aria-hidden', 'true');
+      cut.forEach((st, i) => {
+        if (i) chain.append(kIcon('right', 12, 'chain-sep'));
+        chain.append(st.type === 'ride' ? kBadge(st.s.journey, null, chainIcon(st.s.journey))
+          : h('span', 'chain-walk', kIcon('walk', 14), String(Math.max(1, walkMinOf(st)))));
+      });
+      if (cut.length < items.length) chain.append(h('span', 'chain-more', `+${items.length - cut.length}`));
+      return chain;
+    }
+    function sheetActions() {
+      const full = sheetDetent === 'full';
+      return h('span', 'sheet-actions',
+        kBtn('round-btn', full ? 'Show the map' : 'Show the list', () => setDetent(sheetDetent === 'full' ? 'mid' : 'full', true), kIcon(full ? 'map' : 'list', 18)),
+        kBtn('round-btn', 'Close journey', endJourney, kIcon('close', 18)));
+    }
+    // A walking direction picked: step through them, or back to the whole journey
+    function stepNav() {
+      const st = journeySteps[jFocus.step], dirs = st ? walkDirections(st) : [], k = jFocus.dir, d = dirs[k];
+      if (!d) { jFocus = null; return buildHead(); }
+      const text = h('div', 'stepnav-text', h('small', null, `${k + 1} of ${dirs.length}`), h('strong', 'trunc2', d.text));
+      text.setAttribute('aria-live', 'polite');
+      const prev = kBtn('round-btn', 'Previous direction', () => focusDir(jFocus.step, k - 1), kIcon('back', 18));
+      const next = kBtn('round-btn', 'Next direction', () => focusDir(jFocus.step, k + 1), kIcon('go', 18));
+      prev.disabled = k === 0;
+      next.disabled = k === dirs.length - 1;
+      return h('div', 'stepnav', prev, text, next, kBtn('round-btn', 'Back to the whole journey', overview, kIcon('close', 18)));
+    }
+    function buildHead() {
+      if (jFocus) return stepNav();
+      const head = h('div', 'jhead');
+      if (!journeyConn) {
+        head.append(h('div', 'sheet-title', h('h1', 'trunc', journeyDest ? journeyDest.title : 'Journey'), sheetActions()));
+        if (sheetMsg) head.append(h('div', 'jhead-act', h('span', 'jrow-act gone', sheetMsg)));
+        return head;
+      }
+      const now = Date.now(), end = journeyEnd();
+      const rides = journeySteps.filter((st) => st.type === 'ride');
+      const tr = Math.max(0, rides.length - 1);
+      const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
+      head.append(
+        h('div', 'sheet-title', legChain(), sheetActions()),
+        h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.from.departure)} – ${fmtTime(end)}`),
+          h('span', null, !rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`)));
+      const act = h('div', 'jhead-act');
+      // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
+      const lp = liveParts(now);
+      const rideNow = rides.some((st) => st.t0 != null && now >= st.t0 && now <= st.t1);
+      if (now > end + 120000) act.append(h('span', 'jrow-act gone', 'This journey has ended'));
+      else if (lp && lp.kind === 'off') act.append(h('span', 'jrow-act late', lp.parts), kBtn('pill-btn small', null, replan, kIcon('refresh', 16), 'Replan'));
+      else if (lp && (lp.kind === 'gps' || (lp.kind === 'est' && rideNow))) act.append(h('span', 'jrow-act', lp.parts), lp.rest ? h('span', 'jhead-rest', lp.rest) : null);
+      else {
+        const a = firstAction(now);
+        if (a.text) act.append(h('span', 'jrow-act ' + (a.gone ? 'gone' : a.state), a.text, a.gone ? null : kDelay(a.delay)));
+        else if (a.quay) act.append(h('span'));
+        if (a.quay) act.append(kPlat(a.quay, true));
+      }
+      if (act.childNodes.length) head.append(act);
+      return head;
+    }
+    let headKey = '';
+    function renderHead(force) {
+      const node = buildHead();
+      const key = node.outerHTML;
+      if (!force && key === headKey) return; // unchanged: leave it alone (and its buttons pressable)
+      headKey = key;
+      jHead.replaceChildren(node);
+    }
+
+    function placeRow(t, name, kind) {
+      return h('li', 'tl-row tl-place ' + kind,
+        h('span', 'tl-time', h('b', null, fmtTime(t))),
+        h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
+        h('span', 'tl-name', h('strong', null, name), h('small', null, kind === 'from' ? 'Start' : 'Destination')));
+    }
+    // Spare time on a change: from getting off to the next departure, less the walk
+    function spareLine(st) {
+      const wait = (liveMs(st.next.departure, 'departure') - liveMs(st.prev.arrival, 'arrival')) / 1000;
+      const s = wait - (st.walkMin || 0) * 60;
+      const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
+      const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
+      return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
+        level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
+          : h('span', null, h('b', null, `${kDurExact(s)} to spare`), extra > 0 && s < extra * 60 ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
+    }
+    function stepRow(d, active, onClick) {
+      const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
+        h('span', 'step-icon', kIcon(STEP_K[d.kind] || 'walk', 18)), h('span', 'step-text', d.text),
+        d.from != null && d.to != null ? h('span', 'tag lvl', levelShort(d.from), kIcon('go', 11), levelShort(d.to)) : null);
+      if (active) b.setAttribute('aria-current', 'step');
+      return h('li', null, b);
+    }
+    function walkBlock(st, i) {
+      const transfer = st.type === 'change';
+      const mins = walkMinOf(st);
+      const target = walkTarget(st);
+      if (transfer) {
+        const pq = quayOf(st.prevRide, 'arr'), nq = quayOf(st.nextRide, 'dep');
+        const samePlace = st.prev.arrival.station.name === st.next.departure.station.name;
+        if (!mins && !(st.lines && st.lines.length) && samePlace && pq.label && pq.word === nq.word && pq.label === nq.label) {
+          return h('li', 'tl-row tl-walk same', h('span', 'tl-time'), h('span', 'tl-rail walk'),
+            h('div', 'tl-main', h('strong', null, `Change at the same ${nq.word.toLowerCase()}`), spareLine(st)));
+        }
+      }
+      const dist = walkDist(st);
+      const lvl = levelChange(st);
+      const pq = transfer && quayOf(st.prevRide, 'arr'), nq = transfer && quayOf(st.nextRide, 'dep');
+      const meta = [
+        mins ? `${kDur(mins * 60)} walk` : transfer && pq.label && nq.label ? (pq.word === nq.word ? `${pq.word} ${pq.label} → ${nq.label}` : `${pq.short} ${pq.label} → ${nq.short} ${nq.label}`) : '',
+        dist ? fmtDist(dist) : '',
+        lvl ? lvl.text.replace(/^Go /, '') : '',
+      ].filter(Boolean).join(' · ');
+      const active = !routeOverview && journeyStep === i;
+      const dirs = walkDirections(st);
+      const expanded = openDirs.has(i) || (transfer && !closedDirs.has(i)) || (!!jFocus && jFocus.step === i);
+      const title = `${transfer ? 'Change to' : 'Walk to'} ${target}`;
+      const main = h('div', 'tl-main',
+        kBtn('walk-sum', `${title}, ${kDur(mins * 60)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
+          h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
+      if (transfer) main.append(spareLine(st));
+      else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
+      if (dirs.length > 1) {
+        main.append(kBtn('expander', null, () => {
+          if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
+          renderBody();
+        }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`));
+        if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k)))));
+      }
+      return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
+        h('span', 'tl-time', h('small', null, kDur(mins * 60))),
+        h('span', 'tl-rail walk', kIcon('walk', 18)),
+        main);
+    }
+
+    // "Where to stand": the boarding point as a sign, with everything known about it in words
+    function standCard(st, i) {
+      const q = quayOf(st, 'dep'), j = st.s.journey, mode = modeOf(j.category), edge = q.edge;
+      const bearing = edge && edge.bearing != null ? edge.bearing : q.travel;
+      const sign = h('div', 'sign' + (q.label ? '' : ' unsigned') + (q.label.length > 2 ? ' long' : ''), h('span', 'sign-noun', q.label ? q.word : 'Stop'));
+      if (q.label) sign.append(h('span', 'sign-label', q.label));
+      else {
+        const arrow = h('span', 'sign-arrow', kIcon(bearing != null ? 'arrow' : 'dot', bearing != null ? 30 : 26));
+        if (bearing != null) arrow.style.transform = `rotate(${bearing}deg)`;
+        sign.append(arrow);
+      }
+      const side = mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
+      const level = edge && edge.level ? `Level ${levelShort(edge.level)}` : '';
+      const next = j.passList && j.passList[1] && j.passList[1].station && j.passList[1].station.name;
+      let compass = null;
+      if (next && bearing != null && q.label) {
+        compass = h('span', 'stand-compass', kIcon('arrow', 14));
+        compass.style.transform = `rotate(${bearing}deg)`;
+        compass.setAttribute('role', 'img');
+        compass.setAttribute('aria-label', `Leaves heading ${compassWord(bearing)}`);
+      }
+      const info = h('div', 'stand-info',
+        h('div', 'stand-kicker', 'Where to stand'),
+        side ? h('div', 'stand-side', side) : null,
+        q.sectors || level ? h('div', 'stand-tags',
+          q.sectors ? h('span', 'tag strong', `${q.sectors.replace(/[^A-Za-z0-9]/g, '').length === 1 ? 'Sector' : 'Sectors'} ${q.sectors}`) : null,
+          level ? h('span', 'tag', level) : null) : null,
+        next ? h('div', 'stand-dir', compass, h('span', null, 'Next stop: ', h('b', null, next))) : null);
+      const card = h('div', 'stand', h('div', 'stand-main', sign, info));
+      if (q.planned) card.append(h('div', 'stand-note warn', kIcon('alert', 16), `Changed today (normally ${q.word.toLowerCase()} ${q.planned})`));
+      if (!edge) card.append(h('div', 'stand-note', kIcon('info', 16), 'Exact platform or bay unknown — map pin shows the stop'));
+      card.append(h('div', 'stand-foot', h('span'), kBtn('link-btn', null, () => showQuay(i), 'Show on map ', kIcon('right', 14))));
       return card;
     }
-
-    function rideCard(st, n, total) {
+    // Scheduled time; a delay follows as "+4 min" in the alarm colour
+    function callTime(stop, which, strong) {
+      const t = stop[which] || stop[which === 'departure' ? 'arrival' : 'departure'];
+      if (!t) return h('span', 'tl-time');
+      return h('span', 'tl-time', strong ? h('b', null, fmtTime(t)) : h('span', null, fmtTime(t)), kDelay(lateMin(stop, which)));
+    }
+    // Real-time state as a word, never by colour alone
+    function liveTag(st) {
+      const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
+      return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Expected' : 'Timetable');
+    }
+    function rideBlock(st, i) {
       const s = st.s, j = s.journey, mode = modeOf(j.category);
-      const stops = Math.max(0, j.passList.length - 1);
-      const card = mk('div', 'j-card');
-      card.appendChild(cardHead(mode, j, `Get off at ${s.arrival.station.name}`, [badge(j), `→ ${j.to}`], `${n} of ${total}`));
-      card.appendChild(metrics(metric('Departs', fmtTime(s.departure.departure), s.departure.delay), platformMetric(s.departure, j, st.depAt && st.depAt.edge)));
-      const tags = standTags(st);
-      if (tags.length) card.appendChild(foot('tags', ...tags));
-      card.appendChild(foot(tags.length ? 'after' : '', `${stops} stop${stops === 1 ? '' : 's'} · ${Math.max(0, Math.round((st.t1 - st.t0) / 60000))} min · arrives `,
-        { b: fmtTime(st.t1) }, lateMin(s.arrival, 'arrival') > 0 ? mk('span', 'j-delay', `+${lateMin(s.arrival, 'arrival')}′`) : null));
-      return card;
+      const list = j.passList || [];
+      const stops = Math.max(0, list.length - 2);
+      const rideS = Math.max(0, (st.t1 - st.t0) / 1000);
+      const open = openStops.has(i);
+      const li = lineVars(h('li', 'tl-ride'), j);
+      li.append(h('div', 'tl-row board',
+        callTime(s.departure, 'departure', true),
+        h('span', 'tl-rail ride first', h('i', 'tl-node', kIcon(MODE_K[mode] || 'bus', 15))),
+        h('span', 'tl-name', h('strong', null, s.departure.station.name)),
+        kPlat(quayOf(st, 'dep'))));
+      li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
+        h('div', 'tl-main',
+          standCard(st, i),
+          h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', j.to)),
+          h('div', 'ride-sum',
+            stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `Ride ${stops + 1} stops · ${kDur(rideS)}`)
+              : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),
+            liveTag(st)))));
+      if (open) list.slice(1, -1).forEach((stop) => li.append(h('div', 'tl-row mid',
+        h('span', 'tl-time', h('span', null, fmtTime(liveMs(stop, 'arrival') || liveMs(stop, 'departure')))),
+        h('span', 'tl-rail ride', h('i', 'tl-stopdot')),
+        h('span', 'tl-name', (stop.station && stop.station.name) || ''))));
+      li.append(h('div', 'tl-row alight', callTime(s.arrival, 'arrival'), h('span', 'tl-rail ride last', h('i', 'tl-enddot')),
+        h('span', 'tl-name', s.arrival.station.name), kPlat(quayOf(st, 'arr'))));
+      return li;
     }
-
-    function changeCard(st, n, total) {
-      const { prev, next } = st;
-      const wait = Math.round((liveMs(next.departure, 'departure') - liveMs(prev.arrival, 'arrival')) / 60000);
-      const sameStation = prev.arrival.station.name === next.departure.station.name;
-      const pa = platformOf(prev.arrival), pd = platformOf(next.departure);
-      const card = mk('div', 'j-card');
-      const title = !sameStation ? `Walk to ${next.departure.station.name}`
-        : pd !== '–' ? `Change to ${platformWord(next.journey)} ${splitPlatform(pd).num}` : `Change at ${next.departure.station.name}`;
-      card.appendChild(cardHead('change', ICON_COLOR.change, title, [`${Math.max(0, wait)} min · take`, badge(next.journey), `→ ${next.journey.to}`], `${n} of ${total}`));
-      card.appendChild(metrics(metric('Departs', fmtTime(next.departure.departure), next.departure.delay), platformMetric(next.departure, next.journey, st.nextRide && st.nextRide.depAt.edge)));
-      const spare = wait - (st.walkMin || 0);
-      const spareTag = spare >= 2 ? tag('ok', 'check', `${spare} min to spare`)
-        : spare >= 0 ? tag('warn', 'change', `Tight: ${spare} min to spare`) : tag('warn', 'change', 'Very tight change');
-      let way;
-      if (!sameStation || st.walkMin > 0 || st.lines.length) {
-        way = tag('plain', 'walk', '');
-        way.lastChild.replaceWith(walkSpan(st, st.walkMin, 'Short walk'));
-      } else if (pa !== '–' && pd !== '–' && pa !== pd) way = tag('plain', 'change', `${splitPlatform(pa).num} → ${splitPlatform(pd).num}`);
-      else way = tag('plain', 'check', 'Same platform');
-      const lvl = levelChange(st);
-      card.appendChild(foot('', spareTag, way, lvl && tag('plain', 'stairs', lvl.text)));
-      return card;
+    function footNote() {
+      const p = SETTINGS.prefs ? SETTINGS.prefs() : {};
+      const walks = journeySteps.filter((st) => st.type === 'walk' || st.type === 'change');
+      const mins = walks.reduce((sum, st) => sum + walkMinOf(st), 0);
+      const dists = walks.map(walkDist);
+      const dist = dists.every((d) => d != null) ? dists.reduce((a, b) => a + b, 0) : null;
+      const kmh = p.walkKmh ? Number(p.walkKmh).toFixed(1).replace('.0', '') : '';
+      const changes = Math.max(0, journeySteps.filter((st) => st.type === 'ride').length - 1);
+      return h('p', 'foot-note',
+        (mins > 0 ? `${kDur(mins * 60)} on foot${dist ? ` (${fmtDist(dist)})` : ''}${kmh ? ` at ${kmh} km/h` : ''}` : 'No walking on this journey') +
+        (p.extraChangeMin > 0 && changes > 0 ? ` · ${p.extraChangeMin} min extra change time` : ''));
     }
-
-    function arriveCard(st, n, total) {
-      const card = mk('div', 'j-card');
-      card.appendChild(cardHead('pin', ICON_COLOR.pin, `Arrive at ${st.destTitle}`,
-        st.from ? [`Last stop: ${st.from.arrival.station.name}`] : [], `${n} of ${total}`));
-      card.appendChild(metrics(metric('Arrival', fmtTime(st.time))));
-      card.appendChild(foot('', dayLabel(st.time)));
-      return card;
-    }
-
-    function stepChip(st, i) {
-      const chip = mk('button', 'j-chip');
-      chip.type = 'button';
-      chip.dataset.step = i;
-      if (st.type === 'walk') {
-        chip.innerHTML = icon('walk');
-        chip.appendChild(document.createTextNode(`${st.min}`));
-      } else if (st.type === 'ride') {
-        chip.appendChild(badge(st.s.journey));
-      } else if (st.type === 'change') {
-        chip.innerHTML = icon('change');
-        chip.setAttribute('aria-label', 'Change');
-      } else {
-        chip.innerHTML = icon('pin');
-        chip.setAttribute('aria-label', 'Arrival');
+    function buildBody() {
+      const frag = document.createDocumentFragment();
+      if (!journeyConn) {
+        if (sheetMsg === 'Finding a connection…') for (let k = 0; k < 4; k++) frag.append(h('div', 'skeleton'));
+        return frag;
       }
-      chip.addEventListener('click', () => goToStep(i));
-      return chip;
+      if (!routeOverview) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
+      const tl = h('ol', 'tl');
+      const first = journeySteps[0];
+      if (first && first.type === 'walk') tl.append(placeRow(first.t0, journeyFrom, 'from'));
+      journeySteps.forEach((st, i) => {
+        if (st.type === 'ride') tl.append(rideBlock(st, i));
+        else if (st.type === 'walk' || st.type === 'change') tl.append(walkBlock(st, i));
+      });
+      const last = journeySteps.filter((st) => st.type !== 'arrive').pop();
+      if (last && last.type === 'walk' && last.final) tl.append(placeRow(journeyEnd(), journeyDest ? journeyDest.title : 'Destination', 'to'));
+      frag.append(tl, footNote(), h('div', 'sheet-end'));
+      return frag;
+    }
+    function renderBody() {
+      const top = jBody.scrollTop;
+      jBody.replaceChildren(buildBody());
+      jBody.scrollTop = top;
+    }
+    function renderFoot() {
+      if (!journeyConn) { jFoot.replaceChildren(); return; }
+      const end = journeyEnd(), start = new Date(journeyConn.from.departure).getTime();
+      jFoot.replaceChildren(h('div', 'actionbar',
+        kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+        kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
+        h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
+    }
+    function renderSheet() {
+      renderHead(true);
+      renderBody();
+      renderFoot();
+      if (document.body.classList.contains('journey-mode') && sheetDetent === 'low') placeSheet('low', true); // the header's height may have changed
+    }
+    let sheetQueued = false;
+    function queueSheet() {
+      if (sheetQueued) return;
+      sheetQueued = true;
+      requestAnimationFrame(() => { sheetQueued = false; if (journeyConn) { renderHead(); renderBody(); } });
+    }
+
+    // ---- What the buttons do ----
+    // The whole journey again
+    function overview() {
+      jFocus = null;
+      routeOverview = true;
+      refreshRouteHighlight();
+      fitJourney();
+      renderSheet();
+    }
+    // One walking direction on the map, close up
+    function focusDir(i, k) {
+      const st = journeySteps[i], d = st && walkDirections(st)[k];
+      if (!d) return;
+      jFocus = { step: i, dir: k };
+      journeyStep = i;
+      routeOverview = false;
+      userPickedAt = Date.now();
+      refreshRouteHighlight();
+      const cs = (d.coords || []).filter(Boolean);
+      if (cs.length > 1 && lengthKm(cs) > 0.03) fitCoords(cs, 18.5);
+      else if (cs.length) map.flyTo({ center: cs[Math.floor((cs.length - 1) / 2)], zoom: 18.5, padding: mapPadding(), duration: 700 });
+      if (sheetDetent === 'full') setDetent('mid');
+      renderSheet();
+    }
+    // A boarding point close up
+    function showQuay(i) {
+      const r = journeySteps[i];
+      if (!r) return;
+      jFocus = null;
+      journeyStep = i;
+      routeOverview = false;
+      userPickedAt = Date.now();
+      refreshRouteHighlight();
+      if (r.depLL) map.flyTo({ center: r.depLL, zoom: 18.5, padding: mapPadding(), duration: 700 });
+      if (sheetDetent === 'full') setDetent('mid');
+      renderSheet();
+    }
+    // Start: the sheet steps aside and the map shows where you are on the trip (GPS moves it along from there)
+    function startFollowing() {
+      if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
+      }
+      setDetent('low');
+      const p = journeyProgress();
+      goToStep(p && !p.ended ? p.i : 0, true);
+    }
+    async function shareJourney() {
+      const title = `${journeyFrom} to ${journeyDest ? journeyDest.title : 'destination'}`;
+      const lines = journeySteps.filter((st) => st.type === 'ride').map((st) => lineLabel(st.s.journey)).join(' → ');
+      const text = `${title}: ${fmtTime(journeyConn.from.departure)} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
+      const url = location.origin + location.pathname;
+      try {
+        if (navigator.share) await navigator.share({ title, text, url });
+        else { await navigator.clipboard.writeText(`${text}\n${url}`); showToast('Journey copied'); }
+      } catch (e) {
+        if (e.name !== 'AbortError') showToast('Couldn\'t share the journey');
+      }
     }
 
     // ---- Top pill: the trip on one line, roughly to scale in time. Every ride is a solid line with its name above it;
@@ -3399,19 +3935,6 @@
       el.textContent = fmtTime(live);
       el.classList.toggle('late', live - plan >= 60000);
     }
-    // One card per step (built again when the live times change; the step shown stays)
-    function renderCards() {
-      const total = journeySteps.length;
-      jTrack.replaceChildren(...journeySteps.map((st, i) => {
-        const slide = mk('div', 'j-slide');
-        slide.appendChild(st.type === 'walk' ? walkCard(st, i + 1, total)
-          : st.type === 'ride' ? rideCard(st, i + 1, total)
-          : st.type === 'change' ? changeCard(st, i + 1, total)
-          : arriveCard(st, i + 1, total));
-        return slide;
-      }));
-    }
-
     function renderJourney(conn, destTitle) {
       journeyConn = conn;
       journeySteps = buildSteps(conn, destTitle);
@@ -3419,97 +3942,45 @@
       routeOverview = true;
       track = null;
       autoStep = 0;
+      jFocus = null;
+      sheetMsg = '';
       document.getElementById('jDep').textContent = fmtTime(conn.from.departure);
       updatePillTimes();
-      document.getElementById('jTo').textContent = destTitle;
-      document.getElementById('jSub').textContent =
-        `${dayLabel(conn.from.departure)} · ${fmtDuration(conn.duration)}` +
-        (conn.transfers ? ` · ${conn.transfers} change${conn.transfers > 1 ? 's' : ''}` : ' · direct');
-      jStrip.innerHTML = '';
-      jTrack.innerHTML = '';
-      jDots.innerHTML = '';
-      jStatus.textContent = '';
-      journeySteps.forEach((st, i) => {
-        if (i) jStrip.appendChild(mk('span', 'j-chev', '›'));
-        jStrip.appendChild(stepChip(st, i));
-        const dot = mk('button', 'j-dot');
-        dot.type = 'button';
-        dot.setAttribute('aria-label', `Step ${i + 1}`);
-        dot.addEventListener('click', () => goToStep(i));
-        jDots.appendChild(dot);
-      });
-      renderCards();
       trackJourney();
       renderBar();
-      renderLive();
+      renderSheet();
       redrawRoute(true);
       updateNowMarker();
-      showStep(false);
-      fitJourney(); // overview first; swiping then zooms into each step
+      refreshRouteHighlight();
+      fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it
     }
 
-    function showStep(fit) {
-      jTrack.style.transform = `translateX(${-journeyStep * 100}%)`;
-      jStrip.querySelectorAll('.j-chip').forEach((c) => c.classList.toggle('active', +c.dataset.step === journeyStep));
-      jDots.querySelectorAll('.j-dot').forEach((d, i) => d.classList.toggle('active', i === journeyStep));
-      const active = jStrip.querySelector('.j-chip.active');
-      if (active) jStrip.scrollTo({ left: active.offsetLeft - 18, behavior: 'smooth' });
-      refreshRouteHighlight();
-      if (fit) fitStep(journeyStep);
-    }
-    function goToStep(i, auto) { // auto: moved there by GPS, not by you
+    // Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you
+    function goToStep(i, auto) {
       if (!journeySteps.length) return;
       if (!auto) userPickedAt = Date.now();
       journeyStep = Math.min(journeySteps.length - 1, Math.max(0, i));
       routeOverview = false;
-      showStep(true);
+      jFocus = null;
+      refreshRouteHighlight();
+      fitStep(journeyStep);
+      if (!auto && sheetDetent === 'full') setDetent('mid');
+      renderSheet();
     }
 
-    // ---- Swipe: drag the cards with a finger or the mouse; flick or drag past ~1/5 to change card ----
-    (function enableSwipe() {
-      let id = null, sx = 0, sy = 0, dx = 0, t = 0, decided = false, dragging = false;
-      jViewport.addEventListener('pointerdown', (e) => {
-        if (!journeySteps.length) return;
-        id = e.pointerId; sx = e.clientX; sy = e.clientY; dx = 0; t = performance.now(); decided = false; dragging = false;
-      });
-      jViewport.addEventListener('pointermove', (e) => {
-        if (e.pointerId !== id) return;
-        const mx = e.clientX - sx, my = e.clientY - sy;
-        if (!decided && (Math.abs(mx) > 6 || Math.abs(my) > 6)) {
-          decided = true;
-          dragging = Math.abs(mx) > Math.abs(my);
-          if (dragging) { jViewport.setPointerCapture(id); jTrack.classList.add('dragging'); }
-        }
-        if (!dragging) return;
-        const last = journeySteps.length - 1;
-        dx = mx;
-        if ((journeyStep === 0 && dx > 0) || (journeyStep === last && dx < 0)) dx *= 0.3; // rubber band at the ends
-        jTrack.style.transform = `translateX(calc(${-journeyStep * 100}% + ${dx}px))`;
-      });
-      const end = (e) => {
-        if (e.pointerId !== id) return;
-        id = null;
-        if (!dragging) return;
-        dragging = false;
-        jTrack.classList.remove('dragging');
-        const w = jViewport.clientWidth;
-        const fast = performance.now() - t < 280 && Math.abs(dx) > 30;
-        if (dx < -w * 0.2 || (fast && dx < 0)) goToStep(journeyStep + 1);
-        else if (dx > w * 0.2 || (fast && dx > 0)) goToStep(journeyStep - 1);
-        else showStep(false);
-      };
-      jViewport.addEventListener('pointerup', end);
-      jViewport.addEventListener('pointercancel', end);
-    })();
-
+    // Keep what the camera shows clear of the top bar and of the sheet where it rests
     function mapPadding() {
-      const h = journeyEl.getBoundingClientRect().height || 300;
-      return { top: document.body.classList.contains('journey-mode') ? 150 : 80, bottom: h + 40, left: 64, right: 64 };
+      const hgt = window.innerHeight;
+      const top = document.body.classList.contains('journey-mode') ? 150 : 80;
+      const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheetY) : 0;
+      const bottom = Math.max(40, Math.min(covered + 24, hgt - top - 120));
+      const side = window.innerWidth >= 700 && covered ? 444 : 48; // wide screens: the sheet is a panel on the left
+      return { top, bottom: side > 48 ? 40 : bottom, left: side, right: 48 };
     }
-    function fitCoords(coords) {
+    function fitCoords(coords, maxZoom = 17) {
       if (!coords.length) return;
       const b = coords.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
-      map.fitBounds(b, { padding: mapPadding(), maxZoom: 17, duration: 700 });
+      map.fitBounds(b, { padding: mapPadding(), maxZoom, duration: 700 });
     }
     function fitJourney() {
       const all = [];
@@ -3527,24 +3998,25 @@
       journeyDest = r;
       journeyConn = null;
       journeySteps = [];
+      journeyFrom = userLngLat ? 'Your location' : 'Map centre';
+      jFocus = null;
+      openDirs.clear();
+      closedDirs.clear();
+      openStops.clear();
       updateCards(); // hide events and places: only the trip and the destination
       updatePlaces();
+      const wasOpen = document.body.classList.contains('journey-mode');
       wrap.classList.remove('collapsed');
       wrap.classList.add('journey-open');
       document.body.classList.add('journey-mode');
       setMenu(false);
-      jStrip.innerHTML = '';
-      jTrack.innerHTML = '';
-      jDots.innerHTML = '';
       document.getElementById('jBar').innerHTML = '';
       document.getElementById('jDep').textContent = '--:--';
       document.getElementById('jArr').textContent = '--:--';
-      document.getElementById('jTo').textContent = r.title;
-      document.getElementById('jSub').textContent = '';
-      jStatus.textContent = 'Finding a connection…';
+      sheetMsg = 'Finding a connection…';
       track = null;
-      liveKey = '';
-      jLive.replaceChildren();
+      renderSheet();
+      if (!wasOpen) openSheet();
       vehMarker.remove();
       nowMarker.remove();
       setRoute([]);
@@ -3559,12 +4031,11 @@
         // exact platforms if their data is there in time; never hold a journey up for more than 4 s
         const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
         if (id !== journeyReq) return;
-        if (!conn) { jStatus.textContent = 'No public transport connection found for this trip.'; return; }
+        if (!conn) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
         renderJourney(conn, r.title);
         refineJourney(id); // swap straight lines for real walking paths and tracks/roads
-        if (!userLngLat) document.getElementById('jSub').textContent += ' · from map centre';
       } catch (e) {
-        if (id === journeyReq) jStatus.textContent = 'Connections could not be loaded. Check your internet connection.';
+        if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); }
       }
     }
 
@@ -3702,7 +4173,7 @@
         (st.lines || []).forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
           st.lines[k] = res.coords;
           (st.walks || (st.walks = []))[k] = res;
-          updateWalk(st);
+          queueSheet(); // metres and written directions
         }));
         if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.journey.category)), (res) => { st.path = res; });
       });
@@ -3772,8 +4243,13 @@
       updateCards(); // events and places come back if they were on
       updatePlaces();
       track = null;
-      liveKey = '';
-      jLive.replaceChildren();
+      jFocus = null;
+      sheetMsg = '';
+      headKey = '';
+      jHead.replaceChildren();
+      jBody.replaceChildren();
+      jFoot.replaceChildren();
+      sheetY = window.innerHeight;
       nowMarker.remove();
       vehMarker.remove();
       closeTimeSheet();
@@ -3786,7 +4262,6 @@
       render();
       if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
     }
-    document.getElementById('jClose').addEventListener('click', endJourney);
 
     // ---------- Event page (URL: #event/<id>, so the back gesture/button works) ----------
     const evPage = document.getElementById('evPage');
