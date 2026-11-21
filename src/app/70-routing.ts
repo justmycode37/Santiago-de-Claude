@@ -70,10 +70,13 @@ function netDirections(r: WalkRouteResult): { dirs?: KanteWalkDir[]; floors: Kan
     const next = k + 1 < marks.length ? marks[k + 1].m : total, on = next - c.m;
     const to = level(c.text);
     const vertical = to != null && (c.kind === 'steps' || c.kind === 'escalator' || c.kind === 'lift' || c.kind === 'ramp');
-    const d: KanteWalkDir = { kind: vertical ? (/down/i.test(c.text) || (lastLevel != null && to! < lastLevel) ? 'stairs-down' : 'stairs-up') : 'walk',
+    // the floor it starts on: as the router saw it, else where the last floor change ended
+    const known = c.from != null ? c.from : lastLevel;
+    const down = known != null && known !== to ? to! < known : /down/i.test(c.text) || (/^lift/i.test(c.text) && to! < 0);
+    const d: KanteWalkDir = { kind: vertical ? (down ? 'stairs-down' : 'stairs-up') : 'walk',
       text: on >= 15 ? `${c.text}, then ${fmtDist(on)}` : c.text, coords: slice(c.m, next) };
     if (vertical) {
-      const from = lastLevel != null ? lastLevel : d.kind === 'stairs-down' ? to! + 1 : to! - 1;
+      const from = known != null && known !== to ? known : down ? to! + 1 : to! - 1;
       Object.assign(d, { from, to });
       floors.push({ at: c.at, from, to: to! });
       lastLevel = to;
@@ -260,7 +263,11 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     const floors = st.walks.flatMap((w) => (w && w.floors) || []);
     st.floors = floors.length ? floors : null;
     current.done();
-    if (res.net && !journeySteps.some((x) => x.type === 'ride')) retimeWalkConn(journeyConn, res.dist); // walking all the way
+    // walking all the way: timed by the whole walk on the network, once every stretch of it is in
+    const ws = st.walks.filter(Boolean);
+    if (!journeySteps.some((x) => x.type === 'ride') && ws.length === lines.length && ws.every((w) => w.net && w.dist != null)) {
+      retimeWalkConn(journeyConn, ws.reduce((m, w) => m + w.dist!, 0));
+    }
     queueSheet(); // metres and written directions
   }));
 }
@@ -285,13 +292,20 @@ function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
     if (!(netS <= wait)) return false;
     st.walkS = netS;
     st.walkMin = Math.max(1, Math.round(netS / 60));
+    if (st.t0 != null) st.t1 = st.t0 + netS * 1000;
     return true;
   }
   if (netS > engS + 120) return false;
   if (!st.final && st.t1 != null) {
     st.t0 = st.t1 - netS * 1000;
     st.min = Math.max(1, Math.round(netS / 60));
-    if (journeySteps[0] === st && journeyConn) { journeyConn.from.departure = new Date(st.t0).toISOString(); queueSheet(true); }
+    if (journeySteps[0] === st && journeyConn) {
+      journeyConn.from.departure = new Date(st.t0).toISOString();
+      // the option's row lists the walks in minutes: this one as it is drawn (the walks before the first ride)
+      const before = journeyConn.sections.slice(0, journeyConn.sections.findIndex((x) => x.journey));
+      before.forEach((x, k) => { x._netWalkS = k ? 0 : netS; });
+      queueSheet(true);
+    }
   }
   return true;
 }
@@ -311,6 +325,7 @@ function retimeWalkConn(conn: OdConnection | null | undefined, metres: number | 
     conn.to.arrival = new Date(b).toISOString();
     const sec = conn.sections && conn.sections[0];
     if (sec && !sec.journey) {
+      conn.sections.slice(1).forEach((x) => { if (!x.journey && x.walk) x.walk.duration = 0; }); // all of it is on the first
       if (sec.walk) sec.walk.duration = Math.round(secs);
       if (sec.kante) (sec.kante as KanteWalkLeg).durationS = Math.round(secs); // decorate() times the walk by it
       if (sec.departure) sec.departure.departure = conn.from.departure;
@@ -332,17 +347,21 @@ function retimeWalkConn(conn: OdConnection | null | undefined, metres: number | 
   // its place among the options: the quicker way first (as the engine ranks them, one change worth 3 minutes)
   const o = journeyOptions;
   if (o && o.walk === conn && o.list && o.list.length) {
+    // as KanteJourney.pick(): the best by transport, unless walking is no slower and within your longest walk
     const cost = (c: OdConnection) => (arriveBy ? -connStart(c) : connEnd(c)) + (c.kante ? (c.kante.transfers || 0) * 180000 : 0);
     const pt = o.list.reduce((x: OdConnection, y: OdConnection) => (cost(x) <= cost(y) ? x : y));
-    o.best = cost(conn) <= cost(pt) ? conn : pt;
+    const noSlower = arriveBy ? connStart(conn) >= connStart(pt) : connEnd(conn) <= connEnd(pt);
+    const maxWalk = Number(SETTINGS.prefs && SETTINGS.prefs().maxWalkMin) || Infinity;
+    o.best = noSlower && secs <= maxWalk * 60 ? conn : pt;
   }
   queueSheet(conn === journeyConn);
 }
 // The "On foot" option before it is opened: its walk on the network, so its tab and card already show those times
-function netWalkOption(id: number, conn: OdConnection, from: LngLat, dest: JourneyDest) {
+// (kept while these options are on offer, also when another of them has been opened meanwhile)
+function netWalkOption(conn: OdConnection, from: LngLat, dest: JourneyDest) {
   if (!conn || !window.WALKROUTE) return;
   routeWalk(from, dest.lngLat, [tripStart ? {} : { gps: true }, {}], true).then((r) => {
-    if (id === journeyReq && r && r.net) retimeWalkConn(conn, r.dist);
+    if (journeyOptions && journeyOptions.walk === conn && r && r.net) retimeWalkConn(conn, r.dist);
   });
 }
 

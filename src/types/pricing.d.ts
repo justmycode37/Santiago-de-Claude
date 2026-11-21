@@ -26,6 +26,7 @@ interface SavedPricingTrip extends TicketFare {
   to: string;
   date: string;
   departure: string;
+  dummy?: boolean;
 }
 
 interface PricingProfile {
@@ -51,6 +52,8 @@ interface PricingHistoryApi {
   update(id: string, fare: TicketFare): boolean;
   remove(id: string): boolean;
   clear(): boolean;
+  setDummy(on: boolean): boolean;
+  hasDummy(): boolean;
 }
 
 declare var PRICING_HISTORY: PricingHistoryApi;

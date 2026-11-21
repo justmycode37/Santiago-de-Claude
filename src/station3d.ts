@@ -18,6 +18,7 @@
      both ends: the route · only `to` (or only `from`): that place, shown and framed, ready for "route from where I am"
      · none: explore · the same place twice: "stay on platform 7" · no way in the plan: said so, the destination shown
    Station3D.setUser({ ll, accuracy, heading } | null)   live position; far outside the model it is said, not followed
+     (also { xy, level, levelSure } from the indoor position, indoornav.js: levelSure = that floor is trusted)
    Station3D.close() · isOpen() · selectStep(i) · setFollow(bool) · setPov(bool) · setPeel(0..1)
    Station3D.play({ speed }?) → bool (is it walking now) · pause() · isPlaying()   the walk by itself; any touch on the
      scene, the scrubber, a step or "I'm here" pauses it; a live position with follow mode takes precedence
@@ -5091,9 +5092,14 @@
       nu.outside = false;
       let mode: 'approx' | 'route' | 'manual' = 'approx', x = xy[0], y = xy[1], level = u.level != null && isFinite(u.level) ? u.level : null, alongM: number | null = null, pi: number | null = null, step = userStep;
       if (A.routed && !A.same && router && router.snap) {
-        const hint = nu.snap || (manualAt ? { along: manualAt.along, level: manualAt.point[2] } : level != null ? level : undefined);
+        // levelSure: the floor comes from an indoor position (indoornav.js) that is sure of it: it beats the floor
+        // of the previous snap, and a snap onto another floor of the route does not count
+        const sureLevel = u.levelSure && level != null ? level : null;
+        const hint = (sureLevel != null && nu.snap && Math.abs(nu.snap.point[2] - sureLevel) >= 0.5) ? sureLevel
+          : nu.snap || (manualAt ? { along: manualAt.along, level: manualAt.point[2] } : level != null ? level : undefined);
         let sn: StationRouteSnap | null = null;
         try { sn = router.snap(model, route, xy, hint); } catch (e) { sn = null; }
+        if (sn && sureLevel != null && Math.abs(sn.point[2] - sureLevel) >= 0.5) sn = null;
         // on the route while the fix could plausibly be there; GPS knows no floor, the route does
         if (sn && sn.dist <= clamp(acc * 1.5, 18, 70)) {
           mode = 'route'; alongM = sn.along; pi = sn.index + sn.t; [x, y, level] = sn.point; step = sn.step;
@@ -5143,6 +5149,9 @@
       if (sel !== i) select(i); else request();
       say(`You are at step ${i + 1}`);
       touch();
+      // last: a listener (the indoor position) may answer with a position at once
+      const pt = route!.points[st.from];
+      emit('here', { step: i, xy: [pt[0], pt[1]], level: pt[2] });
     }
     function stepUser(dt: number) {
       if (!user || !disc || user.outside) return false;
@@ -5395,7 +5404,8 @@
       });
       mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
       on(document, 'visibilitychange', () => { if (!document.hidden) { touch(); request(); } });
-      if (pendingUser) setUser(pendingUser);
+      // the last position, unless it is a GPS fix that has gone stale meanwhile (the phone may have been in a pocket)
+      if (pendingUser && !(pendingUser.at != null && Date.now() - pendingUser.at > USER_STALE_MS)) setUser(pendingUser);
       if (opts.step != null && A.routed) select(+opts.step);
       if (opts.level != null && P.levels.some((l) => l.id === +opts.level!)) setIsolate(P.idxOf(+opts.level));
       if (opts.follow) setFollow(true);
@@ -5567,6 +5577,7 @@
   // ---------- public API ----------
   let V: Viewer | null = null;
   let pendingUser: Station3DUser | null = null; // the last position: also shown when it arrived before the model was ready
+  const USER_STALE_MS = 60e3;                    // a GPS fix older than this (Station3DUser.at) is not shown on opening
   let lastFocus: HTMLElement | null = null;
   let skipPops = 0, skipTimer = 0; // history steps we took ourselves: their popstate is not the user's back gesture
 
@@ -5612,6 +5623,7 @@
   function open(opts: Station3DOpenOptions) {
     opts = Object.assign({}, opts);
     if (!opts.key) throw new Error('Station3D.open needs a key');
+    emit('opening', { key: opts.key, replaces: V ? V.opts.key : null });   // a station replaced by another says no 'close'
     const again = !!V;
     let depth = 1;
     if (V) { const v = V; V = null; depth = v.depth(); v.destroy(true); }

@@ -265,7 +265,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
     if (journeyList) announceOptions();
     else announceJourney();
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
-    if (opts.walk && opts.walk !== opts.best) netWalkOption(id, opts.walk, from, r); // its tab and card in network times
+    if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     kanteMatch(id);    // the engine's trip for every ride, for its live data
   } catch (e) {
     if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); A11Y.say(sheetMsg, { urgent: true }); }
