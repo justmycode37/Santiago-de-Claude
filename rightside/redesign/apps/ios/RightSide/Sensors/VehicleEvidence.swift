@@ -56,6 +56,13 @@ struct DisplayReading {
     /// Every display-zone text on this vehicle, including low-confidence glyphs, for closed-set
     /// comparison with the stop's departures (DepartureDisplayMatcher). Never shown as a reading.
     var observed: [VehicleText] = []
+    /// Segmentation quality of this frame's vehicle: detector score and box height (fraction of the image).
+    var detectionScore: Float = 1
+    var detectionHeight: Double = 1
+    /// 0.56…1: how much a reading from this frame can be trusted on image grounds alone.
+    var frameQuality: Double {
+        (0.7 + 0.3 * min(1, Double(max(0, detectionScore)) / 0.6)) * (0.8 + 0.2 * min(1, max(0, detectionHeight) / 0.3))
+    }
 
     /// The badge uses observed spelling where available, never the expected itinerary words.
     var displayText: String? {
@@ -174,7 +181,8 @@ enum VehicleTextRules {
         return DisplayReading(frameID: frameID, at: at, line: unique.count == 1 ? pairs.first?.0 : nil,
                               destination: unique.count == 1 ? pairs.first?.1 : nil, outOfService: closed,
                               ambiguous: unique.count > 1, raw: raw,
-                              observed: displayEvidence(texts, detection: detection, otherBoxes: otherBoxes))
+                              observed: displayEvidence(texts, detection: detection, otherBoxes: otherBoxes),
+                              detectionScore: detection.score, detectionHeight: Double(detection.box.height))
     }
 }
 
@@ -236,13 +244,18 @@ struct VehicleDecision {
     let reason: String
     /// Line and destination of the departure the display was matched to, when it is not the selected ride.
     var observedService: String? = nil
+    /// Confidence (0…1) of the frame or frames this decision rests on, when it came from display matching.
+    var confidence: Double? = nil
+    /// "consensus" (top-confidence frames agree) or "best_single_frame" (no agreement: the most confident frame).
+    var basis: String? = nil
     var label: String {
         switch state {
         case .unknown: return "Service unreadable / unverified"
         case .conflicting:
             if let observedService { return "Display shows \(observedService) · not your service" }
             return "Display conflicts · do not use this match"
-        case .visualCandidate: return "Display matches · verify service"
+        case .visualCandidate:
+            return basis == "best_single_frame" ? "Best reading matches · check the display yourself" : "Display matches · verify service"
         case .verifiedService: return "Service evidence matches · check boarding area"
         }
     }
@@ -316,14 +329,26 @@ struct VehicleServiceExpectation: Equatable {
 }
 enum VehicleServiceMatcher {
     struct BoardEvidence {
-        /// Capture times of frames whose display clearly matched the selected ride.
+        /// Capture times of frames whose display clearly matched the selected ride (strict mode, no board).
         var expectedFrames: [Date] = []
         var lastExpected: Date? { expectedFrames.last }
-        /// Another listed departure, matched clearly in at least two frames and never the selected ride.
+        /// Another listed departure the ranked frames point to; never the selected ride.
         var other: DisplayCandidate?
         /// Frames disagree between the selected ride and another departure.
         var split = false
+        /// With a board: the ranked frames point to the selected ride.
+        var acceptedExpected = false
+        /// "consensus" or "best_single_frame", and the confidence that decision rests on.
+        var basis: String?
+        var confidence: Double?
     }
+
+    /// Frames ranked by confidence: the top `rankedFrames` are the evidence. Two of them agreeing is the
+    /// consensus ("baseline"); without one, the single most confident frame decides if it is confident enough
+    /// and no other frame in the window clearly reads another service.
+    static let rankedFrames = 3
+    static let consensusMinimum = 0.35
+    static let singleFrameMinimum = 0.6
 
     /// Closed-set comparison of each recent frame's display text with the selected ride and the stop's
     /// other departures. Without a departure board only a strict match (same route numeral, destination
@@ -350,36 +375,68 @@ enum VehicleServiceMatcher {
         return true
     }
 
-    static func boardEvidence(_ readings: [DisplayReading], expected: VehicleServiceExpectation) -> BoardEvidence {
+    static func boardEvidence(_ readings: [DisplayReading], expected: VehicleServiceExpectation,
+                              positions: [String: Double] = [:]) -> BoardEvidence {
         let own = DisplayCandidate(line: expected.line, destination: expected.destination, isExpected: true)
         let alternatives = expected.boardAlternatives.filter { !$0.isExpected && !DepartureDisplayMatcher.sameDisplay($0, own) }
         let candidates = [own] + alternatives
         var evidence = BoardEvidence()
-        var others: [String: (candidate: DisplayCandidate, frames: Set<UUID>)] = [:]
+        struct Scored { let candidate: DisplayCandidate; let confidence: Double }
+        var scored: [Scored] = []
         var seen = Set<UUID>()
         for reading in readings where !reading.observed.isEmpty && seen.insert(reading.frameID).inserted {
             // Without other services to compare against, keep the snapshot's confidence floor (0.7).
             let texts = alternatives.isEmpty ? reading.observed.filter { $0.score >= 0.7 } : reading.observed
             guard !texts.isEmpty else { continue }
-            let match = DepartureDisplayMatcher.match(texts, candidates: candidates, frameID: reading.frameID)
+            let match = DepartureDisplayMatcher.match(texts, candidates: candidates, frameID: reading.frameID, positions: positions)
             guard let best = match.best else { continue }
             if alternatives.isEmpty {
+                // Strict mode: unchanged 3-frame rule in decide(), no single-frame decisions.
                 if match.outcome == .matched, best.line == .exact, best.destination >= 0.85 { evidence.expectedFrames.append(reading.at) }
                 continue
             }
             guard match.outcome == .matched else { continue }
-            if best.candidate.isExpected { evidence.expectedFrames.append(reading.at) }
-            else { others[best.candidate.identity, default: (best.candidate, [])].frames.insert(reading.frameID) }
+            scored.append(Scored(candidate: best.candidate, confidence: match.confidence * reading.frameQuality))
         }
-        let strongest = others.values.max { $0.frames.count < $1.frames.count }
-        if let strongest, strongest.frames.count >= 2 {
-            if evidence.expectedFrames.isEmpty { evidence.other = strongest.candidate } else { evidence.split = true }
-        } else if strongest != nil && !evidence.expectedFrames.isEmpty { evidence.split = true }
+        guard !alternatives.isEmpty, !scored.isEmpty else { return evidence }
+        let top = Array(scored.sorted { $0.confidence > $1.confidence }.prefix(rankedFrames))
+        var votes: [String: (candidate: DisplayCandidate, count: Int, best: Double, least: Double)] = [:]
+        for item in top {
+            let v = votes[item.candidate.identity] ?? (item.candidate, 0, 0, 1)
+            votes[item.candidate.identity] = (v.candidate, v.count + 1, max(v.best, item.confidence), min(v.least, item.confidence))
+        }
+        let leader = votes.values.max { ($0.count, $0.best) < ($1.count, $1.best) }!
+        let rival = top.filter { $0.candidate.identity != leader.candidate.identity }.map(\.confidence).max() ?? 0
+        func settle(_ candidate: DisplayCandidate, basis: String, confidence: Double) {
+            if candidate.isExpected { evidence.acceptedExpected = true } else { evidence.other = candidate }
+            evidence.basis = basis; evidence.confidence = confidence
+        }
+        if leader.count >= 2, leader.least >= consensusMinimum {
+            // Baseline: the most confident frames agree. A strong rival among them still blocks it.
+            if rival >= leader.best * 0.8 { evidence.split = true } else { settle(leader.candidate, basis: "consensus", confidence: leader.best) }
+        } else if let first = top.first, first.confidence >= singleFrameMinimum {
+            // No baseline: use the most confident frame, unless another frame clearly reads another service.
+            let contradiction = scored.contains { $0.candidate.identity != first.candidate.identity && $0.confidence >= first.confidence * 0.5 }
+            if contradiction { evidence.split = true } else { settle(first.candidate, basis: "best_single_frame", confidence: first.confidence) }
+        }
         return evidence
     }
 
+    /// `positions`: per-service likelihoods for this track from live vehicle positions, GPS and compass
+    /// (VehiclePositionEvidence.likelihoods); empty when unavailable.
     static func decide(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
-                       binding: AuthoritativeVehicleBinding? = nil) -> VehicleDecision {
+                       binding: AuthoritativeVehicleBinding? = nil, positions: [String: Double] = [:]) -> VehicleDecision {
+        var board = BoardEvidence()
+        var result = decideCore(track, expected: expected, now: now, binding: binding, positions: positions, board: &board)
+        if board.basis != nil, result.state == .visualCandidate || result.state == .verifiedService || result.observedService != nil {
+            result.confidence = board.confidence; result.basis = board.basis
+        }
+        return result
+    }
+
+    private static func decideCore(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
+                                   binding: AuthoritativeVehicleBinding?, positions: [String: Double],
+                                   board: inout BoardEvidence) -> VehicleDecision {
         func answer(_ state: VehicleMatchState, _ reason: String) -> VehicleDecision { VehicleDecision(state: state, reason: reason) }
         guard let expected, !expected.line.isEmpty, !expected.destination.isEmpty else { return answer(.unknown, "missing_journey_display") }
         if let context = expected.contextDecision(at: now) { return context }
@@ -390,7 +447,7 @@ enum VehicleServiceMatcher {
         if readings.contains(where: \.ambiguous) { return answer(.unknown, "ambiguous_display") }
         let line = VehicleTextRules.normalize(expected.line).replacingOccurrences(of: " ", with: "")
         let destination = VehicleTextRules.normalize(expected.destination)
-        let board = boardEvidence(readings, expected: expected)
+        board = boardEvidence(readings, expected: expected, positions: positions)
         if let other = board.other {
             // Repeatedly and clearly another listed departure: name it instead of a generic conflict.
             let service = other.line + " " + other.destination
@@ -403,7 +460,10 @@ enum VehicleServiceMatcher {
             return VehicleDecision(state: .conflicting, reason: "display_matches_other_departure", observedService: service)
         }
         if board.split { return answer(.unknown, "display_matches_several_departures") }
-        if board.expectedFrames.count >= 3, let first = board.expectedFrames.first,
+        if board.acceptedExpected {
+            // With a board: the most confident frames (or, lacking agreement, the single most confident
+            // frame) fit the selected ride clearly better than every other listed departure.
+        } else if board.expectedFrames.count >= 3, let first = board.expectedFrames.first,
            latest.at.timeIntervalSince(first) >= 0.8, board.lastExpected == latest.at {
             // The display repeatedly fits the selected ride clearly better than every other listed
             // departure. Exact spelling differences (OCR misreads) no longer count as a conflict.

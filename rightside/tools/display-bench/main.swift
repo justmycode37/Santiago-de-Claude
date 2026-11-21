@@ -37,9 +37,11 @@ func rect(_ b: [Double]) -> CGRect { CGRect(x: b[0], y: b[1], width: b[2], heigh
 let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
 /// Readings of the largest vehicle in each frame of a pass, exactly as the app builds them.
+var lastBoxes: [CGRect] = []
 func readings(_ event: Event, keepObserved: Bool) -> (VehicleTrack, [Date]) {
     var result: [DisplayReading] = []
     var times: [Date] = []
+    lastBoxes = []
     var detection: VehicleDetection?
     for (index, name) in event.frames.enumerated() {
         guard let frame = frames[name], let vehicle = frame.vehicles.max(by: { $0.box[3] < $1.box[3] }) else { continue }
@@ -51,7 +53,7 @@ func readings(_ event: Event, keepObserved: Bool) -> (VehicleTrack, [Date]) {
         let at = t0.addingTimeInterval(Double(index) * step)
         var reading = VehicleTextRules.read(texts, detection: d, otherBoxes: others, at: at, frameID: UUID(), layout: .eitherSide)
         if !keepObserved { reading.observed = [] }
-        result.append(reading); times.append(at); detection = d
+        result.append(reading); times.append(at); detection = d; lastBoxes.append(d.box)
     }
     let track = VehicleTrack(id: UUID(), detection: detection ?? VehicleDetection(kind: .bus, box: .zero, score: 0, mask: VehicleMask(width: 0, height: 0, pixels: [])),
                              lastSeen: times.last ?? t0, readings: [])
@@ -61,9 +63,56 @@ func readings(_ event: Event, keepObserved: Bool) -> (VehicleTrack, [Date]) {
 }
 
 enum Outcome: String { case accepted, conflicting, unknown }
+
+// --positions / --positions-degraded: the videos carry no GPS, compass or vehicle positions, so these modes
+// simulate them around each pass (seeded, reproducible) and feed them through VehiclePositionEvidence:
+//  good:     the real vehicle is in the Kante feed (interpolation error σ 40 m), compass σ 15°, GPS σ 8 m;
+//            other board services are 150–1500 m away (each present with p = 0.5).
+//  degraded: the real vehicle is missing from the feed 25 % of the time, a vehicle of a *different* board
+//            service waits 20–60 m away 40 % of the time, compass bias up to ±30° plus σ 15°.
+let positionMode = args.contains("--positions-degraded") ? 2 : args.contains("--positions") ? 1 : 0
+var basisCounts: [String: Int] = [:]
+struct SimRng { var state: UInt64
+    mutating func next() -> Double { state = state &* 6364136223846793005 &+ 1442695040888963407; return Double(state >> 11) / Double(1 << 53) }
+    mutating func gaussian() -> Double { let u = max(next(), 1e-12), v = next(); return (-2 * log(u)).squareRoot() * cos(2 * .pi * v) }
+}
+func simulatedPositions(event: Event, frame: Int, box: CGRect, truth: DisplayCandidate?, at: Date) -> [String: Double] {
+    guard positionMode > 0, let truth else { return [:] }
+    var eventRng = SimRng(state: UInt64(event.id) &* 7919 &+ 17)
+    let heading = eventRng.next() * 360
+    let bias = positionMode == 2 ? (eventRng.next() * 2 - 1) * 30 : 0
+    let missing = positionMode == 2 && eventRng.next() < 0.25
+    let decoy = positionMode == 2 && eventRng.next() < 0.4
+    let others = board.filter { !DepartureDisplayMatcher.sameDisplay($0, truth) }
+    let decoyService = others[Int(eventRng.next() * Double(others.count)) % others.count]
+    var rng = SimRng(state: UInt64(event.id) &* 104729 &+ UInt64(frame) &* 31 &+ 5)
+    let stop = GeoPoint(latitude: 46.9481, longitude: 7.4402)
+    let plane = LocalTangentPlane(origin: stop)
+    let fov = 60.0 * .pi / 180
+    func spot(_ bearing: Double, _ distance: Double) -> Vec2 { Vec2(x: sin(bearing * .pi / 180) * distance, y: cos(bearing * .pi / 180) * distance) }
+    func vehicle(_ c: DisplayCandidate, _ p: Vec2) -> KanteVehicle {
+        let g = plane.geo(p)
+        return KanteVehicle(tripId: "sim", line: .init(name: c.line, category: nil, mode: "bus"), headsign: c.destination,
+                            from: [g.longitude, g.latitude], to: [g.longitude, g.latitude], dep: 0, arr: 0, nextStop: nil, live: "observed")
+    }
+    // The detected vehicle really is in the direction its box shows, ~25 m away.
+    let offset = atan(2 * (Double(box.midX) - 0.5) * tan(fov / 2)) * 180 / .pi
+    var vehicles: [KanteVehicle] = []
+    if !missing { vehicles.append(vehicle(truth, spot(heading + offset, 25) + Vec2(x: rng.gaussian() * 40, y: rng.gaussian() * 40))) }
+    var spread = SimRng(state: UInt64(event.id) &* 31337)
+    for other in others where spread.next() < 0.5 {
+        vehicles.append(vehicle(other, spot(spread.next() * 360, 150 + spread.next() * 1350)))
+    }
+    if decoy { vehicles.append(vehicle(decoyService, spot(spread.next() * 360, 20 + spread.next() * 40))) }
+    let user = Vec2(x: rng.gaussian() * 8, y: rng.gaussian() * 8)
+    let pose = CameraPose(user: plane.geo(user), userAccuracy: 8, heading: heading + bias + rng.gaussian() * 15,
+                          headingAccuracy: positionMode == 2 ? 25 : 15, horizontalFOV: fov, at: at)
+    return VehiclePositionEvidence.likelihoods(for: box, pose: pose, vehicles: vehicles, candidates: board + [truth])
+}
 /// Runs the matcher at every frame of the pass, as the live camera would, with a sliding 2 s window.
-func run(_ event: Event, expected: VehicleServiceExpectation, keepObserved: Bool) -> (Outcome, String?) {
+func run(_ event: Event, expected: VehicleServiceExpectation, keepObserved: Bool, truth: DisplayCandidate? = nil) -> (Outcome, String?) {
     let (track, times) = readings(event, keepObserved: keepObserved)
+    let boxes = lastBoxes
     var named: String?
     var conflict = false
     var reportedConflict = false
@@ -71,9 +120,17 @@ func run(_ event: Event, expected: VehicleServiceExpectation, keepObserved: Bool
         var window = track
         window.readings = Array(track.readings.prefix(i + 1)).filter { now.timeIntervalSince($0.at) <= 2 }
         window.lastSeen = now
-        let decision = VehicleServiceMatcher.decide(window, expected: expected, now: now)
-        if decision.state == .visualCandidate { return (.accepted, nil) }
+        let positions = expected.boardAlternatives.isEmpty ? [:] : simulatedPositions(event: event, frame: i, box: boxes[i], truth: truth, at: now)
+        let decision = VehicleServiceMatcher.decide(window, expected: expected, now: now, positions: positions)
+        if decision.state == .visualCandidate {
+            if !expected.boardAlternatives.isEmpty {
+                let correct = truth.map { DepartureDisplayMatcher.sameDisplay($0, DisplayCandidate(line: expected.line, destination: expected.destination)) } ?? false
+                basisCounts["accepted \(correct ? "right" : "WRONG") vehicle via \(decision.basis ?? "strict")", default: 0] += 1
+            }
+            return (.accepted, nil)
+        }
         if decision.state == .conflicting {
+            if !conflict, !expected.boardAlternatives.isEmpty { basisCounts["flagged via \(decision.basis ?? decision.reason)", default: 0] += 1 }
             conflict = true; named = named ?? decision.observedService
             if args.contains("--why") && !reportedConflict {
                 reportedConflict = true
@@ -121,7 +178,7 @@ for label in (args.contains("--bench") || args.contains("--why") || args.contain
     // Positive trial: the rider expects exactly this service (none for a vehicle without a service).
     if label.line != "-" { trials.append(Trial(event: label.event, line: label.line, destination: label.destination, positive: true)) }
     for (name, observed, useBoard) in label.line == "-" ? [] : [("A", false, false), ("B", true, false), ("C", true, true)] {
-        let (o, _) = run(event, expected: expectation(label.line, label.destination, board: useBoard), keepObserved: observed)
+        let (o, _) = run(event, expected: expectation(label.line, label.destination, board: useBoard), keepObserved: observed, truth: label.line == "-" ? nil : truth)
         positive[name]!.add(o)
         if name == "C" { details.append("#\(label.event) \(label.line) \(label.destination): A/B/C positive → \(run(event, expected: expectation(label.line, label.destination, board: false), keepObserved: false).0.rawValue)/\(run(event, expected: expectation(label.line, label.destination, board: false), keepObserved: true).0.rawValue)/\(o.rawValue)") }
     }
@@ -138,7 +195,7 @@ for label in (args.contains("--bench") || args.contains("--why") || args.contain
         for (name, observed, useBoard) in [("A", false, false), ("B", true, false), ("C", true, true)] {
             var e = expectation(wrong.line, wrong.destination, board: useBoard)
             if useBoard { e.boardAlternatives = board }
-            let (o, named) = run(event, expected: e, keepObserved: observed)
+            let (o, named) = run(event, expected: e, keepObserved: observed, truth: label.line == "-" ? nil : truth)
             negative[name]!.add(o)
             if let named {
                 let parts = named.split(separator: " ", maxSplits: 1).map(String.init)
@@ -226,4 +283,8 @@ if let i = args.firstIndex(of: "--dump"), i + 3 < args.count, let id = Int(args[
     }
     let encoder = JSONEncoder(); encoder.outputFormatting = .prettyPrinted
     try! encoder.encode(rows).write(to: URL(fileURLWithPath: args[i + 3]))
+}
+if !basisCounts.isEmpty && !args.contains("--dump") {
+    print("\nStrategy C decisions by basis\(positionMode == 1 ? " (simulated positions: good)" : positionMode == 2 ? " (simulated positions: degraded)" : ""):")
+    for (key, n) in basisCounts.sorted(by: { $0.key < $1.key }) { print("  \(key): \(n)") }
 }

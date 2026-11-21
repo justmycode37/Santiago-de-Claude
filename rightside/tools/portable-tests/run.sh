@@ -10,6 +10,7 @@ out="$(mktemp -d)"
 "$swiftc" -O -swift-version 5 -o "$out/portable-tests" \
   "$app/Sensors/VehicleEvidence.swift" \
   "$app/Sensors/DepartureDisplayMatcher.swift" \
+  "$app/Sensors/VehiclePositionEvidence.swift" \
   "$app/Spatial/GeoARAlignment.swift" \
   "$here/main.swift"
 "$out/portable-tests"

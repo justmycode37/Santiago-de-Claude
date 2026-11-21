@@ -7,5 +7,6 @@ app="$here/../../redesign/apps/ios/RightSide"
 swiftc="${1:-swiftc}"; shift || true
 out="$(mktemp -d)"
 "$swiftc" -O -swift-version 5 -o "$out/display-eval" \
-  "$app/Sensors/VehicleEvidence.swift" "$app/Sensors/DepartureDisplayMatcher.swift" "$here/main.swift"
+  "$app/Sensors/VehicleEvidence.swift" "$app/Sensors/DepartureDisplayMatcher.swift" "$app/Sensors/VehiclePositionEvidence.swift" \
+  "$app/Spatial/GeoARAlignment.swift" "$here/main.swift"
 "$out/display-eval" "$here/${DATA:-data}" "$@"

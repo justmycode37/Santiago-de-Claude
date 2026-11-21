@@ -35,6 +35,13 @@ struct DisplayCandidateScore: Equatable {
     let line: DisplayLineEvidence
     /// Observed text that produced `destination`.
     let observed: String
+    /// OCR confidence of that text (lowest fragment score of the row), 0…1.
+    var ocrScore = 1.0
+    /// 0…1 likelihood from live vehicle positions, GPS and compass (VehiclePositionEvidence); 0 when unknown.
+    var position = 0.0
+    /// Position evidence can tip a near-tie (tram 9 vs 20 to the same stop) but is capped below the
+    /// display-text terms, so it never outweighs a readable, different display.
+    static let positionWeight = 0.25
     var total: Double {
         let lineTerm: Double
         switch line {
@@ -43,7 +50,7 @@ struct DisplayCandidateScore: Equatable {
         case .unseen: lineTerm = 0
         case .contradicted: lineTerm = -0.6
         }
-        return destination + lineTerm
+        return destination + lineTerm + position * Self.positionWeight
     }
 }
 
@@ -64,6 +71,22 @@ struct DisplayBoardMatch: Equatable {
     let best: DisplayCandidateScore?
     let runnerUp: DisplayCandidateScore?
     var margin: Double { (best?.total ?? 0) - (runnerUp?.total ?? 0) }
+
+    /// How much this one frame's reading can be trusted, 0…1: destination fit × route-numeral evidence ×
+    /// margin over the next service × the OCR engine's own score. The segmentation quality of the frame
+    /// (detector score, vehicle size) is applied by the caller, which knows the detection.
+    var confidence: Double {
+        guard outcome != .unreadable, let best else { return 0 }
+        let line: Double
+        switch best.line {
+        case .exact: line = 1
+        case .confusable: line = 0.85
+        case .unseen: line = 0.7
+        case .contradicted: line = 0.3
+        }
+        let marginFactor = 0.5 + 0.5 * min(1, max(0, margin) / 0.5)
+        return min(1, best.destination) * line * marginFactor * (0.6 + 0.4 * min(1, max(0, best.ocrScore)))
+    }
 }
 
 /// Closed-set reading: the display is compared with the services that can actually stop here,
@@ -81,16 +104,19 @@ enum DepartureDisplayMatcher {
 
     /// Same as `match`, memoised per camera frame: the live matcher re-evaluates each recent frame
     /// several times while it stays in the 2 s decision window.
-    static func match(_ texts: [VehicleText], candidates: [DisplayCandidate], frameID: UUID) -> DisplayBoardMatch {
+    static func match(_ texts: [VehicleText], candidates: [DisplayCandidate], frameID: UUID,
+                      positions: [String: Double] = [:]) -> DisplayBoardMatch {
         let key = frameID.uuidString + "|" + candidates.map(\.identity).joined(separator: ";")
+            + "|" + positions.sorted { $0.key < $1.key }.map { "\($0.key)=\(Int($0.value * 100))" }.joined(separator: ";")
         if let cached = cache.value(key) { return cached }
-        let result = match(texts, candidates: candidates)
+        let result = match(texts, candidates: candidates, positions: positions)
         cache.store(key, result)
         return result
     }
     private static let cache = MatchCache()
 
-    static func match(_ texts: [VehicleText], candidates: [DisplayCandidate]) -> DisplayBoardMatch {
+    /// `positions`: optional per-identity likelihoods from VehiclePositionEvidence for this detection.
+    static func match(_ texts: [VehicleText], candidates: [DisplayCandidate], positions: [String: Double] = [:]) -> DisplayBoardMatch {
         let rows = DisplayRows.make(texts)
         let routeTokens = rows.flatMap(\.routeTokens)
         guard !candidates.isEmpty, rows.contains(where: { $0.letterCount >= 3 }) || !routeTokens.isEmpty else {
@@ -106,7 +132,11 @@ enum DepartureDisplayMatcher {
             } else { byIdentity[key] = candidate; order.append(key) }
         }
         let frameWindows = windows(rows)
-        let scores = order.compactMap { byIdentity[$0] }.map { score($0, windows: frameWindows, routeTokens: routeTokens) }
+        let scores = order.compactMap { byIdentity[$0] }.map { candidate -> DisplayCandidateScore in
+            var s = score(candidate, windows: frameWindows, routeTokens: routeTokens)
+            s.position = positions[candidate.identity] ?? 0
+            return s
+        }
             .sorted { $0.total > $1.total }
         guard let best = scores.first else { return DisplayBoardMatch(outcome: .unreadable, best: nil, runnerUp: nil) }
         // The runner-up is the best service that would show a *different* display.
@@ -138,7 +168,7 @@ enum DepartureDisplayMatcher {
     }
 
     /// A contiguous run of destination words from one display row, as ASCII bytes.
-    struct Window { let bytes: [UInt8]; let text: String; let weight: Double }
+    struct Window { let bytes: [UInt8]; let text: String; let weight: Double; var score: Double = 1 }
 
     /// Every window of up to six words per row, shared by all candidates of one frame.
     static func windows(_ rows: [DisplayRows.Row]) -> [Window] {
@@ -154,10 +184,12 @@ enum DepartureDisplayMatcher {
                     bytes.append(contentsOf: words[end].utf8)
                     if bytes.count > 48 { break }
                     if let existing = index[bytes] {
-                        if result[existing].weight < weight { result[existing] = Window(bytes: bytes, text: words[start...end].joined(separator: " "), weight: weight) }
+                        if result[existing].weight < weight || (result[existing].weight == weight && result[existing].score < row.score) {
+                            result[existing] = Window(bytes: bytes, text: words[start...end].joined(separator: " "), weight: weight, score: row.score)
+                        }
                     } else {
                         index[bytes] = result.count
-                        result.append(Window(bytes: bytes, text: words[start...end].joined(separator: " "), weight: weight))
+                        result.append(Window(bytes: bytes, text: words[start...end].joined(separator: " "), weight: weight, score: row.score))
                     }
                 }
             }
@@ -173,7 +205,7 @@ enum DepartureDisplayMatcher {
         // A via shown on its own is weaker evidence than the destination.
         let variants = DisplayText.weightedVariants(candidate.destination)
             + candidate.vias.prefix(4).flatMap(DisplayText.weightedVariants).map { (words: $0.words, weight: $0.weight * 0.9) }
-        var bestSimilarity = 0.0, bestText = ""
+        var bestSimilarity = 0.0, bestText = "", bestScore = 1.0
         for variant in variants {
             let target = Array(variant.words.joined().utf8)
             guard !target.isEmpty else { continue }
@@ -186,7 +218,7 @@ enum DepartureDisplayMatcher {
                 // Levenshtein similarity cannot exceed shorter/longer length: skip hopeless windows.
                 if Double(min(a, b)) / Double(max(a, b)) * weight <= bestSimilarity { continue }
                 let similarity = DisplayText.similarity(bytes: target, window.bytes) * weight
-                if similarity > bestSimilarity { bestSimilarity = similarity; bestText = window.text }
+                if similarity > bestSimilarity { bestSimilarity = similarity; bestText = window.text; bestScore = window.score }
             }
         }
         let key = candidate.lineKey
@@ -197,7 +229,7 @@ enum DepartureDisplayMatcher {
         // "9" read from a "19" display (a dropped digit) neither confirms nor contradicts line 19.
         else if routeTokens.contains(where: { $0.count < key.count && (key.hasSuffix($0) || key.hasPrefix($0)) }) { line = .unseen }
         else { line = .contradicted }
-        return DisplayCandidateScore(candidate: candidate, destination: bestSimilarity, line: line, observed: bestText)
+        return DisplayCandidateScore(candidate: candidate, destination: bestSimilarity, line: line, observed: bestText, ocrScore: bestScore)
     }
 }
 
@@ -209,6 +241,8 @@ enum DisplayRows {
         let destinationWords: [String]
         /// Text height relative to the tallest text on this vehicle: smaller rows (vias, adverts) weigh less.
         var weight = 1.0
+        /// Lowest OCR score among the fragments of this row.
+        var score = 1.0
         /// "via Bahnhof": an intermediate stop, weaker evidence for the destination itself.
         var isVia: Bool { words.count > 1 && ["via", "uber", "ia", "vla", "vio", "va", "ria", "wia"].contains(words[0]) }
         var letterCount: Int { destinationWords.joined().filter(\.isLetter).count }
@@ -237,7 +271,7 @@ enum DisplayRows {
         }
         var rows: [Row] = []
         var seen = Set<String>()
-        func add(_ value: String, height: CGFloat) {
+        func add(_ value: String, height: CGFloat, score: Float) {
             let words = DisplayText.words(value).filter { !ignoredWords.contains($0) }
             guard !words.isEmpty, seen.insert(words.joined(separator: " ")).inserted else { return }
             // A numeral starting with 0 ("000", "B00") is a misread: no Swiss line number starts with 0.
@@ -247,14 +281,15 @@ enum DisplayRows {
             let destination = words.filter { !DisplayText.isRouteToken($0) }
             var row = Row(words: words, routeTokens: routes, destinationWords: destination)
             if tallest > 0 { row.weight = height >= tallest * 0.75 ? 1 : 0.8 }
+            row.score = Double(score)
             rows.append(row)
         }
         for group in groups {
             if group.count > 1 {
                 add(group.sorted { $0.box.minX < $1.box.minX }.map(\.text).joined(separator: " "),
-                    height: group.map(\.box.height).max() ?? 0)
+                    height: group.map(\.box.height).max() ?? 0, score: group.map(\.score).min() ?? 0)
             }
-            for text in group { add(text.text, height: text.box.height) }
+            for text in group { add(text.text, height: text.box.height, score: text.score) }
         }
         return rows
     }

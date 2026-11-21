@@ -11,7 +11,8 @@ out="$(mktemp -d)"
     git -C "$here" show 0ebb854:rightside/redesign/apps/ios/RightSide/Sensors/VehicleEvidence.swift; fi; } \
   | sed 's/^import CoreGraphics$/#if canImport(CoreGraphics)\nimport CoreGraphics\n#endif/' > "$out/VehicleEvidence.swift"
 "$swiftc" -O -swift-version 5 -o "$out/display-eval" "$here/../../redesign/apps/ios/RightSide/Sensors/VehicleEvidence.swift" \
-  "$here/../../redesign/apps/ios/RightSide/Sensors/DepartureDisplayMatcher.swift" "$here/main.swift"
+  "$here/../../redesign/apps/ios/RightSide/Sensors/DepartureDisplayMatcher.swift" "$here/../../redesign/apps/ios/RightSide/Sensors/VehiclePositionEvidence.swift" \
+  "$here/../../redesign/apps/ios/RightSide/Spatial/GeoARAlignment.swift" "$here/main.swift"
 "$out/display-eval" "$data" --export-trials "$out/trials.json" > /dev/null
 "$swiftc" -O -swift-version 5 -o "$out/baseline" "$out/VehicleEvidence.swift" "$here/baseline/main.swift"
 "$out/baseline" "$data" "$out/trials.json"
