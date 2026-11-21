@@ -143,12 +143,12 @@
 
   // Developer options: weekday Bern ↔ Zürich commutes on the past four weeks, marked dummy so they can be removed again
   function dummyTrips() {
-    const trips = [];
+    const trips: SavedPricingTrip[] = [];
     for (let back = 1; back <= 28; back++) {
       const day = new Date();
       day.setDate(day.getDate() - back);
       if (day.getDay() === 0 || day.getDay() === 6) continue;
-      for (const [hour, from, to] of [[17, 'Zürich HB', 'Bern'], [7, 'Bern', 'Zürich HB']]) {
+      for (const [hour, from, to] of [[17, 'Zürich HB', 'Bern'], [7, 'Bern', 'Zürich HB']] as [number, string, string][]) {
         day.setHours(hour, 32, 0, 0);
         const departure = day.toISOString();
         trips.push({ id: JSON.stringify([from, to, departure, [['dummy']]]), from, to,
@@ -158,7 +158,7 @@
     return trips;
   }
 
-  function setDummy(on) {
+  function setDummy(on: boolean) {
     const own = list().filter((trip) => !trip.dummy);
     const trips = on ? [...own, ...dummyTrips()] : own;
     return save(trips.sort((a, b) => String(b.departure).localeCompare(String(a.departure))));

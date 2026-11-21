@@ -7,15 +7,19 @@
 // never holds anything up: when it arrives it joins the opening that is showing then. If those three fail, the
 // viewer works without them and they are tried again at its next opening.
 (function () {
-  let loading = null, indoor = null;
-  let user, userAt = 0;   // the latest GPS fix and when it came (performance.now())
-  let wanted = null;      // the latest open() asked for while station3d.js loads (close() cancels it)
-  let lastOpen = null;    // what the real viewer last opened (for the indoor position when it arrives later)
-  const listeners = [];
-  const scans = [];       // text Scan read before the indoor scripts were there: { text, at }
-  const onScan = (e) => { if (!window.INDOORNAV && e.detail && e.detail.text) scans.push({ text: e.detail.text, at: e.detail.at || Date.now() }); };
-  window.addEventListener('scan:text', onScan);
-  const script = (src) => new Promise((resolve, reject) => {
+  /** What the stand-in answers itself; `_orient` and `_debug` only the real viewer has. */
+  type Station3DStandIn = Omit<Station3DApi, '_orient' | '_debug'>;
+  type Station3DHeard = [name: keyof Station3DEventMap, fn: (detail: never) => void];
+  type Station3DOpened = Station3DEventMap['open'];
+  let loading: Promise<Station3DApi> | null = null, indoor: Promise<void> | null = null;
+  let user: Station3DUser | null | undefined, userAt = 0;   // the latest GPS fix and when it came (performance.now())
+  let wanted: Station3DOpenOptions | null = null;      // the latest open() asked for while station3d.js loads (close() cancels it)
+  let lastOpen: Station3DOpened | null = null;    // what the real viewer last opened (for the indoor position when it arrives later)
+  const listeners: Station3DHeard[] = [];
+  const scans: ScanTextDetail[] = [];       // text Scan read before the indoor scripts were there: { text, at }
+  const onScan = (e: CustomEvent<ScanTextDetail>) => { if (!window.INDOORNAV && e.detail && e.detail.text) scans.push({ text: e.detail.text, at: e.detail.at || Date.now() }); };
+  window.addEventListener('scan:text', onScan as EventListener);
+  const script = (src: string) => new Promise<unknown>((resolve, reject) => {
     const s = document.createElement('script');
     s.src = src;
     s.onload = resolve;
@@ -24,7 +28,7 @@
   });
   // a remembered fix is handed on only while it is recent (u.at: when it was taken); an older one would show as
   // where you are now
-  const recent = (u) => !u || u.at == null || Date.now() - u.at < 60e3;
+  const recent = (u: Station3DUser | null) => !u || u.at == null || Date.now() - u.at < 60e3;
   function loadIndoor() {
     if (!indoor) indoor = Promise.all([window.INDOORLOC ? null : script('indoorloc.js'), window.SIGNLOC ? null : script('signloc.js')])
       .then(() => (window.INDOORNAV ? null : script('indoornav.js')))
@@ -32,7 +36,7 @@
         // what the stand-in kept: the latest GPS fix (with its own time, so indoornav.js keeps a newer one it
         // may already have), and signs read before (they still count if recent)
         if (user !== undefined && recent(user) && window.INDOORNAV) window.INDOORNAV.setUser(user, userAt);
-        window.removeEventListener('scan:text', onScan);
+        window.removeEventListener('scan:text', onScan as EventListener);
         for (const s of scans.splice(0)) window.dispatchEvent(new CustomEvent('scan:text', { detail: s }));
         // the viewer opened before these scripts were there: the indoor position joins the opening showing now
         // (the latest one: a station closed meanwhile is not attached)
@@ -48,7 +52,7 @@
   }
   // the viewer alone (the indoor scripts come after it, and never hold up an opening)
   function loadViewer() {
-    if (!loading) loading = new Promise((resolve, reject) => {
+    if (!loading) loading = new Promise<Station3DApi>((resolve, reject) => {
       script('station3d.js').then(() => {
         const real = window.Station3D;
         if (!real || real === stub) {
@@ -58,7 +62,7 @@
           reject(new Error('station3d.js did not start'));
           return;
         }
-        for (const [name, fn] of listeners) real.on(name, fn);
+        for (const [name, fn] of listeners) real.on(name, fn as (detail: unknown) => void);
         // every opening of the real viewer, however it came: the indoor position loads (or is tried again)
         real.on('open', (info) => { lastOpen = info; if (!window.INDOORNAV) loadIndoor(); });
         real.on('close', () => { lastOpen = null; });
@@ -70,14 +74,14 @@
         const own = real.setUser;
         real.setUser = function (u) {
           if (!window.INDOORNAV) { user = u || null; userAt = performance.now(); }
-          return own.apply(this, arguments);
+          return own.apply(this, arguments as unknown as [Station3DUser | null | undefined]);
         };
         resolve(real);
       }, (e) => { loading = null; reject(e); });
     });
     return loading;
   }
-  const stub = window.Station3D = {
+  const stub: Station3DApi = window.Station3D = {
     has: (uic) => (window.STATION3D_INDEX && window.STATION3D_INDEX[String(uic)]) || null,
     open: (opts) => {
       wanted = opts;
@@ -95,7 +99,7 @@
         if (window.showToast) window.showToast('The 3D view could not be loaded.');
         // as the viewer itself reports it (Station3D.on('error')): the onboarding demo then offers Continue
         const err = { code: 'three', message: 'Check your connection, then try again.' };
-        for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn(err); } catch (e) { console.error(e); } }
+        for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn(err as never); } catch (e) { console.error(e); } }
       });
     },
     setUser: (u) => { user = u || null; userAt = performance.now(); },
@@ -113,5 +117,5 @@
     // preloading fetches the indoor position too (alongside, not waited for), so it is ready when the view opens
     preload: (key) => loadViewer().then((real) => { loadIndoor(); return real.preload(key); }, () => false),
     loadData: (key) => loadViewer().then((real) => real.loadData(key), () => null),
-  };
+  } satisfies Station3DStandIn as Station3DStandIn as Station3DApi;
 })();
