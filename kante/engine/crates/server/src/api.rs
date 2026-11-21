@@ -1,6 +1,7 @@
 //! HTTP handlers. Thin: parse, call into `App`, serialise.
 
 use crate::json;
+use crate::liveapi;
 use crate::state::{level_f, lonlat, App};
 use axum::extract::{Query as Q, State};
 use axum::http::{header, StatusCode};
@@ -27,6 +28,20 @@ fn bad(msg: impl Into<String>) -> ApiError {
     ApiError(StatusCode::BAD_REQUEST, msg.into())
 }
 
+/// A latitude the grid and the metric approximations can work with.
+fn valid_lat(lat: f64) -> bool {
+    lat.is_finite() && (-85.0..=85.0).contains(&lat)
+}
+
+/// A moment asked about must be within about a year of now: further out there is
+/// no timetable, and the date arithmetic must not overflow.
+fn check_t(t: i64) -> Result<i64, ApiError> {
+    if (t - now_unix()).abs() > 400 * 86_400 {
+        return Err(bad("time out of range"));
+    }
+    Ok(t)
+}
+
 fn now_unix() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
@@ -42,6 +57,10 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/trip", get(trip))
         .route("/api/vehicles", get(vehicles))
         .route("/api/onboard", get(onboard))
+        .route("/api/due", get(due))
+        .route("/api/match", get(match_trip))
+        .route("/api/observe", post(observe))
+        .route("/api/stream", get(stream))
         .route("/api/indoor", get(indoor))
         .route("/api/plan", post(plan))
         .route("/api/walk", post(walk))
@@ -59,6 +78,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
         valid_to: time::fmt_date(tt.end_date()),
         walk_bbox: [b.min.lon_deg(), b.min.lat_deg(), b.max.lon_deg(), b.max.lat_deg()],
         realtime: app.live.read().meta.clone(),
+        features: vec!["match", "due", "observe", "stream", "extras", "gtfs-rt"],
         counts: json::Counts {
             stations: tt.stations.len(),
             quays: tt.stops.len(),
@@ -219,7 +239,7 @@ async fn nearby(State(app): S, Q(p): Q<NearbyParams>) -> Json<json::NearbyRespon
 
 fn parse_bbox(s: &str) -> Result<BBox, ApiError> {
     let v: Vec<f64> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-    if v.len() != 4 || v[0] > v[2] || v[1] > v[3] {
+    if v.len() != 4 || v[0] > v[2] || v[1] > v[3] || !v.iter().all(|x| x.is_finite()) || !valid_lat(v[1]) || !valid_lat(v[3]) || v[0] < -180.0 || v[2] > 180.0 {
         return Err(bad("bbox must be west,south,east,north"));
     }
     Ok(BBox::from_deg(v[1], v[0], v[3], v[2]))
@@ -319,7 +339,7 @@ async fn departures(State(app): S, Q(p): Q<DepParams>) -> Result<Json<json::Depa
         let s = *app.stop_ids.get(q.as_str()).ok_or_else(|| bad("unknown quay"))?;
         (tt.stops[s as usize].station, vec![s])
     } else if let Some(id) = &p.station {
-        let st = *app.station_ids.get(id.strip_prefix("st:").unwrap_or(id)).ok_or_else(|| bad("unknown station"))?;
+        let st = app.station_ids.get(id.as_str()).copied().or_else(|| liveapi::station_of(&app, id)).ok_or_else(|| bad("unknown station"))?;
         (st, tt.stations[st as usize].stops.clone())
     } else {
         return Err(bad("station or quay is required"));
@@ -355,7 +375,15 @@ async fn departures(State(app): S, Q(p): Q<DepParams>) -> Result<Json<json::Depa
                 headway_s: (t.flags & TRIP_FREQUENCY != 0).then_some(t.headway_s),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let mut departures = departures;
+    if let Some(l) = live.filter(|l| !l.extras().is_empty()) {
+        // Extra journeys leaving here before the last departure listed (or within two hours).
+        let from = time::to_unix(date, secs);
+        let until = if departures.len() >= limit { departures.last().map(|d| d.dep + d.delay_s.unwrap_or(0) as i64).unwrap_or(from) } else { from + 7200 };
+        departures.extend(liveapi::extra_departures(&app, l, &stops, from, until));
+        departures.sort_by_key(|d| d.dep + d.delay_s.unwrap_or(0) as i64);
+    }
     Ok(Json(json::DeparturesResponse {
         station: app.station_place(station),
         quays: tt.stations[station as usize].stops.iter().map(|&s| app.quay(s)).collect(),
@@ -370,12 +398,30 @@ struct TripParams {
     date: String,
 }
 
-async fn trip(State(app): S, Q(p): Q<TripParams>) -> Result<Json<json::TripResponse>, ApiError> {
+#[derive(Deserialize)]
+struct TripTime {
+    t: Option<i64>,
+}
+
+async fn trip(State(app): S, Q(p): Q<TripParams>, Q(at): Q<TripTime>) -> Result<Json<json::TripResponse>, ApiError> {
     let tt = &app.tt;
-    let trip = app.router.find_trip(&p.id).ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "unknown trip".into()))?;
-    let date = time::parse_date(&p.date).ok_or_else(|| bad("date must be YYYY-MM-DD"))?;
+    let now = check_t(at.t.unwrap_or_else(now_unix))?;
     let live_arc = app.live_view();
+    let date = time::parse_date(&p.date).ok_or_else(|| bad("date must be YYYY-MM-DD"))?;
+    if p.id.starts_with("extra:") {
+        let x = live_arc
+            .as_deref()
+            .and_then(|l| l.extra(&p.id))
+            .filter(|x| x.date == date)
+            .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "unknown or expired extra journey".into()))?;
+        return Ok(Json(extra_trip(&app, x, now)));
+    }
+    let trip = app.router.find_trip(&p.id).ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "unknown trip".into()))?;
+    if !tt.trip_active(trip, date) {
+        return Err(ApiError(StatusCode::NOT_FOUND, "the trip does not run on that date".into()));
+    }
     let tl = live_arc.as_deref().and_then(|l| l.trip(date, trip));
+    let run = liveapi::Run::of_trip(&app, trip, date, tl);
     let t = &tt.trips[trip as usize];
     let n = tt.pattern_stops(t.pattern).len();
     let calls: Vec<json::StopCall> = (0..n).map(|pos| app.stop_call(trip, date, pos, tl)).collect();
@@ -391,7 +437,50 @@ async fn trip(State(app): S, Q(p): Q<TripParams>) -> Result<Json<json::TripRespo
         live: App::live_state(tl),
         cancelled: tl.map(|l| l.cancelled).unwrap_or(false),
         headway_s: (t.flags & TRIP_FREQUENCY != 0).then_some(t.headway_s),
+        live_info: liveapi::live_info(&run.facts, liveapi::feed_age(&app), now),
+        position: liveapi::position(&app, &run, now),
+        extra: false,
     }))
+}
+
+/// `/api/trip` for a journey that is not in the timetable.
+fn extra_trip(app: &App, x: &ExtraTrip, now: i64) -> json::TripResponse {
+    let run = liveapi::Run::of_extra(x);
+    let calls: Vec<json::StopCall> = run
+        .calls
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let x = &x.calls[i];
+            json::StopCall {
+                seq: i as u16,
+                quay: app.quay(c.stop),
+                arr: c.arr.map(|a| x.aimed_arr.unwrap_or(a)),
+                dep: c.dep.map(|d| x.aimed_dep.unwrap_or(d)),
+                arr_delay_s: c.arr.zip(x.aimed_arr).map(|(a, s)| (a - s) as i32),
+                dep_delay_s: c.dep.zip(x.aimed_dep).map(|(d, s)| (d - s) as i32),
+                planned_label: None,
+                skipped: c.skipped,
+                on_request: false,
+                live: true,
+            }
+        })
+        .collect();
+    json::TripResponse {
+        trip_id: x.id.clone(),
+        service_date: time::fmt_date(x.date),
+        line: liveapi::extra_badge(x),
+        headsign: x.headsign.clone(),
+        number: None,
+        geometry: calls.iter().map(|c| [c.quay.lon, c.quay.lat]).collect(),
+        calls,
+        live: if x.observed_pos >= 0 { "observed" } else { "predicted" },
+        cancelled: x.cancelled,
+        headway_s: None,
+        live_info: liveapi::live_info(&run.facts, liveapi::feed_age(app), now),
+        position: liveapi::position(app, &run, now),
+        extra: true,
+    }
 }
 
 // ------------------------------------------------------------------ vehicles / on board
@@ -414,9 +503,16 @@ fn segments(app: &App, bbox: &BBox, date: Date, now: Secs, live: Option<&dyn Liv
         .into_iter()
         .filter_map(|v| {
             let stops = tt.pattern_stops(tt.trips[v.trip as usize].pattern);
-            let a = tt.stops[*stops.get(v.pos as usize)? as usize].pos;
+            // The boarding point in use (a changed platform), else the planned one.
+            let tl = live.and_then(|l| l.trip(v.date, v.trip));
+            let at = |p: usize| -> Option<LatLon> {
+                let planned = *stops.get(p)?;
+                let q = tl.and_then(|l| l.quay.get(p).copied()).filter(|&q| q != NONE).unwrap_or(planned);
+                Some(tt.stops[q as usize].pos)
+            };
+            let a = at(v.pos as usize)?;
             let next = if v.dwell { v.pos as usize } else { v.pos as usize + 1 };
-            let b = tt.stops[*stops.get(next)? as usize].pos;
+            let b = at(next)?;
             Some(Seg { trip: v.trip, date: v.date, pos: v.pos, a, b, dep: v.dep, arr: v.arr })
         })
         .collect()
@@ -427,34 +523,110 @@ async fn vehicles(State(app): S, Q(p): Q<BboxParams>) -> Result<Json<json::Vehic
     if bbox.min.dist_m(&bbox.max) > 120_000.0 {
         return Err(bad("bbox too large"));
     }
-    let t = p.t.unwrap_or_else(now_unix);
-    let (date, secs) = time::from_unix(t);
-    let live_arc = app.live_view();
-    let live = live_arc.as_deref();
-    let tt = &app.tt;
-    let mut out = Vec::new();
-    for s in segments(&app, &bbox, date, secs, live) {
-        if out.len() >= 1500 {
-            break;
-        }
-        let tr = &tt.trips[s.trip as usize];
-        let stops = tt.pattern_stops(tr.pattern);
-        let next = (s.pos as usize + 1).min(stops.len() - 1);
-        out.push(json::Vehicle {
-            trip_id: tt.trip_gtfs_id(s.trip).to_string(),
-            service_date: time::fmt_date(s.date),
-            line: app.line_badge(s.trip),
-            headsign: tt.str(tr.headsign).to_string(),
-            from: lonlat(&s.a),
-            to: lonlat(&s.b),
-            dep: time::to_unix(date, s.dep),
-            arr: time::to_unix(date, s.arr),
-            next_stop: tt.stations[tt.stops[stops[next] as usize].station as usize].name.clone(),
-            next_seq: next as u16,
-            live: App::live_state(live.and_then(|l| l.trip(s.date, s.trip))),
-        });
+    let t = check_t(p.t.unwrap_or_else(now_unix))?;
+    let _permit = app.heavy.acquire().await.map_err(|_| ApiError(StatusCode::SERVICE_UNAVAILABLE, "shutting down".into()))?;
+    let a = app.clone();
+    let body = tokio::task::spawn_blocking(move || liveapi::vehicles(&a, &bbox, t)).await.map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "failed".into()))?;
+    Ok(Json(body))
+}
+
+async fn stream(State(app): S, Q(p): Q<BboxParams>) -> Result<Response, ApiError> {
+    use axum::response::sse::{KeepAlive, Sse};
+    let bbox = parse_bbox(&p.bbox)?;
+    if bbox.min.dist_m(&bbox.max) > 120_000.0 {
+        return Err(bad("bbox too large"));
     }
-    Ok(Json(json::VehiclesResponse { t, vehicles: out }))
+    let Some(slot) = liveapi::StreamSlot::take(&app) else {
+        return Err(ApiError(StatusCode::SERVICE_UNAVAILABLE, "too many open streams; poll /api/vehicles".into()));
+    };
+    let sse = Sse::new(liveapi::stream(app, bbox, slot)).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text("ping"));
+    Ok(([(header::CACHE_CONTROL, "no-cache"), (header::HeaderName::from_static("x-accel-buffering"), "no")], sse).into_response())
+}
+
+#[derive(Deserialize)]
+struct DueParams {
+    quay: Option<String>,
+    station: Option<String>,
+    lat: Option<f64>,
+    lon: Option<f64>,
+    radius: Option<f32>,
+    t: Option<i64>,
+    before: Option<i64>,
+    after: Option<i64>,
+    limit: Option<usize>,
+}
+
+async fn due(State(app): S, Q(p): Q<DueParams>) -> Result<Json<json::DueResponse>, ApiError> {
+    let tt = &app.tt;
+    let stops: Vec<StopIdx> = if let Some(q) = &p.quay {
+        vec![*app.stop_ids.get(q.as_str()).ok_or_else(|| bad("unknown quay"))?]
+    } else if let Some(id) = &p.station {
+        let st = liveapi::station_of(&app, id).ok_or_else(|| bad("unknown station"))?;
+        tt.stations[st as usize].stops.clone()
+    } else if let (Some(lat), Some(lon)) = (p.lat, p.lon) {
+        if !valid_lat(lat) || !lon.is_finite() || lon.abs() > 180.0 {
+            return Err(bad("lat/lon out of range"));
+        }
+        let here = LatLon::from_deg(lat, lon);
+        let r = p.radius.filter(|r| r.is_finite()).unwrap_or(150.0).clamp(10.0, 400.0);
+        let mut v = Vec::new();
+        app.stop_grid.around(here, r, |s| {
+            if tt.stops[s as usize].pos.dist_m(&here) <= r {
+                v.push(s);
+            }
+        });
+        v
+    } else {
+        return Err(bad("quay, station or lat+lon is required"));
+    };
+    let q = liveapi::DueQuery {
+        stops,
+        t: check_t(p.t.unwrap_or_else(now_unix))?,
+        before: p.before.unwrap_or(120).clamp(0, 3600),
+        after: p.after.unwrap_or(900).clamp(0, 7200),
+        limit: p.limit.unwrap_or(30).clamp(1, 200),
+    };
+    Ok(Json(liveapi::due(&app, &q)))
+}
+
+#[derive(Deserialize)]
+struct MatchParams {
+    from: String,
+    dep: i64,
+    to: Option<String>,
+    arr: Option<i64>,
+    #[serde(default)]
+    line: String,
+    #[serde(default)]
+    number: String,
+}
+
+async fn match_trip(State(app): S, Q(p): Q<MatchParams>) -> Result<Json<json::MatchResponse>, ApiError> {
+    let from = liveapi::station_of(&app, &p.from).ok_or_else(|| bad("unknown station"))?;
+    let to = match &p.to {
+        Some(t) => Some(liveapi::station_of(&app, t).ok_or_else(|| bad("unknown station"))?),
+        None => None,
+    };
+    let dep = check_t(p.dep)?;
+    let arr = p.arr.map(check_t).transpose()?;
+    Ok(Json(liveapi::match_trip(&app, &liveapi::MatchQuery { from, dep, to, arr, line: &p.line, number: &p.number })))
+}
+
+async fn observe(
+    State(app): S,
+    axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    headers: header::HeaderMap,
+    Json(r): Json<json::ObserveRequest>,
+) -> Json<json::ObserveResponse> {
+    // Behind the local Cloudflare tunnel every request comes from 127.0.0.1 and the
+    // client's address is in CF-Connecting-IP (set by Cloudflare). From anyone else
+    // the header is not believed.
+    let addr = if peer.ip().is_loopback() {
+        headers.get("cf-connecting-ip").and_then(|v| v.to_str().ok()).map(|v| v.trim().to_string()).unwrap_or_else(|| peer.ip().to_string())
+    } else {
+        peer.ip().to_string()
+    };
+    Json(liveapi::observe(&app, &r, &addr, now_unix()))
 }
 
 #[derive(Deserialize)]

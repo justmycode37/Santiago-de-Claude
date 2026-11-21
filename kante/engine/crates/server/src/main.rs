@@ -9,6 +9,9 @@ mod api;
 mod build;
 mod json;
 mod live;
+mod liveapi;
+mod observe;
+mod profiles;
 mod plan;
 mod state;
 
@@ -71,6 +74,7 @@ fn serve(args: &Args) -> Result<()> {
     let data = args.data_dir();
     let app = Arc::new(state::App::load(&data)?);
     live::start(app.clone());
+    profiles::start(app.clone());
 
     let port: u16 = args.get("port").map(|p| p.parse()).transpose().context("--port")?.unwrap_or(8080);
     let bind = args.get("bind").unwrap_or("0.0.0.0").to_string();
@@ -80,6 +84,7 @@ fn serve(args: &Args) -> Result<()> {
     rt.block_on(async move {
         use tower_http::compression::CompressionLayer;
         use tower_http::services::{ServeDir, ServeFile};
+        let stopping = app.shutdown.clone();
         let mut router = api::routes(app);
         if app_dir.join("index.html").exists() {
             // Single-page app: unknown paths fall back to index.html.
@@ -101,9 +106,11 @@ fn serve(args: &Args) -> Result<()> {
         let router = router.layer(CompressionLayer::new()).layer(tower_http::cors::CorsLayer::permissive());
         let listener = tokio::net::TcpListener::bind((bind.as_str(), port)).await.with_context(|| format!("bind {bind}:{port}"))?;
         eprintln!("listening on http://{bind}:{port}");
-        axum::serve(listener, router)
-            .with_graceful_shutdown(async {
+        axum::serve(listener, router.into_make_service_with_connect_info::<std::net::SocketAddr>())
+            .with_graceful_shutdown(async move {
                 let _ = tokio::signal::ctrl_c().await;
+                // End the event streams, else they keep the server up until it is killed.
+                stopping.send_replace(true); // kept for streams that subscribe after this
             })
             .await?;
         Ok(())

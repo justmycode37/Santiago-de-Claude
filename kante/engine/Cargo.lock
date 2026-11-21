@@ -643,6 +643,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "flate2",
+ "futures-util",
  "kante-core",
  "kante-gtfs",
  "kante-link",
