@@ -1,0 +1,55 @@
+# Publish the static site to GitHub Pages on every push to main.
+#
+# Needs one setting, made once by a repository admin:
+#   Settings → Pages → Build and deployment → Source: "GitHub Actions"
+#
+# The engine (kante/) and the live map (livemap/) need their own server and are not part of this.
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push waits for the running one instead of cancelling it half way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect the files the site serves
+        run: |
+          mkdir -p _site/demo
+          # The app: every page, script and stylesheet in the repository root ...
+          cp ./*.html ./*.js ./*.css _site/
+          # ... except the development page and the config template
+          rm _site/station3d-dev.html _site/config.example.js
+          cp -r event-images stop-images stations3d _site/
+          # The demo page and the two files it plays, not the raw screen recordings next to them
+          cp demo/index.html demo/opening.jpg demo/santiago.mp4 _site/demo/
+
+      - name: Record the commit this was built from
+        run: |
+          printf 'window.BUILD = { commit: "%s", committed: "%s", repo: "%s" };\n' \
+            "$GITHUB_SHA" "$(git log -1 --format=%cI)" "$GITHUB_REPOSITORY" > _site/version.js
+          cat _site/version.js
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5
