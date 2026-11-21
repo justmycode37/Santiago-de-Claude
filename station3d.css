@@ -31,7 +31,7 @@
   user-select: none;
   transform: translateY(100%);
   visibility: hidden;
-  transition: transform .5s var(--s3-spring), visibility 0s linear .5s;
+  transition: transform .32s var(--s3-spring), visibility 0s linear .32s;
   contain: strict;
 }
 .s3.s3-dark {
@@ -42,7 +42,7 @@
   --s3-walk-soft: #0A62C9;
   --s3-bg: radial-gradient(120% 85% at 50% 36%, #1B1D22 0%, #0F1013 100%);
 }
-.s3.s3-open { transform: none; visibility: visible; transition: transform .5s var(--s3-spring), visibility 0s; }
+.s3.s3-open { transform: none; visibility: visible; transition: transform .32s var(--s3-spring), visibility 0s; }
 .s3 *, .s3 *::before, .s3 *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 .s3 button { font: inherit; color: inherit; margin: 0; }
 .s3 button:focus-visible, .s3-stage canvas:focus-visible { outline: 2px solid var(--s3-blue); outline-offset: 2px; }
