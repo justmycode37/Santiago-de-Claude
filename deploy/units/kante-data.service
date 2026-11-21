@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the Kante engine's data (see deploy/refresh-data.sh)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/kante-host/repo/deploy/refresh-data.sh
+Nice=15
+TimeoutStartSec=3h

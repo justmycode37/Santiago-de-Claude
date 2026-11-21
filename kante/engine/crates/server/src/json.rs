@@ -378,6 +378,11 @@ pub struct TripResponse {
     pub cancelled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headway_s: Option<u16>,
+    pub live_info: LiveInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<Position>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub extra: bool,
 }
 
 #[derive(Serialize)]
@@ -400,6 +405,11 @@ pub struct Vehicle {
     pub next_stop: String,
     pub next_seq: u16,
     pub live: &'static str,
+    pub frac: f32,
+    pub basis: &'static str,
+    pub live_info: LiveInfo,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub extra: bool,
 }
 
 #[derive(Serialize)]
@@ -434,6 +444,8 @@ pub struct MetaResponse {
     pub valid_to: String,
     pub walk_bbox: [f64; 4],
     pub realtime: RealtimeMeta,
+    /// Optional parts this engine has (see docs/LIVE-API.md).
+    pub features: Vec<&'static str>,
     pub counts: Counts,
     pub attribution: Vec<&'static str>,
 }
@@ -448,6 +460,29 @@ pub struct RealtimeMeta {
     pub updated_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trips: Option<usize>,
+    /// Journeys that are not in the timetable (replacement buses, extra trains).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extras: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub feeds: Vec<FeedStatus>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedStatus {
+    pub name: &'static str,
+    /// The feed's own timestamp of its last document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
+    /// When that document was fetched and parsed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub polled_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub journeys: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub matched: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -459,4 +494,128 @@ pub struct Counts {
     pub quays: usize,
     pub trips: usize,
     pub walk_edges: usize,
+}
+
+// ------------------------------------------------------------------ live data (see docs/LIVE-API.md)
+
+/// How sure a trip's live times are.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveInfo {
+    /// `observed`, `predicted`, `timetable` or `stale`.
+    pub state: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observed_seq: Option<u16>,
+    /// `arr`, `dep` or `arr+dep`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observed_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age_s: Option<i64>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub inaccurate: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub congestion: bool,
+}
+
+/// Where a vehicle is at `t`.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Position {
+    /// `before-start`, `at`, `between` or `ended`.
+    pub state: &'static str,
+    pub seq: u16,
+    pub from: [f64; 2],
+    pub to: [f64; 2],
+    pub frac: f32,
+    /// `observed-stop`, `forecast`, `timetable` or `crowd`.
+    pub basis: &'static str,
+    pub t: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchRef {
+    pub trip_id: String,
+    pub service_date: String,
+    pub from_seq: u16,
+    /// Where the ride ends on this trip; absent when it ends on a trip this one
+    /// continues as (`then`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_seq: Option<u16>,
+    /// Trips this one continues as, in order, when the ride stays seated into
+    /// them (e.g. a train that changes its number on the way). The last one has `toSeq`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub then: Vec<MatchNext>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchNext {
+    pub trip_id: String,
+    pub service_date: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_seq: Option<u16>,
+}
+
+#[derive(Serialize)]
+pub struct MatchResponse {
+    #[serde(rename = "match")]
+    pub matched: Option<MatchRef>,
+    pub candidates: usize,
+    /// `unique`, `ambiguous` or `none`.
+    pub reason: &'static str,
+}
+
+#[derive(Serialize)]
+pub struct DueResponse {
+    pub t: i64,
+    pub due: Vec<Due>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Due {
+    pub trip_id: String,
+    pub service_date: String,
+    pub seq: u16,
+    pub line: LineBadge,
+    pub headsign: String,
+    pub number: Option<String>,
+    pub vias: Vec<String>,
+    pub quay_id: String,
+    pub quay_label: String,
+    pub planned_label: Option<String>,
+    pub arr: Option<i64>,
+    pub dep: Option<i64>,
+    pub delay_s: Option<i32>,
+    pub cancelled: bool,
+    pub approach_bearing: Option<f32>,
+    pub depart_bearing: Option<f32>,
+    /// `approaching`, `at-stop` or `departed`.
+    pub state: &'static str,
+    pub eta_s: i64,
+    pub live_info: LiveInfo,
+    pub extra: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObserveRequest {
+    pub trip_id: String,
+    pub service_date: String,
+    pub lat: f64,
+    pub lon: f64,
+    pub t: i64,
+    pub accuracy: f32,
+}
+
+#[derive(Serialize)]
+pub struct ObserveResponse {
+    pub accepted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'static str>,
 }

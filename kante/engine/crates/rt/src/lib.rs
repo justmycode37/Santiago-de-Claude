@@ -37,7 +37,8 @@
 //! ```
 //!
 //! To combine both feeds in one snapshot add SIRI-ET first and GTFS-RT second
-//! ([`LiveSnapshotBuilder::add_gtfs_rt`] only fills trips SIRI-ET did not cover).
+//! ([`LiveSnapshotBuilder::add_gtfs_rt`] adds trips SIRI-ET did not cover and newer
+//! forecasts for stops not yet reached; measured times and platform changes stay).
 //!
 //! `rt-inspect` (in `src/bin`) runs all of this on saved feed files and prints
 //! what the feeds contain and how well they match a `timetable.bin`.
@@ -54,4 +55,4 @@ pub use gtfsrt::parse_gtfs_rt;
 pub use matcher::{MatchMethod, MatchOptions, MatchedTrip, Matcher, Unmatched};
 pub use model::{FeedKind, FeedMeta, RtCall, RtJourney};
 pub use siri::{parse_siri_et, parse_siri_et_auto, parse_siri_et_gz};
-pub use snapshot::{LiveSnapshot, LiveSnapshotBuilder, MatchCounts, LATE_THRESHOLD};
+pub use snapshot::{LiveSnapshot, LiveSnapshotBuilder, MatchCounts, Merge, LATE_THRESHOLD};

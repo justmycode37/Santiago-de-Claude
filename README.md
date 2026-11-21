@@ -11,6 +11,18 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Events & amenities**: Shows community events on the map alongside Bern public amenities and local places.
 - **Camera stop scan**: Menu › **Scan** identifies nearby stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
 
+## Live tracking
+
+During a trip the app refetches the connection from `transport.opendata.ch` every minute for forecasts, follows you by GPS along the planned route, and places your vehicle from its live stop times. When the [Kante engine](kante/docs/LIVE-API.md) is reachable (`live.js`), it adds:
+
+- **Measured times**: each ride is matched to the engine's trip (`/api/match`, only when the match is unique) and polled every 30 s (`/api/trip`) for measured and forecast times and platform changes.
+- **Honest vehicle positions**: the vehicle is drawn along the ride from the engine's position; tap it to see how it was placed ("Left Zytglogge 1 min ago (measured)", "Estimated from forecasts", "Timetable only"). Switzerland publishes no vehicle GPS, so positions are always worked out from stop times.
+- **Changes**: a warning with Replan when live times make a change impossible, "Hurry" or "Take your time" while you walk to the next ride, and "Platform 7 → 5" (with the walk re-routed) when a platform changes.
+- **On board**: while you ride, the app checks every 20 s which vehicles you could be on and asks "On the 12 instead of the 10?" when it is clearly another one. **Settings › Live data** can also share your position anonymously while you are on the planned vehicle (`/api/observe`, off by default).
+- **Live vehicles on the map** from zoom 14 (not during a journey), via the engine's stream or every 15 s.
+
+The engine is `https://kante.omniroute.app` by default. Set `kanteUrl` in `config.js` (see `config.example.js`), or add `?kante=http://127.0.0.1:8080` to the page address for a local engine (`?kante=off` switches it off). Features the engine lacks (`/api/meta` → `features`) are skipped, and without the engine the app works as before.
+
 ## Getting started
 
 ```bash

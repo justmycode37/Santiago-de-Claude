@@ -20,6 +20,8 @@ build_release() { # build_release <commit> <release dir>
   echo "$commit" > "$rel/COMMIT"
   ln -s "$ROOT/raw" "$rel/data/raw"
   ln -s "$ROOT/secrets" "$rel/data/secrets"
+  mkdir -p "$ROOT/profiles"
+  ln -s "$ROOT/profiles" "$rel/data/profiles"
   "$rel/kante" build --data "$rel/data"
 }
 
@@ -37,6 +39,32 @@ healthy() { # the engine answers and has a timetable and a search index
     sleep 2
   done
   return 1
+}
+
+sync_units() { # new or changed systemd units from the repository (e.g. a new timer) take effect without a reinstall
+  local d=$HOME/.config/systemd/user f changed=0
+  mkdir -p "$d"
+  for f in deploy/units/*; do
+    cmp -s "$f" "$d/$(basename "$f")" || { cp "$f" "$d/"; changed=1; }
+  done
+  if (( changed )); then
+    systemctl --user daemon-reload
+    systemctl --user enable --now kante-data.timer >/dev/null 2>&1 || true
+    log "updated the systemd units"
+  fi
+}
+
+live_note() { # not a reason to go back (the key may be missing or the feed down), but worth a line in the log
+  local i
+  [[ -s $ROOT/secrets/otd.json ]] || return 0
+  for i in $(seq 1 18); do
+    if curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null         | python3 -c 'import json,sys; sys.exit(0 if (json.load(sys.stdin)["realtime"].get("trips") or 0) > 0 else 1)' 2>/dev/null; then
+      log "live data is coming in"
+      return 0
+    fi
+    sleep 10
+  done
+  log "warning: no live data three minutes after the start (see /api/meta realtime.feeds)"
 }
 
 main() {
@@ -59,6 +87,7 @@ main() {
   if (( ! force )) && [[ $new == "$seen" ]]; then exit 0; fi
 
   git checkout --quiet --force --detach "$new"
+  sync_units
   tree=$(git rev-parse "$new:kante/engine")
   cur=$(cat "$ROOT/state/tree" 2>/dev/null || true)
   if (( ! force )) && [[ $tree == "$cur" ]]; then
@@ -88,6 +117,7 @@ main() {
   if healthy; then
     echo "$tree" > "$ROOT/state/tree"
     log "${new:0:7} is live"
+    live_note
     # keep this release and the one before it
     find "$ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -2 | xargs -r rm -rf
   else

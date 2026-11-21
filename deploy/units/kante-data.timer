@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the Kante engine's timetable and learned travel times (daily, early morning)
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
