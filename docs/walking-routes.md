@@ -1,13 +1,16 @@
 # Walking routes
 
 Walks in a journey (to the stop, between platforms, to the destination's door) are routed in the browser by
-`walkroute.js` on a pedestrian network built ahead of time (`walkgraph/`). Inside Bern, Europaplatz and Wankdorf the
-3D station models' own router (`station-route.js`) takes over; where there are no tiles, the online routers are used.
+`walkroute.js` on a pedestrian network built ahead of time (`walkgraph/`) for Bern, Zürich, Basel, Geneva and
+Lausanne. Inside Bern, Europaplatz and Wankdorf the 3D station models' own router (`station-route.js`) takes over;
+where there are no tiles, the online routers are used.
 
 ## What the network knows
 
 - **Doors**: a walk ends at a door of the destination building, the one that makes the walk shortest (back doors,
-  garages and emergency exits only when there is nothing else). A yellow dot marks it.
+  garages and emergency exits only when there is nothing else). A yellow dot marks it. Where OpenStreetMap maps no
+  door for a building (most buildings in Zürich, Geneva and Lausanne), its doors come from the official building
+  address register: each address point, put on the stretch of outline facing the street (type `addr`).
 - **Sidewalks, crossings, arcades, passages, underpasses**: followed, and drawn with a dashed line down the middle
   where covered.
 - **Floors**: station underpasses, stairs, escalators and lifts by level, with directions such as "Stairs down to
@@ -43,13 +46,30 @@ OpenStreetMap comes from the Swiss Overpass server (cached in `~/.cache/walkgrap
 layer (~525 MB) is fetched once out of swisstopo's release with HTTP range requests (`tools/swisstlm3d.py`). A
 swisstopo line more than 12 m from every OSM way is added and joined to the street-level OSM way it meets; motorways,
 closed tracks, climbing passages, ferries and lines in or under buildings are left out. Tiles are 0.01° (about 1 km);
-only the ones around a walk are loaded. The tile format is described in the builder's docstring.
+only the ones around a walk are loaded, and once more than 24 are built into the network (walks in two cities) it is
+rebuilt from the tiles of the walk at hand, so a phone holds about 40-100 MB of network at most. The tile format is
+described in the builder's docstring.
+
+Doors from the address register (`tools/gebaeudeadressen.py`, swisstopo's "Amtliches Gebäudeadressverzeichnis",
+~140 MB once): the rules place an address point at the building's entrance. Against OpenStreetMap's doors with the
+same address, the point snapped onto the outline is a median 0.8 m (Bern), 0.9 m (Basel), 1.7 m (Lausanne), 2.4 m
+(Geneva) and 5.8 m (Zürich, where points sit a few metres inside or in front of the façade) from the mapped door
+(`tools/walk-eval/register_check.py`). Only buildings without an OSM door get them; `--no-register` leaves them out.
+
+| Area | Tiles | Size (gzip) | OSM doors | Register doors |
+|---|---|---|---|---|
+| Bern | 84 | 9.2 MB (3.5 MB) | 15,500 | 26,700 |
+| Zürich | 215 | 20.6 MB (7.5 MB) | 7,000 | 76,500 |
+| Basel | 70 | 8.8 MB (3.1 MB) | 17,500 | 30,500 |
+| Geneva | 81 | 10.2 MB (3.7 MB) | 530 | 44,900 |
+| Lausanne | 62 | 6.9 MB (2.5 MB) | 820 | 28,200 |
 
 `tools/test_walkroute.mjs` checks the built tiles (doors reached, no building or track crossings, platform changes).
+`tools/walk-eval/` measures any built city the same way (results in its README).
 
 ## Aerial photo (prototype)
 
 `tools/aerial_path.py` looks for the way across unmapped ground on swisstopo's aerial photo (DINOv2 patch features, a
 classifier trained on the mapped paths of that photo, cheapest path through the cost map). Not used by the app.
 
-Sources: © OpenStreetMap contributors (ODbL), © swisstopo (swissTLM3D, SWISSIMAGE).
+Sources: © OpenStreetMap contributors (ODbL), © swisstopo (swissTLM3D, SWISSIMAGE, building address register).

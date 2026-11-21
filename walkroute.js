@@ -187,24 +187,51 @@
             .catch((e) => { pending.delete(key); fail(e); });
         });
       // a tile that failed to load is tried again next time (the phone may have been offline)
-      tiles.set(key, got.then((data) => { addTile(data); return true; }).catch(() => { tiles.delete(key); return false; }));
+      tiles.set(key, got.then((data) => { raw.set(key, data); return true; }).catch(() => { tiles.delete(key); return false; }));
     }
     return tiles.get(key);
   }
+  // Only the tiles around the latest walks stay in the network: a walk can need ~40 tiles (4 km and its margin) and a
+  // dense city tile takes a few MB once built, so when the network would grow past MAX_TILES it is rebuilt from the
+  // tiles of the walk at hand. Tiles dropped are fetched again when needed (from the browser's cache); tiles another
+  // walk is still waiting for are kept.
+  const MAX_TILES = 24;
+  const raw = new Map();       // key → tile data, for the tiles in the network and those walks are waiting for
+  const inGraph = new Set();   // keys of the tiles in the network
+  const wanted = new Map();    // key → how many walks are loading it
+  function clearGraph() {
+    [nodes, seenWays, seenShort, seenRail, buildings, entrances, egrid, bgrid, rgrid].forEach((m) => m.clear());
+    inGraph.clear();
+  }
+  // Put these (loaded) tiles into the network, dropping the others first if it would grow too big
+  function useTiles(keys) {
+    const missing = keys.filter((k) => !inGraph.has(k));
+    if (inGraph.size + missing.length > MAX_TILES) {
+      const keep = new Set(keys);
+      [...raw.keys()].forEach((k) => { if (!keep.has(k) && !wanted.has(k)) { raw.delete(k); tiles.delete(k); } });
+      clearGraph();
+      keys.forEach((k) => { addTile(raw.get(k)); inGraph.add(k); });
+    } else missing.forEach((k) => { addTile(raw.get(k)); inGraph.add(k); });
+  }
   const tileKey = (ll, size) => Math.floor(ll[1] / size + 1e-9) + '_' + Math.floor(ll[0] / size + 1e-9);
-  // Load every tile of the box around a and b; false when the network does not cover both ends
+  const release = (keys) => keys.forEach((k) => { const c = wanted.get(k) - 1; if (c) wanted.set(k, c); else wanted.delete(k); });
+  // Load every tile of the box around a and b → their keys, held (wanted) until the caller puts them into the network
+  // and releases them; null when the network does not cover both ends
   async function ensure(a, b, padM) {
     const idx = await loadIndex();
-    if (!idx) return false;
+    if (!idx) return null;
     const size = idx.tile;
-    if (!idx.tiles[tileKey(a, size)] || !idx.tiles[tileKey(b, size)]) return false;
+    if (!idx.tiles[tileKey(a, size)] || !idx.tiles[tileKey(b, size)]) return null;
     const w = Math.min(a[0], b[0]) - padM / kx(a[1]), e = Math.max(a[0], b[0]) + padM / kx(a[1]);
     const s = Math.min(a[1], b[1]) - padM / KY, n = Math.max(a[1], b[1]) + padM / KY;
     const keys = [];
     for (let y = Math.floor(s / size); y <= Math.floor(n / size); y++)
       for (let x = Math.floor(w / size); x <= Math.floor(e / size); x++) if (idx.tiles[y + '_' + x]) keys.push(y + '_' + x);
+    keys.forEach((k) => wanted.set(k, (wanted.get(k) || 0) + 1));
     // a missing tile in the middle would send the walk on a detour round it: then better the online router
-    return (await Promise.all(keys.map(loadTile))).every(Boolean);
+    const ok = await Promise.all(keys.map(loadTile)).then((x) => x.every(Boolean), () => false);
+    if (!ok) { release(keys); return null; }
+    return keys;
   }
 
   // ------------------------------------------------------------------ costs
@@ -233,10 +260,11 @@
     });
     return out;
   }
-  // Does the straight line p→q cross a railway track on the ground?
-  function cutsRail(p, q) {
+  // Does the straight line p→q cross a railway track on the ground (other than one passing within skipM of p)?
+  function cutsRail(p, q, skipM) {
     const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-    for (const [a, b] of gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)) if (crosses(p, q, a, b)) return true;
+    for (const [a, b] of gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5))
+      if (crosses(p, q, a, b) && !(skipM && project(p, a, b).d < skipM)) return true;
     return false;
   }
   // Does the straight line p→q cut through a building (other than those in `allow`)?
@@ -277,7 +305,13 @@
       // a straight line into the network must not go through a wall. It may only cross the outline of the building
       // the path itself runs under (an arcade is open to the street); passages, corridors and underpasses are only
       // entered at their ends, never through a wall
-      if (pr.d > 1 && cutsRail(p, pr.q)) return; // never across the tracks
+      // never across the tracks. A stop position given on the track itself (Basel SBB Gleis 19, Bern Gleis 13) still
+      // reaches its own platform across that one track; the walk then starts on the platform (onTrack)
+      let onTrack = false;
+      if (pr.d > 1 && cutsRail(p, pr.q)) {
+        if (!own || cutsRail(p, pr.q, 1.5)) return;
+        onTrack = true;
+      }
       if (pr.d > 2) {
         const under = a.c === 'a' ? buildingsAt(pr.q, 5) : [];
         if (cutsBuilding(p, pr.q, under.length ? new Set([...allow, ...under]) : allow)) {
@@ -286,12 +320,14 @@
           cuts = true;
         }
       }
-      best.set(e, { e, t: pr.t, q: pr.q, d: pr.d, cost: pr.d * f, cuts });
+      best.set(e, { e, t: pr.t, q: pr.q, d: pr.d, cost: pr.d * f, cuts, onTrack });
     });
     return [...best.values()].sort((x, y) => x.cost - y.cost).slice(0, 8);
   }
 
-  const DOOR_RANK = { main: 0, yes: 0, shop: 0, home: 0, staircase: 2, entrance: 0, service: 40, exit: 60, emergency: 200, garage: 120, private: 200 };
+  // addr: a door the builder put where the official address register has the building's address (only buildings
+  // without a mapped door have them); a mapped door nearby is the surer one
+  const DOOR_RANK = { main: 0, yes: 0, shop: 0, home: 0, staircase: 2, entrance: 0, addr: 10, service: 40, exit: 60, emergency: 200, garage: 120, private: 200 };
   // The ways into (or out of) the network at one end: { node or edge position, extra cost, door }
   function endpoint(p, o) {
     const out = [];
@@ -467,11 +503,11 @@
     }
     const t = best.t;
     // from where you are to the network, through the door if one was taken
-    const head = [[a, null]];
+    const head = s.onTrack ? [] : [[a, null]]; // a stop position on the track: from the platform beside it
     if (s.door && s.door.node.ll !== (pts[0] && pts[0][0])) head.push([s.door.node.ll, null]);
     const tail = [];
     if (t.door && t.door.node.ll !== (pts.length && pts[pts.length - 1][0])) tail.push([t.door.node.ll, null]);
-    if (!t.door) tail.push([b, null]); // no door: the line goes to the place itself
+    if (!t.door && !t.onTrack) tail.push([b, null]); // no door: the line goes to the place itself
     const raw = head.concat(pts, tail);
     const all = raw.filter((p, i, arr) => !i || distM(p[0], arr[i - 1][0]) > 0.3);
     const coords = all.map((p) => p[0]);
@@ -595,7 +631,10 @@
   async function route(a, b, opt = {}) {
     const straight = distM(a, b);
     if (straight > 4000) return null;
-    if (!(await ensure(a, b, Math.max(450, straight * 0.4)))) return null; // the nearest path can be up to 400 m off
+    const keys = await ensure(a, b, Math.max(450, straight * 0.4)); // the nearest path can be up to 400 m off
+    if (!keys) return null;
+    // from here on synchronous to the end of the search, so no other walk changes the network meanwhile
+    try { useTiles(keys); } finally { release(keys); }
     // a network gap can send the search on a huge detour: that counts as no route (the next try, or the online router)
     const ok = (r) => r && r.dist <= Math.max(straight * 4, straight + 1200);
     const from = opt.from || {}, to = opt.to || {};
@@ -624,6 +663,6 @@
     route,
     covers: async (ll) => { const idx = await loadIndex(); return !!(idx && idx.tiles[tileKey(ll, idx.tile)]); },
     configure: (o) => { if (o.loader) loader = o.loader; if (o.base) base = o.base; if (o.index) index = o.index; },
-    _debug: { nodes, buildings, entrances, endpoint, buildingsAt, cutsBuilding, search, distM },
+    _debug: { nodes, buildings, entrances, inGraph, endpoint, buildingsAt, cutsBuilding, search, distM },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

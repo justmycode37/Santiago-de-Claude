@@ -48,6 +48,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import swisstlm3d  # noqa: E402  (next to this file)
+import gebaeudeadressen  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'walkgraph')
@@ -516,7 +517,7 @@ def add_tlm(bbox, nodes, walk, proj, walls, closed=None):
     return added, metres
 
 
-def build(bbox, refresh, tlm=True):
+def build(bbox, refresh, tlm=True, register=True):
     w0, s0, e0, n0 = bbox
     proj = Proj((s0 + n0) / 2)
     nodes = {}      # id → (lon, lat)
@@ -711,8 +712,102 @@ def build(bbox, refresh, tlm=True):
             kerbs.add(nid)
         if t.get('highway') == 'elevator':
             lift_nodes.add(nid)
+    if register:
+        register_doors(bbox, proj, nodes, buildings, entrances)
     return {'nodes': nodes, 'walk': walk, 'shortcuts': shortcuts, 'buildings': buildings, 'rails': rails,
             'entrances': entrances, 'blocked': blocked, 'kerbs': kerbs, 'lifts': lift_nodes}
+
+
+REGISTER_ID = 9_000_000_000_000  # + EGAID: node ids of doors from the address register (OSM node ids are far below)
+
+
+def register_doors(bbox, proj, nodes, buildings, entrances):
+    """A door at each official building address (tools/gebaeudeadressen.py) of a building without any OSM door,
+    put on the nearest stretch of the building's outline that faces the open (never a wall shared with the house next
+    door): the register places the point at the entrance, give or take a few metres inside or in front of it. Type
+    'addr', with the address. A point deeper than 12 m inside, or more than 8 m from any building, is left out (it
+    marks no door)."""
+    with_door = {e[1] for e in entrances if e[1]}
+    cell = 25.0
+    grid, every = {}, {}  # buildings without a door / all buildings, by 25 m cell
+    for bid, nds in buildings.items():
+        ring = [proj.xy(*nodes[n]) for n in nds]
+        xs, ys = [q[0] for q in ring], [q[1] for q in ring]
+        for gx in range(int(min(xs) // cell), int(max(xs) // cell) + 1):
+            for gy in range(int(min(ys) // cell), int(max(ys) // cell) + 1):
+                every.setdefault((gx, gy), []).append((bid, ring))
+                if bid not in with_door:
+                    grid.setdefault((gx, gy), []).append((bid, ring))
+
+    def inside(q, ring):
+        c = False
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+            if (y1 > q[1]) != (y2 > q[1]) and q[0] < (x2 - x1) * (q[1] - y1) / (y2 - y1) + x1:
+                c = not c
+        return c
+
+    def in_other(q, bid):
+        return any(b != bid and inside(q, r) for b, r in every.get((int(q[0] // cell), int(q[1] // cell)), ()))
+
+    def facade_point(q, bid, ring):
+        """The nearest point of the outline that faces the open (not a wall shared with the house next door) →
+        (distance, point), or (inf, None)"""
+        opts = []
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+            dx, dy = x2 - x1, y2 - y1
+            L2 = dx * dx + dy * dy
+            if L2 < 0.25:
+                continue
+            t = max(0.0, min(1.0, ((q[0] - x1) * dx + (q[1] - y1) * dy) / L2))
+            x, y = x1 + dx * t, y1 + dy * t
+            opts.append((math.hypot(q[0] - x, q[1] - y), (x, y), (-dy / math.sqrt(L2), dx / math.sqrt(L2))))
+        for d, at, (nx, ny) in sorted(opts):
+            if d > 12:
+                break
+            # 1 m out from the wall, on whichever side is not this building, must not be inside another one
+            out = next((o for o in ((at[0] + nx, at[1] + ny), (at[0] - nx, at[1] - ny)) if not inside(o, ring)), None)
+            if out and not in_other(out, bid):
+                return d, at
+        return math.inf, None
+
+    added, per_bld = 0, {}
+    for lon, lat, egaid, addr in gebaeudeadressen.points(bbox):
+        q = proj.xy(lon, lat)
+        cands = {}
+        for gx in range(int((q[0] - 8) // cell), int((q[0] + 8) // cell) + 1):
+            for gy in range(int((q[1] - 8) // cell), int((q[1] + 8) // cell) + 1):
+                for bid, ring in grid.get((gx, gy), ()):
+                    cands[bid] = ring
+        best = None  # (rank, distance, building, point on the outline)
+        for bid, ring in cands.items():
+            d, at = facade_point(q, bid, ring)
+            ins = inside(q, ring)
+            if d > (12 if ins else 8):
+                continue
+            cand = (0 if ins else 1, d, bid, at)
+            if best is None or cand[:2] < best[:2]:
+                best = cand
+        if not best:
+            continue
+        _, _, bid, at = best
+        # 12 and 12a at one door: one door, both numbers
+        same = next((x for x in per_bld.get(bid, ()) if math.hypot(x[1][0] - at[0], x[1][1] - at[1]) < 2), None)
+        if same:
+            entrances[same[0]] = entrances[same[0]][:4] + (merge_addr(entrances[same[0]][4], addr),)
+            continue
+        nid = REGISTER_ID + egaid
+        nodes[nid] = (at[0] / proj.kx, at[1] / proj.ky)
+        per_bld.setdefault(bid, []).append((len(entrances), at))
+        entrances.append((nid, bid, 'addr', '', addr))
+        added += 1
+    print(f'{added} doors from the address register on {len(per_bld)} buildings without an OSM door', file=sys.stderr)
+
+
+def merge_addr(a, b):
+    """'Bahnhofstrasse 12' + 'Bahnhofstrasse 12a' → 'Bahnhofstrasse 12, 12a'"""
+    sa, _, na = a.rpartition(' ')
+    sb, _, nb = b.rpartition(' ')
+    return f'{a}, {nb}' if sa == sb else f'{a}, {b}'
 
 
 def simplify(pts, tol):
@@ -913,6 +1008,7 @@ def main():
     ap.add_argument('--bbox', help='lon_min,lat_min,lon_max,lat_max')
     ap.add_argument('--refresh', action='store_true', help='fetch OSM again instead of using the cache')
     ap.add_argument('--no-tlm', action='store_true', help="OSM only, without swisstopo's swissTLM3D paths")
+    ap.add_argument('--no-register', action='store_true', help='no doors from the official building address register')
     ap.add_argument('--out', help='write the tiles here instead of walkgraph/ (for trying things out)')
     args = ap.parse_args()
     if args.bbox:
@@ -926,7 +1022,8 @@ def main():
     if args.out:
         global OUT
         OUT = os.path.abspath(args.out)
-    g = build((bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m), args.refresh, tlm=not args.no_tlm)
+    g = build((bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m), args.refresh, tlm=not args.no_tlm,
+              register=not args.no_register)
     write_tiles(g, bbox)
 
 

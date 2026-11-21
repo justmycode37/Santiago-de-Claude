@@ -31,20 +31,39 @@ const badMetres = (line, dest) => { const own = new Set(bldAt(dest).concat(bldAt
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const med = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 
+// OSRM's answers are kept in osrm_CITY.json: the server is slow at times, and a rerun compares against the same routes
+const OSRM_FILE = `${HERE}/osrm_${city}.json`;
+const osrmCache = fs.existsSync(OSRM_FILE) ? JSON.parse(fs.readFileSync(OSRM_FILE, 'utf8')) : {};
+async function osrm(ll) {
+  const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${START.join(',')};${ll.join(',')}?overview=full&geometries=geojson`;
+  if (osrmCache[url]) return osrmCache[url];
+  for (let i = 0; i < 4; i++) {
+    const o = await fetch(url, { signal: AbortSignal.timeout(45000) }).then((x) => x.json()).catch(() => null);
+    await sleep(400 + i * 2000);
+    if (o && o.code) { osrmCache[url] = o; fs.writeFileSync(OSRM_FILE, JSON.stringify(osrmCache)); return o; }
+  }
+  return null;
+}
+
 // ---- doors, buildings, length
 const rows = [];
 for (const d of dests) {
   const t0 = performance.now();
   const net = await W.route(START, d.ll, { from: { accuracy: 10 }, to: {} });
   const ms = performance.now() - t0;
-  const o = await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${START.join(',')};${d.ll.join(',')}?overview=full&geometries=geojson`).then((x) => x.json()).catch(() => null);
-  await sleep(250);
+  const o = await osrm(d.ll);
   const og = o && o.code === 'Ok' ? [START, ...o.routes[0].geometry.coordinates, d.ll] : null;
   const doors = bldAt(d.ll).flatMap((b) => b.entrances);
-  rows.push({ name: d.name, hasDoors: doors.length > 0, net: !!net, ms,
-    doorOwn: !!(net && net.door && doors.some((x) => x.node.ll === net.door.ll)), inStationOrIndoor: !!(net && !net.door && doors.length),
+  const reached = net && net.door && doors.find((x) => x.node.ll === net.door.ll);
+  rows.push({ name: d.name, hasDoors: doors.length > 0, osmDoors: doors.some((x) => x.type !== 'addr'), net: !!net, ms,
+    // the last bit, from the paths to the place (or its door), is a straight line over 20 m of ground no path crosses
+    offPathEnd: !!(net && net.approxFrom != null), swisstopoM: net ? net.swisstopo : 0,
+    doorOwn: !!reached, doorType: reached ? reached.type : null, inStationOrIndoor: !!(net && !net.door && doors.length),
     netBad: net ? badMetres(net.coords, d.ll) : null, osrmBad: og ? badMetres(og, d.ll) : null,
-    netLen: net && net.dist, osrmLen: o && o.routes && o.routes[0] ? Math.round(o.routes[0].distance) : null });
+    // OSRM's distance leaves out the straight bits from the start and to the place (it snaps both to its streets): the
+    // line the app draws has them, so they count here
+    netLen: net && net.dist, osrmLen: og ? Math.round(og.reduce((t, c, i) => (i ? t + distM(og[i - 1], c) : 0), 0)) : null,
+    osrmLenRaw: o && o.routes && o.routes[0] ? Math.round(o.routes[0].distance) : null });
 }
 const n = rows.length, cnt = (f) => rows.filter(f).length, wd = rows.filter((r) => r.hasDoors);
 const both = rows.filter((r) => r.netLen != null && r.osrmLen != null);
@@ -62,10 +81,14 @@ for (const sf of [false, true]) for (const a of edges) for (const b of edges) {
   let x = 0; for (let i = 1; i < r.coords.length; i++) { const l = r.levels[i]; if (l != null && l !== '0') continue; for (const w of rails) for (let j = 1; j < w.length; j++) if (cr(r.coords[i - 1], r.coords[i], w[j - 1], w[j])) x++; }
   if (x) { bad++; if (ex.length < 4) ex.push(`${sf ? 'SF ' : ''}${a.ref}->${b.ref} ${r.dist} m`); }
 }
+const wo = rows.filter((r) => r.osmDoors);
 const out = { city, destinations: n, routed: cnt((r) => r.net), withDoors: wd.length, doorReached: wd.filter((r) => r.doorOwn).length,
+  withOsmDoors: wo.length, osmDoorReached: wo.filter((r) => r.doorOwn && r.doorType !== 'addr').length,
+  registerDoorOnly: wd.length - wo.length, registerDoorReached: wd.filter((r) => !r.osmDoors && r.doorOwn).length,
   doorViaIndoor: wd.filter((r) => r.inStationOrIndoor).length,
   netBadMean: +(rows.reduce((s, r) => s + (r.netBad || 0), 0) / n).toFixed(1), netBad3: cnt((r) => r.netBad >= 3),
   osrmBadMean: +(rows.reduce((s, r) => s + (r.osrmBad || 0), 0) / n).toFixed(1), osrmBad3: cnt((r) => r.osrmBad >= 3),
+  offPathEnd: cnt((r) => r.offPathEnd), withSwisstopo: cnt((r) => r.swisstopoM > 0),
   medianNet: med(both.map((r) => r.netLen)), medianOsrm: med(both.map((r) => r.osrmLen)),
   shorter: both.filter((r) => r.netLen < r.osrmLen * 0.95).length, longer: both.filter((r) => r.netLen > r.osrmLen * 1.05).length, compared: both.length,
   medianMs: Math.round(med(rows.map((r) => r.ms))), platforms: edges.length, pairs, pairsNoRoute: none, pairsCrossingTracks: bad, crossingExamples: ex };
