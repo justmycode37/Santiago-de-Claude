@@ -464,6 +464,53 @@ STATIONS = {
         'layers': ['furniture.json'],
         'credits': ['© swisstopo', 'Geodaten Stadt Bern'],   # terrain heights, aerial image; cadastral survey
     },
+    'zurich': {
+        'name': 'Zürich HB',
+        'origin': (8.5375, 47.3780),
+        'bbox': (47.3748, 8.5322, 47.3808, 8.5430),
+        # The station building with the main hall in the east, the platforms 3-18 to the west, Löwenstrasse (31-34)
+        # under the tracks, Museumstrasse (41-44) under the north side, the SZU station and ShopVille under
+        # Bahnhofplatz, and the tram and bus stops around it. Central (across the Limmat), the long-distance bus
+        # station at Sihlquai and Löwenplatz are left out.
+        'extent': (-340, -280, 380, 240),
+        # The SZU station (8503088, tracks 21/22 on level -2) is left out for now: it is being rebuilt and closed
+        # until the timetable change of 13 December 2026 (szu.ch), and OSM has it as disused with its platform gone.
+        # Add it back once OSM has the new platform.
+        'uics': ['8503000', '8587348', '8587349', '8591067', '8591368', '8591367'],
+        'notices': [
+            {'text': 'The SZU station (tracks 21/22, Uetliberg and Sihltal lines) is closed for its rebuild until '
+                     '13 December 2026', 'until': '2026-12-13'},
+        ],
+        # OSM numbers the floors of the whole complex in one scheme: 0 = the platforms 3-18 and the main hall, -1 =
+        # ShopVille, -2 = the passages (Löwenstrasse, Gessnerallee, Sihlquai, Bahnhofstrasse) and the SZU station,
+        # -3 = Museumstrasse, -4 = Löwenstrasse. Heights relative to the surface of platforms 3-18 (track 408 m above
+        # sea level by OSM ele):
+        #   -1  -5.8   31 stairs from level 0, median 34 steps (17 cm a step)
+        #   -2  -8.3   48 steps from level 0 (8 stairs), 14-16 steps from -1: -8.2 / -8.4
+        #   -3  -14.5  39-40 steps from -2: -15.0; tracks of 41-44 at 394 m (OSM ele): -14
+        #   -4  -16.3  50 steps from -2 (-16.8), 62 from -1 (-16.3); tracks of 31-34 at 392 m (OSM ele): -16
+        # One level has one height: the SZU tracks (OSM ele 396, -12) are on -2 like the passages above them.
+        # Levels 1 and up are the upper floors of the station building and its neighbours (offices, a canteen,
+        # stairwells): no measured heights, extrapolated with level_height; the builder leaves out those that
+        # carry no public walkable space.
+        'levels': {
+            -4: (-16.3, 'Löwenstrasse'),
+            -3: (-14.5, 'Museumstrasse'),
+            -2: (-8.3, 'Passages'),
+            -1: (-5.8, 'ShopVille'),
+            0: (0.0, 'Street level'),
+        },
+        'level_height': 4.0,
+        'entrances': [
+            ['Bahnhofplatz', 194, -75, 0],
+        ],
+        # SBB open data (tools/station3d_sbb_layers.py zurich): sector signs of tracks 3-18 (the signs carry their
+        # own sector's letter on both faces), sector centres from them, clocks and ticket machines. data.sbb.ch has
+        # no sector signs for Löwenstrasse and Museumstrasse.
+        'layers': ['sectors.json', 'boards.json', 'furniture.json'],
+        # SBB lists clocks and ticket machines by section ("bps_name"): these sections are underground
+        'sbb_sections': {'Zurich HB Lowenstrasse': -4, 'Zurich HB Museumstrasse': -3},
+    },
 }
 
 # Paths people walk on. Roads with their own mapped pavements are left out (sidewalk=separate or the big road classes).
@@ -2073,6 +2120,9 @@ class Builder:
     # --------------------------------------------------------------------------------------------------- 5. stops --
     def match_stops(self):
         """Every ATLAS edge of the complex and the OSM platform it belongs to, if there is one (before the levels)."""
+        def train_platform(a):
+            t = a['tags']
+            return t.get('train') == 'yes' and not any(t.get(k) == 'yes' for k in ('bus', 'tram', 'trolleybus'))
         self.stops = []
         plats = [a for a in self.areas if a['kind'] == 'platform']
         shut = [c for c in self.cfg.get('closed', []) if self.shut(c) or c.get('remark')]
@@ -2094,6 +2144,18 @@ class Builder:
                 p = self.xy(e[0] / 1e5, e[1] / 1e5)
                 ref = e[2] if len(e) > 2 and e[2] else ''
                 atlas_level = e[4] if len(e) > 4 else None
+                if atlas_level not in (None, 0) and mode != 't' and not any(
+                        a['level'] is not None and abs(a['level'] - atlas_level) <= 0.5
+                        and a['poly'].distance(Point(p)) <= 40
+                        and (a['uic'] == uic or (a['tags'].get('name') and name.endswith(a['tags']['name']))
+                             or any(a['tags'].get(k) == 'yes' for k in ('bus', 'tram', 'trolleybus')))
+                        for a in plats):
+                    # platforms.js joins levels by position: a tram or bus stop on the street above an underground
+                    # station can get the level of a train platform below it (Zürich, Bahnhofplatz/HB: -4). Without
+                    # an OSM platform of this stop (or a bus / tram one) on that level near it, it is on the street.
+                    self.note('stops', f'{name} {ref} [{uic}]: platforms.js says level {atlas_level:g}, OSM has no '
+                                       f'platform on that level within 40 m: taken as on the street')
+                    atlas_level = None
                 s = {'uic': uic, 'ref': ref, 'mode': MODES.get(mode, 'bus'), 'name': name, 'p': p,
                      'atlas_level': atlas_level, 'node': None, 'how': None, 'area': None, 'anchor': None,
                      'bearing': e[3] if len(e) > 3 else None}
@@ -2110,11 +2172,15 @@ class Builder:
                     if d > STOP_SEARCH:
                         continue
                     keys = {key_of(r) for r in a['refs']}
+                    if mode != 't' and train_platform(a):
+                        continue   # a tram or bus stop is not on a train platform, whatever its number
                     same_ref = bool(ref) and key_of(ref) in keys
                     if a['uic'] and a['uic'] != uic and not same_ref:
                         continue
                     if a['refs'] and ref and not same_ref:
                         continue   # another platform of the same stop
+                    if mode != 't' and not same_ref and a['refs'] and not ref:
+                        continue   # a stop without a number is not on a numbered platform (Zürich: the street above 41-44)
                     if atlas_level is not None and a['level'] is not None and abs(a['level'] - atlas_level) > 0.5 \
                             and not same_ref:
                         continue
@@ -2128,6 +2194,7 @@ class Builder:
                     # number is unique in a station, a coordinate is easily a few dozen metres off: the number wins
                     far = [(a['poly'].distance(Point(p)), a) for a in plats
                            if key_of(ref) in {key_of(r) for r in a['refs']}
+                           and not (mode != 't' and train_platform(a))
                            and (a['uic'] == uic or (not a['uic'] and a['tags'].get('name') == name))
                            and a['poly'].intersects(self.extent)]
                     if far:
@@ -2905,8 +2972,11 @@ class Builder:
 
     # ------------------------------------------------------------------------------------------- 8. check and emit --
     def model(self):
+        # (an area counts only when a path of the final graph reaches it: floors whose paths were dropped as not
+        # connected to the stops, like the lecture halls above Zürich HB, do not make a level)
         used_levels = sorted({int(l) for x, y, l in self.gn if float(l).is_integer()}
-                             | {int(a['level']) for a in self.areas if a.get('nodes')})
+                             | {int(a['level']) for a in self.areas if a.get('nodes')
+                                and any(self.gkey.get((n, a['level'])) is not None for n in a['ids'])})
         names = self.cfg['levels']
         levels = [{'id': l, 'z': round(self.z_of(l), 2), 'name': names[l][1] if l in names else f'Level {l}'}
                   for l in used_levels]
@@ -3325,12 +3395,14 @@ class Builder:
         furniture = self.data('furniture.json', sbb)
         walk = [(Polygon(a['ring'], a.get('holes')), a['level'], a['kind']) for a in model['areas'] if a['kind'] != 'room']
         dropped = 0
+        levels_here = {l['id'] for l in model['levels']}
         for f in furniture or []:
             pt = Point(f['xy'])
             on = [l for poly, l, k in walk if k == 'platform' and l == 0 and poly.covers(pt)]
             near = sorted((poly.distance(pt), abs(l), l) for poly, l, k in walk)
-            if f.get('level') is not None:
-                level = f['level']        # (given in the file, where the rule below would pick the wrong floor)
+            given = f.get('level')
+            if given is not None and given in levels_here:
+                level = given   # given by the data (SBB section, or the file): trusted on any level the station has
             elif on:
                 level = 0
             elif near and near[0][0] <= 15:

@@ -323,8 +323,8 @@ pub fn fetch(kind: FeedKind, api_key: &str) -> anyhow::Result<Vec<u8>>;
 ## HTTP API
 
 See `app/src/api/types.ts` (authoritative). Summary: `GET /api/search`,
-`/api/nearby`, `/api/quays`, `/api/departures`, `/api/trip`, `/api/vehicles`,
-`/api/onboard`, `/api/indoor`, `/api/meta`; `POST /api/plan`, `/api/walk`.
+`/api/reverse`, `/api/departures`, `/api/trip`, `/api/vehicles`, `/api/due`,
+`/api/match`, `/api/stream`, `/api/meta`; `POST /api/plan`, `/api/walk`.
 The server also serves the built app from `app/dist`.
 
 ## Product rules that cut across crates
