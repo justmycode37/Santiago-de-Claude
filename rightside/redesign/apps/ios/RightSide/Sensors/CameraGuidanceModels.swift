@@ -38,6 +38,10 @@ struct CameraJourneyContext {
     var route: [CLLocationCoordinate2D] = []
     /// The stop or boarding point the route leads to (not the look-ahead point used for geographic anchors).
     var routeEnd: CLLocationCoordinate2D? = nil
+    /// Departure-board (UIC) id of the boarding stop, used to ask the Kante engine what is due there.
+    var boardingStationID: String? = nil
+    /// The journey runs in offline mode: no live requests.
+    var offline = false
 
     func match(_ text: String) -> String? {
         if let stop, Self.containsPhrase(text, phrase: stop) { return "Stop text · check sign" }

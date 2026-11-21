@@ -32,6 +32,12 @@ private final class VisionWorkGate: @unchecked Sendable {
     /// World-tracked route guidance (compass + GPS + walked path), independent of Apple's geographic AR.
     @Published private(set) var routePlan: ARRouteGuidance.Plan?
     private let routeGuide = ARRouteGuide()
+    /// Live "what is about to stop here" from the Kante engine (/api/due), or vehicle positions as a fallback.
+    private let kante = KanteVehicleFeed()
+    private var kanteDue: [KanteDue] = []
+    private var kanteVehicles: [KanteVehicle] = []
+    private var kanteSupportsDue: Bool?
+    private var kanteTask: Task<Void, Never>?
     var onObservation: ((JSONValue) -> Void)?
     let view = ARSCNView(frame: .zero)
     private let worker = DispatchQueue(label: "rightside.live-ocr", qos: .userInitiated)
@@ -82,6 +88,7 @@ private final class VisionWorkGate: @unchecked Sendable {
         running = true; permissionDenied = false; status = "Opening camera…"
         cameraEvidence.start()
         invalidateLocalCameraEvidence(.restarted)
+        startKante(context: context, token: token)
         boardingReferences = location.latestLocation.map { boardingPack?.nearby($0, at: Date()) ?? [] } ?? []
         startup = Task { [weak self] in
             let allowed: Bool
@@ -133,6 +140,51 @@ private final class VisionWorkGate: @unchecked Sendable {
             }
         }
     }
+    /// Polls the Kante engine every 15 s while the camera runs. The boarding stop id is sent when known;
+    /// otherwise the current position (150 m radius). Nothing is sent offline or for simulated journeys.
+    private func startKante(context: CameraJourneyContext, token: UUID) {
+        kanteTask?.cancel(); kanteDue = []; kanteVehicles = []
+        guard !context.offline, !context.simulated, context.line != nil else { return }
+        let feed = kante
+        kanteTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.running, self.epoch == token else { return }
+                let fix = self.location?.latestLocation.map { GeoPoint(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude) }
+                if self.kanteSupportsDue == nil,
+                   let meta = try? await URLSession.shared.data(for: URLRequest(url: feed.base.appendingPathComponent("api/meta"), timeoutInterval: 8)) {
+                    self.kanteSupportsDue = KanteVehicleFeed.supportsDue(meta.0)
+                }
+                if self.kanteSupportsDue == true, let request = feed.dueRequest(station: context.boardingStationID, around: fix),
+                   let response = try? await URLSession.shared.data(for: request), let due = try? KanteVehicleFeed.decodeDue(response.0) {
+                    if self.running, self.epoch == token { self.kanteDue = due }
+                } else if self.kanteSupportsDue == false, let fix,
+                          let response = try? await URLSession.shared.data(for: feed.request(around: fix)),
+                          let vehicles = try? KanteVehicleFeed.decode(response.0) {
+                    if self.running, self.epoch == token { self.kanteVehicles = vehicles }
+                }
+                do { try await Task.sleep(for: .seconds(15)) } catch { return }
+            }
+        }
+    }
+
+    /// GPS fix, camera heading (fused alignment when available, else the compass) and horizontal field of view.
+    private func cameraPose(_ frame: ARFrame, portrait: Bool) -> CameraPose? {
+        guard let location, let fix = location.latestLocation, fix.horizontalAccuracy > 0, !location.isStale() else { return nil }
+        let intrinsics = frame.camera.intrinsics, resolution = frame.camera.imageResolution
+        // The sensor is landscape: in portrait the upright image's width is the sensor's height.
+        let fov = portrait ? 2 * atan(Double(resolution.height) / (2 * Double(intrinsics[1][1])))
+                           : 2 * atan(Double(resolution.width) / (2 * Double(intrinsics[0][0])))
+        var heading: Double?, accuracy = 30.0
+        if let fused = routeGuide.cameraTrueHeading(frame: frame) { heading = fused.degrees; accuracy = fused.sigma }
+        else if let compass = location.heading, compass.headingAccuracy >= 0, compass.headingAccuracy <= 30,
+                Date().timeIntervalSince(compass.timestamp) < 2 {
+            heading = compass.trueHeading; accuracy = max(10, compass.headingAccuracy)
+        }
+        return CameraPose(user: GeoPoint(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude),
+                          userAccuracy: fix.horizontalAccuracy, heading: heading, headingAccuracy: accuracy,
+                          horizontalFOV: fov, at: Date())
+    }
+
     func updateContext(_ context: CameraJourneyContext) {
         guard running else { return }
         if CameraEvidenceLifecycle.contextChanged(self.context, context) {
@@ -219,6 +271,7 @@ private final class VisionWorkGate: @unchecked Sendable {
     func stop() {
         epoch = UUID(); running = false; processing = false
         routeGuide.reset(); routePlan = nil
+        kanteTask?.cancel(); kanteTask = nil; kanteDue = []; kanteVehicles = []
         cameraReady = false
         invalidateCameraEvidence(.stopped)
         invalidateLocalCameraEvidence(.stopped)
@@ -327,6 +380,7 @@ private final class VisionWorkGate: @unchecked Sendable {
         let imageOrientation: CGImagePropertyOrientation = orientation == .portrait ? .right : orientation == .portraitUpsideDown ? .left : orientation == .landscapeRight ? .down : .up
         let transform = frame.displayTransform(for: orientation, viewportSize: view.bounds.size)
         let buffer = CapturedPixelBuffer(value: frame.capturedImage), pose = frame.camera.transform, capturedAt = Date().addingTimeInterval(-frameAge)
+        let cameraPose = self.cameraPose(frame, portrait: orientation == .portrait || orientation == .portraitUpsideDown)
         let visionToken = cameraEvidence.epoch, trackingToken = cameraEvidence.trackingEpoch
         let pipeline = self.pipeline, workGate = self.workGate
         worker.async { [weak self] in
@@ -353,11 +407,24 @@ private final class VisionWorkGate: @unchecked Sendable {
                       simd_dot(current.camera.transform.columns.2, pose.columns.2) > 0.998 else {
                     self.invalidateCameraEvidence(.moved); return
                 }
-                let expected = context.serviceExpectation
+                var expected = context.serviceExpectation
                     ?? context.line.flatMap { line in context.destination.map {
                         VehicleServiceExpectation(line: line, destination: $0, requiresRouteContext: true)
                     } }
-                let decisions = result.tracks.map { VehicleServiceMatcher.decide($0, expected: expected, now: Date()) }
+                // Services Kante says are about to stop here join the departure-board candidates.
+                let dueCandidates = VehiclePositionEvidence.candidates(from: self.kanteDue)
+                if var e = expected, !dueCandidates.isEmpty {
+                    for c in dueCandidates where !e.boardAlternatives.contains(where: { $0.identity == c.identity }) { e.boardAlternatives.append(c) }
+                    expected = e
+                }
+                let candidates = expected.map { [DisplayCandidate(line: $0.line, destination: $0.destination, isExpected: true)] + $0.boardAlternatives } ?? []
+                let now = Date()
+                let decisions = result.tracks.map { track -> VehicleDecision in
+                    let positions = !self.kanteDue.isEmpty
+                        ? VehiclePositionEvidence.dueLikelihoods(for: track.detection.box, pose: cameraPose, due: self.kanteDue, candidates: candidates, now: now)
+                        : VehiclePositionEvidence.likelihoods(for: track.detection.box, pose: cameraPose, vehicles: self.kanteVehicles, candidates: candidates)
+                    return VehicleServiceMatcher.decide(track, expected: expected, now: now, positions: positions)
+                }
                 func viewBox(_ upright: CGRect) -> CGRect {
                     CameraImageGeometry.rawBox(CGRect(x: upright.minX, y: 1 - upright.maxY, width: upright.width, height: upright.height), orientation: imageOrientation).applying(transform)
                 }

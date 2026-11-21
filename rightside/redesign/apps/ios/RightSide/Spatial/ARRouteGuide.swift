@@ -22,6 +22,18 @@ import UIKit
     /// Typical height of a hand-held phone above the pavement; the ground arrows are drawn this far below the camera.
     static let phoneHeight: Float = 1.4
 
+    /// True heading of the camera's optical axis from the fused alignment (compass + GPS + walked path),
+    /// with its one-sigma error in degrees; nil before an alignment exists.
+    func cameraTrueHeading(frame: ARFrame) -> (degrees: Double, sigma: Double)? {
+        guard let solution = alignment.solution(at: Date()) else { return nil }
+        let t = frame.camera.transform
+        let forward = Vec2(x: Double(-t.columns.2.x), y: Double(t.columns.2.z))
+        guard forward.length > 0.3 else { return nil }
+        let east = forward.angle - solution.yaw
+        let degrees = (90 - east * 180 / .pi).truncatingRemainder(dividingBy: 360)
+        return (degrees < 0 ? degrees + 360 : degrees, max(5, solution.yawSigmaDegrees))
+    }
+
     func reset() {
         alignment.reset(); plane = nil; lastFix = nil; lastHeading = nil; plan = nil; lastUpdate = 0
         clearNodes()

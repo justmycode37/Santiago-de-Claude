@@ -176,6 +176,93 @@ do {
     }
 }
 
+// MARK: - Live vehicle evidence (Kante engine), against real responses saved on 21 Nov 2026
+
+let fixtures = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "fixtures"
+func fixture(_ name: String) -> Data? { try? Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + name)) }
+if let data = fixture("kante-vehicles-bern.json"), let vehicles = try? KanteVehicleFeed.decode(data) {
+    check(vehicles.count >= 10 && vehicles.allSatisfy(\.isRoadVehicle), "live /api/vehicles decodes to buses/trams, got \(vehicles.count)")
+    let at = Date(timeIntervalSince1970: 1_795_267_910)
+    let inBox = vehicles.compactMap { $0.position(at: at) }.filter { (46.93...46.97).contains($0.latitude) && (7.41...7.47).contains($0.longitude) }
+    check(inBox.count == vehicles.count, "every interpolated position lies around the requested box")
+} else { check(false, "vehicles fixture missing or undecodable") }
+if let data = fixture("kante-due-bern-bahnhof.json"), let due = try? KanteVehicleFeed.decodeDue(data),
+   let boardData = fixture("stationboard-bern-bahnhof.json"),
+   let board = try? JSONSerialization.jsonObject(with: boardData) as? [String: Any], let rows = board["stationboard"] as? [[String: Any]] {
+    let dueCandidates = VehiclePositionEvidence.candidates(from: due)
+    let boardCandidates = rows.compactMap { r -> DisplayCandidate? in
+        guard let n = r["number"] as? String, let to = r["to"] as? String else { return nil }; return DisplayCandidate(line: n, destination: to)
+    }
+    let roads = dueCandidates.filter { c in due.contains { $0.candidate.identity == c.identity && ["bus", "tram"].contains($0.line.mode) } }
+    let onBoard = roads.filter { c in boardCandidates.contains { DepartureDisplayMatcher.sameDisplay($0, c) } }
+    print("Kante /api/due at Bern, Bahnhof: \(due.count) trips, \(roads.count) bus/tram display identities, \(onBoard.count) also on the transport.opendata.ch board")
+    check(due.count >= 10 && !roads.isEmpty, "live /api/due decodes")
+    check(onBoard.count * 10 >= roads.count * 7, "at least 70 % of due bus/tram identities are spelled as on the stationboard")
+    check(due.contains { $0.vias?.isEmpty == false }, "vias come through")
+} else { check(false, "due fixture missing or undecodable") }
+do {
+    // Tram 9 approaching from the west (drives east, bearing 70), due in 40 s; tram 20 to the same stop in 7 min.
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    func due(_ line: String, _ eta: Double, _ state: String, approach: Double?) -> KanteDue {
+        KanteDue(tripId: line, line: .init(name: line, category: "T", mode: "tram"), headsign: "Bern Wankdorf, Bahnhof", vias: [],
+                 quayId: "q", quayLabel: "B", arr: now.timeIntervalSince1970 + eta, dep: now.timeIntervalSince1970 + eta + 20,
+                 cancelled: false, approachBearing: approach, state: state, etaS: eta, liveInfo: .init(state: "observed", inaccurate: false))
+    }
+    let items = [due("9", 40, "approaching", approach: 70), due("20", 420, "approaching", approach: 70)]
+    let candidates = VehiclePositionEvidence.candidates(from: items)
+    let center = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4)
+    func pose(_ heading: Double) -> CameraPose {
+        CameraPose(user: GeoPoint(latitude: 46.95, longitude: 7.44), userAccuracy: 6, heading: heading, headingAccuracy: 15, horizontalFOV: 1.0, at: now)
+    }
+    let west = VehiclePositionEvidence.dueLikelihoods(for: center, pose: pose(250), due: items, candidates: candidates, now: now)
+    let east = VehiclePositionEvidence.dueLikelihoods(for: center, pose: pose(70), due: items, candidates: candidates, now: now)
+    let nine = candidates.first { $0.line == "9" }!.identity, twenty = candidates.first { $0.line == "20" }!.identity
+    check((west[nine] ?? 0) > 0.9 && (west[twenty] ?? 0) < 0.15, "camera facing the approach side: 9 likely, 20 not, got \(west)")
+    check((east[nine] ?? 0) < 0.5, "camera facing away from the approach side lowers 9, got \(east)")
+    // The tie from the recorded video (tram 9 vs 20, numeral unread) is broken by the due list...
+    let board9 = [DisplayCandidate(line: "9", destination: "Bern Wankdorf, Bahnhof"), DisplayCandidate(line: "20", destination: "Bern Wankdorf, Bahnhof"),
+                  DisplayCandidate(line: "8", destination: "Bern, Saali")]
+    let tie = DepartureDisplayMatcher.match([text("Wankdorf Bhf")], candidates: board9)
+    let broken = DepartureDisplayMatcher.match([text("Wankdorf Bhf")], candidates: board9, positions: west)
+    check(tie.outcome == .ambiguous && broken.outcome == .matched && broken.best?.candidate.line == "9", "position evidence breaks the 9/20 tie")
+    // ...but never overrides a readable, different display.
+    let clear = DepartureDisplayMatcher.match([text("8", x: 0.1, w: 0.04), text("Saali", x: 0.16)], candidates: board9, positions: west)
+    check(clear.outcome == .matched && clear.best?.candidate.line == "8", "a readable display wins over position evidence")
+    // A departed vehicle no longer counts.
+    let gone = [due("9", -60, "departed", approach: 70)]
+    check(VehiclePositionEvidence.dueLikelihoods(for: center, pose: pose(250), due: gone, candidates: candidates, now: now).isEmpty, "departed vehicle ignored")
+    // /api/vehicles geometry: a vehicle 120 m north-east is likely only when the camera looks that way.
+    let plane = LocalTangentPlane(origin: GeoPoint(latitude: 46.95, longitude: 7.44))
+    let p = plane.geo(Vec2(x: 85, y: 85))
+    let v = KanteVehicle(tripId: "t", line: .init(name: "9", category: "T", mode: "tram"), headsign: "Bern Wankdorf, Bahnhof",
+                         from: [p.longitude, p.latitude], to: [p.longitude, p.latitude], dep: 0, arr: 0, nextStop: nil, live: "observed")
+    let toward = VehiclePositionEvidence.likelihoods(for: center, pose: pose(45), vehicles: [v], candidates: candidates)
+    let away = VehiclePositionEvidence.likelihoods(for: center, pose: pose(225), vehicles: [v], candidates: candidates)
+    check((toward[nine] ?? 0) > 0.3 && (away[nine] ?? 0) < 0.05, "vehicle bearing agrees only when the camera faces it, got \(toward) / \(away)")
+}
+
+// MARK: - Confidence ranking
+
+do {
+    var expected = VehicleServiceExpectation(line: "10", destination: "Ostermundigen, Rüti")
+    expected.boardAlternatives = bern
+    // One clear frame, then two unreadable ones: no consensus, so the most confident frame decides.
+    let frames: [[VehicleText]] = [[text("10", x: 0.12, w: 0.05, score: 0.98), text("Ostermundigen Rüti", x: 0.19, score: 0.97)],
+                                   [text("x", score: 0.4)], [text("y", score: 0.4)]]
+    let d = VehicleServiceMatcher.decide(track(frames), expected: expected, now: now)
+    check(d.state == .visualCandidate && d.basis == "best_single_frame" && (d.confidence ?? 0) >= 0.6,
+          "best single frame decides, got \(d.state) \(d.basis ?? "-") \(d.confidence ?? 0)")
+    check(d.label.contains("Best reading"), "single-frame decisions are labelled as such")
+    // Two weak frames for the right ride and one clear frame for another service: not accepted.
+    var expected19 = VehicleServiceExpectation(line: "19", destination: "Spiegel, Blinzern")
+    expected19.boardAlternatives = bern
+    let mixed: [[VehicleText]] = [[text("19", x: 0.12, w: 0.05, score: 0.5), text("Blinzern", x: 0.19, score: 0.5)],
+                                  [text("19", x: 0.12, w: 0.05, score: 0.5), text("Blinzern", x: 0.19, score: 0.5)],
+                                  [text("10", x: 0.12, w: 0.05, score: 0.99), text("Ostermundigen Rüti", x: 0.19, score: 0.99)]]
+    let m = VehicleServiceMatcher.decide(track(mixed), expected: expected19, now: now)
+    check(m.state != .visualCandidate, "a confident contradicting frame blocks acceptance, got \(m.state) \(m.reason)")
+}
+
 // MARK: - Geo/AR alignment
 
 struct Rng { var state: UInt64

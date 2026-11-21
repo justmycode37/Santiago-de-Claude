@@ -16,7 +16,7 @@ The directory layout of that snapshot is kept, so the scripts' relative paths st
 | `SOURCE-NOTE.txt` | The note that came with the snapshot. |
 
 The app is built on a Mac with Xcode (see `redesign/apps/ios/README.md`). It is not part of the static site:
-`.vercelignore` excludes this folder. Text files here are kept with LF line endings (`.gitattributes`), because
+the GitHub Pages workflow copies only the site's own files. Text files here are kept with LF line endings (`.gitattributes`), because
 the Xcode project and shell scripts are used on macOS.
 
 Bundled third-party models and their licences are listed in
@@ -48,6 +48,36 @@ accepted the right vehicle and warned "wrong vehicle" for 25–49 % of right veh
   labelled after the code was frozen, right vehicles accepted 0 % → 66 %, false "wrong vehicle" alarms
   49 % → 0 %, wrong vehicles accepted 0 % throughout. Matching costs ~2 ms per frame.
 
+### Confidence-ranked frames and live vehicle evidence (GPS, compass, Kante engine)
+
+- **Per-frame confidence** (`DisplayBoardMatch.confidence` × `DisplayReading.frameQuality`): destination fit ×
+  route-numeral evidence (read / confusable / unread / contradicted) × margin over the next service × the OCR
+  engine's score of the text used × the segmentation quality of the frame (detector score, vehicle size).
+- **Decision** (`VehicleServiceMatcher.boardEvidence`): the three most confident frames of the last 2 s are the
+  evidence. Two of them agreeing is the consensus (the "baseline"). Without a consensus the single most
+  confident frame decides if its confidence is ≥ 0.6 and no other frame reads another service at half its
+  confidence or more; the badge then says "Best reading matches · check the display yourself". Without a
+  departure board the snapshot's strict 3-frame rule is unchanged.
+- **Kante `/api/due`** (`Sensors/VehiclePositionEvidence.swift`): while the journey camera runs (not offline,
+  not simulated) it asks every 15 s what is about to stop at the boarding stop — by stop id, so no position
+  leaves the phone when the stop is known; otherwise lat/lon with 150 m. Due trips join the candidate services
+  (headsign = what the display shows, vias included). Engines without `due` (`/api/meta` → `features`) fall
+  back to `/api/vehicles` positions.
+- **Position likelihood per detected vehicle**: timing (at the stop or due within 60 s → 1, fading to 0.2 at
+  5 min, departed > 20 s ago → 0; timetable-only/stale times count less sharply) × direction (an approaching
+  vehicle must appear on the side it arrives from: the camera's true heading — fused compass + GPS + walked path
+  from `GeoARAlignment`, else the compass — plus the box's angle in the image from the camera intrinsics,
+  compared with the reverse of Kante's `approachBearing`). The likelihood adds at most 0.30 to a service's score:
+  enough to break a tie such as tram 9 vs 20 to Wankdorf when the numeral is unread, never enough to override a
+  readable, different display (a read route number is worth 0.60).
+- **Data check**: live `/api/due` for Bern, Bahnhof (saved in `tools/portable-tests/fixtures/`) listed 23 bus/tram
+  display identities; 20 are spelled exactly as on the transport.opendata.ch board.
+- **Results** (dev / held-out, `tools/display-bench`): right vehicle accepted 41 % → 69 % / 66 % → 77 %; still
+  no false "wrong vehicle" alarm and no wrong vehicle accepted. Of the held-out acceptances 22 of 27 rest on the
+  best single frame. The videos carry no GPS or compass, so position evidence is measured only in simulation
+  (`--positions`, `--positions-degraded` with missing vehicles, decoys at the stop and ±30° compass bias): wrong
+  vehicles flagged 72 % → 79 % (75 % degraded), still no wrong vehicle accepted.
+
 ### AR journey guidance without Apple geographic AR coverage
 
 - `Spatial/GeoARAlignment.swift` estimates the transform between ARKit's world (visual-inertial odometry) and
@@ -65,7 +95,7 @@ accepted the right vehicle and warned "wrong vehicle" for 25–49 % of right veh
 
 | Check | Where | Result |
 | --- | --- | --- |
-| Portable logic (`tools/portable-tests`, 49 checks incl. restated snapshot XCTest assertions) | Swift 6.4.3, Linux (WSL) | pass |
+| Portable logic (`tools/portable-tests`, 63 checks incl. restated snapshot XCTest assertions and live Kante fixtures) | Swift 6.4.3, Linux (WSL) | pass |
 | Swift 6 strict-concurrency type-check of the portable files | same | pass |
 | Recorded-video benchmark, dev + held-out (`tools/display-bench`) | same + Python/ONNX on PC | see its README |
 | Syntax parse of every changed iOS file | swift-frontend `-parse` | pass |
@@ -80,7 +110,7 @@ than the PC stand-in.
 
 ### Next steps worth doing
 
-- Restrict the candidate services to those leaving from the edge the rider stands at (Kante engine
-  `/api/departures` gives per-edge assignments), which shrinks the candidate set and raises margins.
+- Restrict candidates to the boarding edge (`/api/due?quay=`) once the journey resolves the quay id.
+- Validate the camera heading, field of view and `/api/due` timing on the phone at a real stop.
 - Record a few real passes on the iPhone through the existing indoor/replay lab and add them to the benchmark.
 - Feed the walked-path alignment from ARKit plane detection (actual ground height instead of 1.4 m).

@@ -119,3 +119,104 @@ enum VehiclePositionEvidence {
         return result
     }
 }
+
+/// One trip about to stop at the boarding stop, from the Kante engine's `/api/due` (see kante/docs/LIVE-API.md):
+/// what its display shows (line, headsign, vias), which boarding point, whether it is approaching / at the
+/// stop / departed, its live-corrected times, and the direction it arrives in.
+struct KanteDue: Decodable, Equatable {
+    struct Line: Decodable, Equatable { let name: String; let category: String?; let mode: String }
+    struct LiveInfo: Decodable, Equatable { let state: String?; let inaccurate: Bool? }
+    let tripId: String
+    let line: Line
+    let headsign: String
+    let vias: [String]?
+    let quayId: String?
+    let quayLabel: String?
+    let arr: Double?
+    let dep: Double?
+    let cancelled: Bool?
+    /// Direction the vehicle drives in when it arrives (from the stop before), degrees.
+    let approachBearing: Double?
+    /// "approaching", "at-stop" or "departed".
+    let state: String
+    let etaS: Double?
+    let liveInfo: LiveInfo?
+
+    var candidate: DisplayCandidate { DisplayCandidate(line: line.name, destination: headsign, vias: vias ?? []) }
+}
+struct KanteDueResponse: Decodable { let t: Double?; let due: [KanteDue] }
+
+extension KanteVehicleFeed {
+    /// `/api/due` for a stop. The stop id is sent when known (no rider location leaves the phone); otherwise
+    /// the rider's position with a 150 m radius.
+    func dueRequest(station: String?, around point: GeoPoint?, after: Int = 900, before: Int = 120) -> URLRequest? {
+        var components = URLComponents(url: base.appendingPathComponent("api/due"), resolvingAgainstBaseURL: false)!
+        var items = [URLQueryItem(name: "after", value: String(after)), URLQueryItem(name: "before", value: String(before)),
+                     URLQueryItem(name: "limit", value: "40")]
+        if let station { items.append(URLQueryItem(name: "station", value: station)) }
+        else if let point {
+            items += [URLQueryItem(name: "lat", value: String(format: "%.5f", point.latitude)),
+                      URLQueryItem(name: "lon", value: String(format: "%.5f", point.longitude)), URLQueryItem(name: "radius", value: "150")]
+        } else { return nil }
+        components.queryItems = items
+        var request = URLRequest(url: components.url!, timeoutInterval: 8)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+    static func decodeDue(_ data: Data) throws -> [KanteDue] {
+        guard data.count <= 3_000_000 else { throw URLError(.dataLengthExceedsMaximum) }
+        return try JSONDecoder().decode(KanteDueResponse.self, from: data).due.filter { $0.cancelled != true }
+    }
+    /// The engine says which optional parts it has; `due` may be missing on an older deployment.
+    static func supportsDue(_ meta: Data) -> Bool {
+        struct Meta: Decodable { let features: [String]? }
+        return (try? JSONDecoder().decode(Meta.self, from: meta))?.features?.contains("due") == true
+    }
+}
+
+extension VehiclePositionEvidence {
+    /// Display candidates from `/api/due`, one per line + headsign, with vias.
+    static func candidates(from due: [KanteDue]) -> [DisplayCandidate] {
+        var result: [DisplayCandidate] = []
+        for item in due where !item.line.name.isEmpty && !item.headsign.isEmpty {
+            let c = item.candidate
+            if !result.contains(where: { $0.identity == c.identity }) { result.append(c) }
+        }
+        return result
+    }
+
+    /// Likelihood 0…1 per candidate identity that the detected vehicle is that service, from `/api/due`:
+    /// - timing: standing at the stop or due within a minute → 1; later arrivals fade (0.2 at 5 min); a vehicle
+    ///   that left more than 20 s ago does not count. Timetable-only or stale times are flattened (less known).
+    /// - direction: for a vehicle still approaching, the camera should see it on the side it comes from
+    ///   (opposite its arrival bearing). Needs a camera heading and a fix within 30 m.
+    static func dueLikelihoods(for box: CGRect, pose: CameraPose?, due: [KanteDue], candidates: [DisplayCandidate], now: Date) -> [String: Double] {
+        let t = now.timeIntervalSince1970
+        let seen = pose.flatMap { $0.userAccuracy <= 30 ? detectionBearing(box, pose: $0) : nil }
+        var result: [String: Double] = [:]
+        for candidate in candidates {
+            var best = 0.0
+            for item in due where DisplayText.lineKey(item.line.name) == candidate.lineKey
+                && DepartureDisplayMatcher.destinationSimilarity(item.headsign, candidate.destination) >= 0.85 {
+                guard let reference = item.arr ?? item.dep else { continue }
+                if item.state == "departed", (item.dep ?? reference) < t - 20 { continue }
+                let eta = reference - t
+                var timing = eta <= 60 ? 1 : exp(-(eta - 60) / 150)
+                if ["timetable", "stale"].contains(item.liveInfo?.state ?? "timetable") || item.liveInfo?.inaccurate == true {
+                    timing = 0.5 + 0.5 * timing
+                }
+                var aligned = 1.0
+                if let seen, let pose, let approach = item.approachBearing, item.state == "approaching", eta > 8 {
+                    let from = (approach + 180).truncatingRemainder(dividingBy: 360)
+                    let difference = abs(((from - seen) + 540).truncatingRemainder(dividingBy: 360) - 180)
+                    // Roads bend before a stop and the rider is not exactly at it: generous 30° on top of the compass.
+                    let sigma = (pose.headingAccuracy * pose.headingAccuracy + 900).squareRoot()
+                    aligned = 0.4 + 0.6 * exp(-difference * difference / (2 * sigma * sigma))
+                }
+                best = max(best, timing * aligned)
+            }
+            if best > 0.01 { result[candidate.identity] = best }
+        }
+        return result
+    }
+}

@@ -41,7 +41,7 @@ struct DisplayCandidateScore: Equatable {
     var position = 0.0
     /// Position evidence can tip a near-tie (tram 9 vs 20 to the same stop) but is capped below the
     /// display-text terms, so it never outweighs a readable, different display.
-    static let positionWeight = 0.25
+    static let positionWeight = 0.3
     var total: Double {
         let lineTerm: Double
         switch line {

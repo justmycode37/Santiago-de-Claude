@@ -55,6 +55,13 @@ display in short form ("10 Schliern" for "Schliern, Bus-Endstation"). That rule 
 contradiction in two distinct frames. It removed every false alarm at the cost of some correct warnings that
 the old rule had produced by chance (80.5 % → 68.1 %). No strategy ever accepted a wrong vehicle.
 
+**Confidence ranking** (frames ranked by confidence, top three; consensus of two, else the single most
+confident frame if ≥ 0.6): dev 41.4 % → 68.5 % right vehicles accepted, held-out 65.7 % → 77.1 %, wrong
+vehicles flagged 57 % → 69 % / 68 % → 72 %; still 0 % false alarms and 0 % wrong vehicles accepted. The
+thresholds were fixed before the run. `--positions` / `--positions-degraded` add simulated GPS, compass and
+Kante vehicle positions (the videos have none); held-out wrong vehicles flagged 72 % → 79 % / 75 %, no wrong
+vehicle accepted. The basis of every decision is printed at the end of each run.
+
 Per frame on the held-out set, the board matcher names the display correctly in 24 % of frames and wrongly in
 0.9 % (all 8 wrong frames are one pass where a second bus, "19 Blinzern", follows the labelled one). Most other
 frames are honestly unresolved: LED displays blanked by the camera's rolling shutter, side views, adverts.
@@ -71,6 +78,7 @@ rightside/tools/display-bench/run-eval.sh swiftc --why                # per-fram
 rightside/tools/display-bench/run-eval.sh swiftc --wrong              # frames identified as the wrong service
 rightside/tools/display-bench/run-eval.sh swiftc --bench              # matcher cost per frame
 DATA=data-holdout rightside/tools/display-bench/run-eval.sh swiftc    # held-out set
+rightside/tools/display-bench/run-eval.sh swiftc --positions-degraded  # with simulated GPS/compass/Kante positions
 rightside/tools/display-bench/run-baseline.sh swiftc                  # the original snapshot's rules on the same trials
 ```
 

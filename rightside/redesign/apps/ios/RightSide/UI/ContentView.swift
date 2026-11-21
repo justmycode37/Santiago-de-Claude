@@ -285,7 +285,9 @@ struct ContentView: View {
             stop: stop?.name, target: target, targetLabel: label, simulated: simulated,
             boardingStopID: onBoard ? nil : ride?.from.id,
             boardingPointID: eligible ? spatialResolution?.boardingPointID : nil,
-            serviceExpectation: boardingExpectation(eligible: eligible), route: route, routeEnd: routeEnd)
+            serviceExpectation: boardingExpectation(eligible: eligible), route: route, routeEnd: routeEnd,
+            boardingStationID: onBoard ? nil : DepartureBoardStop.place(for: ride?.from).flatMap(DepartureStop.id(for:)),
+            offline: active?.overlays.offline ?? false)
     }
     /// The selected ride plus the other departures listed at its boarding stop, so the camera can tell a
     /// misread of the right display from a different bus or tram, and name the one it sees.

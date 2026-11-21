@@ -13,4 +13,4 @@ out="$(mktemp -d)"
   "$app/Sensors/VehiclePositionEvidence.swift" \
   "$app/Spatial/GeoARAlignment.swift" \
   "$here/main.swift"
-"$out/portable-tests"
+"$out/portable-tests" "$here/fixtures"
