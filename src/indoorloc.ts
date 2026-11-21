@@ -28,19 +28,19 @@
   // The station 3D model (stations3d/<key>.js, format in stations3d/SCHEMA.md, built by tools/build_station3d.py)
   // seen as the filter needs it: the walking graph with each node's floor and height, a spatial index of the edges,
   // and the landmarks a sign can name. Routing stays with station-route.js (window.StationRoute).
-  const KIND = ['walk', 'stairs', 'escalator', 'elevator', 'ramp'];
+  const KIND: StationEdgeKind[] = ['walk', 'stairs', 'escalator', 'elevator', 'ramp'];
   const KIND_ID = { walk: 0, stairs: 1, escalator: 2, elevator: 3, ramp: 4 };
   const F_INDOOR = 1, F_ONEWAY = 2, F_NOT_STEPFREE = 4, F_OUTDOOR = 8;
 
   // closures as in SCHEMA.md: closed when from <= today < until
-  function isClosed(c, today) {
+  function isClosed(c: StationClosure | null | undefined, today?: string | null) {
     if (!c) return false;
     const d = today || new Date().toISOString().slice(0, 10);
     return (!c.from || c.from <= d) && (!c.until || d < c.until);
   }
 
-  function Model(m, opts = {}) {
-    if (!(this instanceof Model)) return new Model(m, opts);
+  function Model(this: IndoorModel, m: StationModel, opts: IndoorModelOptions = {}) {
+    if (!(this instanceof Model)) return new (Model as IndoorLocApi['Model'])(m, opts);
     this.raw = m;
     this.key = m.key; this.name = m.name; this.uics = m.uics || [];
     this.origin = m.origin;
@@ -95,13 +95,13 @@
           for (let gy = Math.floor(y0 / this.cell); gy <= Math.floor(y1 / this.cell); gy++) {
             const k = l + ':' + gx + ':' + gy;
             if (!this.grid.has(k)) this.grid.set(k, []);
-            this.grid.get(k).push(e);
+            this.grid.get(k)!.push(e);
           }
     }
     this.landmarks = landmarksOf(m, this, today);
   }
   // height (m, relative to level 0) of a level number, fractional levels included (piecewise linear, as SCHEMA.md)
-  Model.prototype.zOf = function (level) {
+  (Model.prototype as IndoorModel).zOf = function (level: number) {
     const L = this.levels;
     if (level <= L[0].id) return L[0].h + (level - L[0].id) * 4.5;
     for (let i = 1; i < L.length; i++) {
@@ -111,17 +111,17 @@
     return t.h + (level - t.id) * 4.5;
   };
   // the floor (index into levels) a level number belongs to: the nearest whole level
-  Model.prototype.floorOf = function (level) {
+  (Model.prototype as IndoorModel).floorOf = function (level: number) {
     let best = 0;
     for (let i = 1; i < this.levels.length; i++) if (Math.abs(this.levels[i].id - level) < Math.abs(this.levels[best].id - level)) best = i;
     return best;
   };
-  Model.prototype.levelId = function (li) { return this.levels[li] ? this.levels[li].id : null; };
-  Model.prototype.toLngLat = function (x, y) { return [this.origin[0] + x / this.mx, this.origin[1] + y / this.my]; };
-  Model.prototype.fromLngLat = function (lon, lat) { return [(lon - this.origin[0]) * this.mx, (lat - this.origin[1]) * this.my]; };
-  Model.prototype.kind = function (e) { return KIND[this.ek[e]]; };
+  (Model.prototype as IndoorModel).levelId = function (li: number) { return this.levels[li] ? this.levels[li].id : null; };
+  (Model.prototype as IndoorModel).toLngLat = function (x: number, y: number): LngLat { return [this.origin[0] + x / this.mx, this.origin[1] + y / this.my]; };
+  (Model.prototype as IndoorModel).fromLngLat = function (lon: number, lat: number): XY { return [(lon - this.origin[0]) * this.mx, (lat - this.origin[1]) * this.my]; };
+  (Model.prototype as IndoorModel).kind = function (e: number) { return KIND[this.ek[e]]; };
   // point on edge e at distance s from its a end
-  Model.prototype.at = function (e, s) {
+  (Model.prototype as IndoorModel).at = function (e: number, s: number): IndoorEdgePoint {
     const a = this.ea[e], c = this.eb[e];
     const t = Math.min(1, Math.max(0, s / this.elen[e]));
     const level = this.lv[a] + (this.lv[c] - this.lv[a]) * t;
@@ -131,7 +131,7 @@
     };
   };
   // closest point on edge e to (x, y): { d, s }
-  Model.prototype.project = function (e, x, y) {
+  (Model.prototype as IndoorModel).project = function (e: number, x: number, y: number) {
     const a = this.ea[e], c = this.eb[e];
     const ax = this.x[a], ay = this.y[a], dx = this.x[c] - ax, dy = this.y[c] - ay;
     const L2 = dx * dx + dy * dy;
@@ -139,8 +139,8 @@
     return { d: Math.hypot(ax + dx * t - x, ay + dy * t - y), s: t * this.elen[e] };
   };
   // edges within r metres of (x, y) on floor li (null: every floor) → [{ e, d, s }], nearest first
-  Model.prototype.nearEdges = function (x, y, li, r) {
-    const out = [], seen = new Set();
+  (Model.prototype as IndoorModel).nearEdges = function (x: number, y: number, li: number | null | undefined, r: number) {
+    const out: IndoorEdgeHit[] = [], seen = new Set<number>();
     const lis = li == null ? this.levels.map((_, i) => i) : [li];
     for (const l of lis)
       for (let gx = Math.floor((x - r) / this.cell); gx <= Math.floor((x + r) / this.cell); gx++)
@@ -156,7 +156,7 @@
         }
     return out.sort((p, q) => p.d - q.d);
   };
-  Model.prototype.nearestOnLevel = function (x, y, li, r = 60) {
+  (Model.prototype as IndoorModel).nearestOnLevel = function (x: number, y: number, li: number | null | undefined, r = 60) {
     for (const rr of [5, 15, r]) {
       const list = this.nearEdges(x, y, li, rr).filter((c) => li == null || (this.li[this.ea[c.e]] === li || this.li[this.eb[c.e]] === li));
       if (list.length) return list[0];
@@ -167,10 +167,10 @@
   // What a sign can name, each on its floor: [{ li, x, y, kind, text, extra }]
   //   platform (stop ref) · sector ("7:BC", the letters on a sector sign or a sector centre) · exit (named entrance)
   //   passage (a named floor or plaza: "Main underpass", "Welle") · shop / amenity (named rooms and points of interest)
-  function landmarksOf(m, M, today) {
-    const out = [];
-    const li = (level) => M.floorOf(level);
-    const centre = (ring) => {
+  function landmarksOf(m: StationModel, M: IndoorModel, today: string | null) {
+    const out: IndoorLandmark[] = [];
+    const li = (level: number) => M.floorOf(level);
+    const centre = (ring: XY[]): XY => {
       let a = 0, cx = 0, cy = 0;
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
         const f = ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
@@ -178,7 +178,7 @@
       }
       return a ? [cx / (3 * a), cy / (3 * a)] : ring[0];
     };
-    const stopLevel = new Map();
+    const stopLevel = new Map<string, number>();
     for (const s of m.stops || []) {
       if (isClosed(s.closed, today) || !s.ref) continue;
       out.push({ li: li(s.level), x: s.xy[0], y: s.xy[1], kind: 'platform', text: String(s.ref), extra: s.mode || '', node: s.node });
@@ -212,13 +212,13 @@
 
   // ================================================================================================ Filter
   // A small, seedable random generator, so simulations and replays are repeatable
-  function rng(seed) {
+  function rng(seed: number): IndoorRandom {
     let s = (seed >>> 0) || 0x9e3779b9;
     const next = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
     next.gauss = () => { let u = 0, v = 0; while (u === 0) u = next(); while (v === 0) v = next(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
     return next;
   }
-  const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
+  const angDiff = (a: number, b: number) => ((a - b + 540) % 360) - 180;
   const HPA_TO_M = 8.43 * 1013.25 / 960; // m per hPa near 960 hPa (Swiss lowlands, ~400–550 m)
 
   const DEFAULTS = {
@@ -235,8 +235,40 @@
     resampleEss: 0.5,
   };
 
-  function Filter(model, opts = {}) {
-    if (!(this instanceof Filter)) return new Filter(model, opts);
+  /** The filter with what only this file reads and writes. */
+  interface FilterSelf extends IndoorFilter {
+    o: typeof DEFAULTS & IndoorFilterOptions;
+    rand: IndoorRandom;
+    baro: { z0: number } | null;
+    lastBaro: null;
+    lastBaroZ?: number | null;
+    lastBaroT?: number | null;
+    baroHold?: { until: number; z0: number } | null;
+    baroHist?: { t: number; z: number }[];
+    still: number;
+    listeners: ((est: IndoorEstimate) => void)[];
+    lastEvidence: IndoorEvidence;
+    lastGpsT?: number | null;
+    gpsMiss?: number;
+    wSlow?: number | null;
+    wFast?: number | null;
+    /** Running sum of the edges' lengths. */
+    _cum?: Float64Array;
+    _last?: IndoorEstimateTracking;
+    _emit(): IndoorEstimate;
+    _spawn(i: number, cand: IndoorEdgePlace[] | null): void;
+    _move(i: number, dist: number, heading: number | null, sigma: number, allowVertical?: boolean): number;
+    _time(dt: number): void;
+    _advance(t?: number | null): void;
+    _recover(lik: number): void;
+    _gpsFloor(e: number, p: IndoorEdgePoint, acc: number): number;
+    _inject(cands: IndoorCandidate[], frac: number, w?: number | null): void;
+    _normalise(why: string): void;
+    _resample(): void;
+  }
+
+  function Filter(this: FilterSelf, model: IndoorModel, opts: IndoorFilterOptions = {}) {
+    if (!(this instanceof Filter)) return new (Filter as IndoorLocApi['Filter'])(model, opts);
     this.M = model;
     this.o = Object.assign({}, DEFAULTS, opts);
     this.rand = rng(opts.seed || Date.now());
@@ -259,11 +291,11 @@
     this.lastEvidence = {};
   }
 
-  Filter.prototype.on = function (fn) { this.listeners.push(fn); return this; };
-  Filter.prototype._emit = function () { const est = this.estimate(); for (const f of this.listeners) f(est); return est; };
+  (Filter.prototype as FilterSelf).on = function (fn: (est: IndoorEstimate) => void) { this.listeners.push(fn); return this; };
+  (Filter.prototype as FilterSelf)._emit = function () { const est = this.estimate(); for (const f of this.listeners) f(est); return est; };
 
   // spread particles over edges, weighted by length (optionally near a point / on given levels)
-  Filter.prototype._spawn = function (i, cand) {
+  (Filter.prototype as FilterSelf)._spawn = function (i: number, cand: IndoorEdgePlace[] | null) {
     const R = this.rand;
     let e, s;
     if (cand && cand.length) {
@@ -286,13 +318,13 @@
     this.bo[i] = this.baro && this.lastBaroZ != null ? this.lastBaroZ - this.M.at(e, s).z : 0;
   };
   // Start (or restart) from what is known: { x, y, r, levels: [li] } or nothing (anywhere in the station)
-  Filter.prototype.init = function (where = {}) {
-    let cand = null;
+  (Filter.prototype as FilterSelf).init = function (where: IndoorWhere = {}) {
+    let cand: IndoorEdgePlace[] | null = null;
     if (where.x != null) {
       const r = where.r || 20;
       const lis = where.levels && where.levels.length ? where.levels : null;
       cand = [];
-      for (const li of lis || [null]) cand.push(...this.M.nearEdges(where.x, where.y, li, r));
+      for (const li of lis || [null]) cand.push(...this.M.nearEdges(where.x, where.y!, li, r));
       if (!cand.length) cand = null;
     } else if (where.levels && where.levels.length) {
       const set = new Set(where.levels);
@@ -312,7 +344,7 @@
   // ------------------------------------------------------------------------ motion
   // Move particle i by dist metres along the network, choosing at junctions the way that best fits `heading`
   // (null: no heading, keep as straight as possible). Returns how well the path fit the heading (0…1).
-  Filter.prototype._move = function (i, dist, heading, sigma, allowVertical = true) {
+  (Filter.prototype as FilterSelf)._move = function (i: number, dist: number, heading: number | null, sigma: number, allowVertical = true) {
     const M = this.M, R = this.rand;
     let e = this.e[i], s = this.s[i], d = this.d[i], fit = 1, guard = 0;
     if (M.ek[e] === 3) {
@@ -359,7 +391,7 @@
   };
 
   // Time passes (s seconds): escalators carry particles that are on them, lifts take particles that wait at them
-  Filter.prototype._time = function (dt) {
+  (Filter.prototype as FilterSelf)._time = function (dt: number) {
     if (!(dt > 0)) return;
     const M = this.M, R = this.rand, o = this.o;
     this.still += dt;
@@ -399,7 +431,7 @@
     }
   };
 
-  Filter.prototype._advance = function (t) {
+  (Filter.prototype as FilterSelf)._advance = function (t?: number | null) {
     if (t == null) return;
     if (this.t != null && t > this.t) this._time(Math.min(t - this.t, 30));
     if (this.t == null || t > this.t) this.t = t;
@@ -407,14 +439,14 @@
 
   // ------------------------------------------------------------------------ evidence
   // a step was taken: { t, length?, heading? (deg, walking direction), headingSigma? }
-  Filter.prototype.step = function (ev) {
+  (Filter.prototype as FilterSelf).step = function (ev: IndoorStep) {
     // nothing known yet (no GPS fix, journey or sign): a step alone cannot place you
     if (!this.initialised) return this.estimate();
     this._advance(ev.t);
     this.still = 0;
     const o = this.o, R = this.rand;
     const L = ev.length || o.stepLength;
-    const heading = Number.isFinite(ev.heading) ? ev.heading : null;
+    const heading = Number.isFinite(ev.heading) ? ev.heading! : null;
     const sg = ev.headingSigma || o.headingSigma;
     let lik = 0;
     for (let i = 0; i < this.N; i++) {
@@ -446,7 +478,7 @@
 
   // Augmented MCL: when the particles explain the steps much worse lately than they used to (all of them stuck
   // in a dead end, or the wrong corridor), put some new particles around the estimate. lik = Σ w·likelihood.
-  Filter.prototype._recover = function (lik) {
+  (Filter.prototype as FilterSelf)._recover = function (lik: number) {
     this.wSlow = this.wSlow == null ? lik : this.wSlow + 0.02 * (lik - this.wSlow);
     this.wFast = this.wFast == null ? lik : this.wFast + 0.25 * (lik - this.wFast);
     const p = Math.max(0, 1 - this.wFast / (this.wSlow * 0.9));
@@ -469,17 +501,17 @@
   };
 
   // nothing but time (call every second or so, e.g. while standing on an escalator or in a lift)
-  Filter.prototype.tick = function (t) {
+  (Filter.prototype as FilterSelf).tick = function (t: number) {
     if (!this.initialised) { this.t = t; return this.estimate(); }
     this._advance(t);
     return this._emit();
   };
 
   // relative barometric height: { t, hPa } (or { t, z } in metres). Only relative changes matter.
-  Filter.prototype.pressure = function (ev) {
+  (Filter.prototype as FilterSelf).pressure = function (ev: IndoorPressure) {
     if (!this.initialised) return this.estimate();
     this._advance(ev.t);
-    const z = ev.z != null ? ev.z : -(ev.hPa - 1013.25) * HPA_TO_M;
+    const z = ev.z != null ? ev.z : -(ev.hPa! - 1013.25) * HPA_TO_M;
     const o = this.o, M = this.M;
     // Disturbances: people move vertically at most ~1–1.5 m/s (station lifts ~1 m/s, escalators 0.25 m/s). A
     // faster change of the apparent height (over a few seconds) is air being pushed around: a train entering an
@@ -534,7 +566,7 @@
   // GPS fix: { t, lon, lat, acc }. Indoors GPS is often far off, so its likelihood has heavy tails. A usable fix
   // also says something about the floor: it needs sky, so you are most likely outdoors or near street level, not
   // deep underground or inside an upper floor. That is what anchors the floor (and the barometer) at the entrance.
-  Filter.prototype._gpsFloor = function (e, p, acc) {
+  (Filter.prototype as FilterSelf)._gpsFloor = function (e: number, p: IndoorEdgePoint, acc: number) {
     const M = this.M;
     const outdoor = !(M.ef[e] & F_INDOOR);
     const nearStreet = Math.abs(p.z) < 2.5;
@@ -542,7 +574,7 @@
     if (acc < 50) return outdoor ? 1 : nearStreet ? 0.7 : 0.4;
     return 1;
   };
-  Filter.prototype.gps = function (ev) {
+  (Filter.prototype as FilterSelf).gps = function (ev: IndoorGps) {
     const M = this.M, o = this.o;
     const [x, y] = M.fromLngLat(ev.lon, ev.lat);
     const acc = ev.acc || 30;
@@ -592,7 +624,7 @@
   // What the body did, from the accelerometer (optional; Sensors does not classify these yet, a native wrapper or
   // a future classifier can): { t, kind: 'lift', dir: 'up' | 'down' } a lift started moving; the step event can
   // also carry stairs: true / false (a step on stairs or not).
-  Filter.prototype.motion = function (ev) {
+  (Filter.prototype as FilterSelf).motion = function (ev: IndoorMotion) {
     if (!this.initialised) this.init();
     this._advance(ev.t);
     const M = this.M;
@@ -613,7 +645,7 @@
 
   // Something seen: { t, candidates: [{ x, y, li (or null: any level), sigma, w? }], strength? (0…1) }
   // e.g. "Gleis 32 + Sektor B" → the sector sign's position on level −4. Several candidates = ambiguous sign.
-  Filter.prototype.landmark = function (ev) {
+  (Filter.prototype as FilterSelf).landmark = function (ev: IndoorSighting) {
     if (!this.initialised) this.init();
     this._advance(ev.t);
     const M = this.M;
@@ -646,14 +678,14 @@
   };
 
   // The user (or the journey) says: on this floor, maybe near this spot. { li | level (OSM id), x?, y?, r? }
-  Filter.prototype.prior = function (ev) {
+  (Filter.prototype as FilterSelf).prior = function (ev: IndoorPrior) {
     const li = ev.li != null ? ev.li : (ev.level != null ? this.M.levelIndex.get(ev.level) : null);
-    if (ev.lon != null) [ev.x, ev.y] = this.M.fromLngLat(ev.lon, ev.lat);
+    if (ev.lon != null) [ev.x, ev.y] = this.M.fromLngLat(ev.lon, ev.lat!);
     return this.init({ x: ev.x, y: ev.y, r: ev.r || 40, levels: li == null ? null : [li] });
   };
 
   // The screen was off / the page hidden for dt seconds: anything could have happened nearby
-  Filter.prototype.gap = function (t, dt) {
+  (Filter.prototype as FilterSelf).gap = function (t: number, dt: number) {
     if (!this.initialised) return this.estimate();
     const R = this.rand;
     for (let i = 0; i < this.N; i++) this._move(i, R() * Math.min(dt, 120) * 1.2, null, 60);
@@ -662,7 +694,7 @@
   };
 
   // put n = frac·N particles at the candidates, each with weight w (the caller says what they are worth)
-  Filter.prototype._inject = function (cands, frac, w) {
+  (Filter.prototype as FilterSelf)._inject = function (cands: IndoorCandidate[], frac: number, w?: number | null) {
     const n = Math.floor(this.N * frac);
     const M = this.M;
     for (let j = 0; j < n; j++) {
@@ -675,7 +707,7 @@
     }
   };
 
-  Filter.prototype._normalise = function (why) {
+  (Filter.prototype as FilterSelf)._normalise = function (why: string) {
     let sum = 0;
     for (let i = 0; i < this.N; i++) { if (!(this.w[i] >= 0)) this.w[i] = 0; sum += this.w[i]; } // NaN-safe
     if (!(sum > 1e-300)) {
@@ -691,7 +723,7 @@
     this.ess = ess;
     if (ess < this.N * this.o.resampleEss) this._resample();
   };
-  Filter.prototype._resample = function () {
+  (Filter.prototype as FilterSelf)._resample = function () {
     const N = this.N, R = this.rand;
     const idx = new Int32Array(N);
     let c = this.w[0], j = 0;
@@ -701,7 +733,7 @@
       while (u > c && j < N - 1) { j++; c += this.w[j]; }
       idx[i] = j;
     }
-    const cp = (a) => { const b = a.slice(); for (let i = 0; i < N; i++) a[i] = b[idx[i]]; };
+    const cp = (a: Int32Array | Float64Array | Int8Array) => { const b = a.slice(); for (let i = 0; i < N; i++) a[i] = b[idx[i]]; };
     cp(this.e); cp(this.s); cp(this.d); cp(this.k); cp(this.hb); cp(this.bo); cp(this.ride);
     this.w.fill(1 / N);
     // a little jitter along the edge so copies do not stay identical
@@ -709,11 +741,11 @@
   };
 
   // Where are we? { x, y, lon, lat, li, level, levelProbs: { id: p }, sigma, confident, heading? }
-  Filter.prototype.estimate = function () {
+  (Filter.prototype as FilterSelf).estimate = function (): IndoorEstimate {
     const M = this.M;
     if (!this.initialised) return { state: 'unknown', confident: false };
     const pl = new Float64Array(M.levels.length);
-    const pts = new Array(this.N);
+    const pts = new Array<IndoorEdgePoint>(this.N);
     for (let i = 0; i < this.N; i++) { const p = M.at(this.e[i], this.s[i]); pts[i] = p; pl[p.li] += this.w[i]; }
     let li = 0;
     for (let j = 1; j < pl.length; j++) if (pl[j] > pl[li]) li = j;
@@ -727,10 +759,10 @@
     // snap the shown point to the network on that floor (a mean of two corridors may lie inside a wall)
     const snap = M.nearestOnLevel(x, y, li, 40);
     const sp = snap ? M.at(snap.e, snap.s) : { x, y };
-    const levelProbs = {};
+    const levelProbs: Record<number, number> = {};
     M.levels.forEach((l, j) => { if (pl[j] > 0.005) levelProbs[l.id] = +pl[j].toFixed(3); });
     const [lon, lat] = M.toLngLat(sp.x, sp.y);
-    const est = {
+    const est: IndoorEstimateTracking = {
       state: 'tracking', x: sp.x, y: sp.y, lon, lat, li, level: M.levels[li].id, levelProb: pl[li], levelProbs,
       sigma, confident: pl[li] > 0.8 && sigma < 15, z: M.levels[li].h, t: this.t, evidence: Object.assign({}, this.lastEvidence),
     };
@@ -738,8 +770,8 @@
     return est;
   };
   // particles for drawing: [x, y, li, w]
-  Filter.prototype.cloud = function (max = 400) {
-    const out = [];
+  (Filter.prototype as FilterSelf).cloud = function (max = 400) {
+    const out: IndoorParticle[] = [];
     const step = Math.max(1, Math.floor(this.N / max));
     for (let i = 0; i < this.N; i += step) { const p = this.M.at(this.e[i], this.s[i]); out.push([p.x, p.y, p.li, this.w[i] * this.N]); }
     return out;
@@ -749,8 +781,62 @@
   // Attaches to the phone's sensors and feeds a Filter. Everything is optional and detected:
   //   sensors.start() must be called from a tap (iOS asks for motion + orientation permission then).
   // Emits raw events to `onRaw` (for the Recorder) before they are interpreted.
-  function Sensors(filter, opts = {}) {
-    if (!(this instanceof Sensors)) return new Sensors(filter, opts);
+  /** The motion and orientation events' constructors: on iOS, access must be asked for. */
+  type AskPermission = (typeof DeviceMotionEvent | typeof DeviceOrientationEvent) & { requestPermission?: () => Promise<string> };
+  /** A Capacitor barometer plugin (in the native wrapper), as far as it is used. */
+  interface BaroPlugin {
+    addListener?(name: 'measurement', fn: (d: { pressure?: number | null; hPa?: number }) => void): Promise<BaroHandle> | BaroHandle;
+    startMeasurementUpdates?(): Promise<unknown> | void;
+    stopMeasurementUpdates?(): unknown;
+  }
+  interface BaroHandle { remove?(): unknown }
+  interface CapacitorPlugins { Barometer?: BaroPlugin; CapacitorBarometer?: BaroPlugin }
+  type SensorsWindow = Window & typeof globalThis & { Capacitor?: { Plugins?: CapacitorPlugins } };
+  /** Safari gives the compass bearing itself. */
+  type CompassEvent = DeviceOrientationEvent & { webkitCompassHeading?: number | null; webkitCompassAccuracy?: number | null };
+  interface SensorHandlers {
+    motion?: (e: DeviceMotionEvent) => void;
+    orient?: (e: DeviceOrientationEvent) => void;
+    press?: (e: CustomEvent<IndoorPressureDetail>) => void;
+    vis?: () => void;
+  }
+  /** The sensors with what only this file reads and writes. */
+  interface SensorsSelf extends IndoorSensors {
+    f: IndoorFilter;
+    opts: IndoorSensorsOptions;
+    onRaw: NonNullable<IndoorSensorsOptions['onRaw']> | null;
+    compass: number | null;
+    compassAcc: number | null | undefined;
+    gyroSign: number;
+    signVotes: number;
+    grav: number[];
+    acc: number[];
+    lastStep: number;
+    peak: { max: number; min: number; rising: boolean } | null;
+    handHeld: boolean;
+    hiddenAt: number | null;
+    _h: SensorHandlers;
+    stopped?: boolean;
+    _geo?: number;
+    _tick?: number;
+    _baro?: BaroPlugin;
+    _baroHandle?: BaroHandle;
+    _gyroSince?: number;
+    _orientAt?: number;
+    _gravInit?: boolean;
+    _rawN?: number;
+    _pb?: number[];
+    _raw<K extends IndoorLogType>(type: K, data: IndoorLogData[K]): void;
+    _visibility(): void;
+    _orient(e: CompassEvent): void;
+    _motion(e: DeviceMotionEvent): void;
+    _detectStep(av: number, t: number): void;
+    _gps(p: GeolocationPosition): void;
+    _pressure(hPa: number, t?: number): void;
+  }
+
+  function Sensors(this: SensorsSelf, filter: IndoorFilter, opts: IndoorSensorsOptions = {}) {
+    if (!(this instanceof Sensors)) return new (Sensors as IndoorLocApi['Sensors'])(filter, opts);
     this.f = filter;
     this.opts = opts;
     this.onRaw = opts.onRaw || null;
@@ -769,11 +855,11 @@
   }
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 
-  Sensors.prototype.start = async function () {
-    const W = typeof window !== 'undefined' ? window : null;
+  (Sensors.prototype as SensorsSelf).start = async function () {
+    const W: SensorsWindow | null = typeof window !== 'undefined' ? window : null;
     if (!W) return this.state;
     // iOS 13+: both permissions must be asked from the same tap
-    const ask = async (C) => {
+    const ask = async (C: AskPermission | undefined) => {
       if (C && typeof C.requestPermission === 'function') {
         try { return (await C.requestPermission()) === 'granted'; } catch (e) { return false; }
       }
@@ -803,7 +889,7 @@
         if (baro.startMeasurementUpdates) await baro.startMeasurementUpdates();
         if (this.stopped) { if (baro.stopMeasurementUpdates) baro.stopMeasurementUpdates(); return this.state; }
         this._baro = baro;
-        this._baroHandle = await baro.addListener('measurement', (d) => this._pressure(d.pressure != null ? d.pressure : d.hPa));
+        this._baroHandle = await baro.addListener('measurement', (d) => this._pressure(d.pressure != null ? d.pressure : d.hPa!));
         if (this.stopped) { this.stop(); return this.state; }
         this.state.pressure = 'on';
       } catch (e) { this.state.pressure = 'error'; }
@@ -813,7 +899,7 @@
     this._tick = setInterval(() => { this._raw('tick', {}); this.f.tick(now()); }, 1000);
     return this.state;
   };
-  Sensors.prototype.stop = function () {
+  (Sensors.prototype as SensorsSelf).stop = function () {
     const W = window;
     this.stopped = true;
     if (this._baroHandle && this._baroHandle.remove) { try { this._baroHandle.remove(); } catch (e) {} }
@@ -826,9 +912,9 @@
     clearInterval(this._tick);
     this._h = {};
   };
-  Sensors.prototype._raw = function (type, data) { if (this.onRaw) this.onRaw(type, Object.assign({ t: now() }, data)); };
+  (Sensors.prototype as SensorsSelf)._raw = function <K extends IndoorLogType>(type: K, data: IndoorLogData[K]) { if (this.onRaw) this.onRaw(type, Object.assign({ t: now() }, data)); };
 
-  Sensors.prototype._visibility = function () {
+  (Sensors.prototype as SensorsSelf)._visibility = function () {
     if (document.hidden) { this.hiddenAt = now(); this._raw('hidden', {}); return; }
     if (this.hiddenAt != null) {
       const dt = now() - this.hiddenAt;
@@ -838,7 +924,7 @@
     }
   };
 
-  Sensors.prototype._orient = function (e) {
+  (Sensors.prototype as SensorsSelf)._orient = function (e: CompassEvent) {
     let h = null, acc = null;
     if (e.webkitCompassHeading != null) {
       acc = e.webkitCompassAccuracy;
@@ -857,7 +943,7 @@
     }
     if (this.compass == null || Math.abs(angDiff(h, this.compass)) > 8) { this.compass = h; this._gyroSince = 0; }
     this.compassAcc = acc;
-    if (this.heading == null || !this.gyroSign) { this.heading = h; this.headingSigma = acc > 0 ? Math.max(20, acc) : 30; return; }
+    if (this.heading == null || !this.gyroSign) { this.heading = h; this.headingSigma = acc! > 0 ? Math.max(20, acc!) : 30; return; }
     // complementary filter: the gyro carries the heading, the compass pulls it slowly (iron and trains bend it).
     // The pull is per second, not per event (events come at 20–100 Hz): time constant ~20 s.
     const tn = now(), dt = this._orientAt ? Math.min(1, Math.max(0, tn - this._orientAt)) : 0.02;
@@ -869,23 +955,23 @@
     this.headingSigma = Math.min(45, Math.max(15, this.headingSigma * (1 - kk) + kk * Math.abs(angDiff(h, this.heading))));
   };
 
-  Sensors.prototype._motion = function (e) {
+  (Sensors.prototype as SensorsSelf)._motion = function (e: DeviceMotionEvent) {
     const g = e.accelerationIncludingGravity, rr = e.rotationRate;
     const dt = (e.interval > 1 ? e.interval / 1000 : e.interval) || 0.016;
     if (!g || g.x == null) return;
     // gravity by low-pass (time constant 1 s, whatever the event rate); vertical acceleration = projection onto it.
     // Seeded from the first sample (iOS and Android disagree about its sign)
-    if (!this._gravInit) { this.grav = [g.x, g.y, g.z]; this._gravInit = true; }
+    if (!this._gravInit) { this.grav = [g.x, g.y!, g.z!]; this._gravInit = true; }
     const a = dt / (1 + dt);
-    this.grav = [this.grav[0] + a * (g.x - this.grav[0]), this.grav[1] + a * (g.y - this.grav[1]), this.grav[2] + a * (g.z - this.grav[2])];
+    this.grav = [this.grav[0] + a * (g.x - this.grav[0]), this.grav[1] + a * (g.y! - this.grav[1]), this.grav[2] + a * (g.z! - this.grav[2])];
     const gn = Math.hypot(...this.grav) || 9.81;
     const u = this.grav.map((v) => v / gn);
-    const av = g.x * u[0] + g.y * u[1] + g.z * u[2] - gn;
+    const av = g.x * u[0] + g.y! * u[1] + g.z! * u[2] - gn;
     if (this.onRaw && (this._rawN = (this._rawN || 0) + 1) % 2 === 0)
       this._raw('imu', { av: +av.toFixed(3), r: rr ? [+(rr.alpha || 0).toFixed(2), +(rr.beta || 0).toFixed(2), +(rr.gamma || 0).toFixed(2)] : null, u: u.map((v) => +v.toFixed(3)) });
     // yaw rate around the vertical (deg/s): rotationRate alpha/beta/gamma are about the device z/x/y axes
     if (rr && rr.alpha != null) {
-      const yaw = -(rr.beta * u[0] + rr.gamma * u[1] + rr.alpha * u[2]);
+      const yaw = -(rr.beta! * u[0] + rr.gamma! * u[1] + rr.alpha * u[2]);
       this._gyroSince = (this._gyroSince || 0) + yaw * dt;
       if (this.heading != null && this.gyroSign) this.heading = (this.heading + this.gyroSign * yaw * dt + 360) % 360;
     }
@@ -893,7 +979,7 @@
   };
 
   // Steps: peaks of vertical acceleration (> 1.2 m/s², 0.3–2 s apart); length from the swing (Weinberg)
-  Sensors.prototype._detectStep = function (av, t) {
+  (Sensors.prototype as SensorsSelf)._detectStep = function (av: number, t: number) {
     const buf = this.acc;
     buf.push(av);
     if (buf.length > 5) buf.shift();
@@ -916,12 +1002,12 @@
     }
   };
 
-  Sensors.prototype._gps = function (p) {
+  (Sensors.prototype as SensorsSelf)._gps = function (p: GeolocationPosition) {
     const c = p.coords;
     this._raw('gps', { lon: c.longitude, lat: c.latitude, acc: c.accuracy, alt: c.altitude, altAcc: c.altitudeAccuracy });
     this.f.gps({ t: now(), lon: c.longitude, lat: c.latitude, acc: c.accuracy });
   };
-  Sensors.prototype._pressure = function (hPa, t) {
+  (Sensors.prototype as SensorsSelf)._pressure = function (hPa: number, t?: number) {
     if (!(hPa > 500)) return;
     this.state.pressure = 'on';
     this._raw('pressure', { hPa });
@@ -935,11 +1021,11 @@
   // compass heading (deg, clockwise from north) from W3C deviceorientation angles (z-x'-y'' intrinsic, absolute alpha).
   // Walking with the phone in hand, the top edge points where you go: its horizontal direction is used while the
   // phone is flat or tilted towards you; held upright, the back (camera) direction. Null when neither is defined.
-  function compassFromEuler(alpha, beta, gamma) {
+  function compassFromEuler(alpha: number | null, beta: number | null, gamma: number | null) {
     if (![alpha, beta, gamma].every(Number.isFinite)) return null;
     const r = Math.PI / 180;
-    const cA = Math.cos(alpha * r), sA = Math.sin(alpha * r), cB = Math.cos(beta * r), sB = Math.sin(beta * r);
-    const cG = Math.cos(gamma * r), sG = Math.sin(gamma * r);
+    const cA = Math.cos(alpha! * r), sA = Math.sin(alpha! * r), cB = Math.cos(beta! * r), sB = Math.sin(beta! * r);
+    const cG = Math.cos(gamma! * r), sG = Math.sin(gamma! * r);
     // device +y (top edge) in east/north: R·(0,1,0) = (−sinα·cosβ, cosα·cosβ, sinβ)
     let e = -sA * cB, n = cA * cB;
     // only while the phone tilts towards you (cos β > 0.4): past upright the top edge points back at you
@@ -953,26 +1039,30 @@
 
   // ================================================================================================ Recorder
   // { meta, events: [[t, type, data]], checkpoints } → JSON. Replay feeds the same events through a new Filter.
-  function Recorder(meta = {}) {
-    if (!(this instanceof Recorder)) return new Recorder(meta);
+  interface RecorderSelf extends IndoorRecorder {
+    /** The time of the first event. */
+    t0: number | null;
+  }
+  function Recorder(this: RecorderSelf, meta: IndoorLogMeta = {}) {
+    if (!(this instanceof Recorder)) return new (Recorder as IndoorLocApi['Recorder'])(meta);
     this.meta = Object.assign({ v: 1, ua: typeof navigator !== 'undefined' ? navigator.userAgent : 'node', start: new Date().toISOString() }, meta);
     this.events = [];
     this.t0 = null;
   }
-  Recorder.prototype.add = function (type, data) {
+  (Recorder.prototype as RecorderSelf).add = function <K extends IndoorLogType>(type: K, data: IndoorRaw<K>) {
     const t = data.t != null ? data.t : now();
     if (this.t0 == null) this.t0 = t;
     const d = Object.assign({}, data); delete d.t;
-    this.events.push([+(t - this.t0).toFixed(3), type, d]);
+    this.events.push([+(t - this.t0).toFixed(3), type, d] as IndoorLogEvent);
   };
   // "I am here": ground truth for evaluation (tapped on the map, or a known place such as "bottom of escalator")
-  Recorder.prototype.checkpoint = function (where) { this.add('checkpoint', where); };
-  Recorder.prototype.toJSON = function () { return { meta: this.meta, events: this.events }; };
+  (Recorder.prototype as RecorderSelf).checkpoint = function (where: IndoorRaw<'checkpoint'>) { this.add('checkpoint', where); };
+  (Recorder.prototype as RecorderSelf).toJSON = function (): IndoorLog { return { meta: this.meta, events: this.events }; };
 
   // Replay a recording through a filter → { estimates: [[t, est]], errors: [{ t, d, levelOk }] at checkpoints }
-  function replay(log, model, opts = {}) {
-    const f = new Filter(model, Object.assign({ seed: 1 }, opts));
-    const out = { estimates: [], checkpoints: [] };
+  function replay(log: IndoorLog, model: IndoorModel, opts: IndoorReplayOptions = {}) {
+    const f = new (Filter as IndoorLocApi['Filter'])(model, Object.assign({ seed: 1 }, opts));
+    const out: IndoorReplayResult = { estimates: [], checkpoints: [] };
     const prior = opts.prior || (log.meta && log.meta.prior);
     if (prior) f.prior(prior);
     for (const [t, type, d] of log.events) {
@@ -990,8 +1080,8 @@
         const e = f.estimate();
         const li = d.level != null ? model.levelIndex.get(d.level) : d.li;
         let x = d.x, y = d.y;
-        if (d.lon != null) [x, y] = model.fromLngLat(d.lon, d.lat);
-        out.checkpoints.push({ t, d: e.state === 'tracking' ? Math.hypot(e.x - x, e.y - y) : null, levelOk: e.li === li, prob: e.levelProbs ? (e.levelProbs[model.levelId(li)] || 0) : 0, est: e });
+        if (d.lon != null) [x, y] = model.fromLngLat(d.lon, d.lat!);
+        out.checkpoints.push({ t, d: e.state === 'tracking' ? Math.hypot(e.x - x!, e.y - y!) : null, levelOk: e.li === li, prob: e.levelProbs ? (e.levelProbs[model.levelId(li!)!] || 0) : 0, est: e });
       }
       if (est && opts.every) out.estimates.push([t, est]);
     }
@@ -1001,9 +1091,9 @@
   // ================================================================================================ loading
   // The model of a station: through Station3D.loadData when the viewer is on the page (it loads the file once for
   // both), else straight from stations3d/<key>.js. → Promise<Model | null>
-  function load(key, base = 'stations3d/') {
+  function load(key: string, base = 'stations3d/'): Promise<IndoorModel | null> {
     const W = typeof window !== 'undefined' ? window : root;
-    const make = (m) => (m ? new Model(m) : null);
+    const make = (m: StationModel | null | undefined) => (m ? new (Model as IndoorLocApi['Model'])(m) : null);
     if (W.STATION3D && W.STATION3D[key]) return Promise.resolve(make(W.STATION3D[key]));
     if (W.Station3D && W.Station3D.loadData) return W.Station3D.loadData(key).then(make);
     return new Promise((resolve) => {
@@ -1017,8 +1107,8 @@
 
   root.INDOORLOC = {
     Model, Filter, Sensors, Recorder, replay, load, isClosed, compassFromEuler, rng, KIND,
-    pushPressure: (hPa) => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('indoorloc:pressure', { detail: { hPa } })),
+    pushPressure: (hPa: number) => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('indoorloc:pressure', { detail: { hPa } })),
     flags: { F_INDOOR, F_ONEWAY, F_NOT_STEPFREE, F_OUTDOOR },
-  };
+  } as IndoorLocApi;
   if (typeof module !== 'undefined' && module.exports) module.exports = root.INDOORLOC;
 })(typeof window !== 'undefined' ? window : globalThis);

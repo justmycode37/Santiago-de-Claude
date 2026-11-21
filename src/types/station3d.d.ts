@@ -70,6 +70,9 @@ interface Station3DUser {
   accuracy?: number;
   /** Compass bearing in degrees. */
   heading?: number | null;
+  /** What the indoor position thinks of every floor, and of `level` (indoornav.js). The station view shows it; station3d.js ignores it. */
+  levelProbs?: Record<string, number>;
+  levelProb?: number;
   /** The floor comes from an indoor position that is sure of it (indoornav.js): it beats the floor of the route snap. */
   levelSure?: boolean;
   /** When the GPS fix was taken (ms since 1970): a remembered fix older than a minute is not shown at the next opening. */

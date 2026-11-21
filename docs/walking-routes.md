@@ -65,7 +65,7 @@ same address, the point snapped onto the outline is a median 0.8 m (Bern), 0.9 m
 | Geneva | 81 | 10.2 MB (3.7 MB) | 530 | 44,800 |
 | Lausanne | 62 | 6.9 MB (2.5 MB) | 820 | 28,200 |
 
-`tools/test_walkroute.mjs` checks the built tiles (doors reached, no building or track crossings, platform changes).
+`tools/test_walkroute.mts` checks the built tiles (doors reached, no building or track crossings, platform changes).
 `tools/walk-eval/` measures any built city the same way (results in its README).
 
 ## Aerial photo (prototype)
