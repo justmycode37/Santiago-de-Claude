@@ -17,9 +17,9 @@
 (function (root) {
   'use strict';
 
-  const norm = (s) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const norm = (s: string | null | undefined) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
     .replace(/[|]/g, 'l').replace(/[^a-z0-9→←↑↓\-–/ ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  function lev(a, b) {
+  function lev(a: string, b: string) {
     if (a === b) return 0;
     let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
     for (let i = 1; i <= a.length; i++) {
@@ -29,15 +29,15 @@
     }
     return prev[b.length];
   }
-  const ratio = (a, b) => 1 - lev(a, b) / Math.max(a.length, b.length, 1);
+  const ratio = (a: string, b: string) => 1 - lev(a, b) / Math.max(a.length, b.length, 1);
   // does the (OCR'd) text contain this name, allowing a few misread letters?
-  function contains(text, name) {
+  function contains(text: string, name: string) {
     // "Bahnhofplatz (main hall)": the sign says "Bahnhofplatz"
     const bare = String(name || '').replace(/\s*\([^)]*\)\s*/g, ' ').trim();
     if (bare && bare !== name) return Math.max(contains1(text, name), contains1(text, bare));
     return contains1(text, name);
   }
-  function contains1(text, name) {
+  function contains1(text: string, name: string) {
     const t = ' ' + text + ' ', n = norm(name);
     if (!n || n.length < 3) return 0;
     if (t.includes(' ' + n + ' ')) return 1;
@@ -54,10 +54,10 @@
   const ARROWS = /[→←↑↓]|->|<-/;
 
   // What does the sign say? → { platforms: [..], ranges: [[a, b]], sectors: [..], exit: bool, arrows: bool, words }
-  function parse(text) {
+  function parse(text: string) {
     const t = norm(text);
     const words = t.split(' ').filter(Boolean);
-    const out = { text: t, words, platforms: [], ranges: [], sectors: [], exit: false, arrows: ARROWS.test(text), platformWord: false };
+    const out: SignLocParse = { text: t, words, platforms: [], ranges: [], sectors: [], exit: false, arrows: ARROWS.test(text), platformWord: false };
     for (let i = 0; i < words.length; i++) {
       const w = words[i];
       if (PLATFORM_WORDS.includes(w)) {
@@ -97,16 +97,29 @@
   }
 
   // Station lookups, built once per model
-  function index(M) {
+  /** A sector sign (or a sector's centre): the platform's ref and the letters on it. */
+  interface SignSector { ref: string; letters: string; li: number; x: number; y: number }
+  interface SignIndex {
+    /** Platform ref → its stops. */
+    plat: Map<string, IndoorLandmark[]>;
+    sectors: SignSector[];
+    /** Everything else that has a name. */
+    named: IndoorLandmark[];
+    /** Normalised name → how many places have it. */
+    count: Map<string, number>;
+  }
+  /** The model, with the lookups kept on it. */
+  type SignModel = IndoorModel & { _signIndex?: SignIndex };
+  function index(M: SignModel) {
     if (M._signIndex) return M._signIndex;
-    const plat = new Map(), sectors = [], named = [];
+    const plat = new Map<string, IndoorLandmark[]>(), sectors: SignSector[] = [], named: IndoorLandmark[] = [];
     for (const l of M.landmarks) {
-      if (l.kind === 'platform') { if (!plat.has(l.text)) plat.set(l.text, []); plat.get(l.text).push(l); }
+      if (l.kind === 'platform') { if (!plat.has(l.text)) plat.set(l.text, []); plat.get(l.text)!.push(l); }
       else if (l.kind === 'sector') { const [ref, letters] = String(l.text).split(':'); sectors.push({ ref, letters: letters || '', li: l.li, x: l.x, y: l.y }); }
       else if (l.text) named.push(l);
     }
     // how many times each name occurs (a chain is ambiguous)
-    const count = new Map(), groups = new Set();
+    const count = new Map<string, number>(), groups = new Set<string>();
     for (const l of named) {
       const k = norm(l.text);
       if (l.group) { if (groups.has(l.group)) continue; groups.add(l.group); }   // one place with several points
@@ -116,10 +129,10 @@
   }
 
   // The concourse ends of the stairs / escalators / lifts that lead to a platform: where signs to it hang
-  function accessesTo(M, ref) {
+  function accessesTo(M: IndoorModel, ref: string) {
     const I = index(M);
     const ps = I.plat.get(ref) || [];
-    const out = [];
+    const out: IndoorCandidate[] = [];
     for (const p of ps) {
       const near = M.nearEdges(p.x, p.y, p.li, 160);
       for (const c of near) {
@@ -137,11 +150,11 @@
 
   // Match a sign → { observations: [{ kind, candidates, strength, label }], candidates, strength, explain, parsed }
   // opts.departures: live departures at this station [{ platform, line, to }], to read departure boards
-  function match(text, M, opts = {}) {
+  function match(text: string | SignLocParse, M: IndoorModel, opts: SignLocOptions = {}): SignLocMatch {
     const P = typeof text === 'string' ? parse(text) : text;
     const I = index(M);
-    const obs = [];
-    const known = (r) => I.plat.has(String(r));
+    const obs: SignLocObservation[] = [];
+    const known = (r: string | number) => I.plat.has(String(r));
     // 1. platform sign or direction sign
     const listed = P.platforms.filter(known);
     for (const [a, b] of P.ranges) for (let r = a; r <= b; r++) if (known(r) && !listed.includes(String(r))) listed.push(String(r));
@@ -150,23 +163,23 @@
       // on the platform: at its sector signs (matching letters if read), else anywhere along it. "Voies 7/8" names
       // the two edges of one island platform, or the platforms a sign leads to: one observation with both as
       // alternatives, weaker than a single number
-      const cands = [];
+      const cands: IndoorCandidate[] = [];
       for (const ref of listed) {
         let c = I.sectors.filter((s) => s.ref === ref && (!P.sectors.length || P.sectors.some((l) => s.letters.includes(l))))
           .map((s) => ({ x: s.x, y: s.y, li: s.li, sigma: P.sectors.length ? 15 : 35, w: 1, label: `platform ${ref}${s.letters ? ' sector ' + s.letters : ''}` }));
-        if (!c.length) c = I.plat.get(ref).map((p) => ({ x: p.x, y: p.y, li: p.li, sigma: 40, w: 1, label: `platform ${ref}` }));
+        if (!c.length) c = I.plat.get(ref)!.map((p) => ({ x: p.x, y: p.y, li: p.li, sigma: 40, w: 1, label: `platform ${ref}` }));
         cands.push(...c);
       }
       const one = listed.length === 1;
       obs.push({ kind: 'platform', label: `On platform ${listed.join(' or ')}${P.sectors.length ? ', sector ' + P.sectors.join('') : ''}`,
         candidates: cands, strength: (P.sectors.length ? 0.9 : 0.75) * (one ? 1 : 0.7) });
     } else if (listed.length) {
-      const cands = [];
+      const cands: IndoorCandidate[] = [];
       for (const ref of listed) cands.push(...accessesTo(M, ref));
       if (cands.length) obs.push({ kind: 'direction', label: `Sign to platform${listed.length > 1 ? 's' : ''} ${compact(listed)}: near the way there`, candidates: thin(cands, 40), strength: 0.35 });
     }
     // 2. named places: exits, passages, shops, services (longest names first, each name once)
-    const seen = new Set();
+    const seen = new Set<string>();
     const named = I.named.slice().sort((a, b) => String(b.text).length - String(a.text).length);
     for (const l of named) {
       const k = norm(l.text);
@@ -189,7 +202,7 @@
       if (!d.platform || !known(d.platform) || !d.to) continue;
       const line = norm(d.line || '');
       if (contains(P.text, d.to) && (!line || P.words.includes(line) || P.text.includes(line))) {
-        obs.push({ kind: 'board', label: `Departure board: ${d.line || ''} to ${d.to} → platform ${d.platform}`, candidates: I.plat.get(String(d.platform)).map((p) => ({ x: p.x, y: p.y, li: p.li, sigma: 45, w: 1 })), strength: 0.5 });
+        obs.push({ kind: 'board', label: `Departure board: ${d.line || ''} to ${d.to} → platform ${d.platform}`, candidates: I.plat.get(String(d.platform))!.map((p) => ({ x: p.x, y: p.y, li: p.li, sigma: 45, w: 1 })), strength: 0.5 });
         break;
       }
     }
@@ -203,16 +216,16 @@
   }
 
   // Feed every observation of a match into an indoor Filter
-  function apply(filter, result, t) {
+  function apply(filter: IndoorFilter, result: SignLocMatch, t: number) {
     let est = null;
     for (const o of result.observations) est = filter.landmark({ t, candidates: o.candidates, strength: o.strength });
     return est;
   }
 
-  const compact = (refs) => refs.length > 3 ? `${refs[0]}–${refs[refs.length - 1]}` : refs.join(', ');
+  const compact = (refs: string[]) => refs.length > 3 ? `${refs[0]}–${refs[refs.length - 1]}` : refs.join(', ');
   // drop candidates closer than d metres to one already kept (same floor)
-  function thin(cands, d) {
-    const out = [];
+  function thin(cands: IndoorCandidate[], d: number) {
+    const out: IndoorCandidate[] = [];
     for (const c of cands) if (!out.some((o) => o.li === c.li && Math.hypot(o.x - c.x, o.y - c.y) < d)) out.push(c);
     return out;
   }

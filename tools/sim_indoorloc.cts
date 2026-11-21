@@ -16,15 +16,15 @@
 //   node tools/sim_indoorloc.cts --check               regression test: exit 1 if a scenario got worse
 //   node tools/sim_indoorloc.cts --replay recording.json [--key bern]
 'use strict';
-const path = require('path');
-const fs = require('fs');
+const path = require('path') as typeof import('path');
+const fs = require('fs') as typeof import('fs');
 const ROOT = path.join(__dirname, '..');
-const I = require(path.join(ROOT, 'src', 'indoorloc.ts'));
-const S = require(path.join(ROOT, 'src', 'signloc.ts'));
+const I = require(path.join(ROOT, 'src', 'indoorloc.ts')) as IndoorLocApi;
+const S = require(path.join(ROOT, 'src', 'signloc.ts')) as SignLocApi;
 
 const args = process.argv.slice(2);
-const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-const flag = (k) => args.includes('--' + k);
+const arg = <D = undefined,>(k: string, d?: D): string | D => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d as D; };
+const flag = (k: string) => args.includes('--' + k);
 const KEY = arg('key', 'bern');
 const SEEDS = +arg('seeds', 8);
 const ONLY = arg('only', null);
@@ -33,13 +33,13 @@ const TRACE = flag('trace');
 
 globalThis.window = globalThis;
 require(path.join(ROOT, 'stations3d', KEY + '.js'));
-const RAW = globalThis.STATION3D[KEY];
-const SR = require(path.join(ROOT, 'src', 'station-route.ts'));   // TypeScript since #16: Node runs it as is
+const RAW = globalThis.STATION3D![KEY];
+const SR = require(path.join(ROOT, 'src', 'station-route.ts')) as StationRouteApi;   // TypeScript since #16: Node runs it as is
 const M = new I.Model(RAW);
 
 // ------------------------------------------------------------------------------------------- replay a recording
 if (arg('replay')) {
-  const log = JSON.parse(fs.readFileSync(arg('replay'), 'utf8'));
+  const log: IndoorLog = JSON.parse(fs.readFileSync(arg('replay')!, 'utf8'));
   const r = I.replay(log, M, { every: true });
   console.log(`${log.events.length} events, ${r.checkpoints.length} checkpoints`);
   for (const c of r.checkpoints) console.log(`  t=${c.t.toFixed(0)}s  floor ${c.levelOk ? 'right' : 'WRONG'} (p=${c.prob.toFixed(2)})  error ${c.d == null ? '—' : c.d.toFixed(1) + ' m'}`);
@@ -48,15 +48,20 @@ if (arg('replay')) {
 
 // ------------------------------------------------------------------------------------------- ground truth walks
 const uic = RAW.uics[0];
-const P = (ref) => ({ stop: { uic, ref } });
-const E = (name) => ({ entrance: name });
+const P = (ref: string) => ({ stop: { uic, ref } });
+const E = (name: string) => ({ entrance: name });
 
 // a route of station-route.js → a timeline of positions: [{ t, x, y, z, li, mode: 'walk'|'stairs'|'escalator'|'lift'|'wait' }]
-function timeline(route, o) {
-  const out = [];
+type SimWalkMode = 'walk' | 'stairs' | 'escalator' | 'lift' | 'wait';
+/** A moment of a walk: where the person really is. (_prev: read by --trace, never set.) */
+interface SimWalkPoint { t: number; x: number; y: number; z: number; li: number; mode: SimWalkMode; _prev?: number }
+/** How the person takes a route. inLift: timeline()'s own note between two lift edges. */
+interface SimWalkOptions { liftWait: number; walkEscalator?: boolean; stress?: boolean; inLift?: boolean }
+function timeline(route: StationRouteResult, o: SimWalkOptions) {
+  const out: SimWalkPoint[] = [];
   const pts = route.points, eidx = route.edges || [];
   let t = 0;
-  const push = (x, y, level, mode) => out.push({ t: +t.toFixed(2), x, y, z: M.zOf(level), li: M.floorOf(level), mode });
+  const push = (x: number, y: number, level: number, mode: SimWalkMode) => out.push({ t: +t.toFixed(2), x, y, z: M.zOf(level), li: M.floorOf(level), mode });
   for (let i = 0; i + 1 < pts.length; i++) {
     const [ax, ay, al] = pts[i], [bx, by, bl] = pts[i + 1];
     const edge = eidx[i] >= 0 ? RAW.graph.edges[eidx[i]] : null;
@@ -87,11 +92,43 @@ function timeline(route, o) {
   return out;
 }
 // where a route starts, as a prior ("you got off at platform 7")
-const startOf = (route, r = 40) => { const [x, y, level] = route.points[0]; return { level: M.levelId(M.floorOf(level)), x, y, r }; };
+const startOf = (route: StationRouteResult, r = 40) => { const [x, y, level] = route.points[0]; return { level: M.levelId(M.floorOf(level)), x, y, r }; };
 
 // ------------------------------------------------------------------------------------------- sensor model
-function sensors(tl, sc, R) {
-  const ev = [];
+/** A walk and what the phone has on it. */
+interface SimScenario {
+  id: string;
+  name: string;
+  from: StationRouteEndpoint;
+  to: StationRouteEndpoint;
+  routeOpts?: StationRoutePrefs;
+  /** What the filter starts from: the start of the route, a given place, or nothing. */
+  prior?: 'start' | IndoorPrior;
+  gps?: boolean;
+  baro?: boolean;
+  /** The phone is in a pocket: no heading. */
+  pocket?: boolean;
+  magnetic?: boolean;
+  rawCompass?: boolean;
+  /** Seconds at which a train pushes air through the station. */
+  piston?: number[];
+  drift?: boolean;
+  hvac?: boolean;
+  stress?: boolean;
+  walkEscalator?: boolean;
+  /** Signs read on the way. at: the share of the walk (0..1); text: what it says, or 'sector' / 'nearest' for what is in sight. */
+  signs?: { at: number; text: string }[];
+  particles?: number;
+}
+/** What the phone's sensors give on a walk. */
+type SimEvent =
+  | { t: number; type: 'step'; length: number; heading: number | null; headingSigma: number | null }
+  | { t: number; type: 'tick' }
+  | { t: number; type: 'pressure'; hPa: number }
+  | { t: number; type: 'gps'; lon: number; lat: number; acc: number }
+  | { t: number; type: 'sign'; text: string };
+function sensors(tl: SimWalkPoint[], sc: SimScenario, R: IndoorRandom) {
+  const ev: SimEvent[] = [];
   const magBias = 12 * R.gauss();              // the compass is off by a constant amount (phone, building)
   const scale = 1 + 0.08 * R.gauss();          // this person's steps vs the assumed length
   let stepAcc = 0, lastT = 0, lp = 0;
@@ -156,7 +193,7 @@ function sensors(tl, sc, R) {
     let text = s.text;
     if (text === 'sector') {
       // the sector sign in sight (same floor, ≤ 30 m): "Gleis 7 Sektor C"
-      const near = M.landmarks.filter((l) => l.li === p.li && l.kind === 'sector').map((l) => [Math.hypot(l.x - p.x, l.y - p.y), l]).filter(([d]) => d < 60).sort((u, v) => u[0] - v[0]);
+      const near = M.landmarks.filter((l) => l.li === p.li && l.kind === 'sector').map((l): [number, IndoorLandmark] => [Math.hypot(l.x - p.x, l.y - p.y), l]).filter(([d]) => d < 60).sort((u, v) => u[0] - v[0]);
       if (!near.length) continue;
       const [ref, letters] = near[0][1].text.split(':');
       // --stress: OCR misreads the letter (the neighbouring sector) one time in three
@@ -165,7 +202,7 @@ function sensors(tl, sc, R) {
     } else if (text === 'nearest') {
       // whatever named thing is in sight from the true position (same floor, ≤ 30 m)
       const near = M.landmarks.filter((l) => l.li === p.li && l.text && ['passage', 'shop', 'amenity', 'exit'].includes(l.kind))
-        .map((l) => [Math.hypot(l.x - p.x, l.y - p.y), l]).filter(([d]) => d < 30).sort((u, v) => u[0] - v[0]);
+        .map((l): [number, IndoorLandmark] => [Math.hypot(l.x - p.x, l.y - p.y), l]).filter(([d]) => d < 30).sort((u, v) => u[0] - v[0]);
       if (!near.length) continue;
       text = near[0][1].text;
     }
@@ -175,7 +212,13 @@ function sensors(tl, sc, R) {
 }
 
 // ------------------------------------------------------------------------------------------- one run
-function run(sc, seed) {
+/** The score of one run. The last four are set when the walk is over (_lastTrace: by --trace). */
+interface SimRunStats {
+  n: number; floorOk: number; wrongConfident: number; err: number[]; endErr: number | null; endFloorOk: boolean; ms: number;
+  nAll: number; floorOkAll: number; lag: number[];
+  endConfident?: boolean; duration?: number; legs?: string; _lastTrace?: number;
+}
+function run(sc: SimScenario, seed: number) {
   const R = I.rng(seed * 7919 + 13);
   const route = SR.route(RAW, sc.from, sc.to, Object.assign({ date: '2026-11-21' }, sc.routeOpts || {}));
   if (!route) return null;
@@ -186,8 +229,8 @@ function run(sc, seed) {
   else if (!sc.gps) f.init({});
   let k = 0;
   const changes = tl.filter((p, i) => i && tl[i - 1].li !== p.li).map((p) => p.t);
-  const stats = { n: 0, floorOk: 0, wrongConfident: 0, err: [], endErr: null, endFloorOk: false, ms: 0, nAll: 0, floorOkAll: 0, lag: [] };
-  let pending = null; // a true floor change the estimate has not followed yet: { t, li }
+  const stats: SimRunStats = { n: 0, floorOk: 0, wrongConfident: 0, err: [], endErr: null, endFloorOk: false, ms: 0, nAll: 0, floorOkAll: 0, lag: [] };
+  let pending: { t: number; li: number } | null = null; // a true floor change the estimate has not followed yet: { t, li }
   const t0 = Date.now();
   for (const p of tl) {
     while (k < ev.length && ev[k].t <= p.t) {
@@ -199,11 +242,11 @@ function run(sc, seed) {
       else if (e.type === 'sign') { const mr = S.match(e.text, M); if (TRACE && seed === +arg('traceseed', 1)) console.log(`    sign at t=${e.t.toFixed(0)}: "${e.text}" → ${mr.explain} (${mr.candidates.length} places, strength ${mr.strength.toFixed(2)})`); S.apply(f, mr, e.t); }
     }
     if (!f.initialised) continue;
-    const est = f.estimate();
+    const est = f.estimate() as IndoorEstimateTracking;
     if (TRACE && seed === +arg('traceseed', 1) && Math.floor(p.t / 10) !== Math.floor((p._prev || -10) / 10) && Math.floor(p.t) % 10 === 0 && p.t - (stats._lastTrace ?? -99) >= 10) {
       stats._lastTrace = p.t;
       const lp = Object.entries(est.levelProbs).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([l, v]) => `${l}:${v.toFixed(2)}`).join(' ');
-      const kinds = {}; for (let q = 0; q < f.N; q += 10) { const kk = I.KIND[M.ek[f.e[q]]]; kinds[kk] = (kinds[kk] || 0) + 1; }
+      const kinds: Partial<Record<StationEdgeKind, number>> = {}; for (let q = 0; q < f.N; q += 10) { const kk = I.KIND[M.ek[f.e[q]]]; kinds[kk] = (kinds[kk] || 0) + 1; }
       if (flag("kinds")) { let mx = 0, mi = 0, ss = 0; for (let q = 0; q < f.N; q++) { ss += f.w[q]; if (f.w[q] > mx) { mx = f.w[q]; mi = q; } } const pp = M.at(f.e[mi], f.s[mi]); console.log("      wmax", mx.toExponential(2), "sum", ss.toFixed(3), "ess", (f.ess || 0).toFixed(0), "top at", pp.x.toFixed(0), pp.y.toFixed(0), "edge kind", I.KIND[M.ek[f.e[mi]]], "bo", f.bo[mi].toFixed(1)); }
       if (flag("kinds")) console.log("      particles on", JSON.stringify(kinds), "e0", f.e[0], "s", f.s[0].toFixed(2), "len", M.elen[f.e[0]].toFixed(2), "d", f.d[0], "out", JSON.stringify(M.out[M.eb[f.e[0]]].map(([e, d]) => [I.KIND[M.ek[e]], d])), JSON.stringify(M.out[M.ea[f.e[0]]].map(([e, d]) => [I.KIND[M.ek[e]], d])));
       console.log(`    t=${p.t.toFixed(0).padStart(3)} ${p.mode.padEnd(9)} true L${M.levelId(p.li)} (${p.x.toFixed(0)},${p.y.toFixed(0)})  est L${est.level} (${est.x.toFixed(0)},${est.y.toFixed(0)}) err ${Math.hypot(est.x - p.x, est.y - p.y).toFixed(0)}m σ${est.sigma.toFixed(0)} [${lp}]${est.confident ? ' conf' : ''} ${JSON.stringify(est.evidence)}`);
@@ -223,17 +266,17 @@ function run(sc, seed) {
   stats.ms = Date.now() - t0;
   if (arg('export') && seed === 1) {
     // a Recorder-format log (indoorloc.js) with the true position as checkpoints every 5 s, for indoorloc-dev.html
-    const events = ev.map((e) => {
-      const d = Object.assign({}, e); delete d.t; delete d.type;
-      return [+e.t.toFixed(2), e.type, d];
+    const events = ev.map((e): IndoorLogEvent => {
+      const d: Partial<SimEvent> = Object.assign({}, e); delete d.t; delete d.type;
+      return [+e.t.toFixed(2), e.type, d] as IndoorLogEvent;
     });
     for (const p of tl) if (Math.abs(p.t - Math.round(p.t / 5) * 5) < 0.13) events.push([+p.t.toFixed(2), 'truth', { x: +p.x.toFixed(2), y: +p.y.toFixed(2), level: M.levelId(p.li), mode: p.mode }]);
     events.sort((a, b) => a[0] - b[0]);
     const prior = sc.prior === 'start' ? startOf(route) : sc.prior || null;
-    fs.writeFileSync(arg('export'), JSON.stringify({ meta: { v: 1, key: KEY, scenario: sc.id, name: sc.name, simulated: true, prior }, events }));
+    fs.writeFileSync(arg('export')!, JSON.stringify({ meta: { v: 1, key: KEY, scenario: sc.id, name: sc.name, simulated: true, prior }, events } satisfies IndoorLog));
     console.log(`  wrote ${arg('export')} (${events.length} events)`);
   }
-  const est = f.estimate(), end = tl[tl.length - 1];
+  const est = f.estimate() as IndoorEstimateTracking, end = tl[tl.length - 1];
   stats.endFloorOk = est.li === end.li;
   stats.endErr = Math.hypot(est.x - end.x, est.y - end.y);
   stats.endConfident = est.confident;
@@ -244,7 +287,7 @@ function run(sc, seed) {
 
 // ------------------------------------------------------------------------------------------- scenarios
 const street = { node: 17 };   // on Bahnhofplatz, 55 m in front of the main hall
-const scenarios = KEY === 'bern' ? [
+const scenarios: SimScenario[] = KEY === 'bern' ? [
   { id: 'rbs-baro', name: 'Bahnhofplatz → RBS platform 21 (−2), barometer', from: street, to: P('21'), gps: true, baro: true },
   { id: 'rbs-nobaro', name: 'Bahnhofplatz → RBS platform 21 (−2), browser only (no barometer)', from: street, to: P('21'), gps: true },
   { id: 'rbs-sign', name: 'Same, no barometer, reads one name in sight halfway', from: street, to: P('21'), gps: true, signs: [{ at: 0.5, text: 'nearest' }] },
@@ -270,20 +313,25 @@ const scenarios = KEY === 'bern' ? [
   { id: 'generic-nobaro', name: `${M.name}: first → last stop, no barometer`, from: { node: RAW.stops[0].node }, to: { node: RAW.stops[RAW.stops.length - 1].node }, prior: 'start' },
 ];
 
-const pct = (a, q) => { if (!a.length) return NaN; const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
+const pct = (a: number[], q: number) => { if (!a.length) return NaN; const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
 console.log(`${M.name}: ${M.n} nodes, ${M.ne} edges, levels ${M.levels.map((l) => l.id).join(' ')}; ${SEEDS} seeds per scenario\n`);
 console.log('scenario'.padEnd(13), 'floor ok'.padStart(8), 'all'.padStart(5), 'lag'.padStart(5), 'conf.wrong'.padStart(10), 'err50'.padStart(6), 'err90'.padStart(6), 'end floor'.padStart(9), 'end err'.padStart(8), '  ms/run');
-const summary = [];
+/** A scenario's line of the table. */
+interface SimSummaryRow {
+  id: string; name: string; floor: number; floorAll: number; lag50: number; wrongConfident: number; err50: number; err90: number;
+  endFloor: number; endErr: number; duration?: number; legs?: string; ms: number; noRoute?: undefined;
+}
+const summary: (SimSummaryRow | { id: string; noRoute: true })[] = [];
 for (const sc of scenarios) {
   if (ONLY && !sc.id.includes(ONLY)) continue;
-  const rs = [];
+  const rs: SimRunStats[] = [];
   for (let s = 1; s <= SEEDS; s++) { const r = run(sc, s); if (r) rs.push(r); }
   if (!rs.length) { console.log(sc.id.padEnd(13), 'no route'); summary.push({ id: sc.id, noRoute: true }); continue; }
   const floor = rs.reduce((a, r) => a + r.floorOk / r.n, 0) / rs.length;
   const wc = rs.reduce((a, r) => a + r.wrongConfident / r.n, 0) / rs.length;
   const errs = rs.flatMap((r) => r.err);
   const endFloor = rs.filter((r) => r.endFloorOk).length / rs.length;
-  const endErr = pct(rs.map((r) => r.endErr), 0.5);
+  const endErr = pct(rs.map((r) => r.endErr!), 0.5);
   const ms = rs.reduce((a, r) => a + r.ms, 0) / rs.length;
   const floorAll = rs.reduce((a, r) => a + r.floorOkAll / r.nAll, 0) / rs.length;
   const lags = rs.flatMap((r) => r.lag);
@@ -292,14 +340,14 @@ for (const sc of scenarios) {
   console.log(sc.id.padEnd(13), (100 * floor).toFixed(0).padStart(7) + '%', ((100 * floorAll).toFixed(0) + '%').padStart(5),
     (isFinite(row.lag50) ? row.lag50.toFixed(0) + 's' : '—').padStart(5), (100 * wc).toFixed(1).padStart(9) + '%', row.err50.toFixed(1).padStart(6), row.err90.toFixed(1).padStart(6),
     (100 * endFloor).toFixed(0).padStart(8) + '%', endErr.toFixed(1).padStart(8), ms.toFixed(0).padStart(8));
-  if (VERBOSE) console.log('   ', sc.name, '|', rs[0].legs, '|', rs[0].duration.toFixed(0) + ' s');
+  if (VERBOSE) console.log('   ', sc.name, '|', rs[0].legs, '|', rs[0].duration!.toFixed(0) + ' s');
 }
 console.log('\nfloor ok: share of time on the right floor, leaving out 6 s around each real floor change · all: the whole walk');
 console.log('lag: median seconds from a real floor change until the estimate follows · conf.wrong: share of time confident AND on the wrong floor');
 console.log('Steps and headings come from the route geometry with modelled noise, not through the phone adapter (Sensors): replay real');
 console.log('recordings (--replay) to test that part.');
 console.log('err50/err90: position error (m) while on the right floor · end: at the destination · ms/run: filter time for the whole walk');
-if (arg('json')) fs.writeFileSync(arg('json'), JSON.stringify(summary, null, 1));
+if (arg('json')) fs.writeFileSync(arg('json')!, JSON.stringify(summary, null, 1));
 // --check: fail (exit 1) when a scenario falls below what it reached when the filter was tuned (2026-11-21, Bern,
 // 8 seeds). The worst cases (pocket: no heading at all; raw compass) only have to keep the floor most of the time.
 if (flag('check')) {
