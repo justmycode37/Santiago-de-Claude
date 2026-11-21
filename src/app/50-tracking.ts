@@ -168,6 +168,8 @@ function trackJourney() {
   const s = snapToTrip(userLngLat, ref, now);
   if (!s) { track = null; return; }
   const tol = Math.max(35, Math.min(userAccuracy, 150)) + 30;
+  // A trip that starts somewhere else: you are not "off the route" before you have been on it
+  if (tripStart && s.d > tol && !(track && !track.off)) { track = null; return; }
   const offCount = s.d > tol ? ((track && track.offCount) || 0) + 1 : 0;
   track = { ...s, v: geoVersion, offCount, off: offCount >= 2 }; // two fixes in a row, so one stray fix doesn't count
   if (track.off) return;

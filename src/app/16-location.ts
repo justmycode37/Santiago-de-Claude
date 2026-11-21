@@ -56,7 +56,8 @@ function onPosition(pos) {
   if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
   updateAccuracy();
   if (window.Station3D) Station3D.setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined });
-  if (!centeredOnUser && !destMarker._map) {
+  inputs.from.placeholder = 'Your location';
+  if (!centeredOnUser && !destMarker._map && !startMarker._map) {
     centeredOnUser = true;
     map.jumpTo({ center: lngLat, zoom: 15 });
   }

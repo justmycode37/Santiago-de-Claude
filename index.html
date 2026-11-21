@@ -145,7 +145,7 @@
     .fab:active { background: var(--pressed); }
     .fab svg { width: 22px; height: 22px; grid-area: 1 / 1; }
 
-    /* Top-right menu: the dots button fans out into more buttons to its left */
+    /* Top-right menu: the dots button fans out into more buttons below it (the search bar is to its left) */
     .menu {
       position: fixed;
       top: calc(env(safe-area-inset-top) + 12px);
@@ -157,15 +157,15 @@
     .menu .fab { position: absolute; top: 0; right: 0; }
     .menu-item {
       opacity: 0;
-      transform: translateX(0) scale(.4);
+      transform: translateY(0) scale(.4);
       pointer-events: none;
       transition: transform .5s var(--spring), opacity .2s ease, background-color .3s ease, color .3s ease;
     }
     .menu.open .menu-item { opacity: 1; pointer-events: auto; transition: transform .55s var(--bounce), opacity .25s ease, background-color .3s ease, color .3s ease; }
-    .menu.open .menu-item[data-slot="1"] { transform: translateX(-54px) scale(1); }
-    .menu.open .menu-item[data-slot="2"] { transform: translateX(-108px) scale(1); transition-delay: .04s; }
-    .menu.open .menu-item[data-slot="3"] { transform: translateX(-162px) scale(1); transition-delay: .08s; }
-    .menu.open .menu-item[data-slot="4"] { transform: translateX(-216px) scale(1); transition-delay: .12s; }
+    .menu.open .menu-item[data-slot="1"] { transform: translateY(54px) scale(1); }
+    .menu.open .menu-item[data-slot="2"] { transform: translateY(108px) scale(1); transition-delay: .04s; }
+    .menu.open .menu-item[data-slot="3"] { transform: translateY(162px) scale(1); transition-delay: .08s; }
+    .menu.open .menu-item[data-slot="4"] { transform: translateY(216px) scale(1); transition-delay: .12s; }
     /* Toggled-on button (e.g. events shown) */
     .fab.active { background: var(--user-blue); color: #fff; }
     .fab.active:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
@@ -185,7 +185,7 @@
     .toast {
       position: fixed;
       left: 50%;
-      top: calc(env(safe-area-inset-top) + 68px);
+      top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 10px);
       transform: translate(-50%, -8px);
       max-width: calc(100% - 32px);
       padding: 10px 16px;
@@ -202,22 +202,28 @@
     }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-    /* Bottom search area (bar + results) */
+    /* Search at the top: one pill ("Where to?") that grows a start row above it once a trip is being planned.
+       Results drop down below it. On phones it leaves room for the menu button on its right. */
     .search-wrap {
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: calc(env(safe-area-inset-bottom) + 12px);
-      z-index: 10;
+      top: calc(env(safe-area-inset-top) + 12px);
+      max-height: calc(var(--vvh, 100dvh) - env(safe-area-inset-top) - 24px);
+      z-index: 16;
       display: flex;
       flex-direction: column;
+      align-items: stretch;
       gap: 8px;
-      pointer-events: none; /* only the bar/list catch taps, so the map stays draggable beside the circle */
+      pointer-events: none; /* only the card and the list catch taps: the map stays draggable around them */
     }
     .search-wrap > * { pointer-events: auto; }
+    body.following .search-wrap { display: none; } /* under way: the progress pill takes its place */
 
     .results {
       display: none;
+      flex: 0 1 auto;
+      min-height: 0;
       max-height: 50vh;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
@@ -271,33 +277,146 @@
     .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
     .results li.attr:active { background: none; }
 
-    .search {
-      height: 52px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      margin-left: auto;
-      padding: 0 8px 0 16px;
+    .trip {
+      position: relative;
+      flex: none;
+      margin: 0 56px 0 0; /* the menu button */
       background: var(--bar-bg);
-      border-radius: 26px;
+      border-radius: 23px;
       box-shadow: var(--shadow);
-      overflow: hidden;
-      transition: width .45s var(--spring), padding .45s var(--spring), gap .45s var(--spring), background-color .3s ease;
+      transition: background-color .3s ease, opacity .2s ease, margin-right .3s var(--spring);
     }
-    .search input, .search .clear { transition: opacity .2s ease; }
-
-    /* Collapsed: the bar morphs into a circle in the bottom-right corner */
-    .search-wrap.collapsed .search {
-      width: 52px;
-      gap: 0;
-      padding: 0 0 0 16.5px; /* (52 - 19) / 2 keeps the magnifier centred */
+    body.searching .trip { margin-right: 0; } /* the menu button steps aside while you search: as wide as the results */
+    @media (min-width: 700px) {
+      .search-wrap { right: auto; width: 420px; }
+      .trip { margin-right: 0; }
+    }
+    .trip-rows { position: relative; padding-right: 46px; }
+    .trip-row { display: flex; align-items: center; height: 46px; padding-left: 3px; }
+    .trip-row.from { display: none; }
+    body.plan-open .trip-row.from { display: flex; }
+    body.plan-open .trip-row.to { margin-left: 46px; padding-left: 0; border-top: 1px solid var(--hair); }
+    body.plan-open .trip-row.to .pin-tok { margin-left: -43px; }
+    /* The pin left of each field: drag it onto the map, or tap it and then tap the map */
+    .pin-tok {
+      flex: none;
+      width: 40px;
+      height: 40px;
+      margin-right: 3px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: none;
+      display: grid;
+      place-items: center;
+      cursor: grab;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .pin-tok span { width: 32px; height: 32px; border-radius: 50%; background: var(--pressed); display: grid; place-items: center; transition: transform .25s var(--spring), box-shadow .2s ease; }
+    .pin-tok svg { width: 15px; height: 19px; overflow: visible; }
+    .pin-tok:active span { transform: scale(.92); }
+    .pin-tok.out span { background: none; box-shadow: inset 0 0 0 1.5px var(--bar-secondary); }
+    .pin-tok.out svg { visibility: hidden; }
+    .pin-tok.armed span { box-shadow: 0 0 0 2.5px var(--you); animation: tok-armed 1.2s ease-in-out infinite; }
+    @keyframes tok-armed { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--you) 35%, transparent); } }
+    .pin-tok:focus-visible { outline: 3px solid var(--you); outline-offset: -3px; }
+    /* Start: a white pin with an ink outline · destination: an ink pin with a yellow dot (the ring and the pin of the journey list) */
+    .pin-art.to path { fill: #14161A; }
+    .pin-art.to circle { fill: var(--sun); }
+    .pin-art.from path { fill: #fff; stroke: #14161A; stroke-width: 3.5; }
+    .pin-art.from circle { fill: #14161A; }
+    :root[data-theme="dark"] .pin-art.to path { fill: #F2F3F5; }
+    :root[data-theme="dark"] .pin-art.to circle { fill: #14161A; }
+    :root[data-theme="dark"] .pin-art.from path { fill: #14161A; stroke: #F2F3F5; }
+    :root[data-theme="dark"] .pin-art.from circle { fill: #F2F3F5; }
+    /* Right of the fields: "plan a trip from somewhere else" on the single pill, swap once both rows show */
+    .trip-btn {
+      position: absolute;
+      right: 5px;
+      top: 50%;
+      width: 36px;
+      height: 36px;
+      margin-top: -18px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: none;
+      color: var(--icon);
+      display: grid;
+      place-items: center;
       cursor: pointer;
     }
-    .search-wrap.collapsed .search input,
-    .search-wrap.collapsed .search .clear { opacity: 0; pointer-events: none; }
-    .search-wrap.collapsed .search .clear { display: none; }
-    .search-wrap.collapsed .results { display: none; }
+    .trip-btn:active { background: var(--pressed); }
+    .trip-btn svg { grid-area: 1 / 1; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .trip-btn .ic-swap, body.plan-open .trip-btn .ic-plan { display: none; }
+    body.plan-open .trip-btn .ic-swap { display: block; }
+    body.plan-open .trip-btn { background: var(--pressed); }
+    .trip-chips { display: none; align-items: center; gap: 6px; padding: 7px 8px 8px; border-top: 1px solid var(--hair); }
+    body.plan-open:not(.searching) .trip-chips { display: flex; }
+    .chip {
+      height: 30px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 15px;
+      background: var(--pressed);
+      color: var(--bar-text);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .chip svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .chip:active { opacity: .7; }
+    .chip[hidden] { display: none; }
+    .chip.quiet { margin-left: auto; background: none; color: var(--bar-secondary); }
+    /* Under the card: "Search this area" once the map has moved away from the places shown, and the hint while a pin is armed */
+    .float-chip {
+      flex: none;
+      align-self: center;
+      height: 36px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 18px;
+      background: var(--bar-bg);
+      color: var(--accent-ink);
+      box-shadow: var(--shadow);
+      font: inherit;
+      font-size: 14.5px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .float-chip[hidden] { display: none; }
+    .float-chip:active { background: var(--pressed); }
+    .float-chip.hint { color: var(--bar-text); cursor: default; padding-right: 6px; }
+    .float-chip.hint button { height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: var(--pressed); color: var(--bar-secondary); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+    /* A pin on its way from the card to the map: lifted above the finger, with a shadow where its tip will land */
+    .pin-ghost { position: fixed; left: 0; top: 0; z-index: 60; width: 0; height: 0; pointer-events: none; }
+    .pin-ghost svg { position: absolute; left: -19px; bottom: -3px; width: 38px; height: 48px; overflow: visible; filter: drop-shadow(0 9px 7px rgba(0,0,0,.3)); animation: ghost-in .2s var(--bounce) both; transform-origin: 50% 100%; }
+    @keyframes ghost-in { from { transform: scale(.4); } }
+    .pin-ghost i { position: absolute; left: -7px; top: -3px; width: 14px; height: 6px; border-radius: 50%; background: rgba(0,0,0,.35); }
+    .pin-ghost b { position: absolute; left: 0; bottom: 58px; transform: translateX(-50%); padding: 5px 10px; border-radius: 11px; background: var(--bar-text); color: var(--bar-bg); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+    .pin-ghost.off svg { opacity: .35; }
+    .pin-ghost.off b, .pin-ghost.off i { display: none; }
+    body.pin-dragging .trip { opacity: .55; }
+    body.pin-dragging .results, body.pin-dragging .float-chip { display: none; }
+    body.pin-dragging, body.pin-dragging * { cursor: grabbing !important; }
+    body.pin-armed #map canvas { cursor: crosshair; }
+    /* Long press (or right click) on the map: start or end the trip there */
+    .pf-pop.pin-menu .maplibregl-popup-content { width: auto; padding: 5px; border-radius: 16px; }
+    .pin-menu-body { display: flex; gap: 4px; }
+    .pin-menu-body button { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 12px 0 9px; border: 0; border-radius: 11px; background: none; color: var(--bar-text); font: inherit; font-size: 14.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+    .pin-menu-body button:active { background: var(--pressed); }
+    .pin-menu-body svg { width: 14px; height: 18px; overflow: visible; }
 
     /* ===== Journey (Apple Maps–style) ===== */
     .glass {
@@ -306,7 +425,7 @@
       backdrop-filter: blur(28px) saturate(180%);
     }
 
-    /* Top pill: depart · slim progress line · arrive */
+    /* Top pill, once you have tapped Start: change the trip · depart · slim progress line · arrive */
     .j-pill {
       position: fixed;
       left: 12px;
@@ -322,10 +441,11 @@
       border-radius: 27px;
       box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 .5px var(--hair);
     }
-    body.journey-mode .j-pill { display: flex; animation: pill-in .55s var(--spring) both; }
+    body.following .j-pill { display: flex; animation: pill-in .55s var(--spring) both; }
     @keyframes pill-in { from { transform: translateY(-130%); } to { transform: none; } }
-    body.journey-mode .menu { top: calc(env(safe-area-inset-top) + 76px); }
-    .menu { transition: top .45s var(--spring); }
+    body.following .menu { top: calc(env(safe-area-inset-top) + 76px); }
+    body.searching .menu { opacity: 0; pointer-events: none; } /* the results list opens over its place */
+    .menu { transition: top .45s var(--spring), opacity .2s ease; }
     .j-time {
       flex: none;
       border: 0;
@@ -339,6 +459,9 @@
       line-height: 1.1;
     }
     #jArrBtn { text-align: right; }
+    .j-edit { flex: none; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; display: grid; place-items: center; cursor: pointer; }
+    .j-edit:active { background: var(--pressed); }
+    .j-edit svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     .j-time:active { background: var(--pressed); }
     .j-time small { display: block; font-size: 11px; font-weight: 500; color: var(--bar-secondary); }
     .j-time b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
@@ -378,8 +501,6 @@
        A bottom sheet with three detents (low: its header, middle: half the screen, expanded), the trip as one
        timeline on a fixed grid, "where to stand" at every boarding, and Start · share · arrival in a bar below.
        Everything is scoped to .kj so it cannot touch the rest of the page. ===== */
-    .search-wrap.journey-open .search,
-    .search-wrap.journey-open .results { display: none; }
     .kj {
       --surface: #ffffff;
       --card: #f3f4f6;
@@ -645,13 +766,10 @@
       .kj .skeleton, .kj .live-dot { animation: none; }
     }
 
-    /* Destination: an ink pin with a yellow dot (as in the Kante app) */
-    .dest-pin { width: 26px; height: 34px; filter: drop-shadow(0 1.5px 2px rgba(8,10,14,.4)); cursor: default; }
-    .dest-pin svg { display: block; width: 26px; height: 34px; }
-    .dest-pin path { fill: #14161A; }
-    .dest-pin circle { fill: var(--sun); }
-    :root[data-theme="dark"] .dest-pin path { fill: #F2F3F5; }
-    :root[data-theme="dark"] .dest-pin circle { fill: #14161A; }
+    /* Start and destination on the map (colours: .pin-art): both can be dragged to move that end of the trip */
+    .trip-pin { width: 30px; height: 38px; filter: drop-shadow(0 1.5px 2px rgba(8,10,14,.4)); cursor: grab; touch-action: none; z-index: 2; }
+    .trip-pin svg { display: block; width: 30px; height: 38px; }
+    .trip-pin:active { cursor: grabbing; }
     /* Search results shown on the map ("Show on map"): a round icon with the name under it; tap to go there */
     .place-pin { display: flex; flex-direction: column; align-items: center; cursor: pointer; border: 0; padding: 0; background: none; font: inherit; }
     .place-pin .icon {
@@ -769,8 +887,7 @@
     .t-btn.secondary { background: var(--row-bg); color: var(--bar-text); }
     .j-status:empty { display: none; }
     .j-status { padding: 6px 16px 22px; font-size: 15px; color: var(--bar-secondary); }
-    .search > svg { flex: none; width: 19px; height: 19px; color: var(--icon); }
-    .search input {
+    .trip input {
       flex: 1;
       min-width: 0;
       height: 100%;
@@ -780,11 +897,14 @@
       font: inherit;
       font-size: 17px; /* ≥16px avoids iOS zoom on focus */
       color: var(--bar-text);
+      text-overflow: ellipsis;
       -webkit-appearance: none;
       appearance: none;
     }
-    .search input::placeholder { color: var(--bar-secondary); }
-    .search input::-webkit-search-cancel-button { display: none; }
+    .trip input::placeholder { color: var(--bar-secondary); }
+    /* "Your location" stands for a value: it reads as one until you type over it */
+    #qFrom:not(:focus)::placeholder { color: var(--bar-text); opacity: 1; }
+    .trip input::-webkit-search-cancel-button { display: none; }
     .clear {
       flex: none;
       display: none;
@@ -1178,6 +1298,7 @@
   <div class="toast" id="toast" role="status"></div>
 
   <div class="j-pill glass" id="jPill">
+    <button class="j-edit" id="jEdit" type="button" aria-label="Change the start or the destination"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg></button>
     <button class="j-time" id="jDepBtn" type="button" aria-label="Change departure time"><small>Depart</small><b id="jDep">--:--</b></button>
     <div class="j-bar" id="jBar"></div>
     <button class="j-time" id="jArrBtn" type="button" aria-label="Change arrival time"><small>Arrive</small><b id="jArr">--:--</b></button>
@@ -1431,17 +1552,31 @@
   </article>
 
   <div class="search-wrap" id="searchWrap">
-    <ul class="results" id="results" role="listbox"></ul>
-    <form class="search" id="searchForm" role="search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
-        <circle cx="10.5" cy="10.5" r="7" />
-        <path d="M16 16l5 5" />
-      </svg>
-      <input id="q" type="search" placeholder="Search places, food, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search places, food, shops and addresses" />
-      <button class="clear" id="clear" type="button" aria-label="Clear">
-        <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
-      </button>
+    <form class="trip" id="searchForm" role="search">
+      <div class="trip-rows">
+        <div class="trip-row from">
+          <button class="pin-tok" type="button" data-pin="from" aria-label="Start pin: drag it onto the map, or tap it and then tap the map"><span><svg class="pin-art from" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg></span></button>
+          <input id="qFrom" type="search" placeholder="Your location" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Start: search places and addresses, or leave empty to start where you are" />
+          <button class="clear" type="button" data-clear="from" aria-label="Start from where you are"><span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span></button>
+        </div>
+        <div class="trip-row to">
+          <button class="pin-tok" type="button" data-pin="to" aria-label="Destination pin: drag it onto the map, or tap it and then tap the map"><span><svg class="pin-art to" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg></span></button>
+          <input id="q" type="search" placeholder="Search places, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Destination: search places, food, shops and addresses" />
+          <button class="clear" id="clear" type="button" data-clear="to" aria-label="Clear the destination"><span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span></button>
+        </div>
+        <button class="trip-btn" id="tripBtn" type="button" aria-label="Choose where the trip starts">
+          <svg class="ic-plan" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 20v-6.5a4 4 0 0 1 4-4h9" /><path d="M14.5 5.5l4 4-4 4" /></svg>
+          <svg class="ic-swap" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20V5M4.5 8.5L8 5l3.5 3.5M16 4v15M12.5 15.5L16 19l3.5-3.5" /></svg>
+        </button>
+      </div>
+      <div class="trip-chips">
+        <button class="chip" id="whenChip" type="button" aria-haspopup="dialog" hidden><span id="whenText">Leave now</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5" /></svg></button>
+        <button class="chip quiet" id="tripClose" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>Close</button>
+      </div>
     </form>
+    <div class="float-chip hint" id="pinHint" role="status" hidden><span id="pinHintText"></span><button type="button" id="pinHintCancel">Cancel</button></div>
+    <button class="float-chip" id="areaChip" type="button" hidden>Search this area</button>
+    <ul class="results" id="results" role="listbox"></ul>
   </div>
 
   <!-- Journey: the Kante app's journey sheet (nikitas-implementation) — header, timeline, and the action bar below -->

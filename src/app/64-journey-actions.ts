@@ -37,6 +37,7 @@ function showQuay(i) {
 }
 // Start: the sheet steps aside and the map shows where you are on the trip (GPS moves it along from there)
 function startFollowing() {
+  setFollowing(true);
   if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
   }

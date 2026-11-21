@@ -207,10 +207,12 @@ async function findConnection(fromLL, r) {
   return connections(fromStation, toStation);
 }
 
-function endJourney() {
+// keepPlan: only the destination goes (its field was cleared); the card and the start stay for another one
+function endJourney(keepPlan) {
+  const had = !!journeyDest;
   journeyReq++;
-  wrap.classList.remove('journey-open');
   document.body.classList.remove('journey-mode');
+  setFollowing(false);
   clearInterval(progressTimer);
   clearInterval(liveTimer);
   clearInterval(kanteTimer);
@@ -234,9 +236,19 @@ function endJourney() {
   setRoute([]);
   journeySteps = [];
   destMarker.remove();
-  input.value = '';
+  clearPlacePins();
+  armPin(null);
+  pinMenu.remove();
+  setField('to', '');
   results = [];
-  clearBtn.classList.remove('show');
+  lastSearch = null;
+  updateWhenChip();
   render();
-  if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
+  if (keepPlan === true) return;
+  tripStart = null;
+  startMarker.remove();
+  setField('from', '');
+  blurSearch();
+  setPlanOpen(false);
+  if (had && userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
 }

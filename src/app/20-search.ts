@@ -1,13 +1,24 @@
 // ---------- Search (swisstopo SearchServer) ----------
 const wrap = document.getElementById('searchWrap');
 const form = document.getElementById('searchForm');
-const input = document.getElementById('q');
+// Two fields share one search and one results list: where the trip starts (empty = where you are) and where it goes
+const FIELDS = ['from', 'to'];
+const inputs = { from: document.getElementById('qFrom'), to: document.getElementById('q') };
+const clears = { from: form.querySelector('[data-clear="from"]'), to: form.querySelector('[data-clear="to"]') };
+const toks = { from: form.querySelector('[data-pin="from"]'), to: form.querySelector('[data-pin="to"]') };
 const list = document.getElementById('results');
-const clearBtn = document.getElementById('clear');
-const destEl = document.createElement('div');
-destEl.className = 'dest-pin';
-destEl.innerHTML = '<svg viewBox="0 0 26 34" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg>';
-const destMarker = new maplibregl.Marker({ element: destEl, anchor: 'bottom' });
+let activeField = 'to'; // the field being searched in
+const PIN_ART = (kind) => `<svg class="pin-art ${kind}" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg>`;
+// Start and destination on the map. Both can be dragged; the tip sits 2 px above the bottom of the box (room for the outline).
+const tripPin = (kind) => {
+  const el = document.createElement('div');
+  el.className = 'trip-pin';
+  el.innerHTML = PIN_ART(kind);
+  return new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 2], draggable: true });
+};
+const destMarker = tripPin('to');
+const startMarker = tripPin('from');
+let tripStart = null; // where the trip starts: null = where you are, else a search result or a dropped pin ({ title, lngLat })
 
 const ZOOM_BY_ORIGIN = { address: 17, gazetteer: 15, zipcode: 13, gg25: 13 };
 // Result kinds → icon + colour (Apple Maps style: white glyph on a coloured circle)

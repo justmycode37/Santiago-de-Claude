@@ -18,11 +18,12 @@ function s3Plan(st) {
   let key = null, from = null, to = null;
   if (st.type === 'walk' && st.next) {
     key = s3Key(st.next.departure);
-    const start = userLngLat || (st.lines[0] && st.lines[0][0]);
+    const here = tripStart ? null : userLngLat; // a trip from somewhere else starts there, not where you are
+    const start = here || (st.lines[0] && st.lines[0][0]);
     to = s3End(st.next.departure, st.nextRide && st.nextRide.depAt);
     // from further away the model only shows the last stretch: where the walk comes in, not where you are
     const far = start && to && to.ll && distKm(start, to.ll) > S3_NEAR_KM;
-    from = start ? (far ? { ll: start, label: 'the way in' } : userLngLat ? { ll: start } : { ll: start, label: 'the start' }) : null;
+    from = start ? (far ? { ll: start, label: 'the way in' } : here ? { ll: start } : { ll: start, label: 'the start' }) : null;
   } else if (st.type === 'walk') {
     key = st.from ? s3Key(st.from.arrival) : null;
     from = key && s3End(st.from.arrival, st.prevRide && st.prevRide.arrAt);
@@ -136,7 +137,7 @@ function sheetActions() {
   const full = sheetDetent === 'full';
   return h('span', 'sheet-actions',
     kBtn('round-btn', full ? 'Show the map' : 'Show the list', () => setDetent(sheetDetent === 'full' ? 'mid' : 'full', true), kIcon(full ? 'map' : 'list', 18)),
-    kBtn('round-btn', 'Close journey', endJourney, kIcon('close', 18)));
+    kBtn('round-btn', 'Close journey', () => endJourney(), kIcon('close', 18)));
 }
 // A walking direction picked: step through them, or back to the whole journey
 function stepNav() {
@@ -177,7 +178,8 @@ function buildHead() {
     const a = firstAction(now);
     if (a.text) act.append(h('span', 'jrow-act ' + (a.gone ? 'gone' : a.state), a.text, a.gone ? null : kDelay(a.delay)));
     else if (a.quay) act.append(h('span'));
-    if (a.quay) act.append(kPlat(a.quay, true));
+    const plat = a.quay && kPlat(a.quay, true); // null at a stop without signed bays
+    if (plat) act.append(plat);
   }
   if (act.childNodes.length) head.append(act);
   return head;

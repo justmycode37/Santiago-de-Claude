@@ -168,7 +168,9 @@ function goToStep(i, auto) {
 // Keep what the camera shows clear of the top bar and of the sheet where it rests
 function mapPadding() {
   const hgt = window.innerHeight;
-  const top = document.body.classList.contains('journey-mode') ? 150 : 80;
+  // under way the menu button hangs below the pill; otherwise it is beside the card
+  // (with room for a pin, which stands above its point)
+  const top = document.body.classList.contains('following') ? 150 : Math.max(56, topUiBottom()) + 48;
   const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheetY) : 0;
   const bottom = Math.max(40, Math.min(covered + 24, hgt - top - 120));
   const side = window.innerWidth >= 700 && covered ? 444 : 48; // wide screens: the sheet is a panel on the left
@@ -195,7 +197,8 @@ async function startJourney(r, keepQuery) {
   journeyDest = r;
   journeyConn = null;
   journeySteps = [];
-  journeyFrom = userLngLat ? 'Your location' : 'Map centre';
+  journeyFrom = tripStart ? tripStart.title : userLngLat ? 'Your location' : 'Map centre';
+  updateWhenChip();
   jFocus = null;
   openDirs.clear();
   closedDirs.clear();
@@ -203,8 +206,7 @@ async function startJourney(r, keepQuery) {
   updateCards(); // hide events and places: only the trip and the destination
   updatePlaces();
   const wasOpen = document.body.classList.contains('journey-mode');
-  wrap.classList.remove('collapsed');
-  wrap.classList.add('journey-open');
+  setPlanOpen(true);
   document.body.classList.add('journey-mode');
   setMenu(false);
   document.getElementById('jBar').innerHTML = '';
@@ -217,7 +219,7 @@ async function startJourney(r, keepQuery) {
   vehMarker.remove();
   nowMarker.remove();
   setRoute([]);
-  if (!keepQuery) map.flyTo({ center: r.lngLat, zoom: 14, speed: 1.4, offset: [0, -150] }); // keep the pin above the widget
+  if (!keepQuery) map.flyTo({ center: r.lngLat, zoom: 14, speed: 1.4 }); // between the card above and the sheet below
   clearInterval(progressTimer);
   progressTimer = setInterval(tick, 5000);
   clearInterval(liveTimer);
@@ -227,7 +229,7 @@ async function startJourney(r, keepQuery) {
   onboard = null;
   vehStop(); // the map shows only the trip
 
-  const from = userLngLat || map.getCenter().toArray();
+  const from = tripStart ? tripStart.lngLat : userLngLat || map.getCenter().toArray();
   try {
     // exact platforms if their data is there in time; never hold a journey up for more than 4 s
     startPlatforms();

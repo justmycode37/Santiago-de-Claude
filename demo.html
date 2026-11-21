@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Santiago — Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body, main { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+    video { display: block; width: 100%; height: 100%; object-fit: contain; cursor: none; }
+    :fullscreen { background: #000; }
+  </style>
+</head>
+<body>
+  <main aria-label="Santiago demo film">
+    <video id="film" poster="/demo-media/opening.jpg" preload="auto" playsinline tabindex="0" aria-label="Santiago demo. Tap or press Space to enable sound, then to pause or resume." aria-keyshortcuts="Space"></video>
+  </main>
+  <script>
+    const film = document.getElementById('film');
+    async function restartFilm() {
+      // Start a fresh media session after navigation, including a cached Back visit.
+      film.src = '/demo-media/play-1e5ef0e1b62a.mp4';
+      film.load();
+      film.currentTime = 0;
+      film.muted = false;
+      try {
+        await film.play();
+      } catch (error) {
+        if (error.name !== 'NotAllowedError') return;
+        film.muted = true;
+        await film.play().catch(() => {});
+      }
+    }
+    restartFilm();
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) restartFilm();
+    });
+
+    function togglePlayback() {
+      if (!film.muted && !film.paused && !film.ended) {
+        film.pause();
+        return;
+      }
+      film.muted = false;
+      if (film.ended) film.currentTime = 0;
+      const playback = film.play();
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      playback.catch(() => {});
+    }
+    document.addEventListener('keydown', event => {
+      if (event.code === 'Space' || event.key === ' ') {
+        event.preventDefault();
+        if (!event.repeat) togglePlayback();
+      }
+    });
+    film.addEventListener('click', togglePlayback);
+  </script>
+</body>
+</html>

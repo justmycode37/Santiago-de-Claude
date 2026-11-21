@@ -111,8 +111,7 @@ let sheetY = 0;
 const SHEET_GRIP = 20;
 function sheetPositions() {
   const hgt = window.innerHeight;
-  const tops = [document.getElementById('jPill'), document.getElementById('menu')].map((el) => (el ? el.getBoundingClientRect().bottom : 0));
-  const full = Math.round(Math.max(...tops, 0) + 8);
+  const full = Math.round(Math.max(topUiBottom(), menu.getBoundingClientRect().bottom, 0) + 8);
   const footH = jFoot.offsetHeight || 0, headH = jHead.offsetHeight || 60;
   const low = Math.max(full + 40, hgt - SHEET_GRIP - headH - footH);
   const mid = Math.min(low, Math.max(full, Math.round(hgt * 0.5)));

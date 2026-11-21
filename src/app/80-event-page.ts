@@ -68,7 +68,7 @@ function routeFromHash() {
   const f = m && findEvent(decodeURIComponent(m[1]));
   if (f) {
     renderEventPage(f);
-    input.blur();
+    blurSearch();
     setMenu(false);
     evPage.classList.add('open');
     evPage.setAttribute('aria-hidden', 'false');

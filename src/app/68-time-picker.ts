@@ -7,6 +7,15 @@ let tMode = 'dep';
 const pad2 = (n) => String(n).padStart(2, '0');
 const dateValue = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const timeValue = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+// The chip in the card: "Leave now", "Leave 14:30", "Arrive by 9:00 Tomorrow"
+function updateWhenChip() {
+  const { mode, date, time } = journeyQuery;
+  const day = date && date !== dateValue(new Date()) ? ' ' + dayLabel(date + 'T12:00') : '';
+  document.getElementById('whenText').textContent = !date && !time ? 'Leave now'
+    : `${mode === 'arr' ? 'Arrive by' : 'Leave'} ${time || ''}${day}`.replace(/\s+/g, ' ');
+  document.getElementById('whenChip').hidden = !journeyDest;
+}
+document.getElementById('whenChip').addEventListener('click', () => openTimeSheet(journeyQuery.mode));
 function setTMode(m) {
   tMode = m;
   document.querySelectorAll('#tSeg button').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));

@@ -40,11 +40,15 @@ function placeResult(row, km) {
   };
 }
 // → { kinds: nearest places of the kind asked for, names: places whose name matches, toilets: a toilet was asked for }
-function searchPlaces(text) {
+// Where a search measures from: you, while the map shows where you are; the middle of the map once you have moved
+// it somewhere else (looking for a Coop in another part of town)
+const searchOrigin = () => (gpsOn() && map.getBounds().contains(userLngLat) ? userLngLat : map.getCenter().toArray());
+// many: for "Search this area", which keeps the ones in view (the list only needs the nearest few)
+function searchPlaces(text, many) {
   const idx = placeSearchIndex();
   const plain = wordsOf(text).filter((w) => !NEAR_WORDS.has(w));
   if (!idx || !plain.length) return { kinds: [], names: [], toilets: false };
-  const from = gpsOn() ? userLngLat : map.getCenter().toArray();
+  const from = searchOrigin();
   const near = (rows, n) => rows.map((r) => [r, distKm(from, r)]).sort((a, b) => a[1] - b[1]).slice(0, n);
 
   // a kind of place: every word of the query (after aliases) starts a word of its label or of its group's name
@@ -64,7 +68,7 @@ function searchPlaces(text) {
   const customerAsked = cats.length > 0 && cats.every((i) => PLACES.cats[i][3] === 'Customer toilet');
   const forAll = (r) => !(r[4] && r[4].k && r[4].k !== 'permissive' && PLACES.cats[r[2]][0] === 'toilets')
     || (customerAsked && r[4].k === 'customers');
-  const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2]) && forAll(r)), 6) : [];
+  const kinds = cats.length ? near(PLACES.items.filter((r) => catSet.has(r[2]) && forAll(r)), many ? 40 : 6) : [];
 
   // a name: every word appears in it. Stops and stations come from the swisstopo search instead, and some official
   // items are only named after where they stand ("Bahnhofplatz 1"), so they don't count as names.
@@ -80,7 +84,7 @@ function searchPlaces(text) {
       rows.push(r);
     });
     const starts = (r) => (fold(r[3]).startsWith(plain[0]) ? 0 : 1);
-    names.push(...rows.map((r) => [r, distKm(from, r)]).sort((a, b) => starts(a[0]) - starts(b[0]) || a[1] - b[1]).slice(0, 5));
+    names.push(...rows.map((r) => [r, distKm(from, r)]).sort((a, b) => starts(a[0]) - starts(b[0]) || a[1] - b[1]).slice(0, many ? 40 : 5));
   }
   return { kinds: kinds.map(([r, km]) => placeResult(r, km)), names: names.map(([r, km]) => placeResult(r, km)), toilets };
 }
@@ -111,15 +115,16 @@ async function searchSwisstopo(text) {
 }
 
 // Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.js: OpenStreetMap, or Google
-// with a key): around the part of the map in view, with distances from you
-function searchPlacesOnline(text) {
+// with a key): around the part of the map in view, with distances from you (or from the middle of the map once it
+// shows somewhere else). bbox [west, south, east, north]: only places inside it ("Search this area")
+function searchPlacesOnline(text, bbox) {
   if (!window.PlaceSearch) return Promise.resolve(null);
   const center = map.getCenter().toArray();
   const corner = map.getBounds().getNorthEast().toArray();
   const viewKm = Math.hypot((corner[0] - center[0]) * 76, (corner[1] - center[1]) * 111); // km at Swiss latitudes
   const radiusKm = Math.min(Math.max(viewKm, 1), 10);
   const timeout = new Promise((_, fail) => setTimeout(() => fail(new Error('timeout')), 4000));
-  return Promise.race([PlaceSearch.search(text, { center, origin: userLngLat, radiusKm }), timeout]);
+  return Promise.race([PlaceSearch.search(text, { center, origin: searchOrigin(), radiusKm, bbox }), timeout]);
 }
 
 const nearM = (a, b, m) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
@@ -137,8 +142,7 @@ function combineResults(text, swiss, online, local) {
     .filter((p) => !ownToilet(p) && !bern.some((b) => fold(b.title) === fold(p.title) && nearM(b.lngLat, p.lngLat, 150)));
   const byDistance = local.toilets && !!online && online.category === 'Toilets' && found.every((p) => p.distance != null);
   // A name ("Coop", "Migros"): ours and those found online are the same kind of match, so all of them nearest first
-  // (online ones have a distance only when we know where you are)
-  const namesByDistance = !kinds.length && names.length > 0 && gpsOn() && found.every((p) => p.distance != null);
+  const namesByDistance = !kinds.length && names.length > 0 && found.every((p) => p.distance != null);
   const places = byDistance ? [...[...kinds, ...found].sort((a, b) => a.distance - b.distance), ...names]
     : namesByDistance ? [...found, ...names].sort((a, b) => a.distance - b.distance)
     : [...kinds, ...found, ...names];
@@ -159,8 +163,10 @@ function combineResults(text, swiss, online, local) {
   return placesFirst ? [...places, ...s] : [...s, ...places];
 }
 
+let lastSearch = null; // { field, text }: what the list was last filled for
 async function search(text) {
-  const id = ++reqId;
+  const id = ++reqId, field = activeField;
+  lastSearch = { field, text };
   const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
   let online = null;
   let onlineDone = false;
@@ -172,6 +178,7 @@ async function search(text) {
   if (id !== reqId) return; // a newer query is in flight
   const local = searchPlaces(text);
   const show = (final) => {
+    if (field !== activeField) return; // the other field has been picked meanwhile
     results = combineResults(text, swiss, online, local);
     render(!final ? 'Searching…' : swiss || online ? 'No results' : 'Search unavailable');
   };
@@ -185,193 +192,3 @@ async function search(text) {
   await onlineReq;
   if (id === reqId) show(true);
 }
-
-// "Show on map": every place result as a pin; tap one to plan the trip there
-const placeMarkers = [];
-function clearPlacePins() {
-  for (const m of placeMarkers) m.remove();
-  placeMarkers.length = 0;
-}
-function showPlacesOnMap() {
-  clearPlacePins();
-  const places = results.filter((r) => r.origin === 'place');
-  if (!places.length) return;
-  const bounds = new maplibregl.LngLatBounds();
-  for (const r of places) {
-    const k = r.icon || KIND[r.kind] || KIND.other;
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.className = 'place-pin';
-    el.setAttribute('aria-label', `${r.title}, ${r.subtitle}`);
-    const icon = document.createElement('div');
-    icon.className = 'icon';
-    icon.style.background = k.color;
-    if (k.fg) icon.style.color = k.fg;
-    icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
-    const name = document.createElement('span');
-    name.textContent = r.title;
-    el.append(icon, name);
-    el.addEventListener('click', (e) => { e.stopPropagation(); showDestinationJourney(r); });
-    placeMarkers.push(new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, -14] }).setLngLat(r.lngLat).addTo(map));
-    bounds.extend(r.lngLat);
-  }
-  list.classList.remove('open');
-  input.blur();
-  const bottom = window.innerHeight * 0.2 + 90; // clear of the search bar
-  map.fitBounds(bounds, { padding: { top: 90, left: 50, right: 50, bottom }, maxZoom: 16.5, duration: 900 });
-}
-
-// A tap on a result row. On phones the click only comes after the browser has moved focus away from the
-// search box, and that blur hides the list (and on iOS the closing keyboard slides the bar down), so the
-// click never reaches the row. Touches are therefore handled on touchend, before any of that happens, and
-// the click that would follow is cancelled. Mouse, keyboard and screen readers still use the click.
-function onTap(el, fn) {
-  let start = null;
-  el.addEventListener('pointerdown', (e) => e.preventDefault()); // mouse: keep focus in the search box
-  el.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    start = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
-  }, { passive: true });
-  el.addEventListener('touchmove', (e) => {
-    const t = e.touches[0];
-    if (start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) start = null; // scrolling the list
-  }, { passive: true });
-  el.addEventListener('touchcancel', () => { start = null; });
-  el.addEventListener('touchend', (e) => {
-    if (!start || !e.cancelable) return; // not cancelable: leave it to the click
-    start = null;
-    e.preventDefault(); // no focus change, no late click on whatever opens underneath
-    fn();
-  });
-  el.addEventListener('click', fn);
-}
-
-function render(emptyText = 'No results') {
-  list.innerHTML = '';
-  if (!input.value.trim()) { list.classList.remove('open'); return; }
-  if (!results.length) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = emptyText;
-    list.appendChild(li);
-  }
-  const placeCount = results.filter((r) => r.origin === 'place').length;
-  if (placeCount >= 2 && results[0].origin === 'place') {
-    const onMap = document.createElement('li');
-    onMap.className = 'on-map';
-    onMap.setAttribute('role', 'option');
-    onMap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/></svg>';
-    onMap.append(placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
-    onTap(onMap, showPlacesOnMap);
-    list.appendChild(onMap);
-  }
-  const visible = expanded ? results : results.slice(0, placeCategory ? 5 : COLLAPSED_COUNT);
-  visible.forEach((r, i) => {
-    const li = document.createElement('li');
-    li.setAttribute('role', 'option');
-    const icon = document.createElement('div');
-    const k = r.icon || KIND[r.kind] || KIND.other;
-    icon.className = 'icon';
-    icon.style.background = k.color;
-    if (k.fg) icon.style.color = k.fg;
-    icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
-    const text = document.createElement('div');
-    text.className = 'text';
-    const t = document.createElement('div');
-    t.className = 'title';
-    t.textContent = r.title;
-    const s = document.createElement('div');
-    s.className = 'subtitle';
-    s.textContent = r.subtitle;
-    text.append(t, s);
-    li.append(icon, text);
-    onTap(li, () => select(i));
-    list.appendChild(li);
-  });
-  if (!expanded && results.length > visible.length) {
-    const more = document.createElement('li');
-    more.className = 'more';
-    more.textContent = 'Show more…';
-    onTap(more, () => { expanded = true; render(); });
-    list.appendChild(more);
-  }
-  if (window.PlaceSearch && results.some((r) => r.source)) { // places from places.js: credit their source
-    const attr = document.createElement('li');
-    attr.className = 'attr';
-    attr.textContent = PlaceSearch.attribution;
-    list.appendChild(attr);
-  }
-  list.classList.add('open');
-  if (!expanded) list.scrollTop = 0;
-}
-
-function select(i) {
-  const r = results[i];
-  if (r) showDestinationJourney(r);
-}
-
-function showDestinationJourney(r) {
-  input.value = r.title;
-  clearBtn.classList.add('show');
-  list.classList.remove('open');
-  input.blur();
-  clearPlacePins();
-  destMarker.setLngLat(r.lngLat).addTo(map);
-  startJourney(r);
-}
-
-input.addEventListener('input', () => {
-  const text = input.value.trim();
-  clearBtn.classList.toggle('show', !!input.value);
-  clearTimeout(debounce);
-  clearPlacePins();
-  if (text.length < 2) { reqId++; results = []; placeCategory = null; render(); return; }
-  // Google Places is paid per request: wait a little longer for a pause in typing
-  debounce = setTimeout(() => search(text), window.PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
-});
-
-input.addEventListener('focus', () => {
-  setMenu(false);
-  loadPlaces(); // so places (toilets, pharmacies…) are ready to be searched
-  if (input.value.trim()) render();
-});
-
-form.addEventListener('submit', (e) => {
-  e.preventDefault();
-  // "restaurants" + Enter shows them all on the map; a name or address goes straight there
-  if (placeCategory && results.filter((r) => r.origin === 'place').length >= 2) showPlacesOnMap();
-  else if (results.length) select(0);
-});
-
-clearBtn.addEventListener('pointerdown', (e) => e.preventDefault());
-clearBtn.addEventListener('click', () => {
-  input.value = '';
-  results = [];
-  placeCategory = null;
-  reqId++;
-  clearBtn.classList.remove('show');
-  render();
-  clearPlacePins();
-  destMarker.remove();
-  if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
-  input.focus();
-});
-
-// Collapse the bar into a circle when the user moves the map; tap the circle to expand it again
-map.on('movestart', (e) => {
-  if (!e.originalEvent) return; // ignore programmatic moves (flyTo after a search)
-  if (wrap.classList.contains('journey-open')) { setMenu(false); return; } // keep the journey widget open
-  input.blur();
-  setMenu(false);
-  wrap.classList.add('collapsed');
-});
-form.addEventListener('click', () => {
-  if (!wrap.classList.contains('collapsed')) return;
-  wrap.classList.remove('collapsed');
-  input.focus();
-});
-
-// Tapping the map closes the keyboard, results and menu
-map.on('mousedown', () => { input.blur(); setMenu(false); });
-map.on('touchstart', () => { input.blur(); setMenu(false); });
-input.addEventListener('blur', () => list.classList.remove('open'));
