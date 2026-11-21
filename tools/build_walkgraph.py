@@ -765,15 +765,20 @@ def register_doors(bbox, proj, nodes, buildings, entrances):
             L2 = dx * dx + dy * dy
             if L2 < 0.25:
                 continue
+            L = math.sqrt(L2)
             t = max(0.0, min(1.0, ((q[0] - x1) * dx + (q[1] - y1) * dy) / L2))
             x, y = x1 + dx * t, y1 + dy * t
-            opts.append((math.hypot(q[0] - x, q[1] - y), (x, y), (-dy / math.sqrt(L2), dx / math.sqrt(L2))))
-        for d, at, (nx, ny) in sorted(opts):
+            # the wall is judged a little in from a corner, where both sides of it may be outside the building
+            m = min(0.5, L / 2) / L
+            tp = max(m, min(1 - m, t))
+            probe = (x1 + dx * tp, y1 + dy * tp)
+            opts.append((math.hypot(q[0] - x, q[1] - y), (x, y), probe, (-dy / L, dx / L)))
+        for d, at, probe, (nx, ny) in sorted(opts, key=lambda o: o[0]):
             if d > 12:
                 break
-            # 1 m out from the wall, on whichever side is not this building, must not be inside another one
-            out = next((o for o in ((at[0] + nx, at[1] + ny), (at[0] - nx, at[1] - ny)) if not inside(o, ring)), None)
-            if out and not in_other(out, bid):
+            # 1 m out from the wall, on the side that is not this building, must not be inside another one
+            sides = [o for o in ((probe[0] + nx, probe[1] + ny), (probe[0] - nx, probe[1] - ny)) if not inside(o, ring)]
+            if len(sides) == 1 and not in_other(sides[0], bid):
                 return d, at
         return math.inf, None
 
@@ -808,10 +813,9 @@ def register_doors(bbox, proj, nodes, buildings, entrances):
 
 
 def merge_addr(a, b):
-    """'Bahnhofstrasse 12' + 'Bahnhofstrasse 12a' → 'Bahnhofstrasse 12, 12a'"""
-    sa, _, na = a.rpartition(' ')
-    sb, _, nb = b.rpartition(' ')
-    return f'{a}, {nb}' if sa == sb else f'{a}, {b}'
+    """'Bahnhofstrasse 12' + 'Bahnhofstrasse 12a' → 'Bahnhofstrasse 12, 12a' (and on: '…, 12a, 14')"""
+    street, _, nb = b.rpartition(' ')
+    return f'{a}, {nb}' if street and a.startswith(street + ' ') else f'{a}, {b}'
 
 
 def simplify(pts, tol):

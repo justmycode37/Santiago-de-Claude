@@ -178,8 +178,13 @@
   }
   function loadTile(key) {
     if (!tiles.has(key)) {
-      const got = loader ? loader(key)
-        : new Promise((ok, fail) => {
+      let got;
+      try {
+        got = loader ? Promise.resolve(loader(key)) : null;
+      } catch (e) {
+        got = Promise.reject(e); // a loader that throws is a tile that failed (the walk's tiles are released)
+      }
+      got = got || new Promise((ok, fail) => {
           pending.set(key, ok);
           // a script that loads but does not hand over the tile (a captive portal page, say) has failed too
           loadScript(base + 't/' + key + '.js')
@@ -342,7 +347,8 @@
       // reaches its own platform across that one track; the walk then starts on the platform (onTrack)
       let onTrack = false;
       if (pr.d > 1 && cutsRail(p, pr.q)) {
-        if (!own || !onlyOwnTrack(p, pr.q)) return;
+        // (a platform below or above the street does not stand on a track of the ground)
+        if (!own || (o.level != null && o.level !== 0) || !onlyOwnTrack(p, pr.q)) return;
         onTrack = true;
       }
       if (pr.d > 2) {

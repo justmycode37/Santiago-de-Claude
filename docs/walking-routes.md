@@ -61,7 +61,7 @@ same address, the point snapped onto the outline is a median 0.8 m (Bern), 0.9 m
 |---|---|---|---|---|
 | Bern | 84 | 9.2 MB (3.5 MB) | 15,500 | 25,900 |
 | Zürich | 215 | 20.6 MB (7.5 MB) | 7,000 | 76,200 |
-| Basel | 70 | 8.8 MB (3.1 MB) | 17,500 | 30,000 |
+| Basel | 70 | 8.7 MB (3.1 MB) | 17,500 | 30,000 |
 | Geneva | 81 | 10.2 MB (3.7 MB) | 530 | 44,800 |
 | Lausanne | 62 | 6.9 MB (2.5 MB) | 820 | 28,200 |
 

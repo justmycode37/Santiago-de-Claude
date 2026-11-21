@@ -1,6 +1,8 @@
 """How close are the official building address points (tools/gebaeudeadressen.py) to the doors OpenStreetMap maps?
 Per city around the main station: the share of address points on a building outline, and for OSM doors that carry an
-address, the distance to that address's register point, as given and snapped onto the outline.
+address, the distance to that address's register point, as given and snapped onto the nearest point of an outline
+(the builder's rule, tools/build_walkgraph.py register_doors(), adds: the building the point is in, and a wall facing
+the open; buildings with an OSM door get no register doors, so this sample measures the snapping, not those doors).
 usage: python register_check.py   (after tools/build_walkgraph.py has built the cities)"""
 import sys, os, json, math, glob
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')); sys.path.insert(0, os.path.join(REPO, 'tools'))

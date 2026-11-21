@@ -18,7 +18,8 @@ const inside = (p, ring) => { let c = false; for (let i = 0, j = ring.length - 1
   if ((y1 > p[1]) !== (y2 > p[1]) && p[0] < (x2 - x1) * (p[1] - y1) / (y2 - y1) + x1) c = !c; } return c; };
 const bldAt = (p) => [...buildings.values()].filter((b) => p[0] >= b.bb[0] && p[0] <= b.bb[2] && p[1] >= b.bb[1] && p[1] <= b.bb[3] && inside(p, b.ring));
 let mapped = null;
-const mappedSegs = () => { if (mapped && mapped.n === nodes.size) return mapped; mapped = []; mapped.n = nodes.size; const seen = new Set();
+const graphKey = () => [...W._debug.inGraph].sort().join() + '|' + nodes.size; // the network is rebuilt per area
+const mappedSegs = () => { if (mapped && mapped.n === graphKey()) return mapped; mapped = []; mapped.n = graphKey(); const seen = new Set();
   nodes.forEach((n) => n.adj.forEach((e) => { if (e.attr.k !== 'ar' && !seen.has(e)) { seen.add(e); mapped.push([e.a.ll, e.b.ll]); } })); return mapped; };
 const nearMapped = (p) => { const k = 111320 * Math.cos(p[1] * Math.PI / 180);
   for (const [a, b] of mappedSegs()) { // only segments whose box comes within ~40 m of p (a long one may pass by p)

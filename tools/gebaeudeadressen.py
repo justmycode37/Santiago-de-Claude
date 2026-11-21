@@ -58,7 +58,8 @@ def _cache():
         for line in f:
             r = line.rstrip('\n').split(';')
             # a few rows have ";" inside a field: skipped (they would need a real CSV parser)
-            if len(r) != len(H) or r[H['ADR_STATUS']] != 'real' or not r[H['ADR_EASTING']] or not r[H['ADR_NUMBER']]:
+            if len(r) != len(H) or r[H['ADR_STATUS']] != 'real' or not r[H['ADR_NUMBER']] \
+                    or not all(r[H[c]].strip() for c in ('ADR_EASTING', 'ADR_NORTHING', 'ADR_EGAID')):
                 continue
             lon, lat = swisstlm3d.lv95_to_wgs84(float(r[H['ADR_EASTING']]), float(r[H['ADR_NORTHING']]))
             addr = f"{r[H['STN_LABEL']]} {r[H['ADR_NUMBER']]}".strip().replace('\t', ' ')
