@@ -390,6 +390,7 @@ impl State {
                     self.frame_ts = t;
                 } else {
                     j.recorded_at = t;
+                    j.recorded_at_own = t != 0;
                 }
             }
             Tag::LineRef => j.line_ref = text_string(text),

@@ -19,6 +19,8 @@
       prefs=stepFree,fewerStairs,noEscalators,wheelchair      journey settings; walkKmh=4.7
       date=YYYY-MM-DD                the day closures and notices are judged for (default: today). Bern: platform 3/4
                                      is closed until 2026-12-13, track 1 from then on
+      season=winter | summer         detail scenes (stations3d/DETAIL.md): bare or leafy trees; default: what the data says
+      quality=high | low             detail scenes: how fine they are drawn; default: by the device
       theme=light | dark             default: the system setting
       title=…                        text for the title bar
       step=<n>                       select this step after opening (0 = first)
@@ -94,6 +96,9 @@
     <a href="?key=bern&from=stop:8507000:7&to=stop:8507000:11">Bern: a platform the plan does not have</a>
     <a href="?key=bern&from=ll:8.5402,47.3782&to=stop:8507000:7&user=far&follow=1">Bern: from far away, follow on</a>
     <a href="?key=bern&from=stop:8507000:5&to=stop:8507000:22&pov=1&at=60">Bern: first-person view in the main underpass</a>
+    <a href="?key=bern&from=stop:8579896:B&to=stop:8579896:C&pov=1">Bern, Hirschengraben: the detail scene, walk from tram platform B to C (first-person)</a>
+    <a href="?key=bern&from=stop:8579896:B&to=stop:8579896:C&pov=1&season=summer&theme=dark">Bern, Hirschengraben: the same in summer, at night</a>
+    <a href="?key=bern&from=stop:8507000:7&to=stop:8579896:B&pov=1&at=150">Bern: platform 7 to Hirschengraben B, walking into the detail scene</a>
     <a href="?key=bern">Bern: explore</a>
     <a href="?key=europaplatz&from=stop:8507082:1&to=stop:8504108:3">Europaplatz: platform 1 to platform 3</a>
     <a href="?key=wankdorf&from=stop:8516161:1&to=stop:8516161:7">Wankdorf: platform 1 to platform 7</a>
@@ -164,6 +169,8 @@
         level: q.has('level') ? +q.get('level') : undefined,
         peel: q.has('peel') ? +q.get('peel') : undefined,
         still: q.get('still') === '1',
+        season: q.get('season') || undefined,
+        quality: q.get('quality') || undefined,
         list: q.get('list') === '1',
         modal: q.get('ui') === '0', // with this page's own buttons showing, they must stay usable
         follow: q.get('follow') === '1',

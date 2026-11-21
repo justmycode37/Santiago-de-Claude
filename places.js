@@ -174,7 +174,7 @@
   async function photonNearby(cat, center, origin, radiusKm) {
     let found = [];
     for (const r of [radiusKm, Math.max(radiusKm * 4, 5)]) {
-      const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: 'en' });
+      const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
       cat.tags.forEach((t) => params.append('osm_tag', t));
       const data = await getJSON(`${PHOTON}reverse?${params}`);
       found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean));
@@ -187,7 +187,7 @@
   // Places by name, the ones near the map first
   async function photonByName(text, center, origin) {
     const params = new URLSearchParams({ q: text, lat: round(center[1]), lon: round(center[0]), zoom: '16',
-      location_bias_scale: '0.1', limit: '40', lang: 'en' });
+      location_bias_scale: '0.1', limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
     const data = await getJSON(`${PHOTON}api/?${params}`);
     const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean));
     // Photon's order is by how well the name matches; nearer places move up (300 m ≈ one place in the list)

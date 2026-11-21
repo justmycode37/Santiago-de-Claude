@@ -41,6 +41,9 @@ pub struct RtJourney {
     /// (SIRI journey-level `RecordedAtTime`, GTFS-RT `TripUpdate.timestamp`,
     /// else the feed timestamp). 0 if unknown.
     pub recorded_at: i64,
+    /// `recorded_at` is this journey's own update time (SIRI journey-level
+    /// `RecordedAtTime`, GTFS-RT `TripUpdate.timestamp`), not the feed's.
+    pub recorded_at_own: bool,
     /// SIRI `PredictionInaccurate` / `InCongestion`.
     pub prediction_inaccurate: bool,
     pub in_congestion: bool,
