@@ -101,7 +101,7 @@ var positive = ["A": Tally(), "B": Tally(), "C": Tally()]
 var negative = ["A": Tally(), "B": Tally(), "C": Tally()]
 var perFrame = [String: Int]()
 var details: [String] = []
-for label in (args.contains("--bench") || args.contains("--why") ? [] : labels) {
+for label in (args.contains("--bench") || args.contains("--why") || args.contains("--dump") ? [] : labels) {
     guard let event = eventsByID[label.event] else { continue }
     let truth = DisplayCandidate(line: label.line, destination: label.destination)
     // Per-frame closed-set identification (strategy C's evidence).
@@ -201,4 +201,29 @@ if args.contains("--why") {
             print("   \(m.outcome.rawValue.padding(toLength: 10, withPad: " ", startingAt: 0)) best[\(b)] 2nd[\(r)] texts=\(reading.observed.map { "\($0.text)(\(String(format: "%.2f", $0.score)))" }.prefix(8))")
         }
     }
+}
+
+if let i = args.firstIndex(of: "--dump"), i + 3 < args.count, let id = Int(args[i + 1]), let event = eventsByID[id] {
+    // Per-frame decision trace of one pass for a given expected service ("LINE|Destination"), for demo videos.
+    let parts = args[i + 2].split(separator: "|", maxSplits: 1).map(String.init)
+    let expected = expectation(parts[0], parts[1], board: true)
+    let (track, times) = readings(event, keepObserved: true)
+    struct Row: Encodable { let image: String; let box: [Double]; let texts: [String]; let match: String; let state: String; let reason: String; let label: String }
+    var rows: [Row] = []
+    var index = 0
+    for name in event.frames {
+        guard let frame = frames[name], let vehicle = frame.vehicles.max(by: { $0.box[3] < $1.box[3] }), index < times.count else { continue }
+        let now = times[index]
+        var window = track
+        window.readings = Array(track.readings.prefix(index + 1)).filter { now.timeIntervalSince($0.at) <= 2 }
+        window.lastSeen = now
+        let d = VehicleServiceMatcher.decide(window, expected: expected, now: now)
+        let m = DepartureDisplayMatcher.match(track.readings[index].observed, candidates: [DisplayCandidate(line: parts[0], destination: parts[1], isExpected: true)] + board)
+        let best = m.best.map { "\($0.candidate.line) \($0.candidate.destination) (d=\(String(format: "%.2f", $0.destination)), line \($0.line.rawValue))" } ?? "-"
+        rows.append(Row(image: name, box: vehicle.box, texts: track.readings[index].observed.map { "\($0.text) \(String(format: "%.2f", $0.score))" },
+                        match: "\(m.outcome.rawValue): \(best)", state: d.state.rawValue, reason: d.reason, label: d.label))
+        index += 1
+    }
+    let encoder = JSONEncoder(); encoder.outputFormatting = .prettyPrinted
+    try! encoder.encode(rows).write(to: URL(fileURLWithPath: args[i + 3]))
 }
