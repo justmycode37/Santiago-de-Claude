@@ -59,7 +59,6 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/onboard", get(onboard))
         .route("/api/due", get(due))
         .route("/api/match", get(match_trip))
-        .route("/api/observe", post(observe))
         .route("/api/stream", get(stream))
         .route("/api/indoor", get(indoor))
         .route("/api/plan", post(plan))
@@ -78,7 +77,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
         valid_to: time::fmt_date(tt.end_date()),
         walk_bbox: [b.min.lon_deg(), b.min.lat_deg(), b.max.lon_deg(), b.max.lat_deg()],
         realtime: app.live.read().meta.clone(),
-        features: vec!["match", "due", "observe", "stream", "extras", "gtfs-rt"],
+        features: vec!["match", "due", "stream", "extras", "gtfs-rt"],
         counts: json::Counts {
             stations: tt.stations.len(),
             quays: tt.stops.len(),
@@ -610,23 +609,6 @@ async fn match_trip(State(app): S, Q(p): Q<MatchParams>) -> Result<Json<json::Ma
     let dep = check_t(p.dep)?;
     let arr = p.arr.map(check_t).transpose()?;
     Ok(Json(liveapi::match_trip(&app, &liveapi::MatchQuery { from, dep, to, arr, line: &p.line, number: &p.number })))
-}
-
-async fn observe(
-    State(app): S,
-    axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
-    headers: header::HeaderMap,
-    Json(r): Json<json::ObserveRequest>,
-) -> Json<json::ObserveResponse> {
-    // Behind the local Cloudflare tunnel every request comes from 127.0.0.1 and the
-    // client's address is in CF-Connecting-IP (set by Cloudflare). From anyone else
-    // the header is not believed.
-    let addr = if peer.ip().is_loopback() {
-        headers.get("cf-connecting-ip").and_then(|v| v.to_str().ok()).map(|v| v.trim().to_string()).unwrap_or_else(|| peer.ip().to_string())
-    } else {
-        peer.ip().to_string()
-    };
-    Json(liveapi::observe(&app, &r, &addr, now_unix()))
 }
 
 #[derive(Deserialize)]
