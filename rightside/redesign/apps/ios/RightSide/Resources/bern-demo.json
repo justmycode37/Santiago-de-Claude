@@ -1,0 +1,3219 @@
+{
+  "schemaVersion": 1,
+  "id": "bern-full-journey-v1",
+  "label": "SIMULATED · Bern full journey and return",
+  "synthetic": true,
+  "clockStart": "2026-11-21T09:00:00+01:00",
+  "journey": {
+    "schemaVersion": 1,
+    "id": "bern-demo-outbound",
+    "revision": 1,
+    "origin": {
+      "id": "demo-home",
+      "name": "Demo start · Bern Länggasse",
+      "kind": "address",
+      "coordinate": [
+        7.4335,
+        46.953
+      ],
+      "parentId": null,
+      "sourceRefs": [
+        {
+          "provider": "synthetic",
+          "id": "demo-home",
+          "feedVersion": "demo-v1"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ]
+    },
+    "destination": {
+      "id": "demo-destination",
+      "name": "Demo destination · museum area",
+      "kind": "poi",
+      "coordinate": [
+        7.4499,
+        46.9415
+      ],
+      "parentId": null,
+      "sourceRefs": [
+        {
+          "provider": "synthetic",
+          "id": "demo-destination",
+          "feedVersion": "demo-v1"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ]
+    },
+    "preferences": {
+      "stepFree": false,
+      "maxWalkMeters": null,
+      "language": "en"
+    },
+    "legs": [
+      {
+        "id": "out-walk-1",
+        "kind": "walk",
+        "from": {
+          "id": "demo-home",
+          "name": "Demo start · Bern Länggasse",
+          "kind": "address",
+          "coordinate": [
+            7.4335,
+            46.953
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-home",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-first",
+          "name": "Demo Länggasse stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4342,
+            46.9525
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-first",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T09:00:00+01:00",
+        "plannedEnd": "2026-11-21T09:05:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.4335,
+              46.953
+            ],
+            [
+              7.4342,
+              46.9525
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "distanceMeters": null,
+        "instructions": [
+          {
+            "id": "out-walk-1-instruction",
+            "text": "Demo: approach the first stop. The path and waiting area are unverified.",
+            "coordinate": [
+              7.4342,
+              46.9525
+            ],
+            "kind": "walk"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      },
+      {
+        "id": "out-ride-1",
+        "kind": "ride",
+        "mode": "bus",
+        "from": {
+          "id": "demo-first",
+          "name": "Demo Länggasse stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4342,
+            46.9525
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-first",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-central-west",
+          "name": "Demo Bahnhof · west arrival",
+          "kind": "stop",
+          "coordinate": [
+            7.439,
+            46.9487
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-west",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T09:07:00+01:00",
+        "plannedEnd": "2026-11-21T09:15:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.4342,
+              46.9525
+            ],
+            [
+              7.439,
+              46.9487
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "instructions": [
+          {
+            "id": "out-ride-1-instruction",
+            "text": "Demo: take Demo 12 towards Demo Bahnhof · west arrival.",
+            "coordinate": null,
+            "kind": "board"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ],
+        "line": "Demo 12",
+        "headsign": "Demo Bahnhof · west arrival",
+        "trip": {
+          "provider": "synthetic",
+          "feedVersion": "demo-v1",
+          "sourceTripId": "trip-out-ride-1",
+          "sjyid": null,
+          "operatingDate": "2026-11-21",
+          "tripStartOffsetSeconds": 32820,
+          "timezone": "Europe/Zurich",
+          "frequencyWindow": null
+        },
+        "calls": [
+          {
+            "id": "out-ride-1-board",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-out-ride-1",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 32820,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 1,
+            "place": {
+              "id": "demo-first",
+              "name": "Demo Länggasse stop",
+              "kind": "stop",
+              "coordinate": [
+                7.4342,
+                46.9525
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-first",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T09:07:00+01:00",
+            "plannedDeparture": "2026-11-21T09:07:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo A",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo A",
+              "label": "Demo A",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo A",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo A",
+              "label": "Demo A",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          {
+            "id": "out-ride-1-alight",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-out-ride-1",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 32820,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 2,
+            "place": {
+              "id": "demo-central-west",
+              "name": "Demo Bahnhof · west arrival",
+              "kind": "stop",
+              "coordinate": [
+                7.439,
+                46.9487
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-central-west",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T09:15:00+01:00",
+            "plannedDeparture": "2026-11-21T09:15:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          }
+        ],
+        "boardingCallId": "out-ride-1-board",
+        "alightingCallId": "out-ride-1-alight",
+        "boardingTarget": {
+          "id": "target-out-ride-1-board-Demo A",
+          "callId": "out-ride-1-board",
+          "assignment": {
+            "status": "resolved_planned",
+            "sourceRef": {
+              "provider": "synthetic",
+              "id": "demo-quay-Demo A",
+              "feedVersion": "demo-v1"
+            },
+            "originalLabel": "Demo A",
+            "label": "Demo A",
+            "candidates": [],
+            "conflictReason": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "transitCoordinate": [
+            7.4342,
+            46.9525
+          ],
+          "pedestrianArea": {
+            "kind": "point",
+            "coordinates": [
+              [
+                7.434279999999999,
+                46.95255
+              ]
+            ],
+            "level": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "pedestrianTargetStatus": "unverified",
+          "approachEntrance": null,
+          "level": null,
+          "precisionMeters": null,
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        }
+      },
+      {
+        "id": "out-transfer",
+        "kind": "transfer",
+        "from": {
+          "id": "demo-central-west",
+          "name": "Demo Bahnhof · west arrival",
+          "kind": "stop",
+          "coordinate": [
+            7.439,
+            46.9487
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-west",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-central-east",
+          "name": "Demo Bahnhof · east departure",
+          "kind": "stop",
+          "coordinate": [
+            7.441,
+            46.9485
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-east",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T09:15:00+01:00",
+        "plannedEnd": "2026-11-21T09:21:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.439,
+              46.9487
+            ],
+            [
+              7.441,
+              46.9485
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "distanceMeters": null,
+        "instructions": [
+          {
+            "id": "out-transfer-instruction",
+            "text": "Demo: transfer between the two stop areas. No verified pedestrian route is available.",
+            "coordinate": [
+              7.441,
+              46.9485
+            ],
+            "kind": "walk"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      },
+      {
+        "id": "out-ride-2",
+        "kind": "ride",
+        "mode": "bus",
+        "from": {
+          "id": "demo-central-east",
+          "name": "Demo Bahnhof · east departure",
+          "kind": "stop",
+          "coordinate": [
+            7.441,
+            46.9485
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-east",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-last",
+          "name": "Demo Kirchenfeld stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4491,
+            46.9421
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-last",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T09:24:00+01:00",
+        "plannedEnd": "2026-11-21T09:33:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.441,
+              46.9485
+            ],
+            [
+              7.4491,
+              46.9421
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "instructions": [
+          {
+            "id": "out-ride-2-instruction",
+            "text": "Demo: take Demo 19 towards Demo Kirchenfeld stop.",
+            "coordinate": null,
+            "kind": "board"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ],
+        "line": "Demo 19",
+        "headsign": "Demo Kirchenfeld stop",
+        "trip": {
+          "provider": "synthetic",
+          "feedVersion": "demo-v1",
+          "sourceTripId": "trip-out-ride-2",
+          "sjyid": null,
+          "operatingDate": "2026-11-21",
+          "tripStartOffsetSeconds": 33840,
+          "timezone": "Europe/Zurich",
+          "frequencyWindow": null
+        },
+        "calls": [
+          {
+            "id": "out-ride-2-board",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-out-ride-2",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 33840,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 1,
+            "place": {
+              "id": "demo-central-east",
+              "name": "Demo Bahnhof · east departure",
+              "kind": "stop",
+              "coordinate": [
+                7.441,
+                46.9485
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-central-east",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T09:24:00+01:00",
+            "plannedDeparture": "2026-11-21T09:24:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo B",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo B",
+              "label": "Demo B",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo B",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo B",
+              "label": "Demo B",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          {
+            "id": "out-ride-2-alight",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-out-ride-2",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 33840,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 2,
+            "place": {
+              "id": "demo-last",
+              "name": "Demo Kirchenfeld stop",
+              "kind": "stop",
+              "coordinate": [
+                7.4491,
+                46.9421
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-last",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T09:33:00+01:00",
+            "plannedDeparture": "2026-11-21T09:33:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          }
+        ],
+        "boardingCallId": "out-ride-2-board",
+        "alightingCallId": "out-ride-2-alight",
+        "boardingTarget": {
+          "id": "target-out-ride-2-board-Demo B",
+          "callId": "out-ride-2-board",
+          "assignment": {
+            "status": "resolved_planned",
+            "sourceRef": {
+              "provider": "synthetic",
+              "id": "demo-quay-Demo B",
+              "feedVersion": "demo-v1"
+            },
+            "originalLabel": "Demo B",
+            "label": "Demo B",
+            "candidates": [],
+            "conflictReason": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "transitCoordinate": [
+            7.441,
+            46.9485
+          ],
+          "pedestrianArea": {
+            "kind": "point",
+            "coordinates": [
+              [
+                7.4410799999999995,
+                46.948550000000004
+              ]
+            ],
+            "level": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "pedestrianTargetStatus": "unverified",
+          "approachEntrance": null,
+          "level": null,
+          "precisionMeters": null,
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        }
+      },
+      {
+        "id": "out-walk-2",
+        "kind": "walk",
+        "from": {
+          "id": "demo-last",
+          "name": "Demo Kirchenfeld stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4491,
+            46.9421
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-last",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-destination",
+          "name": "Demo destination · museum area",
+          "kind": "poi",
+          "coordinate": [
+            7.4499,
+            46.9415
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-destination",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T09:33:00+01:00",
+        "plannedEnd": "2026-11-21T09:38:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.4491,
+              46.9421
+            ],
+            [
+              7.4499,
+              46.9415
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "distanceMeters": null,
+        "instructions": [
+          {
+            "id": "out-walk-2-instruction",
+            "text": "Demo: continue towards the destination; use the map only as a schematic.",
+            "coordinate": [
+              7.4499,
+              46.9415
+            ],
+            "kind": "walk"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      }
+    ],
+    "durationSeconds": 2280,
+    "warnings": [
+      "SIMULATED DEMO — not a real timetable or route.",
+      "All coordinates and pedestrian areas are unverified; none were surveyed.",
+      "Accessibility and legal crossing availability are unknown."
+    ],
+    "evidence": [
+      {
+        "source": "rightside-synthetic-bern",
+        "sourceVersion": "1",
+        "fetchedAt": "2026-11-21T09:00:00+01:00",
+        "kind": "simulated",
+        "quality": "unknown"
+      }
+    ]
+  },
+  "returnJourney": {
+    "schemaVersion": 1,
+    "id": "bern-demo-return",
+    "revision": 1,
+    "origin": {
+      "id": "demo-destination",
+      "name": "Demo destination · museum area",
+      "kind": "poi",
+      "coordinate": [
+        7.4499,
+        46.9415
+      ],
+      "parentId": null,
+      "sourceRefs": [
+        {
+          "provider": "synthetic",
+          "id": "demo-destination",
+          "feedVersion": "demo-v1"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ]
+    },
+    "destination": {
+      "id": "demo-home",
+      "name": "Demo start · Bern Länggasse",
+      "kind": "address",
+      "coordinate": [
+        7.4335,
+        46.953
+      ],
+      "parentId": null,
+      "sourceRefs": [
+        {
+          "provider": "synthetic",
+          "id": "demo-home",
+          "feedVersion": "demo-v1"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ]
+    },
+    "preferences": {
+      "stepFree": false,
+      "maxWalkMeters": null,
+      "language": "en"
+    },
+    "legs": [
+      {
+        "id": "return-walk-1",
+        "kind": "walk",
+        "from": {
+          "id": "demo-destination",
+          "name": "Demo destination · museum area",
+          "kind": "poi",
+          "coordinate": [
+            7.4499,
+            46.9415
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-destination",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-last",
+          "name": "Demo Kirchenfeld stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4491,
+            46.9421
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-last",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T15:00:00+01:00",
+        "plannedEnd": "2026-11-21T15:05:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.4499,
+              46.9415
+            ],
+            [
+              7.4491,
+              46.9421
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "distanceMeters": null,
+        "instructions": [
+          {
+            "id": "return-walk-1-instruction",
+            "text": "Demo: return to the stop area; the boarding side remains unverified.",
+            "coordinate": [
+              7.4491,
+              46.9421
+            ],
+            "kind": "walk"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      },
+      {
+        "id": "return-ride-1",
+        "kind": "ride",
+        "mode": "bus",
+        "from": {
+          "id": "demo-last",
+          "name": "Demo Kirchenfeld stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4491,
+            46.9421
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-last",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-central-east",
+          "name": "Demo Bahnhof · east departure",
+          "kind": "stop",
+          "coordinate": [
+            7.441,
+            46.9485
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-east",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T15:07:00+01:00",
+        "plannedEnd": "2026-11-21T15:16:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.4491,
+              46.9421
+            ],
+            [
+              7.441,
+              46.9485
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "instructions": [
+          {
+            "id": "return-ride-1-instruction",
+            "text": "Demo: take Demo 19 towards Demo Bahnhof · east departure.",
+            "coordinate": null,
+            "kind": "board"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ],
+        "line": "Demo 19",
+        "headsign": "Demo Bahnhof · east departure",
+        "trip": {
+          "provider": "synthetic",
+          "feedVersion": "demo-v1",
+          "sourceTripId": "trip-return-ride-1",
+          "sjyid": null,
+          "operatingDate": "2026-11-21",
+          "tripStartOffsetSeconds": 54420,
+          "timezone": "Europe/Zurich",
+          "frequencyWindow": null
+        },
+        "calls": [
+          {
+            "id": "return-ride-1-board",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-return-ride-1",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 54420,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 1,
+            "place": {
+              "id": "demo-last",
+              "name": "Demo Kirchenfeld stop",
+              "kind": "stop",
+              "coordinate": [
+                7.4491,
+                46.9421
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-last",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T15:07:00+01:00",
+            "plannedDeparture": "2026-11-21T15:07:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo R1",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo R1",
+              "label": "Demo R1",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo R1",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo R1",
+              "label": "Demo R1",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          {
+            "id": "return-ride-1-alight",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-return-ride-1",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 54420,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 2,
+            "place": {
+              "id": "demo-central-east",
+              "name": "Demo Bahnhof · east departure",
+              "kind": "stop",
+              "coordinate": [
+                7.441,
+                46.9485
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-central-east",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T15:16:00+01:00",
+            "plannedDeparture": "2026-11-21T15:16:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          }
+        ],
+        "boardingCallId": "return-ride-1-board",
+        "alightingCallId": "return-ride-1-alight",
+        "boardingTarget": {
+          "id": "target-return-ride-1-board-Demo R1",
+          "callId": "return-ride-1-board",
+          "assignment": {
+            "status": "resolved_planned",
+            "sourceRef": {
+              "provider": "synthetic",
+              "id": "demo-quay-Demo R1",
+              "feedVersion": "demo-v1"
+            },
+            "originalLabel": "Demo R1",
+            "label": "Demo R1",
+            "candidates": [],
+            "conflictReason": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "transitCoordinate": [
+            7.4491,
+            46.9421
+          ],
+          "pedestrianArea": {
+            "kind": "point",
+            "coordinates": [
+              [
+                7.449179999999999,
+                46.942150000000005
+              ]
+            ],
+            "level": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "pedestrianTargetStatus": "unverified",
+          "approachEntrance": null,
+          "level": null,
+          "precisionMeters": null,
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        }
+      },
+      {
+        "id": "return-transfer",
+        "kind": "transfer",
+        "from": {
+          "id": "demo-central-east",
+          "name": "Demo Bahnhof · east departure",
+          "kind": "stop",
+          "coordinate": [
+            7.441,
+            46.9485
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-east",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-central-west",
+          "name": "Demo Bahnhof · west arrival",
+          "kind": "stop",
+          "coordinate": [
+            7.439,
+            46.9487
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-west",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T15:16:00+01:00",
+        "plannedEnd": "2026-11-21T15:22:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.441,
+              46.9485
+            ],
+            [
+              7.439,
+              46.9487
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "distanceMeters": null,
+        "instructions": [
+          {
+            "id": "return-transfer-instruction",
+            "text": "Demo: transfer back across the station area using an unverified schematic.",
+            "coordinate": [
+              7.439,
+              46.9487
+            ],
+            "kind": "walk"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      },
+      {
+        "id": "return-ride-2",
+        "kind": "ride",
+        "mode": "bus",
+        "from": {
+          "id": "demo-central-west",
+          "name": "Demo Bahnhof · west arrival",
+          "kind": "stop",
+          "coordinate": [
+            7.439,
+            46.9487
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-central-west",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-first",
+          "name": "Demo Länggasse stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4342,
+            46.9525
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-first",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T15:25:00+01:00",
+        "plannedEnd": "2026-11-21T15:33:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.439,
+              46.9487
+            ],
+            [
+              7.4342,
+              46.9525
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "instructions": [
+          {
+            "id": "return-ride-2-instruction",
+            "text": "Demo: take Demo 12 towards Demo Länggasse stop.",
+            "coordinate": null,
+            "kind": "board"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ],
+        "line": "Demo 12",
+        "headsign": "Demo Länggasse stop",
+        "trip": {
+          "provider": "synthetic",
+          "feedVersion": "demo-v1",
+          "sourceTripId": "trip-return-ride-2",
+          "sjyid": null,
+          "operatingDate": "2026-11-21",
+          "tripStartOffsetSeconds": 55500,
+          "timezone": "Europe/Zurich",
+          "frequencyWindow": null
+        },
+        "calls": [
+          {
+            "id": "return-ride-2-board",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-return-ride-2",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 55500,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 1,
+            "place": {
+              "id": "demo-central-west",
+              "name": "Demo Bahnhof · west arrival",
+              "kind": "stop",
+              "coordinate": [
+                7.439,
+                46.9487
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-central-west",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T15:25:00+01:00",
+            "plannedDeparture": "2026-11-21T15:25:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo R2",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo R2",
+              "label": "Demo R2",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo R2",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo R2",
+              "label": "Demo R2",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          {
+            "id": "return-ride-2-alight",
+            "trip": {
+              "provider": "synthetic",
+              "feedVersion": "demo-v1",
+              "sourceTripId": "trip-return-ride-2",
+              "sjyid": null,
+              "operatingDate": "2026-11-21",
+              "tripStartOffsetSeconds": 55500,
+              "timezone": "Europe/Zurich",
+              "frequencyWindow": null
+            },
+            "stopSequence": 2,
+            "place": {
+              "id": "demo-first",
+              "name": "Demo Länggasse stop",
+              "kind": "stop",
+              "coordinate": [
+                7.4342,
+                46.9525
+              ],
+              "parentId": null,
+              "sourceRefs": [
+                {
+                  "provider": "synthetic",
+                  "id": "demo-first",
+                  "feedVersion": "demo-v1"
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "plannedArrival": "2026-11-21T15:33:00+01:00",
+            "plannedDeparture": "2026-11-21T15:33:00+01:00",
+            "expectedArrival": null,
+            "expectedDeparture": null,
+            "plannedAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "currentAssignment": {
+              "status": "resolved_planned",
+              "sourceRef": {
+                "provider": "synthetic",
+                "id": "demo-quay-Demo arrival",
+                "feedVersion": "demo-v1"
+              },
+              "originalLabel": "Demo arrival",
+              "label": "Demo arrival",
+              "candidates": [],
+              "conflictReason": null,
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            },
+            "pickup": "allowed",
+            "dropoff": "allowed",
+            "status": "scheduled",
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          }
+        ],
+        "boardingCallId": "return-ride-2-board",
+        "alightingCallId": "return-ride-2-alight",
+        "boardingTarget": {
+          "id": "target-return-ride-2-board-Demo R2",
+          "callId": "return-ride-2-board",
+          "assignment": {
+            "status": "resolved_planned",
+            "sourceRef": {
+              "provider": "synthetic",
+              "id": "demo-quay-Demo R2",
+              "feedVersion": "demo-v1"
+            },
+            "originalLabel": "Demo R2",
+            "label": "Demo R2",
+            "candidates": [],
+            "conflictReason": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "transitCoordinate": [
+            7.439,
+            46.9487
+          ],
+          "pedestrianArea": {
+            "kind": "point",
+            "coordinates": [
+              [
+                7.43908,
+                46.948750000000004
+              ]
+            ],
+            "level": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "pedestrianTargetStatus": "unverified",
+          "approachEntrance": null,
+          "level": null,
+          "precisionMeters": null,
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        }
+      },
+      {
+        "id": "return-walk-2",
+        "kind": "walk",
+        "from": {
+          "id": "demo-first",
+          "name": "Demo Länggasse stop",
+          "kind": "stop",
+          "coordinate": [
+            7.4342,
+            46.9525
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-first",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "to": {
+          "id": "demo-home",
+          "name": "Demo start · Bern Länggasse",
+          "kind": "address",
+          "coordinate": [
+            7.4335,
+            46.953
+          ],
+          "parentId": null,
+          "sourceRefs": [
+            {
+              "provider": "synthetic",
+              "id": "demo-home",
+              "feedVersion": "demo-v1"
+            }
+          ],
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "plannedStart": "2026-11-21T15:33:00+01:00",
+        "plannedEnd": "2026-11-21T15:38:00+01:00",
+        "expectedStart": null,
+        "expectedEnd": null,
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              7.4342,
+              46.9525
+            ],
+            [
+              7.4335,
+              46.953
+            ]
+          ],
+          "quality": "schematic",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "distanceMeters": null,
+        "instructions": [
+          {
+            "id": "return-walk-2-instruction",
+            "text": "Demo: finish the return journey.",
+            "coordinate": [
+              7.4335,
+              46.953
+            ],
+            "kind": "walk"
+          }
+        ],
+        "accessibility": "unknown",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      }
+    ],
+    "durationSeconds": 2280,
+    "warnings": [
+      "SIMULATED DEMO — not a real timetable or route.",
+      "All coordinates and pedestrian areas are unverified; none were surveyed.",
+      "Accessibility and legal crossing availability are unknown."
+    ],
+    "evidence": [
+      {
+        "source": "rightside-synthetic-bern",
+        "sourceVersion": "1",
+        "fetchedAt": "2026-11-21T09:00:00+01:00",
+        "kind": "simulated",
+        "quality": "unknown"
+      }
+    ]
+  },
+  "events": [
+    {
+      "schemaVersion": 1,
+      "id": "event-01",
+      "sequence": 1,
+      "at": "2026-11-21T09:00:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-walk-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "location_observed",
+      "data": {
+        "capturedAt": "2026-11-21T09:00:00+01:00",
+        "rawCoordinate": [
+          7.4335,
+          46.953
+        ],
+        "filteredCoordinate": [
+          7.4335,
+          46.953
+        ],
+        "horizontalAccuracyMeters": 35,
+        "accuracyBasis": "unknown",
+        "mapMatchedCoordinate": null,
+        "floorCandidates": [],
+        "mode": "replay",
+        "confidence": "uncertain",
+        "evidence": [
+          {
+            "source": "rightside-synthetic-bern",
+            "sourceVersion": "1",
+            "fetchedAt": "2026-11-21T09:00:00+01:00",
+            "kind": "simulated",
+            "quality": "unknown"
+          }
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-02",
+      "sequence": 2,
+      "at": "2026-11-21T09:05:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-walk-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "arrived",
+        "reason": "Explicit demo completion of the first walk."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-03",
+      "sequence": 3,
+      "at": "2026-11-21T09:06:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "at_waiting_area",
+        "reason": "Explicit demo waiting-area arrival; this does not establish survey accuracy."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-04",
+      "sequence": 4,
+      "at": "2026-11-21T09:07:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "boarded",
+        "reason": "Explicit demo user confirmation; no geofence inference."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-05",
+      "sequence": 5,
+      "at": "2026-11-21T09:15:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "alighted",
+        "reason": "Explicit demo user confirmation."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-06",
+      "sequence": 6,
+      "at": "2026-11-21T09:16:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-transfer",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "connectivity_changed",
+      "data": {
+        "online": false,
+        "reason": "Simulated network loss during transfer. Retain original evidence timestamps."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-07",
+      "sequence": 7,
+      "at": "2026-11-21T09:18:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-transfer",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "connectivity_changed",
+      "data": {
+        "online": true,
+        "reason": "Simulated connection restored."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-08",
+      "sequence": 8,
+      "at": "2026-11-21T09:19:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-transfer",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "arrived",
+        "reason": "Explicit demo transfer completion, earlier than the planned 09:21 arrival."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-09",
+      "sequence": 9,
+      "at": "2026-11-21T09:19:45+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "target_changed",
+      "data": {
+        "target": {
+          "id": "target-out-ride-2-board-Demo C",
+          "callId": "out-ride-2-board",
+          "assignment": {
+            "status": "resolved_planned",
+            "sourceRef": {
+              "provider": "synthetic",
+              "id": "demo-quay-Demo C",
+              "feedVersion": "demo-v1"
+            },
+            "originalLabel": "Demo C",
+            "label": "Demo C",
+            "candidates": [],
+            "conflictReason": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "transitCoordinate": [
+            7.4413,
+            46.9485
+          ],
+          "pedestrianArea": {
+            "kind": "point",
+            "coordinates": [
+              [
+                7.44138,
+                46.94855
+              ]
+            ],
+            "level": null,
+            "evidence": [
+              {
+                "source": "rightside-synthetic-bern",
+                "sourceVersion": "1",
+                "fetchedAt": "2026-11-21T09:00:00+01:00",
+                "kind": "simulated",
+                "quality": "unknown"
+              }
+            ]
+          },
+          "pedestrianTargetStatus": "unverified",
+          "approachEntrance": null,
+          "level": null,
+          "precisionMeters": null,
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "revision": 2,
+        "reason": "SIMULATED quay change B → C. Invalidate the previous waiting target and camera confirmation."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-10",
+      "sequence": 10,
+      "at": "2026-11-21T09:19:50+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "at_waiting_area",
+        "reason": "Explicit demo arrival at the changed waiting target; pedestrian mapping remains unverified."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-11",
+      "sequence": 11,
+      "at": "2026-11-21T09:20:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "vision_observed",
+      "data": {
+        "observation": {
+          "id": "vision-ambiguous",
+          "capturedAt": "2026-11-21T09:20:00+01:00",
+          "expiresAt": "2026-11-21T09:20:02+01:00",
+          "frameId": "frame-1",
+          "trackId": "track-a",
+          "imageWidth": 1920,
+          "imageHeight": 1080,
+          "box": {
+            "x": 300,
+            "y": 200,
+            "width": 900,
+            "height": 600
+          },
+          "rawText": [
+            "19"
+          ],
+          "lineCandidates": [
+            "Demo 19"
+          ],
+          "destinationCandidates": [],
+          "candidates": [
+            {
+              "departureCallId": "out-ride-2-board",
+              "line": "Demo 19",
+              "headsign": null,
+              "downstreamStopIds": [],
+              "stopListComplete": false,
+              "servesRequestedAlighting": "unknown",
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:00:00+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown"
+                }
+              ]
+            }
+          ],
+          "association": "ambiguous",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        },
+        "match": {
+          "legId": "out-ride-2",
+          "trackId": "track-a",
+          "status": "unknown",
+          "reasonCodes": [
+            "destination_unreadable",
+            "line_alone_insufficient"
+          ],
+          "observationIds": [
+            "vision-ambiguous"
+          ],
+          "expiresAt": "2026-11-21T09:20:02+01:00",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:00:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-12",
+      "sequence": 12,
+      "at": "2026-11-21T09:20:59.500+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "vision_observed",
+      "data": {
+        "observation": {
+          "id": "vision-stabilizing",
+          "capturedAt": "2026-11-21T09:20:59.500+01:00",
+          "expiresAt": "2026-11-21T09:21:01.500+01:00",
+          "frameId": "frame-2a",
+          "trackId": "track-a",
+          "imageWidth": 1920,
+          "imageHeight": 1080,
+          "box": {
+            "x": 300,
+            "y": 200,
+            "width": 900,
+            "height": 600
+          },
+          "rawText": [
+            "19",
+            "Demo Kirchenfeld stop"
+          ],
+          "lineCandidates": [
+            "Demo 19"
+          ],
+          "destinationCandidates": [
+            "Demo Kirchenfeld stop"
+          ],
+          "candidates": [
+            {
+              "departureCallId": "out-ride-2-board",
+              "line": "Demo 19",
+              "headsign": "Demo Kirchenfeld stop",
+              "downstreamStopIds": [
+                "demo-last"
+              ],
+              "stopListComplete": true,
+              "servesRequestedAlighting": "yes",
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:20:59+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown",
+                  "observedAt": "2026-11-21T09:20:59+01:00"
+                }
+              ]
+            }
+          ],
+          "association": "matched",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:20:59.500+01:00",
+              "kind": "simulated",
+              "quality": "unknown",
+              "observedAt": "2026-11-21T09:20:59.500+01:00"
+            }
+          ]
+        },
+        "match": {
+          "legId": "out-ride-2",
+          "trackId": "track-a",
+          "status": "unknown",
+          "reasonCodes": [
+            "awaiting_stable_second_frame"
+          ],
+          "observationIds": [
+            "vision-stabilizing"
+          ],
+          "expiresAt": "2026-11-21T09:21:01.500+01:00",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:20:59.500+01:00",
+              "kind": "simulated",
+              "quality": "unknown",
+              "observedAt": "2026-11-21T09:20:59.500+01:00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-13",
+      "sequence": 13,
+      "at": "2026-11-21T09:21:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "vision_observed",
+      "data": {
+        "observation": {
+          "id": "vision-matched",
+          "capturedAt": "2026-11-21T09:21:00+01:00",
+          "expiresAt": "2026-11-21T09:21:02+01:00",
+          "frameId": "frame-2",
+          "trackId": "track-a",
+          "imageWidth": 1920,
+          "imageHeight": 1080,
+          "box": {
+            "x": 300,
+            "y": 200,
+            "width": 900,
+            "height": 600
+          },
+          "rawText": [
+            "19",
+            "Demo Kirchenfeld stop"
+          ],
+          "lineCandidates": [
+            "Demo 19"
+          ],
+          "destinationCandidates": [
+            "Demo Kirchenfeld stop"
+          ],
+          "candidates": [
+            {
+              "departureCallId": "out-ride-2-board",
+              "line": "Demo 19",
+              "headsign": "Demo Kirchenfeld stop",
+              "downstreamStopIds": [
+                "demo-last"
+              ],
+              "stopListComplete": true,
+              "servesRequestedAlighting": "yes",
+              "evidence": [
+                {
+                  "source": "rightside-synthetic-bern",
+                  "sourceVersion": "1",
+                  "fetchedAt": "2026-11-21T09:20:59+01:00",
+                  "kind": "simulated",
+                  "quality": "unknown",
+                  "observedAt": "2026-11-21T09:20:59+01:00"
+                }
+              ]
+            }
+          ],
+          "association": "matched",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:21:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown",
+              "observedAt": "2026-11-21T09:21:00+01:00"
+            }
+          ]
+        },
+        "match": {
+          "legId": "out-ride-2",
+          "trackId": "track-a",
+          "status": "matching",
+          "reasonCodes": [
+            "line_destination_and_downstream_call_match",
+            "passenger_side_unverified"
+          ],
+          "observationIds": [
+            "vision-stabilizing",
+            "vision-matched"
+          ],
+          "expiresAt": "2026-11-21T09:21:02+01:00",
+          "evidence": [
+            {
+              "source": "rightside-synthetic-bern",
+              "sourceVersion": "1",
+              "fetchedAt": "2026-11-21T09:21:00+01:00",
+              "kind": "simulated",
+              "quality": "unknown",
+              "observedAt": "2026-11-21T09:21:00+01:00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-14",
+      "sequence": 14,
+      "at": "2026-11-21T09:21:01+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "vehicle_lost",
+      "data": {
+        "trackId": "track-a",
+        "reason": "Simulated occlusion. Clear the vehicle overlay and confirmation immediately."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-15",
+      "sequence": 15,
+      "at": "2026-11-21T09:24:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "boarded",
+        "reason": "Explicit demo user confirmation after track loss."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-16",
+      "sequence": 16,
+      "at": "2026-11-21T09:33:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "alighted",
+        "reason": "Explicit demo user confirmation."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-17",
+      "sequence": 17,
+      "at": "2026-11-21T09:38:00+01:00",
+      "journeyId": "bern-demo-outbound",
+      "legId": "out-walk-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "arrived",
+        "reason": "Explicit demo user confirmation at destination."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-18",
+      "sequence": 18,
+      "at": "2026-11-21T15:05:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-walk-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "arrived",
+        "reason": "Explicit demo completion of the return first walk."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-19",
+      "sequence": 19,
+      "at": "2026-11-21T15:06:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-ride-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "at_waiting_area",
+        "reason": "Explicit demo return waiting-area arrival."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-20",
+      "sequence": 20,
+      "at": "2026-11-21T15:07:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-ride-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "boarded",
+        "reason": "Explicit demo return boarding."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-21",
+      "sequence": 21,
+      "at": "2026-11-21T15:16:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-ride-1",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "alighted",
+        "reason": "Explicit demo return alighting."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-22",
+      "sequence": 22,
+      "at": "2026-11-21T15:22:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-transfer",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "arrived",
+        "reason": "Explicit demo completion of the return transfer."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-23",
+      "sequence": 23,
+      "at": "2026-11-21T15:23:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "at_waiting_area",
+        "reason": "Explicit demo arrival at the final return boarding area."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-24",
+      "sequence": 24,
+      "at": "2026-11-21T15:25:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "boarded",
+        "reason": "Explicit demo return boarding."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-25",
+      "sequence": 25,
+      "at": "2026-11-21T15:33:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-ride-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "alighted",
+        "reason": "Explicit demo return alighting."
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "event-26",
+      "sequence": 26,
+      "at": "2026-11-21T15:38:00+01:00",
+      "journeyId": "bern-demo-return",
+      "legId": "return-walk-2",
+      "evidence": [
+        {
+          "source": "rightside-synthetic-bern",
+          "sourceVersion": "1",
+          "fetchedAt": "2026-11-21T09:00:00+01:00",
+          "kind": "simulated",
+          "quality": "unknown"
+        }
+      ],
+      "type": "user_confirmed",
+      "data": {
+        "action": "arrived",
+        "reason": "Explicit demo return arrival."
+      }
+    }
+  ],
+  "expectedOutcomes": [
+    {
+      "eventId": "event-01",
+      "expectation": "Show uncertain passenger position; do not infer a pavement or floor."
+    },
+    {
+      "eventId": "event-06",
+      "expectation": "Continue cached transfer offline; retain evidence ages; no live-data claim."
+    },
+    {
+      "eventId": "event-09",
+      "expectation": "Replace B with C, invalidate old target/visual confirmation; pedestrian target remains unverified."
+    },
+    {
+      "eventId": "event-11",
+      "expectation": "Cannot confirm vehicle direction or intended alighting from line text alone."
+    },
+    {
+      "eventId": "event-12",
+      "expectation": "One compatible frame is insufficient; await stable same-track evidence."
+    },
+    {
+      "eventId": "event-13",
+      "expectation": "Service matches after two compatible frames 500ms apart; passenger side remains unknown."
+    },
+    {
+      "eventId": "event-14",
+      "expectation": "Immediately clear matching state and overlay on track loss, before the two-second expiry."
+    },
+    {
+      "eventId": "event-17",
+      "expectation": "Outbound complete; offer the cached synthetic return journey."
+    },
+    {
+      "eventId": "event-26",
+      "expectation": "Return complete; stop active tracking."
+    }
+  ]
+}
