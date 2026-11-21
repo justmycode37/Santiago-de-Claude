@@ -1766,12 +1766,13 @@
       // a station with a 3D model: show this platform in it, with the way there when you are nearby
       const key3d = window.Station3D && Station3D.has(f.properties.id);
       if (key3d) {
-        const view3d = s3Tag(() => {
+        const view3d = s3Tag((button) => {
           const to = { ll: edge.ll };
           if (edge.ref) to.stop = { uic: String(f.properties.id), ref: edge.ref };
           if (edge.level != null) to.level = edge.level;
           const near = userLngLat && distKm(userLngLat, edge.ll) < 0.8;
-          Station3D.open({ key: key3d, from: near ? { ll: userLngLat } : undefined, to, prefs: SETTINGS.journey() });
+          s3Step = null;
+          Station3D.open({ key: key3d, from: near ? { ll: userLngLat } : undefined, to, prefs: SETTINGS.journey(), returnFocus: button });
         });
         view3d.classList.add('pf-3d');
         box.append(view3d);
@@ -2490,16 +2491,27 @@
       b.type = 'button';
       b.innerHTML = icon('cube');
       b.appendChild(mk('span', null, '3D view'));
-      b.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+      b.addEventListener('click', (e) => { e.stopPropagation(); open(b); });
       return b;
     }
+    // The journey options for the station router, for the day of that step (closures in the model have dates)
+    const s3Prefs = (st) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
+    let s3Step = null; // the journey step the 3D view was opened from
     function s3Button(st) {
       if (!s3Plan(st)) return null;
-      return s3Tag(() => {
+      return s3Tag((button) => {
         const plan = s3Plan(st); // again: the start follows your position
-        if (plan) Station3D.open({ ...plan, prefs: SETTINGS.journey() });
+        if (!plan) return;
+        s3Step = st;
+        Station3D.open({ ...plan, prefs: s3Prefs(st), returnFocus: button });
       });
     }
+    // "Done" at the end of the 3D walk: back to the journey, on the step that follows
+    if (window.Station3D) Station3D.on('done', () => {
+      const i = journeySteps.indexOf(s3Step);
+      Station3D.close();
+      if (i >= 0 && i < journeySteps.length - 1) goToStep(i + 1);
+    });
 
     function walkCard(st, n, total) {
       const card = mk('div', 'j-card');
@@ -2978,7 +2990,7 @@
       let model = null, route = null;
       try {
         model = await Station3D.loadData(plan.key);
-        route = model && StationRoute.route(model, plan.from, plan.to, SETTINGS.journey());
+        route = model && StationRoute.route(model, plan.from, plan.to, s3Prefs(st));
       } catch (e) { route = null; }
       if (!route || route.points.length < 2) return street();
       const inside = route.points.map((p) => StationRoute.toLngLat(model, p));
@@ -2989,10 +3001,11 @@
         parts.push(w.coords);
         walks.push(w);
       };
-      await join(a, inside[0]);
+      // only for free positions: a route from a platform starts wherever it is best to leave that platform
+      if (!route.fromStop) await join(a, inside[0]);
       parts.push(inside);
       walks.push({ coords: inside, steps: null, dist: route.length });
-      await join(inside[inside.length - 1], b);
+      if (!route.toStop) await join(inside[inside.length - 1], b);
       const floors = route.steps.filter((s) => s.toLevel !== s.level && Number.isInteger(s.toLevel))
         .map((s) => ({ at: inside[s.from], from: s.level, to: s.toLevel }));
       return { lines: parts, walks, floors };
@@ -3009,6 +3022,9 @@
         pending++;
         promise.then((res) => { if (id !== journeyReq) return; apply(res); redraw(); });
       };
+      const keys3d = new Set(journeySteps.map((st) => (s3Plan(st) || {}).key).filter(Boolean));
+      // get the 3D view ready in the background, so "3D view" opens at once
+      if (keys3d.size) setTimeout(() => { if (id === journeyReq) keys3d.forEach((k) => Station3D.preload(k)); }, 2500);
       journeySteps.forEach((st) => {
         const plan = (st.lines || []).length ? s3Plan(st) : null;
         if (plan) {
