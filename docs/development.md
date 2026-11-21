@@ -24,8 +24,8 @@ npm run build   # dist/ once, without the dev server
 | `index.html`, `*.css`, the `.js` files in the repository root (generated data, `config.js`) | copied as they are |
 | `event-images/`, `stop-images/`, `stations3d/`, `demo-media/` | copied as they are |
 
-`scripts/build.mts` does this. Add `--release` for exactly what is published: without the `*-dev.html` pages and a
-local `config.js`. The Pages workflow runs that on every push to `main`.
+`scripts/build.mts` does this. Add `--release` for exactly what is published: without the `*-dev.html` pages,
+their scripts (`src/*-dev.ts`) and a local `config.js`. The Pages workflow runs that on every push to `main`.
 
 ## Scripts, not modules
 

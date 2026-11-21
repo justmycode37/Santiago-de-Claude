@@ -1,7 +1,7 @@
 // Builds the site into dist/: the folder GitHub Pages publishes and `npm run dev` serves.
 //
 //   node scripts/build.mts             everything, for local use
-//   node scripts/build.mts --release   only what is published (no *-dev.html pages, no local config.js)
+//   node scripts/build.mts --release   only what is published (no *-dev.html pages and their scripts, no local config.js)
 //
 // What goes into dist/:
 //   src/<name>.ts      → <name>.js. The types are replaced by spaces and nothing else is touched, so the
@@ -28,8 +28,8 @@ const APP_MARKER = /^[ \t]*<!-- build: src\/app -->[ \t]*$/m;
 export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media'];
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
 const DEMO = ['demo/index.html', 'demo/opening.jpg', 'demo/santiago.mp4'];
-/** In the repository root, but not published: the development pages, the config template and a local config. */
-const notReleased = (file: string) => /-dev\.html$/.test(file) || file === 'config.example.js' || file === 'config.js';
+/** Not published: the development pages and their scripts (src/*-dev.ts), the config template and a local config. */
+const notReleased = (file: string) => /-dev\.(html|ts)$/.test(file) || file === 'config.example.js' || file === 'config.js';
 
 const rel = (file: string) => path.relative(ROOT, file);
 
@@ -99,8 +99,8 @@ export function copyStatic(release: boolean): void {
   for (const f of DEMO) copy(path.join(ROOT, f), path.join(DIST, f));
 }
 
-export function buildScripts(): void {
-  for (const f of tsFiles(SRC)) buildScript(f);
+export function buildScripts(release = false): void {
+  for (const f of tsFiles(SRC)) if (!(release && notReleased(f))) buildScript(f);
   buildIndex();
 }
 
@@ -108,7 +108,7 @@ export function build({ release = false, clean = release }: { release?: boolean;
   if (clean) fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(DIST, { recursive: true });
   copyStatic(release);
-  buildScripts();
+  buildScripts(release);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
