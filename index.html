@@ -120,6 +120,7 @@
     .menu.open .menu-item[data-slot="1"] { transform: translateX(-54px) scale(1); }
     .menu.open .menu-item[data-slot="2"] { transform: translateX(-108px) scale(1); transition-delay: .04s; }
     .menu.open .menu-item[data-slot="3"] { transform: translateX(-162px) scale(1); transition-delay: .08s; }
+    .menu.open .menu-item[data-slot="4"] { transform: translateX(-216px) scale(1); transition-delay: .12s; }
     /* Toggled-on button (e.g. events shown) */
     .fab.active { background: var(--user-blue); color: #fff; }
     .fab.active:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
@@ -220,6 +221,10 @@
     .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
     .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
     .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
+    .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
+    .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
+    .results li.attr:active { background: none; }
 
     .search {
       height: 52px;
@@ -448,6 +453,21 @@
     .dest-pin circle { fill: var(--sun); }
     :root[data-theme="dark"] .dest-pin path { fill: #F2F3F5; }
     :root[data-theme="dark"] .dest-pin circle { fill: #14161A; }
+    /* Search results shown on the map ("Show on map"): a round icon with the name under it; tap to go there */
+    .place-pin { display: flex; flex-direction: column; align-items: center; cursor: pointer; border: 0; padding: 0; background: none; font: inherit; }
+    .place-pin .icon {
+      width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+      border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.35);
+    }
+    .place-pin .icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .place-pin span {
+      max-width: 120px; margin-top: 2px; font-size: 11.5px; font-weight: 600; line-height: 1.2; text-align: center; color: #1c1c1e;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
+    }
+    :root[data-theme="dark"] .place-pin .icon { border-color: #1c1c1e; }
+    :root[data-theme="dark"] .place-pin span { color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000; }
+    .place-pin:active .icon { transform: scale(.9); }
     .j-badge {
       flex: none;
       display: inline-flex;
@@ -595,7 +615,7 @@
       transform: translateX(-50%) rotate(45deg);
       box-shadow: 3px 3px 6px rgba(0,0,0,.08);
     }
-    .ev-card { width: 150px; }
+    .ev-card { width: 150px; will-change: transform; } /* own GPU layer: panning moves the card without repainting its shadow */
     .ev-inner { isolation: isolate; }
     .ev-body {
       display: grid; grid-template-rows: 2fr 1fr; height: 186px; width: 100%; padding: 0; border: 0; border-radius: 16px;
@@ -841,6 +861,12 @@
   <div id="map"></div>
 
   <div class="menu" id="menu">
+    <button class="fab menu-item" id="scanBtn" data-slot="4" type="button" aria-label="Scan for stops with the camera" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
+        <circle cx="12" cy="12" r="3.6" />
+      </svg>
+    </button>
     <button class="fab menu-item theme-btn" id="themeBtn" data-slot="3" type="button" aria-label="Toggle dark mode" tabindex="-1">
       <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M11.73 3.51A8.5 8.5 0 1 0 20.49 12.27A6.5 6.5 0 0 1 11.73 3.51Z" />
@@ -1085,7 +1111,7 @@
         <circle cx="10.5" cy="10.5" r="7" />
         <path d="M16 16l5 5" />
       </svg>
-      <input id="q" type="search" placeholder="Search destination" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search destination" />
+      <input id="q" type="search" placeholder="Search places, food, addresses…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search places, food, shops and addresses" />
       <button class="clear" id="clear" type="button" aria-label="Clear">
         <span><svg viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>
       </button>
@@ -1112,6 +1138,9 @@
   <script src="community-programmes.js"></script>
   <script src="events.js"></script>
   <script src="settings.js"></script>
+  <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
+  <script src="config.js" onerror="void 0"></script>
+  <script src="places.js"></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
@@ -1123,8 +1152,18 @@
     const CH_BOUNDS = [[5.7, 45.6], [10.7, 48.0]];
     const FALLBACK = [7.4474, 46.9480]; // Bern
 
+    // Performance on phones. Safari reports few cores, so MapLibre would decode every vector tile on a single
+    // worker thread; swisstopo tiles are large (up to ~220 KB each in cities), so panning waits on that one
+    // thread. Use three, as MapLibre's own cap for Safari allows.
+    const IS_WEBKIT_MOBILE = /iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const IS_SAFARI = IS_WEBKIT_MOBILE || /^((?!chrome|chromium|android|edg).)*safari/i.test(navigator.userAgent);
+    if (IS_SAFARI) maplibregl.setWorkerCount(3);
+
     const map = new maplibregl.Map({
       container: 'map',
+      // iPhones have 3× screens: drawing the map at 2× is about half the pixels per frame and looks the same
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       // Plain background until the swisstopo style (light or dark) is ready
       style: { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': getComputedStyle(root).getPropertyValue('--page-bg').trim() } }] },
       center: FALLBACK,
@@ -1237,13 +1276,18 @@
     }
 
     const EVENT_MIN_ZOOM = 12.5;
-    const eventMarkers = [];
+    // Cards on the map, by venue + events shown. Cards that stay on screen after a move are kept as they are
+    // (no rebuild, no reloaded photo, no pop-in animation); only cards that change are added or removed.
+    const eventMarkers = new Map();
     let eventsOn = false;
 
+    function clearCards() {
+      for (const marker of eventMarkers.values()) marker.remove();
+      eventMarkers.clear();
+    }
+
     function updateCards() {
-      for (const marker of eventMarkers) marker.remove();
-      eventMarkers.length = 0;
-      if (!eventsOn || map.getZoom() < EVENT_MIN_ZOOM) return;
+      if (!eventsOn || map.getZoom() < EVENT_MIN_ZOOM) { clearCards(); return; }
 
       const { clientWidth, clientHeight } = map.getContainer();
       const venues = new Map();
@@ -1284,12 +1328,17 @@
         // At maximum zoom, keep even adjacent doors accessible from the event details.
         else if (map.getZoom() >= map.getMaxZoom() - 0.01) overlap.features.push(...venue.features);
       }
+      const next = new Map();
       for (const venue of shown) {
-        const element = makeVenueCard(venue.features);
-        const marker = new maplibregl.Marker({ element, anchor: 'bottom' })
+        const key = venue.coordinates.join(',') + '|' + venue.features.map((f) => f.properties.id).join(',');
+        let marker = eventMarkers.get(key);
+        if (marker) eventMarkers.delete(key);
+        else marker = new maplibregl.Marker({ element: makeVenueCard(venue.features), anchor: 'bottom' })
           .setLngLat(venue.coordinates).addTo(map);
-        eventMarkers.push(marker);
+        next.set(key, marker);
       }
+      clearCards(); // the cards no longer shown
+      for (const [key, marker] of next) eventMarkers.set(key, marker);
     }
 
     function makeVenueCard(features) {
@@ -1330,7 +1379,7 @@
     }
     map.on('moveend', updateCards);
     map.on('zoom', () => {
-      if (eventMarkers.length && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
+      if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
     });
     map.on('resize', updateCards);
 
@@ -1345,7 +1394,8 @@
       const theme = currentTheme();
       if (!STYLES[theme]) return;
       const style = structuredClone(STYLES[theme]);
-      style.sources.platforms = { type: 'geojson', data: PLATFORM_FC };
+      // Dots only show from zoom 17, so tiles past 17 are scaled up from 17 instead of being cut again
+      style.sources.platforms = { type: 'geojson', data: platformsOnMap ? PLATFORM_FC : EMPTY_FC, maxzoom: PLATFORM_MIN_ZOOM };
       style.sources.route = { type: 'geojson', data: ROUTE_FC };
       const route = routeLayers(theme);
       const firstSymbol = style.layers.findIndex((l) => l.type === 'symbol');
@@ -1360,9 +1410,10 @@
         STYLES.light = style;
         STYLES.dark = makeDarkStyle(style);
         applyMapTheme(false);
-        map.once('idle', updateCards);
+        // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
+        map.once('idle', () => { updateCards(); startPlatforms(); });
       })
-      .catch(() => showToast('Map could not be loaded'));
+      .catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
 
     function setTheme(theme, persist) {
       root.dataset.theme = theme;
@@ -1427,6 +1478,47 @@
       else menuBtn.focus();
     });
 
+    // ---------- Scan: recognise the stops around you with the camera (stopvision.js, loaded on first use) ----------
+    document.getElementById('scanBtn').addEventListener('click', () => {
+      setMenu(false);
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('The camera needs HTTPS. Open the app via https:// or localhost.', 6000);
+      }
+      // Both permissions are asked right here, while the tap still counts as a user gesture (iOS needs that)
+      const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+        ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+        : Promise.reject(new Error('no camera API'));
+      const orientation = window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function'
+        ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');
+      camera.catch(() => {}); orientation.catch(() => {});
+      const hooks = {
+        PLATFORMS, OPENDATA, platformLL, coordOf, badge,
+        position: () => (userLngLat ? { ll: userLngLat, acc: userAccuracy, age: fixAge() } : null),
+        openStop: (id, i) => {
+          const st = PLATFORMS.get(String(id));
+          if (!st) return;
+          const ll = i != null && st.edges[i] ? st.edges[i].ll : st.edges[0].ll;
+          map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 18) });
+          openPlatform({ properties: { id: String(id), i } });
+        },
+        toast: (t) => showToast(t),
+        onClose: () => menuBtn.focus(),
+      };
+      startPlatforms(); // the stop positions are needed straight away
+      const go = () => platformsReady.then(() => window.STOPVISION.open(hooks, camera, orientation));
+      if (window.STOPVISION) go();
+      else {
+        const s = document.createElement('script');
+        s.src = 'stopvision.js';
+        s.onload = go;
+        s.onerror = () => {
+          showToast('Scan could not be loaded.');
+          camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
+        };
+        document.head.appendChild(s);
+      }
+    });
+
     // ---------- Current location ----------
     const accEl = document.createElement('div');
     accEl.className = 'user-accuracy';
@@ -1451,6 +1543,8 @@
       if (!userLngLat) return;
       const mPerPx = 40075016.686 * Math.cos(userLngLat[1] * Math.PI / 180) / (512 * 2 ** map.getZoom());
       const d = Math.min(2 * userAccuracy / mPerPx, 4000);
+      // No size animation while zooming: it would lay the page out again on every frame of a pinch
+      accEl.style.transition = map.isZooming() ? 'none' : '';
       accEl.style.width = accEl.style.height = d + 'px';
       accEl.style.display = d < 40 ? 'none' : '';
     }
@@ -1516,6 +1610,17 @@
       building: { color: 'var(--rose)', svg: '<path d="M5 21V4h14v17M3 21h18M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>' },
       station:  { color: 'var(--navy)', svg: '<path d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM4 10h16M8 17l-2 4M16 17l2 4"/>' },
       nature:   { color: 'var(--sun)', fg: '#344D77', svg: '<path d="M12 3l6 8.5h-3.5L19 17H5l4.5-5.5H6zM12 17v4"/>' },
+      // Places (places.js)
+      food:     { color: 'var(--tang)', svg: '<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v5M17 21V3c-2 1-3 4-3 8h3"/>' },
+      cafe:     { color: 'var(--tang)', svg: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3c0 1.5 1 1.5 1 3M12 3c0 1.5 1 1.5 1 3"/>' },
+      bar:      { color: 'var(--rose)', svg: '<path d="M5 4h14l-7 8zM12 12v8M8 20h8"/>' },
+      shop:     { color: 'var(--sun)', fg: '#344D77', svg: '<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>' },
+      health:   { color: 'var(--rose)', svg: '<path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z"/>' },
+      money:    { color: 'var(--navy)', svg: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/>' },
+      toilet:   { color: 'var(--navy)', svg: '<circle cx="7.5" cy="5" r="1.6"/><circle cx="16.5" cy="5" r="1.6"/><path d="M5.5 21v-6H4.5l1.5-6h3l1.5 6h-1v6M14.5 21V9h4v12M12 3v18"/>' },
+      water:    { color: 'var(--navy)', svg: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>' },
+      bed:      { color: 'var(--navy)', svg: '<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11" r="2"/>' },
+      sport:    { color: 'var(--navy)', svg: '<path d="M6.5 7v10M17.5 7v10M3.5 10v4M20.5 10v4M6.5 12h11"/>' },
       other:    { color: 'var(--navy)', svg: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>' },
     };
     const CANTONS = { AG: 'Aargau', AI: 'Appenzell I.Rh.', AR: 'Appenzell A.Rh.', BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
@@ -1566,14 +1671,15 @@
 
     const COLLAPSED_COUNT = 3;
     let results = [];
+    let placeCategory = null; // "Restaurants" when the query names a kind of place: the nearest ones are listed
     let expanded = false;
     let debounce;
     let reqId = 0;
 
     const stripTags = (s) => s.replace(/<[^>]*>/g, '').trim();
 
-    async function search(text) {
-      const id = ++reqId;
+    // Addresses, towns, postcodes, mountains, lakes: swisstopo
+    async function searchSwisstopo(text) {
       const url = 'https://api3.geo.admin.ch/rest/services/api/SearchServer?' + new URLSearchParams({
         searchText: text,
         type: 'locations',
@@ -1582,26 +1688,98 @@
         limit: '15',
         lang: 'en',
       });
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (id !== reqId) return; // a newer query is in flight
-        const seen = new Set();
-        results = (data.results || []).map((r) => ({
-          ...parseResult(r.attrs),
-          origin: r.attrs.origin,
-          lngLat: [r.attrs.lon, r.attrs.lat],
-        })).filter((r) => {
-          const key = (r.title + '|' + r.subtitle).toLowerCase();
-          if (!r.title || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        expanded = false;
-        render();
-      } catch (e) {
-        if (id === reqId) { results = []; render('Search unavailable'); }
+      const res = await fetch(url);
+      const data = await res.json();
+      const seen = new Set();
+      return (data.results || []).map((r) => ({
+        ...parseResult(r.attrs),
+        origin: r.attrs.origin,
+        lngLat: [r.attrs.lon, r.attrs.lat],
+      })).filter((r) => {
+        const key = (r.title + '|' + r.subtitle).toLowerCase();
+        if (!r.title || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    // Restaurants, shops, cafés, toilets, … anything with a name (places.js): around the part of the map in view,
+    // with distances from you
+    function searchPlaces(text) {
+      if (!window.PlaceSearch) return Promise.resolve(null);
+      const center = map.getCenter().toArray();
+      const corner = map.getBounds().getNorthEast().toArray();
+      const viewKm = Math.hypot((corner[0] - center[0]) * 76, (corner[1] - center[1]) * 111); // km at Swiss latitudes
+      const radiusKm = Math.min(Math.max(viewKm, 1), 10);
+      const timeout = new Promise((_, fail) => setTimeout(() => fail(new Error('timeout')), 4000));
+      return Promise.race([PlaceSearch.search(text, { center, origin: userLngLat, radiusKm }), timeout]);
+    }
+
+    const fold = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const near = (a, b, m) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
+
+    async function search(text) {
+      const id = ++reqId;
+      const [swiss, places] = await Promise.all([
+        searchSwisstopo(text).catch(() => null),
+        searchPlaces(text).catch(() => null),
+      ]);
+      if (id !== reqId) return; // a newer query is in flight
+      if (!swiss && !places) { results = []; placeCategory = null; render('Search unavailable'); return; }
+      const found = places ? places.results : [];
+      // A place found by both keeps the place (it has the category and the distance)
+      const s = (swiss || []).filter((r) => !found.some((p) => fold(p.title) === fold(r.title) && near(p.lngLat, r.lngLat, 150)));
+      const q = fold(text);
+      placeCategory = places && places.category;
+      // Places first for "restaurant", "Migros", "Einstein Kaffee"; swisstopo first for "Bern", "3011", "Kramgasse 1":
+      // whichever top result has more of the typed words in its name, swisstopo on a tie if its name is the query
+      const words = (t) => fold(t).split(/[^a-z0-9]+/).filter(Boolean);
+      const matched = (r) => {
+        if (!r) return 0;
+        const tw = words(r.title), qw = words(text);
+        return qw.filter((w) => tw.some((t) => t.startsWith(w) || (t.length >= 3 && w.startsWith(t)))).length / (qw.length || 1);
+      };
+      const pm = matched(found[0]), sm = matched(s[0]);
+      const placesFirst = !!placeCategory || (!/\d/.test(text) && found.length > 0
+        && (pm > sm || (pm === sm && pm > 0 && fold(s[0] ? s[0].title : '') !== q)));
+      results = placesFirst ? [...found, ...s] : [...s, ...found];
+      expanded = false;
+      render();
+    }
+
+    // "Show on map": every place result as a pin; tap one to plan the trip there
+    const placeMarkers = [];
+    function clearPlacePins() {
+      for (const m of placeMarkers) m.remove();
+      placeMarkers.length = 0;
+    }
+    function showPlacesOnMap() {
+      clearPlacePins();
+      const places = results.filter((r) => r.origin === 'place');
+      if (!places.length) return;
+      const bounds = new maplibregl.LngLatBounds();
+      for (const r of places) {
+        const k = KIND[r.kind] || KIND.other;
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'place-pin';
+        el.setAttribute('aria-label', `${r.title}, ${r.subtitle}`);
+        const icon = document.createElement('div');
+        icon.className = 'icon';
+        icon.style.background = k.color;
+        if (k.fg) icon.style.color = k.fg;
+        icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
+        const name = document.createElement('span');
+        name.textContent = r.title;
+        el.append(icon, name);
+        el.addEventListener('click', (e) => { e.stopPropagation(); showDestinationJourney(r); });
+        placeMarkers.push(new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, -14] }).setLngLat(r.lngLat).addTo(map));
+        bounds.extend(r.lngLat);
       }
+      list.classList.remove('open');
+      input.blur();
+      const bottom = window.innerHeight * 0.2 + 90; // clear of the search bar
+      map.fitBounds(bounds, { padding: { top: 90, left: 50, right: 50, bottom }, maxZoom: 16.5, duration: 900 });
     }
 
     function render(emptyText = 'No results') {
@@ -1613,7 +1791,18 @@
         li.textContent = emptyText;
         list.appendChild(li);
       }
-      const visible = expanded ? results : results.slice(0, COLLAPSED_COUNT);
+      const placeCount = results.filter((r) => r.origin === 'place').length;
+      if (placeCount >= 2 && results[0].origin === 'place') {
+        const onMap = document.createElement('li');
+        onMap.className = 'on-map';
+        onMap.setAttribute('role', 'option');
+        onMap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/></svg>';
+        onMap.append(placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
+        onMap.addEventListener('pointerdown', (e) => e.preventDefault());
+        onMap.addEventListener('click', showPlacesOnMap);
+        list.appendChild(onMap);
+      }
+      const visible = expanded ? results : results.slice(0, placeCategory ? 5 : COLLAPSED_COUNT);
       visible.forEach((r, i) => {
         const li = document.createElement('li');
         li.setAttribute('role', 'option');
@@ -1638,13 +1827,19 @@
         li.addEventListener('click', () => select(i));
         list.appendChild(li);
       });
-      if (!expanded && results.length > COLLAPSED_COUNT) {
+      if (!expanded && results.length > visible.length) {
         const more = document.createElement('li');
         more.className = 'more';
         more.textContent = 'Show more…';
         more.addEventListener('pointerdown', (e) => e.preventDefault());
         more.addEventListener('click', () => { expanded = true; render(); });
         list.appendChild(more);
+      }
+      if (placeCount) {
+        const attr = document.createElement('li');
+        attr.className = 'attr';
+        attr.textContent = PlaceSearch.attribution;
+        list.appendChild(attr);
       }
       list.classList.add('open');
       if (!expanded) list.scrollTop = 0;
@@ -1660,6 +1855,7 @@
       clearBtn.classList.add('show');
       list.classList.remove('open');
       input.blur();
+      clearPlacePins();
       destMarker.setLngLat(r.lngLat).addTo(map);
       startJourney(r);
     }
@@ -1668,24 +1864,30 @@
       const text = input.value.trim();
       clearBtn.classList.toggle('show', !!input.value);
       clearTimeout(debounce);
-      if (text.length < 2) { reqId++; results = []; render(); return; }
-      debounce = setTimeout(() => search(text), 200);
+      clearPlacePins();
+      if (text.length < 2) { reqId++; results = []; placeCategory = null; render(); return; }
+      // Google Places is paid per request: wait a little longer for a pause in typing
+      debounce = setTimeout(() => search(text), window.PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
     });
 
     input.addEventListener('focus', () => { setMenu(false); if (input.value.trim()) render(); });
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (results.length) select(0);
+      // "restaurants" + Enter shows them all on the map; a name or address goes straight there
+      if (placeCategory && results.filter((r) => r.origin === 'place').length >= 2) showPlacesOnMap();
+      else if (results.length) select(0);
     });
 
     clearBtn.addEventListener('pointerdown', (e) => e.preventDefault());
     clearBtn.addEventListener('click', () => {
       input.value = '';
       results = [];
+      placeCategory = null;
       reqId++;
       clearBtn.classList.remove('show');
       render();
+      clearPlacePins();
       destMarker.remove();
       if (userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
       input.focus();
@@ -1715,6 +1917,17 @@
     // official ATLAS data (platforms.js, built by tools/build_platforms.py). Always drawn on the map from
     // zoom 17, and used to put journey boarding/alighting points on the right platform.
     const PLATFORM_FC = { type: 'FeatureCollection', features: [] };
+    const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+    // The ~52,000 dots are only handed to the map the first time it comes near the zoom where they show:
+    // indexing them occupies a map worker, which would otherwise hold up the base map tiles.
+    let platformsOnMap = false;
+    function showPlatformsIfNeeded() {
+      if (platformsOnMap || !PLATFORM_FC.features.length || map.getZoom() < PLATFORM_MIN_ZOOM - 1.5) return;
+      platformsOnMap = true;
+      const src = map.getSource('platforms');
+      if (src) src.setData(PLATFORM_FC);
+    }
+    map.on('zoomend', showPlatformsIfNeeded);
     const PLATFORMS = new Map(); // station id (UIC, as in transport.opendata.ch) → { name, mode, edges: [{ ref, key, bearing, ll }] }
     const PLATFORM_MODES = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
 
@@ -1738,20 +1951,27 @@
         });
       }
       PLATFORM_FC.features = features;
-      const src = map.getSource('platforms');
-      if (src) src.setData(PLATFORM_FC);
+      showPlatformsIfNeeded();
       delete window.PLATFORM_DATA;
     }
 
-    // Loaded after start-up (it is ~2 MB), as a script so it also works when index.html is opened as a file
+    // Loaded after the first map view (it is ~2 MB), as a script so it also works when index.html is opened
+    // as a file. startPlatforms() runs on the first map idle, when a journey needs it, or after 8 s at the latest.
+    let startPlatforms;
     const platformsReady = new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = 'platforms.js';
-      s.async = true;
-      s.onload = () => { indexPlatforms(window.PLATFORM_DATA); resolve(); };
-      s.onerror = () => resolve(); // journeys fall back to station positions
-      document.head.appendChild(s);
+      let started = false;
+      startPlatforms = () => {
+        if (started) return;
+        started = true;
+        const s = document.createElement('script');
+        s.src = 'platforms.js';
+        s.async = true;
+        s.onload = () => { indexPlatforms(window.PLATFORM_DATA); resolve(); };
+        s.onerror = () => resolve(); // journeys fall back to station positions
+        document.head.appendChild(s);
+      };
     });
+    setTimeout(startPlatforms, 8000);
 
     // Neutral white dots that only appear when zoomed in close (street level)
     const PLATFORM_MIN_ZOOM = 17;
@@ -1795,7 +2015,11 @@
     });
     async function openPlatform(f) {
       const st = PLATFORMS.get(String(f.properties.id));
-      const edge = st && st.edges[f.properties.i];
+      // i = null: the stop as a whole (e.g. recognised by Scan without knowing which edge), all its departures
+      const whole = st && f.properties.i == null;
+      const edge = whole
+        ? { ref: '', level: null, ll: st.edges.reduce((s, e) => [s[0] + e.ll[0] / st.edges.length, s[1] + e.ll[1] / st.edges.length], [0, 0]) }
+        : st && st.edges[f.properties.i];
       if (!edge) return;
       const req = ++popupReq;
       const word = edge.ref ? nounOf(st.mode) : 'Stop';
@@ -1815,7 +2039,7 @@
         const all = ((await res.json()).stationboard || []).filter((d) => d.stop && d.stop.departure);
         if (req !== popupReq) return;
         // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
-        const here = all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
+        const here = whole ? all : all.filter((d) => platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll);
         note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : `All departures from ${st.name}:`;
         list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
           const li = mk('li');
@@ -3222,6 +3446,7 @@
       const from = userLngLat || map.getCenter().toArray();
       try {
         // exact platforms if their data is there in time; never hold a journey up for more than 4 s
+        startPlatforms();
         const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
         if (id !== journeyReq) return;
         if (!conn) { jStatus.textContent = 'No public transport connection found for this trip.'; return; }

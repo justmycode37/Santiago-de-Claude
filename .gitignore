@@ -18,3 +18,6 @@ venv/
 # Secrets
 .env
 .env.*
+
+# Local config with API keys (see config.example.js)
+config.js
