@@ -1,0 +1,730 @@
+[
+{
+"ref": "1",
+"xy": [
+-159.54,
+50.13
+],
+"front": "G",
+"back": "G",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673098"
+},
+{
+"ref": "1",
+"xy": [
+-101.54,
+29.18
+],
+"front": "F",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673160"
+},
+{
+"ref": "1",
+"xy": [
+-101.54,
+29.18
+],
+"front": "F",
+"back": "G",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673039"
+},
+{
+"ref": "1",
+"xy": [
+-48.24,
+16.86
+],
+"front": "E",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673067"
+},
+{
+"ref": "1",
+"xy": [
+-48.24,
+16.86
+],
+"front": "F",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673183"
+},
+{
+"ref": "1",
+"xy": [
+10.39,
+4.56
+],
+"front": "D",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673131"
+},
+{
+"ref": "1",
+"xy": [
+54.36,
+-4.39
+],
+"front": "C",
+"back": "D",
+"mounting": "BA-Dach_BE Marquise de BV",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673180"
+},
+{
+"ref": "1",
+"xy": [
+123.98,
+-20.43
+],
+"front": "B",
+"back": "C",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673059"
+},
+{
+"ref": "1",
+"xy": [
+199.2,
+-50.31
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 1",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673163"
+},
+{
+"ref": "3",
+"xy": [
+-157.62,
+31.01
+],
+"front": "G",
+"back": "-",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 253673105"
+},
+{
+"ref": "3",
+"xy": [
+-80.81,
+8.17
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673062"
+},
+{
+"ref": "3",
+"xy": [
+-36.69,
+-1.18
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673043"
+},
+{
+"ref": "3",
+"xy": [
+7.28,
+-10.31
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673157"
+},
+{
+"ref": "3",
+"xy": [
+51.28,
+-19.32
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673040"
+},
+{
+"ref": "3",
+"xy": [
+95.28,
+-28.29
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673127"
+},
+{
+"ref": "3",
+"xy": [
+157.35,
+-49.24
+],
+"front": "B",
+"back": "A",
+"mounting": "FS-Mast 103C",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673081"
+},
+{
+"ref": "4",
+"xy": [
+-81.62,
+5.26
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673077"
+},
+{
+"ref": "4",
+"xy": [
+-37.57,
+-5.32
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673085"
+},
+{
+"ref": "4",
+"xy": [
+6.35,
+-14.52
+],
+"front": "E",
+"back": "D",
+"mounting": "FS-Mast 90",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673052"
+},
+{
+"ref": "4",
+"xy": [
+50.39,
+-23.68
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673184"
+},
+{
+"ref": "4",
+"xy": [
+94.34,
+-32.68
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673135"
+},
+{
+"ref": "4",
+"xy": [
+157.35,
+-49.24
+],
+"front": "B",
+"back": "A",
+"mounting": "FS-Mast 103C",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673133"
+},
+{
+"ref": "4",
+"xy": [
+209.31,
+-79.93
+],
+"front": "A",
+"back": "-",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 253673073"
+},
+{
+"ref": "5",
+"xy": [
+-196.85,
+30.37
+],
+"front": "H",
+"back": "-",
+"mounting": "FS-Mast 1PQ3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673080"
+},
+{
+"ref": "5",
+"xy": [
+-140.61,
+12.45
+],
+"front": "H",
+"back": "G",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 253673130"
+},
+{
+"ref": "5",
+"xy": [
+-83.73,
+-5.71
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673076"
+},
+{
+"ref": "5",
+"xy": [
+-40.0,
+-15.9
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673097"
+},
+{
+"ref": "5",
+"xy": [
+4.17,
+-25.16
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673112"
+},
+{
+"ref": "5",
+"xy": [
+48.13,
+-34.26
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673033"
+},
+{
+"ref": "5",
+"xy": [
+92.11,
+-43.4
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673176"
+},
+{
+"ref": "5",
+"xy": [
+140.19,
+-55.61
+],
+"front": "B",
+"back": "A",
+"mounting": "FS-Fahrleitungsjoch",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673079"
+},
+{
+"ref": "5",
+"xy": [
+176.27,
+-72.17
+],
+"front": "A",
+"back": "-",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 253673116"
+},
+{
+"ref": "6",
+"xy": [
+-141.74,
+9.01
+],
+"front": "H",
+"back": "G",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 253673111"
+},
+{
+"ref": "6",
+"xy": [
+-84.84,
+-9.39
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673083"
+},
+{
+"ref": "6",
+"xy": [
+-40.79,
+-20.49
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673069"
+},
+{
+"ref": "6",
+"xy": [
+3.22,
+-29.65
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673103"
+},
+{
+"ref": "6",
+"xy": [
+47.22,
+-38.58
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673142"
+},
+{
+"ref": "6",
+"xy": [
+91.22,
+-47.71
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673063"
+},
+{
+"ref": "6",
+"xy": [
+139.29,
+-58.68
+],
+"front": "B",
+"back": "A",
+"mounting": "FS-Mast 102B",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673148"
+},
+{
+"ref": "7",
+"xy": [
+-158.45,
+3.1
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Kandelaber",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 253673057"
+},
+{
+"ref": "7",
+"xy": [
+-87.11,
+-19.95
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673090"
+},
+{
+"ref": "7",
+"xy": [
+-42.98,
+-31.05
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673161"
+},
+{
+"ref": "7",
+"xy": [
+1.07,
+-40.15
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673171"
+},
+{
+"ref": "7",
+"xy": [
+45.0,
+-49.28
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673145"
+},
+{
+"ref": "7",
+"xy": [
+88.98,
+-58.27
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673078"
+},
+{
+"ref": "7",
+"xy": [
+147.14,
+-72.0
+],
+"front": "B",
+"back": "A",
+"mounting": "FS-Mast 100AP",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673028"
+},
+{
+"ref": "8",
+"xy": [
+-88.12,
+-23.3
+],
+"front": "G",
+"back": "F",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673068"
+},
+{
+"ref": "8",
+"xy": [
+-43.97,
+-35.21
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673143"
+},
+{
+"ref": "8",
+"xy": [
+0.56,
+-43.06
+],
+"front": "E",
+"back": "D",
+"mounting": "FS-Mast 89",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673140"
+},
+{
+"ref": "8",
+"xy": [
+44.43,
+-52.01
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Marquise de halle",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673168"
+},
+{
+"ref": "8",
+"xy": [
+88.4,
+-61.11
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673038"
+},
+{
+"ref": "8",
+"xy": [
+146.42,
+-74.16
+],
+"front": "B",
+"back": "A",
+"mounting": "FS-Mast 100AP",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673110"
+},
+{
+"ref": "8",
+"xy": [
+186.59,
+-89.09
+],
+"front": "A",
+"back": "-",
+"mounting": "FS-Mast 111",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673150"
+},
+{
+"ref": "70",
+"xy": [
+125.97,
+-14.3
+],
+"front": "-",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 1",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673119"
+},
+{
+"ref": "70",
+"xy": [
+201.25,
+-47.28
+],
+"front": "A",
+"back": "B",
+"mounting": "BA-Dach_BE Marquise quai 1",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673095"
+},
+{
+"ref": "70",
+"xy": [
+256.02,
+-97.94
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 116A",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 253673054"
+}
+]
