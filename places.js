@@ -176,7 +176,7 @@
   async function photonNearby(cat, center, origin, radiusKm, bbox) {
     let found = [];
     for (const r of bbox ? [radiusKm] : [radiusKm, Math.max(radiusKm * 4, 5)]) { // an area asked for is not widened
-      const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: 'en' });
+      const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
       cat.tags.forEach((t) => params.append('osm_tag', t));
       const data = await getJSON(`${PHOTON}reverse?${params}`);
       found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean));
@@ -189,7 +189,7 @@
   // Places by name, the ones near the map first
   async function photonByName(text, center, origin, bbox) {
     const params = new URLSearchParams({ q: text, lat: round(center[1]), lon: round(center[0]), zoom: '16',
-      location_bias_scale: '0.1', limit: '40', lang: 'en' });
+      location_bias_scale: '0.1', limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
     if (bbox) params.set('bbox', bbox.map(round).join(','));
     const data = await getJSON(`${PHOTON}api/?${params}`);
     const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean));
@@ -255,7 +255,7 @@
   // What stands at a point, for a pin dropped on the map: the place it is on, else the nearest address
   // ("Kramgasse 12"), "Near …" when that is some way off
   async function reverse(lngLat) {
-    const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: 'en' });
+    const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: APP_LANG.pick(['de', 'fr', 'en']) });
     const data = await getJSON(`${PHOTON}reverse?${params}`);
     const f = (data.features || [])[0];
     const p = f && f.properties;
