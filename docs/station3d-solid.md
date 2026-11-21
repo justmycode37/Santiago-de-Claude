@@ -20,6 +20,9 @@ limited to about 15 at a time, the way's own first.
 
 ## Data
 
+Stations with a continuous view: Zürich HB, Bern, Wankdorf, Europaplatz, Brünnen Westside and Bümpliz Nord (`stations3d/solid-index.js`).
+The Bern-area companions were built from the OpenStreetMap cache of 21 November 2026; their models are unchanged.
+
 | File | Made by | From |
 | --- | --- | --- |
 | `stations3d/<key>.js` | `tools/build_station3d.py` | OpenStreetMap, ATLAS, SBB open data (see `stations3d/SCHEMA.md`) |
