@@ -19,7 +19,7 @@
   const rowA = [3, 10, 17, 24, 31, 38], rowB = [3, 10, 17, 24, 31, 38], TA = -1.4, TB = 4.4;
 
   const surfaces = [
-    band('asphalt', -4, 44, -7.5, -2.5, 0, { source: 'estimate' }),
+    band('asphalt', -4, 44, -7.5, -2.5, 0, { use: 'road', source: 'estimate' }),
     band('tram-track', -4, 44, -6.6, -4.0, 0),
     band('crossing', 17, 21, -7.5, -2.5, 0),
     band('paving', -4, 44, -10, -7.5, UP),
@@ -30,7 +30,7 @@
     // the lane, with the open town stream running in a channel through it
     Object.assign(band('cobble', -4, 44, 5.5, 9, 0), { holes: [box(2, 38, 6.95, 7.35)] }),
     band('water', 2, 38, 6.95, 7.35, -0.09),
-    band('paving', -4, 44, 9, 11.5, UP),
+    band('asphalt', -4, 44, 9, 11.5, UP, { use: 'pavement' }),
     // a front garden: lawn with a round bed in it
     Object.assign(band('grass', 22, 36, 11.5, 14, UP), { holes: [round(33, 12.75, 0.8, 10)] }),
     { kind: 'soil', ring: round(33, 12.75, 0.8, 10), z: Z(33, UP) },
@@ -130,14 +130,16 @@
       floors: 4, groundFloor: 'arcade', color: '#d9d2c3', roofColor: '#8a6a55', shutters: '#8fa58c',
       faces: [{ a: P(-3, -10), b: P(11, -10), bays: 4, floors: 4, groundFloor: 'arcade', color: '#ddd5c4' }] },
     { name: 'Haus zum Mansard', ring: box(11, 26, -20, -10), base: Z(18, UP), eaves: Z(18, UP) + 16.5, ridge: Z(18, UP) + 21, roof: 'mansard', ridgeDir: BEARING,
-      floors: 5, groundFloor: 'arcade', color: '#e3dccd', roofColor: '#7d7a78' },
+      floors: 5, groundFloor: 'arcade', color: '#e3dccd', roofColor: '#7d7a78',
+      // a town house front: its own window grid, a stone bay window over three floors, balconies beside it
+      faces: [{ a: P(11, -10), b: P(26, -10), style: 'townhouse', windows: { bays: 5, floors: 5 }, bayWindows: [{ bay: 2, floors: [1, 3], width: 2.6, depth: 0.8 }], balconies: [{ bay: 0, floor: 2 }, { bay: 4, floor: 2, width: 2.4 }] }] },
     { name: 'Haus zum Hip', ring: box(26, 43, -20, -10), base: Z(34, UP), eaves: Z(34, UP) + 14, ridge: Z(34, UP) + 18.5, roof: 'hipped', ridgeDir: BEARING,
       floors: 4, groundFloor: 'arcade', arcade: 'pillars', color: '#dcd3c6',
       faces: [{ a: P(26, -10), b: P(43, -10), bays: 5 }] },
     { name: 'Kaufhaus', ring: box(-2, 18, 11.5, 21), base: Z(8, UP), eaves: Z(8, UP) + 19.5, roof: 'flat',
-      floors: 6, groundFloor: 'shop', color: '#e8e4dc', faces: [{ a: P(18, 11.5), b: P(-2, 11.5), bays: 7 }] },
+      floors: 6, groundFloor: 'shop', color: '#e8e4dc', faces: [{ a: P(18, 11.5), b: P(-2, 11.5), bays: 7, balconies: [0, 2, 2, 0, 0] }] },
     { name: 'Pfarrhaus', ring: box(22, 36, 14, 23), base: Z(29, UP) + 0.5, eaves: Z(29, UP) + 10, ridge: Z(29, UP) + 14.5, roof: 'gabled', ridgeDir: (BEARING + 90) % 360,
-      floors: 3, groundFloor: 'plain', color: '#e9dcc6', roofColor: '#a0624a' },
+      floors: 3, groundFloor: 'plain', color: '#e9dcc6', roofColor: '#a0624a', faces: [{ a: P(36, 14), b: P(22, 14), oriels: 1, style: 'townhouse' }] },
     { name: 'Remise', ring: box(37.5, 44, 11.6, 19), mesh: mesh(37.5, 44, 11.6, 19, Z(40, UP), Z(40, UP) + 6.2, Z(40, UP) + 8.4),
       floors: 2, color: '#d8cfc0', roofColor: '#8f7566', faces: [{ a: P(44, 11.6), b: P(37.5, 11.6), bays: 2, floors: 2, groundFloor: 'plain' }] },
   ];
@@ -150,5 +152,15 @@
     attribution: ['made up for tests'],
     area: box(-4, 44, -20, 23),
     path, surfaces, edges, trees, props, buildings,
+    // paint on the road: a cycle lane with its symbols, a stop line before the crossing, an arrow, a second crossing
+    markings: [
+      { kind: 'lane-line', line: line([[-4, -3.7], [16.4, -3.7]]), width: 0.12, dash: [1.5, 1.5], color: '#f2c200' },
+      { kind: 'lane-line', line: line([[21.6, -3.7], [44, -3.7]]) },
+      { kind: 'bike-symbol', xy: P(6, -3.12), heading: ALONG, size: 1.8 },
+      { kind: 'bike-symbol', xy: P(30, -3.12), heading: ALONG },
+      { kind: 'stop-line', line: line([[16.3, -7.4], [16.3, -3.8]]), width: 0.4, color: '#ffffff' },
+      { kind: 'arrow', xy: P(11, -5.3), heading: ALONG, size: 2.4, color: '#ffffff' },
+      { kind: 'crossing', ring: box(38.5, 41.5, 5.6, 8.9), heading: NORTH },
+    ],
   };
 })();
