@@ -439,19 +439,23 @@ const MODELS = [
     ['Platform 6 → entrance Stauffacherstrasse', ['stop', 'train', '6'], ['entrance', /Stauffacher/]],
   ]],
   ['bruennen', [
-    ['Tram terminus → platform 2', ['stop', 'bus', '', /east side/], ['stop', 'train', '2']],
+    ['Tram terminus → platform 2', ['stop', 'tram', '', /\(tram\)/], ['stop', 'train', '2']],
     ['Platform 1 → platform 2', ['stop', 'train', '1'], ['stop', 'train', '2']],
-    ['Bus stop → platform 1', ['stop', 'bus', '', /west side/], ['stop', 'train', '1']],
+    ['Bus stop → platform 1', ['stop', 'bus', '', /\(bus\)/], ['stop', 'train', '1']],
+    ['Bus stop → platform 2', ['stop', 'bus', '', /\(bus\)/], ['stop', 'train', '2']],
+    ['Platform 2 → tram terminus', ['stop', 'train', '2'], ['stop', 'tram', '', /\(tram\)/]],
     ['Entrance Westside centre → platform 1', ['entrance', /Westside/], ['stop', 'train', '1']],
     ['Platform 2 → entrance Winterholzstrasse', ['stop', 'train', '2'], ['entrance', /Winterholz/]],
+    ['Entrance Winterholzstrasse → platform 1', ['entrance', /Winterholz/], ['stop', 'train', '1']],
   ]],
   ['buempliz-nord', [
-    ['Bus stop (far side of Mühledorfstrasse) → platform 4', ['stop', 'bus', '', /east side/], ['stop', 'train', '4']],
-    ['Bus stop (station side) → platform 5', ['stop', 'bus', '', /west side/], ['stop', 'train', '5']],
+    ['Bus stop (far side of Mühledorfstrasse) → platform 4', ['stop', 'bus', '', /across the road/], ['stop', 'train', '4']],
+    ['Bus stop (station side) → platform 5', ['stop', 'bus', '', /station side/], ['stop', 'train', '5']],
     ['Entrance Mühledorfstrasse → platform 4', ['entrance', /^Mühledorfstrasse$/], ['stop', 'train', '4']],
     ['Entrance Mühledorfstrasse → platform 2', ['entrance', /^Mühledorfstrasse$/], ['stop', 'train', '2']],
     ['Platform 2 → platform 5', ['stop', 'train', '2'], ['stop', 'train', '5']],
-    ['North exit of the underpass → platform 5', ['entrance', /north exit/], ['stop', 'train', '5']],
+    ['North exit of the underpass → platform 5', ['entrance', /^Fellerstrasse/], ['stop', 'train', '5']],
+    ['Platform 4 → south exit of the underpass', ['stop', 'train', '4'], ['entrance', /^Fellergut/]],
   ]],
 ];
 for (const [key, samples] of MODELS) {
@@ -607,6 +611,22 @@ function modelTests(B, sampleDefs) {
       const r = SR.route(B, { xy, level: l.id }, { stop: { uic: target.uic, ref: target.ref } });
       assert(r, `route from ${xy.map((v) => v.toFixed(0))} on ${l.id}`);
     }
+  });
+
+  T('the timetable point of a stop without a number is that stop, whatever level comes with it', () => {
+    const bad = [];
+    let n = 0;
+    for (const s of B.stops) {
+      if (s.ref) continue;
+      if (!s.at) { bad.push(`${s.name}: no "at"`); continue; }
+      n++;
+      for (const level of [null, s.level + 1, s.level - 1]) {
+        const c = SR.resolve(B, level == null ? { xy: s.at } : { xy: s.at, level });
+        if (!c.length || c.some((x) => x.stop !== s)) bad.push(`${s.name} with level ${level}`);
+      }
+    }
+    console.log(`        ${n} stops without a number`);
+    assert(!bad.length, bad.join('\n'));
   });
 
   T('snap is monotonic along real routes', () => {

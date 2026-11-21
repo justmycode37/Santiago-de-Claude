@@ -91,6 +91,9 @@ Three pieces share this format. Change it only together with all three:
   //   level   a whole level, except for a stop on a street that slopes (see "Level")
   //   name    stops without a ref that share a name are told apart: "Bern, Obergericht (north side)"
   //   closed: { ... } optional, see "Closures"; note: "..." optional, a remark that does not close the stop
+  //   at: [x, y]  on stops without a ref: where the timetable data (platforms.js) has this stop edge. An endpoint
+  //           given as a position within 3 m of it is this stop, on the stop's level (the app has no other way to
+  //           name such a stop, and the level in the timetable data can be wrong)
   stops: [{ uic: "8507000", ref: "7", mode: "train", name: "Bern", level: 0, xy: [x, y], node: 412, nodes: [412, 413, ...] }],
   // Sectors of a platform edge (SBB open data), when known. xy = the middle of the sector on the platform;
   // node (optional) = the graph node of that platform nearest to it.
@@ -115,7 +118,8 @@ Three pieces share this format. Change it only together with all three:
       { a: 1, b: 2, kind: "stairs" | "escalator" | "ramp" | "elevator", len: 8, oneway: true, name: "" },
       // optional on any edge: outdoor: true, covered: true, wheelchair: false, closed: { ... },
       //   inferred: true the builder added this link: OpenStreetMap has no path there (a platform or a lift
-      //                  stop nobody mapped a way to, joined to the nearest path)
+      //                  stop nobody mapped a way to, joined to the nearest path; a crossing given in the
+      //                  builder's station table)
       //   incline: 0.1   the real slope (rise / length) of a ramp, and of a walk that follows a sloping street
     ],
   },

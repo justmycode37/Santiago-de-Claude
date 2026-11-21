@@ -1,0 +1,68 @@
+[
+{
+"kind": "ticket_machine",
+"xy": [
+-19.99,
+16.17
+],
+"mounting": "AFA 470",
+"level": 0,
+"source": "SBB billetautomat",
+"source_id": "BLS"
+},
+{
+"kind": "ticket_machine",
+"xy": [
+-13.06,
+-14.52
+],
+"mounting": "AFA 470",
+"level": 0,
+"source": "SBB billetautomat",
+"source_id": "BLS"
+},
+{
+"kind": "clock",
+"xy": [
+0.73,
+-15.8
+],
+"mounting": "BA-Gebaeude",
+"level": 0,
+"source": "SBB haltestelle-uhr",
+"source_id": "38859890"
+},
+{
+"kind": "clock",
+"xy": [
+39.02,
+24.74
+],
+"mounting": null,
+"level": 0,
+"source": "SBB haltestelle-uhr",
+"source_id": "38860352"
+},
+{
+"kind": "clock",
+"xy": [
+-8.59,
+-6.42
+],
+"mounting": "BA-Gebaeude",
+"level": 0,
+"source": "SBB haltestelle-uhr",
+"source_id": "38859886"
+},
+{
+"kind": "clock",
+"xy": [
+-23.76,
+13.52
+],
+"mounting": "BA-Gebaeude",
+"level": 0,
+"source": "SBB haltestelle-uhr",
+"source_id": "38860347"
+}
+]
