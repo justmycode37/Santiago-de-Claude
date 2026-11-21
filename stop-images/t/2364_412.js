@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_412",{"s":{},"d":{"8587864":[[null,"340 N90 N32","Meisterschwanden, Schulhaus|Wohlen AG, Bahnhof|Sarmenstorf, Fahrwangerstrasse|Sarmenstorf, Vorstadt"]],"8578769":[[null,"390 340 N90 N32","Bettwil, Oberdorf|Meisterschwanden, Schulhaus|Wohlen AG, Bahnhof|Lenzburg, Hypiplatz|Sarmenstorf, Fahrwangerstrasse|Fahrwangen, Bahnhof"]]}});

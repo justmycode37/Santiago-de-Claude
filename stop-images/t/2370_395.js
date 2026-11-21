@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2370_395",{"s":{},"d":{"8572312":[[null,"104","Gelterkinden, Bahnhof"],[0,"104","Gelterkinden, Bahnhof"]],"8500779":[[null,"104","Zeglingen, Oberdorf|Gelterkinden, Bahnhof"],[0,"104","Zeglingen, Oberdorf"],[1,"104","Gelterkinden, Bahnhof"]]}});

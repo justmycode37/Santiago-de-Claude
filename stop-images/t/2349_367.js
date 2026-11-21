@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_367",{"s":{},"d":{"8571366":[[null,"M86","Innerberg BE, Dorf"],[0,"102","Säriswil, Wendeplatz"],[1,"102","Bern, Hauptbahnhof"]],"8571368":[[null,"M86","Innerberg BE, Dorf"],[0,"102","Säriswil, Wendeplatz"],[1,"102","Bern, Hauptbahnhof"]],"8571367":[[null,"M86","Innerberg BE, Dorf"],[0,"102","Säriswil, Wendeplatz"],[1,"102","Bern, Hauptbahnhof"]]}});

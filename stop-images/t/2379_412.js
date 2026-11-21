@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2379_412",{"s":{},"d":{"8510945":[[0,"EV2 EV1","Turgi, Bahnhof|Koblenz, Bahnhof|Bad Zurzach, Bahnhof"]],"8516176":[[0,"S27 S19 EXT","Baden|Bad Zurzach|Waldshut|Koblenz|Pfäffikon ZH|Effretikon"]]}});

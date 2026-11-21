@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2351_374",{"s":{},"d":{"8508057":[[0,"S8","Bätterkinden|Jegenstorf|Solothurn"],[1,"S8","Bern|Zollikofen|Worblaufen"]],"8508072":[[0,"38","Mattstetten, Dorf|Bäriswil BE, Brunnen"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_364",{"s":{},"d":{"8571260":[[0,"365","Seedorf BE, Gemeindeverwaltung"],[1,"365","Aarberg, Post/Bahnhof"]],"8504704":[[0,"361 M35","Lyss, Bahnhof|Lyss, KUFA"],[1,"361 M35","Aarberg, Post/Bahnhof|Biel/Bienne, Bahnhof/Gare"],[null,"361","Aarberg, Post/Bahnhof"]]}});

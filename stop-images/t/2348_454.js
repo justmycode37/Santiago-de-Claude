@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_454",{"s":{},"d":{"8507548":[[null,"544 554","Schwanden GL, Bahnhof|Kies (Niederental)"]],"8530517":[[0,"LKM","Mettmen"]],"8503275":[[0,"544 554","Schwanden GL, Bahnhof"]],"8507547":[[0,"544 554","Schwanden GL, Bahnhof|Kies (Niederental)"]]}});

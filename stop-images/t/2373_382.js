@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2373_382",{"s":{},"d":{"8583313":[[0,"73 67","Büren SO, Dorf|Dornach, Bahnhof|Dornach, Gwändweg"],[null,"67","Dornach, Bahnhof"]],"8500993":[[null,"67","Hochwald, Dorfzentrum"],[0,"77","Liestal, Bahnhof"],[1,"77 73","Dornach, Bahnhof|Hochwald, Dorfzentrum|Dornach, Gwändweg"]]}});

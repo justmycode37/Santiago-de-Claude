@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2373_408",{"s":{},"d":{"8502875":[[null,"371 N42","Brugg AG, Bahnhof/Zentrum|Thalheim AG, Dorfplatz|Brugg AG, Bahnhof/Campus|Schinznach Dorf, Oberdorf"],[0,"371","Thalheim AG, Dorfplatz|Schinznach Dorf, Oberdorf"],[1,"371","Brugg AG, Bahnhof/Zentrum"]]}});

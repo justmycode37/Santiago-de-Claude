@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2375_398",{"s":{},"d":{"8582500":[[null,"N89 90","Möhlin, Bahnhof|Mumpf, Bahnhof"],[1,"90","Schupfart, Dorf"],[0,"90","Wallbach, Gemeindehaus|Möhlin, Schallen"]],"8500586":[[null,"N89 EXT 90","Möhlin, Bahnhof|Frick, Bahnhof|Mumpf, Bahnhof"],[0,"90 EXT","Wallbach, Gemeindehaus|Möhlin, Schallen|Schupfart, Abzw. Flugplatz|Frick, Bahnhof"]]}});

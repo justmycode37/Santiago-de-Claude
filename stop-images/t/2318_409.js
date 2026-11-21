@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2318_409",{"s":{},"d":{"8501895":[[0,"652 653","Fiesch, Bahnhof|Ernen, Dorfplatz|Binn, Fäld|Binn, Brunnebiel"]],"8589094":[[1,"653","Binn, Dorf"],[0,"653","Binn, Fäld|Binn, Brunnebiel"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_450",{"s":{},"d":{"8594379":[[0,"624","St. Gallenkappel, Schule|Walde SG, Oberricken|Walde SG, Dorf"]],"8594380":[[0,"624","St. Gallenkappel, Schule|Walde SG, Oberricken"]],"8530478":[[0,"SL","Atzmännig Schutt (Talstation)"]],"8594381":[[0,"624","Walde SG, Oberricken|St. Gallenkappel, Schule"]]}});

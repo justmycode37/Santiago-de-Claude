@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_353",{"s":{},"d":{"8596072":[[1,"530","Lugnorre, place du Pommeré|Guévaux, croisée"]],"8504984":[[0,"530","Sugiez, gare|Guévaux, croisée|Ins, Bahnhof"]],"8504892":[[1,"530","Sugiez, gare|Guévaux, croisée|Ins, Bahnhof"],[0,"538 530","Sugiez, gare|Avenches, gare|Salavaux, école|Ins, Bahnhof"]]}});

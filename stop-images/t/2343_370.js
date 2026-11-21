@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2343_370",{"s":{},"d":{"8507716":[[0,"631 621","Köniz, Bahnhof|Riggisberg, Post|Niederscherli, Bahnhof|Niedermuhlern, Baumgärtli|Liebefeld, Steinhölzli"],[null,"631","Riggisberg, Post"]]}});

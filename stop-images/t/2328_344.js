@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2328_344",{"s":{},"d":{"8570444":[[0,"",""],[1,"385","Servion, Zoo-Tropiquarium|Palézieux, gare|Oron-la-Ville, gare routière"]],"8511505":[[0,"496","La Verrerie, gare"],[1,"496","Châtel-St-Denis, gare"]],"8570445":[[1,"496","La Verrerie, gare"],[0,"385 496","La Rogivue|Châtel-St-Denis, gare|La Verrerie, gare"]]}});

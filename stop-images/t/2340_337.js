@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_337",{"s":{},"d":{"8504130":[[0,"S30 EXT","Yverdon-les-Bains|Fribourg/Freiburg|Payerne|Givisiez"],[null,"S30","Yverdon-les-Bains"]],"8583791":[[0,"655","Démoret, haut du village"]]}});

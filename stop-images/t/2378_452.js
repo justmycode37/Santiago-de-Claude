@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_452",{"s":{},"d":{"8583488":[[0,"838","Weinfelden, Bahnhof"],[1,"838","Frauenfeld, Bahnhof"]],"8580601":[[0,"838","Weinfelden, Bahnhof"],[1,"838","Frauenfeld, Bahnhof"]],"8573371":[[0,"838","Weinfelden, Bahnhof"],[1,"838","Frauenfeld, Bahnhof"]],"8506854":[[0,"838","Weinfelden, Bahnhof"],[1,"838","Frauenfeld, Bahnhof"]]}});

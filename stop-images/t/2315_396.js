@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2315_396",{"s":{},"d":{"8571137":[[0,"511 621","Saas-Fee, Busterminal|Visp, Bahnhof Süd"],[1,"511 621","Brig, Bahnhof|Glis, Saltina"]],"8501999":[[0,"511 621","Brig, Bahnhof|Saas-Fee, Busterminal|Visp, Bahnhof Süd|Glis, Saltina"]]}});

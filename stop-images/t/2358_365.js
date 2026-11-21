@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_365",{"s":{},"d":{"8587630":[[null,"24 M30","Grenchen, Flurstrasse Süd|Biel/Bienne, Stadien/Stades|Biel/Bienne, Bahnhof/Gare|Solothurn, Hauptbahnhof|Solothurn, Amthausplatz"],[0,"73","Biel/Bienne, Bahnhof/Gare"],[1,"73","Pieterlen, Bahnhof"]]}});

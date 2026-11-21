@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_411",{"s":{},"d":{"8577360":[[0,"376","Döttingen, Bahnhof"],[1,"376","Brugg AG, Bahnhof/Zentrum"]],"8503590":[[0,"376","Döttingen, Bahnhof"],[1,"376","Brugg AG, Bahnhof/Zentrum"]],"8512060":[[0,"150","Döttingen, Bahnhof"]],"8572492":[[0,"376","Döttingen, Bahnhof"],[1,"376","Brugg AG, Bahnhof/Zentrum"]]}});

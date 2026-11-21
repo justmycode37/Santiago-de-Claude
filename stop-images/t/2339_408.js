@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_408",{"s":{},"d":{"8583070":[[null,"361","Lungern, Dorfkapelle|Giswil, Bahnhof"],[0,"361","Giswil, Bahnhof"],[1,"361","Lungern, Dorfkapelle"]],"8508310":[[0,"LIX IRLIX EXT","Luzern|Interlaken Ost|Meiringen|Brünig-Hasliberg"],[1,"EXT","Luzern"]]}});

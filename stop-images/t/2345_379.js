@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_379",{"s":{},"d":{"8508779":[[0,"793","Grosshöchstetten, Bahnhof|Grosshöchstetten, Talacker"],[1,"793","Worb Dorf, Bahnhof"]],"8502911":[[0,"168","Münsingen, Bahnhof|Worb Dorf, Bahnhof"]]}});

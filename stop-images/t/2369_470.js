@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2369_470",{"s":{},"d":{"8574069":[[1,"190 181","Teufen AR, Bahnhof|Herisau, Bahnhof"],[0,"190 181","St. Gallen, Neudorf|Speicherschwendi, Bären|Speicher, Bahnhof|Trogen, Bahnhof"]],"8574070":[[1,"190 181","Teufen AR, Bahnhof|Herisau, Bahnhof"],[0,"190 181","St. Gallen, Neudorf|Speicherschwendi, Bären|Speicher, Bahnhof|Trogen, Bahnhof"]]}});

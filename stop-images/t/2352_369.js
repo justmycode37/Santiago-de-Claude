@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_369",{"s":{},"d":{"8588321":[[0,"",""],[1,"M10","Biel/Bienne, Orpundplatz"],[null,"M10","Biel/Bienne, Bahnhof/Gare"]],"8504412":[[1,"S3 S31 IR65","Biel/Bienne|Suberg-Grossaffoltern|Lyss|Brügg BE"],[0,"S3 S31 IR65","Belp|Zollikofen|Bern|Biel/Bienne|Wabern bei Bern"]]}});

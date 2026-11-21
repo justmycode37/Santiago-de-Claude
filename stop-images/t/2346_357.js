@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2346_357",{"s":{},"d":{"8587351":[[0,"520","Gümmenen, Bahnhof"],[1,"520","Murten/Morat, Bahnhof|Murten, Orientierungsschule"]],"8506928":[[0,"520 M22","Gümmenen, Bahnhof|Murten/Morat, Bahnhof|Murten, Orientierungsschule|Galmiz, Käserei"]]}});

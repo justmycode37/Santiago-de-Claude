@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_454",{"s":{},"d":{"8503618":[[null,"541","Schwanden GL, Bahnhof|Elm, Sportbahnen|Elm, Station"]],"8503256":[[null,"543","Schwanden GL, Bahnhof"]],"8595189":[[null,"543","Sool, Schulhaus|Schwanden GL, Bahnhof|Mitlödi, Schulhaus"]]}});

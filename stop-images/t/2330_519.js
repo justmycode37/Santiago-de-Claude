@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_519",{"s":{},"d":{"8574656":[[0,"832","Fuldera, cumün|Müstair, Clostra Son Jon"],[1,"832","Lü, cumün"]],"8580143":[[0,"832","Fuldera, cumün|Müstair, Clostra Son Jon"],[1,"832","Lü, cumün"]],"8579856":[[0,"831","Sta. Maria Val M., Pra da Vau|Fuldera, cumün"]]}});

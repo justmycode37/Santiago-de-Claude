@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_414",{"s":{},"d":{"8572914":[[0,"343","Melchtal, Dorf|Stöckalp|Melchtal, Sportcamp|Melchtal, Sportcamp Nord"],[null,"343","Sarnen, Bahnhof|Melchtal, Dorf"],[1,"343","Sarnen, Bahnhof"]],"8572913":[[0,"343","Melchtal, Dorf|Stöckalp|Melchtal, Sportcamp|Melchtal, Sportcamp Nord"],[null,"343","Sarnen, Bahnhof|Melchtal, Dorf"],[1,"343","Sarnen, Bahnhof"]]}});

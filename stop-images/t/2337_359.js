@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_359",{"s":{},"d":{"8577889":[[1,"231","Bonnefontaine, village"],[0,"231","Fribourg/Freiburg, gare rout."]],"8504942":[[0,"231","Bonnefontaine, village"],[1,"231","Fribourg/Freiburg, gare rout."]]}});

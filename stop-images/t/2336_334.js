@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_334",{"s":{},"d":{"8579735":[[null,"662","Cronay, Moulin du Pont"],[0,"662","Bercher, gare"]],"8507698":[[0,"665 662","Bercher, gare"],[null,"665 662","Yverdon-les-Bains, gare|Cronay, Moulin du Pont"]]}});

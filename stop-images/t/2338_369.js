@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_369",{"s":{},"d":{"8507733":[[1,"611","Riggisberg, Post|Rüschegg Heubach, Post"],[0,"611","Schwarzenburg, Bahnhof|Rüschegg Gambach, Linde"]],"8571696":[[null,"611","Riggisberg, Post|Rüschegg Heubach, Post"],[0,"611","Schwarzenburg, Bahnhof|Rüschegg Gambach, Linde"]]}});

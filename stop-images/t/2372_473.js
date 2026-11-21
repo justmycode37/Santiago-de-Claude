@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_473",{"s":{},"d":{"8574451":[[0,"120","Engelburg, Dorfplatz|St. Gallen, Bahnhof"],[1,"120","Heiden, Post"],[null,"120","Heiden, Post|Engelburg, Dorfplatz"]],"8506753":[[0,"120","Engelburg, Dorfplatz|St. Gallen, Bahnhof"],[1,"120","Heiden, Post"],[null,"120","Heiden, Post|Engelburg, Dorfplatz|St. Gallen, Bahnhof"]]}});

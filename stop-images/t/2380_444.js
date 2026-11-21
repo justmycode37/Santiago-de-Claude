@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2380_444",{"s":{},"d":{"8573266":[[null,"825","Frauenfeld, Bahnhof|Stein am Rhein, Bahnhof"],[0,"825","Stein am Rhein, Bahnhof"],[1,"825","Frauenfeld, Bahnhof"]],"8506720":[[1,"825","Frauenfeld, Bahnhof|Frauenfeld, Marktplatz"],[null,"825","Frauenfeld, Bahnhof|Stein am Rhein, Bahnhof"],[0,"825","Stein am Rhein, Bahnhof"]]}});

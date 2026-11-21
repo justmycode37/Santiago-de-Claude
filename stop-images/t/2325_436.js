@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2325_436",{"s":{},"d":{"8575711":[[0,"116","Ambrì-Piotta, Stazione|Lurengo"]],"8581844":[[0,"117","Dalpe, Villaggio"],[null,"117","Airolo, Stazione|Ambrì-Piotta, Stazione"]],"8575712":[[0,"116","Ambrì-Piotta, Stazione"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2382_430",{"s":{},"d":{"8506878":[[1,"620 N60","Marthalen, Bahnhof|Andelfingen, Bahnhof"],[0,"620 N60","Rheinau, Unterstadt"],[null,"N60 620","Rheinau, Unterstadt|Andelfingen, Bahnhof"]],"8506768":[[2,"620 N60","Marthalen, Bahnhof|Andelfingen, Bahnhof"],[1,"",""],[null,"N60","Andelfingen, Bahnhof"]]}});

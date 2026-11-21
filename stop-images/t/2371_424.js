@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_424",{"s":{},"d":{"8591281":[[0,"37","Zürich, ETH Hönggerberg"],[1,"61","Wallisellen, Glatt (Bus)"],[null,"61","Wallisellen, Glatt (Bus)"]],"8591200":[[0,"32 N2","Zürich, Strassenverkehrsamt|Zürich, Bucheggplatz|Zürich, Hardplatz|Zürich, Sihlcity"],[null,"32 N2","Zürich, Strassenverkehrsamt|Zürich, Hardplatz|Zürich, Bucheggplatz|Zürich, Sihlcity"]]}});

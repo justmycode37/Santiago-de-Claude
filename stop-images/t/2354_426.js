@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_426",{"s":{},"d":{"8595342":[[0,"626","Walchwil, Bahnhof"]],"8595335":[[0,"626","Walchwil, Bahnhof"]],"8577556":[[0,"605 N5","Walchwil, Bahnhof"]],"8595334":[[0,"626","Walchwil, Bahnhof"]]}});

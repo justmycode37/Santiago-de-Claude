@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_363",{"s":{},"d":{"8504591":[[0,"182","Fribourg/Freiburg, gare rout.|Heitenried, Dorf"],[1,"182","Wünnewil, Schule|Schmitten FR, Bahnhof"]],"8504595":[[0,"182","Fribourg/Freiburg, gare rout."],[1,"182","Wünnewil, Schule|Schmitten FR, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2367_383",{"s":{},"d":{"8572324":[[0,"130","Laufen, Bahnhof"],[1,"130","Balsthal, Bahnhof"]],"8500597":[[0,"130","Balsthal, Bahnhof|Laufen, Bahnhof"]],"8572321":[[null,"130","Ramiswil, Dorf|Balsthal, Bahnhof"],[0,"130","Ramiswil, Dorf|Laufen, Bahnhof"],[1,"130","Balsthal, Bahnhof"]]}});

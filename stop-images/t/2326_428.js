@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2326_428",{"s":{},"d":{"8573144":[[0,"110","Airolo, Stazione"],[1,"110","Andermatt, Bahnhofplatz|Gotthard Passhöhe"]],"8573143":[[0,"110","Airolo, Stazione"],[1,"110","Andermatt, Bahnhofplatz|Gotthard Passhöhe"]],"8575692":[[0,"112 111","All'Acqua|Oberwald, Bahnhof|Nufenen Passhöhe"],[null,"112 111","Airolo, Stazione"]]}});

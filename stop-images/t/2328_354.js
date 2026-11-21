@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2328_354",{"s":{},"d":{"8577733":[[0,"264","Grandvillard, village"],[1,"264","Bulle, gare routière"]],"8504075":[[0,"S50 R39","Montbovon|Bulle|Palézieux|Allières|Zweisimmen"]],"8587253":[[0,"264","Grandvillard, village"],[1,"264","Bulle, gare routière"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2382_449",{"s":{},"d":{"8579758":[[null,"826","Steckborn, Bahnhof|Frauenfeld, Bahnhof"],[0,"826","Steckborn, Bahnhof"],[1,"826","Frauenfeld, Bahnhof"]],"8506626":[[null,"826","Steckborn, Bahnhof|Frauenfeld, Bahnhof"],[0,"826","Steckborn, Bahnhof"],[1,"826","Frauenfeld, Bahnhof"]]}});

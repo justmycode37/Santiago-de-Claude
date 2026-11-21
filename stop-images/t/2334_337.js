@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_337",{"s":{},"d":{"8570352":[[0,"435 428","Epalinges, Croisettes|Chavornay, gare|Echallens, gare|Naz, laiterie|Thierrens, gare routière"],[null,"435 428","Thierrens, gare routière"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_354",{"s":{},"d":{"8504042":[[0,"336","Bulle, gare routière"],[1,"",""]],"8504907":[[0,"336 N25","Bulle, gare routière"],[1,"336 N25","Fribourg/Freiburg, gare rout.|Farvagny-le-Grand, centre"]],"8504904":[[0,"336 N25","Bulle, gare routière"],[1,"336 N25","Fribourg/Freiburg, gare rout.|Farvagny-le-Grand, centre"]]}});

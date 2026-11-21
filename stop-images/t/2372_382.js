@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_382",{"s":{},"d":{"8572208":[[null,"67","Hochwald, Dorfzentrum|Dornach, Bahnhof|Seewen SO, Herrenmatt|Dornach, Gwändweg"],[1,"67 73","Dornach, Bahnhof|Dornach, Gwändweg|Büren SO, Dorf"],[0,"67 73","Seewen SO, Herrenmatt|Hochwald, Dorfzentrum"]]}});

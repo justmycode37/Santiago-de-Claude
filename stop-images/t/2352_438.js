@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_438",{"s":{},"d":{"8573779":[[1,"555","Einsiedeln, Eschbach|Oberiberg, Tschalun|Einsiedeln, Bahnhof|Unteriberg, Guggelstrasse"],[0,"555","Unteriberg, Guggelstrasse|Hoch-Ybrig, Talst. Laucheren|Oberiberg, Tschalun"]]}});

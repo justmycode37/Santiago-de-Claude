@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_353",{"s":{},"d":{"8510143":[[1,"",""],[0,"EV2 EV3 535","Murten/Morat, Bahnhof|Kerzers, Bahnhof|Cudrefin, camping"],[null,"EV2 EV5","Murten/Morat, Bahnhof"]],"8504127":[[0,"R9 S5 SN S52","Murten/Morat|Allaman|Lausanne|Avenches|Bern|Palézieux"]],"8530821":[[null,"3213","Murten/Morat (Schiff/bateau)"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_463",{"s":{},"d":{"8506125":[[0,"S1 SN71 RE1 S","Schaffhausen|Feuerthalen|Kreuzlingen|Stein am Rhein|Konstanz|Romanshorn"],[1,"S1 SN71","Wil SG|St. Gallen|Romanshorn|Rorschach|Gossau SG"]],"8530834":[[0,"3801 3800","Immenstaad (Bodensee)|Romanshorn (See)|Kreuzlingen Hafen (See)"]],"8581706":[[0,"",""]]}});

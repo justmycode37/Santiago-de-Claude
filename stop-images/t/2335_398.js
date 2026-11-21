@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2335_398",{"s":{},"d":{"8576389":[[0,"103","Iseltwald, Dorfplatz"],[1,"103","Interlaken Ost, Bahnhof|Interlaken West, Bahnhof"]],"8576390":[[0,"103","Interlaken Ost, Bahnhof|Interlaken West, Bahnhof"]],"8508379":[[0,"63 64 69 70 65 66 165 166 181 182","Interlaken Ost (See)|Brienz (See)"]]}});

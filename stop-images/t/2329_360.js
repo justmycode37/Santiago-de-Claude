@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_360",{"s":{},"d":{"8577759":[[0,"260 245","Jaun, Bergbahnen|Jaun, Dorf"],[1,"260 245","Gruyères, ville|Fribourg/Freiburg, gare rout.|Broc-Village, gare|Bulle, gare routière"]],"8510810":[[0,"265","Charmey, Gros Mont"],[1,"265","Charmey (Gruyère), village"]]}});

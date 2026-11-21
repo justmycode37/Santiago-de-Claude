@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_457",{"s":{},"d":{"8573392":[[0,"921","Weinfelden, Bahnhof"],[1,"921","Kreuzlingen, Kantonsschule"]],"8573394":[[0,"921","Weinfelden, Bahnhof"],[1,"921","Kreuzlingen, Kantonsschule"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_365",{"s":{},"d":{"8504415":[[1,"S3 IR65 S31","Belp|Zollikofen|Bern|Lyss|Biel/Bienne"],[0,"S36","Büren an der Aare|Lyss"],[2,"S3 IR65","Biel/Bienne|Bern|Belp|Brügg BE"]],"8581783":[[0,"362","Lyss, Bahnhof|Schnottwil, Post|Schnottwil, Schulhaus"]],"8589060":[[0,"",""],[1,"",""]]}});

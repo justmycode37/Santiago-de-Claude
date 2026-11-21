@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_411",{"s":{},"d":{"8577249":[[1,"52 50 N52","Rickenbach LU, Dorf|Menziken, Bahnhof|Beromünster, Post|Rickenbach LU, Bohler"],[0,"52 50 N52","Luzern, Bahnhof|Luzern, Pilatusplatz|Emmenbrücke, Sprengi|Emmenbrücke Kapf, Bahnhof"]]}});

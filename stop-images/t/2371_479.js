@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_479",{"s":{},"d":{"8574130":[[0,"226","Heerbrugg, Rosenbergsaustrasse|Heerbrugg, Bahnhof"],[1,"226","Heiden, Post"]],"8574131":[[0,"226","Heerbrugg, Rosenbergsaustrasse|Heerbrugg, Bahnhof"],[null,"226","Heiden, Post"]]}});

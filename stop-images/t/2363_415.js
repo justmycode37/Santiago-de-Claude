@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_415",{"s":{},"d":{"8502564":[[0,"343","Geltwil, Isenbergschwil|Muri AG, Bahnhof|Muri AG, Bachmatten-Schulhaus"]],"8572641":[[0,"343","Geltwil, Isenbergschwil|Muri AG, Bahnhof|Buttwil, Schule|Muri AG, Bachmatten-Schulhaus"]],"8572642":[[0,"343","Geltwil, Isenbergschwil|Muri AG, Bahnhof|Muri AG, Bachmatten-Schulhaus"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2370_367",{"s":{},"d":{"8572008":[[0,"6","Ederswiler, Jurastrasse|Movelier, Place du 23 Juin"],[1,"6","Châtillon JU, haut du village|Delémont, gare|Soyhières, place de la Liberté|Rossemaison, haut du village|Delémont, gare CFF sud"]]}});

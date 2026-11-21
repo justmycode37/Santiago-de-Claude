@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_414",{"s":{},"d":{"8589733":[[0,"14 16 21 20","Horw, Zentrum|Horw, Spitz|Luzern, Bahnhof|Horw, Ennethorw|Horw, Technikumstrasse|Luzern, Bundesplatz"],[1,"14 16 21 20 N21","Luzern, Brüelstrasse|Kriens, Busschleife|Luzern, Bahnhof|Luzern, Pilatusplatz|Luzern, Büttenenhalde"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_453",{"s":{},"d":{"8502616":[[0,"833","Ermatingen, Bahnhof"],[null,"833","Weinfelden, Bahnhof"]],"8506566":[[0,"920","Frauenfeld, Bahnhof|Müllheim Dorf, Kirche"],[1,"920","Kreuzlingen, Bahnhof"]],"8504116":[[0,"833","Ermatingen, Bahnhof"],[null,"833","Weinfelden, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_362",{"s":{},"d":{"8589210":[[0,"M31 EV2 EV1","Biel/Bienne, Bahnhof/Gare|Tavannes, Rue des Eaux"]],"8504302":[[null,"R41 R42 R","Biel/Bienne|La Chaux-de-Fonds|Moutier|Sonceboz-Sombeval|Malleray-Bévilard|La Chaux-de-Fonds | Malleray-Bévilard"]]}});

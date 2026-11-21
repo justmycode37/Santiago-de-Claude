@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_512",{"s":{},"d":{"8509776":[[0,"921 922","Samnaun-Dorf, Post|Scuol-Tarasp, staziun|Scuol, Clozza|Ftan, Institut"],[null,"922","Scuol, Clozza|Scuol, posta"]],"8530607":[[0,"SL","Prui"]],"8509267":[[null,"R15 R4 RE4 15","Scuol-Tarasp|Pontresina|Klosters Platz|St. Moritz|Landquart|Davos Platz"]]}});

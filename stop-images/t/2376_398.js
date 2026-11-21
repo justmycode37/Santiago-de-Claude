@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_398",{"s":{},"d":{"8583810":[[1,"134","Frick, Bahnhof|Frick, Ebnet"],[0,"134","Stein-Säckingen, Bahnhof"]],"8581530":[[0,"134","Frick, Bahnhof|Frick, Ebnet"],[1,"134","Stein-Säckingen, Bahnhof"]]}});

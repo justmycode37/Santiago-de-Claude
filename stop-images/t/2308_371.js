@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2308_371",{"s":{},"d":{"8501746":[[0,"381","Les Haudères, centre|Arolla, poste"],[1,"381","Sion, poste/gare"]],"8570899":[[0,"381 384","Les Haudères, centre|Arolla, poste|Eison, La Crettaz"],[1,"381","Sion, poste/gare"]],"8586419":[[0,"381","Sion, poste/gare|Les Haudères, centre"]]}});

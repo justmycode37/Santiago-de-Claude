@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_423",{"s":{},"d":{"8508982":[[0,"681","Gletsch, Post|Oberwald, Bahnhof"],[1,"681","Andermatt, Bahnhofplatz"]],"8505760":[[0,"681","Andermatt, Bahnhofplatz|Gletsch, Post|Oberwald, Bahnhof"]],"8530613":[[null,"1","Realp DFB|Oberwald"]]}});

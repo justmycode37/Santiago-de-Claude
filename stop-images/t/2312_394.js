@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2312_394",{"s":{},"d":{"8571028":[[0,"524","Visperterminen, Busterminal"],[1,"524","Visp, Bahnhof Süd|Visp, Lonzawerke"]],"8571027":[[0,"524","Visperterminen, Busterminal"],[1,"524","Visp, Bahnhof Süd|Visp, Lonzawerke"]]}});

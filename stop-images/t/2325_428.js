@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2325_428",{"s":{},"d":{"8575693":[[0,"112 111","All'Acqua|Oberwald, Bahnhof|Nufenen Passhöhe"],[1,"112 111","Airolo, Stazione"]],"8505865":[[0,"112 111","All'Acqua|Oberwald, Bahnhof|Nufenen Passhöhe"],[null,"112 111","Airolo, Stazione"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_470",{"s":{},"d":{"8506650":[[0,"200 207","Wittenbach, Zentrum|St. Gallen, Bahnhof"],[null,"200","Arbon, Bahnhof|St. Gallen, Bahnhof"],[1,"200","Arbon, Bahnhof"],[2,"207","Arbon, Bahnhof"]],"8511125":[[0,"207","Wittenbach, Zentrum"],[1,"207","Arbon, Bahnhof"]],"8511126":[[0,"207","Wittenbach, Zentrum"],[1,"207","Arbon, Bahnhof"]]}});

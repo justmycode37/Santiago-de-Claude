@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2381_438",{"s":{},"d":{"8573202":[[0,"605","Andelfingen, Bahnhof"],[1,"605","Oberstammheim, Rietweg"]],"8506629":[[1,"605","Andelfingen, Bahnhof"],[0,"605","Oberstammheim, Rietweg"]]}});

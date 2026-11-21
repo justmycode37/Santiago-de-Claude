@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_363",{"s":{},"d":{"8592480":[[1,"2","Biel/Bienne, Orpundplatz|Biel/Bienne, Stadien/Stades|Biel/Bienne, Centre Boujean"],[0,"2","Brügg BE, Bahnhof"]],"8592479":[[0,"2","Biel/Bienne, Orpundplatz|Biel/Bienne, Stadien/Stades|Biel/Bienne, Centre Boujean"],[1,"2","Brügg BE, Bahnhof"]]}});

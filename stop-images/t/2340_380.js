@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_380",{"s":{},"d":{"8508254":[[0,"S42 S21 S41","Thun|Hasle-Rüegsau|Konolfingen|Burgdorf"]],"8594985":[[2,"M15","Bern, Bahnhof"],[null,"M15","Thun, Bahnhof"]],"8510654":[[0,"",""]]}});

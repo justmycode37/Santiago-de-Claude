@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_383",{"s":{},"d":{"8508006":[[1,"IR17 IR35 EXT","Olten|Chur|Langenthal|Bern|Zürich HB|Basel SBB"],[0,"IR17 IR35 IR","Bern|Olten|Zollikofen|Burgdorf"]],"8591889":[[0,"54","Wynigen, Bahnhof"],[1,"54","Herzogenbuchsee, Bahnhof|Seeberg BE, Schlüssel"]],"8571772":[[null,"",""],[1,"54","Seeberg BE, Schlüssel"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_465",{"s":{},"d":{"8509414":[[1,"IR35 S17 RE35 EXT","Chur|Sargans|Zürich HB|Bad Ragaz|Landquart|Rapperswil SG"],[2,"IR35 S17 EXT","Zürich HB|Bern|Rapperswil SG|Ziegelbrücke|Lachen SZ|Uznach"],[0,"S17","Sargans"]],"8578567":[[null,"443","Walenstadtberg, Reha-Klinik"],[0,"EV2 EV3","Chur, Gürtelstrasse|Ziegelbrücke, Bahnhof Süd|Chur, Bahnhofplatz"]]}});

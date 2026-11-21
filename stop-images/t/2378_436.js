@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_436",{"s":{},"d":{"8581537":[[null,"676 N58","Gütighausen|Henggart, Bahnhof|Winterthur, Hauptbahnhof|Winterthur, Museumstrasse/HB"],[0,"676 N58","Henggart, Bahnhof|Gütighausen"],[1,"676","Winterthur, Museumstrasse/HB|Winterthur, Hauptbahnhof"]]}});

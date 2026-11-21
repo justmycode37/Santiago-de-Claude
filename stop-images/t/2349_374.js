@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_374",{"s":{},"d":{"8589017":[[null,"46 48","Bolligen, Bahnhof|Papiermühle, Bahnhof"]],"8589036":[[0,"43 48","Ittigen, Kappelisacker|Habstetten, Rössli|Bolligen, Altes Schulhaus"]],"8508078":[[null,"46 48","Bolligen, Bahnhof|Papiermühle, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_380",{"s":{},"d":{"8508255":[[0,"S41 S42 S21 EXT","Solothurn|Hasle-Rüegsau|Burgdorf|Konolfingen|Aefligen|Wiler"],[1,"S41 S42 S21","Thun|Solothurn"]],"8583108":[[0,"167 M13","Oberdiessbach, Bahnhof|Heimenschwand, Post"],[1,"167","Münsingen, Bahnhof"]],"8576609":[[0,"44 M13","Heimenschwand, Post|Kiesen, Dorf"]]}});

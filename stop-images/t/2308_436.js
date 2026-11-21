@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2308_436",{"s":{},"d":{"8576448":[[0,"324","Spruga|Intragna, Ponte"],[null,"324","Locarno, Stazione|Losone, Scuola Media"]],"8576465":[[0,"7 324","Locarno, Piazza Stazione|Spruga|Intragna, Ponte"],[1,"324","Locarno, Stazione|Losone, Scuola Media"]]}});

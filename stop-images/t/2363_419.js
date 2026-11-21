@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_419",{"s":{},"d":{"8572608":[[0,"217","Affoltern a.A., Bahnhof"],[1,"217","Muri AG, Spital|Muri AG, Bahnhof|Merenschwand, Hinterdorf"],[null,"217","Merenschwand, Hinterdorf"]],"8502555":[[null,"217","Affoltern a.A., Bahnhof|Merenschwand, Hinterdorf"],[1,"217","Muri AG, Spital|Muri AG, Bahnhof|Merenschwand, Hinterdorf"]]}});

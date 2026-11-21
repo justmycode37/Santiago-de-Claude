@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_473",{"s":{},"d":{"8574556":[[0,"451","Vättis, Dorf|Gigerwald, Staudamm"],[null,"451","Vättis, Dorf"],[1,"451","Bad Ragaz, Bahnhof|Valens, Klinik"]],"8509458":[[0,"451","Vättis, Dorf|Gigerwald, Staudamm"],[null,"451","Vättis, Dorf"],[1,"451","Bad Ragaz, Bahnhof|Valens, Klinik"]]}});

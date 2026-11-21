@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2315_312",{"s":{},"d":{"8501239":[[null,"3150","Genève-Mt-Blanc (lac)|Lausanne-Ouchy (lac)|Yvoire (F) (lac)"]],"8587067":[[1,"38","Chens-sur-Léman (F)"],[0,"E 38 E+ NP","Genève, Rive|Genève, gare Cornavin|Thônex, Sous-Moulin|Chens-sur-Léman (F)|Chêne-Bourg, Place Favre"],[2,"38","Thônex, Sous-Moulin|Chêne-Bourg, Place Favre|Choulex, Rouette"]]}});

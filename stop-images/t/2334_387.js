@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_387",{"s":{},"d":{"8507190":[[0,"2355","Beatenberg"]],"8507178":[[1,"21","Thun, Bahnhof"],[2,"21","Interlaken Ost, Bahnhof"],[0,"21","Thun, Bahnhof"]],"8576881":[[1,"21","Interlaken Ost, Bahnhof"],[0,"21","Thun, Bahnhof"]],"8507156":[[0,"13 14 126 10 120 15 16 19 20 21","Thun (See)|Interlaken West (See)"]]}});

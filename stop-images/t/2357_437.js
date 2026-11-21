@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_437",{"s":{},"d":{"8503726":[[0,"551 571","Biberbrugg, Bahnhof|Bennau, Kirche"],[1,"551 571","Einsiedeln, Rietstrasse|Einsiedeln, Bahnhof|Einsiedeln, Brüel"]],"8586566":[[0,"571","Einsiedeln, Bahnhof|Bennau, Kirche"]]}});

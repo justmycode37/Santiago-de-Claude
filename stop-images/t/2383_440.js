@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2383_440",{"s":{},"d":{"8506025":[[1,"S1","Feuerthalen|Altnau|Schaffhausen|Kreuzlingen|Stein am Rhein"],[null,"S1 S29 SN3","Wil SG|Schaffhausen|Stein am Rhein|Winterthur|Feuerthalen|Thalheim-Altikon"],[0,"S29","Stein am Rhein|Thalheim-Altikon|Seuzach"]]}});

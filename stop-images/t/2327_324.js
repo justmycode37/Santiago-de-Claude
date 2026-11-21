@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2327_324",{"s":{},"d":{"8570100":[[0,"730","Cossonay-Ville, centre|Colombier VD, poste"],[1,"730","Morges, gare"]],"8570099":[[0,"730","Cossonay-Ville, centre|Colombier VD, poste"],[1,"730","Morges, gare"]]}});

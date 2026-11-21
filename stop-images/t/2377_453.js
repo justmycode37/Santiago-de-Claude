@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2377_453",{"s":{},"d":{"8510953":[[0,"EV2","Bussnang, Gemeindehaus"]],"8582599":[[0,"722","Weinfelden, Bahnhof|Wil SG, Bahnhof|Wuppenau, Gemeindehaus"]],"8506185":[[0,"S10 SN14 S14","Wil SG|Romanshorn|Weinfelden"]]}});

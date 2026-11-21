@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_346",{"s":{},"d":{"8506534":[[null,"EV1 156","La Chaux-de-F,gare/Av.L-Robert|St-Imier, gare|Sonceboz-Sombeval, Couronne|La Chaux-de-Fonds, gare"],[0,"EV6","La Chaux-de-F,gare/Av.L-Robert|Sonceboz-Sombeval, gare|St-Imier, gare"]],"8504312":[[null,"R41 99 RE R","La Chaux-de-Fonds|Biel/Bienne|Sonceboz-Sombeval|Sonceboz-Sombeval, Couronne"]]}});

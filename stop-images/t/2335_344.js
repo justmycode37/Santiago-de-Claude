@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2335_344",{"s":{},"d":{"8570473":[[0,"561 475","Payerne, gare|Moudon, gare"],[1,"561 475","Romont FR, gare|Lucens, gare"]],"8570471":[[1,"561 475","Romont FR, gare|Moudon, gare"],[0,"561 475","Payerne, gare|Lucens, gare"]]}});

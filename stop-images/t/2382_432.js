@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2382_432",{"s":{},"d":{"8503952":[[4,"630 847 N69","Marthalen, Bahnhof"],[2,"630 847","Schaffhausen, Bahnhof|Diessenhofen, Bahnhof"],[null,"N69 630","Schaffhausen, Bahnhof|Marthalen, Bahnhof"],[1,"N69 630","Schaffhausen, Bahnhof"]]}});

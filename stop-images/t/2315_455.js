@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2315_455",{"s":{},"d":{"8505879":[[0,"215","Rossa, Villaggio"],[null,"215","Grono, Bivio Calanca|Castaneda, Tevegno"]],"8580096":[[0,"215","Rossa, Villaggio"],[1,"215","Grono, Paese|Grono, Bivio Calanca|Castaneda, Tevegno"]],"8530449":[[0,"2616","Selma (Funivia)"]]}});

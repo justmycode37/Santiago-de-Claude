@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2304_370",{"s":{},"d":{"8530127":[[0,"2190","Lac-des-Dix (téléphérique)"]],"8579533":[[0,"372","Dixence, Le Chargeur"],[1,"372","Sion, poste/gare|Sion, Les Cèdres"]],"8504676":[[0,"372","Sion, poste/gare|Sion, Les Cèdres"]]}});

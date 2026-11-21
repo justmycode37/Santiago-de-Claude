@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2343_363",{"s":{},"d":{"8583787":[[0,"N17 182 131","Fribourg/Freiburg, gare rout.|Flamatt, Oberflamatt|Ueberstorf, Niedermettlen|Heitenried, Dorf"],[1,"N17","Bern, Bahnhof"]],"8583455":[[0,"N17","Bern, Bahnhof"],[1,"N17","Fribourg/Freiburg, gare rout."]],"8583456":[[1,"N17","Bern, Bahnhof"],[0,"N17","Fribourg/Freiburg, gare rout."]]}});

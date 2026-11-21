@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_377",{"s":{},"d":{"8507296":[[0,"R11 GPX RE8 RE12 EXT","Spiez|Zweisimmen|Bern|Montreux|Interlaken Ost|Interlaken West"],[1,"R11 EXT RE12","Zweisimmen|Boltigen"]],"8509471":[[0,"EV1 EV2","Zweisimmen, Bahnhof"],[1,"EV1 EV2","Spiez, Bahnhof"]]}});

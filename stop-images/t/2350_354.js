@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_354",{"s":{},"d":{"8571522":[[null,"M32 521","Erlach, Stedtli|Ins, Bahnhof"],[0,"521 527","Erlach, Stedtli|Le Landeron, gare"],[1,"521 527","Ins, Bahnhof"]],"8581895":[[0,"521 527 M32","Erlach, Stedtli|Le Landeron, gare|Ins, Bahnhof|Gals, Bethlehem"],[1,"521 527","Ins, Bahnhof"]]}});

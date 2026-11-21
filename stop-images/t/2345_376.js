@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_376",{"s":{},"d":{"8511045":[[1,"M15","Bern, Bahnhof"],[0,"M15","Münsingen, Bahnhof|Thun, Bahnhof"]],"8577024":[[null,"40","Ittigen, Kappelisacker|Papiermühle, Bahnhof|Bern, Schosshalde|Bern, Rosengarten|Bern, Egghölzli"],[1,"M15","Münsingen, Bahnhof|Thun, Bahnhof"],[0,"M15","Bern, Bahnhof"],[2,"M15","Bern, Bahnhof"]]}});

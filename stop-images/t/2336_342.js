@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_342",{"s":{},"d":{"8570380":[[1,"445 565","Moudon, gare|Granges-près-Marnand, gare|Cugy FR, gare"],[0,"445 565","Lucens, gare"]],"8570379":[[0,"565","Granges-près-Marnand, gare|Cugy FR, gare"],[1,"565","Lucens, gare"]]}});

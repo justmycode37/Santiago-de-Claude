@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2362_379",{"s":{},"d":{"8572380":[[0,"12","Balm b. Günsberg, Dorf|Oberbalmberg, Kurhaus"],[1,"12","Solothurn, Hauptbahnhof"]],"8500698":[[0,"12","Balm b. Günsberg, Dorf|Oberbalmberg, Kurhaus"],[1,"12","Solothurn, Hauptbahnhof"]],"8583892":[[0,"M55","Balm b. Günsberg, Dorf"]]}});

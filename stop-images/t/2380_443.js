@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2380_443",{"s":{},"d":{"8506760":[[null,"823","Frauenfeld, Bahnhof|Diessenhofen, Bahnhof"],[0,"823","Diessenhofen, Bahnhof"],[1,"823","Frauenfeld, Bahnhof"]],"8581946":[[null,"823","Frauenfeld, Bahnhof"],[0,"823","Frauenfeld, Bahnhof"]]}});

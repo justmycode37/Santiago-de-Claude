@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_362",{"s":{},"d":{"8504921":[[0,"260 245","Jaun, Bergbahnen|Jaun, Dorf"],[1,"260 245","Gruyères, ville|Fribourg/Freiburg, gare rout.|Broc-Village, gare|Bulle, gare routière"]]}});

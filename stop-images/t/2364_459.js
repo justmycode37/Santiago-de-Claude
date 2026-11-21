@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_459",{"s":{},"d":{"8574199":[[0,"185 186","Hemberg, Dorf|Wattwil, Bahnhof"],[1,"185 186","St. Peterzell, Dorf|Brunnadern-Neckertal, Bahnhof|St. Peterzell, Bächlistrasse"]],"8574198":[[0,"185 186","Hemberg, Dorf|Wattwil, Bahnhof"],[1,"185 186","St. Peterzell, Dorf|Brunnadern-Neckertal, Bahnhof|St. Peterzell, Bächlistrasse"]]}});

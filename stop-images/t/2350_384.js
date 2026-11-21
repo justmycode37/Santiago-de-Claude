@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_384",{"s":{},"d":{"8508266":[[1,"S4 S44 EXT","Langnau i.E.|Sumiswald-Grünen|Thun|Bern|Burgdorf|Ramsei"],[0,"S4 S44","Thun|Bern|Burgdorf|Burgistein|Hasle-Rüegsau|Uetendorf"]],"8571765":[[null,"",""],[0,"472","Arni BE, Tanne"]]}});

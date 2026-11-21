@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2367_372",{"s":{},"d":{"8581899":[[0,"11","Vermes, école"],[1,"11","Vicques, poste|Vicques, bas du village"]],"8571976":[[0,"7","Montsevelier, poste"],[null,"7","Delémont, gare|Montsevelier, poste|Delémont, gare CFF sud"]],"8571975":[[0,"7","Montsevelier, poste"],[null,"7","Delémont, gare|Montsevelier, poste"],[1,"7","Delémont, gare|Delémont, gare CFF sud"]]}});

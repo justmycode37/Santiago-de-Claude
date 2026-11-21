@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_395",{"s":{},"d":{"8572303":[[0,"103","Oltingen, Postplatz|Oltingen, Schulhaus"],[null,"103","Gelterkinden, Bahnhof|Oltingen, Postplatz|Oltingen, Schulhaus"],[1,"103","Gelterkinden, Bahnhof"]]}});

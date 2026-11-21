@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2317_430",{"s":{},"d":{"8591542":[[0,"315","Cavergno, Paese"]],"8511841":[[0,"333","S. Carlo (Bavona), Funivia"],[null,"333","Bignasco, Posta"]],"8505856":[[0,"315 333","Locarno, Stazione|Bignasco, Posta|S. Carlo (Bavona), Funivia"]]}});

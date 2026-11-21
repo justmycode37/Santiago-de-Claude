@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_497",{"s":{},"d":{"8587886":[[1,"608 611","Chamues-ch, plaz|Samedan, Bahnhof"],[0,"608 611","Cinuos-chel-Brail, staziun|S-chanf, Chesa cumünela|S-chanf, Pradels|S-chanf, Parc Naziunal"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2382_434",{"s":{},"d":{"8580970":[[1,"848","Schlatt TG, Bahnhof|Diessenhofen, Bahnhof"],[0,"847","Marthalen, Bahnhof"],[null,"847","Diessenhofen, Bahnhof"]],"8580969":[[0,"847 848","Marthalen, Bahnhof|Schlatt TG, Bahnhof|Diessenhofen, Bahnhof|Oberschlatt TG, Dorf"],[1,"847","Diessenhofen, Bahnhof"]]}});

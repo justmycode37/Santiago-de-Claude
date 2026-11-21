@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_451",{"s":{},"d":{"8503385":[[0,"622 628 632","Wattwil, Bahnhof|Gommiswald, Schulhaus|Uznach, Bahnhof|Gommiswald, Dorf"],[1,"622 628 632 623","Rapperswil SG, Bahnhof|Ernetschwil, Dorf|Gebertingen, Schulhaus|Eschenbach SG, Dorftreff"]],"8594382":[[0,"624","St. Gallenkappel, Schule"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_412",{"s":{},"d":{"8508669":[[0,"342","Alpnach Dorf, Bahnhof"],[null,"342","Sarnen, Bahnhof"],[1,"342","Sarnen, Bahnhof"]],"8508323":[[0,"S5 S55 EXT","Luzern|Giswil|Sachseln"],[1,"S5 S55 EXT","Giswil|Sachseln|Brünig-Hasliberg"]],"8511165":[[0,"342","Alpnach Dorf, Bahnhof"],[null,"342","Sarnen, Bahnhof"],[1,"342","Sarnen, Bahnhof"]]}});

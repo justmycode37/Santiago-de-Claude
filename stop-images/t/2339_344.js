@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_344",{"s":{},"d":{"8504150":[[1,"562 565","Payerne, gare|Cugy FR, gare"],[0,"562 565","Moudon, gare|Thierrens, gare routière|Combremont-le-Petit, poste|Granges-près-Marnand, gare|Lucens, gare"]]}});

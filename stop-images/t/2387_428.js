@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2387_428",{"s":{},"d":{"8512098":[[0,"42","Hemmental, Dorfplatz|Schaffhausen, Bahnhof"]],"8512097":[[0,"42","Hemmental, Mäserich (Randen)|Hemmental, Dorfplatz|Schaffhausen, Bahnhof"]]}});

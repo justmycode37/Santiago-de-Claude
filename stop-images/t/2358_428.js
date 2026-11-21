@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2358_428",{"s":{},"d":{"8502283":[[0,"601 602 N2","Oberägeri, Station|Menzingen, Kreuzegg|Finstersee, Kirche"],[1,"601 602","Zug, Bahnhofplatz"]],"8502293":[[0,"602 N2","Menzingen, Kreuzegg|Finstersee, Kirche"],[1,"602","Zug, Bahnhofplatz"]]}});

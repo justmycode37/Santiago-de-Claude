@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2385_433",{"s":{},"d":{"8503462":[[null,"S62 S24 SN62 62N","Thayngen|Schaffhausen|Singen (Hohentwiel)|Zug|Winterthur|Zürich Flughafen"],[0,"S62","Schaffhausen"]],"8502527":[[1,"9","Schaffhausen, Herblinger Markt"],[0,"9","Schaffhausen, Ebnat"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_472",{"s":{},"d":{"8574340":[[null,"420","Gonzen Palfris, Scheidweg|Trübbach, Dorf"]],"8509657":[[null,"420","Trübbach, Dorf"]],"8574339":[[null,"420","Gonzen Palfris, Scheidweg|Trübbach, Dorf"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2298_355",{"s":{},"d":{"8579448":[[null,"272","La Fouly VS|Ferret"],[0,"272","Orsières, gare"]],"8579447":[[0,"272","La Fouly VS|Ferret"],[null,"272","Orsières, gare"]],"8501528":[[0,"272","La Fouly VS|Ferret"],[1,"272","Orsières, gare"]]}});

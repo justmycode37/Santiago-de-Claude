@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2330_345",{"s":{},"d":{"8570455":[[0,"455 496","La Verrerie, gare"],[1,"455 496","Romont FR, gare|Châtel-St-Denis, gare"]],"8504786":[[0,"455 496","La Verrerie, gare|Romont FR, gare|Châtel-St-Denis, gare"]]}});

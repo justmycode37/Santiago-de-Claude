@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2375_451",{"s":{},"d":{"8506168":[[0,"S10 SN14 S14","Wil SG|Romanshorn|Weinfelden"]],"8510761":[[null,"736","Wallenwil, Schulhaus|Balterswil, Dorf"]],"8510963":[[null,"EV1","Wil SG, Bahnhof|Weinfelden, BBZ|Oberaach, Bahnhof|Romanshorn, Bahnhof"]]}});

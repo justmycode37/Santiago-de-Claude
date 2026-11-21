@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_419",{"s":{},"d":{"8571607":[[0,"162","Steingletscher, Susten|Andermatt, Bahnhofplatz|Göschenen, Bahnhof"],[1,"162","Meiringen, Bahnhof"]],"8571606":[[0,"162","Steingletscher, Susten|Andermatt, Bahnhofplatz|Göschenen, Bahnhof"],[1,"162","Meiringen, Bahnhof"]]}});

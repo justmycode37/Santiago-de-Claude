@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2353_360",{"s":{},"d":{"8504475":[[0,"S37","Biel/Bienne|Täuffelen|Ins|Ins Dorf|Siselen-Finsterhennen"]],"8571234":[[0,"366","Aarberg, Spital|Walperswil, Post|Täuffelen, Bahnhof"],[1,"366","Täuffelen, Bahnhof"]],"8571235":[[0,"366","Täuffelen, Bahnhof|Aarberg, Spital|Walperswil, Post"]],"8582683":[[null,"M32","Erlach, Stedtli|Biel/Bienne, Bahnhof/Gare"]]}});

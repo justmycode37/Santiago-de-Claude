@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2301_449",{"s":{},"d":{"8505566":[[1,"461","Tesserete, Stazione|Lugano, Ospedale Civico|Pregassona, Scuola Media"],[0,"",""]],"8591598":[[0,"9","Cureggia, Paese"],[1,"9","Viganello, Centro|Viganello, Scuola Media"]]}});

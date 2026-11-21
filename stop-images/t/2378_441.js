@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_441",{"s":{},"d":{"8573319":[[1,"822","Oberneunforn, Gemeindehaus"],[0,"822","Frauenfeld, Bahnhof"]],"8580761":[[0,"615 N61","Rickenbach-Attikon, Bahnhof|Altikon, Brückenwaage|Bänk (Dägerlen), Hanfland"],[null,"N61 615","Altikon, Brückenwaage|Rickenbach-Attikon, Bahnhof|Bänk (Dägerlen), Hanfland"]]}});

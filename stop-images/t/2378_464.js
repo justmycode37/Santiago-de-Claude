@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_464",{"s":{},"d":{"8587215":[[null,"944","Amriswil, Bahnhof"],[0,"944","Obersommeri, Dorf"]],"8502535":[[0,"944","Amriswil, Bahnhof"]],"8582162":[[1,"944","Amriswil, Bahnhof"],[0,"944","Obersommeri, Dorf|Sommeri, Kirche"]]}});

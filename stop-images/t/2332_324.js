@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_324",{"s":{},"d":{"8504651":[[1,"760","La Sarraz, collège Guébettes"],[0,"760","Cossonay-Ville, centre"]],"8570146":[[1,"760","La Sarraz, collège Guébettes"],[0,"760","Cossonay-Ville, centre"]]}});

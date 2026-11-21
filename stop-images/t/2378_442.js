@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_442",{"s":{},"d":{"8573316":[[0,"822","Oberneunforn, Gemeindehaus"],[1,"822","Frauenfeld, Bahnhof"]],"8573317":[[0,"822","Oberneunforn, Gemeindehaus"],[1,"822","Frauenfeld, Bahnhof"]],"8573318":[[0,"822","Oberneunforn, Gemeindehaus"],[1,"822","Frauenfeld, Bahnhof"]],"8506867":[[0,"822","Oberneunforn, Gemeindehaus"],[1,"822","Frauenfeld, Bahnhof"]]}});

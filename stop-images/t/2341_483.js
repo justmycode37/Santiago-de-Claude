@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_483",{"s":{},"d":{"8509154":[[null,"R16","Chur|Arosa"]],"8574722":[[null,"EV10 41","Chur, Bahnhofplatz|Arosa, Bahnhof"],[0,"43","St. Peter Fatschel, Hochwang"],[1,"41","Chur, Postautostation|Maladers, Dorf|St. Peter, Rathaus"]]}});

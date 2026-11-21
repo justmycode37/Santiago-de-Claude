@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_344",{"s":{},"d":{"8570374":[[0,"565 661 552","Yverdon-les-Bains, gare|Lucens, gare|Granges-près-Marnand, gare|Cugy FR, gare|Estavayer-le-Lac, gare rout."],[1,"661 565 552","Granges-près-Marnand, gare|Cugy FR, gare|Lucens, gare"]],"8557077":[[0,"564 565 661 552","Granges-près-Marnand, gare|Cugy FR, gare|Lucens, gare"]]}});

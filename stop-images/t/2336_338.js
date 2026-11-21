@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_338",{"s":{},"d":{"8577616":[[0,"555","Estavayer-le-Lac, gare rout.|Estavayer-le-Lac, CO|Vuissens, poste"],[1,"555","Vuissens, poste|Estavayer-le-Lac, gare rout."]],"8504727":[[0,"555","Estavayer-le-Lac, gare rout.|Estavayer-le-Lac, CO"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2382_428",{"s":{},"d":{"8503421":[[1,"S9 S RE48 SN65 IC RE","Uster|Zürich HB|Rapperswil SG|Bülach|Zürich Oerlikon|Schaffhausen"],[0,"S65","Schaffhausen"],[2,"S9 S SN65 S65","Schaffhausen|Uster|Singen (Hohentwiel)|Zürich HB|Bülach"]]}});

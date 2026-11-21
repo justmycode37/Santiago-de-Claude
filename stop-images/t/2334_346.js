@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_346",{"s":{},"d":{"8577669":[[1,"455 454 N24","Romont FR, gare|Palézieux, gare"],[0,"455 454 N24","La Verrerie, gare|Bulle, gare routière|Les Ecasseys|Vuisternens-dt-Romont, forge|Mézières FR, église|Riaz, CO"]]}});

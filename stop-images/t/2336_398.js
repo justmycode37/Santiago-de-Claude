@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_398",{"s":{},"d":{"8510545":[[0,"EV2","Meiringen, Bahnhof|Brünig-Hasliberg, Bahnhof"],[null,"EV2 M42","Interlaken Ost, Bahnhof|Innertkirchen, Grimseltor"]],"8508374":[[0,"166 60 61 65 68 74","Interlaken Ost (See)|Brienz (See)"]]}});

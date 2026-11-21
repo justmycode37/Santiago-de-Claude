@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_395",{"s":{},"d":{"8508703":[[0,"251 252","Kemmeriboden|Schangnau, Post|Marbachegg, Talstation|Bumbach, Skilift|Thun, Bahnhof"],[null,"251 252 N66","Escholzmatt, Bahnhof|Schangnau, Post|Wolhusen, Bahnhof"],[1,"251","Kemmeriboden|Marbachegg, Talstation"]]}});

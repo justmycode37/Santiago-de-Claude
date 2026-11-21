@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2361_418",{"s":{},"d":{"8502576":[[0,"344","Brunnwil, Weiler|Beinwil (Freiamt), Dorf"],[1,"344","Muri AG, Bahnhof|Benzenschwil, Bahnhof"]],"8511868":[[0,"N6","Mühlau, Dorf"]],"8502573":[[1,"344 N6","Muri AG, Bahnhof|Benzenschwil, Bahnhof|Mühlau, Dorf"],[0,"344","Beinwil (Freiamt), Dorf"]]}});

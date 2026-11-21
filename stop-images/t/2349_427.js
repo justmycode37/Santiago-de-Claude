@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_427",{"s":{},"d":{"8577445":[[0,"508 502","Küssnacht am Rigi, Bahnhof|Gersau, Wehri"],[1,"508 502","Seewen SZ, Seewen Markt|Steinen, Bahnhof|Schwyz, Zentrum|Arth, Tafelstatt|Schwyz, Bahnhof|Steinen, Hausmatt"]]}});

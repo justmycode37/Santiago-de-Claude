@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_374",{"s":{},"d":{"8571409":[[0,"321","Toffen, Bahnhof|Riggisberg, Post"]],"8507729":[[0,"321 320 323 M16","Toffen, Bahnhof|Thurnen, Bahnhof|Bern, Bahnhof"],[1,"321 320 323","Riggisberg, Post|Schwarzenburg, Bahnhof|Riggisberg, Abegg-Stiftung"],[null,"321","Riggisberg, Post"]]}});

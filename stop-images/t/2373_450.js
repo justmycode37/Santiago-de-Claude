@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2373_450",{"s":{},"d":{"8578601":[[0,"735 734","Bichelsee, Dorf|Fischingen, Kloster"],[1,"",""],[2,"739","Sirnach, Ebnet|Münchwilen TG, Bahnhof Süd"]],"8578600":[[null,"735 734","Wil SG, Bahnhof|Bichelsee, Dorf|Fischingen, Kloster"]]}});

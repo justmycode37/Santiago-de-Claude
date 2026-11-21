@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2317_482",{"s":{},"d":{"8530596":[[0,"2958","Albigna"]],"8574966":[[0,"604","Chiavenna, Stazione|Promontogno, Posta|Stampa, Val d'Arca|Bondo, Strada Cantonale"],[1,"604","St. Moritz, Bahnhof|Pontresina, Post"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_417",{"s":{},"d":{"8502566":[[0,"245","Muri AG, Bahnhof|Aristau, Dorf"],[null,"245","Aristau, Dorf"],[1,"245","Birmensdorf ZH, Bahnhof|Zürich Wiedikon, Bahnhof|Zürich, Triemli|Oberlunkhofen, Dorfplatz"]],"8502563":[[0,"344 343","Muri AG, Bahnhof|Geltwil, Isenbergschwil|Brunnwil, Weiler|Beinwil (Freiamt), Dorf"]]}});

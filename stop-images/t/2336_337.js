@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_337",{"s":{},"d":{"8507660":[[0,"660","Thierrens, gare routière"],[1,"660","Yverdon-les-Bains, gare"]],"8507954":[[0,"660 430","Thierrens, gare routière"],[1,"660 430","Yverdon-les-Bains, gare|Bercher, gare|Bercher, 7 Fontaines"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_322",{"s":{},"d":{"8579099":[[0,"613 685","Vallorbe, grottes|Le Brassus, gare|Vallorbe, gare|Le Day, gare|Le Pont, gare"],[1,"685 613","Arnex, gare|Yverdon-les-Bains, gare|Cheseaux-N., gymnase d'Yverdon|Orbe, poste"]]}});

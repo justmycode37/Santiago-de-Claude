@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_372",{"s":{},"d":{"8507749":[[0,"323","Schwarzenburg, Bahnhof|Gurnigel, Gantrischhütte"],[1,"323","Riggisberg, Post|Thurnen, Bahnhof"]],"8571660":[[0,"323","Schwarzenburg, Bahnhof|Gurnigel, Gantrischhütte"],[null,"323","Riggisberg, Post|Thurnen, Bahnhof"]]}});

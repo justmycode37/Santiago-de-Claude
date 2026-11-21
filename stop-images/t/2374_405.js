@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_405",{"s":{},"d":{"8572455":[[1,"137","Frick, Bahnhof|Frick, Ebnet"],[0,"137","Brugg AG, Bahnhof/Zentrum"],[null,"137 N97","Hornussen, Unterdorf|Frick, Bahnhof|Brugg AG, Bahnhof/Zentrum|Asp AG, Abzw."],[2,"139 137","Herznach, Post|Frick, Bahnhof"]]}});

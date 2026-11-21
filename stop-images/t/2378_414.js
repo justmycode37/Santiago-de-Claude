@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_414",{"s":{},"d":{"8503584":[[2,"360","Bad Zurzach, Bahnhof"],[null,"360","Brugg AG, Bahnhof/Zentrum"],[1,"360 355 353","Brugg AG, Bahnhof/Zentrum|Baden, Postautostation|Niederweningen, Bahnhof|Endingen, Zentrum"],[0,"355","Döttingen, Bahnhof"]]}});

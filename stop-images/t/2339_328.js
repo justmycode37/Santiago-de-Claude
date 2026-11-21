@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_328",{"s":{},"d":{"8510929":[[0,"EV12","Ste-Croix, gare"],[1,"EV12","Yverdon-les-Bains, gare"]],"8579740":[[0,"611","Champvent, Le Battoir"],[1,"611","Yverdon-les-Bains, gare"]],"8570336":[[0,"611","Champvent, Le Battoir"],[1,"611","Yverdon-les-Bains, gare"]],"8595204":[[0,"611","Yverdon-les-Bains, gare"]]}});

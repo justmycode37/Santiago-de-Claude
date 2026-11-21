@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_390",{"s":{},"d":{"8508997":[[null,"285","Wasen i.E., Stegmatt|Langnau i.E., Bahnhof"]],"8588398":[[null,"285","Langnau i.E., Bahnhof|Gohl, Mettlen|Wasen i.E., Stegmatt"]],"8508991":[[null,"285","Langnau i.E., Bahnhof|Wasen i.E., Stegmatt"]]}});

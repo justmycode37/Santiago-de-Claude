@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2333_363",{"s":{},"d":{"8577851":[[0,"123 125","Schwarzsee, Campus"],[1,"123 125","Fribourg/Freiburg, gare rout.|Plaffeien, Dorf|Düdingen, Bahnhof"]],"8588821":[[0,"123 125","Fribourg/Freiburg, gare rout.|Plaffeien, Dorf|Düdingen, Bahnhof"]]}});

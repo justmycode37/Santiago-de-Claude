@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_332",{"s":{},"d":{"8511686":[[0,"625","Mauborget, village|Villars-Burquin, Grange-Meule"],[null,"625","Yverdon-les-Bains, gare"]],"8504989":[[0,"635 630 620","Provence, poste|Gorgier-St-Aubin, gare|Concise, village|Vuiteboeuf, gare"],[null,"635 630 620","Yverdon-les-Bains, gare|Provence, poste|Concise, village"]]}});

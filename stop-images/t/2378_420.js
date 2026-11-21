@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_420",{"s":{},"d":{"8503413":[[0,"S36","Bülach|Waldshut|Koblenz"]],"8503687":[[null,"",""],[1,"354","Baden, Postautostation"]],"8572591":[[1,"354","Baden, Postautostation|Kaiserstuhl AG, Bahnhof|Niederweningen, Bahnhof"]]}});

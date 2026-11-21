@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_429",{"s":{},"d":{"8573705":[[1,"675","Henggart, Bahnhof|Flaach, Wesenplatz"],[0,"675","Rafz, Bahnhof"],[null,"675","Rafz, Bahnhof|Flaach, Oberdorf"]],"8573688":[[0,"677 670","Hettlingen, Föhrenstrasse|Winterthur, Museumstrasse/HB"],[1,"677 670 N64","Andelfingen, Bahnhof|Flaach, Oberdorf|Humlikon, Dorfplatz"],[null,"N64","Humlikon, Dorfplatz"]]}});

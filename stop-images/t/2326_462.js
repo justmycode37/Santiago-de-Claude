@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2326_462",{"s":{},"d":{"8509666":[[0,"541 171 551","Mesocco, Stazione|Bellinzona, Stazione|Hinterrhein, Tunnel Nordportal|S. Bernardino, Villaggio"],[1,"541 171 551","Thusis, Bahnhof|Chur, Postautostation|Andeer, posta"],[null,"541","Thusis, Bahnhof"]]}});

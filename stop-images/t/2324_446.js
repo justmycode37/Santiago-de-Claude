@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2324_446",{"s":{},"d":{"8511707":[[0,"134","Acquarossa-Comprovasco|Dangio, Chiesa"]],"8505270":[[0,"134","Acquarossa-Comprovasco|Dangio, Chiesa"]],"8578867":[[0,"134","Acquarossa-Comprovasco|Ponto Valentino, Paese|Dangio, Chiesa"]]}});

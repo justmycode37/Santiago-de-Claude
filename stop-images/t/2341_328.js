@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_328",{"s":{},"d":{"8504273":[[0,"615","Mauborget, village|Bullet, Les Cluds"],[1,"615","L'Auberson, Vers-chz-ls-Jaques|Mauborget, village|Ste-Croix, gare|Bullet, village"]],"8570262":[[0,"620","Vuiteboeuf, gare"],[null,"620","Yverdon-les-Bains, gare"]]}});

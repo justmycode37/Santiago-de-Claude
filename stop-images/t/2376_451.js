@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_451",{"s":{},"d":{"8573622":[[0,"EV1 EV3","Weinfelden, BBZ|Märwil, Hauptstrasse/Bhf"]],"8506679":[[0,"837","Tobel-Affeltrangen, Bahnhof"],[null,"837","Tobel-Affeltrangen, Bahnhof|Frauenfeld, Bahnhof"],[1,"837","Frauenfeld, Bahnhof"]],"8506183":[[0,"S10 S14","Romanshorn|Wil SG|Weinfelden"],[1,"S10 SN14","Wil SG|Romanshorn|Weinfelden"]]}});

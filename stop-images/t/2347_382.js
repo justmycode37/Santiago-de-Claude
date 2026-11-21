@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_382",{"s":{},"d":{"8571771":[[0,"472","Biglen, Bahnhof"],[1,"472","Lützelflüh-Goldbach, Bahnhof|Obergoldbach, Post"]],"8571770":[[0,"472","Biglen, Bahnhof"],[null,"472","Lützelflüh-Goldbach, Bahnhof|Obergoldbach, Post"]]}});

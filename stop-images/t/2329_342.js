@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_342",{"s":{},"d":{"8577677":[[1,"472 258","Romont FR, gare|Vuisternens-dt-Romont, forge|Riaz, CO|Bulle, gare routière"],[0,"472 258","Palézieux, gare|Oron-la-Ville, gare routière"]],"8577678":[[1,"472 258","Romont FR, gare|Vuisternens-dt-Romont, forge|Riaz, CO|Bulle, gare routière"],[0,"472 258","Palézieux, gare|Oron-la-Ville, gare routière"]]}});

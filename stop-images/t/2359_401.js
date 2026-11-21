@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_401",{"s":{},"d":{"8582442":[[null,"N80 EV1 EV2","Sursee, Bahnhof|Altishofen, Unterdorf|Zofingen, Bahnhofplatz|Sursee, Schnydermatt|Luzern, Bahnhof"],[0,"80","Altishofen, Kreisel"],[1,"80","Sursee, Bahnhof"]]}});

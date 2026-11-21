@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_389",{"s":{},"d":{"8588967":[[1,"60 M40","Spiez, Bahnhof|Leissigen, West|Thun, Bahnhof"],[0,"60 M40","Interlaken Ost, Bahnhof|Interlaken, Gymnasium|Interlaken West, Bahnhof|Därligen, Tracht"]]}});

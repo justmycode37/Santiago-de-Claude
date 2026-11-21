@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_426",{"s":{},"d":{"8583761":[[0,"504","Oberglatt ZH, Bahnhof"],[1,"504","Bülach, Bahnhof|Bachenbülach, Bramenländli"],[null,"504","Bülach, Bahnhof"]],"8582662":[[1,"504","Oberglatt ZH, Bahnhof"],[0,"504","Bülach, Bahnhof|Bachenbülach, Bramenländli"],[null,"504","Bülach, Bahnhof"]]}});

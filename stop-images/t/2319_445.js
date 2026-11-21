@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2319_445",{"s":{},"d":{"8580590":[[0,"120 125","Osogna, Maestos|Personico, Piazza|Pollegio, Pasquerio"],[null,"",""],[1,"120","Airolo, Caseificio/Funivia|Giornico, Scuola Media|Faido, Posta"]],"8505207":[[0,"IR26 IR46 S10","Locarno|Basel SBB|Bellinzona|Zürich HB|Airolo|Olten"]],"8575742":[[0,"124","Lavorgo, Stazione|Faido, Stazione"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2357_472",{"s":{},"d":{"8595258":[[null,"403","Räfis, Bäckereistrasse|Buchserberg, Berghaus"]],"8595255":[[1,"403","Räfis, Bäckereistrasse|Buchserberg, Berghaus"]],"8595257":[[null,"403","Räfis, Bäckereistrasse|Buchserberg, Berghaus"]],"8595256":[[null,"403","Räfis, Bäckereistrasse|Buchserberg, Berghaus"]]}});

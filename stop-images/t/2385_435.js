@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2385_435",{"s":{},"d":{"8573746":[[0,"25","Ramsen, Petersburg|Buch SH, Dorf|Ramsen, Dorf|Hemishofen, Dorf"],[1,"25","Schaffhausen, Bahnhof"]],"8503957":[[0,"25","Ramsen, Petersburg|Buch SH, Dorf|Ramsen, Dorf|Hemishofen, Dorf"],[1,"25","Schaffhausen, Bahnhof"]]}});

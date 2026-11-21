@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2369_354",{"s":{},"d":{"8572083":[[0,"75","Villars-sur-Fontenais"],[1,"75","Porrentruy, gare|Fontenais,place de la Fontaine"],[null,"75","Villars-sur-Fontenais"]],"8572084":[[0,"75","Porrentruy, gare|Fontenais,place de la Fontaine"],[1,"",""]]}});

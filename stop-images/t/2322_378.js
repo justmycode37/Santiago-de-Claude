@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2322_378",{"s":{},"d":{"8530313":[[0,"2427","Unter dem Birg (Talstation)"]],"8507857":[[null,"232","Adelboden, Ausserschwand|Adelboden, Post"]],"8530312":[[0,"2427","Engstligenalp"]]}});

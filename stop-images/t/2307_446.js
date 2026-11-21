@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2307_446",{"s":{},"d":{"8580787":[[0,"350","Dirinella, Confine"],[null,"350","Dirinella, Confine|Cadenazzo, Ruscadella"],[1,"350","S. Antonino,Centri Commerciali|Cadenazzo, Stazione"]],"8580721":[[0,"231","Robasacco, Paese|Rivera, Passo del Ceneri"]],"8506922":[[0,"231","Robasacco, Paese|Cadenazzo, Stazione|Rivera, Passo del Ceneri"]]}});

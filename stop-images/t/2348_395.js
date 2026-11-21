@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_395",{"s":{},"d":{"8508757":[[1,"284","Ramsei, Bahnhof|Mettlenalp (Napf)|Langnau i.E., Bahnhof"]],"8588412":[[null,"284","Ramsei, Bahnhof|Fankhaus (Trub), Schulhaus|Mettlenalp (Napf)|Langnau i.E., Bahnhof"]]}});

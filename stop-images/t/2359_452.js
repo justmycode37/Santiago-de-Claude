@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_452",{"s":{},"d":{"8503368":[[0,"635","Ziegelbrücke, Bahnhof Nord"],[1,"635","Benken SG, Giessen"],[null,"N64","Ziegelbrücke, Bahnhof Nord|Uznach, Bahnhof"]],"8573866":[[null,"N64","Ziegelbrücke, Bahnhof Nord|Uznach, Bahnhof"]],"8573865":[[null,"N64","Ziegelbrücke, Bahnhof Nord|Uznach, Bahnhof"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_435",{"s":{},"d":{"8503376":[[1,"655","Effretikon, Bahnhof|Kyburg, Dorf"]],"8503370":[[0,"652","Illnau, Bahnhof|Illnau, Wingert"],[null,"652","Illnau, Bahnhof|Effretikon, Bahnhof"],[1,"652","Effretikon, Bahnhof"]],"8595082":[[0,"E","Effretikon, Bahnhof"]]}});

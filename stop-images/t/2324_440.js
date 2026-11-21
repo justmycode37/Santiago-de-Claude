@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2324_440",{"s":{},"d":{"8575726":[[0,"119","Carì, Paese|Predelp"],[null,"119","Faido, Stazione"]],"8575724":[[0,"119","Carì, Paese|Predelp"],[null,"119","Faido, Stazione"]],"8575728":[[0,"119","Faido, Stazione|Predelp"]],"8575725":[[0,"119","Carì, Paese|Predelp"],[1,"119","Faido, Stazione"]],"8582421":[[0,"119","Predelp|Faido, Stazione"]]}});

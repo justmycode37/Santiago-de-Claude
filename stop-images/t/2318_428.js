@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2318_428",{"s":{},"d":{"8575875":[[0,"333","S. Carlo (Bavona), Funivia"],[null,"333","Bignasco, Posta"]],"8575874":[[0,"333","S. Carlo (Bavona), Funivia"],[1,"333","Bignasco, Posta"]]}});

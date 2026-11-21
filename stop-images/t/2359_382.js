@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_382",{"s":{},"d":{"8578119":[[null,"5 7 M53","Herzogenbuchsee, Bahnhof|Solothurn, Brühl|Solothurn, Allmend|Aeschi SO, Kirche|Solothurn, Hauptbahnhof|Derendingen, Kreuzplatz"]],"8578120":[[null,"7 5","Herzogenbuchsee, Bahnhof|Solothurn, Brühl|Solothurn, Allmend|Solothurn, Hauptbahnhof|Solothurn, Amthausplatz|Derendingen, Ritterplatz"]]}});

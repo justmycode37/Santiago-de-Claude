@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_421",{"s":{},"d":{"8508465":[[null,"3600","Beckenried (See)|Luzern Bahnhofquai|Brunnen (See)"]],"8509029":[[0,"318","Ennetbürgen, Parkplatz Honegg"],[1,"318","Ennetbürgen, Schule/MZA"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2362_354",{"s":{},"d":{"8500887":[[0,"33 N23 35","Bassecourt, Jura Centre|Glovelier, gare|Les Reussilles, gare|Les Genevez JU, poste|Reconvilier, gare|Saulcy, village"],[1,"33 35","Tramelan, gare|Reconvilier, gare|Lajoux JU, poste|Les Genevez JU, poste"]]}});

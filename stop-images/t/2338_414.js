@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_414",{"s":{},"d":{"8530364":[[0,"2527","Bonistock (Distelboden)"]],"8595208":[[0,"349","Melchsee-Frutt, Tannalp|Melchsee-Frutt, alte Bergstat."]],"8595209":[[0,"349","Melchsee-Frutt, Tannalp|Melchsee-Frutt, alte Bergstat."]],"8530365":[[0,"2527","Distelboden (Talst. Bonistock)"]]}});

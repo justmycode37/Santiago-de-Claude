@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2326_481",{"s":{},"d":{"8509797":[[0,"577 182","Bivio, posta|St. Moritz, Bahnhof|Tiefencastel, staziun|Sur, plazza dalla posta"],[1,"182","Lenzerheide/Lai, Post|Churwalden, Furnerschhus|Tiefencastel, staziun|Chur, Postautostation"]],"8591719":[[0,"188","Sur GR Alp Flix, Tigias Hotel|Sur, plazza dalla posta"]]}});

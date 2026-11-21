@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_360",{"s":{},"d":{"8504397":[[0,"21","Bellelay, école"],[1,"21","Les Ecorcheresses|Moutier, gare|Souboz, village"]],"8571944":[[0,"21","Bellelay, école|Les Ecorcheresses|Moutier, gare|Souboz, village|Sornetan"]]}});

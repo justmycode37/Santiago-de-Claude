@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2387_434",{"s":{},"d":{"8573494":[[1,"24 24R N76","Thayngen, Bahnhof|Barzheim, Dorf"],[0,"24","Schaffhausen, Bahnhof|Opfertshofen SH, Reiatstube"]],"8510040":[[0,"N76","Thayngen, Bahnhof"]]}});

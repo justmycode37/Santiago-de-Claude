@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2355_440",{"s":{},"d":{"8583632":[[0,"555 553 556 570","Hoch-Ybrig, Talst. Laucheren|Oberiberg, Tschalun|Studen SZ, Ochsenboden|Hoch-Ybrig, Talst. Weglosen|Studen SZ, Dörfli|Euthal, Schulhaus"],[1,"555 553 556 570","Einsiedeln, Eschbach|Einsiedeln, Bahnhof|Willerzell, Kirche|Willerzell, Grüene Aff|Egg SZ, Roblosen"]]}});

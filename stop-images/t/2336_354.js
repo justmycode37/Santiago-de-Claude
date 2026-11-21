@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_354",{"s":{},"d":{"8588824":[[1,"336 470 N25","Bulle, gare routière|Romont FR, gare|Romont FR, Esplanade Arruffens|Vuisternens-en-Ogoz, croisée|Farvagny-le-Grand, centre"],[0,"336 470","Fribourg/Freiburg, gare rout.|Corpataux, village|Romont FR, gare"]]}});

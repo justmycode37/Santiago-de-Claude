@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2333_392",{"s":{},"d":{"8579333":[[0,"104","Interlaken Ost, Bahnhof"],[1,"104","Unterseen, Stadtfeld"]],"8507367":[[0,"2360","Interlaken (Heimwehfluhbahn)"]],"8507349":[[0,"2360","Heimwehfluh"]]}});

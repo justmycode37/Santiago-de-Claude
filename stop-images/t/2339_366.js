@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_366",{"s":{},"d":{"8582069":[[1,"612 323","Schwarzenburg, Bahnhof"],[0,"612 323","Schwarzenburg, Bahnhof|Riggisberg, Post|Thurnen, Bahnhof"]],"8571668":[[1,"612 323","Schwarzenburg, Bahnhof"],[0,"612 323","Schwarzenburg, Bahnhof|Riggisberg, Post|Thurnen, Bahnhof"]]}});

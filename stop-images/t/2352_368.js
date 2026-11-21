@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_368",{"s":{},"d":{"8594064":[[0,"M10","Bern, Bahnhof|Schüpfen, Bahnhof"],[1,"M10","Biel/Bienne, Orpundplatz|Lyss, Bahnhof"],[null,"M10","Bern, Bahnhof|Biel/Bienne, Bahnhof/Gare"]],"8594063":[[0,"M10","Bern, Bahnhof|Schüpfen, Bahnhof"],[1,"M10","Biel/Bienne, Orpundplatz|Lyss, Bahnhof"],[null,"M10","Bern, Bahnhof|Biel/Bienne, Bahnhof/Gare"]]}});

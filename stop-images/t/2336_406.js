@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_406",{"s":{},"d":{"8570534":[[0,"174","Brienzwiler, Bahnhof|Unterbach BE, Rollfeld"],[null,"174","Meiringen, Bahnhof|Meiringen, Luftseilbahn"]],"8581474":[[0,"174","Brienzwiler, Bahnhof|Unterbach BE, Rollfeld"],[null,"174","Meiringen, Bahnhof|Meiringen, Luftseilbahn"]]}});

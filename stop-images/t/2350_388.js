@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2350_388",{"s":{},"d":{"8571545":[[null,"482","Sumiswald, Post"]],"8571543":[[0,"482","Heimisbach, Thal|Sumiswald, Post"]],"8508668":[[1,"482","Heimisbach, Thal"]],"8571544":[[null,"482","Heimisbach, Thal|Sumiswald, Post"]]}});

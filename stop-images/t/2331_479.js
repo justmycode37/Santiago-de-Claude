@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_479",{"s":{},"d":{"8574506":[[0,"182 577","Savognin, posta|Bivio, posta|Savognin, pendicularas/Bahnen|St. Moritz, Bahnhof|Rona, vischnanca"],[1,"182 577","Lenzerheide/Lai, Post|Thusis, Bahnhof|Churwalden, Furnerschhus|Tiefencastel, staziun|Chur, Postautostation"],[null,"577 182","Bivio, posta|Tiefencastel, staziun|Savognin, posta"]]}});

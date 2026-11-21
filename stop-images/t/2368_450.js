@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2368_450",{"s":{},"d":{"8573988":[[0,"766","Bütschwil, Bahnhof|Mosnang, Dorf"],[1,"766","Mühlrüti, Dorf|Steg im Tösstal, Bahnhof"]],"8573987":[[0,"766","Bütschwil, Bahnhof|Mosnang, Dorf"],[1,"766","Mühlrüti, Dorf|Steg im Tösstal, Bahnhof"]]}});

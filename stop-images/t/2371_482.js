@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_482",{"s":{},"d":{"8510934":[[0,"EV2","Rorschach, Bahnhofplatz"]],"8506316":[[0,"S4 S2 SN22 S5 S13","St. Gallen|Altstätten SG|Nesslau-Neu St. Johann|Heerbrugg|Sargans|Herisau"]]}});

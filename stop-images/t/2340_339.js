@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_339",{"s":{},"d":{"8504131":[[0,"S30","Yverdon-les-Bains"],[null,"S30","Yverdon-les-Bains"],[1,"S30 EXT","Fribourg/Freiburg|Payerne|Givisiez"]],"8510157":[[null,"EV1 EV EV3","Yverdon-les-Bains, gare|Payerne, gare|Fribourg/Freiburg, gare/Tivoli"]],"8591808":[[0,"553","Estavayer-le-Lac, gare rout.|Estavayer-le-Lac, CO"]]}});

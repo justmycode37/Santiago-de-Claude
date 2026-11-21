@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2385_425",{"s":{},"d":{"8578372":[[1,"21","Beggingen, Dorf|Neunkirch, Bahnhof|Schleitheim, Gemeindehaus"],[0,"21","Schaffhausen, Bahnhof"]],"8578371":[[1,"21","Neunkirch, Bahnhof|Beggingen, Dorf|Schleitheim, Gemeindehaus"],[0,"21","Schaffhausen, Bahnhof|Siblingen, Am Stei"]]}});

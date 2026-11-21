@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_384",{"s":{},"d":{"8576616":[[1,"44 M13","Heimenschwand, Post"],[0,"44 M13","Oberdiessbach, Bahnhof|Kiesen, Dorf"]],"8576617":[[1,"44 M13","Heimenschwand, Post"],[0,"44 M13","Oberdiessbach, Bahnhof|Kiesen, Dorf"]]}});

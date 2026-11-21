@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2311_371",{"s":{},"d":{"8580403":[[0,"388","Nax, centre"],[1,"388","Sion, poste/gare|Fontany|Vernamiège, village"]],"8501332":[[1,"388","Sion, poste/gare|Fontany|Vernamiège, village"]],"8581781":[[0,"388","Nax, centre"],[1,"388","Sion, poste/gare|Fontany|Vernamiège, village"]]}});

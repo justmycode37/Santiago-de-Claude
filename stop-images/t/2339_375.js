@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2339_375",{"s":{},"d":{"8571653":[[0,"56","Wattenwil, Grundbach|Wattenwil, Postgasse"],[1,"56","Riggisberg, Post"]],"8571652":[[0,"56","Wattenwil, Grundbach|Wattenwil, Postgasse"],[null,"56","Riggisberg, Post"]],"8576792":[[1,"53","Blumenstein, Dorf|Wattenwil, Postgasse|Wattenwil, Bären"],[0,"53","Seftigen, Bahnhof"]]}});

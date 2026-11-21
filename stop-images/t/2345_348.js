@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_348",{"s":{},"d":{"8577832":[[0,"544 N14","Gletterens, lac|Gletterens, village|Vallon, Musée romain"],[1,"544 N14","Fribourg/Freiburg, gare rout.|Misery, village"]],"8577831":[[0,"544 N14","Gletterens, lac|Gletterens, village|Vallon, Musée romain"],[1,"544 N14","Fribourg/Freiburg, gare rout.|Misery, village"]]}});

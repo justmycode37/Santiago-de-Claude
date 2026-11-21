@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2338_353",{"s":{},"d":{"8504008":[[null,"EV4","Fribourg/Freiburg, gare rout.|Romont FR, gare"],[0,"N12","Romont FR, gare"],[1,"N12","Fribourg/Freiburg, gare rout."]],"8504027":[[0,"S41 S40 SN RE3 RE2","Fribourg/Freiburg|Yverdon-les-Bains|Romont FR|Lausanne|Payerne"],[1,"S41 S40 SN RE3 S","Lausanne|Romont FR|Vauderens|Fribourg/Freiburg|La Conversion"]]}});

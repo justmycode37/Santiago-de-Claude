@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2324_352",{"s":{},"d":{"8508258":[[null,"EV EV2","Zweisimmen, Bahnhof|Gstaad, Bahnhof"]],"8504070":[[1,"R30 30 S50 34 EXT","Montreux|Zweisimmen|Bulle|Château-d'Oex|Allières|Les Avants"],[0,"GPX 34 EXT R30 S50","Montreux|Château-d'Oex|Zweisimmen|Interlaken Ost|Interlaken West|Gstaad"],[2,"S50 R39","Bulle|Palézieux|Zweisimmen|Château-d'Oex|Gstaad"]]}});

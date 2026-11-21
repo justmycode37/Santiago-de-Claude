@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_354",{"s":{},"d":{"8504926":[[0,"234 262 N21","Bulle, gare routière"],[1,"234 262 N21","Fribourg/Freiburg, gare rout.|Broc-Village, gare|Essert FR, La Riedera"]],"8577749":[[0,"234 262 N21","Bulle, gare routière"],[1,"234 262 N21","Fribourg/Freiburg, gare rout.|Broc-Village, gare|Essert FR, La Riedera"]]}});

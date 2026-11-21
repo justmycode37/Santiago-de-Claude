@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2383_438",{"s":{},"d":{"8503429":[[0,"S1 SN3","Wil SG|Schaffhausen|Feuerthalen|Altnau|St. Gallen|Stein am Rhein"]],"8573332":[[null,"823 EV1 EV3","Frauenfeld, Bahnhof|Schaffhausen, Bahnhof Nord|Stein am Rhein, Bahnhof|Kreuzlingen, Bahnhof"],[0,"823","Diessenhofen, Bahnhof"]]}});

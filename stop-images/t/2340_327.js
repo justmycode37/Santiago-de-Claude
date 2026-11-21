@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_327",{"s":{},"d":{"8583764":[[1,"",""],[0,"",""]],"8507973":[[0,"620","Vuiteboeuf, gare"],[1,"620","Yverdon-les-Bains, gare"]],"8504294":[[1,"R12 R22","Ste-Croix"],[0,"R22 R12","Yverdon-les-Bains"]]}});

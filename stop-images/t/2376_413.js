@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_413",{"s":{},"d":{"8583661":[[0,"360","Bad Zurzach, Bahnhof"],[1,"360","Brugg AG, Bahnhof/Zentrum|Siggenthal-W., Bahnhof"]],"8572498":[[0,"360","Bad Zurzach, Bahnhof"],[1,"360","Brugg AG, Bahnhof/Zentrum|Siggenthal-W., Bahnhof"]]}});

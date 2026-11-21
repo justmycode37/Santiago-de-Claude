@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2327_395",{"s":{},"d":{"8507769":[[1,"141","Lauterbrunnen, Bahnhof"]],"8507799":[[null,"141","Lauterbrunnen, Bahnhof"],[0,"141","Lauterbrunnen, Bahnhof|Stechelberg, Hotel"]],"8507453":[[0,"2460","Gimmelwald (Schilthornbahn)|Mürren (Schilthornbahn)"]],"8507797":[[0,"141","Lauterbrunnen, Bahnhof"]]}});

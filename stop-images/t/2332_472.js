@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_472",{"s":{},"d":{"8574535":[[0,"541","Mesocco, Stazione|Hinterrhein, Dorf|Andeer, Rofflaschlucht|Andeer, posta|Hinterrhein, Tunnel Nordportal|S. Bernardino, Villaggio"],[1,"541","Thusis, Bahnhof|Andeer, posta"]]}});

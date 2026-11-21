@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_480",{"s":{},"d":{"8574746":[[0,"41 EV10","Peist, Schulhaus|Chur, Postautostation|Arosa, Bahnhof|Chur, Bahnhofplatz"]],"8509152":[[null,"R16","Chur|Arosa"]],"8511840":[[null,"41","Arosa, Bahnhof"]]}});

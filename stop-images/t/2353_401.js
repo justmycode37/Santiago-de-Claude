@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2353_401",{"s":{},"d":{"8584721":[[0,"261","Menzberg, Dorfplatz"],[1,"261","Menznau, Bahnhof"]],"8572818":[[0,"261","Menzberg, Dorfplatz"],[1,"261","Menznau, Bahnhof"]],"8572820":[[0,"261","Menzberg, Dorfplatz"],[1,"261","Menznau, Bahnhof"]],"8584720":[[0,"261","Menzberg, Dorfplatz"],[1,"261","Menznau, Bahnhof"]]}});

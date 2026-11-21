@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2379_408",{"s":{},"d":{"8580184":[[1,"149 147","Laufenburg, Bahnhof|Schwaderloch, Bahnhof|Leibstadt, Kernkraftwerk|Etzgen, Rheintalstrasse"],[0,"149 147","Döttingen, Bahnhof|Koblenz, Bahnhof|Full, Fähre"],[null,"",""]]}});

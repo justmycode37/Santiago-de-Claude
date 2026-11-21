@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2369_363",{"s":{},"d":{"8572017":[[1,"8","Delémont, gare|Rebeuvelier, poste|Moutier, Suisse Est|Courrendlin, écoles|Delémont, gare CFF sud"],[0,"8","Bourrignon, poste|Lucelle|Charmoille, douane"],[null,"8","Bourrignon, poste|Delémont, gare"]]}});

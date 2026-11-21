@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2359_376",{"s":{},"d":{"8502472":[[null,"8","Büren an der Aare, Bahnhof|Solothurn, Hauptbahnhof|Nennigkofen, Rössli|Solothurn, Amthausplatz"]],"8588592":[[null,"6","Solothurn Allmend, Bahnhof|Biberist RBS, Bahnhof|Zielebach, Gemeindehaus|Solothurn, Hauptbahnhof|Biberist, Aesplistrasse|Solothurn, Amthausplatz"]]}});

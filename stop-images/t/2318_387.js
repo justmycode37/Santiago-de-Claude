@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2318_387",{"s":{},"d":{"8507474":[[0,"RE1 RE11 IC","Bern|Brig|Domodossola (I)|Spiez|Iselle di Trasquera|Biel/Bienne"],[1,"RE1 IC RE11","Brig|Domodossola (I)|Iselle di Trasquera|Spiez|Bern"],[null,"RE1","Domodossola (I)"]],"8507786":[[0,"591","Wiler (Lötschen), Gschteinät|Wiler (Lötschen), Talstation"]]}});

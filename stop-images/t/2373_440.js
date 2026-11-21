@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2373_440",{"s":{},"d":{"8579712":[[0,"680","Elgg, Bahnhof|Schlatt ZH, Unterschlatt|Schlatt ZH, Oberschlatt"],[1,"680","Winterthur, Hauptbahnhof"],[null,"680","Schlatt ZH, Unterschlatt"]],"8573667":[[2,"680","Elgg, Bahnhof|Schlatt ZH, Unterschlatt|Schlatt ZH, Oberschlatt"],[3,"680","Winterthur, Hauptbahnhof"],[null,"680","Schlatt ZH, Unterschlatt"]]}});

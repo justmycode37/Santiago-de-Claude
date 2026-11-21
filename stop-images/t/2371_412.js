@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_412",{"s":{},"d":{"8502966":[[0,"363","Mellingen, Lindenplatz"],[1,"363","Brugg AG, Bahnhof/Campus"]],"8572521":[[0,"363","Mellingen, Lindenplatz"],[1,"363","Brugg AG, Bahnhof/Campus"]],"8572520":[[0,"363","Mellingen, Lindenplatz"],[1,"363","Brugg AG, Bahnhof/Campus"]]}});

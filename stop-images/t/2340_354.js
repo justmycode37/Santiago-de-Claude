@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_354",{"s":{},"d":{"8577808":[[0,"542","La Corbaz, ancienne école"],[1,"542","Chésopelloz, Champ-Montant"]],"8504605":[[0,"8 542 N2","Marly, piscine|Marly, Ancienne-Papeterie|Chésopelloz, Champ-Montant|Fribourg/Freiburg, gare rout."]],"8589145":[[1,"542","La Corbaz, ancienne école"],[0,"542","Chésopelloz, Champ-Montant"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_449",{"s":{},"d":{"8506690":[[0,"734","Fischingen, Kloster|Wil SG, Bahnhof"]],"8578603":[[null,"734","Fischingen, Kloster|Wil SG, Bahnhof"]],"8595946":[[null,"734","Fischingen, Kloster|Littenheid, Klinik"]],"8506678":[[0,"734","Fischingen, Kloster|Wil SG, Bahnhof|Littenheid, Klinik"]]}});

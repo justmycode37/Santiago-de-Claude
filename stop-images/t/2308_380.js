@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2308_380",{"s":{},"d":{"8582214":[[0,"453","Zinal, village de vacances"],[1,"453","Vissoie, poste"]],"8501752":[[0,"453","Zinal, village de vacances"],[1,"453","Vissoie, poste"]],"8570953":[[0,"453 456 455","Zinal, village de vacances"],[1,"453 455 456","Vissoie, poste|Moiry VS, glacier|Grimentz, Le Boccard"]]}});

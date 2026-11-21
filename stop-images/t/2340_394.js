@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_394",{"s":{},"d":{"8572867":[[0,"251","Kemmeriboden|Bumbach, Skilift"],[null,"251","Escholzmatt, Bahnhof|Schangnau, Wald"]],"8508868":[[0,"251","Kemmeriboden|Escholzmatt, Bahnhof|Schangnau, Wald"],[null,"",""],[1,"251","Escholzmatt, Bahnhof"]]}});

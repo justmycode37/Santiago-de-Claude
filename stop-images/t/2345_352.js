@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2345_352",{"s":{},"d":{"8580759":[[0,"535 538","Ins, Bahnhof|Cudrefin, camping|Mur, village|Salavaux, école"],[1,"535 538","Avenches, gare"]],"8583515":[[0,"533","Oleyres, collège"]]}});

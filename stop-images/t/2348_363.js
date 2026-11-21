@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2348_363",{"s":{},"d":{"8571458":[[0,"570","Mühleberg, Post|Allenlüften, Dorf"],[1,"570","Bern Brünnen Westside, Bahnhof|Frauenkappelen, Heggidorn"],[null,"570","Mühleberg, Post"]],"8571459":[[0,"570","Mühleberg, Post|Allenlüften, Dorf"],[1,"570","Bern Brünnen Westside, Bahnhof|Frauenkappelen, Heggidorn"],[null,"570","Mühleberg, Post"]]}});

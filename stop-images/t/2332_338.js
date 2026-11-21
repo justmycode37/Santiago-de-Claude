@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_338",{"s":{},"d":{"8588154":[[1,"366","Moudon, gare"],[0,"366","Montpreveyres, village"]],"8570343":[[0,"440","Moudon, gare"],[1,"440","Echallens, gare|Hermenches, village"]],"8570344":[[0,"440","Moudon, gare"],[1,"440","Echallens, gare|Hermenches, village"]]}});

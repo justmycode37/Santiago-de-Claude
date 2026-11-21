@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_371",{"s":{},"d":{"8571520":[[0,"882 871","Balm b. Messen, Wendeplatz|Schnottwil, Post|Schnottwil, Schulhaus|Schnottwil, Oberdorf|Jegenstorf, Bahnhof"],[null,"882","Bätterkinden, Bahnhof|Messen, Kindergarten"]],"8508782":[[null,"871 363","Jegenstorf, Bahnhof|Bätterkinden, Bahnhof|Waltwil|Lyss, Bahnhof"]]}});

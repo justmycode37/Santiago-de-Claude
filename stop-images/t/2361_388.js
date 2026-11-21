@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2361_388",{"s":{},"d":{"8508152":[[0,"S11","Langenthal|Bannwil|Solothurn|Oensingen"]],"8589940":[[0,"63","Langenthal, Spital"]],"8508193":[[0,"S11","Langenthal|Bannwil|Solothurn|Oensingen"]]}});

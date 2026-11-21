@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2366_387",{"s":{},"d":{"8572344":[[null,"94","Balsthal, Bahnhof|Waldenburg, Station"],[0,"94","Waldenburg, Station"],[1,"94","Balsthal, Bahnhof"]],"8500762":[[null,"94","Balsthal, Bahnhof|Waldenburg, Station"],[0,"94","Waldenburg, Station"],[1,"94","Balsthal, Bahnhof"]]}});

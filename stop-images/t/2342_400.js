@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2342_400",{"s":{},"d":{"8508648":[[1,"241","Schüpfheim, Bahnhof"],[0,"241","Sörenberg, Rothornbahn|Sörenberg, Post|Sörenberg, Platz|Glaubenbielen, Parkplatz"]],"8572879":[[1,"241","Schüpfheim, Bahnhof"],[0,"241","Sörenberg, Rothornbahn|Sörenberg, Post|Sörenberg, Platz|Glaubenbielen, Parkplatz"]]}});

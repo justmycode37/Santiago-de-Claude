@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2356_379",{"s":{},"d":{"8581763":[[null,"884 M12","Koppigen, Gemeindeverwaltung|Bätterkinden, Bahnhof|Langenthal, Tell/Kantonalbank"],[0,"M12","Langenthal, Tell/Kantonalbank"]],"8581764":[[null,"884 M12","Koppigen, Gemeindeverwaltung|Bätterkinden, Bahnhof|Langenthal, Tell/Kantonalbank"],[0,"M12","Langenthal, Tell/Kantonalbank"]]}});

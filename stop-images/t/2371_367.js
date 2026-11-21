@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2371_367",{"s":{},"d":{"8571989":[[null,"116","Roggenburg, Neumühle|Kleinlützel, Ölibächli"],[0,"116","Kleinlützel, Huggerwald|Kleinlützel, Ölibächli|Röschenz, Dorfplatz"],[1,"116","Roggenburg, Neumühle"]]}});

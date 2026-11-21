@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_361",{"s":{},"d":{"8596056":[[0,"130 N11","St. Silvester, Plenefy|Fribourg/Freiburg, gare rout."],[1,"130","Giffers, Dorf|Tentlingen, Dorf|St. Silvester, Hangenried"]],"8510082":[[1,"130","Tentlingen, Dorf|Giffers, Dorf"],[0,"130","St. Silvester, Plenefy"]],"8510083":[[0,"130","Tentlingen, Dorf|Giffers, Dorf"]]}});

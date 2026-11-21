@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2378_413",{"s":{},"d":{"8503575":[[0,"355","Döttingen, Bahnhof"],[1,"355","Niederweningen, Bahnhof|Endingen, Zentrum"]],"8503594":[[0,"360","Bad Zurzach, Bahnhof"],[1,"360","Brugg AG, Bahnhof/Zentrum"]]}});

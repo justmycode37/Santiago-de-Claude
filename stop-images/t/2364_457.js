@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2364_457",{"s":{},"d":{"8503984":[[0,"780 186","Hemberg, Dorf|St. Peterzell, Dorf"],[1,"780 186","Wattwil, Klinik|Wattwil, Bahnhof"]],"8574015":[[0,"780 186","Hemberg, Dorf|St. Peterzell, Dorf"],[null,"780 186","Wattwil, Klinik|Wattwil, Bahnhof"]]}});

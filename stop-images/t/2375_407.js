@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2375_407",{"s":{},"d":{"8500558":[[0,"374","Brugg AG, Bahnhof/Zentrum"],[null,"",""]],"8500568":[[0,"374","Mönthal, Unterdorf"],[1,"374","Brugg AG, Bahnhof/Zentrum"],[null,"374","Mönthal, Unterdorf"]]}});

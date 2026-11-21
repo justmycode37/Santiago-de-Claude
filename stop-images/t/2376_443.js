@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2376_443",{"s":{},"d":{"8578815":[[0,"836","Islikon, Bahnhof"],[1,"836","Frauenfeld, Bahnhof"]],"8578816":[[0,"836","Islikon, Bahnhof"],[1,"836","Frauenfeld, Bahnhof"]],"8581523":[[0,"836","Islikon, Bahnhof"],[1,"836","Frauenfeld, Bahnhof"]]}});

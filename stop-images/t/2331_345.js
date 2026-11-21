@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_345",{"s":{},"d":{"8596068":[[0,"482","Estévenens, dessus|Vuisternens-dt-Romont, école|Villariaz, village"]],"8504971":[[0,"455 258","Romont FR, gare|La Verrerie, gare|Oron-la-Ville, gare routière|Vuisternens-dt-Romont, forge|Riaz, CO|Bulle, gare routière"]]}});

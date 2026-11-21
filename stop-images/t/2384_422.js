@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2384_422",{"s":{},"d":{"8578389":[[1,"27 N77","Osterfingen, Lindenhof|Trasadingen, Langwis"],[0,"27 N77","Oberhallau, Trottengasse|Schaffhausen, Bahnhof"]],"8578388":[[0,"27 N77","Osterfingen, Lindenhof|Trasadingen, Langwis"],[1,"27 N77","Oberhallau, Trottengasse|Schaffhausen, Bahnhof"]]}});

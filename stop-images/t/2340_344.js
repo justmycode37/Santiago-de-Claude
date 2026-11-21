@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2340_344",{"s":{},"d":{"8577622":[[0,"552 N13","Estavayer-le-Lac, gare rout.|Combremont-le-Grand, église|Nuvilly, village|Vallon, Musée romain|Fribourg/Freiburg, gare rout.|Cheiry, village"],[null,"EV EV3","Fribourg/Freiburg, gare/Tivoli"]],"8504133":[[0,"S30 EXT","Yverdon-les-Bains|Fribourg/Freiburg|Payerne|Givisiez"],[null,"S30","Yverdon-les-Bains"]]}});

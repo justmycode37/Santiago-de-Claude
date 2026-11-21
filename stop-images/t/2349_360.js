@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2349_360",{"s":{},"d":{"8510360":[[0,"EV1 EV2","Kerzers, Bahnhof|Lyss, Bahnhof|Aarberg, Post/Bahnhof"]],"8510359":[[1,"EV1 EV2","Lyss, Bahnhof|Aarberg, Post/Bahnhof"],[0,"EV1 EV2","Kerzers, Bahnhof"]],"8504401":[[0,"S35","Kerzers|Lyss|Bern|Bern Brünnen Westside|Aarberg|Murten/Morat"]]}});

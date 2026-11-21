@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2321_486",{"s":{},"d":{"8530668":[[0,"3940","Maloja (See)|Sils/Segl Maria Barchiröls"]],"8574958":[[1,"610 604","Pontresina, Bahnhof|St. Moritz, Bahnhof"],[0,"610 604","Maloja, Posta"],[null,"604","Pontresina, Post|St. Moritz, Bahnhof|Chiavenna, Stazione|Maloja, Posta|Promontogno, Posta"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_375",{"s":{},"d":{"8576790":[[1,"53 51","Seftigen, Bahnhof|Thun, Bahnhof|Thierachern, Wahlen"],[0,"53 51","Blumenstein, Dorf"]],"8507872":[[0,"53 51","Seftigen, Bahnhof|Thun, Bahnhof|Thierachern, Wahlen"],[1,"53 51","Blumenstein, Dorf"]]}});

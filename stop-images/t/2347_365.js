@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_365",{"s":{},"d":{"8571445":[[1,"570 560 M18","Bern Brünnen Westside, Bahnhof|Bern, Bahnhof"],[0,"570 560 M18","Mühleberg, Post|Mühleberg, Steinriesel|Laupen BE, Bahnhof|Allenlüften, Dorf|Laupen BE, Alter Bahnhof|Gümmenen, Bahnhof"]]}});

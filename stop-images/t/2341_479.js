@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2341_479",{"s":{},"d":{"8509859":[[null,"42","Tschiertschen, Dorf|Chur, Postautostation"],[0,"42","Tschiertschen, Dorf"],[1,"42","Chur, Postautostation"]],"8574887":[[null,"42","Chur, Postautostation|Tschiertschen, Dorf"],[0,"42","Tschiertschen, Dorf"]]}});

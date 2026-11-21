@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2331_394",{"s":{},"d":{"8530337":[[0,"2458","Isenfluh (Luftseilbahn)"]],"8577036":[[0,"142","Lauterbrunnen, Bahnhof"]],"8507389":[[0,"R61 R62","Interlaken Ost|Grindelwald|Lauterbrunnen"],[1,"",""]],"8530336":[[0,"2458","Sulwald"]],"8582719":[[0,"EV3","Interlaken, Rugenparkstrasse"]]}});

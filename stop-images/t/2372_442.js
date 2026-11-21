@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2372_442",{"s":{},"d":{"8573670":[[1,"682","Elgg, Bahnhof"],[0,"682","Turbenthal, Girenbad"]],"8573518":[[0,"825","Turbenthal, Bahnhof"],[null,"825","Turbenthal, Bahnhof"],[1,"825","Pfäffikon ZH, Bahnhof|Ehrikon"]],"8573672":[[0,"682","Elgg, Bahnhof|Hofstetten ZH, Dorf"]]}});

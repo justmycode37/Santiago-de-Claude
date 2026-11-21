@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2363_377",{"s":{},"d":{"8572384":[[0,"12","Oberbalmberg, Kurhaus"],[null,"12","Solothurn, Hauptbahnhof"]],"8572383":[[0,"12","Oberbalmberg, Kurhaus"],[1,"12","Solothurn, Hauptbahnhof"]],"8572385":[[0,"12","Oberbalmberg, Kurhaus"],[1,"12","Solothurn, Hauptbahnhof"]]}});

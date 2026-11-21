@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_336",{"s":{},"d":{"8507688":[[0,"660 430","Thierrens, gare routière"],[1,"660 430","Yverdon-les-Bains, gare|Bercher, gare|Bercher, 7 Fontaines"]],"8570311":[[null,"661","Yverdon-les-Bains, gare"],[0,"661","Granges-près-Marnand, gare|Combremont-le-Petit, poste"]]}});

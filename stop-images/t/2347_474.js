@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_474",{"s":{},"d":{"8509468":[[0,"454","Pfäfers, Postplatz"]],"8509459":[[1,"451","Bad Ragaz, Bahnhof|Vättis, Dorf|Pfäfers, Postplatz|Valens, Klinik"],[0,"451","Vättis, Dorf|Gigerwald, Staudamm"],[null,"451","Vättis, Dorf"]]}});

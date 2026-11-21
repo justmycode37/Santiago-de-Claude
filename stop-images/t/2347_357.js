@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2347_357",{"s":{},"d":{"8593300":[[0,"M22","Galmiz, Käserei"]],"8595461":[[0,"EV3 EV2","Kerzers, Bahnhof|Murten/Morat, Bahnhof|Payerne, gare|Avenches, gare"],[null,"EV3","Kerzers, Bahnhof|Murten/Morat, Bahnhof|Avenches, gare"],[1,"M22","Bern, Bahnhof"]],"8504129":[[0,"S5 S52","Bern|Murten/Morat|Bern Brünnen Westside|Avenches|Payerne|Kerzers"]]}});

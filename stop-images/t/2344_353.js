@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2344_353",{"s":{},"d":{"8504646":[[0,"558","Avenches, gare|Chandossel, village|Domdidier, CO|Avenches, Faubourg"]],"8577824":[[0,"558","Villarepos, centre|Chandossel, village"],[1,"558","Avenches, gare|Domdidier, CO|Avenches, Faubourg"]]}});

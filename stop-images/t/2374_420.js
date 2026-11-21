@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2374_420",{"s":{},"d":{"8580453":[[null,"EV1","Niederweningen, Bahnhof|Oberglatt ZH, Bahnhof"]],"8587321":[[null,"",""],[0,"555","Schleinikon, Gemeindehaus"]],"8503317":[[0,"S15","Niederweningen|Rapperswil SG|Zürich HB|Rüti ZH|Glattbrugg|Pfäffikon SZ"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_509",{"s":{},"d":{"8509861":[[2,"815","Livigno, Valandrea Olimpico|Livigno, Centro Bus Station"],[3,"815","Zernez, P&R Olimpico|Müstair, Clostra Son Jon|Zernez, staziun|Mals, Bahnhof/Malles, stazione"],[1,"811","Zernez, staziun"],[0,"811","Mals, Bahnhof/Malles, stazione|Müstair, cunfin|Süsom Givè (Passhöhe)"]]}});

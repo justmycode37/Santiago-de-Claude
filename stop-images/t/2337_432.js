@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_432",{"s":{},"d":{"8587426":[[1,"401","Göschenen, Bahnhof|Andermatt, Bahnhofplatz"],[0,"401","Flüelen, Gruonbach|Altdorf UR, Telldenkmal|Altdorf UR, Post"]],"8587427":[[1,"401","Göschenen, Bahnhof|Andermatt, Bahnhofplatz"],[0,"401","Flüelen, Gruonbach|Altdorf UR, Telldenkmal|Altdorf UR, Post"]]}});

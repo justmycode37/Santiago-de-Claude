@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2354_377",{"s":{},"d":{"8588528":[[0,"M12","Langenthal, Tell/Kantonalbank"]],"8508085":[[0,"S41 S44 S46","Thun|Solothurn|Burgdorf|Konolfingen|Burgistein|Bern"],[1,"S44","Thun|Burgistein"]],"8503656":[[null,"467","Burgdorf, Spital"]]}});

@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2336_332",{"s":{},"d":{"8507675":[[0,"670","Froideville, Laiterie|Echallens, gare|Echallens, collège/parc"],[1,"670","Yverdon-les-Bains, gare"],[null,"670","Echallens, gare|Yverdon-les-Bains, gare"]]}});

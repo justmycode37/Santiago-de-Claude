@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2369_385",{"s":{},"d":{"8578336":[[null,"71","Liestal, Bahnhof|Lauwil, Dorf|Reigoldswil, Dorfplatz"],[1,"71","Liestal, Bahnhof"],[0,"71","Lauwil, Dorf|Reigoldswil, Dorfplatz"]],"8578242":[[0,"92","Hölstein, Station|Bennwil, Obere Matten|Oberdorf BL, Winkelweg|Oberdorf BL, Dorfmatt"]]}});

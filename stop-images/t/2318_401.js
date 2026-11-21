@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2318_401",{"s":{},"d":{"8530690":[[0,"A3","Riederalp Mitte|Mörel (Riederalpbahn)"]],"8530688":[[0,"A2 641 A1-2","Ried-Mörel|Bettmeralp|Mörel (Riederalpbahn)"]],"8512587":[[0,"",""]],"8530240":[[0,"C","Hohfluh (Riederalp)"]],"8501583":[[0,"A1-2 A1 A2","Mörel (Riederalpbahn)|Riederalp West"]],"8501698":[[0,"A3","Mörel (Riederalpbahn)"]]}});

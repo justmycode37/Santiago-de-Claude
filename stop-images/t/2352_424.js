@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2352_424",{"s":{},"d":{"8505066":[[null,"81","Arth-Goldau RB|Rigi Kulm|Rigi Staffel"]],"8505069":[[null,"81 82","Arth-Goldau RB|Vitznau"],[1,"81","Arth-Goldau RB"],[0,"82","Vitznau"]]}});

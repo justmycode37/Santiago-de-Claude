@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_371",{"s":{},"d":{"8509472":[[0,"EV4","Oberwil i.S., Heidenweidli"]],"8507293":[[null,"R11 RE8","Zweisimmen|Spiez|Bern|Boltigen"]],"8589082":[[1,"EV1","Zweisimmen, Bahnhof"],[0,"EV1","Spiez, Bahnhof"],[null,"EV4","Oberwil i.S., Bahnhof"]]}});

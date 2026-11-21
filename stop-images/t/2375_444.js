@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2375_444",{"s":{},"d":{"8502494":[[1,"681","Hagenbuch ZH, Dorf"],[0,"681","Elgg, Bahnhof"]],"8506859":[[1,"681 834","Hagenbuch ZH, Dorf|Frauenfeld, Bahnhof"],[0,"681 834","Elgg, Bahnhof|Ettenhausen TG, Elggerstrasse|Frauenfeld, Bahnhof"]]}});

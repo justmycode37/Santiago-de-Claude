@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2337_356",{"s":{},"d":{"8504941":[[0,"233 N21","Treyvaux, Le Pratzey|Bulle, gare routière"],[1,"233 N21","Fribourg/Freiburg, gare rout."]],"8504608":[[0,"233 N21","Treyvaux, village|Treyvaux, Le Pratzey|Bulle, gare routière"],[1,"233 N21","Fribourg/Freiburg, gare rout."]]}});

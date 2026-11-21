@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2334_348",{"s":{},"d":{"8504002":[[0,"471","Bulle, gare routière|Le Châtelard FR, village"],[1,"471","Romont FR, gare|Romont FR, Esplanade Arruffens"]],"8504601":[[0,"471","Bulle, gare routière|Le Châtelard FR, village"],[1,"471","Romont FR, gare|Romont FR, Esplanade Arruffens"]]}});

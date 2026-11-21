@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2335_342",{"s":{},"d":{"8504121":[[0,"R9 R8 SN","Payerne|Murten/Morat|Allaman|Lausanne|Palézieux|Renens VD"],[1,"R9 R8","Allaman|Lausanne|Palézieux|Morges|Renens VD|Puidoux"]],"8583110":[[null,"362 EV5","Lucens, chemin de la Forêt|Murten/Morat, Bahnhof"],[0,"361","Epalinges, Croisettes"],[1,"475","Lucens, Pré au Loup"]]}});

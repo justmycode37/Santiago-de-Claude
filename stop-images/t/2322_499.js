@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2322_499",{"s":{},"d":{"8519370":[[null,"R19 RE9 BEX EXT","Tirano|St. Moritz|Poschiavo|Pontresina"]],"8509371":[[0,"PB","Diavolezza"]],"8574980":[[0,"602 705","Surlej, Corvatschbahn|Bernina, Lagalbbahn|Livigno, Centro Bus Station|Ospizio Bernina, Albergo"],[null,"701","Le Prese, Stazione|Ospizio Bernina, Albergo|Poschiavo, Stazione"]]}});

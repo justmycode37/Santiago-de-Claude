@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2329_488",{"s":{},"d":{"8509198":[[1,"IR38 R38 RE38","St. Moritz|Samedan"],[2,"IR38 RE38","Chur|Chur / Brig"]],"8595928":[[0,"593","Chamues-ch, plaz"]],"8511857":[[0,"EV4 EV5","Thusis, Bahnhof"]]}});

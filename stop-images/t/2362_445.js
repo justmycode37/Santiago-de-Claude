@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2362_445",{"s":{},"d":{"8578557":[[0,"631","Rüti ZH, Bahnhof|Rüti ZH, Weier|Ermenswil, Hirschen"],[1,"631","Uznach, Bahnhof|Eschenbach SG, Dorftreff|Eschenbach SG, Breiten"]],"8578558":[[0,"631","Rüti ZH, Bahnhof|Rüti ZH, Weier|Ermenswil, Hirschen"],[1,"631","Uznach, Bahnhof|Eschenbach SG, Dorftreff|Eschenbach SG, Breiten"]]}});

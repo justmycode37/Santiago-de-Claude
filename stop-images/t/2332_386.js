@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_386",{"s":{},"d":{"8507862":[[0,"62 67 61","Spiez, Bahnhof|Aeschiried, Suld Pochtenfall|Aeschi b. Spiez, Post"]],"8576355":[[0,"62","Aeschiried, Schulhaus"],[1,"62 61","Spiez, Bahnhof|Aeschi b. Spiez, Post"]],"8576356":[[0,"62","Aeschiried, Schulhaus"],[1,"62 61","Spiez, Bahnhof|Aeschi b. Spiez, Post"]]}});

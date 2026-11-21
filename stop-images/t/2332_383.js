@@ -1,0 +1,1 @@
+STOP_IMAGES_TILE("2332_383",{"s":{},"d":{"8582736":[[null,"M45","Adelboden, Post|Spiez, Bahnhof"],[1,"66 210","Spiez, Bahnhof"],[0,"66 210","Aeschi b. Spiez, Post|Frutigen, Bahnhof|Reichenbach i. K., Bahnhof"]],"8507458":[[0,"2405","Mülenen (Niesenbahn)|Niesen Kulm"]]}});
