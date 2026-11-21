@@ -17,13 +17,13 @@ Cities and their main station are in `cities.json`.
 
 ## Results (2026-11-21)
 
-| City | Routed | Doors reached (OSM + register) | Through buildings, m per walk (OSRM) | Median length, network vs OSRM | Shorter / longer than OSRM by >5 % | Last stretch a guess >20 m | Platform pairs routed, across tracks | Median ms |
+| City | Routed | Doors reached (OSM + register) | Through buildings, m per walk (OSRM) | Median length, network vs OSRM | Shorter / longer than OSRM by >5 % | Last stretch marked a guess | Platform pairs routed, across tracks | Median ms |
 |---|---|---|---|---|---|---|---|---|
-| Bern | 70/70 | 58/58 (51 + 7) | 0.2 (0) | 459 vs 483 m | 28 / 16 | 1 | 992/992, 0 | 10 |
-| Zürich | 85/85 | 57/57 (14 + 43) | 0 (0) | 605 vs 668 m | 43 / 27 | 7 | 1104/1104, 0 | 7 |
-| Basel | 68/68 | 57/57 (54 + 3) | 0.3 (0) | 685 vs 686 m | 24 / 2 | 12 | 840/840, 0 | 10 |
-| Geneva | 83/83 | 65/65 (5 + 60) | 0.2 (0.2) | 574 vs 592 m | 22 / 14 | 5 | 140/140, 0 | 5 |
-| Lausanne | 76/76 | 68/68 (14 + 54) | 0 (0) | 665 vs 718 m | 46 / 0 | 13 | 340/340, 0 | 36 |
+| Bern | 70/70 | 58/58 (51 + 7) | 0.2 (0) | 459 vs 483 m | 28 / 16 | 2 | 992/992, 0 | 14 |
+| Zürich | 85/85 | 57/57 (14 + 43) | 0 (0) | 605 vs 668 m | 43 / 27 | 8 | 1104/1104, 0 | 9 |
+| Basel | 68/68 | 57/57 (54 + 3) | 0.3 (0) | 685 vs 686 m | 24 / 2 | 13 | 840/840, 0 | 10 |
+| Geneva | 83/83 | 65/65 (5 + 60) | 0.2 (0.2) | 574 vs 592 m | 22 / 14 | 6 | 140/140, 0 | 7 |
+| Lausanne | 76/76 | 68/68 (14 + 54) | 0 (0) | 665 vs 718 m | 46 / 0 | 17 | 340/340, 0 | 40 |
 
 - **Doors:** "doors reached" counts the places whose building has a door; without the address register only
   14 of 85 places in Zürich, 5 of 83 in Geneva and 14 of 76 in Lausanne had one (OpenStreetMap maps 0.03-0.13 doors
@@ -31,7 +31,8 @@ Cities and their main station are in `cities.json`.
 - **Length:** OSRM's own distance leaves out the straight bits from the start and to the place, which it snaps to its
   streets; they are counted here, as the app draws them. The walks longer than OSRM are mostly ones that go round a
   building through its corridors or doors, where OSRM draws a line through it (Zürich HB's shops: 213 m against 72 m).
-- **Guessed last stretch:** a door or place 20-70 m from any mapped path: forecourts, yards, streets whose sidewalks
+- **Guessed last stretch:** a straight line over 20 m to the door or place, or any line into a building with no door
+  (counted since the router marks those too): doors and places 20-70 m from any mapped path, forecourts, yards, streets whose sidewalks
   are tagged as drawn separately but are not drawn (Basel's Solothurnerstrasse), shops inside Geneva station.
 - **Platforms:** Basel SBB's Gleis 19 and one of Bern's Gleis 13 points lie on the track itself; they now reach their own
   platform across that one track (80 Basel pairs had no route before).
