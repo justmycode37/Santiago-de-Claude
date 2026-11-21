@@ -341,7 +341,7 @@ def levels_of(a):
 
 TLM_SKIP = {'Autobahn', 'Autostrasse', 'Einfahrt', 'Ausfahrt', 'Zufahrt', 'Dienstzufahrt', 'Raststaette', 'Autozug',
             'Verbindung', 'Klettersteig'}
-TLM_CLOSED = {'Gesperrt', 'Rennstrecke', 'Teststrecke', 'Panzerpiste'}
+TLM_CLOSED = {'Gesperrt', 'Rennstrecke', 'Teststrecke', 'Panzerpiste', 'Gesicherte Kletterpartie'}
 TLM_NEAR = 12.0   # m: a swisstopo line this close to an OSM way is the same way (the two maps differ by a few metres)
 TLM_MIN = 15.0    # m: shorter stretches only OSM lacks are left out (noise, not paths)
 
@@ -351,19 +351,20 @@ def tlm_attrs(r):
     art, kb = r.get('OBJEKTART') or '', r.get('KUNSTBAUTE') or ''
     if art in TLM_SKIP or (r.get('VERKEHRSBE') or '') in TLM_CLOSED:
         return None
-    # floors in and under buildings (station halls, passages two floors down): OSM draws those with their levels;
-    # swisstopo's lines there would only join floors that do not meet
+    # STUFE is a structure's layer: bridges 1, underpasses -2. Lines in or on buildings (station halls) are left to
+    # OSM, which draws their floors; so are road tunnels (no walking) and the few other lines off the ground
     stufe = r.get('STUFE') or '0'
-    if kb == 'in/auf Gebaeude' or (stufe.lstrip('-').isdigit() and int(stufe) != 0):
+    layer = int(stufe) if stufe.lstrip('-').isdigit() else 0
+    outdoor = kb.startswith('Bruecke') or kb in ('Steg', 'Gedeckte Bruecke', 'Unterfuehrung', 'Unterfuehrung mit Treppe')
+    if kb == 'in/auf Gebaeude' or (kb in ('Tunnel', 'Galerie') and 'Weg' not in art) or (layer and not outdoor and kb != 'Tunnel'):
         return None
     a = {'k': 'rd' if 'Strasse' in art else 'fw', 's': 't'}  # s: from swisstopo
     if 'Treppe' in kb:
         a['k'] = 'st'
-    if kb in ('Tunnel', 'Unterfuehrung', 'Unterfuehrung mit Treppe', 'Galerie'):
+    if kb.startswith('Unterfuehrung') or kb in ('Tunnel', 'Galerie'):
         a['c'] = 't'
-        a['y'] = -1
-    if kb.startswith('Bruecke') or kb in ('Steg', 'Gedeckte Bruecke'):
-        a['y'] = 1
+    if layer or outdoor:
+        a['y'] = layer or (1 if kb.startswith('Bruecke') or kb in ('Steg', 'Gedeckte Bruecke') else -1)
     if a['k'] == 'st' or art == 'Markierte Spur' or (r.get('WANDERWEGE') or '') in ('Bergwanderweg', 'Alpinwanderweg') \
             or ('Weg' in art and (r.get('BELAGSART') or '') == 'Natur'):
         a['w'] = 1
@@ -373,7 +374,7 @@ def tlm_attrs(r):
     return a
 
 
-def add_tlm(bbox, nodes, walk, proj, walls):
+def add_tlm(bbox, nodes, walk, proj, walls, closed=None):
     """Add swissTLM3D stretches that no OSM way covers, joined to the OSM network at their ends. → count, metres"""
     try:
         base, rel = swisstlm3d.fetch()
@@ -383,17 +384,25 @@ def add_tlm(bbox, nodes, walk, proj, walls):
     w0, s0, e0, n0 = bbox
     corners = [swisstlm3d.wgs84_to_lv95(x, y) for x in (w0, e0) for y in (s0, n0)]
     box = (min(c[0] for c in corners), min(c[1] for c in corners), max(c[0] for c in corners), max(c[1] for c in corners))
-    # OSM ways in 20 m cells, to tell which swisstopo stretches OSM already has
+    # OSM ways in 20 m cells, to tell which swisstopo stretches OSM already has; ways closed to walkers (foot=no,
+    # private) count too, so swisstopo's map cannot open them again (they are never joined to)
     grid = {}
-    for wid, (a, nds) in walk.items():
-        pts = [proj.xy(*nodes[n]) for n in nds]
+
+    def index_way(key, pts):
         for i in range(len(pts) - 1):
             p, q = pts[i], pts[i + 1]
             for gx in range(int(min(p[0], q[0]) // 20) - 1, int(max(p[0], q[0]) // 20) + 2):
                 for gy in range(int(min(p[1], q[1]) // 20) - 1, int(max(p[1], q[1]) // 20) + 2):
-                    grid.setdefault((gx, gy), []).append((wid, i, p, q))
+                    grid.setdefault((gx, gy), []).append((key, i, p, q))
 
-    def ground(wid):  # an OSM way at street level: where a swisstopo path can join it
+    for wid, (a, nds) in walk.items():
+        index_way(wid, [proj.xy(*nodes[n]) for n in nds])
+    for k, nds in enumerate(closed or ()):
+        index_way(('closed', k), [proj.xy(*nodes[n]) for n in nds])
+
+    def ground(wid):  # an OSM way at street level that may be walked: where a swisstopo path can join it
+        if wid not in walk:
+            return False
         a = walk[wid][0]
         lv = levels_of(a)
         return (lv is None or 0.0 in lv) and not a.get('y') and a.get('c') not in ('t', 'i')
@@ -412,6 +421,33 @@ def add_tlm(bbox, nodes, walk, proj, walls):
                                          'NAME', 'STRNAME'])
     tid = lambda lon, lat: -(round(lat * 1e6) * 10_000_000 + round(lon * 1e6))  # same point, same id (as relation rings)
     added, metres, splits = 0, 0.0, {}
+
+    def join(key, nid, pt):
+        """Join a stretch's end to the street-level OSM way it meets (a node of that way, or a new one on it)."""
+        n = nearest_osm(pt, only_ground=True)
+        if n is None or n[0] > TLM_NEAR + 2:
+            return
+        d, wid, si, p, q = n
+        L2 = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2
+        t = 0 if not L2 else max(0.0, min(1.0, ((pt[0] - p[0]) * (q[0] - p[0]) + (pt[1] - p[1]) * (q[1] - p[1])) / L2))
+        nds = walk[wid][1]
+        if t < 0.05 or t > 0.95:  # close to one of the way's own nodes: use it
+            target, txy = (nds[si], p) if t < 0.5 else (nds[si + 1], q)
+        else:
+            txy = (p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t)
+            lon0, lat0 = nodes[nds[si]]
+            lon1, lat1 = nodes[nds[si + 1]]
+            tll = (lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t)
+            target = tid(*tll)
+        if target == nid:
+            return
+        if walls.hits_kind(pt, txy, 'r'):  # the join itself must not cross the tracks either
+            return
+        if txy is not p and txy is not q:
+            nodes.setdefault(target, tll)
+            splits.setdefault(wid, []).append((si, t, target))
+        walk[f'{key}.j{nid}'] = ({'k': 'fw', 's': 't'}, [nid, target])
+
     for rec, parts in swisstlm3d.lines_in(base, box):
         a = tlm_attrs(dbf.row(rec))
         if not a:
@@ -419,57 +455,47 @@ def add_tlm(bbox, nodes, walk, proj, walls):
         for part_no, part in enumerate(parts):
             ll = [swisstlm3d.lv95_to_wgs84(E, N) for E, N in part]
             xy = [proj.xy(*p) for p in ll]
-            # which segments OSM lacks: any point along it (every 4 m) farther than TLM_NEAR from every OSM way
-            lacks = []
+            # the line every 4 m, each point marked: does OSM lack the way here? (keeping the line's own corners)
+            pts = []  # (xy, lon/lat, lacks)
             for i in range(len(xy) - 1):
                 p, q = xy[i], xy[i + 1]
-                if not a.get('y') and walls.hits_kind(p, q, 'r'):  # across tracks on the ground: never
-                    lacks.append(False)
-                    continue
+                across = not a.get('y') and walls.hits_kind(p, q, 'r')  # across tracks on the ground: never
                 k = max(1, int(math.hypot(q[0] - p[0], q[1] - p[1]) / 4))
-                lacks.append(any((lambda n: n is None or n[0] > TLM_NEAR)(nearest_osm((p[0] + (q[0] - p[0]) * j / k, p[1] + (q[1] - p[1]) * j / k)))
-                                 for j in range(k + 1)))
+                for j in range(k + (1 if i == len(xy) - 2 else 0)):
+                    f = j / k
+                    pt = (p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f)
+                    pll = ll[i] if j == 0 else (ll[i][0] + (ll[i + 1][0] - ll[i][0]) * f, ll[i][1] + (ll[i + 1][1] - ll[i][1]) * f)
+                    n = nearest_osm(pt)
+                    pts.append((pt, pll, not across and (n is None or n[0] > TLM_NEAR), j == 0))
+            # stretches OSM lacks, each from the last point OSM has before it to the first one after (where it joins)
             i = 0
-            while i < len(lacks):
-                if not lacks[i]:
+            while i < len(pts):
+                if not pts[i][2]:
                     i += 1
                     continue
                 j = i
-                while j + 1 < len(lacks) and lacks[j + 1]:
+                while j + 1 < len(pts) and pts[j + 1][2]:
                     j += 1
-                run = list(range(i, j + 2))  # vertex indices of segments i..j
-                length = sum(math.hypot(xy[v + 1][0] - xy[v][0], xy[v + 1][1] - xy[v][1]) for v in run[:-1])
+                lo, hi = max(0, i - 1), min(len(pts) - 1, j + 1)
                 i = j + 1
+                keep = [pts[x] for x in range(lo, hi + 1) if x in (lo, hi) or pts[x][3]]  # ends + the line's corners
+                length = sum(math.hypot(keep[x + 1][0][0] - keep[x][0][0], keep[x + 1][0][1] - keep[x][0][1]) for x in range(len(keep) - 1))
                 if length < TLM_MIN:
                     continue
                 ids = []
-                for v in run:
-                    nid = tid(*ll[v])
-                    nodes.setdefault(nid, ll[v])
-                    ids.append(nid)
-                key = f't{rec}.{part_no}.{run[0]}'
+                for pt, pll, _, _ in keep:
+                    nid = tid(*pll)
+                    nodes.setdefault(nid, pll)
+                    if not ids or ids[-1] != nid:
+                        ids.append(nid)
+                if len(ids) < 2:
+                    continue
+                key = f't{rec}.{part_no}.{lo}'
                 walk[key] = (a, ids)
                 added += 1
                 metres += length
-                # join each end to the OSM way it meets (a new node on that way, or one of its own nodes)
-                for v, nid in ((run[0], ids[0]), (run[-1], ids[-1])):
-                    n = nearest_osm(xy[v], only_ground=True)
-                    if n is None or n[0] > TLM_NEAR:
-                        continue
-                    d, wid, si, p, q = n
-                    L2 = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2
-                    t = 0 if not L2 else max(0.0, min(1.0, ((xy[v][0] - p[0]) * (q[0] - p[0]) + (xy[v][1] - p[1]) * (q[1] - p[1])) / L2))
-                    nds = walk[wid][1]
-                    if t < 0.05 or t > 0.95:  # close to one of the way's own nodes: use it
-                        target = nds[si] if t < 0.5 else nds[si + 1]
-                    else:
-                        lon0, lat0 = nodes[nds[si]]
-                        lon1, lat1 = nodes[nds[si + 1]]
-                        target = tid(lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t)
-                        nodes.setdefault(target, (lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t))
-                        splits.setdefault(wid, []).append((si, t, target))
-                    if target != nid:
-                        walk[f'{key}.j{v}'] = ({'k': 'fw', 's': 't'}, [nid, target])
+                join(key, ids[0], keep[0][0])
+                join(key, ids[-1], keep[-1][0])
     # put the new nodes into the OSM ways they split (in order along each segment)
     for wid, ins in splits.items():
         a, nds = walk[wid]
@@ -515,6 +541,7 @@ def build(bbox, refresh, tlm=True):
     shafts = []     # lift shafts drawn as one outline per floor: (way id, levels, centre, a ring node)
     buildings = {}  # way id → ring node ids
     rails = []      # railway tracks at ground level, as [(lon, lat)]
+    closed_ways = []  # OSM highways closed to walkers, as node lists
     walls = Grid()
     for wid, (t, nds) in ways.items():
         nds = [n for n in nds if n in nodes]
@@ -557,9 +584,11 @@ def build(bbox, refresh, tlm=True):
         a = walk_attrs(t)
         if a:
             walk[wid] = (a, nds)
+        elif t.get('highway') and t.get('highway') not in ('construction', 'proposed', 'abandoned', 'razed'):
+            closed_ways.append(nds)  # a way you may not walk (foot=no, private, motorway): swisstopo must not reopen it
 
     if tlm:
-        add_tlm(bbox, nodes, walk, proj, walls)
+        add_tlm(bbox, nodes, walk, proj, walls, closed_ways)
 
     for rid, (t, rings, holes) in rels.items():
         if area_polygon({**t, 'area': t.get('area', 'yes')}):

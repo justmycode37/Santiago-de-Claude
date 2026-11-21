@@ -47,10 +47,16 @@ class HttpFile(io.RawIOBase):
         n = min(len(b), self.size - self.pos)
         if n <= 0:
             return 0
+        data = b''
         for attempt in range(6):
             try:
                 req = urllib.request.Request(self.url, headers={**UA, 'Range': f'bytes={self.pos}-{self.pos + n - 1}'})
-                data = urllib.request.urlopen(req, timeout=300).read()
+                with urllib.request.urlopen(req, timeout=300) as res:
+                    # a server that ignores Range would send the whole 3.6 GB file: accept only the part asked for
+                    cr = res.headers.get('Content-Range', '')
+                    if res.status != 206 or not cr.startswith(f'bytes {self.pos}-'):
+                        raise OSError(f'no range answer (HTTP {res.status}, Content-Range {cr!r})')
+                    data = res.read(n)
                 break
             except OSError as e:
                 if attempt == 5:

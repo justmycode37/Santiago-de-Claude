@@ -473,7 +473,8 @@
     // the straight bits from where you are onto the paths, and from the paths to the end (or its door), are guesses
     // across open ground when they are long: say so (drawn dashed). approxTo / approxFrom: coordinate indices.
     let first = all.findIndex((p) => p[1]), last = all.length - 1 - [...all].reverse().findIndex((p) => p[1]);
-    if (first < 0) { first = all.length - 1; last = 0; }
+    const offPath = first < 0; // no stretch of path left at all (both ends meet the same point): all of it is a guess
+    if (offPath) { first = all.length - 1; last = 0; }
     const along = (i, j) => { let m = 0; for (let k = i + 1; k <= j; k++) m += distM(coords[k - 1], coords[k]); return m; };
     const approxTo = first > 0 && along(0, first - 1) > 20 ? first - 1 : null;
     const approxFrom = last < coords.length - 1 && along(last, coords.length - 1) > 20 ? last : null;
@@ -497,7 +498,7 @@
     const via = summary(cues, door);
     let swisstopo = 0; // metres on paths only swisstopo's map has (swissTLM3D)
     for (let k = 1; k < all.length; k++) if (all[k][1] && all[k][1].s === 't') swisstopo += distM(coords[k - 1], coords[k]);
-    return { net: true, coords, approxTo, approxFrom, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
+    return { net: true, coords, approx: offPath || undefined, approxTo, approxFrom, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
       startDoor: s.door ? { ll: s.door.node.ll, type: s.door.type } : null, cues, via };
   }
   // The moments worth a word: stairs, escalators and lifts (with the floor they take you to), arcades, passages,
@@ -596,7 +597,10 @@
       from.accuracy != null && { ...opt, from: { ...from, accuracy: null } },
       // nothing from the platform's own paths (e.g. step-free and its lift is further along): look wider
       (from.platform || to.platform) && { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true } },
-      // a path only swisstopo's map has, right by an end, can be a piece on its own: then from OSM's paths (dashed across)
+      // a path only swisstopo's map has, right by an end, can be a piece on its own: then from OSM's paths (dashed
+      // across) at that end, at the other, or at both
+      { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true, osmOnly: true } },
+      { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true } },
       { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true, osmOnly: true } },
     ];
     for (const t of tries) {
