@@ -540,15 +540,34 @@ function renderBody() {
   jBody.replaceChildren(buildBody());
   jBody.scrollTop = top;
 }
+let ticketFoot: { conn: OdConnection; tracking: boolean; arrival: HTMLElement; refresh?: () => void } | null = null;
 function renderFoot() {
-  if (!journeyConn || journeyList) { jFoot.replaceChildren(); return; } // Start belongs to a journey that has been chosen
+  if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
   const end = journeyEnd(), start = new Date(journeyConn.from.departure!).getTime();
+  const arrival = h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`),
+    h('b', null, kDur((end - start) / 1000)));
+  const tracking = SETTINGS.prefs().fareTracking;
+  if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.arrival.isConnected) {
+    ticketFoot.arrival.replaceWith(arrival);
+    ticketFoot.arrival = arrival;
+    return;
+  }
+  const ticket = ticketLink();
+  const pricing = ticketPricing(!!ticket);
   jFoot.replaceChildren(h('div', 'actionbar',
     kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
-    ticketLink(),
+    ticket,
     kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
-    h('span', 'actionbar-sum', h('small', null, `Arrive ${fmtTime(end)}`), h('b', null, kDur((end - start) / 1000)))));
+    arrival),
+    ...(pricing ? [pricing.row] : []),
+    ...(pricing?.form ? [pricing.form] : []));
+  ticketFoot = { conn: journeyConn, tracking, arrival, refresh: pricing?.refresh };
 }
+window.addEventListener('pricing-history-change', () => {
+  if (!ticketFoot?.arrival.isConnected) return;
+  renderFoot();
+  ticketFoot?.refresh?.();
+});
 function renderSheet() {
   renderHead(true);
   renderBody();

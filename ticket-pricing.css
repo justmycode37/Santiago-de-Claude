@@ -1,0 +1,132 @@
+.kj .ticket-fare-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  margin-top: 3px;
+  padding: 5px 8px;
+}
+
+.kj .ticket-fare-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 9px;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: start;
+  color: var(--ink-2);
+}
+
+.kj .ticket-fare-price {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.kj .ticket-fare-toggle {
+  min-height: 44px;
+  width: 100%;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tonal);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.kj .ticket-fare-chevron {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px 3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.kj .ticket-fare-toggle[aria-expanded="true"] .ticket-fare-chevron {
+  margin: 3px 3px 0;
+  transform: rotate(225deg);
+}
+
+.kj .ticket-fare-form {
+  margin: 5px 0 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.kj .ticket-fare-context {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+}
+
+.kj .ticket-fare-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+}
+
+.kj .ticket-fare-fields label {
+  display: grid;
+  gap: 3px;
+}
+
+.kj .ticket-fare-fields [hidden] { display: none; }
+
+.kj .ticket-fare-fields input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--tonal);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.kj .ticket-fare-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.kj .ticket-fare-actions .ticket-fare-save {
+  min-height: 36px;
+  height: auto;
+  padding: 7px 12px;
+}
+
+.kj .ticket-fare-suggestions {
+  min-height: 36px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.kj .ticket-fare-status {
+  margin: 0;
+  color: var(--ink);
+}
+
+.kj .ticket-fare-status:not(:empty) {
+  margin-top: 6px;
+}
+
+
+.kj.sheet-foot:has(.ticket-fare-form:not([hidden])) {
+  max-height: 75dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
