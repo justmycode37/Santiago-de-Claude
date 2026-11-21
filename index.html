@@ -1665,6 +1665,8 @@
   <script src="events.js"></script>
   <script src="map-layers.js"></script>
   <script src="settings.js"></script>
+  <!-- The introduction for a first visit (needs settings.js only). If it can't load, the app starts as usual -->
+  <script src="onboarding.js" onerror="delete document.documentElement.dataset.onboarding; EARLY_GEO.start()"></script>
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
   <script src="engine.js"></script>
@@ -1675,8 +1677,6 @@
   <script src="places.js"></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
-  <!-- The introduction for a first visit. If it can't load, the app starts as usual -->
-  <script src="onboarding.js" onerror="delete document.documentElement.dataset.onboarding; EARLY_GEO.start()"></script>
   <script>
     // ---------- Theme helpers ----------
     const root = document.documentElement;
