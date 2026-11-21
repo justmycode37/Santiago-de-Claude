@@ -8,8 +8,8 @@ platforms at the main station: routed, and never across railway tracks on the gr
 ```bash
 cd tools/walk-eval
 python3 city_dests.py zurich      # the places, and the station's tracks (once; they are checked in)
-node city_eval.mjs zurich         # the measurements → city_zurich.json (OSRM's answers are kept in osrm_zurich.json)
-node stops_eval.mjs zurich        # walks from the station to every stop edge within 1.5 km
+node city_eval.mts zurich         # the measurements → city_zurich.json (OSRM's answers are kept in osrm_zurich.json)
+node stops_eval.mts zurich        # walks from the station to every stop edge within 1.5 km
 python3 register_check.py         # address register points against OpenStreetMap's doors
 ```
 
@@ -36,7 +36,7 @@ Cities and their main station are in `cities.json`.
   are tagged as drawn separately but are not drawn (Basel's Solothurnerstrasse), shops inside Geneva station.
 - **Platforms:** Basel SBB's Gleis 19 and one of Bern's Gleis 13 points lie on the track itself; they now reach their own
   platform across that one track (80 Basel pairs had no route before).
-- **Walks to stops** (`stops_eval.mjs`, every tram, bus and train stop edge within 1.5 km of the station, boarded from
+- **Walks to stops** (`stops_eval.mts`, every tram, bus and train stop edge within 1.5 km of the station, boarded from
   its own bay or platform): 14 of 532 had no route, mostly tram and bus platforms OpenStreetMap draws apart from the
   street they stand in (Bern Zytglogge bay A). A last try now ignores such islands and boards from the street beside
   them: 1 of 532 left (Bern's PostAuto bay X on the station roof, which `platforms.js` gives no floor).

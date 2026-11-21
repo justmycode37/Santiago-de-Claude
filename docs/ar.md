@@ -13,7 +13,7 @@ runs by itself until it is closed. `?ar=0` in the address hides the button (reme
 
 ## The decision logic
 
-`src/arcore.ts` is DOM-free and shared with Node (`tools/test_arcore.mjs`, part of `npm test`). It reproduces the
+`src/arcore.ts` is DOM-free and shared with Node (`tools/test_arcore.mts`, part of `npm test`). It reproduces the
 Swift display bench (`rightside/tools/display-bench`) exactly. Dev set: 76/111 right vehicles accepted. Held-out
 set: 27/35. No wrong vehicle accepted in either. Those numbers come from PP-OCR text on recorded video, not from the
 web's Tesseract on a phone.
