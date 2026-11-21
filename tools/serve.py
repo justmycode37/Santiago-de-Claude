@@ -1,9 +1,10 @@
-"""Serve the app for local use or a phone, with gzip and browser caching.
+"""Serve the built app (dist/) for local use or a phone, with gzip and browser caching.
 
 Same as `python3 -m http.server`, but text files (index.html, platforms.js, ...) are sent gzipped,
 about a quarter of their size, and the browser keeps every file: it checks back on each visit and gets a
 short "not modified" answer when a file is unchanged. That makes the app open much faster on a phone.
 
+    npm run build                       # makes dist/ (or keep `npm run dev` running: it rebuilds on every change)
     python3 tools/serve.py              # http://localhost:8000
     python3 tools/serve.py 8000 0.0.0.0 # also reachable from other devices on the network
 """
@@ -13,7 +14,7 @@ import io
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist")
 COMPRESS = {".html", ".js", ".css", ".json", ".geojson", ".svg", ".txt"}
 _gzipped = {}  # path -> (mtime, size, gzipped bytes)
 
@@ -65,6 +66,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     bind = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
+    if not os.path.isfile(os.path.join(ROOT, "index.html")):
+        sys.exit("dist/ is not built yet: run `npm install` and `npm run build` first")
     server = http.server.ThreadingHTTPServer((bind, port), Handler)
     print(f"Serving {ROOT} at http://{'localhost' if bind in ('127.0.0.1', '0.0.0.0') else bind}:{port}/", flush=True)
     try:

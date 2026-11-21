@@ -1,7 +1,7 @@
 // Builds the site into dist/: the folder GitHub Pages publishes and `npm run dev` serves.
 //
-//   node scripts/build.ts             everything, for local use
-//   node scripts/build.ts --release   only what is published (no development page, no local config.js)
+//   node scripts/build.mts             everything, for local use
+//   node scripts/build.mts --release   only what is published (no *-dev.html pages, no local config.js)
 //
 // What goes into dist/:
 //   src/<name>.ts      → <name>.js. The types are replaced by spaces and nothing else is touched, so the
@@ -28,8 +28,8 @@ const APP_MARKER = /^[ \t]*<!-- build: src\/app -->[ \t]*$/m;
 export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d'];
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
 const DEMO = ['demo/index.html', 'demo/opening.jpg', 'demo/santiago.mp4'];
-/** In the repository root, but not published. */
-const NOT_RELEASED = new Set(['station3d-dev.html', 'config.example.js', 'config.js']);
+/** In the repository root, but not published: the development pages, the config template and a local config. */
+const notReleased = (file: string) => /-dev\.html$/.test(file) || file === 'config.example.js' || file === 'config.js';
 
 const rel = (file: string) => path.relative(ROOT, file);
 
@@ -90,7 +90,7 @@ function copyDir(from: string, to: string): void {
 
 /** The pages, stylesheets and scripts in the repository root that are served as they are. */
 export function rootFiles(release: boolean): string[] {
-  return fs.readdirSync(ROOT).filter((f) => /\.(html|css|js)$/.test(f) && f !== 'index.html' && !(release && NOT_RELEASED.has(f)));
+  return fs.readdirSync(ROOT).filter((f) => /\.(html|css|js)$/.test(f) && f !== 'index.html' && !(release && notReleased(f)));
 }
 
 export function copyStatic(release: boolean): void {
@@ -104,7 +104,7 @@ export function buildScripts(): void {
   buildIndex();
 }
 
-export function build({ release = false, clean = release } = {}): void {
+export function build({ release = false, clean = release }: { release?: boolean; clean?: boolean } = {}): void {
   if (clean) fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(DIST, { recursive: true });
   copyStatic(release);

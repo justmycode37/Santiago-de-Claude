@@ -1,13 +1,12 @@
 {
   "name": "santiago-de-claude",
   "private": true,
-  "type": "module",
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
-    "dev": "node scripts/dev.ts",
-    "build": "node scripts/build.ts",
+    "dev": "node scripts/dev.mts",
+    "build": "node scripts/build.mts",
     "check": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
     "test": "node tools/test_station_route.mjs && node tools/test_station_route2.mjs"
   },
