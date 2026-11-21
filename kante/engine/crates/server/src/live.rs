@@ -35,6 +35,15 @@ struct FeedState {
     ok_at: Option<i64>,
     error: Option<String>,
     enabled: bool,
+    /// Its data was dropped after [`EXPIRE_S`] without an answer; cleared by the next answer.
+    expired: bool,
+}
+
+impl FeedState {
+    /// The feed's data is in use: it answered, and not so long ago that it was dropped.
+    fn live(&self) -> bool {
+        self.ok_at.is_some() && !self.expired
+    }
 }
 
 #[derive(Default)]
@@ -127,6 +136,7 @@ fn ingest(app: &App, matcher: &Matcher, kind: FeedKind, bytes: &[u8]) {
             st.journeys = journeys;
             st.ok_at = Some(now_unix());
             st.error = None;
+            st.expired = false;
         }
         Err(e) => {
             eprintln!("live: {}: parse failed: {e:#}", kind.as_str());
@@ -158,33 +168,83 @@ fn publish(app: &App, feeds: &Feeds) {
     let trips = b.len();
     let snap = b.build();
     let extras = snap.extras().len();
-    let updated_at = snap.timestamp();
+    let view = live_view_of(snap);
     let mut live = app.live.write();
-    live.view = Some(Arc::new(snap) as Arc<dyn LiveView>);
-    live.meta = meta_of(feeds, Some(updated_at), Some(trips), Some(extras));
+    live.meta = match &view {
+        Some(v) => meta_of(feeds, Some(v.1), Some(trips), Some(extras)),
+        // every feed has expired: running on the timetable, and saying so
+        None => meta_of(feeds, None, None, None),
+    };
+    live.view = view.map(|(v, _)| v);
     drop(live);
     app.bump_live();
+}
+
+/// The snapshot to serve and its time, or none when no feed contributed to it (all expired):
+/// an empty snapshot would make every answer look live, dated 1 January 1970.
+fn live_view_of(snap: kante_rt::LiveSnapshot) -> Option<(Arc<dyn LiveView>, i64)> {
+    if snap.feeds.is_empty() {
+        return None;
+    }
+    let t = snap.timestamp();
+    Some((Arc::new(snap) as Arc<dyn LiveView>, t))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn meta_tells_a_dropped_feed() {
+        let mut feeds = Feeds::default();
+        feeds.siri = FeedState { enabled: true, ok_at: Some(1_795_260_000), journeys: 13_000, ..Default::default() };
+        let m = meta_of(&feeds, Some(1_795_260_000), Some(13_000), Some(0));
+        assert_eq!((m.source.as_deref(), m.error.as_deref()), (Some("siri-et"), None));
+        // 30 minutes without an answer: dropped
+        feeds.siri.expired = true;
+        feeds.siri.journeys = 0;
+        let m = meta_of(&feeds, None, None, None);
+        assert_eq!(m.source, None, "no feed in use");
+        assert!(m.error.as_deref().unwrap().contains("dropped"), "{:?}", m.error);
+        assert!(m.updated_at.is_none());
+        let f = &m.feeds[0];
+        assert_eq!((f.journeys, f.matched), (None, None));
+        assert_eq!(f.polled_at, Some(1_795_260_000), "when it last answered");
+        assert!(f.error.is_some());
+    }
+
+    #[test]
+    fn no_feed_means_no_live_view() {
+        assert!(live_view_of(LiveSnapshotBuilder::new().build()).is_none(), "all feeds expired: timetable only");
+        let mut b = LiveSnapshotBuilder::new();
+        b.feed(FeedMeta { timestamp: 1_795_262_000, journeys: 0, source: "siri-et", feed_version: String::new() });
+        let (_, t) = live_view_of(b.build()).expect("a feed answered, even with nothing in it");
+        assert_eq!(t, 1_795_262_000);
+    }
 }
 
 fn status(name: &'static str, f: &FeedState) -> Option<FeedStatus> {
     f.enabled.then(|| FeedStatus {
         name,
         updated_at: f.meta.as_ref().map(|m| m.timestamp),
+        // when it last answered, also after its data was dropped
         polled_at: f.ok_at,
-        journeys: f.ok_at.map(|_| f.journeys),
-        matched: f.ok_at.map(|_| f.trips.len()),
-        error: f.error.clone(),
+        journeys: f.live().then_some(f.journeys),
+        matched: f.live().then_some(f.trips.len()),
+        error: f.error.clone().or_else(|| f.expired.then(|| format!("no answer for {} min: its data was dropped", EXPIRE_S / 60))),
     })
 }
 
 fn meta_of(feeds: &Feeds, updated_at: Option<i64>, trips: Option<usize>, extras: Option<usize>) -> RealtimeMeta {
-    let source = match (feeds.siri.ok_at.is_some(), feeds.gtfs.ok_at.is_some()) {
+    let source = match (feeds.siri.live(), feeds.gtfs.live()) {
         (true, true) => Some("siri-et+gtfs-rt".to_string()),
         (true, false) => Some("siri-et".to_string()),
         (false, true) => Some("gtfs-rt".to_string()),
         (false, false) => None,
     };
-    let error = [&feeds.siri, &feeds.gtfs].iter().filter(|f| f.ok_at.is_none()).find_map(|f| f.error.clone());
+    let error = [&feeds.siri, &feeds.gtfs].iter().filter(|f| !f.live()).find_map(|f| {
+        f.error.clone().or_else(|| f.expired.then(|| format!("no answer for {} min: its data was dropped", EXPIRE_S / 60)))
+    });
     RealtimeMeta {
         enabled: feeds.siri.enabled || feeds.gtfs.enabled,
         source,
@@ -224,11 +284,13 @@ fn expire(app: Arc<App>) {
             let feeds = &mut *guard;
             let mut dropped = false;
             for (name, f) in [("siri-et", &mut feeds.siri), ("gtfs-rt", &mut feeds.gtfs)] {
-                if f.ok_at.is_some_and(|t| now - t > EXPIRE_S) && (!f.trips.is_empty() || !f.extras.is_empty()) {
+                if !f.expired && f.ok_at.is_some_and(|t| now - t > EXPIRE_S) {
                     eprintln!("live: {name}: no data for {} min, dropping it until the feed answers again", EXPIRE_S / 60);
                     f.trips.clear();
                     f.extras.clear();
                     f.meta = None;
+                    f.journeys = 0;
+                    f.expired = true;
                     dropped = true;
                 }
             }

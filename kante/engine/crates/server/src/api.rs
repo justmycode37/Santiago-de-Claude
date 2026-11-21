@@ -525,9 +525,8 @@ async fn vehicles(State(app): S, Q(p): Q<BboxParams>) -> Result<Json<json::Vehic
         return Err(bad("bbox too large"));
     }
     let t = check_t(p.t.unwrap_or_else(now_unix))?;
-    let _permit = app.heavy.acquire().await.map_err(|_| ApiError(StatusCode::SERVICE_UNAVAILABLE, "shutting down".into()))?;
     let a = app.clone();
-    let body = tokio::task::spawn_blocking(move || liveapi::vehicles(&a, &bbox, t)).await.map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "failed".into()))?;
+    let body = liveapi::run_heavy(&app.heavy, move || liveapi::vehicles(&a, &bbox, t)).await.ok_or_else(|| ApiError(StatusCode::SERVICE_UNAVAILABLE, "try again".into()))?;
     Ok(Json(body))
 }
 
@@ -634,9 +633,8 @@ async fn identify(State(app): S, Q(p): Q<IdentifyParams>) -> Result<Json<json::I
         radius: p.radius.filter(|r| r.is_finite()).unwrap_or(120.0).clamp(20.0, 400.0),
         stops,
     };
-    let _permit = app.heavy.acquire().await.map_err(|_| ApiError(StatusCode::SERVICE_UNAVAILABLE, "shutting down".into()))?;
     let a = app.clone();
-    let body = tokio::task::spawn_blocking(move || crate::identify::identify(&a, &q)).await.map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "failed".into()))?;
+    let body = liveapi::run_heavy(&app.heavy, move || crate::identify::identify(&a, &q)).await.ok_or_else(|| ApiError(StatusCode::SERVICE_UNAVAILABLE, "try again".into()))?;
     Ok(Json(body))
 }
 

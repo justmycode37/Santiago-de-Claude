@@ -39,7 +39,9 @@ When a feed fails: after a passing error (network, server, a broken document) it
 two minutes, so the data is fresh again soon after the feed is back; a rejected key or a quota limit waits
 longer (up to 15 minutes, or what the feed asks for). Its last data stays in use, marked `stale` after
 5 minutes; after 30 minutes without an answer it is dropped and the engine runs on the timetable (and the
-other feed) until the feed answers again.
+other feed) until the feed answers again. `/api/meta` then says so: `realtime.source` names only feeds whose
+data is in use (null when none), `realtime.error` and the feed's `error` say it was dropped, and with no feed
+in use `updatedAt` is null and `/api/departures` answers `realtime: false`.
 
 ## `liveInfo`: how sure a trip's times are
 
@@ -126,8 +128,9 @@ When the ride stays seated into another trip, `toSeq` is absent and `then` lists
 order, the last one with `toSeq`: `"then": [{ "tripId": "…", "serviceDate": "…", "toSeq": 7 }]`. Such a
 trip is one the timetable links to this one, or — for a train that divides, which the timetable does not
 link (RhB RE13/RE24 at Klosters) — the one trip that leaves the same platform within ten minutes of this
-one's arrival and reaches the ride's destination at the ride's arrival time. When not exactly one does,
-nothing is assumed.
+one's arrival towards one of the parts the arriving train names in its destination ("St. Moritz | Davos
+Platz"), and reaches the ride's destination at the ride's arrival time. Only for trains, only when `arr` is
+given, and when not exactly one trip fits, nothing is assumed.
 
 Tested on 106 rides between 21 pairs of places planned with transport.opendata.ch (21 Nov 2026), including
 the RhB trains that divide: 106 unique, none ambiguous, none missing. Example: RE24 1053 Landquart → Scuol-Tarasp
@@ -194,8 +197,8 @@ apart, not find the trip in the whole country.
 | `line` | the line number as read (`10`, `S1`, `S 1`, `IC 8`, `EV`); optional |
 | `headsign` | the destination text as read (any part of it, may contain misread letters); optional |
 | `bearing` | the direction the vehicle drives in, degrees from north; optional |
-| `radius` | how far away the vehicle can be, metres (20–400, default 120) |
-| `quay` | only vehicles at this boarding point (engine quay id or ATLAS SLOID); optional |
+| `radius` | how far away the vehicle can be, metres (20–400, default 120): boarding points within it, and vehicles between stops whose estimated position is within it |
+| `quay` | only vehicles due at this boarding point (engine quay id or ATLAS SLOID); then no vehicle between stops is considered; optional |
 
 ```json
 GET /api/identify?lat=46.94886&lon=7.43979&line=10&headsign=Ostermundigen%20R%C3%BCti&bearing=95

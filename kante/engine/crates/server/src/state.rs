@@ -92,7 +92,7 @@ pub struct App {
     /// Set when the server shuts down, so open streams end and do not hold it up.
     pub shutdown: tokio::sync::watch::Sender<bool>,
     /// Vehicle lists being computed at once (requests and streams wait their turn).
-    pub heavy: tokio::sync::Semaphore,
+    pub heavy: Arc<tokio::sync::Semaphore>,
     /// Open `/api/stream` connections.
     pub streams: std::sync::atomic::AtomicUsize,
     /// Learned travel and dwell times per pair of stops.
@@ -346,7 +346,7 @@ impl App {
             feeds: Default::default(),
             live_tx: tokio::sync::watch::channel(0).0,
             shutdown: tokio::sync::watch::channel(false).0,
-            heavy: tokio::sync::Semaphore::new(4),
+            heavy: Arc::new(tokio::sync::Semaphore::new(4)),
             streams: Default::default(),
             profiles: Default::default(),
             walk_bbox,

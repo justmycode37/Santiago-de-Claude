@@ -184,6 +184,12 @@ impl Evidence {
     }
 }
 
+/// Whether a vehicle under way `d` metres from the camera is a candidate: only within the
+/// radius asked for, and never when the question is about a named boarding point.
+pub fn admit_moving(d: f32, radius: f32, quay_named: bool) -> bool {
+    !quay_named && d <= radius
+}
+
 // ------------------------------------------------------------------ candidates
 
 struct Cand {
@@ -241,7 +247,7 @@ pub fn identify(app: &App, q: &IdentifyQuery) -> json::IdentifyResponse {
         v
     });
     if !stops.is_empty() {
-        let due = liveapi::due(app, &DueQuery { stops, t: q.t, before: 180, after: 300, limit: 200 });
+        let due = liveapi::due_in(app, live, &DueQuery { stops, t: q.t, before: 180, after: 300, limit: 200 });
         for d in due.due {
             let quay = app.stop_ids.get(&d.quay_id).map(|&s| tt.stops[s as usize].pos);
             let at = d.arr.or(d.dep).unwrap_or(q.t);
@@ -275,18 +281,19 @@ pub fn identify(app: &App, q: &IdentifyQuery) -> json::IdentifyResponse {
         }
     }
 
-    // 2. Under way nearby, between stops.
-    let reach = q.radius.max(100.0) * 2.5;
-    let v = liveapi::vehicles(app, &BBox::around(q.pos, reach), q.t);
-    for x in v.vehicles {
+    // 2. Under way nearby, between stops: within `radius` of the camera, and only when no
+    //    boarding point was named (a vehicle between stops is at none).
+    let moving = if q.stops.is_some() { Vec::new() } else { liveapi::vehicles_in(app, live, &BBox::around(q.pos, q.radius), q.t).vehicles };
+    for x in moving {
         let (a, b) = (LatLon::from_deg(x.from[1], x.from[0]), LatLon::from_deg(x.to[1], x.to[0]));
         let here = a.lerp(&b, x.frac);
         let d = here.dist_m(&q.pos);
-        if d > reach {
+        if !admit_moving(d, q.radius, q.stops.is_some()) {
             continue;
         }
         let travel = (a.dist_m(&b) > 5.0).then(|| a.bearing_deg(&b));
         let vias = run_of(app, live, &x.trip_id, &x.service_date)
+            .filter(|r| !r.calls.is_empty())
             .map(|r| {
                 let next = x.next_seq as usize;
                 let own = tt.stops[r.calls[next.min(r.calls.len() - 1)].stop as usize].station;
@@ -409,6 +416,13 @@ mod tests {
         assert!(text_fit("Bern", "Bern, Bahnhof") > 0.6);
         assert!(text_fit("Bern", "Bern, Bahnhof") < text_fit("Bern Bahnhof", "Bern, Bahnhof"));
         assert!(text_fit("Wabern", "Ostermundigen, Rüti") < 0.4);
+    }
+
+    #[test]
+    fn moving_vehicles_stay_inside_the_question() {
+        assert!(admit_moving(15.0, 20.0, false));
+        assert!(!admit_moving(150.0, 20.0, false), "150 m away is outside a 20 m radius");
+        assert!(!admit_moving(5.0, 120.0, true), "a named boarding point admits no vehicle between stops");
     }
 
     #[test]
