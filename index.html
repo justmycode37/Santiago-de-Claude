@@ -1853,7 +1853,7 @@
     // official ATLAS data (platforms.js, built by tools/build_platforms.py). Always drawn on the map from
     // zoom 17, and used to put journey boarding/alighting points on the right platform.
     const PLATFORM_FC = { type: 'FeatureCollection', features: [] };
-    const PLATFORMS = new Map(); // station id (UIC, as in transport.opendata.ch) → { name, mode, edges: [{ ref, key, bearing, ll }] }
+    const PLATFORMS = new Map(); // station id (UIC, as in transport.opendata.ch) → { name, mode, edges: [{ ref, key, bearing, level, src, ll }] }
     const PLATFORM_MODES = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
 
     // Comparable platform name: "7A-D" → "7", "Kante H" → "H", "K1" → "K1", "–" → ""
@@ -1868,8 +1868,9 @@
       const features = [];
       for (const [id, [name, m, raw]] of Object.entries(data.stops)) {
         const mode = PLATFORM_MODES[m] || 'bus';
-        const edges = raw.map(([x, y, ref = '', bearing = null, level = null]) =>
-          ({ ref: ref || '', key: platformKey(ref), bearing, level, ll: [x / 1e5, y / 1e5] }));
+        // src: '' official, 'o' position from OSM, 'b' direction estimated from the road, 's' stop position only
+        const edges = raw.map(([x, y, ref = '', bearing = null, level = null, src = '']) =>
+          ({ ref: ref || '', key: platformKey(ref), bearing, level, src, ll: [x / 1e5, y / 1e5] }));
         PLATFORMS.set(id, { name, mode, edges });
         edges.forEach((e, i) => {
           features.push({ type: 'Feature', properties: { id, i, ref: e.ref }, geometry: { type: 'Point', coordinates: e.ll } });

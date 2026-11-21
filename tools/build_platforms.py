@@ -11,11 +11,22 @@ Floor levels come from OpenStreetMap (level=* on platforms that are not at stree
 Usage:
   python3 tools/build_platforms.py                                  # download the current data
   python3 tools/build_platforms.py TRAFFIC.csv SERVICE.csv [OSM.json]   # use already downloaded files
+  python3 tools/build_platforms.py data/raw/traffic-point.csv data/raw/service-point.csv data/raw/osm-stops.json
 
 Output format (platforms.js):
-  window.PLATFORM_DATA = { date, stops: { "<uic>": [name, mode, [[lonE5, latE5, ref?, bearing?, level?], ...]] } }
+  window.PLATFORM_DATA = { date, stops: { "<uic>": [name, mode, [[lonE5, latE5, ref?, bearing?, level?, src?], ...]] } }
   mode: t = train, m = tram/metro, b = bus, s = boat, c = cable car / funicular
   level: floor of the platform when it is not street level (e.g. -4 for Zürich HB 31–34)
+  src: set when a point is not fully official ATLAS data
+       "o" position from OpenStreetMap   "b" direction estimated from the road beside it, not official
+       "s" no boarding data at all: only the stop's own position, not a place to stand
+
+Bus and tram stops are completed from OpenStreetMap when the OSM file from tools/extract_osm_stops.py is given:
+  - a stop ATLAS has no boarding point for gets the stop poles OSM has for it (same uic_ref or name, ≤ 300 m)
+  - a point without an official direction gets one from the road beside it: the direction of a one-way road,
+    otherwise the direction that has the point on its right (traffic keeps right). Each build scores this
+    rule against the points that do have an official direction and prints the result.
+  - a stop whose points all say 0° has no direction (0° there is a placeholder)
 """
 import csv
 import datetime
@@ -156,15 +167,115 @@ def same_way(a, b):
     return abs((a['bearing'] - b['bearing'] + 180) % 360 - 180) <= 30
 
 
+def offset_m(ll, origin):
+    """(east, north) in metres from origin."""
+    return ((ll[0] - origin[0]) * 111320 * math.cos(math.radians(origin[1])), (ll[1] - origin[1]) * 110540)
+
+
+def angle_diff(a, b):
+    return abs((a - b + 180) % 360 - 180)
+
+
+GRID = 0.0005  # degrees, ~40-55 m
+SIDE_MIN = 1.5  # metres from the road's centre line below which the side of the road is unclear
+
+
+def grid_of(ll):
+    return int(math.floor(ll[0] / GRID)), int(math.floor(ll[1] / GRID))
+
+
+def index_points(items, ll_of):
+    grid = {}
+    for it in items:
+        grid.setdefault(grid_of(ll_of(it)), []).append(it)
+    return grid
+
+
+def around(grid, ll, rings=1):
+    x, y = grid_of(ll)
+    for dx in range(-rings, rings + 1):
+        for dy in range(-rings, rings + 1):
+            yield from grid.get((x + dx, y + dy), ())
+
+
+class Roads:
+    """Road and tram-track segments near stops, from tools/extract_osm_stops.py."""
+
+    def __init__(self, segments):
+        self.grid = {}
+        for seg in segments:
+            a, b = (seg[0], seg[1]), (seg[2], seg[3])
+            steps = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / (GRID / 2)))
+            for c in {grid_of((a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps))
+                      for i in range(steps + 1)}:
+                self.grid.setdefault(c, []).append(seg)
+
+    def bearing_at(self, ll, kinds):
+        """Direction of travel of vehicles stopping at ll, or None when the road beside it is not clear."""
+        found = []
+        for seg in {id(s): s for s in around(self.grid, ll)}.values():
+            if seg[4] not in kinds:
+                continue
+            ax, ay = offset_m((seg[0], seg[1]), ll)
+            bx, by = offset_m((seg[2], seg[3]), ll)
+            dx, dy = bx - ax, by - ay
+            n = dx * dx + dy * dy
+            if n == 0:
+                continue
+            t = max(0, min(1, -(ax * dx + ay * dy) / n))
+            fx, fy = ax + t * dx, ay + t * dy  # nearest point of the segment (ll is the origin)
+            found.append((math.hypot(fx, fy), math.degrees(math.atan2(dx, dy)) % 360, seg[5], -fx, -fy))
+        if not found:
+            return None
+        found.sort()
+        d, heading, oneway, px, py = found[0]
+        if d > 25 or (d < SIDE_MIN and not oneway):
+            return None  # no road nearby, or the point is on the centre line: no side to tell
+        for d2, h2, *_ in found[1:]:
+            # another road just as close that runs another way (a junction): don't guess
+            if d2 - d < 3 and min(angle_diff(h2, heading), angle_diff(h2, heading + 180)) > 30:
+                return None
+        if oneway:
+            return round(heading if oneway > 0 else heading + 180) % 360
+        hx, hy = math.sin(math.radians(heading)), math.cos(math.radians(heading))
+        on_right = px * hy - py * hx > 0  # the point is right of the road's drawn direction
+        return round(heading if on_right else heading + 180) % 360
+
+
+def norm_name(name):
+    return re.sub(r'[^0-9a-zäöüéèàâêîôûç]+', ' ', name.lower()).strip()
+
+
+def osm_poles(st, uic, osm_grid, taken):
+    """OSM stop poles of a stop that ATLAS has no boarding point for: [(lon, lat), ...]."""
+    full = norm_name(st['name'])
+    short = norm_name(st['name'].split(',', 1)[-1])
+    poles = []
+    for lon, lat, kind, name, ref, uic_ref, modes in around(osm_grid, st['ll'], rings=7):
+        if kind != 'p' or (st['mode'] == 'b' and 'b' not in modes):
+            continue
+        if not near((lon, lat), st['ll'], 300) or (uic_ref != uic and norm_name(name) not in (full, short)):
+            continue
+        if any(near((lon, lat), q, 20) for q in around(taken, (lon, lat))):
+            continue  # a boarding point of another stop is right there
+        if not any(near((lon, lat), q, 12) for q in poles):  # pole node and platform drawn for the same pole
+            poles.append((lon, lat))
+    return poles if len(poles) <= 6 else []
+
+
 def main():
     if len(sys.argv) >= 3:
         traffic = open(sys.argv[1], encoding='utf-8-sig').read()
         service = open(sys.argv[2], encoding='utf-8-sig').read()
         levels = osm_levels(sys.argv[3] if len(sys.argv) > 3 else None)
+        osm = json.load(open(sys.argv[3], encoding='utf-8')) if len(sys.argv) > 3 else {}
     else:
         traffic = actual_date_csv('traffic-point-v2', 'actual-date-world-traffic-point.csv')
         service = actual_date_csv('service-point-v2', 'actual-date-swiss-service-point.csv')
         levels = osm_levels()
+        osm = {}
+    roads = Roads(osm.get('roads', []))
+    osm_grid = index_points(osm.get('stops', []), lambda s: (s[0], s[1]))
 
     stops = {}
     for r in rows(service):
@@ -195,15 +306,30 @@ def main():
             'll': (float(r['wgs84East']), float(r['wgs84North'])),
         })
 
+    taken = index_points([e['ll'] for st in stops.values() for e in st['edges']], lambda ll: ll)
     out = {}
     n_edges = n_levels = 0
+    n = {'stops filled from OSM': 0, 'OSM poles': 0, 'stops without data': 0, 'stops with 0° only': 0,
+         'directions from the road': 0}
+    score = []  # (official direction, direction from the road) for every point that has an official one
     for uic in sorted(stops):
         st = stops[uic]
         edges = st['edges']
+        street = st['mode'] in 'bm'
+        if edges and all(e['bearing'] == 0 for e in edges):
+            n['stops with 0° only'] += 1
+            for e in edges:
+                e['bearing'] = None  # 0° everywhere is a placeholder, not a direction
         if not edges:
             if not st['stop']:
                 continue
-            edges = [{'ref': '', 'main': True, 'bearing': None, 'll': st['ll']}]  # stop without edge data
+            poles = osm_poles(st, uic, osm_grid, taken) if street else []
+            n['stops filled from OSM'] += bool(poles)
+            n['OSM poles'] += len(poles)
+            n['stops without data'] += not poles
+            # without edge data: the OSM poles, or else only the stop's own position (not a place to stand)
+            edges = [{'ref': '', 'main': True, 'bearing': None, 'll': ll, 'src': 'o'} for ll in poles] or \
+                    [{'ref': '', 'main': True, 'bearing': None, 'll': st['ll'], 'src': 's'}]
         edges.sort(key=lambda e: (e['ref'], not e['main']))
         kept = []
         for e in edges:
@@ -213,11 +339,28 @@ def main():
                 twin['bearing'] = twin['bearing'] if twin['bearing'] is not None else e['bearing']
             else:
                 kept.append(e)
+        for e in kept:
+            if not street or e.get('src') == 's':
+                continue
+            guess = roads.bearing_at(e['ll'], 'rt' if st['mode'] == 'm' else 'r')
+            if e['bearing'] is not None:
+                score.append((e['bearing'], guess))
+            elif guess is not None:
+                e['bearing'] = guess
+                e['src'] = e.get('src', '') + 'b'
+                n['directions from the road'] += 1
+        guessed = [e for e in kept if 'b' in e.get('src', '')]
+        if len(kept) == 2 and guessed and kept[0]['bearing'] is not None and kept[1]['bearing'] is not None \
+                and angle_diff(kept[0]['bearing'], kept[1]['bearing']) < 60:
+            for e in guessed:  # two points facing the same way: the guess contradicts the other point, drop it
+                e['bearing'], e['src'] = None, e['src'].replace('b', '')
+                n['directions from the road'] -= 1
+                n['dropped: contradict the other point'] = n.get('dropped: contradict the other point', 0) + 1
         packed = []
         for e in kept:
             x, y = round(e['ll'][0] * 1e5), round(e['ll'][1] * 1e5)
             level = level_of(e, uic, levels)
-            item = [x, y, e['ref'], e['bearing'], level]
+            item = [x, y, e['ref'], e['bearing'], level, e.get('src', '')]
             while len(item) > 2 and item[-1] in (None, ''):
                 item.pop()  # drop empty trailing fields
             n_levels += level is not None
@@ -231,6 +374,12 @@ def main():
         f.write('window.PLATFORM_DATA = ')
         json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
         f.write(';\n')
+    tried = [(a, b) for a, b in score if b is not None]
+    if tried:
+        good = sum(angle_diff(a, b) <= 60 for a, b in tried)
+        print(f'self-check, direction from the road vs official direction: {len(tried)} of {len(score)} points '
+              f'get one, {good} ({100 * good / len(tried):.1f} %) within 60°', file=sys.stderr)
+    print(n, file=sys.stderr)
     print(f'{len(out)} stops, {n_edges} platforms/edges ({n_levels} not at street level) → {OUT} ({os.path.getsize(OUT) // 1024} KB)', file=sys.stderr)
 
 

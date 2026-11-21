@@ -29,10 +29,15 @@ dark variant are the same as in that prototype, rebuilt to run in this page with
 
 The data comes from the official ATLAS master data on [opentransportdata.swiss](https://opentransportdata.swiss)
 (service points + traffic points), with floor levels from OpenStreetMap, and is stored in `platforms.js`.
-To refresh it:
+Bus and tram stops are completed from OpenStreetMap: stop poles where ATLAS has none, and a direction from the
+road beside each point that has no official one. Every point says where it came from; see
+[docs/stop-positions.md](docs/stop-positions.md). To refresh it:
 
 ```bash
-python3 tools/build_platforms.py
+python3 tools/build_platforms.py   # ATLAS + OSM levels only
+# with OSM stop poles and road directions (needs pip install osmium and the Geofabrik Switzerland extract):
+python3 tools/extract_osm_stops.py switzerland-latest.osm.pbf data/raw/traffic-point.csv data/raw/osm-stops.json
+python3 tools/build_platforms.py data/raw/traffic-point.csv data/raw/service-point.csv data/raw/osm-stops.json
 ```
 
 ## Live tracking
