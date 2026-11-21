@@ -1,18 +1,18 @@
 // Community listings sourced from the organizers below.
 (function () {
   const CATEGORIES = {
-    language:  { color: '#5856d6', label: 'Language' },
-    food:      { color: '#ff9500', label: 'Community meal' },
-    legal:     { color: '#007aff', label: 'Advice' },
-    jobs:      { color: '#30b0c7', label: 'Work & training' },
-    workshop:  { color: '#8c557d', label: 'Creative workshop' },
-    community: { color: '#ff2d55', label: 'Meetup' },
-    sport:     { color: '#34c759', label: 'Sport' },
-    kids:      { color: '#e6a800', label: 'Kids & learning' },
-    health:    { color: '#ff3b30', label: 'Health' },
+    language:  { color: '#344D77', label: 'Language' },
+    food:      { color: '#FF7241', label: 'Community meal' },
+    legal:     { color: '#344D77', label: 'Advice' },
+    jobs:      { color: '#344D77', label: 'Work & training' },
+    workshop:  { color: '#C55A82', label: 'Creative workshop' },
+    community: { color: '#C55A82', label: 'Meetup' },
+    sport:     { color: '#FFD34B', ink: '#344D77', label: 'Sport' },
+    kids:      { color: '#FFD34B', ink: '#344D77', label: 'Kids & learning' },
+    health:    { color: '#FF7241', label: 'Health' },
   };
 
-  // Stroke glyphs on a 24×24 grid, drawn white on the coloured circle
+  // Stroke glyphs on a 24×24 grid, drawn white (navy on sun) on the coloured circle
   const GLYPHS = {
     workshop: 'M4 16l-1 5 5-1L20 8l-4-4zM13 7l4 4',
     language:  'M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z',
@@ -85,6 +85,7 @@
       attendance: 'Contact the organizer for registration details',
       ...listing,
       color: CATEGORIES[listing.cat].color,
+      ink: CATEGORIES[listing.cat].ink || '#FFFFFF',
       category: CATEGORIES[listing.cat].label,
     },
   }));

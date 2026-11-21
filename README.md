@@ -34,3 +34,18 @@ To refresh it:
 ```bash
 python3 tools/build_platforms.py
 ```
+
+## Live tracking
+
+During a trip the app follows you along the route:
+
+- **Your position** is the blue dot (GPS). Each fix is matched to the nearest point on the route, so the app knows
+  which step you are on and how far along it you are. The cards move on by themselves, the part of the route
+  you have travelled fades on the map and in the top bar, and a status line shows what is next, for example
+  "120 m to Platform 7 · S1 in 4 min" or "On S1 · 3 stops to Bern", with the distance left. If you leave the
+  route, or a ride leaves without you, the status line offers **Replan**.
+- **Real-time data** comes from the operators' forecasts on transport.opendata.ch (delays, platform changes), fetched
+  again every minute while the trip is on. Departure, arrival and change times use these live times.
+- **Vehicles:** Switzerland has no open live feed of vehicle GPS positions, so the vehicle of the ride
+  under way is placed using its live stop times. When GPS shows you are on board, your blue dot stands in for the vehicle.
+- **Without GPS**, a fainter blue dot shows where the live timetable puts you.
