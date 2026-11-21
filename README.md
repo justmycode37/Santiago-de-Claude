@@ -9,6 +9,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Journey planner & live tracking**: Plans Swiss public transport trips with the team's own Kante engine (`kante/`; `transport.opendata.ch` when it is unreachable) to exact train platforms (Gleis) and bus/tram stop edges (Kante), with live delay/platform updates and GPS route tracking.
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo).
 - **Events & amenities**: Shows community events on the map alongside public toilets all over Switzerland and Bern's public amenities and local places.
+- **Walking routes between buildings**: Walks to the stop, between platforms and to the door follow a pedestrian network built from OpenStreetMap (`walkroute.js`, `walkgraph/`): they end at the right door, follow sidewalks, arcades, passages and underpasses, take stairs, escalators and lifts floor by floor (step-free settings respected), board from the platform with the right number, and never draw a straight line through a building or across tracks. Inside Bern, Europaplatz and Wankdorf stations the 3D station models' own router (`station-route.js`) takes over; where there are no tiles, the online routers are used as before.
 - **Camera stop scan**: Menu › **Scan** identifies nearby stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
 
 ## Live tracking
@@ -54,6 +55,10 @@ Place search uses free OpenStreetMap/Photon by default. To switch to Google Plac
   python3 tools/build_stop_images.py --area bern     # one city
   python3 tools/build_stop_images.py --all --fast --resume  # all of Switzerland, per 2 km tile (~1 h)
   python3 tools/build_stop_images.py --gtfs GTFS.zip # lines & destinations per stop edge
+  ```
+- **Pedestrian network (`walkgraph/`)** from OpenStreetMap via the Swiss Overpass server, per area (Bern is built; cached in `~/.cache/walkgraph`):
+  ```bash
+  python3 tools/build_walkgraph.py --area bern       # or zurich, basel, geneva, … or --bbox lon0,lat0,lon1,lat1
   ```
 
 ## Deployment

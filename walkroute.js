@@ -293,7 +293,8 @@
   // The ways into (or out of) the network at one end: { node or edge position, extra cost, door }
   function endpoint(p, o) {
     const out = [];
-    const inB = o.platform ? [] : buildingsAt(p, 40);
+    // an exact point (where a station model's own paths begin) is joined to the paths right there, not to a door
+    const inB = o.platform || o.exact ? [] : buildingsAt(p, 40);
     const allow = new Set(o.platform ? buildingsAt(p, 40) : inB); // a platform under the station roof may leave it
     const r0 = o.radius || 40;
     // a platform point belongs on its own platform: look close by first, so the next platform across the tracks
@@ -354,7 +355,8 @@
     get size() { return this.a.length; }
   }
 
-  // a, b: [lon, lat]. opt: { stepFree, fewerStairs, noEscalators, from: { level, platform, accuracy }, to: { level, platform } }
+  // a, b: [lon, lat]. opt: { stepFree, fewerStairs, noEscalators, from: { level, platform, ref, exact, accuracy },
+  //   to: { level, platform, ref, exact } }
   // → { coords, dist (m), covered: [[ll…]…], door: { ll, type, addr } | null, cues: [{ at, kind, text }], via } or null
   function search(a, b, opt) {
     // a street address or a GPS position is on the ground floor unless said otherwise (not in the corridor below it)

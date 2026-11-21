@@ -1387,6 +1387,7 @@
   <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
   <script src="live.js"></script>
   <script src="places.js"></script>
+  <script src="walkroute.js"></script>
   <script src="stations3d/index.js"></script>
   <script src="station3d.js"></script>
   <script>
@@ -2784,13 +2785,19 @@
             paint: { 'line-color': casing, 'line-width': zoomW(5, 10), 'line-opacity': routeOpacity(.5) } },
           { id: 'route-ride', type: 'line', source: 'route', filter: kind('ride'), layout: round,
             paint: { 'line-color': ['get', dark ? 'dcolor' : 'color'], 'line-width': zoomW(3, 6), 'line-opacity': routeOpacity(.4) } },
-          { id: 'route-walk-casing', type: 'line', source: 'route', filter: kind('walk'), layout: round,
+          { id: 'route-walk-casing', type: 'line', source: 'route', filter: ['all', kind('walk'), ['!', ['has', 'approx']]], layout: round,
             paint: { 'line-color': WALK_EDGE, 'line-width': zoomW(5, 10.5), 'line-opacity': routeOpacity(.3, .75) } },
-          { id: 'route-walk', type: 'line', source: 'route', filter: kind('walk'), layout: round,
+          { id: 'route-walk', type: 'line', source: 'route', filter: ['all', kind('walk'), ['!', ['has', 'approx']]], layout: round,
             paint: { 'line-color': WALK, 'line-width': zoomW(3.5, 8), 'line-opacity': routeOpacity(.4) } },
+          // no walking route found: a straight line, dashed, so it does not look like a path to follow
+          { id: 'route-walk-approx', type: 'line', source: 'route', filter: ['all', kind('walk'), ['has', 'approx']],
+            paint: { 'line-color': WALK, 'line-width': zoomW(3.5, 8), 'line-dasharray': [1, 1.2], 'line-opacity': routeOpacity(.4) } },
+          // under arcades, through passages and underpasses, indoors: a dashed line down the middle of the walk
+          { id: 'route-walk-covered', type: 'line', source: 'route', filter: kind('wcov'), minzoom: 15, layout: { 'line-join': 'round' },
+            paint: { 'line-color': WALK_EDGE, 'line-width': zoomW(1, 2.2), 'line-dasharray': [2, 2], 'line-opacity': routeOpacity(.3, .8) } },
         ],
         above: [
-          { id: 'route-walk-arrows', type: 'symbol', source: 'route', filter: kind('walk'), minzoom: 14.5,
+          { id: 'route-walk-arrows', type: 'symbol', source: 'route', filter: ['all', kind('walk'), ['!', ['has', 'approx']]], minzoom: 14.5,
             layout: { ...fixed, 'symbol-placement': 'line', 'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 14.5, 18, 18, 30],
                       'icon-image': 'arr|k|' + theme, 'icon-size': ['interpolate', ['linear'], ['zoom'], 14.5, .6, 17, 1],
                       'icon-rotation-alignment': 'map', 'icon-padding': 0 },
@@ -2803,6 +2810,10 @@
           { id: 'route-lvl', type: 'symbol', source: 'route', filter: kind('lvl'), minzoom: 16,
             layout: { ...fixed, 'icon-image': img, 'icon-anchor': 'left', 'icon-offset': [8, 0] } },
           { id: 'route-pins', type: 'symbol', source: 'route', filter: kind('pin'), layout: { ...fixed, 'icon-image': img } },
+          // the door the walk ends at
+          { id: 'route-door', type: 'circle', source: 'route', filter: kind('door'), minzoom: 15,
+            paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 3.5, 18, 7], 'circle-color': WALK,
+                     'circle-stroke-color': WALK_EDGE, 'circle-stroke-width': 2.5, 'circle-opacity': routeOpacity(.4), 'circle-stroke-opacity': routeOpacity(.4) } },
           // "Platform 7" / "Bay C" where you board
           { id: 'route-signs', type: 'symbol', source: 'route', filter: kind('sign'),
             layout: { ...fixed, 'icon-image': img, 'symbol-sort-key': ['get', 'sort'],
@@ -2817,6 +2828,10 @@
       map.setPaintProperty('route-ride', 'line-opacity', routeOpacity(.4));
       map.setPaintProperty('route-walk-casing', 'line-opacity', routeOpacity(.3, .75));
       map.setPaintProperty('route-walk', 'line-opacity', routeOpacity(.4));
+      map.setPaintProperty('route-walk-approx', 'line-opacity', routeOpacity(.4));
+      map.setPaintProperty('route-walk-covered', 'line-opacity', routeOpacity(.3, .8));
+      map.setPaintProperty('route-door', 'circle-opacity', routeOpacity(.4));
+      map.setPaintProperty('route-door', 'circle-stroke-opacity', routeOpacity(.4));
       map.setPaintProperty('route-walk-arrows', 'icon-opacity', routeOpacity(.4));
       map.setPaintProperty('route-stops', 'circle-opacity', routeOpacity(.4));
       map.setPaintProperty('route-stops', 'circle-stroke-opacity', routeOpacity(.4));
@@ -3084,9 +3099,12 @@
     // Turn the API's sections into swipeable steps: walk → ride → change → ride → … → walk → arrive
     function buildSteps(conn, destTitle) {
       const steps = [];
-      let walk = { min: 0, lines: [], start: null };
+      let walk = { min: 0, lines: [], ends: [], start: null };
       let lastRide = null;
-      const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], start: null }; return w; };
+      const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], ends: [], start: null }; return w; };
+      // what each end of a walk is, for the walking router: your position, a platform (on its floor), a station, a place
+      const platformEnd = (pa) => (pa && pa.edge
+        ? { platform: true, level: pa.edge.level || 0, ref: pa.edge.key || platformKey(pa.edge.ref) || null } : { platform: true });
       const at = new Map(conn.sections.filter((s) => s.journey).map((s) => [s, placeRide(s)]));
       conn.sections.forEach((s, idx) => {
         if (!s.journey) {
@@ -3094,10 +3112,11 @@
           walk.start = walk.start || s.departure.departure;
           // walks start/end on the platform you get off / on, not at the station's centre
           let a = coordOf(s.departure), b = coordOf(s.arrival);
-          if (lastRide && sameStop(s.departure, lastRide.arrival)) a = at.get(lastRide).arr || a;
+          let fromEnd = idx === 0 ? { gps: true } : { platform: true }, toEnd = idx === conn.sections.length - 1 ? {} : { platform: true };
+          if (lastRide && sameStop(s.departure, lastRide.arrival)) { a = at.get(lastRide).arr || a; fromEnd = platformEnd(at.get(lastRide).arrAt); }
           const nextRide = conn.sections.slice(idx + 1).find((x) => x.journey);
-          if (nextRide && sameStop(s.arrival, nextRide.departure)) b = at.get(nextRide).dep || b;
-          if (a && b) walk.lines.push([a, b]);
+          if (nextRide && sameStop(s.arrival, nextRide.departure)) { b = at.get(nextRide).dep || b; toEnd = platformEnd(at.get(nextRide).depAt); }
+          if (a && b) { walk.lines.push([a, b]); walk.ends.push([fromEnd, toEnd]); }
           return;
         }
         const w = flushWalk();
@@ -3105,15 +3124,19 @@
         if (!lastRide) {
           if (w.min > 0) {
             const t0 = new Date(w.start || conn.from.departure).getTime();
-            steps.push({ type: 'walk', min: w.min, lines: w.lines, start: w.start, toName: s.departure.station.name, next: s,
+            steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: s.departure.station.name, next: s,
               board: here.dep, t0, t1: t0 + w.min * 60000 });
           }
         } else {
           const t0 = new Date(lastRide.arrival.arrival).getTime();
           const pa = at.get(lastRide).arr, pd = here.dep;
           // changing platforms inside a station: show the way from one platform to the other
-          const lines = w.lines.length ? w.lines : pa && pd && distKm(pa, pd) > 0.015 ? [[pa, pd]] : [];
-          steps.push({ type: 'change', prev: lastRide, next: s, walkMin: w.min, lines,
+          // (also when the two are close on the map but on different floors: one may be right below the other)
+          const fl = (x) => (x && x.edge && x.edge.level) || 0;
+          const lines = w.lines.length ? w.lines
+            : pa && pd && (distKm(pa, pd) > 0.015 || fl(at.get(lastRide).arrAt) !== fl(here.depAt)) ? [[pa, pd]] : [];
+          const ends = w.lines.length ? w.ends : [[platformEnd(at.get(lastRide).arrAt), platformEnd(here.depAt)]];
+          steps.push({ type: 'change', prev: lastRide, next: s, walkMin: w.min, lines, ends,
             points: [pa, pd], t0, t1: w.min > 0 ? t0 + w.min * 60000 : new Date(s.departure.departure).getTime() });
         }
         steps.push({ type: 'ride', s, path: here.path, stops: here.path, stopIdx: here.idx, depLL: here.dep, arrLL: here.arr, depAt: here.depAt, arrAt: here.arrAt,
@@ -3124,7 +3147,7 @@
       const end = lastRide ? at.get(lastRide).arr : null;
       if (w.min > 0 || !lastRide) {
         const t0 = new Date(w.start || (lastRide ? lastRide.arrival.arrival : conn.from.departure)).getTime();
-        steps.push({ type: 'walk', min: w.min, lines: w.lines, start: w.start, toName: destTitle, final: true,
+        steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
           from: lastRide, alight: end, t0, t1: t0 + w.min * 60000 });
       }
       steps.push({ type: 'arrive', destTitle, time: conn.to.arrival, from: lastRide, end });
@@ -3246,7 +3269,20 @@
       };
       steps.forEach((st, i) => {
         let from = 0;
-        (st.lines || []).forEach((l) => { doneLine(l, 'walk', i, from); from += lengthKm(l); });
+        (st.lines || []).forEach((l, k) => {
+          // a straight line until a router has found the way (and the last bit into a building when no door is known)
+          const w = st.walks && st.walks[k];
+          const cut = w && w.approxFrom != null && w.approxFrom < l.length - 1 ? w.approxFrom : null;
+          if (cut != null) {
+            const head = l.slice(0, cut + 1);
+            doneLine(head, 'walk', i, from);
+            doneLine(l.slice(cut), 'walk', i, from + lengthKm(head), { approx: true });
+          } else doneLine(l, 'walk', i, from, !w || w.approx ? { approx: true } : undefined);
+          from += lengthKm(l);
+          if (!w) return;
+          (w.covered || []).forEach((c) => line(c.coords, 'wcov', i, { done: !!p && i < p.i }));
+          if (w.door && st.final) pt(w.door.ll, { kind: 'door', step: i, done: !!p && i < p.i });
+        });
         if (st.type === 'ride') {
           const c = lineColor(st.s.journey), colors = { color: c.bg, dcolor: c.dfg };
           doneLine(st.path, 'ride', i, 0, colors);
@@ -3428,19 +3464,35 @@
       return !v || v.km > 0.4 ? r : null;
     }
 
+    // On a walk, the blue dot sits on the walking route while GPS puts you within its accuracy of it (the halo stays
+    // where GPS says), so it does not wander through walls; on a ride, or away from the route, it shows GPS as it is.
+    function placeUserDot() {
+      if (!userLngLat) return;
+      let at = userLngLat;
+      const st = track && !track.off && !track.arrived && journeySteps[track.i];
+      const routed = st && (st.walks || []).some((w) => w && w.net); // only onto real paths, never a straight guess
+      if (routed && st.type !== 'ride' && track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st), track.kmIn) || at;
+      userMarker.setLngLat(at);
+    }
     function trackJourney() {
+      trackOnce();
+      placeUserDot();
+    }
+    function trackOnce() {
       if (!journeySteps.length || !gpsOn() || !tripLive()) { track = null; return; }
       const now = Date.now(), lay = tripLayout(), tp = timeProgress(now);
       // where you were at the last fix (measured on today's lines), else where the timetable puts you
       const ref = track && !track.off && track.v === geoVersion ? track.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
       const s = snapToTrip(userLngLat, ref, now);
       if (!s) { track = null; return; }
-      const tol = Math.max(35, Math.min(userAccuracy, 150)) + 30;
+      // walks follow exact footpaths now, so leaving one shows sooner than leaving a ride's line
+      const onFoot = journeySteps[s.i].type !== 'ride' && (journeySteps[s.i].walks || []).some((w) => w && w.net);
+      const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
       const offCount = s.d > tol ? ((track && track.offCount) || 0) + 1 : 0;
       track = { ...s, v: geoVersion, offCount, off: offCount >= 2 }; // two fixes in a row, so one stray fix doesn't count
       if (track.off) return;
       const dest = destMarker._map && destMarker.getLngLat().toArray();
-      if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat, dest) < 0.04)) {
+      if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {
         Object.assign(track, { i: journeySteps.length - 1, kmIn: 0, km: lay.total, arrived: true });
       }
       track.missed = track.arrived ? null : missedRide(track, now);
@@ -4917,6 +4969,7 @@
       document.getElementById('jArr').textContent = '--:--';
       sheetMsg = 'Finding a connection…';
       track = null;
+      placeUserDot(); // plain GPS until the new trip follows you
       renderSheet();
       if (!wasOpen) openSheet();
       vehMarker.remove();
@@ -5010,15 +5063,63 @@
     const plausible = (route, straight) => route && route.length > 1 && lengthKm(route) <= Math.max(lengthKm(straight) * 2.5, lengthKm(straight) + 0.4);
     const ll = (c) => `${c[0].toFixed(6)},${c[1].toFixed(6)}`;
 
-    // → { coords, steps (OSRM turn-by-turn, or null), dist (m, or null) }
-    async function routeWalk(a, b) {
-      if (distKm(a, b) < 0.02) return { coords: [a, b], steps: null, dist: Math.round(distKm(a, b) * 1000) };
+    // → { coords, steps (OSRM turn-by-turn, or null), dist (m, or null), approx (a straight line, not a route),
+    //     and from the pedestrian network: covered (arcades, passages, …), door (the entrance it ends at), via, cues }
+    // ends: [from, to], each { gps } (your position), { platform, level, ref } (a platform on its floor, by its number),
+    //   { exact } (a point to start or end at as it is, e.g. where a station model's paths begin) or {} (a place: the
+    //   walk ends at its door)
+    // netOnly: only the pedestrian network (null where it has no tiles)
+    async function routeWalk(a, b, ends, netOnly) {
       const costing = SETTINGS.walkCosting();
+      const [from, to] = ends || [{}, {}];
+      const side = (e, gps) => ({ level: e.level, platform: !!e.platform, ref: e.ref || null, exact: !!e.exact,
+        accuracy: gps && e.gps && userLngLat ? userAccuracy : null });
+      // 1. the pedestrian network (walkgraph/): doors, sidewalks, arcades, passages, floors, squares crossed straight
+      if (window.WALKROUTE) {
+        const { stepFree, fewerStairs, noEscalators } = SETTINGS.journey();
+        const r = await Promise.race([WALKROUTE.route(a, b, { stepFree, fewerStairs, noEscalators, from: side(from, true), to: side(to) })
+          .catch(() => null), new Promise((ok) => setTimeout(() => ok(null), 8000))]); // tiles slow to load: go online
+        if (r) return Object.assign(r, netDirections(r));
+      }
+      if (netOnly) return null;
+      // 2. online routers, where the network has no tiles
+      if (distKm(a, b) < 0.02 && !costing) return { coords: [a, b], steps: null, dist: Math.round(distKm(a, b) * 1000), approx: true };
       if (costing) return routeWalkAccessible(a, b, costing);
       const d = await getJSON(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${ll(a)};${ll(b)}?overview=full&geometries=geojson&steps=true`);
       const r = d && d.code === 'Ok' && d.routes[0];
       const g = r && r.geometry.coordinates;
-      return plausible(g, [a, b]) ? { coords: [a, ...g, b], steps: r.legs[0].steps, dist: r.distance } : { coords: [a, b], steps: null, dist: null };
+      return plausible(g, [a, b]) ? { coords: [a, ...g, b], steps: r.legs[0].steps, dist: r.distance } : { coords: [a, b], steps: null, dist: null, approx: true };
+    }
+
+    // A route on the pedestrian network → written directions in the shape walkDirections() lists them (each moment worth
+    // a word, and how far it goes on from there), and its floor changes for the map
+    function netDirections(r) {
+      const cum = [0];
+      for (let i = 1; i < r.coords.length; i++) cum.push(cum[i - 1] + distKm(r.coords[i - 1], r.coords[i]) * 1000);
+      const slice = (m0, m1) => r.coords.filter((_, i) => cum[i] >= m0 - 0.5 && cum[i] <= m1 + 0.5);
+      const total = cum[cum.length - 1];
+      const dirs = [], floors = [];
+      const level = (t) => { const m = /(street level|level\s+([\u2212-]?\d+))$/.exec(t); return m ? (m[2] ? +m[2].replace('\u2212', '-') : 0) : null; };
+      const marks = r.cues.filter((c, i, all) => !i || c.m - all[i - 1].m >= 3 || c.kind !== all[i - 1].kind);
+      const first = marks.length ? marks[0].m : total;
+      if (first >= 10) dirs.push({ kind: 'depart', text: `Walk ${fmtDist(first)}`, coords: slice(0, first) });
+      let lastLevel = null;
+      marks.forEach((c, k) => {
+        const next = k + 1 < marks.length ? marks[k + 1].m : total, on = next - c.m;
+        const to = level(c.text);
+        const vertical = to != null && (c.kind === 'steps' || c.kind === 'escalator' || c.kind === 'lift' || c.kind === 'ramp');
+        const d = { kind: vertical ? (/down/i.test(c.text) || (lastLevel != null && to < lastLevel) ? 'stairs-down' : 'stairs-up') : 'walk',
+          text: on >= 15 ? `${c.text}, then ${fmtDist(on)}` : c.text, coords: slice(c.m, next) };
+        if (vertical) {
+          const from = lastLevel != null ? lastLevel : d.kind === 'stairs-down' ? to + 1 : to - 1;
+          Object.assign(d, { from, to });
+          floors.push({ at: c.at, from, to });
+          lastLevel = to;
+        }
+        dirs.push(d);
+      });
+      if (r.door) dirs.push({ kind: 'walk', text: r.door.addr ? `In at the entrance, ${r.door.addr}` : r.door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [r.door.ll] });
+      return dirs.length ? { dirs, floors } : { floors };
     }
 
     // Step-free / fewer-stairs walks (Settings › Journeys): Valhalla on the FOSSGIS server can avoid steps
@@ -5050,7 +5151,7 @@
       // step-free paths can detour more than normal walks; when none is found, show only the straight line
       const direct = distKm(a, b);
       const ok = g && g.length > 1 && lengthKm(g) <= Math.max(direct * 4, direct + 0.8);
-      return ok ? { coords: [a, ...g, b], steps: null, dist: Math.round(t.summary.length * 1000) } : { coords: [a, b], steps: null, dist: null };
+      return ok ? { coords: [a, ...g, b], steps: null, dist: Math.round(t.summary.length * 1000) } : { coords: [a, b], steps: null, dist: null, approx: true };
     }
 
     async function routeRide(path, mode) {
@@ -5071,9 +5172,11 @@
     async function stationWalk(st, plan) {
       const lines = st.lines.map((l) => l.slice());
       const a = lines[0][0], last = lines[lines.length - 1], b = last[last.length - 1];
+      const ends = st.ends || [];
       const street = async () => {
-        const walks = await Promise.all(lines.map((l) => routeWalk(l[0], l[l.length - 1])));
-        return { lines: walks.map((w) => w.coords), walks, floors: null };
+        const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], l[l.length - 1], ends[k])));
+        const floors = walks.flatMap((w) => w.floors || []);
+        return { lines: walks.map((w) => w.coords), walks, floors: floors.length ? floors : null };
       };
       let model = null, route = null;
       try {
@@ -5084,14 +5187,14 @@
       if (!route || route.points.length < 2 || route.same) return st.kanteWalk ? null : street();
       const inside = route.points.map((p) => StationRoute.toLngLat(model, p));
       const parts = [], walks = [];
-      const join = async (p, q) => { // the stretch between the walk's end and where the model's paths begin
+      const join = async (p, q, end) => { // the stretch between the walk's end and where the model's paths begin
         if (distKm(p, q) < 0.03) return;
-        const w = await routeWalk(p, q);
+        const w = await routeWalk(p, q, end);
         parts.push(w.coords);
         walks.push(w);
       };
       // only for free positions: a route from a platform starts wherever it is best to leave that platform
-      if (!route.fromStop) await join(a, inside[0]);
+      if (!route.fromStop) await join(a, inside[0], [(ends[0] || [])[0] || {}, { exact: true }]);
       const whole = (x) => Math.round(x);
       // the station's own written directions, in the shape walkDirections() lists them
       const dirs = route.steps.filter((s) => s.kind !== 'arrive').map((s, k) => {
@@ -5103,8 +5206,10 @@
       });
       parts.push(inside);
       walks.push({ coords: inside, steps: null, dist: route.length, dirs });
-      if (!route.toStop) await join(inside[inside.length - 1], b);
-      const floors = dirs.filter((d) => d.from != null).map((d) => ({ at: d.coords[0], from: d.from, to: d.to }));
+      if (!route.toStop) await join(inside[inside.length - 1], b, [{ exact: true }, (ends[ends.length - 1] || [])[1] || {}]);
+      // the model's floor changes, and any on the street parts before and after it
+      const floors = dirs.filter((d) => d.from != null).map((d) => ({ at: d.coords[0], from: d.from, to: d.to }))
+        .concat(walks.flatMap((w) => w.floors || []));
       return { lines: parts, walks, floors };
     }
 
@@ -5135,9 +5240,27 @@
             st.floors = res.floors;
             queueSheet();
           });
-        } else lines.forEach((line, k) => task(routeWalk(line[0], line[line.length - 1]), (res) => {
+        } else if (st.kanteWalk) {
+          // a walk the Kante engine has routed: where the pedestrian network covers it, its path is drawn and its
+          // directions listed instead (the right door, arcades, floors, never through a building); the engine's walking
+          // time still counts for the plan. Elsewhere the engine's path stays.
+          const all = st.lines.flat(), ends = st.ends || [];
+          if (all.length > 1) {
+            const end = [(ends[0] || [])[0] || {}, (ends[ends.length - 1] || [])[1] || {}];
+            task(routeWalk(all[0], all[all.length - 1], end, true), (res) => {
+              if (!res || !st.kanteWalk) return; // not covered, or the platform has changed since
+              st.lines = [res.coords];
+              st.walks = [res];
+              st.floors = res.floors && res.floors.length ? res.floors : null;
+              queueSheet();
+            });
+          }
+        } else lines.forEach((line, k) => task(routeWalk(line[0], line[line.length - 1], st.ends && st.ends[k]), (res) => {
           st.lines[k] = res.coords;
           (st.walks || (st.walks = []))[k] = res;
+          // floor changes where the walking route actually takes them (else the platform levels imply one)
+          const floors = st.walks.flatMap((w) => (w && w.floors) || []);
+          st.floors = floors.length ? floors : null;
           queueSheet(); // metres and written directions
         }));
         if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.journey.category)), (res) => { st.path = res; });
@@ -5226,6 +5349,7 @@
       closeTimeSheet();
       setRoute([]);
       journeySteps = [];
+      placeUserDot(); // back to plain GPS
       destMarker.remove();
       input.value = '';
       results = [];
