@@ -1399,7 +1399,7 @@
         <button class="set-reset" id="settingsReset" type="button">Reset all settings</button>
       </div>
 
-      <!-- Developer options: tools to test "Adjust to how I walk" with simulated walks (walk-pace.js) -->
+      <!-- Developer options: tools to test "Adjust to how I walk" with logged walks (walk-pace.js) -->
       <div class="set-group set-gap">
         <label class="set-row">
           <span class="set-ic" style="--c:#8e8e93" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8.5 7l-5 5 5 5M15.5 7l5 5-5 5" /></svg></span>
@@ -1418,15 +1418,13 @@
             <input id="devSpeed" type="range" min="2" max="8" step="0.1" value="5" />
           </div>
           <button class="set-reset set-line" type="button" data-dev="draw">Draw a path on the map and walk it</button>
-          <button class="set-reset set-line" type="button" data-dev="walk">Record a 10-minute walk</button>
-          <button class="set-reset set-line" type="button" data-dev="stops">Record a walk with stops at crossings</button>
-          <button class="set-reset set-line" type="button" data-dev="tram">Record a walk, a tram ride, a walk</button>
+          <button class="set-reset set-line" type="button" data-dev="walk">Log a 10-minute walk</button>
           <button class="set-reset set-line" type="button" data-dev="check">Run the start-up check now</button>
           <button class="set-reset set-line" type="button" data-dev="notice">Show the notice</button>
           <button class="set-reset set-line" type="button" data-dev="clear">Delete recorded walks</button>
         </div>
         <p class="set-foot dev-result" id="devPaceResult" role="status"></p>
-        <p class="set-foot">Simulated walks use the speed set here and are measured exactly like real ones; they are only recorded while “Adjust to how I walk” is on. The app changes the walking speed when it starts, so reload it after recording, or run the start-up check here.</p>
+        <p class="set-foot">Walks logged here are instant, at the speed set here. They replace what was recorded, count however short they are, and turn “Adjust to how I walk” on. The app changes the walking speed when it starts, so reload it after logging, or run the start-up check here.</p>
       </div>
     </div>
   </section>
@@ -1938,10 +1936,7 @@
     let lastSavedAt = 0;
     let lastRealPos = null; // the newest fix from the phone itself, to come back to after a simulated walk
     function onPosition(pos) {
-      if (!pos.simulated) {
-        lastRealPos = pos;
-        if (WALK_PACE.simulating()) return; // a simulated walk (developer options) has your position for now
-      }
+      if (!pos.simulated) lastRealPos = pos;
       const lngLat = [pos.coords.longitude, pos.coords.latitude];
       if (!inSwitzerland(lngLat)) {
         showToast('You are outside Switzerland');
@@ -1990,7 +1985,7 @@
       setTimeout(() => EARLY_GEO.attach(onPosition, onPositionError), 0);
     }
 
-    // Developer options: a walk simulated along a path drawn on the map moves your position like real fixes would
+    // Developer options: walking a path drawn on the map puts your position at its end
     WALK_PACE.attach({
       map,
       position: (pos) => { centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)

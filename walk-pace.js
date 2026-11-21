@@ -3,7 +3,7 @@
 // stop of the slider (Slow … Fast) that fits your usual pace, and says so in a notice that stays until you close it.
 // Privacy: all that is kept is each stretch's day, length and duration, in this browser's storage on this device.
 // No positions are kept and nothing is sent anywhere. Turning the setting off deletes it.
-// Also here: the developer tools at the bottom of Settings, which test all this with simulated walks.
+// Also here: the developer tools at the bottom of Settings, which log made-up walks to test all this.
 (function () {
   const KEY = 'walk-pace';
   const STOPS = SETTINGS.speedPresets; // [{ label, kmh }], slow to fast
@@ -67,18 +67,20 @@
         bout.b = ll;
         if (bout.s >= MAX_S) end();
       },
-      stop() { end(); from = null; riding = false; }, // the fixes end here (app in the background, end of a simulation)
+      stop() { end(); from = null; riding = false; }, // the fixes end here (app in the background)
       drop() { from = bout = null; riding = false; },
     };
   }
 
-  // ---- What is kept: { walks: [{ d: day number, s, m }], notice: { from: km/h, to: km/h } or null } ----
-  const data = { walks: [], notice: null };
+  // ---- What is kept: { walks: [{ d: day number, s, m }], notice: { from: km/h, to: km/h } or null, dev } ----
+  // dev: the walks were logged in the developer options, so they count however few or short they are.
+  const data = { walks: [], notice: null, dev: false };
   const isStop = (kmh) => STOPS.some((p) => p.kmh === kmh);
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved && Array.isArray(saved.walks)) data.walks = saved.walks.filter((w) => w && w.s > 0 && w.m > 0 && Number.isFinite(w.d));
     if (saved && saved.notice && isStop(saved.notice.from) && isStop(saved.notice.to)) data.notice = saved.notice;
+    if (saved && saved.dev === true && data.walks.length) data.dev = true;
   } catch { /* starts empty */ }
   function save() {
     try {
@@ -89,15 +91,17 @@
   const on = () => SETTINGS.prefs().autoSpeed;
   const today = () => Math.floor(Date.now() / 864e5);
   function keep(w) {
+    data.dev = false; // a real stretch: the usual rules apply again
     data.walks.push({ d: today(), s: Math.round(w.s), m: Math.round(w.m) });
     data.walks = data.walks.filter((x) => x.d > today() - KEEP_DAYS).slice(-KEEP);
     save();
   }
 
-  // Your usual pace in km/h: the middle one of the stretches, each counted by how long it was. null = too little walking yet.
+  // Your usual pace in km/h: the middle one of the stretches, each counted by how long it was. null = too little walking yet
+  // (a walk logged in the developer options counts however short it is).
   function usualKmh(walks) {
     const total = walks.reduce((n, w) => n + w.s, 0);
-    if (walks.length < NEED_WALKS || total < NEED_S) return null;
+    if (!total || (!data.dev && (walks.length < NEED_WALKS || total < NEED_S))) return null;
     const byPace = walks.map((w) => ({ kmh: w.m / w.s * 3.6, s: w.s })).sort((a, b) => a.kmh - b.kmh);
     let seen = 0;
     for (const w of byPace) {
@@ -166,6 +170,7 @@
   });
   function forget() {
     data.walks = [];
+    data.dev = false;
     live.drop();
     closeNotice();
     save();
@@ -181,6 +186,8 @@
   window.addEventListener('pagehide', () => live.stop());
 
   // ---- Developer options (bottom of Settings) ----
+  // Nothing is measured here: a developer walk is logged straight away as walked at the set speed, so the start-up
+  // check has something to work with at once.
   const devTools = document.getElementById('devTools');
   const devState = document.getElementById('devPaceState');
   const devResult = document.getElementById('devPaceResult');
@@ -192,9 +199,10 @@
   const NEEDS = `at least ${span(NEED_S)} of walking in ${many(NEED_WALKS, 'stretch')}`;
 
   function stateText() {
-    if (!on()) return 'Off. Turn on “Adjust to how I walk” to record walks.';
+    if (!on()) return 'Off. Turn on “Adjust to how I walk”, or log a walk below (that turns it on).';
     if (!data.walks.length) return 'Nothing recorded yet.';
-    const head = `${span(data.walks.reduce((n, w) => n + w.s, 0))} of walking in ${many(data.walks.length, 'stretch')}`;
+    const head = `${span(data.walks.reduce((n, w) => n + w.s, 0))} of walking in ${many(data.walks.length, 'stretch')}`
+      + (data.dev ? ' (logged here)' : '');
     const kmh = usualKmh(data.walks);
     if (kmh == null) return `${head}. A change needs ${NEEDS}.`;
     const cur = stopIndex(SETTINGS.prefs().walkKmh), to = stopFor(kmh, cur);
@@ -207,7 +215,7 @@
     devState.textContent = stateText();
   }
 
-  // The speed simulated walks are walked at: one value, set here or in the path panel
+  // The speed developer walks are logged at: one value, set here or in the path panel
   const DEV_KEY = 'walk-pace-dev';
   const speedInputs = [document.getElementById('devSpeed'), document.getElementById('simSpeed')];
   const speedLabels = [document.getElementById('devSpeedVal'), document.getElementById('simSpeedVal')];
@@ -228,66 +236,32 @@
     setSimKmh(+el.value, true);
   }));
 
-  // ---- Simulated walks: made-up location fixes, one a second, measured by the same tracker as real ones ----
-  // legs: [{ kmh, s }] walked one after the other along path ([lng, lat] points). Gives the place at any second.
-  function simulate(path, legs) {
-    const cum = [0];
-    for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + dist(path[i - 1], path[i]));
-    const total = legs.reduce((n, l) => n + l.s, 0);
-    const metresAt = (t) => {
-      let d = 0;
-      for (const l of legs) {
-        const u = Math.min(l.s, t);
-        d += l.kmh / 3.6 * u;
-        t -= u;
-        if (t <= 0) break;
-      }
-      return d;
-    };
-    const along = (d) => {
-      let i = 1;
-      while (i < path.length - 1 && cum[i] < d) i++;
-      const f = Math.min(1, Math.max(0, (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1)));
-      return [path[i - 1][0] + (path[i][0] - path[i - 1][0]) * f, path[i - 1][1] + (path[i][1] - path[i - 1][1]) * f];
-    };
-    return { total, metresAt, at: (t) => along(metresAt(Math.min(t, total))) };
-  }
-  // The fix at second t, a metre or two off like a real one
-  function fixAt(sim, t0, t) {
-    const [lng, lat] = sim.at(t);
-    const off = () => (Math.random() + Math.random() - 1) * 3;
-    return { ll: [lng + off() / (111320 * Math.cos(lat * Math.PI / 180)), lat + off() / 110540], acc: 8, t: t0 + t * 1000 };
-  }
-  // What a simulation measured; kept like real stretches when the setting is on
-  function record(got) {
-    const s = got.reduce((n, w) => n + w.s, 0), m = got.reduce((n, w) => n + w.m, 0);
-    const kept = on();
-    if (kept) got.forEach(keep);
+  // Logs a walk of this many metres at the set speed. It replaces what was recorded and counts however short it is
+  // (data.dev), and turns "Adjust to how I walk" on if it was off. Says what happens at the next start.
+  function logWalk(metres) {
+    if (!(metres > 0)) return 'Nothing logged: the walk has no length.';
+    const kmh = simKmh, s = metres / (kmh / 3.6);
+    const turnedOn = !on();
+    if (turnedOn) SETTINGS.set({ autoSpeed: true });
+    const parts = Math.ceil(s / MAX_S), d = today();
+    const r1 = (x) => Math.max(0.1, Math.round(x * 10) / 10);
+    live.drop();
+    data.walks = Array.from({ length: parts }, () => ({ d, s: r1(s / parts), m: r1(metres / parts) }));
+    data.dev = true;
+    save();
     renderDev();
-    return { n: got.length, s, m, kmh: s ? m / s * 3.6 : 0, kept };
-  }
-  function resultText(r, setKmh) {
-    if (!r.n) return `Nothing was measured. A stretch only counts from ${MIN_S} s and ${MIN_M} m of steady walking.`;
-    return `Measured ${Math.round(r.m)} m of walking in ${span(r.s)}: average ${r.kmh.toFixed(1)} km/h (set: ${setKmh.toFixed(1)} km/h). `
-      + (r.kept ? `Recorded as ${many(r.n, 'stretch')}.` : 'Not recorded, because “Adjust to how I walk” is off.');
-  }
-  // A whole walk at once, on a straight line east out of Bern
-  const LINE = [[7.4391, 46.948], [7.74, 46.948]];
-  function simulateNow(legs) {
-    const sim = simulate(LINE, legs), got = [];
-    const tracker = makeTracker((w) => got.push(w));
-    const t0 = Date.now() - sim.total * 1000;
-    for (let t = 0; t <= Math.ceil(sim.total); t++) tracker.fix(fixAt(sim, t0, Math.min(t, sim.total)));
-    tracker.stop();
-    return record(got);
+    const avg = usualKmh(data.walks);
+    const cur = stopIndex(SETTINGS.prefs().walkKmh), to = stopFor(avg, cur);
+    return `Logged ${Math.round(metres)} m in ${span(s)}: average ${avg.toFixed(1)} km/h. `
+      + (turnedOn ? 'Turned on “Adjust to how I walk”. ' : '')
+      + (to === cur ? `That fits ${STOPS[cur].label}, the speed in use, so nothing changes.`
+        : `Reload the app and the speed changes from ${STOPS[cur].label} to ${STOPS[to].label}.`);
   }
 
   devTools.addEventListener('click', (e) => {
     const b = e.target.closest('[data-dev]');
     if (!b) return;
-    const v = simKmh;
     const say = (text) => { devResult.textContent = text; };
-    const walk = (s) => ({ kmh: v, s }), stand = (s) => ({ kmh: 0, s });
     switch (b.dataset.dev) {
       case 'draw':
         if (!hooks) return;
@@ -295,19 +269,13 @@
         openDraw();
         break;
       case 'walk':
-        say(resultText(simulateNow([walk(600)]), v));
-        break;
-      case 'stops': // four blocks with a red light after each
-        say(resultText(simulateNow([walk(150), stand(30), walk(150), stand(30), walk(150), stand(30), walk(150)]), v));
-        break;
-      case 'tram': // to the stop, a tram that first crawls and then runs at 30 km/h, on from the stop: only the walking may count
-        say(resultText(simulateNow([walk(240), stand(20), { kmh: 7, s: 40 }, { kmh: 30, s: 200 }, stand(30), walk(120)]), v));
+        say(logWalk(simKmh / 3.6 * 600));
         break;
       case 'check': {
         const r = check();
         say(r.changed ? `Changed from ${labelOf(data.notice.from)} to ${labelOf(data.notice.to)} (usual pace ${r.kmh.toFixed(1)} km/h). The notice is showing.`
           : r.why === 'off' ? 'Nothing to do: “Adjust to how I walk” is off.'
-          : r.why === 'few' ? `No change: too little walking recorded. It needs ${NEEDS}.`
+          : r.why === 'few' ? `No change: too little walking recorded. It needs ${NEEDS}, or a walk logged here.`
           : `No change: the usual pace of ${r.kmh.toFixed(1)} km/h fits ${labelOf(SETTINGS.prefs().walkKmh)}, the speed in use.`);
         break;
       }
@@ -321,6 +289,7 @@
       }
       case 'clear':
         data.walks = [];
+        data.dev = false;
         live.drop();
         save();
         renderDev();
@@ -330,8 +299,7 @@
   });
 
   // ---- Developer options: draw a path on the map and walk it ----
-  // Your position moves along the path at the set speed (played back faster), and the fixes go through the tracker.
-  const PLAY_S = 12; // a simulated walk plays back in about this long, however long the walk
+  // "Walk it" is instant: your position jumps to the end of the path and the walk is logged at the set speed.
   const panel = document.getElementById('simPanel');
   const simStatus = document.getElementById('simStatus');
   const simUndo = document.getElementById('simUndo');
@@ -341,7 +309,6 @@
   let svg = null, svgLine = null, svgDots = null;
   let drawOpen = false;
   let pts = [];       // the path: [lng, lat] points
-  let run = null;     // the walk being played: { raf }
   let lastResult = '';
 
   const pathMetres = () => pts.reduce((n, p, i) => (i ? n + dist(pts[i - 1], p) : 0), 0);
@@ -350,7 +317,6 @@
     const px = pts.map((p) => hooks.map.project(p));
     svgLine.setAttribute('points', px.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
     svgDots.innerHTML = px.map((p, i) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i === 0 || i === px.length - 1 ? 7 : 4.5}" />`).join('');
-    if (run) return;
     simUndo.disabled = simClear.disabled = !pts.length;
     simGo.disabled = pts.length < 2;
     const m = pathMetres();
@@ -366,15 +332,7 @@
     document.body.classList.add('sim-mode');
     drawPath();
   }
-  function stopWalk() {
-    if (!run) return;
-    cancelAnimationFrame(run.raf);
-    run = null;
-    simGo.textContent = 'Walk it';
-    speedInputs[1].disabled = false;
-  }
   function closeDraw() {
-    stopWalk();
     drawOpen = false;
     pts = [];
     panel.hidden = true;
@@ -382,36 +340,11 @@
     drawPath();
     hooks.restore(); // your real position again
   }
-  function startWalk() {
-    const kmh = simKmh, metres = pathMetres();
-    const sim = simulate(pts, [{ kmh, s: metres / (kmh / 3.6) }]), got = [];
-    const tracker = makeTracker((w) => got.push(w));
-    const rate = Math.max(1, sim.total / PLAY_S);
-    const t0 = Date.now(), began = performance.now();
-    let fed = -1;
-    live.drop(); // real fixes are set aside while this runs
-    lastResult = '';
-    simGo.textContent = 'Stop';
-    simUndo.disabled = simClear.disabled = speedInputs[1].disabled = true; // the walk keeps the speed it started with
-    const frame = (now) => {
-      const t = Math.min(sim.total, (now - began) / 1000 * rate);
-      while (fed + 1 <= t) tracker.fix(fixAt(sim, t0, ++fed)); // one fix for every second of the walk
-      const [lng, lat] = sim.at(t);
-      hooks.position({ coords: { longitude: lng, latitude: lat, accuracy: 8 }, timestamp: Date.now(), simulated: true });
-      simStatus.textContent = `Walking at ${kmh.toFixed(1)} km/h: ${Math.round(sim.metresAt(t))} of ${Math.round(metres)} m.`;
-      if (t < sim.total) { run.raf = requestAnimationFrame(frame); return; }
-      tracker.fix(fixAt(sim, t0, sim.total));
-      tracker.stop();
-      stopWalk();
-      lastResult = 'Arrived. ' + resultText(record(got), kmh);
-      drawPath();
-    };
-    run = { raf: requestAnimationFrame(frame) };
-  }
   simGo.addEventListener('click', () => {
-    if (!run) return startWalk();
-    stopWalk();
-    lastResult = 'Stopped. Nothing was recorded.';
+    if (pts.length < 2) return;
+    const [lng, lat] = pts[pts.length - 1];
+    hooks.position({ coords: { longitude: lng, latitude: lat, accuracy: 8 }, timestamp: Date.now(), simulated: true });
+    lastResult = 'Arrived. ' + logWalk(pathMetres());
     drawPath();
   });
   simUndo.addEventListener('click', () => { pts.pop(); lastResult = ''; drawPath(); });
@@ -420,7 +353,7 @@
 
   window.WALK_PACE = {
     // every real location fix: { ll: [lng, lat], acc: metres, speed: m/s or nothing, t: ms }
-    fix(f) { if (on() && !run) live.fix(f); },
+    fix(f) { if (on()) live.fix(f); },
     // the main script hands over the map, a way to set your position, and one to put the real one back
     attach(h) {
       hooks = h;
@@ -434,14 +367,13 @@
       h.map.on('move', drawPath);
       h.map.on('resize', drawPath);
       h.map.on('click', (e) => {
-        if (!drawOpen || run) return;
+        if (!drawOpen) return;
         pts.push([e.lngLat.lng, e.lngLat.lat]);
         lastResult = '';
         drawPath();
       });
     },
     drawing: () => drawOpen,   // taps on the map draw the path
-    simulating: () => !!run,   // a simulated walk has your position for now
   };
 
   // ---- Start ----
