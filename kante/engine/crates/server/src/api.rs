@@ -55,6 +55,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/trip", get(trip))
         .route("/api/vehicles", get(vehicles))
         .route("/api/due", get(due))
+        .route("/api/identify", get(identify))
         .route("/api/match", get(match_trip))
         .route("/api/stream", get(stream))
         .route("/api/plan", post(plan))
@@ -73,7 +74,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
         valid_to: time::fmt_date(tt.end_date()),
         walk_bbox: [b.min.lon_deg(), b.min.lat_deg(), b.max.lon_deg(), b.max.lat_deg()],
         realtime: app.live.read().meta.clone(),
-        features: vec!["match", "due", "stream", "extras", "gtfs-rt"],
+        features: vec!["match", "due", "stream", "extras", "gtfs-rt", "identify", "quay-sloid"],
         counts: json::Counts {
             stations: tt.stations.len(),
             quays: tt.stops.len(),
@@ -185,8 +186,9 @@ struct DepParams {
 async fn departures(State(app): S, Q(p): Q<DepParams>) -> Result<Json<json::DeparturesResponse>, ApiError> {
     let tt = &app.tt;
     let (station, stops): (StationIdx, Vec<StopIdx>) = if let Some(q) = &p.quay {
-        let s = *app.stop_ids.get(q.as_str()).ok_or_else(|| bad("unknown quay"))?;
-        (tt.stops[s as usize].station, vec![s])
+        let stops = app.quays_of(q);
+        let first = *stops.first().ok_or_else(|| bad("unknown quay"))?;
+        (tt.stops[first as usize].station, stops)
     } else if let Some(id) = &p.station {
         let st = app.station_ids.get(id.as_str()).copied().or_else(|| liveapi::station_of(&app, id)).ok_or_else(|| bad("unknown station"))?;
         (st, tt.stations[st as usize].stops.clone())
@@ -340,9 +342,8 @@ async fn vehicles(State(app): S, Q(p): Q<BboxParams>) -> Result<Json<json::Vehic
         return Err(bad("bbox too large"));
     }
     let t = check_t(p.t.unwrap_or_else(now_unix))?;
-    let _permit = app.heavy.acquire().await.map_err(|_| ApiError(StatusCode::SERVICE_UNAVAILABLE, "shutting down".into()))?;
     let a = app.clone();
-    let body = tokio::task::spawn_blocking(move || liveapi::vehicles(&a, &bbox, t)).await.map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "failed".into()))?;
+    let body = liveapi::run_heavy(&app.heavy, move || liveapi::vehicles(&a, &bbox, t)).await.ok_or_else(|| ApiError(StatusCode::SERVICE_UNAVAILABLE, "try again".into()))?;
     Ok(Json(body))
 }
 
@@ -375,7 +376,11 @@ struct DueParams {
 async fn due(State(app): S, Q(p): Q<DueParams>) -> Result<Json<json::DueResponse>, ApiError> {
     let tt = &app.tt;
     let stops: Vec<StopIdx> = if let Some(q) = &p.quay {
-        vec![*app.stop_ids.get(q.as_str()).ok_or_else(|| bad("unknown quay"))?]
+        let stops = app.quays_of(q);
+        if stops.is_empty() {
+            return Err(bad("unknown quay"));
+        }
+        stops
     } else if let Some(id) = &p.station {
         let st = liveapi::station_of(&app, id).ok_or_else(|| bad("unknown station"))?;
         tt.stations[st as usize].stops.clone()
@@ -403,6 +408,51 @@ async fn due(State(app): S, Q(p): Q<DueParams>) -> Result<Json<json::DueResponse
         limit: p.limit.unwrap_or(30).clamp(1, 200),
     };
     Ok(Json(liveapi::due(&app, &q)))
+}
+
+#[derive(Deserialize)]
+struct IdentifyParams {
+    lat: f64,
+    lon: f64,
+    t: Option<i64>,
+    #[serde(default)]
+    line: String,
+    #[serde(default)]
+    headsign: String,
+    bearing: Option<f32>,
+    radius: Option<f32>,
+    quay: Option<String>,
+}
+
+async fn identify(State(app): S, Q(p): Q<IdentifyParams>) -> Result<Json<json::IdentifyResponse>, ApiError> {
+    if !valid_lat(p.lat) || !p.lon.is_finite() || p.lon.abs() > 180.0 {
+        return Err(bad("lat/lon out of range"));
+    }
+    if p.line.len() > 40 || p.headsign.len() > 200 {
+        return Err(bad("line or headsign too long"));
+    }
+    let stops = match &p.quay {
+        Some(q) => {
+            let s = app.quays_of(q);
+            if s.is_empty() {
+                return Err(bad("unknown quay"));
+            }
+            Some(s)
+        }
+        None => None,
+    };
+    let q = crate::identify::IdentifyQuery {
+        pos: LatLon::from_deg(p.lat, p.lon),
+        t: check_t(p.t.unwrap_or_else(now_unix))?,
+        line: p.line,
+        headsign: p.headsign,
+        bearing: p.bearing.filter(|b| b.is_finite()).map(|b| b.rem_euclid(360.0)),
+        radius: p.radius.filter(|r| r.is_finite()).unwrap_or(120.0).clamp(20.0, 400.0),
+        stops,
+    };
+    let a = app.clone();
+    let body = liveapi::run_heavy(&app.heavy, move || crate::identify::identify(&a, &q)).await.ok_or_else(|| ApiError(StatusCode::SERVICE_UNAVAILABLE, "try again".into()))?;
+    Ok(Json(body))
 }
 
 #[derive(Deserialize)]

@@ -33,7 +33,12 @@
   interface ScanUI {
     root: HTMLElement; video: HTMLVideoElement; still: HTMLImageElement; ar: HTMLDivElement; ring: HTMLDivElement;
     status: HTMLDivElement; sheet: HTMLDivElement; debug: HTMLPreElement; tags: Map<string, HTMLDivElement>; shownKey: string;
+    hl: SVGSVGElement; hlLabel: HTMLDivElement;
   }
+  // A frame prepared for OCR, and where it came from in the picture (to put what was read back onto it)
+  interface OcrShot { image: Blob | HTMLCanvasElement; r: Region; scale: number }
+  // signloc.js (feature/indoor-positioning): the app's sign parser, there once the 3D viewer has loaded
+  interface SignParse { platforms?: string[]; platformWord?: boolean }
   // The live camera or the photo taken instead: a video has the one pair of sizes, a picture the other
   interface FrameSize { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number }
   type Frame = (HTMLVideoElement | HTMLImageElement) & FrameSize;
@@ -62,6 +67,8 @@
   let headingAt = 0;
   let candidates: StopVisionCandidate[] = [];     // stops around you, scored
   let candidatesBy = '';   // 'gps' (around you) or 'sign' (no position: stops whose name was read)
+  let highlight: ScanHighlight | null = null; // the sign found in the picture (box in picture px, heading then, ok, warn)
+  let conflict: ScanConflict | null = null;   // a clearly read stop name that is not around you
   const evidence = new Map<string, StopVisionEvidence>(); // uic → { ocr, ocrAt, ocrWhat, edgeOcr, vis, visRef, visStreak, departures }
   const tiles = new Map<string, StopVisionTile>();    // photo tiles loaded: key → { uic: refs }
   let modelState: LoadState = 'idle';
@@ -72,6 +79,7 @@
   let stillImage: string | null = null;   // a photo taken with the file input instead of the live camera
   let stillFrames = 0;     // photo comparisons done on that photo (one is enough: it does not change)
   let stillReads = 0;      // sign readings done on it
+  let sourceGen = 0;       // +1 whenever the picture source changes (a photo chosen): older readings are dropped
 
   // ---------------------------------------------------------------- small helpers
   const $ = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, text?: string | null) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -197,9 +205,25 @@
   .sv-photo a { color: #c7c7cc; }
   .sv-alt { list-style: none; margin: 12px 0 0; padding: 0; }
   .sv-alt li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); font-size: 14px; cursor: pointer; }
-  .sv-alt li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sv-alt li span:not(.sv-ic) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sv-alt li small { color: #aeaeb2; }
   .sv-file { display: none; }
+  .sv-hl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .sv-hl-box { fill: none; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 6px rgba(255,255,255,.8)); }
+  .sv-hl-box.ok { stroke: #34c759; filter: drop-shadow(0 0 8px rgba(52,199,89,.9)); }
+  .sv-hl-box.warn { stroke: #ff9f0a; filter: drop-shadow(0 0 8px rgba(255,159,10,.9)); }
+  .sv-hl-label { position: absolute; padding: 4px 10px; border-radius: 10px; background: #fff; color: #1c1c1e;
+                 font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .sv-hl-label.ok { background: #34c759; color: #fff; }
+  .sv-hl-label.warn { background: #ff9f0a; color: #1c1c1e; }
+  .sv-tag > span { border: 1px dashed rgba(255,255,255,.45); } /* map-based pins: approximate, unlike the outlined sign */
+  .sv-place { list-style: none; margin: 10px 0 0; padding: 0; }
+  .sv-place li { padding: 8px 10px; margin-top: 6px; border-radius: 10px; background: rgba(255,255,255,.08); font-size: 14px; line-height: 1.35; }
+  .sv-place li.muted { color: #aeaeb2; }
+  .sv-place li.route { background: rgba(74,106,163,.45); }
+  .sv-place li.ok { background: rgba(47,158,91,.45); }
+  .sv-place li.warn { background: rgba(255,159,10,.32); }
+  .sv-state.warn { background: #b26a00; }
   .sv-debug { position: absolute; left: 12px; top: calc(env(safe-area-inset-top) + 64px); margin: 0; padding: 8px 10px; border-radius: 10px;
               background: rgba(0,0,0,.66); color: #9f9; font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: none; display: none; }
   .sv.debug .sv-debug { display: block; }
@@ -251,7 +275,10 @@
     const sheet = $('div', 'sv-sheet');
     sheet.setAttribute('aria-live', 'polite');
     const debug = $('pre', 'sv-debug');
-    root.append(video, still, ar, ring, top, sheet, file, debug);
+    const hl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    hl.setAttribute('class', 'sv-hl'); hl.setAttribute('aria-hidden', 'true'); hl.style.display = 'none';
+    const hlLabel = $('div', 'sv-hl-label'); hlLabel.style.display = 'none';
+    root.append(video, still, hl, ar, hlLabel, ring, top, sheet, file, debug);
     // diagnostics: open the app with ?scandebug, or tap the status text three times
     let taps = 0, tapAt = 0;
     status.addEventListener('click', () => {
@@ -275,7 +302,7 @@
       lastOcr = 0;
     });
     document.addEventListener('keydown', onKey);
-    return { root, video, still, ar, ring, status, sheet, debug, tags: new Map(), shownKey: '' };
+    return { root, video, still, ar, ring, status, sheet, debug, hl, hlLabel, tags: new Map(), shownKey: '' };
   }
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeScan(); };
 
@@ -377,8 +404,8 @@
         s += c.ahead ? 0.8 : -Math.min(1.5, (bestOff - slack) / 40); // soft: compasses can be off by tens of degrees
       }
       c.geo = s; // location + compass only
-      if (fresh(ev.ocrAt, 12000) && ev.ocr! >= 0.72) s += 6 * (ev.ocr! - 0.6) / 0.4; // a read name dominates
-      if (ev.lines) s += Math.min(1, 0.4 * ev.lines);
+      if (fresh(ev.ocrAt, 12000) && ev.ocr! >= 0.72) s += (ev.ocrUnique ? 6 : 1.5) * (ev.ocr! - 0.6) / 0.4; // the sign's own name dominates; names merely listed on it (destinations) count little
+      if (ev.lines && fresh(ev.linesAt, 12000)) s += Math.min(1, 0.4 * ev.lines);
       if (ev.vis != null && ev.visRel != null) s += Math.max(-0.5, Math.min(1.5, ev.visRel * 12)); // tie-breaker
       c.score = s;
     }
@@ -460,7 +487,9 @@
   }
   async function ocrImage(region: Region | null, invert: boolean | ((dark: boolean) => boolean)) {
     const [w, h] = sourceSize();
-    const r = region || { x: w * 0.05, y: h * 0.05, w: w * 0.9, h: h * 0.75 }; // signs are rarely at the bottom
+    const r = region || (ocrPass % 4 >= 2
+      ? { x: w * 0.05, y: h * 0.03, w: w * 0.9, h: h * 0.94 }   // the whole picture
+      : { x: w * 0.05, y: h * 0.05, w: w * 0.9, h: h * 0.75 }); // its upper part, where signs mostly are
     const flip = typeof invert === 'function' ? invert(isDark(r)) : invert;
     const scale = Math.min(1, 1400 / r.w);
     if (!ocrCanvasEl) ocrCanvasEl = document.createElement('canvas');
@@ -482,7 +511,7 @@
       ctx.putImageData(img, 0, 0);
     }
     const blob = await new Promise<Blob | null>((resolve) => (c.toBlob ? c.toBlob(resolve, 'image/jpeg', 0.92) : resolve(null)));
-    return blob || c;
+    return { image: blob || c, r, scale }; // r, scale: to put what was read back onto the picture
   }
 
   let gateCanvas: HTMLCanvasElement | null = null;
@@ -505,105 +534,249 @@
     if (tap) {
       const rw = w * 0.7, rh = h * 0.28;
       region = { x: Math.max(0, Math.min(w - rw, tap.x - rw / 2)), y: Math.max(0, Math.min(h - rh, tap.y - rh / 2)), w: rw, h: rh };
-    } else if (stillImage && stillReads >= 2) return; // a photo does not change: read it twice (normal + inverted)
+    } else if (stillImage && stillReads >= 4) return; // a photo does not change: each reading mode once, both polarities
     if (stillImage && !tap) stillReads++;
     ocrPass++;
     // polarity follows the picture (dark crop → light text); every 4th reading, and the second reading of a photo,
     // tries the other one, for signs that fool the guess
     const other = stillImage && !tap ? stillReads === 2 : ocrPass % 4 === 0;
-    const image = await ocrImage(region, (dark) => (other ? !dark : dark));
+    const gen = sourceGen;
+    const shot = await ocrImage(region, (dark) => (other ? !dark : dark));
+    const shotHeading = headingOk() ? heading : null;
+    // Tesseract's two ways of finding text each read signs the other misses (measured on Swiss stop signs:
+    // "sparse text" reads Aspholz and Simmirank, "page" reads Buchs Rathaus), so the passes take turns
+    await reader.setParameters({ tessedit_pageseg_mode: ocrPass % 2 ? '3' : '11' });
     if (!running || !ui || mine !== session) return;
     const t0 = performance.now();
-    const { data } = await reader.recognize(image);
+    const { data } = await reader.recognize(shot.image, {}, { text: true, blocks: true });
     stats.ocr.push(performance.now() - t0);
-    if (!running || mine !== session) return;
+    if (!running || mine !== session || gen !== sourceGen) return; // Scan closed, or another picture by now
     if (tap && tapRead === tap) { tapRead = null; ui.ring.classList.remove('on'); }
-    await useText(data.text || '', !!tap);
+    await useText(data.text || '', !!tap, layoutOf(data, shot), shotHeading);
+  }
+
+  // ---- where the words are: Tesseract's blocks → words with boxes in picture pixels (confident words only)
+  function layoutOf(data: TesseractPage, shot: OcrShot): ScanLayout {
+    const words: ScanWord[] = [];
+    let lineNo = 0;
+    const box = (bb: TesseractBBox): ScanBox => ({ x0: shot.r.x + bb.x0 / shot.scale, y0: shot.r.y + bb.y0 / shot.scale,
+                           x1: shot.r.x + bb.x1 / shot.scale, y1: shot.r.y + bb.y1 / shot.scale });
+    (data.blocks || []).forEach((bl, bi) => {
+      for (const pa of bl.paragraphs || []) for (const ln of pa.lines || []) {
+        lineNo++;
+        for (const w of ln.words || []) {
+          const toks = norm(w.text).split(' ').filter(Boolean);
+          const n = toks.join('');
+          if (!n) continue;
+          // big lettering (the stop name) often reads with a low confidence: keep every word for matching names
+          // (a match with a real stop name is itself the evidence); the typical text size uses confident words only
+          const bx = box(w.bbox);
+          words.push({ n, toks, box: bx, h: bx.y1 - bx.y0, block: bi, line: lineNo, conf: w.confidence });
+        }
+      }
+    });
+    const hs = words.filter((w) => w.n.length >= 3 && w.conf >= 50).map((w) => w.h).sort((x, y) => x - y);
+    const lines = new Map<number, ScanWord[]>();
+    for (const w of words) { if (!lines.has(w.line)) lines.set(w.line, []); lines.get(w.line)!.push(w); }
+    return { words, lines: [...lines.values()], medianH: hs.length ? hs[hs.length >> 1] : 0, maxH: hs.length ? hs[hs.length - 1] : 0, confident: hs.length };
+  }
+  const union = (u: ScanBox | null, v: ScanBox): ScanBox => (u ? { x0: Math.min(u.x0, v.x0), y0: Math.min(u.y0, v.y0), x1: Math.max(u.x1, v.x1), y1: Math.max(u.y1, v.y1) } : { ...v });
+
+  // Where a stop name is written: the best run of words on one line → { score, box, h }
+  function locateName(layout: ScanLayout, variant: string): { score: number; box?: ScanBox; h?: number } {
+    const want = variant.replace(/ /g, '');
+    const k = variant.split(' ').length;
+    let best: { score: number; box?: ScanBox; h?: number } = { score: 0 };
+    for (const ws of layout.lines) {
+      for (let n = Math.max(1, k - 1); n <= k + 1; n++) for (let i = 0; i + n <= ws.length; i++) {
+        const run = ws.slice(i, i + n);
+        const got = run.map((w) => w.n).join('');
+        if (Math.abs(got.length - want.length) > want.length * 0.4) continue;
+        const sc = ratio(got, want);
+        if (sc > best.score) best = { score: sc, box: run.reduce((u: ScanBox | null, w) => union(u, w.box), null)!, h: run.reduce((t, w) => t + w.h, 0) / run.length };
+      }
+    }
+    return best;
+  }
+
+  // The sign plate around a stop name: the name and the text right under it (lines, destinations, bay letter)
+  function signRegion(layout: ScanLayout, hit: { box: ScanBox; h: number }): ScanBox {
+    const h = hit.h || 20, wName = hit.box.x1 - hit.box.x0;
+    let box = { ...hit.box };
+    for (const w of layout.words) {
+      // smaller lines right under the name and roughly in its column: lines, destinations, bay letter
+      if (w.h <= h * 0.9 && w.box.y0 > hit.box.y1 - h * 0.2 && w.box.y1 < hit.box.y1 + 3 * h
+          && w.box.x1 > hit.box.x0 - 0.3 * wName && w.box.x0 < hit.box.x1 + 0.6 * wName) box = union(box, w.box);
+    }
+    const padX = h * 0.35, padY = h * 0.3;
+    return { x0: box.x0 - padX, y0: box.y0 - padY, x1: box.x1 + padX, y1: box.y1 + padY };
+  }
+  const within = (bx: ScanBox, r: ScanBox) => bx.x0 >= r.x0 && bx.x1 <= r.x1 && bx.y0 >= r.y0 && bx.y1 <= r.y1;
+
+  // How well each stop's name fits what was read → [{ c, best, what, box, h }]
+  async function nameHits(pool: StopVisionCandidate[], tokens: string[], layout: ScanLayout | null | undefined, located: boolean, mine: number): Promise<ScanNameHit[] | null> {
+    const hits: ScanNameHit[] = [];
+    let sliceAt = performance.now();
+    for (const c of pool) {
+      if (pool.length > 200 && performance.now() - sliceAt > 8) { // long list: let the screen draw in between
+        await new Promise((r) => setTimeout(r, 0));
+        sliceAt = performance.now();
+        if (mine !== session) return null; // Scan closed meanwhile
+      }
+      let best = 0, what = '', where: { score: number; box?: ScanBox; h?: number } | null = null;
+      for (const v of c.variants) {
+        const loc: { score: number; box?: ScanBox; h?: number } = layout && layout.words.length ? locateName(layout, v) : { score: matchIn(tokens, v) };
+        let m = loc.score;
+        if (!distinctive(v)) m *= 0.85; // "Bahnhof" alone proves little
+        // without a position, "Rathaus" fits dozens of towns: the town has to be on the sign too
+        if (!located && v !== c.variants[0]) m = m * 0.8 + 0.2 * matchIn(tokens, c.variants[0].slice(0, c.variants[0].length - v.length).trim() || v);
+        if (m > best) { best = m; what = v; where = loc; }
+      }
+      if (best >= 0.72) hits.push({ c, best, what, box: (where && where.box) || undefined, h: (where && where.h) || 0 });
+    }
+    return hits;
   }
 
   // Compare read text with the stops around (or, without a position, all stops)
-  async function useText(text: string, wasTap: boolean) {
+  async function useText(text: string, wasTap: boolean, layout?: ScanLayout | null, shotHeading?: number | null) {
     // other parts of the app can use what was read (indoornav.js: signs as indoor position evidence)
     try { window.dispatchEvent(new CustomEvent('scan:text', { detail: { text, tap: !!wasTap } })); } catch (e) {}
     const all = norm(text).split(' ').filter(Boolean);
     const tokens = all.filter((t) => t.length >= 2 || /^\d$/.test(t));
     if (!tokens.length) { if (wasTap) app!.toast('No text found there. Move closer to the sign.'); return; }
     const now = Date.now();
-    let pool = candidates;
-    if (!position()) pool = allStopsMatching(tokens);
-    const hits: { c: StopVisionCandidate; best: number }[] = [];
     const located = !!position();
-    let sliceAt = performance.now();
     const mine = session;
-    for (const c of pool) {
-      if (pool.length > 200 && performance.now() - sliceAt > 8) { // long list: let the screen draw in between
-        await new Promise((r) => setTimeout(r, 0));
-        sliceAt = performance.now();
-        if (mine !== session) return; // Scan closed meanwhile
-      }
-      let best = 0, what = '';
-      for (const v of c.variants) {
-        let m = matchIn(tokens, v);
-        if (!distinctive(v)) m *= 0.85; // "Bahnhof" alone proves little
-        // without a position, "Rathaus" fits dozens of towns: the town has to be on the sign too
-        if (!located && v !== c.variants[0]) m = m * 0.8 + 0.2 * matchIn(tokens, c.variants[0].slice(0, c.variants[0].length - v.length).trim() || v);
-        if (m > best) { best = m; what = v; }
-      }
-      const ev = evidence.get(c.uic) || {};
-      if (best >= 0.72 && (!ev.ocrAt || now - ev.ocrAt > 12000 || best >= ev.ocr!)) {
-        Object.assign(ev, { ocr: best, ocrAt: now, ocrWhat: what, ocrUnique: true, ocrStrong: distinctive(what) });
-        evidence.set(c.uic, ev);
-        hits.push({ c, best });
-      }
-      // platform letter / number written next to a word like Kante, Gleis, Quai (e.g. "Kante C", "Gleis 7")
-      const refs: string[] = [];
-      for (let i = 0; i < all.length - 1; i++) {
-        if (/^(kante|gleis|gl|steig|quai|voie|binario|perron|bay|platform)$/.test(all[i]) && /^[a-z0-9]{1,3}$/.test(all[i + 1])) refs.push(all[i + 1].toUpperCase());
-      }
-      if (refs.length) {
-        const ei = c.st.edges.findIndex((e) => e.key && refs.includes(e.key));
-        if (ei >= 0) { ev.edgeOcr = ei; ev.edgeOcrAt = now; evidence.set(c.uic, ev); }
-      }
-      // line numbers and destinations: from the timetable (offline, tools/build_stop_images.py --gtfs) and the
-      // live departures. They only confirm a stop and pick its edge; on their own they never recognise a stop.
-      const served: ServedLine[] = []; // [{ edge, line, to }]
-      for (const l of linesOf(c.uic) || []) {
-        for (const line of l.lines) served.push({ edge: l.edge, line, to: null });
-        for (const to of l.dests) served.push({ edge: l.edge, line: null, to });
-      }
-      for (const d of ev.departures || []) served.push({ edge: d.edge, line: norm(d.line), to: d.to });
-      if (served.length) {
-        const lines = new Set(served.filter((d) => d.line).map((d) => d.line));
-        const hit = new Set(tokens.filter((t) => /^\d{1,3}[a-z]?$/.test(t) && lines.has(t)));
-        ev.lines = hit.size >= 2 ? hit.size : 0;
-        const dests = new Map<string, Set<number | null>>(); // destination → edges it leaves from
-        for (const d of served) if (d.to) dests.set(norm(d.to.split(',').pop()), (dests.get(norm(d.to.split(',').pop())) || new Set()).add(d.edge));
-        for (const [dest, edges] of dests) {
-          if (edges.size !== 1 || edges.has(null)) continue; // goes from several edges: says nothing about which
-          const edge = [...edges][0];
-          const words = dest.split(' ').filter((t) => t.length >= 4 && !GENERIC.has(t));
-          if (words.length && words.every((wd) => tokens.some((t) => ratio(t, wd) >= 0.85))) { ev.edgeDest = edge; ev.edgeDestAt = now; ev.destWhat = dest; }
-        }
-        evidence.set(c.uic, ev);
+    const pool = located ? candidates : allStopsMatching(tokens);
+    const hits = await nameHits(pool, tokens, layout, located, mine);
+    if (!hits) return;
+    for (const h of hits) {
+      const ev = evidence.get(h.c.uic) || {};
+      if (!ev.ocrAt || now - ev.ocrAt > 12000 || h.best >= (ev.ocr || 0)) {
+        Object.assign(ev, { ocr: h.best, ocrAt: now, ocrWhat: h.what, ocrUnique: true, ocrStrong: distinctive(h.what) });
+        evidence.set(h.c.uic, ev);
       }
     }
-    hits.sort((a, b) => b.best - a.best);
-    if (located && hits.length > 1) {
-      // Signs also list destinations, which are names of other stops: of the stops read at once, the nearest
-      // one is where you are; the others only count as "read", not as recognised
-      const near = hits.reduce((a, b) => (b.c.dist < a.c.dist ? b : a));
-      for (const h of hits) if (h !== near && h.c.dist > near.c.dist + 40) evidence.get(h.c.uic)!.ocrUnique = false;
+    // Which of the names read is the stop's own? On a stop sign the name is the biggest text; the destinations
+    // under it are smaller. Without sizes (no layout): the nearest stop, or (no GPS) a clear single winner.
+    const bySize = hits.filter((h) => h.h).sort((x, y) => y.h - x.h);
+    const sizeWinner = bySize.length > 1 && bySize[0].h >= 1.25 * bySize[1].h ? bySize[0] : null;
+    let name: ScanNameHit | null = null;
+    const small = (h: ScanNameHit) => layout && layout.confident >= 4 && h.h && h.h < 1.15 * layout.medianH; // as small as most text
+    if (hits.length === 1) name = hits[0];
+    else if (hits.length > 1) {
+      if (sizeWinner) name = sizeWinner;
+      else if (located) name = hits.reduce((x, y) => (y.c.dist < x.c.dist ? y : x));
+      else {
+        hits.sort((x, y) => y.best - x.best);
+        if (hits[0].best - hits[1].best >= 0.1) name = hits[0];
+      }
+      for (const h of hits) if (h !== name) evidence.get(h.c.uic)!.ocrUnique = false;
     }
+    if (name && small(name) && !sizeWinner) { evidence.get(name.c.uic)!.ocrUnique = false; }
+    else if (name) { const evn = evidence.get(name.c.uic)!; evn.ocrUnique = true; evn.ocrAt = now; } // this pass's verdict counts
     if (!located && hits.length) {
-      // no GPS: list the stops whose name was read; only a clear single winner counts as recognised
-      const clear = hits.length === 1 || hits[0].best - hits[1].best >= 0.1;
-      hits.forEach((h, i) => { evidence.get(h.c.uic)!.ocrUnique = clear && i === 0; });
-      candidates = hits.slice(0, 8).map((h) => h.c);
+      hits.sort((x, y) => Number(y === name) - Number(x === name) || y.best - x.best);
+      // keep the stops read in the last seconds too: each reading pass catches different words
+      const earlier = candidatesBy === 'sign' ? candidates.filter((c) => fresh((evidence.get(c.uic) || {}).ocrAt, 12000) && !hits.some((h) => h.c === c)) : [];
+      candidates = hits.slice(0, 8).map((h) => h.c).concat(earlier).slice(0, 12);
       candidatesBy = 'sign';
-      if (!clear) app!.toast('Several stop names fit what was read (signs also list destinations). Turn on location to know which one is here.');
+      if (!name) app!.toast('Several stop names fit what was read (signs also list destinations). Turn on location to know which one is here.');
     }
-    const bestHit = hits[0];
-    if (wasTap && !bestHit) app!.toast('Read: “' + text.replace(/\s+/g, ' ').trim().slice(0, 60) + '” – no stop nearby has that name.');
+
+    // Bay letter, line numbers and destinations count only for the sign whose name was read, and only when they are
+    // on that sign (the text around the name); a destination served from just one edge picks that edge.
+    const region = name && name.box && layout ? signRegion(layout, { box: name.box, h: name.h }) : null;
+    const signWords = region && layout ? layout.words.filter((w) => within(w.box, region)).sort((x, y) => x.line - y.line || x.box.x0 - y.box.x0).flatMap((w) => w.toks) : all;
+    const signTokens = region ? signWords : tokens;
+    const target = name ? name.c : (located && candidates[0] && !hits.length ? candidates[0] : null);
+    if (target) edgeFromSign(target, signWords, signTokens, now, !name || !region); // no positions: weak evidence only
+    if (name) {
+      const ev = evidence.get(name.c.uic)!;
+      ev.signBox = region || name.box || null; ev.nameBox = name.box || null;
+    }
+
+    // A clearly written stop name that is not around you: say so instead of quietly trusting the GPS
+    // Is there bigger lettering than the nearby name we found? Then that may be the sign's real name (a destination
+    // near you listed on the sign of a stop elsewhere): check it against all stops too.
+    // header-sized: clearly bigger than most text, or among the biggest confidently read (a sign with few words)
+    const header = (h: number) => !layout || !layout.medianH || h >= 1.25 * layout.medianH || h >= 0.85 * layout.maxH;
+    const prominent = layout && layout.words.length
+      ? layout.words.filter((w) => w.n.length >= 4 && (name && name.h ? w.h >= 1.25 * name.h : header(w.h))).map((w) => w.n) : [];
+    if (name && name.best >= 0.8 && distinctive(name.what) && !prominent.length) conflict = null; // a local stop's name was read
+    if (located && (!name || name.best < 0.8 || !distinctive(name.what) || prominent.length)) {
+      const look = prominent.length || layout ? prominent : tokens; // with word sizes: header-sized words only
+      // which stops to check: those named in big lettering; how well they fit: all the words (the town is often smaller)
+      const far = look.length ? await nameHits(allStopsMatching(look), tokens, layout, false, mine) : [];
+      if (far === null) return;
+      const pos = position();
+      const elsewhere = (far || []).filter((h) => h.best >= 0.88 && distinctive(h.what) && (!h.h || header(h.h))
+        && !!pos && distM(pos.ll, h.c.st.edges[0].ll) > 1500).sort((x, y) => y.best - x.best || y.h - x.h);
+      if (elsewhere.length && (elsewhere.length === 1 || elsewhere[0].best - elsewhere[1].best >= 0.05 || elsewhere[0].h >= 1.25 * elsewhere[1].h)
+          && (!name || !name.h || elsewhere[0].h >= 1.25 * name.h || name.best < 0.8 || !distinctive(name.what))) {
+        const h = elsewhere[0];
+        if (name) { const evn = evidence.get(name.c.uic); if (evn) evn.ocrUnique = false; name = null; } // the nearby name was a destination
+        conflict = { c: h.c, what: h.what, dist: distM(pos!.ll, h.c.st.edges[0].ll), at: now };
+        if (h.box && layout) highlight = { box: signRegion(layout, { box: h.box, h: h.h }), name: h.box, label: `${h.c.st.name.split(',').pop()!.trim()} · not here`, at: now, h0: shotHeading ?? null, warn: true };
+      }
+    }
+    if (name && region && !conflict) {
+      const e = edgeOf(name.c);
+      const ref = e && name.c.st.edges[e.i] && name.c.st.edges[e.i].ref;
+      highlight = { box: region, name: name.box, label: name.c.st.name.split(',').pop()!.trim() + (ref ? ` · ${EDGE_WORD(name.c.st.mode)} ${ref}` : ''),
+                    at: now, h0: shotHeading ?? null, ok: !!(evidence.get(name.c.uic)!.ocrUnique && evidence.get(name.c.uic)!.ocrStrong && name.best >= 0.8) };
+    }
+    if (wasTap && !hits.length && !conflict) app!.toast('Read: “' + text.replace(/\s+/g, ' ').trim().slice(0, 60) + '” – no stop nearby has that name.');
+  }
+
+  // Bay letter / destinations on a stop's sign → which of its edges the sign belongs to
+  function edgeFromSign(c: StopVisionCandidate, words: string[], tokens: string[], now: number, weak: boolean) {
+    const ev = evidence.get(c.uic) || {};
+    let refs: string[] = [];
+    const signloc = (window as unknown as { SIGNLOC?: { parse(text: string): SignParse | null } }).SIGNLOC;
+    if (signloc && typeof signloc.parse === 'function') {
+      // the app's sign parser (signloc.js): only platforms named next to a word like Gleis / Kante / Voie
+      const parsed = signloc.parse(words.join(' '));
+      if (parsed && parsed.platformWord) refs = (parsed.platforms || []).map((x) => String(x).toUpperCase());
+    } else {
+      for (let i = 0; i < words.length - 1; i++) {
+        if (/^(kante|gleis|gl|steig|quai|voie|binario|perron|bay|platform)$/.test(words[i]) && /^[a-z0-9]{1,3}$/.test(words[i + 1])) refs.push(words[i + 1].toUpperCase());
+      }
+    }
+    if (refs.length && !weak) {
+      const ei = c.st.edges.findIndex((e) => e.key && refs.includes(e.key));
+      if (ei >= 0) { ev.edgeOcr = ei; ev.edgeOcrAt = now; }
+    }
+    // line numbers and destinations: from the timetable (offline) and the live departures
+    const served: ServedLine[] = []; // [{ edge, line, to }]
+    for (const l of linesOf(c.uic) || []) {
+      for (const line of l.lines) served.push({ edge: l.edge, line, to: null });
+      for (const to of l.dests) served.push({ edge: l.edge, line: null, to });
+    }
+    for (const d of ev.departures || []) served.push({ edge: d.edge, line: norm(d.line), to: d.to });
+    if (served.length) {
+      const lines = new Set(served.filter((d) => d.line).map((d) => d.line));
+      const hit = new Set(tokens.filter((t) => /^\d{1,3}[a-z]?$/.test(t) && lines.has(t)));
+      ev.lines = hit.size >= 2 ? hit.size : 0;
+      ev.linesAt = now;
+      const dests = new Map<string, Set<number | null>>(); // destination → edges it leaves from
+      for (const d of served) if (d.to) { const k = norm(d.to.split(',').pop()); dests.set(k, (dests.get(k) || new Set<number | null>()).add(d.edge)); }
+      const votes = new Map<number, string[]>(); // edge → destinations read that only it serves
+      for (const [dest, edges] of dests) {
+        if (edges.size !== 1 || edges.has(null)) continue; // goes from several edges: says nothing about which
+        const words2 = dest.split(' ').filter((t) => t.length >= 4 && !GENERIC.has(t));
+        if (words2.length && words2.every((wd) => tokens.some((t) => ratio(t, wd) >= 0.85))) {
+          const edge = [...edges][0]!;
+          votes.set(edge, (votes.get(edge) || []).concat(dest));
+        }
+      }
+      const ranked = [...votes].sort((x, y) => y[1].length - x[1].length);
+      // one edge clearly ahead (destinations of two edges on one sign: a shared pole, say nothing)
+      if (ranked.length && (ranked.length === 1 || ranked[0][1].length > ranked[1][1].length) && (!weak || ranked[0][1].length >= 2)) {
+        ev.edgeDest = ranked[0][0]; ev.edgeDestAt = now; ev.destWhat = ranked[0][1][0]; ev.edgeDestWeak = weak;
+      }
+    }
+    evidence.set(c.uic, ev);
   }
 
   let nameIndex: StopVisionCandidate[] | null = null;
@@ -912,9 +1085,9 @@
     // a photo linked to several of these stops (e.g. a view of the whole square) cannot tell them apart
     const shared = new Map<string, number>();
     for (const c of withRefs) for (const r of refsOf(c.uic)!) shared.set(r.ref, (shared.get(r.ref) || 0) + 1);
-    const mine = session;
+    const mine = session, gen = sourceGen;
     const q = await embedFrame();
-    if (!q || !running || mine !== session) return;
+    if (!q || !running || mine !== session || gen !== sourceGen) return;
     const best: PhotoMatch[] = [];
     for (const c of withRefs) {
       let top = -1, topRef: StopVisionPhoto | null = null;
@@ -968,8 +1141,9 @@
     const ev = evidence.get(c.uic) || {};
     const now = Date.now();
     if (ev.edgeOcr != null && fresh(ev.edgeOcrAt, 20000)) return { i: ev.edgeOcr, why: 'Platform sign read' };
-    if (ev.edgeDest != null && fresh(ev.edgeDestAt, 20000)) return { i: ev.edgeDest, why: 'Destination read' };
-    if (ev.visRef && ev.visRef.edge != null && ev.visStreak! >= VIS_FRAMES) return { i: ev.visRef.edge, why: 'Matches a photo of this side', maybe: true };
+    if (ev.edgeDest != null && fresh(ev.edgeDestAt, 20000)) return { i: ev.edgeDest, why: 'Destination read', maybe: !!ev.edgeDestWeak };
+    // (Photos are not used to pick the edge: 84 % of the street-level photos look along the road, like a dashcam, so
+    // both sides of a stop look the same in them; only ~21 % of edges have a photo looking across at their kerb.)
     if (c.st.edges.length === 1) return { i: 0, why: '' };
     // the camera points at one edge and the others are well outside the picture
     const pos = position();
@@ -988,6 +1162,145 @@
     // photo match only together with the location: the stop that position + compass favour on their own
     if (ev.visStreak! >= VIS_FRAMES && Date.now() - ev.visAt! < 6000 && c.geoTop && c.ahead !== false && position()) return 'photo';
     return null;
+  }
+
+  // ---- your next ride, as the Kante engine sees it now (/api/due via KANTE_LIVE; without the engine: the route)
+  // The engine names the boarding point (quayLabel) and the direction the vehicle leaves in (departBearing): either
+  // ties the ride to one edge of the stop, also where edges have no letters.
+  let routeLive: StopVisionRouteLive | null = null, routeLiveBusy = false;
+  async function checkRoute(route: StopVisionRoute) {
+    const key = [route.uic, route.line, route.time].join('|');
+    if (!app || !app.due || routeLiveBusy || (routeLive && routeLive.key === key && Date.now() - routeLive.at < 45000)) return;
+    routeLiveBusy = true;
+    const mine = session;
+    try {
+      const t = route.time ? Math.round(Date.parse(route.time) / 1000) : null;
+      const res = await app.due!({ station: route.uic, t: t || undefined, before: 600, after: 900, limit: 40 });
+      if (mine !== session) return;
+      const st = app!.PLATFORMS.get(route.uic);
+      const want = norm(route.line), to = norm(String(route.to || '').split(',').pop());
+      const d = res && (res.due || []).find((x) => x.line && norm(x.line.name) === want && !x.cancelled
+        && (!to || ratio(norm(String(x.headsign || '').split(',').pop()), to) >= 0.8));
+      let edge: number | null = null, exact = false;
+      if (d && st) {
+        const k = String(d.quayLabel || '').toUpperCase();
+        const byLabel = k ? st.edges.findIndex((e) => e.key === k) : -1;
+        if (byLabel >= 0) { edge = byLabel; exact = true; }
+        else if (d.departBearing != null) { // no letter: the one edge whose vehicles leave in that direction
+          const fit = st.edges.map((e, i): [number, number] => [e.bearing == null ? 180 : angleDiff(e.bearing, d.departBearing!), i]).sort((x, y) => x[0] - y[0]);
+          if (fit.length && fit[0][0] <= 35 && (fit.length < 2 || fit[1][0] > 60)) { edge = fit[0][1]; exact = true; }
+        }
+      }
+      routeLive = { key, at: Date.now(), found: !!d, edge, exact, state: (d && d.state) || undefined, etaS: d ? d.etaS : null, delayS: d ? d.delayS : null };
+    } catch (e) {
+      routeLive = { key, at: Date.now(), found: false };
+    } finally {
+      routeLiveBusy = false;
+      if (ui) ui.shownKey = '';
+    }
+  }
+
+  // ---- which side of the road you are on
+  // Only for two edges that face each other across one road: travel directions opposite, each on the right of its
+  // own traffic, 3–40 m apart across and at most 80 m apart along the road (islands, loops and far-apart edges are
+  // left out). Your offset from the line between them, against the GPS accuracy, says whether it is clear.
+  function sideOf(c: StopVisionCandidate): ScanSide | null {
+    const pos = position();
+    if (!pos || (c.st.mode !== 'bus' && c.st.mode !== 'tram')) return null; // platforms of a station are not "across the road"
+    const k = Math.cos(pos.ll[1] * toRad) * 111320;
+    const xy = (ll: LngLat): [number, number] => [(ll[0] - pos.ll[0]) * k, (ll[1] - pos.ll[1]) * 111320]; // metres east/north of you
+    const edges = c.st.edges;
+    const pairs: ScanSide[] = [];
+    for (let i = 0; i < edges.length; i++) for (let j = 0; j < edges.length; j++) {
+      const E = edges[i], F = edges[j];
+      if (i === j || E.bearing == null || F.bearing == null || angleDiff(E.bearing, F.bearing) < 150) continue;
+      const b = E.bearing! * toRad, t = [Math.sin(b), Math.cos(b)], r = [Math.cos(b), -Math.sin(b)];
+      const pe = xy(E.ll), pf = xy(F.ll);
+      const across = (pe[0] - pf[0]) * r[0] + (pe[1] - pf[1]) * r[1];
+      const along = Math.abs((pe[0] - pf[0]) * t[0] + (pe[1] - pf[1]) * t[1]);
+      if (across < 3 || across > 40 || along > 80) continue;
+      const mid = [(pe[0] + pf[0]) / 2, (pe[1] + pf[1]) / 2];
+      const u = -(mid[0] * r[0] + mid[1] * r[1]); // you, measured from the line between them; > 0: E's side
+      const near = Math.hypot(mid[0], mid[1]);    // how far the pair is from you
+      if (near > 35 + pos.acc) continue;           // a pair of edges somewhere else at a big stop
+      pairs.push({ mine: u > 0 ? i : j, other: u > 0 ? j : i, conf: Math.abs(u) / Math.max(3, pos.acc), across, near });
+    }
+    if (!pairs.length) return null;
+    pairs.sort((x, y) => x.near - y.near);
+    const best = pairs[0];
+    // another pair about as close that says something else (e.g. a bus station with several bays): say nothing
+    if (pairs.some((q) => q.near <= best.near + 10 && (q.mine !== best.mine || q.other !== best.other)
+      && !(q.mine === best.other && q.other === best.mine))) return null;
+    return best;
+  }
+
+  // The edge you stand at: GPS when it is clear; otherwise from looking across the road at the other side's sign
+  function standing(c: StopVisionCandidate, seen: StopVisionEdgeGuess | null): ScanStand | null {
+    const sd = sideOf(c);
+    if (!sd) return c.st.edges.length === 1 ? { i: 0, why: '' } : null;
+    if (sd.conf >= 1.5) return { i: sd.mine, other: sd.other, why: 'GPS' };
+    if (seen && !seen.maybe && (seen.i === sd.mine || seen.i === sd.other) && headingOk() && !stillImage) {
+      const O = c.st.edges[seen.i];
+      const crossing = O.bearing != null && angleDiff(heading!, (O.bearing + 90) % 360) < 40;
+      if (crossing && distM(position()!.ll, O.ll) > Math.max(sd.across * 0.6, position()!.acc)) {
+        return { i: seen.i === sd.mine ? sd.other : sd.mine, other: seen.i, why: 'You look across the road at its sign', maybe: true };
+      }
+    }
+    if (sd.conf >= 0.8) return { i: sd.mine, other: sd.other, why: 'GPS', maybe: true };
+    return { i: null, other: null, unsure: true, pair: [sd.mine, sd.other] };
+  }
+
+  // Where an edge's vehicles go, in a few words ("towards Wallisellen")
+  function towards(c: StopVisionCandidate, i: number) {
+    for (const l of linesOf(c.uic) || []) if (l.edge === i && l.dests.length) return 'towards ' + l.dests.slice(0, 2).map((d) => d.split(',').pop()!.trim()).join(', ');
+    const ev = evidence.get(c.uic) || {};
+    const d = (ev.departures || []).find((x) => x.edge === i);
+    return d ? 'towards ' + d.to.split(',').pop()!.trim() : '';
+  }
+  // An edge in words: "Bay A (towards Wallisellen)", or without a letter "the stop towards Wallisellen"
+  function edgeName(c: StopVisionCandidate, i: number) {
+    const e = c.st.edges[i], t = towards(c, i);
+    if (e && e.ref) return `${EDGE_WORD(c.st.mode)} ${e.ref}${t ? ` (${t})` : ''}`;
+    return t ? `the stop ${t}` : 'one side of the stop';
+  }
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+  // The sign found in the picture: outlined, the rest dimmed. It is drawn where the words were read and disappears
+  // when the phone turns (a guessed position would be worse than none); a photo keeps it.
+  function drawHighlight() {
+    const svg = ui!.hl, label = ui!.hlLabel;
+    const now = Date.now();
+    const hl = highlight;
+    const show = !!hl && (!!stillImage || (now - hl.at < 5000 && (hl.h0 == null || !headingOk() || angleDiff(heading!, hl.h0) < 5)));
+    if (!show || !hl) { if (svg.style.display !== 'none') { svg.style.display = 'none'; label.style.display = 'none'; } return; }
+    const el = source();
+    const vw = el.videoWidth || el.naturalWidth || 0, vh = el.videoHeight || el.naturalHeight || 0;
+    const W = ui!.root.clientWidth, H = ui!.root.clientHeight;
+    if (!vw || !vh) return;
+    const sc = Math.max(W / vw, H / vh), ox = (W - vw * sc) / 2, oy = (H - vh * sc) / 2;
+    const onScreen = (b: ScanBox): [number, number, number, number] => {
+      const x0 = Math.max(4, ox + b.x0 * sc), y0 = Math.max(4, oy + b.y0 * sc);
+      return [x0, y0, Math.min(W - 4, ox + b.x1 * sc) - x0, Math.min(H - 4, oy + b.y1 * sc) - y0];
+    };
+    let [x, y, w, h] = onScreen(hl.box);
+    // a sign filling most of the screen: outline its name instead, so the highlight still points at something
+    if (w * h > 0.6 * W * H && hl.name) [x, y, w, h] = onScreen({ x0: hl.name.x0 - 8, y0: hl.name.y0 - 8, x1: hl.name.x1 + 8, y1: hl.name.y1 + 8 });
+    if (w < 8 || h < 8) { svg.style.display = 'none'; label.style.display = 'none'; return; }
+    const key = [Math.round(x), Math.round(y), Math.round(w), Math.round(h), W, H, hl.label, hl.ok, hl.warn].join(',');
+    if (svg.dataset.key !== key) {
+      svg.dataset.key = key;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      const cls = hl.warn ? 'warn' : hl.ok ? 'ok' : '';
+      svg.innerHTML = `<defs><mask id="sv-hl-mask"><rect width="${W}" height="${H}" fill="#fff"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#000"/></mask></defs>`
+        + `<rect width="${W}" height="${H}" fill="rgba(0,0,0,.42)" mask="url(#sv-hl-mask)"/>`
+        + `<rect class="sv-hl-box ${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/>`;
+      label.textContent = hl.label;
+      label.className = 'sv-hl-label ' + cls;
+      label.style.left = x + 'px';
+      label.style.top = (y - 34 >= 76 ? y - 34 : Math.min(y + 8, H - 40)) + 'px'; // clear of the top bar
+      label.style.left = Math.min(Math.max(8, x), W - 160) + 'px';
+    }
+    svg.style.display = ''; label.style.display = '';
   }
 
   function placeTags() {
@@ -1028,6 +1341,7 @@
       });
     }
     for (const [uic, tag] of ui!.tags) if (!seen.has(uic)) { tag.remove(); ui!.tags.delete(uic); }
+    drawHighlight();
   }
 
   function chip(text: string, on: boolean) { const li = $('li', on ? 'on' : null, text); return li; }
@@ -1035,6 +1349,11 @@
   function renderSheet() {
     const pos = position();
     const c = candidates[0];
+    if (!c && conflict && fresh(conflict.at, 15000)) {
+      const msg = `Sign and location disagree: the sign says “${conflict.c.st.name}”, ${(conflict.dist / 1000).toFixed(1)} km from your GPS position.`;
+      if (ui!.shownKey !== msg) { ui!.shownKey = msg; ui!.sheet.replaceChildren($('span', 'sv-state warn', 'Check location'), $('p', 'sv-hint', msg)); }
+      return;
+    }
     if (!c) {
       const msg = !pos
         ? (app!.position() ? 'Waiting for a precise location…' : 'Location is off: point the camera at a stop sign and tap it to read the name.')
@@ -1043,19 +1362,33 @@
       return;
     }
     const ev = evidence.get(c.uic) || {};
-    const how = recognised(c);
-    const edge = edgeOf(c);
+    const how = conflict && fresh(conflict.at, 15000) ? null : recognised(c);
+    const edge = edgeOf(c);               // the edge you are looking at (its sign, its photos, the compass)
+    const stand = pos ? standing(c, edge) : null; // the edge you stand at
+    let route = app!.route ? app!.route() : null; // the next ride of your journey
+    if (route) {
+      checkRoute(route);
+      const rl = routeLive && routeLive.key === [route.uic, route.line, route.time].join('|') ? routeLive : null;
+      // the engine confirmed the boarding point: that edge, for sure
+      if (rl && rl.found && rl.edge != null) route = { ...route, edge: rl.edge, exact: !!rl.exact, live: rl };
+      else if (rl && rl.found) route = { ...route, live: rl };
+    }
+    const routeHere = !!route && route.uic === c.uic;
+    // departures of the edge that matters most: your bus's edge, else where you stand, else what you look at
+    const focus = routeHere && route!.edge != null ? route!.edge : stand && stand.i != null ? stand.i : edge ? edge.i : null;
     const e = edge ? c.st.edges[edge.i] : null;
-    const deps = ev.departures ? ev.departures.filter((d) => !e || (d.edges ? d.edges.includes(edge!.i) : d.edge === edge!.i) || d.edge == null && c.st.edges.length === 1) : null;
-    const key = [c.uic, how, edge && edge.i, ev.depAt, ev.departures && ev.departures.length, ev.depFailed, ev.visRef && ev.visRef.page, ev.ocrAt, c.ahead, candidates.slice(1, 4).map((x) => x.uic).join()].join('|');
+    const deps = ev.departures ? ev.departures.filter((d) => focus == null || (d.edges ? d.edges.includes(focus) : d.edge === focus) || d.edge == null && c.st.edges.length === 1) : null;
+    const key = [c.uic, how, edge && edge.i, edge && edge.why, edge && edge.maybe, stand && stand.i, stand && stand.why, stand && stand.maybe,
+      stand && stand.unsure, route && route.uic + route.edge + route.exact, routeLive && routeLive.at, conflict && fresh(conflict.at, 15000) && conflict.at, fresh(ev.ocrAt, 12000), ev.depAt, ev.departures && ev.departures.length, ev.depFailed, ev.visRef && ev.visRef.page, ev.ocrAt, c.ahead, candidates.slice(1, 4).map((x) => x.uic).join()].join('|');
     if (key === ui!.shownKey) return;
     ui!.shownKey = key;
 
-    const state = $('span', 'sv-state' + (how ? ' ok' : ''), how ? 'Recognised' : !pos ? 'Possible match' : c.ahead ? 'Nearby · ahead' : 'Nearby');
+    const state = $('span', 'sv-state' + (how ? ' ok' : conflict && fresh(conflict.at, 15000) ? ' warn' : ''),
+      how ? 'Recognised' : conflict && fresh(conflict.at, 15000) ? 'Check location' : !pos ? 'Possible match' : c.ahead ? 'Nearby · ahead' : 'Nearby');
     const main = $('div', 'sv-main');
     const txt = $('div');
     const sub = [MODE_WORD[c.st.mode] || 'Stop'];
-    if (e && e.ref) sub.push(`${EDGE_WORD(c.st.mode)} ${e.ref}${edge!.maybe ? ' (probably)' : ''}`);
+    if (e && e.ref && !(stand && stand.i != null)) sub.push(`${EDGE_WORD(c.st.mode)} ${e.ref}${edge!.maybe ? ' (probably)' : ''}`);
     if (pos) sub.push(Math.round(c.dist) + ' m');
     txt.append($('b', null, c.st.name), $('small', null, sub.join(' · ')));
     main.append(icon(c.st.mode), txt);
@@ -1069,7 +1402,38 @@
     if (pos && c === candidates.slice().sort((a, b) => a.dist - b.dist)[0]) why.append(chip('Closest stop', false));
     if (!refsOf(c.uic)) why.append(chip('No reference photos yet', false));
 
-    const nodes: HTMLElement[] = [state, main, why];
+    const nodes = [state, main, why];
+    // where you are, what you look at, and where your bus leaves (each said only as far as it is known)
+    const place = $('ul', 'sv-place');
+    const row = (cls: string, text: string) => place.append($('li', cls, text));
+    if (conflict && fresh(conflict.at, 15000)) {
+      row('warn', `Sign and location disagree: the sign says “${conflict.c.st.name}”, ${(conflict.dist / 1000).toFixed(1)} km from your GPS position.`);
+    }
+    if (edge && c.st.edges.length > 1 && edge.why) row('', `You're looking at ${edgeName(c, edge.i)}${edge.maybe ? ' (probably)' : ''}.`);
+    if (stand && stand.i != null && c.st.edges.length > 1) {
+      row('', `You're at ${edgeName(c, stand.i)}${stand.maybe ? ' (probably)' : ''}.`
+        + (stand.other != null ? ` ${cap(edgeName(c, stand.other))} is across the road.` : ''));
+    } else if (stand && stand.unsure) {
+      row('muted', `Which side of the road you're on is not clear from GPS (±${Math.round(pos!.acc)} m). Point the camera at the sign.`);
+    }
+    if (routeHere && route) {
+      const t = route.time ? new Date(route.time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+      const soon = route.live && route.live.state === 'approaching' && route.live.etaS != null && route.live.etaS < 900
+        ? ` (arriving in ${Math.max(1, Math.round(route.live.etaS / 60))} min)` : route.live && route.live.state === 'at-stop' ? ' (at the stop now)' : '';
+      const bus = `Your ${route.line || 'ride'}${route.to ? ' to ' + route.to.split(',').pop()!.trim() : ''}${t ? ' at ' + t : ''}${soon}`;
+      const sure = how && route.exact && stand && !stand.maybe && !(conflict && fresh(conflict.at, 15000));
+      if (route.edge == null) row('route', `${bus} leaves from this stop.`);
+      else if (stand && stand.i === route.edge && stand.other == null) row('route', `${bus} leaves from this stop.`);
+      else if (stand && stand.i === route.edge) row(sure ? 'route ok' : 'route', `${bus} leaves from this side of the road${sure ? '' : ' (probably)'}: ${edgeName(c, route.edge)}.`);
+      else if (stand && stand.i != null && stand.other === route.edge) {
+        row(sure ? 'route warn' : 'route', sure ? `${bus} leaves from the other side of the road: ${edgeName(c, route.edge)}. Cross over.`
+          : `${bus} leaves from ${edgeName(c, route.edge)}, probably on the other side of the road.`);
+      }
+      else row('route', `${bus} leaves from ${edgeName(c, route.edge)}${edge && edge.i === route.edge ? ', the one you are looking at' : ''}.`);
+    } else if (route && route.name) {
+      row('route', `Your ${route.line || 'ride'} leaves from ${route.name}, not from this stop.`);
+    }
+    if (place.childNodes.length) nodes.push(place);
     if (deps && deps.length) {
       const ul = $('ul', 'sv-deps');
       for (const d of deps.slice(0, 4)) {
@@ -1176,6 +1540,8 @@
   function useStill(file: File) {
     if (stillImage) URL.revokeObjectURL(stillImage);
     evidence.clear(); // what the live camera saw does not apply to this photo
+    sourceGen++;
+    highlight = null; conflict = null;
     stillFrames = 0;
     stillReads = 0;
     if (!position()) candidates = [];
@@ -1235,6 +1601,7 @@
     if (ocr) ocr.terminate().catch(() => {});
     ocr = null; ocrState = 'idle'; ocrLang = '';
     tiles.clear(); tileBytes.clear(); nameIndex = null;
+    highlight = null; conflict = null; routeLive = null;
     candidates = []; candidatesBy = ''; prevTop = null;
     ui!.root.remove();
     ui = null;
@@ -1254,7 +1621,7 @@
     for (let i = 0; i < runs; i++) { await embedFrame(); log(`photo ${i + 1}/${runs}`); }
     for (let i = 0; i < Math.min(3, runs); i++) {
       const img2 = await ocrImage(null, i % 2 === 1);
-      const t0 = performance.now(); const { data } = await ocr!.recognize(img2); stats.ocr.push(performance.now() - t0);
+      const t0 = performance.now(); const { data } = await ocr!.recognize(img2.image); stats.ocr.push(performance.now() - t0);
       out.text = (data.text || '').replace(/\s+/g, ' ').trim().slice(0, 80); log(`signs ${i + 1}/3`);
     }
     out.photoMs = { p50: pctl(stats.photo, 0.5), p95: pctl(stats.photo, 0.95) };

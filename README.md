@@ -11,7 +11,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Indoor position**: in the 3D station view, which floor you are on and where, from the phone's sensors, GPS and signs read by Scan ([details](docs/indoor-positioning.md)).
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo), with draggable start/destination map pins.
 - **Events & amenities**: Shows community events alongside public toilets across Switzerland and Bern's public amenities and local places.
-- **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones).
+- **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones). Details: [docs/scan.md](docs/scan.md).
 - **First-visit introduction**: A welcome page, a short 3D demo walk and two questions (walking speed, access needs) before the map; details and status in [docs/onboarding.md](docs/onboarding.md).
 - **Multilingual UI**: Settings › **Language** translates the interface into any of Google Translate's 249 languages.
 
@@ -58,5 +58,6 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
 
 - [`kante/`](kante/README.md) & [`deploy/`](deploy/README.md) — Rust journey planner and live-tracking engine ([live API docs](kante/docs/LIVE-API.md)) and server deployment setup.
 - [`livemap/`](livemap/README.md) — Separate prototype showing live Swiss vehicles on the map.
+- [`rightside/`](rightside/README.md) — Native iPhone companion (SwiftUI/ARKit): reads bus/tram displays and shows AR guidance to the boarding point; built with Xcode, not part of the site.
 - [`docs/`](docs/places-data.md) — Detailed documentation for place and amenity datasets.
 - [`.github/workflows/pages.yml`](.github/workflows/pages.yml) — Builds the site and publishes it to GitHub Pages on pushes to `main`.

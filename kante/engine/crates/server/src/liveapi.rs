@@ -320,9 +320,13 @@ pub struct DueQuery {
 }
 
 pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
-    let tt = &app.tt;
     let live_arc = app.live_view();
-    let live = live_arc.as_deref();
+    due_in(app, live_arc.as_deref(), q)
+}
+
+/// [`due`] on a given live snapshot (so a caller can use one snapshot throughout).
+pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::DueResponse {
+    let tt = &app.tt;
     let ages = feed_age(app);
     let (date, secs) = time::from_unix(q.t - q.before);
     let mut out: Vec<json::Due> = Vec::new();
@@ -351,16 +355,23 @@ pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
         }
         out.push(trip_item(&run, e.trip, pos, Some(e.live_dep - e.dep)));
     }
-    // Vehicles under way that will stop here only to set down (e.g. at the end of their
-    // run): they are not departures. Those not yet under way are not listed.
+    // Vehicles that stop here only to set down (e.g. at the end of their run): they are not
+    // departures. Found among the vehicles under way at the start of the window and now, so one
+    // that has just ended its run here is still listed. Those not yet under way are not.
     let mut area = BBox::empty();
     for &s in &q.stops {
         area.extend(&tt.stops[s as usize].pos);
     }
     if !q.stops.is_empty() {
         let c = area.min.lerp(&area.max, 0.5);
-        let (now_date, now_secs) = time::from_unix(q.t);
-        for v in app.router.vehicles(&BBox::around(c, 4000.0), now_date, now_secs, live) {
+        let mut under_way = Vec::new();
+        for moment in [q.t - q.before, q.t] {
+            let (d, s) = time::from_unix(moment);
+            under_way.extend(app.router.vehicles(&BBox::around(c, 4000.0), d, s, live));
+        }
+        under_way.sort_unstable_by_key(|v| (v.trip, v.date, v.pos));
+        under_way.dedup_by_key(|v| (v.trip, v.date));
+        for v in under_way {
             let tl = live.and_then(|l| l.trip(v.date, v.trip));
             let run = Run::of_trip(app, v.trip, v.date, tl);
             for k in v.pos as usize..run.calls.len() {
@@ -538,21 +549,104 @@ fn reach(app: &App, trip: TripIdx, date: Date, start: usize, to: StationIdx, arr
     if let Some(p) = find(trip, date, start) {
         return Some((Some(p as u16), Vec::new()));
     }
+    // Ride on: the trips this one continues as (linked in the timetable), else (a train that
+    // divides, which the timetable does not link) a trip leaving the same platform within ten
+    // minutes. A step is only taken when it leads to `to`, and among unlinked trips only when
+    // exactly one does — at the arrival time asked for.
     let mut chain = Vec::new();
     let (mut cur, mut d) = (trip, date);
     for _ in 0..3 {
-        let next = tt.continuations_from(cur).iter().find_map(|c| {
-            [d, d + 1, d - 1].into_iter().find(|&dd| (c.service == NONE || tt.service_active(c.service, d)) && tt.trip_active(c.to, dd)).map(|dd| (c.to, dd))
+        let pat = tt.pattern_stops(tt.trips[cur as usize].pattern);
+        let last = pat.len() - 1;
+        let end = time::to_unix(d, tt.arr(cur, last));
+        // the service day on which a trip leaves at most 3 h after `end`
+        let day_of = |t: TripIdx| {
+            [d, d + 1, d - 1].into_iter().find(|&dd| {
+                let dep = time::to_unix(dd, tt.dep(t, 0));
+                tt.trip_active(t, dd) && dep >= end - 120 && dep <= end + 3 * 3600
+            })
+        };
+        let linked: Vec<(TripIdx, Date)> = tt
+            .continuations_from(cur)
+            .iter()
+            .filter(|c| c.service == NONE || tt.service_active(c.service, d))
+            .filter_map(|c| day_of(c.to).map(|dd| (c.to, dd)))
+            .collect();
+        let pick = |cands: &[(TripIdx, Date)]| -> Option<(TripIdx, Date, Option<usize>)> {
+            let hits: Vec<_> = cands.iter().filter_map(|&(t, dd)| find(t, dd, 1).map(|p| (t, dd, Some(p)))).collect();
+            if hits.len() == 1 {
+                return hits.into_iter().next();
+            }
+            None
+        };
+        let step = pick(&linked).or_else(|| {
+            // A train that divides (RhB RE13 "St. Moritz | Davos Platz" at Klosters): the timetable
+            // ends it and starts its parts as new trips without a link. Only for a train whose own
+            // destination names several parts, only with the arrival time to check, and only a trip
+            // that leaves the same platform (whatever the sectors) 0–10 min later towards one of them.
+            let me = &tt.trips[cur as usize];
+            if arr.is_none() || !matches!(tt.trip_line(cur).mode, Mode::Rail | Mode::RackRail) || divided_parts(tt.str(me.headsign)).len() < 2 {
+                return None;
+            }
+            let parts = divided_parts(tt.str(me.headsign));
+            let here = &tt.stops[pat[last] as usize];
+            let track = |s: &kante_core::Stop| s.label.trim_end_matches(|c: char| c.is_ascii_alphabetic() || c == '-').to_string();
+            let mine = track(here);
+            if mine.is_empty() {
+                return None;
+            }
+            let stops = &tt.stations[here.station as usize].stops;
+            let (qd, qs) = time::from_unix(end);
+            let onward: Vec<(TripIdx, Date)> = app
+                .router
+                .departures(stops, qd, qs, 400, None)
+                .into_iter()
+                .filter(|e| e.pos == 0 && e.trip != cur)
+                .filter(|e| (0..=600).contains(&(time::to_unix(qd, e.dep) - end)))
+                .filter(|e| track(&tt.stops[e.stop as usize]) == mine)
+                .filter(|e| is_part(&parts, tt.str(tt.trips[e.trip as usize].headsign)))
+                .map(|e| (e.trip, e.date))
+                .collect();
+            pick(&onward)
         });
-        let (t, dd) = next?;
-        let hit = find(t, dd, 1);
-        chain.push(json::MatchNext { trip_id: tt.trip_gtfs_id(t).to_string(), service_date: time::fmt_date(dd), to_seq: hit.map(|p| p as u16) });
-        if hit.is_some() {
-            return Some((None, chain));
+        match step {
+            Some((t, dd, hit)) => {
+                chain.push(json::MatchNext { trip_id: tt.trip_gtfs_id(t).to_string(), service_date: time::fmt_date(dd), to_seq: hit.map(|p| p as u16) });
+                return Some((None, chain));
+            }
+            None => {
+                // no single onward trip reaches `to`: follow a lone linked continuation further
+                let [(t, dd)] = linked.as_slice() else { return None };
+                chain.push(json::MatchNext { trip_id: tt.trip_gtfs_id(*t).to_string(), service_date: time::fmt_date(*dd), to_seq: None });
+                (cur, d) = (*t, *dd);
+            }
         }
-        (cur, d) = (t, dd);
     }
     None
+}
+
+/// The destinations a dividing train names, one per part ("St. Moritz | Davos Platz").
+pub fn divided_parts(headsign: &str) -> Vec<String> {
+    headsign.split('|').map(norm).filter(|p| !p.is_empty()).collect()
+}
+
+/// Whether a trip headed for `headsign` is one of those parts.
+pub fn is_part(parts: &[String], headsign: &str) -> bool {
+    let h = norm(headsign);
+    !h.is_empty() && parts.iter().any(|p| *p == h)
+}
+
+/// Run CPU-heavy work off the request threads, at most as many at once as `heavy` has
+/// permits. The permit goes with the work: a request that is given up (the client went
+/// away) does not free it while the work still runs. `None` when shutting down or the work failed.
+pub async fn run_heavy<T: Send + 'static>(heavy: &Arc<tokio::sync::Semaphore>, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let permit = heavy.clone().acquire_owned().await.ok()?;
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        work()
+    })
+    .await
+    .ok()
 }
 
 /// A station from a UIC/DiDok number (`8507000`) or an engine id (`st:…`).
@@ -602,10 +696,14 @@ fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, liv
 
 /// Every vehicle under way in `bbox` at `t`, timetable trips and extra journeys.
 pub fn vehicles(app: &App, bbox: &BBox, t: i64) -> json::VehiclesResponse {
+    let live_arc = app.live_view();
+    vehicles_in(app, live_arc.as_deref(), bbox, t)
+}
+
+/// [`vehicles`] on a given live snapshot.
+pub fn vehicles_in(app: &App, live: Option<&dyn LiveView>, bbox: &BBox, t: i64) -> json::VehiclesResponse {
     const MAX: usize = 1500;
     let (date, secs) = time::from_unix(t);
-    let live_arc = app.live_view();
-    let live = live_arc.as_deref();
     let tt = &app.tt;
     let ages = feed_age(app);
     let mut out = Vec::new();
@@ -718,11 +816,57 @@ pub fn stream(app: Arc<App>, bbox: BBox, slot: StreamSlot) -> impl futures_util:
             }
         }
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-        let permit = app.heavy.acquire().await.ok()?;
         let a = app.clone();
-        let body = tokio::task::spawn_blocking(move || vehicles(&a, &bbox, now)).await.ok()?;
-        drop(permit);
+        let body = run_heavy(&app.heavy, move || vehicles(&a, &bbox, now)).await?;
         let ev = Event::default().event("vehicles").json_data(&body).unwrap_or_else(|_| Event::default().comment("error"));
         Some((Ok(ev), (app, rx, stop, false, slot)))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_train_that_names_its_parts_divides() {
+        let parts = divided_parts("St. Moritz | Davos Platz");
+        assert_eq!(parts.len(), 2);
+        assert!(is_part(&parts, "St. Moritz"));
+        assert!(is_part(&parts, "Davos Platz"));
+        assert!(!is_part(&parts, "Landquart"), "another train leaving the same platform is not a part");
+        assert_eq!(divided_parts("Bern").len(), 1, "a train with one destination does not divide");
+        assert!(divided_parts("").is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancelled_request_keeps_its_permit_until_the_work_ends() {
+        let heavy = Arc::new(tokio::sync::Semaphore::new(1));
+        let (release, wait) = std::sync::mpsc::channel::<()>();
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+        let h = heavy.clone();
+        let req = tokio::spawn(async move {
+            run_heavy(&h, move || {
+                wait.recv().ok();
+                done_tx.send(()).ok();
+            })
+            .await
+        });
+        // the work has started and holds the only permit
+        while heavy.available_permits() > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        req.abort(); // the client went away
+        let _ = req.await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(heavy.available_permits(), 0, "still running: the permit is not free");
+        release.send(()).unwrap();
+        done_rx.recv().unwrap();
+        for _ in 0..100 {
+            if heavy.available_permits() == 1 {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        panic!("the permit was not given back after the work ended");
+    }
 }
