@@ -1,0 +1,1120 @@
+[
+{
+"ref": "1",
+"xy": [
+137.17,
+-71.16
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 170481574"
+},
+{
+"ref": "1",
+"xy": [
+185.87,
+-96.99
+],
+"front": "B",
+"back": "B",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 66925148"
+},
+{
+"ref": "1",
+"xy": [
+238.03,
+-123.32
+],
+"front": "A",
+"back": "A",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 66925153"
+},
+{
+"ref": "2",
+"xy": [
+136.1,
+-73.57
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 170481575"
+},
+{
+"ref": "2",
+"xy": [
+184.79,
+-99.11
+],
+"front": "B",
+"back": "B",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 66925150"
+},
+{
+"ref": "2",
+"xy": [
+236.9,
+-125.56
+],
+"front": "A",
+"back": "A",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 66925155"
+},
+{
+"ref": "3",
+"xy": [
+93.05,
+-67.72
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Perronhalle 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 66925143"
+},
+{
+"ref": "3",
+"xy": [
+128.32,
+-84.15
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455900"
+},
+{
+"ref": "4",
+"xy": [
+29.47,
+-39.55
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Perronhalle 2",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456075"
+},
+{
+"ref": "4",
+"xy": [
+127.13,
+-86.5
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455890"
+},
+{
+"ref": "6",
+"xy": [
+-111.35,
+10.35
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457133"
+},
+{
+"ref": "6",
+"xy": [
+-51.79,
+-17.82
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457069"
+},
+{
+"ref": "6",
+"xy": [
+22.27,
+-54.69
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Perronhalle 3",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456064"
+},
+{
+"ref": "6",
+"xy": [
+119.01,
+-102.18
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455939"
+},
+{
+"ref": "7",
+"xy": [
+-116.93,
+-1.14
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457125"
+},
+{
+"ref": "7",
+"xy": [
+-60.22,
+-26.85
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457061"
+},
+{
+"ref": "7",
+"xy": [
+15.56,
+-64.77
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Perronhalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456053"
+},
+{
+"ref": "7",
+"xy": [
+112.76,
+-115.61
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455946"
+},
+{
+"ref": "8",
+"xy": [
+-117.82,
+-3.69
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457119"
+},
+{
+"ref": "8",
+"xy": [
+-62.63,
+-31.95
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457054"
+},
+{
+"ref": "8",
+"xy": [
+13.49,
+-69.54
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Perronhalle 4",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456043"
+},
+{
+"ref": "8",
+"xy": [
+111.5,
+-117.92
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455954"
+},
+{
+"ref": "9",
+"xy": [
+-120.2,
+-16.67
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35483347"
+},
+{
+"ref": "9",
+"xy": [
+105.07,
+-131.26
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455966"
+},
+{
+"ref": "10",
+"xy": [
+-122.65,
+-21.27
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 5",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457111"
+},
+{
+"ref": "10",
+"xy": [
+103.87,
+-133.57
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Gebaeude",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 35455976"
+},
+{
+"ref": "11",
+"xy": [
+-131.54,
+-30.82
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457103"
+},
+{
+"ref": "11",
+"xy": [
+-75.22,
+-57.94
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456796"
+},
+{
+"ref": "11",
+"xy": [
+-1.91,
+-95.88
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE Perrondach 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456085"
+},
+{
+"ref": "11",
+"xy": [
+84.99,
+-140.87
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE Perrondach 6",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35455985"
+},
+{
+"ref": "14",
+"xy": [
+-313.65,
+16.91
+],
+"front": "F",
+"back": "F",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414075216"
+},
+{
+"ref": "14",
+"xy": [
+-263.52,
+-3.81
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414075268"
+},
+{
+"ref": "14",
+"xy": [
+-216.74,
+-19.97
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 417871867"
+},
+{
+"ref": "14",
+"xy": [
+-141.49,
+-51.66
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457087"
+},
+{
+"ref": "14",
+"xy": [
+-86.13,
+-76.68
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456819"
+},
+{
+"ref": "14",
+"xy": [
+-20.25,
+-110.82
+],
+"front": "B",
+"back": "A",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456014"
+},
+{
+"ref": "14",
+"xy": [
+49.13,
+-145.24
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414078457"
+},
+{
+"ref": "15",
+"xy": [
+-315.08,
+13.39
+],
+"front": "F",
+"back": "F",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414075210"
+},
+{
+"ref": "15",
+"xy": [
+-264.99,
+-7.3
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414075891"
+},
+{
+"ref": "15",
+"xy": [
+-219.65,
+-26.82
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 417871847"
+},
+{
+"ref": "15",
+"xy": [
+-144.58,
+-58.74
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457077"
+},
+{
+"ref": "15",
+"xy": [
+-88.4,
+-82.33
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456806"
+},
+{
+"ref": "15",
+"xy": [
+-21.53,
+-113.81
+],
+"front": "B",
+"back": "A",
+"mounting": "BA-Dach_BE Perrondach 7",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35456004"
+},
+{
+"ref": "15",
+"xy": [
+49.13,
+-145.24
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414078472"
+},
+{
+"ref": "16",
+"xy": [
+-270.89,
+-21.55
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 414082485"
+},
+{
+"ref": "16",
+"xy": [
+-227.39,
+-38.12
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Perrondach 8",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 383075142"
+},
+{
+"ref": "16",
+"xy": [
+-24.24,
+-130.15
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 383075143"
+},
+{
+"ref": "18",
+"xy": [
+-331.44,
+-8.32
+],
+"front": "F",
+"back": "F",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 383075136"
+},
+{
+"ref": "18",
+"xy": [
+-267.4,
+-30.83
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 383075130"
+},
+{
+"ref": "18",
+"xy": [
+-231.11,
+-47.4
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE Perron 18",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 383075145"
+},
+{
+"ref": "18",
+"xy": [
+-177.62,
+-71.7
+],
+"front": "D",
+"back": "C",
+"mounting": "BA-Dach_BE Perron 18 Ost",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 383075138"
+},
+{
+"ref": "18",
+"xy": [
+-136.75,
+-88.57
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE Perron 18 Ost",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 383075137"
+},
+{
+"ref": "18",
+"xy": [
+-92.85,
+-106.79
+],
+"front": "B",
+"back": "A",
+"mounting": "BA-Dach_BE Perron 18 Ost",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 383075129"
+},
+{
+"ref": "18",
+"xy": [
+-24.24,
+-130.15
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 383075139"
+},
+{
+"ref": "19",
+"xy": [
+-333.11,
+-22.45
+],
+"front": "H",
+"back": "H",
+"mounting": "BA-Ausruestungsstaender Kippstander",
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 351053734"
+},
+{
+"ref": "19",
+"xy": [
+-266.99,
+-47.02
+],
+"front": "H",
+"back": "H",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053685"
+},
+{
+"ref": "19",
+"xy": [
+-236.04,
+-59.38
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053663"
+},
+{
+"ref": "19",
+"xy": [
+-138.66,
+-101.15
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053727"
+},
+{
+"ref": "19",
+"xy": [
+-101.02,
+-117.53
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053766"
+},
+{
+"ref": "19",
+"xy": [
+-5.55,
+-149.63
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053661"
+},
+{
+"ref": "19",
+"xy": [
+44.1,
+-165.48
+],
+"front": "B",
+"back": "A",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 351053767"
+},
+{
+"ref": "19",
+"xy": [
+90.98,
+-173.53
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 76D",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053749"
+},
+{
+"ref": "20",
+"xy": [
+-268.98,
+-52.62
+],
+"front": "H",
+"back": "H",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053744"
+},
+{
+"ref": "20",
+"xy": [
+-239.03,
+-66.26
+],
+"front": "H",
+"back": "G",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053687"
+},
+{
+"ref": "20",
+"xy": [
+-142.19,
+-108.86
+],
+"front": "F",
+"back": "E",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053737"
+},
+{
+"ref": "20",
+"xy": [
+-104.48,
+-125.39
+],
+"front": "E",
+"back": "D",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053717"
+},
+{
+"ref": "20",
+"xy": [
+-8.5,
+-159.39
+],
+"front": "C",
+"back": "B",
+"mounting": "BA-Dach_BE PD19/20",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053754"
+},
+{
+"ref": "20",
+"xy": [
+44.1,
+-165.48
+],
+"front": "B",
+"back": "A",
+"mounting": null,
+"hanging": false,
+"ref_from": "sbb",
+"fid": "fid 351053747"
+},
+{
+"ref": "20",
+"xy": [
+90.98,
+-173.53
+],
+"front": "A",
+"back": "A",
+"mounting": "FS-Mast 76D",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 351053712"
+},
+{
+"ref": "30",
+"xy": [
+-411.18,
+53.21
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE SNCF Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457243"
+},
+{
+"ref": "30",
+"xy": [
+-338.83,
+71.07
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE SNCF Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457224"
+},
+{
+"ref": "30",
+"xy": [
+-243.58,
+66.0
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457192"
+},
+{
+"ref": "30",
+"xy": [
+-243.58,
+66.0
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457199"
+},
+{
+"ref": "30",
+"xy": [
+-169.85,
+52.47
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457158"
+},
+{
+"ref": "30",
+"xy": [
+-140.26,
+47.03
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457150"
+},
+{
+"ref": "31",
+"xy": [
+-411.18,
+53.21
+],
+"front": "A",
+"back": "A",
+"mounting": "BA-Dach_BE SNCF Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457249"
+},
+{
+"ref": "31",
+"xy": [
+-338.83,
+71.07
+],
+"front": "B",
+"back": "B",
+"mounting": "BA-Dach_BE SNCF Perrondach",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457233"
+},
+{
+"ref": "31",
+"xy": [
+-169.85,
+52.47
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457166"
+},
+{
+"ref": "33",
+"xy": [
+-303.1,
+88.37
+],
+"front": "B",
+"back": "B",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35483659"
+},
+{
+"ref": "33",
+"xy": [
+-240.09,
+84.48
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457215"
+},
+{
+"ref": "33",
+"xy": [
+-136.96,
+65.39
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35483355"
+},
+{
+"ref": "35",
+"xy": [
+-303.1,
+88.37
+],
+"front": "B",
+"back": "B",
+"mounting": "IB-Bruecke_Unterbau",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35460896"
+},
+{
+"ref": "35",
+"xy": [
+-240.09,
+84.48
+],
+"front": "C",
+"back": "C",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 35457206"
+},
+{
+"ref": "35",
+"xy": [
+-166.41,
+70.83
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 300649279"
+},
+{
+"ref": "35",
+"xy": [
+-166.41,
+70.83
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 300649276"
+},
+{
+"ref": "35",
+"xy": [
+-136.96,
+65.39
+],
+"front": "D",
+"back": "D",
+"mounting": "BA-Dach_BE Perronhalle SNCF",
+"hanging": true,
+"ref_from": "sbb",
+"fid": "fid 300649248"
+}
+]

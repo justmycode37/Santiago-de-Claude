@@ -113,6 +113,7 @@ def main():
     # ---------------------------------------------------------------- slabs: walkable areas, minus the wells
     outdoor = {l: [] for l in ids}
     walk = {l: [] for l in ids}
+    open_floor = {l: [] for l in ids}   # the same without the model's rooms (for telling a hall from a shop below)
     derived = {l: [] for l in ids}   # floors the builder made from paths: their outline is a guess, never a wall
     for a in m['areas']:
         lv = a['level']
@@ -123,11 +124,14 @@ def main():
         except Exception:
             continue
         walk[lv].append(P)
+        if a['kind'] != 'room':
+            open_floor[lv].append(P)
         if a.get('derived'):
             derived[lv].append(P)
         if a['kind'] == 'plaza' or (a['kind'] == 'platform' and lv >= 0):
             outdoor[lv].append(P)
     walk = {l: unary_union(v).buffer(0.05).buffer(-0.05) if v else Polygon() for l, v in walk.items()}
+    open_floor = {l: unary_union(v) if v else Polygon() for l, v in open_floor.items()}
     outdoor = {l: unary_union(v) if v else Polygon() for l, v in outdoor.items()}
     derived = {l: unary_union(v) if v else Polygon() for l, v in derived.items()}
 
@@ -260,7 +264,9 @@ def main():
         if P is None or P.is_empty or P.area < 3 or P.area > 1500 or not P.intersects(near):
             continue
         # a "room" that is mostly walkable floor is a hall or a concourse (Halle Landesmuseum, Plaza): not a block
-        if P.intersection(walk[L]).area > 0.3 * P.area:
+        # (a shop the station model has as a room of its own is part of walk[L]: it is measured against the
+        # floor without the rooms)
+        if P.intersection(open_floor[L]).area > 0.3 * P.area:
             continue
         if not (t.get('shop') or t.get('amenity') or t.get('name')):
             continue   # an unnamed room (offices, plant rooms) is not drawn: it would only block the view
