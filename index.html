@@ -820,6 +820,9 @@
     .kj .view3d:active, .kj .step-views > button:active { opacity: .7; }
     /* AR camera (src/app/65-ar.ts): drawn over Scan's live view; no photo button */
     .ar-mode .sv-top > .sv-btn:last-child { display: none; }
+    /* the camera fills the screen: Scan's own panel and the journey sheet underneath step aside while AR is open */
+    .ar-mode .sv-sheet, .ar-mode .sv-debug { display: none !important; }
+    body.ar-open #journey, body.ar-open #jFoot, body.ar-open #jPill { visibility: hidden !important; }
     .ar-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
     .ar-box { position: absolute; border: 3px solid #fff; border-radius: 10px; box-shadow: 0 0 0 2px rgba(0,0,0,.45); }
     .ar-box.ok { border-color: #2ecc71; }
