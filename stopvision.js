@@ -40,11 +40,12 @@
   const evidence = new Map(); // uic → { ocr, ocrAt, ocrWhat, edgeOcr, vis, visRef, visStreak, departures }
   const tiles = new Map();    // photo tiles loaded: key → { uic: refs }
   let model = null, modelState = 'idle';
-  let ocr = null, ocrState = 'idle', ocrLang = '';
+  let ocr = null, ocrState = 'idle', ocrLang = '', ocrFailedAt = 0;
   let lastOcr = 0, lastVis = 0, ocrInvert = false;
   let tapRead = null;      // { x, y } in video pixels: read the sign there next
   let stillImage = null;   // a photo taken with the file input instead of the live camera
   let stillFrames = 0;     // photo comparisons done on that photo (one is enough: it does not change)
+  let stillReads = 0;      // sign readings done on it
 
   // ---------------------------------------------------------------- small helpers
   const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -318,7 +319,7 @@
   function score() {
     const pos = position();
     const fov = screenFov();
-    const useHeading = headingOk() && pos;
+    const useHeading = headingOk() && pos && !stillImage;
     for (const c of candidates) {
       const ev = evidence.get(c.uic) || {};
       const acc = pos ? pos.acc : 50;
@@ -363,7 +364,7 @@
   async function ensureOcr() {
     const lang = ocrLanguage(position() && position().ll);
     if (ocr && ocrLang === lang) return ocr;
-    if (ocrState === 'loading') return null;
+    if (ocrState === 'loading' || (ocrState === 'failed' && Date.now() - ocrFailedAt < 30000)) return null;
     ocrState = 'loading';
     try {
       if (!window.Tesseract) await loadScript(TESSERACT);
@@ -375,6 +376,7 @@
       return ocr;
     } catch (err) {
       ocrState = 'failed';
+      ocrFailedAt = Date.now();
       console.warn('Scan: OCR unavailable', err);
       return null;
     }
@@ -426,10 +428,12 @@
     const [w, h] = sourceSize();
     if (!w) return;
     let region = null;
-    if (tapRead) {
+    const tap = tapRead;
+    if (tap) {
       const rw = w * 0.7, rh = h * 0.28;
-      region = { x: Math.max(0, Math.min(w - rw, tapRead.x - rw / 2)), y: Math.max(0, Math.min(h - rh, tapRead.y - rh / 2)), w: rw, h: rh };
-    }
+      region = { x: Math.max(0, Math.min(w - rw, tap.x - rw / 2)), y: Math.max(0, Math.min(h - rh, tap.y - rh / 2)), w: rw, h: rh };
+    } else if (stillImage && stillReads >= 2) return; // a photo does not change: read it twice (normal + inverted)
+    if (stillImage && !tap) stillReads++;
     const canvas = ocrCanvas(region, ocrInvert);
     if (!region && !stillImage) {
       const small = document.createElement('canvas');
@@ -439,12 +443,11 @@
       if (sharpness(sctx, small.width, small.height) < 30) return; // blurred: the phone is moving
     }
     ocrInvert = !ocrInvert; // alternate dark-on-light and light-on-dark signs
+    const mine = session;
     const { data } = await worker.recognize(canvas);
-    if (!running) return;
-    const wasTap = !!tapRead;
-    tapRead = null;
-    ui.ring.classList.remove('on');
-    useText(data.text || '', wasTap);
+    if (!running || mine !== session) return;
+    if (tap && tapRead === tap) { tapRead = null; ui.ring.classList.remove('on'); }
+    useText(data.text || '', !!tap);
   }
 
   // Compare read text with the stops around (or, without a position, all stops)
@@ -679,6 +682,7 @@
       ev.visRef = b.ref;
       ev.visRel = b.sim >= VIS_MIN && best.length > 1 ? b.sim - median : 0;
       const margin = i === 0 && best.length > 1 ? b.sim - best[1].sim : 0;
+      ev.visAt = Date.now();
       ev.visStreak = !stillImage && i === 0 && b.sim >= VIS_MIN && best.length > 1 && margin >= VIS_MARGIN ? (ev.visStreak || 0) + 1 : 0;
       evidence.set(b.c.uic, ev);
     });
@@ -708,7 +712,7 @@
     const ev = evidence.get(c.uic) || {};
     if (ev.ocrAt && Date.now() - ev.ocrAt < 12000 && ev.ocr >= 0.8 && ev.ocrUnique && ev.ocrStrong) return 'sign';
     // photo match only together with the location: the stop that position + compass favour on their own
-    if (ev.visStreak >= VIS_FRAMES && c.geoTop && c.ahead !== false) return 'photo';
+    if (ev.visStreak >= VIS_FRAMES && Date.now() - ev.visAt < 6000 && c.geoTop && c.ahead !== false) return 'photo';
     return null;
   }
 
@@ -725,7 +729,7 @@
         const off = ((bearing(pos.ll, e.ll) - heading + 540) % 360) - 180;
         if (Math.abs(off) > fov / 2 + 4) return;
         const x = W / 2 + Math.tan(off * toRad) / Math.tan(fov / 2 * toRad) * W / 2;
-        const y = H * (0.30 + Math.min(0.22, distM(pos.ll, e.ll) / 1200)) + (n % 3) * 34; // nearer = lower
+        const y = H * (0.42 - Math.min(0.2, distM(pos.ll, e.ll) / 1000)) - (n % 3) * 30; // nearer = lower
         let tag = ui.tags.get(c.uic);
         if (!tag) {
           tag = $('div', 'sv-tag');
@@ -820,7 +824,7 @@
       const p = $('div', 'sv-photo');
       if (ref.thumb) { const img = $('img'); img.src = ref.thumb; img.alt = 'Reference photo'; img.loading = 'lazy'; p.append(img); }
       const a = $('a', null, `Closest reference photo: ${ref.credit}${ref.licence ? ', ' + ref.licence : ''}`);
-      a.href = ref.page; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      if (ref.page) { a.href = ref.page; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
       p.append(a);
       nodes.push(p);
     }
@@ -885,10 +889,12 @@
     if (stillImage) URL.revokeObjectURL(stillImage);
     evidence.clear(); // what the live camera saw does not apply to this photo
     stillFrames = 0;
+    stillReads = 0;
+    if (!position()) candidates = [];
     stillImage = URL.createObjectURL(file);
     ui.still.src = stillImage;
     ui.root.classList.add('still');
-    ui.still.onload = () => { lastOcr = 0; lastVis = 0; renderStatus(); };
+    ui.still.onload = () => { if (!ui) return; lastOcr = 0; lastVis = 0; renderStatus(); };
   }
 
   // ---------------------------------------------------------------- open / close
@@ -921,7 +927,7 @@
     }
     if (mine !== session) return;
     ensureOcr();
-    loadIndex().then((idx) => { if (idx) setTimeout(ensureModel, 1500); }); // after the sign reader has started
+    loadIndex().then((idx) => { if (idx) setTimeout(() => { if (running && mine === session) ensureModel(); }, 1500); }); // after the sign reader
   }
 
   function closeScan() {
@@ -941,5 +947,5 @@
     if (app && app.onClose) app.onClose();
   }
 
-  window.STOPVISION = { open: openScan, close: closeScan, _debug: { evidence, candidates: () => candidates, tiles, matchIn, nameVariants, norm, distinctive, useText, setApp: (a) => { app = a; }, recognised } };
+  window.STOPVISION = { open: openScan, close: closeScan, _debug: { evidence, candidates: () => candidates, tiles, matchIn, nameVariants, norm, distinctive, useText, setApp: (a) => { app = a; }, recognised, findCandidates, score, edgeOf } };
 })();

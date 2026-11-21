@@ -113,7 +113,7 @@ def polite(host, gap):
         time.sleep(wait)
 
 
-GAPS = {'tiles.mapillary.com': 0.1, 'commons.wikimedia.org': 0.5, 'upload.wikimedia.org': 0.25, 'query.wikidata.org': 1.0, 'api.panoramax.xyz': 0.2,
+GAPS = {'tiles.mapillary.com': 0.1, 'commons.wikimedia.org': 0.35, 'upload.wikimedia.org': 0.25, 'query.wikidata.org': 1.0, 'api.panoramax.xyz': 0.2,
         'graph.mapillary.com': 0.05, 'overpass-api.de': 5.0, 'data.sbb.ch': 0.5}
 
 
@@ -135,9 +135,10 @@ def fetch(url, data=None, headers=None, cache=True, binary=False, tries=5):
                 json.loads(body)  # only cache valid answers
             if cache:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path + '.tmp', 'wb') as f:
+                tmp = f'{path}.{threading.get_ident()}.tmp'
+                with open(tmp, 'wb') as f:
                     f.write(body)
-                os.replace(path + '.tmp', path)
+                os.replace(tmp, path)
             return body if binary else json.loads(body)
         except urllib.error.HTTPError as e:
             if e.code in (400, 401, 403, 404, 410):
@@ -247,6 +248,10 @@ def commons_ref(p, prov, edge=None):
     if min(ii.get('width', 0), ii.get('height', 0)) < 300:
         return None
     md = ii.get('extmetadata') or {}
+    lic = strip_html(md.get('LicenseShortName', {}).get('value', ''))
+    if not re.match(r'(?i)(cc[ -]?by|cc[ -]?by[ -]?sa|cc0|cc[ -]zero|public domain|pd\b|attribution)', lic) \
+            or re.search(r'(?i)\b(nc|nd)\b', lic):
+        return None
     co = (p.get('coordinates') or [{}])[0]
     thumb = ii['thumburl'].split('?')[0]
     return {'src': 'commons', 'prov': prov, 'edge': edge, 'lon': co.get('lon'), 'lat': co.get('lat'), 'heading': None,
@@ -360,6 +365,7 @@ def panoramax_facing(stop, ei, edge):
                      'heading': props.get('view:azimuth'), 'thumb': sd,
                      'page': f'https://api.panoramax.xyz/#focus=pic&pic={f["id"]}', 'credit': who[:80],
                      'cache_key': f'pnx-{f["id"]}',
+                     'dist': dist_m((lon, lat), edge),
                      'licence': lic.replace('License for this object (', '').rstrip(')')[:40],
                      'date': (props.get('datetime') or '')[:10], 'text': ''})
     return refs
@@ -447,9 +453,16 @@ _mly_lock = threading.Lock()
 
 
 def mapillary_points(lon, lat, token):
-    z = 14
-    x = int((lon + 180) / 360 * 2 ** z)
-    y = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * 2 ** z)
+    dx, dy = 40 / (111320 * math.cos(math.radians(lat))), 40 / 111320
+    tiles = {_mly_tile(lon + a, lat + b) for a in (-dx, dx) for b in (-dy, dy)}
+    return [p for x, y in sorted(tiles) for p in _mly_near(x, y, lon, lat, token)]
+
+
+def _mly_tile(lon, lat, z=14):
+    return (int((lon + 180) / 360 * 2 ** z), int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * 2 ** z))
+
+
+def _mly_near(x, y, lon, lat, token, z=14):
     with _mly_lock:
         if (x, y) not in _mly_tiles:
             body = try_fetch(f'https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token={token}',
@@ -466,11 +479,19 @@ def mapillary_points(lon, lat, token):
 MLY = {'ok': None}  # None = not checked yet
 
 
+_mly_check = threading.Lock()
+
+
 def mapillary_usable(token):
     """Image lookups need an app with the READ permission; the coverage tiles work without it."""
+    with _mly_check:
+        return _mapillary_usable(token)
+
+
+def _mapillary_usable(token):
     if MLY['ok'] is None:
-        pts = mapillary_points(7.4478, 46.9480, token)  # Bern old town: always has photos
         try:
+            pts = mapillary_points(7.4478, 46.9480, token)  # Bern old town: always has photos
             fetch(f'https://graph.mapillary.com/{pts[0][2]["id"]}?' + urllib.parse.urlencode(
                 {'access_token': token, 'fields': 'id'}), cache=False, tries=2)
             MLY['ok'] = True
@@ -492,14 +513,15 @@ def mapillary_facing(stop, ei, edge, token):
         dist = dist_m((lon, lat), edge)
         if 3 <= dist <= 35 and angle_diff(bearing((lon, lat), edge), head) <= 35:
             picks.append((-(pr.get('captured_at') or 0) / 3.15e10 + dist / 10, lon, lat, head, pr))
-    picks.sort()  # recent and close first
+    picks.sort(key=lambda x: x[0])  # recent and close first
     refs, seqs = [], set()
     for _, lon, lat, head, pr in picks:
-        if pr.get('sequence_id') in seqs:
+        seq = pr.get('sequence_id')
+        if seq and seq in seqs:
             continue  # one photo per drive/walk: the next frames look the same
-        seqs.add(pr.get('sequence_id'))
+        seqs.add(seq)
         d = try_fetch(f'https://graph.mapillary.com/{pr["id"]}?' + urllib.parse.urlencode(
-            {'access_token': token, 'fields': 'thumb_1024_url,creator'}), cache=False)
+            {'access_token': token, 'fields': 'thumb_1024_url,creator'}))  # cached: the photo is saved on first use
         if not d or not d.get('thumb_1024_url'):
             continue
         refs.append({'src': 'mapillary', 'prov': 'mly', 'edge': ei, 'lon': lon, 'lat': lat, 'heading': head,
@@ -580,9 +602,9 @@ def collect(stop, wd, sbb, osm, token):
     for o in osm:
         if o['uic'] == uic or (o['ll'][0] and min(dist_m(o['ll'], e) for e in stop['edges']) < 25
                                and name_tokens(stop['name']) & set(norm(o['name']).split())):
-            if o['kind'] in ('wikimedia_commons', 'image') and re.search(r'(File:|commons\.wikimedia)', o['value']):
-                title = 'File:' + urllib.parse.unquote(o['value'].split('File:')[-1]).replace('_', ' ')
-                refs += commons_files([title], 'osm')
+            m = re.search(r'(?:^|/wiki/)File:([^?#]+)$', o['value']) if o['kind'] in ('wikimedia_commons', 'image') else None
+            if m:
+                refs += commons_files(['File:' + urllib.parse.unquote(m.group(1)).replace('_', ' ')], 'osm')
     refs += geo
     street = []
     for ei, edge in enumerate(stop['edges'][:12]):
@@ -653,8 +675,10 @@ def image_bytes(ref):
     body = try_fetch(ref['thumb'], binary=True, cache=False)
     if body:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'wb') as f:
+        tmp = f'{path}.{threading.get_ident()}.tmp'
+        with open(tmp, 'wb') as f:
             f.write(body)
+        os.replace(tmp, path)
     return body
 
 
@@ -718,10 +742,16 @@ def write(refs_by_stop, stops, keep_srcs=()):
             f.write(f'STOP_IMAGES_TILE({json.dumps(key)},{json.dumps(data, ensure_ascii=False, separators=(",", ":"))});\n')
         index['tiles'][key] = len(data)
     counts = {}
-    for name in os.listdir(os.path.join(OUT, 't')):
+    index['tiles'] = {}
+    for name in sorted(os.listdir(os.path.join(OUT, 't'))):
+        if not name.endswith('.js'):
+            continue
         with open(os.path.join(OUT, 't', name), encoding='utf-8') as f:
             t = f.read()
-        for refs in json.loads(t[t.index('{'):t.rindex('}') + 1]).values():
+        tile = json.loads(t[t.index('{'):t.rindex('}') + 1])
+        if tile:
+            index['tiles'][name[:-3]] = len(tile)
+        for refs in tile.values():
             for r in refs:
                 counts[r[1]] = counts.get(r[1], 0) + 1
     index.update({'v': 1, 'date': datetime.date.today().isoformat(), 'tile': 0.1,
@@ -734,12 +764,23 @@ def write(refs_by_stop, stops, keep_srcs=()):
     log(f'wrote {len(tiles)} tiles; database: {index["stops"]} stops, photos by source {counts}')
 
 
+def safe_collect(stop, *a):
+    """One stop that fails (odd data, a source down) must not stop a national build: it gets no photos this time."""
+    try:
+        return collect(stop, *a)
+    except Exception as e:
+        log(f'  ! {stop["uic"]} {stop["name"]}: {type(e).__name__}: {str(e)[:120]}')
+        return None
+
+
 def calibrate(stops):
     """How well photo fingerprints alone tell nearby stops apart: leave one photo out, find the stop (within 300 m)
     whose photos are most similar, and count how often that is the right stop."""
     import numpy as np
     db = {}
     for name in os.listdir(os.path.join(OUT, 't')):
+        if not name.endswith('.js'):
+            continue
         with open(os.path.join(OUT, 't', name), encoding='utf-8') as f:
             t = f.read()
         db.update(json.loads(t[t.index('{'):t.rindex('}') + 1]))
@@ -782,6 +823,8 @@ def main():
     ap.add_argument('--mapillary-token-file')
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--calibrate', action='store_true', help='measure how well photos alone tell nearby stops apart')
+    ap.add_argument('--resume', action='store_true',
+                    help='skip stops finished by an earlier run with the same area/modes (checkpoint in ~/.cache/stopvision)')
     a = ap.parse_args()
     if a.calibrate:
         return calibrate(load_stops())
@@ -802,6 +845,13 @@ def main():
     todo.sort(key=lambda s: (s['mode'] != 't', s['uic']))
     if a.limit:
         todo = todo[:a.limit]
+    ckpt = os.path.join(CACHE, 'done-' + hashlib.sha1(f'{bbox}|{a.modes}|{bool(token)}'.encode()).hexdigest()[:12] + '.txt')
+    done_before = set()
+    if a.resume and os.path.exists(ckpt):
+        with open(ckpt) as f:
+            done_before = set(f.read().split())
+        todo = [s for s in todo if s['uic'] not in done_before]
+        log(f'resuming: {len(done_before)} stops done before')
     log(f'{len(todo)} stops in the area')
     wd, sbb = wikidata(stops), sbb_images()
     osm = osm_tagged(bbox) if not a.all else []  # Overpass would time out on all of Switzerland in one query
@@ -812,12 +862,16 @@ def main():
     for i in range(0, len(todo), batch):
         part = todo[i:i + batch]
         with cf.ThreadPoolExecutor(a.workers) as pool:
-            got = list(pool.map(lambda s: collect(s, wd, sbb, osm, token), part))
-        chunk = {s['uic']: refs for s, refs in zip(part, got)}  # empty too: replaces wrong photos from earlier runs
+            got = list(pool.map(lambda s: safe_collect(s, wd, sbb, osm, token), part))
+        # empty lists too: they replace wrong photos from earlier runs; failed stops (None) keep what they had
+        chunk = {s['uic']: refs for s, refs in zip(part, got) if refs is not None}
         fingerprint(chunk, embedder)
         write(chunk, stops,
               keep_srcs=() if token and MLY['ok'] else ('mapillary',))
         refs_by_stop.update(chunk)
+        os.makedirs(CACHE, exist_ok=True)
+        with open(ckpt, 'a') as f:
+            f.writelines(f'{u}\n' for u in chunk)
         done += len(part)
         log(f'{done}/{len(todo)} stops, {sum(1 for v in refs_by_stop.values() if v)} with photos')
 
