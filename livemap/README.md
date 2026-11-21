@@ -13,7 +13,7 @@ This is not part of the static site: it needs a server, so `livemap/` is left ou
 
 | Part | What it does |
 |---|---|
-| Kante engine (other repo, `Powercoders-Hackathon/kante`) | Holds the timetable, polls the live feed once a minute with the API key, answers "which vehicles are under way" and "this trip's stops and delays" |
+| Kante engine (`kante/` in this repository) | Holds the timetable, polls the live feed once a minute with the API key, answers "which vehicles are under way" and "this trip's stops and delays" |
 | `server.mjs` | Asks the engine for every running vehicle, builds each one's coming stops with live times, and serves the page. Holds no API keys |
 | `shaper/` | Small Rust program. Finds the path between two consecutive stops on OpenStreetMap rails, roads or ferry lines. Started by `server.mjs` |
 | `index.html` | The map. Draws each vehicle along its path and glides to corrections instead of jumping |
@@ -22,8 +22,8 @@ This is not part of the static site: it needs a server, so `livemap/` is left ou
 
 ## Running it
 
-Needs Node 22+, Rust, and the Kante engine running on port 8080 with a SIRI-ET key (see that project's
-README). The path finder reads the OpenStreetMap extract of Switzerland that Kante downloads.
+Needs Node 22+, Rust, and the Kante engine running on port 8080 with a SIRI-ET key (see
+[kante/README.md](../kante/README.md)). The path finder reads the OpenStreetMap extract of Switzerland that Kante downloads.
 
 ```sh
 cd livemap

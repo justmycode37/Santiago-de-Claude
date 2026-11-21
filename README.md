@@ -81,6 +81,14 @@ During a trip the app follows you along the route:
 the real rails and roads. It needs its own server and the Kante engine, so it is not part of the deployed
 site. See [livemap/README.md](livemap/README.md).
 
+## Kante engine (not used by the app yet)
+
+`kante/` holds the Rust journey planner from the Kante prototype: its own routing on the national timetable,
+a multi-level walking network, exact boarding points and live data from opentransportdata.swiss. The app
+still plans journeys with transport.opendata.ch; switching it to the engine is the next step. `deploy/`
+hosts the engine and redeploys it when `main` changes. See [kante/README.md](kante/README.md) and
+[deploy/README.md](deploy/README.md).
+
 ## Places and amenities data
 
 `data/` holds Bern toilets, drinking water, benches, AEDs and other public amenities, plus Google-Maps-style places (restaurants, shops, hotels, services) from OpenStreetMap and official city, canton and SBB layers. See [docs/places-data.md](docs/places-data.md).

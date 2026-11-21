@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the engine from origin/main and switch to it, if it has changed.
 #
-#   deploy/deploy.sh           what the timer runs: does nothing unless main moved and kante/ changed
+#   deploy/deploy.sh           what the timer runs: does nothing unless main moved and kante/engine changed
 #   deploy/deploy.sh --force   build and switch even if nothing changed
 #
 # Each release has its own folder with the binary and the data caches that binary built, so a bad
@@ -57,10 +57,10 @@ main() {
   if (( ! force )) && [[ $new == "$seen" ]]; then exit 0; fi
 
   git checkout --quiet --force --detach "$new"
-  tree=$(git rev-parse "$new:kante")
+  tree=$(git rev-parse "$new:kante/engine")
   cur=$(cat "$ROOT/state/tree" 2>/dev/null || true)
   if (( ! force )) && [[ $tree == "$cur" ]]; then
-    log "${new:0:7}: kante/ is unchanged, nothing to build"
+    log "${new:0:7}: kante/engine is unchanged, nothing to build"
     echo "$new" > "$ROOT/state/seen"
     exit 0
   fi

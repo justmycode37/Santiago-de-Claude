@@ -15,5 +15,6 @@ if [[ -f $ROOT/cloudflared.yml ]]; then
 elif [[ -s $ROOT/secrets/tunnel-token ]]; then
   exec "$CF" tunnel --no-autoupdate run --token-file "$ROOT/secrets/tunnel-token"
 else
-  exec "$CF" tunnel --no-autoupdate --url "http://127.0.0.1:$PORT"
+  # status.sh reads the address from the metrics port
+  exec "$CF" tunnel --no-autoupdate --metrics 127.0.0.1:20248 --url "http://127.0.0.1:$PORT"
 fi

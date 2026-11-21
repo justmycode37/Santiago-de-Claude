@@ -22,7 +22,7 @@ if [[ -f $ROOT/cloudflared.yml ]]; then
 elif [[ -s $ROOT/secrets/tunnel-token ]]; then
   echo "address:  the hostname set for this tunnel in the Cloudflare dashboard"
 else
-  url=$(journalctl --user -u kante-tunnel.service -o cat --no-pager -n 400 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1)
+  url=$(curl -fsS -m 3 http://127.0.0.1:20248/quicktunnel 2>/dev/null | python3 -c 'import json,sys; print("https://" + json.load(sys.stdin)["hostname"])' 2>/dev/null)
   echo "address:  ${url:-none yet} (quick tunnel: changes when the tunnel restarts)"
 fi
 systemctl --user --no-pager list-timers kante-deploy.timer 2>/dev/null | sed -n 2p | awk '{print "next check: " $1, $2, $3}'
