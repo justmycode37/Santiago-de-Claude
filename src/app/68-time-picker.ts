@@ -23,7 +23,7 @@ function setTMode(m: TimeMode) {
 function openTimeSheet(mode: TimeMode) {
   if (!journeyDest) return;
   setTMode(mode);
-  const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.to.arrival : journeyConn.from.departure) : new Date();
+  const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.to.arrival! : journeyConn.from.departure!) : new Date();
   tDate.value = journeyQuery.date || dateValue(ref);
   tTime.value = journeyQuery.time || timeValue(ref);
   if (journeyQuery.mode !== mode && journeyConn) { tDate.value = dateValue(ref); tTime.value = timeValue(ref); }
@@ -43,10 +43,10 @@ tDim.addEventListener('click', closeTimeSheet);
 document.getElementById('tNow')!.addEventListener('click', () => {
   journeyQuery = { mode: 'dep', date: '', time: '' };
   closeTimeSheet();
-  startJourney(journeyDest, true);
+  startJourney(journeyDest!, true);
 });
 document.getElementById('tDone')!.addEventListener('click', () => {
   journeyQuery = { mode: tMode, date: tDate.value, time: tTime.value };
   closeTimeSheet();
-  startJourney(journeyDest, true);
+  startJourney(journeyDest!, true);
 });

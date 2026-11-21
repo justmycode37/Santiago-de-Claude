@@ -1,38 +1,38 @@
 // ---------- Journey (public transport via transport.opendata.ch) ----------
-const ROUTE_FC = { type: 'FeatureCollection', features: [] };
+const ROUTE_FC: RouteCollection = { type: 'FeatureCollection', features: [] };
 let journeyStep = 0;
-let journeySteps = [];
+let journeySteps: JourneyStep[] = [];
 let journeyReq = 0;
-const journeyEl = document.getElementById('journey');
-const jHead = document.getElementById('jHead');
-const jBody = document.getElementById('jBody');
-const jFoot = document.getElementById('jFoot');
-const jHandle = document.getElementById('jHandle');
-let journeyConn = null;
+const journeyEl = document.getElementById('journey')!;
+const jHead = document.getElementById('jHead')!;
+const jBody = document.getElementById('jBody')!;
+const jFoot = document.getElementById('jFoot')!;
+const jHandle = document.getElementById('jHandle')!;
+let journeyConn: OdConnection | null = null;
 let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
 let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
-let journeyDest = null;
+let journeyDest: JourneyDest | null = null;
 let journeyQuery: JourneyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
-let progressTimer = null;
-let liveTimer = null;
+let progressTimer: number | null = null;
+let liveTimer: number | null = null;
 
 // ---- The journey on the map, drawn like the Kante app (nikitas-implementation): rides in their line colour
 //      with a casing, a stop circle at every stop, walks as a yellow band with arrows, a sign where you board ----
 const WALK = '#FFD34B';
 const WALK_EDGE = '#14161A';
 let routeOverview = true; // the whole journey at once: nothing dimmed until a step is picked
-const stepOpacity = (dim, on = 1) => (routeOverview ? on : ['case', ['==', ['get', 'step'], journeyStep], on, dim]);
+const stepOpacity = (dim: number, on = 1): number | maplibregl.ExpressionSpecification => (routeOverview ? on : ['case', ['==', ['get', 'step'], journeyStep], on, dim]);
 // …and the part of the trip already behind you fades
-const routeOpacity = (dim, on = 1) => ['*', ['case', ['==', ['get', 'done'], true], .35, 1], stepOpacity(dim, on)];
+const routeOpacity = (dim: number, on = 1): maplibregl.ExpressionSpecification => ['*', ['case', ['==', ['get', 'done'], true], .35, 1], stepOpacity(dim, on)];
 
 // → { below: lines (under the map's labels), above: points and signs }
-function routeLayers(theme) {
+function routeLayers(theme: Theme): RouteLayers {
   const dark = theme === 'dark';
   const casing = dark ? '#0B0D10' : '#FFFFFF';
-  const zoomW = (a, b) => ['interpolate', ['linear'], ['zoom'], 10, a, 17, b];
-  const kind = (k) => ['==', ['get', 'kind'], k];
-  const round = { 'line-cap': 'round', 'line-join': 'round' };
-  const img = ['concat', ['get', 'img'], '|' + theme];
+  const zoomW = (a: number, b: number): maplibregl.ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], 10, a, 17, b];
+  const kind = (k: RouteFeatureProps['kind']): maplibregl.FilterSpecification => ['==', ['get', 'kind'], k];
+  const round: maplibregl.LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round' };
+  const img: maplibregl.ExpressionSpecification = ['concat', ['get', 'img'], '|' + theme];
   const fixed = { 'icon-allow-overlap': true, 'icon-ignore-placement': true };
   return {
     below: [
@@ -78,8 +78,8 @@ function refreshRouteHighlight() {
   map.setPaintProperty('route-stops', 'circle-stroke-opacity', routeOpacity(.4));
 }
 
-function setRoute(features) {
+function setRoute(features: RouteFeature[]) {
   ROUTE_FC.features = features;
-  const src = map.getSource('route');
+  const src = map.getSource<maplibregl.GeoJSONSource>('route');
   if (src) src.setData(ROUTE_FC);
 }
