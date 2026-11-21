@@ -73,7 +73,7 @@ enum DepartureDisplayMatcher {
     /// Minimum similarity of the destination text on its own.
     static let destinationAccept = 0.8
     /// Lower destination similarity is enough when the route numeral agrees.
-    static let destinationAcceptWithLine = 0.62
+    static let destinationAcceptWithLine = 0.7
     /// Best must beat the best *different* service by this much (score units; line exact = 0.6).
     static let marginAccept = 0.25
     /// Readable text this unlike every candidate is reported as an unlisted display.
@@ -147,7 +147,7 @@ enum DepartureDisplayMatcher {
         for row in rows {
             let words = row.isVia ? Array(row.destinationWords.dropFirst()) : row.destinationWords
             // A via row ("via Bahnhof") is weaker evidence for the destination itself.
-            let weight = row.isVia ? 0.7 : 1.0
+            let weight = (row.isVia ? 0.7 : 1.0) * row.weight
             for start in words.indices {
                 var bytes: [UInt8] = []
                 for end in start..<min(words.count, start + 6) {
@@ -194,6 +194,8 @@ enum DepartureDisplayMatcher {
         if routeTokens.isEmpty { line = .unseen }
         else if routeTokens.contains(key) { line = .exact }
         else if routeTokens.contains(where: { DisplayText.confusionKey($0) == DisplayText.confusionKey(key) }) { line = .confusable }
+        // "9" read from a "19" display (a dropped digit) neither confirms nor contradicts line 19.
+        else if routeTokens.contains(where: { $0.count < key.count && (key.hasSuffix($0) || key.hasPrefix($0)) }) { line = .unseen }
         else { line = .contradicted }
         return DisplayCandidateScore(candidate: candidate, destination: bestSimilarity, line: line, observed: bestText)
     }
@@ -205,14 +207,22 @@ enum DisplayRows {
         let words: [String]
         let routeTokens: [String]
         let destinationWords: [String]
+        /// Text height relative to the tallest text on this vehicle: smaller rows (vias, adverts) weigh less.
+        var weight = 1.0
         /// "via Bahnhof": an intermediate stop, weaker evidence for the destination itself.
-        var isVia: Bool { words.count > 1 && ["via", "uber", "ia", "vla", "vio", "va"].contains(words[0]) }
+        var isVia: Bool { words.count > 1 && ["via", "uber", "ia", "vla", "vio", "va", "ria", "wia"].contains(words[0]) }
         var letterCount: Int { destinationWords.joined().filter(\.isLetter).count }
     }
+
+    /// Operator brands and vehicle labels that are never a destination.
+    static let ignoredWords: Set<String> = ["bernmobil", "hybrid", "postauto", "sbb", "bls", "vbz", "bvb", "tpg", "tl", "rbs", "linie", "line", "ligne"]
 
     static func make(_ texts: [VehicleText]) -> [Row] {
         let usable = texts.filter { $0.score.isFinite && $0.score >= 0.3 && !$0.box.isEmpty }
             .sorted { $0.box.midY < $1.box.midY }
+        // Destination rows are the largest text of a display; compare row heights with the tallest
+        // text that contains letters (a lone big route numeral is not the reference).
+        let tallest = usable.filter { $0.text.contains(where: \.isLetter) }.map(\.box.height).max() ?? 0
         // Collinear fragments (same display row) are joined left to right; each fragment also stays a row
         // of its own, so a wrong join never removes evidence.
         var groups: [[VehicleText]] = []
@@ -227,18 +237,24 @@ enum DisplayRows {
         }
         var rows: [Row] = []
         var seen = Set<String>()
-        func add(_ value: String) {
-            let words = DisplayText.words(value)
+        func add(_ value: String, height: CGFloat) {
+            let words = DisplayText.words(value).filter { !ignoredWords.contains($0) }
             guard !words.isEmpty, seen.insert(words.joined(separator: " ")).inserted else { return }
-            let routes = words.filter(DisplayText.isRouteToken).map(DisplayText.lineKey)
+            // A numeral starting with 0 ("000", "B00") is a misread: no Swiss line number starts with 0.
+            let routes = words.filter { DisplayText.isRouteToken($0) && !$0.drop { $0.isLetter }.hasPrefix("0") }.map(DisplayText.lineKey)
             // Route numerals are excluded from destination comparison; other short digit runs
             // (a platform, a fleet number) stay, because some destinations contain numbers.
             let destination = words.filter { !DisplayText.isRouteToken($0) }
-            rows.append(Row(words: words, routeTokens: routes, destinationWords: destination))
+            var row = Row(words: words, routeTokens: routes, destinationWords: destination)
+            if tallest > 0 { row.weight = height >= tallest * 0.75 ? 1 : 0.8 }
+            rows.append(row)
         }
         for group in groups {
-            if group.count > 1 { add(group.sorted { $0.box.minX < $1.box.minX }.map(\.text).joined(separator: " ")) }
-            for text in group { add(text.text) }
+            if group.count > 1 {
+                add(group.sorted { $0.box.minX < $1.box.minX }.map(\.text).joined(separator: " "),
+                    height: group.map(\.box.height).max() ?? 0)
+            }
+            for text in group { add(text.text, height: text.box.height) }
         }
         return rows
     }
@@ -281,7 +297,13 @@ enum DisplayText {
                 split.append(String(digits)); split.append(String(rest))
             } else { split.append(word) }
         }
-        return split.map { abbreviations[$0] ?? $0 }
+        var expanded: [String] = []
+        for word in split {
+            // "BernBhf" → "bern bahnhof" (glued abbreviation).
+            if word.count > 4, word.hasSuffix("bhf") { expanded.append(String(word.dropLast(3))); expanded.append("bahnhof"); continue }
+            expanded.append(abbreviations[word] ?? word)
+        }
+        return expanded
     }
 
     static func canonical(_ value: String) -> String { words(value).joined(separator: " ") }
@@ -341,7 +363,10 @@ enum DisplayText {
         add(words(destination), 1)
         let parts = destination.split(separator: ",", maxSplits: 1).map(String.init)
         if parts.count == 2 {
+            let locality = words(parts[0])
             let stop = words(parts[1])
+            // "Bern Wankdorf, Bahnhof" is shown as "Wankdorf Bhf": the city word of a two-word locality is optional.
+            if locality.count >= 2 { add(Array(locality.dropFirst()) + stop, 1) }
             if genericStopWords.contains(stop.joined()) || stop.allSatisfy({ genericStopWords.contains($0) }) {
                 // "Bahnhof" alone fits every "<Place>, Bahnhof"; the locality is the distinctive part.
                 if droppedTerminusWords.contains(stop.joined()) || stop.allSatisfy({ droppedTerminusWords.contains($0) }) {

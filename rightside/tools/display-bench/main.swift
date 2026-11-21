@@ -98,7 +98,11 @@ for label in (args.contains("--bench") || args.contains("--why") ? [] : labels) 
         let m = DepartureDisplayMatcher.match(reading.observed, candidates: board)
         let key: String
         switch m.outcome {
-        case .matched: key = DepartureDisplayMatcher.sameDisplay(m.best!.candidate, truth) ? "matched-correct" : "matched-WRONG"
+        case .matched:
+            key = DepartureDisplayMatcher.sameDisplay(m.best!.candidate, truth) ? "matched-correct" : "matched-WRONG"
+            if key == "matched-WRONG" && args.contains("--wrong") {
+                print("WRONG #\(label.event) truth \(label.line) \(label.destination) → \(m.best!.candidate.line) \(m.best!.candidate.destination) via '\(m.best!.observed)' \(m.best!.line.rawValue); 2nd \(m.runnerUp.map { $0.candidate.line + " " + $0.candidate.destination } ?? "-") texts \(reading.observed.map(\.text))")
+            }
         default: key = m.outcome.rawValue
         }
         perFrame[key, default: 0] += 1
