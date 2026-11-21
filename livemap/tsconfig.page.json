@@ -3,6 +3,6 @@
   // index-old.html. Each is checked on its own, as each runs in its own page.
   "extends": "../tsconfig.json",
   "compilerOptions": { "moduleDetection": "force" },
-  "include": ["page.ts", "page-old.ts", "../src/types/vendor.d.ts"],
+  "include": ["page.ts", "page-old.ts", "types.d.ts", "../src/types/vendor.d.ts"],
   "exclude": []
 }
