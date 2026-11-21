@@ -54,7 +54,9 @@
       // a hesitant estimate shows as a wide circle: the floor is said only when one floor clearly wins
       const acc = Math.max(3, e.sigma * (e.confident ? 1.5 : 2.5));
       const heading = ses.sensors && ses.sensors.heading != null ? ses.sensors.heading : lastGps && lastGps.heading;
-      S3().setUser({ xy: [e.x, e.y], level: e.levelProb > 0.6 ? e.level : undefined, levelSure: e.confident, accuracy: acc, heading });
+      // with what the filter thinks of every floor: the station view shows it (station3d.js ignores it)
+      S3().setUser({ xy: [e.x, e.y], level: e.levelProb > 0.6 ? e.level : undefined, levelSure: e.confident, accuracy: acc, heading,
+        levelProbs: e.levelProbs, levelProb: e.levelProb });
     };
     const wait = PUSH_MS - (performance.now() - lastPush);
     if (wait <= 0) go();
@@ -197,7 +199,7 @@
     if (!ses || !ses.open || !ses.filter || ses.sensors) return;
     const path = e.composedPath ? e.composedPath() : [e.target];
     const has = (cls) => path.some((n) => n && n.classList && n.classList.contains(cls));
-    if (has('s3') && !has('s3-close')) startSensors();
+    if ((has('s3') || has('stv')) && !has('s3-close')) startSensors();   // station3d.js's view, or station-view.js's
   }, true);
   window.addEventListener('scan:text', (e) => sign(e.detail && e.detail.text, e.detail && e.detail.at));
   if (S3()) hook(); else window.addEventListener('load', hook);
