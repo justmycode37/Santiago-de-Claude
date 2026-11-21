@@ -60,8 +60,9 @@ after the other) covers the 3D view until the street is built behind it; then it
 second walk is opened, waiting, while the map covers it, and the map does not start to move before that scene is built.
 
 **Hold to go faster.** A touch on the picture does not stop or turn anything. While a finger is held down anywhere on
-the picture, or on the button at its right edge where the thumb rests, the whole journey runs three times as fast
-(`FAST`): the walks, the ride and the pauses between them.
+the picture, or on the button at its right edge where the thumb rests, the whole journey runs twice as fast (`FAST`):
+the walks, the ride and the pauses between them. Without a finger on it, it already plays at three times the pace it
+was made at (`PACE`), so held down it is six times that. Fades, the doors and the trip at a glance keep their own length.
 
 `onState` hears:
 

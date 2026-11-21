@@ -3557,7 +3557,7 @@
       const d0 = dirAt(pv.along), d1 = dirAt(pv.along + 3.5);
       if (d0 != null && d1 != null) vt *= lerp(1, .6, clamp(Math.abs(angDiff(d1, d0)) / 1.2, 0, 1));
       // with an arrival view the walk comes to rest gently, over about the metres the head turns in
-      vt = Math.min(vt, arriveLook ? Math.sqrt(.9 * Math.max(0, total - pv.along)) + .04 : Math.sqrt(1.8 * Math.max(1, PL.speed) * Math.max(0, total - pv.along)) + .12);
+      vt = Math.min(vt, arriveLook ? Math.sqrt(.9 * Math.pow(Math.max(1, PL.speed / PLAY_SPEED), 2) * Math.max(0, total - pv.along)) + .04 : Math.sqrt(1.8 * Math.max(1, PL.speed) * Math.max(0, total - pv.along)) + .12);
       PL.v += clamp(vt - PL.v, -3 * dts, 1.1 * Math.max(1, PL.speed) * dts);
       let a = pv.along + PL.v * dts;
       for (let i = Math.floor(piAt(pv.along)); i < pts.length - 1 && Ar[i] <= a + 1e-6; i++) {
@@ -5613,7 +5613,7 @@
       request();
       emit('open', { key: m.key, route, focus: focus ? { which: focus.which, why: focus.why } : null });
       if (opts.play && A.routed && !A.same) { // after 'open' is told: the walk plays by itself; with reduced motion it waits for the Play button
-        if (isFinite(+(opts.play as Station3DPlayOptions).speed!) && +(opts.play as Station3DPlayOptions).speed! > 0) PL.speed = clamp(+(opts.play as Station3DPlayOptions).speed!, .2, 8);
+        if (isFinite(+(opts.play as Station3DPlayOptions).speed!) && +(opts.play as Station3DPlayOptions).speed! > 0) PL.speed = clamp(+(opts.play as Station3DPlayOptions).speed!, .2, 16);
         if (!pov) setPov(true);
         if (!reducedMotion()) setPlay(true);
       }
@@ -5715,7 +5715,7 @@
     self.enableCompass = enableCompass;
     self.setPov = (b) => setPov(b);
     self.play = (o) => {
-      if (o && isFinite(+o.speed!) && +o.speed! > 0) PL.speed = clamp(+o.speed!, .2, 8);
+      if (o && isFinite(+o.speed!) && +o.speed! > 0) PL.speed = clamp(+o.speed!, .2, 16);
       if (PL.on) return true; // already walking: only the pace changes, without a new start
       if (!self.ready) { opts.play = opts.play || true; return false; } // it starts when the view is ready
       if (!A.routed || A.same) return false;
