@@ -23,7 +23,7 @@
   const FAR_M = 300;            // a fix this far outside the model: not at this station
   const SIGN_REPEAT_MS = 15e3;  // the same text read again within this time is the same sign
 
-  let ses = null;               // { key, model, filter, sensors, open, closedAt, retainTimer }
+  let ses = null;               // { key, model, filter, sensors, open, closedAt, retainTimer, live }
   let recorder = null, lastGps = null, away = false;
   let lastPush = 0, pushTimer = null;
   const recentSigns = new Map();
@@ -40,12 +40,15 @@
     return Math.hypot(Math.max(b[0] - x, 0, x - b[2]), Math.max(b[1] - y, 0, y - b[3]));
   }
 
-  // the estimate → the viewer (only while it shows this station and GPS does not say we are elsewhere)
+  // the estimate → the viewer (only while it shows this station and GPS does not say we are elsewhere), and only
+  // once something says the traveller is really here: a recent GPS fix near the station, a sign that matched, or
+  // their own "I am here". The journey's start alone (a trip that may be tomorrow) seeds the filter but shows no dot.
+  const GPS_FRESH_MS = 60e3;
   function push() {
-    if (!ses || !ses.filter || !ses.open || away || !S3()) return;
+    if (!ses || !ses.filter || !ses.open || !ses.live || away || !S3()) return;
     const go = () => {
       lastPush = performance.now(); pushTimer = null;
-      if (!ses || !ses.filter || !ses.open || away) return;
+      if (!ses || !ses.filter || !ses.open || !ses.live || away) return;
       const e = ses.filter.estimate();
       if (!e || e.state !== 'tracking') return;
       // a hesitant estimate shows as a wide circle: the floor is said only when one floor clearly wins
@@ -89,14 +92,14 @@
       return;
     }
     end();
-    const mine = (ses = { key: info.key, model: null, filter: null, sensors: null, open: true, closedAt: null });
+    const mine = (ses = { key: info.key, model: null, filter: null, sensors: null, open: true, closedAt: null, live: false });
     const model = await window.INDOORLOC.load(info.key);
     if (ses !== mine || !model) { if (ses === mine) ses = null; return; }
     mine.model = model;
     mine.filter = new window.INDOORLOC.Filter(model);
     mine.filter.on(push);
-    const fresh = lastGps && performance.now() - lastGps.at < 60e3 ? lastGps : null;
-    if (fresh) setUser(fresh.u, true);           // what GPS knows now (also decides whether we are here at all)
+    const fresh = lastGps && performance.now() - lastGps.at < GPS_FRESH_MS ? lastGps : null;
+    if (fresh) setUser(fresh.u, true, fresh.at);  // what GPS knows now (also decides whether we are here at all)
     journeyPrior(mine.pendingRoute || info.route);
     mine.pendingRoute = null;
     // signs Scan read before the station was open (even before this script loaded): recent ones count now
@@ -126,10 +129,13 @@
     return ses.sensors.start();
   }
 
-  // GPS from the app (same argument as Station3D.setUser: { ll, accuracy, heading })
-  function setUser(u, replay) {
+  // GPS from the app (same argument as Station3D.setUser: { ll, accuracy, heading }). at: when the fix came
+  // (performance.now()), for a fix kept and handed on later (the stand-in in index.html); an older fix than the
+  // one already here is dropped, so the position never steps back
+  function setUser(u, replay, at) {
     if (!hook.done) hook();   // the viewer may load after the page (lazy loading): hook in as soon as it is there
-    if (u && u.ll && !replay) lastGps = { u, at: performance.now(), heading: u.heading };
+    if (at != null && !replay && lastGps && lastGps.at >= at) return;
+    if (u && u.ll && !replay) lastGps = { u, at: at != null ? at : performance.now(), heading: u.heading };
     if (!ses || !ses.filter || !u || !u.ll) { if (S3() && !(ses && ses.open && ses.filter)) S3().setUser(u); return; }
     const [x, y] = ses.model.fromLngLat(u.ll[0], u.ll[1]);
     const wasAway = away;
@@ -137,6 +143,7 @@
     if (away || !ses.open) { if (S3()) S3().setUser(u); } // not here (the viewer says so), or the viewer is closed
     if (away) return;
     if (recorder) recorder.add('gps', { lon: u.ll[0], lat: u.ll[1], acc: u.accuracy });
+    if (performance.now() - (at != null ? at : performance.now()) < GPS_FRESH_MS) ses.live = true;  // near, and recent
     ses.filter.gps({ t: nowS(), lon: u.ll[0], lat: u.ll[1], acc: u.accuracy || 30 });
     if (wasAway) lastPush = 0;
     push();
@@ -156,7 +163,7 @@
     if (recentSigns.has(key)) return Object.assign(r, { repeated: true });
     recentSigns.set(key, t);
     if (recorder) recorder.add('sign', { text, explain: r.explain });
-    if (r.observations.length) { window.SIGNLOC.apply(ses.filter, r, nowS()); push(); }
+    if (r.observations.length) { window.SIGNLOC.apply(ses.filter, r, nowS()); ses.live = true; push(); }
     return r;
   }
 
@@ -180,15 +187,15 @@
   if (S3()) hook(); else window.addEventListener('load', hook);
 
   window.INDOORNAV = {
-    setUser: (u) => setUser(u, false), sign: (text) => sign(text), startSensors,
+    setUser: (u, at) => setUser(u, false, at), sign: (text) => sign(text), startSensors,
     // a viewer that was already opening when this script arrived (a late load): start with that opening
     attach: (info) => { hook(); return opened(info); },
     // the traveller says where they are: { level } (a floor), and maybe { xy } (a tap on the model)
-    here: (o) => { if (ses && ses.filter) { ses.filter.prior({ level: o.level, x: o.xy && o.xy[0], y: o.xy && o.xy[1], r: o.xy ? 15 : 60 }); push(); } },
+    here: (o) => { if (ses && ses.filter) { ses.filter.prior({ level: o.level, x: o.xy && o.xy[0], y: o.xy && o.xy[1], r: o.xy ? 15 : 60 }); ses.live = true; push(); } },
     record: () => { recorder = new window.INDOORLOC.Recorder({ key: ses && ses.key }); return recorder; },
     stopRecording: () => { const r = recorder; recorder = null; return r; },
     exportLog: (r) => new Blob([JSON.stringify((r || recorder).toJSON())], { type: 'application/json' }),
-    state: () => ({ active: !!(ses && ses.filter), open: !!(ses && ses.open), away, key: ses && ses.key,
+    state: () => ({ active: !!(ses && ses.filter), open: !!(ses && ses.open), live: !!(ses && ses.live), away, key: ses && ses.key,
       sensors: ses && ses.sensors && ses.sensors.state, estimate: ses && ses.filter && ses.filter.estimate() }),
     _filter: () => ses && ses.filter,
   };
