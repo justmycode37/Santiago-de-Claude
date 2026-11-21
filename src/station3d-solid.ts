@@ -180,6 +180,33 @@ export async function open(opts: SolidOptions) {
   // ------------------------------------------------------------------ the building
   let world: THREE.Group | null = null;
   const textures = { chevron: chevronTexture(), stripe: stripeTexture() };
+  // ------------------------------------------------------------------ focus: only the part of the station the route uses
+  // With a route, only its floors (and those a lift or escalator on it passes) are drawn, and on them only what lies
+  // within FOCUS_M of the route; showAll(true) draws the whole station again.
+  const FOCUS_M = 40;
+  let showAll = false;
+  let focus: { levels: Set<number>; box: [number, number, number, number] } | null = null;
+  function setFocus() {
+    if (showAll || !route || route.same) { focus = null; return; }
+    const lv = new Set<number>();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const pts = route.points;
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y, l] = pts[i];
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      const l2 = i + 1 < pts.length ? pts[i + 1][2] : l;
+      for (let k = Math.round(Math.min(l, l2)); k <= Math.round(Math.max(l, l2)); k++) lv.add(k);
+    }
+    focus = { levels: lv, box: [x0 - FOCUS_M, y0 - FOCUS_M, x1 + FOCUS_M, y1 + FOCUS_M] };
+  }
+  const inBox = (x: number, y: number) => !focus || (x >= focus.box[0] && x <= focus.box[2] && y >= focus.box[1] && y <= focus.box[3]);
+  const onLevel = (level: number) => !focus || focus.levels.has(Math.round(level));
+  const lineIn = (line: XY[]) => !focus || line.some(([x, y]) => inBox(x, y)) || (() => {
+    // a line that crosses the box without a point in it
+    const xs = line.map((p) => p[0]), ys = line.map((p) => p[1]);
+    return Math.min(...xs) <= focus!.box[2] && Math.max(...xs) >= focus!.box[0] && Math.min(...ys) <= focus!.box[3] && Math.max(...ys) >= focus!.box[1];
+  })();
+  const keep = (level: number, x: number, y: number) => onLevel(level) && inBox(x, y);
   function build() {
     if (world) { scene.remove(world); freeGroup(world); }
     world = new THREE.Group();
@@ -190,6 +217,7 @@ export async function open(opts: SolidOptions) {
     // floors, one mesh per level, and their outlines (the outlines stay when the cutaway opens a floor)
     const byLevel = new Map<number, THREE.ExtrudeGeometry[]>();
     for (const s of solid!.slabs) {
+      if (!onLevel(s.level) || !lineIn(s.rings[0])) continue;
       if (!byLevel.has(s.level)) byLevel.set(s.level, []);
       const sh = new THREE.Shape(s.rings[0].map(([x, y]) => new THREE.Vector2(x - cx, y - cy)));
       for (const h of s.rings.slice(1)) sh.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x - cx, y - cy))));
@@ -213,13 +241,14 @@ export async function open(opts: SolidOptions) {
       gs.forEach((x) => x.dispose());
     }
     // walls (OSM), kerbs (floor edges), railings (round the wells)
-    const wallLines = (k: StationSolidWall['kind']) => solid!.walls.filter((w) => w.kind === k);
+    const wallLines = (k: StationSolidWall['kind']) => solid!.walls.filter((w) => w.kind === k && onLevel(w.level) && lineIn(w.line));
     world.add(new THREE.Mesh(strip(wallLines('wall'), WALL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.wall, side: THREE.DoubleSide }))));
     world.add(new THREE.Mesh(strip(wallLines('edge'), KERB_H), cutaway(new THREE.MeshLambertMaterial({ color: P.kerb, side: THREE.DoubleSide }))));
     world.add(new THREE.Mesh(strip(wallLines('rail'), RAIL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.glass, side: THREE.DoubleSide, transparent: true, opacity: 0.32, depthWrite: false }))));
     // rooms with outlines (named only)
     const roomGs = [];
     for (const r of solid!.rooms) {
+      if (!onLevel(r.level) || !lineIn(r.ring)) continue;
       const sh = new THREE.Shape(r.ring.map(([x, y]) => new THREE.Vector2(x - cx, y - cy)));
       const g = new THREE.ExtrudeGeometry(sh, { depth: r.height, bevelEnabled: false });
       g.rotateX(-Math.PI / 2); g.translate(0, r.z * S, 0);
@@ -229,6 +258,7 @@ export async function open(opts: SolidOptions) {
     // tracks: a dark bed and two rails
     const bedGs = [], railPts = [];
     for (const t of solid!.tracks) {
+      if (focus && (!onLevel(levelOfZ(t.z)) || !lineIn(t.line))) continue;
       const tram = t.kind === 'tram';
       for (let i = 0; i + 1 < t.line.length; i++) {
         const p0 = V(t.line[i][0], t.line[i][1], t.z), p1 = V(t.line[i + 1][0], t.line[i + 1][1], t.z);
@@ -244,10 +274,11 @@ export async function open(opts: SolidOptions) {
     buildConnectors(P);
     // shops and services mapped as points: a stick and a coloured head, coloured by kind
     const pinGeo = merged([new THREE.CylinderGeometry(0.08, 0.08, 1.6, 4).translate(0, 0.8, 0), new THREE.SphereGeometry(0.45, 10, 8).translate(0, 1.8, 0)]);
-    const pins = new THREE.InstancedMesh(pinGeo, cutaway(new THREE.MeshLambertMaterial({ color: 0xffffff })), solid!.pins.length);
+    const pinList = solid!.pins.filter((p) => keep(p.level, p.x, p.y));
+    const pins = new THREE.InstancedMesh(pinGeo, cutaway(new THREE.MeshLambertMaterial({ color: 0xffffff })), Math.max(1, pinList.length));
     const m4 = new THREE.Matrix4(), col = new THREE.Color();
-    solid!.pins.forEach((p, i) => { m4.makeTranslation(p.x - cx, p.z * S, -(p.y - cy)); pins.setMatrixAt(i, m4); pins.setColorAt(i, col.set(PIN[p.kind] || PIN.shop)); });
-    if (solid!.pins.length) world.add(pins);
+    pinList.forEach((p, i) => { m4.makeTranslation(p.x - cx, p.z * S, -(p.y - cy)); pins.setMatrixAt(i, m4); pins.setColorAt(i, col.set(PIN[p.kind] || PIN.shop)); });
+    if (pinList.length) world.add(pins); else pinGeo.dispose();
     scene.add(world);
     if (route) drawRoute();
   }
@@ -268,6 +299,11 @@ export async function open(opts: SolidOptions) {
       for (const v of [a, b2, c, a, c, d]) { treadPos.push(v.x, v.y, v.z); treadCol.push(colr.r, colr.g, colr.b); }
     };
     for (const c of solid!.connectors) {
+      if (focus) {
+        // a lift, stair or escalator in the box that reaches one of the route's floors
+        const pts: [number, number, number][] = c.kind === 'elevator' ? c.zs.map((z) => [c.xy[0], c.xy[1], z] as [number, number, number]) : c.pts;
+        if (!pts.some(([x, y]) => inBox(x, y)) || !pts.some(([, , z]) => onLevel(levelOfZ(z)))) continue;
+      }
       if (c.kind === 'elevator') {
         const lo = Math.min(...c.zs), hi = Math.max(...c.zs);
         const [x, y] = c.xy;
@@ -345,8 +381,11 @@ export async function open(opts: SolidOptions) {
 
   // ------------------------------------------------------------------ the route
   let route: StationRouteResult | null = null, routeGroup: THREE.Group | null = null, stepIdx = -1;
-  function plan(from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) {
+  function plan(from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null, first?: boolean) {
     route = from && to ? SR.route(model!, from, to, Object.assign({}, p || {})) : null;
+    const had = focus;
+    setFocus();
+    if (!first && (had || focus)) build();   // another part of the station
     if (routeGroup) { scene.remove(routeGroup); freeGroup(routeGroup); routeGroup = null; }
     if (route) drawRoute();
     labelsDirty = true;
@@ -470,18 +509,20 @@ export async function open(opts: SolidOptions) {
     const used = new Set(route ? route.points.map((p) => Math.round(p[2])) : []);
     // each floor named at the edge of its largest slab (the west-most corner), so the stack reads as one building
     for (const lv of levels) {
-      const big = solid!.slabs.filter((s) => s.level === lv.id).sort((a, b2) => b2.rings[0].length - a.rings[0].length)[0];
+      if (!onLevel(lv.id)) continue;
+      const big = solid!.slabs.filter((s) => s.level === lv.id && lineIn(s.rings[0])).sort((a, b2) => b2.rings[0].length - a.rings[0].length)[0];
       if (!big) continue;
       const corner = big.rings[0].reduce((m, p) => (p[0] - p[1] < m[0] - m[1] ? p : m), big.rings[0][0]);
       add(`${lv.id > 0 ? '+' : ''}${lv.id}  ${lv.name}`, corner[0], corner[1], lv.z, 'sx-level', 60, { up: 0.6 });
     }
     for (const l of solid!.labels) {
+      if (!keep(levelOfZ(l.z), l.x, l.y)) continue;
       if (l.kind === 'platform') add(l.text, l.x, l.y, l.z, 'sx-plat', used.has(Math.round(levelOfZ(l.z))) ? 70 : 45);
       else if (l.kind === 'place') add(l.text, l.x, l.y, l.z, 'sx-place', 55);
       else if (l.kind === 'entrance') add(l.text, l.x, l.y, l.z, 'sx-entr', 50);
       else if (l.kind === 'sector') add(l.text, l.x, l.y, l.z, 'sx-sector', 25, { near: 140 });
     }
-    for (const p of solid!.pins) if (p.name) add(p.name, p.x, p.y, p.z, 'sx-pin sx-' + p.kind, 15, { near: 110, up: 2.9 });
+    for (const p of solid!.pins) if (p.name && keep(p.level, p.x, p.y)) add(p.name, p.x, p.y, p.z, 'sx-pin sx-' + p.kind, 15, { near: 110, up: 2.9 });
     if (route) {
       const pts = route.points;
       add('Start', pts[0][0], pts[0][1], zOf(pts[0][2]), 'sx-start', 100, { up: 3.2 });
@@ -604,9 +645,9 @@ export async function open(opts: SolidOptions) {
   function changed() { if (opts.onChange) opts.onChange({ route, step: stepIdx, focusLevel: stepIdx < 0 ? focusLevel : null }); focusLevel = null; }
 
   // ------------------------------------------------------------------ start
+  if (opts.from && opts.to) plan(opts.from, opts.to, opts.prefs, true);
   build();
   resize();
-  if (opts.from && opts.to) plan(opts.from, opts.to, opts.prefs);
   whole();
 
   return {
@@ -615,6 +656,9 @@ export async function open(opts: SolidOptions) {
     plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { plan(from, to, p); whole(); return route; },
     step, whole, floor,
     next: () => step(stepIdx + 1), prev: () => step(stepIdx - 1),
+    /** true: the whole station; false: only the part the route uses (the default). */
+    showAll: (on: boolean) => { showAll = !!on; setFocus(); build(); labelsDirty = true; if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
+    get focused() { return !!focus; },
     setStretch: (s: number) => { S = s; build(); if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
     get stretch() { return S; },
     reset: () => (stepIdx >= 0 ? step(stepIdx) : whole()),

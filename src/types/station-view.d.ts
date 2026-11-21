@@ -25,6 +25,8 @@ interface SolidView {
   next(): void;
   prev(): void;
   setStretch(s: number): void;
+  /** true: the whole station; false: only the part the route uses (the default). */
+  showAll?(on: boolean): void;
   setUser?(u: (Station3DUser & { levelProbs?: Record<string, number>; levelProb?: number }) | null): void;
   follow?(on: boolean): void;
   locate?(): void;

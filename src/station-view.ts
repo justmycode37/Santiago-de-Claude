@@ -290,10 +290,22 @@
       ui.floors.append(b);
     }
     ui.floors.append(btn('stv-floor stv-all', v.route ? 'The whole way' : 'The whole station', () => v.whole(), icon('whole', 18)));
+    // only the part of the station the route uses is drawn; this shows (or hides again) the rest of it
+    if (v.route && v.showAll) {
+      const all = btn('stv-floor stv-station', 'Show the whole station', () => {
+        const on = all.getAttribute('aria-pressed') !== 'true';
+        all.setAttribute('aria-pressed', on ? 'true' : 'false');
+        all.classList.toggle('on', on);
+        v.showAll!(on);
+      }, 'All');
+      all.setAttribute('aria-pressed', 'false');
+      all.title = 'The whole station';
+      ui.floors.append(all);
+    }
   }
   function syncFloors() {
     if (!ui) return;
-    for (const b of ui.floors.querySelectorAll<HTMLButtonElement>('.stv-floor')) {
+    for (const b of ui.floors.querySelectorAll<HTMLButtonElement>('.stv-floor:not(.stv-station)')) {
       const on = b.classList.contains('stv-all') ? (lastChange.step < 0 && lastChange.focusLevel == null) : lastChange.focusLevel === +b.dataset.l!;
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');

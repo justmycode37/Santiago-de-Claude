@@ -51,6 +51,7 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 .stv-floor.on { background: var(--stv-text) !important; color: var(--stv-card) !important; }
 .stv-floor.here { box-shadow: inset 0 0 0 2px var(--stv-you); }
 .stv-pb { position: absolute; left: 4px; bottom: 6px; width: 4px; height: calc(var(--p, 0) * 28px); border-radius: 2px; background: var(--stv-you); }
+.stv-station { font-size: 12px !important; border-top: 1px solid var(--stv-hair) !important; }
 .stv-all { border-top: 1px solid var(--stv-hair) !important; border-radius: 0 0 12px 12px !important; }
 
 /* bottom: what the route could not keep, and the step you are at */
