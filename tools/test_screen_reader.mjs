@@ -4,7 +4,7 @@
 // names, focus, and what is put into the live regions.
 //
 //   node tools/test_screen_reader.mjs                 everything
-//   node tools/test_screen_reader.mjs search,journey  some parts: search, events, journey, guide, access, scan, language
+//   node tools/test_screen_reader.mjs search,journey  some parts: search, events, journey, guide, access, scan, language, intro
 //   SHOTS=/some/dir node tools/test_screen_reader.mjs shots   screenshots of the screens that changed
 //
 // Builds the site into dist/ first (scripts/build.mts) and serves that. Needs Chrome or Chromium
@@ -98,12 +98,18 @@ if (want('search')) {
   check('after "Show more" focus is on the first new row', await ev(`document.getElementById('results').contains(document.activeElement) && document.activeElement.tagName === 'BUTTON' && !document.activeElement.closest('.more')`), await active());
   check('list is drawn below the search card', await ev(`(() => { const r = document.getElementById('results').getBoundingClientRect(), f = document.getElementById('searchForm').getBoundingClientRect(); return r.top >= f.bottom - 1 && r.height > 50; })()`));
   await ev(`document.getElementById('clear').click()`); await sleep(400);
+  await ev(`document.getElementById('q').focus()`);
+  await send('Input.insertText', { text: 'toilet' }); await sleep(3500);
+  const kinds = await ev(`[...document.querySelectorAll('#results li:not(.on-map):not(.more) .title')].map(t => t.textContent + '=' + (t.lang || '-') + (t.getAttribute('translate') || '')).join(' | ')`);
+  check('a place listed by its kind ("Public toilet") is not marked as a name in another language', !/(Public toilet|Customer toilet|Wheelchair toilet)=(de|fr|it)/.test(kinds), kinds);
+  await ev(`document.getElementById('clear').click()`); await sleep(400);
 }
 
 if (want('events')) {
   section('events in the search');
   await ev(`document.getElementById('q').focus()`); await sleep(300);
-  await ev(`document.querySelector('#results li > button').click()`); await sleep(2500);
+  await ev(`document.querySelector('#results li > button').focus(); document.querySelector('#results li > button').click()`); await sleep(2500);
+  check('the results take over the focus of "Events near you"', await ev(`document.getElementById('results').contains(document.activeElement)`), await active());
   const evs = await ev(`[...document.querySelectorAll('#results li > button .title')].map(t => t.textContent).slice(0, 4).join(' | ')`);
   check('"Events near you" lists events', await ev(`results.length > 0 && results.every(r => r.origin === 'event')`), evs);
   check('nearest first', await ev(`results.every((r, i) => !i || r.distance >= results[i - 1].distance)`));
@@ -180,6 +186,21 @@ if (want('guide')) {
   check('Start again repeats the step, without "Guidance is on"', h.length > 10 && !/Guidance is on/.test(h), h);
   await ev(`window.__heard.length = 0`); await sleep(11000);
   check('nothing is repeated while nothing changes', (await heard()) === '', await heard());
+  // the first ride's platform changes, goes back to the planned one, and changes again: each is said
+  const plat = await ev(`(() => { const r = journeySteps.find(st => st.type === 'ride'); window.__dep = r.s.departure; window.__plat0 = r.s.departure.platform; window.__prog0 = r.s.departure.prognosis; return r.s.departure.platform && Date.now() < r.t0 ? r.s.departure.platform : ''; })()`);
+  if (plat) {
+    const to = (p) => ev(`window.__heard.length = 0; window.__dep.prognosis = { ...(window.__prog0 || {}), platform: ${JSON.stringify(p)} }; guideTick();`).then(() => sleep(300)).then(heard);
+    const other = plat === '9' ? '8' : '9';
+    let hp = await to(other);
+    check('a platform change interrupts', new RegExp('^! .*change: .* now leaves from \\w+ ' + other + ', not ' + plat).test(hp), hp);
+    hp = await to(plat);
+    check('…and so does the change back to the planned one', new RegExp('^! .*leaves from \\w+ ' + plat + ' after all, not ' + other).test(hp), hp);
+    hp = await to(other);
+    check('…and a second change to the other one', new RegExp('^! .*now leaves from \\w+ ' + other).test(hp), hp);
+    hp = await to(plat);
+    check('…and back once more', /after all/.test(hp), hp);
+    await ev(`window.__dep.prognosis = window.__prog0; window.__heard.length = 0`);
+  } else console.log('      (the first ride has no platform, or has left: platform changes not checked)');
   // GPS: stand at the boarding point of the first ride
   // (the boarding point itself, which can lie some way from where the drawn walk to it ends)
   const dep = await ev(`journeySteps.find(st => st.type === 'ride').depLL`);
@@ -207,6 +228,13 @@ if (want('guide')) {
   check('close to your stop: "get off" interrupts', /^! Next stop: .+\. Get off there\./m.test(h), h);
   console.log('      track:', await ev(`JSON.stringify(track && { i: track.i, kmIn: +track.kmIn.toFixed(2), off: track.off, missed: !!track.missed })`));
   check('every announcement is one sentence group, none empty', !/undefined|null|NaN/.test(h + (await heard())), h);
+  check('"off the route" looks at the step you are on and its neighbours only', await ev(`(() => {
+    const i = journeySteps.findIndex(st => st.type === 'ride'), r = journeySteps[i], w = journeySteps[i - 1];
+    if (!w || journeySteps.length < i + 2) return 'skip';
+    const on = pointAtKm(r.path, lengthKm(r.path) * 0.5);   // on the ride, far from the walk before it
+    const s = snapToTrip(on, 0, r.t0 - 20 * 60000);          // long before it leaves: you are counted on the walk
+    return s.i < i ? (s.near < 30 ? 'near the ride' : 'far') : 'counted on the ride';
+  })()`) !== 'near the ride');
   await ev(`document.querySelector('#jHead [aria-label="Close journey"]').click()`); await sleep(500);
   check('closing the journey ends guidance', await ev(`guiding === false && guideSaid.size === 0 && !document.body.classList.contains('following')`));
 }
@@ -215,6 +243,7 @@ if (want('access')) {
   section('blind or low vision mode');
   await ev(`window.__spoken = []; speechSynthesis.speak = (u) => { window.__spoken.push(u.text); }; speechSynthesis.cancel = () => {}; window.__buzz = []; Object.defineProperty(navigator, 'vibrate', { value: (p) => { window.__buzz.push(p); return true; }, configurable: true });`);
   await ev(`document.getElementById('menuBtn').click(); document.getElementById('settingsBtn').click()`); await sleep(700);
+  check('with Settings open, announcements can still be heard', await ev(`!document.getElementById('srAlert').inert && !document.getElementById('srStatus').inert && document.getElementById('map').inert`));
   check('settings has Read aloud and Vibrate', await ev(`!!document.querySelector('input[data-setting=readAloud]') && !!document.querySelector('input[data-setting=vibrate]') && !document.getElementById('setAloudRow').hidden`));
   await ev(`document.querySelector('input[data-setting=readAloud]').click(); document.querySelector('input[data-setting=vibrate]').click(); document.querySelector('input[data-setting=lowVision]').click()`); await sleep(300);
   check('switching Read aloud on says so with the voice', (await ev(`window.__spoken.join('|')`)).includes('Read aloud is on.'), await ev(`window.__spoken.join('|')`));
@@ -235,7 +264,22 @@ if (want('access')) {
   check('tactile / speech data found for the boarding points', /Tactile|Spoken|speech/.test(acc), acc);
   check('…and shown in "Where to stand"', /Tactile|Spoken|speech/.test(await ev(`[...document.querySelectorAll('#jBody .stand-note')].map(e => e.textContent).join(' | ')`)), await ev(`[...document.querySelectorAll('#jBody .stand-note')].map(e => e.textContent).join(' | ')`));
   console.log('      sound crossings per walk:', await ev(`JSON.stringify(journeySteps.map((st, i) => (st.type === 'walk' || st.type === 'change') ? i + ':' + soundCrossings(stepCoords(st)) : null).filter(Boolean))`), '| posts loaded:', await ev(`soundPosts ? soundPosts.length : 'none'`), '| lines:', await ev(`[...document.querySelectorAll('#jBody .quiet-line')].map(e => e.textContent).filter(t => /sound/.test(t)).join(' | ')`));
-  check('a walk past a signal post counts its crossing once', await ev(`(() => { const p = soundPosts[0]; return soundCrossings([[p[0] - 0.0005, p[1]], [p[0] + 0.0005, p[1]]]) + '/' + soundCrossings([[p[0] - 0.0005, p[1] + 0.001], [p[0] + 0.0005, p[1] + 0.001]]); })()`) === '1/0');
+  check('a walk past a signal post counts its crossing once', await ev(`(() => { const p = soundPosts[0]; return soundCrossings([[[p[0] - 0.0005, p[1]], [p[0] + 0.0005, p[1]]]]) + '/' + soundCrossings([[[p[0] - 0.0005, p[1] + 0.001], [p[0] + 0.0005, p[1] + 0.001]]]); })()`) === '1/0');
+  check('…and two lines of a walk are not joined across the block between them', await ev(`(() => { const p = soundPosts[0]; return soundCrossings([[[p[0] - 0.002, p[1] - 0.001], [p[0] - 0.001, p[1] - 0.001]], [[p[0] + 0.001, p[1] + 0.001], [p[0] + 0.002, p[1] + 0.001]]]); })()`) === 0);
+  check('a walk that has not been routed yet claims no crossings', await ev(`walkPaths({ lines: [[[7.44, 46.94], [7.45, 46.95]]], walks: [] }).length`) === 0);
+  check('a bay without tactile guidance does not borrow its neighbour\'s', await ev(`(() => {
+    const st = PLATFORMS.get('8590129'); if (!st) return 'no stop';
+    const of = (ref) => { const e = st.edges.find(x => x.ref === ref); return e ? stopAccess({ s: { departure: { station: { id: '8590129' }, platform: ref }, journey: { category: 'B' } }, depLL: e.ll, depAt: { edge: e } }).join('+') : 'no edge'; };
+    return of('A') + ' | ' + of('B');
+  })()`) === 'Tactile guide lines+Tactile field at the boarding point+Departure display with speech | ', await ev(`(() => { const st = PLATFORMS.get('8590129'); if (!st) return 'no stop'; return st.edges.map(e => e.ref + ':' + stopAccess({ s: { departure: { station: { id: '8590129' }, platform: e.ref }, journey: { category: 'B' } }, depLL: e.ll, depAt: { edge: e } }).length).join(' '); })()`));
+  const many = await ev(`(() => { const r = journeySteps.find(st => st.type === 'ride' && stopKms(st).length >= 3); if (!r) return null; const k = stopKms(r); window.__r = r; return { before: pointAtKm(r.path, k[k.length - 2] - 0.022), past: pointAtKm(r.path, k[k.length - 2] + 0.06), i: journeySteps.indexOf(r) }; })()`);
+  if (many) {
+    const at = (ll) => ev(`(() => { const r = window.__r, i = ${many.i}, now = r.t1 - 100000; track = { i, kmIn: snapToTrip(${JSON.stringify(ll)}, tripLayout().km0[i], now).kmIn, km: 0, d: 0, near: 0, cost: 0, v: geoVersion, offCount: 0, off: false }; const g = guidePosition(now); return g ? g.key + ' :: ' + g.text : 'nothing'; })()`);
+    const before = await at(many.before), past = await at(many.past);
+    check('22 m before the stop before yours: not yet "get off at the next stop"', !/Get off|next stop/i.test(before), before);
+    check('once that stop is behind you: "Next stop … Get off there"', /^last\|.*Next stop: .+\. Get off there\./.test(past), past);
+    await ev(`track = null`);
+  } else console.log('      (no ride with a stop on the way: the early "get off" is not checked)');
   await ev(`window.__heard.length = 0; window.__buzz.length = 0; document.querySelector('#jFoot .start').click()`); await sleep(500);
   check('Start keeps the list open in this mode', await ev(`document.getElementById('journey').dataset.detent`) === 'full');
   check('guidance buzzes', await ev(`window.__buzz.length`) >= 1, await ev(`JSON.stringify(window.__buzz)`));
@@ -263,6 +307,8 @@ if (want('scan')) {
   check('"Show on map" closes Scan and gives everything back', await ev(`!document.querySelector('.sv') && !document.getElementById('map').inert && !document.getElementById('menu').inert`));
   check('the stop card takes the focus', await ev(`!!document.activeElement.closest('.maplibregl-popup')`), await active());
   check('its departures are said', /Next|departures/.test(await heard()), await heard());
+  await key('Escape', 'Escape', 27); await sleep(400);
+  check('the stop card closes with Escape (or its Close button), without the map', await ev(`!document.querySelector('.maplibregl-popup') && document.activeElement.id`) === 'menuBtn', await active());
 }
 
 if (want('language')) {
@@ -280,7 +326,45 @@ if (want('language')) {
   }
   check('names stay as they are and keep their language', await ev(`(() => { const t = document.querySelector('#results .title'); return t.getAttribute('translate') === 'no' && /Zytglogge/.test(t.textContent); })()`), await ev(`document.querySelector('#results .title').outerHTML`));
   check('the page says which language it is in', await ev(`document.documentElement.lang`) === 'de');
+  await ev(`document.getElementById('q').value = ''; document.getElementById('q').dispatchEvent(new Event('input'))`);
+  await send('Input.insertText', { text: 'Zürich HB' }); await sleep(4000);
+  await ev(`document.getElementById('searchForm').requestSubmit()`); await sleep(10000);
+  if (await ev('journeyList')) {
+    await sleep(1500); // the translator has rewritten the rows by now
+    // (a row whose minutes have just moved on is rightly drawn again: the rows that say the same as before must stay)
+    const kept = await ev(`(() => {
+      const ol = document.querySelector('#jBody ol.journeys'), olds = [...ol.children];
+      const fresh = document.createElement('div'); fresh.append(buildBody());
+      const same = olds.map((li, i) => drawn.get(li) === fresh.querySelector('ol.journeys').children[i].outerHTML);
+      const translated = olds.some((li) => li.outerHTML !== drawn.get(li));
+      renderBody();
+      const now = [...ol.children];
+      return { unchanged: same.filter(Boolean).length, kept: same.every((u, i) => !u || now[i] === olds[i]), translated };
+    })()`);
+    check('translated rows are kept from one redraw to the next', kept.translated && kept.unchanged > 0 && kept.kept, JSON.stringify(kept));
+  } else console.log('      (one journey only: the list is not checked)');
+  // an alert still being translated when the journey closes is dropped
+  await ev(`window.__heard.length = 0; A11Y.say('The change at Bern will not work.', { urgent: true }); A11Y.hush();`); await sleep(2500);
+  check('a sentence still being translated is dropped when the journey closes', (await heard()) === '', await heard());
   await ev(`localStorage.removeItem('app-language'); location.reload()`); await sleep(8000);
+  await ev(hear);
+}
+
+if (want('intro')) {
+  section('first visit with a shared event link');
+  const evId = await ev(`EVENTS.features[0].properties.id`);
+  await ev(`localStorage.clear()`);
+  await send('Page.navigate', { url: URL_.replace('?intro=0', '') + '#event/' + encodeURIComponent(evId) });
+  await sleep(9000);
+  check('the introduction is showing', await ev(`!!document.getElementById('onboarding') && document.documentElement.dataset.onboarding === 'first'`));
+  check('…and can be used: it is not out of reach', await ev(`!document.getElementById('onboarding').inert`));
+  check('…and has the focus, not the event page under it', await ev(`document.getElementById('onboarding').contains(document.activeElement)`), await active());
+  for (const go of ['speed', 'access', 'done']) { await ev(`document.querySelector('#onboarding [data-page]:not([hidden]) [data-go="${go}"]').click()`); await sleep(900); }
+  await sleep(1500);
+  check('after it, the event page can be used', await ev(`document.getElementById('evPage').classList.contains('open') && !document.getElementById('evPage').inert`), await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id || e.className).join(',')`));
+  await ev(`document.getElementById('evBack').click()`); await sleep(1200);
+  check('…and closed, with nothing left out of reach', await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id).join(',')`) === 'tSheet,evPage', await ev(`[...document.body.children].filter(e => e.inert).map(e => e.id).join(',')`));
+  await send('Page.navigate', { url: URL_ }); await sleep(8000);
   await ev(hear);
 }
 

@@ -40,6 +40,8 @@ interface SearchResult {
   icon?: SearchIcon;
   /** Places found online (places.ts): who knows them. */
   source?: 'osm' | 'google';
+  /** One of our own places that has no name: its title is its kind in English ("Public toilet"), not a name. */
+  generic?: boolean;
   /** A community event (origin 'event'): its id, and every date it is held on, the next one first. Choosing it opens its page. */
   eventId?: string;
   series?: EventFeature[];

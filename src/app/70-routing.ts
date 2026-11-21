@@ -234,6 +234,7 @@ function endJourney(keepPlan?: boolean) {
   journeyMore = null;
   guideSaid.clear();
   guideDelay.clear();
+  guidePlat.clear();
   A11Y.hush();
   vehUpdate(); // live vehicles come back (from zoom 14)
   updateCards(); // events and places come back if they were on

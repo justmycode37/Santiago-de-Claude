@@ -109,6 +109,8 @@ function sayCount(text: string) {
 }
 let listBusy = false; // the list is being redrawn: a row that had the focus and is replaced has not been left
 function render(emptyText = 'No results') {
+  // a screen reader is on a row: which one, to go on there when the list is drawn again
+  const focusRow = list.contains(document.activeElement) ? [...list.querySelectorAll('li > button')].indexOf(document.activeElement as HTMLButtonElement) : -1;
   listBusy = true;
   list.innerHTML = '';
   listBusy = false;
@@ -158,7 +160,9 @@ function render(emptyText = 'No results') {
     const text = document.createElement('div');
     text.className = 'text';
     // names are in the language of where they are (an event's title in its own), so they are pronounced right
-    const t = r.origin === 'event' ? A11Y.inLang(mk('div', 'title', r.title), A11Y.textLang(r.title)) : named(mk('div', 'title', r.title), r.lngLat);
+    // (a place listed by its kind, "Public toilet", and a pin are not names: they are in the app's language)
+    const title = mk('div', 'title', r.title);
+    const t = r.origin === 'event' ? A11Y.inLang(title, A11Y.textLang(r.title)) : r.generic || r.origin === 'pin' ? title : named(title, r.lngLat);
     text.append(t, mk('div', 'subtitle', r.subtitle));
     list.appendChild(rowButton('', () => select(i), icon, text));
   });
@@ -180,6 +184,13 @@ function render(emptyText = 'No results') {
   }
   list.classList.add('open');
   if (!expanded) list.scrollTop = 0;
+  // the row that had the focus is gone ("Events near you" has become its results, or more results have come in):
+  // go on at the row now in its place
+  if (focusRow >= 0 && !list.contains(document.activeElement)) {
+    const rows = list.querySelectorAll<HTMLElement>('li > button');
+    const row = rows[Math.min(focusRow, rows.length - 1)];
+    if (row) row.focus({ preventScroll: true });
+  }
   if (emptyText !== 'Searching…' || results.length) {
     sayCount(!results.length ? emptyText : `${visible.length} ${visible.length === 1 ? 'result' : 'results'}${!expanded && hidden > 0 ? `, ${hidden} more` : ''}`);
   }

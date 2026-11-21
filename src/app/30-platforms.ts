@@ -154,6 +154,15 @@ async function openPlatform(f: PlatformTap, opts: { focus?: boolean } = {}) {
     });
     box.append(view3d);
   }
+  if (opts.focus) {
+    // Reached without the map (from Scan): a way out that needs no tap on the map beside the card
+    const shut = () => { popupReq++; platformPopup.remove(); menuBtn.focus(); };
+    const close = mk('button', 'pf-3d', 'Close');
+    close.type = 'button';
+    close.addEventListener('click', (e) => { e.stopPropagation(); shut(); });
+    box.addEventListener('keydown', (e) => { if (e.key === 'Escape') shut(); });
+    box.append(close);
+  }
   platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
   if (opts.focus) box.focus({ preventScroll: true });
   try {
@@ -170,7 +179,7 @@ async function openPlatform(f: PlatformTap, opts: { focus?: boolean } = {}) {
     const depTime = (d: OdStationboardEntry) => fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure);
     list.replaceChildren(...shown.map((d) => {
       const li = mk('li');
-      li.append(mk('time', null, depTime(d)), badge(d), named(mk('span', 'pf-to', d.to), edge.ll));
+      li.append(mk('time', null, depTime(d)), badge(d), mk('span', 'pf-to', d.to));
       // drawn "+3′", read out "3 minutes late"
       if (d.stop.delay! > 0) li.append(A11Y.seen(mk('span', 'j-delay', `+${d.stop.delay}′`)), A11Y.sr(`${A11Y.minutes(d.stop.delay!)} late`));
       return li;

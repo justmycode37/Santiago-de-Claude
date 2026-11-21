@@ -207,7 +207,8 @@ function optionRow(conn: OdConnection, now: number) {
   const fq = first ? quayOf({ s: first }, 'dep') : null;
   const words = [`${fmtTime(conn.from.departure)} to ${fmtTime(conn.to.arrival)}`, durWords((t1 - t0) / 1000),
     !rides.length ? 'on foot' : `${!gaps.length ? 'direct' : gaps.length === 1 ? '1 change' : `${gaps.length} changes`} with ${rides.map((x: RideSection) => lineName(x.journey)).join(', then ')}`,
-    fq && fq.label ? `from ${fq.word} ${fq.label}` : '', text ? text.charAt(0).toLowerCase() + text.slice(1) : '',
+    fq && fq.label ? `from ${fq.word} ${fq.label}` : '',
+    text ? (text.charAt(0).toLowerCase() + text.slice(1)).replace('< 1 min', 'less than 1 minute').replace(/(\d+) min\b/, (m, n) => A11Y.minutes(+n)) : '',
     !gone && late > 0 ? `${A11Y.minutes(late)} late` : '', conn === journeyConn ? 'shown on the map' : ''].filter(Boolean).join(', ');
   const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), words, () => openOption(conn),
     h('span', 'jrow-l1', chain, h('b', 'jrow-dur', kDur((t1 - t0) / 1000))),
@@ -385,15 +386,29 @@ function keepFocus(box: HTMLElement, change: () => void) {
 // children are compared the same way (the list of steps, the list of journeys). False when the two don't have
 // the same shape. A part that is kept keeps its click handlers, so this is only used where the same markup
 // always does the same.
+//
+// What a part was drawn as is remembered (`drawn`), and a fresh part is compared with that, not with the part as
+// it is now: in another app language the translator (translate.ts) rewrites texts and labels after they are put
+// in, and compared with the page itself every part would look changed, and be replaced, at every redraw.
+const drawn = new WeakMap<Element, string>();
 function patch(old: Element, fresh: Element | DocumentFragment, deep: string | null): boolean {
   const a = [...old.children], b = [...fresh.children];
   if (a.length !== b.length || a.some((x, i) => x.tagName !== b[i].tagName || x.className !== b[i].className)) return false;
   a.forEach((x, i) => {
-    if (x.isEqualNode(b[i])) return;
-    if (!(deep && x.matches(deep) && patch(x, b[i], null))) x.replaceWith(b[i]);
+    const html = b[i].outerHTML, was = drawn.get(x);
+    if (was === undefined ? x.isEqualNode(b[i]) : was === html) return;
+    if (deep && x.matches(deep) && patch(x, b[i], null)) { drawn.set(x, html); return; }
+    remember(b[i]);
+    x.replaceWith(b[i]);
   });
   return true;
 }
+// A part about to be put on the page, and the rows of a list in it: as they are drawn now
+function remember(el: Element) {
+  drawn.set(el, el.outerHTML);
+  if (el.matches('ol.tl, ol.journeys')) for (const c of el.children) drawn.set(c, c.outerHTML);
+}
+const rememberAll = (parent: Element | DocumentFragment) => { for (const c of parent.children) remember(c); };
 let headKey = '';
 function renderHead(force?: boolean) {
   const node = buildHead();
@@ -403,7 +418,7 @@ function renderHead(force?: boolean) {
   const old = jHead.firstElementChild;
   keepFocus(jHead, () => {
     // the summary header: the line that changed (the minutes count down) is swapped in, its buttons stay
-    if (!(old && old.className === 'jhead' && node.className === 'jhead' && patch(old, node, null))) jHead.replaceChildren(node);
+    if (!(old && old.className === 'jhead' && node.className === 'jhead' && patch(old, node, null))) { rememberAll(node); jHead.replaceChildren(node); }
   });
 }
 
@@ -460,18 +475,18 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (transfer) main.append(spareLine(st));
   else if (!st.final && st.nextRide) main.append(h('div', 'quiet-line', 'Leave by ', h('b', null, fmtTime(st.t0))));
-  const sounds = soundCrossings(stepCoords(st));
+  const sounds = soundCrossings(walkPaths(st));
   if (sounds) main.append(h('div', 'quiet-line', `${soundWords(sounds)} on this walk`));
   if (s3Plan(st)) main.append(h('div', null, kBtn('view3d', 'Show this walk in the 3D station view', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view')));
   if (dirs.length > 1) {
-    const ex = kBtn('expander', `Walking directions, ${dirs.length} steps`, () => {
+    const ex = kBtn('expander', null, () => {
       if (expanded) { closedDirs.add(i); openDirs.delete(i); } else { openDirs.add(i); closedDirs.delete(i); }
       renderBody();
     }, kIcon(expanded ? 'up' : 'down', 16), expanded ? 'Hide directions' : `Walking directions (${dirs.length})`);
     ex.setAttribute('aria-expanded', String(expanded));
     main.append(ex);
     if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k),
-      sounds && d.kind !== 'arrive' && soundCrossings((d.coords || []).filter(Boolean)) ? 'Sound signal at a crossing here' : ''))));
+      sounds && d.kind !== 'arrive' && soundCrossings([(d.coords || []).filter(Boolean)]) ? 'Sound signal at a crossing here' : ''))));
   }
   return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
     h('span', 'tl-time', h('small', null, kDur(mins * 60))),
@@ -548,7 +563,7 @@ function rideBlock(st: JourneyRideStep, i: number) {
   li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
     h('div', 'tl-main',
       standCard(st, i),
-      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), A11Y.sr(' towards '), named(h('span', 'ride-head', j.to), coordOf(s.departure))),
+      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), A11Y.sr(' towards '), asName(h('span', 'ride-head', j.to))),
       h('div', 'ride-sum',
         stops > 0 ? stopsExpander(i, open, stops, rideS)
           : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),
@@ -606,7 +621,7 @@ function renderBody() {
   const fresh = buildBody(), now = bodyNow();
   keepFocus(jBody, () => {
     // the same steps or the same journeys again (new times, a list opened): row by row, so the rest stays as it is
-    if (!(sameBody(bodyFor, now) && patch(jBody, fresh, 'ol.tl, ol.journeys'))) jBody.replaceChildren(fresh);
+    if (!(sameBody(bodyFor, now) && patch(jBody, fresh, 'ol.tl, ol.journeys'))) { rememberAll(fresh); jBody.replaceChildren(fresh); }
   });
   bodyFor = now;
   jBody.scrollTop = top;

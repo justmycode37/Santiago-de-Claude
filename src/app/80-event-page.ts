@@ -50,9 +50,8 @@ function renderEventPage(f: EventFeature) {
   const fill = (id: string, text: string) => A11Y.inLang(Object.assign(document.getElementById(id)!, { textContent: text }), A11Y.textLang(text));
   document.getElementById('evCat')!.textContent = p.category;
   fill('evTitle', p.title);
-  fill('evWhen', p.when);
-  fill('evCost', p.cost);
-  fill('evAttendance', p.attendance);
+  // (dates, prices and how to register are a few words with numbers and addresses: no language is read from them)
+  for (const [id, text] of [['evWhen', p.when], ['evCost', p.cost], ['evAttendance', p.attendance]]) A11Y.setLang(Object.assign(document.getElementById(id)!, { textContent: text }), '');
   (document.getElementById('evOrganizer') as HTMLAnchorElement).href = p.url;
   const venue = document.getElementById('evVenue')!, city = document.getElementById('evCity')!;
   venue.textContent = p.venue;

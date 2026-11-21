@@ -5,20 +5,29 @@ const A = createRequire(import.meta.url)('../src/a11y.ts');
 let failed = 0;
 const eq = (what, got, want) => { if (got !== want) { failed++; console.log(`FAIL ${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 
-// Texts: only a clear answer is given ('' = leave it in the page's language)
+// Texts: only a clear answer is given ('' = leave it in the page's language). It takes two hits and a clear
+// lead: a wrong voice is worse than the page's own.
 for (const [text, lang] of [
   ['Chor für Menschen mit und ohne Demenz', 'de'],
   ['Schenk mir eine Geschichte auf Albanisch', 'de'],
-  ['Schreibdienst', 'de'],
   ['Offene Beratung für Migrantinnen', 'de'],
-  ['Free dinner at Speak-Out', 'en'],
-  ['Beginner German at PBZ Oerlikon', 'en'],
   ['Volunteers help you read German letters, understand forms and write applications.', 'en'],
   ['Café des langues pour les nouveaux arrivants', 'fr'],
   ['Corso di italiano per principianti', 'it'],
+  // one hit, or none, is not enough
+  ['Schreibdienst', ''],
+  ['Free dinner at Speak-Out', ''],
   ['Yoga', ''],
   ['Berner Generationenhaus, Bahnhofplatz 2, 3011 Bern', ''],
   ['', ''],
+  // codes, short forms and addresses that look like a word of another language (all from the app's own events)
+  ['Alpha lecture 1 - AL0051', ''],
+  ['Alpha francophone - AL 006', ''],
+  ['Di. 17.30-18.30', ''],
+  ['CHF 2 per visit', ''],
+  ['Schwimmen Kinder Obere Au · BTV Behindertensport Chur', ''],
+  ['Natation adultes, Non-nageurs · PluSport Sport Handicap Yverdon', ''],
+  ['Register via gesellschaft@gl.ch', ''],
 ]) eq(`textLang(${text})`, A.textLang(text), lang);
 
 // Places: along the language border, and outside Switzerland

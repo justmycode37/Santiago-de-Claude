@@ -48,7 +48,7 @@ SETTINGS.onChange(() => {
   updateCards(); updatePlaces(); vehUpdate();
   loadAccessData(); // Blind or low vision switched on: tactile guidance and sound signals for the journey
   if (journeyConn) queueSheet();
-  if (!SETTINGS.prefs().lowVision) A11Y.keepAwake(false);
+  A11Y.keepAwake(guiding && lowVision());
 });
 // Accessibility options changed during a journey → plan it again with them
 SETTINGS.onClose((journeyChanged) => {

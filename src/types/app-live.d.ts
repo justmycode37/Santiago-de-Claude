@@ -18,7 +18,7 @@ interface TripSnap extends TripPlace {
   d: number;
   /** km into the whole trip. */
   km: number;
-  /** Metres to the nearest part of the trip, whichever step that is: what decides "off the route". */
+  /** Metres to the step you are counted on or one next to it, whichever is nearest: what decides "off the route". */
   near: number;
 }
 

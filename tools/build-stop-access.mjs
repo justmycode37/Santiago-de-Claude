@@ -4,8 +4,8 @@
 //   node tools/build-stop-access.mjs
 //
 // From data/bern-stop-accessibility.json (tools/build-bern-accessibility.mjs: ATLAS accessibility data per stop
-// edge from opentransportdata.swiss, so far for Bern). Only what the data says is there is kept; an edge
-// without any of it is left out, so the app claims nothing it does not know.
+// edge from opentransportdata.swiss, so far for Bern). Only what the data says is there is claimed: an edge
+// without any of it has a row with no flags, so that it is never taken for the edge next to it.
 //
 // Per stop number (UIC): edges as [lon × 1e5, lat × 1e5, label, flags]. The app finds a journey's edge by its
 // position (many bus stops have no signed label), else by its label ("7", "C"; "01" is written "1" as in the app).
@@ -25,12 +25,12 @@ for (const stop of src.stops) {
     const flags = (a.tactile_system === true ? 't' : '') + (a.attention_field === true ? 'f' : '')
       + (a.dynamic_audio === true || info.includes('ACOUSTIC_INFORMATION') ? 'a' : '')
       + (info.some((x) => x.startsWith('TEXT_TO_SPEECH')) ? 's' : '');
-    if (!flags) continue;
+    // (an edge with none of these is kept too, with no flags: else it would be taken for a neighbour that has them)
     const label = String(e.label || '').trim().toUpperCase().replace(/^0+(?=\d)/, '');
     const at = Number.isFinite(e.lon) && Number.isFinite(e.lat) ? [Math.round(e.lon * 1e5), Math.round(e.lat * 1e5)] : [0, 0];
     kept.push([...at, label, flags]);
   }
-  if (!kept.length) continue;
+  if (!kept.some((e) => e[3])) continue; // a stop where nothing of this is known
   stops[String(stop.didok)] = kept;
   edges += kept.length;
 }

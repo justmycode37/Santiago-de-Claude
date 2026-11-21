@@ -128,12 +128,13 @@ function tripLive(now = Date.now()) {
 
 // Snap a GPS position onto the trip. Ties go to the earlier step (waiting at the stop, not yet riding);
 // going backwards and boarding before the vehicle has left are penalised, so loops and parallel lines stay right.
-// near: how far you are from the nearest part of the trip, whichever step that is. It decides "off the route":
+// near: how far you are from the step you are counted on or one of its neighbours. It decides "off the route":
 // on the platform before your train leaves, the step you are counted on is still the walk there, whose drawn
 // line can end well short of the platform, and that distance must not make you off the route.
 function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
   const lay = tripLayout();
-  let best: Omit<TripSnap, 'near'> | null = null, near = Infinity;
+  let best: Omit<TripSnap, 'near'> | null = null;
+  const off: number[] = []; // metres to each step's line
   journeySteps.forEach((st, i) => {
     const cs = stepLine(st);
     if (!cs.length) return;
@@ -141,7 +142,7 @@ function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
     const consider = (d: number, kmIn: number) => {
       const km = lay.km0[i] + kmIn;
       const cost = d + early + (km < ref ? (ref - km) * 500 : (km - ref) * 20);
-      if (d < near) near = d;
+      if (off[i] == null || d < off[i]) off[i] = d;
       if (!best || cost < best.cost) best = { cost, d, i, kmIn, km };
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
@@ -152,7 +153,11 @@ function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
     }
   });
   const snap = best as Omit<TripSnap, 'near'> | null; // (assigned inside consider(), which the compiler does not follow)
-  return snap && { ...snap, near };
+  if (!snap) return null;
+  // the step you are counted on, the one before and the one after: a later part of the trip that happens to
+  // pass by does not hide that you have left this one
+  const near = Math.min(...[snap.i - 1, snap.i, snap.i + 1].map((k) => (off[k] == null ? Infinity : off[k])));
+  return { ...snap, near };
 }
 
 // Still at (or on the way to) the stop of a ride that has left without you?

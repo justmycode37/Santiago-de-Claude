@@ -149,6 +149,7 @@ function renderJourney(conn: OdConnection, destTitle: string) {
   sheetMsg = '';
   guideSaid.clear(); // another journey: nothing of it has been said yet
   guideDelay.clear();
+  guidePlat.clear();
   guideHeld = { key: '', since: 0 };
   document.getElementById('jDep')!.textContent = fmtTime(conn.from.departure);
   updatePillTimes();

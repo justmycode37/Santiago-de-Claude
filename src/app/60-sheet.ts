@@ -102,7 +102,8 @@ function quayOf(r: QuayRide, end: 'dep' | 'arr'): Quay {
   const label = num || (edge && edge.ref) || '';
   const word = platformWord(s.journey); // Platform · Bay · Pier
   return { label, sectors, word, short: word === 'Platform' ? 'Pl.' : word, edge, travel: at.travel,
-    planned: live && plan && live !== plan ? splitPlatform(plan).num : null, station: stop.station!.name };
+    // (new sectors on the same platform, "7 A-B" → "7 C-D", are not another platform)
+    planned: live && plan && live !== plan && splitPlatform(plan).num !== num ? splitPlatform(plan).num : null, station: stop.station!.name };
 }
 // The boarding point in its fixed slot: right-aligned, bold ("Pl. 7", "Bay C"); nothing for an unsigned stop
 function kPlat(q: Quay | null | undefined, long?: boolean) {

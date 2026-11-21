@@ -49,8 +49,13 @@ After **Start**, `guidePosition()` and `guideAlerts()` in `src/app/65-guidance.t
 | On board | "You are on Tram 9 towards Wabern. 5 stops to Bern, Bahnhof, arriving at 14:32." | no |
 | Your stop is next, far away | "The next stop is Zürich HB, at 16:28. Get off there." | no |
 | Your stop is next, close | "Next stop: Bern, Bahnhof. Get off there. Then change to IR 16 at Platform 12." | yes |
-| Platform changed | "Platform change: IC 8 now leaves from platform 5, not 7." | yes |
-| Delay of 3 minutes or more | "IC 8 is 5 minutes late. It now leaves at 14:55." | no |
+
+"Your stop is next" is only said once the stop before it is 30 m behind you. Said while the vehicle pulls into that stop, it would be heard as its doors open.
+
+| Event | Example | Interrupts |
+|---|---|---|
+| Platform changed, also back to the planned one | "Platform change: IC 8 now leaves from platform 5, not 7." · "…leaves from platform 7 after all, not 5." | yes |
+| Delay of 3 minutes or more, each time it changes by 3 or more, and when it is gone | "IC 8 is 5 minutes late. It now leaves at 14:55." | no |
 | Cancelled, or a change that won't work | "IC 8 is cancelled. Replan finds another way." | yes |
 | Off the route, or a missed ride | "You are off the route, about 270 metres away." | yes |
 | Arrived | "You have arrived at Zytglogge." | no |
@@ -61,7 +66,7 @@ Guidance is on while you are under way: from **Start** until the start or the de
 
 ## Languages
 
-The page is in English. Station, stop and street names are marked with the language spoken where they are (`lang="de"`, `"fr"`, `"it"`), so a screen reader says "Zürich Hauptbahnhof" with a German voice. `A11Y.placeLang()` decides by position, along a rough language border. Event titles and descriptions are marked by the words they use (`A11Y.textLang()`), and left alone when that is not clear.
+The page is in English. Station, stop and street names are marked with the language spoken where they are (`lang="de"`, `"fr"`, `"it"`), so a screen reader says "Zürich Hauptbahnhof" with a German voice. `A11Y.placeLang()` decides by position, along a rough language border. Event titles and descriptions are marked by the words they use (`A11Y.textLang()`), and left alone when that is not clear: a wrong voice is worse than the page's own, so it takes two hits and a clear lead. A place listed by its kind ("Public toilet") and the terminus of a line get no language of their own.
 
 Sentences in the live regions can't carry a language per word, so names inside them are read with the voice of the app's language.
 
@@ -75,6 +80,11 @@ Sentences in the live regions can't carry a language per word, so names inside t
 | Crossings with a sound signal | Stadt Bern, in `map-places.js` | counted within 12 m of a walk (`src/app/63-access-data.ts`) |
 
 Both cover Bern only. The app says what is mapped and claims nothing where nothing is: no sentence means "not known", never "none".
+
+Two rules keep that true:
+
+- **A stop edge is matched to its own row.** `stop-access.js` has a row for every edge of a stop, also the ones with nothing, and the app takes the row within 5 m of the edge. Bays stand a few metres apart, and a bay without tactile guidance must not borrow its neighbour's.
+- **Sound signals are counted along the routed walk only.** A walk that has not been routed yet is a straight line across the blocks and says nothing about the crossings on the way.
 
 ## Limits
 

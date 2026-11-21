@@ -12,7 +12,8 @@
 
   // ---- Which language a piece of text is in, so the screen reader picks the right voice (lang="de") ----
   // Counted on the commonest words of each language; only an answer that is clear is given, the rest stays
-  // in the page's language.
+  // in the page's language: a wrong voice is worse than the page's own. So it takes two hits and a clear lead,
+  // and codes ("AL0051"), e-mail and web addresses are not counted as words.
   type TextLang = 'de' | 'fr' | 'it' | 'en';
   const WORDS: Record<TextLang, string> = {
     de: 'der die das und für mit von im zum zur ein eine einen nicht auf ist den dem des wir sie oder bei auch aus nach über unter ohne wie wird sind zu vom am beim ab bis um',
@@ -24,7 +25,8 @@
   const WORD_SETS = Object.fromEntries(LANGS.map((k) => [k, new Set(WORDS[k].split(' '))])) as Record<TextLang, Set<string>>;
   const DE_END = /(ung|ungen|keit|schaft|dienst|kurs|kurse|treff|gruppe|gruppen|stunde|abend|beratung)$/;
   function textLang(text: string | null | undefined): TextLang | '' {
-    const words = String(text || '').toLowerCase().split(/[^a-zà-öø-ÿ]+/).filter(Boolean);
+    const plain = String(text || '').toLowerCase().replace(/\S+@\S+|https?:\S+|www\.\S+/g, ' ');
+    const words = plain.match(/(?<![\p{L}\d])\p{L}+(?![\p{L}\d])/gu) || [];
     if (!words.length) return '';
     const score: Record<TextLang, number> = { de: 0, fr: 0, it: 0, en: 0 };
     for (const w of words) {
@@ -35,8 +37,7 @@
     }
     const ranked = LANGS.map((k) => [k, score[k]] as const).sort((a, b) => b[1] - a[1]);
     const [best, n] = ranked[0], second = ranked[1][1];
-    // one clear hit is enough for a short title ("Chor für Menschen"), a longer text needs a real lead
-    if (n < 1 || n < second * 1.5 + (words.length > 6 ? 1 : 0.5)) return '';
+    if (n < 2 || n < second * 2) return '';
     return best;
   }
 
@@ -94,32 +95,34 @@
   // ---- Read aloud: this phone's own voice ----
   const synth: SpeechSynthesis | null = root.speechSynthesis || null;
   let unlocked = false;
-  // iOS only lets a page speak once it has spoken inside a tap. With read aloud on, the first tap anywhere
-  // says nothing, quietly, so that later sentences (a journey found, the next stop) may be spoken.
+  // iOS only lets a page speak once it has spoken inside a tap. With read aloud on, a tap anywhere says
+  // nothing, quietly, so that later sentences (a journey found, the next stop) may be spoken. A tap counts once
+  // it has ended (touchend, click), not when the finger goes down, and whether it worked only shows when the
+  // utterance starts: until then every tap tries again.
   function unlock(e?: Event | true) {
     // (called with true from Settings, in the tap that switches read aloud on)
     if (unlocked || !synth || !(e === true || prefs().readAloud)) return;
-    unlocked = true;
     try {
       const u = new SpeechSynthesisUtterance(' ');
       u.volume = 0;
+      u.onstart = () => { unlocked = true; };
       synth.speak(u);
     } catch (e) { /* no voice on this device */ }
   }
-  page.addEventListener('pointerdown', unlock, { capture: true, passive: true });
-  page.addEventListener('keydown', unlock, { capture: true, passive: true });
+  for (const type of ['touchend', 'click', 'keydown']) page.addEventListener(type, unlock, { capture: true, passive: true });
   function speak(text: string, { urgent = false, force = false }: { urgent?: boolean; force?: boolean } = {}) {
     if (!synth || !text || !(force || prefs().readAloud)) return false;
     try {
       if (urgent) synth.cancel(); // what matters now replaces what was being said
       const u = new SpeechSynthesisUtterance(text);
       u.lang = page.documentElement.lang || 'en';
+      u.onstart = () => { unlocked = true; };
       synth.speak(u);
-      unlocked = true;
       return true;
     } catch (e) { return false; }
   }
-  const hush = () => { try { if (synth) synth.cancel(); } catch (e) { /* nothing was being said */ } };
+  let hushed = 0; // goes up with every hush(): a sentence still waiting for its translation is then dropped
+  const hush = () => { hushed++; try { if (synth) synth.cancel(); } catch (e) { /* nothing was being said */ } };
 
   // ---- Vibration (Android; iOS Safari has none): a short buzz for a new step, two for something urgent ----
   function buzz(urgent?: boolean) {
@@ -156,11 +159,11 @@
       buzz(urgent);
     };
     const L = root.APP_LANG;
+    const n = (turn.get(el) || 0) + 1, h = hushed;
+    turn.set(el, n); // (also in English: a sentence still being translated from before must not come after this one)
     if (!L || !L.translate || appLang() === 'en') { out(text); return; }
-    const n = (turn.get(el) || 0) + 1;
-    turn.set(el, n);
     let done = false;
-    const once = (t: string) => { if (done || turn.get(el) !== n) return; done = true; out(t); };
+    const once = (t: string) => { if (done || turn.get(el) !== n || h !== hushed) return; done = true; out(t); };
     setTimeout(() => once(text), 1500);
     Promise.resolve(L.translate(text)).then((t) => once(t || text), () => once(text));
   }
@@ -174,12 +177,18 @@
   const KEEP = (el: Element) => el.tagName === 'SCRIPT' || el.classList.contains('sr-live') || el.id === 'toast';
   const openDialogs = new Map<HTMLElement, { made: HTMLElement[]; returnTo: Opener }>();
   const usable = (el: HTMLElement | null): el is HTMLElement => !!el && el !== page.body && page.contains(el) && !el.closest('[inert]') && el.getClientRects().length > 0;
+  // A modal dialog that is open already (the first-visit introduction, over a page that is still starting) is on
+  // top of this one: it stays usable and keeps the focus.
+  const onTop = (x: Element) => x.getAttribute('aria-modal') === 'true' && x.getAttribute('aria-hidden') !== 'true' && !(x as HTMLElement).inert;
   function openDialog(el: HTMLElement, { focus = null, returnTo = null, keep = [] }: A11yDialogOptions = {}) {
     if (openDialogs.has(el)) return;
-    const made = ([...page.body.children] as HTMLElement[]).filter((x) => x !== el && !KEEP(x) && !keep.includes(x) && !x.inert);
+    const others = ([...page.body.children] as HTMLElement[]).filter((x) => x !== el);
+    const covered = others.some(onTop);
+    const made = others.filter((x) => !KEEP(x) && !keep.includes(x) && !x.inert && !onTop(x));
     made.forEach((x) => { x.inert = true; });
     openDialogs.set(el, { made, returnTo: returnTo || page.activeElement as HTMLElement | null });
     el.inert = false;
+    if (covered) return;
     const target = focus || el;
     if (target === el && !el.hasAttribute('tabindex')) el.tabIndex = -1;
     try { target.focus({ preventScroll: true }); } catch (e) { /* not focusable yet */ }
@@ -212,14 +221,19 @@
   }
 
   // ---- Keep the screen on while the app talks you through a trip (a browser stops a page whose screen is off) ----
-  let lock: WakeLockSentinel | null = null, wantLock = false;
+  let lock: WakeLockSentinel | null = null, wantLock = false, asking = false;
   async function acquire() {
-    if (!wantLock || lock || !root.navigator.wakeLock || page.hidden) return;
+    if (!wantLock || lock || asking || !root.navigator.wakeLock || page.hidden) return;
+    asking = true;
     try {
-      lock = await root.navigator.wakeLock.request('screen');
-      lock.addEventListener('release', () => { lock = null; });
-      if (!wantLock) { lock.release().catch(() => {}); lock = null; }
-    } catch (e) { lock = null; /* battery saver, or not allowed: guidance still works while the screen is on */ }
+      const got = await root.navigator.wakeLock.request('screen');
+      if (!wantLock) got.release().catch(() => {});
+      else {
+        lock = got;
+        got.addEventListener('release', () => { if (lock === got) lock = null; });
+      }
+    } catch (e) { /* battery saver, or not allowed: guidance still works while the screen is on */ }
+    asking = false;
   }
   function keepAwake(on: boolean) {
     wantLock = !!on;

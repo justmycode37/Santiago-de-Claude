@@ -23,25 +23,38 @@ function stopAccess(st: JourneyRideStep): string[] {
   const rows = lowVision() && stopAccessData ? stopAccessData[String(st.s.departure.station!.id)] : null;
   if (!rows) return [];
   const q = quayOf(st, 'dep'), ll = (q.edge && q.edge.ll) || st.depLL;
-  // the edge itself by its position (the same official points as ours), else by its label when that is unambiguous
-  let row = ll ? rows.find((r) => r[0] && distKm([r[0] / 1e5, r[1] / 1e5], ll) < 0.015) : undefined;
+  // The edge itself: the row nearest to it, within 5 m (the same official points as ours, so it is at 0 m; bays
+  // stand 6 m apart and less). Else the row with its label, when that is unambiguous.
+  let row: StopAccessEdge | undefined;
+  if (ll) {
+    let best = 0.005;
+    for (const r of rows) { const d = r[0] ? distKm([r[0] / 1e5, r[1] / 1e5], ll) : Infinity; if (d < best) { best = d; row = r; } }
+  }
   if (!row && q.label) {
     const same = rows.filter((r) => r[2] === String(q.label).toUpperCase());
     if (same.length && same.every((r) => r[3] === same[0][3])) row = same[0];
   }
   return row ? [...row[3]].map((f) => ACCESS_WORDS[f]).filter(Boolean) : [];
 }
-// Crossings with a sound signal along a line: the signal posts within 12 m of it, posts of one crossing counted once
+// The way a walk really goes: its lines once they have been routed (a line not routed yet, or one no router
+// found a way for, is drawn straight across the blocks and says nothing about the crossings on the way)
+function walkPaths(st: JourneyStep): LngLat[][] {
+  const lines = st.lines || [], walks = st.walks || [];
+  return lines.filter((l, k) => l.length > 1 && !!walks[k] && walks[k].dist != null);
+}
+// Crossings with a sound signal along a walk: the signal posts within 12 m of one of its lines, posts of one
+// crossing counted once. The lines are taken one by one: the end of one is not joined to the start of the next.
 let soundPosts: LngLat[] | null = null;
-function soundCrossings(coords: LngLat[] | null | undefined): number {
-  if (!lowVision() || !PLACES || !coords || coords.length < 2) return 0;
+function soundCrossings(paths: LngLat[][]): number {
+  const coords = paths.flat();
+  if (!lowVision() || !PLACES || coords.length < 2) return 0;
   if (!soundPosts) {
     const cat = PLACES.cats.findIndex((c) => c[3] === 'Acoustic crossing signal');
     soundPosts = PLACES.items.filter((r) => r[2] === cat).map((r): LngLat => [r[0], r[1]]);
   }
   const [w, s0, e, n] = coords.reduce((b, c) => [Math.min(b[0], c[0]), Math.min(b[1], c[1]), Math.max(b[2], c[0]), Math.max(b[3], c[1])], [180, 90, -180, -90]);
   const near = soundPosts.filter((p) => p[0] > w - 0.0003 && p[0] < e + 0.0003 && p[1] > s0 - 0.0002 && p[1] < n + 0.0002
-    && coords.some((c, k) => k < coords.length - 1 && projectSeg(p, c, coords[k + 1]).d < 12));
+    && paths.some((line) => line.some((c, k) => k < line.length - 1 && projectSeg(p, c, line[k + 1]).d < 12)));
   const groups: LngLat[] = [];
   near.forEach((p) => { if (!groups.some((g) => distKm(g, p) < 0.03)) groups.push(p); });
   return groups.length;

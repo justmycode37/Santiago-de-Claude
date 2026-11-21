@@ -37,6 +37,7 @@ function placeResult(row: MapPlaceRow, km: number): SearchResult {
   const [g, glyph, , label] = PLACES!.cats[row[2]];
   const group = GROUP_BY_KEY[g];
   return {
+    generic: !row[3],
     title: row[3] || label,
     // "Pharmacy · 120 m · Neuengasse 15": the street tells apart branches with the same name
     subtitle: [row[3] ? label : '', fmtDist(km * 1000), row[4] && row[4].a && /\d/.test(row[4].a.split(',')[0]) ? row[4].a.split(',')[0] : ''].filter(Boolean).join(' · '),
