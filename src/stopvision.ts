@@ -548,7 +548,14 @@
     stats.ocr.push(performance.now() - t0);
     if (!running || mine !== session || gen !== sourceGen) return; // Scan closed, or another picture by now
     if (tap && tapRead === tap) { tapRead = null; ui.ring.classList.remove('on'); }
-    await useText(data.text || '', !!tap, layoutOf(data, shot), shotHeading);
+    const layout = layoutOf(data, shot);
+    // other parts of the app can use the words with their place in the picture (the AR camera: vehicle displays)
+    try {
+      const [fw, fh] = sourceSize();
+      const detail: ScanWordsDetail = { words: layout.words.map((w) => ({ text: w.text, box: w.box, conf: w.conf })), width: fw || 0, height: fh || 0, tap: !!tap };
+      window.dispatchEvent(new CustomEvent('scan:words', { detail }));
+    } catch (e) {}
+    await useText(data.text || '', !!tap, layout, shotHeading);
   }
 
   // ---- where the words are: Tesseract's blocks → words with boxes in picture pixels (confident words only)
@@ -567,7 +574,7 @@
           // big lettering (the stop name) often reads with a low confidence: keep every word for matching names
           // (a match with a real stop name is itself the evidence); the typical text size uses confident words only
           const bx = box(w.bbox);
-          words.push({ n, toks, box: bx, h: bx.y1 - bx.y0, block: bi, line: lineNo, conf: w.confidence });
+          words.push({ text: w.text, n, toks, box: bx, h: bx.y1 - bx.y0, block: bi, line: lineNo, conf: w.confidence });
         }
       }
     });
