@@ -62,10 +62,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return io.BytesIO(body)
 
 
+class Server(http.server.ThreadingHTTPServer):
+    # A browser opens a dozen connections at once (more through a proxy such as `tailscale serve`). Python's
+    # default queue holds only 5 waiting connections: the rest were refused, the proxy answered 502, a script
+    # was missing and the app broke ("Map could not be loaded").
+    request_queue_size = 128
+    daemon_threads = True
+
+
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     bind = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
-    server = http.server.ThreadingHTTPServer((bind, port), Handler)
+    server = Server((bind, port), Handler)
     print(f"Serving {ROOT} at http://{'localhost' if bind in ('127.0.0.1', '0.0.0.0') else bind}:{port}/", flush=True)
     try:
         server.serve_forever()
