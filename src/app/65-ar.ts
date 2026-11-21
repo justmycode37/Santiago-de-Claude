@@ -67,7 +67,16 @@ function arOpen(st: JourneyStep) {
   camera.catch(() => {}); orientation.catch(() => {});
   const mine = ++arSession;
   const hooks = scanHooks();
-  const done = () => { if (arSession === mine) arSession++; };
+  // the camera gets the whole screen: the journey sheet and its bar step aside until AR closes (CSS: body.ar-open)
+  document.body.classList.add('ar-open');
+  const done = () => { document.body.classList.remove('ar-open'); if (arSession === mine) arSession++; };
+  // and come back whenever the camera screen is gone: closed, or never opened (Scan failed to load)
+  let seen = false, waited = 0;
+  const watch = setInterval(() => {
+    const open = !!document.querySelector('.sv');
+    seen = seen || open;
+    if ((seen && !open) || (!seen && ++waited > 20) || arSession !== mine) { clearInterval(watch); if (!document.querySelector('.sv')) document.body.classList.remove('ar-open'); }
+  }, 500);
   hooks.onClose = done;
   openScanWith(hooks, camera, orientation, () => { if (arSession === mine) arLayer(mine, target); });
   arDetector(); // start loading while the camera starts
@@ -208,6 +217,7 @@ function arLayer(mine: number, target: ArTarget) {
     window.removeEventListener('deviceorientationabsolute', onOri);
     window.removeEventListener('deviceorientation', onOri);
     layer.remove();
+    if (arSession !== mine) document.body.classList.remove('ar-open');
   };
   const tick = setInterval(frame, 100); // ~10 updates a second; also runs where animation frames are held back
   const stopTick = () => clearInterval(tick);
