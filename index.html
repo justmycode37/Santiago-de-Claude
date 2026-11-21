@@ -18,6 +18,49 @@
       document.documentElement.dataset.theme = saved === 'dark' || saved === 'light' ? saved : sys;
     })();
   </script>
+  <!-- Open the connections the app needs while the page is still loading (map tiles, search, timetable) -->
+  <link rel="preconnect" href="https://vectortiles.geo.admin.ch" crossorigin />
+  <link rel="preconnect" href="https://api3.geo.admin.ch" crossorigin />
+  <link rel="preconnect" href="https://transport.opendata.ch" crossorigin />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script>
+    // Start the two slow things before the map library and the event data (about 1.5 MB) have downloaded:
+    // finding the user's location and fetching the base map style. On a phone each takes a second or more.
+    (function () {
+      // Location: fixes that come in early wait here until the main script attaches to them
+      const geo = window.EARLY_GEO = {
+        fixes: [], errors: [], on: null,
+        attach(onFix, onError) {
+          this.on = { onFix, onError };
+          this.fixes.splice(0).forEach(onFix);
+          this.errors.splice(0).forEach(onError);
+        },
+      };
+      if (window.isSecureContext && navigator.geolocation) {
+        const fix = (p) => (geo.on ? geo.on.onFix(p) : geo.fixes.push(p));
+        const fail = (e) => (geo.on ? geo.on.onError(e) : geo.errors.push(e));
+        try {
+          // A position the phone already has (up to 10 min old) comes back at once; the precise one follows
+          navigator.geolocation.getCurrentPosition(fix, () => {}, { enableHighAccuracy: false, maximumAge: 600000, timeout: 4000 });
+          navigator.geolocation.watchPosition(fix, fail, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+        } catch (e) {}
+      }
+
+      // Base map style with its two tile sets written in (saves two round trips before the first tile), and every
+      // tile fetched from the style's own host: one HTTP/2 connection for style, fonts, icons and tiles, not six
+      const HOST = 'https://vectortiles.geo.admin.ch';
+      const json = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      window.EARLY_STYLE = json(HOST + '/styles/ch.swisstopo.lightbasemap.vt/style.json').then((style) =>
+        Promise.all(Object.values(style.sources).map((src) => (src.type !== 'vector' || !src.url ? null
+          : json(src.url).then((tj) => {
+            if (!tj.tiles || !tj.tiles.length) return;
+            src.tiles = [tj.tiles[0].replace(/^https:\/\/vectortiles\d+\./, 'https://vectortiles.')];
+            for (const k of ['minzoom', 'maxzoom', 'bounds', 'scheme', 'attribution']) if (tj[k] != null) src[k] = tj[k];
+            delete src.url;
+          }).catch(() => {})))).then(() => style));
+      window.EARLY_STYLE.catch(() => {}); // handled where it is used
+    })();
+  </script>
   <style>
     :root {
       --bar-bg: #ffffff;
@@ -1273,6 +1316,15 @@
     const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
     const CH_BOUNDS = [[5.7, 45.6], [10.7, 48.0]];
     const FALLBACK = [7.4474, 46.9480]; // Bern
+    // Where the user was last time: the map opens there straight away (and loads those tiles) instead of in Bern
+    // and then jumping once GPS answers. Only kept on this device.
+    const SAVED_LOC = (() => {
+      try {
+        const v = JSON.parse(localStorage.getItem('lastLocation'));
+        return Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)
+          && v[0] >= CH_BOUNDS[0][0] && v[0] <= CH_BOUNDS[1][0] && v[1] >= CH_BOUNDS[0][1] && v[1] <= CH_BOUNDS[1][1] ? v : null;
+      } catch (e) { return null; }
+    })();
 
     // Performance on phones. Safari reports few cores, so MapLibre would decode every vector tile on a single
     // worker thread; swisstopo tiles are large (up to ~220 KB each in cities), so panning waits on that one
@@ -1288,8 +1340,8 @@
       pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       // Plain background until the swisstopo style (light or dark) is ready
       style: { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': getComputedStyle(root).getPropertyValue('--page-bg').trim() } }] },
-      center: FALLBACK,
-      zoom: 13,
+      center: SAVED_LOC || FALLBACK,
+      zoom: SAVED_LOC ? 15 : 13,
       minZoom: 6,
       maxZoom: 20,
       maxBounds: [[4.5, 44.9], [12.2, 48.6]],
@@ -1521,7 +1573,7 @@
       // Dots only show from zoom 17, so tiles past 17 are scaled up from 17 instead of being cut again
       style.sources.platforms = { type: 'geojson', data: platformsOnMap ? PLATFORM_FC : EMPTY_FC, maxzoom: PLATFORM_MIN_ZOOM };
       style.sources.route = { type: 'geojson', data: ROUTE_FC };
-      style.sources.places = { type: 'geojson', data: PLACES_FC };
+      style.sources.places = { type: 'geojson', data: placesOnMap ? PLACES_FC : EMPTY_FC };
       const route = routeLayers(theme);
       const firstSymbol = style.layers.findIndex((l) => l.type === 'symbol');
       style.layers.splice(firstSymbol < 0 ? style.layers.length : firstSymbol, 0, ...route.below);
@@ -1529,8 +1581,8 @@
       map.setStyle(style, { diff });
     }
 
-    fetch(STYLE_URL)
-      .then((r) => r.json())
+    // Usually already on its way since the <head> (EARLY_STYLE)
+    (window.EARLY_STYLE || fetch(STYLE_URL).then((r) => r.json()))
       .then((style) => {
         STYLES.light = style;
         STYLES.dark = makeDarkStyle(style);
@@ -1636,15 +1688,24 @@
     }
     map.on('zoom', updateAccuracy);
 
+    let lastSavedAt = 0;
     function onPosition(pos) {
       const lngLat = [pos.coords.longitude, pos.coords.latitude];
       if (!inSwitzerland(lngLat)) {
         showToast('You are outside Switzerland');
         return;
       }
+      // When the fix was taken: a cached one can be minutes old, and may arrive after a newer precise one
+      const now = Date.now();
+      const takenAt = pos.timestamp > now - 864e5 ? Math.min(pos.timestamp, now) : now;
+      if (takenAt < lastFixAt) return;
       userLngLat = lngLat;
       userAccuracy = pos.coords.accuracy || 0;
-      lastFixAt = Date.now();
+      lastFixAt = takenAt;
+      if (now - lastSavedAt > 30000) {
+        lastSavedAt = now;
+        try { localStorage.setItem('lastLocation', JSON.stringify(lngLat.map((x) => +x.toFixed(4)))); } catch (e) {}
+      }
       accMarker.setLngLat(lngLat);
       userMarker.setLngLat(lngLat);
       if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
@@ -1669,9 +1730,9 @@
     } else if (!('geolocation' in navigator)) {
       showToast('This browser does not support location.');
     } else {
-      // Quick coarse fix first, then precise live updates
-      navigator.geolocation.getCurrentPosition(onPosition, () => {}, { enableHighAccuracy: false, maximumAge: 60000, timeout: 5000 });
-      navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+      // The quick coarse fix and the precise live updates were already asked for in the <head> (EARLY_GEO)
+      // (after this script has run: onPosition uses things declared further down)
+      setTimeout(() => EARLY_GEO.attach(onPosition, onPositionError), 0);
     }
 
     // ---------- Search (swisstopo SearchServer) ----------
@@ -2047,7 +2108,12 @@
         const s = document.createElement('script');
         s.src = 'platforms.js';
         s.async = true;
-        s.onload = () => { indexPlatforms(window.PLATFORM_DATA); resolve(); };
+        s.onload = () => {
+          indexPlatforms(window.PLATFORM_DATA);
+          resolve();
+          // Then the places the search looks through (map-places.js), so the first search needn't wait for them
+          setTimeout(loadPlaces, 1000);
+        };
         s.onerror = () => resolve(); // journeys fall back to station positions
         document.head.appendChild(s);
       };
@@ -2209,6 +2275,14 @@
         if (name) properties.n = name;
         return { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties };
       });
+      showPlacesIfNeeded();
+    }
+    // The places only go to the map (where indexing them keeps a map worker busy) once they are to be shown;
+    // the search uses PLACES directly.
+    let placesOnMap = false;
+    function showPlacesIfNeeded() {
+      if (placesOnMap || !PLACES_FC.features.length || !placeGroupsShown().length) return;
+      placesOnMap = true;
       const src = map.getSource('places');
       if (src) src.setData(PLACES_FC);
     }
@@ -2216,6 +2290,7 @@
     function updatePlaces() {
       const groups = placeGroupsShown();
       if (groups.length && !PLACES) loadPlaces();
+      showPlacesIfNeeded();
       for (const id of PLACE_LAYERS) {
         if (!map.getLayer(id)) continue;
         map.setLayoutProperty(id, 'visibility', groups.length ? 'visible' : 'none');
