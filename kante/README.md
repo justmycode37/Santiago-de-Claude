@@ -6,7 +6,8 @@ network, ties every departure to the exact bus bay, tram edge or platform, and a
 opentransportdata.swiss.
 
 The app in this repository does not call it yet: journeys still come from transport.opendata.ch. The
-live map in `livemap/` does use it. `deploy/` hosts it and redeploys it when `main` changes.
+live map in `livemap/` does use it. `deploy/` hosts it and redeploys it when `main` changes; the hosted
+engine is at https://kante.omniroute.app.
 
 | Path | What |
 |---|---|

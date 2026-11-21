@@ -10,6 +10,13 @@ lives in `~/kante-host`.
 | `kante-tunnel.service` | `cloudflared`, which gives the engine a public HTTPS address without opening a port |
 | `kante-deploy.timer` | Every two minutes, runs `deploy.sh` |
 
+## The running instance
+
+The engine is at **https://kante.omniroute.app** (try `/api/meta` or `/playground/`). It runs behind the
+Cloudflare tunnel `kante-lapdell1`, made the dashboard way: the hostname is set in Cloudflare and the host
+only holds the tunnel's token. Cloudflare turns away some non-browser clients on this address, among them
+Python's default `urllib` (HTTP 403); browsers, `curl` and Node are fine.
+
 ## Setting up a machine
 
 Use a user made only for this. The watcher builds and runs whatever is on `main`, so anyone who can push
@@ -50,10 +57,12 @@ tried. The two newest releases are kept. A deploy takes about 2 minutes on a
 | If this exists | Tunnel | Address |
 |---|---|---|
 | `~/kante-host/cloudflared.yml` | named tunnel, set up with `cloudflared tunnel login` | fixed, on your own domain |
-| `~/kante-host/secrets/tunnel-token` | tunnel made in the Cloudflare dashboard | fixed, on your own domain |
+| `~/kante-host/secrets/tunnel-token` | tunnel made in the Cloudflare dashboard or with its API | fixed, on your own domain |
 | neither | quick tunnel, no Cloudflare account | `https://….trycloudflare.com`, new at every start |
 
-A fixed address needs a domain on a Cloudflare account. With one:
+A fixed address needs a domain on a Cloudflare account. For the token way, make a tunnel under Zero Trust ›
+Networks › Tunnels, add a public hostname that points to `http://127.0.0.1:8080`, and save the token it
+shows to `~/kante-host/secrets/tunnel-token` (mode 600). For the other way:
 
 ```sh
 ~/kante-host/bin/cloudflared tunnel login                 # open the link, pick the domain
