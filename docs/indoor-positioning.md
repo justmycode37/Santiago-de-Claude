@@ -87,7 +87,9 @@ In the app nothing is needed: opening a station in 3D starts it (iOS: the first 
 access). The station session outlives the 3D view by 10 minutes, so you can close it, read a sign with Scan (which
 counts), and open it again where you are. GPS fixes more than 300 m outside the model pass straight to the viewer
 (which then says you are not at the station), and the journey's starting platform is only assumed when GPS does
-not say otherwise.
+not say otherwise. The journey's start alone never shows a position (the trip may be tomorrow, or location may be
+off): the dot appears once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they
+are there (`INDOORNAV.state().live`).
 
 `station3d.js` got one small addition for this: `setUser` takes `levelSure: true` from the indoor position, so a
 floor the filter is sure of beats the floor of the viewer's previous route snap.
