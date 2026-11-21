@@ -736,7 +736,7 @@
       transform: translateX(-50%) rotate(45deg);
       box-shadow: 3px 3px 6px rgba(0,0,0,.08);
     }
-    .ev-card { width: 150px; }
+    .ev-card { width: 150px; will-change: transform; } /* own GPU layer: panning moves the card without repainting its shadow */
     .ev-inner { isolation: isolate; }
     .ev-body {
       display: grid; grid-template-rows: 2fr 1fr; height: 186px; width: 100%; padding: 0; border: 0; border-radius: 16px;
@@ -1274,8 +1274,18 @@
     const CH_BOUNDS = [[5.7, 45.6], [10.7, 48.0]];
     const FALLBACK = [7.4474, 46.9480]; // Bern
 
+    // Performance on phones. Safari reports few cores, so MapLibre would decode every vector tile on a single
+    // worker thread; swisstopo tiles are large (up to ~220 KB each in cities), so panning waits on that one
+    // thread. Use three, as MapLibre's own cap for Safari allows.
+    const IS_WEBKIT_MOBILE = /iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const IS_SAFARI = IS_WEBKIT_MOBILE || /^((?!chrome|chromium|android|edg).)*safari/i.test(navigator.userAgent);
+    if (IS_SAFARI) maplibregl.setWorkerCount(3);
+
     const map = new maplibregl.Map({
       container: 'map',
+      // iPhones have 3× screens: drawing the map at 2× is about half the pixels per frame and looks the same
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       // Plain background until the swisstopo style (light or dark) is ready
       style: { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': getComputedStyle(root).getPropertyValue('--page-bg').trim() } }] },
       center: FALLBACK,
@@ -1388,14 +1398,19 @@
     }
 
     const EVENT_MIN_ZOOM = 12.5;
-    const eventMarkers = [];
+    // Cards on the map, by venue + events shown. Cards that stay on screen after a move are kept as they are
+    // (no rebuild, no reloaded photo, no pop-in animation); only cards that change are added or removed.
+    const eventMarkers = new Map();
     let eventsOn = false;
 
+    function clearCards() {
+      for (const marker of eventMarkers.values()) marker.remove();
+      eventMarkers.clear();
+    }
+
     function updateCards() {
-      for (const marker of eventMarkers) marker.remove();
-      eventMarkers.length = 0;
       // during a journey the map shows only the trip and the destination
-      if (!eventsOn || journeyDest || !SETTINGS.mapGroups().includes('events') || map.getZoom() < EVENT_MIN_ZOOM) return;
+      if (!eventsOn || journeyDest || !SETTINGS.mapGroups().includes('events') || map.getZoom() < EVENT_MIN_ZOOM) { clearCards(); return; }
 
       const { clientWidth, clientHeight } = map.getContainer();
       const venues = new Map();
@@ -1436,12 +1451,17 @@
         // At maximum zoom, keep even adjacent doors accessible from the event details.
         else if (map.getZoom() >= map.getMaxZoom() - 0.01) overlap.features.push(...venue.features);
       }
+      const next = new Map();
       for (const venue of shown) {
-        const element = makeVenueCard(venue.features);
-        const marker = new maplibregl.Marker({ element, anchor: 'bottom' })
+        const key = venue.coordinates.join(',') + '|' + venue.features.map((f) => f.properties.id).join(',');
+        let marker = eventMarkers.get(key);
+        if (marker) eventMarkers.delete(key);
+        else marker = new maplibregl.Marker({ element: makeVenueCard(venue.features), anchor: 'bottom' })
           .setLngLat(venue.coordinates).addTo(map);
-        eventMarkers.push(marker);
+        next.set(key, marker);
       }
+      clearCards(); // the cards no longer shown
+      for (const [key, marker] of next) eventMarkers.set(key, marker);
     }
 
     function makeVenueCard(features) {
@@ -1482,7 +1502,7 @@
     }
     map.on('moveend', updateCards);
     map.on('zoom', () => {
-      if (eventMarkers.length && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
+      if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
     });
     map.on('resize', updateCards);
 
@@ -1498,7 +1518,8 @@
       const theme = currentTheme();
       if (!STYLES[theme]) return;
       const style = structuredClone(STYLES[theme]);
-      style.sources.platforms = { type: 'geojson', data: PLATFORM_FC };
+      // Dots only show from zoom 17, so tiles past 17 are scaled up from 17 instead of being cut again
+      style.sources.platforms = { type: 'geojson', data: platformsOnMap ? PLATFORM_FC : EMPTY_FC, maxzoom: PLATFORM_MIN_ZOOM };
       style.sources.route = { type: 'geojson', data: ROUTE_FC };
       style.sources.places = { type: 'geojson', data: PLACES_FC };
       const route = routeLayers(theme);
@@ -1514,9 +1535,10 @@
         STYLES.light = style;
         STYLES.dark = makeDarkStyle(style);
         applyMapTheme(false);
-        map.once('idle', updateCards);
+        // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
+        map.once('idle', () => { updateCards(); startPlatforms(); });
       })
-      .catch(() => showToast('Map could not be loaded'));
+      .catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
 
     function setTheme(theme, persist) {
       root.dataset.theme = theme;
@@ -1607,6 +1629,8 @@
       if (!userLngLat) return;
       const mPerPx = 40075016.686 * Math.cos(userLngLat[1] * Math.PI / 180) / (512 * 2 ** map.getZoom());
       const d = Math.min(2 * userAccuracy / mPerPx, 4000);
+      // No size animation while zooming: it would lay the page out again on every frame of a pinch
+      accEl.style.transition = map.isZooming() ? 'none' : '';
       accEl.style.width = accEl.style.height = d + 'px';
       accEl.style.display = d < 40 ? 'none' : '';
     }
@@ -1974,6 +1998,17 @@
     // official ATLAS data (platforms.js, built by tools/build_platforms.py). Always drawn on the map from
     // zoom 17, and used to put journey boarding/alighting points on the right platform.
     const PLATFORM_FC = { type: 'FeatureCollection', features: [] };
+    const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+    // The ~52,000 dots are only handed to the map the first time it comes near the zoom where they show:
+    // indexing them occupies a map worker, which would otherwise hold up the base map tiles.
+    let platformsOnMap = false;
+    function showPlatformsIfNeeded() {
+      if (platformsOnMap || !PLATFORM_FC.features.length || map.getZoom() < PLATFORM_MIN_ZOOM - 1.5) return;
+      platformsOnMap = true;
+      const src = map.getSource('platforms');
+      if (src) src.setData(PLATFORM_FC);
+    }
+    map.on('zoomend', showPlatformsIfNeeded);
     const PLATFORMS = new Map(); // station id (UIC, as in transport.opendata.ch) → { name, mode, edges: [{ ref, key, bearing, ll }] }
     const PLATFORM_MODES = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
 
@@ -1997,20 +2032,27 @@
         });
       }
       PLATFORM_FC.features = features;
-      const src = map.getSource('platforms');
-      if (src) src.setData(PLATFORM_FC);
+      showPlatformsIfNeeded();
       delete window.PLATFORM_DATA;
     }
 
-    // Loaded after start-up (it is ~2 MB), as a script so it also works when index.html is opened as a file
+    // Loaded after the first map view (it is ~2 MB), as a script so it also works when index.html is opened
+    // as a file. startPlatforms() runs on the first map idle, when a journey needs it, or after 8 s at the latest.
+    let startPlatforms;
     const platformsReady = new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = 'platforms.js';
-      s.async = true;
-      s.onload = () => { indexPlatforms(window.PLATFORM_DATA); resolve(); };
-      s.onerror = () => resolve(); // journeys fall back to station positions
-      document.head.appendChild(s);
+      let started = false;
+      startPlatforms = () => {
+        if (started) return;
+        started = true;
+        const s = document.createElement('script');
+        s.src = 'platforms.js';
+        s.async = true;
+        s.onload = () => { indexPlatforms(window.PLATFORM_DATA); resolve(); };
+        s.onerror = () => resolve(); // journeys fall back to station positions
+        document.head.appendChild(s);
+      };
     });
+    setTimeout(startPlatforms, 8000);
 
     // Neutral white dots that only appear when zoomed in close (street level)
     const PLATFORM_MIN_ZOOM = 17;
@@ -4029,6 +4071,7 @@
       const from = userLngLat || map.getCenter().toArray();
       try {
         // exact platforms if their data is there in time; never hold a journey up for more than 4 s
+        startPlatforms();
         const [conn] = await Promise.all([findConnection(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
         if (id !== journeyReq) return;
         if (!conn) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }

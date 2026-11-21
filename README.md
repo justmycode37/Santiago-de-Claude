@@ -12,6 +12,10 @@ python3 -m http.server 8000
 
 Open `http://localhost:8000` in your browser.
 
+For a phone, use `python3 tools/serve.py` instead: it sends the files gzipped (platforms.js 2.2 MB → 0.8 MB)
+and lets the browser cache them, so the app opens much faster. The phone needs HTTPS for GPS, for example
+through `tailscale serve`.
+
 ## Platforms and stop edges
 
 The map shows the exact position of every train platform (Gleis) and bus/tram stop edge (Kante) in
