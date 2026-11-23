@@ -47,7 +47,8 @@ export interface TrackState extends TripSnap {
   onRoute?: boolean;
   /** The ride that has left without you (missedRide()). */
   missed?: JourneyRideStep | null;
-  /** Within 25 m of the trip's end, or 40 m of the destination. */
+  /** Within 25 m of the trip's end along its line, or (past its last ride) within the GPS accuracy of the destination,
+   *  counted as 20 to 40 m. Once arrived, you stay arrived (trackOnce()). */
   arrived?: boolean;
 }
 /** The trip's steps laid end to end (tripLayout()): each step's length and where it starts, in km. */
@@ -280,6 +281,12 @@ export function trackJourney() {
 function trackOnce() {
   if (!journey.steps.length || !gpsOn() || !tripLive()) { tracking.track = null; return; }
   const now = Date.now(), lay = tripLayout(), tp = timeProgress(now);
+  // Once arrived, you stay arrived (walking on into the building, or GPS straying there, does not undo it), until
+  // another trip is opened (tracking.track is cleared then)
+  if (tracking.track && tracking.track.arrived) {
+    Object.assign(tracking.track, { i: journey.steps.length - 1, kmIn: 0, km: lay.total, v: tracking.geoVersion });
+    return;
+  }
   // where you were at the last fix (measured on today's lines), else where the timetable puts you
   const ref = tracking.track && !tracking.track.off && tracking.track.v === tracking.geoVersion ? tracking.track.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
   const s = snapToTrip(userLngLat!, ref, now);
@@ -295,8 +302,11 @@ function trackOnce() {
   const offCount = s.d > tol ? ((tracking.track && tracking.track.offCount) || 0) + 1 : 0;
   tracking.track = { ...s, v: tracking.geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (tracking.track.off) return;
+  // Arrived: within 25 m of the trip's end along its line, or, past its last ride, within the GPS accuracy of the
+  // destination (counted as 20 to 40 m; not while a ride passes it)
   const dest = destMarker._map && destMarker.getLngLat().toArray();
-  if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat!, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {
+  const pastRides = journey.steps.slice(s.i).every((st) => st.type !== 'ride');
+  if (lay.total - s.km < 0.025 || (pastRides && dest && distKm(userLngLat!, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {
     Object.assign(tracking.track, { i: journey.steps.length - 1, kmIn: 0, km: lay.total, arrived: true });
     delete tracking.track.walkedKmIn;
     delete tracking.track.guess;

@@ -47,6 +47,10 @@ update.
 
 On a routed walk the blue dot sits on the path while GPS is within its accuracy (not on a guessed stretch).
 
+You have arrived within 25 m of the trip's end along its line, or, once past its last ride, within the GPS accuracy
+of the destination, counted as 20 to 40 m. Once arrived you stay arrived (walking on into the building does not undo
+it) until another trip is opened.
+
 ## The engine's walk
 
 The fields of a walking leg are in `KanteWalk` (`src/types/kante.d.ts`, `kante/engine/crates/server/src/json.rs`):

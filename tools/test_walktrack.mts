@@ -156,5 +156,33 @@ console.log('6. along the guessed tail: the distance and the bar from where you 
   check(tail.every((f) => f.walked === 70) && plain[2].walked >= 180, `drawn as walked: the 70 m of paths, not the guess (${tail.map((f) => f.walked).join(', ')} m; without the fields ${plain.map((f) => f.walked).join(', ')} m)`);
 }
 
+console.log('5. into the building at the end: once arrived, arrived');
+async function arriving(guessed: boolean) {
+  await show(guessed);
+  walkToStop();
+  [62, 200, 390].forEach((m, k) => fix(220 - m, 2, DEP + [15, 60, 290][k])); // on the bus to R
+  const walk = [[-180, 30], [-180, 60], [-180, 72]].map(([e, n], k) => fix(e, n, ARR + 30 * (k + 1)));
+  const door = fix(-180, 102, ARR + 120);
+  // inside: back along the guessed line 30 m behind the door, then 70 m to one side (twice)
+  const inside = [[-185, 72], [-110, 132], [-110, 132]].map(([e, n], k) => fix(e, n, ARR + 130 + 10 * k));
+  return { walk, door, inside };
+}
+{
+  const p = await arriving(false), g = await arriving(true);
+  check(g.door.arrived && g.door.live === 'You have arrived', `at the door: "${g.door.live}"`);
+  check(g.inside.every((f) => f.arrived && f.live === 'You have arrived' && !f.off), `walking on inside, it stays so (${g.inside.map((f) => `"${f.live}"`).join(', ')})`);
+  check(p.inside.every((f) => f.arrived && f.live === 'You have arrived'), '(without the fields too)');
+  check(g.walk.every((f) => !f.arrived) && g.walk[2].live === '30 m to Kunsthaus', `before the door, not yet: "${g.walk.map((f) => f.live).join('", "')}"`);
+}
+{
+  // the bus passes 10 m from the destination pin, which is then within the GPS accuracy (counted as at least 20 m)
+  await show(true);
+  walkToStop();
+  fix(158, 2, DEP + 15);
+  dest.at = at(0, 12);
+  const passing = fix(0, 2, DEP + 60);
+  check(!passing.arrived && passing.i === 1 && passing.live.startsWith('On '), `passing the destination on the bus: not arrived ("${passing.live}")`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
