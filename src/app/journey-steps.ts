@@ -6,7 +6,8 @@ import { INK } from './sprites.ts';
 import { journeyProgress, stopKms } from './tracking.ts';
 import { levelShort, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
 import { distKm, lengthKm } from './routing.ts';
-import { searchState } from './state.ts';
+import { journey, searchState } from './state.ts';
+import { SETTINGS } from '../settings.ts';
 import { KANTE } from '../engine.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import type { Journey, JourneyPart, JourneyPlatformAt, JourneyRide } from '../engine-journey.ts';
@@ -235,6 +236,21 @@ export function dayLabel(iso: string | number) {
   if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
+// "< 1 min", "23 min", "1 h 05 min"; never "0 min" for a time that is not zero
+export function kDur(s: number) {
+  if (s > 0 && s < 60) return '< 1 min';
+  const m = Math.max(0, Math.round(s / 60));
+  if (m < 60) return `${m} min`;
+  const hh = Math.floor(m / 60), r = m % 60;
+  return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
+}
+// where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
+export function kDurExact(s: number) {
+  s = Math.max(0, Math.round(s));
+  if (s < 60) return `${s} s`;
+  if (s < 90) return s % 60 ? `1 min ${s % 60} s` : '1 min';
+  return kDur(Math.floor(s / 60) * 60);
+}
 // ---- A stop of a ride: the engine's call there (KanteStopCall: its boarding point, times, delays) ----
 export type StopTime = 'arr' | 'dep';
 export const stopName = (c: KanteStopCall) => c.quay.stationName;
@@ -375,6 +391,21 @@ export function applyLiveTimes(steps: JourneyStep[]) {
       end = st.t1;
     } else if (st.type === 'arrive' && end != null) st.time = end;
   });
+}
+
+// When the journey arrives as it now stands: the arrival step's time (the live times'), else the timetable's
+export function journeyEnd() {
+  const a = journey.steps[journey.steps.length - 1];
+  return a && a.time != null ? a.time : journey.conn!.t1;
+}
+// Spare time on a change: from getting off to the next departure, less the walk
+export function spareOf(st: JourneyChangeStep) {
+  const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
+  const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
+  const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
+  const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
+  const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
+  return { s, level, extra, short, easy: level === 'ok' && !short, text: `${kDurExact(s)} to spare` };
 }
 
 export function stepCoords(st: JourneyStep) {

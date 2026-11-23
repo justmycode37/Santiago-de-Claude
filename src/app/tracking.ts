@@ -5,7 +5,7 @@ import { map } from './map.ts';
 import { showToast } from '../toast.ts';
 import { fixAge, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';
 import { destMarker } from './search.ts';
-import { hasForecast, icon, lineLabel, lineVars, liveMs, modeOf, splitLine, stopName } from './journey-steps.ts';
+import { hasForecast, icon, journeyEnd, lineLabel, lineVars, liveMs, modeOf, splitLine, stopName } from './journey-steps.ts';
 import { rideTrip } from './live-engine.ts';
 import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
@@ -190,10 +190,6 @@ function timeProgress(now = Date.now()): TimedPlace | null {
 }
 
 // The trip is under way (or about to be): only then does GPS move you along it, so a trip planned for later is left alone
-export function journeyEnd() {
-  const a = journey.steps[journey.steps.length - 1];
-  return a && a.time != null ? a.time : journey.conn!.t1;
-}
 export function tripLive(now = Date.now()) {
   const first = journey.steps.find((st) => st.t0 != null);
   return !!first && now >= first.t0! - 30 * 60000 && now <= journeyEnd() + 30 * 60000;

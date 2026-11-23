@@ -1,9 +1,12 @@
 // Tests for how a journey's walks are drawn and routed again while it is open (src/app/routing.ts, requay() and
 // the engine's walks in src/engine-journey.ts): the engine's walk as the page keeps it (door, covered stretches,
 // guessed ends), what routeWalk() asks the engine, and answers that arrive late, after the walk has moved, been
-// cancelled or changed platform, are dropped. The routing module and the engine's journeys are imported as they are,
-// with the parts of the page they import stubbed; the engine's /api/walk (KANTE.walk()) and the station models
-// (Station3D.loadData()) answer with promises the test settles. Offline; exit code 1 on any failure.
+// cancelled or changed platform, are dropped. The routing module, the engine's journeys, the journey's steps
+// (src/app/journey-steps.ts: what the sheet and the map read, the time to spare at a change, the journey's times)
+// and the live updates (src/app/live-engine.ts) are imported as they are, with the parts of the page they import
+// stubbed. Journeys are planned as the app plans them (KanteJourney.plans(), buildSteps()); the engine's /api/plan
+// and /api/trip answer what the test sets, its /api/walk (KANTE.walk()) and the station models
+// (Station3D.loadData()) with promises the test settles. Offline; exit code 1 on any failure.
 //
 //   node --experimental-test-module-mocks tools/test_walkrefine.mts
 import { mock } from 'node:test';
@@ -64,7 +67,7 @@ interface FakeStep {
 }
 type FakeEngineWalk = Partial<KanteWalk> & { durationS: number; geometry: LngLat[]; approximate: boolean; steps: KanteWalkStep[] };
 /** A station model as the stubbed router reads it: the route through it is in it. */
-interface FakeModel { route: { points: LngLat[]; steps: []; fromStop: boolean; toStop: boolean; length: number } }
+interface FakeModel { route: { points: LngLat[]; steps: []; fromStop: boolean; toStop: boolean; length: number; seconds: number } }
 /** The page around the routing code, as these tests stand in for it: what the stubs read, count and keep. */
 interface AppPage {
   sheets: number;
@@ -73,6 +76,9 @@ interface AppPage {
   /** The station models asked for (Station3D.loadData()), answered when the test says with the route through it. */
   station: Deferred<FakeModel>[];
   plan: { key: string } | null;
+  /** What the engine's /api/plan answers (KANTE.plan()), and /api/trip for each trip (KANTE.trip()). */
+  planned: KantePlanResponse | null;
+  trips: Record<string, KanteTrip>;
 }
 /** What src/app/routing.ts exports, as far as these tests call it. */
 interface AppRouting {
@@ -82,14 +88,27 @@ interface AppRouting {
 }
 /** The state the routing code reads and writes (src/app/state.ts). */
 interface AppState {
-  journey: { steps: FakeStep[]; req: number; routeKey: string };
+  journey: { steps: FakeStep[]; req: number; routeKey: string; conn: object | null; dest: { lngLat: LngLat; title: string } | null; platKey: string };
   tracking: { geoVersion: number };
 }
 /** The engine's journeys (src/engine-journey.ts), as far as these tests call them. */
 interface EngineJourneys {
   requay(steps: object[], changed: () => void): void;
   routed(leg: FakeEngineWalk): FakeRouted | null;
+  plans(fromLL: LngLat, dest: { lngLat: LngLat }): Promise<{ best: object } | null>;
 }
+/** A feature of the journey's map (stepFeatures() in src/app/journey-steps.ts): a walk's line, a door, a stop… */
+interface MapFeature { properties: { kind: string; step: number; approx?: boolean }; geometry: { type: string; coordinates: LngLat | LngLat[] } }
+/** The journey's steps as the sheet and the map read them (src/app/journey-steps.ts). */
+interface AppSteps {
+  buildSteps(conn: object, destTitle: string): FakeStep[];
+  stepFeatures(steps: FakeStep[]): MapFeature[];
+  /** The time to spare at a change, as the sheet writes it ("2 min to spare"). */
+  spareOf(st: FakeStep): { s: number; level: string; text: string };
+  journeyEnd(): number;
+}
+/** The live updates (src/app/live-engine.ts): /api/trip for every ride, and what follows from its answers. */
+interface LiveEngine { livePoll(): Promise<void>; platSig(): string }
 
 // The app around the routing code: the parts of the page it imports, stubbed (node --experimental-test-module-mocks),
 // and what it asks: the engine's /api/walk hands back promises kept in `asked`, the station models in `station`
@@ -112,11 +131,13 @@ fake('trip-ends.ts', { blurSearch: nothing, setField: nothing, setFollowing: not
 fake('pins.ts', { armPin: nothing, pinMenu: marker });
 fake('map-places.ts', { updatePlaces: nothing });
 fake('journey-map.ts', { jBody: null, jFoot: null, jHead: null, setRoute: nothing });
-fake('journey-steps.ts', { modeOf: () => 'bus' });
-fake('tracking.ts', { nowMarker: marker, placeUserDot: nothing, vehMarker: marker });
-fake('live-vehicles.ts', { platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', vehUpdate: nothing });
-fake('sheet-content.ts', { queueSheet: () => { page.sheets++; }, s3Plan: () => page.plan, s3Prefs: () => ({}) });
-fake('pill.ts', { updateProgress: nothing });
+fake('platforms.ts', { platformKey: (p: string | null | undefined) => String(p || '').toUpperCase() });
+fake('sprites.ts', { INK: '#000' });
+fake('tracking.ts', { nowMarker: marker, placeUserDot: nothing, vehMarker: marker, journeyProgress: () => null, stopKms: () => null, tripLive: () => true });
+fake('live-vehicles.ts', { platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', vehUpdate: nothing,
+  levelShort: (l: number) => (l < 0 ? '−' + -l : String(l)), platformWord: () => 'Platform', splitPlatform: (p: string) => ({ num: p || '', sectors: '' }) });
+fake('sheet-content.ts', { queueSheet: () => { page.sheets++; }, renderSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
+fake('pill.ts', { updateProgress: nothing, updatePillTimes: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
 // the modules beside the page's that the routing code and the engine's journeys read: the settings, the station
 // models and their router, the engine's client
@@ -124,18 +145,23 @@ const prefs = { walkKmh: 4.68, stepFree: false, fewerStairs: false, noEscalators
 fake('../settings.ts', { SETTINGS: { prefs: () => prefs, transportations: () => [] } });
 fake('../station3d.ts', { Station3D: { loadData: () => { const d = defer<FakeModel>(); page.station.push(d); return d.p; }, preload: nothing },
   stationRouter: () => ({ route: (model: FakeModel) => model.route, toLngLat: (_model: FakeModel, p: LngLat) => p }) });
-fake('../engine.ts', { KANTE: { available: () => true,
-  walk: (body: KanteWalkRequest) => { const d = defer<FakeEngineWalk>(); page.asked.push({ body, d }); return d.p; } } });
-Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f() });
+fake('../engine.ts', { KANTE: { available: () => true, base: 'https://engine.test', uicOf: (id: string) => id, failure: () => 'down',
+  walk: (body: KanteWalkRequest) => { const d = defer<FakeEngineWalk>(); page.asked.push({ body, d }); return d.p; },
+  plan: async () => page.planned, trip: async (tripId: string) => page.trips[tripId] || null } });
+fake('../live.ts', { KANTE_LIVE: { isLive: () => true, liveInfoOf: () => ({}) } });
+// (the rides' tracks and roads are asked of BRouter and OSRM: no answer here, so they stay the lines between the stops)
+Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { hidden: false }, fetch: async () => ({ ok: false }) });
 // (a specifier TypeScript does not follow: the app's modules are checked with the app, not with the tools)
 const load = (file: string) => import(new URL(file, APP).href);
 const R: AppRouting = await load('routing.ts');
 const S: AppState = await load('state.ts');
 const J: EngineJourneys = (await load('../engine-journey.ts')).KanteJourney;
+const JS: AppSteps = await load('journey-steps.ts');
+const LE: LiveEngine = await load('live-engine.ts');
 /** A fresh page for a test: nothing asked yet, and the state as when the page has just planned journey 1. */
 function app() {
-  page = { sheets: 0, asked: [], station: [], plan: null };
-  Object.assign(S.journey, { steps: [], req: 1, routeKey: '' });
+  page = { sheets: 0, asked: [], station: [], plan: null, planned: null, trips: {} };
+  Object.assign(S.journey, { steps: [], req: 1, routeKey: '', conn: null, dest: null, platKey: '' });
   S.tracking.geoVersion = 0;
   return page;
 }
@@ -146,11 +172,55 @@ const step = (kind: KanteWalkStep['kind'], from: number, to: number, text: strin
 const walk = (cs: LngLat[], more: Partial<FakeEngineWalk> = {}): FakeEngineWalk => ({ kind: 'direct', durationS: 80, distanceM: 100, approximate: false,
   geometry: cs, levels: cs.map(() => null), steps: [step('walk', 0, cs.length - 1)], ...more });
 // a station model whose route is this line
-const model = (line: LngLat[], toStop = true): FakeModel => ({ route: { points: line, steps: [], fromStop: true, toStop, length: 100 } });
+const model = (line: LngLat[], toStop = true, seconds = 80): FakeModel => ({ route: { points: line, steps: [], fromStop: true, toStop, length: 100, seconds } });
 const at = (b: KanteWalkRequest['to']) => (b.lon != null ? [b.lon, b.lat] as LngLat : null);
 const same = (p: LngLat | null, q: LngLat) => !!p && p[0] === q[0] && p[1] === q[1];
 // a moved point: n metres east of p
 const east = (p: LngLat, m: number): LngLat => [p[0] + m / (111320 * Math.cos(p[1] * Math.PI / 180)), p[1]];
+
+
+// ---- journeys as the app has them: the engine's journey (/api/plan) through KanteJourney.plans() and buildSteps(),
+// its walks refined (refineJourney()), and live data through livePoll() (/api/trip) ----
+const NOW = Math.floor(Date.now() / 1000), T = (min: number) => NOW + min * 60; // unix seconds, minutes from now
+const quayAt = (id: string, ll: LngLat, label: string, level = 0, station = 'st:8507000'): KanteQuay => ({ id, sloid: id, stationId: station,
+  stationName: station === 'st:8507000' ? 'Bern' : 'Zürich HB', label, noun: 'edge', lat: ll[1], lon: ll[0], precision: 'edge', level, modes: ['rail'] });
+const callAt = (seq: number, quay: KanteQuay, arr?: number, dep?: number): KanteStopCall => ({ seq, quay, ...(arr != null ? { arr } : {}), ...(dep != null ? { dep } : {}) });
+const rideLeg = (tripId: string, from: KanteStopCall, to: KanteStopCall): KanteRideLeg => ({ type: 'ride', tripId, serviceDate: '2026-11-23', from, to,
+  line: { name: 'IC1', category: 'IC', mode: 'rail', operator: 'SBB' }, headsign: 'Zürich HB', intermediate: [], geometry: [], live: 'timetable' });
+const point = (ll: LngLat, quay?: KanteQuay): KanteWalkPoint => ({ name: quay ? quay.stationName : 'Kunsthaus', lat: ll[1], lon: ll[0], ...(quay ? { quay } : {}) });
+const walkLeg = (kind: KanteWalk['kind'], from: KanteWalkPoint, to: KanteWalkPoint, dep: number, durationS: number, more: Partial<KanteWalk> = {}): KanteWalkLeg => {
+  const geometry: LngLat[] = [[from.lon, from.lat], [to.lon, to.lat]];
+  return { type: 'walk', kind, from, to, dep, arr: dep + durationS, durationS, distanceM: Math.round(durationS * 1.3), stairsUp: 0, stairsDown: 0, lifts: 0,
+    escalators: 0, stepFree: true, approximate: false, geometry, levels: [null, null], steps: [step('walk', 0, 1)], ...more };
+};
+/** The journey on show, as startJourney() and renderJourney() (src/app/pill.ts) make it: planned to `dest`, laid out,
+ *  its walks refined. */
+async function show(legs: KanteLeg[], dest: LngLat) {
+  const first = legs[0], last = legs[legs.length - 1];
+  const dep = first.type === 'ride' ? first.from.dep! : first.dep, arr = last.type === 'ride' ? last.to.arr! : last.arr;
+  page.planned = { journeys: [{ id: 'j1', dep, arr, durationS: arr - dep, transfers: legs.filter((l) => l.type === 'ride').length - 1, walkS: 0, walkM: 0, legs }] } as unknown as KantePlanResponse;
+  const o = await J.plans(A, { lngLat: dest });
+  S.journey.conn = o!.best;
+  S.journey.dest = { lngLat: dest, title: 'Kunsthaus' };
+  S.journey.steps = JS.buildSteps(o!.best, 'Kunsthaus');
+  S.journey.platKey = LE.platSig();
+  R.refineWalks(1); // (refineJourney() without the rides' tracks and the 3D views' preloading)
+  return S.journey.steps;
+}
+/** A live update: /api/trip answers for this trip with these calls (a platform change, new times). */
+async function live(tripId: string, calls: KanteStopCall[]) {
+  page.trips[tripId] = { tripId, serviceDate: '2026-11-23', calls } as KanteTrip;
+  await LE.livePoll();
+  await settle();
+}
+/** The engine answers the request it was asked (k: which one) with a walk between the points asked for. */
+const answer = (k: number, durationS: number, more: Partial<FakeEngineWalk> = {}) => {
+  const x = page.asked[k];
+  x.d.res(walk([at(x.body.from)!, at(x.body.to)!], { durationS, distanceM: Math.round(durationS * 1.3), ...more }));
+  return settle();
+};
+const minutesOf = (st: FakeStep) => (st.type === 'change' ? st.walkMin : st.min); // the walk's minutes on the card
+const walkLines = (i: number) => JS.stepFeatures(S.journey.steps).filter((f) => f.properties.step === i && f.properties.kind === 'walk');
 
 console.log('1. a walk cancelled while its route is on the way stays cancelled');
 {

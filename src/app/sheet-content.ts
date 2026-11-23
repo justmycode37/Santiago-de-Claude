@@ -2,12 +2,11 @@
 import { showToast } from '../toast.ts';
 import { userLngLat } from './location.ts';
 import { jBody, jFoot, jHead, refreshRouteHighlight } from './journey-map.ts';
-import { dayLabel, fmtTime, hasForecast, isRide, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, stopName, stopUic } from './journey-steps.ts';
-import { journeyEnd } from './tracking.ts';
+import { dayLabel, fmtTime, hasForecast, isRide, journeyEnd, kDur, kDurExact, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, spareOf, stopName, stopUic } from './journey-steps.ts';
 import { liveParts, replan } from './live-line.ts';
 import { livePoll } from './live-engine.ts';
 import { cap, compassWord, fmtDist, levelShort, platformOf } from './live-vehicles.ts';
-import { MODE_K, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kDur, kDurExact, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
+import { MODE_K, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
 import type { KIconName } from './sheet.ts';
 import { ticketPricing } from './ticket-pricing.ts';
 import { focusDir, overview, shareJourney, showQuay, startFollowing, ticketLink } from './journey-actions.ts';
@@ -380,15 +379,6 @@ function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to
     h('span', 'tl-time', h('b', null, fmtTime(t))),
     h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
     h('span', 'tl-name', h('strong', null, name)));
-}
-// Spare time on a change: from getting off to the next departure, less the walk
-function spareOf(st: JourneyChangeStep) {
-  const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
-  const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
-  const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
-  const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
-  const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
-  return { s, level, extra, short, easy: level === 'ok' && !short, text: `${kDurExact(s)} to spare` };
 }
 function spareLine(st: JourneyChangeStep) {
   const { s, level, extra, short, text } = spareOf(st);

@@ -103,21 +103,6 @@ export function kBtn(cls: string, label: string | null, onClick: (e: MouseEvent)
   return b;
 }
 
-// "< 1 min", "23 min", "1 h 05 min"; never "0 min" for a time that is not zero
-export function kDur(s: number) {
-  if (s > 0 && s < 60) return '< 1 min';
-  const m = Math.max(0, Math.round(s / 60));
-  if (m < 60) return `${m} min`;
-  const hh = Math.floor(m / 60), r = m % 60;
-  return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
-}
-// where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
-export function kDurExact(s: number) {
-  s = Math.max(0, Math.round(s));
-  if (s < 60) return `${s} s`;
-  if (s < 90) return s % 60 ? `1 min ${s % 60} s` : '1 min';
-  return kDur(Math.floor(s / 60) * 60);
-}
 // "+4 min" after a time, in the alarm colour; nothing when on time
 export function kDelay(min: number) {
   if (!min) return null;
