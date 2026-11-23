@@ -105,6 +105,8 @@ interface AppSteps {
   stepFeatures(steps: FakeStep[]): MapFeature[];
   /** The time to spare at a change, as the sheet writes it ("2 min to spare"). */
   spareOf(st: FakeStep): { s: number; level: string; text: string };
+  /** When the journey leaves and arrives, as the header, the pill and the timeline's first and last rows show it. */
+  journeyStart(): number;
   journeyEnd(): number;
 }
 /** The live updates (src/app/live-engine.ts): /api/trip for every ride, and what follows from its answers. */
@@ -167,6 +169,8 @@ function app() {
 }
 const A: LngLat = [7.43, 46.94], B: LngLat = [7.44, 46.95], C: LngLat = [7.45, 46.96];
 const stop = (platform: string): FakeStop => ({ quay: { label: platform } });
+// a ride beside the walk under test, without times
+const aRide = (): FakeStep => ({ type: 'ride', s: { stops: [], legs: [] } });
 const step = (kind: KanteWalkStep['kind'], from: number, to: number, text: string = kind): KanteWalkStep => ({ kind, text, distM: 10, durS: 8, from, to });
 // an answer of the engine's /api/walk: a path along these points (100 m, 80 s unless said)
 const walk = (cs: LngLat[], more: Partial<FakeEngineWalk> = {}): FakeEngineWalk => ({ kind: 'direct', durationS: 80, distanceM: 100, approximate: false,
@@ -316,7 +320,7 @@ console.log("4. the engine's walk as the page keeps it");
 console.log('5. the walk to the destination is routed to the place, not to the door it found');
 {
   const c = app(), st = { type: 'walk', final: true, lines: [[A, B]], toLL: B, from: { to: stop('3') } };
-  S.journey.steps.push(st, { type: 'ride' });
+  S.journey.steps.push(st, aRide());
   R.refineWalks(1);
   st.lines = [[A, [7.435, 46.945], [7.4399, 46.9499]]]; // the engine's walk, ending at the door
   R.refineWalks(1, true);
@@ -426,7 +430,7 @@ console.log('10. a station model that does not load: one request per line, none 
   c.plan = { key: 'bern' };
   const st: FakeStep = { type: 'walk', lines: [[A, B], [B, C]], ends: [[{}, { exact: true }], [{ exact: true }, { platform: true, quay: 'q7' }]],
     from: null, next: { from: stop('7') }, kanteWalk: true };
-  S.journey.steps.push(st, { type: 'ride' });
+  S.journey.steps.push(st, aRide());
   R.refineWalks(1);
   c.station[0].rej(new Error('404')); await settle();
   check(c.asked.length === 0, "as planned: the engine's walk stays, nothing is asked");
@@ -445,7 +449,7 @@ console.log('10. a station model that does not load: one request per line, none 
   c2.plan = { key: 'bern' };
   const t1 = Date.parse('2026-11-21T12:05:00Z');
   const one: FakeStep = { type: 'walk', lines: [[A, B]], ends: [[{}, { platform: true, quay: 'q1' }]], from: null, next: { from: stop('1') }, kanteWalk: true, t1, t0: t1 - 120000, min: 2 };
-  S.journey.steps.push(one, { type: 'ride' });
+  S.journey.steps.push(one, aRide());
   R.refineWalks(1);
   c2.station[0].rej(new Error('404')); await settle();
   one.next!.from.quay = { label: '2' };
@@ -464,7 +468,7 @@ console.log("11. the engine's answer without a path still times the walk");
   const c = app();
   const t1 = Date.parse('2026-11-21T12:05:00Z');
   const st: FakeStep = { type: 'walk', lines: [[A, B]], from: null, next: { from: stop('1') }, kanteWalk: true, t1, t0: t1 - 120000, min: 2, walkS: 120 };
-  S.journey.steps.push(st, { type: 'ride' });
+  S.journey.steps.push(st, aRide());
   R.refineWalks(1);
   st.lines = [[A, C]]; // requay(): moved
   st.kanteWalk = false;
@@ -506,7 +510,7 @@ console.log("13. the last metres from a station model to the destination's door"
   c.plan = { key: 'bern' };
   const end: LngLat = [7.441, 46.951], place = east(end, 20), door: LngLat = east(end, 24);
   const st: FakeStep = { type: 'walk', final: true, lines: [[B, place]], toLL: place, from: { to: stop('3') }, kanteWalk: true };
-  S.journey.steps.push({ type: 'ride' }, st);
+  S.journey.steps.push(aRide(), st);
   R.refineWalks(1);
   c.station[0].res(model([B, end], false)); await settle();
   check(c.asked.length === 1 && same(at(c.asked[0].body.to), place) && c.asked[0].body.from.exact === true,
@@ -518,7 +522,7 @@ console.log("13. the last metres from a station model to the destination's door"
   c2.plan = { key: 'bern' };
   const near = east(end, 1);
   const st2: FakeStep = { type: 'walk', final: true, lines: [[B, near]], toLL: near, from: { to: stop('3') }, kanteWalk: true };
-  S.journey.steps.push({ type: 'ride' }, st2);
+  S.journey.steps.push(aRide(), st2);
   R.refineWalks(1);
   c2.station[0].res(model([B, end], false)); await settle();
   check(c2.asked.length === 0 && st2.lines!.length === 1, 'one under 2 m from it is not');
@@ -567,6 +571,37 @@ console.log('15. a change routed again without an answer: its time estimated, an
   check(JS.spareOf(ch).text === '5 min to spare' && !walkLines(i)[0].properties.approx, `answered: the engine's time (${JS.spareOf(ch).text})`);
   await live('t2', after(quayAt('q12', P12, '12')));
   check(c.asked.length === 2, 'and once answered, not asked again');
+}
+
+console.log("16. the journey's departure and arrival follow its first and last walks routed again (finding 2)");
+{
+  // the last walk: the train now arrives at platform 3, and the walk on grows from two minutes to seven
+  const c = app();
+  const P: LngLat = east(B, 150), Q = east(B, -300);
+  const arrival = (q: KanteQuay) => [callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, q, T(30))];
+  const legs: KanteLeg[] = [rideLeg('t1', ...arrival(quayAt('q7', B, '7')) as [KanteStopCall, KanteStopCall]),
+    walkLeg('egress', point(B, quayAt('q7', B, '7')), point(P), T(30), 120)];
+  const steps = await show(legs, P);
+  const st = steps.find((x) => x.type === 'walk' && x.final)!;
+  check(JS.journeyEnd() === T(32) * 1000, 'as planned: there at the train\'s arrival and two minutes');
+  await live('t1', arrival(quayAt('q3', Q, '3')));
+  check(c.asked.length === 1 && same(at(c.asked[0].body.to), P), 'the walk from platform 3 is asked of the engine');
+  await answer(0, 420);
+  check(st.min === 7 && st.t1 === T(37) * 1000, `the walk: seven minutes (${st.min} min)`);
+  check(JS.journeyEnd() === T(37) * 1000, `and the journey arrives with it (${(JS.journeyEnd() / 1000 - NOW) / 60} min from now, not 32)`);
+  // the first walk: the train now leaves from platform 4, five minutes' walk further
+  const c2 = app();
+  const S1: LngLat = east(A, 100), S4 = east(A, 450);
+  const departure = (q: KanteQuay) => [callAt(0, q, undefined, T(10)), callAt(1, quayAt('q7', B, '7'), T(30))];
+  const legs2: KanteLeg[] = [walkLeg('access', point(A), point(S1, quayAt('q1', S1, '1', 0, 'st:8503000')), T(8), 120),
+    rideLeg('t2', ...departure(quayAt('q1', S1, '1', 0, 'st:8503000')) as [KanteStopCall, KanteStopCall])];
+  const steps2 = await show(legs2, B);
+  const first = steps2[0];
+  check(first.type === 'walk' && JS.journeyStart() === T(8) * 1000, 'as planned: leave two minutes before the train');
+  await live('t2', departure(quayAt('q4', S4, '4', 0, 'st:8503000')));
+  check(c2.asked.length === 1 && c2.asked[0].body.to.quay === 'q4', 'the walk to platform 4 is asked of the engine');
+  await answer(0, 420);
+  check(first.t0 === T(3) * 1000 && JS.journeyStart() === T(3) * 1000, `the walk and the journey leave seven minutes before the train (${(JS.journeyStart() / 1000 - NOW) / 60} min from now)`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

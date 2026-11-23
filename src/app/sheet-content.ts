@@ -2,7 +2,7 @@
 import { showToast } from '../toast.ts';
 import { userLngLat } from './location.ts';
 import { jBody, jFoot, jHead, refreshRouteHighlight } from './journey-map.ts';
-import { dayLabel, fmtTime, hasForecast, isRide, journeyEnd, kDur, kDurExact, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, spareOf, stopName, stopUic } from './journey-steps.ts';
+import { dayLabel, fmtTime, hasForecast, isRide, journeyEnd, journeyStart, kDur, kDurExact, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, spareOf, stopName, stopUic } from './journey-steps.ts';
 import { liveParts, replan } from './live-line.ts';
 import { livePoll } from './live-engine.ts';
 import { cap, compassWord, fmtDist, levelShort, platformOf } from './live-vehicles.ts';
@@ -340,14 +340,14 @@ function buildHead(): HTMLDivElement {
   const rides = journey.steps.filter((st) => st.type === 'ride');
   const tr = Math.max(0, rides.length - 1);
   const onFoot = () => { const d = walkDist(journey.steps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
-  const start = journey.conn.t0;
+  const start = journeyStart();
   const following = document.body.classList.contains('following'); // under way: the pill at the top has the two times
   head.append(
     h('div', 'sheet-title',
       optionCount() > 1 && !following ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
       legChain(), sheetActions()));
   if (!following) head.append(
-    h('div', 'jhead-times', h('b', null, `${fmtTime(journey.conn.t0)} – ${fmtTime(end)}`),
+    h('div', 'jhead-times', h('b', null, `${fmtTime(start)} – ${fmtTime(end)}`),
       h('span', null, `${kDur((end - start) / 1000)} · ${!rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`}`)));
   const act = h('div', 'jhead-act');
   // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
@@ -590,7 +590,7 @@ export function queueSheet(times?: boolean) {
     renderHead();
     renderBody();
     if (!t) return;
-    document.getElementById('jDep')!.textContent = fmtTime(journey.conn.t0);
+    document.getElementById('jDep')!.textContent = fmtTime(journeyStart());
     updatePillTimes();
     renderBar();
     renderFoot();

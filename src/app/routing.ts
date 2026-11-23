@@ -11,7 +11,7 @@ import { blurSearch, setField, setFollowing, setPlanOpen } from './trip-ends.ts'
 import { armPin, pinMenu } from './pins.ts';
 import { updatePlaces } from './map-places.ts';
 import { jBody, jFoot, jHead, setRoute } from './journey-map.ts';
-import { modeOf } from './journey-steps.ts';
+import { applyLiveTimes, modeOf } from './journey-steps.ts';
 import { nowMarker, placeUserDot, vehMarker } from './tracking.ts';
 import { platformOf, vehUpdate } from './live-vehicles.ts';
 import { queueSheet, s3Plan, s3Prefs } from './sheet-content.ts';
@@ -248,8 +248,9 @@ const answered = (w: RoutedWalk) => w.walkS != null;
 // How the engine times a walk it finds no path for (plan.rs): its straight line, a third longer, at the walking pace
 const DETOUR = 1.35;
 // The time of a walk as it is now drawn: the engine's for each part of it (a station model's for its part), its
-// minutes, and for the walk to the first ride when to leave (so as to be at the stop at the same time). A part
-// without an answer is timed as the engine times a straight line, and the walk's time is marked as an estimate.
+// minutes, and for the walk to the first ride when to leave (so as to be at the stop at the same time); a change's
+// end, the last walk's and the journey's arrival follow it. A part without an answer is timed as the engine times
+// a straight line, and the walk's time is marked as an estimate.
 function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) {
   const pace = KanteJourney.options().walkSpeed; // m/s
   const metres = (w: RoutedWalk) => (w.dist != null ? w.dist : lengthKm(w.coords) * 1000 * DETOUR);
@@ -260,7 +261,8 @@ function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) 
   const min = Math.round(KanteJourney.walkSecs({ distanceM: dist, durationS: s }) / 60);
   if (st.type === 'change') st.walkMin = min; else st.min = min;
   if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - s * 1000;
-  queueSheet(); // the minutes on the card
+  applyLiveTimes(journey.steps);
+  queueSheet(true); // the minutes on the card, and the journey's times in the header and the pill
 }
 
 // Where a walk leads: for the walk to the destination the place itself, not the door its last route ended at (which

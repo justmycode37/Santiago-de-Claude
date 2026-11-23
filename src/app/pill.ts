@@ -9,7 +9,7 @@ import { setPlanOpen, topUiBottom } from './trip-ends.ts';
 import { engineFailure, engineMessage, startPlatforms } from './platforms.ts';
 import { updatePlaces } from './map-places.ts';
 import { refreshRouteHighlight, setRoute } from './journey-map.ts';
-import { buildSteps, fmtTime, isRide, journeyEnd, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
+import { buildSteps, fmtTime, isRide, journeyEnd, journeyStart, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
 import { nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
 import { redrawRoute, renderLive } from './live-line.ts';
 import { livePoll, platSig } from './live-engine.ts';
@@ -33,7 +33,7 @@ interface BarRide extends BarPart { kind: 'ride'; label: string }
 interface BarGap extends BarPart { kind: 'gap' }
 type BarSeg = BarRide | BarGap;
 function barLayout() {
-  const t0 = journey.conn!.t0, t1 = Math.max(journey.conn!.t1, journeyEnd());
+  const t0 = journeyStart(), t1 = Math.max(journey.conn!.t1, journeyEnd());
   const W = jBar.clientWidth, L = W - 2 * BAR.pad;
   const segs: BarSeg[] = [];
   let cursor = t0, rides = 0;
@@ -158,7 +158,7 @@ export function renderJourney(conn: Journey, destTitle: string) {
   sheet.focus = null;
   sheet.msg = '';
   sheet.retry = false;
-  document.getElementById('jDep')!.textContent = fmtTime(conn.t0);
+  document.getElementById('jDep')!.textContent = fmtTime(journeyStart());
   updatePillTimes();
   trackJourney();
   renderBar();

@@ -395,7 +395,14 @@ export function applyLiveTimes(steps: JourneyStep[]) {
   });
 }
 
-// When the journey arrives as it now stands: the arrival step's time (the live times'), else the timetable's
+// When the journey leaves as it now stands: when its first walk starts (a walk routed again moves it), else the
+// timetable's departure
+export function journeyStart() {
+  const first = journey.steps[0];
+  return first && first.type === 'walk' && first.t0 != null ? first.t0 : journey.conn!.t0;
+}
+// When the journey arrives as it now stands: the arrival step's time (the live times', and the last walk's as routed
+// again), else the timetable's
 export function journeyEnd() {
   const a = journey.steps[journey.steps.length - 1];
   return a && a.time != null ? a.time : journey.conn!.t1;
