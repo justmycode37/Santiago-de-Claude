@@ -13,7 +13,8 @@ log() { echo "deploy: $*"; }
 
 build_release() { # build_release <commit> <release dir>
   local commit=$1 rel=$2
-  (cd kante/engine && CARGO_TARGET_DIR="$ROOT/target" cargo build --release --locked -p kante-server)
+  # the engine names the commit in /api/meta
+  (cd kante/engine && KANTE_COMMIT=$commit CARGO_TARGET_DIR="$ROOT/target" cargo build --release --locked -p kante-server)
   mkdir -p "$rel/data"
   cp "$ROOT/target/release/kante" "$rel/kante"
   echo "$commit" > "$rel/COMMIT"
@@ -23,7 +24,27 @@ build_release() { # build_release <commit> <release dir>
   ln -s "$ROOT/profiles" "$rel/data/profiles"
   # which timetable this release was built from (refresh-data.sh compares it with the one in force)
   cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
+  register
   "$rel/kante" build --data "$rel/data"
+}
+
+# The building address register (the doors of most buildings): an input added after the host was set up. Without a
+# valid one (fetch-data.sh's register_ok), it is fetched into a folder of its own and replaces the file there is
+# only if valid. If none can be had, the build goes on, with a warning: whether an engine builds without it is the
+# engine's to say.
+register() {
+  local reg=$ROOT/raw/register/adr.csv.zip tmp
+  register_ok() { (source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh) && register_ok "$1"); }
+  register_ok "$reg" && return 0
+  tmp=$(mktemp -d "$ROOT/raw/.register.XXXXXX") || { log "warning: no valid building address register, and no room to fetch one"; return 0; }
+  KANTE_RAW=$tmp timeout 1200 kante/scripts/fetch-data.sh --register || true
+  if register_ok "$tmp/register/adr.csv.zip"; then
+    mkdir -p "$ROOT/raw/register" && mv -f "$tmp/register/adr.csv.zip" "$reg" && log "fetched the building address register"
+  else
+    log "warning: no valid building address register in $ROOT/raw/register, and none could be fetched"
+  fi
+  rm -rf "$tmp"
+  return 0
 }
 
 healthy() { # the engine answers, has a timetable that is valid today, and a search index
