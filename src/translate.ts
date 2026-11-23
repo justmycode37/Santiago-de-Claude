@@ -502,7 +502,7 @@ const appLang = {
 window.APP_LANG = appLang;
 declare global {
   /** The language the app is shown in: translate.js is a plain script beside the page's modules (index.html). */
-  var APP_LANG: typeof appLang;
+  var APP_LANG: typeof appLang | undefined; // undefined when translate.js did not load: the app is then in English
 }
 export {}; // (a module for TypeScript, for the declaration above; the build makes it a plain script)
 

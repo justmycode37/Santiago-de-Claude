@@ -18,8 +18,6 @@ type PageName = 'welcome' | 'demo' | 'speed' | 'access';
 
 const KEY = 'onboarding';
 const html = document.documentElement;
-const me = document.currentScript as HTMLScriptElement | null;
-const BASE = ((me && me.src) || '').replace(/[^/]*(\?.*)?$/, '');
 const reducedMotion = () => !!((window.matchMedia as typeof matchMedia | undefined) && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 // The five stops of the walking speed slider: settings.ts exports them once the walking-speed-auto branch is in
@@ -620,7 +618,7 @@ function loadCss() {
   if (!cssPromise) cssPromise = new Promise((resolve, reject) => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = BASE + 'onboarding.css';
+    link.href = 'onboarding.css'; // next to index.html
     link.onload = resolve;
     link.onerror = reject;
     document.head.appendChild(link);
@@ -725,6 +723,7 @@ function runDemo() {
 function open() {
   if (isOpen) return;
   isOpen = true;
+  if (window.EARLY_GEO) window.EARLY_GEO.held = true; // the location prompt waits for the end (release())
   if (!html.dataset.onboarding) html.dataset.onboarding = 'again'; // the cover (index.html)
   loadCss().then(() => {
     if (!el) build();

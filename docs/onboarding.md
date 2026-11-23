@@ -41,7 +41,9 @@ Every answer is written straight into the settings (`SETTINGS.set`, `settings.ts
   Any of them means the app was used before: it is marked `done` without showing.
 - `?intro` shows it again (dropped from the address afterwards). `?intro=0` switches it off, for tests and screen recordings.
 - Settings › "Show the introduction again".
-- If `onboarding.css` cannot load, the app starts as usual.
+- If `onboarding.css` cannot load, or the page's script does not start (or fails before the introduction opens), the
+  app starts as usual: the `<head>` takes the cover away at `DOMContentLoaded` unless the introduction has said it is
+  showing (`EARLY_GEO.held`).
 
 ## The demo
 

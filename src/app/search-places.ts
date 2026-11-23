@@ -117,7 +117,7 @@ async function searchSwisstopo(text: string): Promise<SearchResult[]> {
     origins: 'zipcode,gg25,gazetteer,address',
     sr: '4326',
     limit: '15',
-    lang: APP_LANG.pick(['de', 'fr', 'it', 'rm', 'en']),
+    lang: (window.APP_LANG?.pick(['de', 'fr', 'it', 'rm', 'en']) ?? 'en'),
   });
   const res = await fetch(url);
   const data: SwisstopoSearchAnswer = await res.json();

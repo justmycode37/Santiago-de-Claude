@@ -277,7 +277,7 @@ const round = (x: number) => x.toFixed(3); // ~100 m: nearby searches from almos
 async function photonNearby(cat: (typeof CATEGORIES)[number], center: LngLat, origin: Origin, radiusKm: number, bbox: Bbox) {
   let found: Found[] = [];
   for (const r of bbox ? [radiusKm] : [radiusKm, Math.max(radiusKm * 4, 5)]) { // an area asked for is not widened
-    const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
+    const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: (window.APP_LANG?.pick(['de', 'fr', 'en']) ?? 'en') });
     cat.tags.forEach((t) => params.append('osm_tag', t));
     const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
     found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[])
@@ -291,7 +291,7 @@ async function photonNearby(cat: (typeof CATEGORIES)[number], center: LngLat, or
 // Places by name, the ones near the map first
 async function photonByName(text: string, center: LngLat, origin: Origin, bbox: Bbox) {
   const params = new URLSearchParams({ q: text, lat: round(center[1]), lon: round(center[0]), zoom: '16',
-    location_bias_scale: '0.1', limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
+    location_bias_scale: '0.1', limit: '40', lang: (window.APP_LANG?.pick(['de', 'fr', 'en']) ?? 'en') });
   if (bbox) params.set('bbox', bbox.map(round).join(','));
   const data = await getJSON<PhotonAnswer>(`${PHOTON}api/?${params}`);
   const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[]);
@@ -421,7 +421,7 @@ async function enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]> {
 // What stands at a point, for a pin dropped on the map: the place it is on, else the nearest address
 // ("Kramgasse 12"), "Near …" when that is some way off
 async function reverse(lngLat: LngLat) {
-  const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: APP_LANG.pick(['de', 'fr', 'en']) });
+  const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: (window.APP_LANG?.pick(['de', 'fr', 'en']) ?? 'en') });
   const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
   const f = (data.features || [])[0];
   const p = f && f.properties;

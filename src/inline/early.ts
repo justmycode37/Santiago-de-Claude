@@ -21,8 +21,13 @@
       navigator.geolocation.watchPosition(fix, fail, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
     } catch (e) {}
   };
-  // On a first visit the introduction asks first; it calls EARLY_GEO.start() when it ends (onboarding.ts)
-  if (!document.documentElement.dataset.onboarding) geo.start();
+  // On a first visit the introduction asks first: it holds the prompt back (EARLY_GEO.held) and calls
+  // EARLY_GEO.start() when it ends (onboarding.ts). If the page's script never opened it (the script did not load,
+  // or failed before it got that far; modules have run by DOMContentLoaded), the cover goes and the location is
+  // asked for, as without the introduction: the app must still be reachable.
+  const html = document.documentElement;
+  if (!html.dataset.onboarding) geo.start();
+  else document.addEventListener('DOMContentLoaded', () => { if (!geo.held) { delete html.dataset.onboarding; geo.start(); } });
 
   // Base map style with its two tile sets written in (saves two round trips before the first tile), and every
   // tile fetched from the style's own host: one HTTP/2 connection for style, fonts, icons and tiles, not six

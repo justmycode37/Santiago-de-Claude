@@ -93,9 +93,10 @@ const listings: EventListing[] = [
   },
 ];
 
-const scheduledEvents = window.SWISS_EVENT_SERIES.flatMap(({ sessions, ...series }) =>
+// The data files are plain scripts (index.html): one that did not load leaves out only its own listings
+const scheduledEvents = (window.SWISS_EVENT_SERIES || []).flatMap(({ sessions, ...series }) =>
   sessions.map((session) => ({ ...series, ...session })));
-listings.push(...window.SWISS_WORKSHOPS, ...scheduledEvents, ...window.COMMUNITY_PROGRAMMES, ...window.BERN_EVENTS);
+listings.push(...(window.SWISS_WORKSHOPS || []), ...scheduledEvents, ...(window.COMMUNITY_PROGRAMMES || []), ...(window.BERN_EVENTS || []));
 // "21 Nov 2026 · 13:00" → "21 Nov · 13:00" in the current year; a range across years keeps both
 const year = new Date().getFullYear();
 const thisYear = new RegExp(String.raw`(\d{1,2}\.? [^\s\d·–-]+) ${year}\b`, 'g');

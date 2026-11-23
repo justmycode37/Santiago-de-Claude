@@ -23,13 +23,13 @@ declare var PLATFORM_DATA: PlatformData | undefined;
 // ---- bern-events.js, swiss-workshops.js, community-programmes.js: community events (src/events.ts joins them) ----
 
 /** Events of Bern-area calendars, one listing per date. */
-declare var BERN_EVENTS: EventListing[];
+declare var BERN_EVENTS: EventListing[] | undefined;
 /** Workshops and regular meetings all over Switzerland. */
-declare var SWISS_WORKSHOPS: EventListing[];
+declare var SWISS_WORKSHOPS: EventListing[] | undefined;
 /** Events with several dates: the event once, with its dates as `sessions`. */
-declare var SWISS_EVENT_SERIES: EventSeries[];
+declare var SWISS_EVENT_SERIES: EventSeries[] | undefined;
 /** Local programmes (language courses, sport clubs, …); some are known by their town only (`areaOnly`). */
-declare var COMMUNITY_PROGRAMMES: EventListing[];
+declare var COMMUNITY_PROGRAMMES: EventListing[] | undefined;
 
 // ---- map-places.js (tools/build-map-places.mts): toilets, drinking water, health, help, shops… ----
 
