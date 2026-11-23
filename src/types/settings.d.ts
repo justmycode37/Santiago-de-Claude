@@ -1,6 +1,6 @@
 // What src/settings.ts puts on window: the Settings page, and what its switches mean for the rest of the app.
 
-/** A transport type as transport.opendata.ch's "transportations[]" names it. */
+/** A transport type the traveller can switch off in Settings. */
 type TransportMode = 'train' | 'tram' | 'bus' | 'ship' | 'cableway';
 
 /** The settings, as they are saved on the device. */
@@ -64,14 +64,10 @@ interface SettingsApi {
   mapGroups(): MapGroupKey[];
   /** How walks are to be routed, or null for the normal walking router. */
   walkCosting(): WalkCosting | null;
-  /** transport.opendata.ch "transportations[]" values; [] = all. */
+  /** The transport types to travel with (KanteJourney.options() turns them into the engine's modes); [] = all. */
   transportations(): TransportMode[];
   /** The settings with the accessibility options worked out (wheelchair → step-free → fewer stairs, no escalators). */
   prefs(): Settings;
-  /** Stretches or shrinks the walks of a transport.opendata.ch connection to the walking speed. Changes `conn` and returns it. */
-  retime(conn: OdConnection): OdConnection;
-  /** Does a (retimed) connection fit the maximum walk and leave enough time at every change? */
-  connectionFits(conn: OdConnection): boolean;
   journey(): JourneySettings;
   /** The five stops of the walking speed slider, slow to fast (a copy). */
   speedPresets: SpeedPreset[];

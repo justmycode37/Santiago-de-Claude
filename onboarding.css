@@ -13,7 +13,7 @@
   --ob-art-2: #d5dbe8;
   position: fixed;
   inset: 0;
-  z-index: 80; /* above the cover (79) and everything of the app; the 3D view of the demo opens inside */
+  z-index: 80; /* above the cover (79) and everything of the app */
   background: var(--sp-bg);
   color: var(--bar-text);
   transition: opacity .35s ease;
@@ -110,21 +110,19 @@
 :root[data-theme="dark"] .ob-pick:focus-visible, :root[data-theme="dark"] .ob .switch:focus-visible { outline-color: var(--accent-ink); }
 .ob-kmh { flex: none; font-size: 15px; color: var(--ob-dim); font-variant-numeric: tabular-nums; }
 
-/* The demo: the 3D view in the space above, and our button below it, where the buttons of the other pages are */
+/* The demo: its map in the space above, and our button below it, where the buttons of the other pages are */
 .ob-demo { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sp-bg); }
 #obDemoHost { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-#obDemoHost .s3 canvas { pointer-events: none; } /* a finger on the picture holds the demo fast (below); it does not turn the view */
-#obDemoHost .s3 { position: absolute; } /* the view fills this box, not the screen (station3d.css: fixed) */
-.ob-demo .ob-actions { position: relative; z-index: 61; padding-top: 12px; } /* above the view (60), also above its bare error message */
+.ob-demo .ob-actions { position: relative; z-index: 61; padding-top: 12px; }
 .ob-btn.soft { background: var(--sp-fill); color: var(--bar-text); }
 .ob-btn.soft:active { opacity: .7; }
 .ob-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* The demo, act 2: the tram ride on a map of its own, laid over the 3D view and faded in and out (onboarding.ts) */
-.ob-ride { position: absolute; inset: 0; z-index: 61; opacity: 0; visibility: hidden; pointer-events: none; background: var(--sp-bg); transition: opacity .6s ease, visibility 0s linear .6s; }
-.ob-ride.on { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .6s ease; }
-.ob-ride-map { position: absolute; inset: 0; }
-/* the same sign as the 3D view's instruction card (station3d.css, .s3-callout) */
+/* The demo's journey (walk, tram ride, walk) on a tilted map of its own (onboarding.ts). A finger on it holds the
+   demo fast (below); the map itself does not move by touch */
+.ob-trip { position: absolute; inset: 0; z-index: 61; background: var(--sp-bg); }
+.ob-trip-map { position: absolute; inset: 0; pointer-events: none; }
+/* what the app tells you at each moment of the journey */
 .ob-card {
   position: absolute;
   left: max(12px, env(safe-area-inset-left));
@@ -142,7 +140,7 @@
 :root[data-theme="dark"] .ob-card { background: #f2f3f5; color: #14161a; box-shadow: 0 0 0 1.5px #0b0d10, 0 8px 24px rgba(0,0,0,.45); }
 .ob-card-ic { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #8e8e93; color: #fff; transition: background-color .45s ease; }
 .ob-card[data-kind="tram"] .ob-card-ic { background: #d6001c; }
-.ob-card[data-kind="off"] .ob-card-ic { background: #0a84ff; }
+.ob-card[data-kind="off"] .ob-card-ic, .ob-card[data-kind="walk"] .ob-card-ic { background: #0a84ff; }
 .ob-card-ic svg, .ob-puck svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ob-card-t { min-width: 0; }
 .ob-card b { display: block; font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; text-wrap: pretty; }
@@ -162,8 +160,8 @@
 .ob-stop i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid #14161a; box-sizing: border-box; }
 .ob-stop span { position: absolute; left: 13px; top: -13px; padding: 4px 9px; border-radius: 9px; background: #14161a; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 .ob-stop.left span { left: auto; right: 13px; }
-/* Before act 1: the trip at a glance, over the 3D view while the street is built behind it. It comes in slowly,
-   leg by leg, so that it is read and the street has its time; then it fades and the walk sets off. */
+/* Before act 1: the trip at a glance, over the map while it loads behind it. It comes in slowly, leg by leg, so that
+   it is read and the map has its time; then it fades and the walk sets off. If the map does not come, it stays. */
 .ob-plan { position: absolute; inset: 0; z-index: 63; display: flex; background: var(--sp-bg); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .8s ease, visibility 0s linear .8s; }
 .ob-plan.on { opacity: 1; visibility: visible; pointer-events: auto; transition: none; }
 .ob-plan-in { width: 100%; max-width: 600px; margin: auto; padding: 24px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left)); }
@@ -186,6 +184,7 @@
 .ob-plan-bar { height: 4px; margin-top: 34px; border-radius: 2px; background: var(--sp-fill); overflow: hidden; }
 .ob-plan-bar i { display: block; height: 100%; border-radius: 2px; background: var(--user-blue); transform-origin: left; animation: ob-fill 4.2s cubic-bezier(.3,.1,.3,1) both; }
 :root[data-theme="dark"] .ob-plan-bar i { background: var(--accent-ink); }
+.ob-plan-err { margin: 30px 0 0; font-size: 15px; line-height: 1.35; color: var(--ob-dim); }
 @keyframes ob-rise { from { opacity: 0; transform: translateY(16px); } }
 @keyframes ob-grow { from { transform: scaleY(0); } }
 @keyframes ob-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -217,5 +216,5 @@
 :root[data-theme="dark"] .ob-acts[data-act="1"] li:nth-child(-n+1), :root[data-theme="dark"] .ob-acts[data-act="2"] li:nth-child(-n+2), :root[data-theme="dark"] .ob-acts[data-act="3"] li { border-top-color: var(--accent-ink); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ob, .ob-page, .ob-pick, .ob-ride, .ob-puck-you, .ob-puck-you::after, .ob-puck-tram, .ob-acts li, .ob-plan, .ob-plan *, .ob-plan *::after { animation: none !important; transition: none !important; }
+  .ob, .ob-page, .ob-pick, .ob-puck-you, .ob-puck-you::after, .ob-puck-tram, .ob-acts li, .ob-plan, .ob-plan *, .ob-plan *::after { animation: none !important; transition: none !important; }
 }

@@ -8,7 +8,7 @@
 // Everything is saved on this device only.
 (function () {
   const KEY = 'app-settings';
-  const MODES: TransportMode[] = ['train', 'tram', 'bus', 'ship', 'cableway']; // transport.opendata.ch "transportations"
+  const MODES: TransportMode[] = ['train', 'tram', 'bus', 'ship', 'cableway'];
   const LAYER_KEYS = window.MAP_LAYERS.GROUPS.map((g) => g.key);
   // What the events button shows on a device that has not chosen yet: the rest waits to be switched on
   const FIRST_LAYERS: MapGroupKey[] = ['events', 'toilets', 'water'];
@@ -38,7 +38,6 @@
     // Developer options (bottom of the page)
     devOptions: false,
   };
-  const NORMAL_KMH = 4.7; // the timetable's walking times are taken as this pace
   const SPEED_PRESETS = [
     { label: 'Slow', kmh: 3 },
     { label: 'Relaxed', kmh: 4 },
@@ -64,8 +63,6 @@
   type FlagKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
   type StepperKey = keyof typeof STEPPERS;
   type EventKey = keyof typeof EVENT_TAGS;
-  type TimeKey = 'departure' | 'arrival';
-  type StampKey = 'departureTimestamp' | 'arrivalTimestamp';
 
   function nearestPreset(kmh: number) {
     let best = 0;
@@ -128,67 +125,8 @@
     return null;
   }
 
-  // transport.opendata.ch "transportations[]" values, or [] for all
+  // The transport types to travel with, or [] for all (engine-journey.js turns them into the engine's modes)
   const transportations = () => state.modes || [];
-
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const secOf = (cp: OdCheckpoint, which: TimeKey) => (cp[which + 'Timestamp' as StampKey] != null ? cp[which + 'Timestamp' as StampKey] : cp[which] ? Date.parse(cp[which]) / 1000 : null);
-  function setTime(cp: OdCheckpoint, which: TimeKey, sec: number) {
-    cp[which + 'Timestamp' as StampKey] = sec;
-    cp[which] = new Date(sec * 1000).toISOString();
-  }
-
-  // Walking speed: stretch or shrink every walk. Walks before the first ride end as it leaves
-  // (so you set off earlier or later); walks after the last ride start when it arrives.
-  function retime(conn: OdConnection) {
-    const f = NORMAL_KMH / state.walkKmh;
-    const secs = conn.sections || [];
-    const rides = secs.map((s, i) => (s.journey ? i : -1)).filter((i) => i >= 0);
-    if (Math.abs(f - 1) < 0.01 || !rides.length) return conn;
-    const dur = (s: OdSection) => (s.walk && s.walk.duration) || 0;
-    secs.forEach((s) => { if (!s.journey && s.walk && s.walk.duration) s.walk.duration = Math.round(s.walk.duration * f); });
-    let t = secOf(secs[rides[0]].departure, 'departure');
-    for (let i = rides[0] - 1; i >= 0 && t != null; i--) {
-      setTime(secs[i].arrival, 'arrival', t);
-      t -= dur(secs[i]);
-      setTime(secs[i].departure, 'departure', t);
-    }
-    if (t != null && conn.from) setTime(conn.from, 'departure', t);
-    let u = secOf(secs[rides[rides.length - 1]].arrival, 'arrival');
-    for (let i = rides[rides.length - 1] + 1; i < secs.length && u != null; i++) {
-      setTime(secs[i].departure, 'departure', u);
-      u += dur(secs[i]);
-      setTime(secs[i].arrival, 'arrival', u);
-    }
-    if (u != null && conn.to) setTime(conn.to, 'arrival', u);
-    if (t != null && u != null) {
-      const m = Math.round((u - t) / 60);
-      conn.duration = `${pad(Math.floor(m / 1440))}d${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}:00`;
-    }
-    return conn;
-  }
-
-  // Does a (retimed) connection fit: no single walk longer than the maximum, and at every change
-  // enough time for the walk plus the extra change time (at least 7 min step-free, 10 min wheelchair)?
-  function connectionFits(conn: OdConnection) {
-    const accessMin = state.wheelchair ? 10 : effective().stepFree ? 7 : 0;
-    let walk = 0, lastRide: OdSection | null = null;
-    for (const s of conn.sections || []) {
-      if (!s.journey) {
-        walk += (s.walk && s.walk.duration) || 0;
-        if (walk > state.maxWalkMin * 60) return false;
-        continue;
-      }
-      if (lastRide) {
-        const arr = secOf(lastRide.arrival, 'arrival'), dep = secOf(s.departure, 'departure');
-        const need = Math.max(walk + state.extraChangeMin * 60, accessMin * 60);
-        if (arr != null && dep != null && dep - arr < need) return false;
-      }
-      walk = 0;
-      lastRide = s;
-    }
-    return true;
-  }
 
   // ---- Page ----
   const page = document.getElementById('settingsPage')!;
@@ -537,8 +475,6 @@
     walkCosting,
     transportations,
     prefs: () => ({ ...effective() }), // walking speed, extra change time, step-free…
-    retime,
-    connectionFits,
     // the journey options as the 3D station view's router wants them (station-route.js)
     journey: () => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
     speedPresets: SPEED_PRESETS.map((p) => ({ ...p })), // the five stops of the walking speed slider

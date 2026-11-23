@@ -1,115 +1,11 @@
-// Live data from the Kante engine (kante/docs/LIVE-API.md): measured and forecast stop times, where a vehicle is
-// and how sure that is. The journey itself is still planned with transport.opendata.ch; this only makes the live
-// part better, and index.html keeps doing what it did before when the engine (or one of its features) is missing.
+// Live data from the Kante engine (kante/docs/LIVE-API.md): pure helpers for what /api/trip and /api/vehicles
+// answer: measured and forecast stop times, where a vehicle is and how sure that is. The rides of a journey know
+// their trips (src/engine-journey.ts) and the page polls them (src/app/56-live-engine.ts); the live vehicles on the
+// map are src/app/58-live-vehicles.ts. The client that talks to the engine is src/engine.ts.
 //
-// Engine address: APP_CONFIG.kanteUrl (config.js; '' switches it off), else the hosted engine. ?kante=off or
-// ?engine=off in the page address switches it off; ?kante=<url> picks an engine on this machine (localhost, 127.x,
-// [::1]) for testing. Any other ?kante=<url> is ignored: what the page sends the engine says where you look and
-// where you are going, so a link must not choose who gets it.
-//
-// The helpers below are plain functions without the DOM, so tools can test them with Node (module.exports).
+// The helpers are plain functions without the DOM, so tools can test them with Node (module.exports).
 (function (root) {
-  const DEFAULT_URL = 'https://kante.omniroute.app';
   const MAX_BBOX_KM = 120; // the engine refuses larger boxes (diagonal)
-
-  // A URL's origin (scheme, host, port), or null when it is not an http(s) URL
-  function originOf(u: string | null | undefined) {
-    try {
-      const x = new URL(String(u || '').trim());
-      return /^https?:$/.test(x.protocol) ? x.origin : null;
-    } catch (e) {
-      return null;
-    }
-  }
-  const isLocalUrl = (u: string | null | undefined) => /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?$/i.test(u || '');
-
-  // → { url (null = off), fromLink, ignored (a ?kante= link that was not followed) }
-  // A link may only switch the engine off, or point it at one on this machine (or the configured one): the engine
-  // learns where you are looking and where you are going, so a link must not pick someone else's.
-  function engineUrl(search?: string | null, config?: { kanteUrl?: unknown } | null): KanteEngineUrl {
-    const sp = new URLSearchParams(search || '');
-    if (sp.get('engine') === 'off') return { url: null, fromLink: true }; // engine.js's switch, honoured here too
-    const c = config && config.kanteUrl;
-    const configured = c === '' || c === false || c === null ? null
-      : (typeof c === 'string' && /^https?:\/\//i.test(c) ? c.trim() : DEFAULT_URL).replace(/\/+$/, '');
-    const q = sp.get('kante');
-    if (q != null) {
-      if (/^(|off|none|0)$/i.test(q.trim())) return { url: null, fromLink: true };
-      const o = originOf(q);
-      if (o && isLocalUrl(o)) return { url: o, fromLink: true };
-      if (o && configured && o === originOf(configured)) return { url: configured, fromLink: false };
-      return { url: configured, fromLink: false, ignored: q };
-    }
-    return { url: configured, fromLink: false };
-  }
-
-  // ---- Talking to the engine: /api/meta (again after RETRY_MS while it fails), then GET/POST with a timeout;
-  //      any failure is just null ----
-  const RETRY_MS = 30000;
-  function client(search?: string | null, config?: { kanteUrl?: unknown } | null): KanteLiveClient {
-    const { url, fromLink, ignored } = engineUrl(search, config);
-    let meta: KanteMeta | null = null, features = new Set<string>(), metaP: Promise<KanteMeta | null> | null = null, busy = false, failedAt = 0;
-    const href = (path: string, params?: KanteParams | null) => {
-      const qs = params ? new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '') as string[][]).toString() : '';
-      return url + path + (qs ? '?' + qs : '');
-    };
-    async function call(path: string, params: KanteParams | null | undefined, init: RequestInit, ms?: number) {
-      if (!url) return null;
-      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-      const timer = ctl && setTimeout(() => ctl.abort(), ms || 8000);
-      try {
-        const res = await fetch(href(path, params), { ...init, signal: ctl && ctl.signal });
-        return res.ok ? await res.json() : null;
-      } catch (e) {
-        return null; // offline, refused, timed out, not JSON: as if there were no engine
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
-    }
-    // Resolves to the meta (null while the engine can't be reached). A failure is asked again once RETRY_MS have
-    // passed (force: at once), so an engine that was down when the page loaded is picked up later.
-    function ready(force?: boolean) {
-      if (!url) return Promise.resolve(null);
-      if (meta || busy || (metaP && failedAt && !force && Date.now() - failedAt < RETRY_MS)) return metaP!;
-      busy = true;
-      metaP = call('/api/meta', null, {}, 4000).then((m) => {
-        busy = false;
-        meta = m && typeof m === 'object' ? m : null;
-        features = new Set((meta && Array.isArray(meta.features) && meta.features) || []);
-        failedAt = meta ? 0 : Date.now();
-        return meta;
-      });
-      return metaP;
-    }
-    return {
-      url,
-      fromLink,
-      ignored,
-      ready,
-      ok: () => !!meta,
-      has: (f) => features.has(f),
-      href,
-      get: (path, params, ms) => call(path, params, {}, ms),
-    };
-  }
-
-  // ---- Matching a ride planned with transport.opendata.ch (a "section") to the engine's trip ----
-  type StampKey = 'departureTimestamp' | 'arrivalTimestamp';
-  const unixOf = (stop: OdCheckpoint | null | undefined, which: 'departure' | 'arrival') => {
-    if (!stop) return null;
-    if (stop[which + 'Timestamp' as StampKey] != null) return Number(stop[which + 'Timestamp' as StampKey]);
-    const t = stop[which] ? Date.parse(stop[which]) : NaN;
-    return Number.isFinite(t) ? Math.round(t / 1000) : null;
-  };
-  // label: the line as the app shows it ("S1", "IC 8", "10"); train: whether it is a train (its journey "name"
-  // is then the train number, e.g. "015249")
-  function matchParams(s: OdSection, label?: string | null, train?: boolean) {
-    const j = s.journey || {} as Partial<OdJourney>;
-    const p: KanteMatchParams = { from: s.departure.station!.id, dep: unixOf(s.departure, 'departure'), to: s.arrival.station!.id, arr: unixOf(s.arrival, 'arrival') };
-    if (label) p.line = label;
-    if (train && /^\d+$/.test(j.name || '')) p.number = String(j.name).replace(/^0+(?=\d)/, '');
-    return p;
-  }
 
   // liveInfo from the new API, or the old API's "live" word
   function liveInfoOf(x: KanteLiveCarrier | null | undefined): KanteLiveInfo | null {
@@ -123,90 +19,7 @@
   // A call's live times (unix s): the timetable plus the delay
   const liveArr = (c: KanteStopCall | null | undefined) => (c && c.arr != null ? c.arr + (c.arrDelayS || 0) : c && c.dep != null ? c.dep + (c.depDelayS || 0) : null);
   const liveDep = (c: KanteStopCall | null | undefined) => (c && c.dep != null ? c.dep + (c.depDelayS || 0) : liveArr(c));
-  const iso = (sec: number) => new Date(sec * 1000).toISOString();
-  const platNum = (p: string | null | undefined) => { const m = /^\s*(\d+)/.exec(p || ''); return m ? m[1] : String(p || '').trim().toUpperCase(); };
-  const norm = (t: string | null | undefined) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
   const clamp01 = (x: number | null | undefined) => Math.min(1, Math.max(0, Number(x) || 0));
-
-  // Station ids: the engine's "st:Parentch:1:sloid:7000" is UIC 8507000 (engine.js has the same; used when loaded)
-  const ownUicOf = (stationId: string | null | undefined) => {
-    const m = /^st:Parentch:1:sloid:(\d{1,5})$/.exec(stationId || '');
-    return m ? String(8500000 + Number(m[1])) : null;
-  };
-  const uicOf = (id: string | null | undefined) => ((root && root.KANTE && typeof root.KANTE.uicOf === 'function') ? root.KANTE.uicOf : ownUicOf)(id);
-  // Is the passList stop x (transport.opendata.ch) the station of the engine's call c? By UIC number when both
-  // have one, else by name.
-  function sameStation(x: OdCheckpoint | null | undefined, c: KanteStopCall | null | undefined) {
-    const st = x && x.station;
-    if (!st || !c || !c.quay) return false;
-    const uic = uicOf(c.quay.stationId), id = st.id != null ? String(st.id) : '';
-    if (uic && /^\d+$/.test(id)) return Number(uic) === Number(id);
-    return !!st.name && norm(st.name) === norm(c.quay.stationName);
-  }
-
-  // The engine's call for each stop of the ride's passList (null where it has none): the first and last are the
-  // match's fromSeq and toSeq, the ones between are paired by station, in order. Calls the engine skips are left out.
-  function alignCalls(trip: Pick<KanteTrip, 'calls'> | null | undefined, match: Pick<KanteMatch, 'fromSeq' | 'toSeq'> | null | undefined, passList: OdCheckpoint[] | null | undefined) {
-    const list = passList || [], out: (KanteStopCall | null)[] = list.map(() => null);
-    if (!trip || !match || !list.length) return out;
-    const all = (trip.calls || []).filter((c) => c && !c.skipped);
-    const first = all.find((c) => c.seq === match.fromSeq) || null;
-    const last = match.toSeq != null ? all.find((c) => c.seq === match.toSeq) || null : null;
-    const mid = all.filter((c) => c.seq > match.fromSeq && (match.toSeq == null || c.seq < match.toSeq)).sort((x, y) => x.seq - y.seq);
-    out[0] = first;
-    if (list.length > 1) out[list.length - 1] = last;
-    let next = 0;
-    for (let k = 1; k < list.length - 1; k++) {
-      for (let q = next; q < mid.length; q++) {
-        if (sameStation(list[k], mid[q])) { out[k] = mid[q]; next = q + 1; break; }
-      }
-    }
-    return out;
-  }
-  // engine seq → place in the passList, from alignCalls
-  const seqIndex = (aligned: (KanteStopCall | null)[] | null | undefined) => new Map<number, number>((aligned || []).map((c, k) => (c ? [c.seq, k] : null)).filter(Boolean) as [number, number][]);
-
-  // Write the engine's live times and platform into the section's "prognosis", the way transport.opendata.ch
-  // gives them, so the rest of the app reads them as it always has. Only calls with live times (`live: true`) are
-  // written: a timetable time never replaces a forecast from elsewhere. A platform change the engine wrote is taken
-  // back (to what was there before) once the engine no longer reports it. → true when the trip has live data
-  function applyTrip(s: OdSection, trip: KanteTrip | null | undefined, match: KanteMatch | null | undefined) {
-    const info = liveInfoOf(trip);
-    if (!trip || !isLive(info) || !match || match.toSeq == null) return false;
-    const bySeq = new Map<number, KanteStopCall>((trip.calls || []).map((c) => [c.seq, c]));
-    const set = (stop: OdCheckpoint | null | undefined, c: KanteStopCall | null | undefined, which: 'departure' | 'arrival') => {
-      if (!stop || !c) return;
-      const p: OdPrognosis = { ...(stop.prognosis || {}) };
-      if (c.live) {
-        const t = which === 'departure' ? liveDep(c) : liveArr(c);
-        const plan = which === 'departure' ? (c.dep != null ? c.dep : c.arr) : (c.arr != null ? c.arr : c.dep);
-        if (t != null) { p[which] = iso(t); if (plan != null) stop.delay = Math.round((t - plan) / 60); }
-      }
-      // a changed platform; only when its number differs too ("7" and "7AB" are the same platform)
-      const moved = c.plannedLabel && c.quay && c.quay.label && platNum(c.quay.label) !== platNum(stop.platform) ? c.quay.label : null;
-      if (moved) {
-        if (!('_kPlatform' in p)) p._kPrev = p.platform != null ? p.platform : null; // what was there before
-        p.platform = moved;
-        p._kPlatform = moved;
-      } else if ('_kPlatform' in p) {
-        if (p.platform === p._kPlatform) { if (p._kPrev != null) p.platform = p._kPrev; else delete p.platform; }
-        delete p._kPlatform;
-        delete p._kPrev;
-      }
-      stop.prognosis = p;
-    };
-    set(s.departure, bySeq.get(match.fromSeq), 'departure');
-    set(s.arrival, bySeq.get(match.toSeq), 'arrival');
-    const list = (s.journey && s.journey.passList) || [];
-    alignCalls(trip, match, list).forEach((c, k) => {
-      if (!c || !c.live) return;
-      const x = list[k], p: OdPrognosis = { ...(x.prognosis || {}) };
-      if (c.arr != null) p.arrival = iso(liveArr(c)!);
-      if (c.dep != null) p.departure = iso(liveDep(c)!);
-      x.prognosis = p;
-    });
-    return true;
-  }
 
   // Was the departure from stop `seq` measured (observedKind `dep` or `arr+dep`)?
   const depMeasured = (info: KanteLiveInfo | null | undefined, seq: number | null | undefined) => !!info && seq != null && info.observedSeq === seq && /(^|\+)dep$/.test(info.observedKind || '');
@@ -237,9 +50,9 @@
     }
     return { ...pos };
   }
-  // …as km along the drawn ride: seqIdx = engine seq → place in the passList (seqIndex), kms = each drawn stop's km,
-  // stopIdx = each drawn stop's place in the passList.
-  // → { km, at } (index into the passList) or { km, from, to }, or null when it isn't on this part of the trip
+  // …as km along the drawn ride: seqIdx = the trip's seq → the stop's place in the ride, kms = each drawn stop's km,
+  // stopIdx = each drawn stop's place in the ride.
+  // → { km, at } (index into the ride's stops) or { km, from, to }, or null when it isn't on this part of the trip
   function rideKm(p: KanteAdvancedPosition | null | undefined, seqIdx: Map<number, number> | null | undefined, kms: (number | null | undefined)[], stopIdx: number[]): KanteRideKm | null {
     if (!p || !seqIdx || (p.state !== 'at' && p.state !== 'between')) return null;
     const place = (seq: number) => {
@@ -323,11 +136,9 @@
   const bboxParam = (b: KanteBbox) => b.map((x) => x.toFixed(5)).join(',');
 
   const KANTE: KanteLiveApi = {
-    DEFAULT_URL, MAX_BBOX_KM, engineUrl, isLocalUrl, client, unixOf, matchParams, liveInfoOf, isLive, liveArr, liveDep,
-    alignCalls, seqIndex, sameStation, uicOf, applyTrip, depMeasured, nextCall, advance, rideKm, liveText,
-    runOrWait, journeyLike, vehicleAt, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm, norm,
-    originOf, RETRY_MS,
+    MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
+    runOrWait, journeyLike, vehicleAt, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = KANTE;
-  else root.KANTE_LIVE = KANTE; // window.KANTE is engine.js, the general engine client
+  else root.KANTE_LIVE = KANTE; // window.KANTE is engine.js, the engine's client
 })(typeof window !== 'undefined' ? window : this);

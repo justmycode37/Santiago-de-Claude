@@ -1,16 +1,20 @@
 # Indoor position in stations: floor and place from the phone's sensors
 
-The 3D station view (`station3d.js`, models in `stations3d/`, see [stations3d/SCHEMA.md](../stations3d/SCHEMA.md))
-shows the walk through a station floor by floor. GPS alone cannot follow it there: it is 20–50 m off indoors, gone
-underground, and knows no floor. This part works out **which floor you are on and where**, from everything the phone
-has, and hands that to the viewer.
+The 3D station view (`station-view.js`, see [station3d-solid.md](station3d-solid.md); models in `stations3d/`, see
+[stations3d/SCHEMA.md](../stations3d/SCHEMA.md)) shows the walk through a station floor by floor. GPS alone cannot
+follow it there: it is 20–50 m off indoors, gone underground, and knows no floor. This part works out **which floor
+you are on and where**, from everything the phone has, and hands that to the view.
+
+What the view shows of it: the station view writes the floor and its probability in its header and on the floor
+buttons when its renderer reports a position (`SolidView.user`). The renderer, `station3d-solid.js`, does not take a
+position yet (it has no `setUser`), so for now the estimate runs but is not drawn. The first viewer (`station3d.js`),
+which drew it as a dot, was removed in November 2026, and with it its development page `indoorloc-dev.html`.
 
 | File | What |
 | --- | --- |
 | `indoorloc.js` | The filter (`INDOORLOC`): station model as a graph, particle filter, browser sensors, recorder, replay |
 | `signloc.js` | Signs as evidence (`SIGNLOC`): "Gleis 7 Sektor C", "Gleise 1–6 →", exits, named underpasses, shops |
 | `indoornav.js` | Glue (`INDOORNAV`): runs the filter while a station is open in 3D, feeds `Station3D.setUser` |
-| `indoorloc-dev.html` | Development page: live sensors, floor probabilities, "I'm here", signs, record / export / replay |
 | `tools/sim_indoorloc.cts` | Simulated walks through a model with realistic sensor noise; scores and a regression check |
 
 ## How it works
@@ -31,10 +35,11 @@ Evidence, all optional, each weighed for what it is worth:
 | Barometer | **native wrapper only** (Capacitor plugin) or `INDOORLOC.pushPressure(hPa)` | relative height: a floor is 3–9 m ≈ 0.35–1 hPa | no browser exposes it; train piston surges, doors and ventilation (held and re-anchored, readings tempered) |
 | Signs | Scan's OCR (`scan:text`), or typed in | platform + sector sign = you are there (strong); a direction sign = you are near the way to it (weak); names of exits, halls, shops | a sign is evidence, never a fix; chains (several shops) are ambiguous |
 | Journey | the route opened in 3D | starting on platform 7 = you just got off there | — |
-| The traveller | "I'm on floor…", "I'm here" | resets the floor / place | — |
+| The traveller | `INDOORNAV.here({ level, xy })` (no button for it in the station view yet) | resets the floor / place | — |
 
 It never pretends: the estimate carries per-floor probabilities and `confident: false` until one floor clearly wins,
-and the viewer then shows a wide circle without a floor.
+and then hands the view a wide accuracy circle and no floor (the station view would write "Floor unsure" with the
+two likeliest floors).
 
 Robustness built in (found by failing simulations and by two independent code reviews):
 - no start from nothing: steps alone never place you; GPS, the journey, a sign or the traveller does;
@@ -77,29 +82,34 @@ phone adapter (`Sensors`: step detection, gyro/compass fusion) is only exercised
 
 ## Testing on a phone
 
-1. Serve over HTTPS (`python3 tools/serve.py` behind `tailscale serve`) and open `indoorloc-dev.html?key=bern`.
-2. **Start sensors** (iOS asks for motion access), then **Record**.
-3. Walk a route. Every so often tap **I'm here…** and then your place on the model: that is the ground truth.
-4. **Stop**, **Export**. Replay it with **Import & replay** (animated in the 3D view) or
-   `node tools/sim_indoorloc.cts --replay file.json`.
+There is no development page for it any more (`indoorloc-dev.html` drew on the removed first viewer). A recording
+can be made in the app itself, from the browser's console (remote debugging):
+
+1. Serve over HTTPS (`python3 tools/serve.py` behind `tailscale serve`) and open a station in 3D (the sensors start
+   with the view; on iOS with the first tap in it).
+2. `r = INDOORNAV.record()`, then walk a route.
+3. Now and then, where you are, write the ground truth into the recording and tell the filter too:
+   `r.checkpoint({ lon, lat, level })` (or `{ x, y, level }` in the model's metres, `stations3d/SCHEMA.md`) and
+   `INDOORNAV.here({ level, xy })`. Only the checkpoint goes into the recording; `here()` alone leaves the replay
+   with nothing to compare against.
+4. `INDOORNAV.stopRecording()`, save the log
+   (`a = document.createElement('a'); a.href = URL.createObjectURL(INDOORNAV.exportLog(r)); a.download = 'walk.json'; a.click()`)
+   and replay it: `node tools/sim_indoorloc.cts --replay walk.json [--key bern]` prints the error at every checkpoint.
 
 In the app nothing is needed: opening a station in 3D starts it (iOS: the first tap in the 3D view asks for motion
 access). The station session outlives the 3D view by 10 minutes, so you can close it, read a sign with Scan (which
-counts), and open it again where you are. GPS fixes more than 300 m outside the model pass straight to the viewer
-(which then says you are not at the station), and the journey's starting platform is only assumed when GPS does
-not say otherwise. The journey's start alone never shows a position (the trip may be tomorrow, or location may be
-off): the dot appears once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they
-are there (`INDOORNAV.state().live`).
+counts), and open it again where you are. GPS fixes more than 300 m outside the model are passed on unchanged, and
+the journey's starting platform is only assumed when GPS does not say otherwise. The journey's start alone never
+counts as a position (the trip may be tomorrow, or location may be off): the estimate is handed to the view only
+once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they are there
+(`INDOORNAV.state().live`). As said above, the station view does not draw it yet.
 
-`station3d.js` got a few small additions for this:
-- `setUser` takes `levelSure: true` from the indoor position, so a floor the filter is sure of beats the floor of the
-  viewer's previous route snap; and `at` (when the GPS fix was taken, ms since 1970). The app passes it, a fix older
-  than a minute does not count as "here" for the indoor position, and a remembered fix that old is not shown when the
-  view opens.
+What `Station3D` (`src/types/station3d.d.ts`) has for this:
+- `setUser` takes `levelSure: true` and the floor probabilities from the indoor position, and `at` (when the GPS fix
+  was taken, ms since 1970). The app passes it, a fix older than a minute does not count as "here" for the indoor
+  position, and a remembered fix that old is not shown when the view opens.
 - `'opening'` (`{ key, replaces }`) at every `open()`: a station that replaces another one says no `'close'`, so the
   indoor position ends the old station's showing there and the stand-in in `index.html` forgets the old opening.
-- `'here'` (`{ step, xy, level }`) when the traveller taps "I'm here" at a step: the indoor position takes it like
-  `INDOORNAV.here()`, so later steps move the dot even without GPS.
 
 ## Research behind the choices (November 2026)
 

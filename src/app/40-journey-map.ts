@@ -1,4 +1,4 @@
-// ---------- Journey (public transport via transport.opendata.ch) ----------
+// ---------- Journey (public transport and walks, planned by the Kante engine: src/engine-journey.ts) ----------
 const ROUTE_FC: RouteCollection = { type: 'FeatureCollection', features: [] };
 let journeyStep = 0;
 let journeySteps: JourneyStep[] = [];
@@ -8,9 +8,11 @@ const jHead = document.getElementById('jHead')!;
 const jBody = document.getElementById('jBody')!;
 const jFoot = document.getElementById('jFoot')!;
 const jHandle = document.getElementById('jHandle')!;
-let journeyConn: OdConnection | null = null;
+let journeyConn: Journey | null = null; // the journey on show
 let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
+let journeyOrigin: JourneyOrigin | null = null; // …and its place, as the last plan asked for it
 let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
+let sheetRetry = false;            // …with "Try again" beside it: the engine could not be reached
 let journeyDest: JourneyDest | null = null;
 let journeyQuery: JourneyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
 let journeyOptions: JourneyOptions | null = null; // every way on offer to make the trip: { list, walk, best, earlier, later }

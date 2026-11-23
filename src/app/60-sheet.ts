@@ -88,14 +88,14 @@ const chainIcon = (j: LineLike) => !(modeOf(j.category) === 'train' && /[A-Za-z]
 
 // Where a ride stops: the label ("7", "C"), its noun, and the timetable's platform when it has changed today
 function quayOf(r: QuayRide, end: 'dep' | 'arr'): Quay {
-  const s = r.s, stop = end === 'dep' ? s.departure : s.arrival, at = ((end === 'dep' ? r.depAt : r.arrAt) || {}) as Partial<JourneyPlatformAt>;
-  const live = stop.prognosis && stop.prognosis.platform, plan = stop.platform;
-  const { num, sectors } = splitPlatform(live || plan || '');
+  const s = r.s, stop = end === 'dep' ? s.from : s.to, at = ((end === 'dep' ? r.depAt : r.arrAt) || {}) as Partial<JourneyPlatformAt>;
+  const now = platformOf(stop), plan = stop.plannedLabel; // plannedLabel: set when the platform has changed today
+  const { num, sectors } = splitPlatform(now === '–' ? '' : now);
   const edge = at.edge || null;
   const label = num || (edge && edge.ref) || '';
-  const word = platformWord(s.journey); // Platform · Bay · Pier
+  const word = platformWord(s.line); // Platform · Bay · Pier
   return { label, sectors, word, short: word === 'Platform' ? 'Pl.' : word, edge, travel: at.travel,
-    planned: live && plan && live !== plan ? splitPlatform(plan).num : null, station: stop.station!.name };
+    planned: plan && splitPlatform(plan).num !== num ? splitPlatform(plan).num : null, station: stopName(stop) };
 }
 // The boarding point in its fixed slot: right-aligned, bold ("Pl. 7", "Bay C"); nothing for an unsigned stop
 function kPlat(q: Quay | null | undefined, long?: boolean) {

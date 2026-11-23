@@ -197,4 +197,4 @@ interface JourneyFootStep {
 }
 
 /** A trip walked all the way: the network metres its times were set by (retimeWalkConn()). */
-interface OdConnection { _netMetres?: number }
+interface Journey { _netMetres?: number }

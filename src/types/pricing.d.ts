@@ -2,11 +2,18 @@ interface Settings {
   fareTracking: boolean;
 }
 
+// The fare service (transport.opendata.ch's POST /v1/fare, 63-ticket-pricing.ts): what it is sent and answers.
+// It prices a connection of its own timetable, so the engine's rides are first found there (GET /v1/connections).
+/** One end of a ride as the fare service reads it: the station's UIC number and the time (ISO 8601). */
+interface FareCheckpoint { station: { id?: string | null; name?: string | null }; departure?: string | null; arrival?: string | null }
+/** A ride as the fare service reads it: its two ends and its line (`operator` as that timetable names it, "SBB"). */
 interface FareSection {
-  departure: OdCheckpoint;
-  arrival: OdCheckpoint;
-  journey: Partial<OdLine>;
+  departure: FareCheckpoint;
+  arrival: FareCheckpoint;
+  journey: { name?: string | null; category?: string | null; number?: string | null; operator?: string | null } | null;
 }
+/** A connection of the fare service's timetable, as far as it is read and sent back to be priced. */
+interface FareConnection { sections: FareSection[] }
 
 interface TicketFare {
   fare?: number | null;

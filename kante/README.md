@@ -5,9 +5,9 @@ commit `48937e8`). It plans door-to-door trips on the national timetable with it
 network, ties every departure to the exact bus bay, tram edge or platform, and applies live delays from
 opentransportdata.swiss.
 
-The app in this repository plans journeys with transport.opendata.ch and uses this engine for live data:
-it finds each ride's trip here (`/api/match`), follows it (`/api/trip`) and shows the vehicles around you
-(`/api/stream`). The live map in `livemap/` uses it too. What the live endpoints say and how sure they are:
+The app in this repository plans its journeys and reads its departure boards and live data here: it plans with
+`/api/plan`, follows each ride's trip (`/api/trip`) and shows the vehicles around you (`/api/stream`); `/api/match`
+is for pages that plan elsewhere. The live map in `livemap/` uses it too. What the live endpoints say and how sure they are:
 [docs/LIVE-API.md](docs/LIVE-API.md). `deploy/` hosts it and redeploys it when `main` changes; the hosted
 engine is at https://kante.omniroute.app.
 
