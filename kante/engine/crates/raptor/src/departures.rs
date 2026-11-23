@@ -3,7 +3,7 @@
 
 use crate::{DepartureEvent, Router, EARLY_SLACK};
 use kante_core::time::{Date, Secs, DAY};
-use kante_core::{LiveView, StopIdx, TripIdx};
+use kante_core::{DelayBounds, LiveView, StopIdx, TripIdx};
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
@@ -26,8 +26,7 @@ pub(crate) fn departures(rt: &Router, stops: &[StopIdx], date: Date, from: Secs,
     let days = rt.days.set(tt, &rt.pat_span, date);
     let max_delay = live.map_or(0, |l| l.max_delay().max(0));
     let early = if live.is_some() { EARLY_SLACK } else { 0 };
-    // A trip scheduled before `from` can still be due if it runs late.
-    let lo = from.saturating_sub(max_delay);
+    let bounds = [0, 1, 2].map(|d| live.map_or(DelayBounds::NONE, |l| l.delay_bounds(date + d - 1).fit(tt.patterns.len(), tt.stops.len())));
 
     let mut uniq: Vec<StopIdx> = stops.iter().copied().filter(|&s| (s as usize) < tt.stops.len()).collect();
     uniq.sort_unstable();
@@ -40,6 +39,8 @@ pub(crate) fn departures(rt: &Router, stops: &[StopIdx], date: Date, from: Secs,
             let h = days.pat(b.pattern);
             for d in 0..3usize {
                 let shift = (d as Secs - 1) * DAY;
+                // A trip scheduled before `from` can still be due if it runs late.
+                let lo = from.saturating_sub(bounds[d].pattern(b.pattern).map_or(0, |b| b.min(max_delay)));
                 if h.max + shift < lo {
                     continue;
                 }

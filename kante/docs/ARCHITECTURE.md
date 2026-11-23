@@ -93,7 +93,11 @@ with samples under `…/data/`. Treat every downloaded file as untrusted data.
 - `LinkData`: per-Stop `StopLink` (snap onto the graph, level, side of road)
   and `Footpaths` for the normal and the step-free profile.
 - `LiveView` / `TripLive`: per-trip delays, cancellations, changed boarding
-  points for one service date.
+  points for one service date. `LiveView::delay_bounds` (a `DelayIndex`,
+  built by `LiveSnapshotBuilder::build_indexed`) bounds the delays per date,
+  pattern and stop: the router looks back for late trips only as far as the
+  trips of that pattern or stop need, and plans without live data where a
+  query's dates have none.
 
 ## Crate APIs
 
@@ -139,6 +143,9 @@ pub struct Query<'a> {
     pub from: Secs,
     /// Length of the departure window; 0 = one earliest-arrival search.
     pub window: Secs,
+    /// Latest acceptable arrival at the destination (`arriveBy`); later
+    /// journeys are neither returned nor explored.
+    pub max_arr: Option<Secs>,
     /// (stop, seconds needed to reach it from the origin). Ignored when `onboard` is set.
     pub access: &'a [(StopIdx, Secs)],
     /// (stop, seconds from it to the destination).

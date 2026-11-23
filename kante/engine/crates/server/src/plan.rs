@@ -664,6 +664,7 @@ impl App {
             date: 0,
             from: 0,
             window: 0,
+            max_arr: None,
             access: &[],
             egress: &egress.stops,
             onboard: None,
@@ -774,6 +775,8 @@ impl App {
                         // hours past it so that journeys leaving later can
                         // still rule out slower ones that leave before it.
                         let tail = if by_arrival { 0 } else { 2 * 3600 };
+                        // Journeys must arrive by `limit`: the engine need not explore later ones.
+                        query.max_arr = by_arrival.then_some(limit);
                         picked = self.range(&query, s, total + tail, if tail > 0 { 6 } else { 4 }).into_iter().filter(|j| if by_arrival { j.arr <= limit } else { j.dep <= limit }).collect();
                         if picked.len() >= 3 {
                             break;

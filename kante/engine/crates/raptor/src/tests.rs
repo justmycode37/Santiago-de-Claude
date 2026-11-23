@@ -772,6 +772,90 @@ fn pareto_direct_vs_faster_with_change() {
 }
 
 #[test]
+fn latest_arrival_bound() {
+    let mut b = Builder::new();
+    let (a, m, z) = (b.stop("A"), b.stop("M"), b.stop("Z"));
+    let l = b.line("1", Mode::Bus);
+    let p = b.pattern(l, &[a, m, z]);
+    let t0 = b.trip(p, &[hm(8, 0), hm(8, 10), hm(8, 20)]);
+    b.trip(p, &[hm(8, 30), hm(8, 40), hm(8, 50)]);
+    let w = World::new(b);
+    let (acc, egr) = ([(a, 120)], [(z, 60)]);
+    // Earliest arrival 08:51 after the egress walk: a bound exactly there still admits it.
+    let mut q = query(hm(8, 5), &acc, &egr, &w.none);
+    q.max_arr = Some(hm(8, 51));
+    assert_eq!(w.plan(&q).iter().map(|j| j.arr).collect::<Vec<_>>(), vec![hm(8, 51)]);
+    q.max_arr = Some(hm(8, 51) - 1);
+    assert!(w.plan(&q).is_empty());
+    // In a range only the journeys arriving in time remain.
+    let mut q = query(hm(7, 50), &acc, &egr, &w.none);
+    q.window = hm(1, 0);
+    assert_eq!(w.plan(&q).len(), 2);
+    q.max_arr = Some(hm(8, 50));
+    let js = w.plan(&q);
+    assert_eq!(js.len(), 1);
+    assert_eq!((rides(&js[0]), js[0].arr), (vec![(w.t(t0), 0, 2)], hm(8, 21)));
+    // Saturating: the largest bound is the same as none.
+    q.max_arr = Some(Secs::MAX);
+    assert_eq!(w.plan(&q).len(), 2);
+    q.max_arr = Some(Secs::MIN);
+    assert!(w.plan(&q).is_empty());
+}
+
+#[test]
+fn latest_arrival_bound_over_rounds() {
+    let mut b = Builder::new();
+    let (a, x, z) = (b.stop("A"), b.stop("X"), b.stop("Z"));
+    let bus = b.line("B", Mode::Bus);
+    let rail = b.line("R", Mode::Rail);
+    let direct = b.pattern(bus, &[a, z]);
+    let p1 = b.pattern(rail, &[a, x]);
+    let p2 = b.pattern(rail, &[x, z]);
+    b.trips_every(direct, hm(8, 0), 3600, 3, &[0, 3600]); // arrives on the hour
+    b.trips_every(p1, hm(8, 5), 3600, 3, &[0, 900]);
+    b.trips_every(p2, hm(8, 25), 3600, 3, &[0, 900]); // arrives xx:40
+    let w = World::new(b);
+    let (acc, egr) = ([(a, 0)], [(z, 0)]);
+    let mut q = query(hm(7, 55), &acc, &egr, &w.none);
+    let key = |js: Vec<Journey>| js.iter().map(|j| (j.dep, j.arr, j.transfers)).collect::<Vec<_>>();
+    // The one-ride option arrives after the bound; the two-ride one exactly at it.
+    q.max_arr = Some(hm(8, 40));
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 5), hm(8, 40), 1)]);
+    q.max_transfers = 0;
+    assert!(w.plan(&q).is_empty());
+    q.max_arr = Some(hm(9, 0));
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 0), hm(9, 0), 0)]);
+    q.max_transfers = 5;
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 0), hm(9, 0), 0), (hm(8, 5), hm(8, 40), 1)]);
+    // Range: the later hour is cut between its two options.
+    q.window = hm(2, 0);
+    q.max_arr = Some(hm(9, 40));
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 0), hm(9, 0), 0), (hm(8, 5), hm(8, 40), 1), (hm(9, 5), hm(9, 40), 1)]);
+}
+
+#[test]
+fn latest_arrival_bound_onboard() {
+    let mut b = Builder::new();
+    let (a, m, x, z, y) = (b.stop("A"), b.stop("M"), b.stop("X"), b.stop("Z"), b.stop("Y"));
+    let l = b.line("IC", Mode::Rail);
+    let p = b.pattern(l, &[a, m, x, z]);
+    let p2 = b.pattern(l, &[x, y]);
+    let ic = b.trip(p, &[hm(8, 0), hm(8, 20), hm(8, 40), hm(9, 0)]);
+    b.trip(p2, &[hm(8, 50), hm(9, 9)]);
+    let w = World::new(b);
+    // Round 0 (still seated) and round 1 (after a change).
+    for (dest, arr) in [(z, hm(9, 0) + 45), (y, hm(9, 9))] {
+        let egr = [(dest, if dest == z { 45 } else { 0 })];
+        let mut q = query(hm(8, 12), &[], &egr, &w.none);
+        q.onboard = Some(Onboard { trip: w.t(ic), date: QD, next_pos: 1 });
+        q.max_arr = Some(arr);
+        assert_eq!(w.plan(&q).iter().map(|j| j.arr).collect::<Vec<_>>(), vec![arr]);
+        q.max_arr = Some(arr - 1);
+        assert!(w.plan(&q).is_empty());
+    }
+}
+
+#[test]
 fn several_access_and_egress_stops() {
     let mut b = Builder::new();
     let (a1, a2, z1, z2) = (b.stop("A1"), b.stop("A2"), b.stop("Z1"), b.stop("Z2"));
@@ -984,7 +1068,14 @@ impl Rng {
 }
 
 fn random_world(seed: u64) -> (World, Footpaths) {
+    random_world_conts(seed, false)
+}
+
+/// [`random_world`], with some in-seat continuations if `conts`.
+fn random_world_conts(seed: u64, conts: bool) -> (World, Footpaths) {
     let mut rng = Rng(seed * 2654435761 + 1);
+    // (declaration id, first departure, last arrival, line) of every trip.
+    let mut runs: Vec<(usize, Secs, Secs, LineIdx)> = Vec::new();
     let mut b = Builder::new();
     let n_stops = rng.range(8, 14) as usize;
     let stops: Vec<_> = (0..n_stops).map(|i| b.stop_at(&format!("S{i}"), rng.below(3000) as f32, rng.below(3000) as f32)).collect();
@@ -1006,7 +1097,8 @@ fn random_world(seed: u64) -> (World, Footpaths) {
                 _ => 0,
             })
             .collect();
-        let p = b.pattern_flags(lines[rng.below(3) as usize], &seq, &flags);
+        let line = lines[rng.below(3) as usize];
+        let p = b.pattern_flags(line, &seq, &flags);
         // Same running and dwell times for all trips of a pattern → no overtaking.
         let mut offs = vec![(0, 0)];
         for i in 1..len {
@@ -1020,8 +1112,18 @@ fn random_world(seed: u64) -> (World, Footpaths) {
         while t < until {
             let service = if rng.below(4) == 0 { alt[rng.below(3) as usize] } else { 0 };
             let times: Vec<_> = offs.iter().map(|&(a, d)| (t + a, t + d)).collect();
-            b.trip_on(p, service, &times);
+            let id = b.trip_on(p, service, &times);
+            runs.push((id, times[0].1, times[len - 1].0, line));
             t += headway;
+        }
+    }
+    if conts {
+        for _ in 0..rng.range(4, 12) {
+            let a = runs[rng.below(runs.len() as u64) as usize];
+            let next: Vec<_> = runs.iter().filter(|r| r.0 != a.0 && r.3 == a.3 && (0..=3 * 3600).contains(&(r.1 - a.2))).collect();
+            if !next.is_empty() {
+                b.continuation(a.0, next[rng.below(next.len() as u64) as usize].0, NONE);
+            }
         }
     }
     let built = b.build();
@@ -1346,4 +1448,264 @@ fn scratch_is_clean_between_queries_and_threads() {
     let (acc, egr) = ([(0, 0)], [(3, 0)]);
     w2.plan(&Query::new(QD, hm(8, 0), &acc, &egr, &fp2));
     assert_eq!(run(&cases[0]), reference[0]);
+}
+
+/// The bound is on the arrival at the destination, with each egress stop's own walk.
+#[test]
+fn latest_arrival_bound_two_egress_stops() {
+    let mut b = Builder::new();
+    let (a, m, z) = (b.stop("A"), b.stop("M"), b.stop("Z"));
+    let l = b.line("1", Mode::Bus);
+    let p = b.pattern(l, &[a, m, z]);
+    b.trip(p, &[hm(8, 0), hm(8, 10), hm(8, 20)]);
+    let w = World::new(b);
+    // From M it is a 15 min walk (there at 08:25), from Z one minute (08:21).
+    let (acc, egr) = ([(a, 0)], [(m, 900), (z, 60)]);
+    let mut q = query(hm(7, 55), &acc, &egr, &w.none);
+    let arrs = |q: &Query| w.plan(q).iter().map(|j| j.arr).collect::<Vec<_>>();
+    assert_eq!(arrs(&q), vec![hm(8, 21)]);
+    q.max_arr = Some(hm(8, 21));
+    assert_eq!(arrs(&q), vec![hm(8, 21)]);
+    // M is reached well before the bound, but the walk from it ends after it.
+    q.max_arr = Some(hm(8, 21) - 1);
+    assert!(arrs(&q).is_empty());
+}
+
+/// A latest-arrival bound only removes journeys: the answer has the
+/// departures, arrivals and changes of the unbounded one without the journeys
+/// that arrive late. (Which of two options that tie on all three is named
+/// can differ: labels the bound suppresses change the order patterns are
+/// scanned in. An earliest-arrival search fixes no departure, so there the
+/// tie is on arrival and changes only.)
+#[test]
+fn random_bound_equals_filtered_plan() {
+    let mut cut = 0;
+    for seed in 1..=40 {
+        let (w, fp) = random_world(seed + 900);
+        let tt = w.tt();
+        let mut rng = Rng(seed * 53 + 7);
+        let mut live = TestLive::default();
+        if seed % 2 == 0 {
+            for t in 0..tt.trips.len() as TripIdx {
+                let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
+                for date in D0 + 1..D0 + 8 {
+                    match rng.below(12) {
+                        0 => {
+                            live.delay(date, t, n, rng.below(n as u64) as usize, rng.range(1, 30) * 60);
+                        }
+                        1 => {
+                            live.cancel(date, t);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for _ in 0..15 {
+            let mut case = random_case(&mut rng, tt.stops.len());
+            case.window = [0, 1800, 3 * 3600, 6 * 3600][rng.below(4) as usize];
+            let mut q = case.q(&fp);
+            if seed % 2 == 0 {
+                q.live = Some(&live);
+            }
+            let all = w.plan(&q);
+            let mut bounds: Vec<Secs> = all.iter().flat_map(|j| [j.arr, j.arr - 1]).collect();
+            bounds.push(q.from + rng.range(0, 4 * 3600));
+            for _ in 0..3 {
+                let m = bounds[rng.below(bounds.len() as u64) as usize];
+                let want: Vec<_> = all.iter().filter(|j| j.arr <= m).cloned().collect();
+                q.max_arr = Some(m);
+                let fixed_dep = q.window > 0;
+                let key = |js: &[Journey]| js.iter().map(|j| (if fixed_dep { j.dep } else { 0 }, j.arr, j.transfers)).collect::<Vec<_>>();
+                assert_eq!(key(&w.plan(&q)), key(&want), "seed {seed} from {} window {} bound {m}", q.from, q.window);
+                cut += (want.len() < all.len()) as usize;
+            }
+            q.max_arr = None;
+        }
+    }
+    assert!(cut > 300, "too few bounds that cut anything: {cut}");
+}
+
+// ───────────────────────── per-pattern delay bounds = global look-back ─────────────────────────
+
+/// Random live data on `dates`: delays that differ by position, early
+/// running, cancellations, skipped stops, and a few trips ~3 h late.
+fn random_live(rng: &mut Rng, tt: &Timetable, dates: &[Date]) -> TestLive {
+    let mut live = TestLive::default();
+    for t in 0..tt.trips.len() as TripIdx {
+        let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
+        for &date in dates {
+            match rng.below(14) {
+                0 => {
+                    live.delay(date, t, n, rng.below(n as u64) as usize, rng.range(1, 14) * 60);
+                }
+                1 => {
+                    // Early, within what the router assumes.
+                    live.delay(date, t, n, 0, -rng.range(1, (EARLY_SLACK / 30) as i32) * 30);
+                }
+                2 => {
+                    live.cancel(date, t);
+                }
+                3 => {
+                    live.skip(date, t, n, rng.below(n as u64) as usize);
+                }
+                4 | 5 => {
+                    // Different at every position, sometimes catching up.
+                    let l = live.map.entry((date, t)).or_default();
+                    // Runs take at least 2 min: catching up by 2 min a stop keeps times in order.
+                    let mut d = rng.range(-EARLY_SLACK / 60, 10) * 60;
+                    for _ in 0..n {
+                        l.arr_delay.push(d);
+                        l.dep_delay.push(d + rng.range(0, 1) * 60);
+                        d = (d + rng.range(-2, 4) * 60).max(-EARLY_SLACK);
+                    }
+                    l.observed_pos = -1;
+                    if rng.below(3) == 0 {
+                        l.skipped = (0..n).map(|_| rng.below(4) == 0).collect();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    // The outliers that dictate `max_delay`, as on the real feed (2 h 55 min).
+    for _ in 0..rng.range(1, 3) {
+        let t = rng.below(tt.trips.len() as u64) as TripIdx;
+        let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
+        let date = dates[rng.below(dates.len() as u64) as usize];
+        live.delay(date, t, n, rng.below(n as u64) as usize, 10_478 - rng.range(0, 60) * 60);
+    }
+    live.index(tt);
+    live
+}
+
+/// The router with per-date, per-pattern and per-stop delay bounds returns
+/// exactly what it returns when it looks back by the global `max_delay`
+/// everywhere (`GlobalOnly`, the `LiveView` defaults).
+#[test]
+fn live_bounds_match_global_lookback() {
+    const SEEDS: u64 = 200;
+    let (mut queries, mut journeys, mut live_rides, mut identical) = (0, 0, 0, 0);
+    for seed in 1..=SEEDS {
+        let (w, fp) = random_world_conts(seed + 900, true);
+        let tt = w.tt();
+        let mut rng = Rng(seed * 7919 + 1);
+        // Live data on a few dates only: queries see dates with and without it.
+        let first = D0 + rng.range(1, 5);
+        let dates: Vec<Date> = (first..first + rng.range(1, 3)).collect();
+        let live = random_live(&mut rng, tt, &dates);
+        let global = GlobalOnly(&live);
+        assert!(live.max_delay() > 6000);
+        for _ in 0..30 {
+            let mut case = random_case(&mut rng, tt.stops.len());
+            case.window = [0, 0, 1800, 7200][rng.below(4) as usize];
+            let mut q = case.q(&fp);
+            if rng.below(6) == 0 {
+                let t = rng.below(tt.trips.len() as u64) as TripIdx;
+                let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
+                let date = q.date + rng.range(-1, 1);
+                if tt.trip_active(t, date) {
+                    q.onboard = Some(Onboard { trip: t, date, next_pos: rng.below(n as u64) as u16 });
+                }
+            }
+            q.live = Some(&live);
+            let got = w.rt.plan(&q);
+            q.live = Some(&global);
+            let want = w.rt.plan(&q);
+            // An earliest-arrival search (window 0) rides the first trip of
+            // every line in one pass: of two options that tie on arrival and
+            // changes it keeps whichever is found first, so its departure
+            // depends on the scan order like the legs do. A range search has
+            // one departure per pass, the later one first.
+            let fixed_dep = q.window > 0 || q.onboard.is_some();
+            let key = |js: &[Journey]| js.iter().map(|j| (if fixed_dep { j.dep } else { 0 }, j.arr, j.transfers)).collect::<Vec<_>>();
+            assert_eq!(key(&got), key(&want), "seed {seed} date {} from {} window {} onboard {:?}", q.date, q.from, q.window, q.onboard.map(|o| (o.trip, o.date)));
+            // Leg for leg too, except where two vehicles reach a stop at the
+            // same time: which one a label keeps depends on the order patterns
+            // are scanned in, which depends on the stop windows.
+            identical += (got == want) as usize;
+            queries += 1;
+            journeys += got.len();
+            for j in &got {
+                live_rides += j.legs.iter().filter(|l| matches!(l, Leg::Ride { trip, date, .. } if live.map.contains_key(&(*date, *trip)))).count();
+            }
+            // Departure boards: same events in the same order.
+            let stops: Vec<StopIdx> = (0..rng.range(1, 3)).map(|_| rng.below(tt.stops.len() as u64) as StopIdx).collect();
+            let limit = rng.range(1, 12) as usize;
+            assert_eq!(w.rt.departures(&stops, q.date, q.from, limit, Some(&live)), w.rt.departures(&stops, q.date, q.from, limit, Some(&global)), "seed {seed}: departures");
+        }
+    }
+    println!("{queries} queries, {journeys} journeys, {live_rides} rides on trips with live data; {identical} queries identical leg for leg");
+    assert!(journeys > 1500 && live_rides > 300, "too little to mean anything: {journeys} journeys, {live_rides} live rides");
+}
+
+/// A stop that a pattern calls at twice gets the larger of the two delays,
+/// and only the dates with most live trips get per-pattern and per-stop bounds.
+#[test]
+fn delay_index_repeated_stops_and_many_dates() {
+    let mut b = Builder::new();
+    let (a, x, c, d) = (b.stop("A"), b.stop("X"), b.stop("C"), b.stop("D"));
+    let line = b.line("loop", Mode::Bus);
+    let lp = b.pattern(line, &[a, x, c, x, d]);
+    let ts = b.trips_every(lp, hm(8, 0), 3600, 3, &[0, 300, 600, 900, 1200]);
+    let back = b.pattern(line, &[d, a]);
+    let bs = b.trips_every(back, hm(8, 0), 3600, 3, &[0, 300]);
+    let w = World::new(b);
+    let tt = w.tt();
+    let pat = |id: usize| tt.trips[w.t(id) as usize].pattern;
+    let mut live = TestLive::default();
+    // Late only from the second call at X on; another trip a minute late throughout.
+    live.delay(QD, w.t(ts[0]), 5, 3, 700);
+    live.delay(QD, w.t(ts[1]), 5, 0, 60);
+    // One live trip on each of ten more dates: more dates than are indexed in full.
+    let sparse: Vec<Date> = (1..=10).map(|i| QD + i).collect();
+    for &date in &sparse {
+        live.delay(date, w.t(ts[2]), 5, 0, 30);
+    }
+    live.index(tt);
+    let bd = live.delay_bounds(QD);
+    assert_eq!((bd.stop(a), bd.stop(x), bd.stop(c), bd.stop(d)), (Some(60), Some(700), Some(60), Some(700)));
+    assert_eq!((bd.pattern(pat(ts[0])), bd.pattern(pat(bs[0]))), (Some(700), None));
+    let full = sparse.iter().filter(|&&date| !live.delay_bounds(date).pattern.is_empty()).count();
+    assert_eq!(full, kante_core::DelayIndex::MAX_DATES - 1);
+    for &date in &sparse {
+        let bd = live.delay_bounds(date);
+        // Without the per-pattern bounds every pattern looks back by the date's maximum.
+        let want = if bd.pattern.is_empty() { Some(30) } else { None };
+        assert_eq!((bd.max, bd.pattern(pat(ts[0])), bd.pattern(pat(bs[0]))), (30, Some(30), want), "date {date}");
+    }
+}
+
+/// A train almost 3 h late is still caught, and lines without live data
+/// around it are planned as without live data.
+#[test]
+fn very_late_train_is_still_caught() {
+    let mut b = Builder::new();
+    let (a, x, c) = (b.stop("A"), b.stop("X"), b.stop("C"));
+    let rail = b.line("IC", Mode::Rail);
+    let bus = b.line("bus", Mode::Bus);
+    let ic = b.pattern(rail, &[a, x]);
+    let ics = b.trips_every(ic, hm(6, 0), 3600, 16, &[0, 1800]);
+    let feeder = b.pattern(bus, &[x, c]);
+    b.trips_every(feeder, hm(6, 10), 1200, 50, &[0, 600]);
+    let w = World::new(b);
+    let mut live = TestLive::default();
+    // The 06:00 runs 2 h 54 min late: it leaves A at 08:54, after the 08:00, before the 09:00.
+    live.delay(QD, w.t(ics[0]), 2, 0, 10_478);
+    live.index(w.tt());
+    let (acc, egr) = ([(a, 0)], [(c, 0)]);
+    let mut q = query(hm(8, 30), &acc, &egr, &w.none);
+    q.live = Some(&live);
+    let js = w.plan(&q);
+    assert_eq!(rides(&js[0])[0], (w.t(ics[0]), 0, 1));
+    assert_eq!(js[0].legs.iter().find_map(|l| if let Leg::Ride { dep, .. } = l { Some(*dep) } else { None }), Some(hm(6, 0) + 10_478));
+    let global = GlobalOnly(&live);
+    q.live = Some(&global);
+    assert_eq!(w.plan(&q), js);
+    // Next week nothing is live: the same as without live data.
+    let mut q = Query::new(QD + 7, hm(8, 30), &acc, &egr, &w.none);
+    let plain = w.plan(&q);
+    q.live = Some(&live);
+    assert_eq!(w.plan(&q), plain);
+    assert_eq!(rides(&plain[0])[0], (w.t(ics[3]), 0, 1));
 }

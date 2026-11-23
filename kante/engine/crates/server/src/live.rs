@@ -166,7 +166,7 @@ fn publish(app: &App, feeds: &Feeds) {
         }
     }
     let trips = b.len();
-    let snap = b.build();
+    let snap = b.build_indexed(tt);
     let extras = snap.extras().len();
     let view = live_view_of(snap);
     let mut live = app.live.write();
