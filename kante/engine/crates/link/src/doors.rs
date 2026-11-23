@@ -179,18 +179,36 @@ pub fn through_building<'a>(p: P, q: P, arcade_m: f32, buildings: impl Iterator<
             if (b - a) * len < 0.05 {
                 continue;
             }
-            let inn = inside((p.0 + (q.0 - p.0) * (a + b) / 2.0, p.1 + (q.1 - p.1) * (a + b) / 2.0), rings);
+            let m = (a + b) / 2.0;
+            let mid = (p.0 + (q.0 - p.0) * m, p.1 + (q.1 - p.1) * m);
+            let inn = inside(mid, rings);
+            // the middle more than 20 cm from the outline (and not next to a door): that decides it
+            let near_door = (pon && m * len < 0.5) || (qon && (1.0 - m) * len < 0.5);
+            if !near_door && outline_dist(mid, rings) > 0.2 {
+                pieces.push((inn, !inn));
+                continue;
+            }
+            // else points every 25 cm, every 5 cm within 60 cm of an end on the outline (a door)
+            let mut ts: Vec<f32> = Vec::new();
             let steps = (((b - a) * len) / 0.25).ceil().max(1.0) as usize;
+            ts.extend((0..=steps).map(|k| a + (b - a) * k as f32 / steps as f32));
+            for end in [(0.0f32, pon), (1.0, qon)].into_iter().filter(|e| e.1).map(|e| e.0) {
+                for k in 0..=12 {
+                    let t = if end == 0.0 { k as f32 * 0.05 / len } else { 1.0 - k as f32 * 0.05 / len };
+                    if t >= a && t <= b {
+                        ts.push(t);
+                    }
+                }
+            }
             let mut deep = 0f32;
-            for k in 0..=steps {
-                let t = a + (b - a) * k as f32 / steps as f32;
+            for t in ts {
                 let x = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
                 if inside(x, rings) != inn {
                     continue;
                 }
                 let d = outline_dist(x, rings);
                 // next to an end on the outline (a door a few centimetres off it), only as deep as that end may be
-                if d <= 0.3 && ((pon && t * len < 0.5) || (qon && (1.0 - t) * len < 0.5)) {
+                if d <= 0.25 && ((pon && t * len < 0.5) || (qon && (1.0 - t) * len < 0.5)) {
                     continue;
                 }
                 deep = deep.max(d);

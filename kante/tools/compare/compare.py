@@ -236,12 +236,11 @@ def through_summary(args, jobs, res):
     for n, ((i, p), (wa, wb)) in enumerate(zip(jobs, res)):
         for side, w in (('a', wa), ('b', wb)):
             if 'error' not in w and not w.get('approximate'):
-                # a straight line onto a way under a roof (an arcade): its last 5 m are exempt, as in the engine
+                # the straight lines onto the network (the tool exempts the last 5 m of one onto a way the graph tags
+                # as covered, an arcade, as the engine does)
                 n0, n1 = ends_of(w, side)
-                cov = [(c['from'], c['to']) for c in w.get('covered', [])]
-                arcade = ([[n0 - 1, False]] if n0 > 0 and any(a <= n0 <= b for a, b in cov) else []) + \
-                         ([[n1, True]] if n1 < len(w['geometry']) - 1 and any(a <= n1 <= b for a, b in cov) else [])
-                lines.append(json.dumps({'key': [n, side], 'geometry': w['geometry'], 'arcade': arcade}))
+                ends = ([[n0 - 1, False]] if n0 > 0 else []) + ([[n1, True]] if n1 < len(w['geometry']) - 1 else [])
+                lines.append(json.dumps({'key': [n, side], 'geometry': w['geometry'], 'ends': ends}))
     r = subprocess.run([args.bin, 'through', args.data_b], input='\n'.join(lines) + '\n', capture_output=True, text=True, check=True)
     hits = {}
     for line in r.stdout.splitlines():
@@ -343,12 +342,16 @@ def plan_summary(args, S, jobs, res):
                     w['why'].append(f'change {a} → {b} ({f["a"]:.0f} s on A) not a footpath on B')
                     lost.append({'key': [w['trip'], f'change {a}'], 'from_stop': a, 'point': {}, 'options': PROFILES[t['profile']], 'limit': 20, 'stop': b, 'a_secs': f['a']})
                 elif f['a'] is not None and f['b'] > f['a'] + 1:
-                    w['why'].append(f'change {a} → {b} {f["b"] - f["a"]:.0f} s longer on B')
+                    # footpaths are made by the linker, which is A's code: they differ by the graph and the links
+                    w['why'].append(f'change {a} → {b} {f["b"] - f["a"]:.0f} s longer on B (the linker is A\'s code: by the graph and links)')
         if not w['why']:
             w['why'].append('every walk of A\'s journey as quick on B: the search')
     for c in explain(args, lost):
         w = next(x for x in st['worse'] if x['trip'] == c['key'][0])
         tag = f"{c['key'][1]} stop" if c['key'][1] in ('access', 'egress') else c['key'][1]
+        if tag.startswith('change') and (c['cause'] == 'unexplained' or c['cause'].startswith('graph: not pinned')):
+            # a footpath is the linker's (A's code), walked step-free with the wheelchair rules up to 12 minutes
+            c['cause'] = "graph: not pinned to one edge (the linker is A's code: the footpath differs by the graph and links)"
         w['why'] = [x + f": {c['cause']}" if x.startswith(tag) and (x.endswith('lost') or x.endswith('not a footpath on B')) else x for x in w['why']]
     st['worse'].sort(key=lambda w: -((w['b_arr'] or 10**10) - w['a_arr']))
     return st

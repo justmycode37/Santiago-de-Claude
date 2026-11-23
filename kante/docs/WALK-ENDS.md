@@ -30,8 +30,9 @@ journey planned it with: the one the stop search took.
 
 **Through a building** is geometry (`doors::through_building`): the straight line is cut where it meets each
 building outline (every building of OpenStreetMap, courtyards excluded); a piece inside a building that somewhere
-(at points every 25 cm, leaving out the half metre next to an end on the outline: a door a few centimetres off it)
-is more than 0.2 m from its outline runs through it. Not counted: a building the line stays in (both ends in it or
+is more than 0.2 m from its outline runs through it (its middle, else points every 25 cm and every 5 cm within 60
+cm of an end on the outline; within half a metre of such an end, a door a few centimetres off it, a point counts
+only when more than 0.25 m in). Not counted: a building the line stays in (both ends in it or
 on its outline, not both on it, and no piece outside it — inside to the building's own door, from its door to its
 own corridor; across the open side of a U-shaped building it does count), and, for a line to a way under an arcade,
 the last 5 m (the walkway under the building's front; the rest of the line is still tested). Such a line counts four

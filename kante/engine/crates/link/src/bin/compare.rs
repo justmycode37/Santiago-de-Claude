@@ -308,6 +308,10 @@ fn segment(data: &Path, c: [f64; 4]) -> Result<()> {
 /// the segments that run through a building ([`through_sampled`]).
 fn through(data: &Path) -> Result<()> {
     let ix = load_doors(data)?;
+    let g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
+    let router = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
+    // a straight line onto a way under a roof (the graph's own tag, EF_COVERED): the last 5 m before it are exempt
+    let covered_at = |p: LatLon| router.snap(p, &kante_walk::SnapOptions { max_dist_m: 0.05, level: None, profile: None, exclude_kinds: 0 }).is_some_and(|s| router.graph().edges[s.edge as usize].flags & EF_COVERED != 0);
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();
     for line in stdin.lock().lines() {
@@ -315,7 +319,9 @@ fn through(data: &Path) -> Result<()> {
         let geom: Vec<LatLon> = v["geometry"].as_array().context("geometry")?.iter().map(|c| LatLon::from_deg(c[1].as_f64().unwrap_or(0.0), c[0].as_f64().unwrap_or(0.0))).collect();
         // segments onto a way under an arcade: (segment, its network end is its first point); the last 5 m before
         // the way do not count, as in the engine
-        let arcade: Vec<(usize, bool)> = v["arcade"].as_array().map(|a| a.iter().filter_map(|x| Some((x[0].as_u64()? as usize, x[1].as_bool()?))).collect()).unwrap_or_default();
+        // the straight lines onto the network: (segment, its network end is its first point)
+        let ends: Vec<(usize, bool)> = v["ends"].as_array().map(|a| a.iter().filter_map(|x| Some((x[0].as_u64()? as usize, x[1].as_bool()?))).collect()).unwrap_or_default();
+        let arcade: Vec<(usize, bool)> = ends.into_iter().filter(|&(i, first)| i + 1 < geom.len() && covered_at(if first { geom[i] } else { geom[i + 1] })).collect();
         let through_seg = |i: usize| match arcade.iter().find(|a| a.0 == i) {
             Some(&(_, true)) => through_sampled(&ix, geom[i + 1], geom[i], 5.0),
             Some(&(_, false)) => through_sampled(&ix, geom[i], geom[i + 1], 5.0),
