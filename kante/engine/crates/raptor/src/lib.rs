@@ -40,11 +40,20 @@
 //!   `Journey::dep == q.from`. Arrival times of the on-board trip are clamped
 //!   to `q.from` from below. A cancellation flag on the trip the traveller is
 //!   sitting in is ignored (skipped positions are honoured).
+//! - **Target pruning**: labels that cannot beat the best arrival found so far
+//!   even on the fastest path to the destination are dropped (see
+//!   `lower_bounds.rs`). That changes nothing, except where live times step
+//!   back: an in-seat continuation is followed when its *scheduled* departure
+//!   is not before the scheduled arrival, so with live data it can leave
+//!   before the trip feeding it arrives (a late trip continuing as one the
+//!   feed has no delay, or a smaller one, for). A journey that relies on
+//!   such a step may be pruned.
 
 mod days;
 mod departures;
 mod footpaths;
 mod ids;
+mod lower_bounds;
 mod plan;
 #[cfg(feature = "stats")]
 pub use plan::stats;
@@ -58,6 +67,7 @@ pub(crate) mod testutil;
 use kante_core::geo::BBox;
 use kante_core::time::{Date, Secs};
 use kante_core::{Footpaths, LiveView, Mode, StopIdx, Timetable, TripIdx};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock};
 
 pub use footpaths::crowfly_footpaths;
@@ -78,6 +88,9 @@ pub struct Router {
     days: days::DayCache,
     ids: OnceLock<ids::IdMaps>,
     pat_bbox: OnceLock<Vec<BBox>>,
+    /// Minimum-travel-time graph for target pruning (see `lower_bounds.rs`).
+    lb_graph: lower_bounds::Graph,
+    target_bounds: AtomicBool,
 }
 
 impl Router {
@@ -101,7 +114,28 @@ impl Router {
         for c in &tt.continuations {
             has_cont[c.from as usize >> 6] |= 1 << (c.from & 63);
         }
-        Router { tt, pat_span, has_cont, days: days::DayCache::default(), ids: OnceLock::new(), pat_bbox: OnceLock::new() }
+        let lb_graph = lower_bounds::Graph::new(&tt);
+        Router { tt, pat_span, has_cont, days: days::DayCache::default(), ids: OnceLock::new(), pat_bbox: OnceLock::new(), lb_graph, target_bounds: AtomicBool::new(true) }
+    }
+
+    /// Switch target pruning with per-stop lower bounds on or off (on by
+    /// default). Results are the same either way (but see "Target pruning"
+    /// above); this exists for testing and measuring.
+    pub fn set_target_bounds(&self, on: bool) {
+        self.target_bounds.store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Build now what target pruning derives from a footpath set, e.g. at
+    /// server start, so that the first query using the set does not pay for
+    /// it. The result is cached in `fp`: a set that is changed in place
+    /// afterwards must have its `derived` slot replaced by a new one.
+    pub fn prepare_footpaths(&self, fp: &Footpaths) {
+        self.lb_graph.prepare(fp);
+    }
+
+    /// Bytes held by the lower-bound graph.
+    pub fn target_bounds_bytes(&self) -> usize {
+        self.lb_graph.heap_bytes()
     }
 
     pub fn timetable(&self) -> &Arc<Timetable> {
