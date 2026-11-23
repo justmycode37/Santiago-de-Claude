@@ -106,8 +106,8 @@
   const LINE = '9';
   const WALK_MS = 1.3;                              // a normal walking pace, metres a second…
   const SPEED_1 = 1.5, SPEED_3 = 1.9;               // …and how much faster each walk plays it
-  const Z_WALK = 18.6, Z_RIDE = 17.7;
-  const LOAD_MS = 12000;                           // a map that has not come by then is not coming              // the map's zoom while walking and riding
+  const Z_WALK = 18.6, Z_RIDE = 17.7;              // the map's zoom while walking and riding
+  const LOAD_MS = 12000;                           // a map that has not come by then is not coming
   const COLOR_WALK = '#FFD34B', COLOR_WALK_EDGE = '#14161A';   // walks as the journey map draws them (40-journey-map.ts)
 
   // The demo's own clock: everything in it that walks, waits or glides asks this clock. The journey plays at PACE
