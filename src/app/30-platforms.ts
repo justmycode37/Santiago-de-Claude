@@ -14,7 +14,7 @@ function showPlatformsIfNeeded() {
   if (src) src.setData(PLATFORM_FC);
 }
 map.on('zoomend', showPlatformsIfNeeded);
-const PLATFORMS = new Map<string, PlatformStop>(); // station id (UIC, as in transport.opendata.ch) → { name, mode, edges: [{ ref, key, bearing, ll }] }
+const PLATFORMS = new Map<string, PlatformStop>(); // station id (UIC) → { name, mode, edges: [{ ref, key, bearing, ll }] }
 const PLATFORM_MODES: Record<PlatformModeCode, PlatformMode> = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
 
 // Comparable platform name: "7A-D" → "7", "Kante H" → "H", "K1" → "K1", "–" → ""
@@ -149,26 +149,46 @@ async function openPlatform(f: PlatformTap) {
     box.append(view3d);
   }
   platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
-  try {
-    // The Kante engine knows the edge of every departure (engine-departures.js: d.edges). Without it,
-    // transport.opendata.ch and the rule below.
-    const exact = window.KANTE_BOARD ? await KANTE_BOARD!.load(f.properties.id, st, platformLL, f.properties.i) : null;
-    const res = exact || await fetch(`${OPENDATA}stationboard?` + new URLSearchParams({ id: f.properties.id, limit: '40' }));
-    const all: OdStationboardEntry[] = exact || ((await (res as Response).json() as OdStationboardResponse).stationboard || []).filter((d) => d.stop && d.stop.departure);
-    if (req !== popupReq) return;
-    // a departure leaves from this edge if it is where we would board it (same rule as for journeys)
-    const here = whole ? all : all.filter((d) => (d.edges ? d.edges.includes(f.properties.i!) : platformLL(d.stop, null, d.passList && d.passList[1] ? coordOf(d.passList[1]) : null) === edge.ll));
-    note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : 'From other platforms:';
-    list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
-      const li = mk('li');
-      li.append(mk('time', null, fmtTime(d.stop.prognosis && d.stop.prognosis.departure || d.stop.departure)), badge(d), mk('span', 'pf-to', d.to));
-      if (d.stop.delay! > 0) li.append(mk('span', 'j-delay', `+${d.stop.delay}′`));
-      return li;
-    }));
+  // The Kante engine knows the edge of every departure (engine-departures.js: d.edges)
+  const load = async () => {
+    note.textContent = 'Loading departures…';
+    list.replaceChildren();
+    box.querySelector('.pf-retry')?.remove();
+    try {
+      const all = await KANTE_BOARD!.load(f.properties.id, st!, f.properties.i);
+      if (req !== popupReq) return;
+      const here = whole ? all : all.filter((d) => d.edges.includes(f.properties.i!));
+      note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : 'From other platforms:';
+      list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
+        const li = mk('li');
+        li.append(mk('time', null, fmtTime(d.time)), badge(d.shown), mk('span', 'pf-to', d.headsign || d.towards || ''));
+        if (d.late > 0) li.append(mk('span', 'j-delay', `+${d.late}′`));
+        return li;
+      }));
+    } catch (e) {
+      if (req !== popupReq) return;
+      const why = engineFailure(e);
+      note.textContent = why ? engineMessage(why, 'Departures') : 'Departures could not be loaded.';
+      if (why !== 'off') {
+        const again = mk('button', 'pf-3d pf-retry', 'Try again');
+        again.type = 'button';
+        again.addEventListener('click', (ev) => { ev.stopPropagation(); load(); });
+        note.after(again);
+      }
+    }
     platformPopup.setLngLat(edge.ll); // re-fit now that the card is taller
-  } catch {
-    if (req === popupReq) note.textContent = 'Departures could not be loaded.';
-  }
+  };
+  load();
 }
+// Why a call to the Kante engine failed: off (the page has none), down (it cannot be reached), or null for anything else
+const engineFailure = (e: unknown): 'off' | 'down' | null => {
+  const why = KANTE ? KANTE.failure(e) : 'off';
+  return why === 'off' || why === 'down' ? why : null;
+};
+// What a journey or a board says instead, when the engine cannot answer. Journeys, departures and live data all come
+// from it; the map, search, events and places do not need it.
+const engineMessage = (why: 'off' | 'down', what: string) => (why === 'off'
+  ? `${what} come from the Kante engine, which is switched off for this page.`
+  : `${what} come from the Kante engine, which isn't answering right now.`);
 map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
 map.on('mouseleave', 'platform-dot', () => { map.getCanvas().style.cursor = ''; });

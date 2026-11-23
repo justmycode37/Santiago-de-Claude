@@ -29,8 +29,6 @@ type PlatformDotFeature = maplibregl.MapGeoJSONFeature & { properties: PlatformD
 /** What openPlatform() reads of a tapped dot. i null: the stop as a whole (Scan knows the stop, not the edge). */
 interface PlatformTap { properties: { id: string; i: number | null } }
 
-// What platformAt() (src/app/32-places.ts) answers is JourneyPlatformAt, in app-journey.d.ts: the rides keep it.
-
 // ---- Places: toilets, drinking water, health, help… (src/app/32-places.ts, from map-places.js) ----
 
 /**

@@ -23,7 +23,7 @@ function setTMode(m: TimeMode) {
 function openTimeSheet(mode: TimeMode) {
   if (!journeyDest) return;
   setTMode(mode);
-  const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.to.arrival! : journeyConn.from.departure!) : new Date();
+  const ref = journeyConn ? new Date(mode === 'arr' ? journeyConn.t1 : journeyConn.t0) : new Date();
   tDate.value = journeyQuery.date || dateValue(ref);
   tTime.value = journeyQuery.time || timeValue(ref);
   if (journeyQuery.mode !== mode && journeyConn) { tDate.value = dateValue(ref); tTime.value = timeValue(ref); }

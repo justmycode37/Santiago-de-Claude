@@ -60,7 +60,8 @@
       if (Array.isArray(trips)) {
         return trips.filter((trip): trip is SavedPricingTrip => trip && trip.confirmed !== false && typeof trip.id === 'string'
           && typeof trip.from === 'string' && typeof trip.to === 'string'
-          && typeof trip.date === 'string').map((trip) => {
+          && typeof trip.date === 'string').map((saved) => {
+          const trip = { ...saved, id: canonicalId(saved.id) }; // the same trip has one id, however it was saved
           if (trip.departure) return trip;
           // The original trip key included the departure before it was saved separately.
           try {
@@ -84,11 +85,27 @@
     }
   }
 
+  // A ride's times as instants: the same departure was written "2026-11-23T12:31:00+0100" by the planner the app
+  // used before and "2026-11-23T11:31:00.000Z" now, and both must give the same trip
+  const instant = (value: unknown) => {
+    const t = typeof value === 'string' ? Date.parse(value) : NaN;
+    return Number.isFinite(t) ? new Date(t).toISOString() : value;
+  };
   function tripId({ from, to, departure, rides }: Partial<PricingTrip>) {
     if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim()
       || departure == null || !Array.isArray(rides) || !rides.length) return null;
     const date = new Date(departure);
-    return Number.isFinite(date.getTime()) ? JSON.stringify([from, to, date.toISOString(), rides]) : null;
+    const times = rides.map((ride) => (Array.isArray(ride) ? ride.map((x, k) => (k === 3 ? instant(x) : x)) : ride));
+    return Number.isFinite(date.getTime()) ? JSON.stringify([from, to, date.toISOString(), times]) : null;
+  }
+  // A saved trip's id in that form: records saved before carry the times as they were written then
+  function canonicalId(saved: string) {
+    try {
+      const [from, to, departure, rides] = JSON.parse(saved);
+      return tripId({ from, to, departure, rides }) || saved;
+    } catch {
+      return saved;
+    }
   }
 
   function findConfirmed(trip: PricingTrip) {

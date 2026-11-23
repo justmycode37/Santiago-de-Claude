@@ -80,12 +80,6 @@ function lineLabel(j: LineLike) {
 }
 
 const fmtTime = (iso: string | number | null | undefined) => iso ? new Date(iso).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-function fmtDuration(d: string | null | undefined) {
-  const m = /(\d+)d(\d+):(\d+)/.exec(d || '');
-  if (!m) return '';
-  const h = +m[1] * 24 + +m[2], min = +m[3];
-  return h ? `${h} h ${min} min` : `${min} min`;
-}
 function dayLabel(iso: string | number) {
   const d = new Date(iso), now = new Date();
   const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
@@ -93,27 +87,37 @@ function dayLabel(iso: string | number) {
   if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
-const coordOf = (stop: OdCheckpoint | null | undefined): LngLat | null => {
-  const c = stop && (stop.station || stop.location) && (stop.station || stop.location)!.coordinate;
-  return c && c.x != null && c.y != null ? [c.y, c.x] : null; // API: x = lat, y = lng
-};
+// ---- A stop of a ride: the engine's call there (KanteStopCall: its boarding point, times, delays) ----
+type StopTime = 'arr' | 'dep';
+const stopName = (c: KanteStopCall) => c.quay.stationName;
+// The station's UIC number ("8507000"), as platforms.js and the 3D models know it; else the engine's own id
+const stopUic = (c: KanteStopCall) => (KANTE && KANTE.uicOf(c.quay.stationId)) || c.quay.stationId;
+const delayOf = (c: KanteStopCall, which: StopTime) => (which === 'arr' ? c.arrDelayS : c.depDelayS);
+// The timetable's time at a stop, ms (null where the ride has none: no arrival where it starts)
+const planMs = (c: KanteStopCall | null | undefined, which: StopTime) => (c && c[which] != null ? c[which]! * 1000 : null);
+// Live (real-time) time at a stop in ms: the timetable plus the engine's delay
+function liveMs(c: KanteStopCall | null | undefined, which: StopTime) {
+  return c && c[which] != null ? (c[which]! + (delayOf(c, which) || 0)) * 1000 : null;
+}
+// Minutes late
+const lateMin = (c: KanteStopCall | null | undefined, which: StopTime) => (c && c[which] != null && delayOf(c, which) != null ? Math.round(delayOf(c, which)! / 60) : 0);
+// The engine has a forecast (or a measured time) for it, not only the timetable
+const hasForecast = (c: KanteStopCall | null | undefined, which: StopTime) => !!c && c[which] != null && delayOf(c, which) != null;
 
-const sameStop = (a: OdCheckpoint | null | undefined, b: OdCheckpoint | null | undefined) => !!(a && b && a.station && b.station && a.station.id && a.station.id === b.station.id);
+const isRide = (p: JourneyPart | null | undefined): p is JourneyRide => !!p && p.type === 'ride';
+const sameStation = (q: KanteQuay | null | undefined, c: KanteStopCall | null | undefined) => !!(q && c && q.stationId === c.quay.stationId);
 
-// Every stop of a ride on its exact platform/edge (falls back to the station position)
-function placeRide(s: RideSection) {
-  const list = s.journey.passList;
-  const raw = list.map(coordOf);
-  const at = list.map((stop, k) =>
-    platformAt(k === 0 ? s.departure : k === list.length - 1 ? s.arrival : stop, raw[k - 1] || null, raw[k + 1] || null));
+// Every stop of a ride on its exact boarding point, as the engine names it
+function placeRide(s: JourneyRide) {
+  const at = s.stops.map((_, k) => KanteJourney.at(s, k));
   const pts = at.map((a) => a.ll);
-  return { path: pts.filter(Boolean) as LngLat[], idx: pts.map((p, k) => (p ? k : -1)).filter((k) => k >= 0), // idx: each path stop's place in passList
-    dep: pts[0] || coordOf(s.departure), arr: pts[pts.length - 1] || coordOf(s.arrival), depAt: at[0], arrAt: at[at.length - 1] };
+  return { path: pts, idx: pts.map((_, k) => k), // idx: each path stop's place in the ride's stops
+    dep: pts[0], arr: pts[pts.length - 1], depAt: at[0], arrAt: at[at.length - 1] };
 }
 
 // What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
 const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa && pa.edge
-  ? { platform: true, level: pa.edge.level || 0, ref: pa.edge.key || platformKey(pa.edge.ref) || null } : { platform: true });
+  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true });
 // After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
 // engine-journey.js leaves it)
 function syncEnds(steps: JourneyStep[]) {
@@ -126,97 +130,100 @@ function syncEnds(steps: JourneyStep[]) {
   });
 }
 
-// Turn the API's sections into swipeable steps: walk → ride → change → ride → … → walk → arrive
-function buildSteps(conn: OdConnection, destTitle: string) {
+// Turn the journey's parts into swipeable steps: walk → ride → change → ride → … → walk → arrive
+function buildSteps(conn: Journey, destTitle: string) {
   const steps: JourneyStep[] = [];
-  type PendingWalk = { min: number; lines: LngLat[][]; ends: [WalkEnd, WalkEnd][]; start: string | null | undefined };
-  type RideOrWalk = RideSection | (OdSection & { journey: null });
-  let walk: PendingWalk = { min: 0, lines: [], ends: [], start: null };
-  let lastRide = null as RideSection | null;
-  const flushWalk = () => { const w = walk; walk = { min: 0, lines: [], ends: [], start: null }; return w; };
+  type PendingWalk = { min: number; lines: LngLat[][]; ends: [WalkEnd, WalkEnd][]; start: number | null; leg: KanteWalkLeg | null };
+  const empty = (): PendingWalk => ({ min: 0, lines: [], ends: [], start: null, leg: null });
+  let walk = empty();
+  let lastRide = null as JourneyRide | null;
+  const flushWalk = () => { const w = walk; walk = empty(); return w; };
+  // the engine's walk for a walk or change step: its time, and its path, directions and floor changes
+  const engineWalk = (st: JourneyWalkStep | JourneyChangeStep, w: PendingWalk) => {
+    if (!w.leg) return;
+    KanteJourney.setWalk(st, w.leg);
+    if (st.type === 'walk' && st.t0 != null) st.t1 = st.t0 + w.leg.durationS * 1000;
+  };
   // what each end of a walk is, for the walking router: your position, a platform (on its floor), a station, a place
   const platformEnd = platformEndOf;
-  const at = new Map<OdSection, ReturnType<typeof placeRide>>(conn.sections.filter((s) => s.journey).map((s) => [s, placeRide(s as RideSection)]));
-  (conn.sections as RideOrWalk[]).forEach((s, idx) => {
-    if (!s.journey) {
-      walk.min += Math.round((s.walk && s.walk.duration || 0) / 60);
-      walk.start = walk.start || s.departure.departure;
+  const at = new Map<JourneyRide, ReturnType<typeof placeRide>>(conn.parts.filter(isRide).map((s) => [s, placeRide(s)]));
+  conn.parts.forEach((s, idx) => {
+    if (s.type === 'walk') {
+      walk.min += Math.round(KanteJourney.walkSecs(s) / 60);
+      if (walk.start == null) walk.start = s.dep * 1000;
+      walk.leg = s; // the last one before the next ride (or the destination) is the step's
       // walks start/end on the platform you get off / on, not at the station's centre
-      let a = coordOf(s.departure), b = coordOf(s.arrival);
+      let a: LngLat = [s.from.lon, s.from.lat], b: LngLat = [s.to.lon, s.to.lat];
       // the first walk starts where you are (GPS), or at the place the trip starts from (a pin, a search result)
       let fromEnd: WalkEnd = idx === 0 ? (tripStart ? {} : { gps: true }) : { platform: true };
-      let toEnd: WalkEnd = idx === conn.sections.length - 1 ? {} : { platform: true };
-      if (lastRide && sameStop(s.departure, lastRide.arrival)) { a = at.get(lastRide)!.arr || a; fromEnd = platformEnd(at.get(lastRide)!.arrAt); }
-      const nextRide = conn.sections.slice(idx + 1).find((x) => x.journey);
-      if (nextRide && sameStop(s.arrival, nextRide.departure)) { b = at.get(nextRide)!.dep || b; toEnd = platformEnd(at.get(nextRide)!.depAt); }
-      if (a && b) { walk.lines.push([a, b]); walk.ends.push([fromEnd, toEnd]); }
+      let toEnd: WalkEnd = idx === conn.parts.length - 1 ? {} : { platform: true };
+      if (lastRide && sameStation(s.from.quay, lastRide.to)) { a = at.get(lastRide)!.arr; fromEnd = platformEnd(at.get(lastRide)!.arrAt); }
+      const nextRide = conn.parts.slice(idx + 1).find(isRide);
+      if (nextRide && sameStation(s.to.quay, nextRide.from)) { b = at.get(nextRide)!.dep; toEnd = platformEnd(at.get(nextRide)!.depAt); }
+      walk.lines.push([a, b]);
+      walk.ends.push([fromEnd, toEnd]);
       return;
     }
     const w = flushWalk();
     const here = at.get(s)!;
     if (!lastRide) {
       if (w.min > 0) {
-        const t0 = new Date(w.start || conn.from.departure!).getTime();
-        steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: s.departure.station!.name!, next: s,
-          board: here.dep, t0, t1: t0 + w.min * 60000 });
+        const t0 = w.start != null ? w.start : conn.t0;
+        const st: JourneyWalkStep = { type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: stopName(s.from), next: s,
+          board: here.dep, t0, t1: t0 + w.min * 60000 };
+        engineWalk(st, w);
+        steps.push(st);
       }
     } else {
-      const t0 = new Date(lastRide.arrival.arrival!).getTime();
+      const t0 = planMs(lastRide.to, 'arr')!;
       const pa = at.get(lastRide)!.arr, pd = here.dep;
       // changing platforms inside a station: show the way from one platform to the other
       // (also when the two are close on the map but on different floors: one may be right below the other)
       const fl = (x: JourneyPlatformAt | undefined) => (x && x.edge && x.edge.level) || 0;
       const lines = w.lines.length ? w.lines
-        : pa && pd && (distKm(pa, pd) > 0.015 || fl(at.get(lastRide)!.arrAt) !== fl(here.depAt)) ? [[pa, pd]] : [];
+        : distKm(pa, pd) > 0.015 || fl(at.get(lastRide)!.arrAt) !== fl(here.depAt) ? [[pa, pd]] : [];
       const ends: [WalkEnd, WalkEnd][] = w.lines.length ? w.ends : [[platformEnd(at.get(lastRide)!.arrAt), platformEnd(here.depAt)]];
-      steps.push({ type: 'change', prev: lastRide, next: s, walkMin: w.min, lines, ends,
-        points: [pa, pd], t0, t1: w.min > 0 ? t0 + w.min * 60000 : new Date(s.departure.departure!).getTime() });
+      const st: JourneyChangeStep = { type: 'change', prev: lastRide, next: s, walkMin: w.min, lines, ends,
+        points: [pa, pd], t0, t1: w.min > 0 ? t0 + w.min * 60000 : planMs(s.from, 'dep') };
+      engineWalk(st, w);
+      steps.push(st);
     }
     steps.push({ type: 'ride', s, path: here.path, stops: here.path, stopIdx: here.idx, depLL: here.dep, arrLL: here.arr, depAt: here.depAt, arrAt: here.arrAt,
-      t0: new Date(s.departure.departure!).getTime(), t1: new Date(s.arrival.arrival!).getTime() });
+      t0: planMs(s.from, 'dep'), t1: planMs(s.to, 'arr') });
     lastRide = s;
   });
   const w = flushWalk();
   const end = lastRide ? at.get(lastRide)!.arr : null;
   if (w.min > 0 || !lastRide) {
-    const t0 = new Date(w.start || (lastRide ? lastRide.arrival.arrival : conn.from.departure)!).getTime();
+    const t0 = w.start != null ? w.start : lastRide ? planMs(lastRide.to, 'arr')! : conn.t0;
     const last = w.lines[w.lines.length - 1];
-    steps.push({ type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
-      from: lastRide, alight: end, t0, t1: t0 + w.min * 60000, toLL: last && last[last.length - 1] });
+    const st: JourneyWalkStep = { type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
+      from: lastRide, alight: end, t0, t1: t0 + w.min * 60000, toLL: last && last[last.length - 1] };
+    engineWalk(st, w);
+    steps.push(st);
   }
-  steps.push({ type: 'arrive', destTitle, time: conn.to.arrival, from: lastRide, end });
+  steps.push({ type: 'arrive', destTitle, time: conn.t1, from: lastRide, end });
   steps.forEach((st, i) => {
     st.prevRide = steps.slice(0, i).reverse().find((x) => x.type === 'ride');
     st.nextRide = steps.slice(i + 1).find((x) => x.type === 'ride');
   });
-  if (conn.kante) KanteJourney.decorate(steps, conn); // the engine's walks: their path, directions and floor changes
   applyLiveTimes(steps);
   return steps;
 }
 
-// Live (real-time) time at a stop in ms: the operator's forecast when there is one, else the timetable
-function liveMs(stop: OdCheckpoint | null | undefined, which: 'arrival' | 'departure') {
-  const t = (stop && stop.prognosis && stop.prognosis[which]) || (stop && stop[which]);
-  return t ? new Date(t).getTime() : null;
-}
-// Minutes late (forecast − timetable)
-function lateMin(stop: OdCheckpoint | null | undefined, which: 'arrival' | 'departure') {
-  const live = liveMs(stop, which), plan = stop && stop[which] ? new Date(stop[which]).getTime() : null;
-  return live != null && plan != null ? Math.round((live - plan) / 60000) : 0;
-}
 // Time every ride, change and the last walk by the live forecasts (run again whenever they change)
 function applyLiveTimes(steps: JourneyStep[]) {
   let end: number | null = null;
   steps.forEach((st) => {
     if (st.type === 'ride') {
-      st.t0 = liveMs(st.s.departure, 'departure');
-      st.t1 = liveMs(st.s.arrival, 'arrival');
+      st.t0 = liveMs(st.s.from, 'dep');
+      st.t1 = liveMs(st.s.to, 'arr');
       end = st.t1;
     } else if (st.type === 'change') {
-      st.t0 = liveMs(st.prev.arrival, 'arrival');
-      st.t1 = st.walkMin > 0 ? st.t0! + st.walkMin * 60000 : liveMs(st.next.departure, 'departure');
+      st.t0 = liveMs(st.prev.to, 'arr');
+      st.t1 = st.walkMin > 0 ? st.t0! + st.walkMin * 60000 : liveMs(st.next.from, 'dep');
     } else if (st.type === 'walk' && st.final) {
-      if (st.from) { st.t0 = liveMs(st.from.arrival, 'arrival'); st.t1 = st.t0! + st.min * 60000; }
+      if (st.from) { st.t0 = liveMs(st.from.to, 'arr'); st.t1 = st.t0! + st.min * 60000; }
       end = st.t1;
     } else if (st.type === 'arrive' && end != null) st.time = end;
   });
@@ -278,7 +285,7 @@ function levelChange(st: JourneyStep): JourneyLevelChange | null {
 }
 
 function signId(st: JourneyRideStep) {
-  const j = st.s.journey, raw = platformOf(st.s.departure);
+  const j = st.s.line, raw = platformOf(st.s.from);
   const edge = st.depAt && st.depAt.edge;
   const label = splitPlatform(raw === '–' ? '' : raw).num || (edge && edge.ref) || '';
   return `sg|l|${label}|${label ? platformWord(j) : ''}`;
@@ -326,7 +333,7 @@ function stepFeatures(steps: JourneyStep[]) {
       if (w.door && st.final) pt(w.door.ll, { kind: 'door', step: i, done: !!p && i < p.i });
     });
     if (st.type === 'ride') {
-      const c = lineColor(st.s.journey), colors = { color: c.bg, dcolor: c.dfg };
+      const c = lineColor(st.s.line), colors = { color: c.bg, dcolor: c.dfg };
       doneLine(st.path, 'ride', i, 0, colors);
       const kms = p && p.i === i ? stopKms(st) : null;
       const passed = (m: number) => !!p && (i < p.i || (!!kms && kms[m] <= p.kmIn));

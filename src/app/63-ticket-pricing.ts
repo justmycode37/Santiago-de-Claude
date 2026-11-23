@@ -1,64 +1,57 @@
-const ticketQuotes = new WeakMap<OdConnection, Promise<TicketFare | null>>();
+// ---- The fare of the journey on show. The fare service is transport.opendata.ch's (POST /v1/fare): it prices a
+//      connection of its own timetable, and names operators its own way ("SBB", where the engine says
+//      "Schweizerische Bundesbahnen SBB"). So the engine's rides are first found among its connections, by their
+//      stops and times; only an exact match is priced. Journeys themselves never come from there. ----
+const FARE_API = 'https://transport.opendata.ch/v1/';
+const ticketQuotes = new WeakMap<Journey, Promise<TicketFare | null>>();
 const ticketAmount = (amount: unknown): amount is number => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
 const ticketMoney = (amount: number) => `CHF ${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
-async function matchFareConnection(sections: FareSection[], signal?: AbortSignal) {
+// The fare service's connection with exactly these rides (the same stops, times and categories), or null
+async function matchFareConnection(sections: FareSection[], signal?: AbortSignal): Promise<FareConnection | null> {
   const first = sections[0], last = sections[sections.length - 1];
   const parts = swissTicketTime(first.departure.departure!);
   const params = new URLSearchParams({
-    from: first.departure.station!.id!,
-    to: last.arrival.station!.id!,
+    from: first.departure.station.id!,
+    to: last.arrival.station.id!,
     date: `${parts.year}-${parts.month}-${parts.day}`,
     time: `${parts.hour}:${parts.minute}`,
     limit: '5',
   });
-  const response = await fetch(`${OPENDATA}connections?${params}`, { signal });
+  const response = await fetch(`${FARE_API}connections?${params}`, { signal });
   if (!response.ok) return null;
-  const { connections }: OdConnectionsResponse = await response.json();
-  const sameStopTime = (a: OdCheckpoint, b: OdCheckpoint, field: 'departure' | 'arrival') => String(a.station?.id) === String(b.station?.id)
+  const { connections }: { connections?: FareConnection[] } = await response.json();
+  const sameStopTime = (a: FareCheckpoint, b: FareCheckpoint, field: 'departure' | 'arrival') => String(a.station.id) === String(b.station.id)
     && Date.parse(a[field]!) === Date.parse(b[field]!);
   const matches = (connections || []).filter((candidate) => {
     const rides = candidate.sections.filter((section) => section.journey);
     return rides.length === sections.length && rides.every((ride, i) =>
       sameStopTime(ride.departure, sections[i].departure, 'departure')
       && sameStopTime(ride.arrival, sections[i].arrival, 'arrival')
-      && (!sections[i].journey.category || ride.journey?.category === sections[i].journey.category));
+      && (!sections[i].journey!.category || ride.journey!.category === sections[i].journey!.category));
   });
   return matches.length === 1 ? matches[0] : null;
 }
 
-function quoteTicket(conn: OdConnection) {
+function quoteTicket(conn: Journey) {
   if (!ticketQuotes.has(conn)) {
-    // Send only the data needed to price the exact rides, excluding access walks and app metadata.
-    const checkpoint = (stop: OdCheckpoint, time: 'departure' | 'arrival') => ({ station: { id: stop.station?.id }, [time]: stop[time] });
-    const engineCheckpoint = (call: KanteStopCall, field: 'departure' | 'arrival', clock: 'dep' | 'arr') => {
-      const id = call.quay?.stationId;
+    // Send only the data needed to price the exact rides: every trip ridden (a ride you stay seated on over
+    // several trips is one section each), its two ends and its category; no walks, nothing else of the journey.
+    const end = (call: KanteStopCall, field: 'departure' | 'arrival', clock: 'dep' | 'arr'): FareCheckpoint => {
       const time = call[clock];
-      return {
-        station: { id: KANTE?.uicOf(id) || id },
-        [field]: Number.isFinite(time) ? new Date(time! * 1000).toISOString() : null,
-      };
+      return { station: { id: stopUic(call) }, [field]: Number.isFinite(time) ? new Date(time! * 1000).toISOString() : null };
     };
-    const sections: FareSection[] = conn.sections.filter((section): section is RideSection => !!section.journey).flatMap<FareSection>(({ departure, arrival, journey, kanteLegs }) => {
-      if (kanteLegs && kanteLegs.length > 1) return kanteLegs.map((leg) => ({
-        departure: engineCheckpoint(leg.from, 'departure', 'dep'),
-        arrival: engineCheckpoint(leg.to, 'arrival', 'arr'),
-        journey: { category: leg.line.category },
-      }));
-      return [{
-        departure: checkpoint(departure, 'departure'),
-        arrival: checkpoint(arrival, 'arrival'),
-        journey: { category: journey.category, operator: journey.operator, number: journey.number, name: journey.name },
-      }];
-    });
+    const sections: FareSection[] = conn.parts.filter(isRide).flatMap((ride) => ride.legs.map((leg) => ({
+      departure: end(leg.from, 'departure', 'dep'),
+      arrival: end(leg.to, 'arrival', 'arr'),
+      journey: { category: leg.line.category },
+    })));
     const request = (async () => {
-      if (!sections.length || !sections.every(({ departure, arrival }) => departure.station?.id && arrival.station?.id
+      if (!sections.length || !sections.every(({ departure, arrival }) => departure.station.id && arrival.station.id
         && Number.isFinite(Date.parse(departure.departure!)) && Number.isFinite(Date.parse(arrival.arrival!)))) return null;
       const signal = AbortSignal.timeout?.(10000);
-      // Kante uses operator names from its own feed. Resolve its exact ride times and stops
-      // to the fare provider's connection before asking for a price.
-      const connection = conn.kante ? await matchFareConnection(sections, signal) : { sections };
+      const connection = await matchFareConnection(sections, signal);
       if (!connection) return null;
-      const response = await fetch(`${OPENDATA}fare`, {
+      const response = await fetch(`${FARE_API}fare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(connection),
@@ -80,13 +73,12 @@ function ticketPricing(hasTicket: boolean) {
   const rides = journeySteps.filter((step) => step.type === 'ride').map((step) => step.s);
   const tracking = SETTINGS.prefs().fareTracking;
   if (!conn || !rides.length || (!tracking && !hasTicket)) return null;
+  const iso = (c: KanteStopCall) => (c.dep != null ? new Date(c.dep * 1000).toISOString() : null);
   const trip = {
-    from: rides[0].departure.station?.name ?? '',
-    to: rides[rides.length - 1].arrival.station?.name ?? '',
-    departure: rides[0].departure.departure,
-    rides: rides.map((ride) => [
-      lineLabel(ride.journey), ride.departure.station?.name ?? '', ride.arrival.station?.name ?? '', ride.departure.departure,
-    ]),
+    from: stopName(rides[0].from),
+    to: stopName(rides[rides.length - 1].to),
+    departure: iso(rides[0].from),
+    rides: rides.map((ride) => [lineLabel(ride.line), stopName(ride.from), stopName(ride.to), iso(ride.from)]),
   };
   let quote: TicketFare | null = null;
   const fare = h('input'), halfFare = h('input');

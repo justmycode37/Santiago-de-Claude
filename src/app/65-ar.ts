@@ -25,8 +25,8 @@ function arTargetOf(st: JourneyStep): ArTarget | null {
   if (!r || r.type !== 'ride' || !r.depLL) return null;
   if (st.type === 'walk' && st.final) return null;
   const q = quayOf(r, 'dep');
-  return { ll: r.depLL, label: q.label ? `${q.word} ${q.label}` : (r.s.departure.station!.name || 'the stop'),
-    line: lineLabel(r.s.journey), to: r.s.journey.to || '', ride: r };
+  return { ll: r.depLL, label: q.label ? `${q.word} ${q.label}` : (stopName(r.s.from) || 'the stop'),
+    line: lineLabel(r.s.line), to: r.s.headsign || '', ride: r };
 }
 
 /** The AR button for a journey step, or null (feature off, or nothing to board next). */
@@ -120,7 +120,7 @@ function arLayer(mine: number, target: ArTarget) {
 
   // what is due at the boarding stop, every 15 s (Kante /api/due)
   let due: KanteDueResponse | null = null;
-  const stopId = target.ride.s.departure.station && target.ride.s.departure.station.id;
+  const stopId = stopUic(target.ride.s.from);
   const loadDue = () => {
     const hooks = scanHooks();
     if (!hooks.due || !stopId) return;
@@ -222,4 +222,4 @@ function arLayer(mine: number, target: ArTarget) {
   const tick = setInterval(frame, 100); // ~10 updates a second; also runs where animation frames are held back
   const stopTick = () => clearInterval(tick);
 }
-const modeWord = (t: ArTarget) => ({ train: 'train', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable car' } as Record<LineMode, string>)[modeOf(t.ride.s.journey.category)];
+const modeWord = (t: ArTarget) => ({ train: 'train', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable car' } as Record<LineMode, string>)[modeOf(t.ride.s.line.category)];

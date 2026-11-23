@@ -50,21 +50,21 @@ function startFollowing() {
 // From the first stop you board to the last one you leave, at the first departure (Swiss time), so SBB's first
 // connection (trip=0_0) is this one. The page preselects the cheapest ticket for it (a supersaver ticket where
 // there is one) and starts with a Half Fare Travelcard, which the buyer can change there.
-function swissTicketTime(departure: string) {
+function swissTicketTime(departure: string | number) {
   return Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(new Date(departure)).map((p) => [p.type, p.value]));
 }
-const sbbStopId = (id: OdLocation['id']) => /^0?(\d{7})$/.exec(String(id || ''))?.[1];
+const sbbStopId = (id: string | null | undefined) => /^0?(\d{7})$/.exec(String(id || ''))?.[1];
 function sbbTicketUrl() {
   const rides = journeySteps.filter((st) => st.type === 'ride');
   if (!rides.length) return null;
-  const a = rides[0].s.departure, b = rides[rides.length - 1].s.arrival;
-  if (!sbbStopId(a.station?.id) || !sbbStopId(b.station?.id) || !a.departure) return null;
-  const stop = (st: OdLocation) => `${(st.name || '').replace(/[_~]/g, ' ')}_I${sbbStopId(st.id)}`;
-  const parts = swissTicketTime(a.departure);
+  const a = rides[0].s.from, b = rides[rides.length - 1].s.to;
+  if (!sbbStopId(stopUic(a)) || !sbbStopId(stopUic(b)) || a.dep == null) return null;
+  const stop = (c: KanteStopCall) => `${stopName(c).replace(/[_~]/g, ' ')}_I${sbbStopId(stopUic(c))}`;
+  const parts = swissTicketTime(a.dep * 1000);
   const q = new URLSearchParams({
-    stops: `${stop(a.station!)}~${stop(b.station!)}`,
+    stops: `${stop(a)}~${stop(b)}`,
     day: `${parts.year}-${parts.month}-${parts.day}`,
     time: `${parts.hour}_${parts.minute}`,
     moment: 'dep',
@@ -84,8 +84,8 @@ function ticketLink() {
 }
 async function shareJourney() {
   const title = `${journeyFrom} to ${journeyDest ? journeyDest.title : 'destination'}`;
-  const lines = journeySteps.filter((st) => st.type === 'ride').map((st) => lineLabel(st.s.journey)).join(' → ');
-  const text = `${title}: ${fmtTime(journeyConn!.from.departure)} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
+  const lines = journeySteps.filter((st) => st.type === 'ride').map((st) => lineLabel(st.s.line)).join(' → ');
+  const text = `${title}: ${fmtTime(journeyConn!.t0)} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
   const url = location.origin + location.pathname;
   try {
     if (navigator.share) await navigator.share({ title, text, url });

@@ -24,7 +24,7 @@ function vehLayers(theme: Theme): maplibregl.LayerSpecification[] {
       paint: { 'icon-opacity': fade } },
   ];
 }
-const vehWanted = () => kante.ok() && !journeyDest && !document.hidden && map.getZoom() >= VEH_MIN_ZOOM
+const vehWanted = () => !!KANTE && KANTE.ok() && !journeyDest && !document.hidden && map.getZoom() >= VEH_MIN_ZOOM
   && SETTINGS.prefs().liveVehicles !== false;
 function vehStop() {
   vehReq++;
@@ -46,8 +46,8 @@ function vehUpdate() {
   vehBox = KANTE_LIVE.padBbox(view, .35);
   if (!KANTE_LIVE.bboxOk(vehBox)) { vehBox = null; return; }
   const bbox = KANTE_LIVE.bboxParam(vehBox), id = vehReq;
-  if (kante.has('stream') && window.EventSource) {
-    vehES = new EventSource(kante.href('/api/stream', { bbox }));
+  if (KANTE!.has('stream') && window.EventSource) {
+    vehES = new EventSource(KANTE!.href('/api/stream', { bbox }));
     vehES.addEventListener('vehicles', (e) => { try { vehSet(JSON.parse(e.data)); } catch (err) { /* skip a bad event */ } });
     // closed for good (not a reconnect; e.g. 503 when the engine has too many streams open): poll instead
     vehES.onerror = () => {
@@ -62,7 +62,7 @@ function vehUpdate() {
 async function vehFetch(bbox: string, id: number) {
   if (vehBusy || document.hidden) return;
   vehBusy = true;
-  const data = await kante.get('/api/vehicles', { bbox });
+  const data = await KANTE!.vehicles({ bbox }).catch(() => null);
   vehBusy = false;
   if (data && id === vehReq) vehSet(data);
 }
@@ -117,7 +117,8 @@ const badge = (j: LineLike) => lineVars(mk('span', 'j-badge', lineLabel(j)), j);
 // Platform (rail, cable cars) · Bay (bus and tram edges, "Kante") · Pier (boats)
 const nounOf = (mode: LineMode) => (mode === 'train' || mode === 'cable' ? 'Platform' : mode === 'boat' ? 'Pier' : 'Bay');
 const platformWord = (j: LineLike) => nounOf(modeOf(j.category));
-const platformOf = (stop: OdCheckpoint) => (stop.prognosis && stop.prognosis.platform) || stop.platform || '–';
+// The platform a ride stops at today ('7', '7AB'): the boarding point the engine names; '–' at a stop without one
+const platformOf = (stop: KanteStopCall) => ((stop.quay.label || '') + (stop.quay.sectors || '')) || '–';
 
 const COMPASS8 = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
 const compassWord = (deg: number) => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];

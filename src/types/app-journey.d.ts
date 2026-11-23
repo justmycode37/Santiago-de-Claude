@@ -19,22 +19,87 @@ interface JourneyDest {
   origin?: string;
 }
 
-// ---------------------------------------------------------------- the journeys to choose from
+/** Where a plan starts from (startJourney()): the place, and its name in the sheet ("Your location", "Map centre", a start). */
+interface JourneyOrigin { ll: LngLat; label: string }
+
+// ---------------------------------------------------------------- a journey
 
 /**
- * Every way on offer to make the trip (`journeyOptions`): what KanteJourney.plans() answers, or connections()
- * (70-routing.ts) from the public timetable, which has no walking all the way and no earlier / later.
+ * A journey as the app keeps it: the engine's journey (POST /api/plan, kante/engine/crates/server/src/json.rs),
+ * with its legs laid out as the trip is shown (`parts`) and the times the app shows for it. KanteJourney.plans()
+ * (src/engine-journey.ts) makes them.
  */
+interface Journey extends KanteJourney {
+  /**
+   * The legs as the trip is shown, in order: rides (each one or more of the engine's ride legs) and the engine's
+   * walk legs. A change at the very same boarding point has no walk.
+   */
+  parts: JourneyPart[];
+  /** When it starts, ms: the engine's `dep`, or earlier when the first walk is longer on the walking network. */
+  t0: number;
+  /** When it arrives as timetabled, ms: the last ride's arrival plus the walk after it (a later live arrival is the steps'). */
+  t1: number;
+  /** 70-routing.ts: the walk before the first ride as the walking network routed it, seconds (the option's row). */
+  accessS?: number;
+}
+type JourneyPart = JourneyRide | KanteWalkLeg;
+
+/** A line as the badges, colours and modes read it (lineLabel(), lineColor(), modeOf()): category "IC", number "8". */
+interface ShownLine { name: string; category: string; number: string; operator: string }
+
+/**
+ * One ride: the trips of the engine you ride (more than one when you stay seated while the vehicle goes on as
+ * another trip; it is shown under the line you board), and every stop it stops at.
+ */
+interface JourneyRide {
+  type: 'ride';
+  /** The engine's ride legs, in order. */
+  legs: KanteRideLeg[];
+  /** The first leg's line, as shown. */
+  line: ShownLine;
+  /** Where it goes (the first leg's headsign). */
+  headsign: string;
+  /**
+   * The engine's calls at every stop it stops at, where you board and where you get off included (stops it skips
+   * today are left out). At a stop where the trip changes there is one, with the arrival of the trip before and
+   * the departure of the next. Live data (applyTrip()) is written into these objects, so they stay the same ones.
+   */
+  stops: KanteStopCall[];
+  /** stops[0] and the last of them: where you board and where you get off. */
+  from: KanteStopCall;
+  to: KanteStopCall;
+  /** For each leg: its call's seq → the stop's place in `stops`. */
+  seqIdx: Map<number, number>[];
+  /** For each leg: what the engine said last about its trip (56-live-engine.ts). */
+  live: RideTripLive[];
+}
+/** What the engine said last about one trip of a ride: GET /api/trip, asked every 30 s while the trip is on. */
+interface RideTripLive {
+  /** The last answer. */
+  trip?: KanteTrip;
+  /** When it came in (ms; 0 = not yet). */
+  at: number;
+  /** Polls in a row without an answer. */
+  fails: number;
+  /** A request is under way. */
+  busy?: boolean;
+}
+
+// ---------------------------------------------------------------- the journeys to choose from
+
+/** Every way on offer to make the trip (`journeyOptions`), as KanteJourney.plans() answers. */
 interface JourneyOptions {
   /** By public transport, in order of departure. */
-  list: OdConnection[];
-  /** On foot all the way, when that is near enough; else null. */
-  walk: OdConnection | null;
+  list: Journey[];
+  /** On foot all the way, when that is near enough (up to about 3.5 km and 50 minutes); else null. */
+  walk: Journey | null;
   /** The one shown first: one of `list`, or `walk`. */
-  best: OdConnection;
+  best: Journey;
   /** Whether there are earlier and later ones to fetch (KanteJourney.more()). */
   earlier: boolean;
   later: boolean;
+  /** What more() asks on with: the request plans() sent, and the engine's pages before and after (null: none left). */
+  request: { body: KantePlanBody; earlier?: string | null; later?: string | null };
 }
 /** The list's two tabs: by public transport, or on foot all the way. */
 type JourneyTab = 'pt' | 'walk';
@@ -45,32 +110,27 @@ type JourneyMoreDir = 'earlier' | 'later';
 
 /** How a line runs, as far as its timetable category tells (modeOf()). */
 type LineMode = 'train' | 'tram' | 'bus' | 'boat' | 'cable';
-/** What tells a line apart: a ride's journey, a departure of a board, or the engine's line made to look like one. */
+/** What tells a line apart: a ride's line, a departure of a board, or a live vehicle's line. */
 interface LineLike { category?: string | null; number?: string | null; operator?: string | null }
 /** A line's colour, one of the app's palette: badge background and text on the light theme, and on the dark one. */
 interface LineColor { name: string; bg: string; fg: string; dbg: string; dfg: string }
 
 // ---------------------------------------------------------------- where a ride stops
 
-/** A platform or stop edge a ride is boarded at: an edge of PLATFORMS (30-platforms.ts), or the engine's boarding point. */
+/** The platform or stop edge a ride is boarded at, as the engine names it (KanteJourney.at()). */
 interface JourneyEdge {
   /** Its name ("7", "H"); '' when it has none. */
   ref: string;
-  /** The compass direction vehicles stop in. */
-  bearing: number | null;
   /** The floor; null (or 0) at street level, or when it is not known. */
   level: number | null;
   ll: LngLat;
-  /** PLATFORMS: the comparable name (platformKey()). */
-  key?: string;
-  /** The engine: "north side of Bundesgasse", or ''. */
-  side?: string;
+  /** "north side of Bundesgasse", or ''. */
+  side: string;
 }
-/** Where a stop of a ride is, as platformAt() (32-places.ts) gives it. */
+/** Where a stop of a ride is (KanteJourney.at()). */
 interface JourneyPlatformAt {
-  /** null: neither the platform nor the station has a position. */
-  ll: LngLat | null;
-  /** null: only the stop is known, not the platform or edge. */
+  ll: LngLat;
+  /** null: the engine only knows the stop, not the platform or edge. */
   edge: JourneyEdge | null;
   /** The compass direction the vehicle leaves in. */
   travel: number | null;
@@ -120,9 +180,6 @@ interface JourneyLevelChange { from: number; to: number; at: LngLat | null | und
 
 // ---------------------------------------------------------------- steps
 
-/** A section that is a ride. */
-interface RideSection extends OdSection { journey: OdJourney }
-
 /** The fields a kind of step does not have. */
 type JourneyStepWithout<K extends string> = { [P in K]?: undefined };
 
@@ -150,9 +207,7 @@ interface JourneyFootStep extends JourneyStepBase {
   walks?: RoutedWalk[];
   /** Where the walk changes floor, when its router says so (a station model, the engine). */
   floors?: KanteFloorChange[] | null;
-  // An engine journey (KanteJourney.decorate() and requay()):
-  /** The engine's walk. */
-  kante?: KanteWalk;
+  // The engine's walk (KanteJourney.setWalk() and requay()):
   /** Its time on foot, to the second. */
   walkS?: number;
   /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
@@ -165,17 +220,17 @@ interface JourneyWalkStep extends JourneyFootStep,
   type: 'walk';
   /** Minutes. */
   min: number;
-  /** When the timetable starts the walk (ISO 8601), if it says. */
-  start: string | null | undefined;
+  /** When the engine starts the walk, ms. */
+  start: number | null;
   /** Where it leads: the first stop, or the destination. */
   toName: string;
   /** The last walk, to the destination. */
   final?: boolean;
   /** To the first stop: the ride that follows, and where it is boarded. */
-  next?: RideSection;
+  next?: JourneyRide;
   board?: LngLat | null;
   /** The last walk: the ride before (null: there is none), and where you got off. */
-  from?: RideSection | null;
+  from?: JourneyRide | null;
   alight?: LngLat | null;
 }
 
@@ -183,8 +238,8 @@ interface JourneyWalkStep extends JourneyFootStep,
 interface JourneyChangeStep extends JourneyFootStep,
   JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt' | 'destTitle' | 'time' | 'end'> {
   type: 'change';
-  prev: RideSection;
-  next: RideSection;
+  prev: JourneyRide;
+  next: JourneyRide;
   /** Minutes on foot; 0: same platform, or the timetable has no walk. */
   walkMin: number;
   /** Where you get off and where you board. */
@@ -192,15 +247,15 @@ interface JourneyChangeStep extends JourneyFootStep,
 }
 
 interface JourneyRideStep extends JourneyStepBase,
-  JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'kante' | 'walkS' | 'kanteWalk' | 'destTitle' | 'time' | 'end'> {
+  JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 'destTitle' | 'time' | 'end'> {
   type: 'ride';
   /** When it leaves and arrives, ms (by the live forecasts; null where the stop has no time). */
   t0: number | null;
   t1: number | null;
-  s: RideSection;
+  s: JourneyRide;
   /** The line on the map: through the stops at first (the same array as `stops`), then the track or road. */
   path: LngLat[];
-  /** The stops that have a position, and each one's place in the ride's passList. */
+  /** The stops that have a position, and each one's place in the ride's stops. */
   stops: LngLat[];
   stopIdx: number[];
   /** Where it is boarded and left: the position, and what is known of the platform. */
@@ -215,13 +270,13 @@ interface JourneyRideStep extends JourneyStepBase,
 
 /** The last step: being there. */
 interface JourneyArriveStep extends JourneyStepBase,
-  JourneyStepWithout<'t0' | 't1' | 'min' | 'start' | 'toName' | 'final' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'kante' | 'walkS' | 'kanteWalk' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt'> {
+  JourneyStepWithout<'t0' | 't1' | 'min' | 'start' | 'toName' | 'final' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt'> {
   type: 'arrive';
   destTitle: string;
-  /** When: the timetable's arrival (ISO 8601), or ms once the live forecasts have timed the trip. */
-  time: string | number | null | undefined;
+  /** When, ms: the timetable's arrival, then the live times'. */
+  time: number | null | undefined;
   /** The last ride (null: there is none), and where it ends. */
-  from: RideSection | null;
+  from: JourneyRide | null;
   end: LngLat | null;
 }
 
