@@ -1352,7 +1352,7 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
                 for (k, &i) in by_layer.iter().enumerate() {
                     ports[i].1 = missing[k];
                 }
-            } else if missing.len() == 1 && !known.is_empty() && !distinct {
+            } else if missing.len() == 1 && !known.is_empty() && by_layer.windows(2).all(|w| ports[w[0]].2 == ports[w[1]].2) {
                 // the lift serves one floor more than its levelled ports name, and its other ports are on one
                 // layer: that floor is where they are (ports on different layers stay apart, unlevelled)
                 for &i in &none_ports {
@@ -1879,6 +1879,27 @@ mod tests {
         assert!((g.edges[lift].len_m() - 2.8).abs() < 0.2);
         assert_eq!(g.edge_way[lift], 12);
         assert_eq!(walk(g, (-200.0, 0.0), (202.0, 2.0), true).unwrap().lifts, 1);
+    }
+
+    #[test]
+    fn unlevelled_ports_on_several_layers_are_not_put_on_the_lifts_missing_floor() {
+        // a lift shaft for levels 0 and 1: a level-0 corridor at one corner, unlevelled paths on layers −1, −1 and +1
+        // at the others. Only when all unlevelled ports are on one layer is that the missing floor.
+        let b = world(
+            &[(1, -200.0, 0.0, &[]), (2, 202.0, 0.0, &[]), (3, 202.0, 202.0, &[]), (4, -200.0, 202.0, &[]), (20, 0.0, 0.0, &[]), (21, 2.0, 0.0, &[]), (22, 2.0, 2.0, &[]), (23, 0.0, 2.0, &[])],
+            &[
+                (10, &[1, 20], &[("highway", "footway"), ("level", "0")]),
+                (11, &[2, 21], &[("highway", "footway"), ("layer", "-1"), ("tunnel", "yes")]),
+                (12, &[4, 23], &[("highway", "footway"), ("layer", "-1"), ("tunnel", "yes")]),
+                (13, &[3, 22], &[("highway", "footway"), ("layer", "1"), ("bridge", "yes")]),
+                (14, &[20, 21, 22, 23, 20], &[("highway", "elevator"), ("level", "0;1")]),
+            ],
+        );
+        let g = &b.graph;
+        let lifts: Vec<(Level2, Level2)> = g.edges.iter().filter(|e| e.kind == EdgeKind::Lift).map(|e| (e.level_a, e.level_b)).collect();
+        assert!(!lifts.iter().any(|&(a, b)| a == 2 && b == 2) && !lifts.is_empty(), "{lifts:?}");
+        // from layer −1 to layer +1: one ride, not two through the ground floor
+        assert_eq!(walk(g, (202.0, 0.0), (202.0, 202.0), false).unwrap().lifts, 1);
     }
 
     #[test]

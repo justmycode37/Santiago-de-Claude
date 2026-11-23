@@ -145,9 +145,10 @@ pub(crate) fn outline_dist(p: P, rings: &[Vec<P>]) -> f32 {
 }
 
 /// Does the straight line p → q run through the inside of one of these buildings (rings: outline, courtyards)?
-/// The line is cut where it meets each outline; a piece longer than 0.4 m whose middle is inside the building and
-/// more than 0.2 m from its outline is inside. Not counted: a building the line stays in (both ends in it or on
-/// its outline, not both on it: from a door to the building's own corridor, from a point inside to its door), and,
+/// The line is cut where it meets each outline; a piece longer than 0.4 m inside the building that somewhere (at
+/// points every 25 cm) is more than 0.2 m from its outline is inside. Not counted: a building the line stays in (both ends in it or on
+/// its outline, not both on it, and no piece outside it: from a door to the building's own corridor, from a point
+/// inside to its door; across the open side of a U-shaped building it does count), and,
 /// for a line to a way under an arcade (`arcade_m` > 0), the last `arcade_m` metres before q (the walkway under the
 /// building's front).
 pub fn through_building<'a>(p: P, q: P, arcade_m: f32, buildings: impl Iterator<Item = &'a [Vec<P>]>) -> bool {
@@ -158,10 +159,6 @@ pub fn through_building<'a>(p: P, q: P, arcade_m: f32, buildings: impl Iterator<
     let on = |x: P, rings: &[Vec<P>]| outline_dist(x, rings) < 0.3;
     let limit = (1.0 - arcade_m / len).max(0.0);
     for rings in buildings {
-        let (pin, qin, pon, qon) = (inside(p, rings), inside(q, rings), on(p, rings), on(q, rings));
-        if (pin || pon) && (qin || qon) && !(pon && qon) {
-            continue;
-        }
         let mut ts: Vec<f32> = vec![0.0, 1.0];
         for r in rings {
             for i in 0..r.len() {
@@ -171,16 +168,39 @@ pub fn through_building<'a>(p: P, q: P, arcade_m: f32, buildings: impl Iterator<
             }
         }
         ts.sort_by(f32::total_cmp);
+        let (pin, qin, pon, qon) = (inside(p, rings), inside(q, rings), on(p, rings), on(q, rings));
+        // the pieces between the outline's crossings: (inside the building, clearly outside it), judged at points
+        // every 25 cm along each (its deepest point counts: a line that skims along a wall a little inside it, or
+        // leaves the building from a point inside, is inside), leaving out the half metre next to an end on the
+        // outline (a door a few centimetres off it)
+        let mut pieces: Vec<(bool, bool)> = Vec::new();
         for w in ts.windows(2) {
             let (a, b) = (w[0], w[1].min(limit));
             if (b - a) * len < 0.4 {
                 continue;
             }
-            let m = (a + b) / 2.0;
-            let x = (p.0 + (q.0 - p.0) * m, p.1 + (q.1 - p.1) * m);
-            if inside(x, rings) && outline_dist(x, rings) > 0.2 {
-                return true;
+            let inn = inside((p.0 + (q.0 - p.0) * (a + b) / 2.0, p.1 + (q.1 - p.1) * (a + b) / 2.0), rings);
+            let steps = (((b - a) * len) / 0.25).ceil().max(1.0) as usize;
+            let mut deep = 0f32;
+            for k in 0..=steps {
+                let t = a + (b - a) * k as f32 / steps as f32;
+                if (pon && t * len < 0.5) || (qon && (1.0 - t) * len < 0.5) {
+                    continue;
+                }
+                let x = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+                if inside(x, rings) == inn {
+                    deep = deep.max(outline_dist(x, rings));
+                }
             }
+            pieces.push((inn && deep > 0.2, !inn && deep > 0.2));
+        }
+        // a line that stays in the building (both ends in it or on its outline, not both on it, and never out of
+        // it): not through it. Out of it and back in (across the open side of a U, a courtyard) it is.
+        if (pin || pon) && (qin || qon) && !(pon && qon) && !pieces.iter().any(|x| x.1) {
+            continue;
+        }
+        if pieces.iter().any(|x| x.0) {
+            return true;
         }
     }
     false
@@ -601,6 +621,14 @@ mod tests {
         assert!(!through_building((10.0, 8.0), (10.0, 0.0), 0.0, b()));
         // out of a building from a point inside it: through its wall
         assert!(through_building((10.0, 8.0), (10.0, -5.0), 0.0, b()));
+        // in through the side wall 23 cm from the corner and along inside the front wall to a door on it: through
+        assert!(through_building((-3.0, 0.3), (10.0, 0.0), 0.0, b()));
+        // a door 25 cm inside the outline (as mapped) out to the street: not
+        assert!(!through_building((10.0, 0.25), (10.0, -6.0), 0.0, b()));
+        // across the open side of a U, from one wing into the other: out through one wall and in through another
+        let u = vec![vec![(0.0, 0.0), (30.0, 0.0), (30.0, 20.0), (20.0, 20.0), (20.0, 8.0), (10.0, 8.0), (10.0, 20.0), (0.0, 20.0)]];
+        assert!(through_building((5.0, 15.0), (23.0, 15.0), 0.0, std::iter::once(u.as_slice())));
+        assert!(!through_building((5.0, 4.0), (25.0, 4.0), 0.0, std::iter::once(u.as_slice())), "along the base of the U it stays inside");
         // a courtyard is not the building
         let court = vec![house[0].clone(), vec![(5.0, 4.0), (15.0, 4.0), (15.0, 12.0), (5.0, 12.0)]];
         assert!(!through_building((10.0, 8.0), (14.0, 8.0), 0.0, std::iter::once(court.as_slice())));

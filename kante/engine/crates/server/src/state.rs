@@ -116,6 +116,9 @@ pub struct Reach {
     pub stops: Vec<(StopIdx, Secs)>,
     /// The endpoint's ways onto the network the stops were reached from (the walks drawn take them too).
     pub end: End,
+    /// How each stop was reached: `station` (a stop of the station asked for), `point` (a line from the point),
+    /// `door` (through a door), `line` (no network: the straight line).
+    pub via: FxHashMap<StopIdx, &'static str>,
 }
 
 /// Seconds added to every walked access/egress on top of the walking time:
@@ -275,11 +278,13 @@ impl App {
         if walk.is_none() {
             walk_bbox = BBox::from_deg(0.0, 0.0, 0.0, 0.0);
         }
-        // Doors refer to edges of the graph they were built with: only with that graph.
+        // Doors and stop links refer to edges of the graph they were built with (and links to the timetable's
+        // stops by index): only with that graph and timetable.
+        let graph_fp = walk.as_ref().map(|w| graph_fingerprint(w.graph()));
         let doors_path = built.join("doors.bin");
         let doors = match (&walk, doors_path.exists()) {
-            (Some(w), true) => match timed("doors", || io::load::<Doors>(&doors_path, DOORS_SCHEMA)) {
-                Ok(d) if d.graph == graph_fingerprint(w.graph()) => {
+            (Some(_), true) => match timed("doors", || io::load::<Doors>(&doors_path, DOORS_SCHEMA)) {
+                Ok(d) if Some(d.graph) == graph_fp => {
                     let t = Instant::now();
                     let ix = kante_link::doors::DoorIndex::new(d);
                     let m = ix.breakdown_mb();
@@ -309,10 +314,11 @@ impl App {
             _ => None,
         };
 
+        let tt_fp = tt.stops_fingerprint();
         let links = links.filter(|l| {
-            let ok = l.links.len() == tt.stops.len();
+            let ok = l.links.len() == tt.stops.len() && l.timetable == tt_fp && Some(l.graph) == graph_fp;
             if !ok {
-                eprintln!("  links.bin belongs to another timetable build ({} vs {} stops): ignoring it", l.links.len(), tt.stops.len());
+                eprintln!("  links.bin belongs to another timetable or walk graph build: ignoring it (run `kante build`)");
             }
             ok
         });
@@ -593,16 +599,17 @@ impl App {
         }
     }
 
-    /// Snap a free position (an address, a pin, the user) onto the walking network: on the ground
-    /// ([`ends::snap_point`]).
+    /// Snap a point taken as it is (a station's centre when nothing better is found, where a station model's own
+    /// paths begin) onto the walking network, as `main` has always done ([`ends::snap_main`]). A place has several
+    /// candidates instead ([`App::place_end`]).
     pub fn snap_free(&self, pos: LatLon, profile: &WalkProfile) -> Option<Snap> {
-        ends::snap_point(self.walk.as_ref()?, pos, profile)
+        ends::snap_main(self.walk.as_ref()?, pos, profile)
     }
 
     /// A place's ways onto the network: the point itself, and the doors of the building it is in.
     pub fn place_end(&self, pos: LatLon, profile: &WalkProfile) -> End {
         match self.walk.as_ref() {
-            Some(walk) => End::place(walk, self.doors.as_ref(), pos, self.snap_free(pos, profile), profile),
+            Some(walk) => End::place(walk, self.doors.as_ref(), pos, profile),
             None => End::exact(pos, None),
         }
     }
@@ -627,20 +634,20 @@ impl App {
 
         // A station is entered at street level: do not let its centre point
         // fall into an underpass or onto a deck that happens to be nearest.
-        let snap = match (ep.station, self.walk.as_ref()) {
+        // from each of the point's lines onto the network and from the doors of the building it is in (a station is
+        // entered at street level, as above)
+        let end = match (ep.station, self.walk.as_ref()) {
             (Some(_), Some(walk)) => {
                 let vertical = (1u32 << EdgeKind::Steps as u8) | (1 << EdgeKind::Escalator as u8) | (1 << EdgeKind::Lift as u8);
-                walk.snap(ep.pos, &SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(*profile), exclude_kinds: vertical | (1 << EdgeKind::Platform as u8) })
-                    .or_else(|| self.snap_free(ep.pos, profile))
+                let snap = walk
+                    .snap(ep.pos, &SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(*profile), exclude_kinds: vertical | (1 << EdgeKind::Platform as u8) })
+                    .or_else(|| self.snap_free(ep.pos, profile));
+                End::exact(ep.pos, snap)
             }
-            _ => self.snap_free(ep.pos, profile),
+            (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, profile),
+            _ => End::exact(ep.pos, None),
         };
-        // from the point, and from the doors of the building it is in (a station is entered at street level, as
-        // above)
-        let end = match (ep.station, self.walk.as_ref()) {
-            (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, snap, profile),
-            _ => End::exact(ep.pos, snap),
-        };
+        let mut via: FxHashMap<StopIdx, &'static str> = best.keys().map(|&s| (s, "station")).collect();
         let mut routed: Vec<bool> = vec![false; near.len()];
         if let (Some(walk), false) = (self.walk.as_ref(), end.joins.is_empty()) {
             let mut idx = Vec::with_capacity(near.len());
@@ -651,15 +658,18 @@ impl App {
                     targets.push(l.snap);
                 }
             }
-            // the metres from the point to the network and from it to the stop are in `c`
-            let costs = ends::reach_costs(walk, &end, &targets, profile, max_s as f32);
+            // the metres from the point to the network and from it to the stop are in `c`; a stop is reached when a
+            // candidate's walk to it leaves room for the buffer
+            let limit = (max_s - ACCESS_BUFFER_S).max(0) as f32;
+            let costs = ends::reach_costs(walk, &end, &targets, profile, max_s as f32, limit);
             for (k, c) in costs.into_iter().enumerate() {
                 let i = idx[k];
-                if let Some(c) = c {
+                if let Some((c, j)) = c {
                     let secs = walk_secs(c.var_m, c.fix_s, speed).ceil() as Secs + ACCESS_BUFFER_S;
                     routed[i] = true;
                     if secs <= max_s {
                         best.insert(near[i], secs);
+                        via.insert(near[i], if end.joins[j].door.is_some() { "door" } else { "point" });
                     }
                 }
             }
@@ -679,10 +689,11 @@ impl App {
             let secs = (d * 1.35 / speed).ceil() as Secs + ACCESS_BUFFER_S;
             if secs <= max_s {
                 best.insert(s, secs);
+                via.insert(s, "line");
             }
         }
         let mut stops: Vec<(StopIdx, Secs)> = best.into_iter().collect();
         stops.sort_unstable();
-        Reach { stops, end }
+        Reach { stops, end, via }
     }
 }

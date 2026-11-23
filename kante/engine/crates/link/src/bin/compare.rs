@@ -44,40 +44,44 @@ fn pt_json(kind: &str, p: LatLon) -> serde_json::Value {
     serde_json::json!({ "kind": kind, "lat": (p.lat_deg() * 1e6).round() / 1e6, "lon": (p.lon_deg() * 1e6).round() / 1e6 })
 }
 
+const PROFILES: [&str; 3] = ["normal", "stepfree", "wheelchair"];
+
 fn sample(data: &Path, n: usize, seed: u64) -> Result<()> {
     let mut rng = Rng(seed.max(1) * 0x9E37_79B9_7F4A_7C15);
     let ix = load_doors(data)?;
     let tt: Timetable = io::load(&data.join("built/timetable.bin"), TIMETABLE_SCHEMA)?;
     let g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
     let reg = kante_link::register::read(&data.join("raw/register/adr.csv.zip"), None)?;
+    let router = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
+    let g = router.graph().clone();
     eprintln!("{} addresses, {} buildings, {} edges, {} stations", reg.len(), ix.doors.buildings.len(), g.edges.len(), tt.stations.len());
 
-    // a pool of addresses inside buildings, for points and for the far ends of walks and trips
+    // addresses: from the register, inside a building or not
     let mut pool: Vec<LatLon> = Vec::new();
     let mut tries = 0;
     while pool.len() < n * 4 && tries < n * 40 {
         tries += 1;
-        let a = &reg[rng.below(reg.len())];
-        if !ix.buildings_at(a.pos).is_empty() {
-            pool.push(a.pos);
-        }
+        pool.push(reg[rng.below(reg.len())].pos);
     }
     let mut points: Vec<serde_json::Value> = Vec::new();
     let mut origins: Vec<LatLon> = Vec::new();
-    for p in pool.iter().take(n / 2) {
-        points.push(pt_json("address", *p));
-        origins.push(*p);
+    let push = |points: &mut Vec<serde_json::Value>, origins: &mut Vec<LatLon>, kind: &str, p: LatLon| {
+        points.push(pt_json(kind, p));
+        origins.push(p);
+    };
+    // 40 %: addresses (inside a building or not, as the register has them)
+    for p in pool.iter().take(n * 2 / 5) {
+        push(&mut points, &mut origins, if ix.buildings_at(*p).is_empty() { "address-out" } else { "address" }, *p);
     }
-    // street points: on a walkable way on the ground, up to 5 m off it
+    // 20 %: points beside streets and paths on the ground, up to 5 m off them
     let walkable = |e: &WalkEdge| {
         matches!(e.kind, EdgeKind::Sidewalk | EdgeKind::Footway | EdgeKind::Path | EdgeKind::Road | EdgeKind::Pedestrian | EdgeKind::Crossing)
             && e.flags & (EF_TUNNEL | EF_BRIDGE | EF_INDOOR) == 0
     };
     let mut k = 0;
-    while k < n * 3 / 10 {
+    while k < n / 5 {
         let e = rng.below(g.edges.len());
-        let ed = &g.edges[e];
-        if !walkable(ed) {
+        if !walkable(&g.edges[e]) {
             continue;
         }
         let geom = g.edge_geom(e as u32);
@@ -87,17 +91,42 @@ fn sample(data: &Path, n: usize, seed: u64) -> Result<()> {
         let (dx, dy) = (b.0 - a.0, b.1 - a.1);
         let l = (dx * dx + dy * dy).sqrt().max(1e-3);
         let off = (rng.unit() * 2.0 - 1.0) * 5.0;
-        let p = LatLon::from_xy(a.0 + dx * t - dy / l * off, a.1 + dy * t + dx / l * off);
-        points.push(pt_json("street", p));
-        origins.push(p);
+        push(&mut points, &mut origins, "street", LatLon::from_xy(a.0 + dx * t - dy / l * off, a.1 + dy * t + dx / l * off));
         k += 1;
     }
-    // stations with a stop that has trips in Switzerland
+    // 10 % station coordinates, 10 % stations by id
     let swiss: Vec<&Station> = tt.stations.iter().filter(|s| s.didok / 100_000 == 85 && !s.pos.is_none()).collect();
-    while points.len() < n {
+    for _ in 0..n / 10 {
+        push(&mut points, &mut origins, "station", swiss[rng.below(swiss.len())].pos);
+    }
+    for _ in 0..n / 10 {
         let s = swiss[rng.below(swiss.len())];
-        points.push(pt_json("station", s.pos));
+        let mut v = pt_json("station-id", s.pos);
+        v["id"] = serde_json::json!(format!("st:{}", s.gtfs_id));
+        points.push(v);
         origins.push(s.pos);
+    }
+    // 12 %: off the network (fields, forests, parks, mountains, water's edge): anywhere in the country's box more
+    // than 50 m from every walkable way, within 1 km of one
+    let (lat0, lat1, lon0, lon1) = (45.82, 47.81, 5.96, 10.49);
+    let off_opts = |m: f32| kante_walk::SnapOptions { max_dist_m: m, level: None, profile: None, exclude_kinds: 0 };
+    let mut k = 0;
+    while k < n * 12 / 100 {
+        let p = LatLon::from_deg(lat0 + (lat1 - lat0) * rng.unit() as f64, lon0 + (lon1 - lon0) * rng.unit() as f64);
+        if router.snap(p, &off_opts(50.0)).is_none() && router.snap(p, &off_opts(1000.0)).is_some() {
+            push(&mut points, &mut origins, "off-network", p);
+            k += 1;
+        }
+    }
+    // the rest: near the border (within 3 km of a stop outside Switzerland), on the network or not
+    let foreign: Vec<&Stop> = tt.stops.iter().filter(|s| tt.stations[s.station as usize].didok / 100_000 != 85 && !s.pos.is_none() && s.pos.lat_deg() > lat0 && s.pos.lat_deg() < lat1 && s.pos.lon_deg() > lon0 && s.pos.lon_deg() < lon1).collect();
+    while points.len() < n && !foreign.is_empty() {
+        let s = foreign[rng.below(foreign.len())];
+        let (x, y) = s.pos.xy();
+        let p = LatLon::from_xy(x + (rng.unit() * 2.0 - 1.0) * 3000.0, y + (rng.unit() * 2.0 - 1.0) * 3000.0);
+        if router.snap(p, &off_opts(1000.0)).is_some() {
+            push(&mut points, &mut origins, "border", p);
+        }
     }
 
     // walks: from each point to an address 100 m – 2.5 km away
@@ -118,19 +147,21 @@ fn sample(data: &Path, n: usize, seed: u64) -> Result<()> {
             let d = pool[v[rng.below(v.len())] as usize];
             let m = o.dist_m(&d);
             if (100.0..=2500.0).contains(&m) {
-                walks.push(serde_json::json!({ "from": points[i], "to": pt_json("address", d) }));
+                walks.push(serde_json::json!({ "from": points[i], "to": pt_json("address", d), "profile": PROFILES[i % 3] }));
                 break;
             }
         }
     }
-    // trips: between addresses 3 – 60 km apart
+    // trips: from any sampled point to an address 3 – 60 km away, at an hour from 05:00 to 23:00, in each profile
     let mut trips = Vec::new();
     let mut t = 0;
     while trips.len() < n / 5 && t < n * 50 {
         t += 1;
-        let (a, b) = (pool[rng.below(pool.len())], pool[rng.below(pool.len())]);
-        if (3000.0..=60000.0).contains(&a.dist_m(&b)) {
-            trips.push(serde_json::json!({ "from": pt_json("address", a), "to": pt_json("address", b) }));
+        let i = rng.below(points.len());
+        let b = pool[rng.below(pool.len())];
+        if (3000.0..=60000.0).contains(&origins[i].dist_m(&b)) {
+            let k = trips.len();
+            trips.push(serde_json::json!({ "from": points[i], "to": pt_json("address", b), "hour": 5 + (k * 7) % 19, "profile": PROFILES[k % 3] }));
         }
     }
     eprintln!("{} points, {} walks, {} trips", points.len(), walks.len(), trips.len());
@@ -138,7 +169,85 @@ fn sample(data: &Path, n: usize, seed: u64) -> Result<()> {
     Ok(())
 }
 
-/// For each walk (`{"key", "geometry": [[lon, lat], …]}` per line): the segments that run through a building.
+/// Does the straight line p → q run through a building, by sampling and nothing of the engine's test: points every
+/// 25 cm (the last `trim_m` before q left out: the walkway under an arcade); it runs through a building when some
+/// of them are inside it (more than 30 cm from its outline) and some clearly outside it (likewise). A line that
+/// stays inside one building end to end (to its own corridor, to its door on the outline) does not.
+fn through_sampled(ix: &DoorIndex, p: LatLon, q: LatLon, trim_m: f32) -> bool {
+    let len = p.dist_m(&q);
+    let usable = (len - trim_m).max(0.0);
+    if usable < 0.4 {
+        return false;
+    }
+    let (a, b) = (p.xy(), q.xy());
+    let n = (usable / 0.25).ceil() as usize;
+    let pts: Vec<(f32, f32)> = (0..=n).map(|k| {
+        let t = (k as f32 * 0.25).min(usable) / len;
+        (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+    }).collect();
+    ix.buildings_near(p, q).into_iter().any(|bld| {
+        let r = ix.rings_of(bld);
+        let (mut inn, mut out) = (false, false);
+        for &x in &pts {
+            let d = kante_link::doors::outline_dist_pub(x, &r);
+            if d > 0.3 {
+                if kante_link::doors::inside_pub(x, &r) {
+                    inn = true;
+                } else {
+                    out = true;
+                }
+            }
+        }
+        inn && out
+    })
+}
+
+/// One straight line (lat, lon, lat, lon): the buildings near it, and what the sampled test and the engine's say.
+fn segment(data: &Path, c: [f64; 4]) -> Result<()> {
+    let ix = load_doors(data)?;
+    let (p, q) = (LatLon::from_deg(c[0], c[1]), LatLon::from_deg(c[2], c[3]));
+    println!("{:.1} m; sampled: {}, engine: {}", p.dist_m(&q), through_sampled(&ix, p, q, 0.0), ix.through(p, q, 0.0));
+    for b in ix.buildings_near(p, q) {
+        let r = ix.rings_of(b);
+        let (x, y) = (p.xy(), q.xy());
+        println!(
+            "  building {b}: {} rings, {} points; p inside {} ({:.2} m from outline), q inside {} ({:.2} m), alone sampled {} engine {}",
+            r.len(),
+            r[0].len(),
+            kante_link::doors::inside_pub(x, &r),
+            kante_link::doors::outline_dist_pub(x, &r),
+            kante_link::doors::inside_pub(y, &r),
+            kante_link::doors::outline_dist_pub(y, &r),
+            {
+                let n = 40;
+                let (mut i, mut o) = (false, false);
+                for k in 0..=n {
+                    let t = k as f32 / n as f32;
+                    let z = (x.0 + (y.0 - x.0) * t, x.1 + (y.1 - x.1) * t);
+                    let d = kante_link::doors::outline_dist_pub(z, &r);
+                    if d > 0.2 {
+                        if kante_link::doors::inside_pub(z, &r) { i = true } else { o = true }
+                    }
+                }
+                i && o
+            },
+            kante_link::doors::through_building(x, y, 0.0, std::iter::once(r.as_slice()))
+        );
+        let len = p.dist_m(&q);
+        for k in 0..=20 {
+            let t = k as f32 / 20.0;
+            let z = (x.0 + (y.0 - x.0) * t, x.1 + (y.1 - x.1) * t);
+            print!(" {:.1}:{}{:.2}", t * len, if kante_link::doors::inside_pub(z, &r) { "in" } else { "out" }, kante_link::doors::outline_dist_pub(z, &r));
+        }
+        println!();
+        println!("    ring {:?}", r[0]);
+        println!("    p {:?} q {:?}", x, y);
+    }
+    Ok(())
+}
+
+/// For each walk (`{"key", "geometry": [[lon, lat], …], "arcade": [[segment, network end first], …]}` per line):
+/// the segments that run through a building ([`through_sampled`]).
 fn through(data: &Path) -> Result<()> {
     let ix = load_doors(data)?;
     let stdin = std::io::stdin();
@@ -150,31 +259,11 @@ fn through(data: &Path) -> Result<()> {
         // the way do not count, as in the engine
         let arcade: Vec<(usize, bool)> = v["arcade"].as_array().map(|a| a.iter().filter_map(|x| Some((x[0].as_u64()? as usize, x[1].as_bool()?))).collect()).unwrap_or_default();
         let through_seg = |i: usize| match arcade.iter().find(|a| a.0 == i) {
-            Some(&(_, true)) => ix.through(geom[i + 1], geom[i], 5.0),
-            Some(&(_, false)) => ix.through(geom[i], geom[i + 1], 5.0),
-            None => ix.through(geom[i], geom[i + 1], 0.0),
+            Some(&(_, true)) => through_sampled(&ix, geom[i + 1], geom[i], 5.0),
+            Some(&(_, false)) => through_sampled(&ix, geom[i], geom[i + 1], 5.0),
+            None => through_sampled(&ix, geom[i], geom[i + 1], 0.0),
         };
-        let segs: Vec<usize> = (0..geom.len().saturating_sub(1)).filter(|&i| geom[i].dist_m(&geom[i + 1]) > 0.4 && through_seg(i)).collect();
-        if std::env::var_os("COMPARE_VERBOSE").is_some() {
-            for &i in &segs {
-                for b in ix.buildings_near(geom[i], geom[i + 1]) {
-                    let r = ix.rings_of(b);
-                    if kante_link::doors::through_building(geom[i].xy(), geom[i + 1].xy(), 0.0, std::iter::once(r.as_slice())) {
-                        let (p, q) = (geom[i].xy(), geom[i + 1].xy());
-                        eprintln!(
-                            "segment {i}: building {b} ({} points, origin {:.6},{:.6}): p in {} / {:.2} m from outline, q in {} / {:.2} m",
-                            r[0].len(),
-                            ix.doors.buildings[b as usize].origin.lat_deg(),
-                            ix.doors.buildings[b as usize].origin.lon_deg(),
-                            kante_link::doors::inside_pub(p, &r),
-                            kante_link::doors::outline_dist_pub(p, &r),
-                            kante_link::doors::inside_pub(q, &r),
-                            kante_link::doors::outline_dist_pub(q, &r)
-                        );
-                    }
-                }
-            }
-        }
+        let segs: Vec<usize> = (0..geom.len().saturating_sub(1)).filter(|&i| through_seg(i)).collect();
         writeln!(out, "{}", serde_json::json!({ "key": v["key"], "through": segs }))?;
     }
     Ok(())
@@ -315,16 +404,239 @@ fn doors(data: &Path, n: usize, seed: u64) -> Result<()> {
     Ok(())
 }
 
+/// `links.bin` as `main` writes it (`links-v2`: before the links named the graph and timetable they were made from).
+#[derive(serde::Deserialize)]
+struct LinkDataV2 {
+    links: Vec<StopLink>,
+    #[allow(dead_code)]
+    normal: Footpaths,
+    #[allow(dead_code)]
+    step_free: Footpaths,
+}
+
+fn load_links(data: &Path) -> Result<Vec<StopLink>> {
+    let p = data.join("built/links.bin");
+    match io::schema_of(&p).as_deref() {
+        Some("links-v2") => Ok(io::load::<LinkDataV2>(&p, "links-v2")?.links),
+        _ => Ok(io::load::<LinkData>(&p, LINKS_SCHEMA)?.links),
+    }
+}
+
+fn profile_of(o: &serde_json::Value) -> WalkProfile {
+    let stairs = match o["stairs"].as_str() {
+        Some("never") => StairsPref::Never,
+        Some("avoid") => StairsPref::Avoid,
+        _ => StairsPref::Ok,
+    };
+    let wheelchair = o["wheelchair"].as_bool().unwrap_or(false);
+    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair }
+}
+
+/// Why A (`main`) reaches a stop that B does not, from the built data of both, for each line of stdin
+/// (`{"point": {lat, lon} or {id: "st:…"}, "options": {…}, "limit": min, "stop": gtfs id, "a_secs": s}`):
+///
+/// - `relinked`: B joins the stop to the network elsewhere (another edge, or more than 0.5 m away);
+/// - `graph: <what>`: A's own walk to the stop, recomputed on A's graph as A computes it (A's snap, A's link),
+///   uses an edge that B's graph does not have as it is: a lift edge, a connector the import made (way 0), a
+///   straight line across an area, an edge whose tags changed, or another;
+/// - `unexplained`: A's walk runs on edges B has unchanged, to the same link.
+///
+/// `reproduced` says whether the recomputed walk takes A's time (to the second, with the 30 s buffer).
+fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
+    let tt: Timetable = io::load(&b_dir.join("built/timetable.bin"), TIMETABLE_SCHEMA)?;
+    let ga: WalkGraph = io::load(&a_dir.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
+    let gb: WalkGraph = io::load(&b_dir.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
+    let (la, lb) = (load_links(a_dir)?, load_links(b_dir)?);
+    let ra = kante_walk::WalkRouter::new(std::sync::Arc::new(ga));
+    let ga = ra.graph().clone();
+    // B's edges by the points of their geometry
+    let mut at: FxHashMap<(i32, i32), Vec<u32>> = FxHashMap::default();
+    for e in 0..gb.edges.len() as u32 {
+        for p in gb.edge_geom(e) {
+            at.entry((p.lat, p.lon)).or_default().push(e);
+        }
+    }
+    let same = |x: &WalkEdge, y: &WalkEdge| x.kind == y.kind && x.flags == y.flags && x.steps == y.steps && (x.level_a, x.level_b) == (y.level_a, y.level_b) || x.kind == y.kind && x.flags == y.flags && x.steps == y.steps && (x.level_a, x.level_b) == (y.level_b, y.level_a);
+    // does B have A's edge `e`: edges of the same way, kind, tags and floors whose geometry holds every point of it,
+    // as long as it (split where B has a node A has not) or one edge that holds all of it?
+    let b_has = |e: u32| -> Option<&'static str> {
+        let ea = &ga.edges[e as usize];
+        let way = ga.edge_way[e as usize];
+        let pts = ga.edge_geom(e);
+        let mut cand: Vec<u32> = pts.iter().flat_map(|p| at.get(&(p.lat, p.lon)).cloned().unwrap_or_default()).filter(|&f| gb.edge_way[f as usize] == way && gb.edges[f as usize].kind == ea.kind).collect();
+        cand.sort_unstable();
+        cand.dedup();
+        let what = || {
+            if ea.kind == EdgeKind::Lift {
+                "a lift edge"
+            } else if way == 0 {
+                "a connector the import made (way 0)"
+            } else if ea.flags & EF_AREA != 0 {
+                "a straight line across an area"
+            } else {
+                "an edge of a way"
+            }
+        };
+        if cand.is_empty() {
+            return Some(what());
+        }
+        let tagged: Vec<u32> = cand.iter().copied().filter(|&f| same(ea, &gb.edges[f as usize])).collect();
+        if tagged.is_empty() {
+            return Some(if ea.kind == EdgeKind::Lift { "a lift edge, other floors" } else { "an edge whose tags or floors changed" });
+        }
+        let covered = pts.iter().all(|p| tagged.iter().any(|&f| gb.edge_geom(f).iter().any(|q| q.lat == p.lat && q.lon == p.lon)));
+        let one = tagged.iter().any(|&f| pts.iter().all(|p| gb.edge_geom(f).iter().any(|q| q.lat == p.lat && q.lon == p.lon)));
+        let len: f32 = tagged.iter().map(|&f| gb.edges[f as usize].len_m()).sum();
+        if covered && (one || (len - ea.len_m()).abs() < 0.5 + 0.01 * ea.len_m()) {
+            None
+        } else {
+            Some(what())
+        }
+    };
+    let by_id: FxHashMap<&str, usize> = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i)).collect();
+    let st_by_id: FxHashMap<&str, usize> = tt.stations.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i)).collect();
+    let mut out = std::io::stdout().lock();
+    for line in std::io::stdin().lock().lines() {
+        let v: serde_json::Value = serde_json::from_str(&line?)?;
+        let prof = profile_of(&v["options"]);
+        let stop = *by_id.get(v["stop"].as_str().unwrap_or("")).context("stop")?;
+        let (a_link, b_link) = (&la[stop], &lb[stop]);
+        let pos_of = |s: &Snap| s.pos;
+        let relinked = a_link.matched == LinkMatch::None
+            || b_link.matched == LinkMatch::None
+            || pos_of(&a_link.snap).dist_m(&pos_of(&b_link.snap)) > 0.5
+            || ga.edge_way[a_link.snap.edge as usize] != gb.edge_way[b_link.snap.edge as usize];
+        // A's start: a station by id as A enters it, else A's snap of the point
+        let pt = &v["point"];
+        let snap = if let Some(id) = pt["id"].as_str() {
+            let st = &tt.stations[*st_by_id.get(id.trim_start_matches("st:")).context("station")?];
+            let vertical = NO_STEP_KINDS;
+            ra.snap(st.pos, &kante_walk::SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(prof), exclude_kinds: vertical | (1 << EdgeKind::Platform as u8) })
+                .or_else(|| kante_link::ends::snap_main(&ra, st.pos, &prof))
+        } else {
+            kante_link::ends::snap_main(&ra, LatLon::from_deg(pt["lat"].as_f64().unwrap_or(0.0), pt["lon"].as_f64().unwrap_or(0.0)), &prof)
+        };
+        let mut cause = String::new();
+        let mut reproduced = false;
+        if let Some(sn) = snap {
+            if let Some(path) = ra.route(&sn, &a_link.snap, &prof) {
+                let secs = walk_secs(path.cost.var_m + sn.dist_m + a_link.snap.dist_m, path.cost.fix_s, prof.speed_mps).ceil() as i64 + 30;
+                reproduced = v["a_secs"].as_i64().is_some_and(|a| (a - secs).abs() <= 1);
+                let edges = ra.route_edges(&sn, &a_link.snap, &prof).unwrap_or_default();
+                if let Some((e, what)) = edges.iter().find_map(|&(e, _, _)| b_has(e).map(|w| (e, w))) {
+                    let ed = &ga.edges[e as usize];
+                    let p = ga.nodes[ed.a as usize];
+                    cause = format!("graph: {what} (way {}, {:?}, at {:.6},{:.6})", ga.edge_way[e as usize], ed.kind, p.lat_deg(), p.lon_deg());
+                }
+            }
+        }
+        if relinked && cause.is_empty() {
+            cause = "relinked".into();
+        } else if relinked {
+            cause = format!("relinked; {cause}");
+        }
+        if cause.is_empty() {
+            cause = "unexplained".into();
+        }
+        writeln!(out, "{}", serde_json::json!({ "key": v["key"], "cause": cause, "reproduced": reproduced }))?;
+    }
+    Ok(())
+}
+
+const NO_STEP_KINDS: u32 = (1 << EdgeKind::Steps as u8) | (1 << EdgeKind::Escalator as u8) | (1 << EdgeKind::Lift as u8);
+
 /// Where a boarding point (by its GTFS id) is joined to the network.
 fn link(data: &Path, id: &str) -> Result<()> {
     let tt: Timetable = io::load(&data.join("built/timetable.bin"), TIMETABLE_SCHEMA)?;
-    let ld: LinkData = io::load(&data.join("built/links.bin"), LINKS_SCHEMA)?;
+    let links = load_links(data)?;
     let g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
     for (i, s) in tt.stops.iter().enumerate().filter(|(_, s)| s.gtfs_id == id) {
-        let l = &ld.links[i];
+        let l = &links[i];
         let e = &g.edges[l.snap.edge as usize];
         println!("{i} {} {:?}: edge {} {:?} way {} levels {}/{} flags {:#x} at {:.7},{:.7} ({:.1} m off), level {}", s.label, l.matched, l.snap.edge, e.kind, g.edge_way[l.snap.edge as usize], e.level_a, e.level_b, e.flags, l.snap.pos.lat_deg(), l.snap.pos.lon_deg(), l.snap.dist_m, l.level);
     }
+    Ok(())
+}
+
+/// Every connection a lift edge makes in graph A, checked in graph B: for each lift edge, each pair of ways it joins
+/// (a way at one end, a way at the other, lift edges left out), B must join that same pair within 5 m of either end
+/// of the lift: a node with the one and a node with the other, connected through lift edges and step-free edges
+/// between nodes within those 5 m (the lift's own ports and the walk round its door). Prints the pairs B does not join, and a count.
+fn lift_pairs(a: &Path, b: &Path) -> Result<()> {
+    let ga: WalkGraph = io::load(a, WALKGRAPH_SCHEMA)?;
+    let gb: WalkGraph = io::load(b, WALKGRAPH_SCHEMA)?;
+    let ways_at = |g: &WalkGraph, n: u32| -> Vec<i64> {
+        let mut w: Vec<i64> = g.adj[g.adj_off[n as usize] as usize..g.adj_off[n as usize + 1] as usize].iter().filter(|&&e| g.edges[e as usize].kind != EdgeKind::Lift).map(|&e| g.edge_way[e as usize]).collect();
+        w.sort_unstable();
+        w.dedup();
+        w
+    };
+    let mut cells: FxHashMap<(i32, i32), Vec<u32>> = FxHashMap::default();
+    for (i, n) in gb.nodes.iter().enumerate() {
+        cells.entry((n.lat / 500, n.lon / 700)).or_default().push(i as u32); // about 5.5 m cells (1e-7°)
+    }
+    let (mut edges, mut pairs, mut missing) = (0usize, 0usize, 0usize);
+    let mut out = std::io::stdout().lock();
+    for (e, ed) in ga.edges.iter().enumerate() {
+        if ed.kind != EdgeKind::Lift {
+            continue;
+        }
+        edges += 1;
+        let at = ga.nodes[ed.a as usize];
+        let (wa, wb) = (ways_at(&ga, ed.a), ways_at(&ga, ed.b));
+        // B's nodes within 5 m of either end of the lift (an inclined lift is long), and its components among them
+        // by lift and step-free edges between them
+        let mut near: Vec<u32> = Vec::new();
+        for end in [ga.nodes[ed.a as usize], ga.nodes[ed.b as usize]] {
+            for dl in -2..=2 {
+                for dn in -2..=2 {
+                    if let Some(v) = cells.get(&(end.lat / 500 + dl, end.lon / 700 + dn)) {
+                        near.extend(v.iter().copied().filter(|&n| gb.nodes[n as usize].dist_m(&end) <= 5.0));
+                    }
+                }
+            }
+        }
+        near.sort_unstable();
+        near.dedup();
+        let idx: FxHashMap<u32, usize> = near.iter().enumerate().map(|(i, &n)| (n, i)).collect();
+        let mut comp: Vec<usize> = (0..near.len()).collect();
+        fn root(c: &mut [usize], mut x: usize) -> usize {
+            while c[x] != x {
+                c[x] = c[c[x]];
+                x = c[x];
+            }
+            x
+        }
+        for (i, &n) in near.iter().enumerate() {
+            for &f in &gb.adj[gb.adj_off[n as usize] as usize..gb.adj_off[n as usize + 1] as usize] {
+                let fe = &gb.edges[f as usize];
+                if matches!(fe.kind, EdgeKind::Steps | EdgeKind::Escalator) {
+                    continue;
+                }
+                let other = if fe.a == n { fe.b } else { fe.a };
+                if let Some(&j) = idx.get(&other) {
+                    let (x, y) = (root(&mut comp, i), root(&mut comp, j));
+                    comp[x] = y;
+                }
+            }
+        }
+        for &x in &wa {
+            for &y in &wb {
+                if x == y {
+                    continue;
+                }
+                pairs += 1;
+                let cx: Vec<usize> = near.iter().enumerate().filter(|(_, &n)| ways_at(&gb, n).contains(&x)).map(|(i, _)| i).collect();
+                let cy: Vec<usize> = near.iter().enumerate().filter(|(_, &n)| ways_at(&gb, n).contains(&y)).map(|(i, _)| i).collect();
+                let ok = cx.iter().any(|&i| cy.iter().any(|&j| root(&mut comp, i) == root(&mut comp, j)));
+                if !ok {
+                    missing += 1;
+                    writeln!(out, "not joined: lift edge {e} (way {}, levels {}/{}) at {:.6},{:.6}: way {x} ↔ way {y}{}{}", ga.edge_way[e], ed.level_a, ed.level_b, at.lat_deg(), at.lon_deg(), if cx.is_empty() { " (the first not within 5 m in B)" } else { "" }, if cy.is_empty() { " (the second not within 5 m in B)" } else { "" })?;
+                }
+            }
+        }
+    }
+    writeln!(out, "{edges} lift edges in A, {pairs} pairs of ways they join; {missing} not joined in B")?;
     Ok(())
 }
 
@@ -370,8 +682,11 @@ fn main() -> Result<()> {
         "sample" => sample(arg(1).as_ref(), arg(2).parse().unwrap_or(20000), arg(3).parse().unwrap_or(1)),
         "through" => through(arg(1).as_ref()),
         "lifts" => lifts(arg(1).as_ref(), arg(2).as_ref()),
+        "lift-pairs" => lift_pairs(arg(1).as_ref(), arg(2).as_ref()),
         "edges" => edges(arg(1).as_ref(), arg(2).parse()?, arg(3).parse()?, arg(4).parse().unwrap_or(30.0)),
         "link" => link(arg(1).as_ref(), arg(2)),
+        "segment" => segment(arg(1).as_ref(), [arg(2).parse()?, arg(3).parse()?, arg(4).parse()?, arg(5).parse()?]),
+        "explain" => explain(arg(1).as_ref(), arg(2).as_ref()),
         "doors" => doors(arg(1).as_ref(), arg(2).parse().unwrap_or(30), arg(3).parse().unwrap_or(1)),
         _ => bail!("usage: compare sample <data> <points> <seed> | through <data> < walks.jsonl | lifts <graph a> <graph b> | doors <data> <n> <seed>"),
     }

@@ -38,19 +38,32 @@ build_release() { # build_release <commit> <release dir>
 
 # The release in use was built without the building address register (by a deploy.sh from before it, or when the
 # download failed): fetch it, and if that works build again (force=1), even though the commit is not new. Once per
-# release, so a register that cannot be had does not rebuild every few minutes.
+# release, so a register that cannot be had does not rebuild every few minutes: the attempt counts once the fetch
+# failed or the build with it has finished (one that was killed, say for memory, is tried again).
 register_catch_up() {
   local cur tried=$ROOT/state/register-tried
   cur=$(readlink "$ROOT/current" 2>/dev/null) || return 0
   [[ -e $cur/REGISTER || $(cat "$tried" 2>/dev/null) == "$cur" ]] && return 0
-  echo "$cur" > "$tried"
   log "the engine in use was built without the building address register"
   [[ -s $ROOT/raw/register/adr.csv.zip ]] || KANTE_RAW=$ROOT/raw timeout 1200 kante/scripts/fetch-data.sh --register || true
   if [[ -s $ROOT/raw/register/adr.csv.zip ]]; then
     log "building again with the building address register"
     force=1
+    catch_up_for=$cur
   else
+    echo "$cur" > "$tried"
     log "warning: could not fetch the building address register; doors from OpenStreetMap only"
+  fi
+}
+
+# A build needs about 6 GB of memory next to the running engine (KANTE_BUILD_MEM_MB): with less free, it is not
+# started (the commit is tried again by the next run), so the kernel does not have to pick a process to kill.
+enough_memory() {
+  local need=${KANTE_BUILD_MEM_MB:-6000} free
+  free=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null || echo 0)
+  if (( free < need )); then
+    log "only ${free} MB of memory free, a build needs about ${need} MB: not building now (KANTE_BUILD_MEM_MB)"
+    return 1
   fi
 }
 
@@ -133,7 +146,7 @@ main() {
   sync_units
   [[ -d $ROOT/current/data && ! -e $ROOT/current/data/profiles ]] && mkdir -p "$ROOT/profiles" && ln -s "$ROOT/profiles" "$ROOT/current/data/profiles"
   git fetch --quiet origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
-  local new seen tree cur
+  local new seen tree cur catch_up_for=""
   new=$(git rev-parse "origin/$BRANCH")
   seen=$(cat "$ROOT/state/seen" 2>/dev/null || true)
   # (this script as checked out by the last deploy: a newer one than the deploy that built the release in use)
@@ -155,15 +168,26 @@ main() {
     exit 0
   fi
 
-  # A commit is tried once. If it fails, the next commit (or --force) tries again.
-  echo "$new" > "$ROOT/state/seen"
-  local rel rc prev
+  enough_memory || exit 0
+  # A commit is tried once: a build that fails is not tried again until the next commit (or --force). One that was
+  # killed (a signal: out of memory, a reboot) is tried again, up to three times.
+  local rel rc prev tries
+  tries=$(( $(cat "$ROOT/state/tries-$new" 2>/dev/null || echo 0) + 1 ))
+  echo "$tries" > "$ROOT/state/tries-$new"
   rel=$ROOT/releases/$(date +%Y%m%d-%H%M%S)-${new:0:7}
   log "building ${new:0:7} into $rel"
   set +e
   ( set -e; build_release "$new" "$rel" )
   rc=$?
   set -e
+  if (( rc >= 128 && tries < 3 )); then
+    log "build of ${new:0:7} was killed (signal $(( rc - 128 ))); the running engine is untouched; trying again next time ($tries of 3)"
+    rm -rf "$rel"
+    exit 1
+  fi
+  echo "$new" > "$ROOT/state/seen"
+  rm -f "$ROOT/state/tries-$new"
+  [[ -n $catch_up_for ]] && echo "$catch_up_for" > "$ROOT/state/register-tried"
   if (( rc )); then
     log "build of ${new:0:7} failed; the running engine is untouched"
     rm -rf "$rel"
@@ -172,7 +196,8 @@ main() {
 
   prev=$(readlink "$ROOT/current" 2>/dev/null || true)
   ln -sfn "$rel" "$ROOT/current"
-  systemctl --user restart kante-engine.service
+  # a restart that fails is found by the health check, which goes back to the release before
+  systemctl --user restart kante-engine.service || log "restarting the engine failed"
   if healthy; then
     echo "$tree" > "$ROOT/state/tree"
     log "${new:0:7} is live"
@@ -184,7 +209,7 @@ main() {
     log "${new:0:7} did not come up healthy"
     if [[ -n $prev && -d $prev ]]; then
       ln -sfn "$prev" "$ROOT/current"
-      systemctl --user restart kante-engine.service
+      systemctl --user restart kante-engine.service || log "restarting the engine failed"
       if healthy; then
         log "went back to $(basename "$prev")"
       else

@@ -1,23 +1,26 @@
 //! The ends of a walk: where a walk leaves a point and joins the walking network, for the stop search
-//! ([`reach_costs`]) and for the walk drawn ([`walk`], [`draw`]) alike. Both take their starting points from
-//! [`End::sources`], so the stop search and the drawn walk cannot choose differently.
+//! ([`reach_costs`]) and for the walk drawn ([`walk`], [`walk_within`], [`draw`]) alike. Both take their starting
+//! points from [`End::sources`]. Rules: `kante/docs/WALK-ENDS.md`.
 //!
-//! - **The point itself is always a candidate**: the straight line from the point to the nearest way
-//!   ([`snap_point`]), as the engine has always walked it.
-//! - **A building's doors** are candidates next to it when the point is in a building: inside to the door, then
-//!   out of it along one of its ways out ([`crate::doors`]). Every door is tried; a step-free walker may not use
-//!   a `wheelchair=no` one and prefers one known to be step-free. Back doors, garages and register points carry
-//!   the penalties of [`DoorKind::penalty_m`].
-//! - **Through a building**: a straight line from the point (or from a door) that runs through a building
-//!   ([`crate::doors::through_building`]) counts four times its length plus 200 m in route choice (as an emergency
-//!   exit: only when no door has a real way out), and a walk that takes it is drawn as a guess and is not
-//!   step-free. A line onto a main road walked on the carriageway counts four times
-//!   ([`crate::doors::line_weight_m`]). Penalties are for route choice only: the time of a walk is the time walked.
+//! - **The point itself is always a candidate**, by several straight lines onto the network
+//!   ([`point_candidates`]): onto the way `main`'s engine snapped it to ([`snap_main`]), onto the nearest way on the
+//!   ground ([`snap_point`]), and onto the nearest few other ways; a line onto a way in a tunnel or on a bridge
+//!   that the point is not right on counts 40 m more.
+//! - **A building's doors** are candidates next to them when the point is in a building.
+//! - **Whether a stop is reached, and in what time, is decided on walked time over all candidates**: route-choice
+//!   penalties (back doors, lines through buildings, main roads, off-ground ways) only choose among the candidates
+//!   that are within the limit. So the doors and the other lines can only add stops to what the point's own line
+//!   reaches.
+//! - **Through a building** ([`crate::doors::through_building`]): such a line counts four times its length plus
+//!   200 m in route choice, and a walk that takes it is drawn as a guess and is not step-free.
 
 use crate::doors::{line_weight_m, DoorIndex, NO_STEP};
 use kante_core::geo::LatLon;
 use kante_core::walk::*;
 use kante_walk::{SnapOptions, WalkCost, WalkPath, WalkRouter};
+
+/// A line onto a way in a tunnel or on a bridge that the point is not right on (3 m) counts this much more (metres).
+pub const OFF_GROUND_M: f32 = 40.0;
 
 /// A straight line onto the network longer than this is a guess across open ground.
 pub const GUESS_M: f32 = 20.0;
@@ -66,23 +69,67 @@ fn line_pen(g: &WalkGraph, edge: u32, dist_m: f32, wall: bool, speed: f32) -> f3
     (line_weight_m(dist_m, busy, wall) - dist_m) / speed
 }
 
+fn on_ground(g: &WalkGraph, s: &Snap) -> bool {
+    let e = &g.edges[s.edge as usize];
+    e.flags & EF_BRIDGE == 0 && (e.flags & EF_TUNNEL == 0 || e.flags & EF_COVERED != 0)
+}
+
 /// Snap a free position (an address, a pin, the user) onto the walking network, on the ground: not in an
-/// underpass or the corridor below it, nor on a bridge above, unless the point is right on such a way (3 m) and
-/// no way on the ground is within 10 m. Main roads only when nothing else is within 60 m.
+/// underpass or the corridor below it, nor on a bridge (covered or not) above, unless the point is right on such a
+/// way (3 m) and no way on the ground is within 10 m. Main roads only when nothing else is within 60 m.
 pub fn snap_point(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Option<Snap> {
     let base = SnapOptions { max_dist_m: 60.0, level: Some(0), profile: Some(*profile), exclude_kinds: NO_STEP | (1 << EdgeKind::RoadBusy as u8) };
     let g = router.graph();
-    let ground = |s: &Snap| {
-        let e = &g.edges[s.edge as usize];
-        e.flags & (EF_TUNNEL | EF_BRIDGE) == 0 || e.flags & EF_COVERED != 0
-    };
-    let street = |o: &SnapOptions| router.snap_candidates(pos, o, 6).into_iter().find(ground);
+    let street = |o: &SnapOptions| router.snap_candidates(pos, o, 8).into_iter().find(|s| on_ground(g, s));
     street(&SnapOptions { max_dist_m: 10.0, ..base })
         .or_else(|| router.snap(pos, &SnapOptions { max_dist_m: 3.0, level: None, ..base }))
         .or_else(|| street(&base))
         .or_else(|| street(&SnapOptions { max_dist_m: 250.0, exclude_kinds: NO_STEP, ..base }))
         .or_else(|| router.snap(pos, &SnapOptions { level: None, ..base }))
         .or_else(|| router.snap(pos, &SnapOptions { max_dist_m: 250.0, level: None, exclude_kinds: NO_STEP, ..base }))
+}
+
+/// Where `main`'s engine snaps a free position: the nearest way within 60 m that is not a main road, stairs,
+/// escalator or lift, on any floor; else the nearest within 250 m, main roads included.
+pub fn snap_main(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Option<Snap> {
+    let base = SnapOptions { max_dist_m: 60.0, level: None, profile: Some(*profile), exclude_kinds: NO_STEP | (1 << EdgeKind::RoadBusy as u8) };
+    router.snap(pos, &base).or_else(|| router.snap(pos, &SnapOptions { max_dist_m: 250.0, exclude_kinds: NO_STEP, ..base }))
+}
+
+/// The straight lines from a point onto the network, each a candidate: onto the way `main` snaps it to, onto the
+/// nearest way on the ground, and onto the nearest other ways (up to four more, each another way, within 30 m or
+/// 10 m beyond the nearest). A snap from which the other end cannot be reached is then simply not taken.
+pub fn point_candidates(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Vec<Snap> {
+    let g = router.graph();
+    let mut out: Vec<Snap> = Vec::new();
+    let add = |s: Snap, out: &mut Vec<Snap>| {
+        let way = g.edge_way.get(s.edge as usize).copied();
+        if !out.iter().any(|o| o.edge == s.edge || (o.pos.dist_m(&s.pos) < 1.0 && g.edge_way.get(o.edge as usize).copied() == way)) {
+            out.push(s);
+        }
+    };
+    for s in [snap_main(router, pos, profile), snap_point(router, pos, profile)].into_iter().flatten() {
+        add(s, &mut out);
+    }
+    let near = out.iter().map(|s| s.dist_m).fold(f32::INFINITY, f32::min);
+    let reach = if near.is_finite() { (near + 10.0).max(30.0) } else { 30.0 };
+    let opts = SnapOptions { max_dist_m: reach, level: None, profile: Some(*profile), exclude_kinds: NO_STEP };
+    let mut ways: Vec<i64> = out.iter().filter_map(|s| g.edge_way.get(s.edge as usize).copied()).collect();
+    let mut more = 0;
+    for s in router.snap_candidates(pos, &opts, 24) {
+        if more == 4 {
+            break;
+        }
+        let way = g.edge_way.get(s.edge as usize).copied().unwrap_or(0);
+        if way != 0 && ways.contains(&way) {
+            continue;
+        }
+        ways.push(way);
+        let before = out.len();
+        add(s, &mut out);
+        more += (out.len() > before) as usize;
+    }
+    out
 }
 
 impl End {
@@ -96,16 +143,17 @@ impl End {
         End { on_track, ..End::exact(pos, snap) }
     }
 
-    /// A place (an address, a pin, the user): the point itself, joined at `snap` (see [`snap_point`]), and the
-    /// doors of the building it is in.
-    pub fn place(router: &WalkRouter, doors: Option<&DoorIndex>, pos: LatLon, snap: Option<Snap>, profile: &WalkProfile) -> End {
+    /// A place (an address, a pin, the user): the point itself, by each of its straight lines onto the network
+    /// ([`point_candidates`]), and the doors of the building it is in.
+    pub fn place(router: &WalkRouter, doors: Option<&DoorIndex>, pos: LatLon, profile: &WalkProfile) -> End {
         let g = router.graph();
         let speed = profile.speed_mps.max(0.05);
         let mut end = End { pos, ..Default::default() };
-        if let Some(s) = snap {
+        for s in point_candidates(router, pos, profile) {
             let covered = g.edges[s.edge as usize].flags & EF_COVERED != 0;
             let wall = doors.is_some_and(|ix| ix.through(pos, s.pos, if covered { 5.0 } else { 0.0 }));
-            end.joins.push(Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall, speed), door: None, inside_m: 0.0, wall });
+            let off = if !on_ground(g, &s) && s.dist_m > 3.0 { OFF_GROUND_M / speed } else { 0.0 };
+            end.joins.push(Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall, speed) + off, door: None, inside_m: 0.0, wall });
         }
         let Some(ix) = doors else { return end };
         let d = &ix.doors;
@@ -151,15 +199,48 @@ impl End {
 }
 
 /// Walking costs from one end of a walk to many boarding points (joined to the network at `targets`), the metres
-/// from the point to the network and from the network to each boarding point (`dist_m` of its snap) included;
-/// `None` beyond `max_s` of walking on the network: from the best of its ways onto the network for each target, as
-/// [`walk`] to [`End::stop`] takes it.
-pub fn reach_costs(router: &WalkRouter, end: &End, targets: &[Snap], profile: &WalkProfile, max_s: f32) -> Vec<Option<WalkCost>> {
-    let mut out = router.many_to_many(&end.sources(), targets, profile, max_s);
-    for (c, t) in out.iter_mut().zip(targets) {
-        if let Some(c) = c {
-            c.var_m += t.dist_m;
+/// from the point to the network and from the network to each boarding point (`dist_m` of its snap) included, with
+/// the candidate (index into `end.joins`) each comes from. A target is reached when some candidate's walk to it
+/// (the way the router finds best from that candidate) takes at most `limit_s`; of those candidates, the one with
+/// the lowest cost with its penalties is taken. `max_s` bounds the search as it bounds [`WalkRouter::one_to_many`].
+pub fn reach_costs(router: &WalkRouter, end: &End, targets: &[Snap], profile: &WalkProfile, max_s: f32, limit_s: f32) -> Vec<Option<(WalkCost, usize)>> {
+    let speed = profile.speed_mps.max(0.05);
+    let src = end.sources();
+    let with_target = |c: WalkCost, t: &Snap| WalkCost { var_m: c.var_m + t.dist_m, fix_s: c.fix_s };
+    let within = |c: WalkCost| walk_secs(c.var_m, c.fix_s, speed) <= limit_s + 1e-3;
+    let raw = router.many_to_many_raw(&src, targets, profile, max_s);
+    let mut out: Vec<Option<(WalkCost, usize)>> = vec![None; targets.len()];
+    // the cheapest way, when it is within the limit, is the cheapest of the candidates within it
+    let mut open: Vec<usize> = Vec::new();
+    for (i, r) in raw.iter().enumerate() {
+        if let Some((k, c, _)) = r {
+            let c = with_target(*c, &targets[i]);
+            if within(c) {
+                out[i] = Some((c, *k));
+            } else {
+                open.push(i);
+            }
         }
+    }
+    // else every candidate on its own: the cheapest (with penalties) of those whose walk is within it. A candidate
+    // within the limit costs at most the search's bound, so a target the first search did not find is out of reach.
+    if open.is_empty() || src.len() < 2 {
+        return out;
+    }
+    let sub: Vec<Snap> = open.iter().map(|&i| targets[i]).collect();
+    let mut best: Vec<Option<(f32, WalkCost, usize)>> = vec![None; open.len()];
+    for (k, s) in src.iter().enumerate() {
+        for (j, r) in router.many_to_many_raw(std::slice::from_ref(s), &sub, profile, max_s).into_iter().enumerate() {
+            if let Some((_, c, gen)) = r {
+                let c = with_target(c, &sub[j]);
+                if within(c) && best[j].is_none_or(|b| gen < b.0) {
+                    best[j] = Some((gen, c, k));
+                }
+            }
+        }
+    }
+    for (j, b) in best.into_iter().enumerate() {
+        out[open[j]] = b.map(|b| (b.1, b.2));
     }
     out
 }
@@ -177,13 +258,43 @@ pub struct Walk {
 
 /// The best walk between two ends, from the best of the ways onto the network at one to the best at the other.
 pub fn walk(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile) -> Option<Walk> {
-    let (i, j, path, _) = router.route_between(&a.sources(), &b.sources(), profile)?;
+    walk_within(router, a, b, profile, None)
+}
+
+fn walk_of(a: &End, b: &End, i: usize, j: usize, path: WalkPath, profile: &WalkProfile) -> Walk {
     let (from, to) = (a.joins[i], b.joins[j]);
     let speed = profile.speed_mps.max(0.05);
     let extra = from.extra_m + to.extra_m;
     let secs = walk_secs(path.cost.var_m + extra, path.cost.fix_s, speed);
     let dist_m = path.dist_m + extra;
-    Some(Walk { from, to, path, secs, dist_m })
+    Walk { from, to, path, secs, dist_m }
+}
+
+/// [`walk`] within a time (a journey's walk to its first stop or from its last, timed by [`reach_costs`]): as
+/// there, the cheapest (with penalties) of the walks between a candidate at each end that take at most `limit_s`.
+/// None of them within it: the quickest.
+pub fn walk_within(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile, limit_s: Option<f32>) -> Option<Walk> {
+    let (i, j, path, _) = router.route_between(&a.sources(), &b.sources(), profile)?;
+    let w = walk_of(a, b, i, j, path, profile);
+    let Some(limit) = limit_s else { return Some(w) };
+    if w.secs <= limit + 0.5 || a.joins.len() * b.joins.len() < 2 {
+        return Some(w);
+    }
+    let (sa, sb) = (a.sources(), b.sources());
+    let mut best: Option<(bool, f32, Walk)> = None; // (within, cost: penalised if within, else seconds)
+    for i in 0..sa.len() {
+        for j in 0..sb.len() {
+            if let Some((_, _, path, gen)) = router.route_between(&sa[i..=i], &sb[j..=j], profile) {
+                let w = walk_of(a, b, i, j, path, profile);
+                let ok = w.secs <= limit + 0.5;
+                let cost = if ok { gen } else { w.secs };
+                if best.as_ref().is_none_or(|b| (ok && !b.0) || (ok == b.0 && cost < b.1)) {
+                    best = Some((ok, cost, w));
+                }
+            }
+        }
+    }
+    best.map(|b| b.2).or(Some(w))
 }
 
 /// A walk as drawn: from the point (into the building to its door and out, or straight onto the network), the
