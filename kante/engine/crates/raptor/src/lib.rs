@@ -168,6 +168,9 @@ pub struct Query<'a> {
     pub from: Secs,
     /// Length of the departure window; 0 = one earliest-arrival search.
     pub window: Secs,
+    /// Latest acceptable arrival at the destination; later journeys are
+    /// neither returned nor explored.
+    pub max_arr: Option<Secs>,
     /// (stop, seconds needed to reach it from the origin). Ignored when `onboard` is set.
     pub access: &'a [(StopIdx, Secs)],
     /// (stop, seconds from it to the destination).
@@ -193,6 +196,7 @@ impl<'a> Query<'a> {
             date,
             from,
             window: 0,
+            max_arr: None,
             access,
             egress,
             onboard: None,
