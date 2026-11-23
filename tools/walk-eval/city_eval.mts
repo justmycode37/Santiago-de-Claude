@@ -1,22 +1,20 @@
 // The Bern measurements for any built city: doors reached, metres through buildings following no mapped way, route
 // length against OSRM (from the main station to ~70 Photon places), and platform pairs crossing ground-level tracks.
 // usage: node city_eval.mts CITY
-import fs from 'node:fs'; import vm from 'node:vm'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
-import { transformSync } from 'amaro'; // npm install
+import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+import type { WalkNetEdge } from '../../src/walkroute.ts';
 /** cities.json: where a city's walks start (its main station), and that station's UIC number. */
 interface EvalCity { start: LngLat; uic: string }
 /** dests_CITY.json (city_dests.py): the places walked to. */
 interface EvalDest { name: string; ll: LngLat }
-// the page the router's script runs in: the globals handed to it, and the WALKROUTE it leaves there
-interface RouterPage { [name: string]: unknown; globalThis?: RouterPage; WALKROUTE?: WalkRouteApi }
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const city = process.argv[2];
 const C: EvalCity = JSON.parse(fs.readFileSync(HERE + '/cities.json', 'utf8'))[city];
 const dests: EvalDest[] = JSON.parse(fs.readFileSync(`${HERE}/dests_${city}.json`, 'utf8')).results;
-const ctx: RouterPage = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
-ctx.globalThis = ctx; vm.createContext(ctx); vm.runInContext(transformSync(fs.readFileSync(REPO + '/src/walkroute.ts', 'utf8'), { mode: 'strip-only' }).code, ctx); // the script as the browser gets it: types taken out
-const W = ctx.WALKROUTE!;
+// the router as the page has it (a specifier TypeScript does not follow: it is checked with the page's modules)
+type Router = typeof import('../../src/walkroute.ts').WALKROUTE;
+const W: Router = (await import(new URL('../../src/walkroute.ts', import.meta.url).href)).WALKROUTE;
 W.configure({ loader: async (k: string) => { const s = fs.readFileSync(REPO + '/walkgraph/' + (k === 'index' ? 'index.js' : 't/' + k + '.js'), 'utf8');
   return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')'))); } });
 const { buildings, nodes, distM } = W._debug;

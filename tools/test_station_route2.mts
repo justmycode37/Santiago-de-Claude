@@ -1,22 +1,21 @@
-// Round-2 tests for station-route.js: closures by date, closed endpoints, naming by where you arrive, sloping streets,
+// Round-2 tests for station-route.ts: closures by date, closed endpoints, naming by where you arrive, sloping streets,
 // sectors and sectorTimes, why(), free-position snapping limits, platform keys, same-platform routes.
 // Run: node tools/test_station_route2.mts  (plain assertions; uses the fixture, a synthetic two-level station built
 // here, and stations3d/bern.js when it exists, for printed sample routes).
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { StationRoute as SR } from '../src/station-route.ts';
+import type { StationRouteClosedValue, StationRouteDate, StationRouteEndpoint, StationRoutePrefs, StationRouteResult, StationRouteSnap, StationRouteStepKind } from '../src/station-route.ts';
 
 declare global {
-  // The router is a browser script: it puts its API on `window`, which here is the global object itself.
+  // The station models (stations3d/<key>.js) put themselves on `window`, which here is the global object itself.
   var window: typeof globalThis;
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 globalThis.window = globalThis;
-const require = createRequire(import.meta.url);
-const SR = require(path.join(ROOT, 'src', 'station-route.ts')) as StationRouteApi;
 const loadModel = (file: string, key: string) => {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'stations3d', file), 'utf8'), { filename: file });
   return window.STATION3D![key];

@@ -1,8 +1,8 @@
 # Walking routes
 
 Walks in a journey (to the stop, between platforms, to the destination's door) are routed in the browser by
-`walkroute.js` on a pedestrian network built ahead of time (`walkgraph/`) for Bern, Zürich, Basel, Geneva and
-Lausanne. Inside Bern, Europaplatz and Wankdorf the 3D station models' own router (`station-route.js`) takes over;
+`walkroute.ts` on a pedestrian network built ahead of time (`walkgraph/`) for Bern, Zürich, Basel, Geneva and
+Lausanne. Inside Bern, Europaplatz and Wankdorf the 3D station models' own router (`station-route.ts`) takes over;
 where there are no tiles, the online routers are used.
 
 ## What the network knows
@@ -28,7 +28,7 @@ sooner, and arrival depends on the accuracy.
 
 ## Using it
 
-`window.WALKROUTE.route(a, b, opts)` → `{ coords, dist, door, covered, cues, via, levels, approxTo, approxFrom,
+`WALKROUTE.route(a, b, opts)` → `{ coords, dist, door, covered, cues, via, levels, approxTo, approxFrom,
 swisstopo }` or `null` (no tiles, or no plausible route). `opts`: `stepFree`, `fewerStairs`, `noEscalators`, and for
 each end (`from`, `to`) what it is: `{ accuracy }` (a GPS position), `{ platform, level, ref }` (a platform on its
 floor, by number), `{ exact }` (a point as it is, e.g. where another router's path begins) or `{}` (a place: the walk

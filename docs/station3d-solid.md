@@ -41,9 +41,9 @@ read only the model.
 
 ## In the app
 
-This is the app's only 3D view of a station. The page reaches it through `window.Station3D`, a small stand-in in
-`index.html` (`src/inline/station3d-loader.ts`) that loads `station-view.js` (`src/station-view.ts`) the first time a
-station is opened: the view in an overlay over the map, with the walk step by step and the indoor position. The map's
+This is the app's only 3D view of a station. The page reaches it through `Station3D`, a small stand-in
+(`src/station3d.ts`) that loads the view (`src/station-view.ts`, with `import()`) the first time a station is
+opened: the view in an overlay over the map, with the walk step by step and the indoor position. The map's
 platform cards and the journey's walks and changes open it. `station3d-solid.html` above is the same renderer on a
 page of its own, for development. (An earlier viewer with floors pulled apart and a first-person walk,
 `station3d.js`, was removed in November 2026.)

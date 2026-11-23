@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Simulated walks through a station model, to test the logic of the indoor Filter (indoorloc.js) and compare sensor
+// Simulated walks through a station model, to test the logic of the indoor Filter (indoorloc.ts) and compare sensor
 // setups. A virtual person walks real routes of the model (street → underground platform, platform changes, lifts),
 // and the script produces the sensor data a phone would: steps with a biased, noisy compass (and magnetic
 // disturbances near trains), GPS that degrades indoors and vanishes underground, barometric pressure with weather
 // drift, a ventilation step and train piston-effect surges, and signs read on the way.
 //
-// The station is a 3D model from stations3d/ (stations3d/SCHEMA.md) and the walks are routes of station-route.js.
+// The station is a 3D model from stations3d/ (stations3d/SCHEMA.md) and the walks are routes of station-route.ts.
 // It tests the logic, not the sensor assumptions: those need real recordings (INDOORNAV.record() in the app, then
 // `node tools/sim_indoorloc.cts --replay log.json`). Numbers here are only as good as the noise models below.
 //
@@ -15,12 +15,15 @@
 //   node tools/sim_indoorloc.cts --only rbs-baro --seeds 1 --export walk.json   a log in the recording format (IndoorLog)
 //   node tools/sim_indoorloc.cts --check               regression test: exit 1 if a scenario got worse
 //   node tools/sim_indoorloc.cts --replay recording.json [--key bern]
+import type { IndoorEstimateTracking, IndoorLandmark, IndoorLog, IndoorLogEvent, IndoorPrior, IndoorRandom } from '../src/indoorloc.ts';
+import type { StationRouteEndpoint, StationRoutePrefs, StationRouteResult } from '../src/station-route.ts';
 'use strict';
 const path = require('path') as typeof import('path');
 const fs = require('fs') as typeof import('fs');
 const ROOT = path.join(__dirname, '..');
-const I = require(path.join(ROOT, 'src', 'indoorloc.ts')) as IndoorLocApi;
-const S = require(path.join(ROOT, 'src', 'signloc.ts')) as SignLocApi;
+// the modules as the page has them (ES modules: require() gives their exports)
+const I = require(path.join(ROOT, 'src', 'indoorloc.ts')).INDOORLOC as typeof import('../src/indoorloc.ts').INDOORLOC;
+const S = require(path.join(ROOT, 'src', 'signloc.ts')).SIGNLOC as typeof import('../src/signloc.ts').SIGNLOC;
 
 const args = process.argv.slice(2);
 const arg = <D = undefined,>(k: string, d?: D): string | D => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d as D; };
@@ -31,10 +34,10 @@ const ONLY = arg('only', null);
 const VERBOSE = flag('verbose');
 const TRACE = flag('trace');
 
-globalThis.window = globalThis;
+Object.assign(globalThis, { window: globalThis }); // the station model puts itself on window
 require(path.join(ROOT, 'stations3d', KEY + '.js'));
 const RAW = globalThis.STATION3D![KEY];
-const SR = require(path.join(ROOT, 'src', 'station-route.ts')) as StationRouteApi;   // TypeScript since #16: Node runs it as is
+const SR = require(path.join(ROOT, 'src', 'station-route.ts')).StationRoute as typeof import('../src/station-route.ts').StationRoute;
 const M = new I.Model(RAW);
 
 // ------------------------------------------------------------------------------------------- replay a recording
@@ -51,7 +54,7 @@ const uic = RAW.uics[0];
 const P = (ref: string) => ({ stop: { uic, ref } });
 const E = (name: string) => ({ entrance: name });
 
-// a route of station-route.js → a timeline of positions: [{ t, x, y, z, li, mode: 'walk'|'stairs'|'escalator'|'lift'|'wait' }]
+// a route of station-route.ts → a timeline of positions: [{ t, x, y, z, li, mode: 'walk'|'stairs'|'escalator'|'lift'|'wait' }]
 type SimWalkMode = 'walk' | 'stairs' | 'escalator' | 'lift' | 'wait';
 /** A moment of a walk: where the person really is. (_prev: read by --trace, never set.) */
 interface SimWalkPoint { t: number; x: number; y: number; z: number; li: number; mode: SimWalkMode; _prev?: number }
@@ -147,7 +150,7 @@ function sensors(tl: SimWalkPoint[], sc: SimScenario, R: IndoorRandom) {
         if (sc.stress && R() < 0.05) continue;                       // a step the phone missed
         let heading = (Math.atan2(b.x - a.x, b.y - a.y) * 180 / Math.PI + 360) % 360;
         // magnetic disturbance near trains / steel: the compass swings for a while. The phone's heading is carried
-        // by the gyro and only pulled slowly towards the compass (Sensors in indoorloc.js), so a disturbance
+        // by the gyro and only pulled slowly towards the compass (Sensors in indoorloc.ts), so a disturbance
         // arrives low-passed (~30 s); with --raw-compass it arrives as is (worst case).
         const disturbed = sc.magnetic && Math.sin(b.t / 23) > 0.7;
         const dist = disturbed ? 60 * Math.sin(b.t / 3) : 0;
@@ -265,7 +268,7 @@ function run(sc: SimScenario, seed: number) {
   }
   stats.ms = Date.now() - t0;
   if (arg('export') && seed === 1) {
-    // a Recorder-format log (indoorloc.js) with the true position as checkpoints every 5 s
+    // a Recorder-format log (indoorloc.ts) with the true position as checkpoints every 5 s
     const events = ev.map((e): IndoorLogEvent => {
       const d: Partial<SimEvent> = Object.assign({}, e); delete d.t; delete d.type;
       return [+e.t.toFixed(2), e.type, d] as IndoorLogEvent;

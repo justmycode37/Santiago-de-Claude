@@ -1,7 +1,7 @@
 # AR camera on a journey step
 
 The **AR** button sits next to **3D view** on a walk or change step that has a ride to board next
-(`src/app/65-ar.ts`). It opens Scan's live camera (`src/stopvision.ts`) in an AR mode. There is no shutter: it
+(`src/app/ar.ts`). It opens Scan's live camera (`src/stopvision.ts`) in an AR mode. There is no shutter: it
 runs by itself until it is closed. `?ar=0` in the address hides the button (remembered; `?ar=1` shows it again).
 
 | Part | How | Status |

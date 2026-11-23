@@ -1,0 +1,202 @@
+// ---- The fare of the journey on show. The fare service is transport.opendata.ch's (POST /v1/fare): it prices a
+//      connection of its own timetable, and names operators its own way ("SBB", where the engine says
+//      "Schweizerische Bundesbahnen SBB"). So the engine's rides are first found among its connections, by their
+//      stops and times; only an exact match is priced. Journeys themselves never come from there. ----
+import { isRide, lineLabel, stopName, stopUic } from './journey-steps.ts';
+import { h, kBtn } from './sheet.ts';
+import { swissTicketTime } from './journey-actions.ts';
+import { journey } from './state.ts';
+import { PRICING_HISTORY } from '../pricing-history.ts';
+import { SETTINGS, openFareSuggestions } from '../settings.ts';
+import type { Journey } from '../engine-journey.ts';
+import type { TicketFare } from '../pricing-history.ts';
+
+export interface FareCheckpoint { station: { id?: string | null; name?: string | null }; departure?: string | null; arrival?: string | null }
+/** A ride as the fare service reads it: its two ends and its line (`operator` as that timetable names it, "SBB"). */
+export interface FareSection {
+  departure: FareCheckpoint;
+  arrival: FareCheckpoint;
+  journey: { name?: string | null; category?: string | null; number?: string | null; operator?: string | null } | null;
+}
+/** A connection of the fare service's timetable, as far as it is read and sent back to be priced. */
+export interface FareConnection { sections: FareSection[] }
+
+const FARE_API = 'https://transport.opendata.ch/v1/';
+const ticketQuotes = new WeakMap<Journey, Promise<TicketFare | null>>();
+const ticketAmount = (amount: unknown): amount is number => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
+const ticketMoney = (amount: number) => `CHF ${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+// The fare service's connection with exactly these rides (the same stops, times and categories), or null
+async function matchFareConnection(sections: FareSection[], signal?: AbortSignal): Promise<FareConnection | null> {
+  const first = sections[0], last = sections[sections.length - 1];
+  const parts = swissTicketTime(first.departure.departure!);
+  const params = new URLSearchParams({
+    from: first.departure.station.id!,
+    to: last.arrival.station.id!,
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+    limit: '5',
+  });
+  const response = await fetch(`${FARE_API}connections?${params}`, { signal });
+  if (!response.ok) return null;
+  const { connections }: { connections?: FareConnection[] } = await response.json();
+  const sameStopTime = (a: FareCheckpoint, b: FareCheckpoint, field: 'departure' | 'arrival') => String(a.station.id) === String(b.station.id)
+    && Date.parse(a[field]!) === Date.parse(b[field]!);
+  const matches = (connections || []).filter((candidate) => {
+    const rides = candidate.sections.filter((section) => section.journey);
+    return rides.length === sections.length && rides.every((ride, i) =>
+      sameStopTime(ride.departure, sections[i].departure, 'departure')
+      && sameStopTime(ride.arrival, sections[i].arrival, 'arrival')
+      && (!sections[i].journey!.category || ride.journey!.category === sections[i].journey!.category));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function quoteTicket(conn: Journey) {
+  if (!ticketQuotes.has(conn)) {
+    // Send only the data needed to price the exact rides: every trip ridden (a ride you stay seated on over
+    // several trips is one section each), its two ends and its category; no walks, nothing else of the journey.
+    const end = (call: KanteStopCall, field: 'departure' | 'arrival', clock: 'dep' | 'arr'): FareCheckpoint => {
+      const time = call[clock];
+      return { station: { id: stopUic(call) }, [field]: Number.isFinite(time) ? new Date(time! * 1000).toISOString() : null };
+    };
+    const sections: FareSection[] = conn.parts.filter(isRide).flatMap((ride) => ride.legs.map((leg) => ({
+      departure: end(leg.from, 'departure', 'dep'),
+      arrival: end(leg.to, 'arrival', 'arr'),
+      journey: { category: leg.line.category },
+    })));
+    const request = (async () => {
+      if (!sections.length || !sections.every(({ departure, arrival }) => departure.station.id && arrival.station.id
+        && Number.isFinite(Date.parse(departure.departure!)) && Number.isFinite(Date.parse(arrival.arrival!)))) return null;
+      const signal = AbortSignal.timeout?.(10000);
+      const connection = await matchFareConnection(sections, signal);
+      if (!connection) return null;
+      const response = await fetch(`${FARE_API}fare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(connection),
+        signal,
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const second = data.currency === 'CHF' && data.fares?.['2nd'];
+      if (!second || (!ticketAmount(second.full) && !ticketAmount(second.halfFare))) return null;
+      return { fare: second.full, halfFare: second.halfFare };
+    })().catch(() => null);
+    ticketQuotes.set(conn, request);
+  }
+  return ticketQuotes.get(conn)!;
+}
+
+export function ticketPricing(hasTicket: boolean) {
+  const conn = journey.conn;
+  const rides = journey.steps.filter((step) => step.type === 'ride').map((step) => step.s);
+  const tracking = SETTINGS.prefs().fareTracking;
+  if (!conn || !rides.length || (!tracking && !hasTicket)) return null;
+  const iso = (c: KanteStopCall) => (c.dep != null ? new Date(c.dep * 1000).toISOString() : null);
+  const trip = {
+    from: stopName(rides[0].from),
+    to: stopName(rides[rides.length - 1].to),
+    departure: iso(rides[0].from),
+    rides: rides.map((ride) => [lineLabel(ride.line), stopName(ride.from), stopName(ride.to), iso(ride.from)]),
+  };
+  let quote: TicketFare | null = null;
+  const fare = h('input'), halfFare = h('input');
+  const fullField = h('label', null, 'Full fare (CHF)', fare);
+  const reducedField = h('label', null, 'Half Fare (CHF)', halfFare);
+  const edited = new Set<HTMLInputElement>();
+  const submit = h('button', 'pill-btn ticket-fare-save');
+  submit.type = 'submit';
+  for (const input of [fare, halfFare]) {
+    input.type = 'number';
+    input.inputMode = 'decimal';
+    input.min = '0';
+    input.step = '0.01';
+    input.addEventListener('input', () => edited.add(input));
+  }
+  const summary = h('span', 'ticket-fare-summary');
+  summary.id = 'journeyFareSummary';
+  const detail = h('p', 'ticket-fare-context');
+  function showFare() {
+    const saved = tracking ? PRICING_HISTORY.findConfirmed(trip) : null;
+    submit.textContent = saved ? 'Save fares' : 'Confirm trip';
+    for (const [input, field] of [[fare, 'fare'], [halfFare, 'halfFare']] as const) {
+      const value = saved ? saved[field] : quote?.[field];
+      if (!edited.has(input)) input.value = ticketAmount(value) ? value.toFixed(2) : '';
+    }
+    const previous = tracking ? PRICING_HISTORY.routeFare(trip.from, trip.to) : null;
+    const reduced = PRICING_HISTORY.profile().hasHalfFare === true;
+    fullField.hidden = fare.disabled = reduced;
+    reducedField.hidden = halfFare.disabled = !reduced;
+    const field = reduced ? 'halfFare' : 'fare';
+    const rate = reduced ? 'Half Fare' : 'Full fare';
+    const live = ticketAmount(quote?.[field]);
+    const amount = live ? quote?.[field] : previous?.[field];
+    const priceKnown = ticketAmount(amount);
+    const caption = live ? '2nd class' : 'Saved price';
+    summary.replaceChildren(...(priceKnown ? [
+      h('span', 'ticket-fare-price', ticketMoney(amount)),
+      h('span', 'ticket-fare-rate', rate, h('span', live ? 'ticket-fare-class' : null, ' · ' + caption)),
+    ] : tracking ? [hasTicket ? 'Check fare on SBB' : 'Trip fares'] : [])); // no fare known: the ticket button is enough
+    summary.title = live ? 'Standard second-class fare' : '';
+    detail.hidden = live; // the fields already hold the fare
+    detail.textContent = live ? ''
+      : priceKnown ? `Saved on ${previous?.date}. Enter the price for this trip.`
+        : 'Enter the price you paid, if known.';
+  }
+  showFare();
+  const pendingQuote = hasTicket ? quoteTicket(conn) : Promise.resolve(null);
+  pendingQuote.then((result) => {
+    quote = result;
+    if (result && summary.isConnected) showFare();
+  });
+  if (!tracking) return { row: h('div', 'ticket-fare-row aside', summary), refresh: showFare };
+
+  const form = h('form', 'ticket-fare-form', detail);
+  form.id = 'journeyFareForm';
+  form.hidden = true;
+  const arrow = h('span', 'ticket-fare-chevron');
+  arrow.setAttribute('aria-hidden', 'true');
+  const toggle = kBtn('ticket-fare-row ticket-fare-toggle', 'Fare options', () => {
+    form.hidden = !form.hidden;
+    toggle.setAttribute('aria-expanded', String(!form.hidden));
+  }, summary, arrow);
+  toggle.setAttribute('aria-controls', form.id);
+  toggle.setAttribute('aria-describedby', summary.id);
+  toggle.setAttribute('aria-expanded', 'false');
+  const status = h('p', 'ticket-fare-status');
+  status.setAttribute('role', 'status');
+  const suggestions = kBtn('ticket-fare-suggestions', null, () => {
+    openFareSuggestions(suggestions);
+  }, 'Fare suggestions');
+  form.append(h('div', 'ticket-fare-fields', fullField, reducedField),
+    h('div', 'ticket-fare-actions', submit, suggestions), status);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    submit.disabled = true;
+    try {
+      // A quick confirmation can precede the price response. Use the quote for
+      // unanswered fields, while preserving every amount the rider entered.
+      const saved = PRICING_HISTORY.findConfirmed(trip);
+      const needsQuote = !saved && !quote && [fare, halfFare].some((input) => !input.value && !edited.has(input));
+      if (needsQuote) status.textContent = 'Checking the fare…';
+      const result = needsQuote ? await pendingQuote : quote;
+      const amount = (input: HTMLInputElement, field: keyof TicketFare) => input.value || edited.has(input) || saved ? input.valueAsNumber : result?.[field];
+      const outcome = PRICING_HISTORY.confirm({ ...trip, fare: amount(fare, 'fare'), halfFare: amount(halfFare, 'halfFare') });
+      const messages = {
+        saved: 'Trip saved to your trip history',
+        duplicate: 'Trip already saved',
+        updated: 'Saved fares updated',
+        unavailable: 'Could not save this trip in the browser',
+      };
+      status.textContent = messages[outcome];
+      if (outcome !== 'unavailable') {
+        edited.clear();
+        showFare();
+      }
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  return { row: toggle, form, refresh: showFare };
+}

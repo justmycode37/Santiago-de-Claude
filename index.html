@@ -25,6 +25,7 @@
   <link rel="preconnect" href="https://kante.omniroute.app" crossorigin />
   <link rel="preconnect" href="https://unpkg.com" />
   <!-- build: src/inline/early.ts -->
+  <!-- build: src/inline/updated.ts -->
   <style>
     :root {
       --bar-bg: #ffffff;
@@ -1804,30 +1805,17 @@
   </section>
   <div class="kj sheet-foot fixed" id="jFoot"></div>
 
-  <script src="translate.js"></script>
+  <!-- The app's language: a plain script, so that it runs before maplibre has downloaded (src/translate.ts) -->
+  <!-- build: src/translate.ts -->
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <!-- Generated data and the optional local config: plain scripts that put themselves on window -->
   <script src="swiss-workshops.js"></script>
   <script src="bern-events.js"></script>
   <script src="community-programmes.js"></script>
-  <script src="events.js"></script>
-  <script src="map-layers.js"></script>
-  <script src="pricing-history.js"></script>
-  <script src="settings.js"></script>
-  <script src="walk-pace.js"></script>
-  <!-- The introduction for a first visit (needs settings.js only). If it can't load, the app starts as usual -->
-  <script src="onboarding.js" onerror="delete document.documentElement.dataset.onboarding; EARLY_GEO.start()"></script>
   <!-- Optional, not in git: window.APP_CONFIG = { googlePlacesKey: '…' } (see config.example.js) -->
   <script src="config.js" onerror="void 0"></script>
-  <script src="engine.js"></script>
-  <script src="engine-departures.js"></script>
-  <script src="engine-journey.js"></script>
-  <!-- Live data from the Kante engine (APP_CONFIG.kanteUrl, or ?kante=<url> for testing) -->
-  <script src="live.js"></script>
-  <script src="arcore.js"></script>
-  <script src="places.js"></script>
-  <script src="walkroute.js" defer></script>
   <script src="stations3d/index.js"></script>
-  <!-- build: src/inline/station3d-loader.ts -->
-  <!-- build: src/app -->
+  <!-- The page's own script (src/main.ts and what it imports) -->
+  <!-- build: src/main.ts type="module" onerror="scriptFailed(this.src)" -->
 </body>
 </html>
