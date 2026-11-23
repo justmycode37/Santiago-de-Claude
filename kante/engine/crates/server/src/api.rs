@@ -147,7 +147,7 @@ fn fallback_station_search(app: &App, q: &str, near: Option<LatLon>, limit: usiz
 
 /// GET /api/reverse?lat=&lon= → the place a dropped pin should be called.
 async fn reverse(State(app): S, Q(p): Q<LatLonParams>) -> Result<Json<json::Place>, ApiError> {
-    let r = json::PlaceRef { id: None, lat: Some(p.lat), lon: Some(p.lon), name: None, quay: None };
+    let r = json::PlaceRef { id: None, lat: Some(p.lat), lon: Some(p.lon), name: None, quay: None, exact: false };
     app.resolve(&r).map(|e| Json(e.place)).map_err(bad)
 }
 

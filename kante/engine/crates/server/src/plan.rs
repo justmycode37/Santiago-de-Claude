@@ -827,7 +827,7 @@ impl App {
                 return Ok(self.stop_end(s));
             }
             let p = self.resolve(r)?;
-            let doors = if p.station.is_none() { self.door_choice(p.pos, &profile) } else { DoorChoice::default() };
+            let doors = if p.station.is_none() && !r.exact { self.door_choice(p.pos, &profile) } else { DoorChoice::default() };
             Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, snap: self.snap_free(p.pos, &profile), doors })
         };
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);

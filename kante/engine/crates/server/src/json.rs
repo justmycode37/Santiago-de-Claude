@@ -106,6 +106,9 @@ pub struct PlaceRef {
     /// `/api/walk` only: a boarding point (quay id or SLOID). The walk then starts or ends on that
     /// platform or bay, on its floor, as a change in a journey does; `lat`/`lon` are ignored.
     pub quay: Option<String>,
+    /// `/api/walk` only: the point as it is (where a station model's own paths begin), not the door of the
+    /// building it lies in.
+    pub exact: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
