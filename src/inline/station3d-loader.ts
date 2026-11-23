@@ -57,7 +57,13 @@
   function loadView(): Promise<StationViewApi> {
     if (!svLoading) svLoading = scriptOnce('station-view.js').then(() => {
       const sv = window.StationView;
-      if (!sv) throw new Error('station-view.js did not start');
+      if (!sv) {
+        // it came but did not start: the next opening asks for it again
+        once.delete('station-view.js');
+        const tag = document.querySelector('script[src="station-view.js"]');
+        if (tag) tag.remove();
+        throw new Error('station-view.js did not start');
+      }
       for (const [name, fn] of listeners) sv.on(name, fn as AnyFn);
       // the indoor position follows what the view shows
       sv.on('open', (info) => { lastOpen = info; if (!window.INDOORNAV) loadIndoor(); });
@@ -66,15 +72,14 @@
       sv.on('opening', () => { lastOpen = null; });
       if (user !== undefined && recent(user)) sv.setUser(user);
       return sv;
-    }, (e) => { svLoading = null; throw e; });
+    }).catch((e) => { svLoading = null; throw e; });
     return svLoading;
   }
-  function failed(opts: Station3DOpenOptions) {
+  function failed(opts: Station3DOpenOptions, err: Station3DEventMap['error'] = { code: 'three', message: 'Check your connection, then try again.' }) {
     if (wanted !== opts) return;   // closed or replaced meanwhile: nobody is waiting for this one
     wanted = null;
-    if (window.showToast) window.showToast('The 3D view could not be loaded.');
+    if (window.showToast) window.showToast(err.code === 'none' ? 'There is no 3D view of this station.' : 'The 3D view could not be loaded.');
     // as the view itself reports it (Station3D.on('error'))
-    const err = { code: 'three', message: 'Check your connection, then try again.' };
     for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn(err as never); } catch (e) { console.error(e); } }
   }
   const stub: Station3DApi = window.Station3D = {
@@ -83,7 +88,7 @@
       wanted = opts;
       loadView().then((sv) => sv.ready().then(() => sv)).then((sv) => {
         if (wanted !== opts) return;
-        if (!sv.has(opts.key)) { console.warn('No continuous 3D model for ' + opts.key); failed(opts); return; }
+        if (!sv.has(opts.key)) { failed(opts, { code: 'none', message: 'There is no 3D view of this station.' }); return; }
         wanted = null;
         sv.open(opts);
         loadIndoor();
@@ -106,7 +111,7 @@
     // it is ready when the view opens
     preload: (key) => {
       loadIndoor();
-      return loadView().then((sv) => sv.ready().then(() => (key && sv.has(key) ? sv.preload(key) : false)), () => false);
+      return loadView().then((sv) => sv.ready().then(() => (key && sv.has(key) ? sv.preload(key) : false))).catch(() => false);
     },
     // the model and the router (no 3D): for a station's walk on the 2D map
     loadData: (key) => {

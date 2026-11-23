@@ -106,7 +106,8 @@
   const LINE = '9';
   const WALK_MS = 1.3;                              // a normal walking pace, metres a second…
   const SPEED_1 = 1.5, SPEED_3 = 1.9;               // …and how much faster each walk plays it
-  const Z_WALK = 18.6, Z_RIDE = 17.7;              // the map's zoom while walking and riding
+  const Z_WALK = 18.6, Z_RIDE = 17.7;
+  const LOAD_MS = 12000;                           // a map that has not come by then is not coming              // the map's zoom while walking and riding
   const COLOR_WALK = '#FFD34B', COLOR_WALK_EDGE = '#14161A';   // walks as the journey map draws them (40-journey-map.ts)
 
   // The demo's own clock: everything in it that walks, waits or glides asks this clock. The journey plays at PACE
@@ -154,7 +155,7 @@
     return {
       hide() { box.classList.remove('on'); },
       // the trip at a glance stays: it is all the demo can show now
-      fail() { box.querySelector<HTMLElement>('.ob-plan-bar')!.hidden = true; box.querySelector<HTMLElement>('.ob-plan-err')!.hidden = false; },
+      fail() { box.classList.add('on'); box.querySelector<HTMLElement>('.ob-plan-bar')!.hidden = true; box.querySelector<HTMLElement>('.ob-plan-err')!.hidden = false; },
       destroy() { box.remove(); },
     };
   }
@@ -210,9 +211,26 @@
     const view = (line: Line, s: number, ahead: number, zoom: number, bearing: number) => place(line.at(s), line.at(s + ahead), zoom, bearing);
     const asTram = (on: boolean) => { if (puckEl) puckEl.classList.toggle('tram', on); };
 
-    const ready = new Promise<boolean>((ok) => { try {
+    // The map is there once its style has loaded and the first tiles of the base map have come. One that is not there
+    // within LOAD_MS (no network, no WebGL, no tiles) has failed, and then nothing more of it is built
+    let settled = false, loaded = false, tiled = false, timer = 0;
+    let settle: (ok: boolean) => void = () => {};
+    const ready = new Promise<boolean>((resolve) => {
+      settle = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (!ok) { try { if (map) map.remove(); } catch (e) {} map = null; puck = null; puckEl = null; }
+        resolve(ok);
+      };
+    });
+    timer = window.setTimeout(() => settle(false), LOAD_MS);
+    const ok = (v: boolean) => settle(v);
+    const both = () => { if (loaded && tiled) ok(true); };
+    try {
       const gl = (window as { maplibregl?: typeof maplibregl }).maplibregl;
-      if (!gl) return ok(false);
+      if (!gl) ok(false);
+      else {
       const dark = html.dataset.theme === 'dark';
       // The app's own map style (light, or its dark variant): already loaded behind the introduction, else fetched
       const style = (): Promise<maplibregl.StyleSpecification> => {
@@ -224,15 +242,21 @@
         catch (e) { return Promise.reject(e); }
       };
       style().then((st) => {
-        if (dead) return ok(false);
+        if (dead || settled) return ok(false);
         map = new gl.Map({
           container: box.querySelector<HTMLElement>('.ob-trip-map')!, style: st, interactive: false, attributionControl: false,
           center: toLngLat(walk1.at(8)), zoom: Z_WALK, bearing: walk1.bearing(4), pitch: 54, maxPitch: 60,
           pixelRatio: Math.min(window.devicePixelRatio || 1, 2), fadeDuration: 0, refreshExpiredTiles: false,
         });
         map.on('error', () => {});
+        // a tile of the base map (not of the demo's own lines) has come: there is something to see
+        map.on('sourcedata', (e) => {
+          if (tiled || !(e as { tile?: unknown }).tile || String(e.sourceId).startsWith('ob-')) return;
+          tiled = true;
+          both();
+        });
         map.once('load', () => {
-          if (dead || !map) return ok(false);
+          if (dead || settled || !map) return ok(false);
           // houses stand up from the map, so the tilted picture reads as a place (the style draws them flat)
           try {
             const flat = st.layers.find((l) => l.type === 'fill' && (l as { 'source-layer'?: string })['source-layer'] === 'building') as { source: string } | undefined;
@@ -268,10 +292,12 @@
           puckEl.innerHTML = `<span class="ob-puck-you"></span><span class="ob-puck-tram">${ICON_TRAM}<b>${LINE}</b></span>`;
           puck = new gl.Marker({ element: puckEl, anchor: 'center' }).setLngLat(toLngLat(walk1.at(0))).addTo(map);
           view(walk1, 0, 8, Z_WALK, walk1.bearing(4));
-          ok(true);
+          loaded = true;
+          both();
         });
       }).catch(() => ok(false));
-    } catch (e) { ok(false); } });
+      }
+    } catch (e) { ok(false); }
 
     // Along `line` from s0 to s1 in T ms of the demo's clock. The map looks `ahead` metres in front of you and turns
     // towards `aim` (default: the way the line goes), both a little behind, so that nothing jumps from one part of
@@ -345,12 +371,24 @@
       },
       destroy() {
         dead = true;
+        settle(false);
         cancelAnimationFrame(raf);
         try { if (map) map.remove(); } catch (e) {}
         map = null;
         box.remove();
       },
     };
+  }
+
+  // history.back() for the entry of a demo that has ended arrives later, as a 'popstate'. Until it has, `leaving`
+  // holds back the entry of a new demo.
+  let leaving: Promise<void> | null = null;
+  function leaveEntry() {
+    leaving = new Promise<void>((done) => {
+      const gone = () => { window.removeEventListener('popstate', gone); leaving = null; done(); };
+      window.addEventListener('popstate', gone);
+      try { history.back(); } catch (e) { gone(); }
+    });
   }
 
   // Starts the demo inside `host`. `onState` hears the act that begins (1, 2, 3), 'arrived' (the journey is at its
@@ -391,11 +429,21 @@
     hold.addEventListener('keyup', key);
     for (const n of ['pointerup', 'pointercancel', 'blur'] as const) window.addEventListener(n, up);
 
-    // ----- the back gesture leads on, as the button does -----
+    // ----- the back gesture leads on, as the button does: the demo has an entry in the history while it runs -----
+    // (added once the entry of an earlier demo has gone: its 'popstate' must not end this one)
     let pushed = false;
     const onPop = () => { if (pushed) { pushed = false; finish(); } };
-    try { history.pushState({ onboardingDemo: true }, ''); pushed = true; } catch (e) {}
-    window.addEventListener('popstate', onPop);
+    (leaving || Promise.resolve()).then(() => {
+      if (ended) return;
+      try {
+        // without ?intro: going forward to this entry after the introduction must not bring it back
+        const u = new URL(location.href);
+        u.searchParams.delete('intro');
+        history.pushState({ onboardingDemo: true }, '', u);
+        pushed = true;
+        window.addEventListener('popstate', onPop);
+      } catch (e) {}
+    });
 
     const finish = () => {
       if (ended) return;
@@ -406,7 +454,7 @@
       host.removeEventListener('contextmenu', noMenu);
       for (const n of ['pointerup', 'pointercancel', 'blur'] as const) window.removeEventListener(n, up);
       window.removeEventListener('popstate', onPop);
-      if (pushed) { pushed = false; try { history.back(); } catch (e) {} }
+      if (pushed) { pushed = false; leaveEntry(); }
       host.classList.remove('ob-fasting');
       hold.remove();
       trip.destroy();
@@ -420,9 +468,13 @@
       hold.remove();
       onState('arrived', 3);
     };
+    // The map has not come: the trip at a glance stays with a line that says so, and nothing more is built or run
     const fail = () => {
-      if (ended) return;
+      if (ended || arrived || failed) return;
       failed = true;
+      setFast(false);
+      clock.stop();
+      trip.destroy();
       hold.remove();
       plan.fail();
       onState('error', act);
@@ -430,12 +482,14 @@
 
     // The trip at a glance covers the map until it is there (and for long enough to be read), then the walk sets off
     onState(1, 1);
-    Promise.all([real(still ? 400 : 3800), Promise.race([trip.ready, real(12000).then(() => false)])]).then(async ([, ok]) => {
+    let shown = false;                               // the map is there and the cover has gone
+    Promise.all([real(still ? 400 : 3800), trip.ready]).then(async ([, ok]) => {
       if (ended) return;
       if (!ok) return fail();
       await real(350);                               // a few frames of the finished map, behind the cover
       if (ended) return;
       plan.hide();
+      shown = true;
       if (still) { trip.still(act); return; }
       await real(700);                               // the cover has faded
       if (ended) return;
@@ -455,7 +509,7 @@
     // Reduced motion: nothing walks or glides; each press shows the next act as a still picture
     const next = () => {
       if (!still || ended || arrived || failed) return false;
-      plan.hide();
+      if (!shown) return true;                       // nothing to show yet: the trip at a glance stays until the map is there
       if (act === 3) return false;
       act = act === 1 ? 2 : 3;
       onState(act, act);

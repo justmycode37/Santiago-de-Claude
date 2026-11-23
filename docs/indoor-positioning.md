@@ -35,10 +35,11 @@ Evidence, all optional, each weighed for what it is worth:
 | Barometer | **native wrapper only** (Capacitor plugin) or `INDOORLOC.pushPressure(hPa)` | relative height: a floor is 3–9 m ≈ 0.35–1 hPa | no browser exposes it; train piston surges, doors and ventilation (held and re-anchored, readings tempered) |
 | Signs | Scan's OCR (`scan:text`), or typed in | platform + sector sign = you are there (strong); a direction sign = you are near the way to it (weak); names of exits, halls, shops | a sign is evidence, never a fix; chains (several shops) are ambiguous |
 | Journey | the route opened in 3D | starting on platform 7 = you just got off there | — |
-| The traveller | "I'm on floor…", "I'm here" | resets the floor / place | — |
+| The traveller | `INDOORNAV.here({ level, xy })` (no button for it in the station view yet) | resets the floor / place | — |
 
 It never pretends: the estimate carries per-floor probabilities and `confident: false` until one floor clearly wins,
-and the viewer then shows a wide circle without a floor.
+and then hands the view a wide accuracy circle and no floor (the station view would write "Floor unsure" with the
+two likeliest floors).
 
 Robustness built in (found by failing simulations and by two independent code reviews):
 - no start from nothing: steps alone never place you; GPS, the journey, a sign or the traveller does;
@@ -86,18 +87,22 @@ can be made in the app itself, from the browser's console (remote debugging):
 
 1. Serve over HTTPS (`python3 tools/serve.py` behind `tailscale serve`) and open a station in 3D (the sensors start
    with the view; on iOS with the first tap in it).
-2. `r = INDOORNAV.record()`, walk a route, and now and then `INDOORNAV.here({ level, xy })` where you are: that is
-   the ground truth.
-3. `INDOORNAV.stopRecording()`, then save `INDOORNAV.exportLog(r)` and replay it with
-   `node tools/sim_indoorloc.cts --replay file.json`.
+2. `r = INDOORNAV.record()`, then walk a route.
+3. Now and then, where you are, write the ground truth into the recording and tell the filter too:
+   `r.checkpoint({ lon, lat, level })` (or `{ x, y, level }` in the model's metres, `stations3d/SCHEMA.md`) and
+   `INDOORNAV.here({ level, xy })`. Only the checkpoint goes into the recording; `here()` alone leaves the replay
+   with nothing to compare against.
+4. `INDOORNAV.stopRecording()`, save the log
+   (`a = document.createElement('a'); a.href = URL.createObjectURL(INDOORNAV.exportLog(r)); a.download = 'walk.json'; a.click()`)
+   and replay it: `node tools/sim_indoorloc.cts --replay walk.json [--key bern]` prints the error at every checkpoint.
 
 In the app nothing is needed: opening a station in 3D starts it (iOS: the first tap in the 3D view asks for motion
 access). The station session outlives the 3D view by 10 minutes, so you can close it, read a sign with Scan (which
-counts), and open it again where you are. GPS fixes more than 300 m outside the model pass straight to the viewer
-(which then says you are not at the station), and the journey's starting platform is only assumed when GPS does
-not say otherwise. The journey's start alone never shows a position (the trip may be tomorrow, or location may be
-off): the dot appears once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they
-are there (`INDOORNAV.state().live`).
+counts), and open it again where you are. GPS fixes more than 300 m outside the model are passed on unchanged, and
+the journey's starting platform is only assumed when GPS does not say otherwise. The journey's start alone never
+counts as a position (the trip may be tomorrow, or location may be off): the estimate is handed to the view only
+once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they are there
+(`INDOORNAV.state().live`). As said above, the station view does not draw it yet.
 
 What `Station3D` (`src/types/station3d.d.ts`) has for this:
 - `setUser` takes `levelSure: true` and the floor probabilities from the indoor position, and `at` (when the GPS fix

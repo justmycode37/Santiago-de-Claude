@@ -39,7 +39,8 @@ interface Station3DUser {
   at?: number;
 }
 
-type Station3DErrorCode = 'nowebgl' | 'model' | 'three';
+/** 'none': the station has no 3D view (no continuous model in stations3d/solid-index.js). */
+type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'none';
 /** What `Station3D.on(name, fn)` hands to fn. */
 interface Station3DEventMap {
   open: { key: string; route: StationRouteResult | null; focus: { which: 'from' | 'to'; why: StationRouteWhy | 'no-router' | null } | null };

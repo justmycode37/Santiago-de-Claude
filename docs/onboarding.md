@@ -61,8 +61,10 @@ stop B of Bern, Bahnhof → in front of the main entrance), and the track is the
 are written into `src/onboarding.ts` in the model's metres, so the demo loads nothing but the map.
 
 Before act 1 a page with the trip at a glance (the three legs, coming in slowly one after the other) covers the map
-until it has loaded, and for long enough to be read; then it fades and the walk sets off. If the map does not load
-within 12 seconds (no network, no WebGL), that page stays with a line saying so, and the button becomes "Continue".
+until it is there, and for long enough to be read; then it fades and the walk sets off. The map counts as there once
+its style has loaded and the first tile of the base map has come. If that has not happened within 12 seconds
+(`LOAD_MS`: no network, no WebGL, no tiles), the page stays with a line saying so, the button becomes "Continue", and
+nothing more is built or run (a style that answers later is ignored).
 
 Until November 2026 acts 1 and 3 were first-person walks in a 3D street scene, drawn by the first 3D station viewer
 (`station3d.js`). That viewer was removed; the station view that remains opens only as a full-screen overlay of its
@@ -82,8 +84,12 @@ was made at (`PACE`), so held down it is six times that. Fades and the trip at a
 | `'error'` | The map could not be shown: the button becomes "Continue". |
 
 `over` resolves when the demo has gone (`finished`, `skipped`, `unavailable`); `close()` ends it from outside, and so
-does the back gesture (the demo adds a history entry while it runs). A different demo only has to be started inside
-`host` and report the same things.
+does the back gesture: the demo adds a history entry while it runs and takes it away again when it ends. That entry's
+address has no `?intro`, so going forward to it after the introduction does not bring the introduction back on a
+reload. Taking it away (`history.back()`) arrives later as a `popstate`; a demo started again before it has arrived
+waits for it before adding its own entry, so it cannot be ended by the earlier one's. `arrived` and `error` exclude
+each other. A different demo only has to be started inside `host` and report the same things.
 
 With `prefers-reduced-motion` nothing moves by itself: the button reads "Next" and each press shows the next act as a
-still picture (`next()`), then "Continue".
+still picture (`next()`), then "Continue". Until the map is there, "Next" does nothing: no act is shown or announced
+before its picture can be.

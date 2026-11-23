@@ -13,7 +13,7 @@
   --ob-art-2: #d5dbe8;
   position: fixed;
   inset: 0;
-  z-index: 80; /* above the cover (79) and everything of the app; the 3D view of the demo opens inside */
+  z-index: 80; /* above the cover (79) and everything of the app */
   background: var(--sp-bg);
   color: var(--bar-text);
   transition: opacity .35s ease;
