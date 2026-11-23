@@ -8,7 +8,7 @@
     "dev": "node scripts/dev.mts",
     "build": "node scripts/build.mts",
     "check": "tsc -p tsconfig.json && tsc -p src/pages && tsc -p scripts && tsc -p tools && tsc -p tools/tsconfig.page.json && tsc -p livemap && tsc -p livemap/tsconfig.page.json",
-    "test": "node tools/test_station_route.mts && node tools/test_station_route2.mts && node tools/test_walkroute.mts && node --experimental-test-module-mocks tools/test_walkrefine.mts && node tools/test_arcore.mts"
+    "test": "node tools/test_station_route.mts && node tools/test_station_route2.mts && node tools/test_walkroute.mts && node --experimental-test-module-mocks tools/test_walkrefine.mts && node --experimental-test-module-mocks tools/test_walkguess.mts && node tools/test_arcore.mts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

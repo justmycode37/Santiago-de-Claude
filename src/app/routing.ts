@@ -26,7 +26,7 @@ import type { Journey } from '../engine-journey.ts';
 import type { WalkCosting } from '../settings.ts';
 import type { Station3DEndpoint } from '../station3d.ts';
 import type { WalkCue, WalkEnd, WalkRouteResult } from '../walkroute.ts';
-import type { JourneyChangeStep, JourneyWalkStep, LineMode } from './journey-steps.ts';
+import type { JourneyChangeStep, JourneyStep, JourneyWalkStep, LineMode } from './journey-steps.ts';
 import type { LngLatFirst } from './search.ts';
 import type { JourneyDest } from './state.ts';
 import type { KanteFloorChange, KanteWalkDir } from '../engine.ts';
@@ -64,6 +64,16 @@ export interface RoutedWalk {
   via?: string;
   swisstopo?: number;
   floors?: KanteFloorChange[];
+}
+/**
+ * The engine's path of a walk, when the engine only guessed its ends (approxStart / approxEnd, kept as the walk's
+ * approxTo / approxFrom): those stretches are not routed. Not for a walk the page has routed again since (the
+ * pedestrian network's own dashed ends are left as they are). null: no such walk.
+ */
+export function engineGuess(st: JourneyStep): RoutedWalk | null {
+  if ((st.type !== 'walk' && st.type !== 'change') || !st.kanteWalk || !st.walks || st.walks.length !== 1) return null;
+  const w = st.walks[0];
+  return w && !w.net && w.coords === st.lines[0] && (w.approxTo != null || w.approxFrom != null) ? w : null;
 }
 /** What a routed walk through a station puts on its step (stationWalk()); `floors` null: routed along the streets. */
 export interface StationWalkParts { lines: LngLat[][]; walks: RoutedWalk[]; floors: KanteFloorChange[] | null }
@@ -219,7 +229,8 @@ async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     model = await Station3D.loadData(plan.key);
     route = model && stationRouter()!.route(model, plan.from, plan.to, s3Prefs(st));
   } catch (e) { route = null; }
-  // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path
+  // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path (one
+  // whose ends it only guessed goes on to the pedestrian network, as the engine's walks elsewhere: refineStationWalk())
   if (!route || route.points.length < 2 || route.same) return st.kanteWalk ? null : street();
   const inside = route.points.map((p) => stationRouter()!.toLngLat(model!, p));
   const parts: LngLat[][] = [], walks: RoutedWalk[] = [];
@@ -293,7 +304,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
       st.walks = res.walks;
       st.floors = res.floors;
       queueSheet();
-    }
+    } else if (engineGuess(st)) return refineWalk(st, task); // the engine's path, its ends guessed: not left at that
     current.done();
   });
 }

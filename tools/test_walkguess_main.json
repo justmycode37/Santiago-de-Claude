@@ -1,0 +1,9 @@
+{
+ "kanteWalk": true,
+ "lines": [[[7.439,46.948],[7.4394,46.9481],[7.44,46.9483],[7.4407,46.9483],[7.4412,46.9486],[7.4417,46.949]]],
+ "walk": {"coords":[[7.439,46.948],[7.4394,46.9481],[7.44,46.9483],[7.4407,46.9483],[7.4412,46.9486],[7.4417,46.949]],"steps":null,"dist":230,"dirs":[{"kind":"depart","text":"Walk 60 m along Kramgasse","coords":[[7.439,46.948],[7.4394,46.9481],[7.44,46.9483]]},{"kind":"walk","text":"Turn left onto Kornhausplatz, then 110 m","coords":[[7.44,46.9483],[7.4407,46.9483],[7.4412,46.9486],[7.4417,46.949]]}]},
+ "dirs": [{"kind":"depart","text":"Walk 60 m along Kramgasse","coords":[[7.439,46.948],[7.4394,46.9481],[7.44,46.9483]]},{"kind":"walk","text":"Turn left onto Kornhausplatz, then 110 m","coords":[[7.44,46.9483],[7.4407,46.9483],[7.4412,46.9486],[7.4417,46.949]]}],
+ "features": [{"type":"Feature","properties":{"kind":"walk","step":0},"geometry":{"type":"LineString","coordinates":[[7.439,46.948],[7.4394,46.9481],[7.44,46.9483],[7.4407,46.9483],[7.4412,46.9486],[7.4417,46.949]]}},{"type":"Feature","properties":{"kind":"pin","step":0,"img":"pin|from"},"geometry":{"type":"Point","coordinates":[7.439,46.948]}}],
+ "snaps": [{"i":0,"kmIn":0.01579,"d":1.038844},{"i":0,"kmIn":0.105792,"d":2.2108},{"i":0,"kmIn":0.222609,"d":0.720444},{"i":0,"kmIn":0.186686,"d":0}],
+ "netAsked": 0
+}

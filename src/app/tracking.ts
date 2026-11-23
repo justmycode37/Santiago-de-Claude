@@ -9,7 +9,7 @@ import { hasForecast, icon, lineLabel, lineVars, liveMs, modeOf, splitLine, stop
 import { rideTrip } from './live-engine.ts';
 import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
-import { distKm, lengthKm } from './routing.ts';
+import { distKm, engineGuess, lengthKm } from './routing.ts';
 import { journey, searchState, tracking } from './state.ts';
 import { KANTE_LIVE } from '../live.ts';
 import type { KanteAdvancedPosition } from '../live.ts';
@@ -201,7 +201,9 @@ export function tripLive(now = Date.now()) {
 
 // Snap a GPS position onto the trip. Ties go to the earlier step (waiting at the stop, not yet riding);
 // going backwards and boarding before the vehicle has left are penalised, so loops and parallel lines stay right.
-function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
+// The engine's guessed ends of a walk (engineGuess()) count for how far you are from the line, not for how far along
+// it you are: on the guessed start you have not set off yet, on the guessed end you are where the routed part ends.
+export function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
   const lay = tripLayout();
   let best: TripSnap | null = null;
   journey.steps.forEach((st, i) => {
@@ -214,10 +216,11 @@ function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
       if (!best || cost < best.cost) best = { cost, d, i, kmIn, km };
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
-    const cum = cumKm(cs);
+    const cum = cumKm(cs), g = engineGuess(st);
+    const k0 = g && g.approxTo != null ? cum[g.approxTo] : 0, k1 = g && g.approxFrom != null ? cum[g.approxFrom] : Infinity;
     for (let j = 0; j < cs.length - 1; j++) {
-      const q = projectSeg(p, cs[j], cs[j + 1]);
-      consider(q.d, cum[j] + q.t * (cum[j + 1] - cum[j]));
+      const q = projectSeg(p, cs[j], cs[j + 1]), k = cum[j] + q.t * (cum[j + 1] - cum[j]);
+      consider(q.d, k < k0 ? 0 : Math.min(k, k1));
     }
   });
   return best;

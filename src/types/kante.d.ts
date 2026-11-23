@@ -260,6 +260,10 @@ interface KanteWalk {
   /** No path was found in the walking network: a straight line, timed by its length. */
   approximate?: boolean;
   geometry: LngLat[];
+  /** Points `0 ..= approxStart` of `geometry` are a guess (a straight line across open ground, or out of a building
+   *  through no known door, possibly through a wall); likewise `approxEnd ..` to the last. Older engines send neither. */
+  approxStart?: number;
+  approxEnd?: number;
   /** The floor at each point of `geometry`. */
   levels: (number | null)[];
   steps: KanteWalkStep[];

@@ -68,7 +68,8 @@ export interface JourneyFootStep extends JourneyStepBase {
   // The engine's walk (KanteJourney.setWalk() and requay()):
   /** Its time on foot, to the second. */
   walkS?: number;
-  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
+  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes (its ends
+   *  perhaps only guessed: engineGuess() in routing.ts). */
   kanteWalk?: boolean;
   // what its ends are, the revision of its route, the lines its last answer drew (a walk moved since has new ones), and for the walk to the destination the place it leads to
   ends?: [WalkEnd, WalkEnd][];
