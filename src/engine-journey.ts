@@ -387,20 +387,25 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! })) };
 }
 // As routeWalk() keeps it: routed, or (no path found) the straight line with the engine's time for it all the same
-/** The engine's walk as routeWalk() keeps it; without a path (`approximate`), the straight line with its time. */
+/** The engine's walk as routeWalk() keeps it; without a path (`approximate`), the straight line with its time, its
+ *  metres and its written direction ("Walk about 390 m to …"). */
 function routed(leg: KanteWalk): ((KanteRoutedWalk | KanteStraightWalk) & { floors: KanteFloorChange[] }) | null {
   if (!leg.geometry || leg.geometry.length < 2) return null;
-  if (leg.approximate) return { coords: leg.geometry, steps: null, dist: leg.distanceM, approx: true, floors: [], walkS: leg.durationS, shownS: shownSecs(leg) };
+  if (leg.approximate) return { coords: leg.geometry, steps: null, dist: leg.distanceM, dirs: walkParts(leg).walks[0].dirs, approx: true, floors: [], walkS: leg.durationS, shownS: shownSecs(leg) };
   const p = walkParts(leg);
   return { ...p.walks[0], floors: p.floors, walkS: leg.durationS, shownS: shownSecs(leg) };
 }
 // A walk or change step gets the engine's walk: its time, and its path, directions and floor changes when the
-// engine has routed it (an approximate one stays a dashed straight line)
+// engine has routed it; an approximate one stays a dashed straight line, with the engine's metres and direction
 /** Gives a walk or change step the engine's walk: its time, and its path, directions and floor changes when it has one. */
 function setWalk(st: JourneyWalkStep | JourneyChangeStep, leg: KanteWalk) {
   st.walkS = leg.durationS; // to the second, for the time to spare at a change
   st.kanteWalk = !leg.approximate && !!leg.geometry && leg.geometry.length > 1;
   if (st.kanteWalk) Object.assign(st, walkParts(leg));
+  else if (leg.approximate && st.lines.length === 1) {
+    const r = routed(leg);
+    if (r) st.walks = [{ ...r, coords: st.lines[0] }]; // (drawn between the platform and the place, as before)
+  }
 }
 
 // ---- Live ----

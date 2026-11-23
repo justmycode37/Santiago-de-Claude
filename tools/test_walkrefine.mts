@@ -646,5 +646,21 @@ console.log('17. another floor at the same point, and a walk split by a station 
     `along the streets: the line to the platform asks for platform 4, none for platform 1 (${JSON.stringify(asks.map((b) => [b.from.quay, b.to.quay]))})`);
 }
 
+console.log("18. a planned walk the engine found no path for keeps its metres and its direction (finding 5)");
+{
+  const c = app();
+  const P: LngLat = east(B, 290), off = quayAt('q7', B, '7');
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, off, T(30))),
+    walkLeg('egress', point(B, off), point(P), T(30), 300, { approximate: true, distanceM: 390, steps: [step('walk', 0, 1, 'Walk about 390 m to Kunsthaus')] })];
+  const steps = await show(legs, P);
+  const i = steps.findIndex((x) => x.type === 'walk' && x.final), st = steps[i], w = st.walks && st.walks[0];
+  check(st.min === 5 && c.asked.length === 0, "the engine's time, nothing asked");
+  check(!!w && w.dist === 390, `the engine's metres (${w && w.dist})`);
+  check(!!w && !!w.dirs && w.dirs[0].text === 'Walk about 390 m to Kunsthaus', `and its direction (${w && w.dirs && w.dirs.map((d) => d.text)})`);
+  check(walkLines(i).length === 1 && walkLines(i)[0].properties.approx === true, 'drawn as the straight line it is');
+  const r = J.routed({ kind: 'egress', durationS: 300, distanceM: 390, approximate: true, geometry: [B, P], levels: [null, null], steps: [step('walk', 0, 1, 'Walk about 390 m to Kunsthaus')] });
+  check(!!r && r.approx === true && r.dist === 390 && !!r.dirs && r.dirs[0].text === 'Walk about 390 m to Kunsthaus', 'routed again: the same (routed())');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
