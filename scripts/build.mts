@@ -94,6 +94,8 @@ export function bundle(): void {
 function classicScript(source: string, write?: string): string {
   const result = buildSync({
     ...OUTPUT, entryPoints: [path.join(ROOT, source)], bundle: true, format: 'iife', external: EXTERNAL,
+    // as they have always run: not in strict mode (esbuild would add "use strict", tsconfig.json being strict)
+    tsconfigRaw: { compilerOptions: { alwaysStrict: false } },
     ...(write ? { outfile: write, sourcemap: true } : { write: false }),
   });
   return write ? '' : result.outputFiles![0].text;
