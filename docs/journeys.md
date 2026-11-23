@@ -32,8 +32,7 @@ the app adds:
 | --- | --- |
 | everything of `KanteJourney` | `id`, `dep`, `arr`, `transfers`, `walkM`, `legs`, `alerts` as the engine sent them |
 | `parts` | the legs as the trip is shown: `JourneyRide`s and the engine's own walk legs (`KanteWalkLeg`); a change at the very same boarding point has no walk |
-| `t0`, `t1` | when it starts and arrives as timetabled, ms (the walking network may move them for a walk drawn longer or shorter) |
-| `accessS` | the walk to the first ride as the walking network drew it, for the list's row |
+| `t0`, `t1` | when it starts and arrives as timetabled, ms |
 
 A `JourneyRide` is one of the engine's ride legs, or several when you stay seated while the vehicle goes on as
 another trip:

@@ -10,9 +10,8 @@ import { searchState } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import type { Journey, JourneyPart, JourneyPlatformAt, JourneyRide } from '../engine-journey.ts';
-import type { WalkEnd } from '../walkroute.ts';
 import type { RouteFeature, RouteFeatureProps } from './journey-map.ts';
-import type { RoutedWalk } from './routing.ts';
+import type { RoutedWalk, WalkEnd } from './routing.ts';
 import type { KanteFloorChange, KanteWalkDir } from '../engine.ts';
 
 // ---------------------------------------------------------------- lines
@@ -76,6 +75,9 @@ export interface JourneyFootStep extends JourneyStepBase {
   _netFor?: LngLat[][];
   /** …and the ends and platforms it was routed for (walkSig()). */
   _netSig?: string;
+  /** …and what the last request was for (an answer may still be on its way). */
+  _askFor?: LngLat[][];
+  _askSig?: string;
   toLL?: LngLat;
 }
 /** On foot to the first stop, or (final) from the last stop to the destination. A trip without a ride is one final walk. */
@@ -262,8 +264,8 @@ function placeRide(s: JourneyRide) {
 }
 
 // What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
-const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa && pa.edge
-  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true });
+const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => ({ ...(pa && pa.edge
+  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true }), ...(pa && pa.quay ? { quay: pa.quay } : {}) });
 // After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
 // engine-journey.ts leaves it)
 export function syncEnds(steps: JourneyStep[]) {

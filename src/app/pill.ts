@@ -17,7 +17,7 @@ import { vehStop } from './live-vehicles.ts';
 import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } from './sheet.ts';
 import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
 import { updateWhenChip } from './time-picker.ts';
-import { netWalkOption, refineJourney } from './routing.ts';
+import { refineJourney } from './routing.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import type { Journey } from '../engine-journey.ts';
@@ -264,7 +264,6 @@ export async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?:
     if (journey.list && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
     renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
-    if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     livePoll(); // live times for its rides at once
   } catch (e) {
     if (id !== journey.req) return;
