@@ -365,6 +365,11 @@ pub struct Footpaths {
     pub var_m: Vec<u16>,
     /// Speed-independent seconds.
     pub fix_s: Vec<u16>,
+    /// What a router derives from these footpaths (see [`crate::DerivedSlot`]);
+    /// not part of the data, and empty in a clone.
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub derived: crate::live::DerivedSlot,
 }
 
 impl Footpaths {

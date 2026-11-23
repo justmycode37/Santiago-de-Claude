@@ -128,4 +128,40 @@ pub trait LiveView: Send + Sync {
     fn extra(&self, id: &str) -> Option<&ExtraTrip> {
         self.extras().iter().find(|e| e.id == id)
     }
+    /// Calls `f` for every trip that has live data. Returns `false` when the
+    /// view cannot list its trips; the router then plans without the
+    /// per-stop lower bounds it derives from them (results are the same,
+    /// long searches are slower).
+    fn for_each_trip(&self, _f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
+        false
+    }
+    /// Storage for what a router derives from this snapshot, so that it is
+    /// computed once per snapshot instead of once per query. Only a view
+    /// whose contents never change may return a slot.
+    fn derived(&self) -> Option<&DerivedSlot> {
+        None
+    }
+}
+
+/// See [`LiveView::derived`]: set at most once, by the first query that
+/// needs it. A clone starts empty.
+#[derive(Default)]
+pub struct DerivedSlot(std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>>);
+
+impl Clone for DerivedSlot {
+    fn clone(&self) -> Self {
+        DerivedSlot::default()
+    }
+}
+
+impl std::fmt::Debug for DerivedSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.get().is_some() { "DerivedSlot(set)" } else { "DerivedSlot(empty)" })
+    }
+}
+
+impl DerivedSlot {
+    pub fn get_or_init(&self, f: impl FnOnce() -> Box<dyn std::any::Any + Send + Sync>) -> &(dyn std::any::Any + Send + Sync) {
+        self.0.get_or_init(f).as_ref()
+    }
 }

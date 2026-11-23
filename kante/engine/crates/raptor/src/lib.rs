@@ -41,6 +41,7 @@
 //!   to `q.from` from below. A cancellation flag on the trip the traveller is
 //!   sitting in is ignored (skipped positions are honoured).
 
+mod bounds;
 mod days;
 mod departures;
 mod footpaths;
@@ -58,6 +59,7 @@ pub(crate) mod testutil;
 use kante_core::geo::BBox;
 use kante_core::time::{Date, Secs};
 use kante_core::{Footpaths, LiveView, Mode, StopIdx, Timetable, TripIdx};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock};
 
 pub use footpaths::crowfly_footpaths;
@@ -78,6 +80,9 @@ pub struct Router {
     days: days::DayCache,
     ids: OnceLock<ids::IdMaps>,
     pat_bbox: OnceLock<Vec<BBox>>,
+    /// Minimum-travel-time graph for target pruning (see `bounds.rs`).
+    lbg: bounds::Graph,
+    target_bounds: AtomicBool,
 }
 
 impl Router {
@@ -101,7 +106,20 @@ impl Router {
         for c in &tt.continuations {
             has_cont[c.from as usize >> 6] |= 1 << (c.from & 63);
         }
-        Router { tt, pat_span, has_cont, days: days::DayCache::default(), ids: OnceLock::new(), pat_bbox: OnceLock::new() }
+        let lbg = bounds::Graph::new(&tt);
+        Router { tt, pat_span, has_cont, days: days::DayCache::default(), ids: OnceLock::new(), pat_bbox: OnceLock::new(), lbg, target_bounds: AtomicBool::new(true) }
+    }
+
+    /// Switch target pruning with per-stop lower bounds on or off (on by
+    /// default). Results are the same either way; this exists for testing
+    /// and measuring.
+    pub fn set_target_bounds(&self, on: bool) {
+        self.target_bounds.store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Bytes held by the lower-bound graph.
+    pub fn target_bounds_bytes(&self) -> usize {
+        self.lbg.heap_bytes()
     }
 
     pub fn timetable(&self) -> &Arc<Timetable> {

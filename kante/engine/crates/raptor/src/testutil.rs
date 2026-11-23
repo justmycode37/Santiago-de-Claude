@@ -216,4 +216,10 @@ impl LiveView for TestLive {
     fn max_delay(&self) -> Secs {
         self.map.values().flat_map(|l| l.dep_delay.iter().copied()).max().unwrap_or(0).max(0)
     }
+    fn for_each_trip(&self, f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
+        for (&(d, t), l) in &self.map {
+            f(d, t, l);
+        }
+        true
+    }
 }
