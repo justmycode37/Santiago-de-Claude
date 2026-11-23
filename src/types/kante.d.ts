@@ -271,8 +271,8 @@ interface KanteWalk {
   startDoor?: KanteWalkDoor;
   /** Stretches under a roof, as ranges of `geometry`. */
   covered?: { kind: 'arcade' | 'passage' | 'underpass' | 'indoors'; from: number; to: number }[];
-  /** Points 0…approxStart and approxEnd… are a guess (a straight line across open ground, or into a building
-   *  through no known door). */
+  /** Points 0…approxStart and approxEnd… of `geometry` are a guess (a straight line across open ground, or into or
+   *  out of a building through no known door, possibly through a wall). Older engines send neither. */
   approxStart?: number;
   approxEnd?: number;
   /** Points network[0]…network[1] are on the walking network; the others are the straight lines to and from it. */

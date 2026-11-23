@@ -70,7 +70,8 @@ export interface JourneyFootStep extends JourneyStepBase {
   walkS?: number;
   /** …only an estimate: routed again, it had no answer (its straight line, timed as the engine times one). */
   walkEst?: boolean;
-  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
+  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes (its ends
+   *  perhaps only guessed: the walk's approxTo / approxFrom). */
   kanteWalk?: boolean;
   // what its ends are, the revision of its route, the lines its last answer drew (a walk moved since has new ones), and for the walk to the destination the place it leads to
   ends?: [WalkEnd, WalkEnd][];

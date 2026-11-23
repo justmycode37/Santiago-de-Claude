@@ -29,6 +29,8 @@ export interface TripSnap extends TripPlace {
   d: number;
   /** km into the whole trip. */
   km: number;
+  /** On a guessed stretch of a walk (guessedKm()): not routed, so the blue dot is not put on it. */
+  guess?: boolean;
 }
 /** GPS progress (`track`): the last fix snapped onto the trip. */
 export interface TrackState extends TripSnap {
@@ -195,25 +197,52 @@ export function tripLive(now = Date.now()) {
   return !!first && now >= first.t0! - 30 * 60000 && now <= journeyEnd() + 30 * 60000;
 }
 
+// A walk's guessed stretches (the engine's approxStart / approxEnd, kept as approxTo / approxFrom; all of a walk
+// that is all a guess), as km ranges along its step's line (stepLine()): what journey-steps.ts draws dashed.
+function guessedKm(st: JourneyStep, cum: number[]): [number, number][] {
+  if (st.type === 'ride' || !st.walks) return [];
+  const out: [number, number][] = [];
+  let o = 0; // where line k begins in stepLine()
+  (st.lines || []).forEach((l, k) => {
+    const w = st.walks![k], z = o + l.length - 1;
+    if (w && l.length > 1 && (w.approxTo != null || w.approxFrom != null)) {
+      const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
+      const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
+      if (w.approx) out.push([cum[o], cum[z]]);
+      else {
+        if (a > 0) out.push([cum[o], cum[o + a]]);
+        if (b < l.length - 1) out.push([cum[o + b], cum[z]]);
+      }
+    }
+    o += l.length;
+  });
+  return out;
+}
 // Snap a GPS position onto the trip. Ties go to the earlier step (waiting at the stop, not yet riding);
 // going backwards and boarding before the vehicle has left are penalised, so loops and parallel lines stay right.
-function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
+// A walk's guessed stretches (guessedKm()) are scored as any line (how far you are from it, and where along it), but
+// do not move you along the walk (kmIn, km): on one you are where it begins (on the guessed start, or a walk all
+// guessed, you have not set off yet; on the guessed end you are where the routed part ends), until you are within
+// 25 m of the walk's end.
+export function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
   const lay = tripLayout();
   let best: TripSnap | null = null;
   journey.steps.forEach((st, i) => {
     const cs = stepLine(st);
     if (!cs.length) return;
     const early = st.type === 'ride' && st.t0 != null && now < st.t0 - 60000 ? 150 : 0;
-    const consider = (d: number, kmIn: number) => {
-      const km = lay.km0[i] + kmIn;
+    const consider = (d: number, at: number, kmIn = at, guess = false) => { // at: where along the line the fix is; kmIn: how far it counts
+      const km = lay.km0[i] + at;
       const cost = d + early + (km < ref ? (ref - km) * 500 : (km - ref) * 20);
-      if (!best || cost < best.cost) best = { cost, d, i, kmIn, km };
+      if (!best || cost < best.cost) best = { cost, d, i, kmIn, km: lay.km0[i] + kmIn, ...(guess ? { guess } : {}) };
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
     const cum = cumKm(cs);
+    const guesses = distKm(p, cs[cs.length - 1]) < 0.025 ? [] : guessedKm(st, cum); // within 25 m of the walk's end: there
     for (let j = 0; j < cs.length - 1; j++) {
-      const q = projectSeg(p, cs[j], cs[j + 1]);
-      consider(q.d, cum[j] + q.t * (cum[j + 1] - cum[j]));
+      const q = projectSeg(p, cs[j], cs[j + 1]), k = cum[j] + q.t * (cum[j + 1] - cum[j]);
+      const g = guesses.find(([a, b]) => k >= a && k <= b);
+      consider(q.d, k, g ? g[0] : k, !!g);
     }
   });
   return best;
@@ -237,7 +266,7 @@ export function placeUserDot() {
   let at: LngLat = userLngLat;
   const st = tracking.track && !tracking.track.off && !tracking.track.arrived ? journey.steps[tracking.track.i] : null;
   const routed = !!st && st.type !== 'ride' && (st.walks || []).some((w) => w && w.net && !w.approx); // only onto real paths, never a straight guess
-  if (routed && tracking.track && tracking.track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), tracking.track.kmIn) || at;
+  if (routed && tracking.track && !tracking.track.guess && tracking.track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), tracking.track.kmIn) || at;
   userMarker.setLngLat(at);
 }
 export function trackJourney() {
@@ -253,7 +282,7 @@ function trackOnce() {
   if (!s) { tracking.track = null; return; }
   // walks follow exact footpaths now, so leaving one shows sooner than leaving a ride's line
   const here = journey.steps[s.i];
-  const onFoot = here.type !== 'ride' && (here.walks || []).some((w) => w && w.net && !w.approx);
+  const onFoot = here.type !== 'ride' && !s.guess && (here.walks || []).some((w) => w && w.net && !w.approx);
   const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
   // (once you have been on it, leaving it again is "off the route", however long that lasts)
