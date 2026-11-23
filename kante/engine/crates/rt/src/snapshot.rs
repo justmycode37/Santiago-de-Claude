@@ -6,7 +6,7 @@
 use crate::matcher::{MatchMethod, MatchedTrip, Matcher, REPORTED_ARR, REPORTED_DEP, REPORTED_SKIP};
 use crate::model::{FeedMeta, RtJourney};
 use kante_core::time::{Date, Secs};
-use kante_core::{DelayBounds, DelayIndex, ExtraTrip, LiveView, Timetable, TripIdx, TripLive, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
+use kante_core::{DelayBounds, DelayIndex, DerivedSlot, ExtraTrip, LiveView, Timetable, TripIdx, TripLive, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
@@ -57,6 +57,8 @@ pub struct LiveSnapshot {
     extra_ids: HashMap<String, usize>,
     /// Feeds that went into this snapshot.
     pub feeds: Vec<FeedMeta>,
+    /// What the router derives from the snapshot (see [`LiveView::derived`]).
+    derived: DerivedSlot,
 }
 
 /// Delay from which a trip is listed in [`LiveSnapshot::late_trips`].
@@ -114,6 +116,15 @@ impl LiveView for LiveSnapshot {
     }
     fn extra(&self, id: &str) -> Option<&ExtraTrip> {
         self.extra_ids.get(id).map(|&i| &self.extras[i])
+    }
+    fn for_each_trip(&self, f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
+        for (&(d, t), l) in &self.trips {
+            f(d, t, l);
+        }
+        true
+    }
+    fn derived(&self) -> Option<&DerivedSlot> {
+        Some(&self.derived)
     }
 }
 

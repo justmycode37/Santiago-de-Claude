@@ -2,12 +2,14 @@
 //!
 //! ```text
 //! raptor-query [--tt FILE] [--links FILE] COMMAND …
-//!   plan FROM TO DATE TIME [WINDOW_MIN] [--speed M/S] [--margin S] [--transfers N] [--modes rail,bus,…] [--near N] [--arrive-by HH:MM]
+//!   plan FROM TO DATE TIME [WINDOW_MIN] [--speed M/S] [--margin S] [--transfers N] [--modes rail,bus,…] [--near N] [--arrive-by HH:MM] [--live 1]
 //!   onboard BOARDED_AT NEXT_STOP DEST DATE TIME [CATEGORY]
 //!   departures STATION DATE TIME [N]
 //!   vehicles LAT LON RADIUS_M DATE TIME
 //!   bench [PAIRS]
+//!   bounds-check [PAIRS]            same journeys with and without target bounds (static and live)
 //!   stats
+//!   (any command) --no-bounds 1   plan without per-stop target bounds (for comparison)
 //!   continuations DATE [SAMPLES]      check in-seat continuations of the feed end to end
 //! ```
 //! Stations are looked up by exact `Station::name`; DATE is `YYYY-MM-DD`,
@@ -208,6 +210,9 @@ fn main() -> Result<()> {
         fp.len(),
         t0.elapsed()
     );
+    if args.opt.contains_key("no-bounds") {
+        rt.set_target_bounds(false);
+    }
     let cx = Ctx { rt, fp };
     match args.at(0)? {
         "plan" => cmd_plan(&cx, &args),
@@ -215,6 +220,7 @@ fn main() -> Result<()> {
         "departures" => cmd_departures(&cx, &args),
         "vehicles" => cmd_vehicles(&cx, &args),
         "bench" => bench::run(&cx, args.pos.get(1).and_then(|s| s.parse().ok()).unwrap_or(300)),
+        "bounds-check" => bench::bounds_check(&cx, args.pos.get(1).and_then(|s| s.parse().ok()).unwrap_or(300)),
         "stats" => cmd_stats(&cx),
         "continuations" => cmd_continuations(&cx, &args),
         other => bail!("unknown command {other:?}"),
@@ -242,6 +248,9 @@ fn cmd_plan(cx: &Ctx, args: &Args) -> Result<()> {
     let (acc, egr) = (cx.ends(from, near), cx.ends(to, near));
     let mut q = base_query(cx, args, date, t, &acc, &egr)?;
     q.window = args.pos.get(5).map(|w| w.parse::<Secs>()).transpose()?.unwrap_or(0) * 60;
+    // `--live 1`: the synthetic overlay of `bench` (its delays are drawn for 2026-11-23).
+    let fake = args.opt.contains_key("live").then(|| bench::fake_live(cx.tt(), time::parse_date("2026-11-23").unwrap(), &mut bench::Rng(0x9E3779B97F4A7C15)).0);
+    q.live = fake.as_ref().map(|l| l as &dyn LiveView);
     let t0 = Instant::now();
     let js = cx.rt.plan(&q);
     let first = t0.elapsed();
@@ -425,6 +434,7 @@ fn cmd_stats(cx: &Ctx) -> Result<()> {
     let tt = cx.tt();
     println!("stations {}  stops {}  lines {}  patterns {}  trips {}  stop times {}", tt.stations.len(), tt.stops.len(), tt.lines.len(), tt.patterns.len(), tt.trips.len(), tt.times.len() / 2);
     println!("continuations {}  official transfers {}  footpaths {}", tt.continuations.len(), tt.official_transfers.len(), cx.fp.len());
+    println!("target-bound graph {:.1} MB", cx.rt.target_bounds_bytes() as f64 / 1e6);
     // Footpath coverage: can one change between the stops of a station at all?
     let with_fp = (0..tt.stops.len()).filter(|&s| cx.fp.off[s] != cx.fp.off[s + 1]).count();
     let (mut pairs, mut missing, mut stations_missing) = (0u64, 0u64, 0);
@@ -493,7 +503,7 @@ fn cmd_stats(cx: &Ctx) -> Result<()> {
 mod bench {
     use super::*;
 
-    struct Rng(u64);
+    pub(crate) struct Rng(pub u64);
     impl Rng {
         fn next(&mut self) -> u64 {
             self.0 ^= self.0 << 13;
@@ -507,10 +517,11 @@ mod bench {
     }
 
     /// Random delays on a share of all trips of one date.
-    struct FakeLive {
-        date: Date,
-        trips: Vec<Option<TripLive>>,
-        max: Secs,
+    pub(crate) struct FakeLive {
+        pub date: Date,
+        pub trips: Vec<Option<TripLive>>,
+        pub max: Secs,
+        pub derived: DerivedSlot,
     }
     impl LiveView for FakeLive {
         fn trip(&self, date: Date, trip: TripIdx) -> Option<&TripLive> {
@@ -522,11 +533,49 @@ mod bench {
         fn max_delay(&self) -> Secs {
             self.max
         }
+        fn for_each_trip(&self, f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
+            for (t, l) in self.trips.iter().enumerate() {
+                if let Some(l) = l {
+                    f(self.date, t as TripIdx, l);
+                }
+            }
+            true
+        }
+        fn derived(&self) -> Option<&DerivedSlot> {
+            Some(&self.derived)
+        }
+    }
+
+    /// Live overlay: 30 % of the date's trips late by 1–10 min, 1 % cancelled;
+    /// as on the real feed, one train almost 3 h late dictates `max_delay`
+    /// (returned as the outlier).
+    pub(crate) fn fake_live(tt: &Timetable, date: Date, rng: &mut Rng) -> (FakeLive, Option<usize>) {
+        let mut trips: Vec<Option<TripLive>> = vec![None; tt.trips.len()];
+        for t in 0..tt.trips.len() as TripIdx {
+            if !tt.trip_active(t, date) {
+                continue;
+            }
+            let r = rng.below(100);
+            if r < 31 {
+                let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
+                let d = if r < 28 { 60 + rng.below(540) as i32 } else { 600 + rng.below(300) as i32 };
+                trips[t as usize] = Some(TripLive { cancelled: r == 30, arr_delay: vec![d; n], dep_delay: vec![d; n], observed_pos: -1, ..Default::default() });
+            }
+        }
+        let outlier = (0..tt.trips.len()).find(|&t| trips[t].as_ref().is_some_and(|l| !l.cancelled) && tt.trip_line(t as TripIdx).mode == Mode::Rail);
+        let mut max = 900;
+        if let Some(t) = outlier {
+            let l = trips[t].as_mut().unwrap();
+            l.arr_delay.fill(10_478);
+            l.dep_delay.fill(10_478);
+            max = 10_478;
+        }
+        (FakeLive { date, trips, max, derived: DerivedSlot::default() }, outlier)
     }
 
     /// Every fourth trip of a `FakeLive` (and its outlier): about the share
     /// of trips the real feed covers.
-    struct Sparse<'a>(&'a FakeLive, usize);
+    struct Sparse<'a>(&'a FakeLive, usize, DerivedSlot);
     impl LiveView for Sparse<'_> {
         fn trip(&self, date: Date, trip: TripIdx) -> Option<&TripLive> {
             if trip % 4 == 0 || trip as usize == self.1 {
@@ -537,6 +586,16 @@ mod bench {
         }
         fn max_delay(&self) -> Secs {
             self.0.max
+        }
+        fn for_each_trip(&self, f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
+            self.0.for_each_trip(&mut |d, t, l| {
+                if t % 4 == 0 || t as usize == self.1 {
+                    f(d, t, l)
+                }
+            })
+        }
+        fn derived(&self) -> Option<&DerivedSlot> {
+            Some(&self.2)
         }
     }
 
@@ -559,6 +618,13 @@ mod bench {
         fn delay_bounds(&self, date: Date) -> DelayBounds<'_> {
             self.1.get(date)
         }
+        fn for_each_trip(&self, f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
+            self.0.for_each_trip(f)
+        }
+        // Same trips as the view it wraps.
+        fn derived(&self) -> Option<&DerivedSlot> {
+            self.0.derived()
+        }
     }
 
     fn pct(v: &mut [f64], p: f64) -> f64 {
@@ -579,6 +645,64 @@ mod bench {
             mean,
             journeys as f64 / ms.len() as f64
         );
+    }
+
+    /// Random station pairs (uniform and by weight), live overlay as in `run`:
+    /// every query must give the same journeys with and without target bounds.
+    pub fn bounds_check(cx: &Ctx, pairs: usize) -> Result<()> {
+        let tt = cx.tt();
+        let date = time::parse_date("2026-11-23").unwrap();
+        let mut rng = Rng(0x2545F4914F6CDD1D);
+        let served: Vec<StationIdx> = (0..tt.stations.len() as StationIdx).filter(|&s| tt.stations[s as usize].weight > 0 && !tt.stations[s as usize].stops.is_empty()).collect();
+        let total: u64 = served.iter().map(|&s| tt.stations[s as usize].weight as u64).sum();
+        let cum: Vec<u64> = served.iter().scan(0u64, |c, &s| {
+            *c += tt.stations[s as usize].weight as u64;
+            Some(*c)
+        }).collect();
+        let mut set = Vec::new();
+        while set.len() < pairs {
+            let (a, b) = if set.len() % 2 == 0 {
+                (served[rng.below(served.len())], served[rng.below(served.len())])
+            } else {
+                let mut pick = || served[cum.partition_point(|&c| c <= rng.next() % total)];
+                (pick(), pick())
+            };
+            if a != b {
+                set.push((a, b, (5 + rng.below(17)) as Secs * 3600 + rng.below(60) as Secs * 60, [0, 0, 1800, 7200][rng.below(4)], [0, 0, 40][rng.below(3)]));
+            }
+        }
+        let (live, _) = fake_live(tt, date, &mut rng);
+        // What the engine guarantees not to depend on the search order (ties
+        // may be named either way; an earliest-arrival search may report
+        // another departure for the same arrival).
+        let key = |q: &Query, v: &[Journey]| v.iter().map(|j| (if q.window == 0 { 0 } else { j.dep }, j.arr, j.transfers)).collect::<Vec<_>>();
+        for (name, lv) in [("static", None), ("live", Some(&live as &dyn LiveView))] {
+            let (mut diff, mut legs, mut n_j, mut t_off, mut t_on) = (0, 0, 0, 0.0, 0.0);
+            for &(a, b, t, window, near) in &set {
+                let (acc, egr) = (cx.ends(a, near), cx.ends(b, near));
+                let mut q = Query::new(date, t, &acc, &egr, &cx.fp);
+                q.window = window;
+                q.live = lv;
+                cx.rt.set_target_bounds(false);
+                let t0 = Instant::now();
+                let off = cx.rt.plan(&q);
+                t_off += t0.elapsed().as_secs_f64() * 1e3;
+                cx.rt.set_target_bounds(true);
+                let t0 = Instant::now();
+                let on = cx.rt.plan(&q);
+                t_on += t0.elapsed().as_secs_f64() * 1e3;
+                n_j += on.len();
+                legs += (on != off) as usize;
+                if key(&q, &on) != key(&q, &off) {
+                    diff += 1;
+                    if diff <= 3 {
+                        println!("DIFFERENT: {} → {} {} window {} near {near}", tt.stations[a as usize].name, tt.stations[b as usize].name, hhmm(t), window / 60);
+                    }
+                }
+            }
+            println!("{name}: {} queries, {n_j} journeys, {diff} different ({legs} not identical leg by leg); {t_off:.0} ms without bounds, {t_on:.0} ms with", set.len());
+        }
+        Ok(())
     }
 
     pub fn run(cx: &Ctx, pairs: usize) -> Result<()> {
@@ -651,35 +775,12 @@ mod bench {
         run("busy, 40 nearest stops each end, 2 h range", &busy, 7200, 40, None);
         run("uniform, 40 nearest stops each end, 2 h range", &uniform, 7200, 40, None);
 
-        // Live overlay: 30 % of today's trips late by 1–10 min, 1 % cancelled, max_delay 15 min.
-        let mut trips: Vec<Option<TripLive>> = vec![None; tt.trips.len()];
-        let mut n_live = 0;
-        for t in 0..tt.trips.len() as TripIdx {
-            if !tt.trip_active(t, date) {
-                continue;
-            }
-            let r = rng.below(100);
-            if r < 31 {
-                let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
-                let d = if r < 28 { 60 + rng.below(540) as i32 } else { 600 + rng.below(300) as i32 };
-                trips[t as usize] = Some(TripLive { cancelled: r == 30, arr_delay: vec![d; n], dep_delay: vec![d; n], observed_pos: -1, ..Default::default() });
-                n_live += 1;
-            }
-        }
-        // As on the real feed: one train almost 3 h late dictates `max_delay`.
-        let outlier = (0..tt.trips.len()).find(|&t| trips[t].as_ref().is_some_and(|l| !l.cancelled) && tt.trip_line(t as TripIdx).mode == Mode::Rail);
-        let mut max = 900;
-        if let Some(t) = outlier {
-            let l = trips[t].as_mut().unwrap();
-            l.arr_delay.fill(10_478);
-            l.dep_delay.fill(10_478);
-            max = 10_478;
-        }
-        let live = FakeLive { date, trips, max };
+        let (live, outlier) = fake_live(tt, date, &mut rng);
+        let (n_live, max) = (live.trips.iter().filter(|t| t.is_some()).count(), live.max);
         let t0 = Instant::now();
         let indexed = Indexed::new(tt, date, &live);
         println!("\nwith synthetic live data ({n_live} trips delayed up to 15 min or cancelled, one {max} s late; delay index built in {:.1?})", t0.elapsed());
-        let sparse = Sparse(&live, outlier.unwrap_or(usize::MAX));
+        let sparse = Sparse(&live, outlier.unwrap_or(usize::MAX), DerivedSlot::default());
         let sparse_indexed = Indexed::new(tt, date, &sparse);
         let n_sparse = (0..tt.trips.len() as TripIdx).filter(|&t| sparse.trip(date, t).is_some()).count();
         for (tag, lv) in [

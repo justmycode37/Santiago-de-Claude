@@ -51,7 +51,7 @@ pub fn crowfly_footpaths(tt: &Timetable, max_m: f32, detour: f32) -> Footpaths {
         })
         .collect();
     let total: usize = lists.iter().map(Vec::len).sum();
-    let mut fp = Footpaths { off: Vec::with_capacity(n + 1), to: Vec::with_capacity(total), var_m: Vec::with_capacity(total), fix_s: vec![0; total] };
+    let mut fp = Footpaths { off: Vec::with_capacity(n + 1), to: Vec::with_capacity(total), var_m: Vec::with_capacity(total), fix_s: vec![0; total], ..Default::default() };
     fp.off.push(0);
     for l in &lists {
         for &(to, v) in l {

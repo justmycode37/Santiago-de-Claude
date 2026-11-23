@@ -53,12 +53,12 @@ use std::cell::RefCell;
 #[cfg(feature = "stats")]
 pub mod stats {
     use std::cell::Cell;
-    pub const NAMES: [&str; 19] = [
+    pub const NAMES: [&str; 22] = [
         "iterations", "seeds", "queue_pairs", "pattern_scans", "scan_steps", "lookups", "boardings", "ride_steps", "arrivals", "fp_relax", "ready_set", "marked",
-        "us_seeds", "us_seed_rides", "us_queue", "us_scan", "us_transfers", "us_collect", "us_reset",
+        "us_seeds", "us_seed_rides", "us_queue", "us_scan", "us_transfers", "us_collect", "us_reset", "lb_pruned", "lb_settled", "us_bounds",
     ];
     thread_local! {
-        pub static C: [Cell<u64>; 19] = const { [const { Cell::new(0) }; 19] };
+        pub static C: [Cell<u64>; 22] = const { [const { Cell::new(0) }; 22] };
     }
     #[inline]
     pub fn add(i: usize, n: u64) {
@@ -267,6 +267,7 @@ struct Engine<'a> {
     speed: f32,
     margin: Secs,
     min_egress: Secs,
+    lb: crate::lower_bounds::TargetBounds<'a>,
     /// Best arrival at the destination with at most `k` rides, over all iterations so far.
     target_best: [Secs; R],
     /// Egress stop through which `target_best[k]` improved in the current iteration.
@@ -314,6 +315,7 @@ fn run(rt: &Router, days: &DaySet, q: &Query, s: &mut Scratch) -> Vec<Journey> {
         speed,
         margin: q.transfer_margin.max(0),
         min_egress: INF,
+        lb: crate::lower_bounds::TargetBounds::new(rt, q, live, fp, speed),
         // Arriving exactly at `max_arr` is still accepted: candidates must beat `target_best`.
         target_best: [q.max_arr.map_or(INF, |m| m.saturating_add(1)); R],
         hits: [NONE; R],
@@ -607,8 +609,11 @@ impl<'a> Engine<'a> {
             if a >= st.v {
                 return;
             }
-            st.v = a;
         }
+        if self.lb.prune(stop, a, self.target_best[k]) {
+            return;
+        }
+        self.s.star_ride[stop as usize].v = a;
         count!(8);
         let rec = self.rec(cur);
         let s = &mut *self.s;
@@ -651,7 +656,7 @@ impl<'a> Engine<'a> {
     /// from `from`. `best` is `ready_star(k, to)`.
     #[inline]
     fn set_ready(&mut self, k: usize, to: StopIdx, cand: Secs, from: StopIdx, best: Secs) {
-        if cand >= best || cand.saturating_add(self.min_egress) >= self.target_best[k + 1] {
+        if cand >= best || cand.saturating_add(self.min_egress) >= self.target_best[k + 1] || self.lb.prune(to, cand, self.target_best[k + 1]) {
             return;
         }
         count!(10);
@@ -947,7 +952,7 @@ impl<'a> Engine<'a> {
                 continue;
             }
             let a = self.s.lab[s as usize * R + k].ride + self.margin;
-            if a.saturating_add(self.min_egress) >= self.target_best[k + 1] {
+            if a.saturating_add(self.min_egress) >= self.target_best[k + 1] || self.lb.prune(s, a, self.target_best[k + 1]) {
                 continue;
             }
             let best = self.ready_star(k, s);

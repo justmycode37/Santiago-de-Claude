@@ -340,6 +340,10 @@ impl App {
         let router = Router::new(tt.clone());
         let today = kante_core::time::from_unix(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)).0;
         router.warm_up(today);
+        // The footpath sets are final here: derive the router's data from them now.
+        for fp in [&fp_normal, &fp_step_free, &fp_few] {
+            router.prepare_footpaths(fp);
+        }
         eprintln!("  router: {:.2}s", t.elapsed().as_secs_f32());
 
         let stop_grid = PointGrid::new(tt.stops.iter().enumerate().map(|(i, s)| (i as u32, s.pos)), 250.0);
