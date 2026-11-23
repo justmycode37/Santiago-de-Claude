@@ -1416,3 +1416,34 @@ fn route_between_takes_the_best_target() {
     }
     assert!(checked > 20, "{checked}");
 }
+
+#[test]
+fn a_sources_metres_to_the_network_do_not_shrink_the_search() {
+    // what one_to_many finds from a snap within a time, many_to_many_raw finds from the same snap given with metres
+    // already walked to it (they are added on top of the bound, as one_to_many adds them only after)
+    let r = random_city(13, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(21);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for round in 0..20 {
+        let prof = if round % 2 == 0 { NORMAL } else { avoid() };
+        let from = pick(&mut rng);
+        let targets: Vec<Snap> = (0..40).map(|_| pick(&mut rng)).collect();
+        for max in [60.0, 200.0, 600.0] {
+            let plain = r.one_to_many(&from, &targets, &prof, max);
+            let raw = r.many_to_many_raw(&[(from, 80.0, 0.0)], &targets, &prof, max);
+            for (p, q) in plain.iter().zip(&raw) {
+                if let Some(p) = p {
+                    let q = q.expect("found with the metres to the network as well");
+                    assert!(close(q.1.var_m, p.var_m + 80.0, 0.05));
+                    checked += 1;
+                }
+            }
+        }
+    }
+    assert!(checked > 50, "{checked}");
+}
