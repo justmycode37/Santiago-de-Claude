@@ -67,8 +67,11 @@ function buildSync<T extends esbuild.BuildOptions>(options: esbuild.SameShape<es
 
 /** A file of dist/ the build makes: its path under dist/ and its content. */
 interface Made { file: string; content: string | Uint8Array }
-/** Each entry of ENTRIES and each script of SCRIPTS: the file it became, and the files it imports (modulepreload). */
-type Built = Map<string, { file: string; imports: string[] }>;
+/**
+ * Each entry of ENTRIES and each script of SCRIPTS: the file it became, the files it imports (modulepreload), and
+ * for an entry every file it can load, each with the files it imports (what src/lazy.ts reads, `bundle-files`).
+ */
+type Built = Map<string, { file: string; imports: string[]; graph?: Record<string, string[]> }>;
 /** What the last build of the scripts wrote: removed when the next one has written its own (npm run dev). */
 let written = new Set<string>();
 
@@ -86,17 +89,45 @@ function bundle(built: Built): Made[] {
     external: EXTERNAL, metafile: true, write: false,
   });
   const meta = result.metafile.outputs;
+  const name = (f: string) => served(path.join(ROOT, f));
+  const statics = (f: string) => meta[f].imports.filter((i) => i.kind === 'import-statement' && !i.external).map((i) => i.path);
   for (const [file, out] of Object.entries(meta)) {
     if (!out.entryPoint) continue;
     // every file it imports, and what those import in turn: all of them are needed before it can run
     const imports: string[] = [], seen = new Set<string>();
-    const walk = (f: string) => {
-      for (const i of meta[f].imports) if (i.kind === 'import-statement' && !i.external && !seen.has(i.path)) { seen.add(i.path); imports.push(served(path.join(ROOT, i.path))); walk(i.path); }
-    };
+    const walk = (f: string) => { for (const i of statics(f)) if (!seen.has(i)) { seen.add(i); imports.push(name(i)); walk(i); } };
     walk(file);
-    built.set(out.entryPoint, { file: served(path.join(ROOT, file)), imports });
+    // every file it can load (with import() too), and the files each imports
+    const graph: Record<string, string[]> = {};
+    const reach = (f: string) => {
+      if (graph[name(f)]) return;
+      graph[name(f)] = statics(f).map(name);
+      for (const i of meta[f].imports) if (!i.external && (i.kind === 'import-statement' || i.kind === 'dynamic-import')) reach(i.path);
+    };
+    reach(file);
+    built.set(out.entryPoint, { file: name(file), imports, graph });
   }
+  checkLoads(result.outputFiles, new Set(Object.keys(meta).map(name)));
   return outputs(result.outputFiles);
+}
+
+/**
+ * Every import() of a file of the bundle goes through load() (src/lazy.ts), in the shape it reads:
+ * `load(import.meta.url, () => import("./chunks/x-<hash>.js"))`. Anything else would load without it (and stay
+ * broken after one failed download), so the build stops.
+ */
+function checkLoads(files: esbuild.OutputFile[], made: Set<string>): void {
+  for (const f of files) {
+    if (!f.path.endsWith('.js')) continue;
+    for (const m of f.text.matchAll(/\bimport\(\s*(["'])([^"']+)\1\s*\)/g)) {
+      const target = served(path.resolve(path.dirname(f.path), m[2]));
+      const before = f.text.slice(Math.max(0, m.index! - 60), m.index);
+      if (!made.has(target)) continue; // not a file of the bundle (the import map's three.js)
+      if (!/\bload\d*\(import\.meta\.url, \(\) => $/.test(before) || f.text[m.index! + m[0].length] !== ')') {
+        throw new Error(`${served(f.path)}: import("${m[2]}") is not loaded through load(import.meta.url, () => import(…)) (src/lazy.ts)`);
+      }
+    }
+  }
 }
 
 /** A plain script (no import or export at run time), with what it imports written into it. */
@@ -120,20 +151,27 @@ function classicScripts(built: Built): Made[] {
 }
 
 /**
- * The scripts a page cached from before the modules (index.html of #61 and earlier) loads as it starts. Each is
- * published once more as a file that reloads the page: the reload brings the new index.html (a browser asks for
- * the page itself again on a reload). Only for the first deploy of the modules; they can go with any later one.
+ * The scripts a page from before the modules (index.html of #61 and earlier, cached or still open) loads: as it
+ * starts, and on first use (Scan, the 3D view and what it loads, the fare suggestions). Each is published once more
+ * as a file that reloads the page: the reload brings the new index.html (a browser asks for the page itself again
+ * on a reload). Only for the first deploy of the modules; they can go with any later one.
  */
 const RETIRED = ['translate', 'events', 'map-layers', 'pricing-history', 'settings', 'walk-pace', 'onboarding', 'engine',
-  'engine-departures', 'engine-journey', 'live', 'arcore', 'places', 'walkroute'];
-const RELOAD = `// This file is no longer part of the site: the page that asked for it is from before an update. Reload it, once.
-try { if (sessionStorage.getItem('reloaded-for-update') !== location.href) { sessionStorage.setItem('reloaded-for-update', location.href); location.reload(); } } catch (e) {}
+  'engine-departures', 'engine-journey', 'live', 'arcore', 'places', 'walkroute',
+  'stopvision', 'station-view', 'station-route', 'station3d-solid', 'indoorloc', 'signloc', 'indoornav', 'pricing-panel', 'pricing-engine'];
+const reloadFor = (name: string) => `// ${name}.js is no longer part of the site: the page that asked for it is from before an update. Reload it, once.
+try { if (!sessionStorage.getItem('reloaded-for ${name}.js')) { sessionStorage.setItem('reloaded-for ${name}.js', '1'); location.reload(); } } catch (e) {}
 `;
 
-/** A module of ENTRIES as a page loads it: the file, and the files it imports fetched alongside. */
-function moduleTags(b: { file: string; imports: string[] }, indent: string, page: string, attributes: string): string {
+/**
+ * A module of ENTRIES as a page loads it: the file, the files it imports fetched alongside, and the files it can
+ * load later with what each imports (for src/lazy.ts and src/inline/updated.ts), all relative to the page.
+ */
+function moduleTags(b: { file: string; imports: string[]; graph?: Record<string, string[]> }, indent: string, page: string, attributes: string): string {
   const up = '../'.repeat(page.split('/').length - 1); // pages in folders (demo/index.html)
-  return [...b.imports.map((f) => `${indent}<link rel="modulepreload" href="${up}${f}" />`), `${indent}<script${attributes} src="${up}${b.file}"></script>`].join('\n');
+  const graph = Object.fromEntries(Object.entries(b.graph || {}).map(([f, i]) => [up + f, i.map((x) => up + x)]));
+  return [`${indent}<script type="application/json" id="bundle-files">${JSON.stringify(graph)}</script>`,
+    ...b.imports.map((f) => `${indent}<link rel="modulepreload" href="${up}${f}" />`), `${indent}<script${attributes} src="${up}${b.file}"></script>`].join('\n');
 }
 
 /** A build marker's script written into the page. */
@@ -196,9 +234,17 @@ export function copyStatic(release: boolean): void {
  * only then written, so a build that fails (a syntax error while `npm run dev` runs) leaves the last one as it was.
  */
 export function buildScripts(release = false): void {
+  writeScripts(makeScripts(release));
+}
+function makeScripts(release: boolean): Made[] {
   const built: Built = new Map();
   const made = [...bundle(built), ...classicScripts(built), ...pages(release).map((p) => buildPage(p, built)),
-    ...RETIRED.filter((n) => !fs.existsSync(path.join(ROOT, n + '.js'))).map((n) => ({ file: n + '.js', content: RELOAD }))];
+    ...RETIRED.filter((n) => !fs.existsSync(path.join(ROOT, n + '.js'))).map((n) => ({ file: n + '.js', content: reloadFor(n) }))];
+  return made;
+}
+
+/** Writes what makeScripts() made, and removes the files of the build before that are not among them. */
+function writeScripts(made: Made[]): void {
   for (const { file, content } of made) {
     const out = path.join(DIST, file);
     fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -210,10 +256,11 @@ export function buildScripts(release = false): void {
 }
 
 export function build({ release = false, clean = release }: { release?: boolean; clean?: boolean } = {}): void {
+  const made = makeScripts(release); // first: a build that fails leaves dist/ as it was, also when it would clean
   if (clean) { fs.rmSync(DIST, { recursive: true, force: true }); written = new Set(); }
   fs.mkdirSync(DIST, { recursive: true });
   copyStatic(release);
-  buildScripts(release);
+  writeScripts(made);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

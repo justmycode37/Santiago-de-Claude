@@ -8,7 +8,7 @@
 // Everything is saved on this device only.
 import { PRICING_HISTORY, keepTripsWhen } from './pricing-history.ts';
 import { showToast } from './toast.ts';
-import { isUpdate, load } from './lazy.ts';
+import { load, reloadNote } from './lazy.ts';
 import { MAP_LAYERS } from './map-layers.ts';
 import { setTheme } from './theme.ts';
 import type { MapGroupKey } from './map-layers.ts';
@@ -325,7 +325,7 @@ export const openFareSuggestions = async (trigger: HTMLElement): Promise<void> =
       } });
     }
   } catch (e) {
-    const message = isUpdate(e) ? 'The app has been updated. Reload the page to see the fare suggestions.' : 'Fare suggestions could not load. Please try again.';
+    const message = reloadNote(e, 'to see the fare suggestions') || 'Fare suggestions could not load. Please try again.';
     if (!isOpen) showToast(message);
     else {
       pricingStorageStatus.hidden = false;

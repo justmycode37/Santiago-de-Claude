@@ -7,7 +7,7 @@
 // up: when it arrives it joins the opening that is showing then. If those three fail, the view works without them
 // and they are tried again at the next opening.
 import { showToast } from './toast.ts';
-import { isUpdate, load } from './lazy.ts';
+import { load, reloadNote } from './lazy.ts';
 import type { INDOORLOC } from './indoorloc.ts';
 import type { SIGNLOC } from './signloc.ts';
 import type { INDOORNAV } from './indoornav.ts';
@@ -50,7 +50,7 @@ export interface Station3DUser {
   at?: number;
 }
 /** 'none': the station has no 3D view (no continuous model in stations3d/solid-index.js). */
-export type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'none' | 'updated';
+export type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'none' | 'updated'; // updated: only a reload helps (lazy.ts)
 /** What `Station3D.on(name, fn)` hands to fn. */
 export interface Station3DEventMap {
   open: { key: string; route: StationRouteResult | null; focus: { which: 'from' | 'to'; why: StationRouteWhy | 'no-router' | null } | null };
@@ -137,7 +137,6 @@ function loadView(): Promise<typeof StationView> {
   }).catch((e) => { svLoading = null; throw e; });
   return svLoading;
 }
-const UPDATED_3D: Station3DEventMap['error'] = { code: 'updated', message: 'The app has been updated. Reload the page to open the 3D view.' };
 function failed(opts: Station3DOpenOptions, err: Station3DEventMap['error'] = { code: 'three', message: 'Check your connection, then try again.' }) {
   if (wanted !== opts) return;   // closed or replaced meanwhile: nobody is waiting for this one
   wanted = null;
@@ -156,7 +155,7 @@ export const Station3D = {
       wanted = null;
       sv.open(opts);
       loadIndoor();
-    }, (e) => failed(opts, isUpdate(e) ? UPDATED_3D : undefined));
+    }, (e) => { const reload = reloadNote(e, 'to open the 3D view'); failed(opts, reload ? { code: 'updated', message: reload } : undefined); });
   },
   setUser: (u: Station3DUser | null | undefined): void => { user = u || null; userAt = performance.now(); if (view) view.setUser(u); },
   close: (): void => { wanted = null; if (svOpen()) view!.close(); },

@@ -1,6 +1,6 @@
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
-import { isUpdate, load } from '../lazy.ts';
+import { load, reloadNote } from '../lazy.ts';
 import type { STOPVISION } from '../stopvision.ts';
 import { EVENT_MIN_ZOOM, eventsOn, setEventsOn, updateCards, visibleEvents } from './map-events.ts';
 import { fixAge, userAccuracy, userLngLat } from './location.ts';
@@ -38,7 +38,7 @@ export function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream
   if (scan) go();
   else {
     load(import.meta.url, () => import('../stopvision.ts')).then((m) => { scan = m.STOPVISION; }).then(go, (e) => {
-      showToast(isUpdate(e) ? 'The app has been updated. Reload the page to use Scan.' : 'Scan could not be loaded.');
+      showToast(reloadNote(e, 'to use Scan') || 'Scan could not be loaded.');
       camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
     });
   }

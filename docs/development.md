@@ -45,16 +45,17 @@ the whole site. So the files of the bundle and the plain scripts are named by th
 
 - A page and the code it loads are always of one build: a page names its files by their hashes, and they name the
   files they import the same way. A page cached from before a deploy loads the old files or none, never a mix.
-- A file that is gone means the site has been updated since the page was loaded. The page's script itself: it
-  reloads once (`scriptFailed()`, `src/inline/updated.ts`), and the reload brings the new page. A part loaded later
+- A file that is gone means the site has been updated since the page was loaded. The page's script or a file it
+  imports: the page reloads, once for each file that was missing (`scriptFailed()`, `src/inline/updated.ts`), and the
+  reload brings the new page. A part loaded later
   (`src/lazy.ts`): the traveller is told to reload ("The app has been updated…") instead of getting a button that
   does nothing.
 - A name without a hash would be served from the cache for those ten minutes next to a new page (or the reverse),
   and would mix two builds.
 
-The first deploy of the modules publishes the scripts a page cached from before loaded as it started (`settings.js`,
-`events.js`, …) once more, as files that reload the page (`RETIRED` in `scripts/build.mts`); any later deploy can
-drop them.
+The first deploy of the modules publishes the scripts a page from before loaded (as it started: `settings.js`,
+`events.js`, …; on first use: `stopvision.js`, `station-view.js`, …) once more, as files that reload the page
+(`RETIRED` in `scripts/build.mts`); any later deploy can drop them.
 
 ## Modules
 
@@ -66,7 +67,9 @@ drop them.
   `main.js` and can be asked for again: `load(import.meta.url, () => import('./station-view.ts'))`. A browser
   remembers a module that failed to download until the page is reloaded, so `load()` first fetches the part's files
   and runs `import()` only when they are all there; a part that failed (no connection, a background preload) is
-  downloaded again the next time. It finds the bundled file in the `import()` esbuild wrote.
+  downloaded again the next time, and a part is loaded once however many callers wait for it. Which files a part
+  needs, the build writes into each page (`<script type="application/json" id="bundle-files">`, from esbuild's
+  metafile). The build stops if an `import()` in its output does not go through `load()` in that shape.
 - Only type syntax that can be erased: annotations, `interface`, `type`, `as`, `!`, generics. No `enum`, no
   `namespace`, no parameter properties (`erasableSyntaxOnly` in `tsconfig.json` reports them). Node runs the
   modules as they are for the tests.

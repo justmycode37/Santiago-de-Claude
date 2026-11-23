@@ -53,7 +53,7 @@ interface SolidOpenOptions {
 interface SolidModule { open(o: SolidOpenOptions): Promise<SolidView> }
 
 import type { StationRouteEndpoint, StationRouteResult, StationRouteStep, StationRouteStopRef } from './station-route.ts';
-import { isUpdate, load } from './lazy.ts';
+import { load, reloadNote } from './lazy.ts';
 import type { Station3DErrorCode, Station3DEventMap, Station3DOpenOptions, Station3DUser } from './station3d.ts';
 import type { StationRoutePrefs } from './station-route.ts';
 const RECENT_MS = 60e3;   // a remembered GPS fix older than this is not shown when the view opens
@@ -282,7 +282,8 @@ function open(opts: Station3DOpenOptions) {
     emit('open', { key: opts.key, route: v.route, focus: null });
   }).catch((e: Error) => {
     console.warn(e);
-    if (isUpdate(e)) { fail('updated', 'The app has been updated. Reload the page to open the 3D view.'); return; }
+    const reload = reloadNote(e, 'to open the 3D view');
+    if (reload) { fail('updated', reload); return; }
     const three = /three|import|module|station3d-solid/i.test(String(e && (e.message || e)));
     fail(three ? 'three' : 'model', three ? 'Check your connection, then try again.' : 'This station\'s 3D model could not be loaded. Check your connection, then try again.');
   });
