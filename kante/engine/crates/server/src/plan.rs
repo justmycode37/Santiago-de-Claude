@@ -736,7 +736,7 @@ impl App {
             // given exactly (where a station model's own paths begin): straight from it
             let end = match (p.station, r.exact, self.walk.as_ref()) {
                 (_, true, _) | (_, _, None) => End::exact(p.pos, self.snap_free(p.pos, &profile)),
-                (Some(_), false, Some(w)) => End::station(w, p.pos, &profile),
+                (Some(_), false, Some(w)) => End::station(w, self.doors.as_ref(), p.pos, &profile),
                 (None, false, Some(_)) => self.place_end(p.pos, &profile),
             };
             Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })

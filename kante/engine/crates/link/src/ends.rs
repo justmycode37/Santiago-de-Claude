@@ -158,10 +158,20 @@ pub fn station_candidates(router: &WalkRouter, pos: LatLon, profile: &WalkProfil
 }
 
 impl End {
-    /// A station entered at street level ([`station_candidates`]); a line onto a way further than the nearest counts
-    /// its length in route choice like any other.
-    pub fn station(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> End {
-        End { pos, joins: station_candidates(router, pos, profile).into_iter().map(|s| Join { snap: s, extra_m: s.dist_m, pen_s: 0.0, door: None, inside_m: 0.0, wall: false }).collect(), ..Default::default() }
+    /// A station entered at street level ([`station_candidates`]): each line tested and weighed like a place's
+    /// (through a building: a guess, four times its length plus 200 m; onto a main road: four times).
+    pub fn station(router: &WalkRouter, doors: Option<&DoorIndex>, pos: LatLon, profile: &WalkProfile) -> End {
+        let g = router.graph();
+        let speed = profile.speed_mps.max(0.05);
+        let joins = station_candidates(router, pos, profile)
+            .into_iter()
+            .map(|s| {
+                let covered = g.edges[s.edge as usize].flags & EF_COVERED != 0;
+                let wall = doors.is_some_and(|ix| ix.through(pos, s.pos, if covered { 5.0 } else { 0.0 }));
+                Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall, speed), door: None, inside_m: 0.0, wall }
+            })
+            .collect();
+        End { pos, joins, ..Default::default() }
     }
 
     /// A point taken as it is (a station's centre, where a station model's own paths begin): straight onto `snap`.

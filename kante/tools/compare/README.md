@@ -23,6 +23,10 @@ target/release/compare sample /tmp/data-b 24000 7 > /tmp/samples.json
 # ask both
 python3 ../tools/compare/compare.py --a http://127.0.0.1:8091 --b http://127.0.0.1:8092 \
   --samples /tmp/samples.json --data-a /tmp/data-a --data-b /tmp/data-b --bin target/release/compare --out /tmp/cmp
+# A's own search code on B's graph, for the lost stops (--main-probe): built in A's worktree
+cp kante/tools/compare/main-probe.rs /tmp/kante-main/kante/engine/crates/walk/examples/probe.rs
+(cd /tmp/kante-main/kante/engine && cargo build --release -p kante-walk --example probe)
+# (then add --main-probe /tmp/kante-main/kante/engine/target/release/examples/probe to the compare.py line above)
 # every pair of ways a lift of A joins, checked in B; and the lift edges in one graph and not the other
 target/release/compare lift-pairs /tmp/data-a/built/walkgraph.bin /tmp/data-b/built/walkgraph.bin
 target/release/compare lifts /tmp/data-a/built/walkgraph.bin /tmp/data-b/built/walkgraph.bin
@@ -33,8 +37,9 @@ What it checks (`summary.json`):
 - **reach** (`POST /api/reach`): the stops each point may walk to, normal, step-free and in a wheelchair, within 5,
   10 and 20 minutes; how much later B reaches the stops both reach (and by which candidate: B says `point` or
   `door`); and every stop A reaches and B does not with its cause from the built data (`compare explain`: B links
-  the stop elsewhere, or A's own walk to it, recomputed on A's graph, uses an edge B's graph does not have as it is —
-  else `unexplained`).
+  the stop elsewhere, B's graph puts the start elsewhere, or A's own walk to it, recomputed on A's graph, uses an edge,
+  a joint, a node's tags or a lift B's graph does not have as it is); with `--main-probe`, also whether A's own search
+  code reaches the stop on B's graph (if not, the loss is the graph's, not B's code's).
 - **walks** (`POST /api/walk`): where A routes, does B; B's length and time against A's; every pair over 1.5 ×.
 - **through**: the straight lines of each walk (from the point to the network and from it to the end) that run
   through a building, by B's outlines and a test of its own (`compare through`: points every 25 cm, some more than

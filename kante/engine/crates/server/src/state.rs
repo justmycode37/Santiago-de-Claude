@@ -637,7 +637,7 @@ impl App {
         // from each of the point's lines onto the network and from the doors of the building it is in (a station is
         // entered at street level, as above)
         let end = match (ep.station, self.walk.as_ref()) {
-            (Some(_), Some(walk)) => End::station(walk, ep.pos, profile),
+            (Some(_), Some(walk)) => End::station(walk, self.doors.as_ref(), ep.pos, profile),
             (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, profile),
             _ => End::exact(ep.pos, None),
         };

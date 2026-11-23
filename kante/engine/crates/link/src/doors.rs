@@ -184,13 +184,16 @@ pub fn through_building<'a>(p: P, q: P, arcade_m: f32, buildings: impl Iterator<
             let mut deep = 0f32;
             for k in 0..=steps {
                 let t = a + (b - a) * k as f32 / steps as f32;
-                if (pon && t * len < 0.5) || (qon && (1.0 - t) * len < 0.5) {
+                let x = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+                if inside(x, rings) != inn {
                     continue;
                 }
-                let x = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
-                if inside(x, rings) == inn {
-                    deep = deep.max(outline_dist(x, rings));
+                let d = outline_dist(x, rings);
+                // next to an end on the outline (a door a few centimetres off it), only as deep as that end may be
+                if d <= 0.3 && ((pon && t * len < 0.5) || (qon && (1.0 - t) * len < 0.5)) {
+                    continue;
                 }
+                deep = deep.max(d);
             }
             pieces.push((inn && deep > 0.2, !inn && deep > 0.2));
         }
@@ -621,6 +624,10 @@ mod tests {
         assert!(!through_building((10.0, 8.0), (10.0, 0.0), 0.0, b()));
         // out of a building from a point inside it: through its wall
         assert!(through_building((10.0, 8.0), (10.0, -5.0), 0.0, b()));
+        // to a door on the front wall from inside the house, the last half metre more than 30 cm in: through
+        assert!(through_building((10.0, -8.0), (10.0, 0.0), 0.0, b()) == false);
+        assert!(through_building((4.0, 6.0), (10.0, 0.0), 0.0, b()) == false, "from inside to its own door: stays in");
+        assert!(through_building((30.0, 1.0), (10.0, 0.0), 0.0, b()));
         // in through the side wall 23 cm from the corner and along inside the front wall to a door on it: through
         assert!(through_building((-3.0, 0.3), (10.0, 0.0), 0.0, b()));
         // a door 25 cm inside the outline (as mapped) out to the street: not; a point 31 cm inside it: through the wall

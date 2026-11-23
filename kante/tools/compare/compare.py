@@ -56,12 +56,22 @@ def stops_of(r):
 
 
 def explain(args, records):
-    """Each lost stop's cause from the built data of both engines (`compare explain`)."""
+    """Each lost stop's cause from the built data of both engines (`compare explain`), and with `--main-probe`
+    whether A's own search code, run on B's graph from A's start to B's link, reaches it within the limit: if it does
+    not, the stop is lost by the graph (or the link), not by B's code."""
     if not records:
         return []
     inp = '\n'.join(json.dumps(r) for r in records) + '\n'
     out = subprocess.run([args.bin, 'explain', args.data_a, args.data_b], input=inp, capture_output=True, text=True, check=True).stdout
-    return [json.loads(x) for x in out.splitlines()]
+    res = [json.loads(x) for x in out.splitlines()]
+    if args.main_probe:
+        probe = subprocess.run([args.main_probe, os.path.join(args.data_b, 'built/walkgraph.bin')], input=out, capture_output=True, text=True, check=True).stdout
+        reach = {json.dumps(json.loads(x)['key']): json.loads(x)['a_code_on_b_graph'] for x in probe.splitlines()}
+        for r in res:
+            r['a_code_on_b_graph'] = reach.get(json.dumps(r['key']))
+            if r['cause'] == 'unexplained' and r['a_code_on_b_graph'] is None:
+                r['cause'] = "graph: not pinned to one edge (A's own search on B's graph does not reach it either)"
+    return res
 
 
 def main():
@@ -75,6 +85,7 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--threads', type=int, default=32)
     ap.add_argument('--only', default='reach,walks,plans,cost')
+    ap.add_argument('--main-probe', help="main-probe.rs built in A's worktree (README): A's own search on B's graph")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     S = json.load(open(args.samples))
@@ -140,7 +151,7 @@ def reach_summary(args, S, jobs, res):
     with open(os.path.join(args.out, 'lost.jsonl'), 'w') as f:
         for r in lost_records:
             c = causes.get(tuple(r['key']), {})
-            f.write(json.dumps({**r, 'cause': c.get('cause'), 'reproduced': c.get('reproduced')}) + '\n')
+            f.write(json.dumps({**r, 'cause': c.get('cause'), 'reproduced': c.get('reproduced'), 'a_code_on_b_graph': c.get('a_code_on_b_graph')}) + '\n')
     for prof in PROFILES:
         for lim in LIMITS:
             st = {'points': 0, 'errors': 0, 'stops_a': 0, 'stops_b': 0, 'lost': 0, 'gained': 0, 'later': [], 'earlier': 0, 'same': 0,
@@ -177,6 +188,7 @@ def reach_summary(args, S, jobs, res):
             st['later_over_60s'] = sum(1 for d in later if d > 60)
             out[f'{prof} {lim} min'] = st
     out['unreproduced'] = sum(1 for c in causes.values() if not c.get('reproduced'))
+    out['a_code_on_b_graph_reaches'] = sum(1 for c in causes.values() if c.get('a_code_on_b_graph') is not None)
     return out
 
 

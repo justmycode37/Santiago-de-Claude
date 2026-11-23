@@ -320,7 +320,7 @@ fn a_station_is_entered_from_a_way_that_leads_on() {
     w.way((-50.0, -12.0), (60.0, -12.0), 11, EdgeKind::Footway, 0);
     w.way((60.0, -12.0), (60.0, 1.4), 1, EdgeKind::Footway, 0);
     let (r, ix) = w.finish();
-    let station = End::station(&r, pt(-5.0, 0.0), &STEP_FREE);
+    let station = End::station(&r, Some(&ix), pt(-5.0, 0.0), &STEP_FREE);
     assert!(station.joins.len() >= 2, "{:?}", station.joins);
     let to = stop(&r, 30.0, 1.4, &STEP_FREE);
     let (c, w1, _) = reach_and_walk(&r, &ix, &station, &to, &STEP_FREE, 600.0);
