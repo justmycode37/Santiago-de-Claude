@@ -397,6 +397,7 @@ function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
 function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const transfer = st.type === 'change';
   const mins = walkMinOf(st);
+  const secs = mins ? mins * 60 : st.walkS || 0; // a walk of a few seconds (to a door) is "< 1 min", not "0 min"
   const target = walkTarget(st);
   if (transfer) {
     const pq = quayOf(st.prevRide!, 'arr'), nq = quayOf(st.nextRide!, 'dep');
@@ -422,7 +423,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const expanded = openDirs.has(i) || (!!sheet.focus && sheet.focus.step === i);
   const title = `${transfer ? 'Change to' : 'Walk to'} ${target}`;
   const main = h('div', 'tl-main',
-    kBtn('walk-sum', `${title}, ${kDur(mins * 60)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
+    kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
@@ -444,7 +445,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!sheet.focus && sheet.focus.step === i && sheet.focus.dir === k, () => focusDir(i, k)))));
   }
   return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
-    h('span', 'tl-time', h('small', null, kDur(mins * 60))),
+    h('span', 'tl-time', h('small', null, kDur(secs))),
     h('span', 'tl-rail walk', kIcon('walk', 18)),
     main);
 }

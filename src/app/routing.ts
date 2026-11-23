@@ -136,8 +136,10 @@ export async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan:
   if (!route || route.points.length < 2 || route.same) return asPlanned && st.kanteWalk ? null : street();
   const inside = route.points.map((p) => stationRouter()!.toLngLat(model!, p));
   const parts: LngLat[][] = [], walks: RoutedWalk[] = [];
-  const join = async (p: LngLat, q: LngLat, end: [WalkEnd, WalkEnd]) => { // the stretch between the walk's end and where the model's paths begin
-    if (distKm(p, q) < 0.002) return; // (a few metres still lead to the door the engine picks)
+  // the stretch between the walk's end and where the model's paths begin: left out under 2 m, except to the
+  // destination (place), however near, so that the engine leads to the door it picks
+  const join = async (p: LngLat, q: LngLat, end: [WalkEnd, WalkEnd], place?: boolean) => {
+    if (!place && distKm(p, q) < 0.002) return;
     const w = await routeWalk(p, q, end);
     parts.push(w.coords);
     walks.push(w);
@@ -156,7 +158,7 @@ export async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan:
   parts.push(inside);
   walks.push({ coords: inside, steps: null, dist: route.length, dirs, walkS: route.seconds });
   // to the destination: to the place itself, so that the engine picks its door
-  if (!route.toStop) await join(inside[inside.length - 1], walkGoal(st, b), [{ exact: true }, (ends[ends.length - 1] || [])[1] || {}]);
+  if (!route.toStop) await join(inside[inside.length - 1], walkGoal(st, b), [{ exact: true }, (ends[ends.length - 1] || [])[1] || {}], st.type === 'walk' && !!st.final);
   // the model's floor changes, and any on the street parts before and after it
   const floors = dirs.filter((d) => d.from != null).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! }))
     .concat(walks.flatMap((w) => w.floors || []));

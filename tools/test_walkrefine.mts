@@ -504,28 +504,32 @@ console.log("12. a change through a modelled station, moved: the model's way and
   check(ch.walkS === 300 && ch.walkMin === 5 && spare.text === '1 min to spare' && spare.level === 'tight', `after the redraw: its time and the time to spare (${ch.walkMin} min, ${spare.text})`);
 }
 
-console.log("13. the last metres from a station model to the destination's door");
+console.log("13. the last metres from a station model to the destination's door (finding 6)");
 {
-  const c = app();
-  c.plan = { key: 'bern' };
-  const end: LngLat = [7.441, 46.951], place = east(end, 20), door: LngLat = east(end, 24);
-  const st: FakeStep = { type: 'walk', final: true, lines: [[B, place]], toLL: place, from: { to: stop('3') }, kanteWalk: true };
-  S.journey.steps.push(aRide(), st);
-  R.refineWalks(1);
-  c.station[0].res(model([B, end], false)); await settle();
-  check(c.asked.length === 1 && same(at(c.asked[0].body.to), place) && c.asked[0].body.from.exact === true,
-    `a destination 20 m past the model's end is routed (${c.asked.length} request)`);
-  c.asked[0].d.res(walk([end, door], { distanceM: 24, door: { lat: door[1], lon: door[0], kind: 'main' } })); await settle();
-  const last = st.walks && st.walks[st.walks.length - 1];
-  check(st.lines!.length === 2 && !!last && !!last.door && last.door.ll[0] === door[0], "and the engine's door shows");
-  const c2 = app();
-  c2.plan = { key: 'bern' };
-  const near = east(end, 1);
-  const st2: FakeStep = { type: 'walk', final: true, lines: [[B, near]], toLL: near, from: { to: stop('3') }, kanteWalk: true };
-  S.journey.steps.push(aRide(), st2);
-  R.refineWalks(1);
-  c2.station[0].res(model([B, end], false)); await settle();
-  check(c2.asked.length === 0 && st2.lines!.length === 1, 'one under 2 m from it is not');
+  // the destination as the app has it: the place the engine's last walk leads to (buildSteps())
+  const toPlace = async (metres: number) => {
+    const c = app();
+    c.plan = { key: 'bern' };
+    const end: LngLat = [7.441, 46.951], place = east(end, metres), off = quayAt('q7', B, '7');
+    const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, off, T(30))),
+      walkLeg('egress', point(B, off), point(place), T(30), 120)];
+    const steps = await show(legs, place);
+    const i = steps.findIndex((x) => x.type === 'walk' && x.final);
+    c.station[0].res(model([B, end], false)); await settle();
+    const asked = c.asked.length === 1 && same(at(c.asked[0].body.to), place) && c.asked[0].body.from.exact === true;
+    const door = east(end, metres + 4);
+    await answer(0, 20, { distanceM: metres + 4, door: { lat: door[1], lon: door[0], kind: 'addr', addr: 'Bundesgasse 3' } });
+    const st = steps[i], last = st.walks && st.walks[st.walks.length - 1];
+    const doorShown = JS.stepFeatures(steps).some((f) => f.properties.kind === 'door' && same(f.geometry.coordinates as LngLat, door))
+      && !!last && !!last.dirs && last.dirs.some((d) => d.text === 'In at the entrance, Bundesgasse 3');
+    return { asked, doorShown, lines: st.lines!.length };
+  };
+  const far = await toPlace(20);
+  check(far.asked, "a destination 20 m past the model's end is routed to the place");
+  check(far.lines === 2 && far.doorShown, "and the engine's door shows, on the map and in the directions");
+  const near = await toPlace(1);
+  check(near.asked, 'one 1 m past it is routed too');
+  check(near.lines === 2 && near.doorShown, 'and its door shows');
 }
 
 console.log("14. a station model's path replaces the engine's: its time with it (finding 4)");
@@ -660,6 +664,20 @@ console.log("18. a planned walk the engine found no path for keeps its metres an
   check(walkLines(i).length === 1 && walkLines(i)[0].properties.approx === true, 'drawn as the straight line it is');
   const r = J.routed({ kind: 'egress', durationS: 300, distanceM: 390, approximate: true, geometry: [B, P], levels: [null, null], steps: [step('walk', 0, 1, 'Walk about 390 m to Kunsthaus')] });
   check(!!r && r.approx === true && r.dist === 390 && !!r.dirs && r.dirs[0].text === 'Walk about 390 m to Kunsthaus', 'routed again: the same (routed())');
+}
+
+console.log('19. a walk of a few metres to a door stays in the trip (finding 6)');
+{
+  const c = app();
+  const P: LngLat = east(B, 6), door: LngLat = east(B, 5), off = quayAt('q7', B, '7');
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, off, T(30))),
+    walkLeg('egress', point(B, off), point(P), T(30), 5, { distanceM: 6, geometry: [B, door], door: { lat: door[1], lon: door[0], kind: 'addr', addr: 'Bundesgasse 3' } })];
+  const steps = await show(legs, P);
+  const i = steps.findIndex((x) => x.type === 'walk' && x.final), st = steps[i];
+  check(i >= 0 && c.asked.length === 0, `six metres to the door: a walk to the destination (${steps.map((x) => x.type).join(', ')})`);
+  check(i >= 0 && JS.stepFeatures(steps).some((f) => f.properties.kind === 'door' && f.properties.step === i), 'its door on the map');
+  check(i >= 0 && !!st.walks && !!st.walks[0].dirs && st.walks[0].dirs.some((d) => d.text === 'In at the entrance, Bundesgasse 3'), 'and in the directions');
+  check(JS.journeyEnd() === T(30) * 1000, 'arriving with the train (no minute added)');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

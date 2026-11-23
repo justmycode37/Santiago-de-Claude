@@ -362,7 +362,8 @@ export function buildSteps(conn: Journey, destTitle: string) {
   });
   const w = flushWalk();
   const end = lastRide ? at.get(lastRide)!.arr : null;
-  if (w.min > 0 || !lastRide) {
+  // (a walk of a few seconds to the destination's door stays: its door is where to go in)
+  if (w.min > 0 || !lastRide || (w.leg && w.leg.door)) {
     const t0 = w.start != null ? w.start : lastRide ? planMs(lastRide.to, 'arr')! : conn.t0;
     const last = w.lines[w.lines.length - 1];
     const st: JourneyWalkStep = { type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
