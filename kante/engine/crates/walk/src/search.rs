@@ -231,8 +231,9 @@ pub(crate) fn many_to_many_raw(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f3
         if !any {
             return;
         }
-        // a source's route-choice penalty is not walking: it may not eat into the bound
-        let bound = max_time_s * bound_slack(profile) + froms.iter().map(|f| f.2).fold(0.0, f32::max);
+        // a source's offset (its metres to the network, and its route-choice penalty) may not eat into the bound: the
+        // walk from it is bounded as one from a source without them (as one_to_many adds those metres only after)
+        let bound = max_time_s * bound_slack(profile) + froms.iter().map(|f| f.1 / speed + f.2).fold(0.0, f32::max);
 
         // Mark the nodes from which a target can be finished.
         let mut tends = std::mem::take(&mut s.targets);

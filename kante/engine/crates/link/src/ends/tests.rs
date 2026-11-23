@@ -308,3 +308,21 @@ fn a_line_across_the_open_side_of_a_u_is_through_a_building() {
     let (_, w1, d) = reach_and_walk(&r, &ix, &here, &stop(&r, 90.0, 30.0, &STEP_FREE), &STEP_FREE, 600.0);
     assert!(w1.from.wall && d.wall && d.approx_start.is_some() && !d.step_free, "{:?} {d:?}", w1.from);
 }
+
+#[test]
+fn a_station_is_entered_from_a_way_that_leads_on() {
+    // the way nearest to the station's point (1.4 m) leads only to stairs; 12 m away a footway goes on step-free to
+    // the stop
+    let mut w = World::new();
+    w.way((-20.0, 1.4), (0.0, 1.4), 2, EdgeKind::Footway, 0);
+    w.way((0.0, 1.4), (10.0, 1.4), 1, EdgeKind::Steps, 0);
+    w.way((10.0, 1.4), (60.0, 1.4), 5, EdgeKind::Footway, 0);
+    w.way((-50.0, -12.0), (60.0, -12.0), 11, EdgeKind::Footway, 0);
+    w.way((60.0, -12.0), (60.0, 1.4), 1, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    let station = End::station(&r, Some(&ix), pt(-5.0, 0.0), &STEP_FREE);
+    assert!(station.joins.len() >= 2, "{:?}", station.joins);
+    let to = stop(&r, 30.0, 1.4, &STEP_FREE);
+    let (c, w1, _) = reach_and_walk(&r, &ix, &station, &to, &STEP_FREE, 600.0);
+    assert!(c.is_some() && w1.path.stairs_up == 0 && w1.path.stairs_down == 0, "{c:?}");
+}

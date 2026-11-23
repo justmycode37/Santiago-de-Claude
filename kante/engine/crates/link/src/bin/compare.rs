@@ -202,6 +202,64 @@ fn through_sampled(ix: &DoorIndex, p: LatLon, q: LatLon, trim_m: f32) -> bool {
     })
 }
 
+/// The wheelchair walk between two nodes (lat, lon, lat, lon) in two graphs: seconds and edges.
+fn hop(a: &Path, b: &Path, c: [f64; 4]) -> Result<()> {
+    let prof = WalkProfile { speed_mps: 1.3, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true };
+    for p in [a, b] {
+        let g: WalkGraph = io::load(p, WALKGRAPH_SCHEMA)?;
+        let r = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
+        let o = kante_walk::SnapOptions { max_dist_m: 0.2, level: None, profile: None, exclude_kinds: 0 };
+        let (x, y) = (r.snap(LatLon::from_deg(c[0], c[1]), &o), r.snap(LatLon::from_deg(c[2], c[3]), &o));
+        match (x, y) {
+            (Some(x), Some(y)) => {
+                let w = r.route(&x, &y, &prof).map(|w| walk_secs(w.cost.var_m, w.cost.fix_s, 1.3));
+                let d = r.one_to_many(&x, &[y], &prof, 3600.0)[0].map(|c| c.secs(1.3));
+                println!("  dijkstra {d:?}");
+                let g = r.graph();
+                let ye = &g.edges[y.edge as usize];
+                let mut ts: Vec<(u32, f32)> = (0..=4).map(|k| (y.edge, k as f32 / 4.0)).collect();
+                for n in [ye.a, ye.b] {
+                    for &e in &g.adj[g.adj_off[n as usize] as usize..g.adj_off[n as usize + 1] as usize] {
+                        if e != y.edge {
+                            ts.push((e, if g.edges[e as usize].a == n { 0.02 } else { 0.98 }));
+                        }
+                    }
+                }
+                let snaps: Vec<Snap> = ts.iter().map(|&(e, f)| r.snap_at(e, f)).collect();
+                let cs = r.one_to_many(&x, &snaps, &prof, 3600.0);
+                let one: Vec<Option<f32>> = snaps.iter().map(|t| r.one_to_many(&x, std::slice::from_ref(t), &prof, 3600.0)[0].map(|c| c.secs(1.3))).collect();
+                for ((t, c), o) in ts.iter().zip(&cs).zip(&one) {
+                    println!("    edge {} way {} at {:.2}: {:?} (alone {:?})", t.0, g.edge_way[t.0 as usize], t.1, c.map(|c| c.secs(1.3)), o);
+                }
+                for j in r.level_joins() {
+                    let p = r.graph().nodes[j.node as usize];
+                    if p.dist_m(&LatLon::from_deg(c[2], c[3])) < 30.0 {
+                        println!("  level join at node {} {:.6},{:.6}: {:?}", j.node, p.lat_deg(), p.lon_deg(), j);
+                    }
+                }
+                for q in [LatLon::from_deg(c[2], c[3])] {
+                    for (n, np) in r.graph().nodes.iter().enumerate() {
+                        if np.dist_m(&q) < 0.5 {
+                            println!("  node {n}: arcs {:?}", r.arcs_at(n as u32));
+                        }
+                    }
+                }
+                let ud = r.upside_down_edges();
+                let g = r.graph();
+                for (e, ed) in g.edges.iter().enumerate() {
+                    if g.nodes[ed.a as usize].dist_m(&LatLon::from_deg(c[2], c[3])) < 30.0 && ud.contains(&(e as u32)) {
+                        println!("  upside-down edge {e} way {}", g.edge_way[e]);
+                    }
+                }
+                let e = r.route_edges(&x, &y, &prof).unwrap_or_default();
+                println!("{}: {:?} s via {:?}; from {:?} to {:?}", p.display(), w, e.iter().map(|x| (x.0, r.graph().edge_way[x.0 as usize])).collect::<Vec<_>>(), x, y);
+            }
+            _ => println!("{}: no snap", p.display()),
+        }
+    }
+    Ok(())
+}
+
 /// One straight line (lat, lon, lat, lon): the buildings near it, and what the sampled test and the engine's say.
 fn segment(data: &Path, c: [f64; 4]) -> Result<()> {
     let ix = load_doors(data)?;
@@ -449,6 +507,8 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
     let (la, lb) = (load_links(a_dir)?, load_links(b_dir)?);
     let ra = kante_walk::WalkRouter::new(std::sync::Arc::new(ga));
     let ga = ra.graph().clone();
+    let rb = kante_walk::WalkRouter::new(std::sync::Arc::new(gb));
+    let gb = rb.graph().clone();
     // B's edges by the points of their geometry
     let mut at: FxHashMap<(i32, i32), Vec<u32>> = FxHashMap::default();
     for e in 0..gb.edges.len() as u32 {
@@ -488,10 +548,33 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
         let one = tagged.iter().any(|&f| pts.iter().all(|p| gb.edge_geom(f).iter().any(|q| q.lat == p.lat && q.lon == p.lon)));
         let len: f32 = tagged.iter().map(|&f| gb.edges[f as usize].len_m()).sum();
         if covered && (one || (len - ea.len_m()).abs() < 0.5 + 0.01 * ea.len_m()) {
-            None
-        } else {
-            Some(what())
+            return None;
         }
+        // split differently: B joins the edge's two ends along edges of the same way, kind and tags
+        let (pa, pb) = (ga.nodes[ea.a as usize], ga.nodes[ea.b as usize]);
+        let starts: Vec<u32> = at.get(&(pa.lat, pa.lon)).into_iter().flatten().flat_map(|&f| [gb.edges[f as usize].a, gb.edges[f as usize].b]).filter(|&m| gb.nodes[m as usize] == pa).collect();
+        let mut seen: Vec<u32> = starts.clone();
+        let mut todo = starts;
+        while let Some(m) = todo.pop() {
+            if gb.nodes[m as usize] == pb {
+                return None;
+            }
+            if seen.len() > 200 {
+                break;
+            }
+            for &f in &gb.adj[gb.adj_off[m as usize] as usize..gb.adj_off[m as usize + 1] as usize] {
+                let fe = &gb.edges[f as usize];
+                if gb.edge_way[f as usize] != way || !same(ea, fe) {
+                    continue;
+                }
+                let o = if fe.a == m { fe.b } else { fe.a };
+                if !seen.contains(&o) {
+                    seen.push(o);
+                    todo.push(o);
+                }
+            }
+        }
+        Some(what())
     };
     let by_id: FxHashMap<&str, usize> = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i)).collect();
     let st_by_id: FxHashMap<&str, usize> = tt.stations.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i)).collect();
@@ -508,25 +591,157 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
             || ga.edge_way[a_link.snap.edge as usize] != gb.edge_way[b_link.snap.edge as usize];
         // A's start: a station by id as A enters it, else A's snap of the point
         let pt = &v["point"];
-        let snap = if let Some(id) = pt["id"].as_str() {
-            let st = &tt.stations[*st_by_id.get(id.trim_start_matches("st:")).context("station")?];
-            let vertical = NO_STEP_KINDS;
-            ra.snap(st.pos, &kante_walk::SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(prof), exclude_kinds: vertical | (1 << EdgeKind::Platform as u8) })
-                .or_else(|| kante_link::ends::snap_main(&ra, st.pos, &prof))
-        } else {
-            kante_link::ends::snap_main(&ra, LatLon::from_deg(pt["lat"].as_f64().unwrap_or(0.0), pt["lon"].as_f64().unwrap_or(0.0)), &prof)
+        let start = |r: &kante_walk::WalkRouter| -> Result<Option<Snap>> {
+            Ok(if let Some(id) = pt["id"].as_str() {
+                let st = &tt.stations[*st_by_id.get(id.trim_start_matches("st:")).context("station")?];
+                r.snap(st.pos, &kante_walk::SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(prof), exclude_kinds: NO_STEP_KINDS | (1 << EdgeKind::Platform as u8) })
+                    .or_else(|| kante_link::ends::snap_main(r, st.pos, &prof))
+            } else {
+                kante_link::ends::snap_main(r, LatLon::from_deg(pt["lat"].as_f64().unwrap_or(0.0), pt["lon"].as_f64().unwrap_or(0.0)), &prof)
+            })
+        };
+        // a change in a journey: from one boarding point to another, each at its link
+        let from_stop = v["from_stop"].as_str().and_then(|id| by_id.get(id).copied());
+        let (snap, snap_b) = match from_stop {
+            Some(f) => (Some(la[f].snap).filter(|_| la[f].matched != LinkMatch::None), Some(lb[f].snap).filter(|_| lb[f].matched != LinkMatch::None)),
+            None => (start(&ra)?, start(&rb)?),
         };
         let mut cause = String::new();
+        let from_relinked = from_stop.is_some_and(|f| match (snap, snap_b) {
+            (Some(x), Some(y)) => x.pos.dist_m(&y.pos) > 0.5 || ga.edge_way[x.edge as usize] != gb.edge_way[y.edge as usize],
+            _ => true,
+        });
+        // where B starts the walk A takes: the same way, else why not (a step-free walker is not put on a piece of path
+        // that stairs cut off, and B's pieces differ where its graph does)
+        if from_relinked {
+            cause = "relinked (the first boarding point)".into();
+        } else if let (Some(sa), Some(sb)) = (snap, snap_b) {
+            if sa.pos.dist_m(&sb.pos) > 0.5 || ga.edge_way[sa.edge as usize] != gb.edge_way[sb.edge as usize] {
+                let on_a: Vec<u32> = at.get(&(ga.nodes[ga.edges[sa.edge as usize].a as usize].lat, ga.nodes[ga.edges[sa.edge as usize].a as usize].lon)).cloned().unwrap_or_default();
+                let crumb = on_a.iter().any(|&f| gb.edge_way[f as usize] == ga.edge_way[sa.edge as usize] && !rb.usable(f, &prof));
+                cause = format!(
+                    "snap: B starts elsewhere ({}{:?}, way {}, {:.1} m) than A ({:?}, way {}, {:.1} m)",
+                    if crumb { "A's way is cut off by stairs in B, so on " } else { "" },
+                    gb.edges[sb.edge as usize].kind,
+                    gb.edge_way[sb.edge as usize],
+                    sb.dist_m,
+                    ga.edges[sa.edge as usize].kind,
+                    ga.edge_way[sa.edge as usize],
+                    sa.dist_m
+                );
+            }
+        }
         let mut reproduced = false;
         if let Some(sn) = snap {
             if let Some(path) = ra.route(&sn, &a_link.snap, &prof) {
                 let secs = walk_secs(path.cost.var_m + sn.dist_m + a_link.snap.dist_m, path.cost.fix_s, prof.speed_mps).ceil() as i64 + 30;
                 reproduced = v["a_secs"].as_i64().is_some_and(|a| (a - secs).abs() <= 1);
                 let edges = ra.route_edges(&sn, &a_link.snap, &prof).unwrap_or_default();
-                if let Some((e, what)) = edges.iter().find_map(|&(e, _, _)| b_has(e).map(|w| (e, w))) {
+                if std::env::var_os("COMPARE_VERBOSE").is_some() {
+                    for &(e, f0, f1) in &edges {
+                        let ed = &ga.edges[e as usize];
+                        let (pa, pb) = (ga.nodes[ed.a as usize], ga.nodes[ed.b as usize]);
+                        eprintln!("A edge {e} {:?} way {} flags {:#x} levels {}/{} {:.1} m [{f0:.2}..{f1:.2}] {:.6},{:.6} -> {:.6},{:.6}: in B {:?}", ed.kind, ga.edge_way[e as usize], ed.flags, ed.level_a, ed.level_b, ed.len_m(), pa.lat_deg(), pa.lon_deg(), pb.lat_deg(), pb.lon_deg(), b_has(e));
+                    }
+                    eprintln!("A snap {:?}\nB snap {:?}", snap, snap_b);
+                    if let (Some(sb), Some(pb)) = (snap_b, rb.route(&snap_b.unwrap(), &b_link.snap, &prof)) {
+                        let _ = sb;
+                        eprintln!("A {:.0} s, B {:.0} s on its own graph", walk_secs(path.cost.var_m, path.cost.fix_s, 1.3), walk_secs(pb.cost.var_m, pb.cost.fix_s, 1.3));
+                        let eb = rb.route_edges(&snap_b.unwrap(), &b_link.snap, &prof).unwrap_or_default();
+                        for &(e, _, _) in eb.iter().take(60) {
+                            let ed = &gb.edges[e as usize];
+                            let pa = gb.nodes[ed.a as usize];
+                            eprint!("{}:{:?}@{:.5},{:.5} ", gb.edge_way[e as usize], ed.kind, pa.lat_deg(), pa.lon_deg());
+                        }
+                        eprintln!();
+                        for &(e, _, _) in edges.iter().take(60) {
+                            let ed = &ga.edges[e as usize];
+                            let pa = ga.nodes[ed.a as usize];
+                            eprint!("{}:{:?}@{:.5},{:.5} ", ga.edge_way[e as usize], ed.kind, pa.lat_deg(), pa.lon_deg());
+                        }
+                        eprintln!();
+                        // the first point along A's walk that B reaches later than A does
+                        let o = kante_walk::SnapOptions { max_dist_m: 0.2, level: None, profile: Some(prof), exclude_kinds: 0 };
+                        let mids: Vec<Snap> = edges.iter().map(|&(e, _, _)| ra.snap_at(e, 0.5)).collect();
+                        let ta: Vec<Snap> = mids.clone();
+                        let tbs: Vec<Option<Snap>> = mids.iter().map(|m| rb.snap(m.pos, &o)).collect();
+                        let ca = ra.one_to_many(&sn, &ta, &prof, 3600.0);
+                        let tbv: Vec<Snap> = tbs.iter().map(|t| t.unwrap_or(mids[0])).collect();
+                        let cb = rb.one_to_many(&snap_b.unwrap(), &tbv, &prof, 3600.0);
+                        let mut last = 0f32;
+                        for (k, &(e, _, _)) in edges.iter().enumerate() {
+                            let (x, y) = (ca[k].map(|c| c.secs(1.3)), cb[k].map(|c| c.secs(1.3)));
+                            let d = y.unwrap_or(9e9) - x.unwrap_or(0.0);
+                            if (d - last).abs() > 3.0 {
+                                let ed = &ga.edges[e as usize];
+                                let (pa, pb) = (ga.nodes[ed.a as usize], ga.nodes[ed.b as usize]);
+                                eprintln!("  edge {k} way {} {:?} {:.6},{:.6} -> {:.6},{:.6}: A {x:?} B {y:?} (B snap {:?})", ga.edge_way[e as usize], ed.kind, pa.lat_deg(), pa.lon_deg(), pb.lat_deg(), pb.lon_deg(), tbs[k].map(|t| (t.edge, gb.edge_way[t.edge as usize])));
+                                last = d;
+                            }
+                        }
+                        for &(e, _, f1) in edges.iter().take(0) {
+                            let ed = &ga.edges[e as usize];
+                            let n = if f1 > 0.5 { ed.b } else { ed.a };
+                            let pos = ga.nodes[n as usize];
+                            let (Some(ta), Some(tb)) = (ra.snap(pos, &o), rb.snap(pos, &o)) else { eprintln!("  no snap at {:.6},{:.6}", pos.lat_deg(), pos.lon_deg()); break };
+                            let ca = ra.route(&sn, &ta, &prof).map(|p| walk_secs(p.cost.var_m, p.cost.fix_s, 1.3));
+                            let cb = rb.route(&snap_b.unwrap(), &tb, &prof).map(|p| walk_secs(p.cost.var_m, p.cost.fix_s, 1.3));
+                            if cb.is_none() || ca.is_none() || cb.unwrap() > ca.unwrap() + 5.0 {
+                                eprintln!("  first later at {:.6},{:.6} (way {} {:?}): A {:?} s, B {:?} s; B node flags {:?}", pos.lat_deg(), pos.lon_deg(), ga.edge_way[e as usize], ed.kind, ca, cb, tb);
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !cause.is_empty() {
+                    // the start differs: that is the cause
+                } else if let Some((e, what)) = edges.iter().find_map(|&(e, _, _)| b_has(e).map(|w| (e, w))) {
                     let ed = &ga.edges[e as usize];
                     let p = ga.nodes[ed.a as usize];
                     cause = format!("graph: {what} (way {}, {:?}, at {:.6},{:.6})", ga.edge_way[e as usize], ed.kind, p.lat_deg(), p.lon_deg());
+                } else {
+                    // every edge is there: are consecutive ones still joined at their node in B, with its tags?
+                    for w in edges.windows(2) {
+                        let (e1, e2) = (&ga.edges[w[0].0 as usize], &ga.edges[w[1].0 as usize]);
+                        let Some(n) = [e1.a, e1.b].into_iter().find(|n| *n == e2.a || *n == e2.b) else {
+                            // no node in common: A rides a lift between them (a lift in the walk router is not an
+                            // edge of the walk). B must have a lift edge between a node of the one way and one of
+                            // the other, there.
+                            let ends_of = |e: &WalkEdge, g: &WalkGraph| [g.nodes[e.a as usize], g.nodes[e.b as usize]];
+                            let (w1, w2) = (ga.edge_way[w[0].0 as usize], ga.edge_way[w[1].0 as usize]);
+                            let nodes_b = |way: i64, ps: [LatLon; 2]| -> Vec<u32> {
+                                ps.iter().flat_map(|p| at.get(&(p.lat, p.lon)).cloned().unwrap_or_default()).filter(|&f| gb.edge_way[f as usize] == way).flat_map(|f| [gb.edges[f as usize].a, gb.edges[f as usize].b]).collect()
+                            };
+                            let (b1, b2) = (nodes_b(w1, ends_of(e1, &ga)), nodes_b(w2, ends_of(e2, &ga)));
+                            let lift = b1.iter().any(|&x| gb.adj[gb.adj_off[x as usize] as usize..gb.adj_off[x as usize + 1] as usize].iter().any(|&f| {
+                                let fe = &gb.edges[f as usize];
+                                fe.kind == EdgeKind::Lift && b2.contains(&if fe.a == x { fe.b } else { fe.a })
+                            }));
+                            if !lift {
+                                let p = ga.nodes[e1.b as usize];
+                                cause = format!("graph: a lift A rides is not in B as it is (from way {w1} to way {w2}, at {:.6},{:.6})", p.lat_deg(), p.lon_deg());
+                                break;
+                            }
+                            continue;
+                        };
+                        let pos = ga.nodes[n as usize];
+                        let ends = |e: u32| -> Vec<u32> {
+                            let ed = &ga.edges[e as usize];
+                            let way = ga.edge_way[e as usize];
+                            at.get(&(pos.lat, pos.lon)).into_iter().flatten().copied().filter(|&f| gb.edge_way[f as usize] == way && gb.edges[f as usize].kind == ed.kind).flat_map(|f| [gb.edges[f as usize].a, gb.edges[f as usize].b]).filter(|&m| gb.nodes[m as usize] == pos).collect()
+                        };
+                        let (n1, n2) = (ends(w[0].0), ends(w[1].0));
+                        if !n1.is_empty() && !n2.is_empty() && !n1.iter().any(|m| n2.contains(m)) {
+                            cause = format!("graph: two edges joined at a node in A are not in B (ways {} and {}, at {:.6},{:.6})", ga.edge_way[w[0].0 as usize], ga.edge_way[w[1].0 as usize], pos.lat_deg(), pos.lon_deg());
+                            break;
+                        }
+                        if let Some(&m) = n1.iter().find(|m| n2.contains(m)) {
+                            if gb.node_flags[m as usize] != ga.node_flags[n as usize] {
+                                cause = format!("graph: a node's tags changed ({:#x} → {:#x}, at {:.6},{:.6})", ga.node_flags[n as usize], gb.node_flags[m as usize], pos.lat_deg(), pos.lon_deg());
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -538,7 +753,50 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
         if cause.is_empty() {
             cause = "unexplained".into();
         }
-        writeln!(out, "{}", serde_json::json!({ "key": v["key"], "cause": cause, "reproduced": reproduced }))?;
+        // for the check with A's own code on B's graph (`kante/tools/compare/main-probe.rs`): A's start as B's graph
+        // has it, and B's link
+        let snap_json = |s: &Snap| serde_json::json!([s.edge, s.frac, s.dist_m]);
+        writeln!(
+            out,
+            "{}",
+            serde_json::json!({ "key": v["key"], "cause": cause, "reproduced": reproduced, "b_start": snap_b.map(|s| snap_json(&s)), "b_target": snap_json(&b_link.snap), "options": v["options"], "limit": v["limit"] })
+        )?;
+    }
+    Ok(())
+}
+
+/// Footpaths of both builds (stdin: `{"key", "set": "normal" | "step_free", "from", "to"}` by GTFS id; out: the
+/// seconds at 1.3 m/s each build's precomputed footpath takes, or null).
+fn footpaths(a_dir: &Path, b_dir: &Path) -> Result<()> {
+    let tt: Timetable = io::load(&b_dir.join("built/timetable.bin"), TIMETABLE_SCHEMA)?;
+    let load = |d: &Path| -> Result<(Footpaths, Footpaths)> {
+        let p = d.join("built/links.bin");
+        Ok(match io::schema_of(&p).as_deref() {
+            Some("links-v2") => {
+                let l: LinkDataV2 = io::load(&p, "links-v2")?;
+                (l.normal, l.step_free)
+            }
+            _ => {
+                let l: LinkData = io::load(&p, LINKS_SCHEMA)?;
+                (l.normal, l.step_free)
+            }
+        })
+    };
+    let (fa, fb) = (load(a_dir)?, load(b_dir)?);
+    let by_id: FxHashMap<&str, u32> = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i as u32)).collect();
+    let secs = |f: &Footpaths, a: u32, b: u32| -> Option<f32> {
+        (f.off[a as usize] as usize..f.off[a as usize + 1] as usize).find(|&k| f.to[k] == b).map(|k| walk_secs(f.var_m[k] as f32, f.fix_s[k] as f32, 1.3))
+    };
+    let mut out = std::io::stdout().lock();
+    for line in std::io::stdin().lock().lines() {
+        let v: serde_json::Value = serde_json::from_str(&line?)?;
+        let (Some(&a), Some(&b)) = (by_id.get(v["from"].as_str().unwrap_or("")), by_id.get(v["to"].as_str().unwrap_or(""))) else {
+            writeln!(out, "{}", serde_json::json!({ "key": v["key"], "a": null, "b": null }))?;
+            continue;
+        };
+        let step_free = v["set"].as_str() == Some("step_free");
+        let (xa, xb) = if step_free { (&fa.1, &fb.1) } else { (&fa.0, &fb.0) };
+        writeln!(out, "{}", serde_json::json!({ "key": v["key"], "a": secs(xa, a, b), "b": secs(xb, a, b) }))?;
     }
     Ok(())
 }
@@ -649,7 +907,7 @@ fn edges(graph: &Path, lat: f64, lon: f64, r: f32) -> Result<()> {
         let geom = g.edge_geom(e as u32);
         if geom.iter().any(|q| q.dist_m(&p) <= r) {
             let (a, b) = (g.nodes[ed.a as usize], g.nodes[ed.b as usize]);
-            writeln!(out, "{e} {:?} way {} levels {}/{} flags {:#x} {:.1} m  {:.6},{:.6} -> {:.6},{:.6} (nodes {} {})", ed.kind, g.edge_way[e], ed.level_a, ed.level_b, ed.flags, ed.len_dm as f32 / 10.0, a.lat_deg(), a.lon_deg(), b.lat_deg(), b.lon_deg(), ed.a, ed.b)?;
+            writeln!(out, "{e} {:?} way {} levels {}/{} flags {:#x} {:.1} m  {:.6},{:.6} -> {:.6},{:.6} (nodes {} {}, node flags {:#x} {:#x})", ed.kind, g.edge_way[e], ed.level_a, ed.level_b, ed.flags, ed.len_dm as f32 / 10.0, a.lat_deg(), a.lon_deg(), b.lat_deg(), b.lon_deg(), ed.a, ed.b, g.node_flags[ed.a as usize], g.node_flags[ed.b as usize])?;
         }
     }
     Ok(())
@@ -685,8 +943,10 @@ fn main() -> Result<()> {
         "lift-pairs" => lift_pairs(arg(1).as_ref(), arg(2).as_ref()),
         "edges" => edges(arg(1).as_ref(), arg(2).parse()?, arg(3).parse()?, arg(4).parse().unwrap_or(30.0)),
         "link" => link(arg(1).as_ref(), arg(2)),
+        "hop" => hop(arg(1).as_ref(), arg(2).as_ref(), [arg(3).parse()?, arg(4).parse()?, arg(5).parse()?, arg(6).parse()?]),
         "segment" => segment(arg(1).as_ref(), [arg(2).parse()?, arg(3).parse()?, arg(4).parse()?, arg(5).parse()?]),
         "explain" => explain(arg(1).as_ref(), arg(2).as_ref()),
+        "footpaths" => footpaths(arg(1).as_ref(), arg(2).as_ref()),
         "doors" => doors(arg(1).as_ref(), arg(2).parse().unwrap_or(30), arg(3).parse().unwrap_or(1)),
         _ => bail!("usage: compare sample <data> <points> <seed> | through <data> < walks.jsonl | lifts <graph a> <graph b> | doors <data> <n> <seed>"),
     }

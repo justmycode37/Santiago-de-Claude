@@ -56,12 +56,22 @@ def stops_of(r):
 
 
 def explain(args, records):
-    """Each lost stop's cause from the built data of both engines (`compare explain`)."""
+    """Each lost stop's cause from the built data of both engines (`compare explain`), and with `--main-probe`
+    whether A's own search code, run on B's graph from A's start to B's link, reaches it within the limit: if it does
+    not, the stop is lost by the graph (or the link), not by B's code."""
     if not records:
         return []
     inp = '\n'.join(json.dumps(r) for r in records) + '\n'
     out = subprocess.run([args.bin, 'explain', args.data_a, args.data_b], input=inp, capture_output=True, text=True, check=True).stdout
-    return [json.loads(x) for x in out.splitlines()]
+    res = [json.loads(x) for x in out.splitlines()]
+    if args.main_probe:
+        probe = subprocess.run([args.main_probe, os.path.join(args.data_b, 'built/walkgraph.bin')], input=out, capture_output=True, text=True, check=True).stdout
+        reach = {json.dumps(json.loads(x)['key']): json.loads(x)['a_code_on_b_graph'] for x in probe.splitlines()}
+        for r in res:
+            r['a_code_on_b_graph'] = reach.get(json.dumps(r['key']))
+            if r['cause'] == 'unexplained' and r['a_code_on_b_graph'] is None:
+                r['cause'] = "graph: not pinned to one edge (A's own search on B's graph does not reach it either)"
+    return res
 
 
 def main():
@@ -75,6 +85,7 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--threads', type=int, default=32)
     ap.add_argument('--only', default='reach,walks,plans,cost')
+    ap.add_argument('--main-probe', help="main-probe.rs built in A's worktree (README): A's own search on B's graph")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     S = json.load(open(args.samples))
@@ -140,7 +151,7 @@ def reach_summary(args, S, jobs, res):
     with open(os.path.join(args.out, 'lost.jsonl'), 'w') as f:
         for r in lost_records:
             c = causes.get(tuple(r['key']), {})
-            f.write(json.dumps({**r, 'cause': c.get('cause'), 'reproduced': c.get('reproduced')}) + '\n')
+            f.write(json.dumps({**r, 'cause': c.get('cause'), 'reproduced': c.get('reproduced'), 'a_code_on_b_graph': c.get('a_code_on_b_graph')}) + '\n')
     for prof in PROFILES:
         for lim in LIMITS:
             st = {'points': 0, 'errors': 0, 'stops_a': 0, 'stops_b': 0, 'lost': 0, 'gained': 0, 'later': [], 'earlier': 0, 'same': 0,
@@ -177,6 +188,7 @@ def reach_summary(args, S, jobs, res):
             st['later_over_60s'] = sum(1 for d in later if d > 60)
             out[f'{prof} {lim} min'] = st
     out['unreproduced'] = sum(1 for c in causes.values() if not c.get('reproduced'))
+    out['a_code_on_b_graph_reaches'] = sum(1 for c in causes.values() if c.get('a_code_on_b_graph') is not None)
     return out
 
 
@@ -265,7 +277,7 @@ def through_summary(args, jobs, res):
 
 
 def legs_of(p):
-    """The earliest-arriving journey's access and egress: (stop id, seconds) each."""
+    """The earliest-arriving journey's access and egress ((stop id, seconds) each) and changes ((from, to) ids)."""
     js = [] if 'error' in p else p.get('journeys', [])
     if not js:
         return None
@@ -273,7 +285,10 @@ def legs_of(p):
     acc = next((l for l in j['legs'] if l.get('kind') == 'access'), None)
     egr = next((l for l in j['legs'] if l.get('kind') == 'egress'), None)
     q = lambda l, k: ((l or {}).get(k) or {}).get('quay', {}).get('id')
-    return {'arr': j['arr'], 'access': (q(acc, 'to'), acc and acc['durationS']), 'egress': (q(egr, 'from'), egr and egr['durationS'])}
+    # a change: the ride before's last stop to the ride after's first (on foot, or staying at the stop)
+    rides = [l for l in j['legs'] if l.get('type') == 'ride']
+    changes = [(q(a, 'to'), q(b, 'from')) for a, b in zip(rides, rides[1:]) if not b.get('stayOnBoard')]
+    return {'arr': j['arr'], 'access': (q(acc, 'to'), acc and acc['durationS']), 'egress': (q(egr, 'from'), egr and egr['durationS']), 'changes': changes}
 
 
 def plan_summary(args, S, jobs, res):
@@ -317,11 +332,24 @@ def plan_summary(args, S, jobs, res):
                 lost.append({'key': [w['trip'], side], 'point': t[end], 'options': PROFILES[t['profile']], 'limit': 20, 'stop': stop, 'a_secs': a.get(stop, (secs, ''))[0]})
             elif stop in a and b[stop][0] > a[stop][0]:
                 w['why'].append(f'{side} stop {stop} {b[stop][0] - a[stop][0]} s later on B (via {b[stop][1]})')
+        # every change of A's journey: B's footpath for it (the step-free set for a step-free or wheelchair trip)
+        fset = 'normal' if t['profile'] == 'normal' else 'step_free'
+        ch = [c for c in la['changes'] if c[0] and c[1] and c[0] != c[1]]
+        if ch:
+            inp = '\n'.join(json.dumps({'key': k, 'set': fset, 'from': a, 'to': b}) for k, (a, b) in enumerate(ch)) + '\n'
+            fps = [json.loads(x) for x in subprocess.run([args.bin, 'footpaths', args.data_a, args.data_b], input=inp, capture_output=True, text=True, check=True).stdout.splitlines()]
+            for (a, b), f in zip(ch, fps):
+                if f['a'] is not None and f['b'] is None:
+                    w['why'].append(f'change {a} → {b} ({f["a"]:.0f} s on A) not a footpath on B')
+                    lost.append({'key': [w['trip'], f'change {a}'], 'from_stop': a, 'point': {}, 'options': PROFILES[t['profile']], 'limit': 20, 'stop': b, 'a_secs': f['a']})
+                elif f['a'] is not None and f['b'] > f['a'] + 1:
+                    w['why'].append(f'change {a} → {b} {f["b"] - f["a"]:.0f} s longer on B')
         if not w['why']:
-            w['why'].append('both stops reached as soon on B: the search')
+            w['why'].append('every walk of A\'s journey as quick on B: the search')
     for c in explain(args, lost):
         w = next(x for x in st['worse'] if x['trip'] == c['key'][0])
-        w['why'] = [x + f": {c['cause']}" if x.startswith(f"{c['key'][1]} stop") and x.endswith('lost') else x for x in w['why']]
+        tag = f"{c['key'][1]} stop" if c['key'][1] in ('access', 'egress') else c['key'][1]
+        w['why'] = [x + f": {c['cause']}" if x.startswith(tag) and (x.endswith('lost') or x.endswith('not a footpath on B')) else x for x in w['why']]
     st['worse'].sort(key=lambda w: -((w['b_arr'] or 10**10) - w['a_arr']))
     return st
 

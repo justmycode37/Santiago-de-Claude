@@ -358,6 +358,21 @@ impl WalkRouter {
         search::many_to_many_raw(&self.graph, &self.net, froms, targets, profile, max_time_s)
     }
 
+    /// The search network's arcs out of every routing node of graph node `node` (for tools that compare builds):
+    /// (routing node, head's graph node, edge or `u32::MAX` for a virtual arc, class, metres, head blocked).
+    pub fn arcs_at(&self, node: u32) -> Vec<(u32, u32, u32, u8, f32, u8)> {
+        let mut out = Vec::new();
+        for r in 0..self.net.n {
+            if self.net.orig_node(r) != node {
+                continue;
+            }
+            for a in &self.net.arcs[self.net.out(r)] {
+                out.push((r, self.net.orig_node(a.head), a.edge(), a.cls, a.len_m, a.head_block));
+            }
+        }
+        out
+    }
+
     /// [`WalkRouter::route`] from the best of several starting points to the best of several end points, each
     /// with metres already walked to or from it and a route-choice penalty in seconds, as
     /// [`WalkRouter::many_to_many`] takes them: for one end point, the start taken is the one that search's cost
