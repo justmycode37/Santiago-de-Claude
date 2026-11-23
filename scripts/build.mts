@@ -3,9 +3,8 @@
 //   node scripts/build.mts             everything, for local use
 //   node scripts/build.mts --release   only what is published (no *-dev.html pages, no local config.js)
 //
-// What goes into dist/:
-//   src/<name>.ts      → <name>.js. The types are replaced by spaces and nothing else is touched, so the
-//                        script the browser runs is the source, line for line (no source maps needed).
+// What goes into dist/ (esbuild does the TypeScript):
+//   src/<name>.ts      → <name>.js, the script as it is with its types taken out
 //   *.html             → copied, with every line "<!-- build: src/… -->" replaced by a <script> holding that
 //                        file, or that folder's files joined in file name order. src/app is the page's own
 //                        script: its files share one scope, as one script would. src/inline and src/pages
@@ -17,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { transformSync } from 'amaro';
+import * as esbuild from 'esbuild';
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const DIST = path.join(ROOT, 'dist');
@@ -38,12 +37,22 @@ const notReleased = (file: string) => /-dev\.html$/.test(file) || file === 'conf
 
 const rel = (file: string) => path.relative(ROOT, file);
 
-/** TypeScript → JavaScript: every type becomes spaces, so line and column numbers stay the same. */
+/** What esbuild writes: today's syntax as it is (nothing lowered), and the text as written (no \u escapes). */
+const OUTPUT = { target: 'esnext', charset: 'utf8', logLevel: 'silent' } as const;
+
+/** esbuild's errors as one message: "src/x.ts:12:3: Expected ";" but found "}"". */
+function failed(e: unknown): Error {
+  const errors = (e as esbuild.BuildFailure).errors;
+  if (!errors) return e instanceof Error ? e : new Error(String(e));
+  return new Error(errors.map((m) => (m.location ? `${m.location.file}:${m.location.line}:${m.location.column}: ` : '') + m.text).join('\n'), { cause: e });
+}
+
+/** TypeScript → JavaScript: the types taken out, the script otherwise as it is. */
 export function stripTypes(file: string): string {
   try {
-    return transformSync(fs.readFileSync(file, 'utf8'), { mode: 'strip-only' }).code;
+    return esbuild.transformSync(fs.readFileSync(file, 'utf8'), { ...OUTPUT, loader: 'ts', sourcefile: rel(file) }).code;
   } catch (e) {
-    throw new Error(`${rel(file)}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+    throw failed(e);
   }
 }
 
