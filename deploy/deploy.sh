@@ -41,6 +41,7 @@ register() {
     [[ -s $1 ]] && (unset -f register_ok; source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh); declare -F register_ok >/dev/null && register_ok "$1") 2>/dev/null
   }
   reg_valid "$reg" && return 0
+  rm -rf "$ROOT"/raw/.register.* 2>/dev/null || true   # left by a run that was killed while fetching (the lock is held)
   tmp=$(mktemp -d "$ROOT/raw/.register.XXXXXX") || { log "warning: no valid building address register, and no room to fetch one"; return 0; }
   KANTE_RAW=$tmp timeout 1200 kante/scripts/fetch-data.sh --register || true
   if reg_valid "$tmp/register/adr.csv.zip" && mkdir -p "$ROOT/raw/register" && mv -f "$tmp/register/adr.csv.zip" "$reg"; then
