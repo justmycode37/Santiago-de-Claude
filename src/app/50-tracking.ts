@@ -65,28 +65,35 @@ function stopKms(st: JourneyRideStep): number[] {
 // Where a ride's vehicle is now → { km, at } or { km, from, to } (+ engine: the Kante engine's position, when it
 // placed it), or null when it is not on this part of its route
 function vehicleState(st: JourneyRideStep, now: number): VehicleState | null { return engineVehicle(st, now) || timedVehicle(st, now); }
-// The engine's position (timed from measured stops, forecasts or on-board reports), laid onto the drawn ride
+// The engine's position (timed from measured stops, forecasts or on-board reports), laid onto the drawn ride: of the
+// trip the ride is on now. A ride you stay seated on over several trips is on the last one that has left the stop
+// where it begins (by the live times): an older answer for the trip before must not place the vehicle there.
 function engineVehicle(st: JourneyRideStep, now: number): EngineVehiclePlace | null {
-  const k = st.s._k, trip = k && k.trip, pos = trip && trip.position;
-  if (!pos || !engineFresh(st.s) || !k.seqIdx) return null;
-  const list = st.s.journey.passList || [];
+  const s = st.s;
+  let n = 0;
+  for (let x = 1; x < s.legs.length; x++) {
+    const k = s.seqIdx[x].get(s.legs[x].from.seq), t = k == null ? null : liveMs(s.stops[k], 'dep');
+    if (t != null && now >= t) n = x;
+  }
+  const k = s.live[n], trip = rideTrip(s, n), pos = trip && trip.position;
+  if (!pos) return null;
   // the engine's "now": the position's t plus the time since that answer came in (so a wrong phone clock doesn't matter)
   const tNow = (pos.t != null ? pos.t : k.at / 1000) + (now - k.at) / 1000;
-  const p = KANTE_LIVE.advance(pos, trip.calls, tNow);
-  // the engine's stops laid onto ours by station (k.seqIdx); a stop we can't pair leaves the timetable placing below
-  const r = KANTE_LIVE.rideKm(p, k.seqIdx, stopKms(st), st.stopIdx || []);
+  const p = KANTE_LIVE.advance(pos, trip!.calls, tNow);
+  // the trip's stops laid onto the ride's by seq; a position elsewhere leaves the timetable placing below
+  const r = KANTE_LIVE.rideKm(p, s.seqIdx[n], stopKms(st), st.stopIdx || []);
   if (!r) return null;
-  const name = (x: number) => list[x] && list[x].station && list[x].station.name;
-  return r.at != null ? { km: r.km, at: name(r.at), engine: p!, tNow } : { km: r.km, from: name(r.from), to: name(r.to), engine: p!, tNow };
+  const name = (x: number) => st.s.stops[x] && stopName(st.s.stops[x]);
+  return r.at != null ? { km: r.km, at: name(r.at), engine: p!, tNow, trip: trip! } : { km: r.km, from: name(r.from), to: name(r.to), engine: p!, tNow, trip: trip! };
 }
 // From its live stop times: at a stop while it is due there, else between two stops in proportion to time
 function timedVehicle(st: JourneyRideStep, now: number): TimedVehiclePlace | null {
-  interface TimedStop { km: number; a: number; d: number; name: string | null | undefined }
-  const list = st.s.journey.passList, last = list.length - 1, kms = stopKms(st);
+  interface TimedStop { km: number; a: number; d: number; name: string }
+  const list = st.s.stops, kms = stopKms(st);
   const pts = (st.stopIdx || []).map((k, m) => {
-    const stop = k === 0 ? st.s.departure : k === last ? st.s.arrival : list[k];
-    const a = liveMs(stop, 'arrival'), d = liveMs(stop, 'departure');
-    return { km: kms[m], a: a != null ? a : d, d: d != null ? d : a, name: stop.station && stop.station.name };
+    const stop = list[k];
+    const a = liveMs(stop, 'arr'), d = liveMs(stop, 'dep');
+    return { km: kms[m], a: a != null ? a : d, d: d != null ? d : a, name: stopName(stop) };
   }).filter((x): x is TimedStop => x.a != null && x.km != null);
   if (pts.length < 2 || now < pts[0].d || now > pts[pts.length - 1].a) return null;
   for (let n = 0; n < pts.length - 1; n++) {
@@ -119,7 +126,7 @@ function timeProgress(now = Date.now()): TimedPlace | null {
 // The trip is under way (or about to be): only then does GPS move you along it, so a trip planned for later is left alone
 function journeyEnd() {
   const a = journeySteps[journeySteps.length - 1];
-  return a && a.time != null ? new Date(a.time).getTime() : new Date(journeyConn!.to.arrival!).getTime();
+  return a && a.time != null ? a.time : journeyConn!.t1;
 }
 function tripLive(now = Date.now()) {
   const first = journeySteps.find((st) => st.t0 != null);
@@ -233,11 +240,12 @@ vehEl.addEventListener('click', () => showToast(vehEl.title, 5000)); // phones h
 const vehMarker = new maplibregl.Marker({ element: vehEl });
 // How the vehicle was placed, honestly: measured, forecast or timetable → { text, dim }
 function vehicleHonesty(st: JourneyRideStep, v: VehicleState, now: number) {
-  const k = st.s._k, trip = k && engineFresh(st.s, true) ? k.trip : null, info = trip && KANTE_LIVE.liveInfoOf(trip);
-  // the engine had this ride but has stopped answering, and transport.opendata.ch has not refreshed it since
-  if (k && k.trip && !trip && k.fails! >= 2 && !(st.s._liveAt! > k.at)) return KANTE_LIVE.liveText({ state: 'stale' });
+  const s = st.s, n = Math.max(0, s.legs.findIndex((_, x) => !!rideTrip(s, x, true)));
+  const trip = v.trip || rideTrip(s, n, true), info = trip && KANTE_LIVE.liveInfoOf(trip);
+  // the engine had this ride but has stopped answering
+  if (!trip && s.live.some((k) => k.trip && k.fails >= 2)) return KANTE_LIVE.liveText({ state: 'stale' });
   if (v.engine) {
-    const p = v.engine, calls = new Map((trip!.calls || []).map((c) => [c.seq, c]));
+    const p = v.engine, calls = new Map((v.trip.calls || []).map((c) => [c.seq, c]));
     // "Left Zytglogge 1 min ago (measured)" only when that departure itself was measured: not when the vehicle was
     // only moved on from a stop because its departure time had passed (p.stepped)
     const measuredHere = p.state === 'between' && !p.stepped && KANTE_LIVE.depMeasured(info, p.seq);
@@ -247,7 +255,7 @@ function vehicleHonesty(st: JourneyRideStep, v: VehicleState, now: number) {
       leftS: dep != null ? Math.max(0, v.tNow - dep) : null, observedAt: obs && obs.quay && obs.quay.stationName });
   }
   if (info && info.state === 'stale') return KANTE_LIVE.liveText(info);
-  const forecast = [st.s.departure, st.s.arrival, ...(st.s.journey.passList || [])].some((x) => x && x.prognosis && (x.prognosis.departure || x.prognosis.arrival));
+  const forecast = s.stops.some((x) => hasForecast(x, 'dep') || hasForecast(x, 'arr'));
   return forecast ? { text: 'Estimated from forecasts', dim: false } : KANTE_LIVE.liveText({ state: 'timetable' });
 }
 function updateNowMarker() {
@@ -257,7 +265,7 @@ function updateNowMarker() {
   // once GPS shows you on board, your blue dot is the vehicle
   const v = ride && !(gps && journeySteps[track!.i] === ride && !track!.missed) ? vehicleState(ride, now) : null;
   if (v && ride!.path.length > 1) {
-    const j = ride!.s.journey, key = lineLabel(j) + '|' + j.category;
+    const j = ride!.s.line, key = lineLabel(j) + '|' + j.category;
     if (vehEl.dataset.key !== key) {
       vehEl.dataset.key = key;
       vehEl.innerHTML = icon(modeOf(j.category));

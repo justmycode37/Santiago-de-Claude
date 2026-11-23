@@ -1,16 +1,15 @@
 // ---- 3D station view (station-view.js through Station3D): for walks and changes in a station that has a 3D model (stations3d/) ----
 const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
-const s3Key = (stop: OdCheckpoint | null | undefined) => (window.Station3D && stop && stop.station && Station3D.has(stop.station.id!)) || null;
+const s3Key = (stop: KanteStopCall | null | undefined) => (window.Station3D && stop && Station3D.has(stopUic(stop))) || null;
 // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
 /** What s3End() fills in: the platform, its position, or both. */
 interface S3EndParts { stop?: StationRouteStopRef; ll?: LngLat; level?: number | null }
-function s3End(stop: OdCheckpoint, at: JourneyPlatformAt | null | undefined): Station3DEndpoint | null {
+function s3End(stop: KanteStopCall, at: JourneyPlatformAt | null | undefined): Station3DEndpoint | null {
   const edge = at && at.edge, raw = platformOf(stop);
   const ref = raw !== '–' ? raw : (edge && edge.ref) || '';
-  const ll = (at && at.ll) || coordOf(stop);
-  if (!ref && !ll) return null;
+  const ll = (at && at.ll) || ([stop.quay.lon, stop.quay.lat] as LngLat);
   const end: S3EndParts = {};
-  if (ref) end.stop = { uic: String(stop.station!.id), ref };
+  if (ref) end.stop = { uic: stopUic(stop), ref };
   if (ll) end.ll = ll;
   if (edge && edge.level != null) end.level = edge.level;
   return end as Station3DEndpoint;
@@ -19,26 +18,26 @@ function s3End(stop: OdCheckpoint, at: JourneyPlatformAt | null | undefined): St
 function s3Plan(st: JourneyStep): StationWalkPlan | null {
   let key = null, from = null, to = null;
   if (st.type === 'walk' && st.next) {
-    key = s3Key(st.next.departure);
+    key = s3Key(st.next.from);
     const here = tripStart ? null : userLngLat; // a trip from somewhere else starts there, not where you are
     const start = here || (st.lines[0] && st.lines[0][0]);
-    to = s3End(st.next.departure, st.nextRide && st.nextRide.depAt);
+    to = s3End(st.next.from, st.nextRide && st.nextRide.depAt);
     // from further away the model only shows the last stretch: where the walk comes in, not where you are
     const far = start && to && to.ll && distKm(start, to.ll) > S3_NEAR_KM;
     from = start ? (far ? { ll: start, label: 'the way in' } : here ? { ll: start } : { ll: start, label: 'the start' }) : null;
   } else if (st.type === 'walk') {
-    key = st.from ? s3Key(st.from.arrival) : null;
-    from = key && s3End(st.from!.arrival, st.prevRide && st.prevRide.arrAt);
+    key = st.from ? s3Key(st.from.to) : null;
+    from = key && s3End(st.from!.to, st.prevRide && st.prevRide.arrAt);
     const end = (journeyDest && journeyDest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
     const far = end && from && from.ll && distKm(from.ll, end) > S3_NEAR_KM;
     to = end ? { ll: end, label: far ? `the way to ${st.toName}` : st.toName } : null;
   } else if (st.type === 'change') {
-    const ka = s3Key(st.prev.arrival), kb = s3Key(st.next.departure);
+    const ka = s3Key(st.prev.to), kb = s3Key(st.next.from);
     key = kb || ka;
-    from = ka === key ? s3End(st.prev.arrival, st.prevRide && st.prevRide.arrAt)
-      : st.points[0] ? { ll: st.points[0], label: st.prev.arrival.station!.name! } : null;
-    to = kb === key ? s3End(st.next.departure, st.nextRide && st.nextRide.depAt)
-      : st.points[1] ? { ll: st.points[1], label: st.next.departure.station!.name! } : null;
+    from = ka === key ? s3End(st.prev.to, st.prevRide && st.prevRide.arrAt)
+      : st.points[0] ? { ll: st.points[0], label: stopName(st.prev.to) } : null;
+    to = kb === key ? s3End(st.next.from, st.nextRide && st.nextRide.depAt)
+      : st.points[1] ? { ll: st.points[1], label: stopName(st.next.from) } : null;
   }
   return key && from && to ? { key, from, to } : null;
 }
@@ -62,7 +61,7 @@ function walkTarget(st: JourneyStep) {
   const r = st.type === 'change' || !st.final ? st.nextRide : null;
   if (!r) return st.toName || (journeyDest && journeyDest.title) || 'your destination';
   const q = quayOf(r, 'dep');
-  return q.label ? `${q.word} ${q.label}` : r.s.departure.station!.name;
+  return q.label ? `${q.word} ${q.label}` : stopName(r.s.from);
 }
 // Metres on foot, once every part of the walk has been routed (null until then)
 function walkDist(st: JourneyStep) {
@@ -117,8 +116,8 @@ function firstAction(now: number) {
   if (s < -45) text = `Left ${kDur(-s)} ago`;
   else if (s < 60) text = walkFirst ? 'Leave now' : 'Leaves now';
   else if (s < 3600) text = `${walkFirst ? 'Leave' : 'Leaves'} in ${kDur(Math.floor(s / 60) * 60)}`;
-  const late = ride ? lateMin(ride.s.departure, 'departure') : 0;
-  const forecast = ride && ride.s.departure.prognosis && ride.s.departure.prognosis.departure;
+  const late = ride ? lateMin(ride.s.from, 'dep') : 0;
+  const forecast = ride && hasForecast(ride.s.from, 'dep');
   return { text, gone: s < -45, state: !forecast ? 'plain' : late > 0 ? 'late' : 'ok', delay: late, quay: ride && quayOf(ride, 'dep') };
 }
 
@@ -130,7 +129,7 @@ function legChain() {
   chain.setAttribute('aria-hidden', 'true');
   cut.forEach((st, i) => {
     if (i) chain.append(kIcon('right', 12, 'chain-sep'));
-    chain.append(st.type === 'ride' ? kBadge(st.s.journey, null, chainIcon(st.s.journey))
+    chain.append(st.type === 'ride' ? kBadge(st.s.line, null, chainIcon(st.s.line))
       : h('span', 'chain-walk', kIcon('walk', 14), String(walkMinOf(st))));
   });
   if (cut.length < items.length) chain.append(h('span', 'chain-more', `+${items.length - cut.length}`));
@@ -156,12 +155,12 @@ function stepNav(): HTMLDivElement {
 //      its vehicles, times and first boarding point; walking all the way, when that is near enough, on a tab of
 //      its own. The one shown first is drawn on the map; a tap on a row opens that journey. ----
 const optionCount = () => (journeyOptions ? journeyOptions.list.length + (journeyOptions.walk ? 1 : 0) : 0);
-const connStart = (c: OdConnection) => new Date(c.from.departure!).getTime();
-const connEnd = (c: OdConnection) => new Date(c.to.arrival!).getTime();
-const connSecs = (c: OdConnection) => Math.max(0, connEnd(c) - connStart(c)) / 1000;
+const connStart = (c: Journey) => c.t0;
+const connEnd = (c: Journey) => c.t1;
+const connSecs = (c: Journey) => Math.max(0, connEnd(c) - connStart(c)) / 1000;
 
-function optionRow(conn: OdConnection, now: number) {
-  const rides = conn.sections.filter((s) => s.journey) as RideSection[], first = rides[0];
+function optionRow(conn: Journey, now: number) {
+  const rides = conn.parts.filter(isRide), first = rides[0];
   const t0 = connStart(conn), t1 = Math.max(connEnd(conn), t0 + 60000);
   // line 1: every vehicle's badge, with the walks between them, and how long it all takes
   const chain = h('span', 'chain');
@@ -169,10 +168,11 @@ function optionRow(conn: OdConnection, now: number) {
   let walkS = 0;
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
   const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m > 3) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
-  conn.sections.forEach((s) => {
-    if (!s.journey) { walkS += s._netWalkS != null ? s._netWalkS : (s.walk && s.walk.duration) || 0; return; }
+  const access = conn.parts.findIndex(isRide); // the walks before the first ride: as the network drew them, once it has
+  conn.parts.forEach((s, k) => {
+    if (s.type === 'walk') { walkS += conn.accessS != null && k < access ? (k ? 0 : conn.accessS) : KanteJourney.walkSecs(s); return; }
     addWalk();
-    add(kBadge(s.journey, null, chainIcon(s.journey)));
+    add(kBadge(s.line, null, chainIcon(s.line)));
   });
   addWalk();
   // line 2: the two times, and between them the rides to scale (a ring where you change)
@@ -180,31 +180,31 @@ function optionRow(conn: OdConnection, now: number) {
   bar.setAttribute('aria-hidden', 'true');
   const pct = (t: number) => Math.min(100, Math.max(0, ((t - t0) / (t1 - t0)) * 100));
   rides.forEach((s, k) => {
-    const a = pct(liveMs(s.departure, 'departure')!), b = pct(liveMs(s.arrival, 'arrival')!);
-    const ride = lineVars(h('i', 'tbar-ride'), s.journey);
+    const a = pct(liveMs(s.from, 'dep')!), b = pct(liveMs(s.to, 'arr')!);
+    const ride = lineVars(h('i', 'tbar-ride'), s.line);
     ride.style.left = a + '%';
     ride.style.width = Math.max(4, b - a) + '%';
     bar.append(ride);
     if (!k) return;
     const change = h('i', 'tbar-change');
-    change.style.left = pct((liveMs(rides[k - 1].arrival, 'arrival')! + liveMs(s.departure, 'departure')!) / 2) + '%';
+    change.style.left = pct((liveMs(rides[k - 1].to, 'arr')! + liveMs(s.from, 'dep')!) / 2) + '%';
     bar.append(change);
   });
   bar.append(h('i', 'tbar-end a'), h('i', 'tbar-end b'));
   // line 3: where it leaves from, in how long, and the changes (with the time there is for the tightest)
-  const walkFirst = !conn.sections[0].journey;
-  const secs = ((walkFirst || !first ? t0 : liveMs(first.departure, 'departure')!) - now) / 1000;
+  const walkFirst = !isRide(conn.parts[0]);
+  const secs = ((walkFirst || !first ? t0 : liveMs(first.from, 'dep')!) - now) / 1000;
   const gone = secs < -45;
   const text = gone ? `Left ${kDur(-secs)} ago` : secs < 60 ? (walkFirst ? 'Leave now' : 'Leaves now')
     : secs < 3600 ? `${walkFirst ? 'Leave' : 'Leaves'} in ${kDur(Math.floor(secs / 60) * 60)}` : '';
-  const late = first ? lateMin(first.departure, 'departure') : 0;
-  const forecast = first && first.departure.prognosis && first.departure.prognosis.departure;
-  const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.departure, 'departure')! - liveMs(rides[k].arrival, 'arrival')!) / 60000)));
+  const late = first ? lateMin(first.from, 'dep') : 0;
+  const forecast = first && hasForecast(first.from, 'dep');
+  const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.from, 'dep')! - liveMs(rides[k].to, 'arr')!) / 60000)));
   const changes = !rides.length ? ['On foot'] : !gaps.length ? ['Direct']
     : [`${gaps.length} ${gaps.length === 1 ? 'change' : 'changes'}`, `· ${gaps.length === 1 ? '' : '≥ '}${Math.min(...gaps)} min`];
   const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), null, () => openOption(conn),
     h('span', 'jrow-l1', chain, h('b', 'jrow-dur', kDur((t1 - t0) / 1000))),
-    h('span', 'jrow-l2', h('b', 'jrow-time', fmtTime(conn.from.departure)), bar, h('b', 'jrow-time end', fmtTime(conn.to.arrival))),
+    h('span', 'jrow-l2', h('b', 'jrow-time', fmtTime(conn.t0)), bar, h('b', 'jrow-time end', fmtTime(conn.t1))),
     h('span', 'jrow-l3', h('span', 'jrow-plat', first ? kPlat(quayOf({ s: first }, 'dep')) : null),
       h('span', 'jrow-mid',
         text ? h('span', 'jrow-act ' + (gone ? 'gone' : !forecast ? 'plain' : late > 0 ? 'late' : 'ok'), text, gone ? null : kDelay(late)) : null,
@@ -212,11 +212,11 @@ function optionRow(conn: OdConnection, now: number) {
   if (conn === journeyConn) row.setAttribute('aria-current', 'true'); // the one drawn on the map
   return row;
 }
-function walkCard(conn: OdConnection) {
-  const m = conn.kante ? conn.kante.walkM : null;
+function walkCard(conn: Journey) {
+  const m = conn.walkM;
   return kBtn('walkcard', null, () => openOption(conn),
     h('span', 'walkcard-big', h('b', null, kDur(connSecs(conn))), h('span', null, m ? fmtDist(m) : '')),
-    h('span', 'walkcard-sub', `${fmtTime(conn.from.departure)} – ${fmtTime(conn.to.arrival)}`),
+    h('span', 'walkcard-sub', `${fmtTime(conn.t0)} – ${fmtTime(conn.t1)}`),
     h('span', 'walkcard-cta', 'Walking directions', kIcon('right', 16)));
 }
 function listHead() {
@@ -252,7 +252,7 @@ function listBody() {
   const ol = h('ol', 'journeys');
   let lastDay = 'Today';
   o.list.forEach((conn) => {
-    const day = dayLabel(conn.from.departure!);
+    const day = dayLabel(conn.t0);
     ol.append(h('li', null, day !== lastDay ? h('div', 'day-sep', day) : null, optionRow(conn, now)));
     lastDay = day;
   });
@@ -262,17 +262,17 @@ function listBody() {
   return frag;
 }
 // Make one of the journeys the one on the map (and the one the sheet is about, once it is opened)
-function showOption(conn: OdConnection) {
+function showOption(conn: Journey) {
   if (conn === journeyConn || !journeyDest) return;
   const id = ++journeyReq; // what was still being fetched for the last one is dropped
   openDirs.clear();
   openStops.clear();
   renderJourney(conn, journeyDest.title);
   refineJourney(id);
-  kanteMatch(id);
+  livePoll(); // live times for its rides at once
 }
 // A row tapped: that journey, as before (the header gets a way back to the list)
-function openOption(conn: OdConnection) {
+function openOption(conn: Journey) {
   journeyList = false;
   if (conn === journeyConn) renderSheet();
   else showOption(conn);
@@ -298,7 +298,7 @@ function setJourneyTab(tab: JourneyTab) {
 // "Earlier" / "Later": more journeys for the same trip (from the Kante engine)
 async function loadMoreJourneys(dir: JourneyMoreDir) {
   const o = journeyOptions;
-  if (!o || journeyMore || !window.KanteJourney) return;
+  if (!o || journeyMore) return;
   journeyMore = dir;
   renderBody();
   try { await KanteJourney.more(o, dir); }
@@ -321,21 +321,23 @@ function buildHead(): HTMLDivElement {
   const head = h('div', 'jhead');
   if (!journeyConn) {
     head.append(h('div', 'sheet-title', h('h1', 'trunc', journeyDest ? journeyDest.title : 'Journey'), sheetActions()));
-    if (sheetMsg) head.append(h('div', 'jhead-act', h('span', 'jrow-act gone', sheetMsg)));
+    // the engine could not be reached: a way to ask it again, with the same trip
+    const retry = sheetRetry && journeyDest ? kBtn('pill-btn small', null, retryJourney, kIcon('refresh', 16), 'Try again') : null;
+    if (sheetMsg) head.append(h('div', 'jhead-act', h('span', 'jrow-act gone', sheetMsg), retry));
     return head;
   }
   const now = Date.now(), end = journeyEnd();
   const rides = journeySteps.filter((st) => st.type === 'ride');
   const tr = Math.max(0, rides.length - 1);
   const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
-  const start = new Date(journeyConn.from.departure!).getTime();
+  const start = journeyConn.t0;
   const following = document.body.classList.contains('following'); // under way: the pill at the top has the two times
   head.append(
     h('div', 'sheet-title',
       optionCount() > 1 && !following ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
       legChain(), sheetActions()));
   if (!following) head.append(
-    h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.from.departure)} – ${fmtTime(end)}`),
+    h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.t0)} – ${fmtTime(end)}`),
       h('span', null, `${kDur((end - start) / 1000)} · ${!rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`}`)));
   const act = h('div', 'jhead-act');
   // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
@@ -371,7 +373,7 @@ function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to
 }
 // Spare time on a change: from getting off to the next departure, less the walk
 function spareOf(st: JourneyChangeStep) {
-  const wait = (liveMs(st.next.departure, 'departure')! - liveMs(st.prev.arrival, 'arrival')!) / 1000;
+  const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
   const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
   const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
   const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
@@ -397,7 +399,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const target = walkTarget(st);
   if (transfer) {
     const pq = quayOf(st.prevRide!, 'arr'), nq = quayOf(st.nextRide!, 'dep');
-    const samePlace = st.prev.arrival.station!.name === st.next.departure.station!.name;
+    const samePlace = stopName(st.prev.to) === stopName(st.next.from);
     if (!mins && !(st.lines && st.lines.length) && samePlace && pq.label && pq.word === nq.word && pq.label === nq.label) {
       return h('li', 'tl-row tl-walk same', h('span', 'tl-time'), h('span', 'tl-rail walk'),
         h('div', 'tl-main', h('strong', null, `Change at the same ${nq.word.toLowerCase()}`), spareLine(st)));
@@ -449,12 +451,11 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
 // Where to stand: what the boarding row above it does not say (which side of the road, the sectors, the level,
 // the way the vehicle leaves). One row; a tap shows the boarding point on the map. Nothing when nothing is known.
 function standCard(st: JourneyRideStep, i: number) {
-  const q = quayOf(st, 'dep'), j = st.s.journey, mode = modeOf(j.category), edge = q.edge;
-  const bearing = edge && edge.bearing != null ? edge.bearing : q.travel;
-  const side = edge && edge.side ? cap(edge.side) // the engine names the street
-    : mode !== 'train' && edge && edge.bearing != null ? `${cap(compassWord(edge.bearing + 90))} side of the road` : ''; // edges sit right of travel
+  const q = quayOf(st, 'dep'), edge = q.edge;
+  const bearing = q.travel;
+  const side = edge && edge.side ? cap(edge.side) : ''; // the engine names the street
   const level = edge && edge.level ? `Level ${levelShort(edge.level)}` : '';
-  const next = j.passList && j.passList[1] && j.passList[1].station && j.passList[1].station.name;
+  const next = st.s.stops[1] && stopName(st.s.stops[1]);
   let compass = null;
   if (next && bearing != null) {
     compass = h('span', 'stand-compass', kIcon('arrow', 14));
@@ -476,42 +477,42 @@ function standCard(st: JourneyRideStep, i: number) {
   return card;
 }
 // Scheduled time; a delay follows as "+4 min" in the alarm colour
-function callTime(stop: OdCheckpoint, which: 'departure' | 'arrival', strong?: boolean) {
-  const t = stop[which] || stop[which === 'departure' ? 'arrival' : 'departure'];
+function callTime(stop: KanteStopCall, which: StopTime, strong?: boolean) {
+  const t = planMs(stop, which) || planMs(stop, which === 'dep' ? 'arr' : 'dep');
   if (!t) return h('span', 'tl-time');
   return h('span', 'tl-time', strong ? h('b', null, fmtTime(t)) : h('span', null, fmtTime(t)), kDelay(lateMin(stop, which)));
 }
 // Real-time state as a word, never by colour alone
 function liveTag(st: JourneyRideStep) {
-  const p = (st.s.departure.prognosis && st.s.departure.prognosis.departure) || (st.s.arrival.prognosis && st.s.arrival.prognosis.arrival);
+  const p = hasForecast(st.s.from, 'dep') || hasForecast(st.s.to, 'arr');
   return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Live times' : 'Timetable');
 }
 function rideBlock(st: JourneyRideStep, i: number) {
-  const s = st.s, j = s.journey, mode = modeOf(j.category);
-  const list = j.passList || [];
+  const s = st.s, j = s.line, mode = modeOf(j.category);
+  const list = s.stops;
   const stops = Math.max(0, list.length - 2);
   const rideS = Math.max(0, (st.t1! - st.t0!) / 1000);
   const open = openStops.has(i);
   const li = lineVars(h('li', 'tl-ride'), j);
   li.append(h('div', 'tl-row board',
-    callTime(s.departure, 'departure', true),
+    callTime(s.from, 'dep', true),
     h('span', 'tl-rail ride first', h('i', 'tl-node', kIcon(MODE_K[mode] || 'bus', 15))),
-    h('span', 'tl-name', h('strong', null, s.departure.station!.name)),
+    h('span', 'tl-name', h('strong', null, stopName(s.from))),
     kPlat(quayOf(st, 'dep'))));
   li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
     h('div', 'tl-main',
       standCard(st, i),
-      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', j.to)),
+      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', s.headsign)),
       h('div', 'ride-sum',
         stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `${stops + 1} stops · ${kDur(rideS)}`)
           : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),
         liveTag(st)))));
   if (open) list.slice(1, -1).forEach((stop) => li.append(h('div', 'tl-row mid',
-    h('span', 'tl-time', h('span', null, fmtTime(liveMs(stop, 'arrival') || liveMs(stop, 'departure')))),
+    h('span', 'tl-time', h('span', null, fmtTime(liveMs(stop, 'arr') || liveMs(stop, 'dep')))),
     h('span', 'tl-rail ride', h('i', 'tl-stopdot')),
-    h('span', 'tl-name', (stop.station && stop.station.name) || ''))));
-  li.append(h('div', 'tl-row alight', callTime(s.arrival, 'arrival'), h('span', 'tl-rail ride last', h('i', 'tl-enddot')),
-    h('span', 'tl-name', s.arrival.station!.name), kPlat(quayOf(st, 'arr'))));
+    h('span', 'tl-name', stopName(stop)))));
+  li.append(h('div', 'tl-row alight', callTime(s.to, 'arr'), h('span', 'tl-rail ride last', h('i', 'tl-enddot')),
+    h('span', 'tl-name', stopName(s.to)), kPlat(quayOf(st, 'arr'))));
   return li;
 }
 // How much walking the journey has in all (nothing for a journey without any)
@@ -550,7 +551,7 @@ function renderBody() {
   jBody.replaceChildren(buildBody());
   jBody.scrollTop = top;
 }
-let ticketFoot: { conn: OdConnection; tracking: boolean; following: boolean; bar: HTMLElement; refresh?: () => void } | null = null;
+let ticketFoot: { conn: Journey; tracking: boolean; following: boolean; bar: HTMLElement; refresh?: () => void } | null = null;
 function renderFoot() {
   if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
   const tracking = SETTINGS.prefs().fareTracking;
@@ -593,7 +594,7 @@ function queueSheet(times?: boolean) {
     renderHead();
     renderBody();
     if (!t) return;
-    document.getElementById('jDep')!.textContent = fmtTime(journeyConn.from.departure);
+    document.getElementById('jDep')!.textContent = fmtTime(journeyConn.t0);
     updatePillTimes();
     renderBar();
     renderFoot();

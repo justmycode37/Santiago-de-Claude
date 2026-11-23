@@ -57,10 +57,10 @@ interface VehiclePlace {
   from?: string | null;
   to?: string | null;
 }
-/** …placed by the Kante engine: its position moved on to `tNow` (the engine's clock, unix seconds). */
-interface EngineVehiclePlace extends VehiclePlace { engine: KanteAdvancedPosition; tNow: number }
+/** …placed by the Kante engine: its position moved on to `tNow` (the engine's clock, unix seconds), and the trip it is of. */
+interface EngineVehiclePlace extends VehiclePlace { engine: KanteAdvancedPosition; tNow: number; trip: KanteTrip }
 /** …placed from the ride's live stop times. */
-interface TimedVehiclePlace extends VehiclePlace { engine?: undefined; tNow?: undefined }
+interface TimedVehiclePlace extends VehiclePlace { engine?: undefined; tNow?: undefined; trip?: undefined }
 /** vehicleState() */
 type VehicleState = EngineVehiclePlace | TimedVehiclePlace;
 
@@ -78,58 +78,6 @@ interface LiveLine {
   /** The second half: what is left of the trip, or whether to hurry. */
   rest?: string;
   restLevel?: KanteRunOrWait['level'] | null;
-}
-
-// ---------------------------------------------------------------- live data from the Kante engine
-
-/**
- * A ride's link to the engine's trip (56-live-engine.ts), kept on its section as `_k`.
- * matching: /api/match is being asked; error: it could not be reached (asked again, three times at most);
- * none: no sure match; chain: the ride stays seated over several trips (not polled here);
- * ok: matched, and polled while the trip is on.
- */
-type KanteRideLink = KanteRideMatched | KanteRideUnmatched;
-/** Matched: /api/trip is asked for it every 30 s while the trip is on. */
-interface KanteRideMatched {
-  state: 'ok';
-  /** The engine's trip and the stops you ride between. */
-  match: KanteMatch;
-  /** When `trip` came in (ms; 0 = not yet). */
-  at: number;
-  /** The last answer of /api/trip. */
-  trip?: KanteTrip;
-  /** The engine's seq → the stop's place in the passList (KANTE_LIVE.seqIndex()). */
-  seqIdx?: Map<number, number>;
-  /** A request for the trip is under way. */
-  busy?: boolean;
-  /** Polls in a row without an answer. */
-  fails?: number;
-  /** The engine is no longer the ride's source, and transport.opendata.ch has been asked instead. */
-  handedBack?: boolean;
-  /** How often /api/match was asked, and when last (ms); a ride of an engine journey was never asked for. */
-  tries?: number;
-  tried?: number;
-}
-/** Not matched (yet), or a chain: nothing of a trip is kept. */
-interface KanteRideUnmatched {
-  state: 'matching' | 'chain' | 'error' | 'none';
-  tries?: number;
-  tried?: number;
-  /** chain: the first trip, as /api/match gave it. */
-  match?: KanteMatch;
-  at?: number;
-  trip?: undefined;
-  seqIdx?: undefined;
-  fails?: undefined;
-}
-
-interface OdSection {
-  /** 70-routing.ts: a walk before the first ride, in seconds, as the walking network routed it (the option's row). */
-  _netWalkS?: number;
-  /** 56-live-engine.ts: the engine's trip for this ride. */
-  _k?: KanteRideLink;
-  /** 54-live-timetable.ts: when transport.opendata.ch's forecasts for this ride were last refreshed (ms). */
-  _liveAt?: number;
 }
 
 // ---------------------------------------------------------------- live vehicles on the map
