@@ -38,9 +38,7 @@ What it checks (`summary.json`):
   10 and 20 minutes; how much later B reaches the stops both reach (and by which candidate: B says `point` or
   `door`); and every stop A reaches and B does not with its cause from the built data (`compare explain`: B links
   the stop elsewhere, B's graph puts the start elsewhere, or A's own walk to it, recomputed on A's graph, uses an edge,
-  a joint, a node's tags or a lift B's graph does not have as it is; for a step-free walker, first whether only a line
-  through a building or onto another floor reaches it, which B takes only when no other line reaches any stop); with
-  `--main-probe`, also whether A's own search
+  a joint, a node's tags or a lift B's graph does not have as it is); with `--main-probe`, also whether A's own search
   code reaches the stop on B's graph (if not, the loss is the graph's, not B's code's).
 - **walks** (`POST /api/walk`): where A routes, does B; B's length and time against A's; every pair over 1.5 ×.
 - **through**: the straight lines of each walk (from the point to the network and from it to the end) that run

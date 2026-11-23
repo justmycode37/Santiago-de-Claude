@@ -309,6 +309,9 @@ pub struct WalkLeg {
     /// It starts or ends with a line through a building or onto another floor (not sent: a journey's alert says so).
     #[serde(skip)]
     pub unsure_end: bool,
+    /// The seconds of the walk drawn (not sent): a journey's first and last walks are timed by it.
+    #[serde(skip)]
+    pub drawn_s: Option<i64>,
 }
 
 #[derive(Serialize, Clone)]

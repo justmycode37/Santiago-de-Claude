@@ -162,6 +162,7 @@ impl App {
             network: None,
             no_step_free_door: false,
             unsure_end: false,
+            drawn_s: None,
         };
         if a.stop.is_some() && a.stop == b.stop {
             leg.geometry = vec![lonlat(&a.pos), lonlat(&a.pos)];
@@ -188,6 +189,7 @@ impl App {
                 leg.start_door = w.from.door.and_then(|o| self.door_json(o));
                 leg.no_step_free_door = b.end.no_step_free_door;
                 leg.unsure_end = w.from.unsure || w.to.unsure;
+                leg.drawn_s = Some(w.secs.ceil() as i64);
                 leg.covered = p.covered.iter().map(|&(v0, v1, c)| json::WalkCovered { kind: c.as_str(), from: v0 + shift, to: v1 + shift }).collect();
                 let last_vertex = leg.geometry.len().saturating_sub(1) as u32;
                 let n_steps = p.steps.len();
@@ -379,7 +381,16 @@ impl App {
                     }
                     // The buffer is waiting at the stop, not walking.
                     let buf = (crate::state::ACCESS_BUFFER_S as i64).min((arr - dep) as i64);
-                    legs.push(JLeg::Walk(self.walk_leg("access", from, &self.stop_end(s), ux(dep), ux(arr) - buf, profile)));
+                    let mut w = self.walk_leg("access", from, &self.stop_end(s), ux(dep), ux(arr) - buf, profile);
+                    // timed by the walk drawn (which runs in travel order, the stop search the other way): a longer
+                    // one takes the wait at the stop, and starts earlier only beyond it
+                    if let Some(s) = w.drawn_s {
+                        let board = ux(arr);
+                        w.duration_s = s;
+                        w.arr = (w.dep + s).min(board);
+                        w.dep = w.arr - s;
+                    }
+                    legs.push(JLeg::Walk(w));
                 }
                 Leg::Egress { from: s, dep, arr } => {
                     let at_station = to_is_station == Some(tt.stops[s as usize].station);
@@ -387,7 +398,13 @@ impl App {
                         continue;
                     }
                     let buf = (crate::state::ACCESS_BUFFER_S as i64).min((arr - dep) as i64);
-                    legs.push(JLeg::Walk(self.walk_leg("egress", &self.stop_end(s), to, ux(dep), ux(arr) - buf, profile)));
+                    let mut w = self.walk_leg("egress", &self.stop_end(s), to, ux(dep), ux(arr) - buf, profile);
+                    // timed by the walk drawn, in travel order (the stop search ran from the destination)
+                    if let Some(s) = w.drawn_s {
+                        w.duration_s = s;
+                        w.arr = w.dep + s;
+                    }
+                    legs.push(JLeg::Walk(w));
                 }
                 Leg::Transfer { from: a, to: b, dep, arr, .. } => {
                     let mut w = self.walk_leg("transfer", &self.stop_end(a), &self.stop_end(b), ux(dep), ux(arr), profile);
@@ -417,15 +434,7 @@ impl App {
             if let JLeg::Walk(w) = &mut legs[i] {
                 // a step-free walker's first or last walk that starts or ends through a building or onto another
                 // floor: only when no other way onto the network reaches any stop (App::reach), and said here
-                if w.unsure_end && (profile.wheelchair || profile.is_step_free()) {
-                    let place = if w.kind == "egress" { &w.to.name } else { &w.from.name };
-                    alerts.push(json::JourneyAlert {
-                        severity: "warning",
-                        kind: "other",
-                        leg: Some(i),
-                        text: format!("No step-free way onto the street is known at {place}: this walk is guessed through a building or to another floor"),
-                    });
-                }
+                alerts.extend(unsure_alert(w, Some(i), profile));
                 if let Some(nd) = next_dep {
                     let start = prev_arr.unwrap_or(w.dep);
                     let m = if w.kind == "transfer" { margin as i64 } else { 0 };
@@ -549,8 +558,8 @@ impl App {
             transfers: 0,
             walk_s: w.duration_s,
             walk_m: w.distance_m,
+            alerts: unsure_alert(&w, Some(0), profile).into_iter().collect(),
             legs: vec![JLeg::Walk(w)],
-            alerts: vec![],
         })
     }
 
@@ -750,6 +759,24 @@ impl App {
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);
         Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
     }
+}
+
+/// A step-free walker's walk that starts or ends with a guess (through a building, onto another floor, or across
+/// ground with no mapped way): taken only where nothing else reaches (kante_link::ends::reach_costs), and said.
+fn unsure_alert(w: &json::WalkLeg, leg: Option<usize>, profile: &WalkProfile) -> Option<json::JourneyAlert> {
+    (w.unsure_end && (profile.wheelchair || profile.is_step_free())).then(|| {
+        let place = match w.kind {
+            "egress" => w.to.name.as_str(),
+            "access" => w.from.name.as_str(),
+            _ => "the start or the end",
+        };
+        json::JourneyAlert {
+            severity: "warning",
+            kind: "other",
+            leg,
+            text: format!("No step-free way onto the street is known at {place}: this walk is guessed there (through a building, onto another floor, or across ground with no mapped way)"),
+        }
+    })
 }
 
 /// A departure window is Pareto-optimal only within itself: a slow many-change option can survive because the faster

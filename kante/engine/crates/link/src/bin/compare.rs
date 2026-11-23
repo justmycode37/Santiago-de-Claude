@@ -516,10 +516,7 @@ fn profile_of(o: &serde_json::Value) -> WalkProfile {
 /// - `graph: <what>`: A's own walk to the stop, recomputed on A's graph as A computes it (A's snap, A's link),
 ///   uses an edge that B's graph does not have as it is: a lift edge, a connector the import made (way 0), a
 ///   straight line across an area, an edge whose tags changed, or another;
-/// - `unexplained`: A's walk runs on edges B has unchanged, to the same link;
-/// - `step-free rule: …`, before all of these: for a step-free walker from a place, B's own end for the point
-///   reaches the stop within the limit only by a line through a building or onto another floor, which B takes only
-///   when no other line reaches any stop (`kante_link::ends::reach_end`).
+/// - `unexplained`: A's walk runs on edges B has unchanged, to the same link.
 ///
 /// `reproduced` says whether the recomputed walk takes A's time (to the second, with the 30 s buffer).
 fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
@@ -600,7 +597,6 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
     };
     let by_id: FxHashMap<&str, usize> = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i)).collect();
     let st_by_id: FxHashMap<&str, usize> = tt.stations.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i)).collect();
-    let doors_b = load_doors(b_dir).ok();
     let mut out = std::io::stdout().lock();
     for line in std::io::stdin().lock().lines() {
         let v: serde_json::Value = serde_json::from_str(&line?)?;
@@ -775,26 +771,6 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
         }
         if cause.is_empty() {
             cause = "unexplained".into();
-        }
-        // B's own end for the point, as /api/reach builds it: does only an unsure line reach the stop in time?
-        if from_stop.is_none() && (prof.wheelchair || prof.is_step_free()) {
-            let end = if let Some(id) = pt["id"].as_str() {
-                st_by_id.get(id.trim_start_matches("st:")).map(|&i| kante_link::ends::End::station(&rb, doors_b.as_ref(), tt.stations[i].pos, &prof))
-            } else {
-                Some(kante_link::ends::End::place(&rb, doors_b.as_ref(), LatLon::from_deg(pt["lat"].as_f64().unwrap_or(0.0), pt["lon"].as_f64().unwrap_or(0.0)), &prof))
-            };
-            let max_s = v["limit"].as_f64().unwrap_or(0.0) as f32 * 60.0;
-            let limit = (max_s - 30.0).max(0.0);
-            if let Some(end) = end {
-                let t = [b_link.snap];
-                let sure = end.sure().map(|s| kante_link::ends::reach_costs(&rb, &s, &t, &prof, max_s, limit)[0]);
-                let all = kante_link::ends::reach_costs(&rb, &end, &t, &prof, max_s, limit)[0];
-                if sure.is_some_and(|c| c.is_none()) && all.is_some_and(|(_, k)| end.joins[k].unsure) {
-                    let k = all.unwrap().1;
-                    let what = if end.joins[k].wall { "through a building" } else { "onto another floor" };
-                    cause = format!("step-free rule: only a line {what} reaches it (taken only when no other line reaches any stop)");
-                }
-            }
         }
         // for the check with A's own code on B's graph (`kante/tools/compare/main-probe.rs`): A's start as B's graph
         // has it, and B's link

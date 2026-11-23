@@ -400,7 +400,7 @@ impl WalkRouter {
         let speed = profile.speed_mps.max(0.05);
         search::many_to_many_mode(&self.graph, &self.net, &f, targets, profile, max_time_s, true)
             .into_iter()
-            .map(|r| r.filter(|r| walk_secs(r.1.var_m, r.1.fix_s, speed) <= max_time_s + 1e-3).map(|r| (r.0, r.1)))
+            .map(|r| r.filter(|r| walk_secs(r.1.var_m, r.1.fix_s, speed) <= max_time_s + 0.5).map(|r| (r.0, r.1)))
             .collect()
     }
 
