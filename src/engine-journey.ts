@@ -418,6 +418,12 @@ function requay(steps: JourneyStep[], changed: () => void) {
     return (e ? e.ref : null) === (f ? f.ref : null) && (e ? e.level : null) === (f ? f.level : null) && x.quay === (y && y.quay);
   };
   const rewalk = new Map<JourneyWalkStep | JourneyChangeStep, [LngLat, LngLat]>(); // step → [from, to]
+  // the floors a walk's two ends are on: the platforms of the rides before and after it (street level without one)
+  const level = (x: JourneyPlatformAt | null | undefined) => (x && x.edge && x.edge.level) || 0;
+  const floorsOf = (st: JourneyStep) => {
+    const i = steps.indexOf(st), before = steps[i - 1], after = steps[i + 1];
+    return [level(before && before.type === 'ride' ? before.arrAt : null), level(after && after.type === 'ride' ? after.depAt : null)];
+  };
   let moved = false;
   steps.forEach((st, i) => {
     if (st.type !== 'ride') return;
@@ -425,8 +431,13 @@ function requay(steps: JourneyStep[], changed: () => void) {
     if (same(d.ll, st.depLL) && same(a.ll, st.arrLL) && sameEdge(d, st.depAt) && sameEdge(a, st.arrAt)) return;
     const prev = steps[i - 1], next = steps[i + 1], final = steps[steps.length - 1];
     moved = true;
-    // the same point, another platform (its name or floor): the walks stay, and are routed again to it (refineWalks())
-    if (same(d.ll, st.depLL) && same(a.ll, st.arrLL)) { Object.assign(st, { depAt: d, arrAt: a }); return; }
+    // the same point, another platform (its name or floor): the walks stay, and are routed again to it (refineWalks());
+    // a change without a walk (one platform beside the other) gets one if the platform is now on another floor
+    if (same(d.ll, st.depLL) && same(a.ll, st.arrLL)) {
+      Object.assign(st, { depAt: d, arrAt: a });
+      [prev, next].forEach((w) => { if (w && w.type === 'change' && !w.lines.length && w.points[0] && w.points[1] && !rewalk.has(w)) rewalk.set(w, [w.points[0], w.points[1]]); });
+      return;
+    }
     if (!same(d.ll, st.depLL) && prev && (prev.type === 'walk' || prev.type === 'change')) {
       const from = prev.type === 'change' ? prev.points[0] : prev.lines[0] && prev.lines[0][0];
       if (prev.type === 'change') prev.points[1] = d.ll; else prev.board = d.ll;
@@ -449,8 +460,10 @@ function requay(steps: JourneyStep[], changed: () => void) {
     Object.assign(st, { depAt: d, depLL: d.ll, arrAt: a, arrLL: a.ll });
   });
   rewalk.forEach(([a, b], st) => {
-    // straight to the new point at once; refineWalks() then asks the engine for the way there and its time
-    const lines = same(a, b) ? [] : [[a, b]];
+    // straight to the new point at once; refineWalks() then asks the engine for the way there and its time (no walk
+    // only when both ends are one point on one floor)
+    const [fa, fb] = floorsOf(st);
+    const lines = same(a, b) && fa === fb ? [] : [[a, b]];
     Object.assign(st, { lines, walks: undefined, floors: undefined, kanteWalk: false });
     if (!lines.length) { // no walk left: both rides at one point
       st.walkS = 0;

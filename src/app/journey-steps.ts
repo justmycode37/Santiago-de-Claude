@@ -284,15 +284,17 @@ function placeRide(s: JourneyRide) {
 // What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
 const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => ({ ...(pa && pa.edge
   ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true }), ...(pa && pa.quay ? { quay: pa.quay } : {}) });
-// After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
-// engine-journey.ts leaves it)
+// After a live platform change: the walks' ends follow the rides' new boarding points, one pair for each of a
+// walk's lines. Where a walk is drawn in more lines than it has ends for (a station model's way and the streets
+// before or after it), the lines meet where the model's paths begin: points taken as they are.
 export function syncEnds(steps: JourneyStep[]) {
   steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
-    const old = st.ends || [];
+    const old = st.ends || [], n = Math.max(1, (st.lines || []).length);
     const from = st.prevRide ? platformEndOf(st.prevRide.arrAt) : (old[0] || [])[0] || {};
     const to = st.nextRide ? platformEndOf(st.nextRide.depAt) : (old[old.length - 1] || [])[1] || {};
-    st.ends = (st.lines || []).length <= 1 ? [[from, to]] : old;
+    const joint = (k: number, side: 0 | 1): WalkEnd => (old.length === n ? old[k][side] : { exact: true });
+    st.ends = Array.from({ length: n }, (_, k): [WalkEnd, WalkEnd] => [k === 0 ? from : joint(k, 0), k === n - 1 ? to : joint(k, 1)]);
   });
 }
 

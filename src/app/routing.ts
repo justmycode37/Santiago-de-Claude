@@ -184,11 +184,13 @@ export function refineWalks(id: number, onlyMoved?: boolean) {
   });
 }
 type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
-// What a walk was routed for besides its line: what its ends are and the platforms it leaves from and goes to (a
-// platform can change without its point moving, and a station model routes to the platform by its name)
+// What a walk was routed for besides its line: what its two ends are and the platforms it leaves from and goes to (a
+// platform can change without its point moving, and a station model routes to the platform by its name). Where its
+// lines meet inside it (syncEnds()) is not: that follows from how it is drawn.
 const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
-  return JSON.stringify([st.ends || [], stops.map((s) => (s ? platformOf(s) : ''))]);
+  const ends = st.ends || [];
+  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : ''))]);
 };
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since) are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {

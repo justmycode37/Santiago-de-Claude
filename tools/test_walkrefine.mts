@@ -604,5 +604,47 @@ console.log("16. the journey's departure and arrival follow its first and last w
   check(first.t0 === T(3) * 1000 && JS.journeyStart() === T(3) * 1000, `the walk and the journey leave seven minutes before the train (${(JS.journeyStart() / 1000 - NOW) / 60} min from now)`);
 }
 
+console.log('17. another floor at the same point, and a walk split by a station model: the walk goes to the platform in use (finding 1)');
+{
+  // a change on the same spot, platform 7 to 8; then the train leaves from platform 18, right below platform 8
+  const c = app();
+  const after = (q: KanteQuay) => [callAt(3, q, undefined, T(26)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50))];
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, quayAt('q7', B, '7'), T(20))),
+    rideLeg('t2', ...after(quayAt('q8', B, '8')) as [KanteStopCall, KanteStopCall])];
+  const steps = await show(legs, A);
+  const i = steps.findIndex((x) => x.type === 'change'), ch = steps[i];
+  check(ch.lines!.length === 0 && ch.walkMin === 0 && JS.spareOf(ch).text === '6 min to spare', `as planned: no walk, ${JS.spareOf(ch).text}`);
+  await live('t2', after(quayAt('q18', B, '18', -1)));
+  check(walkLines(i).length === 1, 'platform 18 is a floor down: the change has a walk on the map');
+  check(c.asked.length === 1 && c.asked[0].body.to.quay === 'q18' && c.asked[0].body.from.quay === 'q7', `the engine is asked for the way to platform 18 (${c.asked.length} requests)`);
+  c.asked[0]?.d.res(walk([B, east(B, 20), B], { durationS: 150, distanceM: 60, steps: [{ ...step('stairs-down', 0, 2), level: 0, toLevel: -1 }] })); await settle();
+  check(ch.walkMin === 3 && JS.spareOf(ch).text === '3 min to spare', `its minutes, and the time to spare less its walk (${ch.walkMin} min, ${JS.spareOf(ch).text})`);
+}
+{
+  // the walk to the train through a modelled station, drawn as the street up to the model and the model's way to
+  // the platform; the train then leaves from platform 4 at the same point, and the model does not load
+  const c = app();
+  c.plan = { key: 'bern' };
+  const S1: LngLat = east(A, 300), joint = east(A, 200);
+  const departure = (q: KanteQuay) => [callAt(0, q, undefined, T(10)), callAt(1, quayAt('q7', B, '7'), T(30))];
+  const legs: KanteLeg[] = [walkLeg('access', point(A), point(S1, quayAt('q1', S1, '1', 0, 'st:8503000')), T(6), 240),
+    rideLeg('t2', ...departure(quayAt('q1', S1, '1', 0, 'st:8503000')) as [KanteStopCall, KanteStopCall])];
+  const steps = await show(legs, B);
+  const st = steps[0];
+  c.station[0].res({ route: { points: [joint, S1], steps: [], fromStop: false, toStop: true, length: 100, seconds: 80 } }); await settle();
+  await answer(0, 150);
+  check(st.lines!.length === 2, 'drawn in two lines: the street up to the model, the model to the platform');
+  const arrival = departure(quayAt('q1', S1, '1', 0, 'st:8503000'));
+  arrival[1] = callAt(1, quayAt('q17', east(B, 80), '17'), T(30));
+  await live('t2', arrival); // the train arrives at another platform: this walk has not moved
+  check(c.station.length === 1 && c.asked.length === 1, `a platform change elsewhere does not route it again (${c.station.length} station routes)`);
+  await live('t2', departure(quayAt('q4', S1, '4', 0, 'st:8503000')));
+  check(c.station.length === 2, 'platform 4: routed again');
+  c.station[1].rej(new Error('404')); await settle();
+  const asks = c.asked.slice(1).map((x) => x.body);
+  check(asks.length === 2 && asks[1].to.quay === 'q4' && asks.every((b) => b.to.quay !== 'q1' && b.from.quay !== 'q1'),
+    `along the streets: the line to the platform asks for platform 4, none for platform 1 (${JSON.stringify(asks.map((b) => [b.from.quay, b.to.quay]))})`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
