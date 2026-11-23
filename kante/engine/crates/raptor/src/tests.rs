@@ -1432,8 +1432,33 @@ fn scratch_is_clean_between_queries_and_threads() {
     assert_eq!(run(&cases[0]), reference[0]);
 }
 
-/// A latest-arrival bound only removes journeys: the answer equals the
-/// unbounded one without the journeys that arrive late.
+/// The bound is on the arrival at the destination, with each egress stop's own walk.
+#[test]
+fn latest_arrival_bound_two_egress_stops() {
+    let mut b = Builder::new();
+    let (a, m, z) = (b.stop("A"), b.stop("M"), b.stop("Z"));
+    let l = b.line("1", Mode::Bus);
+    let p = b.pattern(l, &[a, m, z]);
+    b.trip(p, &[hm(8, 0), hm(8, 10), hm(8, 20)]);
+    let w = World::new(b);
+    // From M it is a 15 min walk (there at 08:25), from Z one minute (08:21).
+    let (acc, egr) = ([(a, 0)], [(m, 900), (z, 60)]);
+    let mut q = query(hm(7, 55), &acc, &egr, &w.none);
+    let arrs = |q: &Query| w.plan(q).iter().map(|j| j.arr).collect::<Vec<_>>();
+    assert_eq!(arrs(&q), vec![hm(8, 21)]);
+    q.max_arr = Some(hm(8, 21));
+    assert_eq!(arrs(&q), vec![hm(8, 21)]);
+    // M is reached well before the bound, but the walk from it ends after it.
+    q.max_arr = Some(hm(8, 21) - 1);
+    assert!(arrs(&q).is_empty());
+}
+
+/// A latest-arrival bound only removes journeys: the answer has the
+/// departures, arrivals and changes of the unbounded one without the journeys
+/// that arrive late. (Which of two options that tie on all three is named
+/// can differ: labels the bound suppresses change the order patterns are
+/// scanned in. An earliest-arrival search fixes no departure, so there the
+/// tie is on arrival and changes only.)
 #[test]
 fn random_bound_equals_filtered_plan() {
     let mut cut = 0;
@@ -1472,7 +1497,9 @@ fn random_bound_equals_filtered_plan() {
                 let m = bounds[rng.below(bounds.len() as u64) as usize];
                 let want: Vec<_> = all.iter().filter(|j| j.arr <= m).cloned().collect();
                 q.max_arr = Some(m);
-                assert_eq!(w.plan(&q), want, "seed {seed} from {} window {} bound {m}", q.from, q.window);
+                let fixed_dep = q.window > 0;
+                let key = |js: &[Journey]| js.iter().map(|j| (if fixed_dep { j.dep } else { 0 }, j.arr, j.transfers)).collect::<Vec<_>>();
+                assert_eq!(key(&w.plan(&q)), key(&want), "seed {seed} from {} window {} bound {m}", q.from, q.window);
                 cut += (want.len() < all.len()) as usize;
             }
             q.max_arr = None;
