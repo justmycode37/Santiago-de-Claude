@@ -66,6 +66,18 @@ pub fn routes(app: Arc<App>) -> Router {
 
 // ------------------------------------------------------------------ meta
 
+/// The commit the engine was built from, if the build was told (`KANTE_COMMIT=<sha> cargo build`; cargo builds again
+/// when it changes); None for a build without it.
+const BUILD_COMMIT: Option<&str> = option_env!("KANTE_COMMIT");
+
+/// The folder the running executable is in: the release, for an engine `deploy/` built.
+fn release() -> Option<String> {
+    static RELEASE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    RELEASE
+        .get_or_init(|| std::env::current_exe().ok()?.parent()?.file_name()?.to_str().map(str::to_string))
+        .clone()
+}
+
 async fn meta(State(app): S) -> Json<json::MetaResponse> {
     let tt = &app.tt;
     let b = &app.walk_bbox;
@@ -85,6 +97,8 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
             register_doors: app.doors.as_ref().map(|d| d.register_doors).unwrap_or(0),
         },
         attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map: © swisstopo"],
+        commit: BUILD_COMMIT,
+        release: release(),
     })
 }
 

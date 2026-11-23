@@ -84,7 +84,8 @@ struct Scratch {
     st: Vec<[u32; 8]>,
     heap: Heap,
     table: CostTable,
-    table_for: Option<WalkProfile>,
+    /// The profile the table is for, and whether it is the walked-time one ([`CostTable::fill_walked`]).
+    table_for: Option<(WalkProfile, bool)>,
     targets: Vec<TargetEnds>,
 }
 
@@ -98,7 +99,7 @@ struct TargetEnds {
 }
 
 impl Scratch {
-    fn begin(&mut self, nodes: usize, profile: &WalkProfile) {
+    fn begin(&mut self, nodes: usize, profile: &WalkProfile, walked: bool) {
         if self.st.len() < nodes {
             self.st = vec![[0u32; 8]; nodes];
             self.gen = 0;
@@ -109,9 +110,13 @@ impl Scratch {
         }
         self.gen += 1;
         self.heap.v.clear();
-        if self.table_for != Some(*profile) {
-            self.table.fill(profile);
-            self.table_for = Some(*profile);
+        if self.table_for != Some((*profile, walked)) {
+            if walked {
+                self.table.fill_walked(profile);
+            } else {
+                self.table.fill(profile);
+            }
+            self.table_for = Some((*profile, walked));
         }
     }
 }
@@ -206,13 +211,19 @@ pub(crate) fn many_to_many(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)],
 /// (the source's offset included), for every target within the search's bound (`max_time_s` × the profile's slack
 /// plus the largest penalty).
 pub(crate) fn many_to_many_raw(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<(usize, WalkCost, f32)>> {
+    many_to_many_mode(g, net, froms, targets, profile, max_time_s, false)
+}
+
+/// [`many_to_many_raw`], or with `walked` by the time walked alone (no preferences, no slack): the quickest walk to
+/// each target within `max_time_s` (plus the largest offset), and which source it comes from.
+pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32, walked: bool) -> Vec<Option<(usize, WalkCost, f32)>> {
     let mut out: Vec<Option<(usize, WalkCost, f32)>> = vec![None; targets.len()];
     if targets.is_empty() || froms.is_empty() || !(max_time_s >= 0.0) || froms.len() >= MAX_SOURCES {
         return out;
     }
     SCRATCH.with(|cell| {
         let s = &mut *cell.borrow_mut();
-        s.begin(net.n as usize, profile);
+        s.begin(net.n as usize, profile, walked);
         let speed = profile.speed_mps.max(0.05);
         let gen = s.gen;
         let mut any = false;
@@ -233,7 +244,8 @@ pub(crate) fn many_to_many_raw(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f3
         }
         // a source's offset (its metres to the network, and its route-choice penalty) may not eat into the bound: the
         // walk from it is bounded as one from a source without them (as one_to_many adds those metres only after)
-        let bound = max_time_s * bound_slack(profile) + froms.iter().map(|f| f.1 / speed + f.2).fold(0.0, f32::max);
+        let slack = if walked { 1.0 } else { bound_slack(profile) };
+        let bound = max_time_s * slack + froms.iter().map(|f| f.1 / speed + f.2).fold(0.0, f32::max);
 
         // Mark the nodes from which a target can be finished.
         let mut tends = std::mem::take(&mut s.targets);
@@ -362,7 +374,7 @@ pub(crate) struct Leg {
 
 /// A* from `from` to `to`. Returns the legs in travel order.
 pub(crate) fn route(g: &WalkGraph, net: &Net, from: &Snap, to: &Snap, profile: &WalkProfile) -> Option<Vec<Leg>> {
-    route_between(g, net, &[(*from, 0.0, 0.0)], &[(*to, 0.0, 0.0)], profile).map(|r| r.2)
+    route_between(g, net, &[(*from, 0.0, 0.0)], &[(*to, 0.0, 0.0)], profile, false).map(|r| r.2)
 }
 
 /// `S_PARC` of a node reached straight from source `i` of a search (not along an arc).
@@ -376,7 +388,7 @@ const MAX_SOURCES: usize = 1 << 16;
 /// or from it (`var_m`) and a route-choice penalty in generalised seconds, as in [`many_to_many`], which this agrees
 /// with: for one target, the source it takes is the one that search's cost for the target comes from. Returns
 /// (source, target, legs, generalised cost including both offsets).
-pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile) -> Option<(usize, usize, Vec<Leg>, f32)> {
+pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile, walked: bool) -> Option<(usize, usize, Vec<Leg>, f32)> {
     let froms: Vec<(usize, &(Snap, f32, f32))> = froms.iter().enumerate().filter(|(_, f)| (f.0.edge as usize) < g.edges.len()).take(MAX_SOURCES).collect();
     let tos: Vec<(usize, &(Snap, f32, f32))> = tos.iter().enumerate().filter(|(_, t)| (t.0.edge as usize) < g.edges.len()).collect();
     if tos.is_empty() || froms.is_empty() {
@@ -384,7 +396,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
     }
     SCRATCH.with(|cell| {
         let s = &mut *cell.borrow_mut();
-        s.begin(net.n as usize, profile);
+        s.begin(net.n as usize, profile, walked);
         let gen = s.gen;
         let speed = profile.speed_mps.max(0.05);
         let off = |f: &(Snap, f32, f32)| f.1 / speed + f.2;

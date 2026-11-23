@@ -14,7 +14,7 @@ import argparse, collections, concurrent.futures as cf, json, os, subprocess, sy
 
 LIMITS = [5, 10, 20]
 PROFILES = {'normal': {}, 'stepfree': {'stairs': 'never', 'escalators': False}, 'wheelchair': {'stairs': 'never', 'escalators': False, 'wheelchair': True}}
-DAY0 = 1795489200  # Tuesday 2026-11-24 00:00 in Zürich
+DAY0 = 1795474800  # Tuesday 2026-11-24 00:00 in Zürich (1795489200 was 04:00: every hour asked was four hours later than its label)
 
 
 def post(base, path, body, timeout=60):

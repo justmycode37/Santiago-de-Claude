@@ -4,8 +4,6 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-# The builds run here: if memory runs out, the kernel kills a build, not the engine that serves
-OOMScoreAdjust=900
 Type=oneshot
 ExecStart=/bin/bash %h/kante-host/repo/deploy/refresh-data.sh
 Nice=15

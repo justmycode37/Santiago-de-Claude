@@ -42,19 +42,14 @@ services. For live data, put the opentransportdata.swiss key in `~/kante-host/se
 `deploy.sh` fetches `main`. If `kante/engine` has not changed it does nothing. Otherwise it:
 
 1. builds the engine,
-2. builds the data caches with the new engine, in a new folder under `~/kante-host/releases/` (the building
-   address register, an input added later, is downloaded first if the host has none yet; the build works without it),
+2. builds the data caches with the new engine, in a new folder under `~/kante-host/releases/`. The building
+   address register (the buildings' doors) is required: it is downloaded first if the host has none yet, and checked;
+   without a valid one the build fails and the engine in use stays,
 3. points `~/kante-host/current` at the new folder and restarts the engine,
 4. checks that the engine answers, has a timetable and can search. If not, it goes back to the release
    before. It also logs how many building doors the engine has and how many came from the building address register
    (both in `/api/meta` too), with a warning when fewer than a million did.
 
-A release built without the building address register (by a `deploy.sh` from before it, or when the download
-failed) is noticed on the next run, before the "nothing new" exit: the register is fetched and, if that works, the
-same commit is built again. This is tried once per release (`~/kante-host/state/register-tried`).
-
-When the commit it checks out changes `deploy.sh` itself, the script starts again as the new one before it builds, so
-a change to the deploy takes effect in the same deploy (bash would otherwise go on with the copy it has read).
 
 A commit is tried once. If its build fails, the running engine stays as it is and the next commit is
 tried. The two newest releases are kept. A deploy takes about 2½ minutes on a

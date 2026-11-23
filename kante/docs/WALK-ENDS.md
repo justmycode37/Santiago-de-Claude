@@ -21,12 +21,21 @@ it along one of its ways out. Every door is tried. A step-free walker may not us
 prefers (by 5 m) one known to be step-free. Back doors, garages and register points carry the penalties of
 `DoorKind::penalty_m` (route choice only).
 
-**Reached, and in what time, by walked time over all candidates** (`reach_costs`). A stop is reached when some
-candidate's walk to it (the way the router finds best from that candidate) takes at most the limit (the journey's
-longest walk less the 30 s buffer, as before); of those candidates, the one cheapest with its penalties is taken,
-and its time is the walk's. So the doors and the other lines only add stops to what `main`'s own line reaches. The
-walk drawn for a journey's first or last walk (`walk_within`) takes the cheapest candidate within the time the
-journey planned it with: the one the stop search took.
+**Reached when some walk gets there within the limit** (`reach_costs`). The limit is the journey's longest walk less
+the 30 s buffer, as before. Preferences (route choice penalties on the way, and those of the candidates) only choose
+among the walks within it. In turn: the walk the router finds best from all candidates, if it is within the limit;
+else the cheapest with its penalties of each candidate's best walk, among those within it; else the quickest walk
+(a search by walked time alone, `WalkRouter::quickest_many`: what the walker cannot use stays out, nothing else
+counts), if it is within. So the doors and the other lines only add stops to what `main`'s own line reaches, and a
+penalty never loses a stop some walk reaches in time. The walk drawn for a journey's first or last walk
+(`walk_within`) takes the same walk: the one the stop search timed.
+
+**Lines through a building or onto another floor come last.** A line that runs through a building, or onto a way in
+a tunnel or on a bridge that the point is not right on (for a point right on a bridge with no ground near, any line
+longer than 3 m: it leaves the bridge sideways), is unsure (`Join::unsure`). It is a candidate only for the stops,
+or the walk, that no other line reaches; it is never step-free, and it is drawn as a guess. A step-free or wheelchair
+walker takes one only when no other line reaches any stop at all (`reach_end`), and the journey then carries an alert
+saying so.
 
 **Through a building** is geometry (`doors::through_building`): the straight line is cut where it meets each
 building outline (every building of OpenStreetMap, courtyards excluded); a piece inside a building that somewhere

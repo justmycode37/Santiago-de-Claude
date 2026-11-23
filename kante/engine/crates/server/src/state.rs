@@ -655,6 +655,8 @@ impl App {
             // the metres from the point to the network and from it to the stop are in `c`; a stop is reached when a
             // candidate's walk to it leaves room for the buffer
             let limit = (max_s - ACCESS_BUFFER_S).max(0) as f32;
+            // a line through a building, onto another floor or across unmapped ground only for the stops no other
+            // reaches in time (ends::reach_costs); a step-free walker's journey that takes one says so (plan.rs)
             let costs = ends::reach_costs(walk, &end, &targets, profile, max_s as f32, limit);
             for (k, c) in costs.into_iter().enumerate() {
                 let i = idx[k];

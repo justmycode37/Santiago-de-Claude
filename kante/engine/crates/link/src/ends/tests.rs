@@ -326,3 +326,208 @@ fn a_station_is_entered_from_a_way_that_leads_on() {
     let (c, w1, _) = reach_and_walk(&r, &ix, &station, &to, &STEP_FREE, 600.0);
     assert!(c.is_some() && w1.path.stairs_up == 0 && w1.path.stairs_down == 0, "{c:?}");
 }
+
+#[test]
+fn a_stop_some_walk_reaches_within_the_limit_is_reached_whatever_the_preferred_route_takes() {
+    // last review, finding 1: from one candidate, the route the penalties prefer (a quiet detour, 100.8 s) is over the
+    // limit, the quicker one along a busy road (85.4 s) within it
+    let mut w = World::new();
+    w.way((-10.0, 0.0), (0.0, 0.0), 2, EdgeKind::Footway, 0);
+    w.way((0.0, 0.0), (100.0, 0.0), 4, EdgeKind::RoadBusy, 0);
+    w.way((0.0, 0.0), (0.0, 10.0), 1, EdgeKind::Footway, 0);
+    w.way((0.0, 10.0), (100.0, 10.0), 4, EdgeKind::Footway, 0);
+    w.way((100.0, 10.0), (100.0, 0.0), 1, EdgeKind::Footway, 0);
+    w.way((100.0, 0.0), (110.0, 0.0), 2, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, -5.0, 1.0, &NORMAL);
+    let to = stop(&r, 105.0, 0.0, &NORMAL);
+    let preferred = walk(&r, &here, &to, &NORMAL).unwrap();
+    assert!(preferred.secs > 95.0, "the penalties prefer the detour: {} s", preferred.secs);
+    let (c, w1, _) = reach_and_walk(&r, &ix, &here, &to, &NORMAL, 95.0);
+    let c = c.expect("reached: a walk within the limit exists");
+    assert!(c <= 95.0 && (c - w1.secs).abs() < 0.5, "{c} s, drawn {} s", w1.secs);
+}
+
+#[test]
+fn many_doors_never_crowd_out_the_points_own_lines() {
+    // last review, finding 1: a building with 300 doors; the point's own line (main's snap, through the wall) stays
+    let mut w = World::new();
+    w.way((-20.0, -3.0), (320.0, -3.0), 20, EdgeKind::Sidewalk, 0);
+    let b = w.building(0.0, 0.0, 300.0, 20.0);
+    for i in 0..300 {
+        w.door(b, 0.5 + i as f32, 0.0, DoorKind::Yes, DOOR_WC_UNKNOWN);
+    }
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 150.0, 10.0, &NORMAL);
+    let main = snap_main(&r, pt(150.0, 10.0), &NORMAL).unwrap();
+    assert!(here.joins.len() <= MAX_JOINS + 8, "{}", here.joins.len());
+    assert!(here.joins.iter().any(|j| j.door.is_none() && j.snap.edge == main.edge), "main's snap is still a candidate");
+}
+
+#[test]
+fn a_line_through_a_building_is_taken_only_where_no_other_will_do() {
+    // last review, walk #2366: a clear 38 m line north to a way that goes 676 m round, a 57 m line south through a
+    // house to a way that goes straight to the end; the second is cheaper even with the line's weight
+    let mut w = World::new();
+    w.way((-300.0, 38.0), (200.0, 38.0), 8, EdgeKind::Footway, 0);
+    w.way((-300.0, 38.0), (-300.0, -57.0), 4, EdgeKind::Footway, 0);
+    w.way((-300.0, -57.0), (200.0, -57.0), 8, EdgeKind::Footway, 0);
+    w.way((200.0, -57.0), (900.0, -57.0), 10, EdgeKind::Footway, 0);
+    w.building(-10.0, -40.0, 10.0, -20.0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        // both over 20 m (guesses across the open), the second through the house as well
+        assert!(here.joins.iter().any(|j| j.doubt == 1 && !j.wall) && here.joins.iter().any(|j| j.doubt == 2 && j.wall), "{:?}", here.joins);
+        let to = stop(&r, 850.0, -57.0, &p);
+        let all = End { joins: here.joins.clone(), ..here.clone() };
+        let (_, _, _, gen_wall) = r.route_between(&all.sources(), &to.sources(), &p).unwrap();
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        let d = draw(Some(&ix), &here, &to, &w1);
+        assert!(!w1.from.wall && !d.wall && d.approx_start.is_some() && !d.step_free, "the clear line, a guess across the open: {:?}", w1.from);
+        assert!(w1.secs > gen_wall, "the walk through the house was the cheaper one: {} s against {gen_wall}", w1.secs);
+        // the stop search takes the same, and so does the walk drawn for it
+        let (c, w2, _) = reach_and_walk(&r, &ix, &here, &to, &p, 3600.0);
+        assert!(c.is_some() && !w2.from.wall, "{:?}", w2.from);
+    }
+    // with nothing clear that leads anywhere, the line through the house is still a way out (a guess)
+    let mut w = World::new();
+    w.way((-200.0, -57.0), (900.0, -57.0), 10, EdgeKind::Footway, 0);
+    w.building(-10.0, -40.0, 10.0, -20.0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 0.0, 0.0, &NORMAL);
+    let to = stop(&r, 850.0, -57.0, &NORMAL);
+    let (c, w1, d) = reach_and_walk(&r, &ix, &here, &to, &NORMAL, 3600.0);
+    assert!(c.is_some() && w1.from.unsure && d.approx_start.is_some() && !d.step_free);
+}
+
+#[test]
+fn a_line_through_a_building_serves_only_the_stops_no_other_line_reaches_and_more_time_never_loses_a_stop() {
+    // review 5, #846 and #4460: a clear line north (15 m) to a way that does not lead south; a line south through a
+    // house (30 m) to a way with a stop just beyond. For every walker the stop only the house's line reaches is
+    // reached by it (a guess, not step-free), the stop the clear way reaches by the clear way, and a longer limit
+    // never loses a stop a shorter one reaches.
+    let mut w = World::new();
+    w.way((-300.0, 15.0), (300.0, 15.0), 12, EdgeKind::Footway, 0);
+    w.way((-300.0, -30.0), (300.0, -30.0), 12, EdgeKind::Footway, 0);
+    w.building(-10.0, -25.0, 10.0, -5.0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        let targets = [snap(&r, 250.0, 15.0, &p), snap(&r, 20.0, -30.0, &p)];
+        let mut before: Vec<bool> = vec![false; 2];
+        for limit in [30.0, 60.0, 120.0, 300.0, 600.0, 1200.0] {
+            let c = reach_costs(&r, &here, &targets, &p, limit, limit);
+            for (i, x) in c.iter().enumerate() {
+                assert!(x.is_some() || !before[i], "stop {i} reached with less time, not with {limit} s");
+                before[i] = x.is_some();
+            }
+            if let Some((_, k)) = c[0] {
+                assert!(!here.joins[k].unsure, "the clear way for the stop it reaches");
+            }
+            if let Some((_, k)) = c[1] {
+                assert!(here.joins[k].unsure && here.joins[k].wall, "only the line through the house reaches it");
+            }
+        }
+        assert!(before[0] && before[1], "both reached with 20 minutes");
+        let (_, w1, d) = reach_and_walk(&r, &ix, &here, &stop(&r, 20.0, -30.0, &p), &p, 1200.0);
+        assert!(w1.from.unsure && d.approx_start.is_some() && !d.step_free, "a guess, not step-free");
+    }
+}
+
+#[test]
+fn a_point_on_a_footbridge_starts_on_it() {
+    // last review, walk #16572: the point 1.64 m from a footbridge, nothing on the ground within 10 m; a way on the
+    // ground 26 m away would make the walk shorter, but the line to it leaves the bridge sideways
+    let mut w = World::new();
+    w.way((-60.0, 1.64), (60.0, 1.64), 6, EdgeKind::Footway, EF_BRIDGE);
+    w.way((60.0, 1.64), (400.0, 1.64), 10, EdgeKind::Footway, 0);
+    w.way((400.0, 1.64), (400.0, -26.0), 1, EdgeKind::Footway, 0);
+    w.way((-100.0, -26.0), (400.0, -26.0), 10, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        let to = stop(&r, 300.0, -26.0, &p);
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        let d = draw(Some(&ix), &here, &to, &w1);
+        assert!(r.graph().edges[w1.from.snap.edge as usize].flags & EF_BRIDGE != 0 && d.approx_start.is_none(), "on the footbridge: {:?}", w1.from);
+        let (c, w2, _) = reach_and_walk(&r, &ix, &here, &to, &p, 3600.0);
+        assert!(c.is_some() && r.graph().edges[w2.from.snap.edge as usize].flags & EF_BRIDGE != 0);
+    }
+}
+
+#[test]
+fn a_point_on_the_ground_does_not_start_on_a_bridge_further_off() {
+    // last review, finding 3: the ground 8 m away goes round; a bridge 25 m away goes straight to the stop. snap_point
+    // chose the ground, and now so does the walk
+    let mut w = World::new();
+    w.way((-300.0, 8.0), (300.0, 8.0), 12, EdgeKind::Footway, 0);
+    w.way((300.0, 8.0), (300.0, 25.0), 1, EdgeKind::Footway, 0);
+    w.way((-300.0, 25.0), (300.0, 25.0), 12, EdgeKind::Footway, EF_BRIDGE);
+    w.way((-300.0, 25.0), (-300.0, 200.0), 4, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    assert!((snap_point(&r, pt(0.0, 0.0), &NORMAL).unwrap().dist_m - 8.0).abs() < 0.5);
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        let to = stop(&r, -300.0, 150.0, &p);
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        assert!(r.graph().edges[w1.from.snap.edge as usize].flags & EF_BRIDGE == 0 && !w1.from.unsure, "on the ground: {:?}", w1.from);
+    }
+}
+
+#[test]
+fn a_point_between_a_footbridge_and_a_service_road_starts_on_one_of_them() {
+    // review 5, walk #16572 (47.546155, 7.758926): a footbridge 1.64 m to one side, a service road on the ground
+    // 1.82 m to the other (so the point is on the ground), and a way 26 m off that would make the walk shorter. The
+    // 26 m line is a guess across the open: taken only where the short lines do not lead.
+    let mut w = World::new();
+    w.way((-60.0, 1.64), (60.0, 1.64), 6, EdgeKind::Footway, EF_BRIDGE);
+    w.way((60.0, 1.64), (300.0, 1.64), 10, EdgeKind::Footway, 0);
+    w.way((-40.0, -1.82), (40.0, -1.82), 4, EdgeKind::Road, 0);
+    w.way((40.0, -1.82), (60.0, 1.64), 1, EdgeKind::Footway, 0);
+    w.way((-100.0, -26.0), (500.0, -26.0), 12, EdgeKind::Footway, 0);
+    w.way((300.0, 1.64), (300.0, -26.0), 1, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        assert!(here.joins.iter().any(|j| j.snap.dist_m > 20.0 && j.doubt == 1), "the 26 m line is a candidate: {:?}", here.joins);
+        let to = stop(&r, -80.0, -26.0, &p);
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        let d = draw(Some(&ix), &here, &to, &w1);
+        assert!(w1.from.snap.dist_m < 2.0 && d.approx_start.is_none(), "a short line at hand, not the guess: {:?}", w1.from);
+        let (c, w2, _) = reach_and_walk(&r, &ix, &here, &to, &p, 3600.0);
+        assert!(c.is_some() && w2.from.snap.dist_m < 2.0);
+    }
+}
+
+#[test]
+fn a_stop_is_reached_when_the_walk_rounded_up_to_the_second_is_within_the_limit() {
+    // review 5, Geneva #13520: a preferred walk 0.7 ms over the limit was taken under a 1 ms tolerance, and then
+    // rounded up past it, so the stop was dropped although a quicker walk was well within. The same as the API counts:
+    // whole seconds, rounded up.
+    let mut w = World::new();
+    w.way((-10.0, 0.0), (0.0, 0.0), 2, EdgeKind::Footway, 0);
+    w.way((0.0, 0.0), (100.0, 0.0), 4, EdgeKind::RoadBusy, 0);
+    w.way((0.0, 0.0), (0.0, 10.0), 1, EdgeKind::Footway, 0);
+    w.way((0.0, 10.0), (100.0, 10.0), 4, EdgeKind::Footway, 0);
+    w.way((100.0, 10.0), (100.0, 0.0), 1, EdgeKind::Footway, 0);
+    w.way((100.0, 0.0), (110.0, 0.0), 2, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, -5.0, 1.0, &NORMAL);
+    let to = stop(&r, 105.0, 0.0, &NORMAL);
+    // a walking pace that makes the preferred walk take 0.5 ms over a whole second, as at Geneva (570.0007 s)
+    let p0 = walk(&r, &here, &to, &NORMAL).unwrap().secs;
+    let limit = p0.floor();
+    let p = WalkProfile { speed_mps: NORMAL.speed_mps * p0 / (limit + 0.0005), ..NORMAL };
+    let here = place(&r, &ix, -5.0, 1.0, &p);
+    let preferred = walk(&r, &here, &to, &p).unwrap().secs;
+    assert!(preferred > limit && preferred < limit + 0.001, "{preferred} against {limit}");
+    let quickest = r.quickest_between(&here.sources(), &to.sources(), &p).map(|(i, j, q, _)| walk_of(&here, &to, i, j, q, &p).secs).unwrap();
+    assert!(quickest < limit - 5.0, "{quickest}");
+    // the stop search with that whole-second limit: the quickest walk, which rounded up is within it (the
+    // preferred one, rounded up, is a second over: the API would drop the stop)
+    let c = reach_costs(&r, &here, &[to.joins[0].snap], &p, limit, limit)[0].map(|c| c.0.secs(p.speed_mps)).expect("reached");
+    assert!(c.ceil() <= limit, "{c} s reported for a limit of {limit} s");
+    let c = reach_costs(&r, &here, &[to.joins[0].snap], &p, quickest.ceil() - 1.0, quickest.ceil() - 1.0)[0];
+    assert!(c.is_none(), "no walk within a second less");
+}

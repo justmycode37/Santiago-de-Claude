@@ -378,8 +378,30 @@ impl WalkRouter {
     /// [`WalkRouter::many_to_many`] takes them: for one end point, the start taken is the one that search's cost
     /// for it comes from. Returns (start index, end index, walk between them, generalised seconds with both offsets).
     pub fn route_between(&self, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile) -> Option<(usize, usize, WalkPath, f32)> {
-        let (i, j, legs, gen) = search::route_between(&self.graph, &self.net, froms, tos, profile)?;
+        let (i, j, legs, gen) = search::route_between(&self.graph, &self.net, froms, tos, profile, false)?;
         Some((i, j, path::build(self, &froms[i].0, &tos[j].0, profile, &legs), gen))
+    }
+
+    /// [`WalkRouter::route_between`] by the time walked alone: the quickest walk this walker can take (what it
+    /// cannot use stays out, its preferences do not count; the sources' and targets' penalties are ignored). The
+    /// last value is its seconds walked, the offsets' metres included.
+    pub fn quickest_between(&self, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile) -> Option<(usize, usize, WalkPath, f32)> {
+        let plain = |v: &[(Snap, f32, f32)]| v.iter().map(|&(s, m, _)| (s, m, 0.0)).collect::<Vec<_>>();
+        let (f, t) = (plain(froms), plain(tos));
+        let (i, j, legs, secs) = search::route_between(&self.graph, &self.net, &f, &t, profile, true)?;
+        Some((i, j, path::build(self, &f[i].0, &t[j].0, profile, &legs), secs))
+    }
+
+    /// [`WalkRouter::many_to_many_raw`] by the time walked alone, as [`WalkRouter::quickest_between`]: per target
+    /// within `max_time_s`, the source the quickest walk comes from and its cost. Whether a target can be walked to
+    /// within a time does not depend on preferences.
+    pub fn quickest_many(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<(usize, WalkCost)>> {
+        let f: Vec<(Snap, f32, f32)> = froms.iter().map(|&(s, m, _)| (s, m, 0.0)).collect();
+        let speed = profile.speed_mps.max(0.05);
+        search::many_to_many_mode(&self.graph, &self.net, &f, targets, profile, max_time_s, true)
+            .into_iter()
+            .map(|r| r.filter(|r| walk_secs(r.1.var_m, r.1.fix_s, speed) <= max_time_s + 0.5).map(|r| (r.0, r.1)))
+            .collect()
     }
 
     /// Best walk between two snapped points with geometry and instructions.

@@ -250,6 +250,18 @@ impl CostTable {
             }
         }
     }
+    /// As [`CostTable::fill`], but the generalised cost is the time walked: no preferences, only what the walker
+    /// cannot use at all stays out (a search that finds the quickest walk).
+    pub fn fill_walked(&mut self, p: &WalkProfile) {
+        self.fill(p);
+        let speed = p.speed_mps.max(0.05);
+        for c in 0..256usize {
+            if self.usable[c] {
+                self.gen_m[c] = self.var_m[c] / speed + self.fix_m[c];
+                self.gen_c[c] = self.fix_c[c];
+            }
+        }
+    }
     /// Can this walker walk the arc to its end (class usable, no barrier at the head)?
     #[inline]
     pub fn through(&self, a: &Arc) -> bool {

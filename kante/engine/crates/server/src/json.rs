@@ -306,6 +306,12 @@ pub struct WalkLeg {
     /// Step-free: the destination building has doors, but none is step-free.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub no_step_free_door: bool,
+    /// It starts or ends with a line through a building or onto another floor (not sent: a journey's alert says so).
+    #[serde(skip)]
+    pub unsure_end: bool,
+    /// The seconds of the walk drawn (not sent): a journey's first and last walks are timed by it.
+    #[serde(skip)]
+    pub drawn_s: Option<i64>,
 }
 
 #[derive(Serialize, Clone)]
@@ -444,6 +450,13 @@ pub struct MetaResponse {
     pub features: Vec<&'static str>,
     pub counts: Counts,
     pub attribution: Vec<&'static str>,
+    /// The commit this engine was built from: `KANTE_COMMIT` at `cargo build`; null for a build without it (a plain
+    /// `cargo build`).
+    pub commit: Option<&'static str>,
+    /// The release this process runs from: the name of the folder its executable is in (`deploy/` builds each
+    /// release into a folder of its own, also the same commit again when the data is refreshed); null if the
+    /// executable's path cannot be read.
+    pub release: Option<String>,
 }
 
 #[derive(Serialize, Clone, Default)]
