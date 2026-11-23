@@ -25,6 +25,7 @@
   <link rel="preconnect" href="https://kante.omniroute.app" crossorigin />
   <link rel="preconnect" href="https://unpkg.com" />
   <!-- build: src/inline/early.ts -->
+  <!-- build: src/inline/updated.ts -->
   <style>
     :root {
       --bar-bg: #ffffff;
@@ -1805,7 +1806,7 @@
   <div class="kj sheet-foot fixed" id="jFoot"></div>
 
   <!-- The app's language: a plain script, so that it runs before maplibre has downloaded (src/translate.ts) -->
-  <script src="translate.js"></script>
+  <!-- build: src/translate.ts -->
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <!-- Generated data and the optional local config: plain scripts that put themselves on window -->
   <script src="swiss-workshops.js"></script>
@@ -1815,6 +1816,6 @@
   <script src="config.js" onerror="void 0"></script>
   <script src="stations3d/index.js"></script>
   <!-- The page's own script (src/main.ts and what it imports) -->
-  <!-- build: src/main.ts type="module" -->
+  <!-- build: src/main.ts type="module" onerror="scriptFailed(this.src)" -->
 </body>
 </html>

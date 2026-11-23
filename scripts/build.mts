@@ -4,10 +4,11 @@
 //   node scripts/build.mts --release   only what is published (no *-dev.html pages, no local config.js)
 //
 // What goes into dist/ (esbuild does the TypeScript and the bundling):
-//   ENTRIES            → the pages' modules: each bundled with what it imports into dist/<its path under src/>.js
-//                        (src/main.ts → main.js). What they load with import() is a file of its own in
+//   ENTRIES            → the pages' modules: each bundled with what it imports into dist/<its path under src/>-<hash>.js
+//                        (src/main.ts → main-<hash>.js). What they load with import() is a file of its own in
 //                        dist/chunks/, fetched only when it is first needed, as is code they share. Source maps.
-//   SCRIPTS            → plain scripts outside the bundle, each its own file (src/translate.ts → translate.js)
+//                        Every file is named by its content: see "Files and deploys" in docs/development.md.
+//   SCRIPTS            → plain scripts outside the bundle, each its own file (src/translate.ts → translate-<hash>.js)
 //   *.html             → copied, with every line "<!-- build: src/… -->" replaced by that script: a module of
 //                        ENTRIES as <script type="module" src="…"> (with <link rel="modulepreload"> for the files it
 //                        imports, so they download alongside it), anything else written into the page as a plain
@@ -64,63 +65,80 @@ function buildSync<T extends esbuild.BuildOptions>(options: esbuild.SameShape<es
   }
 }
 
-/** What the last bundle wrote: the file of each entry, and the files it imports (for <link rel="modulepreload">). */
-let bundled = new Map<string, { file: string; imports: string[] }>();
+/** A file of dist/ the build makes: its path under dist/ and its content. */
+interface Made { file: string; content: string | Uint8Array }
+/** Each entry of ENTRIES and each script of SCRIPTS: the file it became, and the files it imports (modulepreload). */
+type Built = Map<string, { file: string; imports: string[] }>;
+/** What the last build of the scripts wrote: removed when the next one has written its own (npm run dev). */
+let written = new Set<string>();
 
-/** The modules of ENTRIES → dist/, with their source maps. */
-export function bundle(): void {
-  fs.rmSync(path.join(DIST, 'chunks'), { recursive: true, force: true });
+const served = (file: string) => web(path.relative(DIST, file));
+const outputs = (files: esbuild.OutputFile[]): Made[] => files.map((f) => ({ file: served(f.path), content: f.contents }));
+
+/**
+ * The modules of ENTRIES, bundled: every file is named by its content (main-<hash>.js, chunks/<name>-<hash>.js),
+ * so a page and the files it loads are always of one build. See "Files and deploys" in docs/development.md.
+ */
+function bundle(built: Built): Made[] {
   const result = buildSync({
-    ...OUTPUT, entryPoints: ENTRIES.map((e) => path.join(ROOT, e)), bundle: true, splitting: true, format: 'esm',
-    outdir: DIST, outbase: SRC, entryNames: '[dir]/[name]', chunkNames: 'chunks/[name]-[hash]', sourcemap: true,
-    external: EXTERNAL, metafile: true,
+    ...OUTPUT, absWorkingDir: ROOT, entryPoints: ENTRIES, bundle: true, splitting: true, format: 'esm',
+    outdir: DIST, outbase: SRC, entryNames: '[dir]/[name]-[hash]', chunkNames: 'chunks/[name]-[hash]', sourcemap: true,
+    external: EXTERNAL, metafile: true, write: false,
   });
-  bundled = new Map();
-  const outputs = result.metafile.outputs;
-  const served = (file: string) => web(path.relative(DIST, path.join(ROOT, file)));
-  for (const [file, out] of Object.entries(outputs)) {
+  const meta = result.metafile.outputs;
+  for (const [file, out] of Object.entries(meta)) {
     if (!out.entryPoint) continue;
     // every file it imports, and what those import in turn: all of them are needed before it can run
     const imports: string[] = [], seen = new Set<string>();
     const walk = (f: string) => {
-      for (const i of outputs[f].imports) if (i.kind === 'import-statement' && !i.external && !seen.has(i.path)) { seen.add(i.path); imports.push(served(i.path)); walk(i.path); }
+      for (const i of meta[f].imports) if (i.kind === 'import-statement' && !i.external && !seen.has(i.path)) { seen.add(i.path); imports.push(served(path.join(ROOT, i.path))); walk(i.path); }
     };
     walk(file);
-    bundled.set(out.entryPoint, { file: served(file), imports });
+    built.set(out.entryPoint, { file: served(path.join(ROOT, file)), imports });
   }
+  return outputs(result.outputFiles);
 }
 
 /** A plain script (no import or export at run time), with what it imports written into it. */
-function classicScript(source: string, write?: string): string {
-  const result = buildSync({
-    ...OUTPUT, entryPoints: [path.join(ROOT, source)], bundle: true, format: 'iife', external: EXTERNAL,
+function classicScript(source: string, outdir?: string) {
+  return buildSync({
+    ...OUTPUT, absWorkingDir: ROOT, entryPoints: [source], bundle: true, format: 'iife', external: EXTERNAL, write: false,
     // as they have always run: not in strict mode (esbuild would add "use strict", tsconfig.json being strict)
     tsconfigRaw: { compilerOptions: { alwaysStrict: false } },
-    ...(write ? { outfile: write, sourcemap: true } : { write: false }),
+    ...(outdir ? { outdir, entryNames: '[name]-[hash]', sourcemap: true, metafile: true } : {}),
   });
-  return write ? '' : result.outputFiles![0].text;
 }
 
-/** The scripts of SCRIPTS → dist/<name>.js */
-function buildClassic(): void {
-  for (const source of SCRIPTS) {
-    const out = path.basename(source).replace(/\.ts$/, '.js');
-    if (fs.existsSync(path.join(ROOT, out))) throw new Error(`${out} exists next to ${source}: both would become dist/${out}. Remove one of them.`);
-    classicScript(source, path.join(DIST, out));
-  }
+/** The scripts of SCRIPTS: dist/<name>-<hash>.js */
+function classicScripts(built: Built): Made[] {
+  return SCRIPTS.flatMap((source) => {
+    const result = classicScript(source, DIST);
+    const [file] = Object.keys(result.metafile!.outputs).filter((f) => f.endsWith('.js'));
+    built.set(source, { file: served(path.join(ROOT, file)), imports: [] });
+    return outputs(result.outputFiles!);
+  });
 }
+
+/**
+ * The scripts a page cached from before the modules (index.html of #61 and earlier) loads as it starts. Each is
+ * published once more as a file that reloads the page: the reload brings the new index.html (a browser asks for
+ * the page itself again on a reload). Only for the first deploy of the modules; they can go with any later one.
+ */
+const RETIRED = ['translate', 'events', 'map-layers', 'pricing-history', 'settings', 'walk-pace', 'onboarding', 'engine',
+  'engine-departures', 'engine-journey', 'live', 'arcore', 'places', 'walkroute'];
+const RELOAD = `// This file is no longer part of the site: the page that asked for it is from before an update. Reload it, once.
+try { if (sessionStorage.getItem('reloaded-for-update') !== location.href) { sessionStorage.setItem('reloaded-for-update', location.href); location.reload(); } } catch (e) {}
+`;
 
 /** A module of ENTRIES as a page loads it: the file, and the files it imports fetched alongside. */
-function moduleTags(source: string, indent: string, page: string): string {
-  const b = bundled.get(source);
-  if (!b) throw new Error(`${page}: ${source} is not a module of ENTRIES (scripts/build.mts)`);
+function moduleTags(b: { file: string; imports: string[] }, indent: string, page: string, attributes: string): string {
   const up = '../'.repeat(page.split('/').length - 1); // pages in folders (demo/index.html)
-  return [...b.imports.map((f) => `${indent}<link rel="modulepreload" href="${up}${f}" />`), `${indent}<script type="module" src="${up}${b.file}"></script>`].join('\n');
+  return [...b.imports.map((f) => `${indent}<link rel="modulepreload" href="${up}${f}" />`), `${indent}<script${attributes} src="${up}${b.file}"></script>`].join('\n');
 }
 
 /** A build marker's script written into the page. */
 function inlineScript(source: string): string {
-  const code = classicScript(source);
+  const code = classicScript(source).outputFiles![0].text;
   const end = code.search(/<\/script/i);
   if (end >= 0) {
     const line = code.slice(0, end).split('\n').length;
@@ -129,13 +147,15 @@ function inlineScript(source: string): string {
   return code.endsWith('\n') ? code : code + '\n';
 }
 
-/** A page with the scripts its build markers name written into it → dist/ */
-export function buildPage(page: string): void {
+/** A page with the scripts its build markers name: a module or plain script by its file, anything else written in. */
+function buildPage(page: string, built: Built): Made {
   const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
-  const out = path.join(DIST, page);
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, html.replace(MARKER, (_line, indent: string, source: string, attributes: string) =>
-    (ENTRIES.includes(source) ? moduleTags(source, indent, page) : `${indent}<script${attributes}>\n${inlineScript(source)}${indent}</script>`)));
+  return { file: page, content: html.replace(MARKER, (_line, indent: string, source: string, attributes: string) => {
+    const b = built.get(source);
+    if (ENTRIES.includes(source)) return moduleTags(b!, indent, page, attributes);
+    if (SCRIPTS.includes(source)) return `${indent}<script${attributes} src="${'../'.repeat(page.split('/').length - 1)}${b!.file}"></script>`;
+    return `${indent}<script${attributes}>\n${inlineScript(source)}${indent}</script>`;
+  }) };
 }
 
 /** The pages in the repository root (and the demo page). */
@@ -171,15 +191,26 @@ export function copyStatic(release: boolean): void {
   for (const f of DEMO) copy(path.join(ROOT, f), path.join(DIST, f));
 }
 
-/** Everything made from src/: the bundle, the plain scripts and the pages that load them. */
+/**
+ * Everything made from src/: the bundle, the plain scripts and the pages that load them. All of it is made first and
+ * only then written, so a build that fails (a syntax error while `npm run dev` runs) leaves the last one as it was.
+ */
 export function buildScripts(release = false): void {
-  bundle();
-  buildClassic();
-  for (const page of pages(release)) buildPage(page);
+  const built: Built = new Map();
+  const made = [...bundle(built), ...classicScripts(built), ...pages(release).map((p) => buildPage(p, built)),
+    ...RETIRED.filter((n) => !fs.existsSync(path.join(ROOT, n + '.js'))).map((n) => ({ file: n + '.js', content: RELOAD }))];
+  for (const { file, content } of made) {
+    const out = path.join(DIST, file);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, content);
+  }
+  const now = new Set(made.map((m) => m.file));
+  for (const file of written) if (!now.has(file)) fs.rmSync(path.join(DIST, file), { force: true });
+  written = now;
 }
 
 export function build({ release = false, clean = release }: { release?: boolean; clean?: boolean } = {}): void {
-  if (clean) fs.rmSync(DIST, { recursive: true, force: true });
+  if (clean) { fs.rmSync(DIST, { recursive: true, force: true }); written = new Set(); }
   fs.mkdirSync(DIST, { recursive: true });
   copyStatic(release);
   buildScripts(release);
