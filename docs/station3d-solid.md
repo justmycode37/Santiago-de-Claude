@@ -20,7 +20,8 @@ limited to about 15 at a time, the way's own first.
 
 ## Data
 
-Stations with a continuous view: Zürich HB, Bern, Wankdorf, Europaplatz, Brünnen Westside and Bümpliz Nord (`stations3d/solid-index.js`).
+Stations with a continuous view: all ten models (Zürich HB, Bern, Wankdorf, Europaplatz, Brünnen Westside, Bümpliz
+Nord, Basel SBB, Luzern, Lausanne, Genève; `stations3d/solid-index.js`).
 The Bern-area companions were built from the OpenStreetMap cache of 21 November 2026; their models are unchanged.
 
 | File | Made by | From |
@@ -35,7 +36,17 @@ python tools/build_station3d.py zurich         # the model (downloads OSM once, 
 python tools/station3d_solid.py zurich         # the 3D companion
 ```
 
-The companion file is separate on purpose: the model format and the existing viewer (`station3d.js`) are unchanged.
+The companion file is separate on purpose: the model format stays as it is, and the router and the indoor position
+read only the model.
+
+## In the app
+
+This is the app's only 3D view of a station. The page reaches it through `window.Station3D`, a small stand-in in
+`index.html` (`src/inline/station3d-loader.ts`) that loads `station-view.js` (`src/station-view.ts`) the first time a
+station is opened: the view in an overlay over the map, with the walk step by step and the indoor position. The map's
+platform cards and the journey's walks and changes open it. `station3d-solid.html` above is the same renderer on a
+page of its own, for development. (An earlier viewer with floors pulled apart and a first-person walk,
+`station3d.js`, was removed in November 2026.)
 
 ## What the data does not have yet (Zürich HB)
 

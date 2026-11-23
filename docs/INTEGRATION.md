@@ -184,7 +184,8 @@ Follow-up, deliberately not in this integration:
 - **Stop departures:** Scan and RightSide read Kante `/api/due`; transport.opendata.ch stationboards only as fallback.
 - **Two 3D viewers:** `station3d.js` (floors pulled apart, routing, indoor position, showcase walk) and
   `station3d-solid.js` (one building at true heights). Different views of the same model files and the same
-  `station-route.js` routes, so both stay.
+  `station-route.js` routes, so both stay. (Later replaced: since November 2026 only `station3d-solid.js` remains,
+  through the station view; `station3d.js` was removed.)
 - **Walk geometry:** `walkroute.js` where tiles exist; the online routers only as fallback.
 - **#17's commit inside #18:** disappears by merging #17 first.
 

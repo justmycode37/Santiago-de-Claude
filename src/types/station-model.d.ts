@@ -1,5 +1,6 @@
 // The station 3D model format (stations3d/SCHEMA.md): what tools/build_station3d.py writes into
-// stations3d/<key>.js, and what the router (station-route.ts) and the viewer (station3d.ts) read.
+// stations3d/<key>.js, and what the router (station-route.ts) and the 3D view (station-view.ts on
+// station3d-solid.ts) read.
 
 /** A point in the model's local frame, metres around `model.origin`: x = east, y = north. */
 type XY = [x: number, y: number];
