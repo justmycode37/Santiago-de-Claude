@@ -656,6 +656,7 @@ dependencies = [
  "kante-rt",
  "kante-search",
  "kante-walk",
+ "libc",
  "parking_lot",
  "rayon",
  "rustc-hash",

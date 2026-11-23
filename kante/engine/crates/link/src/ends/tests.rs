@@ -1,19 +1,19 @@
-//! Through the functions a request goes through: [`End::place`] (with [`snap_point`]), [`reach_costs`], [`walk`]
+//! Through the functions a request goes through: [`End::place`] (with [`point_candidates`]), [`reach_costs`], [`walk`] / [`walk_within`]
 //! and [`draw`].
 
 use super::*;
 use crate::test_world::*;
 
 fn place(r: &WalkRouter, ix: &DoorIndex, x: f32, y: f32, p: &WalkProfile) -> End {
-    End::place(r, Some(ix), pt(x, y), snap_point(r, pt(x, y), p), p)
+    End::place(r, Some(ix), pt(x, y), p)
 }
 fn stop(r: &WalkRouter, x: f32, y: f32, p: &WalkProfile) -> End {
     End::stop(pt(x, y), Some(snap(r, x, y, p)), false)
 }
 /// Reach the stop's time, and the walk drawn to it: they must agree.
 fn reach_and_walk(r: &WalkRouter, ix: &DoorIndex, from: &End, to: &End, p: &WalkProfile, max_s: f32) -> (Option<f32>, Walk, Drawn) {
-    let c = reach_costs(r, from, &[to.joins[0].snap], p, max_s)[0].map(|c| c.secs(p.speed_mps));
-    let w = walk(r, from, to, p).expect("a walk");
+    let c = reach_costs(r, from, &[to.joins[0].snap], p, max_s, max_s)[0].map(|c| c.0.secs(p.speed_mps));
+    let w = walk_within(r, from, to, p, c).expect("a walk");
     if let Some(c) = c {
         assert!((c - w.secs).abs() < 0.5, "stop search {c} s, drawn walk {} s", w.secs);
     }
@@ -82,7 +82,7 @@ fn a_stop_reached_only_from_the_point_is_reached_even_when_the_doors_reach_other
     let home = place(&r, &ix, 10.0, 99.0, &NORMAL);
     assert!(home.joins.iter().any(|j| j.door.is_some()) && home.joins.iter().any(|j| j.door.is_none()));
     let (a, b2) = (stop(&r, 50.0, -3.0, &NORMAL), stop(&r, 50.0, 103.0, &NORMAL));
-    let c = reach_costs(&r, &home, &[a.joins[0].snap, b2.joins[0].snap], &NORMAL, 900.0);
+    let c = reach_costs(&r, &home, &[a.joins[0].snap, b2.joins[0].snap], &NORMAL, 900.0, 900.0);
     assert!(c[0].is_some() && c[1].is_some(), "{c:?}");
     let (_, wb, db) = reach_and_walk(&r, &ix, &home, &b2, &NORMAL, 900.0);
     assert!(wb.from.door.is_none() && db.wall && db.approx_start.is_some(), "out through the wall: a guess");
@@ -114,9 +114,13 @@ fn every_door_is_tried_and_the_whole_time_allowed_counts() {
     let avoid = WalkProfile { stairs: StairsPref::Avoid, ..NORMAL };
     let far = stop(&r, 180.0, -3.0, &avoid);
     let from = place(&r, &ix, 50.0, 15.0, &avoid);
-    let t = walk(&r, &from, &far, &avoid).unwrap().secs;
-    assert!(reach_costs(&r, &from, &[far.joins[0].snap], &avoid, t + 1.0)[0].is_some(), "reached at {t} s within {} s", t + 1.0);
-    assert!(reach_costs(&r, &from, &[far.joins[0].snap], &avoid, t - 2.0)[0].is_none());
+    // the quickest of the candidates on its own
+    let t = (0..from.joins.len())
+        .filter_map(|k| reach_costs(&r, &End { joins: vec![from.joins[k]], ..from.clone() }, &[far.joins[0].snap], &avoid, 3600.0, 3600.0)[0])
+        .map(|c| c.0.secs(1.3))
+        .fold(f32::INFINITY, f32::min);
+    assert!(reach_costs(&r, &from, &[far.joins[0].snap], &avoid, t + 1.0, t + 1.0)[0].is_some(), "reached at {t} s within {} s", t + 1.0);
+    assert!(reach_costs(&r, &from, &[far.joins[0].snap], &avoid, t - 2.0, t - 2.0)[0].is_none());
 }
 
 #[test]
@@ -168,6 +172,13 @@ fn a_point_is_put_on_the_ground_not_on_a_bridge_above_it() {
     // standing on a bridge with no ground within 10 m: on the bridge
     let s = snap_point(&r, pt(0.0, 31.0), &NORMAL).unwrap();
     assert!((s.dist_m - 1.0).abs() < 0.5, "{s:?}");
+    // a covered bridge is a bridge too
+    let mut w = World::new();
+    w.way((-100.0, 4.0), (100.0, 4.0), 4, EdgeKind::Footway, EF_BRIDGE | EF_COVERED);
+    w.way((-100.0, 8.0), (100.0, 8.0), 4, EdgeKind::Footway, 0);
+    let (r, _) = w.finish();
+    let s = snap_point(&r, pt(0.0, 0.0), &NORMAL).unwrap();
+    assert!((s.dist_m - 8.0).abs() < 0.5, "{s:?}");
 }
 
 #[test]
@@ -232,4 +243,68 @@ fn inside_to_the_door_through_another_building_is_a_guess() {
     let home = place(&r, &ix, 15.0, 8.0, &STEP_FREE);
     let (_, w1, d) = reach_and_walk(&r, &ix, &home, &stop(&r, 50.0, -3.0, &STEP_FREE), &STEP_FREE, 600.0);
     assert!(w1.from.wall && d.wall && !d.step_free && d.approx_start.is_some(), "{:?} {d:?}", w1.from);
+}
+
+#[test]
+fn a_stop_the_point_reaches_within_the_limit_is_reached_whatever_a_door_costs() {
+    // finding 1: the point (inside the house) is 4 m from the sidewalk through the front wall, 19 m to the stop
+    // (15 s); the only door is at the back, 85 s round the block. Route choice prefers the door (the line through the
+    // wall counts 4 × + 200 m); the limit, 45 s, only the point's own line keeps.
+    let mut w = World::new();
+    w.way((-100.0, -2.0), (100.0, -2.0), 20, EdgeKind::Sidewalk, 0);
+    w.way((10.0, 13.0), (60.0, 13.0), 5, EdgeKind::Footway, 0);
+    w.way((60.0, 13.0), (60.0, -2.0), 1, EdgeKind::Footway, 0);
+    let b = w.building(0.0, 0.0, 20.0, 10.0);
+    w.door(b, 10.0, 10.0, DoorKind::Main, DOOR_WC_UNKNOWN);
+    let (r, ix) = w.finish();
+    let home = place(&r, &ix, 10.0, 2.0, &NORMAL);
+    let to = stop(&r, 25.0, -2.0, &NORMAL);
+    // without a limit that matters: through the door
+    let free = walk(&r, &home, &to, &NORMAL).unwrap();
+    assert!(free.from.door.is_some() && free.secs > 60.0, "{:?} {}", free.from, free.secs);
+    // within 45 s: reached, through the wall, in the point's own time; the walk drawn for it is that one
+    let c = reach_costs(&r, &home, &[to.joins[0].snap], &NORMAL, 45.0, 45.0)[0].expect("reached within 45 s");
+    let secs = c.0.secs(1.3);
+    assert!(secs < 20.0 && home.joins[c.1].door.is_none(), "{secs} via {:?}", home.joins[c.1]);
+    let drawn = walk_within(&r, &home, &to, &NORMAL, Some(secs)).unwrap();
+    assert!((drawn.secs - secs).abs() < 0.5 && drawn.from.door.is_none());
+    let d = draw(Some(&ix), &home, &to, &drawn);
+    assert!(d.wall && d.approx_start.is_some() && !d.step_free, "through the wall: a guess");
+    // the point alone reaches it in the same time: the doors only add
+    let alone = End { joins: home.joins.iter().filter(|j| j.door.is_none()).copied().collect(), ..home.clone() };
+    let a = reach_costs(&r, &alone, &[to.joins[0].snap], &NORMAL, 45.0, 45.0)[0].unwrap();
+    assert!((a.0.secs(1.3) - secs).abs() < 0.01);
+}
+
+#[test]
+fn a_snap_that_leads_nowhere_is_not_taken() {
+    // finding 5: a road stub 1.82 m to one side that leads nowhere, a footbridge 1.64 m to the other that does
+    let mut w = World::new();
+    w.way((-30.0, -1.82), (30.0, -1.82), 3, EdgeKind::Road, 0);
+    w.way((-50.0, 1.64), (50.0, 1.64), 5, EdgeKind::Footway, EF_BRIDGE);
+    w.way((50.0, 1.64), (300.0, 1.64), 10, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        let to = stop(&r, 250.0, 1.64, &p);
+        let (c, w1, d) = reach_and_walk(&r, &ix, &here, &to, &p, 600.0);
+        assert!(c.is_some() && !d.wall && d.approx_start.is_none(), "{c:?} {d:?}");
+        assert!(r.graph().edges[w1.from.snap.edge as usize].flags & EF_BRIDGE != 0, "over the footbridge");
+    }
+}
+
+#[test]
+fn a_line_across_the_open_side_of_a_u_is_through_a_building() {
+    // finding 2: the point in the left wing, a corridor in the right wing 18 m away across the open side
+    let mut w = World::new();
+    w.way((25.0, 0.0), (25.0, 30.0), 3, EdgeKind::Corridor, EF_INDOOR);
+    w.way((25.0, 30.0), (100.0, 30.0), 3, EdgeKind::Footway, 0);
+    w.b.buildings.push(kante_osm::buildings::BuildingRaw {
+        outer: [(0.0, 0.0), (30.0, 0.0), (30.0, 20.0), (20.0, 20.0), (20.0, 8.0), (10.0, 8.0), (10.0, 20.0), (0.0, 20.0)].iter().map(|&(x, y)| pt(x, y)).collect(),
+        holes: vec![],
+    });
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 5.0, 15.0, &STEP_FREE);
+    let (_, w1, d) = reach_and_walk(&r, &ix, &here, &stop(&r, 90.0, 30.0, &STEP_FREE), &STEP_FREE, 600.0);
+    assert!(w1.from.wall && d.wall && d.approx_start.is_some() && !d.step_free, "{:?} {d:?}", w1.from);
 }

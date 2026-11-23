@@ -1367,11 +1367,16 @@ fn route_between_takes_the_source_many_to_many_counts() {
         let froms: Vec<(Snap, f32, f32)> = (0..4).map(|k| (pick(&mut rng), 7.0 * k as f32, if k == 2 { 20.0 } else { 0.0 })).collect();
         let targets: Vec<Snap> = (0..20).map(|_| pick(&mut rng)).collect();
         let many = r.many_to_many(&froms, &targets, &prof, 3600.0);
-        for (t, m) in targets.iter().zip(&many) {
+        let raw = r.many_to_many_raw(&froms, &targets, &prof, 3600.0);
+        for ((t, m), w) in targets.iter().zip(&many).zip(&raw) {
             match (m, r.route_between(&froms, &[(*t, 0.0, 0.0)], &prof)) {
-                (Some(c), Some((i, _, p, _))) => {
+                (Some(c), Some((i, _, p, gen))) => {
                     let (var, fix) = (p.cost.var_m + froms[i].1, p.cost.fix_s);
                     assert!(close(c.var_m, var, 0.05) && close(c.fix_s, fix, 0.05), "{c:?} vs source {i}: {var} {fix}");
+                    // the raw search names the same source (or one exactly as cheap) and the same generalised cost
+                    let (j, cj, gj) = w.unwrap();
+                    assert!(close(gj, gen, 0.05) && close(cj.var_m, c.var_m, 0.05), "raw {j} {gj} vs route {i} {gen}");
+                    assert!(j == i || close(gj, gen, 0.01));
                     checked += 1;
                 }
                 (None, None) => {}

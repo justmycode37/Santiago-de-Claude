@@ -25,6 +25,12 @@ fn step<T>(name: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     let t = Instant::now();
     let r = f().with_context(|| name.to_string())?;
     eprintln!("== {name} done in {:.1}s", t.elapsed().as_secs_f32());
+    // hand what the step freed back to the system, so the next one does not add its peak on top
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    // SAFETY: malloc_trim only releases free heap memory; no Rust object is touched.
+    unsafe {
+        libc::malloc_trim(0);
+    }
     Ok(r)
 }
 
@@ -59,7 +65,8 @@ pub fn run(args: &Args) -> Result<()> {
     let doors_path = built.join("doors.bin");
     let pbf = raw.join("osm/switzerland-latest.osm.pbf");
 
-    if wanted("timetable", &[(&tt_path, TIMETABLE_SCHEMA)]) {
+    let tt_wanted = wanted("timetable", &[(&tt_path, TIMETABLE_SCHEMA)]);
+    if tt_wanted {
         step("timetable", || {
             let atlas = raw.join("atlas");
             let tt = kante_gtfs::import(&kante_gtfs::ImportOptions {
@@ -99,27 +106,8 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("links", &[(&links_path, LINKS_SCHEMA)]) {
-        step("links", || {
-            let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
-            let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
-            let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
-            let router = kante_walk::WalkRouter::new(Arc::new(graph));
-            let links = kante_link::link(&tt, &router, &extract, &kante_link::LinkOptions { max_transfer_s: 720.0 });
-            let linked = links.links.iter().filter(|l| l.matched != LinkMatch::None).count();
-            eprintln!("   {} of {} boarding points attached, {} footpaths ({} step-free)", linked, links.links.len(), links.normal.len(), links.step_free.len());
-            io::save(&links_path, LINKS_SCHEMA, &links)
-        })?;
-    }
-
-    if wanted("search", &[(&search_path, "search-v1")]) {
-        step("search", || {
-            let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
-            let idx = kante_search::build(&tt, pbf.exists().then_some(pbf.as_path()), None)?;
-            io::save(&search_path, "search-v1", &idx)
-        })?;
-    }
-    // the doors refer to the walk graph's edges: built again whenever the graph is
+    // the doors refer to the walk graph's edges: built again whenever the graph is; right after it, so that the
+    // buildings are not held through the steps after (they set the build's peak memory)
     if osm_wanted || doors_wanted {
         step("doors", || {
             let raw_b = buildings.take().expect("buildings read above");
@@ -151,6 +139,35 @@ pub fn run(args: &Args) -> Result<()> {
                 st.through_only
             );
             io::save(&doors_path, DOORS_SCHEMA, &doors)
+        })?;
+    }
+    // the links refer to the graph's edges and the timetable's stops: built again with either, and whenever they
+    // belong to another one (caches upgraded in place)
+    let links_wanted = wanted("links", &[(&links_path, LINKS_SCHEMA)])
+        || (only.is_none() && (osm_wanted || tt_wanted || {
+            let l = io::load::<LinkData>(&links_path, LINKS_SCHEMA).ok();
+            let g = io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).ok();
+            let t = io::load::<Timetable>(&tt_path, TIMETABLE_SCHEMA).ok();
+            !matches!((l, g, t), (Some(l), Some(g), Some(t)) if l.graph == graph_fingerprint(&g) && l.timetable == t.stops_fingerprint())
+        }));
+    if links_wanted {
+        step("links", || {
+            let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
+            let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
+            let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
+            let router = kante_walk::WalkRouter::new(Arc::new(graph));
+            let links = kante_link::link(&tt, &router, &extract, &kante_link::LinkOptions { max_transfer_s: 720.0 });
+            let linked = links.links.iter().filter(|l| l.matched != LinkMatch::None).count();
+            eprintln!("   {} of {} boarding points attached, {} footpaths ({} step-free)", linked, links.links.len(), links.normal.len(), links.step_free.len());
+            io::save(&links_path, LINKS_SCHEMA, &links)
+        })?;
+    }
+
+    if wanted("search", &[(&search_path, "search-v1")]) {
+        step("search", || {
+            let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
+            let idx = kante_search::build(&tt, pbf.exists().then_some(pbf.as_path()), None)?;
+            io::save(&search_path, "search-v1", &idx)
         })?;
     }
     eprintln!("build complete: {}", built.display());

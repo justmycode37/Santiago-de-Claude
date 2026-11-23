@@ -278,6 +278,21 @@ impl DayIndex {
 }
 
 impl Timetable {
+    /// Changes whenever the boarding points do (their ids, order and places): ties caches that refer to stops by
+    /// index to the timetable they were made for.
+    pub fn stops_fingerprint(&self) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut mix = |v: u64| h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
+        mix(self.stops.len() as u64);
+        for s in &self.stops {
+            for b in s.gtfs_id.bytes() {
+                mix(b as u64);
+            }
+            mix(((s.pos.lat as u32 as u64) << 32) | s.pos.lon as u32 as u64);
+        }
+        h
+    }
+
     #[inline]
     pub fn str(&self, i: StrIdx) -> &str {
         &self.strings[i as usize]

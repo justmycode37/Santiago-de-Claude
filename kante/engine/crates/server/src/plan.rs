@@ -167,7 +167,10 @@ impl App {
             leg.levels = vec![None, None];
             return leg;
         }
-        let walk = self.walk.as_ref().and_then(|w| ends::walk(w, &a.end, &b.end, profile));
+        // a walk a journey has timed (to its first stop, from its last): the candidate the stop search took for that
+        // time, the cheapest of those within it (ends::reach_costs)
+        let limit = matches!(kind, "access" | "egress").then_some(leg.duration_s as f32);
+        let walk = self.walk.as_ref().and_then(|w| ends::walk_within(w, &a.end, &b.end, profile, limit));
         match walk {
             Some(w) => {
                 // from the point into the building's door and out of it, or straight onto the network; the path; on
@@ -690,8 +693,11 @@ impl App {
         // many-change option can survive because the faster one that beats
         // it leaves just after the window. Drop options that are far slower
         // than the best while also needing more changes.
+        // The one that arrives first stays, however long it waits on the way (an overnight journey that leaves in
+        // the evening and arrives before the first morning one).
         if let Some(best) = picked.iter().min_by_key(|j| (j.arr - j.dep, j.transfers)).map(|j| (j.arr - j.dep, j.transfers)) {
-            picked.retain(|j| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0);
+            let first = picked.iter().map(|j| j.arr).min().unwrap_or(0);
+            picked.retain(|j| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0 || j.arr == first);
         }
         let journeys: Vec<json::Journey> =
             picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, live)).collect();

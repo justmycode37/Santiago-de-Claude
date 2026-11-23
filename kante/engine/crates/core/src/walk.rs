@@ -22,7 +22,7 @@ use crate::timetable::StopIdx;
 use serde::{Deserialize, Serialize};
 
 pub const WALKGRAPH_SCHEMA: &str = "walkgraph-v1";
-pub const LINKS_SCHEMA: &str = "links-v2";
+pub const LINKS_SCHEMA: &str = "links-v3";
 pub const EXTRACT_SCHEMA: &str = "osm-extract-v2";
 
 pub const STAIRS_FACTOR: f32 = 2.2;
@@ -404,6 +404,10 @@ pub struct LinkData {
     pub normal: Footpaths,
     /// Shortest walks without stairs or escalators (wheelchair rules).
     pub step_free: Footpaths,
+    /// What the links were made from: [`graph_fingerprint`] of the walk graph and
+    /// [`crate::Timetable::stops_fingerprint`] of the timetable (stops are linked by index, edges by number).
+    pub graph: u64,
+    pub timetable: u64,
 }
 
 // ---------------------------------------------------------------- doors

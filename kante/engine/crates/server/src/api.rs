@@ -505,7 +505,8 @@ async fn reach(State(app): S, Json(req): Json<ReachRequest>) -> Result<Json<serd
         let ep = app.resolve(&req.from)?;
         let max_s = (req.options.max_walk_min.clamp(1.0, 90.0) * 60.0) as time::Secs;
         let r = app.reach(&ep, &profile, max_s);
-        let stops: Vec<(String, time::Secs)> = r.stops.iter().map(|&(s, t)| (app.tt.stops[s as usize].gtfs_id.clone(), t)).collect();
+        // [quay id, seconds, how: station | point | door | line]
+        let stops: Vec<(String, time::Secs, &str)> = r.stops.iter().map(|&(s, t)| (app.tt.stops[s as usize].gtfs_id.clone(), t, r.via.get(&s).copied().unwrap_or(""))).collect();
         Ok(serde_json::json!({ "stops": stops }))
     })
     .await

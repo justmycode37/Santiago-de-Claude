@@ -351,6 +351,13 @@ impl WalkRouter {
         search::many_to_many(&self.graph, &self.net, froms, targets, profile, max_time_s)
     }
 
+    /// The search of [`WalkRouter::many_to_many`] without its limit: per target, (the source the cheapest way comes
+    /// from, its walking cost with the source's metres, its generalised seconds with the source's offset), for
+    /// every target within the search's bound. For choosing among sources by more than the cheapest way.
+    pub fn many_to_many_raw(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<(usize, WalkCost, f32)>> {
+        search::many_to_many_raw(&self.graph, &self.net, froms, targets, profile, max_time_s)
+    }
+
     /// [`WalkRouter::route`] from the best of several starting points to the best of several end points, each
     /// with metres already walked to or from it and a route-choice penalty in seconds, as
     /// [`WalkRouter::many_to_many`] takes them: for one end point, the start taken is the one that search's cost
