@@ -1,15 +1,18 @@
 # Station 3D models
 
 For stations with several floors, the app can show a 3D model with the walking route through it
-(`station3d.js`). The models live here, one file per station complex, built by `tools/build_station3d.py`.
+(the station view, `station-view.js`). The models live here, one file per station complex, built by
+`tools/build_station3d.py`.
 
-Three pieces share this format. Change it only together with all three:
+These pieces share this format. Change it only together with all of them:
 
 | Piece | File | Role |
 | --- | --- | --- |
 | Builder | `tools/build_station3d.py` | OpenStreetMap + ATLAS (+ open-data layers in `tools/station3d_data/<key>/`) → `stations3d/<key>.js` and `stations3d/index.js` |
 | Router | `station-route.js` (`window.StationRoute`) | shortest walk through the model's graph, with instructions |
-| Viewer | `station3d.js` (`window.Station3D`) | draws the model and the route with three.js |
+| Companion builder | `tools/station3d_solid.py` | the model + OpenStreetMap → `stations3d/<key>.solid.js` (see below) |
+| Viewer | `station-view.js` on `station3d-solid.js`, reached through `window.Station3D` | draws the model, its companion and the route with three.js |
+| Indoor position | `indoorloc.js`, `signloc.js` | the floor graph, areas, signs and furniture as evidence for where you are |
 
 ## Files
 
@@ -101,7 +104,7 @@ Three pieces share this format. Change it only together with all three:
   // optional: the stretch of the platform edge each sector covers, from a to b, for drawing sector bands.
   // line (optional) = the kerb between a and b where the platform curves and the straight line would leave it
   sectorSpans: [{ ref: "7", name: "A", a: [x, y], b: [x, y], line: [[x, y], ...] }],
-  // optional: station furniture, for the first-person view. heading = compass bearing (0 = north, clockwise) of the
+  // optional: station furniture (the indoor position matches signs and landmarks against it). heading = compass bearing (0 = north, clockwise) of the
   // platform edge at a sector sign, which hangs or stands across it; name = the letters on its two faces.
   props: [{ kind: "sector-sign" | "clock" | "ticket-machine" | "meeting-point", xy: [x, y], level: 0,
             ref: "7", name: "B|C", mount: "hang" | "stand", heading: 69 }],
@@ -198,14 +201,20 @@ Beyond that the router returns (the header comment of `station-route.js` is the 
 
 ```js
 Station3D.has(uic)                      → key | null   (from STATION3D_INDEX)
-Station3D.open({ key, from, to, prefs, title })   // from / to as for the router; both optional (then: explore mode)
+Station3D.open({ key, from, to, prefs, title, returnFocus })   // from / to as for the router; one end: its floor; none: the whole station
 Station3D.setUser({ ll: [lng, lat], accuracy, heading })   // live position; null hides it
-Station3D.close()
+Station3D.close() · isOpen() · on(name, fn) / off(name, fn)
+Station3D.preload(key) · loadData(key)   // ahead of an open; the model and the router alone (for the 2D map)
 ```
+
+`window.Station3D` is a small stand-in in `index.html` (`src/inline/station3d-loader.ts`) that loads the station
+view (`station-view.js`) on first use; the types are in `src/types/station3d.d.ts`. It needs the companion below.
 
 ## Companion: `stations3d/<key>.solid.js`
 
-Optional, for the continuous 3D view (`station3d-solid.js`, see `docs/station3d-solid.md`): made from the model and
+For the 3D view (`station3d-solid.js`, see `docs/station3d-solid.md`): every model in `stations3d/index.js` needs one
+(listed in `stations3d/solid-index.js`), else `Station3D.open` reports an error for it; its walks still show on the
+2D map. Made from the model and
 OpenStreetMap by `tools/station3d_solid.py`; sets `(window.STATION3D_SOLID = window.STATION3D_SOLID || {})[key]`. It adds
 floor slabs with the wells cut out, walls, kerbs, railings, rooms, shop pins and the connectors with true heights. The
 model above does not depend on it and does not change.

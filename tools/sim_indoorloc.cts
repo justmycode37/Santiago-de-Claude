@@ -6,13 +6,13 @@
 // drift, a ventilation step and train piston-effect surges, and signs read on the way.
 //
 // The station is a 3D model from stations3d/ (stations3d/SCHEMA.md) and the walks are routes of station-route.js.
-// It tests the logic, not the sensor assumptions: those need real recordings (indoorloc-dev.html → Record, then
+// It tests the logic, not the sensor assumptions: those need real recordings (INDOORNAV.record() in the app, then
 // `node tools/sim_indoorloc.cts --replay log.json`). Numbers here are only as good as the noise models below.
 //
 //   node tools/sim_indoorloc.cts                      all scenarios, 8 seeds each, on Bern
 //   node tools/sim_indoorloc.cts --seeds 4 --only lift --verbose
 //   node tools/sim_indoorloc.cts --only lift --trace --traceseed 2    print truth vs estimate every 10 s
-//   node tools/sim_indoorloc.cts --only rbs-baro --seeds 1 --export walk.json   a log to replay in indoorloc-dev.html
+//   node tools/sim_indoorloc.cts --only rbs-baro --seeds 1 --export walk.json   a log in the recording format (IndoorLog)
 //   node tools/sim_indoorloc.cts --check               regression test: exit 1 if a scenario got worse
 //   node tools/sim_indoorloc.cts --replay recording.json [--key bern]
 'use strict';
@@ -265,7 +265,7 @@ function run(sc: SimScenario, seed: number) {
   }
   stats.ms = Date.now() - t0;
   if (arg('export') && seed === 1) {
-    // a Recorder-format log (indoorloc.js) with the true position as checkpoints every 5 s, for indoorloc-dev.html
+    // a Recorder-format log (indoorloc.js) with the true position as checkpoints every 5 s
     const events = ev.map((e): IndoorLogEvent => {
       const d: Partial<SimEvent> = Object.assign({}, e); delete d.t; delete d.type;
       return [+e.t.toFixed(2), e.type, d] as IndoorLogEvent;
