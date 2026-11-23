@@ -33,9 +33,11 @@
 //! is a path of the graph, so `t + lb(s)` never exceeds its arrival.
 //!
 //! **Times that run backwards.** With live data the search can step back in
-//! time: it stays seated into a continuation the feed has no delay for, at
-//! its scheduled times, which can be before the late feeder arrived; or a
-//! trip's live times decrease from one stop to the next. Such a step has
+//! time: it stays seated into a continuation whose live departure is before
+//! the live arrival of the trip feeding it (the feeder is late and the feed
+//! has no delay, or a smaller one, for the continuation; or the continuation
+//! runs early), because `follow` compares scheduled times only; or a trip's
+//! live times decrease from one served stop to the next. Such a step has
 //! negative length, so no bound of this kind covers a journey that takes
 //! one: those count as 0 here, and a journey that relies on one may be
 //! pruned. Every other journey is unaffected.
@@ -134,6 +136,13 @@ impl Graph {
         self.off.len() - 1
     }
 
+    /// See [`Router::prepare_footpaths`].
+    pub(crate) fn prepare(&self, fp: &Footpaths) {
+        if fp.off.len() == self.st.len() + 1 {
+            Walks::get(self, fp);
+        }
+    }
+
     /// Bytes held (reported by `raptor-query stats`).
     pub(crate) fn heap_bytes(&self) -> usize {
         4 * (self.st.len() + self.off.len() + self.from.len() + self.w.len())
@@ -172,7 +181,11 @@ impl Walks {
                 }
             }
         }
-        edges.par_sort_unstable();
+        // Not a parallel sort: this runs inside the cache slot's once-only
+        // initialiser, and a rayon worker waiting for its sort tasks would
+        // pick up another query of the same request, which waits for this
+        // very slot.
+        edges.sort_unstable();
         edges.dedup_by(|b, a| {
             let same = a.0 == b.0 && a.1 == b.1;
             if same {
@@ -184,7 +197,8 @@ impl Walks {
         Walks { id: g.id, shape: (fp.to.len(), fp.off.len()), off, from, w }
     }
 
-    /// Cached in the footpath set (built by the first query that uses it).
+    /// Cached in the footpath set (built by the first query that uses it, or
+    /// by [`Router::prepare_footpaths`]).
     fn get<'f>(g: &Graph, fp: &'f Footpaths) -> Cow<'f, Walks> {
         let fresh = |w: &Walks| w.id == g.id && w.shape == (fp.to.len(), fp.off.len());
         match fp.derived.get_or_init(|| Box::new(Walks::new(g, fp))).downcast_ref::<Walks>() {
@@ -213,13 +227,23 @@ impl LiveFold {
             let n = pat.n_stops as usize;
             let row = &tt.times[pat.times_off as usize + (t - pat.trips_off) as usize * 2 * n..][..2 * n];
             let stops = &tt.pattern_stops[pat.stops_off as usize..][..n];
-            for i in 0..n.saturating_sub(1) {
-                let at = (row[2 * i] + l.arr_delay_at(i)).max(row[2 * i + 1] + l.dep_delay_at(i));
-                let h = (row[2 * i + 2] + l.arr_delay_at(i + 1) - at).max(0);
-                let (a, b) = (g.st[stops[i] as usize], g.st[stops[i + 1] as usize]);
-                if a != b && h < g.weight(a, b) {
-                    edges.push((b, a, h));
+            // Hops between the stops the trip serves: the search neither
+            // boards nor alights at a skipped stop, and the times the feed
+            // (or nobody) gave it there say nothing about the ride past it.
+            let mut prev: Option<usize> = None;
+            for i in 0..n {
+                if l.skipped.get(i).copied().unwrap_or(false) {
+                    continue;
                 }
+                if let Some(p) = prev {
+                    let at = (row[2 * p] + l.arr_delay_at(p)).max(row[2 * p + 1] + l.dep_delay_at(p));
+                    let h = (row[2 * i] + l.arr_delay_at(i) - at).max(0);
+                    let (a, b) = (g.st[stops[p] as usize], g.st[stops[i] as usize]);
+                    if a != b && h < g.weight(a, b) {
+                        edges.push((b, a, h));
+                    }
+                }
+                prev = Some(i);
             }
         });
         if !listed {
@@ -400,7 +424,11 @@ impl<'a> TargetBounds<'a> {
                 return false;
             }
         }
-        let need = best.saturating_sub(t);
+        // Distances saturate at `INF`: beyond that nothing can be concluded.
+        if best as i64 - t as i64 >= INF as i64 {
+            return false;
+        }
+        let need = best - t;
         if self.lb(self.rt.lb_graph.st[s as usize], need) < need {
             return false;
         }
@@ -630,6 +658,15 @@ mod tests {
                             last = (tt.arr(t, i) + a).max(tt.dep(t, i) + dep);
                             x = a + rng.range(-8, 6) * 60;
                         }
+                        // A skipped stop in a delayed trip, with whatever
+                        // times: the search does not read them.
+                        if n > 2 && rng.below(3) == 0 {
+                            let i = rng.range(1, n as i32 - 2) as usize;
+                            l.skipped = vec![false; n];
+                            l.skipped[i] = true;
+                            let junk = [0, l.arr_delay[i], rng.range(-30, 60) * 60][rng.below(3) as usize];
+                            (l.arr_delay[i], l.dep_delay[i]) = (junk, junk);
+                        }
                     }
                 }
                 live.map.insert((d, t), l);
@@ -828,6 +865,47 @@ mod tests {
         check_two_ways(&rt, o, d, Some(&live), hm(7, 55));
         // A view that cannot list its trips: planned without bounds, same result.
         check_two_ways(&rt, o, d, Some(&GlobalOnly(&live)), hm(7, 55));
+    }
+
+    #[test]
+    fn skipped_stop_in_a_delayed_trip() {
+        // A: W 07:28 → M 07:38 → D 07:48. Live it leaves W at 07:43, skips M
+        // and reaches D at 07:50: 7 min from W, less than the scheduled hops
+        // through M allow. The times at M (none, or the delay carried on
+        // from W) must not enter the bound: the traveller is ready at W at
+        // 07:42 and the bus sets the target to 07:51.
+        for at_m in [0, 900] {
+            let (rt, trips, o, d) = two_ways(hm(7, 51), |b, w, d| {
+                let m = b.stop("M");
+                let rail = b.line("rail", Mode::Rail);
+                let pa = b.pattern(rail, &[w, m, d]);
+                vec![b.trip(pa, &[hm(7, 28), hm(7, 38), hm(7, 48)])]
+            });
+            let mut live = TestLive::default();
+            let l = live.map.entry((D0 + 3, trips[0])).or_default();
+            (l.arr_delay, l.dep_delay, l.skipped, l.observed_pos) = (vec![900, at_m, 120], vec![900, at_m, 120], vec![false, true, false], -1);
+            check_two_ways(&rt, o, d, Some(&live), hm(7, 50));
+        }
+    }
+
+    #[test]
+    fn saturated_distances_decide_nothing() {
+        // Asked for the day after, the trips run at negative times, and the
+        // walk from D takes almost all of `Secs`: the arrival is still a
+        // valid time, but the distance from W is not. A: W 07:45 → D 07:50.
+        let (rt, _, o, d) = two_ways(hm(8, 0), |b, w, d| {
+            let rail = b.line("rail", Mode::Rail);
+            let pa = b.pattern(rail, &[w, d]);
+            vec![b.trip(pa, &[hm(7, 45), hm(7, 50)])]
+        });
+        let fp = footpaths(rt.timetable().stops.len(), &[]);
+        let far = Secs::MAX - 100;
+        let (acc, egr) = ([(o, 0)], [(d, far)]);
+        let mut q = Query::new(D0 + 4, hm(7, 25) - DAY, &acc, &egr, &fp);
+        q.window = 1800;
+        q.max_arr = Some(hm(7, 50) - DAY + far);
+        same(&rt, &q, "saturated");
+        assert_eq!(rt.plan(&q).iter().map(|j| (j.dep, j.arr)).collect::<Vec<_>>(), vec![(hm(7, 30) - DAY, hm(7, 50) - DAY + far)]);
     }
 
     #[test]

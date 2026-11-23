@@ -366,7 +366,10 @@ pub struct Footpaths {
     /// Speed-independent seconds.
     pub fix_s: Vec<u16>,
     /// What a router derives from these footpaths (see [`crate::DerivedSlot`]);
-    /// not part of the data, and empty in a clone.
+    /// not part of the data, and empty in a clone. It is filled by the first
+    /// query that uses the set and not checked against later changes: after
+    /// changing `to`, `var_m` or `fix_s` in place, replace it with
+    /// `Default::default()`.
     #[doc(hidden)]
     #[serde(skip)]
     pub derived: crate::live::DerivedSlot,

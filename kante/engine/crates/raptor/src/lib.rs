@@ -43,9 +43,11 @@
 //! - **Target pruning**: labels that cannot beat the best arrival found so far
 //!   even on the fastest path to the destination are dropped (see
 //!   `lower_bounds.rs`). That changes nothing, except where live times step
-//!   back: a late trip continuing in-seat as one the feed has no delay for is
-//!   ridden at the continuation's scheduled times, and a journey that relies
-//!   on such a step may be pruned.
+//!   back: an in-seat continuation is followed when its *scheduled* departure
+//!   is not before the scheduled arrival, so with live data it can leave
+//!   before the trip feeding it arrives (a late trip continuing as one the
+//!   feed has no delay, or a smaller one, for). A journey that relies on
+//!   such a step may be pruned.
 
 mod days;
 mod departures;
@@ -121,6 +123,14 @@ impl Router {
     /// above); this exists for testing and measuring.
     pub fn set_target_bounds(&self, on: bool) {
         self.target_bounds.store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Build now what target pruning derives from a footpath set, e.g. at
+    /// server start, so that the first query using the set does not pay for
+    /// it. The result is cached in `fp`: a set that is changed in place
+    /// afterwards must have its `derived` slot replaced by a new one.
+    pub fn prepare_footpaths(&self, fp: &Footpaths) {
+        self.lb_graph.prepare(fp);
     }
 
     /// Bytes held by the lower-bound graph.
