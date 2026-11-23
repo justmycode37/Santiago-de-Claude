@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! raptor-query [--tt FILE] [--links FILE] COMMAND …
-//!   plan FROM TO DATE TIME [WINDOW_MIN] [--speed M/S] [--margin S] [--transfers N] [--modes rail,bus,…] [--near N]
+//!   plan FROM TO DATE TIME [WINDOW_MIN] [--speed M/S] [--margin S] [--transfers N] [--modes rail,bus,…] [--near N] [--arrive-by HH:MM]
 //!   onboard BOARDED_AT NEXT_STOP DEST DATE TIME [CATEGORY]
 //!   departures STATION DATE TIME [N]
 //!   vehicles LAT LON RADIUS_M DATE TIME
@@ -230,6 +230,7 @@ fn base_query<'a>(cx: &'a Ctx, args: &Args, date: Date, from: Secs, acc: &'a [(S
     if let Some(m) = args.opt.get("modes") {
         q.modes = parse_modes(m)?;
     }
+    q.max_arr = args.opt.get("arrive-by").map(|t| parse_time(t)).transpose()?;
     Ok(q)
 }
 

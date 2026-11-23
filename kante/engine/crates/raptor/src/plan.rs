@@ -301,7 +301,8 @@ fn run(rt: &Router, days: &DaySet, q: &Query, s: &mut Scratch) -> Vec<Journey> {
         speed,
         margin: q.transfer_margin.max(0),
         min_egress: INF,
-        target_best: [INF; R],
+        // Arriving exactly at `max_arr` is still accepted: candidates must beat `target_best`.
+        target_best: [q.max_arr.map_or(INF, |m| m.saturating_add(1)); R],
         hits: [NONE; R],
         ride_stamp: 0,
         ready_stamp: 0,

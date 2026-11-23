@@ -772,6 +772,90 @@ fn pareto_direct_vs_faster_with_change() {
 }
 
 #[test]
+fn latest_arrival_bound() {
+    let mut b = Builder::new();
+    let (a, m, z) = (b.stop("A"), b.stop("M"), b.stop("Z"));
+    let l = b.line("1", Mode::Bus);
+    let p = b.pattern(l, &[a, m, z]);
+    let t0 = b.trip(p, &[hm(8, 0), hm(8, 10), hm(8, 20)]);
+    b.trip(p, &[hm(8, 30), hm(8, 40), hm(8, 50)]);
+    let w = World::new(b);
+    let (acc, egr) = ([(a, 120)], [(z, 60)]);
+    // Earliest arrival 08:51 after the egress walk: a bound exactly there still admits it.
+    let mut q = query(hm(8, 5), &acc, &egr, &w.none);
+    q.max_arr = Some(hm(8, 51));
+    assert_eq!(w.plan(&q).iter().map(|j| j.arr).collect::<Vec<_>>(), vec![hm(8, 51)]);
+    q.max_arr = Some(hm(8, 51) - 1);
+    assert!(w.plan(&q).is_empty());
+    // In a range only the journeys arriving in time remain.
+    let mut q = query(hm(7, 50), &acc, &egr, &w.none);
+    q.window = hm(1, 0);
+    assert_eq!(w.plan(&q).len(), 2);
+    q.max_arr = Some(hm(8, 50));
+    let js = w.plan(&q);
+    assert_eq!(js.len(), 1);
+    assert_eq!((rides(&js[0]), js[0].arr), (vec![(w.t(t0), 0, 2)], hm(8, 21)));
+    // Saturating: the largest bound is the same as none.
+    q.max_arr = Some(Secs::MAX);
+    assert_eq!(w.plan(&q).len(), 2);
+    q.max_arr = Some(Secs::MIN);
+    assert!(w.plan(&q).is_empty());
+}
+
+#[test]
+fn latest_arrival_bound_over_rounds() {
+    let mut b = Builder::new();
+    let (a, x, z) = (b.stop("A"), b.stop("X"), b.stop("Z"));
+    let bus = b.line("B", Mode::Bus);
+    let rail = b.line("R", Mode::Rail);
+    let direct = b.pattern(bus, &[a, z]);
+    let p1 = b.pattern(rail, &[a, x]);
+    let p2 = b.pattern(rail, &[x, z]);
+    b.trips_every(direct, hm(8, 0), 3600, 3, &[0, 3600]); // arrives on the hour
+    b.trips_every(p1, hm(8, 5), 3600, 3, &[0, 900]);
+    b.trips_every(p2, hm(8, 25), 3600, 3, &[0, 900]); // arrives xx:40
+    let w = World::new(b);
+    let (acc, egr) = ([(a, 0)], [(z, 0)]);
+    let mut q = query(hm(7, 55), &acc, &egr, &w.none);
+    let key = |js: Vec<Journey>| js.iter().map(|j| (j.dep, j.arr, j.transfers)).collect::<Vec<_>>();
+    // The one-ride option arrives after the bound; the two-ride one exactly at it.
+    q.max_arr = Some(hm(8, 40));
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 5), hm(8, 40), 1)]);
+    q.max_transfers = 0;
+    assert!(w.plan(&q).is_empty());
+    q.max_arr = Some(hm(9, 0));
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 0), hm(9, 0), 0)]);
+    q.max_transfers = 5;
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 0), hm(9, 0), 0), (hm(8, 5), hm(8, 40), 1)]);
+    // Range: the later hour is cut between its two options.
+    q.window = hm(2, 0);
+    q.max_arr = Some(hm(9, 40));
+    assert_eq!(key(w.plan(&q)), vec![(hm(8, 0), hm(9, 0), 0), (hm(8, 5), hm(8, 40), 1), (hm(9, 5), hm(9, 40), 1)]);
+}
+
+#[test]
+fn latest_arrival_bound_onboard() {
+    let mut b = Builder::new();
+    let (a, m, x, z, y) = (b.stop("A"), b.stop("M"), b.stop("X"), b.stop("Z"), b.stop("Y"));
+    let l = b.line("IC", Mode::Rail);
+    let p = b.pattern(l, &[a, m, x, z]);
+    let p2 = b.pattern(l, &[x, y]);
+    let ic = b.trip(p, &[hm(8, 0), hm(8, 20), hm(8, 40), hm(9, 0)]);
+    b.trip(p2, &[hm(8, 50), hm(9, 9)]);
+    let w = World::new(b);
+    // Round 0 (still seated) and round 1 (after a change).
+    for (dest, arr) in [(z, hm(9, 0) + 45), (y, hm(9, 9))] {
+        let egr = [(dest, if dest == z { 45 } else { 0 })];
+        let mut q = query(hm(8, 12), &[], &egr, &w.none);
+        q.onboard = Some(Onboard { trip: w.t(ic), date: QD, next_pos: 1 });
+        q.max_arr = Some(arr);
+        assert_eq!(w.plan(&q).iter().map(|j| j.arr).collect::<Vec<_>>(), vec![arr]);
+        q.max_arr = Some(arr - 1);
+        assert!(w.plan(&q).is_empty());
+    }
+}
+
+#[test]
 fn several_access_and_egress_stops() {
     let mut b = Builder::new();
     let (a1, a2, z1, z2) = (b.stop("A1"), b.stop("A2"), b.stop("Z1"), b.stop("Z2"));
@@ -1346,4 +1430,53 @@ fn scratch_is_clean_between_queries_and_threads() {
     let (acc, egr) = ([(0, 0)], [(3, 0)]);
     w2.plan(&Query::new(QD, hm(8, 0), &acc, &egr, &fp2));
     assert_eq!(run(&cases[0]), reference[0]);
+}
+
+/// A latest-arrival bound only removes journeys: the answer equals the
+/// unbounded one without the journeys that arrive late.
+#[test]
+fn random_bound_equals_filtered_plan() {
+    let mut cut = 0;
+    for seed in 1..=40 {
+        let (w, fp) = random_world(seed + 900);
+        let tt = w.tt();
+        let mut rng = Rng(seed * 53 + 7);
+        let mut live = TestLive::default();
+        if seed % 2 == 0 {
+            for t in 0..tt.trips.len() as TripIdx {
+                let n = tt.pattern_stops(tt.trips[t as usize].pattern).len();
+                for date in D0 + 1..D0 + 8 {
+                    match rng.below(12) {
+                        0 => {
+                            live.delay(date, t, n, rng.below(n as u64) as usize, rng.range(1, 30) * 60);
+                        }
+                        1 => {
+                            live.cancel(date, t);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for _ in 0..15 {
+            let mut case = random_case(&mut rng, tt.stops.len());
+            case.window = [0, 1800, 3 * 3600, 6 * 3600][rng.below(4) as usize];
+            let mut q = case.q(&fp);
+            if seed % 2 == 0 {
+                q.live = Some(&live);
+            }
+            let all = w.plan(&q);
+            let mut bounds: Vec<Secs> = all.iter().flat_map(|j| [j.arr, j.arr - 1]).collect();
+            bounds.push(q.from + rng.range(0, 4 * 3600));
+            for _ in 0..3 {
+                let m = bounds[rng.below(bounds.len() as u64) as usize];
+                let want: Vec<_> = all.iter().filter(|j| j.arr <= m).cloned().collect();
+                q.max_arr = Some(m);
+                assert_eq!(w.plan(&q), want, "seed {seed} from {} window {} bound {m}", q.from, q.window);
+                cut += (want.len() < all.len()) as usize;
+            }
+            q.max_arr = None;
+        }
+    }
+    assert!(cut > 300, "too few bounds that cut anything: {cut}");
 }
