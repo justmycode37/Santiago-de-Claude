@@ -395,9 +395,13 @@ pub struct MetaResponse {
     pub features: Vec<&'static str>,
     pub counts: Counts,
     pub attribution: Vec<&'static str>,
-    /// The commit this engine was built from (`KANTE_COMMIT` at `cargo build`, which `deploy/deploy.sh` sets); null
-    /// for a build without it. The deploy's health check uses it to tell which release is answering.
+    /// The commit this engine was built from: `KANTE_COMMIT` at `cargo build`; null for a build without it (a plain
+    /// `cargo build`).
     pub commit: Option<&'static str>,
+    /// The release this process runs from: the name of the folder its executable is in (`deploy/` builds each
+    /// release into a folder of its own, also the same commit again when the data is refreshed); null if the
+    /// executable's path cannot be read.
+    pub release: Option<String>,
 }
 
 #[derive(Serialize, Clone, Default)]

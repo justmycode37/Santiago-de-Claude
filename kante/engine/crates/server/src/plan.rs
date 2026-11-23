@@ -661,8 +661,10 @@ impl App {
         };
         let walk_only = if req.page.is_none() { self.direct_walk(&from_end, &to_end, start, &profile) } else { None };
 
-        let later = picked.last().map(|j| format!("l:{}", time::to_unix(qdate, j.dep) + 60));
-        let earlier = picked.first().map(|j| format!("e:{}", time::to_unix(qdate, j.dep) - 60));
+        // the next pages start a second past the options shown: what the filter dropped departs before the first of
+        // them (drop_far_slower), so the earlier page has it
+        let later = picked.last().map(|j| format!("l:{}", time::to_unix(qdate, j.dep) + 1));
+        let earlier = picked.first().map(|j| format!("e:{}", time::to_unix(qdate, j.dep) - 1));
         Ok(json::PlanResponse {
             from: from_ep.place,
             to: to_ep.place,
@@ -689,11 +691,16 @@ impl App {
 /// A departure window is Pareto-optimal only within itself: a slow many-change option can survive because the faster
 /// one that beats it leaves just after the window. Drop options that are far slower than the best while also needing
 /// more changes, but never one that arrives first (an overnight journey that leaves in the evening and waits on the
-/// way can be the only one that arrives before the first morning one).
+/// way can be the only one that arrives before the first morning one). And only options that depart before every
+/// option kept: those stay reachable through the earlier page, which ends just before the first option shown. (So the
+/// one that leaves last is never dropped either: asked to arrive by a time, the one to take if you cannot leave
+/// earlier.)
 fn drop_far_slower(picked: &mut Vec<Journey>) {
     let Some(best) = picked.iter().min_by_key(|j| (j.arr - j.dep, j.transfers)).map(|j| (j.arr - j.dep, j.transfers)) else { return };
-    let first = picked.iter().map(|j| j.arr).min().unwrap_or(0);
-    picked.retain(|j| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0 || j.arr == first);
+    let first_arr = picked.iter().map(|j| j.arr).min().unwrap_or(0);
+    let keep = |j: &Journey| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0 || j.arr == first_arr;
+    let Some(first_kept) = picked.iter().filter(|j| keep(j)).map(|j| j.dep).min() else { return };
+    picked.retain(|j| keep(j) || j.dep >= first_kept);
 }
 
 #[cfg(test)]
@@ -704,30 +711,64 @@ mod tests {
         Journey { dep, arr, transfers, legs: vec![] }
     }
     const H: Secs = 3600;
+    const M: Secs = 60;
+    /// What the filter dropped departs before every option it kept: the earlier page (which ends a second before the
+    /// first option shown) has it.
+    fn reachable(before: &[Journey], after: &[Journey]) {
+        let first = after.iter().map(|j| j.dep).min().unwrap();
+        for d in before.iter().filter(|j| !after.contains(j)) {
+            assert!(d.dep < first, "{d:?} dropped, but it leaves after {first}: no page has it");
+        }
+    }
 
     #[test]
     fn the_journey_that_arrives_first_is_kept_however_long_it_waits() {
         // asked at 21:40: an overnight journey (22:12 → 06:35, three changes) and the first morning ones, quicker
         // with fewer changes. Before, the overnight one was dropped as far slower with more changes.
-        let mut picked = vec![j(22 * H + 12 * 60, 30 * H + 35 * 60, 3), j(30 * H + 38 * 60, 34 * H + 19 * 60, 1), j(31 * H, 34 * H + 50 * 60, 1)];
+        let mut picked = vec![j(22 * H + 12 * M, 30 * H + 35 * M, 3), j(30 * H + 38 * M, 34 * H + 19 * M, 1), j(31 * H, 34 * H + 50 * M, 1)];
         drop_far_slower(&mut picked);
-        assert_eq!(picked.iter().map(|j| j.arr).collect::<Vec<_>>(), vec![30 * H + 35 * 60, 34 * H + 19 * 60, 34 * H + 50 * 60]);
+        assert_eq!(picked.iter().map(|j| j.arr).collect::<Vec<_>>(), vec![30 * H + 35 * M, 34 * H + 19 * M, 34 * H + 50 * M]);
     }
 
     #[test]
-    fn a_far_slower_option_with_more_changes_that_does_not_arrive_first_is_still_dropped() {
-        let mut picked = vec![j(8 * H, 9 * H, 0), j(8 * H + 600, 11 * H, 2), j(9 * H, 10 * H, 0)];
+    fn a_far_slower_option_with_more_changes_that_leaves_before_the_others_is_still_dropped() {
+        let all = vec![j(7 * H + 50 * M, 11 * H, 2), j(8 * H, 9 * H, 0), j(9 * H, 10 * H, 0)];
+        let mut picked = all.clone();
         drop_far_slower(&mut picked);
         assert_eq!(picked, vec![j(8 * H, 9 * H, 0), j(9 * H, 10 * H, 0)]);
+        reachable(&all, &picked);
     }
 
     #[test]
     fn every_option_that_arrives_first_is_kept() {
         // two arrive first (06:21): the quick one (05:00, one change), and one that leaves at 03:00 with one more
         // change. The second is far slower than the best with more changes, but it arrives first too: kept. One that
-        // arrives later and is as slow is not.
-        let mut picked = vec![j(5 * H, 6 * H + 21 * 60, 1), j(3 * H, 6 * H + 21 * 60, 2), j(2 * H, 7 * H, 2)];
+        // leaves before both, arrives later and is as slow is not.
+        let all = vec![j(2 * H, 7 * H, 2), j(3 * H, 6 * H + 21 * M, 2), j(5 * H, 6 * H + 21 * M, 1)];
+        let mut picked = all.clone();
         drop_far_slower(&mut picked);
-        assert_eq!(picked, vec![j(5 * H, 6 * H + 21 * 60, 1), j(3 * H, 6 * H + 21 * 60, 2)]);
+        assert_eq!(picked, vec![j(3 * H, 6 * H + 21 * M, 2), j(5 * H, 6 * H + 21 * M, 1)]);
+        reachable(&all, &picked);
+    }
+
+    #[test]
+    fn nothing_the_filter_drops_falls_between_two_pages() {
+        // leaving at 07:50: 08:00–11:00 with two changes (arrives first), 08:00:30–11:30 with one, 10:30–11:45 direct.
+        // Keeping the first, the second may not be dropped: it leaves after it, so no page would have it
+        let all = vec![j(8 * H, 11 * H, 2), j(8 * H + 30, 11 * H + 30 * M, 1), j(10 * H + 30 * M, 11 * H + 45 * M, 0)];
+        let mut picked = all.clone();
+        drop_far_slower(&mut picked);
+        assert_eq!(picked, all);
+        reachable(&all, &picked);
+    }
+
+    #[test]
+    fn the_journey_that_leaves_last_is_never_dropped() {
+        // asked to arrive by 12:00: a quick direct one leaving 09:00, and one leaving 10:00 with two changes, slow,
+        // arriving 11:58: the one to take if you cannot leave earlier
+        let all = vec![j(9 * H, 10 * H, 0), j(10 * H, 11 * H + 58 * M, 2)];
+        let mut picked = all.clone();
+        drop_far_slower(&mut picked);
+        assert_eq!(picked, all);
     }
 }
