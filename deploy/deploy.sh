@@ -175,6 +175,9 @@ main() {
   tries=$(( $(cat "$ROOT/state/tries-$new" 2>/dev/null || echo 0) + 1 ))
   echo "$tries" > "$ROOT/state/tries-$new"
   rel=$ROOT/releases/$(date +%Y%m%d-%H%M%S)-${new:0:7}
+  # never the folder of a release there is (the one in use, built the same second)
+  local n=2 base=$rel
+  while [[ -e $rel ]]; do rel=$base-$n; n=$((n + 1)); done
   log "building ${new:0:7} into $rel"
   set +e
   ( set -e; build_release "$new" "$rel" )
