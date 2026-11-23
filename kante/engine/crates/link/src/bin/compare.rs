@@ -146,7 +146,35 @@ fn through(data: &Path) -> Result<()> {
     for line in stdin.lock().lines() {
         let v: serde_json::Value = serde_json::from_str(&line?)?;
         let geom: Vec<LatLon> = v["geometry"].as_array().context("geometry")?.iter().map(|c| LatLon::from_deg(c[1].as_f64().unwrap_or(0.0), c[0].as_f64().unwrap_or(0.0))).collect();
-        let segs: Vec<usize> = (0..geom.len().saturating_sub(1)).filter(|&i| geom[i].dist_m(&geom[i + 1]) > 0.4 && ix.through(geom[i], geom[i + 1], 0.0)).collect();
+        // segments onto a way under an arcade: (segment, its network end is its first point); the last 5 m before
+        // the way do not count, as in the engine
+        let arcade: Vec<(usize, bool)> = v["arcade"].as_array().map(|a| a.iter().filter_map(|x| Some((x[0].as_u64()? as usize, x[1].as_bool()?))).collect()).unwrap_or_default();
+        let through_seg = |i: usize| match arcade.iter().find(|a| a.0 == i) {
+            Some(&(_, true)) => ix.through(geom[i + 1], geom[i], 5.0),
+            Some(&(_, false)) => ix.through(geom[i], geom[i + 1], 5.0),
+            None => ix.through(geom[i], geom[i + 1], 0.0),
+        };
+        let segs: Vec<usize> = (0..geom.len().saturating_sub(1)).filter(|&i| geom[i].dist_m(&geom[i + 1]) > 0.4 && through_seg(i)).collect();
+        if std::env::var_os("COMPARE_VERBOSE").is_some() {
+            for &i in &segs {
+                for b in ix.buildings_near(geom[i], geom[i + 1]) {
+                    let r = ix.rings_of(b);
+                    if kante_link::doors::through_building(geom[i].xy(), geom[i + 1].xy(), 0.0, std::iter::once(r.as_slice())) {
+                        let (p, q) = (geom[i].xy(), geom[i + 1].xy());
+                        eprintln!(
+                            "segment {i}: building {b} ({} points, origin {:.6},{:.6}): p in {} / {:.2} m from outline, q in {} / {:.2} m",
+                            r[0].len(),
+                            ix.doors.buildings[b as usize].origin.lat_deg(),
+                            ix.doors.buildings[b as usize].origin.lon_deg(),
+                            kante_link::doors::inside_pub(p, &r),
+                            kante_link::doors::outline_dist_pub(p, &r),
+                            kante_link::doors::inside_pub(q, &r),
+                            kante_link::doors::outline_dist_pub(q, &r)
+                        );
+                    }
+                }
+            }
+        }
         writeln!(out, "{}", serde_json::json!({ "key": v["key"], "through": segs }))?;
     }
     Ok(())
@@ -287,6 +315,19 @@ fn doors(data: &Path, n: usize, seed: u64) -> Result<()> {
     Ok(())
 }
 
+/// Where a boarding point (by its GTFS id) is joined to the network.
+fn link(data: &Path, id: &str) -> Result<()> {
+    let tt: Timetable = io::load(&data.join("built/timetable.bin"), TIMETABLE_SCHEMA)?;
+    let ld: LinkData = io::load(&data.join("built/links.bin"), LINKS_SCHEMA)?;
+    let g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
+    for (i, s) in tt.stops.iter().enumerate().filter(|(_, s)| s.gtfs_id == id) {
+        let l = &ld.links[i];
+        let e = &g.edges[l.snap.edge as usize];
+        println!("{i} {} {:?}: edge {} {:?} way {} levels {}/{} flags {:#x} at {:.7},{:.7} ({:.1} m off), level {}", s.label, l.matched, l.snap.edge, e.kind, g.edge_way[l.snap.edge as usize], e.level_a, e.level_b, e.flags, l.snap.pos.lat_deg(), l.snap.pos.lon_deg(), l.snap.dist_m, l.level);
+    }
+    Ok(())
+}
+
 /// The edges within `r` metres of a point: kind, levels, flags, OSM way, ends.
 fn edges(graph: &Path, lat: f64, lon: f64, r: f32) -> Result<()> {
     let g: WalkGraph = io::load(graph, WALKGRAPH_SCHEMA)?;
@@ -330,6 +371,7 @@ fn main() -> Result<()> {
         "through" => through(arg(1).as_ref()),
         "lifts" => lifts(arg(1).as_ref(), arg(2).as_ref()),
         "edges" => edges(arg(1).as_ref(), arg(2).parse()?, arg(3).parse()?, arg(4).parse().unwrap_or(30.0)),
+        "link" => link(arg(1).as_ref(), arg(2)),
         "doors" => doors(arg(1).as_ref(), arg(2).parse().unwrap_or(30), arg(3).parse().unwrap_or(1)),
         _ => bail!("usage: compare sample <data> <points> <seed> | through <data> < walks.jsonl | lifts <graph a> <graph b> | doors <data> <n> <seed>"),
     }

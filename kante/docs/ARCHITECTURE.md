@@ -279,6 +279,13 @@ impl WalkRouter {
     pub fn one_to_many(&self, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32)
         -> Vec<Option<WalkCost>>;
     pub fn route(&self, from: &Snap, to: &Snap, profile: &WalkProfile) -> Option<WalkPath>;
+    /// The same from the best of several starting points, each with metres walked to it and a route-choice
+    /// penalty in seconds: costs to many targets, and one walk to the best of several end points. For one end
+    /// point, `route_between` takes the start `many_to_many`'s cost comes from.
+    pub fn many_to_many(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32)
+        -> Vec<Option<WalkCost>>;
+    pub fn route_between(&self, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile)
+        -> Option<(usize, usize, WalkPath, f32)>;
     /// Edges intersecting `bbox` (for map overlays).
     pub fn edges_in(&self, bbox: &BBox) -> Vec<u32>;
 }
@@ -290,6 +297,19 @@ impl WalkRouter {
 pub struct LinkOptions { /// Footpaths are computed up to this walking time at DEFAULT_SPEED_MPS (default 720 s).
                          pub max_transfer_s: f32 }
 pub fn link(tt: &Timetable, router: &WalkRouter, extract: &OsmExtract, opts: &LinkOptions) -> LinkData;
+```
+
+Buildings, their doors and the ends of a walk (`docs/WALK-ENDS.md`):
+
+```rust
+pub mod doors { pub fn build(raw: &BuildingsRaw, register: &[Address], router: &WalkRouter, x: &OsmExtract) -> (Doors, DoorStats);
+                pub struct DoorIndex; /* buildings_at, through, fits */ }
+pub mod ends  { pub struct End;   // End::place / End::stop / End::exact; End::sources() feeds both searches
+                pub fn snap_point(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Option<Snap>;
+                pub fn reach_costs(router: &WalkRouter, end: &End, targets: &[Snap], profile: &WalkProfile, max_s: f32)
+                    -> Vec<Option<WalkCost>>;
+                pub fn walk(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile) -> Option<Walk>;
+                pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn; }
 ```
 
 ### kante-search
@@ -345,7 +365,8 @@ pub fn fetch(kind: FeedKind, api_key: &str) -> anyhow::Result<Vec<u8>>;
 
 See `app/src/api/types.ts` (authoritative). Summary: `GET /api/search`,
 `/api/reverse`, `/api/departures`, `/api/trip`, `/api/vehicles`, `/api/due`,
-`/api/match`, `/api/stream`, `/api/meta`; `POST /api/plan`, `/api/walk`.
+`/api/match`, `/api/stream`, `/api/meta`; `POST /api/plan`, `/api/walk`, `/api/reach` (the stops walked to from
+a place, for comparing engine builds: `kante/tools/compare`).
 The server also serves the built app from `app/dist`.
 
 ## Product rules that cut across crates

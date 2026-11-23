@@ -430,6 +430,17 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                 }
             }
         }
+        // Give up beyond four times the beeline plus half an hour, the beeline to the farthest end point (so that
+        // more end points never cut a walk to one of them short).
+        let h_far = |node: u32| -> f32 {
+            let p = &g.nodes[net.orig_node(node) as usize];
+            let mut d2 = 0f32;
+            for &(tlat, tlon) in &tpos {
+                let (dx, dy) = ((p.lon - tlon) as f32 * kx, (p.lat - tlat) as f32 * ky);
+                d2 = d2.max(dx * dx + dy * dy);
+            }
+            rate * d2.sqrt()
+        };
         let mut any = false;
         let mut cap = 0f32;
         for &(i, f) in &froms {
@@ -442,7 +453,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                     s.st[node as usize][S_H] = h(node).to_bits();
                 }
             }
-            cap = cap.max(h(src.ia).max(h(src.ib)) * 4.0 + 1800.0 + off(f));
+            cap = cap.max(h_far(src.ia).max(h_far(src.ib)) * 4.0 + 1800.0 + off(f));
         }
         if !any && !best.0.is_finite() {
             return None;

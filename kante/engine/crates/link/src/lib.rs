@@ -89,6 +89,13 @@
 //! unrestricted walk and, where the unrestricted walk exists (the map shows
 //! only stairs), carries two lift rides. These estimates are *not verified*
 //! step-free; the walk router finds no path for them.
+//!
+//! # 4. Buildings, doors and the ends of a walk
+//!
+//! [`doors`] builds every building and its doors (mapped entrances, else points
+//! of the official building address register from [`register`]); [`ends`]
+//! decides where a walk from or to a place joins the network, for the stop
+//! search and the walk drawn alike. Rules: `kante/docs/WALK-ENDS.md`.
 
 pub mod doors;
 pub mod ends;

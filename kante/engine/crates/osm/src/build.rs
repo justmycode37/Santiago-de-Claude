@@ -2112,6 +2112,18 @@ mod tests {
     }
 
     #[test]
+    fn a_long_island_platform_crossed_every_20_m_is_still_stitched_to_the_street() {
+        // 900 m × 8 m (1.8 km of outline, and the lines across it every 20 m), 2 m from a sidewalk, no shared node
+        let b = world(
+            &[(1, -1500.0, -2.0, &[]), (2, 1500.0, -2.0, &[]), (10, 0.0, 0.0, &[]), (11, 900.0, 0.0, &[]), (12, 900.0, 8.0, &[]), (13, 0.0, 8.0, &[])],
+            &[(100, &[1, 2], &[("highway", "footway"), ("footway", "sidewalk")]), (101, &[10, 11, 12, 13, 10], &[("railway", "platform"), ("area", "yes")])],
+        );
+        assert_eq!(b.stats.stitched_components, 1);
+        assert_eq!(stats::components(&b.graph).edges.len(), 1);
+        assert!(walk(&b.graph, (450.0, 8.0), (-1000.0, -2.0), true).is_some());
+    }
+
+    #[test]
     fn platform_island_is_joined_and_listed() {
         // a 2.4 km sidewalk and a bus platform polygon 2 m beside it without a shared node
         let b = world(

@@ -472,15 +472,15 @@ pub const DOOR_WC_NO: u8 = 2;
 pub const DOOR_WC_LIMITED: u8 = 3;
 
 /// A way from a door onto the walking network: the straight line from the
-/// door to `edge` at `frac`, `dist_m` long. It crosses no other building and
-/// no railway track on the ground. Stored in 8 bytes.
+/// door to `edge` at `frac`, `dist_m` long. It crosses no railway track on the
+/// ground; one that runs through a building is marked (`through`). Stored in
+/// 8 bytes.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct DoorAttach {
     pub edge: u32,
     /// Fraction of the edge × 65 535.
     pub frac_q: u16,
-    /// Decimetres; the top bit: the line goes through the door's own building (no other way out is mapped, the
-    /// way round it is a guess).
+    /// Decimetres; the top bit: the line runs through a building (the way round it is not mapped: a guess).
     pub dist_dm: u16,
 }
 
@@ -490,7 +490,7 @@ impl DoorAttach {
         let dm = (dist_m * 10.0).round().min(32767.0) as u16;
         DoorAttach { edge, frac_q: (frac.clamp(0.0, 1.0) * 65535.0).round() as u16, dist_dm: dm | if through { Self::THROUGH } else { 0 } }
     }
-    /// The line goes through the door's own building: the walk round the house to it is not mapped.
+    /// The line runs through a building: the walk round it is not mapped.
     #[inline]
     pub fn through(&self) -> bool {
         self.dist_dm & Self::THROUGH != 0
@@ -522,8 +522,8 @@ pub struct Door {
     pub attach_len: u8,
 }
 
-/// A building with at least one door (usable or not). Its outline (an outer
-/// ring of a multipolygon building is a building of its own) and its
+/// A building of OpenStreetMap, with its doors if it has any. Its outline (an
+/// outer ring of a multipolygon building is a building of its own) and its
 /// courtyards, each stored open, are `Doors::ring[ring_off .. ring_off +
 /// ring_len]` as offsets from `origin` in 1e-6 degrees (about 10 cm; a
 /// building is never 3 km across), the rings separated by [`RING_BREAK`].
@@ -536,9 +536,10 @@ pub struct DoorBuilding {
     pub door_off: u32,
 }
 
-/// The buildings that have doors, and their doors, for walks that start in or
-/// end at a building (`kante-link::doors`). Built from OSM and the official
-/// building address register; see `docs/walking-routes.md`.
+/// Every building and its doors, for walks that start in or end at a building
+/// and for telling a straight line through a building (`kante-link::doors`).
+/// Built from OSM and the official building address register; see
+/// `kante/docs/WALK-ENDS.md`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Doors {
     pub buildings: Vec<DoorBuilding>,

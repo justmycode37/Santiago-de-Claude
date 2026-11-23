@@ -204,3 +204,32 @@ fn the_stop_search_and_the_drawn_walk_agree() {
     assert!(n > 100, "{n}");
 }
 
+
+#[test]
+fn a_walk_out_of_a_building_passes_its_door() {
+    // the door's way out is 30 cm: the line from inside still goes through the door, not through the wall beside it
+    let mut w = World::new();
+    w.way((-100.0, -0.3), (100.0, -0.3), 20, EdgeKind::Sidewalk, 0);
+    let b = w.building(0.0, 0.0, 20.0, 16.0);
+    w.door(b, 10.0, 0.0, DoorKind::Main, DOOR_WC_YES);
+    let (r, ix) = w.finish();
+    let home = place(&r, &ix, 3.0, 8.0, &STEP_FREE);
+    let (_, w1, d) = reach_and_walk(&r, &ix, &home, &stop(&r, 50.0, -0.3, &STEP_FREE), &STEP_FREE, 600.0);
+    assert!(w1.from.door.is_some() && !d.wall && d.step_free);
+    assert!(d.geometry.iter().any(|p| p.dist_m(&pt(10.0, 0.0)) < 0.05), "{:?}", d.geometry.iter().map(|p| p.xy()).collect::<Vec<_>>());
+    assert!(d.geometry.windows(2).all(|s| !ix.through(s[0], s[1], 0.0)), "no straight line through a building");
+}
+
+#[test]
+fn inside_to_the_door_through_another_building_is_a_guess() {
+    // the point is in two overlapping buildings; the door of the one is behind the wall of the other
+    let mut w = World::new();
+    w.way((-100.0, -3.0), (100.0, -3.0), 20, EdgeKind::Sidewalk, 0);
+    let a = w.building(0.0, 0.0, 20.0, 16.0);
+    w.door(a, 10.0, 0.0, DoorKind::Main, DOOR_WC_YES);
+    w.building(12.0, 4.0, 30.0, 12.0);
+    let (r, ix) = w.finish();
+    let home = place(&r, &ix, 15.0, 8.0, &STEP_FREE);
+    let (_, w1, d) = reach_and_walk(&r, &ix, &home, &stop(&r, 50.0, -3.0, &STEP_FREE), &STEP_FREE, 600.0);
+    assert!(w1.from.wall && d.wall && !d.step_free && d.approx_start.is_some(), "{:?} {d:?}", w1.from);
+}

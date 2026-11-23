@@ -194,7 +194,12 @@ def through_summary(args, jobs, res):
     for n, ((i, p), (wa, wb)) in enumerate(zip(jobs, res)):
         for side, w in (('a', wa), ('b', wb)):
             if 'error' not in w and not w.get('approximate'):
-                lines.append(json.dumps({'key': [n, side], 'geometry': w['geometry']}))
+                # a straight line onto a way under a roof (an arcade): its last 5 m are exempt, as in the engine
+                n0, n1 = ends_of(w, side)
+                cov = [(c['from'], c['to']) for c in w.get('covered', [])]
+                arcade = ([[n0 - 1, False]] if n0 > 0 and any(a <= n0 <= b for a, b in cov) else []) + \
+                         ([[n1, True]] if n1 < len(w['geometry']) - 1 and any(a <= n1 <= b for a, b in cov) else [])
+                lines.append(json.dumps({'key': [n, side], 'geometry': w['geometry'], 'arcade': arcade}))
     r = subprocess.run([args.bin, 'through', args.data], input='\n'.join(lines) + '\n', capture_output=True, text=True, check=True)
     hits = {}
     for line in r.stdout.splitlines():
@@ -208,11 +213,7 @@ def through_summary(args, jobs, res):
             if (n, side) not in hits:
                 continue
             st['walks'] += 1
-            nv = len(w['geometry'])
-            if side == 'b' and w.get('network'):
-                n0, n1 = w['network']
-            else:  # A draws one straight line at each end where the point is more than 1.5 m off the network
-                n0, n1 = (1 if nv > 2 else 0), (nv - 2 if nv > 2 else nv - 1)
+            n0, n1 = ends_of(w, side)
             covered = [(c['from'], c['to']) for c in w.get('covered', [])]
             segs = hits[(n, side)]
             conn = [s for s in segs if s < n0 or s >= n1]
@@ -231,6 +232,14 @@ def through_summary(args, jobs, res):
                     st['connector_through_step_free'] += 1
         out[side] = st
     return out
+
+
+def ends_of(w, side):
+    """The first and last vertex on the network: B says (`network`); A draws one straight line at each end."""
+    nv = len(w['geometry'])
+    if side == 'b' and w.get('network'):
+        return tuple(w['network'])
+    return (1 if nv > 2 else 0), (nv - 2 if nv > 2 else nv - 1)
 
 
 def slim_plan(p):

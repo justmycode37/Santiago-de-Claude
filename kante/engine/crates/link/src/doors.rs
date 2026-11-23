@@ -131,6 +131,15 @@ fn project(p: P, a: P, b: P) -> (f32, P, f32) {
     (((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt(), q, t)
 }
 
+/// (for the comparison tool)
+pub fn inside_pub(p: P, rings: &[Vec<P>]) -> bool {
+    inside(p, rings)
+}
+/// (for the comparison tool)
+pub fn outline_dist_pub(p: P, rings: &[Vec<P>]) -> f32 {
+    outline_dist(p, rings)
+}
+
 pub(crate) fn outline_dist(p: P, rings: &[Vec<P>]) -> f32 {
     rings.iter().flat_map(|r| (0..r.len()).map(move |i| project(p, r[i], r[(i + 1) % r.len()]).0)).fold(f32::INFINITY, f32::min)
 }
@@ -185,10 +194,16 @@ struct Plan {
 
 impl Plan {
     fn new(raw: &BuildingsRaw) -> Self {
+        // the outlines as `Doors` stores them (1e-6° from the first point), so that what is found through a building
+        // here is what the server finds
         let rings: Vec<Vec<Vec<P>>> = raw
             .buildings
             .par_iter()
-            .map(|b| std::iter::once(&b.outer).chain(b.holes.iter()).map(|r| r.iter().map(|p| p.xy()).collect()).collect())
+            .map(|b| {
+                let o = b.outer[0];
+                let q = |p: &LatLon| LatLon { lat: o.lat + ((p.lat - o.lat) as f64 / 10.0).round() as i32 * 10, lon: o.lon + ((p.lon - o.lon) as f64 / 10.0).round() as i32 * 10 }.xy();
+                std::iter::once(&b.outer).chain(b.holes.iter()).map(|r| r.iter().map(q).collect()).collect()
+            })
             .collect();
         let mut grid = BoxGrid::default();
         for (i, r) in rings.iter().enumerate() {
@@ -261,11 +276,13 @@ fn facade_points(plan: &Plan, b: u32, q: P, scratch: &mut Vec<u32>) -> Vec<P> {
         if l < 0.5 {
             continue;
         }
-        let (d, at, t) = project(q, a, c);
-        // judged a little in from a corner, where both sides of the wall may be outside the building
+        let (d, _, t) = project(q, a, c);
+        // put, and judged, a little in from a corner (where both sides of the wall may be outside the building, and
+        // a line out of the door may cut the corner back through it)
         let m = (0.5f32).min(l / 2.0) / l;
         let tp = t.clamp(m, 1.0 - m);
-        opts.push((d, at, (a.0 + dx * tp, a.1 + dy * tp), (-dy / l, dx / l)));
+        let at = (a.0 + dx * tp, a.1 + dy * tp);
+        opts.push((d, at, at, (-dy / l, dx / l)));
     }
     opts.sort_by(|x, y| x.0.total_cmp(&y.0));
     let mut out: Vec<P> = Vec::new();
@@ -523,6 +540,11 @@ impl DoorIndex {
         let mut cand = self.grid.in_box(q.0, q.1, q.0, q.1);
         cand.retain(|&b| inside(q, &self.rings_xy(b)));
         cand
+    }
+    /// The buildings whose box is near the straight line a → b.
+    pub fn buildings_near(&self, a: LatLon, b: LatLon) -> Vec<u32> {
+        let (p, q) = (a.xy(), b.xy());
+        self.grid.in_box(p.0.min(q.0) - 1.0, p.1.min(q.1) - 1.0, p.0.max(q.0) + 1.0, p.1.max(q.1) + 1.0)
     }
     /// Does the straight line a → b run through a building ([`through_building`])?
     pub fn through(&self, a: LatLon, b: LatLon, arcade_m: f32) -> bool {

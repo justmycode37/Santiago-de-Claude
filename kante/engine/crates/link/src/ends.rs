@@ -123,10 +123,14 @@ impl End {
                 // a step-free walker prefers a door known to be step-free
                 let kind_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
                 let inside_m = pos.dist_m(&door.pos);
+                // inside to the door: through another building that overlaps this one, a wall too
+                let inside_wall = inside_m > 0.4 && ix.through(pos, door.pos, 0.0);
                 for a in d.attach_of(di).iter().filter(|a| router.usable(a.edge, profile)) {
                     let snap = Snap { dist_m: a.dist_m(), ..router.snap_at(a.edge, a.frac()) };
-                    let pen_s = kind_m / speed + line_pen(g, a.edge, a.dist_m(), a.through(), speed);
-                    end.joins.push(Join { snap, extra_m: inside_m + a.dist_m(), pen_s, door: Some(di), inside_m, wall: a.through() });
+                    let wall = a.through() || inside_wall;
+                    let inside_pen = if inside_wall { (line_weight_m(inside_m, false, true) - inside_m) / speed } else { 0.0 };
+                    let pen_s = kind_m / speed + line_pen(g, a.edge, a.dist_m(), a.through(), speed) + inside_pen;
+                    end.joins.push(Join { snap, extra_m: inside_m + a.dist_m(), pen_s, door: Some(di), inside_m, wall });
                 }
             }
         }
@@ -210,12 +214,13 @@ pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn {
     let door_pos = |d: u32| doors.map(|ix| ix.doors.doors[d as usize].pos);
     // (straight points before the path, straight points after it)
     let mut head: Vec<LatLon> = Vec::new();
+    // (through the door itself: the line out of the building passes where the door is)
     match w.from.door.and_then(|d| door_pos(d)) {
         Some(dp) => {
             if w.from.inside_m > 1.5 {
                 head.push(a.pos);
             }
-            if w.from.snap.dist_m > 0.5 {
+            if dp.dist_m(&w.from.snap.pos) > 0.05 {
                 head.push(dp);
             }
         }
@@ -226,7 +231,7 @@ pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn {
     match w.to.door.and_then(|d| door_pos(d)) {
         // the walk ends at the door
         Some(dp) => {
-            if w.to.snap.dist_m > 0.5 {
+            if dp.dist_m(&w.to.snap.pos) > 0.05 {
                 tail.push(dp);
             }
         }
