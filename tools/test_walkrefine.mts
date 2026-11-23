@@ -68,9 +68,8 @@ interface FakeStep {
 type FakeEngineWalk = Partial<KanteWalk> & { durationS: number; geometry: LngLat[]; approximate: boolean; steps: KanteWalkStep[] };
 /** A station model as the stubbed router reads it: the route through it is in it. */
 interface FakeModel { route: { points: LngLat[]; steps: []; fromStop: boolean; toStop: boolean; length: number; seconds: number } }
-/** The page around the routing code, as these tests stand in for it: what the stubs read, count and keep. */
+/** The page around the routing code, as these tests stand in for it: what the stubs read and keep. */
 interface AppPage {
-  sheets: number;
   /** What the engine's /api/walk was asked (KANTE.walk()), each answered when the test says. */
   asked: { body: KanteWalkRequest; d: Deferred<FakeEngineWalk> }[];
   /** The station models asked for (Station3D.loadData()), answered when the test says with the route through it. */
@@ -138,7 +137,7 @@ fake('sprites.ts', { INK: '#000' });
 fake('tracking.ts', { nowMarker: marker, placeUserDot: nothing, vehMarker: marker, journeyProgress: () => null, stopKms: () => null, tripLive: () => true });
 fake('live-vehicles.ts', { platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', vehUpdate: nothing,
   levelShort: (l: number) => (l < 0 ? '−' + -l : String(l)), platformWord: () => 'Platform', splitPlatform: (p: string) => ({ num: p || '', sectors: '' }) });
-fake('sheet-content.ts', { queueSheet: () => { page.sheets++; }, renderSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
+fake('sheet-content.ts', { queueSheet: nothing, renderSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
 fake('pill.ts', { updateProgress: nothing, updatePillTimes: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
 // the modules beside the page's that the routing code and the engine's journeys read: the settings, the station
@@ -162,7 +161,7 @@ const JS: AppSteps = await load('journey-steps.ts');
 const LE: LiveEngine = await load('live-engine.ts');
 /** A fresh page for a test: nothing asked yet, and the state as when the page has just planned journey 1. */
 function app() {
-  page = { sheets: 0, asked: [], station: [], plan: null, planned: null, trips: {} };
+  page = { asked: [], station: [], plan: null, planned: null, trips: {} };
   Object.assign(S.journey, { steps: [], req: 1, routeKey: '', conn: null, dest: null, platKey: '' });
   S.tracking.geoVersion = 0;
   return page;
@@ -226,6 +225,13 @@ const answer = (k: number, durationS: number, more: Partial<FakeEngineWalk> = {}
 };
 const minutesOf = (st: FakeStep) => (st.type === 'change' ? st.walkMin : st.min); // the walk's minutes on the card
 const walkLines = (i: number) => JS.stepFeatures(S.journey.steps).filter((f) => f.properties.step === i && f.properties.kind === 'walk');
+
+// a ride to Bern, platform 7 (at B), and the engine's walk on to a place, its path ending at the place's door
+const PLACE: LngLat = east(B, 300), DOOR: LngLat = east(B, 296);
+const arriving = (q: KanteQuay) => [callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, q, T(30))] as [KanteStopCall, KanteStopCall];
+const toDoor = (): KanteLeg[] => [rideLeg('t1', ...arriving(quayAt('q7', B, '7'))),
+  walkLeg('egress', point(B, quayAt('q7', B, '7')), point(PLACE), T(30), 240, { geometry: [B, east(B, 150), DOOR], levels: [null, null, null],
+    steps: [step('walk', 0, 2)], door: { lat: DOOR[1], lon: DOOR[0], kind: 'main' } })];
 
 console.log('1. a walk cancelled while its route is on the way stays cancelled');
 {
@@ -319,15 +325,15 @@ console.log("4. the engine's walk as the page keeps it");
 
 console.log('5. the walk to the destination is routed to the place, not to the door it found');
 {
-  const c = app(), st = { type: 'walk', final: true, lines: [[A, B]], toLL: B, from: { to: stop('3') } };
-  S.journey.steps.push(st, aRide());
-  R.refineWalks(1);
-  st.lines = [[A, [7.435, 46.945], [7.4399, 46.9499]]]; // the engine's walk, ending at the door
-  R.refineWalks(1, true);
-  c.asked[0].d.res(walk([A, [7.435, 46.945], [7.4399, 46.9499]])); await settle();
-  st.lines = [[C, st.lines[0][2]]]; // requay() moved its start
-  R.refineWalks(1, true);
-  check(c.asked.length === 2 && same(at(c.asked[1].body.to), B), 'routed to the place again');
+  const c = app();
+  const steps = await show(toDoor(), PLACE);
+  const st = steps.find((x) => x.type === 'walk' && x.final)!;
+  check(same(st.lines![0][2], DOOR) && c.asked.length === 0, "as planned: the engine's path, to the door");
+  await live('t1', arriving(quayAt('q3', C, '3'))); // the train arrives at platform 3, elsewhere
+  check(c.asked.length === 1 && same(at(c.asked[0].body.to), PLACE), `from platform 3: routed to the place (${c.asked[0] && JSON.stringify(c.asked[0].body.to)})`);
+  await answer(0, 300);
+  await live('t1', arriving(quayAt('q4', east(C, 50), '4'))); // and again, now from the end of the path it was given
+  check(c.asked.length === 2 && same(at(c.asked[1].body.to), PLACE), 'routed to the place again');
 }
 
 console.log('6. what routeWalk() asks the engine, and the straight line without an answer');
@@ -411,15 +417,14 @@ console.log('8. two platform changes in a row, and one request per moved walk');
 console.log("9. after a modelled station, the walk to the destination goes to the place (its door is the engine's choice)");
 {
   const c = app();
-  const inside: LngLat[] = [B, [7.441, 46.951]];
-  const place: LngLat = [7.45, 46.955], door: LngLat = [7.4499, 46.9549];
-  const st: FakeStep = { type: 'walk', final: true, lines: [[B, door]], toLL: place, from: { to: stop('3') } };
-  const done = R.stationWalk(st, { key: 'bern' });
-  c.station[0].res(model(inside, false)); await settle();
-  check(c.asked.length === 1 && same(at(c.asked[0].body.to), place) && c.asked[0].body.from.exact === true,
+  c.plan = { key: 'bern' };
+  const steps = await show(toDoor(), PLACE);
+  const st = steps.find((x) => x.type === 'walk' && x.final)!;
+  c.station[0].res(model([B, [7.441, 46.951]], false)); await settle();
+  check(c.asked.length === 1 && same(at(c.asked[0].body.to), PLACE) && c.asked[0].body.from.exact === true,
     `the last stretch is routed to the place, not to the door drawn before (${c.asked[0] && JSON.stringify(c.asked[0].body.to)})`);
-  c.asked[0].d.res(walk([[7.441, 46.951], place]));
-  await done;
+  await answer(0, 200);
+  check(st.lines!.length === 2 && same(st.lines![1][1], PLACE), "the model's way, then the engine's to the place");
 }
 
 console.log('10. a station model that does not load: one request per line, none twice');
@@ -463,21 +468,20 @@ console.log('10. a station model that does not load: one request per line, none 
     `the path, its time and minutes, and when to leave (${one.walkS} s, ${one.min} min)`);
 }
 
-console.log("11. the engine's answer without a path still times the walk");
+console.log("11. a change routed again that the engine finds no path for: its time, and the time to spare with it");
 {
   const c = app();
-  const t1 = Date.parse('2026-11-21T12:05:00Z');
-  const st: FakeStep = { type: 'walk', lines: [[A, B]], from: null, next: { from: stop('1') }, kanteWalk: true, t1, t0: t1 - 120000, min: 2, walkS: 120 };
-  S.journey.steps.push(st, aRide());
-  R.refineWalks(1);
-  st.lines = [[A, C]]; // requay(): moved
-  st.kanteWalk = false;
-  R.refineWalks(1, true);
-  const sheets = c.sheets;
-  c.asked[0].d.res({ kind: 'access', durationS: 400, distanceM: 520, approximate: true, geometry: [A, C], levels: [null, null], steps: [] }); await settle();
-  check(st.walkS === 400 && st.min === 7 && st.t0 === t1 - 400000, `the engine's durationS reaches the step's minutes (${st.walkS} s, ${st.min} min)`);
-  check(st.walks![0].approx === true && st.kanteWalk === false && st.lines![0].length === 2, 'drawn as the straight line it is');
-  check(c.sheets > sheets, 'and the card is drawn again');
+  const P9 = east(B, 150), P12 = east(B, 400);
+  const after = (q: KanteQuay) => [callAt(3, q, undefined, T(30)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50))] as [KanteStopCall, KanteStopCall];
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, quayAt('q7', B, '7'), T(20))),
+    walkLeg('transfer', point(B, quayAt('q7', B, '7')), point(P9, quayAt('q9', P9, '9')), T(20), 120), rideLeg('t2', ...after(quayAt('q9', P9, '9')))];
+  const steps = await show(legs, A);
+  const i = steps.findIndex((x) => x.type === 'change'), ch = steps[i];
+  await live('t2', after(quayAt('q12', P12, '12')));
+  c.asked[0].d.res({ kind: 'transfer', durationS: 400, distanceM: 520, approximate: true, geometry: [B, P12], levels: [null, null], steps: [] }); await settle();
+  const spare = JS.spareOf(ch);
+  check(ch.walkS === 400 && ch.walkMin === 7 && spare.text === '3 min to spare', `the engine's 400 s: its minutes and the time to spare (${ch.walkMin} min, ${spare.text})`);
+  check(walkLines(i).length === 1 && walkLines(i)[0].properties.approx === true && ch.kanteWalk === false, 'drawn as the straight line it is');
 }
 
 console.log("12. a change through a modelled station, moved: the model's way and its time, and the time to spare with them");
