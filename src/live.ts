@@ -13,21 +13,26 @@ function liveInfoOf(x: KanteLiveCarrier | null | undefined): KanteLiveInfo | nul
   return typeof x.live === 'string' ? { state: x.live } : null;
 }
 // Live times only count when they are live and recent
+/** Measured or forecast, and recent. */
 const isLive = (info: KanteLiveInfo | null | undefined) => !!info && (info.state === 'observed' || info.state === 'predicted');
 
 // A call's live times (unix s): the timetable plus the delay
+/** A call's live times: the timetable plus the delay. */
 const liveArr = (c: KanteStopCall | null | undefined) => (c && c.arr != null ? c.arr + (c.arrDelayS || 0) : c && c.dep != null ? c.dep + (c.depDelayS || 0) : null);
 const liveDep = (c: KanteStopCall | null | undefined) => (c && c.dep != null ? c.dep + (c.depDelayS || 0) : liveArr(c));
 const clamp01 = (x: number | null | undefined) => Math.min(1, Math.max(0, Number(x) || 0));
 
 // Was the departure from stop `seq` measured (observedKind `dep` or `arr+dep`)?
+/** Was the departure from stop `seq` measured? */
 const depMeasured = (info: KanteLiveInfo | null | undefined, seq: number | null | undefined) => !!info && seq != null && info.observedSeq === seq && /(^|\+)dep$/.test(info.observedKind || '');
 // The next call after seq that the vehicle stops at
+/** The next call after `seq` that the vehicle stops at. */
 const nextCall = (calls: KanteStopCall[] | null | undefined, seq: number) => (calls || []).filter((c) => c && c.seq > seq && !c.skipped).sort((x, y) => x.seq - y.seq)[0] || null;
 
 // ---- Where the vehicle is at tNow (unix s), from the engine's position at pos.t: from `frac`, going on at the
 //      pace of its `dep`→`arr`. A vehicle standing at a stop past its departure is moved on towards the next stop
 //      it serves, marked `stepped` (that departure was not measured). ----
+/** Where the vehicle is at tNow, going on from the engine's position. */
 function advance(pos: KantePosition | null | undefined, calls: KanteStopCall[] | null | undefined, tNow: number): KanteAdvancedPosition | null {
   if (!pos || pos.seq == null) return null;
   const span = (d: number | null | undefined, a: number | null | undefined) => (d != null && a != null && a > d ? a - d : null);
@@ -52,6 +57,10 @@ function advance(pos: KantePosition | null | undefined, calls: KanteStopCall[] |
 // …as km along the drawn ride: seqIdx = the trip's seq → the stop's place in the ride, kms = each drawn stop's km,
 // stopIdx = each drawn stop's place in the ride.
 // → { km, at } (index into the ride's stops) or { km, from, to }, or null when it isn't on this part of the trip
+/**
+ * …as km along the drawn ride. seqIdx: the trip's seq → the stop's place in the ride; kms: each drawn stop's km;
+ * stopIdx: each drawn stop's place in the ride. null when it is not on this part of the trip.
+ */
 function rideKm(p: KanteAdvancedPosition | null | undefined, seqIdx: Map<number, number> | null | undefined, kms: (number | null | undefined)[], stopIdx: number[]): KanteRideKm | null {
   if (!p || !seqIdx || (p.state !== 'at' && p.state !== 'between')) return null;
   const place = (seq: number) => {
@@ -69,6 +78,7 @@ function rideKm(p: KanteAdvancedPosition | null | undefined, seqIdx: Map<number,
 // ---- Saying honestly how a position was worked out. ctx: { basis, from, leftS (seconds since a measured
 //      departure from `from`), observedAt (stop with the last measured time) } → { text, dim } ----
 const ago = (s: number) => (s < 60 ? 'just now' : `${Math.round(s / 60)} min ago`);
+/** Says how a position was worked out. dim: it is not live. */
 function liveText(info: Pick<KanteLiveInfo, 'state' | 'inaccurate' | 'congestion'> | null | undefined, ctx?: KanteLiveContext | null) {
   const c = ctx || {}, state = (info && info.state) || 'timetable';
   let text;
@@ -102,6 +112,7 @@ function journeyLike(line: Partial<KanteLine> | null | undefined) {
 }
 // Where a vehicle of /api/vehicles is at tNow (unix s): from its `frac` at the response's time `t` (copied onto
 // it), going on at the pace of its dep→arr. Standing at a stop (from = to) it stays there.
+/** Where a vehicle of /api/vehicles is at tNow. */
 function vehicleAt(v: KanteVehicleHop, tNow: number): LngLat {
   const span = v.arr - v.dep;
   let f;
@@ -112,6 +123,7 @@ function vehicleAt(v: KanteVehicleHop, tNow: number): LngLat {
 }
 // Under way (not standing at a stop) after a measured departure from the stop before `nextSeq`. With stops
 // skipped in between this can't be told from the vehicle alone, and nothing is claimed.
+/** Under way after a measured departure from the stop before. */
 const vehicleLeftMeasured = (v: KanteVehicleSeen | null | undefined) => !!v && !!v.from && !!v.to && (v.from[0] !== v.to[0] || v.from[1] !== v.to[1])
   && v.nextSeq != null && depMeasured(v.info || liveInfoOf(v), v.nextSeq - 1);
 function distKm(a: LngLat, b: LngLat) {
@@ -120,6 +132,7 @@ function distKm(a: LngLat, b: LngLat) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 // [w, s, e, n] grown by a share of its size on every side, kept within the engine's limit
+/** The box grown by a share of its size on every side, kept within the engine's limit. */
 function padBbox(b: KanteBbox, share: number): KanteBbox {
   let [w, s, e, n] = b;
   const dx = (e - w) * share, dy = (n - s) * share;
@@ -131,10 +144,14 @@ function padBbox(b: KanteBbox, share: number): KanteBbox {
   return [w, s, e, n];
 }
 const bboxContains = (o: KanteBbox | null | undefined, i: KanteBbox) => !!o && i[0] >= o[0] && i[1] >= o[1] && i[2] <= o[2] && i[3] <= o[3];
+/** Small enough for the engine. */
 const bboxOk = (b: KanteBbox) => distKm([b[0], b[1]], [b[2], b[3]]) <= MAX_BBOX_KM;
+/** "w,s,e,n" with 5 decimals. */
 const bboxParam = (b: KanteBbox) => b.map((x) => x.toFixed(5)).join(',');
 
-export const KANTE_LIVE: KanteLiveApi = {
+export const KANTE_LIVE = {
+  /** The largest box the engine answers /api/vehicles for (its diagonal, km). */
   MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
+  /** Seconds until it leaves, seconds of walking left. */
   runOrWait, journeyLike, vehicleAt, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
 };

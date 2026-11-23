@@ -15,29 +15,6 @@ interface IndoorNavState {
 /** `INDOORNAV.sign()`: what the sign matched. `repeated`: the same text within 15 s, not counted again. */
 interface IndoorNavSign extends SignLocMatch { repeated?: boolean }
 
-interface IndoorNavApi {
-  /**
-   * GPS from the page, as for `Station3D.setUser`: goes through the indoor filter while a station is open in 3D.
-   * `at` (performance.now()) is for a fix handed on later: it is dropped if a newer one is already there.
-   */
-  setUser(u: Station3DUser | null, at?: number): void;
-  /** Text read on a sign (Scan dispatches `scan:text` instead). null: no station is open (the text is kept for two minutes). */
-  sign(text: string): IndoorNavSign | null;
-  /** Motion and orientation (on iOS from a tap: it asks for access). Nothing when no station is open or they run already. */
-  startSensors(): Promise<IndoorSensorState | null>;
-  /** The traveller says where they are. */
-  here(o: { level: number; xy?: XY }): void;
-  state(): IndoorNavState;
-  /** The viewer opened before indoornav.ts had loaded: join the opening that is showing (the stand-in in index.html calls this). */
-  attach(opened: Station3DEventMap['open']): void;
-  /** A raw sensor log for tuning, from now on (from the console). */
-  record(): IndoorRecorder;
-  stopRecording(): IndoorRecorder | null;
-  /** The recording as a JSON file (an `IndoorLog`). Without `r`: the one that is running. */
-  exportLog(r?: IndoorRecorder | null): Blob;
-  /** Development: the filter of the station that is open. */
-  _filter(): IndoorFilter | null;
-}
 
 
 /** `window.dispatchEvent(new CustomEvent('scan:text', { detail }))`: text Scan read (indoornav.ts listens). */
@@ -347,27 +324,6 @@ interface IndoorReplayResult { estimates: [t: number, est: IndoorEstimate][]; ch
 /** A constructor of indoorloc.ts: `new` may be left out. */
 type IndoorCtor<A extends unknown[], T> = { new (...args: A): T; (...args: A): T };
 
-interface IndoorLocApi {
-  Model: IndoorCtor<[m: StationModel, opts?: IndoorModelOptions], IndoorModel>;
-  Filter: IndoorCtor<[model: IndoorModel, opts?: IndoorFilterOptions], IndoorFilter>;
-  Sensors: IndoorCtor<[filter: IndoorFilter, opts?: IndoorSensorsOptions], IndoorSensors>;
-  Recorder: IndoorCtor<[meta?: IndoorLogMeta], IndoorRecorder>;
-  /** A recording through a new filter. */
-  replay(log: IndoorLog, model: IndoorModel, opts?: IndoorReplayOptions): IndoorReplayResult;
-  /** A station's model: through Station3D.loadData when the viewer is on the page, else from `base` + key + '.js'. */
-  load(key: string, base?: string, loadData?: (key: string) => Promise<StationModel | null>): Promise<IndoorModel | null>;
-  /** Closed when from <= today < until (today: "YYYY-MM-DD"). */
-  isClosed(c: StationClosure | null | undefined, today?: string | null): boolean;
-  /** Compass heading (deg, clockwise from north) from deviceorientation angles; null when it is not defined. */
-  compassFromEuler(alpha: number | null, beta: number | null, gamma: number | null): number | null;
-  rng(seed: number): IndoorRandom;
-  /** `Model.ek` → the edge's kind. */
-  KIND: StationEdgeKind[];
-  /** A barometer reading from a native wrapper. → was the event dispatched? */
-  pushPressure(hPa: number): boolean;
-  /** Bits of `Model.ef`. */
-  flags: { F_INDOOR: number; F_ONEWAY: number; F_NOT_STEPFREE: number; F_OUTDOOR: number };
-}
 
 // ---------------------------------------------------------------------------------------------- SIGNLOC
 
@@ -402,11 +358,3 @@ interface SignLocMatch {
 interface SignLocDeparture { platform?: string | number | null; line?: string | null; to?: string | null }
 interface SignLocOptions { departures?: SignLocDeparture[] | null }
 
-interface SignLocApi {
-  parse(text: string): SignLocParse;
-  match(text: string | SignLocParse, model: IndoorModel, opts?: SignLocOptions): SignLocMatch;
-  /** Feeds every observation of a match into a filter. null: there was none. */
-  apply(filter: IndoorFilter, result: SignLocMatch, t: number): IndoorEstimate | null;
-  /** Lower case, no accents, no punctuation. */
-  norm(s: string | null | undefined): string;
-}

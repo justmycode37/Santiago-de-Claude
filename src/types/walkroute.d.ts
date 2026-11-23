@@ -160,13 +160,6 @@ interface WalkRouteDebug {
   distM(a: LngLat, b: LngLat): number;
 }
 
-interface WalkRouteApi {
-  route(a: LngLat, b: LngLat, opt?: WalkRouteOptions): Promise<WalkRouteResult | null>;
-  covers(ll: LngLat): Promise<boolean>;
-  configure(o: { loader?: WalkGraphLoader; base?: string; index?: WalkGraphIndex }): void;
-  /** For the tests (tools/test_walkroute.mts). */
-  _debug: WalkRouteDebug;
-}
 interface Window { WALKROUTE?: WalkRouteApi }
 
 /** A routed walk (routeWalk()) may come from the pedestrian network: then it has these too. */

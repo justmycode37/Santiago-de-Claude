@@ -473,20 +473,30 @@ page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 // the trips for fare suggestions are kept while it is on (pricing-history.ts)
 keepTripsWhen(() => effective().fareTracking);
 
-export const SETTINGS: SettingsApi = {
+export const SETTINGS = {
+  /** Opens the Settings page (URL #settings); `anchor` = id of a heading on the page to open it at. */
   open,
   close,
+  /** The event tags switched on under "About you" and "Events"; none = show every event. */
   eventTags,
+  /** The map groups the events button shows, in the order of MAP_LAYERS.GROUPS. */
   mapGroups,
+  /** How walks are to be routed, or null for the normal walking router. */
   walkCosting,
+  /** The transport types to travel with (KanteJourney.options() turns them into the engine's modes); [] = all. */
   transportations,
-  prefs: () => ({ ...effective() }), // walking speed, extra change time, step-free…
+  /** The settings with the accessibility options worked out (wheelchair → step-free → fewer stairs, no escalators). */
+  prefs: (): Settings => ({ ...effective() }), // walking speed, extra change time, step-free…
   // the journey options as the 3D station view's router wants them (station-route.ts)
-  journey: () => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
+  journey: (): JourneySettings => { const s = effective(); return { stepFree: s.stepFree, fewerStairs: s.fewerStairs, noEscalators: s.noEscalators, wheelchair: s.wheelchair, walkKmh: s.walkKmh }; },
+  /** The five stops of the walking speed slider, slow to fast (a copy). */
   speedPresets: SPEED_PRESETS.map((p) => ({ ...p })), // the five stops of the walking speed slider
-  set: (patch, by) => update(patch, by),
-  onChange: (fn) => changeListeners.push(fn), // fn(patch, by, settingsBefore)
-  onClose: (fn) => closeListeners.push(fn),
+  /** Changes settings, saves them and tells the listeners. `by`: 'auto' when the app changes a setting by itself. */
+  set: (patch: Partial<Settings>, by?: SettingsChangedBy): void => update(patch, by),
+  /** `fn` is called after every change of a setting. Returns the number of listeners. */
+  onChange: (fn: SettingsChangeListener): number => changeListeners.push(fn), // fn(patch, by, settingsBefore)
+  /** `fn` is called when the page closes, with whether a journey option was changed while it was open. */
+  onClose: (fn: (journeyChanged: boolean) => void): number => closeListeners.push(fn),
 };
 
 render();

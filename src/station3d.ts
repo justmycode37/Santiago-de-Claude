@@ -7,19 +7,24 @@
 // up: when it arrives it joins the opening that is showing then. If those three fail, the view works without them
 // and they are tried again at the next opening.
 import { showToast } from './toast.ts';
+import type { INDOORLOC } from './indoorloc.ts';
+import type { SIGNLOC } from './signloc.ts';
+import type { INDOORNAV } from './indoornav.ts';
+import type { StationView } from './station-view.ts';
+import type { StationRoute } from './station-route.ts';
 
 type Heard = [name: keyof Station3DEventMap, fn: (detail: never) => void];
 type Opened = Station3DEventMap['open'];
 type AnyFn = (detail: unknown) => void;
 
 /** The indoor position's modules, each once it has loaded (Scan reads signs with signloc's parser once it is there). */
-export const indoor: { loc: IndoorLocApi | null; sign: SignLocApi | null; nav: IndoorNavApi | null } = { loc: null, sign: null, nav: null };
-let view: StationViewApi | null = null;   // the station view, once it has loaded and started
-let router: StationRouteApi | null = null; // the station router (station-route.ts), once it has loaded
+export const indoor: { loc: typeof INDOORLOC | null; sign: typeof SIGNLOC | null; nav: typeof INDOORNAV | null } = { loc: null, sign: null, nav: null };
+let view: typeof StationView | null = null;   // the station view, once it has loaded and started
+let router: typeof StationRoute | null = null; // the station router (station-route.ts), once it has loaded
 /** The station router, once loadData() (or the view) has loaded it; null before. */
 export const stationRouter = () => router;
 
-let indoorP: Promise<void> | null = null, svLoading: Promise<StationViewApi> | null = null;
+let indoorP: Promise<void> | null = null, svLoading: Promise<typeof StationView> | null = null;
 let user: Station3DUser | null | undefined, userAt = 0;   // the latest GPS fix and when it came (performance.now())
 let wanted: Station3DOpenOptions | null = null;      // the latest open() asked for while the view loads (close() cancels it)
 let lastOpen: Opened | null = null;    // what the view last opened (for the indoor position when it arrives later)
@@ -66,7 +71,7 @@ function loadIndoor() {
     });
   return indoorP;
 }
-function loadView(): Promise<StationViewApi> {
+function loadView(): Promise<typeof StationView> {
   if (!svLoading) svLoading = import('./station-view.ts').then((m) => {
     const sv = view = m.StationView;
     for (const [name, fn] of listeners) sv.on(name, fn as AnyFn);
@@ -87,9 +92,10 @@ function failed(opts: Station3DOpenOptions, err: Station3DEventMap['error'] = { 
   // as the view itself reports it (Station3D.on('error'))
   for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn(err as never); } catch (e) { console.error(e); } }
 }
-export const Station3D: Station3DApi = {
-  has: (uic) => (window.STATION3D_INDEX && window.STATION3D_INDEX[String(uic)]) || null,
-  open: (opts) => {
+export const Station3D = {
+  /** A stop id → the key of the model that has it. */
+  has: (uic: string | number): string | null => (window.STATION3D_INDEX && window.STATION3D_INDEX[String(uic)]) || null,
+  open: (opts: Station3DOpenOptions): void => {
     wanted = opts;
     loadView().then((sv) => sv.ready().then(() => sv)).then((sv) => {
       if (wanted !== opts) return;
@@ -99,27 +105,29 @@ export const Station3D: Station3DApi = {
       loadIndoor();
     }, () => failed(opts));
   },
-  setUser: (u) => { user = u || null; userAt = performance.now(); if (view) view.setUser(u); },
-  close: () => { wanted = null; if (svOpen()) view!.close(); },
-  isOpen: () => wanted !== null || svOpen(),   // an opening is on its way: callers that close an open view cancel it
-  on: (name, fn) => {
+  setUser: (u: Station3DUser | null | undefined): void => { user = u || null; userAt = performance.now(); if (view) view.setUser(u); },
+  close: (): void => { wanted = null; if (svOpen()) view!.close(); },
+  /** Also true while an opening is on its way. */
+  isOpen: (): boolean => wanted !== null || svOpen(),   // an opening is on its way: callers that close an open view cancel it
+  /** Returns a function that removes the listener again. */
+  on: <K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void): () => void => {
     listeners.push([name, fn as (detail: never) => void]);
     if (view && svLoading) view.on(name, fn);
     return () => Station3D.off(name, fn);
   },
-  off: (name, fn) => {
+  off: <K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void): void => {
     const i = listeners.findIndex(([n, f]) => n === name && f === fn);
     if (i >= 0) listeners.splice(i, 1);
     if (view) view.off(name, fn);
   },
   // ahead of an open: the station view with this station, and the indoor position alongside (not waited for), so
   // it is ready when the view opens
-  preload: (key) => {
+  preload: (key?: string | null): Promise<boolean> => {
     loadIndoor();
     return loadView().then((sv) => sv.ready().then(() => (key && sv.has(key) ? sv.preload(key) : false))).catch(() => false);
   },
   // the model and the router (no 3D): for a station's walk on the 2D map
-  loadData: (key) => {
+  loadData: (key: string): Promise<StationModel | null> => {
     if (!/^[a-z0-9-]+$/.test(String(key))) return Promise.resolve(null);
     const have = () => window.STATION3D && window.STATION3D[key];
     return Promise.all([have() ? null : scriptOnce('stations3d/' + key + '.js'), router ? null : loadRouter()])

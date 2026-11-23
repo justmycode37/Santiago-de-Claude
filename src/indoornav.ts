@@ -155,6 +155,7 @@ function here(o: { level: number; xy?: XY }) {
 }
 
 // called from a tap on iOS: motion + orientation permission (GPS is fed by the app)
+/** Motion and orientation (on iOS from a tap: it asks for access). Nothing when no station is open or they run already. */
 function startSensors() {
   if (!ses || !ses.filter || ses.sensors) return Promise.resolve(ses && ses.sensors && ses.sensors.state);
   ses.sensors = new INDOORLOC.Sensors(ses.filter, { onRaw: (type, d) => { if (recorder) recorder.add(type, d); }, noGeo: true });
@@ -224,16 +225,23 @@ document.addEventListener('click', (e) => {
 window.addEventListener('scan:text', (e) => sign(e.detail && e.detail.text, e.detail && e.detail.at));
 hook();
 
-export const INDOORNAV: IndoorNavApi = {
-  setUser: (u, at) => setUser(u, false, at), sign: (text) => sign(text), startSensors,
+export const INDOORNAV = {
+  /**
+   * GPS from the page, as for `Station3D.setUser`: goes through the indoor filter while a station is open in 3D.
+   * `at` (performance.now()) is for a fix handed on later: it is dropped if a newer one is already there.
+   */
+  setUser: (u: Station3DUser | null, at?: number): void => setUser(u, false, at), sign: (text: string): IndoorNavSign | null => sign(text), startSensors,
   // a viewer that was already opening when this script arrived (a late load): start with that opening
-  attach: (info) => { hook(); return opened(info); },
+  attach: (info: Station3DEventMap['open']) => { hook(); return opened(info); },
   // the traveller says where they are (see here() above)
   here,
-  record: () => { recorder = new INDOORLOC.Recorder({ key: ses && ses.key }); return recorder; },
-  stopRecording: () => { const r = recorder; recorder = null; return r; },
-  exportLog: (r) => new Blob([JSON.stringify((r || recorder)!.toJSON())], { type: 'application/json' }),
-  state: () => ({ active: !!(ses && ses.filter), open: !!(ses && ses.open), live: !!(ses && ses.live), away, key: ses && ses.key,
+  /** A raw sensor log for tuning, from now on (from the console). */
+  record: (): IndoorRecorder => { recorder = new INDOORLOC.Recorder({ key: ses && ses.key }); return recorder; },
+  stopRecording: (): IndoorRecorder | null => { const r = recorder; recorder = null; return r; },
+  /** The recording as a JSON file (an `IndoorLog`). Without `r`: the one that is running. */
+  exportLog: (r?: IndoorRecorder | null): Blob => new Blob([JSON.stringify((r || recorder)!.toJSON())], { type: 'application/json' }),
+  state: (): IndoorNavState => ({ active: !!(ses && ses.filter), open: !!(ses && ses.open), live: !!(ses && ses.live), away, key: ses && ses.key,
     sensors: ses && ses.sensors && ses.sensors.state, estimate: ses && ses.filter && ses.filter.estimate() }),
-  _filter: () => ses && ses.filter,
+  /** Development: the filter of the station that is open. */
+  _filter: (): IndoorFilter | null => ses && ses.filter,
 };

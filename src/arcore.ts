@@ -482,7 +482,7 @@ function decisionText(d: ArDecision, expected: ArExpectation | null): string {
   return 'Reading the display…';
 }
 
-export const ARCORE: ArCoreApi = {
+export const ARCORE = {
   words, canonical, lineKey, isRouteToken, confusionKey, weightedVariants, similarity, destinationSimilarity, sameDisplay,
   identity, normalize, match, read, decide, decisionText, credibleContradiction, iou, options: OPTIONS,
 };

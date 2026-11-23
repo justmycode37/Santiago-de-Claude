@@ -54,22 +54,6 @@ interface Station3DEventMap {
   error: { code: Station3DErrorCode; message: string };
 }
 
-interface Station3DApi {
-  /** A stop id → the key of the model that has it. */
-  has(uic: string | number): string | null;
-  open(opts: Station3DOpenOptions): void;
-  setUser(user: Station3DUser | null | undefined): void;
-  close(): void;
-  /** Also true while an opening is on its way. */
-  isOpen(): boolean;
-  /** Returns a function that removes the listener again. */
-  on<K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void): () => void;
-  off<K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void): void;
-  /** Loads the station view, its styles, three.js, the router and the model ahead of an open. → did everything load? */
-  preload(key?: string | null): Promise<boolean>;
-  /** Just the model and the router (no three.js): for drawing a station walk on the 2D map. */
-  loadData(key: string): Promise<StationModel | null>;
-}
 
 
 /** Device Memory API (Chromium): gigabytes of RAM, rounded. */

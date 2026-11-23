@@ -12,7 +12,8 @@ const city = process.argv[2];
 const C: EvalCity = JSON.parse(fs.readFileSync(HERE + '/cities.json', 'utf8'))[city];
 const dests: EvalDest[] = JSON.parse(fs.readFileSync(`${HERE}/dests_${city}.json`, 'utf8')).results;
 // the router as the page has it (a specifier TypeScript does not follow: it is checked with the page's modules)
-const W: WalkRouteApi = (await import(new URL('../../src/walkroute.ts', import.meta.url).href)).WALKROUTE;
+type Router = typeof import('../../src/walkroute.ts').WALKROUTE;
+const W: Router = (await import(new URL('../../src/walkroute.ts', import.meta.url).href)).WALKROUTE;
 W.configure({ loader: async (k: string) => { const s = fs.readFileSync(REPO + '/walkgraph/' + (k === 'index' ? 'index.js' : 't/' + k + '.js'), 'utf8');
   return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')'))); } });
 const { buildings, nodes, distM } = W._debug;

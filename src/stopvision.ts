@@ -1572,6 +1572,10 @@ function useStill(file: File) {
 const stopStream = (st: MediaStream | null) => { if (st) st.getTracks().forEach((t) => t.stop()); };
 let session = 0;
 
+/**
+ * Open the Scan screen. camera: the answer to getUserMedia(), asked by the caller while the tap still counts
+ * as a user gesture; orientation: the same for the compass permission (iOS), only its failure is swallowed.
+ */
 async function openScan(hooks: StopVisionHooks, cameraPromise: Promise<MediaStream>, orientationPromise?: Promise<unknown>) {
   if (running) { cameraPromise.then(stopStream, () => {}); return; } // already open: drop the second camera
   const mine = ++session;
@@ -1628,6 +1632,7 @@ function closeScan() {
 }
 
 // Benchmark (scan-bench.html): load both engines, then time sign reading and photo fingerprints on an image
+/** Load both engines, then time `runs` photo fingerprints and up to 3 sign readings on an image. */
 async function bench(img: HTMLImageElement, runs = 8, log: (text: string, sofar?: Partial<StopVisionBenchResult>) => void = () => {}) {
   const fake = { videoWidth: 0, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight };
   ui = { still: img, video: fake, ring: { classList: { remove() {} } }, root: { clientWidth: 390, clientHeight: 844 } } as unknown as ScanUI;
@@ -1649,4 +1654,4 @@ async function bench(img: HTMLImageElement, runs = 8, log: (text: string, sofar?
   return out;
 }
 
-export const STOPVISION: StopVisionApi = { open: openScan, close: closeScan, bench, _debug: { evidence, candidates: () => candidates, tiles, matchIn, nameVariants, norm, distinctive, useText, setApp: (a) => { app = a; }, recognised, findCandidates, score, edgeOf } };
+export const STOPVISION = { open: openScan, close: closeScan, bench, _debug: { evidence, candidates: () => candidates, tiles, matchIn, nameVariants, norm, distinctive, useText, setApp: (a: StopVisionHooks) => { app = a; }, recognised, findCandidates, score, edgeOf } };

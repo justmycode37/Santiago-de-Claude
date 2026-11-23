@@ -85,6 +85,8 @@ interface AppState {
   tracking: { geoVersion: number };
   searchState: { tripStart: null };
 }
+/** The pedestrian network's router (src/walkroute.ts). */
+type Router = typeof import('../src/walkroute.ts').WALKROUTE;
 /** The engine's client as the engine's journeys use it (src/engine.ts), stubbed. */
 interface FakeEngine { available(): boolean; walk(): Promise<FakeEngineWalk> }
 /** The engine's journeys (src/engine-journey.ts), as far as these tests call them. */
@@ -133,13 +135,13 @@ const S: AppState = await load('state.ts');
 const J: EngineJourneys = (await load('../engine-journey.ts')).KanteJourney;
 // the pedestrian network as it is (test 8 routes on it); for the routing code its route() hands back promises kept in
 // page.pending
-const W: WalkRouteApi = (await load('../walkroute.ts')).WALKROUTE;
+const W: Router = (await load('../walkroute.ts')).WALKROUTE;
 const networkRoute = W.route;
 /** A fresh page for a test: nothing asked yet, and the state as when the page has just planned journey 1. */
 function app() {
   page = { prefs: { walkKmh: 3.6, maxWalkMin: 20 }, sheets: 0, timed: 0, pending: [], station: [], plan: null };
   settings = page;
-  W.route = ((a: LngLat, b: LngLat) => { const d = defer<FakeRouted>(); page.pending.push({ a, b, d }); return d.p; }) as unknown as WalkRouteApi['route'];
+  W.route = ((a: LngLat, b: LngLat) => { const d = defer<FakeRouted>(); page.pending.push({ a, b, d }); return d.p; }) as unknown as Router['route'];
   Object.assign(S.journey, { steps: [], req: 1, routeKey: '', conn: null, options: null, query: {} });
   S.tracking.geoVersion = 0;
   S.searchState.tripStart = null;

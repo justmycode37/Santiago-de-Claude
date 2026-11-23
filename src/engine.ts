@@ -129,25 +129,39 @@ const stationIdOf = (uic: string | number) => {
   return n > 8500000 && n < 8600000 ? 'st:Parentch:1:sloid:' + (n - 8500000) : null;
 };
 
-export const KANTE: KanteApi = {
+export const KANTE = {
+  /** The engine's address without a trailing slash; '' when it is switched off. */
   base: BASE,
+  /** The address came from the page's link (?kante=, ?engine=off). */
   fromLink,
+  /** A ?kante= address in the link that was not followed (only an engine on this machine is). */
   ignored,
+  /** ms between two tries of /api/meta while it cannot be reached (src/app/56-live-engine.ts). */
   RETRY_MS,
+  /** Switched on, and its last request did not fail. */
   available,
-  ok: () => !!meta,
+  /** /api/meta has answered once (its features are known). */
+  ok: (): boolean => !!meta,
+  /** The engine's /api/meta: asked when it is not known yet (or with force), else the one it gave. null: off, or not reachable. */
   ready,
-  has: (f) => features.has(f),
-  failure: (e) => (e && typeof e === 'object' && 'reason' in e ? (e as KanteError).reason : null),
+  /** Whether the engine has an optional part ('due', 'stream', …), by its /api/meta. */
+  has: (f: string): boolean => features.has(f),
+  /** Why a call threw: one of KanteFailure, or null for an error that did not come from a call. */
+  failure: (e: unknown): KanteFailure | null => (e && typeof e === 'object' && 'reason' in e ? (e as KanteError).reason : null),
+  /** The full address of a path, e.g. for an EventSource. Only with an engine (`base`). */
   href,
+  /** "st:Parentch:1:sloid:7000" → "8507000"; null for anything but a Swiss station. */
   uicOf,
+  /** 8507000 → "st:Parentch:1:sloid:7000"; null for anything but a Swiss UIC number. */
   stationIdOf,
-  meta: () => call('/api/meta'),
-  departures: (params) => call('/api/departures', { params }), // { station | quay, time, limit }
-  trip: (id, date) => call('/api/trip', { params: { id, date } }),
-  vehicles: (params) => call('/api/vehicles', { params }),
-  due: (params, ms) => call('/api/due', { params, timeout: ms || 6000 }),
-  plan: (body) => call('/api/plan', { body, timeout: 15000 }),
-  walk: (body) => call('/api/walk', { body }),
+  meta: (): Promise<KanteMeta> => call('/api/meta'),
+  departures: (params: KanteDeparturesParams): Promise<KanteDeparturesResponse> => call('/api/departures', { params }), // { station | quay, time, limit }
+  /** date: the trip's operating day, "2026-11-21". */
+  trip: (id: string, date: string): Promise<KanteTrip> => call('/api/trip', { params: { id, date } }),
+  vehicles: (params: KanteBboxParams): Promise<KanteVehiclesResponse> => call('/api/vehicles', { params }),
+  /** What is about to stop at a place (kante/docs/LIVE-API.md); ms: the timeout. */
+  due: (params: KanteParams, ms?: number): Promise<KanteDueResponse> => call('/api/due', { params, timeout: ms || 6000 }),
+  plan: (body: KantePlanRequest): Promise<KantePlanResponse> => call('/api/plan', { body, timeout: 15000 }),
+  walk: (body: KanteWalkRequest): Promise<KanteWalk> => call('/api/walk', { body }),
 };
 ready();

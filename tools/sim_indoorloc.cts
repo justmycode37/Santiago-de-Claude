@@ -20,8 +20,8 @@ const path = require('path') as typeof import('path');
 const fs = require('fs') as typeof import('fs');
 const ROOT = path.join(__dirname, '..');
 // the modules as the page has them (ES modules: require() gives their exports)
-const I = require(path.join(ROOT, 'src', 'indoorloc.ts')).INDOORLOC as IndoorLocApi;
-const S = require(path.join(ROOT, 'src', 'signloc.ts')).SIGNLOC as SignLocApi;
+const I = require(path.join(ROOT, 'src', 'indoorloc.ts')).INDOORLOC as typeof import('../src/indoorloc.ts').INDOORLOC;
+const S = require(path.join(ROOT, 'src', 'signloc.ts')).SIGNLOC as typeof import('../src/signloc.ts').SIGNLOC;
 
 const args = process.argv.slice(2);
 const arg = <D = undefined,>(k: string, d?: D): string | D => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d as D; };
@@ -32,10 +32,10 @@ const ONLY = arg('only', null);
 const VERBOSE = flag('verbose');
 const TRACE = flag('trace');
 
-globalThis.window = globalThis;
+Object.assign(globalThis, { window: globalThis }); // the station model puts itself on window
 require(path.join(ROOT, 'stations3d', KEY + '.js'));
 const RAW = globalThis.STATION3D![KEY];
-const SR = require(path.join(ROOT, 'src', 'station-route.ts')).StationRoute as StationRouteApi;
+const SR = require(path.join(ROOT, 'src', 'station-route.ts')).StationRoute as typeof import('../src/station-route.ts').StationRoute;
 const M = new I.Model(RAW);
 
 // ------------------------------------------------------------------------------------------- replay a recording

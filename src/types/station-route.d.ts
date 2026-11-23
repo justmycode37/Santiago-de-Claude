@@ -242,31 +242,4 @@ interface StationRouteTime {
   snapNear: number;
 }
 
-interface StationRouteApi {
-  toLocal(model: StationModel, ll: LngLat): XY;
-  toLngLat(model: StationModel, xy: StationRouteXY): LngLat;
-  /** Metres above level 0 for a level number (piecewise linear through model.levels[].z). */
-  z(model: StationModel, level: number): number;
-  /** null when an endpoint cannot be found, or the two are not connected even ignoring closures (why() says which). */
-  route(model: StationModel, from: StationRouteEndpoint | null | undefined, to: StationRouteEndpoint | null | undefined, prefs?: StationRoutePrefs | null): StationRouteResult | null;
-  /** `xy`: local, or `{ ll }` for GPS. `hint`: the current level, or the previous result. null for a route without points. */
-  snap(model: StationModel, route: StationRoutePath | null | undefined, xy: StationRouteXY | { ll: LngLat }, hint?: number | StationRouteSnapHint | null): StationRouteSnap | null;
-  /** The point that many metres along the route (clamped to it). null for a route without points. */
-  pointAt(route: StationRoutePath, metres: number): XYL | null;
-  /** `from` = a platform stop. null when the platform has no sectors or the destination is not reachable. */
-  sectorTimes(model: StationModel, from: StationRouteEndpoint | null | undefined, to: StationRouteEndpoint | null | undefined, prefs?: StationRoutePrefs | null): StationRouteSectorTimes | null;
-  /** null: route() gives a complete route. */
-  why(model: StationModel, from: StationRouteEndpoint | null | undefined, to: StationRouteEndpoint | null | undefined, prefs?: StationRoutePrefs | null): StationRouteWhy | null;
-  /** `thing`: anything with a `closed` field (a stop, an area, a connector, an entrance, an edge), or that field itself. */
-  isClosed(thing: { closed?: StationRouteClosedValue } | StationRouteClosedValue | undefined, date?: StationRouteDate | null): boolean;
-  /** The model's notices that are active on that date. */
-  notices(model: StationModel | null | undefined, date?: StationRouteDate | null): StationNotice[];
-  /** Every place on the graph an endpoint can mean on that date (open ones first); empty when it is unknown. */
-  resolve(model: StationModel, endpoint: StationRouteEndpoint | null | undefined, date?: StationRouteDate | null): StationRouteCandidate[];
-  /** The comparable form of a platform / stop edge name: "Gleis 7" → "7", "7A-D" → "7", "Kante H" → "H". */
-  platformKey(ref: string | number | null | undefined): string;
-  /** The name of the nearest whole level, as it reads in a sentence: "the underpass", "level −3". */
-  levelName(model: StationModel, level: number): string;
-  TIME: StationRouteTime;
-}
 

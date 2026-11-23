@@ -14,6 +14,7 @@
 //
 // A sign is evidence, never a fix: a direction sign says where something is, not where you are, sector letters
 // repeat on every platform, and a shop can be seen from 30 m. The Filter weighs it against everything else.
+/** Lower case, no accents, no punctuation. */
 const norm = (s: string | null | undefined) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[|]/g, 'l').replace(/[^a-z0-9→←↑↓\-–/ ]+/g, ' ').replace(/\s+/g, ' ').trim();
 function lev(a: string, b: string) {
@@ -213,6 +214,7 @@ function match(text: string | SignLocParse, M: IndoorModel, opts: SignLocOptions
 }
 
 // Feed every observation of a match into an indoor Filter
+/** Feeds every observation of a match into a filter. null: there was none. */
 function apply(filter: IndoorFilter, result: SignLocMatch, t: number) {
   let est = null;
   for (const o of result.observations) est = filter.landmark({ t, candidates: o.candidates, strength: o.strength });
@@ -227,4 +229,4 @@ function thin(cands: IndoorCandidate[], d: number) {
   return out;
 }
 
-export const SIGNLOC: SignLocApi = { parse, match, apply, norm };
+export const SIGNLOC = { parse, match, apply, norm };

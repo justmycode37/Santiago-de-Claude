@@ -44,22 +44,6 @@ interface SolidOpenOptions {
 }
 interface SolidModule { open(o: SolidOpenOptions): Promise<SolidView> }
 
-interface StationViewApi {
-  /** Is there a continuous model for this station key? (after `ready()`; false before) */
-  has(key: string): boolean;
-  /** Loads the list of stations with a continuous model (stations3d/solid-index.js). */
-  ready(): Promise<void>;
-  open(opts: Station3DOpenOptions): void;
-  close(): void;
-  isOpen(): boolean;
-  setUser(user: Station3DUser | null | undefined): void;
-  on<K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void): () => void;
-  off<K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void): void;
-  /** The model, its continuous companion, the router, the styles and three.js, ahead of an open. */
-  preload(key: string): Promise<boolean>;
-  /** Tests: the open view. */
-  _view(): SolidView | null;
-}
 
 /** stations3d/<key>.solid.js */
 declare var STATION3D_SOLID: Record<string, unknown> | undefined;

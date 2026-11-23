@@ -59,19 +59,4 @@ interface PlaceSearchAnswer {
   results: PlaceSearchResult[];
 }
 
-interface PlaceSearchApi {
-  /** Places for what was typed: the nearest of a kind for a category word, else places with that name. */
-  search(text: string, options?: PlaceSearchOptions): Promise<PlaceSearchAnswer>;
-  /** What stands at a point ('Kramgasse 12', 'Near Bärenpark'), or null when nothing is known there. */
-  reverse(lngLat: LngLat): Promise<{ title: string } | null>;
-  /** OpenStreetMap places: adds website, opening hours, a photo and a score from OpenStreetMap and Wikidata (in place). */
-  enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]>;
-  /** The kind of place a text asks for ('Pharmacies' for "apotheke"), or null. */
-  matchCategory(text: string): string | null;
-  source: 'osm' | 'google';
-  /** The credit line to show with results. */
-  attribution: string;
-  /** Metres in words: '120 m', '1.4 km', '12 km'. */
-  formatDistance(m: number): string;
-}
 

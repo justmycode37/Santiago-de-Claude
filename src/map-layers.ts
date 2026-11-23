@@ -10,7 +10,8 @@ const COLORS = {
 };
 
 // Stroke glyphs on a 24×24 grid (same style as the event and settings icons)
-const GLYPHS = {
+/** Glyph name → SVG path data, stroked on a 24×24 grid. */
+const GLYPHS: Record<string, string> = {
   calendar: 'M6.5 5h11a3 3 0 0 1 3 3v9.5a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3zM3.5 10h17M8 3v4M16 3v4',
   wc: 'M2.5 8l2.2 8 2.3-5.5 2.3 5.5 2.2-8M20.5 8.8A4 4 0 1 0 20.5 15.2',
   drop: 'M12 3.5s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11z',
@@ -67,6 +68,7 @@ const GLYPHS = {
 };
 
 // The switches under "Events and places" in Settings, in this order. Earlier groups win where icons would overlap.
+/** The switches under "Events and places", in the order they are listed. Earlier groups win where icons would overlap. */
 const GROUPS: MapGroup[] = [
   { key: 'events', label: 'Community events', color: 'rose', glyph: 'calendar', note: 'Filtered by “Events for you” below' },
   { key: 'toilets', label: 'Toilets', color: 'navy', glyph: 'wc' },
@@ -236,6 +238,11 @@ const humanize = (c: string) => {
 };
 
 // → [group, glyph, rank, label]
+/**
+ * Sorts a data category into a map group.
+ * @param category the category in data/*.json: 'pharmacy', 'drinking_water', 'cafe'
+ * @param placeGroup the "group" of a record of places.json ('food_drink', 'shopping', …); left out for the other files
+ */
 function classify(category: string, placeGroup?: string): PlaceClass {
   if (CATS[category]) return CATS[category];
   const label = LABELS[category] || humanize(category);
@@ -269,7 +276,8 @@ function classify(category: string, placeGroup?: string): PlaceClass {
 
 // Search words (German, French, everyday English) → the words in the labels above, so "apotheke", "wc" or
 // "brunnen" find the nearest pharmacy, toilet or drinking fountain
-const SEARCH_ALIASES = {
+/** Search word (German, French, everyday English: 'apotheke', 'wc') → the words of the labels it means ('pharmacy', 'toilet'). */
+const SEARCH_ALIASES: Record<string, string> = {
   wc: 'toilet', loo: 'toilet', bathroom: 'toilet', restroom: 'toilet', washroom: 'toilet', lavatory: 'toilet',
   toilette: 'toilet', toiletten: 'toilet', klo: 'toilet', toilettes: 'toilet',
   apotheke: 'pharmacy', pharmacie: 'pharmacy', farmacia: 'pharmacy', drugstore: 'pharmacy', drogerie: 'chemist',
@@ -293,4 +301,4 @@ const SEARCH_ALIASES = {
   hilfe: 'help', beratung: 'social', sozial: 'social', schliessfach: 'lockers',
 };
 
-export const MAP_LAYERS: MapLayersApi = { COLORS, GLYPHS, GROUPS, SEARCH_ALIASES, classify };
+export const MAP_LAYERS = { COLORS, GLYPHS, GROUPS, SEARCH_ALIASES, classify };

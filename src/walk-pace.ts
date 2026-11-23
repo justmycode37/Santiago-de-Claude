@@ -367,11 +367,11 @@ simUndo.addEventListener('click', () => { pts.pop(); lastResult = ''; drawPath()
 simClear.addEventListener('click', () => { pts = []; lastResult = ''; drawPath(); });
 document.getElementById('simClose')!.addEventListener('click', closeDraw);
 
-export const WALK_PACE: WalkPaceApi = {
+export const WALK_PACE = {
   // every real location fix: { ll: [lng, lat], acc: metres, speed: m/s or nothing, t: ms }
-  fix(f) { if (on()) live.fix(f); },
+  fix(f: WalkPaceFix): void { if (on()) live.fix(f); },
   // the main script hands over the map, a way to set your position, and one to put the real one back
-  attach(h) {
+  attach(h: WalkPaceHooks): void {
     hooks = h;
     const NS = 'http://www.w3.org/2000/svg';
     svg = document.createElementNS(NS, 'svg');
@@ -389,7 +389,8 @@ export const WALK_PACE: WalkPaceApi = {
       drawPath();
     });
   },
-  drawing: () => drawOpen,   // taps on the map draw the path
+  /** Is the path panel open? Then taps on the map draw the path. */
+  drawing: (): boolean => drawOpen,   // taps on the map draw the path
 };
 
 // ---- Start ----

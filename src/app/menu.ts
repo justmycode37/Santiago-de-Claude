@@ -1,5 +1,6 @@
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
+import type { STOPVISION } from '../stopvision.ts';
 import { EVENT_MIN_ZOOM, eventsOn, setEventsOn, updateCards, visibleEvents } from './map-events.ts';
 import { fixAge, userAccuracy, userLngLat } from './location.ts';
 import { PLATFORMS, openPlatform, platformKey, platformsReady, startPlatforms } from './platforms.ts';
@@ -26,7 +27,7 @@ export const eventsBtn = document.getElementById('eventsBtn')!;
 /** iOS Safari: the compass has to be asked for, from a tap. */
 export type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
 // Scan's screen with these hooks, once stopvision.ts and the stop positions are loaded (also used by the AR camera)
-let scan: StopVisionApi | null = null;
+let scan: typeof STOPVISION | null = null;
 export function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation: Promise<unknown>, then?: () => void) {
   startPlatforms(); // the stop positions are needed straight away
   const go = () => platformsReady.then(() => scan!.open(hooks, camera, orientation)).then(() => { if (then) then(); });

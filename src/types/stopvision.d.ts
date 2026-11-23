@@ -215,17 +215,6 @@ interface StopVisionDebug {
   edgeOf(c: StopVisionCandidate): StopVisionEdgeGuess | null;
 }
 
-interface StopVisionApi {
-  /**
-   * Open the Scan screen. camera: the answer to getUserMedia(), asked by the caller while the tap still counts
-   * as a user gesture; orientation: the same for the compass permission (iOS), only its failure is swallowed.
-   */
-  open(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation?: Promise<unknown>): Promise<void>;
-  close(): void;
-  /** Load both engines, then time `runs` photo fingerprints and up to 3 sign readings on an image. */
-  bench(img: HTMLImageElement, runs?: number, log?: (text: string, sofar?: Partial<StopVisionBenchResult>) => void): Promise<StopVisionBenchResult>;
-  _debug: StopVisionDebug;
-}
 
 // ---- stop-images/ (tools/build_stop_images.py): photo fingerprints and timetable lines of stops ----
 

@@ -54,28 +54,4 @@ type JourneySettings = Pick<Settings, 'stepFree' | 'fewerStairs' | 'noEscalators
 /** Valhalla pedestrian costing options: route for a wheelchair, or keep away from steps. */
 type WalkCosting = { type: 'wheelchair' } | { step_penalty: number };
 
-interface SettingsApi {
-  /** Opens the Settings page (URL #settings); `anchor` = id of a heading on the page to open it at. */
-  open(anchor?: string): void;
-  close(): void;
-  /** The event tags switched on under "About you" and "Events"; none = show every event. */
-  eventTags(): string[];
-  /** The map groups the events button shows, in the order of MAP_LAYERS.GROUPS. */
-  mapGroups(): MapGroupKey[];
-  /** How walks are to be routed, or null for the normal walking router. */
-  walkCosting(): WalkCosting | null;
-  /** The transport types to travel with (KanteJourney.options() turns them into the engine's modes); [] = all. */
-  transportations(): TransportMode[];
-  /** The settings with the accessibility options worked out (wheelchair → step-free → fewer stairs, no escalators). */
-  prefs(): Settings;
-  journey(): JourneySettings;
-  /** The five stops of the walking speed slider, slow to fast (a copy). */
-  speedPresets: SpeedPreset[];
-  /** Changes settings, saves them and tells the listeners. `by`: 'auto' when the app changes a setting by itself. */
-  set(patch: Partial<Settings>, by?: SettingsChangedBy): void;
-  /** `fn` is called after every change of a setting. Returns the number of listeners. */
-  onChange(fn: SettingsChangeListener): number;
-  /** `fn` is called when the page closes, with whether a journey option was changed while it was open. */
-  onClose(fn: (journeyChanged: boolean) => void): number;
-}
 

@@ -31,11 +31,4 @@ interface WalkPaceHooks {
   restore(): void;
 }
 
-interface WalkPaceApi {
-  /** Every real location fix goes here; nothing happens with it while "Adjust to how I walk" is off. */
-  fix(f: WalkPaceFix): void;
-  attach(h: WalkPaceHooks): void;
-  /** Is the path panel open? Then taps on the map draw the path. */
-  drawing(): boolean;
-}
 

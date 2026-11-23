@@ -18,6 +18,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 // ---- Settings → routing options (kante/engine/crates/server/src/json.rs, PlanOptions) ----
 // The app's transport types (settings.ts) → the engine's modes
 const ENGINE_MODES: Record<TransportMode, KanteMode[]> = { train: ['rail', 'rack'], tram: ['tram', 'metro'], bus: ['bus', 'ondemand', 'other'], ship: ['boat'], cableway: ['cableway', 'funicular', 'lift'] };
+/** The traveller's settings as routing options. */
 function options() {
   const p = SETTINGS.prefs();
   const o: KanteRoutingOptions = {
@@ -89,6 +90,7 @@ function rideOf(legs: KanteRideLeg[]): JourneyRide {
     seqIdx, live: legs.map(() => ({ at: 0, fails: 0 })) };
 }
 // An answer of /api/trip for leg n of the ride: its calls written into the ride's stops
+/** Writes an answer of /api/trip for trip n of the ride (its leg) into the ride's stops. */
 function applyTrip(ride: JourneyRide, n: number, trip: KanteTrip) {
   const idx = ride.seqIdx[n], leg = ride.legs[n], last = ride.legs.length - 1;
   if (!idx || !leg) return;
@@ -101,6 +103,7 @@ function applyTrip(ride: JourneyRide, n: number, trip: KanteTrip) {
 
 // Where stop k of a ride is boarded or left → { ll, edge, travel }. edge is null when the engine only knows the
 // stop, not the boarding point; travel is the way the vehicle leaves, at the first stop.
+/** Where stop k of a ride is boarded or left: its boarding point, and for the first stop the way the vehicle leaves. */
 function at(ride: JourneyRide, k: number): JourneyPlatformAt {
   const q = ride.stops[k].quay;
   const ll: LngLat = [q.lon, q.lat];
@@ -113,6 +116,7 @@ function at(ride: JourneyRide, k: number): JourneyPlatformAt {
 // ---- Journeys ----
 // A walk shorter than half a minute would round to "0 min" and drop out of the trip; one that has a way
 // to go still counts as a walk
+/** A walk's time as the trip shows it, seconds: at least half a minute when it has a way to go (10 m or more). */
 const shownSecs = (leg: KanteWalk) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
 function journeyOf(j: KanteJourney): Journey {
   const groups: (KanteRideLeg[] | KanteWalkLeg)[] = [];
@@ -201,6 +205,11 @@ async function ask(body: KantePlanRequest) {
 }
 // Every way to make the trip, for the list to choose from → { list: by departure, walk: walking all the way (or
 // null), best: the one to show first, earlier / later: whether more() has any, request: what more() asks with }
+/**
+ * Every journey the engine offers for the trip, and walking all the way when that is near enough. null: the engine
+ * found none (or the trip has no end yet). Throws a KanteError when the engine is off or cannot be reached.
+ * fromLL: where from; dest: a search result.
+ */
 async function plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null): Promise<JourneyOptions | null> {
   const body = request(fromLL, dest, query);
   if (!body) return null;
@@ -218,6 +227,10 @@ async function plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat 
   return { list, walk, best, earlier: !!res.earlier, later: !!res.later, request: { body, earlier: res.earlier, later: res.later } };
 }
 // Earlier or later journeys for the same trip, added to plans()'s answer → true when there was a page to ask for
+/**
+ * Adds the earlier or later journeys for the same trip to plans()'s answer (`list`, `earlier`, `later`).
+ * → false when there was no page to ask for. Throws when the engine cannot be reached.
+ */
 async function more(o: JourneyOptions | null | undefined, dir: 'earlier' | 'later') {
   const r = o && o.request, cursor = r && r[dir];
   if (!cursor) return false;
@@ -257,6 +270,7 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
 }
 // A walk or change step gets the engine's walk: its time, and its path, directions and floor changes when the
 // engine has routed it (an approximate one is left to the page's own walking routers)
+/** Gives a walk or change step the engine's walk: its time, and its path, directions and floor changes when it has one. */
 function setWalk(st: JourneyWalkStep | JourneyChangeStep, leg: KanteWalk) {
   st.walkS = leg.durationS; // to the second, for the time to spare at a change
   st.kanteWalk = !leg.approximate && !!leg.geometry && leg.geometry.length > 1;
@@ -267,6 +281,10 @@ function setWalk(st: JourneyWalkStep | JourneyChangeStep, leg: KanteWalk) {
 // After live data: a platform change moves the boarding (or alighting) point. Put the ride's ends, and the
 // walks that lead to and from them, on the new one. changed() is called whenever a line on the map has moved.
 const requayed = new WeakMap<JourneyStep, LngLat[][]>(); // the walk requay() last moved, by the lines it drew
+/**
+ * After live data: moves the rides' ends, and the walks to and from them, to the boarding points now in use.
+ * changed() is called whenever a line on the map has moved (also later, when a walk has been routed again).
+ */
 function requay(steps: JourneyStep[], changed: () => void) {
   const same = (a: LngLat | null | undefined, b: LngLat | null | undefined) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
   const lastOf = (st: JourneyStep) => { const l = st.lines && st.lines[st.lines.length - 1]; return l && l[l.length - 1]; };
@@ -331,4 +349,4 @@ function requay(steps: JourneyStep[], changed: () => void) {
   if (moved) changed();
 }
 
-export const KanteJourney: KanteJourneyApi = { plans, more, at, walkSecs: shownSecs, setWalk, applyTrip, requay, options };
+export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, applyTrip, requay, options };

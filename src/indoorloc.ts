@@ -31,6 +31,7 @@ const KIND_ID = { walk: 0, stairs: 1, escalator: 2, elevator: 3, ramp: 4 };
 const F_INDOOR = 1, F_ONEWAY = 2, F_NOT_STEPFREE = 4, F_OUTDOOR = 8;
 
 // closures as in SCHEMA.md: closed when from <= today < until
+/** Closed when from <= today < until (today: "YYYY-MM-DD"). */
 function isClosed(c: StationClosure | null | undefined, today?: string | null) {
   if (!c) return false;
   const d = today || new Date().toISOString().slice(0, 10);
@@ -38,7 +39,7 @@ function isClosed(c: StationClosure | null | undefined, today?: string | null) {
 }
 
 function Model(this: IndoorModel, m: StationModel, opts: IndoorModelOptions = {}) {
-  if (!(this instanceof Model)) return new (Model as IndoorLocApi['Model'])(m, opts);
+  if (!(this instanceof Model)) return new (Model as IndoorParts['Model'])(m, opts);
   this.raw = m;
   this.key = m.key; this.name = m.name; this.uics = m.uics || [];
   this.origin = m.origin;
@@ -266,7 +267,7 @@ interface FilterSelf extends IndoorFilter {
 }
 
 function Filter(this: FilterSelf, model: IndoorModel, opts: IndoorFilterOptions = {}) {
-  if (!(this instanceof Filter)) return new (Filter as IndoorLocApi['Filter'])(model, opts);
+  if (!(this instanceof Filter)) return new (Filter as IndoorParts['Filter'])(model, opts);
   this.M = model;
   this.o = Object.assign({}, DEFAULTS, opts);
   this.rand = rng(opts.seed || Date.now());
@@ -816,7 +817,7 @@ interface SensorsSelf extends IndoorSensors {
   _h: SensorHandlers;
   stopped?: boolean;
   _geo?: number;
-  _tick?: number;
+  _tick?: ReturnType<typeof setInterval>;
   _baro?: BaroPlugin;
   _baroHandle?: BaroHandle;
   _gyroSince?: number;
@@ -834,7 +835,7 @@ interface SensorsSelf extends IndoorSensors {
 }
 
 function Sensors(this: SensorsSelf, filter: IndoorFilter, opts: IndoorSensorsOptions = {}) {
-  if (!(this instanceof Sensors)) return new (Sensors as IndoorLocApi['Sensors'])(filter, opts);
+  if (!(this instanceof Sensors)) return new (Sensors as IndoorParts['Sensors'])(filter, opts);
   this.f = filter;
   this.opts = opts;
   this.onRaw = opts.onRaw || null;
@@ -1019,6 +1020,7 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 // compass heading (deg, clockwise from north) from W3C deviceorientation angles (z-x'-y'' intrinsic, absolute alpha).
 // Walking with the phone in hand, the top edge points where you go: its horizontal direction is used while the
 // phone is flat or tilted towards you; held upright, the back (camera) direction. Null when neither is defined.
+/** Compass heading (deg, clockwise from north) from deviceorientation angles; null when it is not defined. */
 function compassFromEuler(alpha: number | null, beta: number | null, gamma: number | null) {
   if (![alpha, beta, gamma].every(Number.isFinite)) return null;
   const r = Math.PI / 180;
@@ -1042,7 +1044,7 @@ interface RecorderSelf extends IndoorRecorder {
   t0: number | null;
 }
 function Recorder(this: RecorderSelf, meta: IndoorLogMeta = {}) {
-  if (!(this instanceof Recorder)) return new (Recorder as IndoorLocApi['Recorder'])(meta);
+  if (!(this instanceof Recorder)) return new (Recorder as IndoorParts['Recorder'])(meta);
   this.meta = Object.assign({ v: 1, ua: typeof navigator !== 'undefined' ? navigator.userAgent : 'node', start: new Date().toISOString() }, meta);
   this.events = [];
   this.t0 = null;
@@ -1058,8 +1060,9 @@ function Recorder(this: RecorderSelf, meta: IndoorLogMeta = {}) {
 (Recorder.prototype as RecorderSelf).toJSON = function (): IndoorLog { return { meta: this.meta, events: this.events }; };
 
 // Replay a recording through a filter → { estimates: [[t, est]], errors: [{ t, d, levelOk }] at checkpoints }
+/** A recording through a new filter. */
 function replay(log: IndoorLog, model: IndoorModel, opts: IndoorReplayOptions = {}) {
-  const f = new (Filter as IndoorLocApi['Filter'])(model, Object.assign({ seed: 1 }, opts));
+  const f = new (Filter as IndoorParts['Filter'])(model, Object.assign({ seed: 1 }, opts));
   const out: IndoorReplayResult = { estimates: [], checkpoints: [] };
   const prior = opts.prior || (log.meta && log.meta.prior);
   if (prior) f.prior(prior);
@@ -1089,9 +1092,10 @@ function replay(log: IndoorLog, model: IndoorModel, opts: IndoorReplayOptions = 
 // ================================================================================================ loading
 // The model of a station: through loadData when the viewer is on the page (indoornav.ts passes Station3D.loadData,
 // which loads the file once for both), else straight from stations3d/<key>.js. → Promise<Model | null>
+/** A station's model: through loadData when the viewer is on the page, else from `base` + key + '.js'. */
 function load(key: string, base = 'stations3d/', loadData?: (key: string) => Promise<StationModel | null>): Promise<IndoorModel | null> {
   const W = globalThis; // where the station models put themselves (stations3d/<key>.js)
-  const make = (m: StationModel | null | undefined) => (m ? new (Model as IndoorLocApi['Model'])(m) : null);
+  const make = (m: StationModel | null | undefined) => (m ? new (Model as IndoorParts['Model'])(m) : null);
   if (W.STATION3D && W.STATION3D[key]) return Promise.resolve(make(W.STATION3D[key]));
   if (loadData) return loadData(key).then(make);
   return new Promise((resolve) => {
@@ -1103,8 +1107,21 @@ function load(key: string, base = 'stations3d/', loadData?: (key: string) => Pro
   });
 }
 
+/** The four parts as constructors: each is a function that makes its object, with or without `new`. */
+export interface IndoorParts {
+  Model: IndoorCtor<[m: StationModel, opts?: IndoorModelOptions], IndoorModel>;
+  Filter: IndoorCtor<[model: IndoorModel, opts?: IndoorFilterOptions], IndoorFilter>;
+  Sensors: IndoorCtor<[filter: IndoorFilter, opts?: IndoorSensorsOptions], IndoorSensors>;
+  Recorder: IndoorCtor<[meta?: IndoorLogMeta], IndoorRecorder>;
+}
+
 export const INDOORLOC = {
-  Model, Filter, Sensors, Recorder, replay, load, isClosed, compassFromEuler, rng, KIND,
-  pushPressure: (hPa: number) => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('indoorloc:pressure', { detail: { hPa } })),
+  Model: Model as IndoorParts['Model'], Filter: Filter as IndoorParts['Filter'], Sensors: Sensors as IndoorParts['Sensors'],
+  Recorder: Recorder as IndoorParts['Recorder'], replay, load, isClosed, compassFromEuler, rng,
+  /** `Model.ek` → the edge's kind. */
+  KIND,
+  /** A barometer reading from a native wrapper. → was the event dispatched? */
+  pushPressure: (hPa: number): boolean => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('indoorloc:pressure', { detail: { hPa } })),
+  /** Bits of `Model.ef`. */
   flags: { F_INDOOR, F_ONEWAY, F_NOT_STEPFREE, F_OUTDOOR },
-} as IndoorLocApi;
+};

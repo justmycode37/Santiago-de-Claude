@@ -378,12 +378,18 @@ async function reverse(lngLat: LngLat) {
   return label ? { title: far > 80 ? `Near ${label}` : label } : null;
 }
 
-export const PlaceSearch: PlaceSearchApi = {
+export const PlaceSearch = {
+  /** Places for what was typed: the nearest of a kind for a category word, else places with that name. */
   search,
+  /** What stands at a point ('Kramgasse 12', 'Near Bärenpark'), or null when nothing is known there. */
   reverse,
+  /** OpenStreetMap places: adds website, opening hours, a photo and a score from OpenStreetMap and Wikidata (in place). */
   enrich,
-  matchCategory: (t) => { const c = matchCategory(t); return c ? c.label : null; },
+  /** The kind of place a text asks for ('Pharmacies' for "apotheke"), or null. */
+  matchCategory: (t: string): string | null => { const c = matchCategory(t); return c ? c.label : null; },
   source: GOOGLE_KEY ? 'google' : 'osm',
+  /** The credit line to show with results. */
   attribution: GOOGLE_KEY ? 'Google Maps' : 'Places © OpenStreetMap contributors',
+  /** Metres in words: '120 m', '1.4 km', '12 km'. */
   formatDistance,
 };

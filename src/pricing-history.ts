@@ -137,14 +137,14 @@ function confirm(trip: Partial<PricingTrip> = {}) {
   return save([{ id, from: trip.from!, to: trip.to!, date, departure, fare, halfFare }, ...trips]) ? 'saved' : 'unavailable';
 }
 
-function routeFare(from: string, to: string) {
+function routeFare(from: string, to: string): (TicketFare & { date: string }) | null {
   if (typeof from !== 'string' || typeof to !== 'string') return null;
   const routeKey = (name: string) => name.trim().normalize().toLocaleLowerCase('de-CH');
   if (tracking() !== true) return null;
   const today = dateKey(new Date());
   const origin = routeKey(from);
   const destination = routeKey(to);
-  let best: ReturnType<PricingHistoryApi['routeFare']> = null;
+  let best: ReturnType<typeof routeFare> = null;
   let bestDeparture = -Infinity;
   for (const trip of list()) {
     if (trip.date > today || Date.parse(trip.departure!) > Date.now()) continue;
@@ -185,9 +185,9 @@ function setDummy(on: boolean) {
   return save(trips.sort((a, b) => String(b.departure).localeCompare(String(a.departure))));
 }
 
-export const PRICING_HISTORY: PricingHistoryApi = {
+export const PRICING_HISTORY = {
   setDummy,
-  hasDummy: () => list().some((trip) => trip.dummy),
+  hasDummy: (): boolean => list().some((trip) => trip.dummy),
   list,
   dateKey,
   confirm,
@@ -196,13 +196,13 @@ export const PRICING_HISTORY: PricingHistoryApi = {
   setProfile,
   setHalfFare,
   routeFare,
-  update(id, { fare, halfFare }) {
+  update(id: string, { fare, halfFare }: TicketFare): boolean {
     if (tracking() !== true) return false;
     const trips = list();
     if (!trips.some((trip) => trip.id === id)) return false;
     return save(trips.map((trip) => trip.id === id
       ? { ...trip, fare: fareValue(fare), halfFare: fareValue(halfFare) } : trip));
   },
-  remove: (id) => save(list().filter((trip) => trip.id !== id)),
-  clear: () => save([]),
+  remove: (id: string): boolean => save(list().filter((trip) => trip.id !== id)),
+  clear: (): boolean => save([]),
 };

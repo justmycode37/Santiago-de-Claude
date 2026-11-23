@@ -27,6 +27,7 @@ const nearest = <T>(list: T[], dist: (x: T) => number) => list.reduce((a, b) => 
 
 // Which edges of the stop is each quay? → Map: quay id → [index…] ([] = a boarding point the map has no dot for,
 // or one the engine only knows as the stop)
+/** Which edges of the stop each boarding point is, by its id ([] = none of them, or the engine only knows the stop). */
 function edgesOfQuays(st: KanteBoardStop, quays: KanteQuay[]) {
   const out = new Map<string, number[]>();
   const edges = st.edges.map((e, i) => ({ i, key: e.key, ll: e.ll }));
@@ -67,6 +68,7 @@ function edgesOfQuays(st: KanteBoardStop, quays: KanteQuay[]) {
 }
 
 // The engine's answer → its departures, soonest first, each with its line as the badges read it and its edges
+/** The engine's answer as a board. Cancelled departures are left out. */
 function toBoard(st: KanteBoardStop, data: KanteDeparturesResponse): BoardDeparture[] {
   const where = edgesOfQuays(st, data.quays || []);
   const real = (d: KanteDeparture) => d.dep + (d.live && d.delayS || 0);
@@ -94,7 +96,7 @@ const stationOf = new Map<string, string | null>();
 
 // More departures of one edge than the stop's board holds (a bay served twice an hour at a busy station, or
 // only at night): the next ones of its own quays, within a day, added to `data`.
-async function addOwn(K: KanteApi, st: KanteBoardStop, data: KanteDeparturesResponse, edge: number) {
+async function addOwn(K: typeof KANTE, st: KanteBoardStop, data: KanteDeparturesResponse, edge: number) {
   const own: string[] = [];
   for (const [id, on] of edgesOfQuays(st, data.quays || [])) if (on.includes(edge)) own.push(id);
   const have = new Set(data.departures.map((d) => d.tripId + '|' + d.serviceDate + '|' + d.seq));
@@ -112,6 +114,11 @@ async function addOwn(K: KanteApi, st: KanteBoardStop, data: KanteDeparturesResp
 
 // uic: the stop's id in PLATFORMS, st: its entry there, edge: the edge the list is for (index; leave it out for
 // the stop as a whole). Throws (a KanteError) when the engine is off or cannot be reached.
+/**
+ * The next departures of a stop, soonest first ([] when the engine has none for it). uic: the stop's UIC number;
+ * st: its entry in PLATFORMS; edge: the edge the board is for (index; left out: the stop as a whole), which gets
+ * more departures of its own when the stop's board has few. Throws a KanteError when the engine is off or down.
+ */
 async function load(uic: string | number, st: KanteBoardStop, edge?: number | null) {
   const K = KANTE;
   if (!K) throw Object.assign(new Error('engine.js not loaded'), { reason: 'off' });
@@ -132,4 +139,4 @@ async function load(uic: string | number, st: KanteBoardStop, edge?: number | nu
   return toBoard(st, data);
 }
 
-export const KANTE_BOARD: KanteBoardApi = { load, toBoard, edgesOfQuays };
+export const KANTE_BOARD = { load, toBoard, edgesOfQuays };

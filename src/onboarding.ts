@@ -720,6 +720,7 @@ function runDemo() {
   });
 }
 
+/** Shows the introduction (again). Does nothing while it is open. */
 function open() {
   if (isOpen) return;
   isOpen = true;
@@ -790,7 +791,7 @@ if (reset && SETTINGS) {
 }
 if (SETTINGS) SETTINGS.onChange(render);
 
-export const ONBOARDING: OnboardingApi = { open, isOpen: () => isOpen };
+export const ONBOARDING = { open, isOpen: (): boolean => isOpen };
 
 if (html.dataset.onboarding) {
   if (SETTINGS) open();

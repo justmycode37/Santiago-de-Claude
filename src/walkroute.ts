@@ -712,9 +712,10 @@ async function route(a: LngLat, b: LngLat, opt: WalkRouteOptions = {}) {
 }
 
 
-export const WALKROUTE: WalkRouteApi = {
+export const WALKROUTE = {
   route,
-  covers: async (ll) => { const idx = await loadIndex(); return !!(idx && idx.tiles[tileKey(ll, idx.tile)]); },
-  configure: (o) => { if (o.loader) loader = o.loader; if (o.base) base = o.base; if (o.index) index = o.index; },
+  covers: async (ll: LngLat): Promise<boolean> => { const idx = await loadIndex(); return !!(idx && idx.tiles[tileKey(ll, idx.tile)]); },
+  configure: (o: { loader?: WalkGraphLoader; base?: string; index?: WalkGraphIndex }): void => { if (o.loader) loader = o.loader; if (o.base) base = o.base; if (o.index) index = o.index; },
+  /** For the tests (tools/test_walkroute.mts). */
   _debug: { nodes, buildings, entrances, inGraph, endpoint, buildingsAt, cutsBuilding, search, distM },
 };

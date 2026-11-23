@@ -68,24 +68,3 @@ interface ArDecision {
   confidence?: number | null;
 }
 
-interface ArCoreApi {
-  words(value: string): string[];
-  canonical(value: string): string;
-  lineKey(line: string): string;
-  isRouteToken(word: string): boolean;
-  confusionKey(token: string): string;
-  weightedVariants(destination: string): { words: string[]; weight: number }[];
-  similarity(a: string, b: string): number;
-  destinationSimilarity(a: string, b: string): number;
-  sameDisplay(a: ArCandidate, b: ArCandidate): boolean;
-  identity(c: ArCandidate): string;
-  normalize(value: string): string;
-  match(texts: ArText[], candidates: ArCandidate[], positions?: Record<string, number>): ArBoardMatch;
-  read(texts: ArText[], detection: ArDetection, others: ArBox[], at: number, frameId: string, eitherSide?: boolean): ArReading;
-  decide(readings: ArReading[], lastSeen: number, expected: ArExpectation | null, now: number, positions?: Record<string, number>): ArDecision;
-  decisionText(d: ArDecision, expected: ArExpectation | null): string;
-  credibleContradiction(r: ArReading, expected: ArExpectation): boolean;
-  iou(a: ArBox, b: ArBox): number;
-  /** For tests: how "text box inside the vehicle's box" is decided. */
-  options: { containsBox(outer: ArBox, inner: ArBox): boolean };
-}

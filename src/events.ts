@@ -12,6 +12,7 @@ const CATEGORIES: Record<EventCategory, { color: string; ink?: string; label: st
 };
 
 // Stroke glyphs on a 24×24 grid, drawn white (navy on sun) on the coloured circle
+/** Category → SVG path data of its glyph, stroked on a 24×24 grid. */
 const GLYPHS = {
   workshop: 'M4 16l-1 5 5-1L20 8l-4-4zM13 7l4 4',
   language:  'M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z',
@@ -80,6 +81,7 @@ listings.push(...window.SWISS_WORKSHOPS, ...scheduledEvents, ...window.COMMUNITY
 const year = new Date().getFullYear();
 const thisYear = new RegExp(String.raw`(\d{1,2}\.? [^\s\d·–-]+) ${year}\b`, 'g');
 const shortWhen = (w: string) => ((w.match(/\b(?:19|20)\d\d\b/g) || []).some((y) => +y !== year) ? w : w.replace(thisYear, '$1'));
+/** Every event, past ones included (matches() leaves those out). */
 const features: EventFeature[] = listings.map(({ coordinates, ...listing }) => ({
   type: 'Feature',
   geometry: { type: 'Point', coordinates },
@@ -94,10 +96,15 @@ const features: EventFeature[] = listings.map(({ coordinates, ...listing }) => (
   },
 }));
 
+/**
+ * Is the event still on, and does it have one of the tags asked for?
+ * @param preferences tags (SETTINGS.eventTags()); none = every event
+ * @param now ms since 1970; left out: the present moment
+ */
 function matches(event: EventFeature, preferences: string[], now = Date.now()) {
   const { through, tags } = event.properties;
   return (!through || Date.parse(through) >= now)
     && (!preferences.length || preferences.some((preference) => tags.includes(preference)));
 }
 
-export const EVENTS: EventsApi = { GLYPHS, features, matches };
+export const EVENTS = { GLYPHS, features, matches };

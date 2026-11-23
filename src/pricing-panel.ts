@@ -1,10 +1,11 @@
 import { recommendFromHistory } from './pricing-engine.ts';
 import type { FareOffer } from './pricing-engine.ts';
+import type { PRICING_HISTORY } from './pricing-history.ts';
 
 /** `openSuggestions(options)` */
 export interface FareSuggestionsOptions {
   /** The saved trips and the travel profile: PRICING_HISTORY. */
-  history: PricingHistoryApi;
+  history: typeof PRICING_HISTORY;
   /** Gets the focus back when the window closes (default: the element that has it now). */
   trigger?: HTMLElement | null;
   /** Called after the profile or a saved trip was changed. */

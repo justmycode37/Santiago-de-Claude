@@ -25,19 +25,4 @@ type PlaceRank = 1 | 2 | 3 | 4 | 5;
 /** How one kind of place is shown: its group, its glyph (a key of MAP_LAYERS.GLYPHS), its rank, and what it is called. */
 type PlaceClass = [group: MapGroupKey, glyph: string, rank: PlaceRank, label: string];
 
-interface MapLayersApi {
-  COLORS: Record<MapColorName, MapColor>;
-  /** Glyph name → SVG path data, stroked on a 24×24 grid. */
-  GLYPHS: Record<string, string>;
-  /** The switches under "Events and places", in the order they are listed. Earlier groups win where icons would overlap. */
-  GROUPS: MapGroup[];
-  /** Search word (German, French, everyday English: 'apotheke', 'wc') → the words of the labels it means ('pharmacy', 'toilet'). */
-  SEARCH_ALIASES: Record<string, string>;
-  /**
-   * Sorts a data category into a map group.
-   * @param category the category in data/*.json: 'pharmacy', 'drinking_water', 'cafe'
-   * @param placeGroup the "group" of a record of places.json ('food_drink', 'shopping', …); left out for the other files
-   */
-  classify(category: string, placeGroup?: string): PlaceClass;
-}
 

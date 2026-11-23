@@ -223,6 +223,7 @@ function zFn(model: StationModel) {
   zCache.set(model, f);
   return f;
 }
+/** Metres above level 0 for a level number (piecewise linear through model.levels[].z). */
 const z = (model: StationModel, level: number) => zFn(model)(level);
 
 // ---------- platformKey: the reference rule ----------
@@ -234,6 +235,7 @@ const z = (model: StationModel, level: number) => zFn(model)(level);
 //   3. if it then starts with digits, the key is those digits ("7A-D" → "7", "Gleis 7" → "7", "12 Sektor B" → "12");
 //   4. otherwise the key is the letters and digits only ("Kante H" → "H", "K1" → "K1", "K 1" → "K1", "–" → "").
 const PK_PREFIX = /^(GLEIS|GL\.|GL|KANTE|QUAI|VOIE|BINARIO|STEG|PERRON|PLATFORM|TRACK|BAY|PIER)\s*(?=\S)/;
+/** The comparable form of a platform / stop edge name: "Gleis 7" → "7", "7A-D" → "7", "Kante H" → "H". */
 function platformKey(p: string | number | null | undefined) {
   let s = String(p == null ? '' : p).toUpperCase().trim();
   const rest = s.replace(PK_PREFIX, '');
@@ -269,6 +271,7 @@ function activeOn(c: ClosedValue, day: string) {
   const from = validDay(c.from) ? c.from.slice(0, 10) : null, until = validDay(c.until) ? c.until.slice(0, 10) : null;
   return (!from || from <= day) && (!until || day < until);
 }
+/** `thing`: anything with a `closed` field (a stop, an area, a connector, an entrance, an edge), or that field itself. */
 function isClosed(thing: { closed?: ClosedValue } | ClosedValue, date?: Day) {
   const day = dateKey(date);
   if (thing === true) return true;
@@ -277,6 +280,7 @@ function isClosed(thing: { closed?: ClosedValue } | ClosedValue, date?: Day) {
   if ('from' in thing || 'until' in thing) return activeOn(thing, day); // a closure object itself
   return false;
 }
+/** The model's notices that are active on that date. */
 function notices(model: StationModel | null | undefined, date?: Day): StationNotice[] {
   const day = dateKey(date);
   const out = [];
@@ -627,6 +631,7 @@ function stopNodes(P: Prepared, model: StationModel, s: StationStop) {
   return ns;
 }
 
+/** Every place on the graph an endpoint can mean on that date (open ones first); empty when it is unknown. */
 function resolve(model: StationModel, ep: Endpoint, date?: Day): StationRouteCandidate[] {
   const P = prepare(model);
   if (!ep) return [];
@@ -1093,6 +1098,7 @@ function levelObj(model: StationModel, level: number) {
   return best && Math.abs(best.id - level) < 0.5 ? best : null;
 }
 // Name of the nearest whole level ("the underpass", "level −3")
+/** The name of the nearest whole level, as it reads in a sentence: "the underpass", "level −3". */
 function levelName(model: StationModel, level: number) {
   const l = levelObj(model, level);
   return l && l.name ? articled(l.name) : `level ${levelShort(Math.round(level))}`;
@@ -1557,6 +1563,7 @@ function plan(model: StationModel, from: Endpoint, to: Endpoint, prefs: Prefs): 
   return { P, S, Q, r, closures, incomplete, through: !!Q.through, src, dst };
 }
 
+/** null when an endpoint cannot be found, or the two are not connected even ignoring closures (why() says which). */
 function route(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): StationRouteResult | null {
   const pl = plan(model, from, to, prefs);
   if (pl.fail) return null;
@@ -1648,6 +1655,7 @@ function route(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs)
   return out;
 }
 
+/** null: route() gives a complete route. */
 function why(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): StationRouteWhy | null {
   const pl = plan(model, from, to, prefs);
   if (pl.fail) return pl.fail;
@@ -1657,6 +1665,7 @@ function why(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): 
 // ---------- Sector times ----------
 /** A sector's walk, with the search cost the sectors are compared by (taken off before they are returned). */
 type SectorWalk = StationRouteSectorTime & { _cost?: number };
+/** `from` = a platform stop. null when the platform has no sectors or the destination is not reachable. */
 function sectorTimes(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs): StationRouteSectorTimes | null {
   if (!model || !model.graph || !from || !from.stop) return null;
   const P = prepare(model);
@@ -1740,6 +1749,7 @@ function stepAt(route: StationRoutePath, index: number) {
 /** The hint of snap() once it is known to carry a previous position. */
 type PrevSnap = StationRouteSnapHint & { along: number };
 interface SnapBest { score: number; index: number; t: number; point: XYL; dist: number; along: number }
+/** `xy`: local, or `{ ll }` for GPS. `hint`: the current level, or the previous result. null for a route without points. */
 function snap(model: StationModel, route: StationRoutePath | null | undefined, xy: StationRouteXY | { ll: LngLat }, hint?: number | StationRouteSnapHint | null): StationRouteSnap | null {
   if (!route || !route.points || !route.points.length) return null;
   if (xy && !Array.isArray(xy) && xy.ll) xy = toLocal(model, xy.ll);
@@ -1812,6 +1822,7 @@ function snap(model: StationModel, route: StationRoutePath | null | undefined, x
   return { index: best!.index, t: best!.t, point: best!.point, dist: best!.dist, along: best!.along, remaining: Math.max(0, total - best!.along), step: stepAt(route, best!.index), progress };
 }
 
+/** The point that many metres along the route (clamped to it). null for a route without points. */
 function pointAt(route: StationRoutePath, m: number): XYL | null {
   const pts = route.points, D = dists(route);
   if (!pts.length) return null;
@@ -1824,4 +1835,4 @@ function pointAt(route: StationRoutePath, m: number): XYL | null {
   return [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])];
 }
 
-export const StationRoute: StationRouteApi = { toLocal, toLngLat, z, route, snap, pointAt, sectorTimes, why, isClosed, notices, resolve, platformKey, levelName, TIME };
+export const StationRoute = { toLocal, toLngLat, z, route, snap, pointAt, sectorTimes, why, isClosed, notices, resolve, platformKey, levelName, TIME };

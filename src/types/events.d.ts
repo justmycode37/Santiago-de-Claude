@@ -60,16 +60,4 @@ interface EventFeature {
   properties: EventProperties;
 }
 
-interface EventsApi {
-  /** Category → SVG path data of its glyph, stroked on a 24×24 grid. */
-  GLYPHS: Record<EventCategory, string>;
-  /** Every event, past ones included (matches() leaves those out). */
-  features: EventFeature[];
-  /**
-   * Is the event still on, and does it have one of the tags asked for?
-   * @param preferences tags (SETTINGS.eventTags()); none = every event
-   * @param now ms since 1970; left out: the present moment
-   */
-  matches(event: EventFeature, preferences: string[], now?: number): boolean;
-}
 

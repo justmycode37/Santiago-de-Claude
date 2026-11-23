@@ -38,6 +38,7 @@ function loadCss(): Promise<void> {
   return cssP;
 }
 let indexP: Promise<void> | null = null;
+/** Loads the list of stations with a continuous model (stations3d/solid-index.js). */
 function ready(): Promise<void> {
   if (!indexP) indexP = (window.STATION3D_SOLID_INDEX ? Promise.resolve() : loadScript('stations3d/solid-index.js'))
     .catch((e) => { indexP = null; throw e; });
@@ -427,16 +428,21 @@ function renderYou(u: SolidUserState) {
   } else t.textContent = `You: level ${levelTag(u.level)} · ${acc}${u.mode === 'route' ? ' · on the way' : ''}`;
 }
 
-export const StationView: StationViewApi = {
+export const StationView = {
+  /** Is there a continuous model for this station key? (after `ready()`; false before) */
   has, ready,
   open,
-  close: () => close3d(),
-  isOpen: () => !!cur,
-  setUser: (u) => {
+  close: (): void => close3d(),
+  isOpen: (): boolean => !!cur,
+  setUser: (u: Station3DUser | null | undefined): void => {
     user = u || null; userAt = performance.now();
     if (view && view.setUser) view.setUser(user);
   },
-  on: on as StationViewApi['on'], off: off as StationViewApi['off'],
-  preload: (key) => Promise.all([loadCss(), loadStation(key), loadRenderer()]).then(() => true, () => false),
-  _view: () => view,
+  /** fn(detail) at every 'opening', 'open', 'close', 'step', 'done', 'error' of the view; returns what takes it off. */
+  on: on as <K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void) => () => void,
+  off: off as <K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void) => void,
+  /** The model, its continuous companion, the router, the styles and three.js, ahead of an open. */
+  preload: (key: string): Promise<boolean> => Promise.all([loadCss(), loadStation(key), loadRenderer()]).then(() => true, () => false),
+  /** Tests: the open view. */
+  _view: (): SolidView | null => view,
 };
