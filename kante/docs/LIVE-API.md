@@ -9,7 +9,8 @@ measured ones where a vehicle has already been, the operators' forecasts for the
 where there is no live data. `liveInfo` says which, so a page never shows an estimate as a fact.
 
 `GET /api/meta` lists in `features` which of the parts below this engine has (`match`, `due`, `stream`,
-`extras`, `gtfs-rt`). A page checks it and falls back to what it did before when one is missing.
+`extras`, `gtfs-rt`). A page checks it and falls back to what it did before when one is missing. `commit` names
+the commit the engine was built from (null for a build that was not given `KANTE_COMMIT`).
 
 ## Where the data comes from
 

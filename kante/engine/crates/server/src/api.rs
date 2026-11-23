@@ -65,6 +65,10 @@ pub fn routes(app: Arc<App>) -> Router {
 
 // ------------------------------------------------------------------ meta
 
+/// The commit the engine was built from, if the build was told (`KANTE_COMMIT=<sha> cargo build`; cargo builds again
+/// when it changes).
+const BUILD_COMMIT: Option<&str> = option_env!("KANTE_COMMIT");
+
 async fn meta(State(app): S) -> Json<json::MetaResponse> {
     let tt = &app.tt;
     let b = &app.walk_bbox;
@@ -82,6 +86,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
             walk_edges: app.walk.as_ref().map(|w| w.graph().edges.len()).unwrap_or(0),
         },
         attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map: © swisstopo"],
+        commit: BUILD_COMMIT,
     })
 }
 

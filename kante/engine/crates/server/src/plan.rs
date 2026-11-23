@@ -651,13 +651,7 @@ impl App {
             }
         }
 
-        // A departure window is Pareto-optimal only within itself: a slow
-        // many-change option can survive because the faster one that beats
-        // it leaves just after the window. Drop options that are far slower
-        // than the best while also needing more changes.
-        if let Some(best) = picked.iter().min_by_key(|j| (j.arr - j.dep, j.transfers)).map(|j| (j.arr - j.dep, j.transfers)) {
-            picked.retain(|j| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0);
-        }
+        drop_far_slower(&mut picked);
         let journeys: Vec<json::Journey> =
             picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, live)).collect();
 
@@ -689,5 +683,51 @@ impl App {
         let ea = WalkEnd { name: a.place.name.clone(), pos: a.pos, stop: None, snap: self.snap_free(a.pos, &profile) };
         let eb = WalkEnd { name: b.place.name.clone(), pos: b.pos, stop: None, snap: self.snap_free(b.pos, &profile) };
         Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
+    }
+}
+
+/// A departure window is Pareto-optimal only within itself: a slow many-change option can survive because the faster
+/// one that beats it leaves just after the window. Drop options that are far slower than the best while also needing
+/// more changes, but never one that arrives first (an overnight journey that leaves in the evening and waits on the
+/// way can be the only one that arrives before the first morning one).
+fn drop_far_slower(picked: &mut Vec<Journey>) {
+    let Some(best) = picked.iter().min_by_key(|j| (j.arr - j.dep, j.transfers)).map(|j| (j.arr - j.dep, j.transfers)) else { return };
+    let first = picked.iter().map(|j| j.arr).min().unwrap_or(0);
+    picked.retain(|j| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0 || j.arr == first);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn j(dep: Secs, arr: Secs, transfers: u8) -> Journey {
+        Journey { dep, arr, transfers, legs: vec![] }
+    }
+    const H: Secs = 3600;
+
+    #[test]
+    fn the_journey_that_arrives_first_is_kept_however_long_it_waits() {
+        // asked at 21:40: an overnight journey (22:12 → 06:35, three changes) and the first morning ones, quicker
+        // with fewer changes. Before, the overnight one was dropped as far slower with more changes.
+        let mut picked = vec![j(22 * H + 12 * 60, 30 * H + 35 * 60, 3), j(30 * H + 38 * 60, 34 * H + 19 * 60, 1), j(31 * H, 34 * H + 50 * 60, 1)];
+        drop_far_slower(&mut picked);
+        assert_eq!(picked.iter().map(|j| j.arr).collect::<Vec<_>>(), vec![30 * H + 35 * 60, 34 * H + 19 * 60, 34 * H + 50 * 60]);
+    }
+
+    #[test]
+    fn a_far_slower_option_with_more_changes_that_does_not_arrive_first_is_still_dropped() {
+        let mut picked = vec![j(8 * H, 9 * H, 0), j(8 * H + 600, 11 * H, 2), j(9 * H, 10 * H, 0)];
+        drop_far_slower(&mut picked);
+        assert_eq!(picked, vec![j(8 * H, 9 * H, 0), j(9 * H, 10 * H, 0)]);
+    }
+
+    #[test]
+    fn every_option_that_arrives_first_is_kept() {
+        // two arrive first (06:21): the quick one (05:00, one change), and one that leaves at 03:00 with one more
+        // change. The second is far slower than the best with more changes, but it arrives first too: kept. One that
+        // arrives later and is as slow is not.
+        let mut picked = vec![j(5 * H, 6 * H + 21 * 60, 1), j(3 * H, 6 * H + 21 * 60, 2), j(2 * H, 7 * H, 2)];
+        drop_far_slower(&mut picked);
+        assert_eq!(picked, vec![j(5 * H, 6 * H + 21 * 60, 1), j(3 * H, 6 * H + 21 * 60, 2)]);
     }
 }
