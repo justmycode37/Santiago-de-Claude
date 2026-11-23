@@ -1,5 +1,6 @@
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
+import { isUpdate, load } from '../lazy.ts';
 import type { STOPVISION } from '../stopvision.ts';
 import { EVENT_MIN_ZOOM, eventsOn, setEventsOn, updateCards, visibleEvents } from './map-events.ts';
 import { fixAge, userAccuracy, userLngLat } from './location.ts';
@@ -14,6 +15,8 @@ import { journey } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { SETTINGS } from '../settings.ts';
 import type { StopVisionHooks } from '../stopvision.ts';
+import { KANTE_BOARD } from '../engine-departures.ts';
+import { indoor } from '../station3d.ts';
 // ---------- Top-right menu ----------
 export const menu = document.getElementById('menu')!;
 const menuBtn = document.getElementById('menuBtn')!;
@@ -34,8 +37,8 @@ export function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream
   const go = () => platformsReady.then(() => scan!.open(hooks, camera, orientation)).then(() => { if (then) then(); });
   if (scan) go();
   else {
-    import('../stopvision.ts').then((m) => { scan = m.STOPVISION; }).then(go, () => {
-      showToast('Scan could not be loaded.');
+    load(import.meta.url, () => import('../stopvision.ts')).then((m) => { scan = m.STOPVISION; }).then(go, (e) => {
+      showToast(isUpdate(e) ? 'The app has been updated. Reload the page to use Scan.' : 'Scan could not be loaded.');
       camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
     });
   }
@@ -53,6 +56,8 @@ export function scanHooks(): StopVisionHooks {
       openPlatform({ properties: { id: String(id), i } });
     },
     toast: (t) => showToast(t),
+    board: KANTE_BOARD,
+    signs: () => indoor.sign,
     onClose: () => menuBtn.focus(),
     // What is about to stop at a place, from the Kante engine (/api/due, kante/docs/LIVE-API.md); null without it
     due: (params) => (KANTE && KANTE.base

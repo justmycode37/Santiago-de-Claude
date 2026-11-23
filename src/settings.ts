@@ -8,6 +8,7 @@
 // Everything is saved on this device only.
 import { PRICING_HISTORY, keepTripsWhen } from './pricing-history.ts';
 import { showToast } from './toast.ts';
+import { isUpdate, load } from './lazy.ts';
 import { MAP_LAYERS } from './map-layers.ts';
 import { setTheme } from './theme.ts';
 import type { MapGroupKey } from './map-layers.ts';
@@ -315,19 +316,21 @@ function renderPricing() {
 export const openFareSuggestions = async (trigger: HTMLElement): Promise<void> => {
   if (!state.fareTracking) return;
   try {
-    const { openSuggestions } = await import('./pricing-panel.ts');
+    const { openSuggestions } = await load(import.meta.url, () => import('./pricing-panel.ts'));
+    if (pricingStorageStatus.dataset.loadFailed) { pricingStorageStatus.hidden = true; delete pricingStorageStatus.dataset.loadFailed; } // loaded now
     if (state.fareTracking && trigger?.isConnected) {
       openSuggestions({ history: PRICING_HISTORY, trigger, onChange: () => {
         renderPricing();
         window.dispatchEvent(new Event('pricing-history-change'));
       } });
     }
-  } catch {
-    const message = 'Fare suggestions could not load. Please try again.';
+  } catch (e) {
+    const message = isUpdate(e) ? 'The app has been updated. Reload the page to see the fare suggestions.' : 'Fare suggestions could not load. Please try again.';
     if (!isOpen) showToast(message);
     else {
       pricingStorageStatus.hidden = false;
       pricingStorageStatus.textContent = message;
+      pricingStorageStatus.dataset.loadFailed = '1';
     }
   }
 };

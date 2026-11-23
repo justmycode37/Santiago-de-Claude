@@ -53,6 +53,7 @@ interface SolidOpenOptions {
 interface SolidModule { open(o: SolidOpenOptions): Promise<SolidView> }
 
 import type { StationRouteEndpoint, StationRouteResult, StationRouteStep, StationRouteStopRef } from './station-route.ts';
+import { isUpdate, load } from './lazy.ts';
 import type { Station3DErrorCode, Station3DEventMap, Station3DOpenOptions, Station3DUser } from './station3d.ts';
 import type { StationRoutePrefs } from './station-route.ts';
 const RECENT_MS = 60e3;   // a remembered GPS fix older than this is not shown when the view opens
@@ -93,7 +94,7 @@ const has = (key: string) => !!(window.STATION3D_SOLID_INDEX && window.STATION3D
 let rendererP: Promise<SolidModule> | null = null;
 function loadRenderer(): Promise<SolidModule> {
   // three.js and its addons through the import map in index.html (the renderer imports 'three')
-  if (!rendererP) rendererP = (import('./station3d-solid.ts') as Promise<SolidModule>)
+  if (!rendererP) rendererP = (load(import.meta.url, () => import('./station3d-solid.ts')) as Promise<SolidModule>)
     .catch((e) => { rendererP = null; throw e; });
   return rendererP;
 }
@@ -101,7 +102,6 @@ function loadStation(key: string): Promise<void> {
   const need: Promise<void>[] = [];
   if (!(window.STATION3D && window.STATION3D[key])) need.push(loadScript('stations3d/' + key + '.js'));
   if (!(window.STATION3D_SOLID && window.STATION3D_SOLID[key])) need.push(ready().then(() => loadScript(window.STATION3D_SOLID_INDEX![key].file)));
-  need.push(import('./station-route.ts').then(() => {})); // the router (station3d-solid.ts routes with it)
   return Promise.all(need).then(() => {
     if (!(window.STATION3D && window.STATION3D[key]) || !(window.STATION3D_SOLID && window.STATION3D_SOLID[key])) throw new Error('No 3D model for ' + key);
   });
@@ -282,6 +282,7 @@ function open(opts: Station3DOpenOptions) {
     emit('open', { key: opts.key, route: v.route, focus: null });
   }).catch((e: Error) => {
     console.warn(e);
+    if (isUpdate(e)) { fail('updated', 'The app has been updated. Reload the page to open the 3D view.'); return; }
     const three = /three|import|module|station3d-solid/i.test(String(e && (e.message || e)));
     fail(three ? 'three' : 'model', three ? 'Check your connection, then try again.' : 'This station\'s 3D model could not be loaded. Check your connection, then try again.');
   });

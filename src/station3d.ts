@@ -7,6 +7,7 @@
 // up: when it arrives it joins the opening that is showing then. If those three fail, the view works without them
 // and they are tried again at the next opening.
 import { showToast } from './toast.ts';
+import { isUpdate, load } from './lazy.ts';
 import type { INDOORLOC } from './indoorloc.ts';
 import type { SIGNLOC } from './signloc.ts';
 import type { INDOORNAV } from './indoornav.ts';
@@ -49,7 +50,7 @@ export interface Station3DUser {
   at?: number;
 }
 /** 'none': the station has no 3D view (no continuous model in stations3d/solid-index.js). */
-export type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'none';
+export type Station3DErrorCode = 'nowebgl' | 'model' | 'three' | 'none' | 'updated';
 /** What `Station3D.on(name, fn)` hands to fn. */
 export interface Station3DEventMap {
   open: { key: string; route: StationRouteResult | null; focus: { which: 'from' | 'to'; why: StationRouteWhy | 'no-router' | null } | null };
@@ -96,15 +97,15 @@ const scriptOnce = (src: string) => {
   if (!once.has(src)) once.set(src, script(src).catch((e) => { once.delete(src); throw e; }));
   return once.get(src)!;
 };
-const loadRouter = () => import('./station-route.ts').then((m) => { router = m.StationRoute; });
+const loadRouter = () => load(import.meta.url, () => import('./station-route.ts')).then((m) => { router = m.StationRoute; });
 // a remembered fix is handed on only while it is recent (u.at: when it was taken); an older one would show as
 // where you are now
 const recent = (u: Station3DUser | null) => !u || u.at == null || Date.now() - u.at < 60e3;
 const svOpen = () => !!(view && view.isOpen());
 function loadIndoor() {
-  if (!indoorP) indoorP = Promise.all([indoor.loc ? null : import('./indoorloc.ts').then((m) => { indoor.loc = m.INDOORLOC; }),
-    indoor.sign ? null : import('./signloc.ts').then((m) => { indoor.sign = m.SIGNLOC; })])
-    .then(() => (indoor.nav ? null : import('./indoornav.ts').then((m) => { indoor.nav = m.INDOORNAV; })))
+  if (!indoorP) indoorP = Promise.all([indoor.loc ? null : load(import.meta.url, () => import('./indoorloc.ts')).then((m) => { indoor.loc = m.INDOORLOC; }),
+    indoor.sign ? null : load(import.meta.url, () => import('./signloc.ts')).then((m) => { indoor.sign = m.SIGNLOC; })])
+    .then(() => (indoor.nav ? null : load(import.meta.url, () => import('./indoornav.ts')).then((m) => { indoor.nav = m.INDOORNAV; })))
     .then(() => {
       // what the stand-in kept: the latest GPS fix (with its own time, so indoornav.ts keeps a newer one it
       // may already have), and signs read before (they still count if recent)
@@ -123,7 +124,7 @@ function loadIndoor() {
   return indoorP;
 }
 function loadView(): Promise<typeof StationView> {
-  if (!svLoading) svLoading = import('./station-view.ts').then((m) => {
+  if (!svLoading) svLoading = load(import.meta.url, () => import('./station-view.ts')).then((m) => {
     const sv = view = m.StationView;
     for (const [name, fn] of listeners) sv.on(name, fn as AnyFn);
     // the indoor position follows what the view shows
@@ -136,10 +137,11 @@ function loadView(): Promise<typeof StationView> {
   }).catch((e) => { svLoading = null; throw e; });
   return svLoading;
 }
+const UPDATED_3D: Station3DEventMap['error'] = { code: 'updated', message: 'The app has been updated. Reload the page to open the 3D view.' };
 function failed(opts: Station3DOpenOptions, err: Station3DEventMap['error'] = { code: 'three', message: 'Check your connection, then try again.' }) {
   if (wanted !== opts) return;   // closed or replaced meanwhile: nobody is waiting for this one
   wanted = null;
-  showToast(err.code === 'none' ? 'There is no 3D view of this station.' : 'The 3D view could not be loaded.');
+  showToast(err.code === 'none' ? 'There is no 3D view of this station.' : err.code === 'updated' ? err.message : 'The 3D view could not be loaded.');
   // as the view itself reports it (Station3D.on('error'))
   for (const [name, fn] of listeners.slice()) if (name === 'error') { try { fn(err as never); } catch (e) { console.error(e); } }
 }
@@ -154,7 +156,7 @@ export const Station3D = {
       wanted = null;
       sv.open(opts);
       loadIndoor();
-    }, () => failed(opts));
+    }, (e) => failed(opts, isUpdate(e) ? UPDATED_3D : undefined));
   },
   setUser: (u: Station3DUser | null | undefined): void => { user = u || null; userAt = performance.now(); if (view) view.setUser(u); },
   close: (): void => { wanted = null; if (svOpen()) view!.close(); },

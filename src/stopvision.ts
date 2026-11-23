@@ -12,8 +12,8 @@
 //      Only the photos' fingerprints are stored; the phone fingerprints its own camera frame with the same model
 //      (DINOv2-small) and compares. Photo similarity only breaks ties: stops without photos are not penalised.
 // A stop is shown as recognised when a sign was read, or when the photo match clearly and repeatedly favours it.
-import { KANTE_BOARD } from './engine-departures.ts';
-import { indoor } from './station3d.ts';
+import type { KANTE_BOARD } from './engine-departures.ts';
+import type { SIGNLOC } from './signloc.ts';
 import type { LineLike } from './app/journey-steps.ts';
 import type { BoardDeparture } from './engine-departures.ts';
 import type { KanteError, KanteFailure } from './engine.ts';
@@ -43,6 +43,10 @@ export interface StopVisionHooks {
   route?(): StopVisionRoute | null;
   /** What is about to stop at a place, from the Kante engine's /api/due; null without the engine or the feature. */
   due?(params: Record<string, string | number | undefined>): Promise<KanteDueResponse | null>;
+  /** The departure boards of the Kante engine (engine-departures.ts); without them Scan lists no departures. */
+  board?: typeof KANTE_BOARD;
+  /** The page's sign parser (signloc.ts), once the 3D view has loaded it; without it Scan reads platform names itself. */
+  signs?(): typeof SIGNLOC | null;
 }
 export interface StopVisionRoute {
   uic: string;
@@ -942,7 +946,7 @@ async function useText(text: string, wasTap: boolean, layout?: ScanLayout | null
 function edgeFromSign(c: StopVisionCandidate, words: string[], tokens: string[], now: number, weak: boolean) {
   const ev = evidence.get(c.uic) || {};
   let refs: string[] = [];
-  const signloc = indoor.sign; // once the 3D view has loaded it (station3d.ts)
+  const signloc = app && app.signs ? app.signs() : null;
   if (signloc && typeof signloc.parse === 'function') {
     // the app's sign parser (signloc.ts): only platforms named next to a word like Gleis / Kante / Voie
     const parsed = signloc.parse(words.join(' '));
@@ -1006,7 +1010,9 @@ async function departures(c: StopVisionCandidate) {
   evidence.set(c.uic, ev);
   try {
     // The Kante engine knows the edge of every departure (engine-departures.ts: d.edges; the first one counts)
-    const all = await KANTE_BOARD.load(c.uic, c.st);
+    const board = app && app.board;
+    if (!board) throw Object.assign(new Error('no departure boards on this page'), { reason: 'off' });
+    const all = await board.load(c.uic, c.st);
     ev.departures = all.map((d) => ({ time: d.time, delay: d.late,
       line: (d.shown.number || d.shown.name || '').replace(/^\D+\s/, ''), cat: d.shown.category || '', to: d.headsign || d.towards || '',
       edge: d.edges.length ? d.edges[0] : null, edges: d.edges, raw: d }));
