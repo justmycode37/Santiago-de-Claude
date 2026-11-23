@@ -116,6 +116,15 @@
   // Map groups the events button shows, e.g. ['events', 'toilets', …]
   const mapGroups = () => LAYER_KEYS.filter((k) => !state.mapHidden.includes(k));
 
+  // Valhalla pedestrian costing for walks, or null for the normal walking router.
+  // OpenStreetMap maps escalators as moving steps, so avoiding escalators means avoiding steps.
+  function walkCosting(): WalkCosting | null {
+    const s = effective();
+    if (s.stepFree) return { type: 'wheelchair' };
+    if (s.fewerStairs || s.noEscalators) return { step_penalty: 120 };
+    return null;
+  }
+
   // The transport types to travel with, or [] for all (engine-journey.js turns them into the engine's modes)
   const transportations = () => state.modes || [];
 
@@ -463,6 +472,7 @@
     close,
     eventTags,
     mapGroups,
+    walkCosting,
     transportations,
     prefs: () => ({ ...effective() }), // walking speed, extra change time, step-free…
     // the journey options as the 3D station view's router wants them (station-route.js)

@@ -253,6 +253,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: Journe
     if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
     renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
+    if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     livePoll(); // live times for its rides at once
   } catch (e) {
     if (id !== journeyReq) return;

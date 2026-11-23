@@ -171,8 +171,8 @@ Follow-up, deliberately not in this integration:
   matching service's platform; a concourse board lists many platforms. Needs board-type and ambiguity handling and
   a `quayLabel/line.name/headsign` adapter first.
 - Port RightSide's `DepartureDisplayMatcher` to the web Scan for vehicle displays.
-- The engine's walks (boarding point on its platform and floor, the building's door) as the AR boarding target and
-  kerb side for RightSide (`walkgraph/` and the browser's walking router are gone; see docs/walking-routes.md).
+- Walk router boarding-edge data (`{ platform, level, ref }` endpoints, doors and kerbs in `walkgraph/`) as the AR
+  boarding target and kerb side for RightSide.
 - RightSide and Scan: `/api/due?quay=<SLOID>` for the exact boarding edge and `/api/identify` to bind a seen vehicle
   to its trip (#23). The journey already resolves the ATLAS SLOID quay.
 - `tools/station3d_sbb_layers.py` for the other stations; the corridor-cutaway shader in `station3d.js`.
