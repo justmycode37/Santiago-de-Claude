@@ -145,8 +145,8 @@ pub(crate) fn outline_dist(p: P, rings: &[Vec<P>]) -> f32 {
 }
 
 /// Does the straight line p → q run through the inside of one of these buildings (rings: outline, courtyards)?
-/// The line is cut where it meets each outline; a piece longer than 0.4 m inside the building that somewhere (at
-/// points every 25 cm) is more than 0.2 m from its outline is inside. Not counted: a building the line stays in (both ends in it or on
+/// The line is cut where it meets each outline; a piece inside the building that somewhere (at points every 25 cm)
+/// is more than 0.2 m from its outline is inside. Not counted: a building the line stays in (both ends in it or on
 /// its outline, not both on it, and no piece outside it: from a door to the building's own corridor, from a point
 /// inside to its door; across the open side of a U-shaped building it does count), and,
 /// for a line to a way under an arcade (`arcade_m` > 0), the last `arcade_m` metres before q (the walkway under the
@@ -176,7 +176,7 @@ pub fn through_building<'a>(p: P, q: P, arcade_m: f32, buildings: impl Iterator<
         let mut pieces: Vec<(bool, bool)> = Vec::new();
         for w in ts.windows(2) {
             let (a, b) = (w[0], w[1].min(limit));
-            if (b - a) * len < 0.4 {
+            if (b - a) * len < 0.05 {
                 continue;
             }
             let inn = inside((p.0 + (q.0 - p.0) * (a + b) / 2.0, p.1 + (q.1 - p.1) * (a + b) / 2.0), rings);
@@ -623,8 +623,9 @@ mod tests {
         assert!(through_building((10.0, 8.0), (10.0, -5.0), 0.0, b()));
         // in through the side wall 23 cm from the corner and along inside the front wall to a door on it: through
         assert!(through_building((-3.0, 0.3), (10.0, 0.0), 0.0, b()));
-        // a door 25 cm inside the outline (as mapped) out to the street: not
+        // a door 25 cm inside the outline (as mapped) out to the street: not; a point 31 cm inside it: through the wall
         assert!(!through_building((10.0, 0.25), (10.0, -6.0), 0.0, b()));
+        assert!(through_building((10.0, 0.31), (10.0, -6.0), 0.0, b()));
         // across the open side of a U, from one wing into the other: out through one wall and in through another
         let u = vec![vec![(0.0, 0.0), (30.0, 0.0), (30.0, 20.0), (20.0, 20.0), (20.0, 8.0), (10.0, 8.0), (10.0, 20.0), (0.0, 20.0)]];
         assert!(through_building((5.0, 15.0), (23.0, 15.0), 0.0, std::iter::once(u.as_slice())));

@@ -449,6 +449,8 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
     let (la, lb) = (load_links(a_dir)?, load_links(b_dir)?);
     let ra = kante_walk::WalkRouter::new(std::sync::Arc::new(ga));
     let ga = ra.graph().clone();
+    let rb = kante_walk::WalkRouter::new(std::sync::Arc::new(gb));
+    let gb = rb.graph().clone();
     // B's edges by the points of their geometry
     let mut at: FxHashMap<(i32, i32), Vec<u32>> = FxHashMap::default();
     for e in 0..gb.edges.len() as u32 {
@@ -508,25 +510,109 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
             || ga.edge_way[a_link.snap.edge as usize] != gb.edge_way[b_link.snap.edge as usize];
         // A's start: a station by id as A enters it, else A's snap of the point
         let pt = &v["point"];
-        let snap = if let Some(id) = pt["id"].as_str() {
-            let st = &tt.stations[*st_by_id.get(id.trim_start_matches("st:")).context("station")?];
-            let vertical = NO_STEP_KINDS;
-            ra.snap(st.pos, &kante_walk::SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(prof), exclude_kinds: vertical | (1 << EdgeKind::Platform as u8) })
-                .or_else(|| kante_link::ends::snap_main(&ra, st.pos, &prof))
-        } else {
-            kante_link::ends::snap_main(&ra, LatLon::from_deg(pt["lat"].as_f64().unwrap_or(0.0), pt["lon"].as_f64().unwrap_or(0.0)), &prof)
+        let start = |r: &kante_walk::WalkRouter| -> Result<Option<Snap>> {
+            Ok(if let Some(id) = pt["id"].as_str() {
+                let st = &tt.stations[*st_by_id.get(id.trim_start_matches("st:")).context("station")?];
+                r.snap(st.pos, &kante_walk::SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(prof), exclude_kinds: NO_STEP_KINDS | (1 << EdgeKind::Platform as u8) })
+                    .or_else(|| kante_link::ends::snap_main(r, st.pos, &prof))
+            } else {
+                kante_link::ends::snap_main(r, LatLon::from_deg(pt["lat"].as_f64().unwrap_or(0.0), pt["lon"].as_f64().unwrap_or(0.0)), &prof)
+            })
+        };
+        // a change in a journey: from one boarding point to another, each at its link
+        let from_stop = v["from_stop"].as_str().and_then(|id| by_id.get(id).copied());
+        let (snap, snap_b) = match from_stop {
+            Some(f) => (Some(la[f].snap).filter(|_| la[f].matched != LinkMatch::None), Some(lb[f].snap).filter(|_| lb[f].matched != LinkMatch::None)),
+            None => (start(&ra)?, start(&rb)?),
         };
         let mut cause = String::new();
+        let from_relinked = from_stop.is_some_and(|f| match (snap, snap_b) {
+            (Some(x), Some(y)) => x.pos.dist_m(&y.pos) > 0.5 || ga.edge_way[x.edge as usize] != gb.edge_way[y.edge as usize],
+            _ => true,
+        });
+        // where B starts the walk A takes: the same way, else why not (a step-free walker is not put on a piece of path
+        // that stairs cut off, and B's pieces differ where its graph does)
+        if from_relinked {
+            cause = "relinked (the first boarding point)".into();
+        } else if let (Some(sa), Some(sb)) = (snap, snap_b) {
+            if sa.pos.dist_m(&sb.pos) > 0.5 || ga.edge_way[sa.edge as usize] != gb.edge_way[sb.edge as usize] {
+                let on_a: Vec<u32> = at.get(&(ga.nodes[ga.edges[sa.edge as usize].a as usize].lat, ga.nodes[ga.edges[sa.edge as usize].a as usize].lon)).cloned().unwrap_or_default();
+                let crumb = on_a.iter().any(|&f| gb.edge_way[f as usize] == ga.edge_way[sa.edge as usize] && !rb.usable(f, &prof));
+                cause = format!(
+                    "snap: B starts elsewhere ({}{:?}, way {}, {:.1} m) than A ({:?}, way {}, {:.1} m)",
+                    if crumb { "A's way is cut off by stairs in B, so on " } else { "" },
+                    gb.edges[sb.edge as usize].kind,
+                    gb.edge_way[sb.edge as usize],
+                    sb.dist_m,
+                    ga.edges[sa.edge as usize].kind,
+                    ga.edge_way[sa.edge as usize],
+                    sa.dist_m
+                );
+            }
+        }
         let mut reproduced = false;
         if let Some(sn) = snap {
             if let Some(path) = ra.route(&sn, &a_link.snap, &prof) {
                 let secs = walk_secs(path.cost.var_m + sn.dist_m + a_link.snap.dist_m, path.cost.fix_s, prof.speed_mps).ceil() as i64 + 30;
                 reproduced = v["a_secs"].as_i64().is_some_and(|a| (a - secs).abs() <= 1);
                 let edges = ra.route_edges(&sn, &a_link.snap, &prof).unwrap_or_default();
-                if let Some((e, what)) = edges.iter().find_map(|&(e, _, _)| b_has(e).map(|w| (e, w))) {
+                if std::env::var_os("COMPARE_VERBOSE").is_some() {
+                    for &(e, f0, f1) in &edges {
+                        let ed = &ga.edges[e as usize];
+                        let (pa, pb) = (ga.nodes[ed.a as usize], ga.nodes[ed.b as usize]);
+                        eprintln!("A edge {e} {:?} way {} flags {:#x} levels {}/{} {:.1} m [{f0:.2}..{f1:.2}] {:.6},{:.6} -> {:.6},{:.6}: in B {:?}", ed.kind, ga.edge_way[e as usize], ed.flags, ed.level_a, ed.level_b, ed.len_m(), pa.lat_deg(), pa.lon_deg(), pb.lat_deg(), pb.lon_deg(), b_has(e));
+                    }
+                    eprintln!("A snap {:?}\nB snap {:?}", snap, snap_b);
+                }
+                if !cause.is_empty() {
+                    // the start differs: that is the cause
+                } else if let Some((e, what)) = edges.iter().find_map(|&(e, _, _)| b_has(e).map(|w| (e, w))) {
                     let ed = &ga.edges[e as usize];
                     let p = ga.nodes[ed.a as usize];
                     cause = format!("graph: {what} (way {}, {:?}, at {:.6},{:.6})", ga.edge_way[e as usize], ed.kind, p.lat_deg(), p.lon_deg());
+                } else {
+                    // every edge is there: are consecutive ones still joined at their node in B, with its tags?
+                    for w in edges.windows(2) {
+                        let (e1, e2) = (&ga.edges[w[0].0 as usize], &ga.edges[w[1].0 as usize]);
+                        let Some(n) = [e1.a, e1.b].into_iter().find(|n| *n == e2.a || *n == e2.b) else {
+                            // no node in common: A rides a lift between them (a lift in the walk router is not an
+                            // edge of the walk). B must have a lift edge between a node of the one way and one of
+                            // the other, there.
+                            let ends_of = |e: &WalkEdge, g: &WalkGraph| [g.nodes[e.a as usize], g.nodes[e.b as usize]];
+                            let (w1, w2) = (ga.edge_way[w[0].0 as usize], ga.edge_way[w[1].0 as usize]);
+                            let nodes_b = |way: i64, ps: [LatLon; 2]| -> Vec<u32> {
+                                ps.iter().flat_map(|p| at.get(&(p.lat, p.lon)).cloned().unwrap_or_default()).filter(|&f| gb.edge_way[f as usize] == way).flat_map(|f| [gb.edges[f as usize].a, gb.edges[f as usize].b]).collect()
+                            };
+                            let (b1, b2) = (nodes_b(w1, ends_of(e1, &ga)), nodes_b(w2, ends_of(e2, &ga)));
+                            let lift = b1.iter().any(|&x| gb.adj[gb.adj_off[x as usize] as usize..gb.adj_off[x as usize + 1] as usize].iter().any(|&f| {
+                                let fe = &gb.edges[f as usize];
+                                fe.kind == EdgeKind::Lift && b2.contains(&if fe.a == x { fe.b } else { fe.a })
+                            }));
+                            if !lift {
+                                let p = ga.nodes[e1.b as usize];
+                                cause = format!("graph: a lift A rides is not in B as it is (from way {w1} to way {w2}, at {:.6},{:.6})", p.lat_deg(), p.lon_deg());
+                                break;
+                            }
+                            continue;
+                        };
+                        let pos = ga.nodes[n as usize];
+                        let ends = |e: u32| -> Vec<u32> {
+                            let ed = &ga.edges[e as usize];
+                            let way = ga.edge_way[e as usize];
+                            at.get(&(pos.lat, pos.lon)).into_iter().flatten().copied().filter(|&f| gb.edge_way[f as usize] == way && gb.edges[f as usize].kind == ed.kind).flat_map(|f| [gb.edges[f as usize].a, gb.edges[f as usize].b]).filter(|&m| gb.nodes[m as usize] == pos).collect()
+                        };
+                        let (n1, n2) = (ends(w[0].0), ends(w[1].0));
+                        if !n1.is_empty() && !n2.is_empty() && !n1.iter().any(|m| n2.contains(m)) {
+                            cause = format!("graph: two edges joined at a node in A are not in B (ways {} and {}, at {:.6},{:.6})", ga.edge_way[w[0].0 as usize], ga.edge_way[w[1].0 as usize], pos.lat_deg(), pos.lon_deg());
+                            break;
+                        }
+                        if let Some(&m) = n1.iter().find(|m| n2.contains(m)) {
+                            if gb.node_flags[m as usize] != ga.node_flags[n as usize] {
+                                cause = format!("graph: a node's tags changed ({:#x} → {:#x}, at {:.6},{:.6})", ga.node_flags[n as usize], gb.node_flags[m as usize], pos.lat_deg(), pos.lon_deg());
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -539,6 +625,42 @@ fn explain(a_dir: &Path, b_dir: &Path) -> Result<()> {
             cause = "unexplained".into();
         }
         writeln!(out, "{}", serde_json::json!({ "key": v["key"], "cause": cause, "reproduced": reproduced }))?;
+    }
+    Ok(())
+}
+
+/// Footpaths of both builds (stdin: `{"key", "set": "normal" | "step_free", "from", "to"}` by GTFS id; out: the
+/// seconds at 1.3 m/s each build's precomputed footpath takes, or null).
+fn footpaths(a_dir: &Path, b_dir: &Path) -> Result<()> {
+    let tt: Timetable = io::load(&b_dir.join("built/timetable.bin"), TIMETABLE_SCHEMA)?;
+    let load = |d: &Path| -> Result<(Footpaths, Footpaths)> {
+        let p = d.join("built/links.bin");
+        Ok(match io::schema_of(&p).as_deref() {
+            Some("links-v2") => {
+                let l: LinkDataV2 = io::load(&p, "links-v2")?;
+                (l.normal, l.step_free)
+            }
+            _ => {
+                let l: LinkData = io::load(&p, LINKS_SCHEMA)?;
+                (l.normal, l.step_free)
+            }
+        })
+    };
+    let (fa, fb) = (load(a_dir)?, load(b_dir)?);
+    let by_id: FxHashMap<&str, u32> = tt.stops.iter().enumerate().map(|(i, s)| (s.gtfs_id.as_str(), i as u32)).collect();
+    let secs = |f: &Footpaths, a: u32, b: u32| -> Option<f32> {
+        (f.off[a as usize] as usize..f.off[a as usize + 1] as usize).find(|&k| f.to[k] == b).map(|k| walk_secs(f.var_m[k] as f32, f.fix_s[k] as f32, 1.3))
+    };
+    let mut out = std::io::stdout().lock();
+    for line in std::io::stdin().lock().lines() {
+        let v: serde_json::Value = serde_json::from_str(&line?)?;
+        let (Some(&a), Some(&b)) = (by_id.get(v["from"].as_str().unwrap_or("")), by_id.get(v["to"].as_str().unwrap_or(""))) else {
+            writeln!(out, "{}", serde_json::json!({ "key": v["key"], "a": null, "b": null }))?;
+            continue;
+        };
+        let step_free = v["set"].as_str() == Some("step_free");
+        let (xa, xb) = if step_free { (&fa.1, &fb.1) } else { (&fa.0, &fb.0) };
+        writeln!(out, "{}", serde_json::json!({ "key": v["key"], "a": secs(xa, a, b), "b": secs(xb, a, b) }))?;
     }
     Ok(())
 }
@@ -687,6 +809,7 @@ fn main() -> Result<()> {
         "link" => link(arg(1).as_ref(), arg(2)),
         "segment" => segment(arg(1).as_ref(), [arg(2).parse()?, arg(3).parse()?, arg(4).parse()?, arg(5).parse()?]),
         "explain" => explain(arg(1).as_ref(), arg(2).as_ref()),
+        "footpaths" => footpaths(arg(1).as_ref(), arg(2).as_ref()),
         "doors" => doors(arg(1).as_ref(), arg(2).parse().unwrap_or(30), arg(3).parse().unwrap_or(1)),
         _ => bail!("usage: compare sample <data> <points> <seed> | through <data> < walks.jsonl | lifts <graph a> <graph b> | doors <data> <n> <seed>"),
     }

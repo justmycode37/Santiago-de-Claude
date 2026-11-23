@@ -265,7 +265,7 @@ def through_summary(args, jobs, res):
 
 
 def legs_of(p):
-    """The earliest-arriving journey's access and egress: (stop id, seconds) each."""
+    """The earliest-arriving journey's access and egress ((stop id, seconds) each) and changes ((from, to) ids)."""
     js = [] if 'error' in p else p.get('journeys', [])
     if not js:
         return None
@@ -273,7 +273,10 @@ def legs_of(p):
     acc = next((l for l in j['legs'] if l.get('kind') == 'access'), None)
     egr = next((l for l in j['legs'] if l.get('kind') == 'egress'), None)
     q = lambda l, k: ((l or {}).get(k) or {}).get('quay', {}).get('id')
-    return {'arr': j['arr'], 'access': (q(acc, 'to'), acc and acc['durationS']), 'egress': (q(egr, 'from'), egr and egr['durationS'])}
+    # a change: the ride before's last stop to the ride after's first (on foot, or staying at the stop)
+    rides = [l for l in j['legs'] if l.get('type') == 'ride']
+    changes = [(q(a, 'to'), q(b, 'from')) for a, b in zip(rides, rides[1:]) if not b.get('stayOnBoard')]
+    return {'arr': j['arr'], 'access': (q(acc, 'to'), acc and acc['durationS']), 'egress': (q(egr, 'from'), egr and egr['durationS']), 'changes': changes}
 
 
 def plan_summary(args, S, jobs, res):
@@ -317,11 +320,24 @@ def plan_summary(args, S, jobs, res):
                 lost.append({'key': [w['trip'], side], 'point': t[end], 'options': PROFILES[t['profile']], 'limit': 20, 'stop': stop, 'a_secs': a.get(stop, (secs, ''))[0]})
             elif stop in a and b[stop][0] > a[stop][0]:
                 w['why'].append(f'{side} stop {stop} {b[stop][0] - a[stop][0]} s later on B (via {b[stop][1]})')
+        # every change of A's journey: B's footpath for it (the step-free set for a step-free or wheelchair trip)
+        fset = 'normal' if t['profile'] == 'normal' else 'step_free'
+        ch = [c for c in la['changes'] if c[0] and c[1] and c[0] != c[1]]
+        if ch:
+            inp = '\n'.join(json.dumps({'key': k, 'set': fset, 'from': a, 'to': b}) for k, (a, b) in enumerate(ch)) + '\n'
+            fps = [json.loads(x) for x in subprocess.run([args.bin, 'footpaths', args.data_a, args.data_b], input=inp, capture_output=True, text=True, check=True).stdout.splitlines()]
+            for (a, b), f in zip(ch, fps):
+                if f['a'] is not None and f['b'] is None:
+                    w['why'].append(f'change {a} → {b} ({f["a"]:.0f} s on A) not a footpath on B')
+                    lost.append({'key': [w['trip'], f'change {a}'], 'from_stop': a, 'point': {}, 'options': PROFILES[t['profile']], 'limit': 20, 'stop': b, 'a_secs': f['a']})
+                elif f['a'] is not None and f['b'] > f['a'] + 1:
+                    w['why'].append(f'change {a} → {b} {f["b"] - f["a"]:.0f} s longer on B')
         if not w['why']:
-            w['why'].append('both stops reached as soon on B: the search')
+            w['why'].append('every walk of A\'s journey as quick on B: the search')
     for c in explain(args, lost):
         w = next(x for x in st['worse'] if x['trip'] == c['key'][0])
-        w['why'] = [x + f": {c['cause']}" if x.startswith(f"{c['key'][1]} stop") and x.endswith('lost') else x for x in w['why']]
+        tag = f"{c['key'][1]} stop" if c['key'][1] in ('access', 'egress') else c['key'][1]
+        w['why'] = [x + f": {c['cause']}" if x.startswith(tag) and (x.endswith('lost') or x.endswith('not a footpath on B')) else x for x in w['why']]
     st['worse'].sort(key=lambda w: -((w['b_arr'] or 10**10) - w['a_arr']))
     return st
 

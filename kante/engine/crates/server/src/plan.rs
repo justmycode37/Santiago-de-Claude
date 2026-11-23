@@ -734,7 +734,11 @@ impl App {
             let p = self.resolve(r)?;
             // a place: from the point or its building's doors, as the stop search takes it; a station or a point
             // given exactly (where a station model's own paths begin): straight from it
-            let end = if p.station.is_none() && !r.exact { self.place_end(p.pos, &profile) } else { End::exact(p.pos, self.snap_free(p.pos, &profile)) };
+            let end = match (p.station, r.exact, self.walk.as_ref()) {
+                (_, true, _) | (_, _, None) => End::exact(p.pos, self.snap_free(p.pos, &profile)),
+                (Some(_), false, Some(w)) => End::station(w, p.pos, &profile),
+                (None, false, Some(_)) => self.place_end(p.pos, &profile),
+            };
             Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })
         };
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);

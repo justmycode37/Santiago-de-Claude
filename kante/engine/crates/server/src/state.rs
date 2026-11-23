@@ -8,7 +8,7 @@ use kante_core::time::Secs;
 use kante_core::*;
 use kante_raptor::Router;
 use kante_search::SearchIndex;
-use kante_walk::{SnapOptions, WalkRouter};
+use kante_walk::WalkRouter;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use std::path::{Path, PathBuf};
@@ -637,13 +637,7 @@ impl App {
         // from each of the point's lines onto the network and from the doors of the building it is in (a station is
         // entered at street level, as above)
         let end = match (ep.station, self.walk.as_ref()) {
-            (Some(_), Some(walk)) => {
-                let vertical = (1u32 << EdgeKind::Steps as u8) | (1 << EdgeKind::Escalator as u8) | (1 << EdgeKind::Lift as u8);
-                let snap = walk
-                    .snap(ep.pos, &SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(*profile), exclude_kinds: vertical | (1 << EdgeKind::Platform as u8) })
-                    .or_else(|| self.snap_free(ep.pos, profile));
-                End::exact(ep.pos, snap)
-            }
+            (Some(_), Some(walk)) => End::station(walk, ep.pos, profile),
             (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, profile),
             _ => End::exact(ep.pos, None),
         };

@@ -97,8 +97,8 @@ pub fn snap_main(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Opt
 }
 
 /// The straight lines from a point onto the network, each a candidate: onto the way `main` snaps it to, onto the
-/// nearest way on the ground, and onto the nearest other ways (up to four more, each another way, within 30 m or
-/// 10 m beyond the nearest). A snap from which the other end cannot be reached is then simply not taken.
+/// nearest way on the ground, and onto the nearest other ways (up to six more, each another way, within 40 m or
+/// 20 m beyond the nearest). A snap from which the other end cannot be reached is then simply not taken.
 pub fn point_candidates(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Vec<Snap> {
     let g = router.graph();
     let mut out: Vec<Snap> = Vec::new();
@@ -112,12 +112,12 @@ pub fn point_candidates(router: &WalkRouter, pos: LatLon, profile: &WalkProfile)
         add(s, &mut out);
     }
     let near = out.iter().map(|s| s.dist_m).fold(f32::INFINITY, f32::min);
-    let reach = if near.is_finite() { (near + 10.0).max(30.0) } else { 30.0 };
+    let reach = if near.is_finite() { (near + 20.0).max(40.0) } else { 40.0 };
     let opts = SnapOptions { max_dist_m: reach, level: None, profile: Some(*profile), exclude_kinds: NO_STEP };
     let mut ways: Vec<i64> = out.iter().filter_map(|s| g.edge_way.get(s.edge as usize).copied()).collect();
     let mut more = 0;
-    for s in router.snap_candidates(pos, &opts, 24) {
-        if more == 4 {
+    for s in router.snap_candidates(pos, &opts, 32) {
+        if more == 6 {
             break;
         }
         let way = g.edge_way.get(s.edge as usize).copied().unwrap_or(0);
@@ -132,7 +132,38 @@ pub fn point_candidates(router: &WalkRouter, pos: LatLon, profile: &WalkProfile)
     out
 }
 
+/// A station entered at street level, as candidates: the nearest ways on the ground floor within 120 m that are not
+/// platforms, stairs, escalators or lifts (up to five, each another way, the first the one `main` takes), else where
+/// `main` puts a free point ([`snap_main`]).
+pub fn station_candidates(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> Vec<Snap> {
+    let g = router.graph();
+    let opts = SnapOptions { max_dist_m: 120.0, level: Some(0), profile: Some(*profile), exclude_kinds: NO_STEP | (1 << EdgeKind::Platform as u8) };
+    let mut out: Vec<Snap> = Vec::new();
+    let mut ways: Vec<i64> = Vec::new();
+    for s in router.snap_candidates(pos, &opts, 32) {
+        let way = g.edge_way.get(s.edge as usize).copied().unwrap_or(0);
+        if way != 0 && ways.contains(&way) {
+            continue;
+        }
+        ways.push(way);
+        out.push(s);
+        if out.len() == 5 {
+            break;
+        }
+    }
+    if out.is_empty() {
+        out.extend(snap_main(router, pos, profile));
+    }
+    out
+}
+
 impl End {
+    /// A station entered at street level ([`station_candidates`]); a line onto a way further than the nearest counts
+    /// its length in route choice like any other.
+    pub fn station(router: &WalkRouter, pos: LatLon, profile: &WalkProfile) -> End {
+        End { pos, joins: station_candidates(router, pos, profile).into_iter().map(|s| Join { snap: s, extra_m: s.dist_m, pen_s: 0.0, door: None, inside_m: 0.0, wall: false }).collect(), ..Default::default() }
+    }
+
     /// A point taken as it is (a station's centre, where a station model's own paths begin): straight onto `snap`.
     pub fn exact(pos: LatLon, snap: Option<Snap>) -> End {
         End { pos, joins: snap.map(|s| Join { snap: s, extra_m: s.dist_m, pen_s: 0.0, door: None, inside_m: 0.0, wall: false }).into_iter().collect(), ..Default::default() }
