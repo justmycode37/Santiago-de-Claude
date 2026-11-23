@@ -702,7 +702,9 @@ impl App {
             }
         }
 
-        let (picked, pages) = page(picked);
+        // the journey arriving first is added back for searches that leave at a time (and their pages), not for
+        // "arrive by", where it is not what was asked for
+        let (picked, pages) = page(picked, !matches!(dir, Dir::ArriveBy(_)));
         let journeys: Vec<json::Journey> =
             picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, live)).collect();
 
@@ -756,13 +758,14 @@ impl App {
 /// journey that leaves in the evening and waits on the way can be the only one that arrives before the first morning
 /// one). The pages before and after are taken from the options the filter keeps, as they were before that journey
 /// was added back: they ask for what they always asked for, and a page that returns it again returns it with the
-/// same id. Returns the options to show (by departure) and the departures the pages start from.
-fn page(mut picked: Vec<Journey>) -> (Vec<Journey>, Option<(Secs, Secs)>) {
+/// same id. `rescue` false (asked to arrive by a time): `main`'s options only. Returns the options to show (by
+/// departure) and the departures the pages start from.
+fn page(mut picked: Vec<Journey>, rescue: bool) -> (Vec<Journey>, Option<(Secs, Secs)>) {
     let Some(best) = picked.iter().min_by_key(|j| (j.arr - j.dep, j.transfers)).map(|j| (j.arr - j.dep, j.transfers)) else { return (picked, None) };
     let keep = |j: &Journey| j.transfers <= best.1 || (j.arr - j.dep) as f32 <= best.0 as f32 * 1.5 + 600.0;
     let first_arr = picked.iter().map(|j| j.arr).min().unwrap_or(0);
     // the one arriving first that the filter drops (if it keeps none that does): the fewest changes, then the latest
-    let rescued = if picked.iter().any(|j| keep(j) && j.arr == first_arr) {
+    let rescued = if !rescue || picked.iter().any(|j| keep(j) && j.arr == first_arr) {
         None
     } else {
         picked.iter().filter(|j| j.arr == first_arr).min_by_key(|j| (j.transfers, -j.dep)).cloned()
@@ -794,7 +797,7 @@ mod tests {
     }
     /// The options of a page before `first` (departing at most `first`; `main`'s Before page) or after `last`.
     fn before(all: &[Journey], t: Secs) -> Vec<Journey> {
-        page(all.iter().filter(|j| j.dep <= t).cloned().collect()).0
+        page(all.iter().filter(|j| j.dep <= t).cloned().collect(), true).0
     }
 
     #[test]
@@ -802,7 +805,7 @@ mod tests {
         // asked at 21:40: an overnight journey (22:12 → 06:35, three changes) and the first morning ones, quicker
         // with fewer changes. main's filter drops the overnight one as far slower with more changes.
         let all = vec![j(22 * H + 12 * M, 30 * H + 35 * M, 3), j(30 * H + 38 * M, 34 * H + 19 * M, 1), j(31 * H, 34 * H + 50 * M, 1)];
-        let (shown, pages) = page(all.clone());
+        let (shown, pages) = page(all.clone(), true);
         assert_eq!(shown, all);
         assert_eq!(pages, main_page(&all).1, "the pages are main's");
     }
@@ -811,14 +814,14 @@ mod tests {
     fn nothing_else_main_drops_is_kept() {
         // a slow one with more changes that does not arrive first: dropped, as on main
         let all = vec![j(7 * H + 50 * M, 11 * H, 2), j(8 * H, 9 * H, 0), j(8 * H + 10 * M, 12 * H, 2), j(9 * H, 10 * H, 0)];
-        let (shown, pages) = page(all.clone());
+        let (shown, pages) = page(all.clone(), true);
         assert_eq!((shown, pages), main_page(&all));
         // several arrive first and main keeps one of them: nothing is added
         let all = vec![j(3 * H, 6 * H + 21 * M, 2), j(5 * H, 6 * H + 21 * M, 1)];
-        assert_eq!(page(all.clone()), main_page(&all));
+        assert_eq!(page(all.clone(), true), main_page(&all));
         // several arrive first, main keeps none: one is added back, the one with the fewest changes
         let all = vec![j(1 * H, 6 * H, 3), j(2 * H, 6 * H, 2), j(6 * H + 30 * M, 7 * H, 0)];
-        assert_eq!(page(all.clone()).0, vec![j(2 * H, 6 * H, 2), j(6 * H + 30 * M, 7 * H, 0)]);
+        assert_eq!(page(all.clone(), true).0, vec![j(2 * H, 6 * H, 2), j(6 * H + 30 * M, 7 * H, 0)]);
     }
 
     #[test]
@@ -832,11 +835,19 @@ mod tests {
         let all = vec![x.clone(), y.clone(), z.clone()];
         let (main_shown, main_pages) = main_page(&all);
         assert_eq!(main_shown, vec![z.clone()]);
-        let (shown, pages) = page(all.clone());
+        let (shown, pages) = page(all.clone(), true);
         assert_eq!(shown, vec![x.clone(), z.clone()]);
         assert_eq!(pages, main_pages);
         // main's earlier page: what leaves by a minute before the first it showed
         let earlier = before(&all, pages.unwrap().0 - 60);
         assert!(earlier.contains(&x) && earlier.contains(&y), "{earlier:?}");
+    }
+
+    #[test]
+    fn asked_to_arrive_by_a_time_the_options_are_mains() {
+        // arrive by 11:45, the same three journeys: main's direct one only, nothing added back
+        let all = vec![j(8 * H, 11 * H, 2), j(8 * H + 30, 11 * H + 30 * M, 1), j(10 * H + 30 * M, 11 * H + 45 * M, 0)];
+        assert_eq!(page(all.clone(), false), main_page(&all));
+        assert_eq!(page(all.clone(), false).0, vec![j(10 * H + 30 * M, 11 * H + 45 * M, 0)]);
     }
 }
