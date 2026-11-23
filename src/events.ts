@@ -1,4 +1,23 @@
 // Community listings sourced from the organizers below.
+
+export type EventCategory = 'language' | 'food' | 'legal' | 'jobs' | 'workshop' | 'community' | 'sport' | 'kids' | 'health';
+/** A listing as the map and the event page read it. */
+export interface EventProperties extends Omit<EventListing, 'coordinates'> {
+  cost: string;
+  attendance: string;
+  /** The category's colour ('#C55A82') and the colour of the glyph on it. */
+  color: string;
+  ink: string;
+  /** The category's name: 'Community meal'. */
+  category: string;
+}
+/** A GeoJSON point feature. */
+export interface EventFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: LngLat };
+  properties: EventProperties;
+}
+
 const CATEGORIES: Record<EventCategory, { color: string; ink?: string; label: string }> = {
   language:  { color: '#344D77', label: 'Language' },
   food:      { color: '#FF7241', label: 'Community meal' },

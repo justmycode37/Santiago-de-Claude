@@ -20,6 +20,13 @@ import { journey, searchState, sheet, tracking } from './state.ts';
 import { SETTINGS } from '../settings.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import { Station3D } from '../station3d.ts';
+import type { Journey, JourneyPlatformAt } from '../engine-journey.ts';
+import type { StationRouteStopRef } from '../station-route.ts';
+import type { Station3DEndpoint } from '../station3d.ts';
+import type { JourneyChangeStep, JourneyDirection, JourneyRideStep, JourneyStep, JourneyWalkStep } from './journey-steps.ts';
+import type { StationWalkPlan } from './routing.ts';
+import type { Quay } from './sheet.ts';
+import type { JourneyMoreDir, JourneyTab } from './state.ts';
 const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
 const s3Key = (stop: KanteStopCall | null | undefined) => (Station3D && stop && Station3D.has(stopUic(stop))) || null;
 // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback

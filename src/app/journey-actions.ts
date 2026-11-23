@@ -12,6 +12,7 @@ import { renderSheet, walkDirections } from './sheet-content.ts';
 import { fitCoords, fitJourney, goToStep, mapPadding } from './pill.ts';
 import { lengthKm } from './routing.ts';
 import { journey, sheet, tracking } from './state.ts';
+import type { TimedPlace } from './tracking.ts';
 export function overview() {
   sheet.focus = null;
   journey.overview = true;

@@ -1,7 +1,6 @@
-// The Kante engine (kante/ in this repository; hosted at kante.omniroute.app): its JSON as this app reads it, and
-// what the four scripts that work with it put on window:
-//   KANTE (src/engine.ts: the client), KANTE_BOARD (src/engine-departures.ts), KanteJourney (src/engine-journey.ts),
-//   KANTE_LIVE (src/live.ts: pure helpers for live data).
+// The Kante engine (kante/ in this repository; hosted at kante.omniroute.app): its JSON as this app reads it. The
+// modules that work with it have their own types: src/engine.ts (the client), src/engine-departures.ts,
+// src/engine-journey.ts, src/live.ts.
 // The JSON mirrors kante/engine/crates/server/src/json.rs; the live parts are described in kante/docs/LIVE-API.md.
 // Times are unix seconds, durations seconds, distances metres, positions [longitude, latitude] unless said otherwise.
 
@@ -325,89 +324,6 @@ interface KantePlanResponse {
 
 /** [west, south, east, north] in degrees. */
 type KanteBbox = [w: number, s: number, e: number, n: number];
-/** Query parameters; the ones that are null, undefined or '' are not sent. */
-type KanteParams = Record<string, string | number | boolean | null | undefined>;
-
-/** Which engine the page uses: `url` null = none; `ignored`: a ?kante= address in the link that was not followed. */
-interface KanteEngineUrl { url: string | null; fromLink: boolean; ignored?: string }
-
-/**
- * Why a call failed. off: the page has no engine (config.js, ?engine=off, ?kante=off); down: the request failed
- * (no answer, too slow, a server error, too many requests); refused: the engine said no to this request (`status`
- * 400, 404, 410 or 422: no route found, an unknown station), and is up.
- */
-type KanteFailure = 'off' | 'down' | 'refused';
-interface KanteError extends Error { reason: KanteFailure; status?: number }
-
-
-// ---------------------------------------------------------------- KANTE_BOARD (src/engine-departures.ts): departure boards
-
-/** What a board needs of a stop: an entry of PLATFORMS (src/app/30-platforms.ts). `key`: the edge's comparable name. */
-interface KanteBoardStop { name: string; edges: { key: string; ll: LngLat }[] }
-/** One departure of a stop's board: the engine's, with what the two lists that show it need. */
-interface BoardDeparture extends KanteDeparture {
-  /** Its line as the badges read it: "S7" → category S, number 7; a train without a line number by its train number. */
-  shown: ShownLine;
-  /** When it is expected to leave, ms: the timetable plus the live delay. */
-  time: number;
-  /** Whole minutes late, rounded down so that the planned time plus the delay is the time shown; 0 without live data. */
-  late: number;
-  /** The edges of the stop it leaves from (indices into the stop's edges); [] when the engine does not place its boarding point on one. */
-  edges: number[];
-}
-
-// ---------------------------------------------------------------- KanteJourney (src/engine-journey.ts): journeys
-
-/** One written direction of a walk, as walkDirections() (src/app/62-sheet-content.ts) lists them. */
-interface KanteWalkDir {
-  kind: 'depart' | 'walk' | 'stairs-up' | 'stairs-down';
-  text: string;
-  coords: LngLat[];
-  /** A floor change: the floors it leads from and to. */
-  from?: number;
-  to?: number;
-}
-/** A walk as the app keeps a routed one. `steps` are a street router's; the engine's walk has `dirs` instead. */
-interface KanteRoutedWalk { coords: LngLat[]; steps: null; dist: number | null; dirs: KanteWalkDir[] }
-/** Where a walk changes floor, and between which floors. */
-interface KanteFloorChange { at: LngLat; from: number; to: number }
-/** The engine's walk in the three fields a step keeps a routed walk in. */
-interface KanteWalkParts { lines: LngLat[][]; walks: KanteRoutedWalk[]; floors: KanteFloorChange[] }
-/** The time picker's choice: leave at or arrive by; date "2026-11-21", time "14:05"; nothing or '' = today, now. */
-type KanteTimeQuery = { mode?: 'dep' | 'arr'; date?: string | null; time?: string | null };
-
-// ---------------------------------------------------------------- KANTE_LIVE (src/live.ts): live data, pure helpers
-
-/** A position moved on to another moment (KANTE_LIVE.advance). */
-interface KanteAdvancedPosition extends Omit<KantePosition, 'dep' | 'arr'> {
-  dep?: number | null;
-  arr?: number | null;
-  /** Moved on from a stop only because its departure time has passed: that departure was not measured. */
-  stepped?: boolean;
-}
-/** Where a vehicle is along the drawn ride: at a stop of the ride (index), or between two. */
-type KanteRideKm = { km: number; at: number; from?: undefined; to?: undefined } | { km: number; at?: undefined; from: number; to: number };
-/** What is known about how a position was worked out. */
-interface KanteLiveContext {
-  basis?: KanteBasis | null;
-  /** The stop it left, by name… */
-  from?: string | null;
-  /** …and the seconds since its measured departure from there. */
-  leftS?: number | null;
-  /** The stop with the last measured time, by name. */
-  observedAt?: string | null;
-}
-/** The line of a vehicle as the journey object the app colours lines by. */
-interface KanteJourneyLike { category: string; number: string; operator: string; name: string }
-/** A trip or a vehicle: anything that says how live it is. */
-type KanteLiveCarrier = { liveInfo?: KanteLiveInfo | null; live?: KanteLiveWord | boolean | null };
-/** What places a vehicle of /api/vehicles; `t`: the time of the response it came in. */
-type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & { frac?: number | null; t?: number | null };
-/** A vehicle of /api/vehicles, as far as it tells whether it has left a stop; `info`: its liveInfoOf(), when already worked out. */
-type KanteVehicleSeen = Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null };
-/** late: the walk is longer than the time left; tight: under three minutes to spare. */
-interface KanteRunOrWait { text: string; level: 'late' | 'tight' | 'ok' }
-
 
 /** GET /api/due (kante/docs/LIVE-API.md): every trip due at a boarding point, as far as the page uses it. */
 interface KanteDueResponse {

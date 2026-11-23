@@ -47,24 +47,24 @@ another trip:
 | `live` | for each leg, the last `/api/trip` answer and when it came in |
 
 The journey sheet, the map, the pill, tracking, the AR camera, the SBB link and the fare all read these directly:
-`stopName()`, `stopUic()`, `liveMs()`, `lateMin()`, `hasForecast()` and `platformOf()` (`src/app/44-journey-steps.ts`,
-`58-live-vehicles.ts`) are thin readers of a `KanteStopCall`. Boarding points are always the engine's
+`stopName()`, `stopUic()`, `liveMs()`, `lateMin()`, `hasForecast()` and `platformOf()` (`src/app/journey-steps.ts`,
+`live-vehicles.ts`) are thin readers of a `KanteStopCall`. Boarding points are always the engine's
 (`KanteJourney.at()`); the app no longer guesses an edge from a platform name and the direction of travel.
 
 `KanteJourney.plans()` asks the engine and answers `JourneyOptions`: the journeys by departure, walking all the way
 when the engine offers it, the one to show first, and the engine's pages for "Earlier" and "Later"
 (`KanteJourney.more()`). It answers `null` when the engine finds no route and throws when the engine is off or down.
 
-## Live data: `src/app/56-live-engine.ts`
+## Live data: `src/app/live-engine.ts`
 
 Every ride knows its trips, so while a journey is on (from 30 minutes before to 30 minutes after) each trip of each
 ride still to come is asked of `GET /api/trip` every 30 s and when the tab comes back. `KanteJourney.applyTrip()`
 writes the answer into the ride's stop calls (times, delays, boarding point); `KanteJourney.requay()` then moves the
 boarding points and the walks to them when the platform has changed. The trip's `position` places the vehicle on the
-map (`50-tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip offers "Replan".
+map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip offers "Replan".
 
 `src/live.ts` (`KANTE_LIVE`) holds the pure helpers this uses, and that the live vehicles on the map
-(`58-live-vehicles.ts`, `/api/stream` or `/api/vehicles`) use: positions moved on in time, km along the drawn ride,
+(`live-vehicles.ts`, `/api/stream` or `/api/vehicles`) use: positions moved on in time, km along the drawn ride,
 the honest wording of how a position was worked out, and the bounding boxes.
 
 ## Departure boards: `src/engine-departures.ts` (`window.KANTE_BOARD`)
@@ -85,7 +85,7 @@ engine does not place on an edge has none (`[]`) and is listed under "From other
 ## The fare
 
 The fare in the journey's footer comes from transport.opendata.ch's fare service (`POST /v1/fare`,
-`src/app/63-ticket-pricing.ts`), the only call the app makes there. That service prices a connection of its own
+`src/app/ticket-pricing.ts`), the only call the app makes there. That service prices a connection of its own
 timetable and names operators its own way ("SBB" where the engine says "Schweizerische Bundesbahnen SBB"), so the
 engine's rides are first found among its connections by their stops and times; only an exact match is priced.
 Without an answer the footer shows no price and the SBB ticket link still works.

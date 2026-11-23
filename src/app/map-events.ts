@@ -16,6 +16,7 @@ import type { SearchCategory } from './categories.ts';
 import { journey, popup, searchState } from './state.ts';
 import { SETTINGS } from '../settings.ts';
 import { EVENTS } from '../events.ts';
+import type { EventFeature, EventProperties } from '../events.ts';
 const NEWCOMER_TAGS = ['newcomers', 'language'];
 export function visibleEvents() {
   const preferences = SETTINGS.eventTags();

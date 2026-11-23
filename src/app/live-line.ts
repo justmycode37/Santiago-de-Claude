@@ -11,6 +11,25 @@ import { startJourney, updateProgress } from './pill.ts';
 import { journey, tracking } from './state.ts';
 import { KANTE_LIVE } from '../live.ts';
 import { SETTINGS } from '../settings.ts';
+import type { KanteRunOrWait } from '../live.ts';
+import type { JourneyChangeStep, JourneyRideStep } from './journey-steps.ts';
+
+// ---------------------------------------------------------------- the live line in the sheet's header
+
+/** One piece of the live line: text, or an element (a line badge, a delay, a platform change); null is skipped. */
+export type LiveLinePart = string | HTMLElement | null;
+/** liveParts(): the live line. */
+export interface LiveLine {
+  /** off: something is wrong (off the route, a ride missed or cancelled); gps: from your position; est: from the live timetable. */
+  kind: 'off' | 'gps' | 'est';
+  parts: LiveLinePart[];
+  /** Offer "Replan". */
+  replan?: boolean;
+  /** The second half: what is left of the trip, or whether to hurry. */
+  rest?: string;
+  restLevel?: KanteRunOrWait['level'] | null;
+}
+
 function boardName(r: JourneyRideStep) {
   const raw = platformOf(r.s.from), edge = r.depAt && r.depAt.edge;
   const num = splitPlatform(raw === '–' ? '' : raw).num || (edge && edge.ref) || '';

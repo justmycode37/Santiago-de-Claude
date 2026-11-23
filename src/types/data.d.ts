@@ -17,7 +17,7 @@ interface PlatformData {
   /** By UIC number ("8507000"). */
   stops: Record<string, PlatformDataStop>;
 }
-/** Loaded on demand; src/app/30-platforms.ts deletes it again once it has indexed it. */
+/** Loaded on demand; src/app/platforms.ts deletes it again once it has indexed it. */
 declare var PLATFORM_DATA: PlatformData | undefined;
 
 // ---- bern-events.js, swiss-workshops.js, community-programmes.js: community events (src/events.ts joins them) ----
@@ -76,8 +76,8 @@ interface MapPlaces {
   /** Who the data comes from: 'OpenStreetMap', 'Stadt Bern', … */
   sources: string[];
   /** The kinds of place, each as MAP_LAYERS.classify() gives it. */
-  cats: PlaceClass[];
+  cats: import('../map-layers.ts').PlaceClass[];
   items: MapPlaceRow[];
 }
-/** Loaded on demand; src/app/32-places.ts deletes it again once it has taken the data. */
+/** Loaded on demand; src/app/map-places.ts deletes it again once it has taken the data. */
 declare var MAP_PLACES: MapPlaces | undefined;

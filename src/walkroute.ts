@@ -9,6 +9,112 @@
 //   - step-free / fewer-stairs settings avoid steps and raised kerbs.
 // Where the network has no tiles, WALKROUTE.route() answers null and the app uses its online router instead.
 // ------------------------------------------------------------------ geometry (local metres)
+
+/** What an end of a walk is, for the walking router. */
+export interface WalkEnd {
+  /** Your position (GPS): its accuracy sets how far the walk may start from a path. */
+  gps?: boolean;
+  /** A platform or stop edge, on its floor (0: street level), boarded by its number ("7", "C"). */
+  platform?: boolean;
+  level?: number | null;
+  ref?: string | null;
+  /** A point taken as it is (where a station model's own paths begin), not the building around it. */
+  exact?: boolean;
+}
+/** The options of WALKROUTE.route(): settings, and what each end is (with GPS accuracy in metres). */
+export interface WalkRouteOptions {
+  stepFree?: boolean;
+  fewerStairs?: boolean;
+  noEscalators?: boolean;
+  from?: WalkEnd & { accuracy?: number | null; wide?: boolean };
+  to?: WalkEnd & { wide?: boolean };
+}
+/** A moment of a walk worth a word ("Stairs down to level −2", "Under the arcades of Kramgasse"). */
+export interface WalkCue { at: LngLat; kind: string; text: string; m: number; /** A floor change: the floor it starts on, when known. */ from?: number }
+/** A walk on the pedestrian network. */
+export interface WalkRouteResult {
+  net: true;
+  coords: LngLat[];
+  /** Metres. */
+  dist: number;
+  /** The way leading to each point's level tag (null where the floor is not stated). */
+  levels: (string | null)[];
+  /** Coordinate indices: the straight bit from the start to the first path (0…approxTo) and from the last path to the end
+   *  (approxFrom…), when they are long guesses across open ground; approx: no path at all. */
+  approxTo: number | null;
+  approxFrom: number | null;
+  approx?: boolean;
+  /** Stretches under arcades, through passages and underpasses, indoors. */
+  covered: { kind: string; coords: LngLat[] }[];
+  /** The door the walk ends at, and the one it starts from. */
+  door: { ll: LngLat; type: string; addr: string } | null;
+  startDoor: { ll: LngLat; type: string } | null;
+  cues: WalkCue[];
+  /** "under the arcades of Kramgasse · main entrance". */
+  via: string;
+  /** Metres on paths only swisstopo's map has (swissTLM3D). */
+  swisstopo: number;
+  /** Step-free: the building has doors, but none is step-free (the walk ends at its wall, approximately). */
+  noStepFreeDoor?: boolean;
+}
+/** Reads the network's files where there is no page to load them as scripts (Node): 'index', or a tile by its key. */
+export interface WalkGraphLoader {
+  (key: 'index'): Promise<WalkGraphIndex | null | undefined>;
+  (key: string): Promise<WalkGraphTile>;
+}
+// ---- the network in memory, built from the tiles loaded so far (seen from outside through WALKROUTE._debug) ----
+
+/** A way's attributes with its level tag read: the floors it is on (null: not stated). */
+export interface WalkNetAttr extends WalkGraphAttr { lv: number[] | null }
+export interface WalkNetNode { id: number; ll: LngLat; adj: WalkNetEdge[]; blocked?: boolean; kerb?: boolean; lift?: boolean }
+/** A stretch of path between two nodes, `len` metres long. */
+export interface WalkNetEdge { a: WalkNetNode; b: WalkNetNode; attr: WalkNetAttr; len: number }
+export interface WalkNetBuilding { id: number; ring: LngLat[]; bb: [w: number, s: number, e: number, n: number]; entrances: WalkNetEntrance[] }
+export interface WalkNetEntrance { node: WalkNetNode; bld: number; type: string; wc: string; addr: string }
+/** An end of a walk as the search takes it: what it is, and how it may be joined to the network. */
+export interface WalkNetEnd extends WalkEnd {
+  accuracy?: number | null;
+  /** Metres within which the paths are looked for (from the GPS accuracy). */
+  radius?: number;
+  /** A platform: any path near it, not only its own. */
+  wide?: boolean;
+  /** A platform: only the paths of its own track or bay. */
+  onlyOwn?: boolean;
+  /** Not onto a path only swisstopo's map has. */
+  osmOnly?: boolean;
+  /** Not onto a piece of network that is joined to nothing else. */
+  noIslands?: boolean;
+  stepFree?: boolean;
+}
+/** A way into (or out of) the network at an end of a walk: at a node (a door standing on a path), or at a point on a
+ *  stretch of path (t: 0…1 along it) reached by a straight line of d metres (cuts: through a building). */
+export type WalkNetAccess = (
+  | { n: WalkNetNode; e?: undefined; t?: undefined; q?: undefined; d?: undefined; cuts?: undefined }
+  | { n?: undefined; e: WalkNetEdge; t: number; q: LngLat; d: number; cuts: boolean }
+) & {
+  cost: number;
+  door: WalkNetEntrance | null;
+  /** Where the straight line (or the path, at a door) starts. */
+  from: LngLat;
+  /** Through the wall of a building without a door there: a guess. */
+  guess?: boolean;
+  /** A stop position given on the track itself: the walk starts or ends on the platform beside it. */
+  onTrack?: boolean;
+  noStepFreeDoor?: boolean;
+};
+export interface WalkRouteDebug {
+  nodes: Map<number, WalkNetNode>;
+  buildings: Map<number, WalkNetBuilding>;
+  entrances: Map<number, WalkNetEntrance>;
+  /** Keys of the tiles in the network. */
+  inGraph: Set<string>;
+  endpoint(p: LngLat, o: WalkNetEnd): WalkNetAccess[];
+  buildingsAt(p: LngLat, rM: number): WalkNetBuilding[];
+  cutsBuilding(p: LngLat, q: LngLat, allow: Set<WalkNetBuilding>): boolean;
+  search(a: LngLat, b: LngLat, opt: WalkRouteOptions): WalkRouteResult | null;
+  distM(a: LngLat, b: LngLat): number;
+}
+
 const KY = 110540;
 const kx = (lat: number) => 111320 * Math.cos(lat * Math.PI / 180);
 function distM(a: LngLat, b: LngLat) {

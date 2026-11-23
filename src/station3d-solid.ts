@@ -13,6 +13,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { StationRoute } from './station-route.ts';
+import type { StationRouteConnectorKind, StationRouteEndpoint, StationRoutePrefs, StationRouteResult } from './station-route.ts';
+
 
 const MAX_CUT = 40;               // route pieces the cutaway can follow
 const CUT_R = 14;                 // m: half-width of the corridor cut open above the route

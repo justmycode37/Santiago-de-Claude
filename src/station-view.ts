@@ -7,9 +7,54 @@
 //   StationView.open({ key, from, to, prefs, title, returnFocus })   as Station3D.open
 //   StationView.close() · isOpen() · setUser(u) · on(name, fn) / off · preload(key) · has(key) after ready()
 //
-// Events as Station3D's (src/types/station3d.d.ts): 'opening', 'open', 'close', 'step', 'done', 'error'.
+// Events as Station3D's (Station3DEventMap in station3d.ts): 'opening', 'open', 'close', 'step', 'done', 'error'.
 // indoornav.ts hears them through the stand-in, and feeds the position back with setUser (with the floor
 // probabilities of the indoor filter).
+/** The renderer (station3d-solid.ts) as this view uses it: a renderer with the indoor position also has the optional parts. */
+interface SolidUserState {
+  visible: boolean; outside?: boolean; far?: number; x?: number; y?: number;
+  /** null: no floor observed (GPS alone, or the filter not sure enough to say one). */
+  level?: number | null; levelProb?: number | null; levelProbs?: Record<string, number> | null; sure?: boolean;
+  acc?: number; mode?: 'route' | 'free'; step?: number; offRouteSec?: number; follow: boolean;
+}
+interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null }
+interface SolidLevel { id: number; z: number; name: string }
+interface SolidView {
+  model: StationModel;
+  levels: SolidLevel[];
+  readonly route: StationRouteResult | null;
+  /** Only a renderer with the indoor position has these. */
+  readonly user?: SolidUserState;
+  readonly stretch: number;
+  plan(from: StationRouteEndpoint | null, to: StationRouteEndpoint | null, prefs?: StationRoutePrefs | null): StationRouteResult | null;
+  step(i: number): void;
+  whole(): void;
+  floor(id: number | null): void;
+  next(): void;
+  prev(): void;
+  setStretch(s: number): void;
+  /** true: the whole station; false: only the part the route uses (the default). */
+  showAll?(on: boolean): void;
+  setUser?(u: (Station3DUser & { levelProbs?: Record<string, number>; levelProb?: number }) | null): void;
+  follow?(on: boolean): void;
+  locate?(): void;
+  reset(): void;
+  dispose(): void;
+  _debug(): Record<string, unknown>;
+}
+interface SolidOpenOptions {
+  mount: HTMLElement; key: string;
+  from?: StationRouteEndpoint | null; to?: StationRouteEndpoint | null; prefs?: StationRoutePrefs | null;
+  /** Names for the two ends of the route, where the router has none ("Platform 7" it knows). */
+  fromLabel?: string; toLabel?: string;
+  onChange?(c: SolidChange): void;
+  onUser?(u: SolidUserState): void;
+}
+interface SolidModule { open(o: SolidOpenOptions): Promise<SolidView> }
+
+import type { StationRouteEndpoint, StationRouteResult, StationRouteStep, StationRouteStopRef } from './station-route.ts';
+import type { Station3DErrorCode, Station3DEventMap, Station3DOpenOptions, Station3DUser } from './station3d.ts';
+import type { StationRoutePrefs } from './station-route.ts';
 const RECENT_MS = 60e3;   // a remembered GPS fix older than this is not shown when the view opens
 
 // ------------------------------------------------------------------ loading

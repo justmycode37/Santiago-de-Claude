@@ -4,6 +4,7 @@ import { inSwitzerland, onPosition } from './location.ts';
 import { blurSearch, showDestinationJourney } from './trip-ends.ts';
 import { popup } from './state.ts';
 import { EVENTS } from '../events.ts';
+import type { EventFeature } from '../events.ts';
 const evPage = document.getElementById('evPage')!;
 const evHero = document.getElementById('evHero')!;
 const evContent = document.getElementById('evContent')!;

@@ -9,6 +9,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mock } from 'node:test';
 
+import type { WalkEnd, WalkRouteResult } from '../src/walkroute.ts';
+import type { KanteFloorChange, KanteTimeQuery, KanteWalkDir } from '../src/engine.ts';
+
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 let passed = 0, failed = 0;
 const check = (ok: boolean, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };

@@ -15,6 +15,8 @@ import { startJourney } from './pill.ts';
 import { endJourney } from './routing.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
+import type { SearchResult, TripField } from './search.ts';
+import type { JourneyDest } from './state.ts';
 export const pointOf = (f: TripField) => (f === 'from' ? searchState.tripStart : journey.dest);
 export function setField(f: TripField, text: string) {
   inputs[f].value = text;

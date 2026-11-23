@@ -2,6 +2,7 @@
 // length against OSRM (from the main station to ~70 Photon places), and platform pairs crossing ground-level tracks.
 // usage: node city_eval.mts CITY
 import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+import type { WalkNetEdge } from '../../src/walkroute.ts';
 /** cities.json: where a city's walks start (its main station), and that station's UIC number. */
 interface EvalCity { start: LngLat; uic: string }
 /** dests_CITY.json (city_dests.py): the places walked to. */

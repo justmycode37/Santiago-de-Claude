@@ -2,6 +2,11 @@
 import { dayLabel } from './journey-steps.ts';
 import { startJourney } from './pill.ts';
 import { journey } from './state.ts';
+
+/** When the trip should be: leave at ('dep') or arrive by ('arr') a date and time; both empty = now. */
+export type TimeMode = 'dep' | 'arr';
+export interface JourneyQuery { mode: TimeMode; date: string; time: string }
+
 const tSheet = document.getElementById('tSheet')!;
 const tDim = document.getElementById('tDim')!;
 const tDate = document.getElementById('tDate') as HTMLInputElement;

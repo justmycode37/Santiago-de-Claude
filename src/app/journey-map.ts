@@ -1,6 +1,35 @@
 // ---------- Journey (public transport and walks, planned by the Kante engine: src/engine-journey.ts) ----------
 import { map } from './map.ts';
 import { journey } from './state.ts';
+import type { Theme } from '../theme.ts';
+
+// ---------------------------------------------------------------- the route on the map
+
+/** What a feature of the 'route' source says: the layers of routeLayers() filter and paint by it. */
+export interface RouteFeatureProps {
+  /** ride, walk: a line; stop: a stop of a ride; sign: where a ride is boarded; lvl: a floor change; pin: the start;
+   *  wcov: a covered stretch of a walk (arcade, passage, underpass, indoors); door: the door a walk ends at. */
+  kind: 'ride' | 'walk' | 'stop' | 'sign' | 'lvl' | 'pin' | 'wcov' | 'door';
+  /** The step it belongs to (its index in journeySteps). */
+  step: number;
+  /** Already behind you: drawn faded. */
+  done?: boolean;
+  /** ride, stop: the line's colour on the light and on the dark map. */
+  color?: string;
+  dcolor?: string;
+  /** stop: the last one of its ride. */
+  end?: boolean;
+  /** sign, lvl, pin: the sprite (sprites.ts), without the theme. */
+  img?: string;
+  sort?: number;
+  /** walk: a straight line, not a routed path (drawn dashed, without arrows). */
+  approx?: boolean;
+}
+export type RouteFeature = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Point, RouteFeatureProps>;
+export type RouteCollection = GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Point, RouteFeatureProps>;
+/** The journey's map layers: the lines go under the map's labels, the points and signs on top. */
+export interface RouteLayers { below: maplibregl.LayerSpecification[]; above: maplibregl.LayerSpecification[] }
+
 export const ROUTE_FC: RouteCollection = { type: 'FeatureCollection', features: [] };
 export const journeyEl = document.getElementById('journey')!;
 export const jHead = document.getElementById('jHead')!;

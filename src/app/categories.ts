@@ -5,7 +5,7 @@
 // "Best": Google's rating weighed by how many people rated it, with a Google key (config.js); otherwise how well
 // known the place is on OpenStreetMap and Wikidata (PlaceSearch.enrich). Being near counts a little.
 // With "New to Switzerland" on in Settings, categories for newcomers come first: language courses (the community
-// events) and town halls & migration offices. Those events are not on the map otherwise (12-events.ts).
+// events) and town halls & migration offices. Those events are not on the map otherwise (map-events.ts).
 import { map } from './map.ts';
 import { eventMarkers, updateCards } from './map-events.ts';
 import { showToast, toast } from '../toast.ts';
@@ -20,6 +20,9 @@ import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import { SETTINGS } from '../settings.ts';
 import { EVENTS } from '../events.ts';
+import type { EventFeature, EventProperties } from '../events.ts';
+import type { PlaceBbox } from '../places.ts';
+import type { SearchIcon, SearchResult } from './search.ts';
 
 export interface SearchCategory {
   key: string;

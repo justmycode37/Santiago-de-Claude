@@ -10,6 +10,17 @@ import { mk } from './live-vehicles.ts';
 import { journey, popup } from './state.ts';
 import { SETTINGS } from '../settings.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
+import type { MapColorName, MapGroupKey } from '../map-layers.ts';
+import type { Theme } from '../theme.ts';
+
+// ---- Places: toilets, drinking water, health, help… (src/app/map-places.ts, from map-places.js) ----
+
+/**
+ * The properties of a place on the map (source 'places'): i: its index in PLACES.items, g: its group, gl: its
+ * glyph, c: the group's colour, o: who gets the room where icons would overlap (lower first), n: its name.
+ */
+export interface PlaceDotProps { i: number; g: MapGroupKey; gl: string; c: MapColorName; o: number; n?: string }
+
 export const PLACES_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlaceDotProps> = { type: 'FeatureCollection', features: [] };
 export let PLACES: MapPlaces | null = null;
 let placesLoading: Promise<boolean> | null = null;

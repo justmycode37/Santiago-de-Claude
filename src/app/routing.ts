@@ -22,6 +22,54 @@ import { SETTINGS } from '../settings.ts';
 import { stationRouter } from '../station3d.ts';
 import { WALKROUTE } from '../walkroute.ts';
 import { Station3D } from '../station3d.ts';
+import type { Journey } from '../engine-journey.ts';
+import type { WalkCosting } from '../settings.ts';
+import type { Station3DEndpoint } from '../station3d.ts';
+import type { WalkCue, WalkEnd, WalkRouteResult } from '../walkroute.ts';
+import type { JourneyChangeStep, JourneyWalkStep, LineMode } from './journey-steps.ts';
+import type { LngLatFirst } from './search.ts';
+import type { JourneyDest } from './state.ts';
+import type { KanteFloorChange, KanteWalkDir } from '../engine.ts';
+
+// ---------------------------------------------------------------- walks
+
+/** One turn-by-turn step of the OSM walking router (OSRM, routing.openstreetmap.de), as far as it is read. */
+export interface OsrmStep {
+  /** Metres. */
+  distance?: number;
+  /** The street. */
+  name?: string;
+  maneuver?: { type?: string; modifier?: string };
+  geometry?: { coordinates: LngLat[] };
+}
+/**
+ * A routed walk (routeWalk(), stationWalk(), and the engine's): its line, its metres (null when no router found a
+ * way and it is the straight line), and its directions: a street router's `steps`, or `dirs` already written out
+ * (a station model's, the engine's).
+ */
+export interface RoutedWalk {
+  coords: LngLat[];
+  steps: OsrmStep[] | null;
+  dist: number | null;
+  dirs?: KanteWalkDir[];
+  // from the pedestrian network (walkroute.ts)
+  net?: boolean;
+  /** A straight line, not a route (no router found a way). */
+  approx?: boolean;
+  approxTo?: number | null;
+  approxFrom?: number | null;
+  covered?: { kind: string; coords: LngLat[] }[];
+  door?: { ll: LngLat; type: string; addr: string } | null;
+  cues?: WalkCue[];
+  via?: string;
+  swisstopo?: number;
+  floors?: KanteFloorChange[];
+}
+/** What a routed walk through a station puts on its step (stationWalk()); `floors` null: routed along the streets. */
+export interface StationWalkParts { lines: LngLat[][]; walks: RoutedWalk[]; floors: KanteFloorChange[] | null }
+/** A walk's place in a station with a 3D model (s3Plan() in sheet-content.ts): the model and the two ends. */
+export interface StationWalkPlan { key: string; from: Station3DEndpoint; to: Station3DEndpoint }
+
 const routeCache = new Map<string, Promise<unknown>>();
 function getJSON<T>(url: string) {
   if (!routeCache.has(url)) routeCache.set(url, fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null));

@@ -10,6 +10,8 @@ import { distKm } from './routing.ts';
 import { searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
+import type { PlaceBbox, PlaceSearchAnswer, PlaceSearchResult } from '../places.ts';
+import type { LngLatFirst, PlaceMatches, SearchResult, SwisstopoSearchAnswer } from './search.ts';
 export const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
 const stem = (w: string) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
   : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);

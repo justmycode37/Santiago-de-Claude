@@ -1,6 +1,6 @@
 // Journeys from the Kante engine (engine.ts): the app's journeys are the engine's, laid out as the trip is shown.
 //
-// A Journey (src/types/app-journey.d.ts) is the engine's journey with `parts`: its walk legs as they are, and its
+// A Journey (below) is the engine's journey with `parts`: its walk legs as they are, and its
 // ride legs as rides. A ride is one leg, or more when you stay seated while the vehicle goes on as another trip;
 // its `stops` are the engine's calls, so the sheet, the map and live tracking read the engine's boarding points,
 // times and delays directly. Live data from /api/trip is written into those calls (applyTrip()).
@@ -12,6 +12,115 @@
 // with the one to show first. It throws when the engine is off or cannot be reached, so the page can say so.
 import { KANTE } from './engine.ts';
 import { SETTINGS } from './settings.ts';
+import type { JourneyChangeStep, JourneyStep, JourneyWalkStep } from './app/journey-steps.ts';
+import type { TransportMode } from './settings.ts';
+import type { KanteFloorChange, KanteTimeQuery, KanteWalkDir } from './engine.ts';
+
+// ---------------------------------------------------------------- a journey
+
+/**
+ * A journey as the app keeps it: the engine's journey (POST /api/plan, kante/engine/crates/server/src/json.rs),
+ * with its legs laid out as the trip is shown (`parts`) and the times the app shows for it. KanteJourney.plans()
+ * (src/engine-journey.ts) makes them.
+ */
+export interface Journey extends KanteJourney {
+  /**
+   * The legs as the trip is shown, in order: rides (each one or more of the engine's ride legs) and the engine's
+   * walk legs. A change at the very same boarding point has no walk.
+   */
+  parts: JourneyPart[];
+  /** When it starts, ms: the engine's `dep`, or earlier when the first walk is longer on the walking network. */
+  t0: number;
+  /** When it arrives as timetabled, ms: the last ride's arrival plus the walk after it (a later live arrival is the steps'). */
+  t1: number;
+  /** routing.ts: the walk before the first ride as the walking network routed it, seconds (the option's row). */
+  accessS?: number;
+  // walked all the way: the network metres its times were set by (retimeWalkConn())
+  _netMetres?: number
+}
+export type JourneyPart = JourneyRide | KanteWalkLeg;
+/** A line as the badges, colours and modes read it (lineLabel(), lineColor(), modeOf()): category "IC", number "8". */
+export interface ShownLine { name: string; category: string; number: string; operator: string }
+/**
+ * One ride: the trips of the engine you ride (more than one when you stay seated while the vehicle goes on as
+ * another trip; it is shown under the line you board), and every stop it stops at.
+ */
+export interface JourneyRide {
+  type: 'ride';
+  /** The engine's ride legs, in order. */
+  legs: KanteRideLeg[];
+  /** The first leg's line, as shown. */
+  line: ShownLine;
+  /** Where it goes (the first leg's headsign). */
+  headsign: string;
+  /**
+   * The engine's calls at every stop it stops at, where you board and where you get off included (stops it skips
+   * today are left out). At a stop where the trip changes there is one, with the arrival of the trip before and
+   * the departure of the next. Live data (applyTrip()) is written into these objects, so they stay the same ones.
+   */
+  stops: KanteStopCall[];
+  /** stops[0] and the last of them: where you board and where you get off. */
+  from: KanteStopCall;
+  to: KanteStopCall;
+  /** For each leg: its call's seq → the stop's place in `stops`. */
+  seqIdx: Map<number, number>[];
+  /** For each leg: what the engine said last about its trip (live-engine.ts). */
+  live: RideTripLive[];
+}
+/** What the engine said last about one trip of a ride: GET /api/trip, asked every 30 s while the trip is on. */
+export interface RideTripLive {
+  /** The last answer. */
+  trip?: KanteTrip;
+  /** When it came in (ms; 0 = not yet). */
+  at: number;
+  /** Polls in a row without an answer. */
+  fails: number;
+  /** A request is under way. */
+  busy?: boolean;
+}
+// ---------------------------------------------------------------- the journeys to choose from
+
+/** Every way on offer to make the trip (`journeyOptions`), as KanteJourney.plans() answers. */
+export interface JourneyOptions {
+  /** By public transport, in order of departure. */
+  list: Journey[];
+  /** On foot all the way, when that is near enough (up to about 3.5 km and 50 minutes); else null. */
+  walk: Journey | null;
+  /** The one shown first: one of `list`, or `walk`. */
+  best: Journey;
+  /** Whether there are earlier and later ones to fetch (KanteJourney.more()). */
+  earlier: boolean;
+  later: boolean;
+  /** What more() asks on with: the request plans() sent, and the engine's pages before and after (null: none left). */
+  request: { body: KantePlanBody; earlier?: string | null; later?: string | null };
+}
+// ---------------------------------------------------------------- where a ride stops
+
+/** The platform or stop edge a ride is boarded at, as the engine names it (KanteJourney.at()). */
+export interface JourneyEdge {
+  /** Its name ("7", "H"); '' when it has none. */
+  ref: string;
+  /** The floor; null (or 0) at street level, or when it is not known. */
+  level: number | null;
+  ll: LngLat;
+  /** "north side of Bundesgasse", or ''. */
+  side: string;
+}
+/** Where a stop of a ride is (KanteJourney.at()). */
+export interface JourneyPlatformAt {
+  ll: LngLat;
+  /** null: the engine only knows the stop, not the platform or edge. */
+  edge: JourneyEdge | null;
+  /** The compass direction the vehicle leaves in. */
+  travel: number | null;
+}
+// ---------------------------------------------------------------- KanteJourney (src/engine-journey.ts): journeys
+
+/** A walk as the app keeps a routed one. `steps` are a street router's; the engine's walk has `dirs` instead. */
+export interface KanteRoutedWalk { coords: LngLat[]; steps: null; dist: number | null; dirs: KanteWalkDir[] }
+/** The engine's walk in the three fields a step keeps a routed walk in. */
+export interface KanteWalkParts { lines: LngLat[][]; walks: KanteRoutedWalk[]; floors: KanteFloorChange[] }
+
 const K = KANTE;
 const pad2 = (n: number) => String(n).padStart(2, '0');
 

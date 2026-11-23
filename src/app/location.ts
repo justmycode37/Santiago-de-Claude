@@ -7,6 +7,18 @@ import { journey } from './state.ts';
 import { indoor } from '../station3d.ts';
 import { WALK_PACE } from '../walk-pace.ts';
 import { Station3D } from '../station3d.ts';
+
+/**
+ * A position as onPosition() (location.ts) takes it: the browser's GeolocationPosition, or the made-up one at
+ * the end of a path walked in the developer options (walk-pace.ts), which says `simulated`.
+ */
+export interface PositionFix {
+  coords: { longitude: number; latitude: number; accuracy: number; speed?: number | null; heading?: number | null };
+  /** When it was taken (ms). */
+  timestamp: number;
+  simulated?: boolean;
+}
+
 const accEl = document.createElement('div');
 accEl.className = 'user-accuracy';
 const accMarker = new maplibregl.Marker({ element: accEl });

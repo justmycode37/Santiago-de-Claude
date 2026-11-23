@@ -14,6 +14,41 @@
 //
 // A sign is evidence, never a fix: a direction sign says where something is, not where you are, sector letters
 // repeat on every platform, and a shop can be seen from 30 m. The Filter weighs it against everything else.
+import type { IndoorCandidate, IndoorFilter, IndoorLandmark, IndoorLandmarkKind, IndoorModel } from './indoorloc.ts';
+
+// ---------------------------------------------------------------------------------------------- SIGNLOC
+
+/** What a sign says. platforms: as written ("7", "H"); ranges: "Gleis 3–18"; sectors: capital letters. */
+export interface SignLocParse {
+  /** The text, normalised. */
+  text: string;
+  words: string[];
+  platforms: string[];
+  ranges: [from: number, to: number][];
+  sectors: string[];
+  exit: boolean;
+  arrows: boolean;
+  /** A word like Gleis / Voie / Kante was read. */
+  platformWord: boolean;
+  /** A sector sign without words: "7 A". */
+  bare?: boolean;
+}
+export type SignLocKind = IndoorLandmarkKind | 'direction' | 'board';
+/** One thing a sign says about where you are. */
+export interface SignLocObservation { kind: SignLocKind; label: string; candidates: IndoorCandidate[]; strength: number }
+/** `SIGNLOC.match()`. candidates / strength: those of the strongest observation. */
+export interface SignLocMatch {
+  parsed: SignLocParse;
+  /** Strongest first. */
+  observations: SignLocObservation[];
+  candidates: IndoorCandidate[];
+  strength: number;
+  explain: string;
+}
+/** A live departure at the station, to read departure boards. */
+export interface SignLocDeparture { platform?: string | number | null; line?: string | null; to?: string | null }
+export interface SignLocOptions { departures?: SignLocDeparture[] | null }
+
 /** Lower case, no accents, no punctuation. */
 const norm = (s: string | null | undefined) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[|]/g, 'l').replace(/[^a-z0-9→←↑↓\-–/ ]+/g, ' ').replace(/\s+/g, ' ').trim();

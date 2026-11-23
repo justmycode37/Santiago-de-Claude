@@ -15,6 +15,8 @@
 //   node tools/sim_indoorloc.cts --only rbs-baro --seeds 1 --export walk.json   a log in the recording format (IndoorLog)
 //   node tools/sim_indoorloc.cts --check               regression test: exit 1 if a scenario got worse
 //   node tools/sim_indoorloc.cts --replay recording.json [--key bern]
+import type { IndoorEstimateTracking, IndoorLandmark, IndoorLog, IndoorLogEvent, IndoorPrior, IndoorRandom } from '../src/indoorloc.ts';
+import type { StationRouteEndpoint, StationRoutePrefs, StationRouteResult } from '../src/station-route.ts';
 'use strict';
 const path = require('path') as typeof import('path');
 const fs = require('fs') as typeof import('fs');

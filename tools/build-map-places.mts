@@ -10,9 +10,10 @@
 // (its missing details are filled in from the official one).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { MAP_LAYERS } from '../src/map-layers.ts';
+import type { MapGroupKey, PlaceClass } from '../src/map-layers.ts';
 
 // ---- The types: what this script reads from data/ (the fields it uses), and the one shape it brings every source into ----
-// What it writes is the page's MapPlaces (src/types/data.d.ts); classify(), GROUPS and GLYPHS are the app's (src/types/map-layers.d.ts).
+// What it writes is the page's MapPlaces (src/types/data.d.ts); classify(), GROUPS and GLYPHS are the app's (src/map-layers.ts).
 
 /** A data file: when it was fetched, and its records. */
 interface DataFile<T> { generated: string; items: T[] }

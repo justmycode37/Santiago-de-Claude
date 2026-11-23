@@ -16,6 +16,9 @@ import { h, kBtn, kIcon, quayOf } from './sheet.ts';
 import { distKm } from './routing.ts';
 import type { DeviceOrientationAsk } from './menu.ts';
 import { ARCORE } from '../arcore.ts';
+import type { ArBox, ArCandidate, ArReading, ArText } from '../arcore.ts';
+import type { ScanWordsDetail } from '../stopvision.ts';
+import type { JourneyRideStep, JourneyStep, LineMode } from './journey-steps.ts';
 
 const AR_ON = (() => { // on unless switched off with ?ar=0 (remembered; ?ar=1 switches it on again)
   try {

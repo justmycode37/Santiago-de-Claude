@@ -26,6 +26,287 @@
 // seen as the filter needs it: the walking graph with each node's floor and height, a spatial index of the edges,
 // and the landmarks a sign can name. Routing stays with station-route.ts (StationRoute).
 import { SIGNLOC } from './signloc.ts';
+
+// ---------------------------------------------------------------------------------------------- INDOORLOC.Model
+
+/** A floor as the filter needs it. h: metres above level 0; sh: how sure (± m). */
+export interface IndoorLevel { id: number; h: number; sh: number; name: string }
+export type IndoorLandmarkKind = 'platform' | 'sector' | 'exit' | 'passage' | 'shop' | 'amenity' | 'prop';
+/** Something a sign can name, on its floor. */
+export interface IndoorLandmark {
+  /** Index into `levels`. */
+  li: number;
+  x: number;
+  y: number;
+  kind: IndoorLandmarkKind;
+  /** platform: the stop's ref; sector: "7:BC" (platform:letters); else the name. */
+  text: string;
+  /** platform: the mode; sector: how the sign is mounted, or 'centre'; else the model's own kind. */
+  extra: string;
+  /** platform: the stop's graph node. */
+  node?: number;
+  /** The points spread through one named floor or plaza share this. */
+  group?: string;
+}
+/** A place on the walking network: edge `e`, `s` metres from its a end. */
+export interface IndoorEdgePlace { e: number; s: number }
+/** … found near a point, `d` metres from it. */
+export interface IndoorEdgeHit extends IndoorEdgePlace { d: number }
+/** `Model.at()`: a point on an edge. t: 0..1 from a to b; li: the floor of the nearer end. */
+export interface IndoorEdgePoint { x: number; y: number; z: number; level: number; li: number; t: number }
+export interface IndoorModelOptions {
+  /** The day closures are judged for ("YYYY-MM-DD"; default today). */
+  date?: string | null;
+}
+/** A station model as the filter needs it. Nodes and edges are numbered as in `raw.graph`, less the closed edges. */
+export interface IndoorModel {
+  raw: StationModel;
+  key: string;
+  name: string;
+  uics: string[];
+  origin: LngLat;
+  /** Metres per degree of longitude / latitude at the origin. */
+  mx: number;
+  my: number;
+  /** Bottom to top. */
+  levels: IndoorLevel[];
+  /** Level id → index into `levels`. */
+  levelIndex: Map<number, number>;
+  /** Nodes: position, level number, floor (index into `levels`), height (m). */
+  n: number;
+  x: Float64Array;
+  y: Float64Array;
+  lv: Float64Array;
+  li: Int16Array;
+  z: Float64Array;
+  /** Edges: both ends, kind (index into `INDOORLOC.KIND`), flags (`INDOORLOC.flags`), walking length (m), bearing a → b (deg). */
+  ne: number;
+  ea: Int32Array;
+  eb: Int32Array;
+  ek: Int8Array;
+  ef: Int8Array;
+  elen: Float64Array;
+  ebear: Float64Array;
+  /** Per node, the edges you can leave it by: [edge, +1 (a → b) | −1 (b → a)]. */
+  out: [edge: number, dir: number][][];
+  /** The spatial index: edges per floor and cell ("li:gx:gy"), cells of `cell` metres. */
+  cell: number;
+  grid: Map<string, number[]>;
+  landmarks: IndoorLandmark[];
+  /** Height (m above level 0) of a level number, fractional ones included. */
+  zOf(level: number): number;
+  /** The floor (index into `levels`) a level number belongs to: the nearest whole level. */
+  floorOf(level: number): number;
+  /** null: no such floor. */
+  levelId(li: number): number | null;
+  toLngLat(x: number, y: number): LngLat;
+  fromLngLat(lon: number, lat: number): XY;
+  kind(e: number): StationEdgeKind;
+  at(e: number, s: number): IndoorEdgePoint;
+  /** The closest point on edge e to (x, y). */
+  project(e: number, x: number, y: number): { d: number; s: number };
+  /** Edges within r metres of (x, y) on floor li (null: every floor), nearest first. */
+  nearEdges(x: number, y: number, li: number | null | undefined, r: number): IndoorEdgeHit[];
+  nearestOnLevel(x: number, y: number, li: number | null | undefined, r?: number): IndoorEdgeHit | null;
+}
+// ---------------------------------------------------------------------------------------------- INDOORLOC.Filter
+
+/** `INDOORLOC.rng(seed)`: uniform 0..1; `gauss()`: standard normal. */
+export interface IndoorRandom { (): number; gauss(): number }
+/** The filter's settings (the defaults are in indoorloc.ts). */
+export interface IndoorFilterOptions {
+  particles?: number;
+  /** Metres per step, and its spread. */
+  stepLength?: number;
+  stepSigma?: number;
+  /** Degrees the measured walking heading may be from the path. */
+  headingSigma?: number;
+  /** m/s along an escalator when standing on it; m/s vertical in a lift. */
+  escalatorSpeed?: number;
+  liftSpeed?: number;
+  /** Per second: the chance a particle at a lift starts a ride while you stand. */
+  liftRate?: number;
+  /** Metres of height mismatch tolerated; the floor of the barometer's likelihood; m/s above which a height change is a disturbance. */
+  baroSigma?: number;
+  baroOutlier?: number;
+  baroJump?: number;
+  gpsMinSigma?: number;
+  gpsOutlier?: number;
+  /** Resample when the effective sample size falls below this share of the particles. */
+  resampleEss?: number;
+  /** For repeatable runs (default: the time). */
+  seed?: number;
+}
+/** `Filter.init(where)`: around a point (r metres, default 20) and / or on these floors (indices); nothing: anywhere. */
+export interface IndoorWhere { x?: number | null; y?: number; r?: number; levels?: number[] | null }
+/** A step was taken. heading: the walking direction (deg); stairs: the step was on stairs, when that is known. */
+export interface IndoorStep { t: number; length?: number; heading?: number | null; headingSigma?: number | null; stairs?: boolean | null }
+/** Relative barometric height: hPa, or z in metres. Only changes matter. */
+export interface IndoorPressure { t: number; hPa?: number; z?: number | null }
+export interface IndoorGps { t: number; lon: number; lat: number; acc?: number }
+/** What the body did: a lift started moving. */
+export interface IndoorMotion { t: number; kind: 'lift'; dir?: 'up' | 'down' | null }
+/** A place something seen can be. li null: any floor; sigma: metres (default 10); w: weight among the candidates. */
+export interface IndoorCandidate { x: number; y: number; li?: number | null; sigma?: number; w?: number; label?: string }
+/** Something seen. Several candidates: an ambiguous sign. strength 0..1 (default 0.8). */
+export interface IndoorSighting { t: number; candidates?: IndoorCandidate[]; strength?: number | null }
+/** The traveller (or the journey) says: on this floor (li: index, level: id), maybe near this spot (local, or lon / lat). */
+export interface IndoorPrior { li?: number | null; level?: number | null; x?: number; y?: number; r?: number; lon?: number | null; lat?: number }
+/** What the last evidence did, for a read-out. */
+export interface IndoorEvidence {
+  baro?: 'ok' | 'disturbed' | 're-anchored';
+  sign?: { candidates: number; strength: number };
+  /** Particles put back around the estimate (they explained the steps badly). */
+  recovered?: number;
+  relocalised?: 'gps';
+  /** Nothing fitted any more: started again (after this kind of evidence). */
+  reset?: string;
+}
+/** Nothing has placed the traveller yet. (li, levelProbs: never there; named so that any estimate can be asked for them.) */
+export interface IndoorEstimateUnknown { state: 'unknown'; confident: false; li?: undefined; levelProbs?: undefined }
+export interface IndoorEstimateTracking {
+  state: 'tracking';
+  /** On the most likely floor, snapped to the walking network. */
+  x: number;
+  y: number;
+  lon: number;
+  lat: number;
+  /** The most likely floor: index into the model's levels, its id, how likely. */
+  li: number;
+  level: number;
+  levelProb: number;
+  /** Level id → probability (floors under 0.5 % left out). */
+  levelProbs: Record<number, number>;
+  /** Spread of the particles on that floor (m). */
+  sigma: number;
+  /** One floor clearly wins and the spread is small. */
+  confident: boolean;
+  z: number;
+  t: number | null;
+  evidence: IndoorEvidence;
+}
+export type IndoorEstimate = IndoorEstimateUnknown | IndoorEstimateTracking;
+/** `Filter.cloud()`: a particle for drawing. w: its weight × the number of particles. */
+export type IndoorParticle = [x: number, y: number, li: number, w: number];
+/** The particle filter. Every evidence method returns the new estimate. */
+export interface IndoorFilter {
+  M: IndoorModel;
+  /** The number of particles; the arrays have one entry each. */
+  N: number;
+  /** Edge; metres from its a end; direction of travel along it (+1 a → b, −1 b → a). */
+  e: Int32Array;
+  s: Float64Array;
+  d: Int8Array;
+  /** Step length scale; heading bias (deg); barometer offset (m); > 0: riding a lift; weight. */
+  k: Float64Array;
+  hb: Float64Array;
+  bo: Float64Array;
+  ride: Float64Array;
+  w: Float64Array;
+  /** Time of the last update (s). */
+  t: number | null;
+  /** Something has placed the traveller (a GPS fix, the journey, a sign, their own word). */
+  initialised: boolean;
+  /** Effective sample size after the last evidence. */
+  ess?: number;
+  /** fn is called with every new estimate. */
+  on(fn: (est: IndoorEstimate) => void): this;
+  /** Start (or restart) from what is known. */
+  init(where?: IndoorWhere): IndoorEstimate;
+  step(ev: IndoorStep): IndoorEstimate;
+  /** Nothing but time (every second or so). */
+  tick(t: number): IndoorEstimate;
+  pressure(ev: IndoorPressure): IndoorEstimate;
+  gps(ev: IndoorGps): IndoorEstimate;
+  motion(ev: IndoorMotion): IndoorEstimate;
+  landmark(ev: IndoorSighting): IndoorEstimate;
+  prior(ev: IndoorPrior): IndoorEstimate;
+  /** The screen was off for dt seconds. */
+  gap(t: number, dt: number): IndoorEstimate;
+  estimate(): IndoorEstimate;
+  cloud(max?: number): IndoorParticle[];
+}
+// ---------------------------------------------------------------------------- INDOORLOC.Sensors, Recorder, replay
+
+export type IndoorSensorStatus = 'off' | 'on' | 'denied' | 'unavailable' | 'error';
+export type IndoorSensorState = Record<'motion' | 'orientation' | 'gps' | 'pressure', IndoorSensorStatus>;
+/** Where the traveller really was (a tap on the model, or the simulator's truth): local or lon / lat, and the floor. */
+export interface IndoorCheckpoint { x?: number; y?: number; lon?: number | null; lat?: number; level?: number | null; li?: number; mode?: string }
+/** What each kind of recorded event carries besides its time. `sigma` on a step: headingSigma as Sensors logs it. */
+export interface IndoorLogData {
+  step: { length?: number; heading?: number | null; headingSigma?: number | null; sigma?: number | null; stairs?: boolean | null };
+  gps: { lon: number; lat: number; acc?: number; alt?: number | null; altAcc?: number | null };
+  pressure: { hPa?: number; z?: number };
+  tick: {};
+  /** The compass: h = heading (deg), acc = its accuracy (iOS), a / b / g = the event's angles. */
+  orient: { h: number; acc?: number | null; a: number | null; b: number | null; g: number | null };
+  /** Every other motion event: av = vertical acceleration, r = rotation rate, u = the direction of gravity. */
+  imu: { av: number; r: number[] | null; u: number[] };
+  hidden: {};
+  visible: { dt: number };
+  sign: { text: string; explain?: string };
+  landmark: Omit<IndoorSighting, 't'>;
+  motion: Omit<IndoorMotion, 't'>;
+  prior: IndoorPrior;
+  checkpoint: IndoorCheckpoint;
+  truth: IndoorCheckpoint;
+}
+export type IndoorLogType = keyof IndoorLogData;
+/** An event as it goes to a Recorder: its data, and maybe its time (s; default now). */
+export type IndoorRaw<K extends IndoorLogType> = IndoorLogData[K] & { t?: number };
+/** [seconds since the first event, what, its data]. */
+export type IndoorLogEvent = { [K in IndoorLogType]: [t: number, type: K, data: IndoorLogData[K]] }[IndoorLogType];
+export interface IndoorLogMeta {
+  v?: number;
+  ua?: string;
+  start?: string;
+  /** The station model. */
+  key?: string | null;
+  /** Where the walk starts, when that is known: replay begins with it. */
+  prior?: IndoorPrior | null;
+  /** tools/sim_indoorloc.cts --export. */
+  scenario?: string;
+  name?: string;
+  simulated?: boolean;
+}
+/** A recording: `INDOORNAV.exportLog()`, `Recorder.toJSON()`; tools/sim_indoorloc.cts --replay reads it. */
+export interface IndoorLog { meta?: IndoorLogMeta; events: IndoorLogEvent[] }
+export interface IndoorSensorsOptions {
+  /** Gets every raw event before it is interpreted (for a Recorder). */
+  onRaw?: (<K extends IndoorLogType>(type: K, data: IndoorRaw<K>) => void) | null;
+  /** The app feeds GPS itself (Filter.gps). */
+  noGeo?: boolean;
+}
+/** The phone's sensors, feeding a filter. */
+export interface IndoorSensors {
+  state: IndoorSensorState;
+  /** Fused heading of the phone (deg), and how sure. */
+  heading: number | null;
+  headingSigma: number;
+  /** Call from a tap (iOS asks for motion and orientation access then). */
+  start(): Promise<IndoorSensorState>;
+  stop(): void;
+}
+export interface IndoorRecorder {
+  meta: IndoorLogMeta;
+  events: IndoorLogEvent[];
+  add<K extends IndoorLogType>(type: K, data: IndoorRaw<K>): void;
+  /** "I am here": ground truth for evaluation. */
+  checkpoint(where: IndoorRaw<'checkpoint'>): void;
+  toJSON(): IndoorLog;
+}
+export interface IndoorReplayOptions extends IndoorFilterOptions {
+  /** Where the walk starts (default: the recording's `meta.prior`). */
+  prior?: IndoorPrior | null;
+  /** Keep the estimate after every event. */
+  every?: boolean;
+}
+/** At a checkpoint: d = metres off (null: no position yet), prob = the probability given to the right floor. */
+export interface IndoorReplayCheckpoint { t: number; d: number | null; levelOk: boolean; prob: number; est: IndoorEstimate }
+export interface IndoorReplayResult { estimates: [t: number, est: IndoorEstimate][]; checkpoints: IndoorReplayCheckpoint[] }
+/** A constructor of indoorloc.ts: `new` may be left out. */
+export type IndoorCtor<A extends unknown[], T> = { new (...args: A): T; (...args: A): T };
+
 const KIND: StationEdgeKind[] = ['walk', 'stairs', 'escalator', 'elevator', 'ramp'];
 const KIND_ID = { walk: 0, stairs: 1, escalator: 2, elevator: 3, ramp: 4 };
 const F_INDOOR = 1, F_ONEWAY = 2, F_NOT_STEPFREE = 4, F_OUTDOOR = 8;

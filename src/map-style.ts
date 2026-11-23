@@ -1,5 +1,14 @@
 // The map's base style: swisstopo's light base map, and the dark variant made of it. For the page's map (it fills
 // STYLES once the light one has loaded: src/app/map-events.ts) and for the introduction's map (src/onboarding.ts).
+import type { Theme } from './theme.ts';
+
+/** A colour as parseColor() reads it: red, green, blue 0–255 and alpha 0–1. */
+export type Rgba = [r: number, g: number, b: number, a: number];
+/** Hue in degrees, saturation and lightness 0–1. */
+export type Hsl = [h: number, s: number, l: number];
+/** How the dark map style changes one colour of the light style. */
+export type HslRemap = (h: number, s: number, l: number) => Hsl;
+
 export const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
 
 // swisstopo has no dark vector basemap. Same as the Kante app: a dark variant of the light base map,

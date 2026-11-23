@@ -15,6 +15,33 @@
 // Every call returns the engine's JSON, or throws a KanteError: off (no engine), down (the request failed) or
 // refused (the engine answered no: 400, 404, 410 or 422, e.g. no route found or an unknown station). The responses
 // are described in kante/engine/crates/server/src/json.rs and kante/docs/LIVE-API.md.
+/** One written direction of a walk, as walkDirections() (src/app/sheet-content.ts) lists them. */
+export interface KanteWalkDir {
+  kind: 'depart' | 'walk' | 'stairs-up' | 'stairs-down';
+  text: string;
+  coords: LngLat[];
+  /** A floor change: the floors it leads from and to. */
+  from?: number;
+  to?: number;
+}
+/** Where a walk changes floor, and between which floors. */
+export interface KanteFloorChange { at: LngLat; from: number; to: number }
+/** The time picker's choice: leave at or arrive by; date "2026-11-21", time "14:05"; nothing or '' = today, now. */
+export type KanteTimeQuery = { mode?: 'dep' | 'arr'; date?: string | null; time?: string | null };
+
+
+/** Query parameters; the ones that are null, undefined or '' are not sent. */
+export type KanteParams = Record<string, string | number | boolean | null | undefined>;
+/** Which engine the page uses: `url` null = none; `ignored`: a ?kante= address in the link that was not followed. */
+export interface KanteEngineUrl { url: string | null; fromLink: boolean; ignored?: string }
+/**
+ * Why a call failed. off: the page has no engine (config.js, ?engine=off, ?kante=off); down: the request failed
+ * (no answer, too slow, a server error, too many requests); refused: the engine said no to this request (`status`
+ * 400, 404, 410 or 422: no route found, an unknown station), and is up.
+ */
+export type KanteFailure = 'off' | 'down' | 'refused';
+export interface KanteError extends Error { reason: KanteFailure; status?: number }
+
 const DEFAULT_URL = 'https://kante.omniroute.app';
 const RETRY_MS = 30000;
 
@@ -104,7 +131,7 @@ async function call(path: string, { params, body, timeout = 8000 }: CallOptions 
 }
 
 // The meta, once it has answered (null while the engine is off or can't be reached). Asked again by whoever
-// calls this while it is not known (src/app/56-live-engine.ts: every RETRY_MS); force: also when it is known.
+// calls this while it is not known (src/app/live-engine.ts: every RETRY_MS); force: also when it is known.
 function ready(force?: boolean): Promise<KanteMeta | null> {
   if (!BASE) return Promise.resolve(null);
   if (meta && !force) return Promise.resolve(meta);
@@ -136,7 +163,7 @@ export const KANTE = {
   fromLink,
   /** A ?kante= address in the link that was not followed (only an engine on this machine is). */
   ignored,
-  /** ms between two tries of /api/meta while it cannot be reached (src/app/56-live-engine.ts). */
+  /** ms between two tries of /api/meta while it cannot be reached (src/app/live-engine.ts). */
   RETRY_MS,
   /** Switched on, and its last request did not fail. */
   available,

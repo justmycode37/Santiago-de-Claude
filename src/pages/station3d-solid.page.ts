@@ -1,4 +1,5 @@
 import type { SolidChange, SolidView } from '../station3d-solid.ts';
+import type { StationRouteEndpoint, StationRoutePrefs } from '../station-route.ts';
 declare global {
   /** The view, for the console. */
   var SOLID: SolidView | undefined;

@@ -11,6 +11,7 @@ import { journey, tracking } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { KANTE_LIVE } from '../live.ts';
 import { KanteJourney } from '../engine-journey.ts';
+import type { JourneyRide } from '../engine-journey.ts';
 let kanteRetryTimer: number | null = null;
 // /api/meta: an engine that can't be reached when the page loads is asked again every 30 s (and when the tab
 // comes back), so it is not off for the rest of the visit

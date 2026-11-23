@@ -9,6 +9,38 @@ import { journey } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { KANTE_LIVE } from '../live.ts';
 import { SETTINGS } from '../settings.ts';
+import type { KanteJourneyLike } from '../live.ts';
+import type { Theme } from '../theme.ts';
+import type { LineLike, LineMode } from './journey-steps.ts';
+
+// ---------------------------------------------------------------- live vehicles on the map
+
+/** A vehicle of /api/vehicles as the map keeps it: with the response's time, its line as a journey, and how live it is. */
+export interface LiveVehicle extends KanteVehicle {
+  t: number;
+  j: KanteJourneyLike;
+  info: KanteLiveInfo | null;
+}
+/** What the map's 'kveh' source says about a vehicle. i: its index in the list. */
+export interface LiveVehicleProps {
+  i: number;
+  label: string;
+  /** Sprite ids (sprites.ts): the pictogram alone and with the line number, on the light and on the dark map. */
+  icon: string;
+  pill: string;
+  iconD: string;
+  pillD: string;
+  /** Not in the timetable. */
+  extra: boolean;
+  /** Not live (or not updated for a while): drawn faded. */
+  dim: boolean;
+}
+export type LiveVehicleCollection = GeoJSON.FeatureCollection<GeoJSON.Point, LiveVehicleProps>;
+// ---------------------------------------------------------------- small helpers (the end of live-vehicles.ts)
+
+/** A platform as the timetable writes it, taken apart: "7A-D" → num "7", sectors "A–D". */
+export interface PlatformParts { num: string; sectors: string }
+
 const VEH_MIN_ZOOM = 14;
 const VEH_PILL_ZOOM = 16; // from here the vehicle shows its line number too
 export const VEH_FC: LiveVehicleCollection = { type: 'FeatureCollection', features: [] };
@@ -23,7 +55,7 @@ const vehNow = () => vehT + (Date.now() - vehAt) / 1000;
 export function vehLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
   const fade: maplibregl.ExpressionSpecification = ['case', ['get', 'dim'], .45, 1];
-  // What each vehicle is, as a pictogram in its line's colour (42-sprites.ts); from VEH_PILL_ZOOM with the line
+  // What each vehicle is, as a pictogram in its line's colour (sprites.ts); from VEH_PILL_ZOOM with the line
   // number in it. It grows with the map: small among the streets, about vehicle size close in.
   return [
     { id: 'kveh-dot', type: 'symbol', source: 'kveh', minzoom: VEH_MIN_ZOOM,

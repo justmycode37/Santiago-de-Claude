@@ -6,6 +6,24 @@
 // `edges`: the edges of the stop (platforms.js, by index) it leaves from, [] when the engine does not place its
 // boarding point on one. It throws when the engine is off or cannot be reached, so the card can say so.
 import { KANTE } from './engine.ts';
+import type { ShownLine } from './engine-journey.ts';
+
+// ---------------------------------------------------------------- KANTE_BOARD (src/engine-departures.ts): departure boards
+
+/** What a board needs of a stop: an entry of PLATFORMS (src/app/platforms.ts). `key`: the edge's comparable name. */
+export interface KanteBoardStop { name: string; edges: { key: string; ll: LngLat }[] }
+/** One departure of a stop's board: the engine's, with what the two lists that show it need. */
+export interface BoardDeparture extends KanteDeparture {
+  /** Its line as the badges read it: "S7" → category S, number 7; a train without a line number by its train number. */
+  shown: ShownLine;
+  /** When it is expected to leave, ms: the timetable plus the live delay. */
+  time: number;
+  /** Whole minutes late, rounded down so that the planned time plus the delay is the time shown; 0 without live data. */
+  late: number;
+  /** The edges of the stop it leaves from (indices into the stop's edges); [] when the engine does not place its boarding point on one. */
+  edges: number[];
+}
+
 const LIMIT = 200;      // one board for the whole stop: ~80 min at Bern Bahnhof, a day at a street stop
 const FEW = 6;          // an edge with fewer departures than this on the board is asked for by itself
 const ONE_DOT_M = 9;    // tools/build_platforms.py draws one dot for same-named edges within 8 m (+ rounding)

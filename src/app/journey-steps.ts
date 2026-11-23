@@ -9,6 +9,143 @@ import { distKm, lengthKm } from './routing.ts';
 import { searchState } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { KanteJourney } from '../engine-journey.ts';
+import type { Journey, JourneyPart, JourneyPlatformAt, JourneyRide } from '../engine-journey.ts';
+import type { WalkEnd } from '../walkroute.ts';
+import type { RouteFeature, RouteFeatureProps } from './journey-map.ts';
+import type { RoutedWalk } from './routing.ts';
+import type { KanteFloorChange, KanteWalkDir } from '../engine.ts';
+
+// ---------------------------------------------------------------- lines
+
+/** How a line runs, as far as its timetable category tells (modeOf()). */
+export type LineMode = 'train' | 'tram' | 'bus' | 'boat' | 'cable';
+/** What tells a line apart: a ride's line, a departure of a board, or a live vehicle's line. */
+export interface LineLike { category?: string | null; number?: string | null; operator?: string | null }
+/** A line's colour, one of the app's palette: badge background and text on the light theme, and on the dark one. */
+export interface LineColor { name: string; bg: string; fg: string; dbg: string; dfg: string }
+/**
+ * One written direction of a walk as the sheet lists them (walkDirections() in sheet-content.ts): a router's,
+ * the floor change the platforms imply, and at the end "Arrive at …".
+ */
+export interface JourneyDirection {
+  kind: KanteWalkDir['kind'] | 'arrive';
+  text: string;
+  /** Its part of the walk's line (a single point for a floor change or the arrival); may be missing. */
+  coords?: LngLat[] | null;
+  /** A floor change: the floors it leads from and to. */
+  from?: number;
+  to?: number;
+}
+/** A floor change on a walk between platforms on different floors (levelChange()); `at`: where to show it. */
+export interface JourneyLevelChange { from: number; to: number; at: LngLat | null | undefined; text: string }
+// ---------------------------------------------------------------- steps
+
+/** The fields a kind of step does not have. */
+export type JourneyStepWithout<K extends string> = { [P in K]?: undefined };
+/** What every step has. */
+export interface JourneyStepBase {
+  /** The last ride before this step and the first one after it. */
+  prevRide?: JourneyRideStep;
+  nextRide?: JourneyRideStep;
+  /** stepLine() (tracking.ts): the step's line in travel order, and the geoVersion it was made for. */
+  _line?: LngLat[];
+  _lv?: number;
+  /** walkDirections() (sheet-content.ts): the directions, and the geoVersion they were written for. */
+  _dirs?: JourneyDirection[];
+  _dirsV?: number;
+}
+/** What a walk and a change share: the way on foot. */
+export interface JourneyFootStep extends JourneyStepBase {
+  /** When it starts and ends, ms (by the live forecasts; null where a ride has no time). */
+  t0: number | null;
+  t1: number | null;
+  /** The lines drawn on the map: straight ones at first, then each replaced by its routed path. */
+  lines: LngLat[][];
+  /** The routed walks, one for each of `lines` (a place stays empty until its walk is routed). */
+  walks?: RoutedWalk[];
+  /** Where the walk changes floor, when its router says so (a station model, the engine). */
+  floors?: KanteFloorChange[] | null;
+  // The engine's walk (KanteJourney.setWalk() and requay()):
+  /** Its time on foot, to the second. */
+  walkS?: number;
+  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
+  kanteWalk?: boolean;
+  // what its ends are, the revision of its route, the lines its last answer drew (a walk moved since has new ones), and for the walk to the destination the place it leads to
+  ends?: [WalkEnd, WalkEnd][];
+  walkRev?: number;
+  _netFor?: LngLat[][];
+  /** …and the ends and platforms it was routed for (walkSig()). */
+  _netSig?: string;
+  toLL?: LngLat;
+}
+/** On foot to the first stop, or (final) from the last stop to the destination. A trip without a ride is one final walk. */
+export interface JourneyWalkStep extends JourneyFootStep,
+  JourneyStepWithout<'prev' | 'walkMin' | 'points' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt' | 'destTitle' | 'time' | 'end'> {
+  type: 'walk';
+  /** Minutes. */
+  min: number;
+  /** When the engine starts the walk, ms. */
+  start: number | null;
+  /** Where it leads: the first stop, or the destination. */
+  toName: string;
+  /** The last walk, to the destination. */
+  final?: boolean;
+  /** To the first stop: the ride that follows, and where it is boarded. */
+  next?: JourneyRide;
+  board?: LngLat | null;
+  /** The last walk: the ride before (null: there is none), and where you got off. */
+  from?: JourneyRide | null;
+  alight?: LngLat | null;
+}
+/** Between two rides. */
+export interface JourneyChangeStep extends JourneyFootStep,
+  JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt' | 'destTitle' | 'time' | 'end'> {
+  type: 'change';
+  prev: JourneyRide;
+  next: JourneyRide;
+  /** Minutes on foot; 0: same platform, or the timetable has no walk. */
+  walkMin: number;
+  /** Where you get off and where you board. */
+  points: [off: LngLat | null, on: LngLat | null];
+}
+export interface JourneyRideStep extends JourneyStepBase,
+  JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 'destTitle' | 'time' | 'end'> {
+  type: 'ride';
+  /** When it leaves and arrives, ms (by the live forecasts; null where the stop has no time). */
+  t0: number | null;
+  t1: number | null;
+  s: JourneyRide;
+  /** The line on the map: through the stops at first (the same array as `stops`), then the track or road. */
+  path: LngLat[];
+  /** The stops that have a position, and each one's place in the ride's stops. */
+  stops: LngLat[];
+  stopIdx: number[];
+  /** Where it is boarded and left: the position, and what is known of the platform. */
+  depLL: LngLat | null;
+  arrLL: LngLat | null;
+  depAt: JourneyPlatformAt;
+  arrAt: JourneyPlatformAt;
+  /** stopKms() (tracking.ts): the km of each of `stops` along `path`, and the `path` they were measured on. */
+  _kms?: number[];
+  _kmFor?: LngLat[];
+}
+/** The last step: being there. */
+export interface JourneyArriveStep extends JourneyStepBase,
+  JourneyStepWithout<'t0' | 't1' | 'min' | 'start' | 'toName' | 'final' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt'> {
+  type: 'arrive';
+  destTitle: string;
+  /** When, ms: the timetable's arrival, then the live times'. */
+  time: number | null | undefined;
+  /** The last ride (null: there is none), and where it ends. */
+  from: JourneyRide | null;
+  end: LngLat | null;
+}
+// JourneyStep is a union of the four kinds of step, so `st.type === 'ride'` narrows it. A field only another kind
+// has reads as undefined, so `st.lines || []` works on any step. A field every step has goes into JourneyStepBase,
+// else into the kind it belongs to.
+/** A step of the journey on show (buildSteps()): walk → ride → change → ride → … → walk → arrive. */
+export type JourneyStep = JourneyWalkStep | JourneyChangeStep | JourneyRideStep | JourneyArriveStep;
+
 const PALETTE = [
   ['navy', '#344D77', '#FFFFFF', '#141D2D', '#9DB4DD'],
   ['rose', '#C55A82', '#FFFFFF', '#2C1520', '#E28CAD'],

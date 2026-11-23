@@ -2,6 +2,11 @@
 import { map } from './map.ts';
 import { WALK } from './journey-map.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
+import type { MapColorName } from '../map-layers.ts';
+
+/** A map symbol drawn on a canvas (sprites.ts), as map.addImage() takes it. */
+export interface MapSprite { data: ImageData; ratio: number }
+
 const SPRITE_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 export const INK = '#14161A';
 function spriteCanvas(w: number, h: number, ratio: number): [HTMLCanvasElement, CanvasRenderingContext2D] {

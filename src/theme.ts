@@ -1,5 +1,8 @@
 // The theme, light or dark: picked before the first paint (src/inline/theme.ts), then changed in Settings
 // (src/settings.ts) or by the system's setting (src/app/map-events.ts). The map's style follows it.
+
+export type Theme = 'light' | 'dark';
+
 export const root = document.documentElement;
 export const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
 export const currentTheme = () => root.dataset.theme === 'dark' ? 'dark' : 'light';

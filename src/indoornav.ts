@@ -18,6 +18,22 @@
 import { Station3D } from './station3d.ts';
 import { INDOORLOC } from './indoorloc.ts';
 import { SIGNLOC } from './signloc.ts';
+import type { IndoorEstimate, IndoorFilter, IndoorModel, IndoorRecorder, IndoorSensorState, IndoorSensors } from './indoorloc.ts';
+import type { SignLocMatch } from './signloc.ts';
+import type { StationRouteResult } from './station-route.ts';
+import type { Station3DEventMap, Station3DUser } from './station3d.ts';
+
+/** `INDOORNAV.state()`. */
+export interface IndoorNavState {
+  active: boolean; open: boolean; away: boolean; key: string | null;
+  /** Something says the traveller is really there (a recent GPS fix near the station, a sign, "I am here"): only then is a position shown. */
+  live: boolean;
+  sensors: IndoorSensorState | null;
+  estimate: IndoorEstimate | null;
+}
+/** `INDOORNAV.sign()`: what the sign matched. `repeated`: the same text within 15 s, not counted again. */
+export interface IndoorNavSign extends SignLocMatch { repeated?: boolean }
+
 const PUSH_MS = 250;          // at most 4 updates a second to the viewer
 const RETAIN_MS = 10 * 60e3;  // a closed station's session stays this long (Scan, a quick look at the map)
 const FAR_M = 300;            // a fix this far outside the model: not at this station
@@ -163,7 +179,7 @@ function startSensors() {
 }
 
 // GPS from the app (same argument as Station3D.setUser: { ll, accuracy, heading }). at: when the fix came
-// (performance.now()), for a fix kept and handed on later (the stand-in in index.html); an older fix than the
+// (performance.now()), for a fix kept and handed on later (the stand-in Station3D in station3d.ts); an older fix than the
 // one already here is dropped, so the position never steps back
 function setUser(u: Station3DUser | null, replay?: boolean, at?: number) {
   if (!(hook as Hook).done) hook();   // the viewer may load after the page (lazy loading): hook in as soon as it is there

@@ -15,6 +15,7 @@ import { setDetent, sheetDetent } from './sheet.ts';
 import { renderSheet } from './sheet-content.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
+import type { SearchResult, TripField } from './search.ts';
 const PIN_WORD = { from: 'start', to: 'destination' };
 const pinHint = document.getElementById('pinHint')!;
 let armedPin: TripField | null = null; // the pin that the next tap on the map places

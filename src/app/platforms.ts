@@ -16,6 +16,34 @@ import { KANTE } from '../engine.ts';
 import { SETTINGS } from '../settings.ts';
 import { WALK_PACE } from '../walk-pace.ts';
 import { Station3D } from '../station3d.ts';
+import type { StationRouteStopRef } from '../station-route.ts';
+import type { Theme } from '../theme.ts';
+
+// ---- Platforms and stop edges: the PLATFORMS index (src/app/platforms.ts, made from platforms.js) ----
+
+/** How a stop is served, in words (platforms.js has it as a letter: PlatformModeCode). */
+export type PlatformMode = 'train' | 'tram' | 'bus' | 'boat' | 'cable';
+/** One platform or stop edge of a stop. */
+export interface PlatformEdge {
+  /** Its name as signed: "7", "H"; '' when it has none. */
+  ref: string;
+  /** The comparable form of the name (platformKey()): "7A-D" → "7", "Kante H" → "H"; '' when it has none. */
+  key: string;
+  /** The compass direction the vehicles that stop there travel in; null when the data does not say. */
+  bearing: number | null;
+  /** The floor when it is not at street level, else null. */
+  level: number | null;
+  ll: LngLat;
+}
+/** A stop of PLATFORMS (by UIC number, "8507000"): its name, how it is served, its edges (at least one). */
+export interface PlatformStop { name: string; mode: PlatformMode; edges: PlatformEdge[] }
+/** The properties of a dot on the map (source 'platforms'): the stop's UIC number, the edge's index and name. */
+export interface PlatformDotProps { id: string; i: number; ref: string }
+/** A dot as the map gives it back for a tap (queryRenderedFeatures). */
+export type PlatformDotFeature = maplibregl.MapGeoJSONFeature & { properties: PlatformDotProps };
+/** What openPlatform() reads of a tapped dot. i null: the stop as a whole (Scan knows the stop, not the edge). */
+export interface PlatformTap { properties: { id: string; i: number | null } }
+
 export const PLATFORM_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlatformDotProps> = { type: 'FeatureCollection', features: [] };
 export const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 // The ~52,000 dots are only handed to the map the first time it comes near the zoom where they show:

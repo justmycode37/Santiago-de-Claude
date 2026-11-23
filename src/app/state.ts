@@ -3,6 +3,34 @@
 // only one part sets stays in that part (and is exported from there when others read it).
 // Nothing here touches the page: the tests import it as it is.
 import type { SearchCategory } from './categories.ts';
+import type { Journey, JourneyOptions } from '../engine-journey.ts';
+import type { EventFeature } from '../events.ts';
+import type { MapGroupKey } from '../map-layers.ts';
+import type { JourneyStep } from './journey-steps.ts';
+import type { FieldSearch, SearchResult, TripField } from './search.ts';
+import type { JourneyFocus } from './sheet.ts';
+import type { JourneyQuery } from './time-picker.ts';
+import type { TrackState } from './tracking.ts';
+
+// ---------------------------------------------------------------- the two ends
+
+/**
+ * Where a trip goes to, or starts: a search result, a place or an event picked on the map, or a dropped pin.
+ * This is what the journey reads of it; a search result (SearchResult) has more.
+ */
+export interface JourneyDest {
+  title: string;
+  lngLat: LngLat;
+  /** Where a search result comes from ('address', 'gg25', 'gazetteer', 'place', 'pin', …); a place or event of the map has none. */
+  origin?: string;
+}
+/** Where a plan starts from (startJourney()): the place, and its name in the sheet ("Your location", "Map centre", a start). */
+export interface JourneyOrigin { ll: LngLat; label: string }
+/** The list's two tabs: by public transport, or on foot all the way. */
+export type JourneyTab = 'pt' | 'walk';
+/** Which way the list is being extended (`journeyMore`). */
+export type JourneyMoreDir = 'earlier' | 'later';
+
 
 /** The journey on show, and the plan it came from. */
 export const journey = {

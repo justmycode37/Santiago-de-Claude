@@ -1,9 +1,42 @@
 // Live data from the Kante engine (kante/docs/LIVE-API.md): pure helpers for what /api/trip and /api/vehicles
 // answer: measured and forecast stop times, where a vehicle is and how sure that is. The rides of a journey know
-// their trips (src/engine-journey.ts) and the page polls them (src/app/56-live-engine.ts); the live vehicles on the
-// map are src/app/58-live-vehicles.ts. The client that talks to the engine is src/engine.ts.
+// their trips (src/engine-journey.ts) and the page polls them (src/app/live-engine.ts); the live vehicles on the
+// map are src/app/live-vehicles.ts. The client that talks to the engine is src/engine.ts.
 //
 // The helpers are plain functions without the DOM, so tools can test them with Node (module.exports).
+
+// ---------------------------------------------------------------- KANTE_LIVE (src/live.ts): live data, pure helpers
+
+/** A position moved on to another moment (KANTE_LIVE.advance). */
+export interface KanteAdvancedPosition extends Omit<KantePosition, 'dep' | 'arr'> {
+  dep?: number | null;
+  arr?: number | null;
+  /** Moved on from a stop only because its departure time has passed: that departure was not measured. */
+  stepped?: boolean;
+}
+/** Where a vehicle is along the drawn ride: at a stop of the ride (index), or between two. */
+export type KanteRideKm = { km: number; at: number; from?: undefined; to?: undefined } | { km: number; at?: undefined; from: number; to: number };
+/** What is known about how a position was worked out. */
+export interface KanteLiveContext {
+  basis?: KanteBasis | null;
+  /** The stop it left, by name… */
+  from?: string | null;
+  /** …and the seconds since its measured departure from there. */
+  leftS?: number | null;
+  /** The stop with the last measured time, by name. */
+  observedAt?: string | null;
+}
+/** The line of a vehicle as the journey object the app colours lines by. */
+export interface KanteJourneyLike { category: string; number: string; operator: string; name: string }
+/** A trip or a vehicle: anything that says how live it is. */
+export type KanteLiveCarrier = { liveInfo?: KanteLiveInfo | null; live?: KanteLiveWord | boolean | null };
+/** What places a vehicle of /api/vehicles; `t`: the time of the response it came in. */
+export type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & { frac?: number | null; t?: number | null };
+/** A vehicle of /api/vehicles, as far as it tells whether it has left a stop; `info`: its liveInfoOf(), when already worked out. */
+export type KanteVehicleSeen = Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null };
+/** late: the walk is longer than the time left; tight: under three minutes to spare. */
+export interface KanteRunOrWait { text: string; level: 'late' | 'tight' | 'ok' }
+
 const MAX_BBOX_KM = 120; // the engine refuses larger boxes (diagonal)
 
 // liveInfo from the new API, or the old API's "live" word

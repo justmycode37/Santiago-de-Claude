@@ -13,6 +13,7 @@ import { distKm } from './routing.ts';
 import { journey } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { SETTINGS } from '../settings.ts';
+import type { StopVisionHooks } from '../stopvision.ts';
 // ---------- Top-right menu ----------
 export const menu = document.getElementById('menu')!;
 const menuBtn = document.getElementById('menuBtn')!;

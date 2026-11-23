@@ -8,6 +8,19 @@ import { swissTicketTime } from './journey-actions.ts';
 import { journey } from './state.ts';
 import { PRICING_HISTORY } from '../pricing-history.ts';
 import { SETTINGS, openFareSuggestions } from '../settings.ts';
+import type { Journey } from '../engine-journey.ts';
+import type { TicketFare } from '../pricing-history.ts';
+
+export interface FareCheckpoint { station: { id?: string | null; name?: string | null }; departure?: string | null; arrival?: string | null }
+/** A ride as the fare service reads it: its two ends and its line (`operator` as that timetable names it, "SBB"). */
+export interface FareSection {
+  departure: FareCheckpoint;
+  arrival: FareCheckpoint;
+  journey: { name?: string | null; category?: string | null; number?: string | null; operator?: string | null } | null;
+}
+/** A connection of the fare service's timetable, as far as it is read and sent back to be priced. */
+export interface FareConnection { sections: FareSection[] }
+
 const FARE_API = 'https://transport.opendata.ch/v1/';
 const ticketQuotes = new WeakMap<Journey, Promise<TicketFare | null>>();
 const ticketAmount = (amount: unknown): amount is number => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;

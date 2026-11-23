@@ -1,5 +1,40 @@
 // The trips kept for fare suggestions (Settings › Fares) and the travel profile, in localStorage.
 // Whether trips are kept is the settings' switch; settings.ts hands it over (keepTripsWhen) as it starts.
+
+export interface TicketFare {
+  fare?: number | null;
+  halfFare?: number | null;
+}
+export interface PricingTrip extends TicketFare {
+  from: string;
+  to: string;
+  departure?: string | null;
+  rides: (string | null | undefined)[][];
+}
+export interface SavedPricingTrip extends TicketFare {
+  id: string;
+  from: string;
+  to: string;
+  date: string;
+  /** Missing in a record of the first version when its id does not give it (pricing-history.ts, list()). */
+  departure?: string;
+  /** Not written by this version. A record with false is neither listed nor counted. */
+  confirmed?: boolean;
+  dummy?: boolean;
+}
+export interface PricingProfile {
+  age?: number;
+  months?: number;
+  groupSize?: number;
+  hasHalfFare?: boolean;
+  covered?: boolean;
+  allUnder25?: boolean;
+  seniorEligibility?: boolean;
+  saver?: { full: number | null; half: number | null };
+}
+/** What `setProfile` takes: an empty number field of the form is null. Values that are not valid are left out. */
+export type PricingProfilePatch = { [K in keyof PricingProfile]?: PricingProfile[K] | null };
+
 let tracking: () => boolean | undefined = () => undefined;
 /** settings.ts: on() says whether trips are kept now (its "fare tracking" switch). */
 export function keepTripsWhen(on: () => boolean | undefined) { tracking = on; }

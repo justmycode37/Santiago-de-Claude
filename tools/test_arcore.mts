@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ARCORE as A } from '../src/arcore.ts';
+import type { ArBox, ArCandidate, ArDetection, ArExpectation, ArReading, ArText } from '../src/arcore.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const details = process.argv.includes('--details');

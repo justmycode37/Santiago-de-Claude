@@ -9,6 +9,8 @@ import { loadPlaces } from './map-places.ts';
 import { mapPadding } from './pill.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
+import type { PlaceBbox } from '../places.ts';
+import type { FieldSearch, SearchResult, TripField } from './search.ts';
 const placeMarkers: maplibregl.Marker[] = [];
 export const areaChip = document.getElementById('areaChip')!;
 export let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map

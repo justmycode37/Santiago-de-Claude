@@ -7,6 +7,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { StationRoute as SR } from '../src/station-route.ts';
+import type { StationRouteEndpoint, StationRoutePrefs, StationRouteResult, StationRouteSnap, StationRouteStepKind } from '../src/station-route.ts';
 
 declare global {
   // The station models (stations3d/<key>.js) put themselves on `window`, which here is the global object itself.

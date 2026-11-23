@@ -12,6 +12,65 @@ import { goToStep } from './pill.ts';
 import { distKm, lengthKm } from './routing.ts';
 import { journey, searchState, tracking } from './state.ts';
 import { KANTE_LIVE } from '../live.ts';
+import type { KanteAdvancedPosition } from '../live.ts';
+import type { JourneyRideStep, JourneyStep } from './journey-steps.ts';
+
+// ---------------------------------------------------------------- your place on the trip
+
+/** A place on the trip: the step (its index in journeySteps) and how many km into that step's line. */
+export interface TripPlace { i: number; kmIn: number }
+/** Where the live timetable says you are (timeProgress()). ended: the last timed step is over. */
+export interface TimedPlace extends TripPlace { ended?: boolean }
+/** A GPS position snapped onto the trip (snapToTrip()). */
+export interface TripSnap extends TripPlace {
+  /** What the snap was chosen by: metres off the line, plus the penalties for going backwards and boarding early. */
+  cost: number;
+  /** Metres off the line. */
+  d: number;
+  /** km into the whole trip. */
+  km: number;
+}
+/** GPS progress (`track`): the last fix snapped onto the trip. */
+export interface TrackState extends TripSnap {
+  /** The geoVersion its km were measured on. */
+  v: number;
+  /** Fixes in a row that were off the line; two make it `off`. */
+  offCount: number;
+  off: boolean;
+  /** You have been on the route at some fix (a trip that starts elsewhere is not "off the route" before that). */
+  onRoute?: boolean;
+  /** The ride that has left without you (missedRide()). */
+  missed?: JourneyRideStep | null;
+  /** Within 25 m of the trip's end, or 40 m of the destination. */
+  arrived?: boolean;
+}
+/** The trip's steps laid end to end (tripLayout()): each step's length and where it starts, in km. */
+export interface TripLayout {
+  /** The geoVersion and the steps it was measured for. */
+  v: number;
+  steps: JourneyStep[];
+  lens: number[];
+  km0: number[];
+  total: number;
+}
+/** The closest point of a segment to a position (projectSeg()): metres away, and 0…1 along the segment. */
+export interface SegProjection { d: number; t: number }
+// ---------------------------------------------------------------- the vehicle of a ride
+
+/** Where a ride's vehicle is along the ride's line: at a stop (its name), or between two. */
+export interface VehiclePlace {
+  km: number;
+  at?: string | null;
+  from?: string | null;
+  to?: string | null;
+}
+/** …placed by the Kante engine: its position moved on to `tNow` (the engine's clock, unix seconds), and the trip it is of. */
+export interface EngineVehiclePlace extends VehiclePlace { engine: KanteAdvancedPosition; tNow: number; trip: KanteTrip }
+/** …placed from the ride's live stop times. */
+export interface TimedVehiclePlace extends VehiclePlace { engine?: undefined; tNow?: undefined; trip?: undefined }
+/** vehicleState() */
+export type VehicleState = EngineVehiclePlace | TimedVehiclePlace;
+
 
 // A step's line in travel order (a change without a walk is just the platform)
 function stepLine(st: JourneyStep): LngLat[] {
