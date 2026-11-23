@@ -13,379 +13,439 @@
 //   measured from (you), both [lng, lat]. `bbox` [west, south, east, north] keeps only places inside it ("Search
 //   this area").
 // PlaceSearch.reverse([lng, lat]) → Promise<{ title } | null>: what stands there ("Kramgasse 12"), for a dropped pin.
-(function () {
-  /** A place found, before search() writes its subtitle. */
-  type Found = Omit<PlaceSearchResult, 'subtitle'> & { subtitle?: string };
-  type Origin = LngLat | null | undefined;
-  type Bbox = PlaceBbox | null | undefined;
-  /** Photon (photon.komoot.io): GeoJSON features with OpenStreetMap's tag as osm_key and osm_value. */
-  interface PhotonProperties {
-    osm_type: string;
-    osm_id: number;
-    osm_key: string;
-    osm_value: string;
-    name?: string;
-    countrycode?: string;
-    street?: string;
-    housenumber?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    locality?: string;
-    district?: string;
-  }
-  interface PhotonFeature { geometry: { coordinates: LngLat }; properties?: PhotonProperties }
-  interface PhotonAnswer { features?: PhotonFeature[] }
-  /** Google Places Text Search (New): the fields asked for in GOOGLE_FIELDS. */
-  interface GooglePlace {
-    id: string;
-    displayName?: { text?: string };
-    shortFormattedAddress?: string;
-    formattedAddress?: string;
-    location?: { latitude: number; longitude: number };
-    primaryType?: string;
-    primaryTypeDisplayName?: { text?: string };
-    types?: string[];
-    rating?: number;
-    userRatingCount?: number;
-    websiteUri?: string;
-    photos?: { name: string }[];
-    currentOpeningHours?: { openNow?: boolean };
-    businessStatus?: string;
-  }
-  interface GoogleAnswer { places?: GooglePlace[] }
 
-  const CONFIG = window.APP_CONFIG || {};
-  const GOOGLE_KEY = (CONFIG.googlePlacesKey || '').trim();
-  const PHOTON = 'https://photon.komoot.io/';
-  const COUNTRIES = new Set(['CH', 'LI']); // the timetable covers Switzerland and Liechtenstein
+/** Which icon a place gets in the list and on the map. */
+export type PlaceKind = 'food' | 'cafe' | 'bar' | 'shop' | 'health' | 'money' | 'toilet' | 'drink' | 'sport' | 'bed'
+  | 'building' | 'mountain' | 'nature' | 'station' | 'other';
+/** West, south, east, north. */
+export type PlaceBbox = [west: number, south: number, east: number, north: number];
+export interface PlaceSearchOptions {
+  /** Where to search: the middle of the map. Without it nothing is found. */
+  center?: LngLat;
+  /** Where distances are measured from (you). Left out: results carry no distance. */
+  origin?: LngLat | null;
+  /** How far around `center` nearby places are looked for at first (1.5 when left out). */
+  radiusKm?: number;
+  /** Only places inside it ("Search this area"). */
+  bbox?: PlaceBbox | null;
+}
+export interface PlaceSearchResult {
+  title: string;
+  /** Distance, category, rating, open or closed, address: '120 m · Café · Kramgasse 12, Bern'. */
+  subtitle: string;
+  /** In words ('Café', 'Fast food'), or ''. */
+  category: string;
+  address: string;
+  kind: PlaceKind;
+  lngLat: LngLat;
+  origin: 'place';
+  source: 'osm' | 'google';
+  /** 'osm:N123456', 'google:ChIJ…' */
+  id: string;
+  /** Metres from `origin`, or null when no origin was given. */
+  distance: number | null;
+  /** OpenStreetMap: it is a building, not the shop or office in it. */
+  building?: boolean;
+  /** Google: stars, 1 to 5. */
+  rating?: number | null;
+  /** Google: open at this moment. */
+  openNow?: boolean | null;
+  /** Google: how many people rated it. */
+  ratingCount?: number;
+  /** Its website, '' when none is known (Google, or OpenStreetMap after enrich()). */
+  website?: string;
+  /** A photo of it to show on its card, '' when there is none. */
+  photo?: string;
+  /** OpenStreetMap after enrich(): its opening hours as mapped ('Mo-Fr 08:00-18:00'). */
+  hours?: string;
+  /** OpenStreetMap after enrich(): how well known it is, the stand-in for a rating. */
+  score?: number;
+  /** Website, photo and score have been looked up (always for Google, after enrich() for OpenStreetMap). */
+  details?: boolean;
+}
+export interface PlaceSearchAnswer {
+  /** The kind of place the text asked for ('Restaurants' for "restaurant near me"), or null for a name. */
+  category: string | null;
+  results: PlaceSearchResult[];
+}
 
-  // Category words (English, German, French, Italian) → OpenStreetMap tags. Photon's reverse search with these
-  // tags returns the nearest places of that kind.
-  const CATEGORIES = [
-    { label: 'Restaurants', words: ['restaurant', 'restaurants', 'ristorante', 'gaststatte', 'beiz', 'dinner', 'lunch'], tags: ['amenity:restaurant'] },
-    { label: 'Food', words: ['food', 'eat', 'essen', 'manger', 'mangiare', 'hungry'], tags: ['amenity:restaurant', 'amenity:fast_food', 'amenity:cafe', 'amenity:food_court'] },
-    { label: 'Fast food', words: ['fast food', 'fastfood', 'takeaway', 'take away', 'imbiss', 'snack'], tags: ['amenity:fast_food'] },
-    { label: 'Cafés', words: ['cafe', 'cafes', 'coffee', 'kaffee', 'cafeteria', 'tea room', 'tearoom', 'breakfast', 'fruhstuck'], tags: ['amenity:cafe'] },
-    { label: 'Bars', words: ['bar', 'bars', 'pub', 'pubs', 'beer', 'bier', 'drinks', 'biergarten'], tags: ['amenity:bar', 'amenity:pub', 'amenity:biergarten'] },
-    { label: 'Bakeries', words: ['bakery', 'bakeries', 'backerei', 'beck', 'boulangerie', 'panetteria', 'bread', 'brot'], tags: ['shop:bakery'] },
-    { label: 'Ice cream', words: ['ice cream', 'gelato', 'glace', 'glacé', 'eis', 'gelateria'], tags: ['amenity:ice_cream', 'shop:ice_cream'] },
-    { label: 'Supermarkets', words: ['supermarket', 'supermarkets', 'supermarkt', 'grocery', 'groceries', 'lebensmittel', 'einkaufen', 'epicerie', 'supermarche', 'supermercato'], tags: ['shop:supermarket', 'shop:convenience'] },
-    { label: 'Kiosks', words: ['kiosk', 'kiosks', 'convenience', 'tabak'], tags: ['shop:kiosk', 'shop:convenience', 'shop:newsagent'] },
-    { label: 'Shopping', words: ['shopping', 'mall', 'shopping centre', 'shopping center', 'einkaufszentrum', 'department store', 'warenhaus'], tags: ['shop:mall', 'shop:department_store'] },
-    { label: 'Clothes', words: ['clothes', 'clothing', 'kleider', 'fashion', 'vetements'], tags: ['shop:clothes', 'shop:shoes'] },
-    { label: 'Pharmacies', words: ['pharmacy', 'pharmacies', 'apotheke', 'pharmacie', 'farmacia', 'drugstore', 'drogerie', 'chemist'], tags: ['amenity:pharmacy', 'shop:chemist'] },
-    { label: 'Hospitals', words: ['hospital', 'hospitals', 'spital', 'krankenhaus', 'hopital', 'ospedale', 'emergency', 'notfall', 'urgences'], tags: ['amenity:hospital'] },
-    { label: 'Doctors', words: ['doctor', 'doctors', 'arzt', 'medecin', 'medico', 'clinic', 'klinik', 'praxis', 'gp'], tags: ['amenity:doctors', 'amenity:clinic'] },
-    { label: 'Dentists', words: ['dentist', 'dentists', 'zahnarzt', 'dentiste', 'dentista'], tags: ['amenity:dentist'] },
-    { label: 'Toilets', words: ['toilet', 'toilets', 'wc', 'restroom', 'restrooms', 'bathroom', 'toilette', 'toiletten', 'gabinetto'], tags: ['amenity:toilets'] },
-    { label: 'Drinking water', words: ['drinking water', 'water fountain', 'fountain', 'brunnen', 'trinkwasser', 'fontaine'], tags: ['amenity:drinking_water', 'amenity:fountain'] },
-    { label: 'Cash machines', words: ['atm', 'atms', 'cash', 'bancomat', 'geldautomat', 'cash machine', 'postomat'], tags: ['amenity:atm'] },
-    { label: 'Banks', words: ['bank', 'banks', 'banque', 'banca'], tags: ['amenity:bank'] },
-    { label: 'Post offices', words: ['post office', 'post', 'poste', 'posta', 'postfiliale'], tags: ['amenity:post_office'] },
-    { label: 'Town halls & migration offices', words: ['town hall', 'townhall', 'town halls', 'immigration office', 'migration office', 'immigration',
-      'migrationsamt', 'migrationsdienst', 'einwohnerdienste', 'einwohnerkontrolle', 'gemeindeverwaltung', 'residence permit', 'permit', 'mairie',
-      'municipio', 'integration office'], tags: ['amenity:townhall', 'office:government'],
-      // office:government is any office: keep the ones newcomers deal with
-      names: /migra|einwohner|bev[oö]lkerung|population|integration|gemeinde|stadtverwaltung|commune|ausl[aä]nder|zivilstand|etat civil|state secretariat|sem\b/i },
-    { label: 'Police', words: ['police', 'polizei', 'polizia'], tags: ['amenity:police'] },
-    { label: 'Hotels', words: ['hotel', 'hotels', 'hostel', 'hostels', 'accommodation', 'unterkunft', 'albergo', 'b&b', 'guest house'], tags: ['tourism:hotel', 'tourism:hostel', 'tourism:guest_house', 'tourism:motel'] },
-    { label: 'Museums', words: ['museum', 'museums', 'musee', 'museo', 'gallery', 'galerie'], tags: ['tourism:museum', 'tourism:gallery'] },
-    { label: 'Sights', words: ['sights', 'attraction', 'attractions', 'sightseeing', 'sehenswurdigkeit', 'viewpoint', 'aussicht'], tags: ['tourism:attraction', 'tourism:viewpoint'] },
-    { label: 'Parks', words: ['park', 'parks', 'parc', 'parco', 'garden', 'garten'], tags: ['leisure:park', 'leisure:garden'] },
-    { label: 'Playgrounds', words: ['playground', 'playgrounds', 'spielplatz', 'place de jeux'], tags: ['leisure:playground'] },
-    { label: 'Libraries', words: ['library', 'libraries', 'bibliothek', 'bibliotheque', 'biblioteca'], tags: ['amenity:library'] },
-    { label: 'Gyms', words: ['gym', 'gyms', 'fitness', 'fitnesscenter', 'sport centre', 'sports centre'], tags: ['leisure:fitness_centre', 'leisure:sports_centre'] },
-    { label: 'Swimming', words: ['swimming', 'swimming pool', 'pool', 'schwimmbad', 'hallenbad', 'freibad', 'badi', 'piscine', 'piscina'], tags: ['leisure:swimming_pool', 'leisure:water_park', 'amenity:public_bath'] },
-    { label: 'Cinemas', words: ['cinema', 'cinemas', 'kino', 'movies', 'cinema'], tags: ['amenity:cinema'] },
-    { label: 'Theatres', words: ['theatre', 'theater', 'theatres', 'concert', 'konzert'], tags: ['amenity:theatre', 'amenity:arts_centre'] },
-    { label: 'Schools', words: ['school', 'schools', 'schule', 'ecole', 'scuola'], tags: ['amenity:school'] },
-    { label: 'Universities', words: ['university', 'universities', 'uni', 'universitat', 'universite', 'college', 'hochschule'], tags: ['amenity:university', 'amenity:college'] },
-    { label: 'Churches', words: ['church', 'churches', 'kirche', 'eglise', 'chiesa', 'mosque', 'moschee', 'synagogue', 'temple', 'place of worship'], tags: ['amenity:place_of_worship'] },
-    { label: 'Hairdressers', words: ['hairdresser', 'hairdressers', 'barber', 'coiffeur', 'friseur', 'haircut'], tags: ['shop:hairdresser'] },
-    { label: 'Laundry', words: ['laundry', 'laundrette', 'waschsalon', 'laverie'], tags: ['shop:laundry', 'shop:dry_cleaning'] },
-    { label: 'Parking', words: ['parking', 'car park', 'parkhaus', 'parkplatz'], tags: ['amenity:parking'] },
-    { label: 'Charging stations', words: ['charging', 'ev charging', 'charging station', 'ladestation', 'e-tankstelle'], tags: ['amenity:charging_station'] },
-    { label: 'Petrol stations', words: ['petrol', 'gas station', 'fuel', 'tankstelle', 'station service'], tags: ['amenity:fuel'] },
-    { label: 'Bike rental', words: ['bike rental', 'bike sharing', 'publibike', 'velo', 'veloverleih', 'bicycle rental'], tags: ['amenity:bicycle_rental'] },
-  ];
+/** A place found, before search() writes its subtitle. */
+type Found = Omit<PlaceSearchResult, 'subtitle'> & { subtitle?: string };
+type Origin = LngLat | null | undefined;
+type Bbox = PlaceBbox | null | undefined;
+/** Photon (photon.komoot.io): GeoJSON features with OpenStreetMap's tag as osm_key and osm_value. */
+interface PhotonProperties {
+  osm_type: string;
+  osm_id: number;
+  osm_key: string;
+  osm_value: string;
+  name?: string;
+  countrycode?: string;
+  street?: string;
+  housenumber?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  locality?: string;
+  district?: string;
+}
+interface PhotonFeature { geometry: { coordinates: LngLat }; properties?: PhotonProperties }
+interface PhotonAnswer { features?: PhotonFeature[] }
+/** Google Places Text Search (New): the fields asked for in GOOGLE_FIELDS. */
+interface GooglePlace {
+  id: string;
+  displayName?: { text?: string };
+  shortFormattedAddress?: string;
+  formattedAddress?: string;
+  location?: { latitude: number; longitude: number };
+  primaryType?: string;
+  primaryTypeDisplayName?: { text?: string };
+  types?: string[];
+  rating?: number;
+  userRatingCount?: number;
+  websiteUri?: string;
+  photos?: { name: string }[];
+  currentOpeningHours?: { openNow?: boolean };
+  businessStatus?: string;
+}
+interface GoogleAnswer { places?: GooglePlace[] }
 
-  const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
-  const NEARBY = /\s*\b(near me|nearby|near by|around me|close by|close to me|in der nahe|in meiner nahe|pres de moi|vicino)\s*$/;
+const CONFIG = window.APP_CONFIG || {};
+const GOOGLE_KEY = (CONFIG.googlePlacesKey || '').trim();
+const PHOTON = 'https://photon.komoot.io/';
+const COUNTRIES = new Set(['CH', 'LI']); // the timetable covers Switzerland and Liechtenstein
 
-  function matchCategory(text: string) {
-    const q = fold(text).replace(NEARBY, '').replace(/^(the |a |an |some )/, '');
-    if (!q) return null;
-    for (const c of CATEGORIES) if (c.words.some((w) => fold(w) === q)) return c;
-    // while typing: "restau" → Restaurants (a word long enough not to be the start of a name by chance)
-    if (q.length >= 4) for (const c of CATEGORIES) if (c.words.some((w) => w.length > q.length && fold(w).startsWith(q))) return c;
-    return null;
-  }
+// Category words (English, German, French, Italian) → OpenStreetMap tags. Photon's reverse search with these
+// tags returns the nearest places of that kind.
+const CATEGORIES = [
+  { label: 'Restaurants', words: ['restaurant', 'restaurants', 'ristorante', 'gaststatte', 'beiz', 'dinner', 'lunch'], tags: ['amenity:restaurant'] },
+  { label: 'Food', words: ['food', 'eat', 'essen', 'manger', 'mangiare', 'hungry'], tags: ['amenity:restaurant', 'amenity:fast_food', 'amenity:cafe', 'amenity:food_court'] },
+  { label: 'Fast food', words: ['fast food', 'fastfood', 'takeaway', 'take away', 'imbiss', 'snack'], tags: ['amenity:fast_food'] },
+  { label: 'Cafés', words: ['cafe', 'cafes', 'coffee', 'kaffee', 'cafeteria', 'tea room', 'tearoom', 'breakfast', 'fruhstuck'], tags: ['amenity:cafe'] },
+  { label: 'Bars', words: ['bar', 'bars', 'pub', 'pubs', 'beer', 'bier', 'drinks', 'biergarten'], tags: ['amenity:bar', 'amenity:pub', 'amenity:biergarten'] },
+  { label: 'Bakeries', words: ['bakery', 'bakeries', 'backerei', 'beck', 'boulangerie', 'panetteria', 'bread', 'brot'], tags: ['shop:bakery'] },
+  { label: 'Ice cream', words: ['ice cream', 'gelato', 'glace', 'glacé', 'eis', 'gelateria'], tags: ['amenity:ice_cream', 'shop:ice_cream'] },
+  { label: 'Supermarkets', words: ['supermarket', 'supermarkets', 'supermarkt', 'grocery', 'groceries', 'lebensmittel', 'einkaufen', 'epicerie', 'supermarche', 'supermercato'], tags: ['shop:supermarket', 'shop:convenience'] },
+  { label: 'Kiosks', words: ['kiosk', 'kiosks', 'convenience', 'tabak'], tags: ['shop:kiosk', 'shop:convenience', 'shop:newsagent'] },
+  { label: 'Shopping', words: ['shopping', 'mall', 'shopping centre', 'shopping center', 'einkaufszentrum', 'department store', 'warenhaus'], tags: ['shop:mall', 'shop:department_store'] },
+  { label: 'Clothes', words: ['clothes', 'clothing', 'kleider', 'fashion', 'vetements'], tags: ['shop:clothes', 'shop:shoes'] },
+  { label: 'Pharmacies', words: ['pharmacy', 'pharmacies', 'apotheke', 'pharmacie', 'farmacia', 'drugstore', 'drogerie', 'chemist'], tags: ['amenity:pharmacy', 'shop:chemist'] },
+  { label: 'Hospitals', words: ['hospital', 'hospitals', 'spital', 'krankenhaus', 'hopital', 'ospedale', 'emergency', 'notfall', 'urgences'], tags: ['amenity:hospital'] },
+  { label: 'Doctors', words: ['doctor', 'doctors', 'arzt', 'medecin', 'medico', 'clinic', 'klinik', 'praxis', 'gp'], tags: ['amenity:doctors', 'amenity:clinic'] },
+  { label: 'Dentists', words: ['dentist', 'dentists', 'zahnarzt', 'dentiste', 'dentista'], tags: ['amenity:dentist'] },
+  { label: 'Toilets', words: ['toilet', 'toilets', 'wc', 'restroom', 'restrooms', 'bathroom', 'toilette', 'toiletten', 'gabinetto'], tags: ['amenity:toilets'] },
+  { label: 'Drinking water', words: ['drinking water', 'water fountain', 'fountain', 'brunnen', 'trinkwasser', 'fontaine'], tags: ['amenity:drinking_water', 'amenity:fountain'] },
+  { label: 'Cash machines', words: ['atm', 'atms', 'cash', 'bancomat', 'geldautomat', 'cash machine', 'postomat'], tags: ['amenity:atm'] },
+  { label: 'Banks', words: ['bank', 'banks', 'banque', 'banca'], tags: ['amenity:bank'] },
+  { label: 'Post offices', words: ['post office', 'post', 'poste', 'posta', 'postfiliale'], tags: ['amenity:post_office'] },
+  { label: 'Town halls & migration offices', words: ['town hall', 'townhall', 'town halls', 'immigration office', 'migration office', 'immigration',
+    'migrationsamt', 'migrationsdienst', 'einwohnerdienste', 'einwohnerkontrolle', 'gemeindeverwaltung', 'residence permit', 'permit', 'mairie',
+    'municipio', 'integration office'], tags: ['amenity:townhall', 'office:government'],
+    // office:government is any office: keep the ones newcomers deal with
+    names: /migra|einwohner|bev[oö]lkerung|population|integration|gemeinde|stadtverwaltung|commune|ausl[aä]nder|zivilstand|etat civil|state secretariat|sem\b/i },
+  { label: 'Police', words: ['police', 'polizei', 'polizia'], tags: ['amenity:police'] },
+  { label: 'Hotels', words: ['hotel', 'hotels', 'hostel', 'hostels', 'accommodation', 'unterkunft', 'albergo', 'b&b', 'guest house'], tags: ['tourism:hotel', 'tourism:hostel', 'tourism:guest_house', 'tourism:motel'] },
+  { label: 'Museums', words: ['museum', 'museums', 'musee', 'museo', 'gallery', 'galerie'], tags: ['tourism:museum', 'tourism:gallery'] },
+  { label: 'Sights', words: ['sights', 'attraction', 'attractions', 'sightseeing', 'sehenswurdigkeit', 'viewpoint', 'aussicht'], tags: ['tourism:attraction', 'tourism:viewpoint'] },
+  { label: 'Parks', words: ['park', 'parks', 'parc', 'parco', 'garden', 'garten'], tags: ['leisure:park', 'leisure:garden'] },
+  { label: 'Playgrounds', words: ['playground', 'playgrounds', 'spielplatz', 'place de jeux'], tags: ['leisure:playground'] },
+  { label: 'Libraries', words: ['library', 'libraries', 'bibliothek', 'bibliotheque', 'biblioteca'], tags: ['amenity:library'] },
+  { label: 'Gyms', words: ['gym', 'gyms', 'fitness', 'fitnesscenter', 'sport centre', 'sports centre'], tags: ['leisure:fitness_centre', 'leisure:sports_centre'] },
+  { label: 'Swimming', words: ['swimming', 'swimming pool', 'pool', 'schwimmbad', 'hallenbad', 'freibad', 'badi', 'piscine', 'piscina'], tags: ['leisure:swimming_pool', 'leisure:water_park', 'amenity:public_bath'] },
+  { label: 'Cinemas', words: ['cinema', 'cinemas', 'kino', 'movies', 'cinema'], tags: ['amenity:cinema'] },
+  { label: 'Theatres', words: ['theatre', 'theater', 'theatres', 'concert', 'konzert'], tags: ['amenity:theatre', 'amenity:arts_centre'] },
+  { label: 'Schools', words: ['school', 'schools', 'schule', 'ecole', 'scuola'], tags: ['amenity:school'] },
+  { label: 'Universities', words: ['university', 'universities', 'uni', 'universitat', 'universite', 'college', 'hochschule'], tags: ['amenity:university', 'amenity:college'] },
+  { label: 'Churches', words: ['church', 'churches', 'kirche', 'eglise', 'chiesa', 'mosque', 'moschee', 'synagogue', 'temple', 'place of worship'], tags: ['amenity:place_of_worship'] },
+  { label: 'Hairdressers', words: ['hairdresser', 'hairdressers', 'barber', 'coiffeur', 'friseur', 'haircut'], tags: ['shop:hairdresser'] },
+  { label: 'Laundry', words: ['laundry', 'laundrette', 'waschsalon', 'laverie'], tags: ['shop:laundry', 'shop:dry_cleaning'] },
+  { label: 'Parking', words: ['parking', 'car park', 'parkhaus', 'parkplatz'], tags: ['amenity:parking'] },
+  { label: 'Charging stations', words: ['charging', 'ev charging', 'charging station', 'ladestation', 'e-tankstelle'], tags: ['amenity:charging_station'] },
+  { label: 'Petrol stations', words: ['petrol', 'gas station', 'fuel', 'tankstelle', 'station service'], tags: ['amenity:fuel'] },
+  { label: 'Bike rental', words: ['bike rental', 'bike sharing', 'publibike', 'velo', 'veloverleih', 'bicycle rental'], tags: ['amenity:bicycle_rental'] },
+];
 
-  function distance(a: LngLat, b: LngLat) {
-    const rad = Math.PI / 180;
-    const dLat = (b[1] - a[1]) * rad, dLng = (b[0] - a[0]) * rad;
-    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
-    return 12742000 * Math.asin(Math.sqrt(h));
-  }
-  const formatDistance = (m: number) => (m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : m < 9950 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m / 1000)} km`);
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const NEARBY = /\s*\b(near me|nearby|near by|around me|close by|close to me|in der nahe|in meiner nahe|pres de moi|vicino)\s*$/;
 
-  // OpenStreetMap / Google place types → icon kind (index.html draws one icon per kind)
-  const KIND_BY_TYPE: Record<string, PlaceKind> = {
-    restaurant: 'food', fast_food: 'food', food_court: 'food', meal_takeaway: 'food', meal_delivery: 'food',
-    cafe: 'cafe', coffee_shop: 'cafe', ice_cream: 'cafe', bakery: 'cafe', ice_cream_shop: 'cafe', confectionery: 'cafe', pastry: 'cafe', tea_house: 'cafe',
-    bar: 'bar', pub: 'bar', biergarten: 'bar', nightclub: 'bar', night_club: 'bar', wine_bar: 'bar',
-    supermarket: 'shop', convenience: 'shop', kiosk: 'shop', mall: 'shop', department_store: 'shop', clothes: 'shop', shoes: 'shop',
-    grocery_store: 'shop', shopping_mall: 'shop', clothing_store: 'shop', store: 'shop', newsagent: 'shop', chemist: 'health',
-    pharmacy: 'health', hospital: 'health', doctors: 'health', doctor: 'health', clinic: 'health', dentist: 'health', drugstore: 'health',
-    atm: 'money', bank: 'money', bureau_de_change: 'money',
-    toilets: 'toilet', drinking_water: 'drink', fountain: 'drink', public_bath: 'sport',
-    hotel: 'bed', hostel: 'bed', guest_house: 'bed', motel: 'bed', lodging: 'bed', apartment: 'bed', camp_site: 'bed',
-    museum: 'building', gallery: 'building', art_gallery: 'building', theatre: 'building', cinema: 'building', movie_theater: 'building',
-    arts_centre: 'building', library: 'building', place_of_worship: 'building', church: 'building', university: 'building',
-    school: 'building', college: 'building', attraction: 'building', tourist_attraction: 'building', townhall: 'building',
-    city_hall: 'building', post_office: 'building', police: 'building', viewpoint: 'mountain',
-    park: 'nature', garden: 'nature', playground: 'nature', nature_reserve: 'nature',
-    fitness_centre: 'sport', sports_centre: 'sport', swimming_pool: 'sport', water_park: 'sport', gym: 'sport', stadium: 'sport', pitch: 'sport',
-    station: 'station', halt: 'station', train_station: 'station', transit_station: 'station', bus_station: 'station', subway_station: 'station',
+function matchCategory(text: string) {
+  const q = fold(text).replace(NEARBY, '').replace(/^(the |a |an |some )/, '');
+  if (!q) return null;
+  for (const c of CATEGORIES) if (c.words.some((w) => fold(w) === q)) return c;
+  // while typing: "restau" → Restaurants (a word long enough not to be the start of a name by chance)
+  if (q.length >= 4) for (const c of CATEGORIES) if (c.words.some((w) => w.length > q.length && fold(w).startsWith(q))) return c;
+  return null;
+}
+
+function distance(a: LngLat, b: LngLat) {
+  const rad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * rad, dLng = (b[0] - a[0]) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
+  return 12742000 * Math.asin(Math.sqrt(h));
+}
+const formatDistance = (m: number) => (m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : m < 9950 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m / 1000)} km`);
+
+// OpenStreetMap / Google place types → icon kind (index.html draws one icon per kind)
+const KIND_BY_TYPE: Record<string, PlaceKind> = {
+  restaurant: 'food', fast_food: 'food', food_court: 'food', meal_takeaway: 'food', meal_delivery: 'food',
+  cafe: 'cafe', coffee_shop: 'cafe', ice_cream: 'cafe', bakery: 'cafe', ice_cream_shop: 'cafe', confectionery: 'cafe', pastry: 'cafe', tea_house: 'cafe',
+  bar: 'bar', pub: 'bar', biergarten: 'bar', nightclub: 'bar', night_club: 'bar', wine_bar: 'bar',
+  supermarket: 'shop', convenience: 'shop', kiosk: 'shop', mall: 'shop', department_store: 'shop', clothes: 'shop', shoes: 'shop',
+  grocery_store: 'shop', shopping_mall: 'shop', clothing_store: 'shop', store: 'shop', newsagent: 'shop', chemist: 'health',
+  pharmacy: 'health', hospital: 'health', doctors: 'health', doctor: 'health', clinic: 'health', dentist: 'health', drugstore: 'health',
+  atm: 'money', bank: 'money', bureau_de_change: 'money',
+  toilets: 'toilet', drinking_water: 'drink', fountain: 'drink', public_bath: 'sport',
+  hotel: 'bed', hostel: 'bed', guest_house: 'bed', motel: 'bed', lodging: 'bed', apartment: 'bed', camp_site: 'bed',
+  museum: 'building', gallery: 'building', art_gallery: 'building', theatre: 'building', cinema: 'building', movie_theater: 'building',
+  arts_centre: 'building', library: 'building', place_of_worship: 'building', church: 'building', university: 'building',
+  school: 'building', college: 'building', attraction: 'building', tourist_attraction: 'building', townhall: 'building',
+  city_hall: 'building', post_office: 'building', police: 'building', viewpoint: 'mountain',
+  park: 'nature', garden: 'nature', playground: 'nature', nature_reserve: 'nature',
+  fitness_centre: 'sport', sports_centre: 'sport', swimming_pool: 'sport', water_park: 'sport', gym: 'sport', stadium: 'sport', pitch: 'sport',
+  station: 'station', halt: 'station', train_station: 'station', transit_station: 'station', bus_station: 'station', subway_station: 'station',
+};
+const kindFor = (...types: (string | undefined)[]): PlaceKind => { for (const t of types) if (t && KIND_BY_TYPE[t]) return KIND_BY_TYPE[t]; return 'other'; };
+const LABELS: Record<string, string> = { fast_food: 'Fast food', cafe: 'Café', toilets: 'Toilets', doctors: 'Doctor', atm: 'Cash machine', chemist: 'Drugstore',
+  place_of_worship: 'Place of worship', fitness_centre: 'Gym', sports_centre: 'Sports centre', drinking_water: 'Drinking water',
+  convenience: 'Convenience store', kiosk: 'Kiosk', department_store: 'Department store', mall: 'Shopping centre', clothes: 'Clothes shop',
+  hairdresser: 'Hairdresser', townhall: 'Town hall', government: 'Public office', yes: '' };
+const humanize = (v: string) => (v in LABELS ? LABELS[v] : (v || '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()));
+
+// Photon features that are not destinations (paths, signposts, platforms: the stop search covers those)
+const SKIP_KEYS = new Set(['highway', 'information', 'boundary', 'place', 'landuse', 'natural', 'waterway', 'power', 'barrier', 'route']);
+
+function fromPhoton(f: PhotonFeature, origin: Origin): Found | null {
+  const p = f.properties || {} as PhotonProperties;
+  if (!p.name || !COUNTRIES.has(p.countrycode!) || SKIP_KEYS.has(p.osm_key)) return null;
+  if (p.osm_key === 'railway' && p.osm_value !== 'station' && p.osm_value !== 'halt') return null;
+  const lngLat = f.geometry.coordinates;
+  const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+  const town = p.city || p.town || p.village || p.locality || p.district || '';
+  const where = [street, town].filter(Boolean).join(', ');
+  const category = p.osm_key === 'building' ? '' : humanize(p.osm_value);
+  return {
+    title: p.name,
+    category,
+    address: where,
+    kind: kindFor(p.osm_value),
+    lngLat,
+    origin: 'place',
+    source: 'osm',
+    id: `osm:${p.osm_type}${p.osm_id}`,
+    building: p.osm_key === 'building',
+    distance: origin ? distance(origin, lngLat) : null,
   };
-  const kindFor = (...types: (string | undefined)[]): PlaceKind => { for (const t of types) if (t && KIND_BY_TYPE[t]) return KIND_BY_TYPE[t]; return 'other'; };
-  const LABELS: Record<string, string> = { fast_food: 'Fast food', cafe: 'Café', toilets: 'Toilets', doctors: 'Doctor', atm: 'Cash machine', chemist: 'Drugstore',
-    place_of_worship: 'Place of worship', fitness_centre: 'Gym', sports_centre: 'Sports centre', drinking_water: 'Drinking water',
-    convenience: 'Convenience store', kiosk: 'Kiosk', department_store: 'Department store', mall: 'Shopping centre', clothes: 'Clothes shop',
-    hairdresser: 'Hairdresser', townhall: 'Town hall', government: 'Public office', yes: '' };
-  const humanize = (v: string) => (v in LABELS ? LABELS[v] : (v || '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()));
+}
 
-  // Photon features that are not destinations (paths, signposts, platforms: the stop search covers those)
-  const SKIP_KEYS = new Set(['highway', 'information', 'boundary', 'place', 'landuse', 'natural', 'waterway', 'power', 'barrier', 'route']);
+function subtitle(r: Found) {
+  const parts = [];
+  if (r.category) parts.push(r.category);
+  if (r.distance != null) parts.push(formatDistance(r.distance));
+  if (r.rating) parts.push(`★ ${r.rating.toFixed(1)}`);
+  if (r.openNow === true) parts.push('Open');
+  else if (r.openNow === false) parts.push('Closed');
+  if (r.address) parts.push(r.address);
+  return parts.join(' · ');
+}
 
-  function fromPhoton(f: PhotonFeature, origin: Origin): Found | null {
-    const p = f.properties || {} as PhotonProperties;
-    if (!p.name || !COUNTRIES.has(p.countrycode!) || SKIP_KEYS.has(p.osm_key)) return null;
-    if (p.osm_key === 'railway' && p.osm_value !== 'station' && p.osm_value !== 'halt') return null;
-    const lngLat = f.geometry.coordinates;
-    const street = [p.street, p.housenumber].filter(Boolean).join(' ');
-    const town = p.city || p.town || p.village || p.locality || p.district || '';
-    const where = [street, town].filter(Boolean).join(', ');
-    const category = p.osm_key === 'building' ? '' : humanize(p.osm_value);
+// The same place often comes twice (the shop and its building, a node and an area): keep one per name and spot
+function dedupe(list: Found[]) {
+  const out: Found[] = [];
+  for (const r of list) {
+    const twin = out.find((o) => fold(o.title) === fold(r.title) && distance(o.lngLat, r.lngLat) < 80);
+    if (!twin) out.push(r);
+    else if (twin.building && !r.building) out[out.indexOf(twin)] = r;
+  }
+  return out;
+}
+
+const cache = new Map<string, unknown>();
+async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
+  const key = init ? url + init.body : url;
+  if (cache.has(key)) return cache.get(key) as T;
+  const res = await fetch(url, init);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (cache.size > 200) cache.delete(cache.keys().next().value!);
+  cache.set(key, data);
+  return data;
+}
+
+const round = (x: number) => x.toFixed(3); // ~100 m: nearby searches from almost the same spot share a cached answer
+
+// Nearest places of one kind, widening the circle when there are few
+async function photonNearby(cat: (typeof CATEGORIES)[number], center: LngLat, origin: Origin, radiusKm: number, bbox: Bbox) {
+  let found: Found[] = [];
+  for (const r of bbox ? [radiusKm] : [radiusKm, Math.max(radiusKm * 4, 5)]) { // an area asked for is not widened
+    const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: (window.APP_LANG?.pick(['de', 'fr', 'en']) ?? 'en') });
+    cat.tags.forEach((t) => params.append('osm_tag', t));
+    const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
+    found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[])
+      .filter((r) => !cat.names || r.category === 'Town hall' || cat.names.test(r.title));
+    if (found.length >= 6 || r >= 25) break;
+  }
+  const from = origin || center;
+  return found.sort((a, b) => distance(from, a.lngLat) - distance(from, b.lngLat));
+}
+
+// Places by name, the ones near the map first
+async function photonByName(text: string, center: LngLat, origin: Origin, bbox: Bbox) {
+  const params = new URLSearchParams({ q: text, lat: round(center[1]), lon: round(center[0]), zoom: '16',
+    location_bias_scale: '0.1', limit: '40', lang: (window.APP_LANG?.pick(['de', 'fr', 'en']) ?? 'en') });
+  if (bbox) params.set('bbox', bbox.map(round).join(','));
+  const data = await getJSON<PhotonAnswer>(`${PHOTON}api/?${params}`);
+  const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[]);
+  // Photon's order is by how well the name matches; nearer places move up (300 m ≈ one place in the list)
+  return list.map((r, i) => ({ r, score: i * 0.3 + distance(center, r.lngLat) / 1000 }))
+    .sort((a, b) => a.score - b.score).map((x) => x.r);
+}
+
+// Google Places Text Search (New). Called straight from the page; restrict the key to your site's address.
+const GOOGLE_FIELDS = ['places.id', 'places.displayName', 'places.shortFormattedAddress', 'places.formattedAddress',
+  'places.location', 'places.primaryType', 'places.primaryTypeDisplayName', 'places.types', 'places.rating',
+  'places.currentOpeningHours.openNow', 'places.businessStatus', 'places.userRatingCount', 'places.websiteUri', 'places.photos'].join(',');
+async function google(text: string, center: LngLat, origin: Origin, radiusKm: number, bbox: Bbox) {
+  const where = bbox
+    ? { locationRestriction: { rectangle: { low: { latitude: +round(bbox[1]), longitude: +round(bbox[0]) }, high: { latitude: +round(bbox[3]), longitude: +round(bbox[2]) } } } }
+    : { locationBias: { circle: { center: { latitude: +round(center[1]), longitude: +round(center[0]) }, radius: Math.min(radiusKm * 1000, 50000) } } };
+  const body = JSON.stringify({
+    textQuery: text,
+    languageCode: 'en',
+    regionCode: 'CH',
+    pageSize: 20,
+    ...where,
+  });
+  const data = await getJSON<GoogleAnswer>('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': GOOGLE_FIELDS },
+    body,
+  });
+  return (data.places || []).filter((p) => p.location && p.businessStatus !== 'CLOSED_PERMANENTLY').map((p): Found => {
+    const lngLat: LngLat = [p.location!.longitude, p.location!.latitude];
     return {
-      title: p.name,
-      category,
-      address: where,
-      kind: kindFor(p.osm_value),
+      title: (p.displayName && p.displayName.text) || '',
+      category: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
+      address: p.shortFormattedAddress || p.formattedAddress || '',
+      kind: kindFor(p.primaryType, ...(p.types || [])),
       lngLat,
       origin: 'place',
-      source: 'osm',
-      id: `osm:${p.osm_type}${p.osm_id}`,
-      building: p.osm_key === 'building',
+      source: 'google',
+      id: `google:${p.id}`,
+      rating: p.rating || null,
+      ratingCount: p.userRatingCount || 0,
+      website: p.websiteUri || '',
+      // the first photo, 400 px wide (Places API (New) photo media, same key)
+      photo: p.photos && p.photos[0] ? `https://places.googleapis.com/v1/${p.photos[0].name}/media?maxWidthPx=400&key=${encodeURIComponent(GOOGLE_KEY)}` : '',
+      details: true,
+      openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : null,
       distance: origin ? distance(origin, lngLat) : null,
     };
+  }).filter((r) => r.title);
+}
+
+async function search(text: string, { center, origin, radiusKm = 1.5, bbox }: PlaceSearchOptions = {}): Promise<PlaceSearchAnswer> {
+  const q = text.trim();
+  if (q.length < 2 || !center) return { category: null, results: [] };
+  const cat = matchCategory(q);
+  let list: Found[] | null = null;
+  if (GOOGLE_KEY) {
+    // "near me" is already said by the location bias
+    const query = NEARBY.test(fold(q)) ? fold(q).replace(NEARBY, '') || q : q;
+    try { list = await google(query, center, origin, radiusKm, bbox); }
+    catch (e) { console.warn('Google Places failed, using OpenStreetMap', e); }
   }
+  if (!list) list = cat ? await photonNearby(cat, center, origin, radiusKm, bbox) : await photonByName(q, center, origin, bbox);
+  for (const r of list) r.subtitle = subtitle(r);
+  return { category: cat ? cat.label : null, results: list as PlaceSearchResult[] };
+}
 
-  function subtitle(r: Found) {
-    const parts = [];
-    if (r.category) parts.push(r.category);
-    if (r.distance != null) parts.push(formatDistance(r.distance));
-    if (r.rating) parts.push(`★ ${r.rating.toFixed(1)}`);
-    if (r.openNow === true) parts.push('Open');
-    else if (r.openNow === false) parts.push('Closed');
-    if (r.address) parts.push(r.address);
-    return parts.join(' · ');
+// ---- Details for the best places of a category (OpenStreetMap has no ratings or photos of its own) ----
+// OpenStreetMap's API gives the tags of the places found (website, opening hours, a photo on Wikimedia Commons,
+// a Wikidata entry); a second one asks Wikidata for the photo of those that only have an entry there.
+// How well known a place is stands in for its rating: it ranks the places of a category.
+interface OsmTags { [k: string]: string | undefined }
+interface WikidataClaims { entities?: Record<string, { claims?: { P18?: { mainsnak?: { datavalue?: { value?: string } } }[] } }> }
+const commonsFile = (file: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/^File:/i, ''))}?width=400`;
+const OSM_TYPES = { N: 'node', W: 'way', R: 'relation' } as const;
+async function enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]> {
+  const osm = list.filter((r) => r.source === 'osm' && /^osm:[NWR]\d+$/.test(r.id) && !r.details);
+  if (!osm.length) return list;
+  const ids: Record<keyof typeof OSM_TYPES, string[]> = { N: [], W: [], R: [] };
+  for (const r of osm) ids[r.id[4] as keyof typeof OSM_TYPES].push(r.id.slice(5));
+  type Elements = { elements?: { type: string; id: number; tags?: OsmTags }[] };
+  const types = (Object.keys(OSM_TYPES) as (keyof typeof OSM_TYPES)[]).filter((t) => ids[t].length);
+  const tagsById = new Map<string, OsmTags>();
+  const keep = (data: Elements) => { for (const e of data.elements || []) tagsById.set(`osm:${e.type[0].toUpperCase()}${e.id}`, e.tags || {}); };
+  try {
+    // OpenStreetMap's own API: fast, one request per type (nodes, ways, relations)
+    const answers = await Promise.all(types.map((t) => getJSON<Elements>(
+      `https://api.openstreetmap.org/api/0.6/${OSM_TYPES[t]}s.json?${OSM_TYPES[t]}s=${ids[t].join(',')}`, { signal: AbortSignal.timeout(5000) })));
+    answers.forEach(keep);
+  } catch (e) {
+    // one of them deleted since Photon's copy (the API then answers nothing at all): Overpass skips those
+    const query = encodeURIComponent(`[out:json][timeout:8];(${types.map((t) => `${OSM_TYPES[t]}(id:${ids[t].join(',')});`).join('')});out tags;`);
+    try { keep(await getJSON<Elements>(`https://overpass-api.de/api/interpreter?data=${query}`, { signal: AbortSignal.timeout(6000) })); }
+    catch (err) { console.warn('No details for the places found', err); }
   }
-
-  // The same place often comes twice (the shop and its building, a node and an area): keep one per name and spot
-  function dedupe(list: Found[]) {
-    const out: Found[] = [];
-    for (const r of list) {
-      const twin = out.find((o) => fold(o.title) === fold(r.title) && distance(o.lngLat, r.lngLat) < 80);
-      if (!twin) out.push(r);
-      else if (twin.building && !r.building) out[out.indexOf(twin)] = r;
-    }
-    return out;
+  const wikidata: Record<string, PlaceSearchResult[]> = {};
+  for (const r of osm) {
+    const t = tagsById.get(r.id) || {};
+    const site = t.website || t['contact:website'] || '';
+    r.website = /^https?:\/\//.test(site) ? site : site ? 'https://' + site : '';
+    r.hours = t.opening_hours || '';
+    const image = t.image && /^https?:\/\/.+\.(jpe?g|png|webp)$/i.test(t.image) ? t.image : '';
+    r.photo = image || (t.wikimedia_commons && /^File:/i.test(t.wikimedia_commons) ? commonsFile(t.wikimedia_commons) : '');
+    if (!r.photo && t.wikidata) (wikidata[t.wikidata] ||= []).push(r);
+    const extra = t.cuisine ? t.cuisine.split(';')[0].replace(/_/g, ' ') : t.stars ? `${t.stars}★ hotel` : '';
+    if (extra && !r.category.toLowerCase().includes(extra.toLowerCase())) r.category = r.category ? `${r.category}, ${extra}` : extra;
+    // well known: on Wikidata, with a photo, a website, its opening hours, more of its details mapped
+    r.score = (t.wikidata ? 3 : 0) + (r.photo ? 2 : 0) + (r.website ? 1.5 : 0) + (r.hours ? 1 : 0)
+      + (t.stars ? (+t.stars || 0) * 0.4 : 0) + Math.min(Object.keys(t).length, 25) / 10;
+    r.details = true;
   }
-
-  const cache = new Map<string, unknown>();
-  async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
-    const key = init ? url + init.body : url;
-    if (cache.has(key)) return cache.get(key) as T;
-    const res = await fetch(url, init);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (cache.size > 200) cache.delete(cache.keys().next().value!);
-    cache.set(key, data);
-    return data;
-  }
-
-  const round = (x: number) => x.toFixed(3); // ~100 m: nearby searches from almost the same spot share a cached answer
-
-  // Nearest places of one kind, widening the circle when there are few
-  async function photonNearby(cat: (typeof CATEGORIES)[number], center: LngLat, origin: Origin, radiusKm: number, bbox: Bbox) {
-    let found: Found[] = [];
-    for (const r of bbox ? [radiusKm] : [radiusKm, Math.max(radiusKm * 4, 5)]) { // an area asked for is not widened
-      const params = new URLSearchParams({ lat: round(center[1]), lon: round(center[0]), radius: String(Math.min(r, 25)), limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
-      cat.tags.forEach((t) => params.append('osm_tag', t));
-      const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
-      found = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[])
-        .filter((r) => !cat.names || r.category === 'Town hall' || cat.names.test(r.title));
-      if (found.length >= 6 || r >= 25) break;
-    }
-    const from = origin || center;
-    return found.sort((a, b) => distance(from, a.lngLat) - distance(from, b.lngLat));
-  }
-
-  // Places by name, the ones near the map first
-  async function photonByName(text: string, center: LngLat, origin: Origin, bbox: Bbox) {
-    const params = new URLSearchParams({ q: text, lat: round(center[1]), lon: round(center[0]), zoom: '16',
-      location_bias_scale: '0.1', limit: '40', lang: APP_LANG.pick(['de', 'fr', 'en']) });
-    if (bbox) params.set('bbox', bbox.map(round).join(','));
-    const data = await getJSON<PhotonAnswer>(`${PHOTON}api/?${params}`);
-    const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[]);
-    // Photon's order is by how well the name matches; nearer places move up (300 m ≈ one place in the list)
-    return list.map((r, i) => ({ r, score: i * 0.3 + distance(center, r.lngLat) / 1000 }))
-      .sort((a, b) => a.score - b.score).map((x) => x.r);
-  }
-
-  // Google Places Text Search (New). Called straight from the page; restrict the key to your site's address.
-  const GOOGLE_FIELDS = ['places.id', 'places.displayName', 'places.shortFormattedAddress', 'places.formattedAddress',
-    'places.location', 'places.primaryType', 'places.primaryTypeDisplayName', 'places.types', 'places.rating',
-    'places.currentOpeningHours.openNow', 'places.businessStatus', 'places.userRatingCount', 'places.websiteUri', 'places.photos'].join(',');
-  async function google(text: string, center: LngLat, origin: Origin, radiusKm: number, bbox: Bbox) {
-    const where = bbox
-      ? { locationRestriction: { rectangle: { low: { latitude: +round(bbox[1]), longitude: +round(bbox[0]) }, high: { latitude: +round(bbox[3]), longitude: +round(bbox[2]) } } } }
-      : { locationBias: { circle: { center: { latitude: +round(center[1]), longitude: +round(center[0]) }, radius: Math.min(radiusKm * 1000, 50000) } } };
-    const body = JSON.stringify({
-      textQuery: text,
-      languageCode: 'en',
-      regionCode: 'CH',
-      pageSize: 20,
-      ...where,
-    });
-    const data = await getJSON<GoogleAnswer>('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': GOOGLE_FIELDS },
-      body,
-    });
-    return (data.places || []).filter((p) => p.location && p.businessStatus !== 'CLOSED_PERMANENTLY').map((p): Found => {
-      const lngLat: LngLat = [p.location!.longitude, p.location!.latitude];
-      return {
-        title: (p.displayName && p.displayName.text) || '',
-        category: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
-        address: p.shortFormattedAddress || p.formattedAddress || '',
-        kind: kindFor(p.primaryType, ...(p.types || [])),
-        lngLat,
-        origin: 'place',
-        source: 'google',
-        id: `google:${p.id}`,
-        rating: p.rating || null,
-        ratingCount: p.userRatingCount || 0,
-        website: p.websiteUri || '',
-        // the first photo, 400 px wide (Places API (New) photo media, same key)
-        photo: p.photos && p.photos[0] ? `https://places.googleapis.com/v1/${p.photos[0].name}/media?maxWidthPx=400&key=${encodeURIComponent(GOOGLE_KEY)}` : '',
-        details: true,
-        openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : null,
-        distance: origin ? distance(origin, lngLat) : null,
-      };
-    }).filter((r) => r.title);
-  }
-
-  async function search(text: string, { center, origin, radiusKm = 1.5, bbox }: PlaceSearchOptions = {}): Promise<PlaceSearchAnswer> {
-    const q = text.trim();
-    if (q.length < 2 || !center) return { category: null, results: [] };
-    const cat = matchCategory(q);
-    let list: Found[] | null = null;
-    if (GOOGLE_KEY) {
-      // "near me" is already said by the location bias
-      const query = NEARBY.test(fold(q)) ? fold(q).replace(NEARBY, '') || q : q;
-      try { list = await google(query, center, origin, radiusKm, bbox); }
-      catch (e) { console.warn('Google Places failed, using OpenStreetMap', e); }
-    }
-    if (!list) list = cat ? await photonNearby(cat, center, origin, radiusKm, bbox) : await photonByName(q, center, origin, bbox);
-    for (const r of list) r.subtitle = subtitle(r);
-    return { category: cat ? cat.label : null, results: list as PlaceSearchResult[] };
-  }
-
-  // ---- Details for the best places of a category (OpenStreetMap has no ratings or photos of its own) ----
-  // OpenStreetMap's API gives the tags of the places found (website, opening hours, a photo on Wikimedia Commons,
-  // a Wikidata entry); a second one asks Wikidata for the photo of those that only have an entry there.
-  // How well known a place is stands in for its rating: it ranks the places of a category.
-  interface OsmTags { [k: string]: string | undefined }
-  interface WikidataClaims { entities?: Record<string, { claims?: { P18?: { mainsnak?: { datavalue?: { value?: string } } }[] } }> }
-  const commonsFile = (file: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/^File:/i, ''))}?width=400`;
-  const OSM_TYPES = { N: 'node', W: 'way', R: 'relation' } as const;
-  async function enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]> {
-    const osm = list.filter((r) => r.source === 'osm' && /^osm:[NWR]\d+$/.test(r.id) && !r.details);
-    if (!osm.length) return list;
-    const ids: Record<keyof typeof OSM_TYPES, string[]> = { N: [], W: [], R: [] };
-    for (const r of osm) ids[r.id[4] as keyof typeof OSM_TYPES].push(r.id.slice(5));
-    type Elements = { elements?: { type: string; id: number; tags?: OsmTags }[] };
-    const types = (Object.keys(OSM_TYPES) as (keyof typeof OSM_TYPES)[]).filter((t) => ids[t].length);
-    const tagsById = new Map<string, OsmTags>();
-    const keep = (data: Elements) => { for (const e of data.elements || []) tagsById.set(`osm:${e.type[0].toUpperCase()}${e.id}`, e.tags || {}); };
+  const qids = Object.keys(wikidata).filter((q) => /^Q\d+$/.test(q)).slice(0, 40);
+  if (qids.length) {
     try {
-      // OpenStreetMap's own API: fast, one request per type (nodes, ways, relations)
-      const answers = await Promise.all(types.map((t) => getJSON<Elements>(
-        `https://api.openstreetmap.org/api/0.6/${OSM_TYPES[t]}s.json?${OSM_TYPES[t]}s=${ids[t].join(',')}`, { signal: AbortSignal.timeout(5000) })));
-      answers.forEach(keep);
-    } catch (e) {
-      // one of them deleted since Photon's copy (the API then answers nothing at all): Overpass skips those
-      const query = encodeURIComponent(`[out:json][timeout:8];(${types.map((t) => `${OSM_TYPES[t]}(id:${ids[t].join(',')});`).join('')});out tags;`);
-      try { keep(await getJSON<Elements>(`https://overpass-api.de/api/interpreter?data=${query}`, { signal: AbortSignal.timeout(6000) })); }
-      catch (err) { console.warn('No details for the places found', err); }
-    }
-    const wikidata: Record<string, PlaceSearchResult[]> = {};
-    for (const r of osm) {
-      const t = tagsById.get(r.id) || {};
-      const site = t.website || t['contact:website'] || '';
-      r.website = /^https?:\/\//.test(site) ? site : site ? 'https://' + site : '';
-      r.hours = t.opening_hours || '';
-      const image = t.image && /^https?:\/\/.+\.(jpe?g|png|webp)$/i.test(t.image) ? t.image : '';
-      r.photo = image || (t.wikimedia_commons && /^File:/i.test(t.wikimedia_commons) ? commonsFile(t.wikimedia_commons) : '');
-      if (!r.photo && t.wikidata) (wikidata[t.wikidata] ||= []).push(r);
-      const extra = t.cuisine ? t.cuisine.split(';')[0].replace(/_/g, ' ') : t.stars ? `${t.stars}★ hotel` : '';
-      if (extra && !r.category.toLowerCase().includes(extra.toLowerCase())) r.category = r.category ? `${r.category}, ${extra}` : extra;
-      // well known: on Wikidata, with a photo, a website, its opening hours, more of its details mapped
-      r.score = (t.wikidata ? 3 : 0) + (r.photo ? 2 : 0) + (r.website ? 1.5 : 0) + (r.hours ? 1 : 0)
-        + (t.stars ? (+t.stars || 0) * 0.4 : 0) + Math.min(Object.keys(t).length, 25) / 10;
-      r.details = true;
-    }
-    const qids = Object.keys(wikidata).filter((q) => /^Q\d+$/.test(q)).slice(0, 40);
-    if (qids.length) {
-      try {
-        const data = await getJSON<WikidataClaims>(
-          `https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids=${qids.join('|')}`, { signal: AbortSignal.timeout(5000) });
-        for (const q of qids) {
-          const p18 = data.entities && data.entities[q] && data.entities[q].claims && data.entities[q].claims!.P18;
-          const file = p18 && p18[0] && p18[0].mainsnak && p18[0].mainsnak.datavalue && p18[0].mainsnak.datavalue.value;
-          if (file) for (const r of wikidata[q]) { r.photo = commonsFile(file); r.score = (r.score || 0) + 2; }
-        }
-      } catch (e) { /* no photos from Wikidata this time */ }
-    }
-    return list;
+      const data = await getJSON<WikidataClaims>(
+        `https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids=${qids.join('|')}`, { signal: AbortSignal.timeout(5000) });
+      for (const q of qids) {
+        const p18 = data.entities && data.entities[q] && data.entities[q].claims && data.entities[q].claims!.P18;
+        const file = p18 && p18[0] && p18[0].mainsnak && p18[0].mainsnak.datavalue && p18[0].mainsnak.datavalue.value;
+        if (file) for (const r of wikidata[q]) { r.photo = commonsFile(file); r.score = (r.score || 0) + 2; }
+      }
+    } catch (e) { /* no photos from Wikidata this time */ }
   }
+  return list;
+}
 
-  // What stands at a point, for a pin dropped on the map: the place it is on, else the nearest address
-  // ("Kramgasse 12"), "Near …" when that is some way off
-  async function reverse(lngLat: LngLat) {
-    const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: APP_LANG.pick(['de', 'fr', 'en']) });
-    const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
-    const f = (data.features || [])[0];
-    const p = f && f.properties;
-    if (!p) return null;
-    const far = distance(lngLat, f.geometry.coordinates);
-    const street = [p.street, p.housenumber].filter(Boolean).join(' ');
-    const town = p.city || p.town || p.village || p.locality || p.district || '';
-    const named = p.name && !SKIP_KEYS.has(p.osm_key) && far < 30 ? p.name : '';
-    const label = named || street || p.name || town;
-    return label ? { title: far > 80 ? `Near ${label}` : label } : null;
-  }
+// What stands at a point, for a pin dropped on the map: the place it is on, else the nearest address
+// ("Kramgasse 12"), "Near …" when that is some way off
+async function reverse(lngLat: LngLat) {
+  const params = new URLSearchParams({ lat: lngLat[1].toFixed(5), lon: lngLat[0].toFixed(5), lang: (window.APP_LANG?.pick(['de', 'fr', 'en']) ?? 'en') });
+  const data = await getJSON<PhotonAnswer>(`${PHOTON}reverse?${params}`);
+  const f = (data.features || [])[0];
+  const p = f && f.properties;
+  if (!p) return null;
+  const far = distance(lngLat, f.geometry.coordinates);
+  const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+  const town = p.city || p.town || p.village || p.locality || p.district || '';
+  const named = p.name && !SKIP_KEYS.has(p.osm_key) && far < 30 ? p.name : '';
+  const label = named || street || p.name || town;
+  return label ? { title: far > 80 ? `Near ${label}` : label } : null;
+}
 
-  window.PlaceSearch = {
-    search,
-    reverse,
-    enrich,
-    matchCategory: (t) => { const c = matchCategory(t); return c ? c.label : null; },
-    source: GOOGLE_KEY ? 'google' : 'osm',
-    attribution: GOOGLE_KEY ? 'Google Maps' : 'Places © OpenStreetMap contributors',
-    formatDistance,
-  };
-})();
+export const PlaceSearch = {
+  /** Places for what was typed: the nearest of a kind for a category word, else places with that name. */
+  search,
+  /** What stands at a point ('Kramgasse 12', 'Near Bärenpark'), or null when nothing is known there. */
+  reverse,
+  /** OpenStreetMap places: adds website, opening hours, a photo and a score from OpenStreetMap and Wikidata (in place). */
+  enrich,
+  /** The kind of place a text asks for ('Pharmacies' for "apotheke"), or null. */
+  matchCategory: (t: string): string | null => { const c = matchCategory(t); return c ? c.label : null; },
+  source: GOOGLE_KEY ? 'google' : 'osm',
+  /** The credit line to show with results. */
+  attribution: GOOGLE_KEY ? 'Google Maps' : 'Places © OpenStreetMap contributors',
+  /** Metres in words: '120 m', '1.4 km', '12 km'. */
+  formatDistance,
+};

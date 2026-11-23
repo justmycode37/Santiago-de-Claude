@@ -5,6 +5,11 @@
     "target": "es2023",
     "lib": ["es2023", "dom", "dom.iterable", "webworker.importscripts"],
     "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    // maplibre-gl comes from its CDN as a plain script (index.html): its global maplibregl
+    "allowUmdGlobalAccess": true,
     "types": [],
     "noEmit": true,
     "erasableSyntaxOnly": true,

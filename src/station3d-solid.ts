@@ -4,14 +4,17 @@
 // the route are cut open along it (a corridor cutaway), so the way down stays in view without pulling floors apart.
 //
 // Reads the station model (stations3d/<key>.js, SCHEMA.md), its solid companion (stations3d/<key>.solid.js, built by
-// tools/station3d_solid.py) and routes with station-route.js. ES module; three.js r170 through the page's import map.
+// tools/station3d_solid.py) and routes with station-route.ts. three.js r170 through the page's import map.
 //
-//   import { open } from './station3d-solid.js';
+//   import { open } from './station3d-solid.ts';
 //   const view = await open({ mount, key, from, to, prefs, onChange });
 //   view.step(i) · view.whole() · view.floor(levelId | null) · view.setStretch(s) · view.reset() · view.dispose()
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { StationRoute } from './station-route.ts';
+import type { StationRouteConnectorKind, StationRouteEndpoint, StationRoutePrefs, StationRouteResult } from './station-route.ts';
+
 
 const MAX_CUT = 40;               // route pieces the cutaway can follow
 const CUT_R = 14;                 // m: half-width of the corridor cut open above the route
@@ -49,7 +52,7 @@ export async function open(opts: SolidOptions) {
   const { mount, key } = opts;
   const model = window.STATION3D && window.STATION3D[key];
   const solid = window.STATION3D_SOLID && window.STATION3D_SOLID[key];
-  const SR = window.StationRoute!;
+  const SR = StationRoute;
   if (!model || !solid) throw new Error('no model for ' + key);
   const dark = () => document.documentElement.dataset.theme === 'dark' ||
     (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);

@@ -14,7 +14,7 @@ const port = Number(process.argv[2] ?? process.env.PORT ?? 8000);
 const host = process.argv[3] ?? process.env.HOST ?? '127.0.0.1';
 
 const TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.map': 'application/json',
   '.json': 'application/json', '.geojson': 'application/geo+json', '.md': 'text/markdown; charset=utf-8',
   '.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.mp4': 'video/mp4',
   '.wasm': 'application/wasm', '.onnx': 'application/octet-stream',

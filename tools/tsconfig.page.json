@@ -1,0 +1,8 @@
+{
+  // The tests and tools that import modules of the page that use the DOM (src/walkroute.ts, src/indoorloc.ts…):
+  // checked with the DOM's types too, which the other tools do without (they clash with Node's in places).
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["es2023", "dom", "dom.iterable"] },
+  "include": ["test_walkroute.mts", "test_walkrefine.mts", "sim_indoorloc.cts", "walk-eval", "../src/types"],
+  "exclude": []
+}

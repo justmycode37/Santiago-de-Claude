@@ -1,13 +1,12 @@
 {
-  // The scripts written into the pages beside the app (dev pages, the scan bench, the demo pages). Each page is
-  // its own world, so every file is checked on its own ("moduleDetection": "force"): what one declares at its
-  // top level, the others do not see. What the app's scripts put on window comes from ../types.
+  // The scripts of the pages beside the app (the scan bench, the 3D station page, the demo pages). Each page is its
+  // own world, so every file is checked on its own ("moduleDetection": "force"): what one declares at its top
+  // level, the others do not see. What they import is checked with them; the globals come from ../types and
+  // ../translate.ts (APP_LANG, which the page's modules read).
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "moduleDetection": "force",
-    // a page imports the scripts next to it in dist/ ("./station3d-solid.js"); their sources are one folder up
-    "rootDirs": [".", ".."]
+    "moduleDetection": "force"
   },
-  "include": ["*.ts", "../types"],
+  "include": ["*.ts", "../types", "../translate.ts"],
   "exclude": []
 }

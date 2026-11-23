@@ -1,3 +1,4 @@
+import type { PricingProfile, SavedPricingTrip, TicketFare } from './pricing-history.ts';
 const offers = {
   tickets: 'https://www.sbb.ch/en/tickets-offers/tickets.html',
   halfFare: 'https://www.sbb.ch/en/offers/half-fare-travelcard',

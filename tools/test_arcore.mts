@@ -1,4 +1,4 @@
-// Tests for src/arcore.ts (window.ARCORE): the vehicle-display decision ported from RightSide.
+// Tests for src/arcore.ts (ARCORE): the vehicle-display decision ported from RightSide.
 //
 //   node tools/test_arcore.mts                 # unit checks + both display-bench sets, compared with the Swift numbers
 //   node tools/test_arcore.mts --details       # also each labelled pass's outcome
@@ -10,12 +10,11 @@
 // (tesseract.js on a phone) reads a display: that only a real phone at a real stop can tell.
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { ARCORE as A } from '../src/arcore.ts';
+import type { ArBox, ArCandidate, ArDetection, ArExpectation, ArReading, ArText } from '../src/arcore.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(import.meta.url);
-const A = require(path.join(ROOT, 'src', 'arcore.ts')) as ArCoreApi;
 const details = process.argv.includes('--details');
 
 let passed = 0, failed = 0;

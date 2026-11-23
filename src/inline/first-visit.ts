@@ -1,4 +1,4 @@
-// First visit on this device: the introduction (onboarding.js) comes before the map and before the location prompt.
+// First visit on this device: the introduction (onboarding.ts) comes before the map and before the location prompt.
 // 'onboarding' in localStorage: 'started' until it has been finished, then 'done'. A device that has used the app
 // before never sees it. ?intro shows it again, ?intro=0 switches it off (tests, screen recordings).
 (function () {

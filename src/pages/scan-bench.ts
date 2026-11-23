@@ -1,3 +1,6 @@
+// The scan bench (scan-bench.html): times Scan's two engines on this device.
+import { STOPVISION } from '../stopvision.ts';
+
 const $ = (id: string) => document.getElementById(id)!;
 const row = (k: string, v: string | number, cls?: string) => { const d = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd');
   dt.textContent = k; dd.textContent = v as string; if (cls) dd.className = cls; d.append(dt, dd); $('out').append(d); };
@@ -17,7 +20,7 @@ $('go').addEventListener('click', async () => {
   try {
     const img = $('img') as HTMLImageElement;
     if (!img.complete || !img.naturalWidth) await new Promise((r, j) => { img.onload = r; img.onerror = () => j(new Error('sample image did not load')); });
-    const r = await STOPVISION!.bench($('img') as HTMLImageElement, 8, (t) => log(t));
+    const r = await STOPVISION.bench($('img') as HTMLImageElement, 8, (t) => log(t));
     on = false;
     row('Sign reader load', r.ocrLoadMs + ' ms');
     row('Image model load', r.modelLoadMs + ' ms (' + r.engine + ')');

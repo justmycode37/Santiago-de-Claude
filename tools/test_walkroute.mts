@@ -1,4 +1,4 @@
-// Tests for walkroute.js on the built walkgraph/ tiles (Bern). Offline; exit code 1 on any failure.
+// Tests for walkroute.ts on the built walkgraph/ tiles (Bern). Offline; exit code 1 on any failure.
 //
 //   node tools/test_walkroute.mts           # all
 //   node tools/test_walkroute.mts --quick   # without the 992 platform pairs
@@ -11,29 +11,22 @@
 //    a door 50 m from any path, approximate stretches.
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
-import { transformSync } from 'amaro'; // npm install
 import { fileURLToPath } from 'node:url';
+import type { WalkRouteResult } from '../src/walkroute.ts';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const quick = process.argv.includes('--quick');
 let passed = 0, failed = 0;
 const check = (ok: unknown, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };
 
-// the page the router's script runs in: the globals handed to it, and the WALKROUTE it leaves there
-interface RouterPage { [name: string]: unknown; globalThis?: RouterPage; WALKROUTE?: WalkRouteApi }
-function router() {
-  const ctx: RouterPage = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
-  ctx.globalThis = ctx;
-  vm.createContext(ctx);
-  vm.runInContext(transformSync(fs.readFileSync(path.join(ROOT, 'src', 'walkroute.ts'), 'utf8'), { mode: 'strip-only' }).code, ctx); // the script as the browser gets it: types taken out
-  ctx.WALKROUTE!.configure({ loader: async (k: string) => {
-    const s = fs.readFileSync(path.join(ROOT, 'walkgraph', k === 'index' ? 'index.js' : `t/${k}.js`), 'utf8');
-    return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')')));
-  } });
-  return ctx.WALKROUTE!;
-}
-const W = router();
+// the router (src/walkroute.ts), reading the tiles from walkgraph/ instead of loading them as scripts
+// (a specifier TypeScript does not follow: the module is checked with the page's, with the DOM's types)
+type Router = typeof import('../src/walkroute.ts').WALKROUTE;
+const W: Router = (await import(new URL('../src/walkroute.ts', import.meta.url).href)).WALKROUTE;
+W.configure({ loader: async (k: string) => {
+  const s = fs.readFileSync(path.join(ROOT, 'walkgraph', k === 'index' ? 'index.js' : `t/${k}.js`), 'utf8');
+  return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')')));
+} });
 const { buildings, distM } = W._debug;
 const inside = (p: LngLat, ring: LngLat[]) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [x1, y1] = ring[i], [x2, y2] = ring[j];
   if ((y1 > p[1]) !== (y2 > p[1]) && p[0] < (x2 - x1) * (p[1] - y1) / (y2 - y1) + x1) c = !c; } return c; };

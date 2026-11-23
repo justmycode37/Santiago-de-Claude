@@ -1,20 +1,20 @@
 # Indoor position in stations: floor and place from the phone's sensors
 
-The 3D station view (`station-view.js`, see [station3d-solid.md](station3d-solid.md); models in `stations3d/`, see
+The 3D station view (`station-view.ts`, see [station3d-solid.md](station3d-solid.md); models in `stations3d/`, see
 [stations3d/SCHEMA.md](../stations3d/SCHEMA.md)) shows the walk through a station floor by floor. GPS alone cannot
 follow it there: it is 20–50 m off indoors, gone underground, and knows no floor. This part works out **which floor
 you are on and where**, from everything the phone has, and hands that to the view.
 
 What the view shows of it: the station view writes the floor and its probability in its header and on the floor
-buttons when its renderer reports a position (`SolidView.user`). The renderer, `station3d-solid.js`, does not take a
+buttons when its renderer reports a position (`SolidView.user`). The renderer, `station3d-solid.ts`, does not take a
 position yet (it has no `setUser`), so for now the estimate runs but is not drawn. The first viewer (`station3d.js`),
 which drew it as a dot, was removed in November 2026, and with it its development page `indoorloc-dev.html`.
 
 | File | What |
 | --- | --- |
-| `indoorloc.js` | The filter (`INDOORLOC`): station model as a graph, particle filter, browser sensors, recorder, replay |
-| `signloc.js` | Signs as evidence (`SIGNLOC`): "Gleis 7 Sektor C", "Gleise 1–6 →", exits, named underpasses, shops |
-| `indoornav.js` | Glue (`INDOORNAV`): runs the filter while a station is open in 3D, feeds `Station3D.setUser` |
+| `indoorloc.ts` | The filter (`INDOORLOC`): station model as a graph, particle filter, browser sensors, recorder, replay |
+| `signloc.ts` | Signs as evidence (`SIGNLOC`): "Gleis 7 Sektor C", "Gleise 1–6 →", exits, named underpasses, shops |
+| `indoornav.ts` | Glue (`INDOORNAV`): runs the filter while a station is open in 3D, feeds `Station3D.setUser` |
 | `tools/sim_indoorloc.cts` | Simulated walks through a model with realistic sensor noise; scores and a regression check |
 
 ## How it works
@@ -56,7 +56,7 @@ Robustness built in (found by failing simulations and by two independent code re
 
 ## Results (simulation, Bern model)
 
-`node tools/sim_indoorloc.cts` walks 15 scenarios × 8 runs through the Bern model on routes of `station-route.js`:
+`node tools/sim_indoorloc.cts` walks 15 scenarios × 8 runs through the Bern model on routes of `station-route.ts`:
 Bahnhofplatz → RBS platform 21 (level −2) by stairs and by lift, → platform 7 through the underpass, platform 7 → 21,
 21 → the bus terminal on the Welle (level 2), lost with only signs, phone in pocket, strong magnetic disturbance.
 
@@ -104,7 +104,7 @@ counts as a position (the trip may be tomorrow, or location may be off): the est
 once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they are there
 (`INDOORNAV.state().live`). As said above, the station view does not draw it yet.
 
-What `Station3D` (`src/types/station3d.d.ts`) has for this:
+What `Station3D` (`src/station3d.ts`) has for this:
 - `setUser` takes `levelSure: true` and the floor probabilities from the indoor position, and `at` (when the GPS fix
   was taken, ms since 1970). The app passes it, a fix older than a minute does not count as "here" for the indoor
   position, and a remembered fix that old is not shown when the view opens.
@@ -138,7 +138,7 @@ filters with pedestrian dead reckoning reach ~1–3 m in the literature (Ai 2025
 
 **Camera.** Signs are the strongest cheap cue in stations, which repeat themselves (TextInPlace, 2025; Zimmerman et
 al., room numbers in a particle filter). SBB signage is pictogram-heavy; the reliably readable text is platform
-numbers, sector letters, exits and named places, which is what `signloc.js` uses. PaddleOCR.js (PP-OCRv5 mobile,
+numbers, sector letters, exits and named places, which is what `signloc.ts` uses. PaddleOCR.js (PP-OCRv5 mobile,
 ~12 MB) should read scene text much better than tesseract.js and is worth benchmarking. Full camera pose (≈ 1 m / 5°
 for ~70 % of queries in Seoul's Gangnam station, NAVER LABS dataset) needs a reference map of each station: walk it
 with a phone video, reconstruct with COLMAP/GLOMAP or ACE0 (hloc pipeline), georeference with the sector signs, and

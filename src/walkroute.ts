@@ -8,717 +8,820 @@
 //   - squares and platforms are crossed in a straight line;
 //   - step-free / fewer-stairs settings avoid steps and raised kerbs.
 // Where the network has no tiles, WALKROUTE.route() answers null and the app uses its online router instead.
-(function (root) {
-  'use strict';
+// ------------------------------------------------------------------ geometry (local metres)
 
-  // ------------------------------------------------------------------ geometry (local metres)
-  const KY = 110540;
-  const kx = (lat: number) => 111320 * Math.cos(lat * Math.PI / 180);
-  function distM(a: LngLat, b: LngLat) {
-    return Math.hypot((a[0] - b[0]) * kx((a[1] + b[1]) / 2), (a[1] - b[1]) * KY);
+/** What an end of a walk is, for the walking router. */
+export interface WalkEnd {
+  /** Your position (GPS): its accuracy sets how far the walk may start from a path. */
+  gps?: boolean;
+  /** A platform or stop edge, on its floor (0: street level), boarded by its number ("7", "C"). */
+  platform?: boolean;
+  level?: number | null;
+  ref?: string | null;
+  /** A point taken as it is (where a station model's own paths begin), not the building around it. */
+  exact?: boolean;
+}
+/** The options of WALKROUTE.route(): settings, and what each end is (with GPS accuracy in metres). */
+export interface WalkRouteOptions {
+  stepFree?: boolean;
+  fewerStairs?: boolean;
+  noEscalators?: boolean;
+  from?: WalkEnd & { accuracy?: number | null; wide?: boolean };
+  to?: WalkEnd & { wide?: boolean };
+}
+/** A moment of a walk worth a word ("Stairs down to level −2", "Under the arcades of Kramgasse"). */
+export interface WalkCue { at: LngLat; kind: string; text: string; m: number; /** A floor change: the floor it starts on, when known. */ from?: number }
+/** A walk on the pedestrian network. */
+export interface WalkRouteResult {
+  net: true;
+  coords: LngLat[];
+  /** Metres. */
+  dist: number;
+  /** The way leading to each point's level tag (null where the floor is not stated). */
+  levels: (string | null)[];
+  /** Coordinate indices: the straight bit from the start to the first path (0…approxTo) and from the last path to the end
+   *  (approxFrom…), when they are long guesses across open ground; approx: no path at all. */
+  approxTo: number | null;
+  approxFrom: number | null;
+  approx?: boolean;
+  /** Stretches under arcades, through passages and underpasses, indoors. */
+  covered: { kind: string; coords: LngLat[] }[];
+  /** The door the walk ends at, and the one it starts from. */
+  door: { ll: LngLat; type: string; addr: string } | null;
+  startDoor: { ll: LngLat; type: string } | null;
+  cues: WalkCue[];
+  /** "under the arcades of Kramgasse · main entrance". */
+  via: string;
+  /** Metres on paths only swisstopo's map has (swissTLM3D). */
+  swisstopo: number;
+  /** Step-free: the building has doors, but none is step-free (the walk ends at its wall, approximately). */
+  noStepFreeDoor?: boolean;
+}
+/** Reads the network's files where there is no page to load them as scripts (Node): 'index', or a tile by its key. */
+export interface WalkGraphLoader {
+  (key: 'index'): Promise<WalkGraphIndex | null | undefined>;
+  (key: string): Promise<WalkGraphTile>;
+}
+// ---- the network in memory, built from the tiles loaded so far (seen from outside through WALKROUTE._debug) ----
+
+/** A way's attributes with its level tag read: the floors it is on (null: not stated). */
+export interface WalkNetAttr extends WalkGraphAttr { lv: number[] | null }
+export interface WalkNetNode { id: number; ll: LngLat; adj: WalkNetEdge[]; blocked?: boolean; kerb?: boolean; lift?: boolean }
+/** A stretch of path between two nodes, `len` metres long. */
+export interface WalkNetEdge { a: WalkNetNode; b: WalkNetNode; attr: WalkNetAttr; len: number }
+export interface WalkNetBuilding { id: number; ring: LngLat[]; bb: [w: number, s: number, e: number, n: number]; entrances: WalkNetEntrance[] }
+export interface WalkNetEntrance { node: WalkNetNode; bld: number; type: string; wc: string; addr: string }
+/** An end of a walk as the search takes it: what it is, and how it may be joined to the network. */
+export interface WalkNetEnd extends WalkEnd {
+  accuracy?: number | null;
+  /** Metres within which the paths are looked for (from the GPS accuracy). */
+  radius?: number;
+  /** A platform: any path near it, not only its own. */
+  wide?: boolean;
+  /** A platform: only the paths of its own track or bay. */
+  onlyOwn?: boolean;
+  /** Not onto a path only swisstopo's map has. */
+  osmOnly?: boolean;
+  /** Not onto a piece of network that is joined to nothing else. */
+  noIslands?: boolean;
+  stepFree?: boolean;
+}
+/** A way into (or out of) the network at an end of a walk: at a node (a door standing on a path), or at a point on a
+ *  stretch of path (t: 0…1 along it) reached by a straight line of d metres (cuts: through a building). */
+export type WalkNetAccess = (
+  | { n: WalkNetNode; e?: undefined; t?: undefined; q?: undefined; d?: undefined; cuts?: undefined }
+  | { n?: undefined; e: WalkNetEdge; t: number; q: LngLat; d: number; cuts: boolean }
+) & {
+  cost: number;
+  door: WalkNetEntrance | null;
+  /** Where the straight line (or the path, at a door) starts. */
+  from: LngLat;
+  /** Through the wall of a building without a door there: a guess. */
+  guess?: boolean;
+  /** A stop position given on the track itself: the walk starts or ends on the platform beside it. */
+  onTrack?: boolean;
+  noStepFreeDoor?: boolean;
+};
+export interface WalkRouteDebug {
+  nodes: Map<number, WalkNetNode>;
+  buildings: Map<number, WalkNetBuilding>;
+  entrances: Map<number, WalkNetEntrance>;
+  /** Keys of the tiles in the network. */
+  inGraph: Set<string>;
+  endpoint(p: LngLat, o: WalkNetEnd): WalkNetAccess[];
+  buildingsAt(p: LngLat, rM: number): WalkNetBuilding[];
+  cutsBuilding(p: LngLat, q: LngLat, allow: Set<WalkNetBuilding>): boolean;
+  search(a: LngLat, b: LngLat, opt: WalkRouteOptions): WalkRouteResult | null;
+  distM(a: LngLat, b: LngLat): number;
+}
+
+const KY = 110540;
+const kx = (lat: number) => 111320 * Math.cos(lat * Math.PI / 180);
+function distM(a: LngLat, b: LngLat) {
+  return Math.hypot((a[0] - b[0]) * kx((a[1] + b[1]) / 2), (a[1] - b[1]) * KY);
+}
+// closest point to p on a→b → { d (m), t (0…1), q ([lon, lat]) }
+function project(p: LngLat, a: LngLat, b: LngLat): { d: number; t: number; q: LngLat } {
+  const k = kx(p[1]);
+  const ax = (a[0] - p[0]) * k, ay = (a[1] - p[1]) * KY, dx = (b[0] - a[0]) * k, dy = (b[1] - a[1]) * KY;
+  const L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.min(1, Math.max(0, -(ax * dx + ay * dy) / L2)) : 0;
+  return { d: Math.hypot(ax + dx * t, ay + dy * t), t, q: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] };
+}
+function crosses(p1: LngLat, p2: LngLat, q1: LngLat, q2: LngLat) {
+  const c = (o: LngLat, a: LngLat, b: LngLat) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const d1 = c(q1, q2, p1), d2 = c(q1, q2, p2), d3 = c(p1, p2, q1), d4 = c(p1, p2, q2);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+function inside(p: LngLat, ring: LngLat[]) {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [x1, y1] = ring[i], [x2, y2] = ring[j];
+    if ((y1 > p[1]) !== (y2 > p[1]) && p[0] < (x2 - x1) * (p[1] - y1) / (y2 - y1) + x1) c = !c;
   }
-  // closest point to p on a→b → { d (m), t (0…1), q ([lon, lat]) }
-  function project(p: LngLat, a: LngLat, b: LngLat): { d: number; t: number; q: LngLat } {
-    const k = kx(p[1]);
-    const ax = (a[0] - p[0]) * k, ay = (a[1] - p[1]) * KY, dx = (b[0] - a[0]) * k, dy = (b[1] - a[1]) * KY;
-    const L2 = dx * dx + dy * dy;
-    const t = L2 ? Math.min(1, Math.max(0, -(ax * dx + ay * dy) / L2)) : 0;
-    return { d: Math.hypot(ax + dx * t, ay + dy * t), t, q: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] };
-  }
-  function crosses(p1: LngLat, p2: LngLat, q1: LngLat, q2: LngLat) {
-    const c = (o: LngLat, a: LngLat, b: LngLat) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-    const d1 = c(q1, q2, p1), d2 = c(q1, q2, p2), d3 = c(p1, p2, q1), d4 = c(p1, p2, q2);
-    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
-  }
-  function inside(p: LngLat, ring: LngLat[]) {
-    let c = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [x1, y1] = ring[i], [x2, y2] = ring[j];
-      if ((y1 > p[1]) !== (y2 > p[1]) && p[0] < (x2 - x1) * (p[1] - y1) / (y2 - y1) + x1) c = !c;
+  return c;
+}
+function parseLevels(l: string | null | undefined) {
+  if (l == null) return null;
+  const out: number[] = [];
+  String(l).split(';').forEach((part) => {
+    const m = /^(-?\d+(?:\.\d+)?)(?:-(-?\d+(?:\.\d+)?))?$/.exec(part.trim());
+    if (!m) return;
+    if (m[2] == null) out.push(+m[1]);
+    else for (let x = Math.floor(Math.min(+m[1], +m[2])); x <= Math.ceil(Math.max(+m[1], +m[2])); x++) out.push(x);
+  });
+  return out.length ? out : null;
+}
+
+// ------------------------------------------------------------------ the network, built from the tiles that are loaded
+const nodes = new Map<number, WalkNetNode>();      // osm id → { id, ll, adj: [edge], blocked, kerb, lift }
+const seenWays = new Set<number | string>();
+const seenShort = new Set<string>();
+const seenRail = new Set<string>();
+const buildings = new Map<number, WalkNetBuilding>();  // id → { id, ring, bb, entrances: [] }
+const entrances = new Map<number, WalkNetEntrance>();  // node id → { node, bld, type, wc, addr }
+const ECELL = 0.0003;         // edge grid (~23 m × 33 m)
+const BCELL = 0.001;          // building grid
+type Grid<T> = Map<string, T[]>; // what is in each cell ("x,y")
+type Rail = [LngLat, LngLat];
+const egrid: Grid<WalkNetEdge> = new Map(), bgrid: Grid<WalkNetBuilding> = new Map(), rgrid: Grid<Rail> = new Map(); // rgrid: railway tracks on the ground
+function gridAdd<T>(grid: Grid<T>, s: number, bb: WalkNetBuilding['bb'], item: T) {
+  for (let x = Math.floor(bb[0] / s); x <= Math.floor(bb[2] / s); x++)
+    for (let y = Math.floor(bb[1] / s); y <= Math.floor(bb[3] / s); y++) {
+      const k = x + ',' + y;
+      let l = grid.get(k);
+      if (!l) grid.set(k, (l = []));
+      l.push(item);
     }
-    return c;
-  }
-  function parseLevels(l: string | null | undefined) {
-    if (l == null) return null;
-    const out: number[] = [];
-    String(l).split(';').forEach((part) => {
-      const m = /^(-?\d+(?:\.\d+)?)(?:-(-?\d+(?:\.\d+)?))?$/.exec(part.trim());
-      if (!m) return;
-      if (m[2] == null) out.push(+m[1]);
-      else for (let x = Math.floor(Math.min(+m[1], +m[2])); x <= Math.ceil(Math.max(+m[1], +m[2])); x++) out.push(x);
-    });
-    return out.length ? out : null;
-  }
+}
+function gridNear<T>(grid: Grid<T>, s: number, p: LngLat, rM: number) {
+  const dx = rM / kx(p[1]), dy = rM / KY, out = new Set<T>();
+  for (let x = Math.floor((p[0] - dx) / s); x <= Math.floor((p[0] + dx) / s); x++)
+    for (let y = Math.floor((p[1] - dy) / s); y <= Math.floor((p[1] + dy) / s); y++)
+      (grid.get(x + ',' + y) || []).forEach((it) => out.add(it));
+  return out;
+}
+function node(id: number, ll: LngLat) {
+  let n = nodes.get(id);
+  if (!n) nodes.set(id, (n = { id, ll, adj: [] }));
+  return n;
+}
+function addEdge(a: WalkNetNode, b: WalkNetNode, attr: WalkNetAttr) {
+  if (a === b) return;
+  const e = { a, b, attr, len: distM(a.ll, b.ll) };
+  a.adj.push(e);
+  b.adj.push(e);
+  gridAdd(egrid, ECELL, [Math.min(a.ll[0], b.ll[0]), Math.min(a.ll[1], b.ll[1]), Math.max(a.ll[0], b.ll[0]), Math.max(a.ll[1], b.ll[1])], e);
+}
 
-  // ------------------------------------------------------------------ the network, built from the tiles that are loaded
-  const nodes = new Map<number, WalkNetNode>();      // osm id → { id, ll, adj: [edge], blocked, kerb, lift }
-  const seenWays = new Set<number | string>();
-  const seenShort = new Set<string>();
-  const seenRail = new Set<string>();
-  const buildings = new Map<number, WalkNetBuilding>();  // id → { id, ring, bb, entrances: [] }
-  const entrances = new Map<number, WalkNetEntrance>();  // node id → { node, bld, type, wc, addr }
-  const ECELL = 0.0003;         // edge grid (~23 m × 33 m)
-  const BCELL = 0.001;          // building grid
-  type Grid<T> = Map<string, T[]>; // what is in each cell ("x,y")
-  type Rail = [LngLat, LngLat];
-  const egrid: Grid<WalkNetEdge> = new Map(), bgrid: Grid<WalkNetBuilding> = new Map(), rgrid: Grid<Rail> = new Map(); // rgrid: railway tracks on the ground
-  function gridAdd<T>(grid: Grid<T>, s: number, bb: WalkNetBuilding['bb'], item: T) {
-    for (let x = Math.floor(bb[0] / s); x <= Math.floor(bb[2] / s); x++)
-      for (let y = Math.floor(bb[1] / s); y <= Math.floor(bb[3] / s); y++) {
-        const k = x + ',' + y;
-        let l = grid.get(k);
-        if (!l) grid.set(k, (l = []));
-        l.push(item);
-      }
+function addTile(data: WalkGraphTile) {
+  const [ox, oy] = data.o;
+  const n = data.n, local: WalkNetNode[] = [];
+  let id = 0, x = 0, y = 0; // delta-coded: id, x, y each relative to the node before
+  for (let i = 0; i < n.length; i += 3) {
+    id += n[i]; x += n[i + 1]; y += n[i + 2];
+    local.push(node(id, [(ox + x) / 1e6, (oy + y) / 1e6]));
   }
-  function gridNear<T>(grid: Grid<T>, s: number, p: LngLat, rM: number) {
-    const dx = rM / kx(p[1]), dy = rM / KY, out = new Set<T>();
-    for (let x = Math.floor((p[0] - dx) / s); x <= Math.floor((p[0] + dx) / s); x++)
-      for (let y = Math.floor((p[1] - dy) / s); y <= Math.floor((p[1] + dy) / s); y++)
-        (grid.get(x + ',' + y) || []).forEach((it) => out.add(it));
-    return out;
-  }
-  function node(id: number, ll: LngLat) {
-    let n = nodes.get(id);
-    if (!n) nodes.set(id, (n = { id, ll, adj: [] }));
-    return n;
-  }
-  function addEdge(a: WalkNetNode, b: WalkNetNode, attr: WalkNetAttr) {
-    if (a === b) return;
-    const e = { a, b, attr, len: distM(a.ll, b.ll) };
-    a.adj.push(e);
-    b.adj.push(e);
-    gridAdd(egrid, ECELL, [Math.min(a.ll[0], b.ll[0]), Math.min(a.ll[1], b.ll[1]), Math.max(a.ll[0], b.ll[0]), Math.max(a.ll[1], b.ll[1])], e);
-  }
-
-  function addTile(data: WalkGraphTile) {
-    const [ox, oy] = data.o;
-    const n = data.n, local: WalkNetNode[] = [];
-    let id = 0, x = 0, y = 0; // delta-coded: id, x, y each relative to the node before
-    for (let i = 0; i < n.length; i += 3) {
-      id += n[i]; x += n[i + 1]; y += n[i + 2];
-      local.push(node(id, [(ox + x) / 1e6, (oy + y) / 1e6]));
+  const attrs = data.a.map((a) => ({ ...a, lv: parseLevels(a.l) }));
+  data.w.forEach((w) => {
+    if (seenWays.has(w[0])) return;
+    seenWays.add(w[0]);
+    const attr = attrs[w[1]];
+    for (let i = 3; i < w.length; i++) addEdge(local[w[i - 1] as number], local[w[i] as number], attr);
+  });
+  data.v.forEach(([i, j, a]) => {
+    const A = local[i], B = local[j], key = A.id < B.id ? A.id + '_' + B.id : B.id + '_' + A.id;
+    if (seenShort.has(key)) return;
+    seenShort.add(key);
+    addEdge(A, B, attrs[a]);
+  });
+  data.b.forEach((row) => {
+    if (buildings.has(row[0])) return;
+    let x = ox + row[1], y = oy + row[2];
+    const ring: LngLat[] = [[x / 1e6, y / 1e6]];
+    for (let i = 3; i < row.length; i += 2) { x += row[i]; y += row[i + 1]; ring.push([x / 1e6, y / 1e6]); }
+    const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
+    const b: WalkNetBuilding = { id: row[0], ring, bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], entrances: [] };
+    buildings.set(b.id, b);
+    gridAdd(bgrid, BCELL, b.bb, b);
+  });
+  data.e.forEach(([i, bld, type, wc, addr]) => {
+    const nd = local[i];
+    if (entrances.has(nd.id)) return;
+    const e = { node: nd, bld, type, wc, addr };
+    entrances.set(nd.id, e);
+  });
+  (data.z || []).forEach((flat) => {
+    for (let i = 2; i < flat.length; i += 2) {
+      const a: LngLat = [(ox + flat[i - 2]) / 1e6, (oy + flat[i - 1]) / 1e6], b: LngLat = [(ox + flat[i]) / 1e6, (oy + flat[i + 1]) / 1e6];
+      const key = a.join() + '|' + b.join();
+      if (seenRail.has(key)) continue; // the same track in two tiles
+      seenRail.add(key);
+      gridAdd(rgrid, ECELL, [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])], [a, b]);
     }
-    const attrs = data.a.map((a) => ({ ...a, lv: parseLevels(a.l) }));
-    data.w.forEach((w) => {
-      if (seenWays.has(w[0])) return;
-      seenWays.add(w[0]);
-      const attr = attrs[w[1]];
-      for (let i = 3; i < w.length; i++) addEdge(local[w[i - 1] as number], local[w[i] as number], attr);
-    });
-    data.v.forEach(([i, j, a]) => {
-      const A = local[i], B = local[j], key = A.id < B.id ? A.id + '_' + B.id : B.id + '_' + A.id;
-      if (seenShort.has(key)) return;
-      seenShort.add(key);
-      addEdge(A, B, attrs[a]);
-    });
-    data.b.forEach((row) => {
-      if (buildings.has(row[0])) return;
-      let x = ox + row[1], y = oy + row[2];
-      const ring: LngLat[] = [[x / 1e6, y / 1e6]];
-      for (let i = 3; i < row.length; i += 2) { x += row[i]; y += row[i + 1]; ring.push([x / 1e6, y / 1e6]); }
-      const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
-      const b: WalkNetBuilding = { id: row[0], ring, bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], entrances: [] };
-      buildings.set(b.id, b);
-      gridAdd(bgrid, BCELL, b.bb, b);
-    });
-    data.e.forEach(([i, bld, type, wc, addr]) => {
-      const nd = local[i];
-      if (entrances.has(nd.id)) return;
-      const e = { node: nd, bld, type, wc, addr };
-      entrances.set(nd.id, e);
-    });
-    (data.z || []).forEach((flat) => {
-      for (let i = 2; i < flat.length; i += 2) {
-        const a: LngLat = [(ox + flat[i - 2]) / 1e6, (oy + flat[i - 1]) / 1e6], b: LngLat = [(ox + flat[i]) / 1e6, (oy + flat[i + 1]) / 1e6];
-        const key = a.join() + '|' + b.join();
-        if (seenRail.has(key)) continue; // the same track in two tiles
-        seenRail.add(key);
-        gridAdd(rgrid, ECELL, [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])], [a, b]);
-      }
-    });
-    data.x.forEach((i) => { local[i].blocked = true; });
-    data.r.forEach((i) => { local[i].kerb = true; });
-    data.l.forEach((i) => { local[i].lift = true; });
-    // entrances may arrive before their building (other tile): link both ways whenever either appears
-    entrances.forEach((e) => {
-      const b = e.bld && buildings.get(e.bld);
-      if (b && !b.entrances.includes(e)) b.entrances.push(e);
-    });
-  }
+  });
+  data.x.forEach((i) => { local[i].blocked = true; });
+  data.r.forEach((i) => { local[i].kerb = true; });
+  data.l.forEach((i) => { local[i].lift = true; });
+  // entrances may arrive before their building (other tile): link both ways whenever either appears
+  entrances.forEach((e) => {
+    const b = e.bld && buildings.get(e.bld);
+    if (b && !b.entrances.includes(e)) b.entrances.push(e);
+  });
+}
 
-  // ------------------------------------------------------------------ tiles
-  let index: WalkGraphIndex | null = null, indexPromise: Promise<WalkGraphIndex | null> | null = null;
-  const tiles = new Map<string, Promise<boolean>>(); // key → Promise<boolean>
-  const pending = new Map<string, (data: WalkGraphTile) => void>();
-  let loader: WalkGraphLoader | null = null;       // (key) → Promise<data>; browser default: <script src="walkgraph/t/key.js">
-  let base = 'walkgraph/';
+// ------------------------------------------------------------------ tiles
+let index: WalkGraphIndex | null = null, indexPromise: Promise<WalkGraphIndex | null> | null = null;
+const tiles = new Map<string, Promise<boolean>>(); // key → Promise<boolean>
+const pending = new Map<string, (data: WalkGraphTile) => void>();
+let loader: WalkGraphLoader | null = null;       // (key) → Promise<data>; browser default: <script src="walkgraph/t/key.js">
+let base = 'walkgraph/';
 
-  function loadScript(src: string) {
-    return new Promise<void>((ok, fail) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.async = true;
-      s.onload = () => { s.remove(); ok(); }; // the tile has been handed over: the element is not needed
-      s.onerror = () => { s.remove(); fail(new Error('load ' + src)); };
-      document.head.appendChild(s);
-    });
+function loadScript(src: string) {
+  return new Promise<void>((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = () => { s.remove(); ok(); }; // the tile has been handed over: the element is not needed
+    s.onerror = () => { s.remove(); fail(new Error('load ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+globalThis.WALKGRAPH_TILE = (key, data) => {
+  const p = pending.get(key);
+  if (p) { pending.delete(key); p(data); }
+};
+function loadIndex() {
+  if (index) return Promise.resolve(index);
+  if (globalThis.WALKGRAPH_INDEX) return Promise.resolve((index = globalThis.WALKGRAPH_INDEX));
+  if (!indexPromise) {
+    indexPromise = (loader ? loader('index') : loadScript(base + 'index.js').then(() => globalThis.WALKGRAPH_INDEX))
+      .then((x) => (index = x || null)).catch(() => null)
+      .then((x) => { if (!x) indexPromise = null; return x; }); // offline: try again next time
   }
-  root.WALKGRAPH_TILE = (key, data) => {
-    const p = pending.get(key);
-    if (p) { pending.delete(key); p(data); }
-  };
-  function loadIndex() {
-    if (index) return Promise.resolve(index);
-    if (root.WALKGRAPH_INDEX) return Promise.resolve((index = root.WALKGRAPH_INDEX));
-    if (!indexPromise) {
-      indexPromise = (loader ? loader('index') : loadScript(base + 'index.js').then(() => root.WALKGRAPH_INDEX))
-        .then((x) => (index = x || null)).catch(() => null)
-        .then((x) => { if (!x) indexPromise = null; return x; }); // offline: try again next time
+  return indexPromise;
+}
+function loadTile(key: string) {
+  if (!tiles.has(key)) {
+    let got: Promise<WalkGraphTile> | null;
+    try {
+      got = loader ? Promise.resolve(loader(key)) : null;
+    } catch (e) {
+      got = Promise.reject(e); // a loader that throws is a tile that failed (the walk's tiles are released)
     }
-    return indexPromise;
-  }
-  function loadTile(key: string) {
-    if (!tiles.has(key)) {
-      let got: Promise<WalkGraphTile> | null;
-      try {
-        got = loader ? Promise.resolve(loader(key)) : null;
-      } catch (e) {
-        got = Promise.reject(e); // a loader that throws is a tile that failed (the walk's tiles are released)
-      }
-      got = got || new Promise<WalkGraphTile>((ok, fail) => {
-          pending.set(key, ok);
-          // a script that loads but does not hand over the tile (a captive portal page, say) has failed too
-          loadScript(base + 't/' + key + '.js')
-            .then(() => { if (pending.get(key) === ok) { pending.delete(key); fail(new Error('no tile ' + key)); } })
-            .catch((e) => { pending.delete(key); fail(e); });
-        });
-      // a tile that failed to load is tried again next time (the phone may have been offline)
-      tiles.set(key, got.then((data) => { if (!wellFormed(data)) throw new Error('bad tile ' + key); raw.set(key, data); return true; })
-        .catch(() => { tiles.delete(key); return false; }));
-    }
-    return tiles.get(key);
-  }
-  // Only the tiles around the latest walks stay in the network: a walk can need ~40 tiles (4 km and its margin) and a
-  // dense city tile takes a few MB once built, so when the network would grow past MAX_TILES it is rebuilt from the
-  // tiles of the walk at hand. Tiles dropped are fetched again when needed (from the browser's cache); tiles another
-  // walk is still waiting for are kept.
-  const MAX_TILES = 24;
-  const raw = new Map<string, WalkGraphTile>();       // key → tile data, for the tiles in the network and those walks are waiting for
-  const inGraph = new Set<string>();   // keys of the tiles in the network
-  const wanted = new Map<string, number>();    // key → how many walks are loading it
-  function clearGraph() {
-    [nodes, seenWays, seenShort, seenRail, buildings, entrances, egrid, bgrid, rgrid].forEach((m) => m.clear());
-    inGraph.clear();
-  }
-  // A piece of network joined to nothing else (a tram platform OpenStreetMap draws apart from the street it stands in,
-  // Bern Zytglogge's bay A): fewer than 40 nodes reach each other. Known per node until the network changes.
-  const islands = new Map<WalkNetNode, boolean>();
-  function island(n: WalkNetNode) {
-    if (islands.has(n)) return islands.get(n);
-    const seen = new Set([n]), todo = [n];
-    while (todo.length && seen.size < 40) {
-      const m = todo.pop()!;
-      for (const e of m.adj) { const o = e.a === m ? e.b : e.a; if (!seen.has(o)) { seen.add(o); todo.push(o); } }
-    }
-    const small = seen.size < 40;
-    if (small) seen.forEach((m) => islands.set(m, true));
-    else islands.set(n, false);
-    return small;
-  }
-  // Put these (loaded) tiles into the network, dropping the others first if it would grow too big
-  function useTiles(keys: string[]) {
-    const missing = keys.filter((k) => !inGraph.has(k));
-    if (!missing.length) return;
-    islands.clear(); // new tiles can join what was a piece on its own
-    if (inGraph.size + missing.length > MAX_TILES) {
-      const keep = new Set(keys);
-      [...raw.keys()].forEach((k) => { if (!keep.has(k) && !wanted.has(k)) drop(k); });
-      clearGraph();
-      keys.forEach((k) => { addTile(raw.get(k)!); inGraph.add(k); });
-    } else missing.forEach((k) => { addTile(raw.get(k)!); inGraph.add(k); });
-  }
-  const drop = (k: string) => { raw.delete(k); tiles.delete(k); };
-  // a tile is only taken when it has every part (a half-added tile would stay in the network)
-  const wellFormed = (d: WalkGraphTile) => d && Array.isArray(d.o) && (['n', 'a', 'w', 'v', 'b', 'e', 'x', 'r', 'l'] as const).every((f) => Array.isArray(d[f]));
-  const tileKey = (ll: LngLat, size: number) => Math.floor(ll[1] / size + 1e-9) + '_' + Math.floor(ll[0] / size + 1e-9);
-  const release = (keys: string[]) => keys.forEach((k) => { const c = wanted.get(k)! - 1; if (c) wanted.set(k, c); else wanted.delete(k); });
-  // Load every tile of the box around a and b → their keys, held (wanted) until the caller puts them into the network
-  // and releases them; null when the network does not cover both ends
-  async function ensure(a: LngLat, b: LngLat, padM: number) {
-    const idx = await loadIndex();
-    if (!idx) return null;
-    const size = idx.tile;
-    if (!idx.tiles[tileKey(a, size)] || !idx.tiles[tileKey(b, size)]) return null;
-    const w = Math.min(a[0], b[0]) - padM / kx(a[1]), e = Math.max(a[0], b[0]) + padM / kx(a[1]);
-    const s = Math.min(a[1], b[1]) - padM / KY, n = Math.max(a[1], b[1]) + padM / KY;
-    const keys: string[] = [];
-    for (let y = Math.floor(s / size); y <= Math.floor(n / size); y++)
-      for (let x = Math.floor(w / size); x <= Math.floor(e / size); x++) if (idx.tiles[y + '_' + x]) keys.push(y + '_' + x);
-    keys.forEach((k) => wanted.set(k, (wanted.get(k) || 0) + 1));
-    // a missing tile in the middle would send the walk on a detour round it: then better the online router
-    const ok = await Promise.all(keys.map(loadTile)).then((x) => x.every(Boolean), () => false);
-    if (!ok) {
-      release(keys);
-      // the tiles that did load are not kept for nothing
-      keys.forEach((k) => { if (!inGraph.has(k) && !wanted.has(k) && raw.has(k)) drop(k); });
-      return null;
-    }
-    return keys;
-  }
-
-  // ------------------------------------------------------------------ costs
-  const FACTOR = { fw: 1, sw: 1, cr: 1.05, pl: 1, co: 1, ar: 1, rd: 1.15, cy: 1.2, mr: 1.8, sep: 4, st: 1.3, es: 1.1, el: 1 };
-  const COVERED = { a: 'arcade', p: 'passage', t: 'underpass', i: 'indoors', c: 'covered' };
-  function edgeCost(e: WalkNetEdge, opt: WalkRouteOptions) {
-    const a = e.attr, k = a.k;
-    let c = e.len * (FACTOR[k] || 1.2) * (a.s === 't' ? 1.05 : 1); // s: 't' = a path only swisstopo's map has
-    if (k === 'st') {
-      if (opt.stepFree && a.w) return Infinity;
-      c += opt.fewerStairs ? 40 + e.len * 3 : 3;
-    } else if (k === 'es') {
-      if (opt.stepFree || opt.noEscalators) return Infinity;
-    } else if (k === 'el') c += 20; // waiting for the lift
-    if (opt.stepFree && a.w) return Infinity;
-    return c;
-  }
-  const passable = (n: WalkNetNode, opt: WalkRouteOptions) => !n.blocked && !(opt.stepFree && n.kerb);
-
-  // ------------------------------------------------------------------ the two ends of a walk
-  function buildingsAt(p: LngLat, rM: number) {
-    const out: WalkNetBuilding[] = [];
-    gridNear(bgrid, BCELL, p, rM).forEach((b) => {
-      if (p[0] < b.bb[0] - 0.0003 || p[0] > b.bb[2] + 0.0003 || p[1] < b.bb[1] - 0.0003 || p[1] > b.bb[3] + 0.0003) return;
-      if (inside(p, b.ring)) out.push(b);
-    });
-    return out;
-  }
-  // Does the straight line p→q cross a railway track on the ground?
-  function cutsRail(p: LngLat, q: LngLat) {
-    const mid: LngLat = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-    for (const [a, b] of gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)) if (crosses(p, q, a, b)) return true;
-    return false;
-  }
-  // Does p→q cross just one track, the one p stands on (within 1.5 m of it)? A stop position given on the track
-  // itself is then on its platform; a second track crossed, however close, is never allowed
-  function onlyOwnTrack(p: LngLat, q: LngLat) {
-    const mid: LngLat = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-    const hit = [...gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)].filter(([a, b]) => crosses(p, q, a, b));
-    return hit.length === 1 && project(p, hit[0][0], hit[0][1]).d < 1.5;
-  }
-  // Does the straight line p→q cut through a building (other than those in `allow`)?
-  function cutsBuilding(p: LngLat, q: LngLat, allow: Set<WalkNetBuilding>) {
-    const mid: LngLat = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-    for (const b of gridNear(bgrid, BCELL, mid, distM(p, q) / 2 + 30)) {
-      if (allow.has(b)) continue;
-      if (Math.max(p[0], q[0]) < b.bb[0] || Math.min(p[0], q[0]) > b.bb[2] || Math.max(p[1], q[1]) < b.bb[1] || Math.min(p[1], q[1]) > b.bb[3]) continue;
-      const r = b.ring;
-      for (let i = 1; i < r.length; i++) if (crosses(p, q, r[i - 1], r[i])) return true;
-    }
-    return false;
-  }
-  // Is the path on this floor? Untagged paths count as on any floor, except bridges and tunnels for the street
-  const levelOk = (attr: WalkNetAttr, level: number | null | undefined) => level == null || (attr.lv ? attr.lv.includes(level) : !(attr.y && level === 0));
-
-  // Points on the network near p, each with the cost of getting there from p in a straight line
-  interface Attachment { e: WalkNetEdge; t: number; q: LngLat; d: number; cost: number; cuts: boolean; onTrack?: boolean }
-  function attachments(p: LngLat, o: WalkNetEnd, allow: Set<WalkNetBuilding>, rM: number) {
-    const best = new Map<WalkNetEdge, Attachment>(); // edge → attachment
-    gridNear(egrid, ECELL, p, rM).forEach((e) => {
-      const pr = project(p, e.a.ll, e.b.ll);
-      if (pr.d > rM) return;
-      const a = e.attr;
-      if (!levelOk(a, o.level)) return;
-      if (a.k === 'es' || (o.stepFree && a.w)) return; // never step onto the middle of an escalator
-      if (o.osmOnly && a.s === 't') return; // second try: a swisstopo path near the end may lead nowhere
-      if (o.noIslands && island(e.a)) return; // last try: never onto a piece of network joined to nothing
-      // a platform below or above the street: only paths known to be on its floor (not the street right above it)
-      if (o.platform && !o.wide && o.level && !a.lv) return;
-      // the platform of another track or bay is never where you board, however close (islands are metres apart)
-      const own = o.ref && a.r ? a.r.split(';').includes(o.ref) : null;
-      if (own === false || (o.onlyOwn && !own)) return;
-      // from the street you cannot step straight into an underpass below you (its floor is often not tagged)
-      if (a.c === 't' && o.level === 0 && !o.platform) return;
-      let f = 1.3, cuts = false;
-      if (a.k === 'sep' || a.k === 'mr') f = 4;                     // onto a road whose sidewalks are drawn separately
-      if (o.platform && (a.k === 'pl' || own) && (a.lv ? a.lv.includes(o.level as number) : !a.y)) f = own ? 0.3 : 0.5; // a platform point belongs on its platform
-      if (o.level != null && o.level !== 0 && !a.lv) f *= 2;        // floor of the path unknown
-      // a straight line into the network must not go through a wall. It may only cross the outline of the building
-      // the path itself runs under (an arcade is open to the street); passages, corridors and underpasses are only
-      // entered at their ends, never through a wall
-      // never across the tracks. A stop position given on the track itself (Basel SBB Gleis 19, Bern Gleis 13) still
-      // reaches its own platform across that one track; the walk then starts on the platform (onTrack)
-      let onTrack = false;
-      if (pr.d > 1 && cutsRail(p, pr.q)) {
-        // (a platform below or above the street does not stand on a track of the ground)
-        if (!own || (o.level != null && o.level !== 0) || !onlyOwnTrack(p, pr.q)) return;
-        onTrack = true;
-      }
-      if (pr.d > 2) {
-        const under = a.c === 'a' ? buildingsAt(pr.q, 5) : [];
-        if (cutsBuilding(p, pr.q, under.length ? new Set([...allow, ...under]) : allow)) {
-          if (a.c === 'p' || a.c === 'i' || a.c === 't') return;
-          f = 6;
-          cuts = true;
-        }
-      }
-      best.set(e, { e, t: pr.t, q: pr.q, d: pr.d, cost: pr.d * f, cuts, onTrack });
-    });
-    return [...best.values()].sort((x, y) => x.cost - y.cost).slice(0, 8);
-  }
-
-  // addr: a door the builder put where the official address register has the building's address (only buildings
-  // without a mapped door have them); a mapped door nearby is the surer one
-  const DOOR_RANK: Record<string, number> = { main: 0, yes: 0, shop: 0, home: 0, staircase: 2, entrance: 0, addr: 10, service: 40, exit: 60, emergency: 200, garage: 120, private: 200 };
-  // The ways into (or out of) the network at one end: { node or edge position, extra cost, door }
-  function endpoint(p: LngLat, o: WalkNetEnd): WalkNetAccess[] {
-    const out: WalkNetAccess[] = [];
-    // an exact point (where a station model's own paths begin) is joined to the paths right there, not to a door
-    const inB = o.platform || o.exact ? [] : buildingsAt(p, 40);
-    const allow = new Set(o.platform ? buildingsAt(p, 40) : inB); // a platform under the station roof may leave it
-    const r0 = o.radius || 40;
-    // a platform point belongs on its own platform: look close by first, so the next platform across the tracks
-    // (or a bridge over them) never wins
-    if (o.platform && !o.wide) {
-      // its own platform (by track / bay number) up to 40 m away, else whatever platform path is right there
-      const own = o.ref ? attachments(p, { ...o, onlyOwn: true }, allow, 40) : [];
-      const near = own.length ? own : attachments(p, o, allow, 15);
-      if (near.length) return near.map((x) => ({ ...x, door: null, from: p }));
-    }
-    const att = (q: LngLat, extra: number, door: WalkNetEntrance | null, allowSet: Set<WalkNetBuilding>, r?: number) => attachments(q, o, allowSet, r || r0).forEach((x) =>
-      out.push({ ...x, cost: x.cost + extra, door, from: q }));
-    // through a door of the building you are in / going to
-    const doors: { d: WalkNetEntrance; rank: number }[] = [];
-    let barred = 0; // doors the step-free setting rules out (wheelchair=no)
-    inB.forEach((b) => b.entrances.forEach((d) => {
-      const rank = DOOR_RANK[d.type] != null ? DOOR_RANK[d.type] : 10;
-      if (o.stepFree && d.wc === 'no') { barred++; return; }
-      doors.push({ d, rank: rank + (o.stepFree && d.wc === 'yes' ? -5 : 0) });
-    }));
-    doors.forEach(({ d, rank }) => {
-      const inside = distM(p, d.node.ll); // walking inside the building to (or from) its door
-      if (d.node.adj.length) out.push({ n: d.node, cost: inside + rank, door: d, from: d.node.ll });
-      // a door can be some way from any mapped path (across a lawn or a yard)
-      else att(d.node.ll, inside + rank, d, new Set(inB.concat(buildingsAt(d.node.ll, 5))), 80);
-    });
-    // straight to the network: only when the building has no door that can be reached (the line is then a guess)
-    if (!out.length) att(p, 0, null, allow);
-    // nothing close: the nearest path up to 400 m away (the stretch across open ground to it is drawn dashed)
-    for (const r of [150, 400]) {
-      if (out.length || o.radius) break;
-      attachments(p, o, allow, r).forEach((x) => out.push({ ...x, door: null, from: p }));
-    }
-    // into (or out of) a building without a door: wherever that line meets the wall is a guess, however short, and
-    // when its doors are there but none is step-free, say so
-    if (inB.length) out.forEach((x) => { if (!x.door) { x.guess = true; if (barred && !doors.length) x.noStepFreeDoor = true; } });
-    return out;
-  }
-
-  // ------------------------------------------------------------------ search
-  class Heap<T> {
-    declare a: [key: number, x: T][];
-    constructor() { this.a = []; }
-    push(x: T, k: number) {
-      const a = this.a;
-      a.push([k, x]);
-      let i = a.length - 1;
-      while (i) { const j = (i - 1) >> 1; if (a[j][0] <= a[i][0]) break; [a[i], a[j]] = [a[j], a[i]]; i = j; }
-    }
-    pop() {
-      const a = this.a, top = a[0], last = a.pop();
-      if (a.length) {
-        a[0] = last!;
-        let i = 0;
-        for (;;) {
-          const l = 2 * i + 1, r = l + 1;
-          let m = i;
-          if (l < a.length && a[l][0] < a[m][0]) m = l;
-          if (r < a.length && a[r][0] < a[m][0]) m = r;
-          if (m === i) break;
-          [a[i], a[m]] = [a[m], a[i]];
-          i = m;
-        }
-      }
-      return top;
-    }
-    get size() { return this.a.length; }
-  }
-
-  // route()'s options, with what its further tries add to the ends; how a node was reached (straight from a start s,
-  // along the path e that start is on, or from the node n before along e); and the best walk found so far
-  type AtNode = Extract<WalkNetAccess, { n: WalkNetNode }>;
-  type OnEdge = Extract<WalkNetAccess, { e: WalkNetEdge }>;
-  interface SearchOptions extends WalkRouteOptions { from?: WalkNetEnd; to?: WalkNetEnd }
-  type Prev = { s: AtNode; e?: undefined; n?: undefined } | { s: OnEdge; e: WalkNetEdge; n?: undefined } | { n: WalkNetNode; e: WalkNetEdge; s?: undefined };
-  type Best = { cost: number; s: OnEdge; t: OnEdge; direct: true; node?: undefined } | { cost: number; node: WalkNetNode; t: WalkNetAccess; direct?: undefined; s?: undefined };
-  // a, b: [lon, lat]. opt: { stepFree, fewerStairs, noEscalators, from: { level, platform, ref, exact, accuracy },
-  //   to: { level, platform, ref, exact } }
-  // → { coords, dist (m), covered: [[ll…]…], door: { ll, type, addr } | null, cues: [{ at, kind, text }], via } or null
-  function search(a: LngLat, b: LngLat, opt: SearchOptions) {
-    // a street address or a GPS position is on the ground floor unless said otherwise (not in the corridor below it)
-    const side = (o: WalkNetEnd | undefined): WalkNetEnd => ({ ...(o || {}), level: o && o.level != null ? o.level : o && o.platform ? null : 0, stepFree: opt.stepFree });
-    const fromO = side(opt.from), toO = side(opt.to);
-    if (fromO.accuracy != null) fromO.radius = Math.max(25, Math.min(80, fromO.accuracy * 1.5));
-    const S = endpoint(a, fromO), T = endpoint(b, toO);
-    if (!S.length || !T.length) return null;
-
-    // targets: per node, the cheapest way on to b; and per edge, the attachments on it
-    const goal = new Map<WalkNetNode, { cost: number; t: WalkNetAccess }>(), goalEdge = new Map<WalkNetEdge, OnEdge[]>();
-    const addGoal = (n: WalkNetNode, cost: number, t: WalkNetAccess) => { const g = goal.get(n); if (!g || cost < g.cost) goal.set(n, { cost, t }); };
-    T.forEach((t) => {
-      if (t.n) return addGoal(t.n, t.cost, t);
-      const e = t.e, f = edgeCost(e, opt) / (e.len || 1);
-      if (!isFinite(f)) return;
-      addGoal(e.a, t.cost + t.t * e.len * f, t);
-      addGoal(e.b, t.cost + (1 - t.t) * e.len * f, t);
-      (goalEdge.get(e) || goalEdge.set(e, []).get(e)!).push(t);
-    });
-
-    const dist = new Map<WalkNetNode, number>(), prev = new Map<WalkNetNode, Prev>(), heap = new Heap<WalkNetNode>();
-    // A* towards b. A target can cost less than its straight distance to b (a platform's own path is preferred,
-    // a step-free door gets a bonus), so take that slack off to keep the estimate from ever overshooting
-    let slack = 0;
-    T.forEach((t) => { const at = t.n ? t.n.ll : t.q; slack = Math.max(slack, distM(at, b) - t.cost); });
-    const h = (n: WalkNetNode) => Math.max(0, distM(n.ll, b) - slack);
-    let best = null as Best | null; // { cost, node | null, t, s }
-    const relax = (n: WalkNetNode, cost: number, p: Prev) => {
-      if (!passable(n, opt)) return;
-      const d = dist.get(n);
-      if (d != null && d <= cost) return;
-      dist.set(n, cost);
-      prev.set(n, p);
-      heap.push(n, cost + h(n));
-    };
-    S.forEach((s) => {
-      if (s.n) return relax(s.n, s.cost, { s });
-      const e = s.e, f = edgeCost(e, opt) / (e.len || 1);
-      if (!isFinite(f)) return;
-      relax(e.a, s.cost + s.t * e.len * f, { s, e });
-      relax(e.b, s.cost + (1 - s.t) * e.len * f, { s, e });
-      // both ends on the same stretch of path
-      (goalEdge.get(e) || []).forEach((t) => {
-        const c = s.cost + Math.abs(s.t - t.t) * e.len * f + t.cost;
-        if (!best || c < best.cost) best = { cost: c, s, t, direct: true };
+    got = got || new Promise<WalkGraphTile>((ok, fail) => {
+        pending.set(key, ok);
+        // a script that loads but does not hand over the tile (a captive portal page, say) has failed too
+        loadScript(base + 't/' + key + '.js')
+          .then(() => { if (pending.get(key) === ok) { pending.delete(key); fail(new Error('no tile ' + key)); } })
+          .catch((e) => { pending.delete(key); fail(e); });
       });
-    });
-
-    let settled = 0;
-    while (heap.size) {
-      const [key, n] = heap.pop();
-      const d = dist.get(n)!;
-      if (key > d + h(n) + 1e-6) continue; // an old entry: n was reached more cheaply since
-      if (best && d + h(n) >= best.cost) break;
-      if (++settled > 250000) break;
-      const g = goal.get(n);
-      if (g && (!best || d + g.cost < best.cost)) best = { cost: d + g.cost, node: n, t: g.t };
-      const came = n.lift && prev.get(n)!.e;
-      for (const e of n.adj) {
-        if (e.attr.d && (e.attr.d === 'f') !== (e.a === n)) continue; // an escalator against its direction
-        const m = e.a === n ? e.b : e.a;
-        let c = edgeCost(e, opt);
-        if (!isFinite(c)) continue;
-        // a lift drawn as a point where paths on different floors meet: changing floor there means waiting for it
-        if (came && came.attr.l !== e.attr.l) c += 20;
-        relax(m, d + c, { n, e });
-      }
-    }
-    if (!best) return null;
-    return assemble(a, b, best, prev);
+    // a tile that failed to load is tried again next time (the phone may have been offline)
+    tiles.set(key, got.then((data) => { if (!wellFormed(data)) throw new Error('bad tile ' + key); raw.set(key, data); return true; })
+      .catch(() => { tiles.delete(key); return false; }));
   }
-
-  // ------------------------------------------------------------------ the result: line, covered parts, door and cues
-  // a point of a walk: where, the way that leads to it (null: a straight connector), whether that way is walked in its
-  // drawn direction, and whether a lift stands there; and a covered stretch of it
-  type Pt = [ll: LngLat, attr: WalkNetAttr | null, forwards?: boolean, lift?: boolean];
-  interface CoveredRun { c: WalkGraphCover; cs: LngLat[] }
-  function assemble(a: LngLat, b: LngLat, best: Best, prev: Map<WalkNetNode, Prev>): WalkRouteResult {
-    const pts: Pt[] = []; // [ll, attr of the way that leads to it]
-    let s;
-    // each point carries the way that leads to it (null: a straight connector) and whether that way is walked
-    // in its drawn direction (for steps tagged incline=up/down)
-    if (best.direct) {
-      s = best.s;
-      pts.push([s.q, null], [best.t.q, s.e.attr, best.t.t >= s.t]);
-    } else {
-      const chain: Pt[] = [];
-      let n = best.node;
-      for (;;) {
-        const p = prev.get(n)!;
-        if (p.n) { chain.push([n.ll, p.e.attr, p.e.b === n, n.lift]); n = p.n; continue; }
-        chain.push([n.ll, p.e ? p.e.attr : null, p.e ? p.e.b === n : true, n.lift]);
-        s = p.s;
-        if (p.e) chain.push([s.q!, null]);
-        break;
-      }
-      chain.reverse();
-      pts.push(...chain);
-      const t = best.t;
-      if (t.e && t.q) pts.push([t.q, t.e.attr, t.e.a === best.node]);
-    }
-    const t = best.t;
-    // from where you are to the network, through the door if one was taken
-    const head: Pt[] = s.onTrack ? [] : [[a, null]]; // a stop position on the track: from the platform beside it
-    if (s.door && s.door.node.ll !== (pts[0] && pts[0][0])) head.push([s.door.node.ll, null]);
-    const tail: Pt[] = [];
-    if (t.door && t.door.node.ll !== (pts.length && pts[pts.length - 1][0])) tail.push([t.door.node.ll, null]);
-    if (!t.door && !t.onTrack) tail.push([b, null]); // no door: the line goes to the place itself
-    const raw = head.concat(pts, tail);
-    const all = raw.filter((p, i, arr) => !i || distM(p[0], arr[i - 1][0]) > 0.3);
-    const coords = all.map((p) => p[0]);
-    // the straight bits from where you are onto the paths, and from the paths to the end (or its door), are guesses
-    // across open ground when they are long: say so (drawn dashed). approxTo / approxFrom: coordinate indices.
-    let first = all.findIndex((p) => p[1]), last = all.length - 1 - [...all].reverse().findIndex((p) => p[1]);
-    const offPath = first < 0; // no stretch of path left at all (both ends meet the same point): all of it is a guess
-    if (offPath) { first = all.length - 1; last = 0; }
-    const along = (i: number, j: number) => { let m = 0; for (let k = i + 1; k <= j; k++) m += distM(coords[k - 1], coords[k]); return m; };
-    const unsure = (x: WalkNetAccess) => !!(x && (x.guess || x.cuts));
-    const approxTo = first > 0 && (along(0, first - 1) > 20 || unsure(s)) ? first - 1 : null;
-    const approxFrom = last < coords.length - 1 && (along(last, coords.length - 1) > 20 || unsure(t)) ? last : null;
-
-    let dist = 0;
-    for (let i = 1; i < coords.length; i++) dist += distM(coords[i - 1], coords[i]);
-    // covered stretches (arcades, passages, underpasses, indoors)
-    const covered: CoveredRun[] = [];
-    let run = null as CoveredRun | null;
-    all.forEach(([ll, attr], i) => {
-      const c = attr && attr.c;
-      if (c && run && run.c === c) run.cs.push(ll);
-      else {
-        if (run && run.cs.length > 1) covered.push(run);
-        run = c && i ? { c, cs: [all[i - 1][0], ll] } : null;
-      }
-    });
-    if (run && run.cs.length > 1) covered.push(run);
-    const cues = cuesOf(raw); // before dropping repeated points: a lift ride has none of its own
-    const door = t.door ? { ll: t.door.node.ll, type: t.door.type, addr: t.door.addr } : null;
-    const via = summary(cues, door);
-    let swisstopo = 0; // metres on paths only swisstopo's map has (swissTLM3D)
-    for (let k = 1; k < all.length; k++) if (all[k][1] && all[k][1]!.s === 't') swisstopo += distM(coords[k - 1], coords[k]);
-    return { net: true, coords, approx: offPath || undefined, approxTo, approxFrom,
-      noStepFreeDoor: !!(t.noStepFreeDoor || s.noStepFreeDoor) || undefined, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
-      startDoor: s.door ? { ll: s.door.node.ll, type: s.door.type } : null, cues, via };
+  return tiles.get(key);
+}
+// Only the tiles around the latest walks stay in the network: a walk can need ~40 tiles (4 km and its margin) and a
+// dense city tile takes a few MB once built, so when the network would grow past MAX_TILES it is rebuilt from the
+// tiles of the walk at hand. Tiles dropped are fetched again when needed (from the browser's cache); tiles another
+// walk is still waiting for are kept.
+const MAX_TILES = 24;
+const raw = new Map<string, WalkGraphTile>();       // key → tile data, for the tiles in the network and those walks are waiting for
+const inGraph = new Set<string>();   // keys of the tiles in the network
+const wanted = new Map<string, number>();    // key → how many walks are loading it
+function clearGraph() {
+  [nodes, seenWays, seenShort, seenRail, buildings, entrances, egrid, bgrid, rgrid].forEach((m) => m.clear());
+  inGraph.clear();
+}
+// A piece of network joined to nothing else (a tram platform OpenStreetMap draws apart from the street it stands in,
+// Bern Zytglogge's bay A): fewer than 40 nodes reach each other. Known per node until the network changes.
+const islands = new Map<WalkNetNode, boolean>();
+function island(n: WalkNetNode) {
+  if (islands.has(n)) return islands.get(n);
+  const seen = new Set([n]), todo = [n];
+  while (todo.length && seen.size < 40) {
+    const m = todo.pop()!;
+    for (const e of m.adj) { const o = e.a === m ? e.b : e.a; if (!seen.has(o)) { seen.add(o); todo.push(o); } }
   }
-  // The moments worth a word: stairs, escalators and lifts (with the floor they take you to), arcades, passages,
-  // underpasses, crossings and named squares. all: [ll, attr of the way leading to it, walked forwards, lift node]
-  const levelText = (l: number) => (l === 0 ? 'street level' : 'level ' + String(l).replace('-', '−'));
-  function cuesOf(all: Pt[]) {
-    const cum = [0];
-    for (let i = 1; i < all.length; i++) cum.push(cum[i - 1] + distM(all[i - 1][0], all[i][0]));
-    const single = (attr: WalkNetAttr | null) => (attr && attr.lv && attr.lv.length === 1 ? attr.lv[0] : null);
-    // the floor just before / after a staircase (within 60 m: a floor tag further away says nothing about it)
-    const levelBefore = (i: number) => { for (let j = i; j >= 1 && cum[i] - cum[j] < 60; j--) { const l = single(all[j][1]); if (l != null) return l; } return null; };
-    const levelAfter = (i: number) => { for (let j = i; j < all.length && cum[j] - cum[Math.min(i, all.length - 1)] < 60; j++) { const l = single(all[j][1]); if (l != null) return l; } return null; };
-    const kindOf = (attr: WalkNetAttr | null) => {
-      if (!attr) return null;
-      const k = attr.k, c = attr.c;
-      return k === 'st' ? 'steps' : k === 'es' ? 'escalator' : k === 'el' ? 'lift'
-        : attr.lv && attr.lv.length > 1 && k !== 'ar' ? 'ramp' // a path that joins two floors (a ramp, a sloping corridor)
-        : c === 'a' ? 'arcade' : c === 'p' ? 'passage' : c === 't' ? 'underpass'
-        : k === 'cr' ? 'crossing' : k === 'ar' && attr.n ? 'square' : null;
-    };
-    const cues: WalkCue[] = [], lastAt: Record<string, number> = {};
-    const push = (i: number, kind: string, text: string, from: number | null) => { // from: the floor a floor change starts on, when known
-      const key = kind + '|' + text;
-      if (lastAt[key] != null && cum[i] - lastAt[key] < 80) { lastAt[key] = cum[i]; return; } // the same arcade, block after block
-      lastAt[key] = cum[i];
-      cues.push({ at: all[i][0], kind, text, m: Math.round(cum[i]), ...(from != null ? { from } : {}) });
-    };
-    for (let i = 1; i < all.length; i++) {
-      const attr = all[i][1], kind = kindOf(attr);
-      // a lift drawn as a point where paths on different floors meet
-      if (all[i - 1][3] && i >= 2) {
-        const before = single(all[i - 1][1]), after = single(attr);
-        if (before != null && after != null && before !== after) push(i - 1, 'lift', 'Lift to ' + levelText(after), before);
-      }
-      if (!kind || kind === kindOf(all[i - 1][1]) && (all[i - 1][1] || {}).n === attr!.n) continue; // still on the same one
-      let text, fromLv = null;
-      if (kind === 'steps' || kind === 'escalator' || kind === 'lift' || kind === 'ramp') {
-        let j = i;
-        while (j + 1 < all.length && kindOf(all[j + 1][1]) === kind) j++;
-        const from = levelBefore(i - 1), to = levelAfter(j + 1);
-        const word = { steps: 'Stairs', escalator: 'Escalator', lift: 'Lift', ramp: '' }[kind];
-        if (from != null && to != null && from !== to) {
-          text = kind === 'lift' ? `Lift to ${levelText(to)}` : `${word} ${to > from ? 'up' : 'down'} to ${levelText(to)}`.trim();
-          text = text[0].toUpperCase() + text.slice(1);
-          fromLv = from;
-        } else if (kind === 'ramp') continue;
-        else if (attr!.i && kind !== 'lift') text = `${word} ${(attr!.i === 'u') === (all[i][2] !== false) ? 'up' : 'down'}`;
-        else text = word;
-      } else {
-        text = { arcade: 'Under the arcades', passage: 'Through the passage', underpass: 'Through the underpass',
-          crossing: 'Cross the street', square: 'Straight across' }[kind];
-        if (attr!.n && kind !== 'crossing') text += (kind === 'arcade' ? ' of ' : ' ') + attr!.n;
-      }
-      push(i - 1, kind, text, fromLv);
-    }
-    // the floor changes where paths simply meet (stairs or a lift not drawn): still say so
-    const VERTICAL: Record<string, number> = { steps: 1, escalator: 1, lift: 1, ramp: 1 };
-    let lastLv = null, lastI = 0;
-    for (let i = 1; i < all.length; i++) {
-      const l = single(all[i][1]);
-      if (l == null) continue;
-      if (lastLv != null && l !== lastLv && !cues.some((c) => VERTICAL[c.kind] && c.m >= cum[lastI] - 1 && c.m <= cum[i] + 1)) {
-        cues.push({ at: all[i - 1][0], kind: 'ramp', text: `${l > lastLv ? 'Up' : 'Down'} to ${levelText(l)}`, m: Math.round(cum[i - 1]), from: lastLv });
-      }
-      lastLv = l;
-      lastI = i;
-    }
-    return cues.sort((x, y) => x.m - y.m);
-  }
-
-  function summary(cues: WalkCue[], door: WalkRouteResult['door']) {
-    const parts: string[] = [];
-    const has = (k: string) => cues.find((c) => c.kind === k);
-    const arcade = has('arcade');
-    if (arcade) parts.push(arcade.text.replace(/^Under/, 'under'));
-    if (has('passage')) parts.push('through a passage');
-    if (has('underpass')) parts.push('through the underpass');
-    // the last stairs / escalator / lift (the one that takes you to where you are going); floor changes on plain paths
-    // stay in the step-by-step cues
-    const vertical = [...cues].reverse().find((c) => c.kind === 'lift' || c.kind === 'escalator' || c.kind === 'steps');
-    if (vertical) parts.push(vertical.text.replace(/^\w/, (c) => c.toLowerCase()));
-    if (door) parts.push(door.type === 'main' ? 'main entrance' : door.addr ? 'entrance ' + door.addr : 'to the door');
-    return parts.slice(0, 3).join(' · ');
-  }
-
-  // ------------------------------------------------------------------ public
-  async function route(a: LngLat, b: LngLat, opt: WalkRouteOptions = {}) {
-    const straight = distM(a, b);
-    if (straight > 4000) return null;
-    const keys = await ensure(a, b, Math.max(450, straight * 0.4)); // the nearest path can be up to 400 m off
-    if (!keys) return null;
-    // from here on synchronous to the end of the search, so no other walk changes the network meanwhile
-    try { useTiles(keys); } finally { release(keys); }
-    // a network gap can send the search on a huge detour: that counts as no route (the next try, or the online router)
-    const ok = (r: WalkRouteResult | null) => r && r.dist <= Math.max(straight * 4, straight + 1200);
-    const from = opt.from || {}, to = opt.to || {};
-    const tries = [
-      opt,
-      // GPS: if nothing within its accuracy leads anywhere, any path nearby
-      from.accuracy != null && { ...opt, from: { ...from, accuracy: null } },
-      // nothing from the platform's own paths (e.g. step-free and its lift is further along): look wider
-      (from.platform || to.platform) && { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true } },
-      // a path only swisstopo's map has, right by an end, can be a piece on its own: then from OSM's paths (dashed
-      // across) at that end, at the other, or at both
-      { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true, osmOnly: true } },
-      { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true } },
-      { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true, osmOnly: true } },
-      // a platform (or path) OpenStreetMap draws apart from every street: from the street beside it
-      { ...opt, from: { ...from, accuracy: null, wide: true, noIslands: true }, to: { ...to, wide: true, noIslands: true } },
-    ];
-    for (const t of tries) {
-      if (!t) continue;
-      const r = search(a, b, t);
-      if (ok(r)) return r;
-    }
+  const small = seen.size < 40;
+  if (small) seen.forEach((m) => islands.set(m, true));
+  else islands.set(n, false);
+  return small;
+}
+// Put these (loaded) tiles into the network, dropping the others first if it would grow too big
+function useTiles(keys: string[]) {
+  const missing = keys.filter((k) => !inGraph.has(k));
+  if (!missing.length) return;
+  islands.clear(); // new tiles can join what was a piece on its own
+  if (inGraph.size + missing.length > MAX_TILES) {
+    const keep = new Set(keys);
+    [...raw.keys()].forEach((k) => { if (!keep.has(k) && !wanted.has(k)) drop(k); });
+    clearGraph();
+    keys.forEach((k) => { addTile(raw.get(k)!); inGraph.add(k); });
+  } else missing.forEach((k) => { addTile(raw.get(k)!); inGraph.add(k); });
+}
+const drop = (k: string) => { raw.delete(k); tiles.delete(k); };
+// a tile is only taken when it has every part (a half-added tile would stay in the network)
+const wellFormed = (d: WalkGraphTile) => d && Array.isArray(d.o) && (['n', 'a', 'w', 'v', 'b', 'e', 'x', 'r', 'l'] as const).every((f) => Array.isArray(d[f]));
+const tileKey = (ll: LngLat, size: number) => Math.floor(ll[1] / size + 1e-9) + '_' + Math.floor(ll[0] / size + 1e-9);
+const release = (keys: string[]) => keys.forEach((k) => { const c = wanted.get(k)! - 1; if (c) wanted.set(k, c); else wanted.delete(k); });
+// Load every tile of the box around a and b → their keys, held (wanted) until the caller puts them into the network
+// and releases them; null when the network does not cover both ends
+async function ensure(a: LngLat, b: LngLat, padM: number) {
+  const idx = await loadIndex();
+  if (!idx) return null;
+  const size = idx.tile;
+  if (!idx.tiles[tileKey(a, size)] || !idx.tiles[tileKey(b, size)]) return null;
+  const w = Math.min(a[0], b[0]) - padM / kx(a[1]), e = Math.max(a[0], b[0]) + padM / kx(a[1]);
+  const s = Math.min(a[1], b[1]) - padM / KY, n = Math.max(a[1], b[1]) + padM / KY;
+  const keys: string[] = [];
+  for (let y = Math.floor(s / size); y <= Math.floor(n / size); y++)
+    for (let x = Math.floor(w / size); x <= Math.floor(e / size); x++) if (idx.tiles[y + '_' + x]) keys.push(y + '_' + x);
+  keys.forEach((k) => wanted.set(k, (wanted.get(k) || 0) + 1));
+  // a missing tile in the middle would send the walk on a detour round it: then better the online router
+  const ok = await Promise.all(keys.map(loadTile)).then((x) => x.every(Boolean), () => false);
+  if (!ok) {
+    release(keys);
+    // the tiles that did load are not kept for nothing
+    keys.forEach((k) => { if (!inGraph.has(k) && !wanted.has(k) && raw.has(k)) drop(k); });
     return null;
   }
+  return keys;
+}
 
+// ------------------------------------------------------------------ costs
+const FACTOR = { fw: 1, sw: 1, cr: 1.05, pl: 1, co: 1, ar: 1, rd: 1.15, cy: 1.2, mr: 1.8, sep: 4, st: 1.3, es: 1.1, el: 1 };
+const COVERED = { a: 'arcade', p: 'passage', t: 'underpass', i: 'indoors', c: 'covered' };
+function edgeCost(e: WalkNetEdge, opt: WalkRouteOptions) {
+  const a = e.attr, k = a.k;
+  let c = e.len * (FACTOR[k] || 1.2) * (a.s === 't' ? 1.05 : 1); // s: 't' = a path only swisstopo's map has
+  if (k === 'st') {
+    if (opt.stepFree && a.w) return Infinity;
+    c += opt.fewerStairs ? 40 + e.len * 3 : 3;
+  } else if (k === 'es') {
+    if (opt.stepFree || opt.noEscalators) return Infinity;
+  } else if (k === 'el') c += 20; // waiting for the lift
+  if (opt.stepFree && a.w) return Infinity;
+  return c;
+}
+const passable = (n: WalkNetNode, opt: WalkRouteOptions) => !n.blocked && !(opt.stepFree && n.kerb);
 
-  root.WALKROUTE = {
-    route,
-    covers: async (ll) => { const idx = await loadIndex(); return !!(idx && idx.tiles[tileKey(ll, idx.tile)]); },
-    configure: (o) => { if (o.loader) loader = o.loader; if (o.base) base = o.base; if (o.index) index = o.index; },
-    _debug: { nodes, buildings, entrances, inGraph, endpoint, buildingsAt, cutsBuilding, search, distM },
+// ------------------------------------------------------------------ the two ends of a walk
+function buildingsAt(p: LngLat, rM: number) {
+  const out: WalkNetBuilding[] = [];
+  gridNear(bgrid, BCELL, p, rM).forEach((b) => {
+    if (p[0] < b.bb[0] - 0.0003 || p[0] > b.bb[2] + 0.0003 || p[1] < b.bb[1] - 0.0003 || p[1] > b.bb[3] + 0.0003) return;
+    if (inside(p, b.ring)) out.push(b);
+  });
+  return out;
+}
+// Does the straight line p→q cross a railway track on the ground?
+function cutsRail(p: LngLat, q: LngLat) {
+  const mid: LngLat = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  for (const [a, b] of gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)) if (crosses(p, q, a, b)) return true;
+  return false;
+}
+// Does p→q cross just one track, the one p stands on (within 1.5 m of it)? A stop position given on the track
+// itself is then on its platform; a second track crossed, however close, is never allowed
+function onlyOwnTrack(p: LngLat, q: LngLat) {
+  const mid: LngLat = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  const hit = [...gridNear(rgrid, ECELL, mid, distM(p, q) / 2 + 5)].filter(([a, b]) => crosses(p, q, a, b));
+  return hit.length === 1 && project(p, hit[0][0], hit[0][1]).d < 1.5;
+}
+// Does the straight line p→q cut through a building (other than those in `allow`)?
+function cutsBuilding(p: LngLat, q: LngLat, allow: Set<WalkNetBuilding>) {
+  const mid: LngLat = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  for (const b of gridNear(bgrid, BCELL, mid, distM(p, q) / 2 + 30)) {
+    if (allow.has(b)) continue;
+    if (Math.max(p[0], q[0]) < b.bb[0] || Math.min(p[0], q[0]) > b.bb[2] || Math.max(p[1], q[1]) < b.bb[1] || Math.min(p[1], q[1]) > b.bb[3]) continue;
+    const r = b.ring;
+    for (let i = 1; i < r.length; i++) if (crosses(p, q, r[i - 1], r[i])) return true;
+  }
+  return false;
+}
+// Is the path on this floor? Untagged paths count as on any floor, except bridges and tunnels for the street
+const levelOk = (attr: WalkNetAttr, level: number | null | undefined) => level == null || (attr.lv ? attr.lv.includes(level) : !(attr.y && level === 0));
+
+// Points on the network near p, each with the cost of getting there from p in a straight line
+interface Attachment { e: WalkNetEdge; t: number; q: LngLat; d: number; cost: number; cuts: boolean; onTrack?: boolean }
+function attachments(p: LngLat, o: WalkNetEnd, allow: Set<WalkNetBuilding>, rM: number) {
+  const best = new Map<WalkNetEdge, Attachment>(); // edge → attachment
+  gridNear(egrid, ECELL, p, rM).forEach((e) => {
+    const pr = project(p, e.a.ll, e.b.ll);
+    if (pr.d > rM) return;
+    const a = e.attr;
+    if (!levelOk(a, o.level)) return;
+    if (a.k === 'es' || (o.stepFree && a.w)) return; // never step onto the middle of an escalator
+    if (o.osmOnly && a.s === 't') return; // second try: a swisstopo path near the end may lead nowhere
+    if (o.noIslands && island(e.a)) return; // last try: never onto a piece of network joined to nothing
+    // a platform below or above the street: only paths known to be on its floor (not the street right above it)
+    if (o.platform && !o.wide && o.level && !a.lv) return;
+    // the platform of another track or bay is never where you board, however close (islands are metres apart)
+    const own = o.ref && a.r ? a.r.split(';').includes(o.ref) : null;
+    if (own === false || (o.onlyOwn && !own)) return;
+    // from the street you cannot step straight into an underpass below you (its floor is often not tagged)
+    if (a.c === 't' && o.level === 0 && !o.platform) return;
+    let f = 1.3, cuts = false;
+    if (a.k === 'sep' || a.k === 'mr') f = 4;                     // onto a road whose sidewalks are drawn separately
+    if (o.platform && (a.k === 'pl' || own) && (a.lv ? a.lv.includes(o.level as number) : !a.y)) f = own ? 0.3 : 0.5; // a platform point belongs on its platform
+    if (o.level != null && o.level !== 0 && !a.lv) f *= 2;        // floor of the path unknown
+    // a straight line into the network must not go through a wall. It may only cross the outline of the building
+    // the path itself runs under (an arcade is open to the street); passages, corridors and underpasses are only
+    // entered at their ends, never through a wall
+    // never across the tracks. A stop position given on the track itself (Basel SBB Gleis 19, Bern Gleis 13) still
+    // reaches its own platform across that one track; the walk then starts on the platform (onTrack)
+    let onTrack = false;
+    if (pr.d > 1 && cutsRail(p, pr.q)) {
+      // (a platform below or above the street does not stand on a track of the ground)
+      if (!own || (o.level != null && o.level !== 0) || !onlyOwnTrack(p, pr.q)) return;
+      onTrack = true;
+    }
+    if (pr.d > 2) {
+      const under = a.c === 'a' ? buildingsAt(pr.q, 5) : [];
+      if (cutsBuilding(p, pr.q, under.length ? new Set([...allow, ...under]) : allow)) {
+        if (a.c === 'p' || a.c === 'i' || a.c === 't') return;
+        f = 6;
+        cuts = true;
+      }
+    }
+    best.set(e, { e, t: pr.t, q: pr.q, d: pr.d, cost: pr.d * f, cuts, onTrack });
+  });
+  return [...best.values()].sort((x, y) => x.cost - y.cost).slice(0, 8);
+}
+
+// addr: a door the builder put where the official address register has the building's address (only buildings
+// without a mapped door have them); a mapped door nearby is the surer one
+const DOOR_RANK: Record<string, number> = { main: 0, yes: 0, shop: 0, home: 0, staircase: 2, entrance: 0, addr: 10, service: 40, exit: 60, emergency: 200, garage: 120, private: 200 };
+// The ways into (or out of) the network at one end: { node or edge position, extra cost, door }
+function endpoint(p: LngLat, o: WalkNetEnd): WalkNetAccess[] {
+  const out: WalkNetAccess[] = [];
+  // an exact point (where a station model's own paths begin) is joined to the paths right there, not to a door
+  const inB = o.platform || o.exact ? [] : buildingsAt(p, 40);
+  const allow = new Set(o.platform ? buildingsAt(p, 40) : inB); // a platform under the station roof may leave it
+  const r0 = o.radius || 40;
+  // a platform point belongs on its own platform: look close by first, so the next platform across the tracks
+  // (or a bridge over them) never wins
+  if (o.platform && !o.wide) {
+    // its own platform (by track / bay number) up to 40 m away, else whatever platform path is right there
+    const own = o.ref ? attachments(p, { ...o, onlyOwn: true }, allow, 40) : [];
+    const near = own.length ? own : attachments(p, o, allow, 15);
+    if (near.length) return near.map((x) => ({ ...x, door: null, from: p }));
+  }
+  const att = (q: LngLat, extra: number, door: WalkNetEntrance | null, allowSet: Set<WalkNetBuilding>, r?: number) => attachments(q, o, allowSet, r || r0).forEach((x) =>
+    out.push({ ...x, cost: x.cost + extra, door, from: q }));
+  // through a door of the building you are in / going to
+  const doors: { d: WalkNetEntrance; rank: number }[] = [];
+  let barred = 0; // doors the step-free setting rules out (wheelchair=no)
+  inB.forEach((b) => b.entrances.forEach((d) => {
+    const rank = DOOR_RANK[d.type] != null ? DOOR_RANK[d.type] : 10;
+    if (o.stepFree && d.wc === 'no') { barred++; return; }
+    doors.push({ d, rank: rank + (o.stepFree && d.wc === 'yes' ? -5 : 0) });
+  }));
+  doors.forEach(({ d, rank }) => {
+    const inside = distM(p, d.node.ll); // walking inside the building to (or from) its door
+    if (d.node.adj.length) out.push({ n: d.node, cost: inside + rank, door: d, from: d.node.ll });
+    // a door can be some way from any mapped path (across a lawn or a yard)
+    else att(d.node.ll, inside + rank, d, new Set(inB.concat(buildingsAt(d.node.ll, 5))), 80);
+  });
+  // straight to the network: only when the building has no door that can be reached (the line is then a guess)
+  if (!out.length) att(p, 0, null, allow);
+  // nothing close: the nearest path up to 400 m away (the stretch across open ground to it is drawn dashed)
+  for (const r of [150, 400]) {
+    if (out.length || o.radius) break;
+    attachments(p, o, allow, r).forEach((x) => out.push({ ...x, door: null, from: p }));
+  }
+  // into (or out of) a building without a door: wherever that line meets the wall is a guess, however short, and
+  // when its doors are there but none is step-free, say so
+  if (inB.length) out.forEach((x) => { if (!x.door) { x.guess = true; if (barred && !doors.length) x.noStepFreeDoor = true; } });
+  return out;
+}
+
+// ------------------------------------------------------------------ search
+class Heap<T> {
+  declare a: [key: number, x: T][];
+  constructor() { this.a = []; }
+  push(x: T, k: number) {
+    const a = this.a;
+    a.push([k, x]);
+    let i = a.length - 1;
+    while (i) { const j = (i - 1) >> 1; if (a[j][0] <= a[i][0]) break; [a[i], a[j]] = [a[j], a[i]]; i = j; }
+  }
+  pop() {
+    const a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      a[0] = last!;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < a.length && a[l][0] < a[m][0]) m = l;
+        if (r < a.length && a[r][0] < a[m][0]) m = r;
+        if (m === i) break;
+        [a[i], a[m]] = [a[m], a[i]];
+        i = m;
+      }
+    }
+    return top;
+  }
+  get size() { return this.a.length; }
+}
+
+// route()'s options, with what its further tries add to the ends; how a node was reached (straight from a start s,
+// along the path e that start is on, or from the node n before along e); and the best walk found so far
+type AtNode = Extract<WalkNetAccess, { n: WalkNetNode }>;
+type OnEdge = Extract<WalkNetAccess, { e: WalkNetEdge }>;
+interface SearchOptions extends WalkRouteOptions { from?: WalkNetEnd; to?: WalkNetEnd }
+type Prev = { s: AtNode; e?: undefined; n?: undefined } | { s: OnEdge; e: WalkNetEdge; n?: undefined } | { n: WalkNetNode; e: WalkNetEdge; s?: undefined };
+type Best = { cost: number; s: OnEdge; t: OnEdge; direct: true; node?: undefined } | { cost: number; node: WalkNetNode; t: WalkNetAccess; direct?: undefined; s?: undefined };
+// a, b: [lon, lat]. opt: { stepFree, fewerStairs, noEscalators, from: { level, platform, ref, exact, accuracy },
+//   to: { level, platform, ref, exact } }
+// → { coords, dist (m), covered: [[ll…]…], door: { ll, type, addr } | null, cues: [{ at, kind, text }], via } or null
+function search(a: LngLat, b: LngLat, opt: SearchOptions) {
+  // a street address or a GPS position is on the ground floor unless said otherwise (not in the corridor below it)
+  const side = (o: WalkNetEnd | undefined): WalkNetEnd => ({ ...(o || {}), level: o && o.level != null ? o.level : o && o.platform ? null : 0, stepFree: opt.stepFree });
+  const fromO = side(opt.from), toO = side(opt.to);
+  if (fromO.accuracy != null) fromO.radius = Math.max(25, Math.min(80, fromO.accuracy * 1.5));
+  const S = endpoint(a, fromO), T = endpoint(b, toO);
+  if (!S.length || !T.length) return null;
+
+  // targets: per node, the cheapest way on to b; and per edge, the attachments on it
+  const goal = new Map<WalkNetNode, { cost: number; t: WalkNetAccess }>(), goalEdge = new Map<WalkNetEdge, OnEdge[]>();
+  const addGoal = (n: WalkNetNode, cost: number, t: WalkNetAccess) => { const g = goal.get(n); if (!g || cost < g.cost) goal.set(n, { cost, t }); };
+  T.forEach((t) => {
+    if (t.n) return addGoal(t.n, t.cost, t);
+    const e = t.e, f = edgeCost(e, opt) / (e.len || 1);
+    if (!isFinite(f)) return;
+    addGoal(e.a, t.cost + t.t * e.len * f, t);
+    addGoal(e.b, t.cost + (1 - t.t) * e.len * f, t);
+    (goalEdge.get(e) || goalEdge.set(e, []).get(e)!).push(t);
+  });
+
+  const dist = new Map<WalkNetNode, number>(), prev = new Map<WalkNetNode, Prev>(), heap = new Heap<WalkNetNode>();
+  // A* towards b. A target can cost less than its straight distance to b (a platform's own path is preferred,
+  // a step-free door gets a bonus), so take that slack off to keep the estimate from ever overshooting
+  let slack = 0;
+  T.forEach((t) => { const at = t.n ? t.n.ll : t.q; slack = Math.max(slack, distM(at, b) - t.cost); });
+  const h = (n: WalkNetNode) => Math.max(0, distM(n.ll, b) - slack);
+  let best = null as Best | null; // { cost, node | null, t, s }
+  const relax = (n: WalkNetNode, cost: number, p: Prev) => {
+    if (!passable(n, opt)) return;
+    const d = dist.get(n);
+    if (d != null && d <= cost) return;
+    dist.set(n, cost);
+    prev.set(n, p);
+    heap.push(n, cost + h(n));
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+  S.forEach((s) => {
+    if (s.n) return relax(s.n, s.cost, { s });
+    const e = s.e, f = edgeCost(e, opt) / (e.len || 1);
+    if (!isFinite(f)) return;
+    relax(e.a, s.cost + s.t * e.len * f, { s, e });
+    relax(e.b, s.cost + (1 - s.t) * e.len * f, { s, e });
+    // both ends on the same stretch of path
+    (goalEdge.get(e) || []).forEach((t) => {
+      const c = s.cost + Math.abs(s.t - t.t) * e.len * f + t.cost;
+      if (!best || c < best.cost) best = { cost: c, s, t, direct: true };
+    });
+  });
+
+  let settled = 0;
+  while (heap.size) {
+    const [key, n] = heap.pop();
+    const d = dist.get(n)!;
+    if (key > d + h(n) + 1e-6) continue; // an old entry: n was reached more cheaply since
+    if (best && d + h(n) >= best.cost) break;
+    if (++settled > 250000) break;
+    const g = goal.get(n);
+    if (g && (!best || d + g.cost < best.cost)) best = { cost: d + g.cost, node: n, t: g.t };
+    const came = n.lift && prev.get(n)!.e;
+    for (const e of n.adj) {
+      if (e.attr.d && (e.attr.d === 'f') !== (e.a === n)) continue; // an escalator against its direction
+      const m = e.a === n ? e.b : e.a;
+      let c = edgeCost(e, opt);
+      if (!isFinite(c)) continue;
+      // a lift drawn as a point where paths on different floors meet: changing floor there means waiting for it
+      if (came && came.attr.l !== e.attr.l) c += 20;
+      relax(m, d + c, { n, e });
+    }
+  }
+  if (!best) return null;
+  return assemble(a, b, best, prev);
+}
+
+// ------------------------------------------------------------------ the result: line, covered parts, door and cues
+// a point of a walk: where, the way that leads to it (null: a straight connector), whether that way is walked in its
+// drawn direction, and whether a lift stands there; and a covered stretch of it
+type Pt = [ll: LngLat, attr: WalkNetAttr | null, forwards?: boolean, lift?: boolean];
+interface CoveredRun { c: WalkGraphCover; cs: LngLat[] }
+function assemble(a: LngLat, b: LngLat, best: Best, prev: Map<WalkNetNode, Prev>): WalkRouteResult {
+  const pts: Pt[] = []; // [ll, attr of the way that leads to it]
+  let s;
+  // each point carries the way that leads to it (null: a straight connector) and whether that way is walked
+  // in its drawn direction (for steps tagged incline=up/down)
+  if (best.direct) {
+    s = best.s;
+    pts.push([s.q, null], [best.t.q, s.e.attr, best.t.t >= s.t]);
+  } else {
+    const chain: Pt[] = [];
+    let n = best.node;
+    for (;;) {
+      const p = prev.get(n)!;
+      if (p.n) { chain.push([n.ll, p.e.attr, p.e.b === n, n.lift]); n = p.n; continue; }
+      chain.push([n.ll, p.e ? p.e.attr : null, p.e ? p.e.b === n : true, n.lift]);
+      s = p.s;
+      if (p.e) chain.push([s.q!, null]);
+      break;
+    }
+    chain.reverse();
+    pts.push(...chain);
+    const t = best.t;
+    if (t.e && t.q) pts.push([t.q, t.e.attr, t.e.a === best.node]);
+  }
+  const t = best.t;
+  // from where you are to the network, through the door if one was taken
+  const head: Pt[] = s.onTrack ? [] : [[a, null]]; // a stop position on the track: from the platform beside it
+  if (s.door && s.door.node.ll !== (pts[0] && pts[0][0])) head.push([s.door.node.ll, null]);
+  const tail: Pt[] = [];
+  if (t.door && t.door.node.ll !== (pts.length && pts[pts.length - 1][0])) tail.push([t.door.node.ll, null]);
+  if (!t.door && !t.onTrack) tail.push([b, null]); // no door: the line goes to the place itself
+  const raw = head.concat(pts, tail);
+  const all = raw.filter((p, i, arr) => !i || distM(p[0], arr[i - 1][0]) > 0.3);
+  const coords = all.map((p) => p[0]);
+  // the straight bits from where you are onto the paths, and from the paths to the end (or its door), are guesses
+  // across open ground when they are long: say so (drawn dashed). approxTo / approxFrom: coordinate indices.
+  let first = all.findIndex((p) => p[1]), last = all.length - 1 - [...all].reverse().findIndex((p) => p[1]);
+  const offPath = first < 0; // no stretch of path left at all (both ends meet the same point): all of it is a guess
+  if (offPath) { first = all.length - 1; last = 0; }
+  const along = (i: number, j: number) => { let m = 0; for (let k = i + 1; k <= j; k++) m += distM(coords[k - 1], coords[k]); return m; };
+  const unsure = (x: WalkNetAccess) => !!(x && (x.guess || x.cuts));
+  const approxTo = first > 0 && (along(0, first - 1) > 20 || unsure(s)) ? first - 1 : null;
+  const approxFrom = last < coords.length - 1 && (along(last, coords.length - 1) > 20 || unsure(t)) ? last : null;
+
+  let dist = 0;
+  for (let i = 1; i < coords.length; i++) dist += distM(coords[i - 1], coords[i]);
+  // covered stretches (arcades, passages, underpasses, indoors)
+  const covered: CoveredRun[] = [];
+  let run = null as CoveredRun | null;
+  all.forEach(([ll, attr], i) => {
+    const c = attr && attr.c;
+    if (c && run && run.c === c) run.cs.push(ll);
+    else {
+      if (run && run.cs.length > 1) covered.push(run);
+      run = c && i ? { c, cs: [all[i - 1][0], ll] } : null;
+    }
+  });
+  if (run && run.cs.length > 1) covered.push(run);
+  const cues = cuesOf(raw); // before dropping repeated points: a lift ride has none of its own
+  const door = t.door ? { ll: t.door.node.ll, type: t.door.type, addr: t.door.addr } : null;
+  const via = summary(cues, door);
+  let swisstopo = 0; // metres on paths only swisstopo's map has (swissTLM3D)
+  for (let k = 1; k < all.length; k++) if (all[k][1] && all[k][1]!.s === 't') swisstopo += distM(coords[k - 1], coords[k]);
+  return { net: true, coords, approx: offPath || undefined, approxTo, approxFrom,
+    noStepFreeDoor: !!(t.noStepFreeDoor || s.noStepFreeDoor) || undefined, swisstopo: Math.round(swisstopo), levels: all.map((p) => (p[1] && p[1].l != null ? p[1].l : null)), dist: Math.round(dist), covered: covered.map((r) => ({ kind: COVERED[r.c], coords: r.cs })), door,
+    startDoor: s.door ? { ll: s.door.node.ll, type: s.door.type } : null, cues, via };
+}
+// The moments worth a word: stairs, escalators and lifts (with the floor they take you to), arcades, passages,
+// underpasses, crossings and named squares. all: [ll, attr of the way leading to it, walked forwards, lift node]
+const levelText = (l: number) => (l === 0 ? 'street level' : 'level ' + String(l).replace('-', '−'));
+function cuesOf(all: Pt[]) {
+  const cum = [0];
+  for (let i = 1; i < all.length; i++) cum.push(cum[i - 1] + distM(all[i - 1][0], all[i][0]));
+  const single = (attr: WalkNetAttr | null) => (attr && attr.lv && attr.lv.length === 1 ? attr.lv[0] : null);
+  // the floor just before / after a staircase (within 60 m: a floor tag further away says nothing about it)
+  const levelBefore = (i: number) => { for (let j = i; j >= 1 && cum[i] - cum[j] < 60; j--) { const l = single(all[j][1]); if (l != null) return l; } return null; };
+  const levelAfter = (i: number) => { for (let j = i; j < all.length && cum[j] - cum[Math.min(i, all.length - 1)] < 60; j++) { const l = single(all[j][1]); if (l != null) return l; } return null; };
+  const kindOf = (attr: WalkNetAttr | null) => {
+    if (!attr) return null;
+    const k = attr.k, c = attr.c;
+    return k === 'st' ? 'steps' : k === 'es' ? 'escalator' : k === 'el' ? 'lift'
+      : attr.lv && attr.lv.length > 1 && k !== 'ar' ? 'ramp' // a path that joins two floors (a ramp, a sloping corridor)
+      : c === 'a' ? 'arcade' : c === 'p' ? 'passage' : c === 't' ? 'underpass'
+      : k === 'cr' ? 'crossing' : k === 'ar' && attr.n ? 'square' : null;
+  };
+  const cues: WalkCue[] = [], lastAt: Record<string, number> = {};
+  const push = (i: number, kind: string, text: string, from: number | null) => { // from: the floor a floor change starts on, when known
+    const key = kind + '|' + text;
+    if (lastAt[key] != null && cum[i] - lastAt[key] < 80) { lastAt[key] = cum[i]; return; } // the same arcade, block after block
+    lastAt[key] = cum[i];
+    cues.push({ at: all[i][0], kind, text, m: Math.round(cum[i]), ...(from != null ? { from } : {}) });
+  };
+  for (let i = 1; i < all.length; i++) {
+    const attr = all[i][1], kind = kindOf(attr);
+    // a lift drawn as a point where paths on different floors meet
+    if (all[i - 1][3] && i >= 2) {
+      const before = single(all[i - 1][1]), after = single(attr);
+      if (before != null && after != null && before !== after) push(i - 1, 'lift', 'Lift to ' + levelText(after), before);
+    }
+    if (!kind || kind === kindOf(all[i - 1][1]) && (all[i - 1][1] || {}).n === attr!.n) continue; // still on the same one
+    let text, fromLv = null;
+    if (kind === 'steps' || kind === 'escalator' || kind === 'lift' || kind === 'ramp') {
+      let j = i;
+      while (j + 1 < all.length && kindOf(all[j + 1][1]) === kind) j++;
+      const from = levelBefore(i - 1), to = levelAfter(j + 1);
+      const word = { steps: 'Stairs', escalator: 'Escalator', lift: 'Lift', ramp: '' }[kind];
+      if (from != null && to != null && from !== to) {
+        text = kind === 'lift' ? `Lift to ${levelText(to)}` : `${word} ${to > from ? 'up' : 'down'} to ${levelText(to)}`.trim();
+        text = text[0].toUpperCase() + text.slice(1);
+        fromLv = from;
+      } else if (kind === 'ramp') continue;
+      else if (attr!.i && kind !== 'lift') text = `${word} ${(attr!.i === 'u') === (all[i][2] !== false) ? 'up' : 'down'}`;
+      else text = word;
+    } else {
+      text = { arcade: 'Under the arcades', passage: 'Through the passage', underpass: 'Through the underpass',
+        crossing: 'Cross the street', square: 'Straight across' }[kind];
+      if (attr!.n && kind !== 'crossing') text += (kind === 'arcade' ? ' of ' : ' ') + attr!.n;
+    }
+    push(i - 1, kind, text, fromLv);
+  }
+  // the floor changes where paths simply meet (stairs or a lift not drawn): still say so
+  const VERTICAL: Record<string, number> = { steps: 1, escalator: 1, lift: 1, ramp: 1 };
+  let lastLv = null, lastI = 0;
+  for (let i = 1; i < all.length; i++) {
+    const l = single(all[i][1]);
+    if (l == null) continue;
+    if (lastLv != null && l !== lastLv && !cues.some((c) => VERTICAL[c.kind] && c.m >= cum[lastI] - 1 && c.m <= cum[i] + 1)) {
+      cues.push({ at: all[i - 1][0], kind: 'ramp', text: `${l > lastLv ? 'Up' : 'Down'} to ${levelText(l)}`, m: Math.round(cum[i - 1]), from: lastLv });
+    }
+    lastLv = l;
+    lastI = i;
+  }
+  return cues.sort((x, y) => x.m - y.m);
+}
+
+function summary(cues: WalkCue[], door: WalkRouteResult['door']) {
+  const parts: string[] = [];
+  const has = (k: string) => cues.find((c) => c.kind === k);
+  const arcade = has('arcade');
+  if (arcade) parts.push(arcade.text.replace(/^Under/, 'under'));
+  if (has('passage')) parts.push('through a passage');
+  if (has('underpass')) parts.push('through the underpass');
+  // the last stairs / escalator / lift (the one that takes you to where you are going); floor changes on plain paths
+  // stay in the step-by-step cues
+  const vertical = [...cues].reverse().find((c) => c.kind === 'lift' || c.kind === 'escalator' || c.kind === 'steps');
+  if (vertical) parts.push(vertical.text.replace(/^\w/, (c) => c.toLowerCase()));
+  if (door) parts.push(door.type === 'main' ? 'main entrance' : door.addr ? 'entrance ' + door.addr : 'to the door');
+  return parts.slice(0, 3).join(' · ');
+}
+
+// ------------------------------------------------------------------ public
+async function route(a: LngLat, b: LngLat, opt: WalkRouteOptions = {}) {
+  const straight = distM(a, b);
+  if (straight > 4000) return null;
+  const keys = await ensure(a, b, Math.max(450, straight * 0.4)); // the nearest path can be up to 400 m off
+  if (!keys) return null;
+  // from here on synchronous to the end of the search, so no other walk changes the network meanwhile
+  try { useTiles(keys); } finally { release(keys); }
+  // a network gap can send the search on a huge detour: that counts as no route (the next try, or the online router)
+  const ok = (r: WalkRouteResult | null) => r && r.dist <= Math.max(straight * 4, straight + 1200);
+  const from = opt.from || {}, to = opt.to || {};
+  const tries = [
+    opt,
+    // GPS: if nothing within its accuracy leads anywhere, any path nearby
+    from.accuracy != null && { ...opt, from: { ...from, accuracy: null } },
+    // nothing from the platform's own paths (e.g. step-free and its lift is further along): look wider
+    (from.platform || to.platform) && { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true } },
+    // a path only swisstopo's map has, right by an end, can be a piece on its own: then from OSM's paths (dashed
+    // across) at that end, at the other, or at both
+    { ...opt, from: { ...from, accuracy: null, wide: true }, to: { ...to, wide: true, osmOnly: true } },
+    { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true } },
+    { ...opt, from: { ...from, accuracy: null, wide: true, osmOnly: true }, to: { ...to, wide: true, osmOnly: true } },
+    // a platform (or path) OpenStreetMap draws apart from every street: from the street beside it
+    { ...opt, from: { ...from, accuracy: null, wide: true, noIslands: true }, to: { ...to, wide: true, noIslands: true } },
+  ];
+  for (const t of tries) {
+    if (!t) continue;
+    const r = search(a, b, t);
+    if (ok(r)) return r;
+  }
+  return null;
+}
+
+
+export const WALKROUTE = {
+  route,
+  covers: async (ll: LngLat): Promise<boolean> => { const idx = await loadIndex(); return !!(idx && idx.tiles[tileKey(ll, idx.tile)]); },
+  configure: (o: { loader?: WalkGraphLoader; base?: string; index?: WalkGraphIndex }): void => { if (o.loader) loader = o.loader; if (o.base) base = o.base; if (o.index) index = o.index; },
+  /** For the tests (tools/test_walkroute.mts). */
+  _debug: { nodes, buildings, entrances, inGraph, endpoint, buildingsAt, cutsBuilding, search, distM },
+};

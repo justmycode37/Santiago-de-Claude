@@ -12,7 +12,13 @@ type LngLat = [lng: number, lat: number];
 interface StationClosure { from?: string; until?: string; note?: string }
 interface StationNotice { text: string; from?: string; until?: string }
 
-interface StationLevel { id: number; z: number; name: string }
+interface StationLevel {
+  id: number;
+  z: number;
+  name: string;
+  /** Not in the schema: how sure the level's height is (± m). The indoor filter (indoorloc.ts) reads it when a level has one (else 0.5). */
+  sh?: number;
+}
 
 interface StationArea {
   level: number;
@@ -62,6 +68,9 @@ interface StationStop {
   closed?: StationClosure;
   /** A remark that does not close the stop. */
   note?: string;
+  // on a stop without a ref: where the timetable data (platforms.js) has this stop edge (station-route.ts reads it)
+  /** On a stop without a ref: where the timetable data (platforms.js) has this stop edge. */
+  at?: XY;
 }
 /** `level`: not in the schema; the viewer reads it when a sector has one (else the level of the platform's stop). */
 interface StationSector { ref: string; name: string; xy: XY; node?: number; level?: number }

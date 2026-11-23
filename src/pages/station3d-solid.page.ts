@@ -1,4 +1,6 @@
-import type { SolidChange, SolidView } from '../station3d-solid.js';
+import { load } from '../lazy.ts';
+import type { SolidChange, SolidView } from '../station3d-solid.ts';
+import type { StationRouteEndpoint, StationRoutePrefs } from '../station-route.ts';
 declare global {
   /** The view, for the console. */
   var SOLID: SolidView | undefined;
@@ -21,7 +23,7 @@ const fail = (title: string, text: string, e: unknown): never => {
 };
 const q = new URLSearchParams(location.search);
 const key = await window.SOLID_READY.catch((e) => fail('No 3D model for this station', 'Its plan did not load. Check your connection, then try again.', e));
-const { open } = await import('./station3d-solid.js')
+const { open } = await load(import.meta.url, () => import('../station3d-solid.ts'))
   .catch((e) => fail('The 3D view didn’t load', 'Check your connection, then try again.', e));
 const model = window.STATION3D![key];
 // "stop:uic:ref[@sector]" | "entrance:Name" | "node:i" | "ll:lon,lat[,level]", or a stop with its position as
