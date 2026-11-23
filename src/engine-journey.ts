@@ -359,17 +359,25 @@ async function more(o: JourneyOptions | null | undefined, dir: 'earlier' | 'late
 // ---- Walks ----
 // The engine's walking leg as the page keeps a routed walk: its line, metres, and written directions
 // with the floor changes ({ kind, text, coords, from, to } as walkDirections() lists them).
+// Its guessed ends (approxStart / approxEnd: across open ground, or out of a building through no known door):
+// points 0 … to and from … last. The routed part between them is r0 … r1; none (all of it guessed) when the guesses
+// meet, or when what is left between them neither goes anywhere nor changes floor (a lift: two points at one place
+// on two floors). null: no guess (older engines send neither field).
+function guessOf(leg: KanteWalk) {
+  const coords = leg.geometry, last = coords.length - 1;
+  const to = leg.approxStart != null && leg.approxStart > 0 ? Math.min(leg.approxStart, last) : null;
+  const from = leg.approxEnd != null && leg.approxEnd < last ? Math.max(leg.approxEnd, 0) : null;
+  if (to == null && from == null) return null;
+  const r0 = to != null ? to : 0, r1 = from != null ? from : last;
+  const floors = (leg.levels || []).slice(r0, r1 + 1).filter((l) => l != null);
+  const climbs = floors.some((l) => l !== floors[0]);
+  return { to, from, r0, r1, all: r1 < r0 || (!climbs && metres(coords.slice(r0, r1 + 1)) < 0.5) };
+}
 function walkParts(leg: KanteWalk): KanteWalkParts {
   const coords = leg.geometry;
   const whole = (x: number | null | undefined) => Math.round(x || 0);
-  // Its guessed ends (approxStart / approxEnd: across open ground, or out of a building through no known door):
-  // points 0 … to and from … last. The routed part between them is r0 … r1; none (all of it guessed) when the
-  // guesses meet or what is left between them has no length.
-  const last = coords.length - 1;
-  const to = leg.approxStart != null && leg.approxStart > 0 ? Math.min(leg.approxStart, last) : null;
-  const from = leg.approxEnd != null && leg.approxEnd < last ? Math.max(leg.approxEnd, 0) : null;
-  const r0 = to != null ? to : 0, r1 = from != null ? from : last;
-  const all = (to != null || from != null) && (r1 <= r0 || metres(coords.slice(r0, r1 + 1)) < 0.5);
+  const guess = guessOf(leg);
+  const r0 = guess ? guess.r0 : 0, r1 = guess ? guess.r1 : coords.length - 1;
   const dirs: KanteWalkDir[] = [];
   (leg.steps || []).forEach((s) => {
     if (s.kind === 'arrive') return; // the page ends the list with its own "Arrive at …"
@@ -380,7 +388,7 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text,
       coords: coords.slice(Math.max(s.from, r0), Math.min(s.to, r1) + 1) }; // the engine's directions are of the routed part
     if (change) { d.from = whole(s.level); d.to = whole(s.toLevel); }
-    dirs.push(d);
+    if (d.coords.length || change || !guess) dirs.push(d); // (one wholly on a guess: said by the guess)
   });
   // A change with an official minimum change time is timed by that, while the engine's path runs between the
   // platforms' registry points and can be far longer than what people walk there (long platforms, V-shaped
@@ -390,7 +398,8 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs };
   // the guessed ends become the page's approxTo / approxFrom, as a walk on the pedestrian network has them (drawn
   // dashed), and are said as a guess; all of it guessed: drawn dashed, one guess said, nothing of the engine's
-  if (to != null || from != null) {
+  if (guess) {
+    const { to, from, all } = guess;
     Object.assign(walk, { approxTo: to, approxFrom: from }, all ? { approx: true } : null);
     const about = (cs: LngLat[]) => `about ${Math.max(10, Math.round(metres(cs) / 10) * 10)} m where no way is mapped`;
     if (all) dirs.splice(0, dirs.length, { kind: 'depart', text: `Walk ${about(coords)}`, coords });
@@ -484,8 +493,11 @@ function requay(steps: JourneyStep[], changed: () => void) {
     K.walk({ from: { lat: a[1], lon: a[0] }, to: { lat: b[1], lon: b[0] }, options: options() }).then((leg) => {
       if (!steps.includes(st) || requayed.get(st) !== lines) return; // moved again since
       // its time always; its path only while the straight line is still drawn (a station model's or the
-      // network's way, in already, stays)
-      if (st.lines === lines && lines[0] === line && line.length === 2) setWalk(st, leg);
+      // network's way, in already, stays), or for a way with guessed ends over a guess of the network's that came
+      // in first (refineWalk() would not have let that replace it)
+      const w = st.walks && st.walks.length === 1 ? st.walks[0] : null;
+      const netGuess = !!w && !!w.approx && st.lines.length === 1 && st.lines[0] === w.coords;
+      if ((st.lines === lines && lines[0] === line && line.length === 2) || (netGuess && !leg.approximate && guessOf(leg))) setWalk(st, leg);
       else st.walkS = leg.durationS;
       const min = Math.round(shownSecs(leg) / 60);
       if (st.type === 'change') st.walkMin = min; else st.min = min;
@@ -496,4 +508,6 @@ function requay(steps: JourneyStep[], changed: () => void) {
   if (moved) changed();
 }
 
-export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, applyTrip, requay, options };
+/** The engine's walk has guessed ends (approxStart / approxEnd). */
+const guessed = (leg: KanteWalk) => !!guessOf(leg);
+export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, guessed, applyTrip, requay, options };

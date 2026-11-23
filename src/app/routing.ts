@@ -22,6 +22,7 @@ import { SETTINGS } from '../settings.ts';
 import { stationRouter } from '../station3d.ts';
 import { WALKROUTE } from '../walkroute.ts';
 import { Station3D } from '../station3d.ts';
+import { KanteJourney } from '../engine-journey.ts';
 import type { Journey } from '../engine-journey.ts';
 import type { WalkCosting } from '../settings.ts';
 import type { Station3DEndpoint } from '../station3d.ts';
@@ -335,7 +336,7 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   }
   const lines = st.lines || [];
   lines.forEach((line, k) => task(routeWalk(line[0], k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1], st.ends && st.ends[k]), (res) => {
-    if (!current()) return;
+    if (!current() || (res.approx && engineGuess(st))) return; // (the engine's way with guessed ends, in meanwhile, stays)
     st.lines[k] = res.coords;
     (st.walks || (st.walks = []))[k] = res;
     // floor changes where the walking route actually takes them (else the platform levels imply one)
@@ -438,7 +439,9 @@ export function retimeWalkConn(conn: Journey | null | undefined, metres: number 
 export function netWalkOption(conn: Journey, from: LngLat, dest: JourneyDest) {
   if (!conn || !WALKROUTE) return;
   routeWalk(from, dest.lngLat, [searchState.tripStart ? {} : { gps: true }, {}], true).then((r) => {
-    if (journey.options && journey.options.walk === conn && r && r.net) retimeWalkConn(conn, r.dist);
+    // (the engine's walk with guessed ends: only by a way the network has found, not by a guess of its own)
+    const guessed = r && r.approx && conn.parts.some((x) => x.type === 'walk' && KanteJourney.guessed(x));
+    if (journey.options && journey.options.walk === conn && r && r.net && !guessed) retimeWalkConn(conn, r.dist);
   });
 }
 

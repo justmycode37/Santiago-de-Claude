@@ -17,8 +17,11 @@ import type { JourneyRideStep, JourneyStep } from './journey-steps.ts';
 
 // ---------------------------------------------------------------- your place on the trip
 
-/** A place on the trip: the step (its index in journeySteps) and how many km into that step's line. */
-export interface TripPlace { i: number; kmIn: number }
+/**
+ * A place on the trip: the step (its index in journeySteps) and how many km into that step's line. walkedKmIn: how
+ * far of it is drawn as walked, when that is less (the engine's guessed ends of a walk: snapToTrip()).
+ */
+export interface TripPlace { i: number; kmIn: number; walkedKmIn?: number }
 /** Where the live timetable says you are (timeProgress()). ended: the last timed step is over. */
 export interface TimedPlace extends TripPlace { ended?: boolean }
 /** A GPS position snapped onto the trip (snapToTrip()). */
@@ -201,9 +204,9 @@ export function tripLive(now = Date.now()) {
 
 // Snap a GPS position onto the trip. Ties go to the earlier step (waiting at the stop, not yet riding);
 // going backwards and boarding before the vehicle has left are penalised, so loops and parallel lines stay right.
-// The engine's guessed ends of a walk (engineGuess()) are scored as any line (how far you are from it, and where along
-// it), but do not move you along the walk (kmIn, km): on the guessed start (or a walk all guessed) you have not set
-// off yet, on the guessed end you are where the routed part ends, until you are within 25 m of the walk's end.
+// On the engine's guessed ends of a walk (engineGuess()) you are where you are (the distance left, the bar, arrival
+// and the next fix go by that), but the walk is drawn as walked only along its routed part (walkedKmIn): not at all
+// on the guessed start (or a walk all guessed), up to where the routed part ends on the guessed end.
 export function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
   const lay = tripLayout();
   let best: TripSnap | null = null;
@@ -211,19 +214,18 @@ export function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null
     const cs = stepLine(st);
     if (!cs.length) return;
     const early = st.type === 'ride' && st.t0 != null && now < st.t0 - 60000 ? 150 : 0;
-    const consider = (d: number, kmIn: number, at = kmIn) => { // at: where along the line the fix is; kmIn: how far it counts
-      const km = lay.km0[i] + at;
+    const consider = (d: number, kmIn: number, walkedKmIn?: number) => {
+      const km = lay.km0[i] + kmIn;
       const cost = d + early + (km < ref ? (ref - km) * 500 : (km - ref) * 20);
-      if (!best || cost < best.cost) best = { cost, d, i, kmIn, km: lay.km0[i] + kmIn };
+      if (!best || cost < best.cost) best = walkedKmIn == null ? { cost, d, i, kmIn, km } : { cost, d, i, kmIn, km, walkedKmIn };
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
-    const cum = cumKm(cs), guess = engineGuess(st);
-    const g = guess && !(distKm(p, cs[cs.length - 1]) < 0.025) ? guess : null; // within 25 m of the walk's end: there
+    const cum = cumKm(cs), g = engineGuess(st);
     const k0 = !g ? 0 : g.approx ? Infinity : g.approxTo != null ? cum[g.approxTo] : 0;
     const k1 = g && !g.approx && g.approxFrom != null ? cum[g.approxFrom] : Infinity;
     for (let j = 0; j < cs.length - 1; j++) {
       const q = projectSeg(p, cs[j], cs[j + 1]), k = cum[j] + q.t * (cum[j + 1] - cum[j]);
-      consider(q.d, k < k0 ? 0 : Math.min(k, k1), k);
+      consider(q.d, k, g ? (k < k0 ? 0 : Math.min(k, k1)) : undefined);
     }
   });
   return best;
@@ -275,6 +277,7 @@ function trackOnce() {
   const dest = destMarker._map && destMarker.getLngLat().toArray();
   if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat!, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {
     Object.assign(tracking.track, { i: journey.steps.length - 1, kmIn: 0, km: lay.total, arrived: true });
+    if (tracking.track.walkedKmIn != null) tracking.track.walkedKmIn = 0;
   }
   tracking.track.missed = tracking.track.arrived ? null : missedRide(tracking.track, now);
   // move the cards along with you, unless you have just picked a step yourself
