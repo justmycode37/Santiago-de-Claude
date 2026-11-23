@@ -138,23 +138,13 @@ interface JourneyPlatformAt {
 
 // ---------------------------------------------------------------- walks
 
-/** One turn-by-turn step of the OSM walking router (OSRM, routing.openstreetmap.de), as far as it is read. */
-interface OsrmStep {
-  /** Metres. */
-  distance?: number;
-  /** The street. */
-  name?: string;
-  maneuver?: { type?: string; modifier?: string };
-  geometry?: { coordinates: LngLat[] };
-}
 /**
  * A routed walk (routeWalk(), stationWalk(), and the engine's): its line, its metres (null when no router found a
- * way and it is the straight line), and its directions: a street router's `steps`, or `dirs` already written out
- * (a station model's, the engine's).
+ * way and it is the straight line), and its directions written out in `dirs` (a station model's, the engine's).
  */
 interface RoutedWalk {
   coords: LngLat[];
-  steps: OsrmStep[] | null;
+  steps: null;
   dist: number | null;
   dirs?: KanteWalkDir[];
   /** Routed on a walking network (the engine's): the blue dot may sit on it. */
@@ -169,6 +159,9 @@ interface RoutedWalk {
   /** The door the walk ends at. */
   door?: { ll: LngLat; type: string; addr: string } | null;
   floors?: KanteFloorChange[];
+  /** The engine's time for it, seconds, and as the trip shows it (at least half a minute when it has a way to go). */
+  walkS?: number;
+  shownS?: number;
 }
 /** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
  *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */
@@ -240,6 +233,9 @@ interface JourneyFootStep extends JourneyStepBase {
   walkRev?: number;
   _netFor?: LngLat[][];
   _netSig?: string;
+  /** …and what the last request was for (an answer may still be on its way). */
+  _askFor?: LngLat[][];
+  _askSig?: string;
   toLL?: LngLat;
 }
 

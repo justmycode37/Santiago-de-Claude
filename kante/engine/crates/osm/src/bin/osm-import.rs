@@ -92,7 +92,7 @@ fn main() -> Result<()> {
     let t0 = Instant::now();
     let (g, x) = if load {
         let g: WalkGraph = kante_core::io::load(&gpath, WALKGRAPH_SCHEMA)?;
-        let x: OsmExtract = kante_core::io::load(&xpath, "osm-extract-v1")?;
+        let x: OsmExtract = kante_core::io::load(&xpath, kante_core::walk::EXTRACT_SCHEMA)?;
         println!("loaded {} and {} in {:.1} s", gpath.display(), xpath.display(), t0.elapsed().as_secs_f32());
         (g, x)
     } else {
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
         if save {
             let t = Instant::now();
             kante_core::io::save(&gpath, WALKGRAPH_SCHEMA, &g)?;
-            kante_core::io::save(&xpath, "osm-extract-v1", &x)?;
+            kante_core::io::save(&xpath, kante_core::walk::EXTRACT_SCHEMA, &x)?;
             println!(
                 "wrote {} ({:.1} MB) and {} ({:.1} MB) in {:.1} s",
                 gpath.display(),

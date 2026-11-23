@@ -72,22 +72,13 @@ function walkDist(st: JourneyStep) {
 }
 const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
 
-// Written directions for a walk, from the walking router's turn-by-turn steps, with the floor change in its place
-const TURN: Record<string, string> = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
-  'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
+// Written directions for a walk, from the engine's and the station models' directions, with the floor change in its place
 function walkDirections(st: JourneyStep) {
   if (st._dirsV === geoVersion) return st._dirs!;
   const out: JourneyDirection[] = [];
   (st.walks || []).forEach((w) => {
-    // a stretch through a modelled station: its own directions, floor changes included
+    // the engine's walk, or a stretch through a modelled station: its own directions, floor changes included
     if (w && w.dirs) out.push(...w.dirs);
-  else ((w && w.steps) || []).forEach((s) => {
-    const m = s.maneuver || {}, d = Math.round(s.distance || 0);
-    if (m.type === 'arrive' || d < 3) return;
-    const along = s.name ? ` along ${s.name}` : '';
-    const verb = m.type === 'depart' ? 'Walk' : `${TURN[m.modifier!] || 'Continue'} and walk`;
-    out.push({ kind: m.type === 'depart' ? 'depart' : 'walk', text: `${verb} ${fmtDist(d)}${along}`, coords: s.geometry && s.geometry.coordinates });
-  });
   });
   const lvl = st.floors ? null : levelChange(st);
   if (lvl) {

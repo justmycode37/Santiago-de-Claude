@@ -57,7 +57,7 @@ interface FakeStep {
   time?: number;
 }
 /** What routeWalk() answers, what stationWalk() does, and the engine's walk (KANTE.walk()). */
-interface FakeRouted { net?: boolean; coords: LngLat[]; dist: number | null; approx?: boolean }
+interface FakeRouted { net?: boolean; coords: LngLat[]; dist: number | null; approx?: boolean; walkS?: number; shownS?: number }
 interface FakeStationWalk { lines: LngLat[][]; walks: { to?: string }[]; floors: KanteFloorChange[] | null }
 type FakeEngineWalk = Partial<KanteWalk> & { durationS: number; geometry: LngLat[]; approximate: boolean; steps: KanteWalkStep[] };
 /** The page the routing script runs in: the app's state, and what the stubs count and keep. */
@@ -85,7 +85,8 @@ interface AppPage {
 /** What the routing script (src/app/70-routing.ts) leaves there once it has run, the first two stubbed. */
 interface AppRouting {
   routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd]): Promise<FakeRouted>;
-  stationWalk(): Promise<FakeStationWalk>;
+  stationWalk(st?: FakeStep, plan?: { key: string }): Promise<FakeStationWalk>;
+  realStationWalk: AppRouting['stationWalk'];
   refineWalks(id: number, onlyMoved?: boolean): void;
   realRouteWalk: AppRouting['routeWalk'];
 }
@@ -120,6 +121,7 @@ function app() {
   vm.createContext(c);
   vm.runInContext(ROUTING, c);
   c.realRouteWalk = c.routeWalk;
+  c.realStationWalk = c.stationWalk;
   c.routeWalk = (a, b) => { const d = defer<FakeRouted>(); c.pending.push({ a, b, d }); return d.p; };
   c.stationWalk = () => { const d = defer<FakeStationWalk>(); c.station.push(d); return d.p; };
   return c as AppContext;
@@ -270,24 +272,58 @@ console.log('7. requay(): a change left without a walk, and the engine walk answ
   r2.s.stops[0].quay = quay(B, '6');
   J.requay([r1, change, r2, { type: 'arrive' }], () => {});
   check(change.lines.length === 0 && change.walkMin === 0 && change.walkS === 0, 'a change without a walk has no walk time (its spare time is the whole wait)');
-  // moved: the station model's way is in before the engine's walk answers; the engine's time still counts
+  // moved: the change is drawn straight to the new boarding point at once; requay() asks the engine nothing itself
   const r3 = ride('1', '5', A, B), r4 = ride('6', '7', C, [7.47, 46.97]);
   const ch = { type: 'change', lines: [[B, C]], points: [B, C], walkMin: 5, walkS: 300, prev: r3.s, next: r4.s };
   const D: LngLat = [7.46, 46.965];
   r4.s.stops[0].quay = quay(D, '8');
   let changed = 0;
   J.requay([r3, ch, r4, { type: 'arrive' }], () => changed++);
-  check(bodies.length === 1 && bodies[0].from.quay === 'q5' && bodies[0].to.quay === 'q8', `the engine is asked between the boarding points (${bodies[0] && bodies[0].from.quay} → ${bodies[0] && bodies[0].to.quay})`);
-  const model: LngLat[][] = [[B, [7.455, 46.962], [7.4601, 46.9651]]]; // the model ends at another point on the right platform
-  ch.lines = model;
-  walks[0].res({ durationS: 90, geometry: [B, D], approximate: false, steps: [] }); await settle();
-  check(ch.walkS === 90 && ch.walkMin === 2, `the engine's walk time is taken (${ch.walkS} s, ${ch.walkMin} min)`);
-  check(ch.lines === model, "the station model's way stays drawn");
+  check(changed === 1 && ch.lines.length === 1 && ch.lines[0][1][0] === D[0] && ch.lines[0][1][1] === D[1], 'requay(): the walk is drawn straight to the new point');
+  check(bodies.length === 0 && walks.length === 0, 'requay(): no request of its own (refineWalks() asks, once)');
   // the last ride ends on another platform and no walk follows it: the arrival step ends there too
   const r5 = ride('1', '5', A, B), arrive = { type: 'arrive', from: r5.s, end: B };
   r5.s.stops[1].quay = quay(C, '6');
   J.requay([r5, arrive], () => {});
   check(arrive.end[0] === C[0] && arrive.end[1] === C[1], "requay(): the arrival step follows the last ride's new platform when no walk comes after it");
+}
+
+console.log('8. two platform changes in a row, and one request per moved walk');
+{
+  const c = app();
+  const st: FakeStep = { type: 'change', lines: [[A, B]], prev: { to: stop('1') }, next: { from: stop('2') }, walkMin: 1, walkS: 45 };
+  c.journeySteps.push(st);
+  c.refineWalks(1);
+  st.lines = [[A, C]]; // requay(): Gleis 2 → Gleis 3, at another point
+  st.next!.from.quay = { label: '3' };
+  c.refineWalks(1, true);
+  c.refineWalks(1, true); // moved() runs again (the live update calls it twice)
+  check(c.pending.length === 1, `one request for the moved walk (${c.pending.length})`);
+  st.next!.from.quay = { label: '4' }; // Gleis 4 at Gleis 3's point, while that answer is on its way
+  c.refineWalks(1, true);
+  check(c.pending.length === 2, 'the new platform is asked for');
+  c.pending[1].d.res({ net: true, coords: [A, [7.441, 46.951], C], dist: 200, walkS: 160, shownS: 160 }); await settle();
+  c.pending[0].d.res({ net: true, coords: [A, [7.442, 46.952], C], dist: 60, walkS: 45, shownS: 45 }); await settle();
+  check(st.walkS === 160 && st.walkMin === 3 && st.lines![0][1][0] === 7.441, `Gleis 4's path and time stay (${st.walkS} s), the late answer for Gleis 3 is dropped`);
+  c.refineWalks(1, true);
+  check(c.pending.length === 2, 'and nothing is asked again once it is in');
+}
+
+console.log('9. after a modelled station, the walk to the destination goes to the place (its door is the engine\'s choice)');
+{
+  const c = app();
+  const inside: LngLat[] = [B, [7.441, 46.951]];
+  Object.assign(c, {
+    Station3D: { loadData: async () => ({}) }, s3Prefs: () => ({}),
+    StationRoute: { route: () => ({ points: inside, steps: [], fromStop: true, toStop: false, length: 20, same: false }), toLngLat: (_: unknown, p: LngLat) => p },
+  });
+  const place: LngLat = [7.45, 46.955], door: LngLat = [7.4499, 46.9549];
+  const st: FakeStep = { type: 'walk', final: true, lines: [[B, door]], toLL: place, from: { to: stop('3') } };
+  const done = c.realStationWalk(st, { key: 'bern' });
+  await settle(); await settle();
+  check(c.pending.length === 1 && c.pending[0].b === place, `the last stretch is routed to the place, not to the door drawn before (${c.pending[0] && c.pending[0].b})`);
+  c.pending[0].d.res({ net: true, coords: [[7.441, 46.951], place], dist: 100 });
+  await done;
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

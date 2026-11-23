@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 pub const WALKGRAPH_SCHEMA: &str = "walkgraph-v1";
 pub const LINKS_SCHEMA: &str = "links-v2";
+pub const EXTRACT_SCHEMA: &str = "osm-extract-v2";
 
 pub const STAIRS_FACTOR: f32 = 2.2;
 pub const LIFT_S: f32 = 50.0;
@@ -244,6 +245,8 @@ pub struct Carriageway {
     pub geom_len: u16,
     /// Index into `OsmExtract::carriageway_names`; 0 = unnamed.
     pub name: u32,
+    /// In a tunnel, on a bridge, or on another floor (`tunnel`, `bridge`, `layer`, `level`): not on the ground.
+    pub off_ground: bool,
 }
 
 /// Everything the OSM import hands to the linker besides the graph itself.
@@ -397,7 +400,7 @@ pub struct LinkData {
 
 // ---------------------------------------------------------------- doors
 
-pub const DOORS_SCHEMA: &str = "doors-v2";
+pub const DOORS_SCHEMA: &str = "doors-v3";
 
 /// What kind of way into a building a [`Door`] is: OSM `entrance=*` (or a bare
 /// `door=*`), or a point of the official building address register.
@@ -462,12 +465,36 @@ pub const DOOR_WC_LIMITED: u8 = 3;
 
 /// A way from a door onto the walking network: the straight line from the
 /// door to `edge` at `frac`, `dist_m` long. It crosses no other building and
-/// no railway track.
+/// no railway track on the ground. Stored in 8 bytes.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct DoorAttach {
     pub edge: u32,
-    pub frac: f32,
-    pub dist_m: f32,
+    /// Fraction of the edge × 65 535.
+    pub frac_q: u16,
+    /// Decimetres; the top bit: the line goes through the door's own building (no other way out is mapped, the
+    /// way round it is a guess).
+    pub dist_dm: u16,
+}
+
+impl DoorAttach {
+    const THROUGH: u16 = 1 << 15;
+    pub fn new(edge: u32, frac: f32, dist_m: f32, through: bool) -> Self {
+        let dm = (dist_m * 10.0).round().min(32767.0) as u16;
+        DoorAttach { edge, frac_q: (frac.clamp(0.0, 1.0) * 65535.0).round() as u16, dist_dm: dm | if through { Self::THROUGH } else { 0 } }
+    }
+    /// The line goes through the door's own building: the walk round the house to it is not mapped.
+    #[inline]
+    pub fn through(&self) -> bool {
+        self.dist_dm & Self::THROUGH != 0
+    }
+    #[inline]
+    pub fn frac(&self) -> f32 {
+        self.frac_q as f32 / 65535.0
+    }
+    #[inline]
+    pub fn dist_m(&self) -> f32 {
+        (self.dist_dm & !Self::THROUGH) as f32 * 0.1
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -480,16 +507,18 @@ pub struct Door {
     /// `Doors::addr[addr_off .. addr_off + addr_len]`, empty if none.
     pub addr_off: u32,
     pub addr_len: u16,
-    /// `Doors::attach[attach_off .. attach_off + attach_len]`, nearest first;
-    /// empty when no walkable way is within reach (the door is then not used).
+    /// `Doors::attach[attach_off .. attach_off + attach_len]`, best first;
+    /// empty when no walkable way is within reach (the door is then not used,
+    /// but its building still counts as one: a walk into it is a guess).
     pub attach_off: u32,
     pub attach_len: u8,
 }
 
-/// A building with at least one door. Its outline (an outer ring of a
-/// multipolygon building is a building of its own), stored open, is
-/// `Doors::ring[ring_off .. ring_off + ring_len]` as offsets from `origin` in
-/// 1e-6 degrees (about 10 cm; a building is never 3 km across).
+/// A building with at least one door (usable or not). Its outline (an outer
+/// ring of a multipolygon building is a building of its own) and its
+/// courtyards, each stored open, are `Doors::ring[ring_off .. ring_off +
+/// ring_len]` as offsets from `origin` in 1e-6 degrees (about 10 cm; a
+/// building is never 3 km across), the rings separated by [`RING_BREAK`].
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct DoorBuilding {
     pub origin: LatLon,
@@ -509,25 +538,58 @@ pub struct Doors {
     pub doors: Vec<Door>,
     pub attach: Vec<DoorAttach>,
     pub addr: String,
-    /// `WalkGraph::edges.len()` of the graph the attachments refer to.
-    pub graph_edges: u32,
+    /// [`graph_fingerprint`] of the graph the attachments refer to.
+    pub graph: u64,
+}
+
+/// Between two rings of a building in `Doors::ring`.
+pub const RING_BREAK: [i16; 2] = [i16::MIN, i16::MIN];
+
+/// Changes whenever the graph does (nodes, edges, their ends and lengths):
+/// ties caches that refer to edges by number to the graph they were made for.
+pub fn graph_fingerprint(g: &WalkGraph) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut mix = |v: u64| {
+        h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
+    };
+    mix(g.nodes.len() as u64);
+    mix(g.edges.len() as u64);
+    for e in &g.edges {
+        mix(((e.a as u64) << 32) | e.b as u64);
+        mix(((e.len_dm as u64) << 16) | ((e.kind as u64) << 8) | e.geom_len as u64);
+    }
+    for n in g.nodes.iter().step_by(7) {
+        mix(((n.lat as u32 as u64) << 32) | n.lon as u32 as u64);
+    }
+    h
 }
 
 impl Doors {
-    /// The outline of building `b`.
-    pub fn ring_of(&self, b: u32) -> impl Iterator<Item = LatLon> + '_ {
+    /// The rings of building `b`: its outline, then its courtyards.
+    pub fn rings_of(&self, b: u32) -> Vec<Vec<LatLon>> {
         let r = &self.buildings[b as usize];
         let o = r.origin;
-        self.ring[r.ring_off as usize..r.ring_off as usize + r.ring_len as usize].iter().map(move |d| LatLon { lat: o.lat + d[0] as i32 * 10, lon: o.lon + d[1] as i32 * 10 })
-    }
-    /// Offsets of `ring` from `origin` as stored, or None if the outline is too big for them.
-    pub fn pack_ring(origin: LatLon, ring: &[LatLon]) -> Option<Vec<[i16; 2]>> {
-        ring.iter()
-            .map(|p| {
-                let (dl, dn) = ((p.lat - origin.lat) as f64 / 10.0, (p.lon - origin.lon) as f64 / 10.0);
-                (dl.abs() < 32000.0 && dn.abs() < 32000.0).then(|| [dl.round() as i16, dn.round() as i16])
-            })
+        self.ring[r.ring_off as usize..r.ring_off as usize + r.ring_len as usize]
+            .split(|d| *d == RING_BREAK)
+            .map(|ring| ring.iter().map(|d| LatLon { lat: o.lat + d[0] as i32 * 10, lon: o.lon + d[1] as i32 * 10 }).collect())
             .collect()
+    }
+    /// Rings as stored: offsets from `origin`, [`RING_BREAK`] between them; None if a ring is too big for them.
+    pub fn pack_rings(origin: LatLon, rings: &[&[LatLon]]) -> Option<Vec<[i16; 2]>> {
+        let mut out = Vec::new();
+        for (i, ring) in rings.iter().enumerate() {
+            if i > 0 {
+                out.push(RING_BREAK);
+            }
+            for p in ring.iter() {
+                let (dl, dn) = ((p.lat - origin.lat) as f64 / 10.0, (p.lon - origin.lon) as f64 / 10.0);
+                if !(dl.abs() < 32000.0 && dn.abs() < 32000.0) {
+                    return None;
+                }
+                out.push([dl.round() as i16, dn.round() as i16]);
+            }
+        }
+        Some(out)
     }
     #[inline]
     pub fn doors_of(&self, b: u32) -> std::ops::Range<u32> {

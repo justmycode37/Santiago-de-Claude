@@ -109,41 +109,13 @@ pub struct Endpoint {
     pub station: Option<StationIdx>,
 }
 
+pub use kante_link::doors::{DoorChoice, DoorOpt, Ends};
+
 /// Stops reachable on foot from an endpoint.
 pub struct Reach {
     pub stops: Vec<(StopIdx, Secs)>,
     pub snap: Option<Snap>,
     pub doors: DoorChoice,
-}
-
-/// A way into or out of a building at one end of a walk: a door, and where
-/// the straight line from it meets the walking network.
-#[derive(Clone, Copy, Debug)]
-pub struct DoorOpt {
-    pub door: u32,
-    /// On the network; `snap.dist_m` is the line from the door to it.
-    pub snap: Snap,
-    /// From the point (inside the building) to the door.
-    pub inside_m: f32,
-    /// Route choice only: back doors, garages, register points ([`DoorKind::penalty_m`]).
-    pub penalty_m: f32,
-}
-
-impl DoorOpt {
-    /// Metres walked from the point to the network through this door.
-    pub fn extra_m(&self) -> f32 {
-        self.inside_m + self.snap.dist_m
-    }
-}
-
-/// The doors one end of a walk may use.
-#[derive(Clone, Debug, Default)]
-pub struct DoorChoice {
-    pub opts: Vec<DoorOpt>,
-    /// The point is inside a building that has doors.
-    pub in_building: bool,
-    /// ... but none of them is open to this (step-free) walker.
-    pub no_step_free_door: bool,
 }
 
 /// Seconds added to every walked access/egress on top of the walking time:
@@ -307,10 +279,22 @@ impl App {
         let doors_path = built.join("doors.bin");
         let doors = match (&walk, doors_path.exists()) {
             (Some(w), true) => match timed("doors", || io::load::<Doors>(&doors_path, DOORS_SCHEMA)) {
-                Ok(d) if d.graph_edges as usize == w.graph().edges.len() => {
+                Ok(d) if d.graph == graph_fingerprint(w.graph()) => {
                     let t = Instant::now();
                     let ix = kante_link::doors::DoorIndex::new(d);
-                    eprintln!("  door index: {} buildings, {} doors, {} MB, {:.2}s", ix.doors.buildings.len(), ix.doors.doors.len(), ix.heap_bytes() >> 20, t.elapsed().as_secs_f32());
+                    let m = ix.breakdown_mb();
+                    eprintln!(
+                        "  door index: {} buildings, {} doors, {} MB (outlines {:.0}, doors {:.0}, ways out {:.0}, addresses {:.0}, grid {:.0}), {:.2}s",
+                        ix.doors.buildings.len(),
+                        ix.doors.doors.len(),
+                        ix.heap_bytes() >> 20,
+                        m[0],
+                        m[1],
+                        m[2],
+                        m[3],
+                        m[4],
+                        t.elapsed().as_secs_f32()
+                    );
                     Some(ix)
                 }
                 Ok(_) => {
@@ -606,8 +590,8 @@ impl App {
     }
 
     /// Snap a free position (an address, a pin, the user) onto the walking network.
-    /// Right on a way (within 3 m), that way; else on the ground floor unless
-    /// nothing is there: not in the underpass or the station corridor below it.
+    /// On the ground floor: not in the underpass or the corridor below it, unless
+    /// the point is right on such a way (3 m) and no way on the ground is within 10 m.
     pub fn snap_free(&self, pos: LatLon, profile: &WalkProfile) -> Option<Snap> {
         let walk = self.walk.as_ref()?;
         let no_vertical = (1u32 << EdgeKind::Steps as u8) | (1 << EdgeKind::Escalator as u8) | (1 << EdgeKind::Lift as u8);
@@ -618,43 +602,24 @@ impl App {
             e.flags & EF_TUNNEL == 0 || e.flags & EF_COVERED != 0
         };
         let street = |o: &SnapOptions| walk.snap_candidates(pos, o, 6).into_iter().find(ground);
-        // right on a way (within 3 m): that one, on whatever floor
-        walk.snap(pos, &SnapOptions { max_dist_m: 3.0, level: None, ..base })
+        // right on a way of another floor (within 3 m) with no way on the ground within 10 m: that one (the corridor
+        // of a station you stand in); else the ground
+        let near_ground = street(&SnapOptions { max_dist_m: 10.0, ..base });
+        near_ground
+            .or_else(|| walk.snap(pos, &SnapOptions { max_dist_m: 3.0, level: None, ..base }))
             .or_else(|| street(&base))
             .or_else(|| street(&SnapOptions { max_dist_m: 250.0, exclude_kinds: no_vertical, ..base }))
             .or_else(|| walk.snap(pos, &SnapOptions { level: None, ..base }))
             .or_else(|| walk.snap(pos, &SnapOptions { max_dist_m: 250.0, level: None, exclude_kinds: no_vertical, ..base }))
     }
 
-    /// The doors through which a walk may leave (or enter) the building `pos` is in, best first.
+    /// The doors through which a walk may leave (or enter) the building `pos` is in, best first: only those this
+    /// walker may use.
     pub fn door_choice(&self, pos: LatLon, profile: &WalkProfile) -> DoorChoice {
-        let (Some(ix), Some(walk)) = (self.doors.as_ref(), self.walk.as_ref()) else { return DoorChoice::default() };
-        let d = &ix.doors;
-        let n_edges = walk.graph().edges.len() as u32;
-        let strict = profile.wheelchair || profile.is_step_free();
-        let mut out = DoorChoice::default();
-        let mut barred = 0;
-        for b in ix.buildings_at(pos) {
-            out.in_building = true;
-            for di in d.doors_of(b) {
-                let door = &d.doors[di as usize];
-                if strict && door.wheelchair == DOOR_WC_NO {
-                    barred += 1;
-                    continue;
-                }
-                // a step-free walker prefers a door known to be step-free
-                let penalty_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
-                let inside_m = pos.dist_m(&door.pos);
-                for a in d.attach_of(di).iter().filter(|a| a.edge < n_edges) {
-                    let snap = Snap { dist_m: a.dist_m, ..walk.snap_at(a.edge, a.frac) };
-                    out.opts.push(DoorOpt { door: di, snap, inside_m, penalty_m });
-                }
-            }
+        match (self.doors.as_ref(), self.walk.as_ref()) {
+            (Some(ix), Some(walk)) => ix.choice(walk, pos, profile),
+            _ => DoorChoice::default(),
         }
-        out.opts.sort_by(|x, y| (x.extra_m() + x.penalty_m).total_cmp(&(y.extra_m() + y.penalty_m)));
-        out.opts.truncate(8);
-        out.no_step_free_door = barred > 0 && out.opts.is_empty();
-        out
     }
 
     /// Which stops can be walked to from `ep` within `max_s`, and how long it takes.
@@ -685,15 +650,12 @@ impl App {
             }
             _ => self.snap_free(ep.pos, profile),
         };
-        // a place in a building: from its doors (a station is entered at street level, as above)
+        // a place in a building: from its doors (a station is entered at street level, as above), else, or when
+        // no door leads anywhere, straight from the point
         let doors = if ep.station.is_none() { self.door_choice(ep.pos, profile) } else { DoorChoice::default() };
-        let froms: Vec<(Snap, f32, f32)> = if !doors.opts.is_empty() {
-            doors.opts.iter().map(|o| (o.snap, o.extra_m(), o.penalty_m / speed)).collect()
-        } else {
-            snap.iter().map(|s| (*s, 0.0, 0.0)).collect()
-        };
+        let ends = Ends::new(&doors, snap);
         let mut routed: Vec<bool> = vec![false; near.len()];
-        if let (Some(walk), Some(snap)) = (self.walk.as_ref(), snap.as_ref()) {
+        if let (Some(walk), true) = (self.walk.as_ref(), snap.is_some() || !ends.doors.is_empty()) {
             let mut idx = Vec::with_capacity(near.len());
             let mut targets = Vec::with_capacity(near.len());
             for (i, &s) in near.iter().enumerate() {
@@ -702,12 +664,13 @@ impl App {
                     targets.push(l.snap);
                 }
             }
-            let costs = walk.many_to_many(&froms, &targets, profile, max_s as f32);
+            // the way onto the network at the start is in `c` already; the buffer is not walking
+            let limit = (max_s - ACCESS_BUFFER_S).max(0) as f32;
+            let costs = kante_link::doors::reach_costs(walk, &ends, &targets, profile, limit);
             for (k, c) in costs.into_iter().enumerate() {
                 let i = idx[k];
                 if let Some(c) = c {
-                    // a door's line onto the network is in `c` already
-                    let extra = if doors.opts.is_empty() { snap.dist_m } else { 0.0 } + targets[k].dist_m;
+                    let extra = targets[k].dist_m;
                     let secs = walk_secs(c.var_m + extra, c.fix_s, speed).ceil() as Secs + ACCESS_BUFFER_S;
                     routed[i] = true;
                     if secs <= max_s {
@@ -719,7 +682,7 @@ impl App {
         // Stops the network search could not reach (not linked, or no walking
         // data here): fall back to the straight line with a detour factor,
         // but only nearby, so a river or motorway is not walked through.
-        let have_network = snap.is_some();
+        let have_network = snap.is_some() || !ends.doors.is_empty();
         for (i, &s) in near.iter().enumerate() {
             if routed[i] {
                 continue;

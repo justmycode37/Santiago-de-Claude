@@ -1026,7 +1026,7 @@ mod tests {
             };
             let off = self.x.carriageway_geom.len() as u32;
             self.x.carriageway_geom.extend(pts.iter().map(|&(x, y)| pt(x, y)));
-            self.x.carriageways.push(Carriageway { kind, geom_off: off, geom_len: pts.len() as u16, name });
+            self.x.carriageways.push(Carriageway { kind, geom_off: off, geom_len: pts.len() as u16, name, off_ground: false });
         }
         fn stop(&mut self, x: f32, y: f32, label: &str, mode: Mode) -> usize {
             if self.tt.stations.is_empty() {

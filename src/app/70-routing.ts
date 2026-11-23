@@ -56,7 +56,7 @@ async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
   const a = lines[0][0], last = lines[lines.length - 1], b = last[last.length - 1];
   const ends = st.ends || [];
   const street = async (): Promise<StationWalkParts> => {
-    const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], l[l.length - 1], ends[k])));
+    const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], k === lines.length - 1 ? walkGoal(st, l[l.length - 1]) : l[l.length - 1], ends[k])));
     const floors = walks.flatMap((w) => w.floors || []);
     return { lines: walks.map((w) => w.coords), walks, floors: floors.length ? floors : null };
   };
@@ -88,7 +88,8 @@ async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
   });
   parts.push(inside);
   walks.push({ coords: inside, steps: null, dist: route.length, dirs });
-  if (!route.toStop) await join(inside[inside.length - 1], b, [{ exact: true }, (ends[ends.length - 1] || [])[1] || {}]);
+  // to the destination: to the place itself, so that the engine picks its door
+  if (!route.toStop) await join(inside[inside.length - 1], walkGoal(st, b), [{ exact: true }, (ends[ends.length - 1] || [])[1] || {}]);
   // the model's floor changes, and any on the street parts before and after it
   const floors = dirs.filter((d) => d.from != null).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! }))
     .concat(walks.flatMap((w) => w.floors || []));
@@ -106,7 +107,9 @@ function refineWalks(id: number, onlyMoved?: boolean) {
   const task: WalkTask = (promise, apply) => { promise.then((res) => { if (id !== journeyReq) return; apply(res); geoVersion++; redraw(); }); };
   journeySteps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
-    if (onlyMoved && st._netFor === st.lines && st._netSig === walkSig(st)) return;
+    const sig = walkSig(st);
+    // routed for these lines, ends and platforms already, or asked for and the answer still on its way
+    if (onlyMoved && ((st._netFor === st.lines && st._netSig === sig) || (st._askFor === st.lines && st._askSig === sig))) return;
     // no walk any more (both rides at the same point now): an answer still on its way must not bring it back
     if (!(st.lines || []).length) { newWalkRev(st); return; }
     const plan = s3Plan(st);
@@ -123,6 +126,8 @@ const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since) are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   const rev = (st.walkRev = (st.walkRev || 0) + 1), sig = walkSig(st);
+  st._askFor = st.lines;
+  st._askSig = sig;
   const current = () => st.walkRev === rev && journeySteps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
   const done = () => { st._netFor = st.lines; st._netSig = sig; };
@@ -131,7 +136,14 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
 // Through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router or the
 // engine's path, so the map shows the same way as the 3D view
 function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: StationWalkPlan, task: WalkTask) {
+  const first = st.walkRev == null;
   const current = newWalkRev(st);
+  // moved since the plan: the engine's time for the walk as it now stands (the model draws its way)
+  const all = (st.lines || []).flat();
+  if (!first && all.length > 1) {
+    const ends = st.ends || [];
+    task(routeWalk(all[0], walkGoal(st, all[all.length - 1]), [(ends[0] || [])[0] || {}, (ends[ends.length - 1] || [])[1] || {}]), (res) => { if (current()) walkTime(st, res); });
+  }
   task(stationWalk(st, plan), (res) => {
     if (!current()) return;
     if (res) {
@@ -155,12 +167,23 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     if (!current()) return;
     st.lines[k] = res.coords;
     (st.walks || (st.walks = []))[k] = res;
+    if (lines.length === 1) { st.kanteWalk = !res.approx; walkTime(st, res); }
     // floor changes where the walk actually takes them (else the platform levels imply one)
     const floors = st.walks.flatMap((w) => (w && w.floors) || []);
     st.floors = floors.length ? floors : null;
     current.done();
     queueSheet(); // metres and written directions
   }));
+}
+
+// The engine's time for a walk routed again: its time on foot, its minutes, and for the walk to the first ride when
+// to leave (so as to be at the stop at the same time)
+function walkTime(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
+  if (res.walkS == null) return;
+  st.walkS = res.walkS;
+  const min = Math.round((res.shownS != null ? res.shownS : res.walkS) / 60);
+  if (st.type === 'change') st.walkMin = min; else st.min = min;
+  if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - res.walkS * 1000;
 }
 
 // Where a walk leads: for the walk to the destination the place itself, not the door its last route ended at (which

@@ -361,7 +361,7 @@ fn join_inside(b: &mut Builder, areas: &[AreaDef], outline: &[Vec<u32>], area_ed
                             continue;
                         }
                         let mut feet: Vec<(f64, u32, u32, f64, P)> =
-                            lines.iter().map(|(e, l)| (*e, foot(p, l))).filter(|(_, f)| f.0 <= 60.0 && f.0 > 0.3).map(|(e, f)| (f.0, e, f.1, f.2, f.3)).collect();
+                            lines.iter().map(|(e, l)| (*e, foot(p, l))).filter(|(_, f)| f.0 <= 60.0 && f.0 > 0.01).map(|(e, f)| (f.0, e, f.1, f.2, f.3)).collect();
                         feet.sort_by(|x, y| x.0.total_cmp(&y.0));
                         let mut kept = 0;
                         for (_, e, si, t, q) in feet {
@@ -914,7 +914,8 @@ impl<'a> Builder<'a> {
 
 struct LiftDef {
     nodes: Vec<u32>,
-    /// Centre of the outline in the national planar frame (a lift drawn as a way).
+    /// Outline and its centre in the national planar frame (a lift drawn as a way).
+    ring: Vec<(f64, f64)>,
     centre: (f64, f64),
     levels: Vec<Level2>,
     flags: u16,
@@ -1159,11 +1160,12 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             }
             b.stats.lift_ways += 1;
             on_lift_way.extend(ns.iter().copied());
-            let ring: Vec<(f32, f32)> = ways.refs_of(w).iter().map(|&r| coords[r as usize]).filter(|p| !p.is_none()).map(|p| p.xy()).collect();
+            let ring: Vec<(f64, f64)> = ways.refs_of(w).iter().map(|&r| coords[r as usize]).filter(|p| !p.is_none()).map(|p| p.xy()).map(|(x, y)| (x as f64, y as f64)).collect();
             let k = ring.len().max(1) as f64;
-            let centre = (ring.iter().map(|p| p.0 as f64).sum::<f64>() / k, ring.iter().map(|p| p.1 as f64).sum::<f64>() / k);
+            let centre = (ring.iter().map(|p| p.0).sum::<f64>() / k, ring.iter().map(|p| p.1).sum::<f64>() / k);
             lifts.push(LiftDef {
                 nodes: ns,
+                ring,
                 centre,
                 levels: if w.lift != NO_IDX { ways.lift_levels[w.lift as usize].clone() } else { Vec::new() },
                 flags: w.class.flags & (EF_WHEELCHAIR_NO | EF_WHEELCHAIR_YES),
@@ -1173,8 +1175,9 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             });
         }
     }
-    // A lift drawn as one outline per floor (Zürich HB): outlines on different floors standing on top of each
-    // other (centres within 2.5 m) are one lift, with a port on each floor.
+    // A lift drawn as one outline per floor (Zürich HB): outlines of one floor each, on different floors, that
+    // overlap or touch with their centres within 4 m (mappers draw the floors a few metres apart) are one lift, with
+    // a port on each floor. Two shafts side by side, or lifts drawn for several floors each, are never joined.
     {
         let cs: Vec<(f64, f64)> = lifts.iter().map(|l| l.centre).collect();
         let mut cell: FxHashMap<(i64, i64), Vec<usize>> = FxHashMap::default();
@@ -1196,10 +1199,14 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             for dx in -1..=1 {
                 for dy in -1..=1 {
                     for &j in cell.get(&(cx + dx, cy + dy)).map(|v| v.as_slice()).unwrap_or(&[]) {
-                        if j <= i || lifts[i].levels == lifts[j].levels || lifts[i].levels.is_empty() || lifts[j].levels.is_empty() {
+                        if j <= i || lifts[i].levels.len() != 1 || lifts[j].levels.len() != 1 || lifts[i].levels == lifts[j].levels {
                             continue;
                         }
-                        if ((cs[i].0 - cs[j].0).powi(2) + (cs[i].1 - cs[j].1).powi(2)).sqrt() < 2.5 {
+                        let bb = |a: &LiftDef| a.ring.iter().fold((f64::MAX, f64::MAX, f64::MIN, f64::MIN), |b, p| (b.0.min(p.0), b.1.min(p.1), b.2.max(p.0), b.3.max(p.1)));
+                        let (x, y) = (bb(&lifts[i]), bb(&lifts[j]));
+                        let touch = x.0 <= y.2 + 0.2 && y.0 <= x.2 + 0.2 && x.1 <= y.3 + 0.2 && y.1 <= x.3 + 0.2;
+                        let near = ((cs[i].0 - cs[j].0).powi(2) + (cs[i].1 - cs[j].1).powi(2)).sqrt() < 4.0;
+                        if lifts[i].ring.len() >= 3 && lifts[j].ring.len() >= 3 && touch && near {
                             let (a, c) = (root(&mut into, i), root(&mut into, j));
                             if a != c {
                                 into[a.max(c)] = a.min(c);
@@ -1215,7 +1222,7 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             if r == i {
                 continue;
             }
-            let other = std::mem::replace(&mut lifts[i], LiftDef { nodes: Vec::new(), centre: (0.0, 0.0), levels: Vec::new(), flags: 0, private: true, way_id: 0, node_lift: false });
+            let other = std::mem::replace(&mut lifts[i], LiftDef { nodes: Vec::new(), ring: Vec::new(), centre: (0.0, 0.0), levels: Vec::new(), flags: 0, private: true, way_id: 0, node_lift: false });
             let keep = &mut lifts[r];
             for n in other.nodes {
                 if !keep.nodes.contains(&n) {
@@ -1258,7 +1265,7 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
         } else if t.class.extra & X_WC_YES != 0 {
             flags |= EF_WHEELCHAIR_YES;
         }
-        lifts.push(LiftDef { nodes: vec![n], centre: (0.0, 0.0), levels: t.levels.clone(), flags, private: t.class.extra & X_LIFT_PRIVATE != 0, way_id: 0, node_lift: true });
+        lifts.push(LiftDef { nodes: vec![n], ring: Vec::new(), centre: (0.0, 0.0), levels: t.levels.clone(), flags, private: t.class.extra & X_LIFT_PRIVATE != 0, way_id: 0, node_lift: true });
     }
 
     // barriers nobody passes: every way ends at its own copy of the node
@@ -1571,9 +1578,11 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
                     extract.carriageway_names.len() as u32 - 1
                 })
             };
+            // a tunnel or bridge (an untagged one counts as layer -1 / +1), or another floor
+            let off_ground = w.class.layer != 0 || (!w.class.level.is_none() && w.class.level.first != 0);
             for (bit, kind) in [(R_CARR_ROAD, CarriagewayKind::Road), (R_CARR_TRAM, CarriagewayKind::TramTrack), (R_CARR_RAIL, CarriagewayKind::RailTrack)] {
                 if roles & bit != 0 {
-                    extract.carriageways.push(Carriageway { kind, geom_off: off as u32, geom_len: len as u16, name });
+                    extract.carriageways.push(Carriageway { kind, geom_off: off as u32, geom_len: len as u16, name, off_ground });
                 }
             }
         }
@@ -1889,6 +1898,68 @@ mod tests {
         let lift = g.edges.iter().position(|e| e.kind == EdgeKind::Lift).expect("a lift edge between the floors");
         assert_eq!((g.edges[lift].level_a, g.edges[lift].level_b), (0, 2));
         assert_eq!(walk(g, (-200.0, 0.0), (202.0, 2.0), true).unwrap().lifts, 1);
+    }
+
+    #[test]
+    fn two_shafts_side_by_side_are_two_lifts() {
+        // shafts 2.3 m apart, one serving floors 0 and 1, the other 2 and 3: no ride from 0 to 3
+        let b = world(
+            &[
+                (1, -200.0, 0.0, &[]),
+                (2, -200.0, 1.0, &[]),
+                (3, 202.0, 2.0, &[]),
+                (4, 202.0, 3.0, &[]),
+                (20, 0.0, 0.0, &[]),
+                (21, 2.0, 0.0, &[]),
+                (22, 2.0, 2.0, &[]),
+                (23, 0.0, 2.0, &[]),
+                (30, 2.3, 0.0, &[]),
+                (31, 4.3, 0.0, &[]),
+                (32, 4.3, 2.0, &[]),
+                (33, 2.3, 2.0, &[]),
+            ],
+            &[
+                (10, &[1, 20], &[("highway", "footway"), ("level", "0")]),
+                (11, &[2, 23], &[("highway", "footway"), ("level", "1")]),
+                (12, &[3, 32], &[("highway", "footway"), ("level", "3")]),
+                (13, &[4, 31], &[("highway", "footway"), ("level", "2")]),
+                (14, &[20, 21, 22, 23, 20], &[("highway", "elevator"), ("level", "0;1")]),
+                (15, &[30, 31, 32, 33, 30], &[("highway", "elevator"), ("level", "2;3")]),
+            ],
+        );
+        let g = &b.graph;
+        assert_eq!(b.stats.lifts_stacked, 0);
+        assert!(g.edges.iter().filter(|e| e.kind == EdgeKind::Lift).all(|e| (e.level_a, e.level_b) == (0, 2) || (e.level_a, e.level_b) == (4, 6)), "only 0↔1 and 2↔3");
+        assert!(walk(g, (-200.0, 0.0), (202.0, 2.0), true).is_none(), "no ride from floor 0 to floor 3");
+    }
+
+    #[test]
+    fn one_floor_outlines_side_by_side_are_not_stacked() {
+        // two shafts 2.3 m apart (centres), each drawn for one floor (0 and 1): they do not touch
+        let b = world(
+            &[(1, -200.0, 0.0, &[]), (3, 202.0, 2.0, &[]), (20, 0.0, 0.0, &[]), (21, 2.0, 0.0, &[]), (22, 2.0, 2.0, &[]), (23, 0.0, 2.0, &[]),
+              (30, 2.3, 0.0, &[]), (31, 4.3, 0.0, &[]), (32, 4.3, 2.0, &[]), (33, 2.3, 2.0, &[])],
+            &[
+                (10, &[1, 20], &[("highway", "footway"), ("level", "0")]),
+                (12, &[3, 32], &[("highway", "footway"), ("level", "1")]),
+                (14, &[20, 21, 22, 23, 20], &[("highway", "elevator"), ("level", "0")]),
+                (15, &[30, 31, 32, 33, 30], &[("highway", "elevator"), ("level", "1")]),
+            ],
+        );
+        assert_eq!(b.stats.lifts_stacked, 0);
+        assert!(!b.graph.edges.iter().any(|e| e.kind == EdgeKind::Lift));
+    }
+
+    #[test]
+    fn a_path_ending_just_inside_a_platform_is_joined() {
+        // a footway ends 0.2 m inside a platform polygon, sharing no node with it
+        let b = world(
+            &[(1, 0.0, 0.0, &[]), (2, 100.0, 0.0, &[]), (3, 100.0, 8.0, &[]), (4, 0.0, 8.0, &[]), (5, -100.0, 0.0, &[]), (6, 50.0, 30.0, &[]), (7, 50.0, 7.8, &[])],
+            &[(10, &[1, 2, 3, 4, 1], &[("railway", "platform"), ("area", "yes")]), (11, &[5, 1], FOOT), (12, &[6, 7], FOOT)],
+        );
+        let g = &b.graph;
+        let end = at(g, 50.0, 7.8);
+        assert!(end.iter().any(|&n| g.incident(n).iter().any(|&e| g.edges[e as usize].flags & EF_AREA != 0 && g.edges[e as usize].len_m() < 0.5)), "joined to the outline 0.2 m away");
     }
 
     #[test]

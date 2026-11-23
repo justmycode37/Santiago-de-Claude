@@ -19,7 +19,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-pub const EXTRACT_SCHEMA: &str = "osm-extract-v1";
 
 fn step<T>(name: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     eprintln!("== {name}");

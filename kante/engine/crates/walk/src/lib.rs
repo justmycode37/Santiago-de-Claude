@@ -319,6 +319,13 @@ impl WalkRouter {
         out
     }
 
+    /// May this walker start or end a walk on `edge`? (Its kind and tags allow it, and for a step-free walker it
+    /// is not on a crumb cut off by stairs; see [`SNAP_MIN_PIECE_M`].)
+    pub fn usable(&self, edge: u32, profile: &WalkProfile) -> bool {
+        let Some(ed) = self.graph.edges.get(edge as usize) else { return false };
+        index::edge_allowed(edge, ed, &SnapOptions { max_dist_m: 0.0, level: None, profile: Some(*profile), exclude_kinds: 0 }, &self.crumbs)
+    }
+
     /// The point at fraction `frac` of edge `edge` as a [`Snap`] (`dist_m` = 0).
     pub fn snap_at(&self, edge: u32, frac: f32) -> Snap {
         let frac = frac.clamp(0.0, 1.0);

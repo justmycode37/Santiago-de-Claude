@@ -10,6 +10,9 @@ set -euo pipefail
 
 ROOT=$HOME/kante-host
 log() { echo "deploy: $*"; }
+# This script as it was when it started: after checking out a commit that changes it, it starts again as the new one
+# (bash would otherwise go on with the old one, which it has read already).
+SELF=$(cat "${BASH_SOURCE[0]}")
 
 build_release() { # build_release <commit> <release dir>
   local commit=$1 rel=$2
@@ -24,7 +27,7 @@ build_release() { # build_release <commit> <release dir>
   # which timetable this release was built from (refresh-data.sh compares it with the one in force)
   cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
   # an input added after the host was set up (the building address register): fetched once; the build works without it
-  [[ -s $ROOT/raw/register/adr.csv.zip ]] || KANTE_RAW=$ROOT/raw kante/scripts/fetch-data.sh --register || true
+  [[ -s $ROOT/raw/register/adr.csv.zip ]] || KANTE_RAW=$ROOT/raw timeout 1200 kante/scripts/fetch-data.sh --register || true
   "$rel/kante" build --data "$rel/data"
 }
 
@@ -60,6 +63,16 @@ sync_units() { # new or changed systemd units from the repository (e.g. a new ti
     systemctl --user enable --now kante-data.timer >/dev/null 2>&1 && log "started kante-data.timer"
   fi
   return 0
+}
+
+doors_note() { # buildings' doors: about 2.8 million with the address register, about 150 000 without it
+  local n
+  n=$(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["counts"].get("doors", 0))' 2>/dev/null || echo 0)
+  if (( n < 1000000 )); then
+    log "warning: only $n doors (is $ROOT/raw/register/adr.csv.zip missing? run kante/scripts/fetch-data.sh --register, then deploy.sh --force)"
+  else
+    log "$n doors"
+  fi
 }
 
 live_note() { # not a reason to go back (the key may be missing or the feed down), but worth a line in the log
@@ -102,6 +115,11 @@ main() {
   if (( ! force )) && [[ $new == "$seen" ]]; then exit 0; fi
 
   git checkout --quiet --force --detach "$new"
+  if [[ -z ${KANTE_DEPLOY_REEXEC:-} && "$(cat deploy/deploy.sh)" != "$SELF" ]]; then
+    log "deploy.sh changed in ${new:0:7}: starting it again"
+    exec 9>&- # the lock: the new one takes it again
+    exec env KANTE_DEPLOY_REEXEC=1 KANTE_DEPLOY_WAIT=1 bash deploy/deploy.sh "$@"
+  fi
   sync_units
   tree=$(git rev-parse "$new:kante/engine")
   cur=$(cat "$ROOT/state/tree" 2>/dev/null || true)
@@ -132,6 +150,7 @@ main() {
   if healthy; then
     echo "$tree" > "$ROOT/state/tree"
     log "${new:0:7} is live"
+    doors_note
     live_note
     # keep this release and the one before it
     find "$ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -2 | xargs -r rm -rf

@@ -486,6 +486,8 @@ pub struct Counts {
     pub quays: usize,
     pub trips: usize,
     pub walk_edges: usize,
+    /// Doors of buildings the walks may start or end at (0 without `doors.bin`).
+    pub doors: usize,
 }
 
 // ------------------------------------------------------------------ live data (see docs/LIVE-API.md)

@@ -213,7 +213,8 @@ pub(crate) fn many_to_many(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)],
             return;
         }
         let gen = s.gen;
-        let bound = max_time_s * bound_slack(profile);
+        // a source's route-choice penalty is not walking: it may not eat into the bound
+        let bound = max_time_s * bound_slack(profile) + froms.iter().map(|f| f.2).fold(0.0, f32::max);
 
         // Mark the nodes from which a target can be finished.
         let mut tends = std::mem::take(&mut s.targets);

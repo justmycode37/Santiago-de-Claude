@@ -80,6 +80,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
             quays: tt.stops.len(),
             trips: tt.trips.len(),
             walk_edges: app.walk.as_ref().map(|w| w.graph().edges.len()).unwrap_or(0),
+            doors: app.doors.as_ref().map(|d| d.doors.doors.len()).unwrap_or(0),
         },
         attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map: © swisstopo"],
     })

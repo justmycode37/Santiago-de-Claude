@@ -24,8 +24,8 @@ OTD=https://data.opentransportdata.swiss
 RAW=${KANTE_RAW:-data/raw}
 UA="kante-prototype/0.1"
 
-fetch() { # fetch <url> <dest>
-  local url=$1 dest=$2
+fetch() { # fetch <url> <dest> [check]: check is a command run on the downloaded file before it replaces <dest>
+  local url=$1 dest=$2 check=${3:-}
   if [[ -s "$dest" && $refresh -eq 0 ]]; then
     echo "have  $dest"
     return
@@ -33,13 +33,19 @@ fetch() { # fetch <url> <dest>
   mkdir -p "$(dirname "$dest")"
   echo "fetch $dest"
   # -L: the timetable permalink redirects to a signed storage URL.
+  # A server that stops sending must not hold up a deploy: give up below 10 kB/s for two minutes, or after an hour.
   # Explicit returns: this runs inside `if`, where `set -e` does not stop a failed command.
-  if ! curl -fSL --retry 3 -A "$UA" -o "$dest.part" "$url"; then
+  if ! curl -fSL --retry 3 --connect-timeout 30 --speed-limit 10000 --speed-time 120 --max-time 3600 -A "$UA" -o "$dest.part" "$url"; then
     rm -f "$dest.part"
     return 1
   fi
   if [[ $dest == *.zip ]] && ! python3 -I -c 'import sys, zipfile; sys.exit(0 if zipfile.ZipFile(sys.argv[1]).testzip() is None else 1)' "$dest.part" 2>/dev/null; then
     echo "error: $url gave a broken zip" >&2
+    rm -f "$dest.part"
+    return 1
+  fi
+  if [[ -n $check ]] && ! $check "$dest.part"; then
+    echo "error: $url is not what the engine reads; keeping the file there is" >&2
     rm -f "$dest.part"
     return 1
   fi
@@ -49,8 +55,18 @@ fetch() { # fetch <url> <dest>
 # The official building address register (~140 MB): an entrance point per building address. Optional: without it
 # the engine knows OpenStreetMap's doors only; a failed download keeps the file there is.
 REGISTER_URL=https://data.geo.admin.ch/ch.swisstopo.amtliches-gebaeudeadressverzeichnis/amtliches-gebaeudeadressverzeichnis_ch/amtliches-gebaeudeadressverzeichnis_ch_2056.csv.zip
+# The register's CSV must have the columns kante-link/src/register.rs reads, or the build would quietly fall back
+# to OpenStreetMap's doors.
+register_ok() {
+  python3 -I -c '
+import io, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+names = [n for n in z.namelist() if n.endswith(".csv")]
+head = io.TextIOWrapper(z.open(names[0]), encoding="utf-8-sig").readline().rstrip("\r\n").split(";") if names else []
+sys.exit(0 if {"ADR_STATUS", "ADR_NUMBER", "ADR_EASTING", "ADR_NORTHING", "STN_LABEL"} <= set(head) else 1)' "$1"
+}
 register() {
-  if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip; then
+  if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip register_ok; then
     if [[ -s "$RAW"/register/adr.csv.zip ]]; then echo "keep  $RAW/register/adr.csv.zip (could not fetch a new one)"
     else echo "warning: no building address register; the engine will have OpenStreetMap's doors only" >&2; fi
   fi
