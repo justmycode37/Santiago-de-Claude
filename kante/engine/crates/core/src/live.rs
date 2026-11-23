@@ -2,7 +2,7 @@
 //! fed by `kante-rt`) and the router (`kante-raptor`).
 
 use crate::time::{Date, Secs};
-use crate::timetable::{Mode, StationIdx, StopIdx, TripIdx};
+use crate::timetable::{Mode, PatternIdx, StationIdx, StopIdx, Timetable, TripIdx};
 
 /// Live state of one trip on one service date. Vectors are indexed by stop
 /// position in the trip's pattern and have `n_stops` entries unless noted.
@@ -120,6 +120,13 @@ pub trait LiveView: Send + Sync {
     /// Upper bound on any positive departure delay in the snapshot. The router
     /// uses it to look back for late-running trips that are still catchable.
     fn max_delay(&self) -> Secs;
+    /// Finer bounds for the trips of service date `date` (see [`DelayBounds`]),
+    /// so that one very late train does not make every lookup look back as
+    /// far as [`LiveView::max_delay`]. The router uses the smaller of the two.
+    /// The default claims live data everywhere, delayed up to `max_delay`.
+    fn delay_bounds(&self, _date: Date) -> DelayBounds<'_> {
+        DelayBounds { max: self.max_delay().max(0), pattern: &[], stop: &[] }
+    }
     /// Journeys that are not in the timetable (see [`ExtraTrip`]).
     fn extras(&self) -> &[ExtraTrip] {
         &[]
@@ -127,5 +134,121 @@ pub trait LiveView: Send + Sync {
     /// One of [`LiveView::extras`] by its id.
     fn extra(&self, id: &str) -> Option<&ExtraTrip> {
         self.extras().iter().find(|e| e.id == id)
+    }
+}
+
+/// In [`DelayBounds`] slices: no trip there has live data.
+pub const NO_LIVE: Secs = Secs::MIN;
+
+/// Delay bounds of the live trips of one service date. Each bound is at
+/// least `max(0, dep_delay_at(i))` for every position `i` of every trip it
+/// covers, cancelled trips and skipped positions included; `NO_LIVE` (or
+/// `max == NO_LIVE` for the whole date) means no trip it covers has live data.
+#[derive(Clone, Copy, Debug)]
+pub struct DelayBounds<'a> {
+    /// Over all trips of the date.
+    pub max: Secs,
+    /// Per pattern, over its trips; empty = unknown (use `max`).
+    pub pattern: &'a [Secs],
+    /// Per stop, over the trips calling there, at the positions where they
+    /// call there; empty = unknown (use `max`).
+    pub stop: &'a [Secs],
+}
+
+impl DelayBounds<'_> {
+    /// No live data on the date.
+    pub const NONE: DelayBounds<'static> = DelayBounds { max: NO_LIVE, pattern: &[], stop: &[] };
+
+    /// Whether any trip of the date has live data.
+    #[inline]
+    pub fn any(&self) -> bool {
+        self.max != NO_LIVE
+    }
+    /// Bound for the trips of pattern `p`, `None` if none of them has live data.
+    #[inline]
+    pub fn pattern(&self, p: PatternIdx) -> Option<Secs> {
+        Self::get(self.max, self.pattern, p as usize)
+    }
+    /// Bound for the trips calling at stop `s`, `None` if none of them has live data.
+    #[inline]
+    pub fn stop(&self, s: StopIdx) -> Option<Secs> {
+        Self::get(self.max, self.stop, s as usize)
+    }
+    #[inline]
+    fn get(max: Secs, v: &[Secs], i: usize) -> Option<Secs> {
+        if max == NO_LIVE {
+            return None;
+        }
+        match v.get(i) {
+            Some(&NO_LIVE) => None,
+            Some(&b) => Some(b),
+            None => Some(max),
+        }
+    }
+    /// Drops per-pattern / per-stop bounds that were not built for a
+    /// timetable with these sizes.
+    pub fn fit(mut self, n_patterns: usize, n_stops: usize) -> Self {
+        if self.pattern.len() != n_patterns {
+            self.pattern = &[];
+        }
+        if self.stop.len() != n_stops {
+            self.stop = &[];
+        }
+        self
+    }
+}
+
+/// [`DelayBounds`] for every service date of a set of live trips; what a
+/// [`LiveView`] returns from [`LiveView::delay_bounds`].
+#[derive(Clone, Debug, Default)]
+pub struct DelayIndex {
+    /// `(date, max, per pattern, per stop)`; snapshots span a few dates.
+    dates: Vec<(Date, Secs, Vec<Secs>, Vec<Secs>)>,
+}
+
+impl DelayIndex {
+    /// Bounds of `trips`. Without a timetable (or for a date with a trip it
+    /// does not know) only the per-date maximum is kept.
+    pub fn build<'a>(tt: Option<&Timetable>, trips: impl IntoIterator<Item = (Date, TripIdx, &'a TripLive)>) -> Self {
+        let mut ix = DelayIndex::default();
+        let mut unknown: Vec<Date> = Vec::new();
+        for (date, trip, l) in trips {
+            let k = match ix.dates.iter().position(|e| e.0 == date) {
+                Some(k) => k,
+                None => {
+                    let (np, ns) = tt.map_or((0, 0), |tt| (tt.patterns.len(), tt.stops.len()));
+                    ix.dates.push((date, 0, vec![NO_LIVE; np], vec![NO_LIVE; ns]));
+                    ix.dates.len() - 1
+                }
+            };
+            let e = &mut ix.dates[k];
+            let worst = l.dep_delay.iter().copied().max().unwrap_or(0).max(0);
+            e.1 = e.1.max(worst);
+            let Some(tt) = tt else { continue };
+            let Some(t) = tt.trips.get(trip as usize) else {
+                unknown.push(date);
+                continue;
+            };
+            let p = t.pattern;
+            e.2[p as usize] = e.2[p as usize].max(worst);
+            for (i, &s) in tt.pattern_stops(p).iter().enumerate() {
+                let b = &mut e.3[s as usize];
+                *b = (*b).max(l.dep_delay_at(i).max(0));
+            }
+        }
+        for e in &mut ix.dates {
+            if tt.is_none() || unknown.contains(&e.0) {
+                e.2 = Vec::new();
+                e.3 = Vec::new();
+            }
+        }
+        ix
+    }
+
+    pub fn get(&self, date: Date) -> DelayBounds<'_> {
+        match self.dates.iter().find(|e| e.0 == date) {
+            Some((_, max, pattern, stop)) => DelayBounds { max: *max, pattern, stop },
+            None => DelayBounds::NONE,
+        }
     }
 }

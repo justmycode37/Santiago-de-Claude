@@ -523,6 +523,43 @@ mod bench {
         }
     }
 
+    /// Every fourth trip of a `FakeLive` (and its outlier): about the share
+    /// of trips the real feed covers.
+    struct Sparse<'a>(&'a FakeLive, usize);
+    impl LiveView for Sparse<'_> {
+        fn trip(&self, date: Date, trip: TripIdx) -> Option<&TripLive> {
+            if trip % 4 == 0 || trip as usize == self.1 {
+                self.0.trip(date, trip)
+            } else {
+                None
+            }
+        }
+        fn max_delay(&self) -> Secs {
+            self.0.max
+        }
+    }
+
+    /// Live data with per-date, per-pattern and per-stop delay
+    /// bounds; `FakeLive` alone has the `LiveView` defaults (look back by
+    /// `max_delay` everywhere).
+    struct Indexed<'a>(&'a dyn LiveView, DelayIndex);
+    impl Indexed<'_> {
+        fn new<'a>(tt: &Timetable, date: Date, live: &'a dyn LiveView) -> Indexed<'a> {
+            Indexed(live, DelayIndex::build(Some(tt), (0..tt.trips.len() as TripIdx).filter_map(|t| live.trip(date, t).map(|l| (date, t, l)))))
+        }
+    }
+    impl LiveView for Indexed<'_> {
+        fn trip(&self, date: Date, trip: TripIdx) -> Option<&TripLive> {
+            self.0.trip(date, trip)
+        }
+        fn max_delay(&self) -> Secs {
+            self.0.max_delay()
+        }
+        fn delay_bounds(&self, date: Date) -> DelayBounds<'_> {
+            self.1.get(date)
+        }
+    }
+
     fn pct(v: &mut [f64], p: f64) -> f64 {
         v.sort_by(|a, b| a.total_cmp(b));
         v[((v.len() - 1) as f64 * p).round() as usize]
@@ -575,7 +612,9 @@ mod bench {
             }
         }
 
-        let run = |name: &str, set: &[(StationIdx, StationIdx, Secs)], window: Secs, near: usize, live: Option<&dyn LiveView>| {
+        let run_on = |date: Date, name: &str, set: &[(StationIdx, StationIdx, Secs)], window: Secs, near: usize, live: Option<&dyn LiveView>| {
+            #[cfg(feature = "stats")]
+            kante_raptor::stats::take();
             let mut ms = Vec::with_capacity(set.len());
             let mut journeys = 0;
             let (mut na, mut ne) = (0, 0);
@@ -593,7 +632,14 @@ mod bench {
             }
             let name = format!("{name} [{:.0} acc / {:.0} egr stops]", na as f64 / set.len() as f64, ne as f64 / set.len() as f64);
             report(&name, &mut ms, journeys);
+            #[cfg(feature = "stats")]
+            {
+                let c = kante_raptor::stats::take();
+                let per = |k: &str| c.iter().find(|x| x.0 == k).map_or(0, |x| x.1) / set.len().max(1) as u64;
+                println!("    per query: queue_pairs {}  pattern_scans {}  scan_steps {}  lookups {}  boardings {}", per("queue_pairs"), per("pattern_scans"), per("scan_steps"), per("lookups"), per("boardings"));
+            }
         };
+        let run = |name: &str, set: &[(StationIdx, StationIdx, Secs)], window: Secs, near: usize, live: Option<&dyn LiveView>| run_on(date, name, set, window, near, live);
 
         println!("\n{pairs} random station pairs, Monday 2026-11-23, departure 06:00–20:00, single thread");
         run("uniform stations, earliest arrival", &uniform, 0, 0, None);
@@ -619,11 +665,35 @@ mod bench {
                 n_live += 1;
             }
         }
-        let live = FakeLive { date, trips, max: 900 };
-        println!("\nwith synthetic live data ({n_live} trips delayed up to 15 min or cancelled)");
-        run("busy stations, earliest arrival, live", &busy, 0, 0, Some(&live));
-        run("busy stations, 2 h range, live", &busy, 7200, 0, Some(&live));
-        run("busy, 40 nearest stops each end, 2 h range, live", &busy, 7200, 40, Some(&live));
+        // As on the real feed: one train almost 3 h late dictates `max_delay`.
+        let outlier = (0..tt.trips.len()).find(|&t| trips[t].as_ref().is_some_and(|l| !l.cancelled) && tt.trip_line(t as TripIdx).mode == Mode::Rail);
+        let mut max = 900;
+        if let Some(t) = outlier {
+            let l = trips[t].as_mut().unwrap();
+            l.arr_delay.fill(10_478);
+            l.dep_delay.fill(10_478);
+            max = 10_478;
+        }
+        let live = FakeLive { date, trips, max };
+        let t0 = Instant::now();
+        let indexed = Indexed::new(tt, date, &live);
+        println!("\nwith synthetic live data ({n_live} trips delayed up to 15 min or cancelled, one {max} s late; delay index built in {:.1?})", t0.elapsed());
+        let sparse = Sparse(&live, outlier.unwrap_or(usize::MAX));
+        let sparse_indexed = Indexed::new(tt, date, &sparse);
+        let n_sparse = (0..tt.trips.len() as TripIdx).filter(|&t| sparse.trip(date, t).is_some()).count();
+        for (tag, lv) in [
+            ("global look-back", &live as &dyn LiveView),
+            ("per-pattern bounds", &indexed),
+            (&*format!("{n_sparse} live trips (every 4th), global look-back"), &sparse),
+            (&*format!("{n_sparse} live trips (every 4th), per-pattern bounds"), &sparse_indexed),
+        ] {
+            println!("  {tag}:");
+            run("busy stations, earliest arrival, live", &busy, 0, 0, Some(lv));
+            run("busy stations, 2 h range, live", &busy, 7200, 0, Some(lv));
+            run("busy, 40 nearest stops each end, 2 h range, live", &busy, 7200, 40, Some(lv));
+            run_on(date + 7, "busy stations, 2 h range, next week, live", &busy, 7200, 0, Some(lv));
+        }
+        run_on(date + 7, "busy stations, 2 h range, next week, static", &busy, 7200, 0, None);
 
         // Fixed reference queries, warm, median of 50.
         println!("\nreference queries (median of 50 warm runs)");
@@ -656,14 +726,16 @@ mod bench {
         for name in ["Bern", "Zürich HB", "Bern, Bahnhof"] {
             if let Ok(s) = cx.station(name) {
                 let stops = &tt.stations[s as usize].stops;
-                let mut ms = Vec::new();
-                let mut n = 0;
-                for i in 0..200 {
-                    let t0 = Instant::now();
-                    n += cx.rt.departures(stops, date, 6 * 3600 + i * 240, 30, Some(&live)).len();
-                    ms.push(t0.elapsed().as_secs_f64() * 1e3);
+                for (tag, lv) in [("global look-back", &live as &dyn LiveView), ("per-pattern bounds", &indexed)] {
+                    let mut ms = Vec::new();
+                    let mut n = 0;
+                    for i in 0..200 {
+                        let t0 = Instant::now();
+                        n += cx.rt.departures(stops, date, 6 * 3600 + i * 240, 30, Some(lv)).len();
+                        ms.push(t0.elapsed().as_secs_f64() * 1e3);
+                    }
+                    report(&format!("departures({name}, limit 30, live, {tag}) [{} stops]", stops.len()), &mut ms, n);
                 }
-                report(&format!("departures({name}, limit 30, live) [{} stops]", stops.len()), &mut ms, n);
             }
         }
 

@@ -37,12 +37,15 @@
 //! "First trip of a pattern leaving position `i` at or after `t`" is a binary
 //! search in the day's column of scheduled departures (`DayData`), per
 //! service date (`date - 1`, `date`, `date + 1`, shifted by ±24 h). With live
-//! data the search starts `max_delay` earlier and compares live times.
+//! data the search starts earlier by the largest delay of the pattern's trips
+//! on that date and compares live times; a pattern without live trips on a
+//! date is searched as without live data. The same per-date bounds, per stop,
+//! size the window of the stop departure lists.
 
 use crate::days::{Boardable, DaySet, PatDays, ENT_BITS};
 use crate::{Journey, Leg, Onboard, Query, Router, EARLY_SLACK, MAX_RIDES};
 use kante_core::time::{Date, Secs, DAY};
-use kante_core::{walk_secs, Footpaths, LiveView, PatternIdx, StopIdx, Timetable, TripIdx, TripLive, FLAG_NO_DROPOFF, FLAG_NO_PICKUP, NONE};
+use kante_core::{walk_secs, DelayBounds, Footpaths, LiveView, PatternIdx, StopIdx, Timetable, TripIdx, TripLive, FLAG_NO_DROPOFF, FLAG_NO_PICKUP, NONE};
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 
@@ -255,6 +258,8 @@ struct Engine<'a> {
     q: &'a Query<'a>,
     live: Option<&'a dyn LiveView>,
     max_delay: Secs,
+    /// Delay bounds of the service dates `q.date - 1 ..= q.date + 1`.
+    bounds: [DelayBounds<'a>; 3],
     fp: Option<&'a Footpaths>,
     s: &'a mut Scratch,
     /// Highest round = maximum number of rides.
@@ -287,13 +292,21 @@ fn run(rt: &Router, days: &DaySet, q: &Query, s: &mut Scratch) -> Vec<Journey> {
     s.ensure(tt.stops.len(), tt.patterns.len());
     let fp = (q.footpaths.off.len() == tt.stops.len() + 1).then_some(q.footpaths);
     let speed = if q.walk_speed.is_finite() && q.walk_speed > 0.05 { q.walk_speed } else { kante_core::DEFAULT_SPEED_MPS };
+    // Without live data on any date the search can touch (continuations and
+    // on-board starts reach ±3 days), plan as without live data.
+    let live = q.live.filter(|l| (-3..=3).any(|d| l.delay_bounds(q.date + d).any()));
+    let bounds = match live {
+        Some(l) => [0, 1, 2].map(|d| l.delay_bounds(q.date + d - 1).fit(tt.patterns.len(), tt.stops.len())),
+        None => [DelayBounds::NONE; 3],
+    };
     let mut e = Engine {
         rt,
         tt,
         days,
         q,
-        live: q.live,
-        max_delay: q.live.map_or(0, |l| l.max_delay().max(0)),
+        live,
+        max_delay: live.map_or(0, |l| l.max_delay().max(0)),
+        bounds,
         fp,
         s,
         // The ride the traveller is already on is round 0 and counts as a ride.
@@ -406,12 +419,28 @@ impl<'a> Engine<'a> {
         cur.rec
     }
 
+    /// How far before a live departure of pattern `p` on day `d` (0 = the date
+    /// before the query date) its scheduled one can be, `None` if no trip of
+    /// the pattern has live data on that date.
+    #[inline]
+    fn pat_back(&self, d: usize, p: PatternIdx) -> Option<Secs> {
+        self.bounds[d].pattern(p).map(|b| b.min(self.max_delay))
+    }
+
+    /// The same for the departures from stop `s`.
+    #[inline]
+    fn stop_back(&self, d: usize, s: StopIdx) -> Option<Secs> {
+        self.bounds[d].stop(s).map(|b| b.min(self.max_delay))
+    }
+
     /// The trip of pattern `p` with the earliest (live) departure at position
     /// `i` in `[t, before)`, over the three service dates.
     fn earliest(&self, h: &PatDays, p: PatternIdx, i: usize, t: Secs, before: Secs) -> Option<Cur<'a>> {
         count!(5);
         let (pmin, pmax) = (h.min, h.max);
-        let live: Option<&'a dyn LiveView> = self.live;
+        let backs = [0, 1, 2].map(|d| self.pat_back(d, p));
+        // No live trip of the pattern on any of the dates: as without live data.
+        let live: Option<&'a dyn LiveView> = if backs == [None; 3] { None } else { self.live };
         let mut best_dep = before;
         let mut best: Option<(TripIdx, usize, usize, Option<&'a TripLive>)> = None;
         match live {
@@ -443,11 +472,24 @@ impl<'a> Engine<'a> {
                 }
             }
             Some(lv) => {
-                // Delays can reorder trips: start `max_delay` earlier and
-                // compare live times until no later-scheduled trip can win.
-                let lo = t.saturating_sub(self.max_delay);
                 for d in 0..3usize {
                     let shift = (d as Secs - 1) * DAY;
+                    let Some(back) = backs[d] else {
+                        // No live trip on this date: the first scheduled one at or after `t`.
+                        if pmax + shift < t || pmin + shift >= best_dep {
+                            continue;
+                        }
+                        let (col, trips) = self.days.column(h, d, i);
+                        let j = col.partition_point(|&x| x + shift < t);
+                        if j < col.len() && col[j] + shift < best_dep {
+                            best_dep = col[j] + shift;
+                            best = Some((trips[j], d, j, None));
+                        }
+                        continue;
+                    };
+                    // Delays can reorder trips: start `back` earlier and
+                    // compare live times until no later-scheduled trip can win.
+                    let lo = t.saturating_sub(back);
                     if pmax + shift < lo {
                         continue;
                     }
@@ -513,12 +555,15 @@ impl<'a> Engine<'a> {
     }
 
     /// Every trip of pattern `p` with a (live) departure at position `i` in `[lo, hi]`.
-    fn trips_in(&self, h: &PatDays, i: usize, lo: Secs, hi: Secs, mut f: impl FnMut(TripIdx, i8, Secs)) {
+    fn trips_in(&self, h: &PatDays, p: PatternIdx, i: usize, lo: Secs, hi: Secs, mut f: impl FnMut(TripIdx, i8, Secs)) {
         let (pmin, pmax) = (h.min, h.max);
-        let (back, ahead) = if self.live.is_some() { (self.max_delay, EARLY_SLACK) } else { (0, 0) };
-        let (slo, shi) = (lo.saturating_sub(back), hi.saturating_add(ahead));
         for d in 0..3usize {
             let shift = (d as Secs - 1) * DAY;
+            let (back, ahead, live) = match self.pat_back(d, p) {
+                Some(b) => (b, EARLY_SLACK, self.live),
+                None => (0, 0, None),
+            };
+            let (slo, shi) = (lo.saturating_sub(back), hi.saturating_add(ahead));
             if pmax + shift < slo || pmin + shift > shi {
                 continue;
             }
@@ -529,7 +574,7 @@ impl<'a> Engine<'a> {
                 if sd > shi {
                     break;
                 }
-                let ld = match self.live.and_then(|l| l.trip(date, trips[j])) {
+                let ld = match live.and_then(|l| l.trip(date, trips[j])) {
                     Some(l) => {
                         if l.is_skipped(i) {
                             continue;
@@ -751,7 +796,7 @@ impl<'a> Engine<'a> {
         if h.mode & self.q.modes == 0 {
             return;
         }
-        let plain = self.live.is_none() && !h.wraps();
+        let plain = !h.wraps() && (0..3).all(|d| self.pat_back(d, p).is_none());
         let mut cur: Option<Cur<'a>> = None;
         count!(3);
         count!(4, n - start);
@@ -803,7 +848,6 @@ impl<'a> Engine<'a> {
         let mut queue = std::mem::take(&mut self.s.queue);
         let modes = self.q.modes;
         count!(11, marked.len());
-        let (back, ahead) = if self.live.is_some() { (self.max_delay, EARLY_SLACK) } else { (0, 0) };
         let days: &'a DaySet = self.days;
         let tt = self.tt;
         timed!(14, for &s in &marked {
@@ -815,8 +859,7 @@ impl<'a> Engine<'a> {
             let bound = self.s.bound[s as usize];
             let mut listed = bound != INF && all.len() > 1;
             if listed {
-                let lo_t = self.s.lab[s as usize * R + k - 1].ready.saturating_sub(back);
-                let hi_t = bound.saturating_add(ahead);
+                let ready = self.s.lab[s as usize * R + k - 1].ready;
                 let mut budget = 2 * all.len() + 8;
                 let list = tt.stop_patterns(s);
                 'days: for d in 0..3usize {
@@ -826,6 +869,11 @@ impl<'a> Engine<'a> {
                         listed = false;
                         break;
                     }
+                    let (back, ahead) = match self.stop_back(d, s) {
+                        Some(b) => (b, EARLY_SLACK),
+                        None => (0, 0),
+                    };
+                    let (lo_t, hi_t) = (ready.saturating_sub(back), bound.saturating_add(ahead));
                     // (A date without service has t_min = MAX, t_max = MIN.)
                     if day.t_max.saturating_add(shift) < lo_t || day.t_min.saturating_add(shift) >= hi_t {
                         continue;
@@ -990,7 +1038,7 @@ impl<'a> Engine<'a> {
                         next = if tries < 5 && Self::skips_after(&c, i) { self.earliest(h, p, i, dep + 1, INF) } else { None };
                     }
                 } else {
-                    self.trips_in(h, i, r0, r0.saturating_add(window), |trip, day, dep| seeds.push(Seed { tau: dep - a, trip, pos, day }));
+                    self.trips_in(h, p, i, r0, r0.saturating_add(window), |trip, day, dep| seeds.push(Seed { tau: dep - a, trip, pos, day }));
                 }
             }
         }

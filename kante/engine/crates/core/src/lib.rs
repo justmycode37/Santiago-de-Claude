@@ -14,6 +14,6 @@ pub mod timetable;
 pub mod walk;
 
 pub use geo::{BBox, LatLon};
-pub use live::{ExtraCall, ExtraTrip, LiveView, TripLive, OBSERVED_ARR, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
+pub use live::{DelayBounds, DelayIndex, ExtraCall, ExtraTrip, LiveView, TripLive, OBSERVED_ARR, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
 pub use timetable::*;
 pub use walk::*;
