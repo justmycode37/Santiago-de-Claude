@@ -6,14 +6,10 @@
 //   node --experimental-test-module-mocks tools/test_walkrefine.mts
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { mock } from 'node:test';
-import { transformSync } from 'amaro';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const js = (f: string) => transformSync(fs.readFileSync(path.join(ROOT, f), 'utf8'), { mode: 'strip-only' }).code; // as scripts/build.mts does
-const ENGINE = js('src/engine-journey.ts');
 let passed = 0, failed = 0;
 const check = (ok: boolean, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };
 const defer = <T,>(): Deferred<T> => { let res!: (answer: T) => void; const p = new Promise<T>((r) => (res = r)); return { p, res }; };
@@ -89,14 +85,10 @@ interface AppState {
   tracking: { geoVersion: number };
   searchState: { tripStart: null };
 }
-/** The window the engine's journeys run in; KanteJourney is what their script leaves there. */
-interface EngineWindow {
-  KANTE: { available(): boolean; walk(): Promise<FakeEngineWalk> } | undefined;
-  SETTINGS: { prefs(): object; transportations?(): string[] };
-  KanteJourney?: { requay(steps: object[], changed: () => void): void };
-}
-/** The page the router's script runs in: the globals handed to it, and the WALKROUTE it leaves there. */
-interface RouterPage { [name: string]: unknown; globalThis?: RouterPage; WALKROUTE?: WalkRouteApi }
+/** The engine's client as the engine's journeys use it (src/engine.ts), stubbed. */
+interface FakeEngine { available(): boolean; walk(): Promise<FakeEngineWalk> }
+/** The engine's journeys (src/engine-journey.ts), as far as these tests call them. */
+interface EngineJourneys { requay(steps: object[], changed: () => void): void }
 /** A platform edge of platforms.js, as the router is asked for it. */
 interface PlatformEdge { ll: LngLat; ref?: string; level: number }
 
@@ -104,7 +96,9 @@ interface PlatformEdge { ll: LngLat; ref?: string; level: number }
 // the routers it asks: the pedestrian network hands back promises kept in `pending`, the station models in `station`
 let page: AppPage;
 const APP = new URL('../src/app/', import.meta.url);
-const fake = (file: string, namedExports: Record<string, unknown>) => mock.module(new URL(file, APP).href, { namedExports });
+// (Node 24 calls the option `exports`, Node 22 `namedExports`)
+const fake = (file: string, exports: Record<string, unknown>) => mock.module(new URL(file, APP).href,
+  (Number(process.versions.node.split('.')[0]) >= 24 ? { exports } : { namedExports: exports }) as Parameters<typeof mock.module>[1]);
 const nothing = () => {};
 const marker = { remove: nothing };
 fake('map.ts', { map: { flyTo: nothing } });
@@ -123,22 +117,29 @@ fake('sheet-content.ts', { connStart: (x: FakeConn) => x.t0, connEnd: (x: FakeCo
   s3Plan: () => page.plan, s3Prefs: () => ({}) });
 fake('pill.ts', { updateProgress: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
-// the scripts beside the app's that the routing code reads: the settings, the pedestrian network, the station models
-Object.assign(globalThis, {
-  window: globalThis,
-  requestAnimationFrame: (f: () => void) => f(),
-  SETTINGS: { prefs: () => page.prefs, walkCosting: () => null, journey: () => ({}) },
-  WALKROUTE: { route: (a: LngLat, b: LngLat) => { const d = defer<FakeRouted>(); page.pending.push({ a, b, d }); return d.p; } },
-  Station3D: { loadData: () => { const d = defer<FakeModel>(); page.station.push(d); return d.p; }, preload: nothing },
-  StationRoute: { route: (model: FakeModel) => model.route, toLngLat: (_model: FakeModel, p: LngLat) => p },
-});
+// the modules beside the page's that the routing code and the engine's journeys read: the settings, the station
+// models and their router, the engine's client (each test says what they answer: `settings`, `kante`)
+let settings: { prefs: object } = { prefs: {} };
+let kante: FakeEngine = { available: () => false, walk: () => new Promise(nothing) };
+fake('../settings.ts', { SETTINGS: { prefs: () => settings.prefs, transportations: () => [], walkCosting: () => null, journey: () => ({}) } });
+fake('../station3d.ts', { Station3D: { loadData: () => { const d = defer<FakeModel>(); page.station.push(d); return d.p; }, preload: nothing },
+  stationRouter: () => ({ route: (model: FakeModel) => model.route, toLngLat: (_model: FakeModel, p: LngLat) => p }) });
+fake('../engine.ts', { KANTE: { available: () => kante.available(), walk: () => kante.walk() } });
+Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f() });
 // (a specifier TypeScript does not follow: the app's modules are checked with the app, not with the tools)
 const load = (file: string) => import(new URL(file, APP).href);
 const R: AppRouting = await load('routing.ts');
 const S: AppState = await load('state.ts');
+const J: EngineJourneys = (await load('../engine-journey.ts')).KanteJourney;
+// the pedestrian network as it is (test 8 routes on it); for the routing code its route() hands back promises kept in
+// page.pending
+const W: WalkRouteApi = (await load('../walkroute.ts')).WALKROUTE;
+const networkRoute = W.route;
 /** A fresh page for a test: nothing asked yet, and the state as when the page has just planned journey 1. */
 function app() {
   page = { prefs: { walkKmh: 3.6, maxWalkMin: 20 }, sheets: 0, timed: 0, pending: [], station: [], plan: null };
+  settings = page;
+  W.route = ((a: LngLat, b: LngLat) => { const d = defer<FakeRouted>(); page.pending.push({ a, b, d }); return d.p; }) as unknown as WalkRouteApi['route'];
   Object.assign(S.journey, { steps: [], req: 1, routeKey: '', conn: null, options: null, query: {} });
   S.tracking.geoVersion = 0;
   S.searchState.tripStart = null;
@@ -147,12 +148,9 @@ function app() {
 // the engine's journeys (requay()), with the engine's walking router stubbed: K.walk() answers when the test says
 function engine() {
   const walks: Deferred<FakeEngineWalk>[] = [];
-  const w: EngineWindow = { KANTE: { available: () => true, walk: () => { const d = defer<FakeEngineWalk>(); walks.push(d); return d.p; } },
-    SETTINGS: { prefs: () => ({ walkKmh: 4.7, extraChangeMin: 0, maxWalkMin: 20 }), transportations: () => [] } };
-  const c = { window: w, console, Date, Math, JSON, Map, Set, WeakMap, Promise };
-  vm.createContext(c);
-  vm.runInContext(ENGINE, c);
-  return { J: w.KanteJourney!, walks };
+  kante = { available: () => true, walk: () => { const d = defer<FakeEngineWalk>(); walks.push(d); return d.p; } };
+  settings = { prefs: { walkKmh: 4.7, extraChangeMin: 0, maxWalkMin: 20 } };
+  return { J, walks };
 }
 const A: LngLat = [7.43, 46.94], B: LngLat = [7.44, 46.95], C: LngLat = [7.45, 46.96];
 // an answer of the pedestrian network, and a station model whose route is this line
@@ -208,10 +206,9 @@ console.log('3. a platform change at the same point (only its name changes)');
 }
 {
   // requay(): the engine moves the boarding edge to another platform at the very same point
-  const w: EngineWindow = { KANTE: undefined, SETTINGS: { prefs: () => ({}) } };
-  const c = { window: w, console, Date, Math, JSON, Map, Set, Promise };
-  vm.createContext(c);
-  vm.runInContext(ENGINE, c);
+  // (no engine to ask)
+  kante = { available: () => false, walk: () => new Promise(nothing) };
+  settings = { prefs: {} };
   const quay = (label: string) => ({ lon: B[0], lat: B[1], precision: 'edge', label, level: 0 });
   const dep = { quay: quay('1') }, arr = { quay: { lon: C[0], lat: C[1], precision: 'edge', label: '5', level: 0 } };
   const edge = (ref: string, ll: LngLat) => ({ ll, edge: { ref, bearing: null, level: 0, ll, side: '' }, travel: null });
@@ -219,10 +216,10 @@ console.log('3. a platform change at the same point (only its name changes)');
   const ride = { type: 'ride', s: { stops: [dep, arr], legs: [{}] }, depLL: B, arrLL: C, depAt: edge('1', B), arrAt: edge('5', C), stops: [B, C], path: [B, C] };
   const steps = [walk, ride, { type: 'arrive' }];
   let changed = 0;
-  w.KanteJourney!.requay(steps, () => changed++);
+  J.requay(steps, () => changed++);
   check(changed === 0, 'requay(): nothing changed, nothing to do');
   dep.quay = quay('2');
-  w.KanteJourney!.requay(steps, () => changed++);
+  J.requay(steps, () => changed++);
   check(changed === 1 && ride.depAt.edge.ref === '2', 'requay(): another platform at the same point counts as a change (its edge is updated)');
   check(walk.lines[0][1] === B, 'requay(): the walk itself is left as it is (routed again by refineWalks())');
 }
@@ -269,7 +266,7 @@ console.log('6. walking all the way, opened again: the network times though the 
 
 console.log('7. requay(): a change left without a walk, and the engine walk answering after another way is in');
 {
-  const { J, walks } = engine();
+  const { walks } = engine();
   const quay = (ll: LngLat, label: string) => ({ lon: ll[0], lat: ll[1], precision: 'edge', label, level: 0 });
   const edge = (ref: string, ll: LngLat) => ({ ll, edge: { ref, bearing: null, level: 0, ll, side: '' }, travel: null });
   const ride = (dep: string, arr: string, d: LngLat, a: LngLat) => ({ type: 'ride', s: { stops: [{ quay: quay(d, dep) }, { quay: quay(a, arr) }], legs: [{}] },
@@ -301,11 +298,8 @@ console.log('7. requay(): a change left without a walk, and the engine walk answ
 
 console.log("8. the floor a lift starts on, from the router (step-free from platform 10 to 12 at Zürich HB)");
 {
-  const ctx: RouterPage = { console, setTimeout, Promise, Math, JSON, Map, Set, Array, Object, Number, String, Infinity, isFinite };
-  ctx.globalThis = ctx;
-  vm.createContext(ctx);
-  vm.runInContext(transformSync(fs.readFileSync(path.join(ROOT, 'src', 'walkroute.ts'), 'utf8'), { mode: 'strip-only' }).code, ctx); // the script as the browser gets it: types taken out
-  ctx.WALKROUTE!.configure({ loader: async (k: string) => {
+  W.route = networkRoute;
+  W.configure({ loader: async (k: string) => {
     const s = fs.readFileSync(path.join(ROOT, 'walkgraph', k === 'index' ? 'index.js' : `t/${k}.js`), 'utf8');
     return k === 'index' ? JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)) : JSON.parse(s.slice(s.indexOf(',') + 1, s.lastIndexOf(')')));
   } });
@@ -315,7 +309,7 @@ console.log("8. the floor a lift starts on, from the router (step-free from plat
   const edges: PlatformEdge[] = JSON.parse(pd.slice(pd.indexOf('{'), pd.lastIndexOf('}') + 1)).stops['8503000'][2].map((e: PlatformDataEdge) => ({ ll: [e[0] / 1e5, e[1] / 1e5], ref: e[2], level: e[4] || 0 }));
   let r: WalkRouteResult | null = null;
   for (const a of edges.filter((e) => e.ref === '10')) for (const b of edges.filter((e) => e.ref === '12')) {
-    const x: WalkRouteResult | null = r ? null : await ctx.WALKROUTE!.route(a.ll, b.ll, { stepFree: true, from: { platform: true, level: a.level, ref: '10' }, to: { platform: true, level: b.level, ref: '12' } });
+    const x: WalkRouteResult | null = r ? null : await W.route(a.ll, b.ll, { stepFree: true, from: { platform: true, level: a.level, ref: '10' }, to: { platform: true, level: b.level, ref: '12' } });
     if (x && x.cues.some((q) => /^Lift to level −1/.test(q.text))) r = x;
   }
   const c = app();

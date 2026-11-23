@@ -8,7 +8,7 @@
 // events) and town halls & migration offices. Those events are not on the map otherwise (12-events.ts).
 import { map } from './map.ts';
 import { eventMarkers, updateCards } from './map-events.ts';
-import { showToast, toast } from './menu.ts';
+import { showToast, toast } from '../toast.ts';
 import { KIND, inputs, list } from './search.ts';
 import { NEAR_PHRASE, fold, searchOrigin, searchPlaces, searchPlacesOnline } from './search-places.ts';
 import { areaChip, clearPlacePins, onTap } from './search-pins.ts';
@@ -17,6 +17,9 @@ import { loadPlaces } from './map-places.ts';
 import { mapPadding } from './pill.ts';
 import { distKm } from './routing.ts';
 import { journey, searchState } from './state.ts';
+import { PlaceSearch } from '../places.ts';
+import { SETTINGS } from '../settings.ts';
+import { EVENTS } from '../events.ts';
 
 export interface SearchCategory {
   key: string;
@@ -71,7 +74,7 @@ export function categoryForText(text: string): SearchCategory | null {
   for (const c of CATEGORY_LIST) {
     if (fold(c.label) === q || (c.words || []).some((w) => fold(w) === q || (q.length >= 5 && fold(w).startsWith(q)))) return c;
   }
-  const label = window.PlaceSearch ? PlaceSearch.matchCategory(text) : null;
+  const label = PlaceSearch ? PlaceSearch.matchCategory(text) : null;
   if (!label) return null;
   const ours = CATEGORY_LIST.find((c) => c.query && PlaceSearch.matchCategory(c.query) === label);
   return ours || { key: 'q:' + fold(label), label, icon: KIND.other, query: text.replace(NEAR_PHRASE, '').trim() || text };

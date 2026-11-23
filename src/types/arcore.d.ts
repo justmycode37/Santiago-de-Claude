@@ -89,4 +89,3 @@ interface ArCoreApi {
   /** For tests: how "text box inside the vehicle's box" is decided. */
   options: { containsBox(outer: ArBox, inner: ArBox): boolean };
 }
-declare var ARCORE: ArCoreApi | undefined;

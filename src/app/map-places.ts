@@ -1,18 +1,20 @@
-// ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
+// ---------- Places: toilets, drinking water, health, help… (map-layers.ts, map-places.js) ----------
 // Shown with the events button, for the groups switched on under "Events and places" in Settings.
 // The data (~2.5 MB: Bern, and the toilets of all of Switzerland) is loaded the first time it is needed.
 import { map } from './map.ts';
 import { eventsOn } from './map-events.ts';
-import { showToast } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { showDestinationJourney } from './trip-ends.ts';
 import { platformPopup } from './platforms.ts';
 import { mk } from './live-vehicles.ts';
 import { journey, popup } from './state.ts';
+import { SETTINGS } from '../settings.ts';
+import { MAP_LAYERS } from '../map-layers.ts';
 export const PLACES_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlaceDotProps> = { type: 'FeatureCollection', features: [] };
 export let PLACES: MapPlaces | null = null;
 let placesLoading: Promise<boolean> | null = null;
 // Even density: about the same number of icons on screen at every zoom (~70 on a phone). Each icon keeps
-// PLACE_SPACING px of room around it; where icons would crowd, the higher-ranked ones (map-layers.js) are placed
+// PLACE_SPACING px of room around it; where icons would crowd, the higher-ranked ones (map-layers.ts) are placed
 // first and the rest appear as you zoom in. The room shrinks with zoom because icons grow (0.8× → 1×), and close
 // in, where few places are left to add, it lets nearly all of them show.
 export const PLACE_MIN_ZOOM = 12.5;

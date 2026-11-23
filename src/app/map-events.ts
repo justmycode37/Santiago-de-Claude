@@ -1,8 +1,11 @@
 // ---------- Community events ----------
-// Which events show is set on the Settings page (settings.js). Language courses and other events for newcomers only
+// Which events show is set on the Settings page (settings.ts). Language courses and other events for newcomers only
 // show for those who said they are new to Switzerland; anyone can still pick them as a category in the search.
-import { STYLES, STYLE_URL, currentTheme, makeDarkStyle, map, root, themeMeta } from './map.ts';
-import { eventsBtn, showToast } from './menu.ts';
+import { map } from './map.ts';
+import { STYLES, STYLE_URL, makeDarkStyle } from '../map-style.ts';
+import { currentTheme, onThemeChange, root, setTheme, themeMeta } from '../theme.ts';
+import { eventsBtn } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { CATEGORY_CARDS } from './categories.ts';
 import { EMPTY_FC, PLATFORM_FC, PLATFORM_MIN_ZOOM, platformLayers, platformsOnMap, startPlatforms } from './platforms.ts';
 import { PLACES_FC, placeLayers, placesOnMap, updatePlaces } from './map-places.ts';
@@ -11,6 +14,8 @@ import { VEH_FC, vehLayers } from './live-vehicles.ts';
 import { openEvent } from './event-page.ts';
 import type { SearchCategory } from './categories.ts';
 import { journey, popup, searchState } from './state.ts';
+import { SETTINGS } from '../settings.ts';
+import { EVENTS } from '../events.ts';
 const NEWCOMER_TAGS = ['newcomers', 'language'];
 export function visibleEvents() {
   const preferences = SETTINGS.eventTags();
@@ -154,15 +159,10 @@ function applyMapTheme(diff: boolean) {
   map.setStyle(style, { diff });
 }
 
-export function setTheme(theme: Theme, persist: boolean) {
-  root.dataset.theme = theme;
-  themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
-  if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
-  applyMapTheme(true);
-}
 
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
+  onThemeChange(() => applyMapTheme(true)); // a new theme from Settings or the system: the map's style follows
   map.on('moveend', updateCards);
   map.on('zoom', () => {
     if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();

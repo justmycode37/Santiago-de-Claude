@@ -1,10 +1,27 @@
-// The page's script (index.html loads it as a module, after the scripts and data above it).
+// The page's script: index.html loads it as a module, after the plain scripts above it (translate.js, maplibre,
+// the event data, config.js, the station index), which it uses through window.
 //
-// The parts of the page (src/app/) import from each other what they use, so they come in the order their imports
-// ask for, not in a fixed one, and they import each other both ways. That is why no part does anything as it is
-// loaded beyond making its own elements and objects: what each does when the page starts (listeners, the first
-// requests) is in its start(), and here they are called one after the other, in the order the page has always
-// started them. The map comes first: map.ts imports nothing of the page and makes the map as it loads.
+// 1. The modules beside the page's own, in the order they have always run. Each does its work as it loads (the
+//    settings page builds itself, the introduction opens on a first visit…), so the order matters: each of them
+//    imports only modules above it, or modules that do nothing as they load (toast.ts, theme.ts, map-style.ts).
+import './events.ts';
+import './map-layers.ts';
+import './pricing-history.ts';
+import './settings.ts';
+import './walk-pace.ts';
+import './onboarding.ts';
+import './engine.ts';
+import './engine-departures.ts';
+import './engine-journey.ts';
+import './live.ts';
+import './arcore.ts';
+import './places.ts';
+import './station3d.ts';
+// 2. The parts of the page (src/app/). They import from each other what they use, both ways, so they load in the
+//    order their imports ask for, not in a fixed one. That is why none of them does anything as it loads beyond
+//    making its own elements and objects: what each does when the page starts (listeners, the first requests) is
+//    in its start(), called below one after the other in the order the page has always started them. The map
+//    comes first: map.ts imports nothing of the page and makes the map as it loads.
 import './app/map.ts';
 import * as mapEvents from './app/map-events.ts';
 import * as menu from './app/menu.ts';
@@ -24,30 +41,18 @@ import * as pill from './app/pill.ts';
 import * as timePicker from './app/time-picker.ts';
 import * as eventPage from './app/event-page.ts';
 import * as keyboard from './app/keyboard.ts';
-import { STYLES, STYLE_URL, makeDarkStyle, map } from './app/map.ts';
-import { setTheme } from './app/map-events.ts';
-import { showToast } from './app/menu.ts';
+import { map } from './app/map.ts';
 import { showDestinationJourney } from './app/trip-ends.ts';
 
 declare global {
   interface Window {
-    /** The map, and a journey to a place: for the screen recordings (demo/pitch-video/capture/). */
+    /** The map, and a journey to a place: for the screen recordings (demo/pitch-video/capture/), which call them. */
     map: maplibregl.Map;
     showDestinationJourney: typeof showDestinationJourney;
-    /** A message at the bottom of the screen: for the scripts outside this one (settings.js, the 3D view's loader). */
-    showToast: typeof showToast;
   }
-  // for the scripts outside this one that use them (onboarding.js: the map's style; settings.js: the theme)
-  var STYLES: typeof import('./app/map.ts').STYLES;
-  var STYLE_URL: string;
-  var makeDarkStyle: typeof import('./app/map.ts').makeDarkStyle;
-  var setTheme: typeof import('./app/map-events.ts').setTheme;
 }
-
 window.map = map;
 window.showDestinationJourney = showDestinationJourney;
-window.showToast = showToast;
-Object.assign(window, { STYLES, STYLE_URL, makeDarkStyle, setTheme });
 
 mapEvents.start();
 menu.start();

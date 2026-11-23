@@ -73,4 +73,3 @@ interface EventsApi {
   matches(event: EventFeature, preferences: string[], now?: number): boolean;
 }
 
-declare var EVENTS: EventsApi;

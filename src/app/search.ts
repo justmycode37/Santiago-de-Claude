@@ -29,7 +29,7 @@ export const KIND: SearchIcons = {
   building: { color: 'var(--rose)', svg: '<path d="M5 21V4h14v17M3 21h18M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>' },
   station:  { color: 'var(--navy)', svg: '<path d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM4 10h16M8 17l-2 4M16 17l2 4"/>' },
   nature:   { color: 'var(--sun)', fg: '#344D77', svg: '<path d="M12 3l6 8.5h-3.5L19 17H5l4.5-5.5H6zM12 17v4"/>' },
-  // Places (places.js)
+  // Places (places.ts)
   food:     { color: 'var(--tang)', svg: '<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v5M17 21V3c-2 1-3 4-3 8h3"/>' },
   cafe:     { color: 'var(--tang)', svg: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3c0 1.5 1 1.5 1 3M12 3c0 1.5 1 1.5 1 3"/>' },
   bar:      { color: 'var(--rose)', svg: '<path d="M5 4h14l-7 8zM12 12v8M8 20h8"/>' },

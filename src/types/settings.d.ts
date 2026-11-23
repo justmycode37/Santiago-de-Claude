@@ -79,4 +79,3 @@ interface SettingsApi {
   onClose(fn: (journeyChanged: boolean) => void): number;
 }
 
-declare var SETTINGS: SettingsApi;

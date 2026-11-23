@@ -21,7 +21,7 @@
       navigator.geolocation.watchPosition(fix, fail, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
     } catch (e) {}
   };
-  // On a first visit the introduction asks first; it calls EARLY_GEO.start() when it ends (onboarding.js)
+  // On a first visit the introduction asks first; it calls EARLY_GEO.start() when it ends (onboarding.ts)
   if (!document.documentElement.dataset.onboarding) geo.start();
 
   // Base map style with its two tile sets written in (saves two round trips before the first tile), and every

@@ -6,6 +6,9 @@ import { vehicleGlyph } from './sprites.ts';
 import { lineColor, lineLabel, lineVars, modeOf } from './journey-steps.ts';
 import { h, kBadge } from './sheet.ts';
 import { journey } from './state.ts';
+import { KANTE } from '../engine.ts';
+import { KANTE_LIVE } from '../live.ts';
+import { SETTINGS } from '../settings.ts';
 const VEH_MIN_ZOOM = 14;
 const VEH_PILL_ZOOM = 16; // from here the vehicle shows its line number too
 export const VEH_FC: LiveVehicleCollection = { type: 'FeatureCollection', features: [] };

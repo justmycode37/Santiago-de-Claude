@@ -1,8 +1,8 @@
-// The in-app 3D station view (src/station-view.ts → station-view.js, docs/station3d-solid.md): the continuous model of
-// station3d-solid.js in an overlay, with step-by-step guidance and the indoor position. The page reaches it through
+// The in-app 3D station view (src/station-view.ts → station-view.ts, docs/station3d-solid.md): the continuous model of
+// station3d-solid.ts in an overlay, with step-by-step guidance and the indoor position. The page reaches it through
 // Station3D (the stand-in in index.html, src/inline/station3d-loader.ts, sends every open() here).
 
-/** The renderer, station3d-solid.js (an ES module): what station-view.ts uses of it. */
+/** The renderer, station3d-solid.ts (an ES module): what station-view.ts uses of it. */
 interface SolidUserState {
   visible: boolean; outside?: boolean; far?: number; x?: number; y?: number;
   /** null: no floor observed (GPS alone, or the filter not sure enough to say one). */
@@ -61,6 +61,5 @@ interface StationViewApi {
   _view(): SolidView | null;
 }
 
-declare var StationView: StationViewApi | undefined;
 /** stations3d/<key>.solid.js */
 declare var STATION3D_SOLID: Record<string, unknown> | undefined;

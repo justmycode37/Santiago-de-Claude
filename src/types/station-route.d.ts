@@ -270,5 +270,3 @@ interface StationRouteApi {
   TIME: StationRouteTime;
 }
 
-/** Made by station-route.js, which is loaded on demand: check that it is there. */
-declare var StationRoute: StationRouteApi | undefined;

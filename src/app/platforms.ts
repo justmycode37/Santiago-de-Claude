@@ -11,6 +11,11 @@ import { badge, levelShort, mk, nounOf } from './live-vehicles.ts';
 import { kIcon } from './sheet.ts';
 import { distKm } from './routing.ts';
 import { popup, sheet } from './state.ts';
+import { KANTE_BOARD } from '../engine-departures.ts';
+import { KANTE } from '../engine.ts';
+import { SETTINGS } from '../settings.ts';
+import { WALK_PACE } from '../walk-pace.ts';
+import { Station3D } from '../station3d.ts';
 export const PLATFORM_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlatformDotProps> = { type: 'FeatureCollection', features: [] };
 export const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 // The ~52,000 dots are only handed to the map the first time it comes near the zoom where they show:
@@ -123,7 +128,7 @@ export async function openPlatform(f: PlatformTap) {
   const box = mk('div');
   box.append(head, note, list);
   // a station with a 3D model: show this platform in it, with the way there when you are nearby
-  const key3d = window.Station3D && Station3D.has(f.properties.id);
+  const key3d = Station3D && Station3D.has(f.properties.id);
   if (key3d) {
     const view3d = mk('button', 'pf-3d');
     view3d.type = 'button';
@@ -140,7 +145,7 @@ export async function openPlatform(f: PlatformTap) {
     box.append(view3d);
   }
   platformPopup.setLngLat(edge.ll).setDOMContent(box).addTo(map);
-  // The Kante engine knows the edge of every departure (engine-departures.js: d.edges)
+  // The Kante engine knows the edge of every departure (engine-departures.ts: d.edges)
   const load = async () => {
     note.textContent = 'Loading departures…';
     list.replaceChildren();

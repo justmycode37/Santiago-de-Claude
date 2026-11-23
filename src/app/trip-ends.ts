@@ -1,5 +1,6 @@
 // ---- The two ends of the trip ----
-import { map, root } from './map.ts';
+import { map } from './map.ts';
+import { root } from '../theme.ts';
 import { setMenu } from './menu.ts';
 import { userLngLat } from './location.ts';
 import { FIELDS, clears, destMarker, form, inputs, list, startMarker, wrap } from './search.ts';
@@ -13,6 +14,7 @@ import { renderFoot, renderHead } from './sheet-content.ts';
 import { startJourney } from './pill.ts';
 import { endJourney } from './routing.ts';
 import { journey, searchState } from './state.ts';
+import { PlaceSearch } from '../places.ts';
 export const pointOf = (f: TripField) => (f === 'from' ? searchState.tripStart : journey.dest);
 export function setField(f: TripField, text: string) {
   inputs[f].value = text;
@@ -119,7 +121,7 @@ export function start() {
       clearPlacePins();
       if (text.length < 2) { searchState.reqId++; searchState.results = []; searchState.placeCategory = null; searchState.last = null; render(); return; }
       // Google Places is paid per request: wait a little longer for a pause in typing
-      searchState.debounce = setTimeout(() => search(text), window.PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
+      searchState.debounce = setTimeout(() => search(text), PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
     });
     input.addEventListener('focus', () => {
       searchState.field = f;

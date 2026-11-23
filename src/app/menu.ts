@@ -1,5 +1,5 @@
-// ---------- Toast ----------
 import { map } from './map.ts';
+import { showToast } from '../toast.ts';
 import { EVENT_MIN_ZOOM, eventsOn, setEventsOn, updateCards, visibleEvents } from './map-events.ts';
 import { fixAge, userAccuracy, userLngLat } from './location.ts';
 import { PLATFORMS, openPlatform, platformKey, platformsReady, startPlatforms } from './platforms.ts';
@@ -10,15 +10,8 @@ import { renderFoot } from './sheet-content.ts';
 import { startJourney } from './pill.ts';
 import { distKm } from './routing.ts';
 import { journey } from './state.ts';
-export const toast = document.getElementById('toast')!;
-let toastTimer: number | undefined;
-export function showToast(text: string, ms = 4000) {
-  toast.textContent = text;
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
-}
-
+import { KANTE } from '../engine.ts';
+import { SETTINGS } from '../settings.ts';
 // ---------- Top-right menu ----------
 export const menu = document.getElementById('menu')!;
 const menuBtn = document.getElementById('menuBtn')!;
@@ -32,20 +25,17 @@ export const eventsBtn = document.getElementById('eventsBtn')!;
 
 /** iOS Safari: the compass has to be asked for, from a tap. */
 export type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
-// Scan's screen with these hooks, once stopvision.js and the stop positions are loaded (also used by the AR camera)
+// Scan's screen with these hooks, once stopvision.ts and the stop positions are loaded (also used by the AR camera)
+let scan: StopVisionApi | null = null;
 export function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation: Promise<unknown>, then?: () => void) {
   startPlatforms(); // the stop positions are needed straight away
-  const go = () => platformsReady.then(() => window.STOPVISION!.open(hooks, camera, orientation)).then(() => { if (then) then(); });
-  if (window.STOPVISION) go();
+  const go = () => platformsReady.then(() => scan!.open(hooks, camera, orientation)).then(() => { if (then) then(); });
+  if (scan) go();
   else {
-    const s = document.createElement('script');
-    s.src = 'stopvision.js';
-    s.onload = go;
-    s.onerror = () => {
+    import('../stopvision.ts').then((m) => { scan = m.STOPVISION; }).then(go, () => {
       showToast('Scan could not be loaded.');
       camera.then((st) => st.getTracks().forEach((t) => t.stop()), () => {}); // don't leave the camera on
-    };
-    document.head.appendChild(s);
+    });
   }
 }
 // What Scan (and the AR camera) gets from the page
@@ -125,7 +115,7 @@ export function start() {
     if (journeyChanged && journey.dest) startJourney(journey.dest, true);
     else menuBtn.focus();
   });
-  // ---------- Scan: recognise the stops around you with the camera (stopvision.js, loaded on first use) ----------
+  // ---------- Scan: recognise the stops around you with the camera (stopvision.ts, loaded on first use) ----------
   document.getElementById('scanBtn')!.addEventListener('click', () => {
     setMenu(false);
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {

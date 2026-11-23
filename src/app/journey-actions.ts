@@ -1,7 +1,7 @@
 // ---- What the buttons do ----
 // The whole journey again
 import { map } from './map.ts';
-import { showToast } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { gpsOn, onPosition, onPositionError } from './location.ts';
 import { setFollowing } from './trip-ends.ts';
 import { refreshRouteHighlight } from './journey-map.ts';

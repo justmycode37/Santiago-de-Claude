@@ -1,22 +1,20 @@
-// Tests for station-route.js (window.StationRoute). Run: node tools/test_station_route.mts
+// Tests for src/station-route.ts (StationRoute). Run: node tools/test_station_route.mts
 // Plain assertions, no framework. Uses stations3d/_fixture.js, small made-up graphs built here, and every real
 // model listed in MODELS below that exists in stations3d/ (then also prints sample routes and outliers for a human
 // to judge).
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { StationRoute as SR } from '../src/station-route.ts';
 
 declare global {
-  // The router is a browser script: it puts its API on `window`, which here is the global object itself.
+  // The station models (stations3d/<key>.js) put themselves on `window`, which here is the global object itself.
   var window: typeof globalThis;
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 globalThis.window = globalThis;
-const require = createRequire(import.meta.url);
-const SR = require(path.join(ROOT, 'src', 'station-route.ts')) as StationRouteApi;
 const loadModel = (file: string, key: string) => {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'stations3d', file), 'utf8'), { filename: file });
   return window.STATION3D![key];

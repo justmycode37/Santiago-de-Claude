@@ -30,10 +30,10 @@ interface Station3DUser {
   accuracy?: number;
   /** Compass bearing in degrees. */
   heading?: number | null;
-  /** What the indoor position thinks of every floor, and of `level` (indoornav.js): the station view shows it. */
+  /** What the indoor position thinks of every floor, and of `level` (indoornav.ts): the station view shows it. */
   levelProbs?: Record<string, number>;
   levelProb?: number;
-  /** The floor comes from an indoor position that is sure of it (indoornav.js): it beats the floor of the route snap. */
+  /** The floor comes from an indoor position that is sure of it (indoornav.ts): it beats the floor of the route snap. */
   levelSure?: boolean;
   /** When the GPS fix was taken (ms since 1970): a remembered fix older than a minute is not shown at the next opening. */
   at?: number;
@@ -71,7 +71,6 @@ interface Station3DApi {
   loadData(key: string): Promise<StationModel | null>;
 }
 
-declare var Station3D: Station3DApi;
 
 /** Device Memory API (Chromium): gigabytes of RAM, rounded. */
 interface Navigator { readonly deviceMemory?: number }

@@ -39,4 +39,3 @@ interface WalkPaceApi {
   drawing(): boolean;
 }
 
-declare var WALK_PACE: WalkPaceApi;

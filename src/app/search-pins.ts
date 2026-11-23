@@ -1,6 +1,6 @@
 // ---- The places of a search as pins on the map ("Show on map"): tap one to make it that end of the trip ----
 import { map } from './map.ts';
-import { showToast } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { COLLAPSED_COUNT, KIND, inputs, list } from './search.ts';
 import { combineResults, searchPlaces, searchPlacesOnline } from './search-places.ts';
 import { blurSearch, choose, select } from './trip-ends.ts';
@@ -8,6 +8,7 @@ import { categoryForText, categoryRow, exitCategory, loadCategory, renderCategor
 import { loadPlaces } from './map-places.ts';
 import { mapPadding } from './pill.ts';
 import { journey, searchState } from './state.ts';
+import { PlaceSearch } from '../places.ts';
 const placeMarkers: maplibregl.Marker[] = [];
 export const areaChip = document.getElementById('areaChip')!;
 export let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map
@@ -156,7 +157,7 @@ export function render(emptyText = 'No results') {
     onTap(more, () => { searchState.expanded = true; render(); });
     list.appendChild(more);
   }
-  if (window.PlaceSearch && visible.some((r) => r.source)) { // places from places.js: credit their source
+  if (PlaceSearch && visible.some((r) => r.source)) { // places from places.ts: credit their source
     const attr = document.createElement('li');
     attr.className = 'attr';
     attr.textContent = PlaceSearch.attribution;

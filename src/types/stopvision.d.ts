@@ -226,8 +226,6 @@ interface StopVisionApi {
   bench(img: HTMLImageElement, runs?: number, log?: (text: string, sofar?: Partial<StopVisionBenchResult>) => void): Promise<StopVisionBenchResult>;
   _debug: StopVisionDebug;
 }
-/** Loaded on demand (stopvision.js), the first time Scan is opened. */
-declare var STOPVISION: StopVisionApi | undefined;
 
 // ---- stop-images/ (tools/build_stop_images.py): photo fingerprints and timetable lines of stops ----
 

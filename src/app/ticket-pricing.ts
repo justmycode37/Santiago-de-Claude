@@ -6,6 +6,8 @@ import { isRide, lineLabel, stopName, stopUic } from './journey-steps.ts';
 import { h, kBtn } from './sheet.ts';
 import { swissTicketTime } from './journey-actions.ts';
 import { journey } from './state.ts';
+import { PRICING_HISTORY } from '../pricing-history.ts';
+import { SETTINGS, openFareSuggestions } from '../settings.ts';
 const FARE_API = 'https://transport.opendata.ch/v1/';
 const ticketQuotes = new WeakMap<Journey, Promise<TicketFare | null>>();
 const ticketAmount = (amount: unknown): amount is number => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
@@ -151,7 +153,7 @@ export function ticketPricing(hasTicket: boolean) {
   const status = h('p', 'ticket-fare-status');
   status.setAttribute('role', 'status');
   const suggestions = kBtn('ticket-fare-suggestions', null, () => {
-    window.openFareSuggestions(suggestions);
+    openFareSuggestions(suggestions);
   }, 'Fare suggestions');
   form.append(h('div', 'ticket-fare-fields', fullField, reducedField),
     h('div', 'ticket-fare-actions', submit, suggestions), status);

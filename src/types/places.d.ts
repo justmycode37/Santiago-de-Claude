@@ -75,4 +75,3 @@ interface PlaceSearchApi {
   formatDistance(m: number): string;
 }
 
-declare var PlaceSearch: PlaceSearchApi;

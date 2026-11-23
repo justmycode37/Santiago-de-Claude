@@ -378,8 +378,6 @@ interface KanteApi {
   plan(body: KantePlanRequest): Promise<KantePlanResponse>;
   walk(body: KanteWalkRequest): Promise<KanteWalk>;
 }
-/** Missing where engine.js is not loaded (the tests under Node). */
-declare var KANTE: KanteApi | undefined;
 
 // ---------------------------------------------------------------- KANTE_BOARD (src/engine-departures.ts): departure boards
 
@@ -408,8 +406,6 @@ interface KanteBoardApi {
   /** Which edges of the stop each boarding point is, by its id ([] = none of them, or the engine only knows the stop). */
   edgesOfQuays(st: KanteBoardStop, quays: KanteQuay[]): Map<string, number[]>;
 }
-/** Missing on pages that do not load engine-departures.js (scan-bench.html). */
-declare var KANTE_BOARD: KanteBoardApi | undefined;
 
 // ---------------------------------------------------------------- KanteJourney (src/engine-journey.ts): journeys
 
@@ -458,7 +454,6 @@ interface KanteJourneyApi {
   /** The traveller's settings as routing options. */
   options(): KanteRoutingOptions;
 }
-declare var KanteJourney: KanteJourneyApi;
 
 // ---------------------------------------------------------------- KANTE_LIVE (src/live.ts): live data, pure helpers
 
@@ -530,7 +525,6 @@ interface KanteLiveApi {
   bboxParam(b: KanteBbox): string;
   distKm(a: LngLat, b: LngLat): number;
 }
-declare var KANTE_LIVE: KanteLiveApi;
 
 /** GET /api/due (kante/docs/LIVE-API.md): every trip due at a boarding point, as far as the page uses it. */
 interface KanteDueResponse {

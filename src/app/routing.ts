@@ -18,6 +18,10 @@ import { connEnd, connStart, queueSheet, s3Plan, s3Prefs } from './sheet-content
 import { updateProgress } from './pill.ts';
 import { closeTimeSheet, updateWhenChip } from './time-picker.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
+import { SETTINGS } from '../settings.ts';
+import { stationRouter } from '../station3d.ts';
+import { WALKROUTE } from '../walkroute.ts';
+import { Station3D } from '../station3d.ts';
 const routeCache = new Map<string, Promise<unknown>>();
 function getJSON<T>(url: string) {
   if (!routeCache.has(url)) routeCache.set(url, fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null));
@@ -39,7 +43,7 @@ interface OsrmAnswer { code: string; routes: OsrmRoute[] }
 interface ValhallaAnswer { trip?: { legs?: { shape: string }[]; summary: { length: number } } }
 interface BrouterAnswer { features?: { geometry: { coordinates: number[][] } }[] }
 // → { coords, steps (OSRM turn-by-turn, or null), dist (m, or null), approx (a straight line, not a route),
-//     and from the pedestrian network (walkroute.js): covered (arcades, passages, …), door (the entrance it ends at),
+//     and from the pedestrian network (walkroute.ts): covered (arcades, passages, …), door (the entrance it ends at),
 //     via, cues, and the written directions and floor changes netDirections() makes of them }
 // ends: [from, to], what each end is (WalkEnd): your position, a platform on its floor by its number, an exact point,
 //   or a place (the walk then ends at its door). netOnly: only the pedestrian network (null where it has no tiles).
@@ -51,7 +55,7 @@ async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd], netOnl
   const side = (e: WalkEnd, gps?: boolean) => ({ level: e.level, platform: !!e.platform, ref: e.ref || null, exact: !!e.exact,
     accuracy: gps && e.gps && userLngLat ? userAccuracy : null });
   // 1. the pedestrian network (walkgraph/): doors, sidewalks, arcades, passages, floors, squares crossed straight
-  const net = window.WALKROUTE;
+  const net = WALKROUTE;
   if (net) {
     const { stepFree, fewerStairs, noEscalators } = SETTINGS.journey();
     const r = await Promise.race([net.route(a, b, { stepFree, fewerStairs, noEscalators, from: side(from, true), to: side(to) })
@@ -165,11 +169,11 @@ async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
   let model = null, route = null;
   try {
     model = await Station3D.loadData(plan.key);
-    route = model && StationRoute!.route(model, plan.from, plan.to, s3Prefs(st));
+    route = model && stationRouter()!.route(model, plan.from, plan.to, s3Prefs(st));
   } catch (e) { route = null; }
   // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path
   if (!route || route.points.length < 2 || route.same) return st.kanteWalk ? null : street();
-  const inside = route.points.map((p) => StationRoute!.toLngLat(model!, p));
+  const inside = route.points.map((p) => stationRouter()!.toLngLat(model!, p));
   const parts: LngLat[][] = [], walks: RoutedWalk[] = [];
   const join = async (p: LngLat, q: LngLat, end: [WalkEnd, WalkEnd]) => { // the stretch between the walk's end and where the model's paths begin
     if (distKm(p, q) < 0.03) return;
@@ -373,7 +377,7 @@ export function retimeWalkConn(conn: Journey | null | undefined, metres: number 
 // The "On foot" option before it is opened: its walk on the network, so its tab and card already show those times
 // (kept while these options are on offer, also when another of them has been opened meanwhile)
 export function netWalkOption(conn: Journey, from: LngLat, dest: JourneyDest) {
-  if (!conn || !window.WALKROUTE) return;
+  if (!conn || !WALKROUTE) return;
   routeWalk(from, dest.lngLat, [searchState.tripStart ? {} : { gps: true }, {}], true).then((r) => {
     if (journey.options && journey.options.walk === conn && r && r.net) retimeWalkConn(conn, r.dist);
   });

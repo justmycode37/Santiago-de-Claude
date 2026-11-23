@@ -1,4 +1,4 @@
-// The indoor position in the 3D station view (indoornav.js, loaded at the first opening by the stand-in in index.html;
+// The indoor position in the 3D station view (indoornav.ts, loaded at the first opening by the stand-in in index.html;
 // details in docs/indoor-positioning.md): what the page calls. Below it, what indoorloc.ts (`INDOORLOC`: the filter,
 // the phone's sensors, recordings) and signloc.ts (`SIGNLOC`: signs as evidence) give; tools/sim_indoorloc.cts
 // loads those two in Node.
@@ -28,7 +28,7 @@ interface IndoorNavApi {
   /** The traveller says where they are. */
   here(o: { level: number; xy?: XY }): void;
   state(): IndoorNavState;
-  /** The viewer opened before indoornav.js had loaded: join the opening that is showing (the stand-in in index.html calls this). */
+  /** The viewer opened before indoornav.ts had loaded: join the opening that is showing (the stand-in in index.html calls this). */
   attach(opened: Station3DEventMap['open']): void;
   /** A raw sensor log for tuning, from now on (from the console). */
   record(): IndoorRecorder;
@@ -39,12 +39,8 @@ interface IndoorNavApi {
   _filter(): IndoorFilter | null;
 }
 
-declare var INDOORNAV: IndoorNavApi | undefined;
-/** indoorloc.js and signloc.js, once loaded (the stand-in in index.html loads them with the viewer). */
-declare var INDOORLOC: IndoorLocApi | undefined;
-declare var SIGNLOC: SignLocApi | undefined;
 
-/** `window.dispatchEvent(new CustomEvent('scan:text', { detail }))`: text Scan read (indoornav.js listens). */
+/** `window.dispatchEvent(new CustomEvent('scan:text', { detail }))`: text Scan read (indoornav.ts listens). */
 interface ScanTextDetail { text: string; tap?: boolean; at?: number }
 /** `window.dispatchEvent(new CustomEvent('indoorloc:pressure', { detail }))`: a barometer reading (`INDOORLOC.pushPressure`). */
 interface IndoorPressureDetail { hPa: number; t?: number }
@@ -359,7 +355,7 @@ interface IndoorLocApi {
   /** A recording through a new filter. */
   replay(log: IndoorLog, model: IndoorModel, opts?: IndoorReplayOptions): IndoorReplayResult;
   /** A station's model: through Station3D.loadData when the viewer is on the page, else from `base` + key + '.js'. */
-  load(key: string, base?: string): Promise<IndoorModel | null>;
+  load(key: string, base?: string, loadData?: (key: string) => Promise<StationModel | null>): Promise<IndoorModel | null>;
   /** Closed when from <= today < until (today: "YYYY-MM-DD"). */
   isClosed(c: StationClosure | null | undefined, today?: string | null): boolean;
   /** Compass heading (deg, clockwise from north) from deviceorientation angles; null when it is not defined. */

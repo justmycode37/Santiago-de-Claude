@@ -1,6 +1,7 @@
 // ---- Map symbols drawn on a canvas when MapLibre first needs them (ids: "sg|l|7|Platform|dark", "arr|k|light", …) ----
 import { map } from './map.ts';
 import { WALK } from './journey-map.ts';
+import { MAP_LAYERS } from '../map-layers.ts';
 const SPRITE_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 export const INK = '#14161A';
 function spriteCanvas(w: number, h: number, ratio: number): [HTMLCanvasElement, CanvasRenderingContext2D] {

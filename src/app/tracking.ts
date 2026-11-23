@@ -2,7 +2,7 @@
 // Swiss operators publish no open live vehicle positions, so a vehicle is placed from its live (real-time)
 // stop times; you are followed by GPS, snapped onto the trip's line. Without GPS, the live times place you.
 import { map } from './map.ts';
-import { showToast } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { fixAge, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';
 import { destMarker } from './search.ts';
 import { hasForecast, icon, lineLabel, lineVars, liveMs, modeOf, splitLine, stopName } from './journey-steps.ts';
@@ -11,6 +11,7 @@ import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
 import { distKm, lengthKm } from './routing.ts';
 import { journey, searchState, tracking } from './state.ts';
+import { KANTE_LIVE } from '../live.ts';
 
 // A step's line in travel order (a change without a walk is just the platform)
 function stepLine(st: JourneyStep): LngLat[] {

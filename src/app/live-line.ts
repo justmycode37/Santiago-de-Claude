@@ -9,6 +9,8 @@ import { h, kBadge, kDelay, quayOf } from './sheet.ts';
 import { renderHead } from './sheet-content.ts';
 import { startJourney, updateProgress } from './pill.ts';
 import { journey, tracking } from './state.ts';
+import { KANTE_LIVE } from '../live.ts';
+import { SETTINGS } from '../settings.ts';
 function boardName(r: JourneyRideStep) {
   const raw = platformOf(r.s.from), edge = r.depAt && r.depAt.edge;
   const num = splitPlatform(raw === '–' ? '' : raw).num || (edge && edge.ref) || '';

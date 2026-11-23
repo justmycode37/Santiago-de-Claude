@@ -19,6 +19,7 @@ import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
 import { updateWhenChip } from './time-picker.ts';
 import { netWalkOption, refineJourney } from './routing.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
+import { KanteJourney } from '../engine-journey.ts';
 const jBar = document.getElementById('jBar')!;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) => { const e = document.createElementNS(SVG_NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k] as string); return e; };

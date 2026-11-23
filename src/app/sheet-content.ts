@@ -1,5 +1,5 @@
-// ---- 3D station view (station-view.js through Station3D): for walks and changes in a station that has a 3D model (stations3d/) ----
-import { showToast } from './menu.ts';
+// ---- 3D station view (station-view.ts through Station3D): for walks and changes in a station that has a 3D model (stations3d/) ----
+import { showToast } from '../toast.ts';
 import { userLngLat } from './location.ts';
 import { jBody, jFoot, jHead, refreshRouteHighlight } from './journey-map.ts';
 import { dayLabel, fmtTime, hasForecast, isRide, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, stopName, stopUic } from './journey-steps.ts';
@@ -17,8 +17,11 @@ import { dateValue } from './time-picker.ts';
 import { distKm, endJourney, refineJourney } from './routing.ts';
 import type { StopTime } from './journey-steps.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
+import { SETTINGS } from '../settings.ts';
+import { KanteJourney } from '../engine-journey.ts';
+import { Station3D } from '../station3d.ts';
 const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
-const s3Key = (stop: KanteStopCall | null | undefined) => (window.Station3D && stop && Station3D.has(stopUic(stop))) || null;
+const s3Key = (stop: KanteStopCall | null | undefined) => (Station3D && stop && Station3D.has(stopUic(stop))) || null;
 // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
 /** What s3End() fills in: the platform, its position, or both. */
 interface S3EndParts { stop?: StationRouteStopRef; ll?: LngLat; level?: number | null }
@@ -609,7 +612,7 @@ export function queueSheet(times?: boolean) {
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
   // "Done" at the end of the 3D walk: back to the journey, on the step that follows
-  if (window.Station3D) Station3D.on('done', () => {
+  if (Station3D) Station3D.on('done', () => {
     const i = journey.steps.indexOf(sheet.s3Step!);
     Station3D.close();
     if (i >= 0 && i < journey.steps.length - 1) goToStep(i + 1);

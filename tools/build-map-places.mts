@@ -5,18 +5,15 @@
 // Toilets come from data/ch/toilets-ch.json (tools/build-toilets-ch.mts: OpenStreetMap merged with station
 // toilets, the cities' own lists and the Nette Toilette restaurants), not from the raw OpenStreetMap ones in
 // amenities.json. data/toilets.json (Bern) adds the notes the Swiss file leaves out.
-// Each data category is sorted into a map group with map-layers.js's classify(). OpenStreetMap items found in
+// Each data category is sorted into a map group with map-layers.ts's classify(). OpenStreetMap items found in
 // both OSM files are kept once, and an official item is dropped when OSM has the same kind of thing within 25 m
 // (its missing details are filled in from the official one).
 import { readFileSync, writeFileSync } from 'node:fs';
-import vm from 'node:vm';
-import { transformSync } from 'amaro'; // npm install
+import { MAP_LAYERS } from '../src/map-layers.ts';
 
 // ---- The types: what this script reads from data/ (the fields it uses), and the one shape it brings every source into ----
 // What it writes is the page's MapPlaces (src/types/data.d.ts); classify(), GROUPS and GLYPHS are the app's (src/types/map-layers.d.ts).
 
-/** What src/map-layers.ts leaves behind in the sandbox it is run in. */
-type Sandbox = { window: { MAP_LAYERS: MapLayersApi } };
 /** A data file: when it was fetched, and its records. */
 interface DataFile<T> { generated: string; items: T[] }
 /** A record of data/amenities.json or data/places.json (docs/places-data.md): an OpenStreetMap object, its tags as OpenStreetMap writes them. */
@@ -121,13 +118,8 @@ interface Place {
 interface Mergeable { name: string | null; x: Record<string, unknown> }
 interface LonLat { lon: number; lat: number }
 
-// A script of the app (src/<name>.ts) as the JavaScript the browser gets: its types taken out
-const appScript = (name: string) => transformSync(readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8'), { mode: 'strip-only' }).code;
-
 const read = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url)) as unknown as string);
-const sandbox = { window: {} } as Sandbox;
-vm.runInNewContext(appScript('map-layers'), sandbox);
-const { classify, GROUPS, GLYPHS } = sandbox.window.MAP_LAYERS;
+const { classify, GROUPS, GLYPHS } = MAP_LAYERS;
 
 const amenities = read('data/amenities.json') as DataFile<OsmItem>;
 const places = read('data/places.json') as DataFile<OsmItem>;

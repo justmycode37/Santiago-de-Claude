@@ -1,4 +1,4 @@
-// The pedestrian network router (walkroute.js, data in walkgraph/; docs/walking-routes.md) and what the journey
+// The pedestrian network router (walkroute.ts, data in walkgraph/; docs/walking-routes.md) and what the journey
 // keeps of it: what each end of a walk is, and the walk it routes.
 
 /** What an end of a walk is, for the walking router. */
@@ -167,7 +167,6 @@ interface WalkRouteApi {
   /** For the tests (tools/test_walkroute.mts). */
   _debug: WalkRouteDebug;
 }
-declare var WALKROUTE: WalkRouteApi | undefined;
 interface Window { WALKROUTE?: WalkRouteApi }
 
 /** A routed walk (routeWalk()) may come from the pedestrian network: then it has these too. */

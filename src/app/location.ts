@@ -1,9 +1,12 @@
 // ---------- Current location ----------
 import { CH_BOUNDS, map } from './map.ts';
-import { showToast } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { destMarker, inputs, startMarker } from './search.ts';
 import { scheduleProgress } from './live-line.ts';
 import { journey } from './state.ts';
+import { indoor } from '../station3d.ts';
+import { WALK_PACE } from '../walk-pace.ts';
+import { Station3D } from '../station3d.ts';
 const accEl = document.createElement('div');
 accEl.className = 'user-accuracy';
 const accMarker = new maplibregl.Marker({ element: accEl });
@@ -59,8 +62,8 @@ export function onPosition(pos: PositionFix) {
   userMarker.setLngLat(lngLat);
   if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
   updateAccuracy();
-  // through the indoor filter (indoornav.js) while a station is open in 3D: it adds the floor and the phone's steps
-  if (window.Station3D) (window.INDOORNAV || Station3D).setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined, at: takenAt });
+  // through the indoor filter (indoornav.ts) while a station is open in 3D: it adds the floor and the phone's steps
+  if (Station3D) (indoor.nav || Station3D).setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined, at: takenAt });
   inputs.from.placeholder = 'Your location';
   if (!centeredOnUser && !destMarker._map && !startMarker._map) {
     centeredOnUser = true;

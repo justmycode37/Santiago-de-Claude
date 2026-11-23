@@ -20,5 +20,3 @@ declare var EARLY_STYLE: Promise<maplibregl.StyleSpecification> | undefined;
 /** version.js, written when the site is published: the commit it was built from. Not there in local builds. */
 declare var BUILD: { commit: string; committed: string; repo: string } | undefined;
 
-/** CommonJS `module`, when a script is loaded by Node for a test (never in the browser). */
-declare var module: { exports: unknown } | undefined;

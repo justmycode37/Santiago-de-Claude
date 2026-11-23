@@ -7,6 +7,8 @@ import { journeyProgress, stopKms } from './tracking.ts';
 import { levelShort, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
 import { distKm, lengthKm } from './routing.ts';
 import { searchState } from './state.ts';
+import { KANTE } from '../engine.ts';
+import { KanteJourney } from '../engine-journey.ts';
 const PALETTE = [
   ['navy', '#344D77', '#FFFFFF', '#141D2D', '#9DB4DD'],
   ['rose', '#C55A82', '#FFFFFF', '#2C1520', '#E28CAD'],
@@ -126,7 +128,7 @@ function placeRide(s: JourneyRide) {
 const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa && pa.edge
   ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true });
 // After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
-// engine-journey.js leaves it)
+// engine-journey.ts leaves it)
 export function syncEnds(steps: JourneyStep[]) {
   steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;

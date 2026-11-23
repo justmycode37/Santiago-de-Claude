@@ -1,9 +1,9 @@
 // ---- AR camera: on the next step of a journey, a live camera view that finds the stop and its boarding edge, the
 //      vehicles, and the direction to go. No shutter: it runs by itself, frame after frame, until it is closed.
-//      - The stop and edge: Scan's live pipeline (stopvision.js: sign OCR + GPS + compass), with the journey's next ride
+//      - The stop and edge: Scan's live pipeline (stopvision.ts: sign OCR + GPS + compass), with the journey's next ride
 //        as its route, so it outlines the sign it read and says where your ride leaves from.
 //      - Vehicles: buses, trams and trains outlined by an in-browser detector (COCO-SSD, TensorFlow.js). The words Scan
-//        reads on the biggest one (scan:words) go through arcore.js (RightSide's display matcher) against your ride and
+//        reads on the biggest one (scan:words) go through arcore.ts (RightSide's display matcher) against your ride and
 //        everything due at the stop (Kante /api/due): "Your tram 10 → …" or "Not yours: …". Until a display is read,
 //        the label says only what the engine has due now, and asks you to check the display.
 //      - The way: an arrow toward your boarding edge, from GPS + compass, only while both are fresh and good enough.
@@ -15,6 +15,7 @@ import { lineLabel, modeOf, stopName, stopUic } from './journey-steps.ts';
 import { h, kBtn, kIcon, quayOf } from './sheet.ts';
 import { distKm } from './routing.ts';
 import type { DeviceOrientationAsk } from './menu.ts';
+import { ARCORE } from '../arcore.ts';
 
 const AR_ON = (() => { // on unless switched off with ?ar=0 (remembered; ?ar=1 switches it on again)
   try {
@@ -136,14 +137,14 @@ function arLayer(mine: number, target: ArTarget) {
   loadDue();
   const dueTimer = setInterval(loadDue, 15000);
   // what the display of the vehicle in view says: the words Scan reads (scan:words) that lie on the biggest detected
-  // vehicle, through arcore.js (RightSide's matcher) against the ride you want and everything due here (/api/due)
+  // vehicle, through arcore.ts (RightSide's matcher) against the ride you want and everything due here (/api/due)
   let vehicle: { box: ArBox; score: number; others: ArBox[]; at: number } | null = null;
   let readings: ArReading[] = [];
   let display: { ours: boolean; text: string; at: number } | null = null;
   let frameNo = 0;
   const onWords = (ev: Event) => {
     const d = (ev as CustomEvent<ScanWordsDetail>).detail;
-    const A = window.ARCORE;
+    const A = ARCORE;
     if (!A || !d || !d.width || !vehicle || Date.now() - vehicle.at > 1500) return;
     const texts: ArText[] = d.words.filter((w) => w.text && w.text.trim()).map((w) => ({ text: w.text,
       box: [w.box.x0 / d.width, w.box.y0 / d.height, (w.box.x1 - w.box.x0) / d.width, (w.box.y1 - w.box.y0) / d.height] as ArBox,
@@ -160,9 +161,9 @@ function arLayer(mine: number, target: ArTarget) {
   window.addEventListener('scan:words', onWords);
   const mineDue = () => {
     const list = (due && due.due) || [];
-    const key = window.ARCORE ? window.ARCORE.lineKey(target.line) : target.line;
-    return list.find((d) => d.line && (window.ARCORE ? window.ARCORE.lineKey(d.line.name) : d.line.name) === key
-      && (!target.to || !window.ARCORE || window.ARCORE.destinationSimilarity(d.headsign || '', target.to) >= 0.6)) || null;
+    const key = ARCORE ? ARCORE.lineKey(target.line) : target.line;
+    return list.find((d) => d.line && (ARCORE ? ARCORE.lineKey(d.line.name) : d.line.name) === key
+      && (!target.to || !ARCORE || ARCORE.destinationSimilarity(d.headsign || '', target.to) >= 0.6)) || null;
   };
 
   // picture pixels → screen (the video fills the screen with object-fit: cover)

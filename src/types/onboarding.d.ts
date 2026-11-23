@@ -6,5 +6,3 @@ interface OnboardingApi {
   isOpen(): boolean;
 }
 
-/** Missing when onboarding.js could not be loaded: the app then starts without the introduction. */
-declare var ONBOARDING: OnboardingApi | undefined;

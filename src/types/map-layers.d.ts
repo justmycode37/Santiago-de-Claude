@@ -41,4 +41,3 @@ interface MapLayersApi {
   classify(category: string, placeGroup?: string): PlaceClass;
 }
 
-declare var MAP_LAYERS: MapLayersApi;

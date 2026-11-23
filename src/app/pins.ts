@@ -3,7 +3,8 @@
 // map · long-press (or right-click) the map and pick "From here" / "To here". A pin already on the map can be
 // dragged to move it.
 import { map } from './map.ts';
-import { setMenu, showToast } from './menu.ts';
+import { setMenu } from './menu.ts';
+import { showToast } from '../toast.ts';
 import { inSwitzerland } from './location.ts';
 import { FIELDS, PIN_ART, destMarker, form, inputs, startMarker, toks } from './search.ts';
 import { pins } from './search-pins.ts';
@@ -13,6 +14,7 @@ import { journeyEl } from './journey-map.ts';
 import { setDetent, sheetDetent } from './sheet.ts';
 import { renderSheet } from './sheet-content.ts';
 import { journey, searchState } from './state.ts';
+import { PlaceSearch } from '../places.ts';
 const PIN_WORD = { from: 'start', to: 'destination' };
 const pinHint = document.getElementById('pinHint')!;
 let armedPin: TripField | null = null; // the pin that the next tap on the map places
@@ -41,7 +43,7 @@ function dropPin(f: TripField, lngLat: LngLat) {
 }
 // "Dropped pin" → "Kramgasse 12", once the address at that point is known
 async function namePin(r: SearchResult) {
-  if (!window.PlaceSearch || !PlaceSearch.reverse) return;
+  if (!PlaceSearch || !PlaceSearch.reverse) return;
   const hit = await PlaceSearch.reverse(r.lngLat).catch(() => null);
   const f = searchState.tripStart === r ? 'from' : journey.dest === r ? 'to' : null; // it may have been swapped, or replaced, meanwhile
   if (!hit || !f) return;

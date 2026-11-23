@@ -69,7 +69,6 @@ interface PricingHistoryApi {
   hasDummy(): boolean;
 }
 
-declare var PRICING_HISTORY: PricingHistoryApi;
 
 interface Window {
   openFareSuggestions(trigger: HTMLElement): Promise<void>;

@@ -8,6 +8,8 @@ import { GROUP_BY_KEY, PLACES, loadPlaces } from './map-places.ts';
 import { fmtDist } from './live-vehicles.ts';
 import { distKm } from './routing.ts';
 import { searchState } from './state.ts';
+import { PlaceSearch } from '../places.ts';
+import { MAP_LAYERS } from '../map-layers.ts';
 export const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
 const stem = (w: string) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
   : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
@@ -130,11 +132,11 @@ async function searchSwisstopo(text: string): Promise<SearchResult[]> {
   });
 }
 
-// Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.js: OpenStreetMap, or Google
+// Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.ts: OpenStreetMap, or Google
 // with a key): around the part of the map in view, with distances from you (or from the middle of the map once it
 // shows somewhere else). bbox [west, south, east, north]: only places inside it ("Search this area")
 export function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<PlaceSearchAnswer | null> {
-  if (!window.PlaceSearch) return Promise.resolve(null);
+  if (!PlaceSearch) return Promise.resolve(null);
   const center = map.getCenter().toArray();
   const corner = map.getBounds().getNorthEast().toArray();
   const viewKm = Math.hypot((corner[0] - center[0]) * 76, (corner[1] - center[1]) * 111); // km at Swiss latitudes
@@ -145,7 +147,7 @@ export function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<Plac
 
 const nearM = (a: LngLatFirst, b: LngLatFirst, m: number) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
 
-// One list from the three sources: our own places (map-places.js), places online (places.js), swisstopo
+// One list from the three sources: our own places (map-places.js), places online (places.ts), swisstopo
 export function combineResults(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches): SearchResult[] {
   const { kinds, names } = local;
   const bern = [...kinds, ...names];
