@@ -1,11 +1,12 @@
 // Tests for the engine's guessed walk ends (approxStart / approxEnd on a walking leg, kante/engine json.rs): the same
-// legs without them and with them, through the page's own code (KanteJourney.setWalk() in src/engine-journey.ts,
-// stepFeatures() in src/app/journey-steps.ts, snapToTrip() and trackJourney() in src/app/tracking.ts, refineWalks()
-// and engineGuess() in src/app/routing.ts). Without them everything must come out as main made it before these fields
-// (test_walkguess_main.json: this test run with GOLDEN=1 on main at cae95971, with only snapToTrip() exported); with
-// them the guessed stretches are drawn dashed, said as a guess, left out of how far GPS moves you along the walk, and
-// not taken as routed. The modules are imported as they are, with the parts of the page they import stubbed.
-// Offline; exit code 1 on any failure.
+// legs without them and with them, through the page's own code (KanteJourney.setWalk() and routed() in
+// src/engine-journey.ts, stepFeatures() in src/app/journey-steps.ts, snapToTrip(), trackJourney() and placeUserDot()
+// in src/app/tracking.ts, refineWalks() in src/app/routing.ts, which asks the engine's /api/walk again). Without them
+// everything must come out as the page made it before it said and tracked guesses (test_walkguess_plain.json: this
+// test run with GOLDEN=1 at ade69857, the engine as the one walking router before #73 was merged in, with only
+// snapToTrip() exported); with them the guessed stretches are drawn dashed, said as a guess, left out of how far GPS
+// moves you along the walk, and the blue dot is not put on them. The modules are imported as they are, with the
+// parts of the page they import stubbed. Offline; exit code 1 on any failure.
 //
 //   node --experimental-test-module-mocks tools/test_walkguess.mts          (GOLDEN=1: print the outputs to record)
 import fs from 'node:fs';
@@ -16,6 +17,7 @@ let passed = 0, failed = 0;
 const check = (ok: boolean, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };
 const settle = () => new Promise((r) => setTimeout(r, 0));
 const same = (a: unknown, b: unknown) => isDeepStrictEqual(a, b);
+const distKmFlat = (a: LngLat, b: LngLat) => Math.hypot((a[0] - b[0]) * 111.195 * Math.cos(a[1] * Math.PI / 180), (a[1] - b[1]) * 111.195);
 
 // ---- places: GPS puts you at P (a mocked module's values are fixed, so the walks below are laid out around it) ----
 const P: LngLat = [7.4405, 46.9485];
@@ -32,11 +34,12 @@ const nothing = () => {};
 const marker = { remove: nothing, setLngLat: nothing };
 /** The destination pin: on the map (`_map`) where a test puts it (`at`). */
 const dest = { _map: null as object | null, at: P, getLngLat: () => ({ toArray: () => dest.at }), remove: nothing };
-/** What the stubs count and answer: the walks asked of the pedestrian network and its answer, the station model. */
-const page = { netAsked: 0, netAnswer: null as object | null, plan: null as { key: string } | null };
+/** What the stubs count and answer: the walks asked of the engine's /api/walk and its answer, the station model, where
+ *  the blue dot was put. */
+const page = { asked: 0, answer: null as KanteWalk | null, plan: null as { key: string } | null, dot: null as LngLat | null };
 fake('map.ts', { map: { flyTo: nothing } });
 fake('map-events.ts', { updateCards: nothing });
-fake('location.ts', { fixAge: () => 0, gpsOn: () => true, userAccuracy: 10, userLngLat: P, userMarker: marker });
+fake('location.ts', { fixAge: () => 0, gpsOn: () => true, userAccuracy: 10, userLngLat: P, userMarker: { setLngLat: (ll: LngLat) => { page.dot = ll; } } });
 fake('search.ts', { destMarker: dest, startMarker: marker });
 fake('search-pins.ts', { clearPlacePins: nothing, render: nothing });
 fake('trip-ends.ts', { blurSearch: nothing, setField: nothing, setFollowing: nothing, setPlanOpen: nothing });
@@ -50,15 +53,17 @@ fake('sheet.ts', { MODE_NAME: {} });
 fake('live-vehicles.ts', { fmtDist: (m: number) => `${Math.round(m)} m`, levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
   splitPlatform: () => ({}), vehUpdate: nothing });
 fake('sheet-content.ts', { connStart: (c: { t0: number }) => c.t0, connEnd: (c: { t1: number }) => c.t1, queueSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
-fake('pill.ts', { goToStep: nothing, updateProgress: nothing });
+fake('pill.ts', { goToStep: nothing, updateProgress: nothing, updatePillTimes: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
 fake('../toast.ts', { showToast: nothing });
 fake('../live.ts', { KANTE_LIVE: {} });
-fake('../settings.ts', { SETTINGS: { prefs: () => ({}), transportations: () => [], walkCosting: () => null, journey: () => ({}) } });
-fake('../engine.ts', { KANTE: { available: () => false, uicOf: () => null } });
-// a station model without a way through (its router finds none); the pedestrian network answers page.netAnswer, or never
+const prefs = { walkKmh: 4.68, stepFree: false, fewerStairs: false, noEscalators: false, wheelchair: false, extraChangeMin: 0, maxWalkMin: 20 };
+fake('../settings.ts', { SETTINGS: { prefs: () => prefs, transportations: () => [], journey: () => ({}) } });
+// the engine's /api/walk answers page.answer, or never
+fake('../engine.ts', { KANTE: { available: () => true, uicOf: () => null, failure: () => 'down',
+  walk: () => { page.asked++; return page.answer ? Promise.resolve(page.answer) : new Promise(nothing); } } });
+// a station model without a way through (its router finds none)
 fake('../station3d.ts', { Station3D: { loadData: () => Promise.resolve({}), preload: nothing }, stationRouter: () => ({ route: () => null, toLngLat: nothing }) });
-fake('../walkroute.ts', { WALKROUTE: { route: () => { page.netAsked++; return page.netAnswer ? Promise.resolve(page.netAnswer) : new Promise(nothing); } } });
 const element = () => ({ className: '', title: '', setAttribute: nothing, addEventListener: nothing, appendChild: nothing });
 Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { createElement: element },
   maplibregl: { Marker: class { setLngLat() { return this; } } } });
@@ -82,10 +87,11 @@ interface Feature { geometry: { type: string; coordinates: LngLat[] | LngLat }; 
 interface Track { i: number; kmIn: number; km: number; d: number; off: boolean; arrived?: boolean }
 interface Conn { t0: number; t1: number; parts: { type: string; durationS: number; dep: number; arr: number }[]; walkM: number }
 const load = (file: string) => import(new URL(file, APP).href);
-const J: { setWalk(st: Step, leg: KanteWalk): void } = (await load('../engine-journey.ts')).KanteJourney;
+type Walk = NonNullable<Step['walks']>[number];
+const J: { setWalk(st: Step, leg: KanteWalk): void; routed(leg: KanteWalk): Walk | null } = (await load('../engine-journey.ts')).KanteJourney;
 const steps: { stepFeatures(steps: Step[]): Feature[] } = await load('journey-steps.ts');
 const tracking: { snapToTrip(p: LngLat, ref: number, now: number): Track | null; trackJourney(): void } = await load('tracking.ts');
-const routing: { refineWalks(id: number): void; engineGuess?(st: Step): object | null } = await load('routing.ts');
+const routing: { refineWalks(id: number): void } = await load('routing.ts');
 const S: {
   journey: { steps: Step[]; req: number; conn: Conn | null; options: null; query: object };
   tracking: { geoVersion: number; track: Track | null; autoStep: number; userPickedAt: number };
@@ -117,10 +123,11 @@ function walkOf(l: KanteWalk, t0?: number, secs = 300): Step {
   Object.assign(S.tracking, { track: null, autoStep: -1, userPickedAt: 0 });
   S.tracking.geoVersion++;
   S.searchState.tripStart = null;
-  Object.assign(page, { netAsked: 0, netAnswer: null, plan: null });
+  Object.assign(page, { asked: 0, answer: null, plan: null, dot: null });
   dest._map = null;
   return st;
 }
+const texts = (w: { dirs?: Dir[] } | null) => ((w && w.dirs) || []).map((d) => d.text);
 const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
 const snap = (p: LngLat, ref = 0) => { const s = tracking.snapToTrip(p, ref, Date.now())!; return { i: s.i, kmIn: r6(s.kmIn), d: r6(s.d) }; };
 const tracked = () => { const t = S.tracking.track; return t && { i: t.i, kmIn: r6(t.kmIn), d: r6(t.d), off: t.off, arrived: !!t.arrived }; };
@@ -137,15 +144,18 @@ const scenarios = {
     page.plan = { key: 'bern' };
     routing.refineWalks(1);
     await settle(); await settle();
-    return { ...walkOut(st), features, snaps, netAsked: page.netAsked };
+    return { ...walkOut(st), features, snaps, asked: page.asked };
   },
-  /** Walking all the way; the pedestrian network answers with its own guess: both ends onto one point of it. */
-  async netGuess(x?: Partial<KanteWalk>, answer?: object) {
-    const st = walkOf(legG(x), NOW, 300);
-    page.netAnswer = answer || { net: true, approx: true, coords: [G[0], G[2], G[5]], approxTo: null, approxFrom: null, dist: 165, cues: [], swisstopo: 0, covered: [], door: null, via: '' };
+  /** Walking all the way, in 10 minutes; the walk routed again (as after a live platform change): the engine answers
+   *  it anew, in 240 s; a fix beside the guessed start. */
+  async rerouted(x?: Partial<KanteWalk>) {
+    const st = walkOf(legG(), NOW + 600000, 300);
+    routing.refineWalks(1); // as planned: kept
+    await settle();
+    page.answer = legG({ durationS: 240, ...x });
     routing.refineWalks(1);
     await settle(); await settle();
-    return { ...walkOut(st), walkS: st.walkS, min: st.min, t1: st.t1! - NOW, connT1: S.journey.conn!.t1 - NOW, netAsked: page.netAsked };
+    return { ...walkOut(st), walkS: st.walkS, min: st.min, features: steps.stepFeatures([st]), snap: snap([7.4392, 46.94804]), asked: page.asked };
   },
   /** 200 m out of a building eastwards, then 200 m north on paths; halfway by the timetable; two fixes 110 m along
    *  the first stretch. */
@@ -155,7 +165,7 @@ const scenarios = {
     tracking.trackJourney();
     const first = tracked();
     tracking.trackJourney();
-    return { first, second: tracked() };
+    return { first, second: tracked(), dot: page.dot };
   },
   /** 110 m to a mapped door, the last 40 m to it straight; the destination pin 76 m inside; a fix at the door, and
    *  one 30 m before it. */
@@ -185,9 +195,19 @@ const scenarios = {
     walkOf(leg(g, x));
     return { aside: snap(off(P, 110, 60)), atEnd: snap(off(P, 100, 10)) };
   },
+  /** A walk in two parts (as on either side of a station model), 100 m east, then 200 m on; the second one's fields
+   *  `x`; a fix 50 m into the second part. */
+  parts(x?: Partial<KanteWalk>) {
+    const a = off(P, -150, 0), b = off(P, -50, 0), c = [b, off(P, 50, 0), off(P, 150, 0)];
+    const st = walkOf(leg([a, b]));
+    const w = [J.routed(leg([a, b]))!, J.routed(leg(c, x))!];
+    Object.assign(st, { lines: w.map((r) => r.coords), walks: w });
+    S.tracking.geoVersion++;
+    return { features: steps.stepFeatures([st]), texts: w.map(texts), snap: snap(P) };
+  },
 };
 type Name = keyof typeof scenarios;
-const NO: Record<Name, Partial<KanteWalk>> = { basic: {}, netGuess: {}, offRoute: {}, door: {}, meet: {}, repeated: {}, two: {} };
+const NO: Record<Name, Partial<KanteWalk>> = { basic: {}, rerouted: {}, offRoute: {}, door: {}, meet: {}, repeated: {}, two: {}, parts: {} };
 async function all(fields: Record<Name, Partial<KanteWalk>>) {
   const out: Record<string, unknown> = {};
   for (const k of Object.keys(scenarios) as Name[]) out[k] = await scenarios[k](fields[k]);
@@ -197,23 +217,18 @@ if (process.env.GOLDEN) {
   console.log(`{\n${Object.entries(await all(NO)).map(([k, v]) => ` ${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(',\n')}\n}`);
   process.exit(0);
 }
-const MAIN = JSON.parse(fs.readFileSync(new URL('test_walkguess_main.json', import.meta.url), 'utf8'));
+const BEFORE = JSON.parse(fs.readFileSync(new URL('test_walkguess_plain.json', import.meta.url), 'utf8'));
 // the walk's lines as drawn: dashed (properties.approx: the map's route-walk-approx layer) or solid, and how many points each
 const walkLines = (list: Feature[]) => list.filter((f) => f.properties.kind === 'walk').map((f) => [f.properties.approx ? 'dashed' : 'solid', f.geometry.coordinates.length]);
-const texts = (w: { dirs?: Dir[] } | null) => ((w && w.dirs) || []).map((d) => d.text);
 const GUESS = /^(Walk|Then) about \d+ m where no way is mapped$/;
 
-console.log('1. without approxStart / approxEnd (today\'s engine): exactly as main made it');
+console.log("1. without approxStart / approxEnd (today's engine): exactly as before");
 const plain = await all(NO);
-for (const k of Object.keys(scenarios) as Name[]) check(same(plain[k], MAIN[k]), `${k}: as on main`);
-check(same(walkLines(plain.basic.features), [['solid', 6]]) && plain.basic.kanteWalk && plain.basic.netAsked === 0, 'basic: drawn solid, taken as routed, kept in a station without a way through');
+for (const k of Object.keys(scenarios) as Name[]) check(same(plain[k], BEFORE[k]), `${k}: as before`);
+check(same(walkLines(plain.basic.features), [['solid', 6]]) && plain.basic.kanteWalk && plain.basic.asked === 0, "basic: drawn solid, the engine's path kept in a station without a way through");
 check(!plain.offRoute.second.off && plain.offRoute.second.d === 0 && plain.door.atDoor.arrived, 'on the line and at the door: on the route, arrived');
-{
-  const st = walkOf(legG());
-  check(routing.engineGuess!(st) === null, 'engineGuess(): none');
-}
 
-console.log('2. with them: dashed, said as a guess, not tracked along, not taken as routed');
+console.log('2. with them: dashed, said as a guess, not tracked along');
 {
   const o = await scenarios.basic({ approxStart: 1, approxEnd: 4 }) as any;
   const p = plain.basic;
@@ -224,43 +239,44 @@ console.log('2. with them: dashed, said as a guess, not tracked along, not taken
   const d = o.walk.dirs as Dir[];
   check(same(d[0].coords, G.slice(0, 2)) && same(d[3].coords, G.slice(4)), 'each guess over its own points');
   check(same(d[1].coords[0], G[1]) && same(d[2].coords[d[2].coords.length - 1], G[4]) && d[1].text === 'Head north, then 60 m along Kramgasse',
-    "review 4: the engine's directions are of the routed part (\"Head north\" begins where the paths do, and is focused there)");
+    "the engine's directions are of the routed part (\"Head north\" begins where the paths do, and is focused there)");
   check(o.snaps[0].kmIn === 0 && o.snaps[0].d === p.snaps[0].d && p.snaps[0].kmIn > 0, 'GPS beside the guessed start: as far from the line, not moved along it');
   check(same(o.snaps[1], p.snaps[1]) && same(o.snaps[3], p.snaps[3]), 'on the routed part and where it ends: as before');
   check(o.snaps[2].d === p.snaps[2].d && o.snaps[2].kmIn === o.snaps[3].kmIn && o.snaps[2].kmIn < p.snaps[2].kmIn, 'beside the guessed end: no further along than where the paths end');
-  check(o.kanteWalk && o.netAsked === 0, "the engine's path drawn; in a station without a way through, kept (no browser router)");
-  const st = walkOf(legG({ approxStart: 1, approxEnd: 4 }));
-  check(routing.engineGuess!(st) === st.walks![0], 'engineGuess(): the guessed ends are known as such');
+  check(o.kanteWalk && o.asked === 0, "the engine's path drawn; in a station without a way through, kept (the engine not asked again)");
+  check(o.walk.net === true && o.walk.approxTo === 1 && o.walk.approxFrom === 4 && !o.walk.approx, 'kept as the walk\'s approxTo / approxFrom');
 }
 
-console.log('3. review 1: the network\'s own guess does not replace the engine\'s routed path');
+console.log('3. routed again by the engine: its answer\'s guesses are guesses too');
 {
-  const p = plain.netGuess;
-  check(p.walk.net && p.walk.approx && p.walkS < 300, '(without the fields, as on main: the network\'s answer taken, retimed)');
-  const o = await scenarios.netGuess({ approxStart: 1, approxEnd: 4 }) as any;
-  check(o.netAsked === 1 && !o.walk.net && o.lines[0].length === G.length, "with them: the network is asked, its guess left; the engine's path stays");
-  check(texts(o.walk).length === 4 && GUESS.test(texts(o.walk)[0]), "the engine's directions with its guesses stay");
-  check(o.walkS === 300 && o.min === 5 && o.t1 === 300000 && o.connT1 === 300000, 'not retimed (300 s)');
-  const routed = { net: true, coords: [G[0], G[2], G[5]], approxTo: null, approxFrom: null, dist: 165, cues: [], swisstopo: 0, covered: [], door: null, via: '' };
-  const r = await scenarios.netGuess({ approxStart: 1, approxEnd: 4 }, routed) as any;
-  check(r.walk.net && r.walkS < 300, 'a way the network has found is still taken');
+  const p = plain.rerouted;
+  check(p.asked === 1 && p.walkS === 240 && same(walkLines(p.features), [['solid', 6]]), "(without the fields: the engine asked again, its answer drawn solid, its time taken)");
+  const o = await scenarios.rerouted({ approxStart: 1, approxEnd: 4 }) as any;
+  check(o.asked === 1 && o.walkS === 240 && o.min === p.min && o.kanteWalk, `with them: the answer taken, with its time (${o.walkS} s, ${o.min} min)`);
+  check(same(walkLines(o.features), [['dashed', 2], ['solid', 4], ['dashed', 2]]), 'drawn dashed at both ends');
+  const t = texts(o.walk);
+  check(t.length === 4 && GUESS.test(t[0]) && GUESS.test(t[3]), `said as a guess ("${t[0]}")`);
+  check(o.snap.kmIn === 0 && o.snap.d === p.snap.d && p.snap.kmIn > 0, 'a fix beside its guessed start: not moved along it');
 }
 
-console.log('4. review 2: on the dashed start, not "off the route"');
+console.log('4. on the dashed start: not "off the route", and the blue dot where GPS puts you');
 {
   const o = scenarios.offRoute({ approxStart: 1 });
   check(!o.second!.off && o.second!.d === 0 && o.first!.d === 0, `two fixes on the guessed start: 0 m from the line, on the route (${o.second!.d} m, off: ${o.second!.off})`);
   check(o.second!.kmIn === 0 && o.first!.kmIn === 0, 'and not moved along it');
+  check(same(o.dot, P), `the blue dot at the fix, not pulled to where the walk begins (${JSON.stringify(o.dot)})`);
+  const q = plain.offRoute.dot as LngLat;
+  check(!!q && distKmFlat(q, P) < 0.001 && plain.offRoute.second.kmIn > 0.1, '(without the fields: the dot on the line, at the fix, 110 m along)');
 }
 
-console.log('5. review 3: at the door at the end of a guessed tail, arrived');
+console.log('5. at the door at the end of a guessed tail, arrived');
 {
   const o = scenarios.door({ approxEnd: 1 });
   check(o.atDoor!.arrived, `a fix at the door: arrived (${JSON.stringify(o.atDoor)})`);
   check(Math.abs(o.before.kmIn - 0.07) < 0.001 && o.before.kmIn < plain.door.before.kmIn && o.before.d === plain.door.before.d, `30 m before it: where the paths end (${o.before.kmIn} km)`);
 }
 
-console.log('6. review 4: guesses that meet, a repeated point, a two-point guess');
+console.log('6. guesses that meet, a repeated point, a two-point guess');
 {
   const m = scenarios.meet({ approxStart: 1, approxEnd: 1 }) as any;
   check(same(walkLines(m.features), [['dashed', 3]]) && m.walk.approx, 'guesses that meet: one dashed line, all of it a guess');
@@ -272,9 +288,18 @@ console.log('6. review 4: guesses that meet, a repeated point, a two-point guess
   check(t.aside.kmIn === 0 && t.aside.d === plain.two.aside.d, `two points guessed through the last, a fix past its end to the side: not moved along it (${t.aside.kmIn} km)`);
   check(same(t.atEnd, plain.two.atEnd), 'beside its end: at the end, as without the fields');
 }
+
+console.log('7. a walk in parts: a guess on the second one');
+{
+  const o = scenarios.parts({ approxStart: 1 }) as any;
+  check(same(walkLines(o.features), [['solid', 2], ['dashed', 2], ['solid', 2]]), 'the first part solid, the second one\'s guessed start dashed');
+  check(GUESS.test(o.texts[1][0]) && !o.texts[0].some((x: string) => GUESS.test(x)), 'said as a guess on the second part only');
+  check(Math.abs(o.snap.kmIn - 0.1) < 0.001 && plain.parts.snap.kmIn > 0.14 && o.snap.d === plain.parts.snap.d,
+    `a fix on it: where the first part ends (${o.snap.kmIn} km; without the fields ${plain.parts.snap.kmIn} km)`);
+}
 {
   const none = (last: number) => ({ approxStart: 0, approxEnd: last });
-  const o = await all({ basic: none(5), netGuess: none(5), offRoute: none(2), door: none(2), meet: none(2), repeated: none(3), two: none(1) });
+  const o = await all({ basic: none(5), rerouted: none(5), offRoute: none(2), door: none(2), meet: none(2), repeated: none(3), two: none(1), parts: none(2) });
   check(same(o, plain), 'approxStart 0 / approxEnd at the last point (nothing guessed): as without them');
 }
 
