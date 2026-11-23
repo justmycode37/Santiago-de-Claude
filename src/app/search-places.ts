@@ -1,6 +1,14 @@
 // ---- Places in the search (map-places.js: Bern, toilets everywhere): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
 //      lists the nearest ones; a name ("Migros", "Amavita") lists the places called that, nearest first ----
-const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+import { map } from './map.ts';
+import { gpsOn, userLngLat } from './location.ts';
+import { parseResult } from './search.ts';
+import { render } from './search-pins.ts';
+import { GROUP_BY_KEY, PLACES, loadPlaces } from './map-places.ts';
+import { fmtDist } from './live-vehicles.ts';
+import { distKm } from './routing.ts';
+import { searchState } from './state.ts';
+export const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
 const stem = (w: string) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
   : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
 const wordsOf = (s: string) => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
@@ -8,7 +16,7 @@ const wordsOf = (s: string) => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
 const NEAR_WORDS = new Set(['closest', 'nearest', 'near', 'nearby', 'me', 'next', 'the', 'a', 'an', 'find', 'where', 'is',
   'around', 'here', 'my', 'nachste', 'nachster', 'nachstes', 'nachsten', 'in', 'der', 'die', 'das', 'nahe', 'wo', 'ist',
   'ein', 'eine', 'mir', 'bei', 'plus', 'proche', 'le', 'la']);
-const NEAR_PHRASE = /^(closest|nearest|next|n[aä]chste[rsn]?)\s+|\s+(near me|nearby|in der n[aä]he)$/gi;
+export const NEAR_PHRASE = /^(closest|nearest|next|n[aä]chste[rsn]?)\s+|\s+(near me|nearby|in der n[aä]he)$/gi;
 const SEARCH_ALIASES = Object.fromEntries(Object.entries(MAP_LAYERS.SEARCH_ALIASES).map(([k, v]) => [stem(fold(k)), v]));
 const NAMED_BY_PLACE = new Set(['Info stand / kiosk', 'Mobile recycling point', 'Recycling', 'Bike pump', 'Bike parking',
   'Disabled parking', 'Taxi rank', 'Car sharing', 'EV parking', 'Tactile paving', 'Acoustic crossing signal']);
@@ -50,9 +58,9 @@ function placeResult(row: MapPlaceRow, km: number): SearchResult {
 // → { kinds: nearest places of the kind asked for, names: places whose name matches, toilets: a toilet was asked for }
 // Where a search measures from: you, while the map shows where you are; the middle of the map once you have moved
 // it somewhere else (looking for a Coop in another part of town)
-const searchOrigin = (): LngLat => (gpsOn() && map.getBounds().contains(userLngLat!) ? userLngLat! : map.getCenter().toArray());
+export const searchOrigin = (): LngLat => (gpsOn() && map.getBounds().contains(userLngLat!) ? userLngLat! : map.getCenter().toArray());
 // many: for "Search this area", which keeps the ones in view (the list only needs the nearest few)
-function searchPlaces(text: string, many?: boolean): PlaceMatches {
+export function searchPlaces(text: string, many?: boolean): PlaceMatches {
   const idx = placeSearchIndex();
   const plain = wordsOf(text).filter((w) => !NEAR_WORDS.has(w));
   if (!idx || !plain.length) return { kinds: [], names: [], toilets: false };
@@ -125,7 +133,7 @@ async function searchSwisstopo(text: string): Promise<SearchResult[]> {
 // Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.js: OpenStreetMap, or Google
 // with a key): around the part of the map in view, with distances from you (or from the middle of the map once it
 // shows somewhere else). bbox [west, south, east, north]: only places inside it ("Search this area")
-function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<PlaceSearchAnswer | null> {
+export function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<PlaceSearchAnswer | null> {
   if (!window.PlaceSearch) return Promise.resolve(null);
   const center = map.getCenter().toArray();
   const corner = map.getBounds().getNorthEast().toArray();
@@ -138,7 +146,7 @@ function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<PlaceSearch
 const nearM = (a: LngLatFirst, b: LngLatFirst, m: number) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
 
 // One list from the three sources: our own places (map-places.js), places online (places.js), swisstopo
-function combineResults(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches): SearchResult[] {
+export function combineResults(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches): SearchResult[] {
   const { kinds, names } = local;
   const bern = [...kinds, ...names];
   // a place in both the Bern data and online keeps the Bern entry
@@ -156,7 +164,7 @@ function combineResults(text: string, swiss: SearchResult[] | null, online: Plac
     : [...kinds, ...found, ...names];
   // a place swisstopo also knows keeps the place (it has the category and the distance)
   const s = (swiss || []).filter((r) => !places.some((p) => fold(p.title) === fold(r.title) && nearM(p.lngLat, r.lngLat, 150)));
-  placeCategory = (online && online.category) || null;
+  searchState.placeCategory = (online && online.category) || null;
   // Places first for "restaurant", "Migros", "Einstein Kaffee"; swisstopo first for "Bern", "3011", "Kramgasse 1":
   // whichever top result has more of the typed words in its name, swisstopo on a tie if its name is the query
   const qw = wordsOf(text);
@@ -166,15 +174,14 @@ function combineResults(text: string, swiss: SearchResult[] | null, online: Plac
     return qw.filter((w) => tw.some((t) => t.startsWith(w) || (t.length >= 3 && w.startsWith(t)))).length / (qw.length || 1);
   };
   const pm = matched(places[0]), sm = matched(s[0]);
-  const placesFirst = kinds.length > 0 || !!placeCategory || (!/\d/.test(text) && places.length > 0
+  const placesFirst = kinds.length > 0 || !!searchState.placeCategory || (!/\d/.test(text) && places.length > 0
     && (pm > sm || (pm === sm && pm > 0 && fold(s[0] ? s[0].title : '') !== fold(text))));
   return placesFirst ? [...places, ...s] : [...s, ...places];
 }
 
-let lastSearch: FieldSearch | null = null; // { field, text }: what the list was last filled for
-async function search(text: string) {
-  const id = ++reqId, field = activeField;
-  lastSearch = { field, text };
+export async function search(text: string) {
+  const id = ++searchState.reqId, field = searchState.field;
+  searchState.last = { field, text };
   const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
   let online: PlaceSearchAnswer | null = null;
   let onlineDone = false;
@@ -183,20 +190,20 @@ async function search(text: string) {
     searchSwisstopo(remoteText).catch(() => null),
     loadPlaces(), // usually loaded already (downloaded after the first map view)
   ]);
-  if (id !== reqId) return; // a newer query is in flight
+  if (id !== searchState.reqId) return; // a newer query is in flight
   const local = searchPlaces(text);
   const show = (final: boolean) => {
-    if (field !== activeField) return; // the other field has been picked meanwhile
-    results = combineResults(text, swiss, online, local);
+    if (field !== searchState.field) return; // the other field has been picked meanwhile
+    searchState.results = combineResults(text, swiss, online, local);
     render(!final ? 'Searching…' : swiss || online ? 'No results' : 'Search unavailable');
   };
   // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow
   // answer from one source never holds up the others
   if (!onlineDone) await Promise.race([onlineReq, new Promise((ok) => setTimeout(ok, 250))]);
-  if (id !== reqId) return;
-  expanded = false;
+  if (id !== searchState.reqId) return;
+  searchState.expanded = false;
   show(onlineDone);
   if (onlineDone) return;
   await onlineReq;
-  if (id === reqId) show(true);
+  if (id === searchState.reqId) show(true);
 }

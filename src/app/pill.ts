@@ -1,6 +1,24 @@
 // ---- Top pill: the trip on one line, roughly to scale in time. Every ride is a solid line with its name above it;
 //      walking, changing and waiting are rows of single dots (always at least a few, so a short change still shows).
 //      The part already behind you fades. Tap to jump to that step. ----
+import { map } from './map.ts';
+import { updateCards } from './map-events.ts';
+import { setMenu } from './menu.ts';
+import { fixAge, onPosition, userLngLat } from './location.ts';
+import { setPlanOpen, topUiBottom } from './trip-ends.ts';
+import { engineFailure, engineMessage, startPlatforms } from './platforms.ts';
+import { updatePlaces } from './map-places.ts';
+import { refreshRouteHighlight, setRoute } from './journey-map.ts';
+import { buildSteps, fmtTime, isRide, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
+import { journeyEnd, nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
+import { redrawRoute, renderLive } from './live-line.ts';
+import { livePoll, platSig } from './live-engine.ts';
+import { vehStop } from './live-vehicles.ts';
+import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } from './sheet.ts';
+import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
+import { updateWhenChip } from './time-picker.ts';
+import { netWalkOption, refineJourney } from './routing.ts';
+import { journey, searchState, sheet, tracking } from './state.ts';
 const jBar = document.getElementById('jBar')!;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) => { const e = document.createElementNS(SVG_NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k] as string); return e; };
@@ -12,11 +30,11 @@ interface BarRide extends BarPart { kind: 'ride'; label: string }
 interface BarGap extends BarPart { kind: 'gap' }
 type BarSeg = BarRide | BarGap;
 function barLayout() {
-  const t0 = journeyConn!.t0, t1 = Math.max(journeyConn!.t1, journeyEnd());
+  const t0 = journey.conn!.t0, t1 = Math.max(journey.conn!.t1, journeyEnd());
   const W = jBar.clientWidth, L = W - 2 * BAR.pad;
   const segs: BarSeg[] = [];
   let cursor = t0, rides = 0;
-  journeyConn!.parts.filter(isRide).forEach((s) => {
+  journey.conn!.parts.filter(isRide).forEach((s) => {
     const a = Math.max(cursor, liveMs(s.from, 'dep')!), b = Math.max(a, liveMs(s.to, 'arr')!);
     if (a > cursor || rides) segs.push({ kind: 'gap', a: cursor, b: a, min: rides ? 28 : 17 } as BarGap); // a change, or the walk to the first stop
     segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.line) } as BarRide);
@@ -68,9 +86,9 @@ function drawBarArt(g: SVGGElement, { segs }: { segs: BarSeg[] }) {
   g.appendChild(svgEl('circle', { cx: first.x0, cy: BAR.lineY, r: 3.6, class: 'j-bar-start', 'stroke-width': 2, stroke: 'currentColor' }));
   dot(last.x1, BAR.node);
 }
-function renderBar() {
+export function renderBar() {
   jBar.replaceChildren();
-  if (!journeyConn || !jBar.clientWidth) return;
+  if (!journey.conn || !jBar.clientWidth) return;
   const geo = barLayout();
   const pt = progressTime(); // GPS when it follows you, else the clock
   const now = pt.t, live = pt.gps ? now < geo.t1 : now > geo.t0 && now < geo.t1;
@@ -101,52 +119,42 @@ function renderBar() {
     svg.appendChild(svgEl('circle', { cx: nx, cy: BAR.lineY, r: 5, class: 'j-bar-now', 'stroke-width': 2.5 }));
   }
 }
-if (window.ResizeObserver) new ResizeObserver(() => renderBar()).observe(jBar);
-jBar.addEventListener('click', (e) => {
-  if (!journeyConn || !journeySteps.length) return;
-  const geo = barLayout();
-  const t = geo.tAt(e.clientX - jBar.getBoundingClientRect().left);
-  let i = 0;
-  journeySteps.forEach((st, k) => { if (st.t0 != null && st.t0 <= t) i = k; });
-  if (t >= geo.t1 - 1000) i = journeySteps.length - 1;
-  goToStep(i);
-});
 
-function updateProgress() {
-  if (!journeyConn) return;
+export function updateProgress() {
+  if (!journey.conn) return;
   trackJourney();
   renderBar();
   renderLive();
-  if (journeySteps.length) { redrawRoute(); updateNowMarker(); }
+  if (journey.steps.length) { redrawRoute(); updateNowMarker(); }
 }
 // Every few seconds during a trip: move things along, and keep GPS fixes coming while you stand still
 let gpsPolling = false;
 function tick() {
   updateProgress();
   refreshList();
-  if (!journeyConn || gpsPolling || fixAge() < 25000 || !tripLive() || !window.isSecureContext || !navigator.geolocation) return;
+  if (!journey.conn || gpsPolling || fixAge() < 25000 || !tripLive() || !window.isSecureContext || !navigator.geolocation) return;
   gpsPolling = true;
   navigator.geolocation.getCurrentPosition((pos) => { gpsPolling = false; onPosition(pos); }, () => { gpsPolling = false; },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
 }
 
-function updatePillTimes() {
-  const plan = journeyConn!.t1, live = journeyEnd();
+export function updatePillTimes() {
+  const plan = journey.conn!.t1, live = journeyEnd();
   const el = document.getElementById('jArr')!;
   el.textContent = fmtTime(live);
   el.classList.toggle('late', live - plan >= 60000);
 }
-function renderJourney(conn: Journey, destTitle: string) {
-  journeyConn = conn;
-  journeySteps = buildSteps(conn, destTitle);
-  platKey = platSig();
-  journeyStep = 0;
-  routeOverview = true;
-  track = null;
-  autoStep = 0;
-  jFocus = null;
-  sheetMsg = '';
-  sheetRetry = false;
+export function renderJourney(conn: Journey, destTitle: string) {
+  journey.conn = conn;
+  journey.steps = buildSteps(conn, destTitle);
+  journey.platKey = platSig();
+  journey.step = 0;
+  journey.overview = true;
+  tracking.track = null;
+  tracking.autoStep = 0;
+  sheet.focus = null;
+  sheet.msg = '';
+  sheet.retry = false;
   document.getElementById('jDep')!.textContent = fmtTime(conn.t0);
   updatePillTimes();
   trackJourney();
@@ -159,59 +167,59 @@ function renderJourney(conn: Journey, destTitle: string) {
 }
 
 // Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you
-function goToStep(i: number, auto?: boolean) {
-  if (!journeySteps.length) return;
-  if (!auto) userPickedAt = Date.now();
-  journeyStep = Math.min(journeySteps.length - 1, Math.max(0, i));
-  routeOverview = false;
-  jFocus = null;
+export function goToStep(i: number, auto?: boolean) {
+  if (!journey.steps.length) return;
+  if (!auto) tracking.userPickedAt = Date.now();
+  journey.step = Math.min(journey.steps.length - 1, Math.max(0, i));
+  journey.overview = false;
+  sheet.focus = null;
   refreshRouteHighlight();
-  fitStep(journeyStep);
+  fitStep(journey.step);
   if (!auto && sheetDetent === 'full') setDetent('mid');
   renderSheet();
 }
 
 // Keep what the camera shows clear of the top bar and of the sheet where it rests
-function mapPadding() {
+export function mapPadding() {
   const hgt = window.innerHeight;
   // under way the menu button hangs below the pill; otherwise it is beside the card
   // (with room for a pin, which stands above its point)
   const top = document.body.classList.contains('following') ? 150 : Math.max(56, topUiBottom()) + 48;
-  const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheetY) : 0;
+  const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheet.y) : 0;
   const bottom = Math.max(40, Math.min(covered + 24, hgt - top - 120));
   const side = window.innerWidth >= 700 && covered ? 444 : 48; // wide screens: the sheet is a panel on the left
   return { top, bottom: side > 48 ? 40 : bottom, left: side, right: 48 };
 }
-function fitCoords(coords: LngLat[], maxZoom = 17) {
+export function fitCoords(coords: LngLat[], maxZoom = 17) {
   if (!coords.length) return;
   const b = coords.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
   map.fitBounds(b, { padding: mapPadding(), maxZoom, duration: 700 });
 }
-function fitJourney() {
+export function fitJourney() {
   const all: LngLat[] = [];
-  journeySteps.forEach((st) => all.push(...stepCoords(st)));
+  journey.steps.forEach((st) => all.push(...stepCoords(st)));
   requestAnimationFrame(() => fitCoords(all));
 }
-function fitStep(i: number) {
-  const st = journeySteps[i];
+export function fitStep(i: number) {
+  const st = journey.steps[i];
   if (st) fitCoords(stepCoords(st));
 }
 
 // origin: where the trip starts and what it is called; left out: the start, else your position, else the map centre
-async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: JourneyOrigin) {
-  const id = ++journeyReq;
-  if (!keepQuery) journeyQuery = { mode: 'dep', date: '', time: '' };
-  journeyDest = r;
-  journeyConn = null;
-  journeySteps = [];
-  journeyOptions = null;
-  journeyList = false;
-  journeyMore = null;
-  journeyOrigin = origin || (tripStart ? { ll: tripStart.lngLat, label: tripStart.title }
+export async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: JourneyOrigin) {
+  const id = ++journey.req;
+  if (!keepQuery) journey.query = { mode: 'dep', date: '', time: '' };
+  journey.dest = r;
+  journey.conn = null;
+  journey.steps = [];
+  journey.options = null;
+  journey.list = false;
+  journey.more = null;
+  journey.origin = origin || (searchState.tripStart ? { ll: searchState.tripStart.lngLat, label: searchState.tripStart.title }
     : userLngLat ? { ll: userLngLat, label: 'Your location' } : { ll: map.getCenter().toArray(), label: 'Map centre' });
-  journeyFrom = journeyOrigin.label;
+  journey.from = journey.origin.label;
   updateWhenChip();
-  jFocus = null;
+  sheet.focus = null;
   openDirs.clear();
   openStops.clear();
   updateCards(); // hide events and places: only the trip and the destination
@@ -223,9 +231,9 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: Journe
   document.getElementById('jBar')!.innerHTML = '';
   document.getElementById('jDep')!.textContent = '--:--';
   document.getElementById('jArr')!.textContent = '--:--';
-  sheetMsg = 'Finding a connection…';
-  sheetRetry = false;
-  track = null;
+  sheet.msg = 'Finding a connection…';
+  sheet.retry = false;
+  tracking.track = null;
   placeUserDot(); // plain GPS until the new trip follows you
   renderSheet();
   if (!wasOpen) openSheet();
@@ -233,40 +241,54 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: Journe
   nowMarker.remove();
   setRoute([]);
   if (!keepQuery) map.flyTo({ center: r.lngLat, zoom: 14, speed: 1.4 }); // between the card above and the sheet below
-  clearInterval(progressTimer);
-  progressTimer = setInterval(tick, 5000);
-  clearInterval(liveTimer);
-  liveTimer = setInterval(livePoll, 30000); // live times from the Kante engine every 30 s while the trip is on
+  clearInterval(journey.progressTimer);
+  journey.progressTimer = setInterval(tick, 5000);
+  clearInterval(journey.liveTimer);
+  journey.liveTimer = setInterval(livePoll, 30000); // live times from the Kante engine every 30 s while the trip is on
   vehStop(); // the map shows only the trip
 
-  const from = journeyOrigin.ll;
+  const from = journey.origin.ll;
   try {
     startPlatforms(); // the platform dots on the map (the journey's boarding points come from the engine)
-    const opts = await KanteJourney.plans(from, r, journeyQuery);
-    if (id !== journeyReq) return;
-    if (!opts) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
+    const opts = await KanteJourney.plans(from, r, journey.query);
+    if (id !== journey.req) return;
+    if (!opts) { sheet.msg = 'No public transport connection found for this trip.'; renderSheet(); return; }
     // More than one way to go: the list to choose from, with the best one on the map. (Under way, a new
     // plan goes straight to its best journey.)
-    journeyOptions = opts;
-    journeyTab = opts.best === opts.walk ? 'walk' : 'pt';
-    journeyList = optionCount() > 1 && !document.body.classList.contains('following');
-    if (journeyList && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
+    journey.options = opts;
+    journey.tab = opts.best === opts.walk ? 'walk' : 'pt';
+    journey.list = optionCount() > 1 && !document.body.classList.contains('following');
+    if (journey.list && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
     renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
     if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     livePoll(); // live times for its rides at once
   } catch (e) {
-    if (id !== journeyReq) return;
+    if (id !== journey.req) return;
     // the engine is switched off or cannot be reached: say so, and (when it can come back) offer to ask again
     const why = engineFailure(e);
-    sheetMsg = why ? engineMessage(why, 'Journeys') : 'Connections could not be loaded. Check your internet connection.';
-    sheetRetry = why !== 'off';
+    sheet.msg = why ? engineMessage(why, 'Journeys') : 'Connections could not be loaded. Check your internet connection.';
+    sheet.retry = why !== 'off';
     renderSheet();
   }
 }
 // "Try again" after the engine could not be reached: the same trip, from the same place, at the same time (the
 // first try has moved the map, so the map centre is no longer where it started)
-function retryJourney() {
-  if (!journeyDest) return;
-  startJourney(journeyDest, true, journeyOrigin || undefined);
+export function retryJourney() {
+  if (!journey.dest) return;
+  startJourney(journey.dest, true, journey.origin || undefined);
+}
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  if (window.ResizeObserver) new ResizeObserver(() => renderBar()).observe(jBar);
+  jBar.addEventListener('click', (e) => {
+    if (!journey.conn || !journey.steps.length) return;
+    const geo = barLayout();
+    const t = geo.tAt(e.clientX - jBar.getBoundingClientRect().left);
+    let i = 0;
+    journey.steps.forEach((st, k) => { if (st.t0 != null && st.t0 <= t) i = k; });
+    if (t >= geo.t1 - 1000) i = journey.steps.length - 1;
+    goToStep(i);
+  });
 }

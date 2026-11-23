@@ -1,34 +1,42 @@
 // ---------- Community events ----------
 // Which events show is set on the Settings page (settings.js). Language courses and other events for newcomers only
 // show for those who said they are new to Switzerland; anyone can still pick them as a category in the search.
+import { STYLES, STYLE_URL, currentTheme, makeDarkStyle, map, root, themeMeta } from './map.ts';
+import { eventsBtn, showToast } from './menu.ts';
+import { CATEGORY_CARDS } from './categories.ts';
+import { EMPTY_FC, PLATFORM_FC, PLATFORM_MIN_ZOOM, platformLayers, platformsOnMap, startPlatforms } from './platforms.ts';
+import { PLACES_FC, placeLayers, placesOnMap, updatePlaces } from './map-places.ts';
+import { ROUTE_FC, routeLayers } from './journey-map.ts';
+import { VEH_FC, vehLayers } from './live-vehicles.ts';
+import { openEvent } from './event-page.ts';
+import type { SearchCategory } from './categories.ts';
+import { journey, popup, searchState } from './state.ts';
 const NEWCOMER_TAGS = ['newcomers', 'language'];
-function visibleEvents() {
+export function visibleEvents() {
   const preferences = SETTINGS.eventTags();
   const newcomer = SETTINGS.prefs().newcomer;
   return EVENTS.features.filter((event) => EVENTS.matches(event, preferences)
     && (newcomer || !event.properties.tags.some((tag) => NEWCOMER_TAGS.includes(tag))));
 }
-// The category picked in the search (25-categories.ts): its events or its places are the cards on the map
-let activeCategory: SearchCategory | null = null;
 
-const EVENT_MIN_ZOOM = 12.5;
+export const EVENT_MIN_ZOOM = 12.5;
 // Cards on the map, by venue + events shown. Cards that stay on screen after a move are kept as they are
 // (no rebuild, no reloaded photo, no pop-in animation); only cards that change are added or removed.
-const eventMarkers = new Map<string, maplibregl.Marker>();
+export const eventMarkers = new Map<string, maplibregl.Marker>();
 /** A place with events, where its card goes on the screen. */
 interface EventVenue { point: maplibregl.Point; coordinates: LngLat; features: EventFeature[] }
-let eventsOn = false;
+export let eventsOn = false;
 
 function clearCards() {
   for (const marker of eventMarkers.values()) marker.remove();
   eventMarkers.clear();
 }
 
-function updateCards() {
+export function updateCards() {
   // during a journey the map shows only the trip and the destination
-  const categoryEvents = activeCategory && activeCategory.events;
-  if (activeCategory && !categoryEvents) { clearCards(); return; } // a kind of place: only its cards
-  if (!(eventsOn || categoryEvents) || journeyDest || (!categoryEvents && !SETTINGS.mapGroups().includes('events'))
+  const categoryEvents = searchState.category && searchState.category.events;
+  if (searchState.category && !categoryEvents) { clearCards(); return; } // a kind of place: only its cards
+  if (!(eventsOn || categoryEvents) || journey.dest || (!categoryEvents && !SETTINGS.mapGroups().includes('events'))
     || map.getZoom() < EVENT_MIN_ZOOM) { clearCards(); return; }
 
   const { clientWidth, clientHeight } = map.getContainer();
@@ -116,18 +124,13 @@ function makeVenueCard(features: EventFeature[]) {
   time.textContent = (event.areaOnly ? 'Town area · ' : '') + event.when;
   button.addEventListener('click', (e) => {
     e.stopPropagation();
-    eventsAtPin = features;
+    popup.eventsAtPin = features;
     openEvent(event.id);
   });
   return card;
 }
-map.on('moveend', updateCards);
-map.on('zoom', () => {
-  if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
-});
-map.on('resize', updateCards);
 
-function setEventsOn(enabled: boolean) {
+export function setEventsOn(enabled: boolean) {
   eventsOn = enabled;
   eventsBtn.setAttribute('aria-pressed', String(enabled));
   eventsBtn.classList.toggle('active', enabled);
@@ -151,30 +154,37 @@ function applyMapTheme(diff: boolean) {
   map.setStyle(style, { diff });
 }
 
-// Usually already on its way since the <head> (EARLY_STYLE)
-(window.EARLY_STYLE || fetch(STYLE_URL).then((r) => r.json()))
-  .then((style: maplibregl.StyleSpecification) => {
-    STYLES.light = style;
-    STYLES.dark = makeDarkStyle(style);
-    applyMapTheme(false);
-    // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
-    map.once('idle', () => { updateCards(); startPlatforms(); });
-  })
-  .catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
-
-function setTheme(theme: Theme, persist: boolean) {
+export function setTheme(theme: Theme, persist: boolean) {
   root.dataset.theme = theme;
   themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
   if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
   applyMapTheme(true);
 }
-themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
 
-// Follow the system setting until the user picks a theme themselves
-if (window.matchMedia as typeof matchMedia | undefined) {
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    let saved = null;
-    try { saved = localStorage.getItem('theme'); } catch (err) {}
-    if (!saved) setTheme(e.matches ? 'dark' : 'light', false);
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  map.on('moveend', updateCards);
+  map.on('zoom', () => {
+    if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
   });
+  map.on('resize', updateCards);
+  // Usually already on its way since the <head> (EARLY_STYLE)
+  (window.EARLY_STYLE || fetch(STYLE_URL).then((r) => r.json()))
+    .then((style: maplibregl.StyleSpecification) => {
+      STYLES.light = style;
+      STYLES.dark = makeDarkStyle(style);
+      applyMapTheme(false);
+      // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
+      map.once('idle', () => { updateCards(); startPlatforms(); });
+    })
+    .catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
+  themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
+  // Follow the system setting until the user picks a theme themselves
+  if (window.matchMedia as typeof matchMedia | undefined) {
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      let saved = null;
+      try { saved = localStorage.getItem('theme'); } catch (err) {}
+      if (!saved) setTheme(e.matches ? 'dark' : 'light', false);
+    });
+  }
 }

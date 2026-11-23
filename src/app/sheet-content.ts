@@ -1,4 +1,22 @@
 // ---- 3D station view (station-view.js through Station3D): for walks and changes in a station that has a 3D model (stations3d/) ----
+import { showToast } from './menu.ts';
+import { userLngLat } from './location.ts';
+import { jBody, jFoot, jHead, refreshRouteHighlight } from './journey-map.ts';
+import { dayLabel, fmtTime, hasForecast, isRide, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, stopName, stopUic } from './journey-steps.ts';
+import { journeyEnd } from './tracking.ts';
+import { liveParts, replan } from './live-line.ts';
+import { livePoll } from './live-engine.ts';
+import { cap, compassWord, fmtDist, levelShort, platformOf } from './live-vehicles.ts';
+import { MODE_K, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kDur, kDurExact, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
+import type { KIconName } from './sheet.ts';
+import { ticketPricing } from './ticket-pricing.ts';
+import { focusDir, overview, shareJourney, showQuay, startFollowing, ticketLink } from './journey-actions.ts';
+import { arStepButton } from './ar.ts';
+import { fitJourney, goToStep, renderBar, renderJourney, retryJourney, updatePillTimes } from './pill.ts';
+import { dateValue } from './time-picker.ts';
+import { distKm, endJourney, refineJourney } from './routing.ts';
+import type { StopTime } from './journey-steps.ts';
+import { journey, searchState, sheet, tracking } from './state.ts';
 const S3_NEAR_KM = 0.5; // a station model reaches about this far around its platforms
 const s3Key = (stop: KanteStopCall | null | undefined) => (window.Station3D && stop && Station3D.has(stopUic(stop))) || null;
 // A ride's boarding / alighting point for the station router: the platform, with its position as a fallback
@@ -15,11 +33,11 @@ function s3End(stop: KanteStopCall, at: JourneyPlatformAt | null | undefined): S
   return end as Station3DEndpoint;
 }
 // Where a step's walk starts and ends inside the modelled station, or null when it is not in one
-function s3Plan(st: JourneyStep): StationWalkPlan | null {
+export function s3Plan(st: JourneyStep): StationWalkPlan | null {
   let key = null, from = null, to = null;
   if (st.type === 'walk' && st.next) {
     key = s3Key(st.next.from);
-    const here = tripStart ? null : userLngLat; // a trip from somewhere else starts there, not where you are
+    const here = searchState.tripStart ? null : userLngLat; // a trip from somewhere else starts there, not where you are
     const start = here || (st.lines[0] && st.lines[0][0]);
     to = s3End(st.next.from, st.nextRide && st.nextRide.depAt);
     // from further away the model only shows the last stretch: where the walk comes in, not where you are
@@ -28,7 +46,7 @@ function s3Plan(st: JourneyStep): StationWalkPlan | null {
   } else if (st.type === 'walk') {
     key = st.from ? s3Key(st.from.to) : null;
     from = key && s3End(st.from!.to, st.prevRide && st.prevRide.arrAt);
-    const end = (journeyDest && journeyDest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
+    const end = (journey.dest && journey.dest.lngLat) || (st.lines.length ? st.lines[st.lines.length - 1][1] : null);
     const far = end && from && from.ll && distKm(from.ll, end) > S3_NEAR_KM;
     to = end ? { ll: end, label: far ? `the way to ${st.toName}` : st.toName } : null;
   } else if (st.type === 'change') {
@@ -42,24 +60,17 @@ function s3Plan(st: JourneyStep): StationWalkPlan | null {
   return key && from && to ? { key, from, to } : null;
 }
 // The journey options for the station router, for the day of that step (closures in the model have dates)
-const s3Prefs = (st: JourneyStep | null | undefined) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
-let s3Step: JourneyStep | null = null; // the journey step the 3D view was opened from
+export const s3Prefs = (st: JourneyStep | null | undefined) => ({ ...SETTINGS.journey(), date: st && st.t0 ? dateValue(new Date(st.t0)) : undefined });
 function s3Open(st: JourneyStep, button: HTMLElement | null) {
   const plan = s3Plan(st); // now, not when the sheet was drawn: the start follows your position
   if (!plan) return;
-  s3Step = st;
+  sheet.s3Step = st;
   Station3D.open({ ...plan, prefs: s3Prefs(st), returnFocus: button });
 }
-// "Done" at the end of the 3D walk: back to the journey, on the step that follows
-if (window.Station3D) Station3D.on('done', () => {
-  const i = journeySteps.indexOf(s3Step!);
-  Station3D.close();
-  if (i >= 0 && i < journeySteps.length - 1) goToStep(i + 1);
-});
 
 function walkTarget(st: JourneyStep) {
   const r = st.type === 'change' || !st.final ? st.nextRide : null;
-  if (!r) return st.toName || (journeyDest && journeyDest.title) || 'your destination';
+  if (!r) return st.toName || (journey.dest && journey.dest.title) || 'your destination';
   const q = quayOf(r, 'dep');
   return q.label ? `${q.word} ${q.label}` : stopName(r.s.from);
 }
@@ -75,8 +86,8 @@ const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 :
 // Written directions for a walk, from the walking router's turn-by-turn steps, with the floor change in its place
 const TURN: Record<string, string> = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
   'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
-function walkDirections(st: JourneyStep) {
-  if (st._dirsV === geoVersion) return st._dirs!;
+export function walkDirections(st: JourneyStep) {
+  if (st._dirsV === tracking.geoVersion) return st._dirs!;
   const out: JourneyDirection[] = [];
   (st.walks || []).forEach((w) => {
     // a stretch through a modelled station: its own directions, floor changes included
@@ -101,13 +112,13 @@ function walkDirections(st: JourneyStep) {
     out.push({ kind: 'arrive', text: `Arrive at ${walkTarget(st)}`, coords: cs.length ? [cs[cs.length - 1]] : null });
   }
   st._dirs = out;
-  st._dirsV = geoVersion;
+  st._dirsV = tracking.geoVersion;
   return out;
 }
 
 // What to do first, and when: the verb is yours when the trip starts on foot ("Leave in 4 min"), the vehicle's otherwise
 function firstAction(now: number) {
-  const first = journeySteps[0], ride = journeySteps.find((st) => st.type === 'ride');
+  const first = journey.steps[0], ride = journey.steps.find((st) => st.type === 'ride');
   const walkFirst = first && first.type === 'walk';
   const when = walkFirst ? first.t0 : ride ? ride.t0 : null;
   if (when == null) return { text: '', quay: ride && quayOf(ride, 'dep') };
@@ -122,8 +133,8 @@ function firstAction(now: number) {
 }
 
 function legChain() {
-  const rides = journeySteps.some((st) => st.type === 'ride'); // a walk-only journey keeps its walk
-  const items = journeySteps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && (!rides || walkMinOf(st) > 3)));
+  const rides = journey.steps.some((st) => st.type === 'ride'); // a walk-only journey keeps its walk
+  const items = journey.steps.filter((st) => st.type === 'ride' || ((st.type === 'walk' || st.type === 'change') && (!rides || walkMinOf(st) > 3)));
   const max = 7, cut = items.length > max ? items.slice(0, max - 1) : items;
   const chain = h('span', 'chain');
   chain.setAttribute('aria-hidden', 'true');
@@ -141,12 +152,12 @@ function sheetActions() {
 }
 // A walking direction picked: step through them, or back to the whole journey
 function stepNav(): HTMLDivElement {
-  const st = journeySteps[jFocus!.step], dirs = st ? walkDirections(st) : [], k = jFocus!.dir, d = dirs[k];
-  if (!d) { jFocus = null; return buildHead(); }
+  const st = journey.steps[sheet.focus!.step], dirs = st ? walkDirections(st) : [], k = sheet.focus!.dir, d = dirs[k];
+  if (!d) { sheet.focus = null; return buildHead(); }
   const text = h('div', 'stepnav-text', h('small', null, `${k + 1} of ${dirs.length}`), h('strong', 'trunc2', d.text));
   text.setAttribute('aria-live', 'polite');
-  const prev = kBtn('round-btn', 'Previous direction', () => focusDir(jFocus!.step, k - 1), kIcon('back', 18));
-  const next = kBtn('round-btn', 'Next direction', () => focusDir(jFocus!.step, k + 1), kIcon('go', 18));
+  const prev = kBtn('round-btn', 'Previous direction', () => focusDir(sheet.focus!.step, k - 1), kIcon('back', 18));
+  const next = kBtn('round-btn', 'Next direction', () => focusDir(sheet.focus!.step, k + 1), kIcon('go', 18));
   prev.disabled = k === 0;
   next.disabled = k === dirs.length - 1;
   return h('div', 'stepnav', prev, text, next, kBtn('round-btn', 'Show full journey', overview, kIcon('close', 18)));
@@ -154,9 +165,9 @@ function stepNav(): HTMLDivElement {
 // ---- The journeys to choose from (the list of the Kante app, branch nikitas-implementation): one row each with
 //      its vehicles, times and first boarding point; walking all the way, when that is near enough, on a tab of
 //      its own. The one shown first is drawn on the map; a tap on a row opens that journey. ----
-const optionCount = () => (journeyOptions ? journeyOptions.list.length + (journeyOptions.walk ? 1 : 0) : 0);
-const connStart = (c: Journey) => c.t0;
-const connEnd = (c: Journey) => c.t1;
+export const optionCount = () => (journey.options ? journey.options.list.length + (journey.options.walk ? 1 : 0) : 0);
+export const connStart = (c: Journey) => c.t0;
+export const connEnd = (c: Journey) => c.t1;
 const connSecs = (c: Journey) => Math.max(0, connEnd(c) - connStart(c)) / 1000;
 
 function optionRow(conn: Journey, now: number) {
@@ -202,14 +213,14 @@ function optionRow(conn: Journey, now: number) {
   const gaps = rides.slice(1).map((s, k) => Math.max(0, Math.floor((liveMs(s.from, 'dep')! - liveMs(rides[k].to, 'arr')!) / 60000)));
   const changes = !rides.length ? ['On foot'] : !gaps.length ? ['Direct']
     : [`${gaps.length} ${gaps.length === 1 ? 'change' : 'changes'}`, `· ${gaps.length === 1 ? '' : '≥ '}${Math.min(...gaps)} min`];
-  const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journeyConn ? ' shown' : ''), null, () => openOption(conn),
+  const row = kBtn('jrow' + (gone ? ' gone' : '') + (conn === journey.conn ? ' shown' : ''), null, () => openOption(conn),
     h('span', 'jrow-l1', chain, h('b', 'jrow-dur', kDur((t1 - t0) / 1000))),
     h('span', 'jrow-l2', h('b', 'jrow-time', fmtTime(conn.t0)), bar, h('b', 'jrow-time end', fmtTime(conn.t1))),
     h('span', 'jrow-l3', h('span', 'jrow-plat', first ? kPlat(quayOf({ s: first }, 'dep')) : null),
       h('span', 'jrow-mid',
         text ? h('span', 'jrow-act ' + (gone ? 'gone' : !forecast ? 'plain' : late > 0 ? 'late' : 'ok'), text, gone ? null : kDelay(late)) : null,
         h('span', 'jrow-chg', changes.map((t) => h('span', null, t))))));
-  if (conn === journeyConn) row.setAttribute('aria-current', 'true'); // the one drawn on the map
+  if (conn === journey.conn) row.setAttribute('aria-current', 'true'); // the one drawn on the map
   return row;
 }
 function walkCard(conn: Journey) {
@@ -220,14 +231,14 @@ function walkCard(conn: Journey) {
     h('span', 'walkcard-cta', 'Walking directions', kIcon('right', 16)));
 }
 function listHead() {
-  const o = journeyOptions!;
+  const o = journey.options!;
   let title = h('h2', 'trunc', 'Journeys'); // (an h1 here is a place name, which the translator leaves alone)
   if (o.walk && o.list.length) {
     // public transport (its quickest journey) · on foot
     const tab = (key: JourneyTab, icon: KIconName, secs: number, label: string) => {
-      const b = kBtn(journeyTab === key ? 'on' : '', `${label}, ${kDur(secs)}`, () => setJourneyTab(key), kIcon(icon, 20), kDur(secs));
+      const b = kBtn(journey.tab === key ? 'on' : '', `${label}, ${kDur(secs)}`, () => setJourneyTab(key), kIcon(icon, 20), kDur(secs));
       b.setAttribute('role', 'tab');
-      b.setAttribute('aria-selected', String(journeyTab === key));
+      b.setAttribute('aria-selected', String(journey.tab === key));
       return b;
     };
     title = h('div', 'tabs', tab('pt', 'rail', Math.min(...o.list.map(connSecs)), 'Public transport'), tab('walk', 'walk', connSecs(o.walk), 'On foot'));
@@ -237,15 +248,15 @@ function listHead() {
   return h('div', 'jhead', h('div', 'sheet-title', title, sheetActions()));
 }
 function listBody() {
-  const o = journeyOptions!, now = Date.now(), frag = document.createDocumentFragment();
-  if (journeyTab === 'walk' && o.walk) {
+  const o = journey.options!, now = Date.now(), frag = document.createDocumentFragment();
+  if (journey.tab === 'walk' && o.walk) {
     frag.append(walkCard(o.walk), h('div', 'list-end'));
     return frag;
   }
   const more = (dir: JourneyMoreDir) => {
     const b = kBtn('more', null, () => loadMoreJourneys(dir), kIcon(dir === 'earlier' ? 'up' : 'down', 16),
-      journeyMore === dir ? `Loading ${dir} journeys…` : cap(dir));
-    b.disabled = !!journeyMore;
+      journey.more === dir ? `Loading ${dir} journeys…` : cap(dir));
+    b.disabled = !!journey.more;
     return b;
   };
   if (o.earlier) frag.append(more('earlier'));
@@ -263,81 +274,81 @@ function listBody() {
 }
 // Make one of the journeys the one on the map (and the one the sheet is about, once it is opened)
 function showOption(conn: Journey) {
-  if (conn === journeyConn || !journeyDest) return;
-  const id = ++journeyReq; // what was still being fetched for the last one is dropped
+  if (conn === journey.conn || !journey.dest) return;
+  const id = ++journey.req; // what was still being fetched for the last one is dropped
   openDirs.clear();
   openStops.clear();
-  renderJourney(conn, journeyDest.title);
+  renderJourney(conn, journey.dest.title);
   refineJourney(id);
   livePoll(); // live times for its rides at once
 }
 // A row tapped: that journey, as before (the header gets a way back to the list)
 function openOption(conn: Journey) {
-  journeyList = false;
-  if (conn === journeyConn) renderSheet();
+  journey.list = false;
+  if (conn === journey.conn) renderSheet();
   else showOption(conn);
   setDetent('low', true); // the map with that journey, its times, and Start
 }
 function showOptions() {
   if (optionCount() < 2) return;
-  journeyList = true;
-  jFocus = null;
-  if (!routeOverview) { routeOverview = true; refreshRouteHighlight(); }
+  journey.list = true;
+  sheet.focus = null;
+  if (!journey.overview) { journey.overview = true; refreshRouteHighlight(); }
   renderSheet();
   if (sheetDetent === 'low') setDetent('mid', true);
   else fitJourney();
 }
 function setJourneyTab(tab: JourneyTab) {
-  const o = journeyOptions;
-  if (!o || tab === journeyTab) return;
-  journeyTab = tab;
+  const o = journey.options;
+  if (!o || tab === journey.tab) return;
+  journey.tab = tab;
   const conn = tab === 'walk' ? o.walk : o.best !== o.walk ? o.best : o.list[0];
-  if (conn && conn !== journeyConn) showOption(conn);
+  if (conn && conn !== journey.conn) showOption(conn);
   else renderSheet();
 }
 // "Earlier" / "Later": more journeys for the same trip (from the Kante engine)
 async function loadMoreJourneys(dir: JourneyMoreDir) {
-  const o = journeyOptions;
-  if (!o || journeyMore) return;
-  journeyMore = dir;
+  const o = journey.options;
+  if (!o || journey.more) return;
+  journey.more = dir;
   renderBody();
   try { await KanteJourney.more(o, dir); }
   catch (e) { showToast(`${cap(dir)} journeys could not be loaded.`); }
-  if (o !== journeyOptions) return; // another trip has been planned meanwhile
-  journeyMore = null;
-  if (journeyList) renderBody();
+  if (o !== journey.options) return; // another trip has been planned meanwhile
+  journey.more = null;
+  if (journey.list) renderBody();
 }
 // The countdowns in the rows ("Leaves in 6 min") move on with the clock
-function refreshList() {
-  if (!journeyList || !journeyOptions) return;
+export function refreshList() {
+  if (!journey.list || !journey.options) return;
   const fresh = document.createElement('div');
   fresh.append(buildBody());
   if (fresh.innerHTML !== jBody.innerHTML) renderBody();
 }
 
 function buildHead(): HTMLDivElement {
-  if (journeyList && journeyOptions) return listHead();
-  if (jFocus) return stepNav();
+  if (journey.list && journey.options) return listHead();
+  if (sheet.focus) return stepNav();
   const head = h('div', 'jhead');
-  if (!journeyConn) {
-    head.append(h('div', 'sheet-title', h('h1', 'trunc', journeyDest ? journeyDest.title : 'Journey'), sheetActions()));
+  if (!journey.conn) {
+    head.append(h('div', 'sheet-title', h('h1', 'trunc', journey.dest ? journey.dest.title : 'Journey'), sheetActions()));
     // the engine could not be reached: a way to ask it again, with the same trip
-    const retry = sheetRetry && journeyDest ? kBtn('pill-btn small', null, retryJourney, kIcon('refresh', 16), 'Try again') : null;
-    if (sheetMsg) head.append(h('div', 'jhead-act', h('span', 'jrow-act gone', sheetMsg), retry));
+    const retry = sheet.retry && journey.dest ? kBtn('pill-btn small', null, retryJourney, kIcon('refresh', 16), 'Try again') : null;
+    if (sheet.msg) head.append(h('div', 'jhead-act', h('span', 'jrow-act gone', sheet.msg), retry));
     return head;
   }
   const now = Date.now(), end = journeyEnd();
-  const rides = journeySteps.filter((st) => st.type === 'ride');
+  const rides = journey.steps.filter((st) => st.type === 'ride');
   const tr = Math.max(0, rides.length - 1);
-  const onFoot = () => { const d = walkDist(journeySteps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
-  const start = journeyConn.t0;
+  const onFoot = () => { const d = walkDist(journey.steps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
+  const start = journey.conn.t0;
   const following = document.body.classList.contains('following'); // under way: the pill at the top has the two times
   head.append(
     h('div', 'sheet-title',
       optionCount() > 1 && !following ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
       legChain(), sheetActions()));
   if (!following) head.append(
-    h('div', 'jhead-times', h('b', null, `${fmtTime(journeyConn.t0)} – ${fmtTime(end)}`),
+    h('div', 'jhead-times', h('b', null, `${fmtTime(journey.conn.t0)} – ${fmtTime(end)}`),
       h('span', null, `${kDur((end - start) / 1000)} · ${!rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`}`)));
   const act = h('div', 'jhead-act');
   // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
@@ -356,12 +367,11 @@ function buildHead(): HTMLDivElement {
   if (act.childNodes.length) head.append(act);
   return head;
 }
-let headKey = '';
-function renderHead(force?: boolean) {
+export function renderHead(force?: boolean) {
   const node = buildHead();
   const key = node.outerHTML;
-  if (!force && key === headKey) return; // unchanged: leave it alone (and its buttons pressable)
-  headKey = key;
+  if (!force && key === sheet.headKey) return; // unchanged: leave it alone (and its buttons pressable)
+  sheet.headKey = key;
   jHead.replaceChildren(node);
 }
 
@@ -416,9 +426,9 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     lvl ? lvl.text.replace(/^Go /, '') : '',
     spare && spare.easy ? spare.text : '',
   ].filter(Boolean).join(' · ');
-  const active = !routeOverview && journeyStep === i;
+  const active = !journey.overview && journey.step === i;
   const dirs = walkDirections(st);
-  const expanded = openDirs.has(i) || (!!jFocus && jFocus.step === i);
+  const expanded = openDirs.has(i) || (!!sheet.focus && sheet.focus.step === i);
   const title = `${transfer ? 'Change to' : 'Walk to'} ${target}`;
   const main = h('div', 'tl-main',
     kBtn('walk-sum', `${title}, ${kDur(mins * 60)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
@@ -432,7 +442,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   if (row.childNodes.length) main.append(row);
   if (dirs.length > 1) {
     const toggle = kBtn('expander', null, () => {
-      if (expanded) { openDirs.delete(i); if (jFocus && jFocus.step === i) jFocus = null; } else openDirs.add(i);
+      if (expanded) { openDirs.delete(i); if (sheet.focus && sheet.focus.step === i) sheet.focus = null; } else openDirs.add(i);
       renderSheet();
       const again = jBody.querySelector<HTMLElement>(`.expander[data-dirs="${i}"]`);
       if (again) again.focus({ preventScroll: true });
@@ -440,7 +450,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     toggle.setAttribute('aria-expanded', String(expanded));
     toggle.dataset.dirs = String(i);
     main.append(toggle);
-    if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!jFocus && jFocus.step === i && jFocus.dir === k, () => focusDir(i, k)))));
+    if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!sheet.focus && sheet.focus.step === i && sheet.focus.dir === k, () => focusDir(i, k)))));
   }
   return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
     h('span', 'tl-time', h('small', null, kDur(mins * 60))),
@@ -517,7 +527,7 @@ function rideBlock(st: JourneyRideStep, i: number) {
 }
 // How much walking the journey has in all (nothing for a journey without any)
 function footNote() {
-  const walks = journeySteps.filter((st) => st.type === 'walk' || st.type === 'change');
+  const walks = journey.steps.filter((st) => st.type === 'walk' || st.type === 'change');
   const mins = walks.reduce((sum, st) => sum + walkMinOf(st), 0);
   if (mins <= 0) return null;
   const dists = walks.map(walkDist);
@@ -525,23 +535,23 @@ function footNote() {
   return h('p', 'foot-note', `Total walking: ${kDur(mins * 60)}${dist ? ` (${fmtDist(dist)})` : ''}`);
 }
 function buildBody() {
-  if (journeyList && journeyOptions) return listBody();
+  if (journey.list && journey.options) return listBody();
   const frag = document.createDocumentFragment();
-  if (!journeyConn) {
-    if (sheetMsg === 'Finding a connection…') for (let k = 0; k < 4; k++) frag.append(h('div', 'skeleton'));
+  if (!journey.conn) {
+    if (sheet.msg === 'Finding a connection…') for (let k = 0; k < 4; k++) frag.append(h('div', 'skeleton'));
     return frag;
   }
   // (while stepping through directions, the header's own button leads back to the whole journey)
-  if (!routeOverview && !jFocus) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
+  if (!journey.overview && !sheet.focus) frag.append(kBtn('pill-btn overview-btn', null, overview, kIcon('map', 16), 'Show full journey'));
   const tl = h('ol', 'tl');
-  const first = journeySteps[0];
-  if (first && first.type === 'walk') tl.append(placeRow(first.t0, journeyFrom, 'from'));
-  journeySteps.forEach((st, i) => {
+  const first = journey.steps[0];
+  if (first && first.type === 'walk') tl.append(placeRow(first.t0, journey.from, 'from'));
+  journey.steps.forEach((st, i) => {
     if (st.type === 'ride') tl.append(rideBlock(st, i));
     else if (st.type === 'walk' || st.type === 'change') tl.append(walkBlock(st, i));
   });
-  const last = journeySteps.filter((st) => st.type !== 'arrive').pop();
-  if (last && last.type === 'walk' && last.final) tl.append(placeRow(journeyEnd(), journeyDest ? journeyDest.title : 'Destination', 'to'));
+  const last = journey.steps.filter((st) => st.type !== 'arrive').pop();
+  if (last && last.type === 'walk' && last.final) tl.append(placeRow(journeyEnd(), journey.dest ? journey.dest.title : 'Destination', 'to'));
   const note = footNote();
   frag.append(tl, ...(note ? [note] : []), h('div', 'sheet-end'));
   return frag;
@@ -552,11 +562,11 @@ function renderBody() {
   jBody.scrollTop = top;
 }
 let ticketFoot: { conn: Journey; tracking: boolean; following: boolean; bar: HTMLElement; refresh?: () => void } | null = null;
-function renderFoot() {
-  if (!journeyConn || journeyList) { jFoot.replaceChildren(); ticketFoot = null; return; }
+export function renderFoot() {
+  if (!journey.conn || journey.list) { jFoot.replaceChildren(); ticketFoot = null; return; }
   const tracking = SETTINGS.prefs().fareTracking;
   const following = document.body.classList.contains('following');
-  if (ticketFoot?.conn === journeyConn && ticketFoot.tracking === tracking && ticketFoot.following === following && ticketFoot.bar.isConnected) return;
+  if (ticketFoot?.conn === journey.conn && ticketFoot.tracking === tracking && ticketFoot.following === following && ticketFoot.bar.isConnected) return;
   const ticket = ticketLink();
   const pricing = ticketPricing(!!ticket);
   // the fare sits at the end of the bar; with Trip history on it is a row of its own that opens the fare form
@@ -568,14 +578,9 @@ function renderFoot() {
     kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
     pricing && !pricing.form ? pricing.row : null);
   jFoot.replaceChildren(bar, ...(pricing?.form ? [pricing.row, pricing.form] : []));
-  ticketFoot = { conn: journeyConn, tracking, following, bar, refresh: pricing?.refresh };
+  ticketFoot = { conn: journey.conn, tracking, following, bar, refresh: pricing?.refresh };
 }
-window.addEventListener('pricing-history-change', () => {
-  if (!ticketFoot?.bar.isConnected) return;
-  renderFoot();
-  ticketFoot?.refresh?.();
-});
-function renderSheet() {
+export function renderSheet() {
   renderHead(true);
   renderBody();
   renderFoot();
@@ -583,20 +588,35 @@ function renderSheet() {
 }
 let sheetQueued = false, timesQueued = false;
 // times: the trip's times have changed too, so the pill, the bar and the footer follow
-function queueSheet(times?: boolean) {
+export function queueSheet(times?: boolean) {
   if (times) timesQueued = true;
   if (sheetQueued) return;
   sheetQueued = true;
   requestAnimationFrame(() => {
     const t = timesQueued;
     sheetQueued = timesQueued = false;
-    if (!journeyConn) return;
+    if (!journey.conn) return;
     renderHead();
     renderBody();
     if (!t) return;
-    document.getElementById('jDep')!.textContent = fmtTime(journeyConn.t0);
+    document.getElementById('jDep')!.textContent = fmtTime(journey.conn.t0);
     updatePillTimes();
     renderBar();
     renderFoot();
+  });
+}
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  // "Done" at the end of the 3D walk: back to the journey, on the step that follows
+  if (window.Station3D) Station3D.on('done', () => {
+    const i = journey.steps.indexOf(sheet.s3Step!);
+    Station3D.close();
+    if (i >= 0 && i < journey.steps.length - 1) goToStep(i + 1);
+  });
+  window.addEventListener('pricing-history-change', () => {
+    if (!ticketFoot?.bar.isConnected) return;
+    renderFoot();
+    ticketFoot?.refresh?.();
   });
 }

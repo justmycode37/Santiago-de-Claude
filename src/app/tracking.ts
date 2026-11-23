@@ -1,27 +1,33 @@
 // ---------- Live tracking: where you and your vehicle are on the trip ----------
 // Swiss operators publish no open live vehicle positions, so a vehicle is placed from its live (real-time)
 // stop times; you are followed by GPS, snapped onto the trip's line. Without GPS, the live times place you.
-let geoVersion = 1; // bumped whenever a step's line changes (real walking paths and tracks arrive)
-let track: TrackState | null = null;   // GPS progress: { i (step), kmIn (km into it), km (into the trip), d (m off the line), off, missed, arrived }
-let autoStep = 0;   // the step GPS last moved the cards to
-let userPickedAt = 0;
+import { map } from './map.ts';
+import { showToast } from './menu.ts';
+import { fixAge, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';
+import { destMarker } from './search.ts';
+import { hasForecast, icon, lineLabel, lineVars, liveMs, modeOf, splitLine, stopName } from './journey-steps.ts';
+import { rideTrip } from './live-engine.ts';
+import { MODE_NAME } from './sheet.ts';
+import { goToStep } from './pill.ts';
+import { distKm, lengthKm } from './routing.ts';
+import { journey, searchState, tracking } from './state.ts';
 
 // A step's line in travel order (a change without a walk is just the platform)
 function stepLine(st: JourneyStep): LngLat[] {
-  if (st._lv === geoVersion) return st._line!;
+  if (st._lv === tracking.geoVersion) return st._line!;
   let cs = st.type === 'ride' ? st.path : (st.lines || []).flat();
   if (!cs.length && st.type === 'change') cs = st.points.filter(Boolean).slice(-1) as LngLat[];
-  st._lv = geoVersion;
+  st._lv = tracking.geoVersion;
   st._line = cs || [];
   return st._line;
 }
 let layCache: TripLayout | null = null;
-function tripLayout(): TripLayout {
-  if (layCache && layCache.v === geoVersion && layCache.steps === journeySteps) return layCache;
+export function tripLayout(): TripLayout {
+  if (layCache && layCache.v === tracking.geoVersion && layCache.steps === journey.steps) return layCache;
   const lens: number[] = [], km0: number[] = [];
   let total = 0;
-  journeySteps.forEach((st) => { km0.push(total); const l = lengthKm(stepLine(st)); lens.push(l); total += l; });
-  layCache = { v: geoVersion, steps: journeySteps, lens, km0, total };
+  journey.steps.forEach((st) => { km0.push(total); const l = lengthKm(stepLine(st)); lens.push(l); total += l; });
+  layCache = { v: tracking.geoVersion, steps: journey.steps, lens, km0, total };
   return layCache;
 }
 function cumKm(cs: LngLat[]) {
@@ -43,7 +49,7 @@ function pointAtKm(cs: LngLat[], km: number): LngLat | null {
   return cs.length < 2 || !len ? cs[0] : splitLine(cs, Math.min(1, Math.max(0, km / len)))[2];
 }
 // How far along a ride's line (km) each of its stops is
-function stopKms(st: JourneyRideStep): number[] {
+export function stopKms(st: JourneyRideStep): number[] {
   if (st._kmFor === st.path) return st._kms!;
   const cs = st.path, cum = cumKm(cs);
   let j0 = 0;
@@ -64,7 +70,7 @@ function stopKms(st: JourneyRideStep): number[] {
 
 // Where a ride's vehicle is now → { km, at } or { km, from, to } (+ engine: the Kante engine's position, when it
 // placed it), or null when it is not on this part of its route
-function vehicleState(st: JourneyRideStep, now: number): VehicleState | null { return engineVehicle(st, now) || timedVehicle(st, now); }
+export function vehicleState(st: JourneyRideStep, now: number): VehicleState | null { return engineVehicle(st, now) || timedVehicle(st, now); }
 // The engine's position (timed from measured stops, forecasts or on-board reports), laid onto the drawn ride: of the
 // trip the ride is on now. A ride you stay seated on over several trips is on the last one that has left the stop
 // where it begins (by the live times): an older answer for the trip before must not place the vehicle there.
@@ -108,8 +114,8 @@ function timedVehicle(st: JourneyRideStep, now: number): TimedVehiclePlace | nul
 // Where the live timetable says you are → { i, kmIn, ended }, or null before the trip starts
 function timeProgress(now = Date.now()): TimedPlace | null {
   let last: TimedPlace | null = null;
-  for (let i = 0; i < journeySteps.length; i++) {
-    const st = journeySteps[i];
+  for (let i = 0; i < journey.steps.length; i++) {
+    const st = journey.steps[i];
     if (st.t0 == null || st.t1 == null) continue;
     if (now < st.t0) return last; // between steps: waiting where the last one ended
     const len = tripLayout().lens[i];
@@ -124,12 +130,12 @@ function timeProgress(now = Date.now()): TimedPlace | null {
 }
 
 // The trip is under way (or about to be): only then does GPS move you along it, so a trip planned for later is left alone
-function journeyEnd() {
-  const a = journeySteps[journeySteps.length - 1];
-  return a && a.time != null ? a.time : journeyConn!.t1;
+export function journeyEnd() {
+  const a = journey.steps[journey.steps.length - 1];
+  return a && a.time != null ? a.time : journey.conn!.t1;
 }
-function tripLive(now = Date.now()) {
-  const first = journeySteps.find((st) => st.t0 != null);
+export function tripLive(now = Date.now()) {
+  const first = journey.steps.find((st) => st.t0 != null);
   return !!first && now >= first.t0! - 30 * 60000 && now <= journeyEnd() + 30 * 60000;
 }
 
@@ -138,7 +144,7 @@ function tripLive(now = Date.now()) {
 function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
   const lay = tripLayout();
   let best: TripSnap | null = null;
-  journeySteps.forEach((st, i) => {
+  journey.steps.forEach((st, i) => {
     const cs = stepLine(st);
     if (!cs.length) return;
     const early = st.type === 'ride' && st.t0 != null && now < st.t0 - 60000 ? 150 : 0;
@@ -160,7 +166,7 @@ function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
 // Still at (or on the way to) the stop of a ride that has left without you?
 function missedRide(t: TripPlace, now: number): JourneyRideStep | null {
   if (fixAge() > 20000) return null;
-  const st = journeySteps[t.i];
+  const st = journey.steps[t.i];
   const r = st.type === 'ride' ? st : st.nextRide;
   if (!r || r.t0 == null || now < r.t0 + 90000) return null;
   if (st === r && t.kmIn > 0.1) return null; // moving along it: on board
@@ -170,59 +176,59 @@ function missedRide(t: TripPlace, now: number): JourneyRideStep | null {
 
 // On a walk, the blue dot sits on the walking route while GPS puts you within its accuracy of it (the halo stays
 // where GPS says), so it does not wander through walls; on a ride, or away from the route, it shows GPS as it is.
-function placeUserDot() {
+export function placeUserDot() {
   if (!userLngLat) return;
   let at: LngLat = userLngLat;
-  const st = track && !track.off && !track.arrived ? journeySteps[track.i] : null;
+  const st = tracking.track && !tracking.track.off && !tracking.track.arrived ? journey.steps[tracking.track.i] : null;
   const routed = !!st && st.type !== 'ride' && (st.walks || []).some((w) => w && w.net && !w.approx); // only onto real paths, never a straight guess
-  if (routed && track && track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), track.kmIn) || at;
+  if (routed && tracking.track && tracking.track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), tracking.track.kmIn) || at;
   userMarker.setLngLat(at);
 }
-function trackJourney() {
+export function trackJourney() {
   trackOnce();
   placeUserDot();
 }
 function trackOnce() {
-  if (!journeySteps.length || !gpsOn() || !tripLive()) { track = null; return; }
+  if (!journey.steps.length || !gpsOn() || !tripLive()) { tracking.track = null; return; }
   const now = Date.now(), lay = tripLayout(), tp = timeProgress(now);
   // where you were at the last fix (measured on today's lines), else where the timetable puts you
-  const ref = track && !track.off && track.v === geoVersion ? track.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
+  const ref = tracking.track && !tracking.track.off && tracking.track.v === tracking.geoVersion ? tracking.track.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
   const s = snapToTrip(userLngLat!, ref, now);
-  if (!s) { track = null; return; }
+  if (!s) { tracking.track = null; return; }
   // walks follow exact footpaths now, so leaving one shows sooner than leaving a ride's line
-  const here = journeySteps[s.i];
+  const here = journey.steps[s.i];
   const onFoot = here.type !== 'ride' && (here.walks || []).some((w) => w && w.net && !w.approx);
   const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
   // (once you have been on it, leaving it again is "off the route", however long that lasts)
-  const onRoute = !!(track && track.onRoute) || s.d <= tol;
-  if (tripStart && !onRoute) { track = null; return; }
-  const offCount = s.d > tol ? ((track && track.offCount) || 0) + 1 : 0;
-  track = { ...s, v: geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
-  if (track.off) return;
+  const onRoute = !!(tracking.track && tracking.track.onRoute) || s.d <= tol;
+  if (searchState.tripStart && !onRoute) { tracking.track = null; return; }
+  const offCount = s.d > tol ? ((tracking.track && tracking.track.offCount) || 0) + 1 : 0;
+  tracking.track = { ...s, v: tracking.geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
+  if (tracking.track.off) return;
   const dest = destMarker._map && destMarker.getLngLat().toArray();
   if (lay.total - s.km < 0.025 || (dest && distKm(userLngLat!, dest) < Math.min(0.04, Math.max(0.02, userAccuracy / 1000)))) {
-    Object.assign(track, { i: journeySteps.length - 1, kmIn: 0, km: lay.total, arrived: true });
+    Object.assign(tracking.track, { i: journey.steps.length - 1, kmIn: 0, km: lay.total, arrived: true });
   }
-  track.missed = track.arrived ? null : missedRide(track, now);
+  tracking.track.missed = tracking.track.arrived ? null : missedRide(tracking.track, now);
   // move the cards along with you, unless you have just picked a step yourself
-  if (!track.missed && track.i !== autoStep) {
-    autoStep = track.i;
-    if (now - userPickedAt > 20000 && !journeyList) goToStep(track.i, true);
+  if (!tracking.track.missed && tracking.track.i !== tracking.autoStep) {
+    tracking.autoStep = tracking.track.i;
+    if (now - tracking.userPickedAt > 20000 && !journey.list) goToStep(tracking.track.i, true);
   }
 }
 
 // Your place on the trip: GPS when it is following you, else the live timetable
-function journeyProgress(): TripPlace | null {
-  if (track && !track.off && gpsOn()) return track;
-  return journeySteps.length ? timeProgress() : null;
+export function journeyProgress(): TripPlace | null {
+  if (tracking.track && !tracking.track.off && gpsOn()) return tracking.track;
+  return journey.steps.length ? timeProgress() : null;
 }
 // …as a moment of the trip, for the bar at the top
-function progressTime() {
-  const t = track && !track.off && gpsOn() ? track : null;
+export function progressTime() {
+  const t = tracking.track && !tracking.track.off && gpsOn() ? tracking.track : null;
   if (!t) return { t: Date.now(), gps: false };
   if (t.arrived) return { t: Infinity, gps: true };
-  const st = journeySteps[t.i], len = tripLayout().lens[t.i];
+  const st = journey.steps[t.i], len = tripLayout().lens[t.i];
   if (st.t0 == null || st.t1 == null) return { t: Date.now(), gps: false };
   return { t: st.t0 + (st.t1 - st.t0) * (len ? Math.min(1, t.kmIn / len) : 1), gps: true };
 }
@@ -231,13 +237,13 @@ function progressTime() {
 const nowEl = document.createElement('div');
 nowEl.className = 'route-now';
 nowEl.title = 'Estimated from the live timetable (no GPS)';
-const nowMarker = new maplibregl.Marker({ element: nowEl });
+export const nowMarker = new maplibregl.Marker({ element: nowEl });
 const vehEl = document.createElement('div');
 vehEl.className = 'route-veh';
 vehEl.setAttribute('role', 'img');
 vehEl.title = 'Position estimated from live departure times';
 vehEl.addEventListener('click', () => showToast(vehEl.title, 5000)); // phones have no hover: a tap says how it was placed
-const vehMarker = new maplibregl.Marker({ element: vehEl });
+export const vehMarker = new maplibregl.Marker({ element: vehEl });
 // How the vehicle was placed, honestly: measured, forecast or timetable → { text, dim }
 function vehicleHonesty(st: JourneyRideStep, v: VehicleState, now: number) {
   const s = st.s, n = Math.max(0, s.legs.findIndex((_, x) => !!rideTrip(s, x, true)));
@@ -258,12 +264,12 @@ function vehicleHonesty(st: JourneyRideStep, v: VehicleState, now: number) {
   const forecast = s.stops.some((x) => hasForecast(x, 'dep') || hasForecast(x, 'arr'));
   return forecast ? { text: 'Estimated from forecasts', dim: false } : KANTE_LIVE.liveText({ state: 'timetable' });
 }
-function updateNowMarker() {
+export function updateNowMarker() {
   const now = Date.now();
-  const ride = journeySteps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
-  const gps = !!track && !track.off && gpsOn();
+  const ride = journey.steps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
+  const gps = !!tracking.track && !tracking.track.off && gpsOn();
   // once GPS shows you on board, your blue dot is the vehicle
-  const v = ride && !(gps && journeySteps[track!.i] === ride && !track!.missed) ? vehicleState(ride, now) : null;
+  const v = ride && !(gps && journey.steps[tracking.track!.i] === ride && !tracking.track!.missed) ? vehicleState(ride, now) : null;
   if (v && ride!.path.length > 1) {
     const j = ride!.s.line, key = lineLabel(j) + '|' + j.category;
     if (vehEl.dataset.key !== key) {
@@ -282,7 +288,7 @@ function updateNowMarker() {
     if (!vehMarker._map) vehMarker.addTo(map);
   } else vehMarker.remove();
   const tp = !gpsOn() && !ride ? timeProgress(now) : null;
-  const pos = tp && !tp.ended ? pointAtKm(stepLine(journeySteps[tp.i]), tp.kmIn) : null;
+  const pos = tp && !tp.ended ? pointAtKm(stepLine(journey.steps[tp.i]), tp.kmIn) : null;
   if (pos) { nowMarker.setLngLat(pos); if (!nowMarker._map) nowMarker.addTo(map); }
   else nowMarker.remove();
 }

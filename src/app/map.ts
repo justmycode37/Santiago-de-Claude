@@ -1,11 +1,11 @@
 // ---------- Theme helpers ----------
-const root = document.documentElement;
-const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
-const currentTheme = () => root.dataset.theme === 'dark' ? 'dark' : 'light';
+export const root = document.documentElement;
+export const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
+export const currentTheme = () => root.dataset.theme === 'dark' ? 'dark' : 'light';
 
 // ---------- Map ----------
-const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
-const CH_BOUNDS: [LngLat, LngLat] = [[5.7, 45.6], [10.7, 48.0]];
+export const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
+export const CH_BOUNDS: [LngLat, LngLat] = [[5.7, 45.6], [10.7, 48.0]];
 const FALLBACK: LngLat = [7.4474, 46.9480]; // Bern
 // Where the user was last time: the map opens there straight away (and loads those tiles) instead of in Bern
 // and then jumping once GPS answers. Only kept on this device.
@@ -25,7 +25,7 @@ const IS_WEBKIT_MOBILE = /iP(hone|ad|od)/.test(navigator.userAgent)
 const IS_SAFARI = IS_WEBKIT_MOBILE || /^((?!chrome|chromium|android|edg).)*safari/i.test(navigator.userAgent);
 if (IS_SAFARI) maplibregl.setWorkerCount(3);
 
-const map = new maplibregl.Map({
+export const map = new maplibregl.Map({
   container: 'map',
   // iPhones have 3× screens: drawing the map at 2× is about half the pixels per frame and looks the same
   pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
@@ -49,7 +49,7 @@ map.keyboard.disableRotation();
 
 // swisstopo has no dark vector basemap. Same as the Kante app: a dark variant of the light base map,
 // made by remapping the lightness of every colour in the style (ground, roads, casings and text separately).
-const STYLES: Record<Theme, maplibregl.StyleSpecification | null> = { light: null, dark: null };
+export const STYLES: Record<Theme, maplibregl.StyleSpecification | null> = { light: null, dark: null };
 
 function parseColor(c: unknown): Rgba | null {
   const s = String(c).trim().toLowerCase();
@@ -111,7 +111,7 @@ function remapColors(v: unknown, f: HslRemap): unknown {
   return v;
 }
 const DARK_HIDE = /^(hillshade|scree|hachure|pattern_landcover|contour_line)/;
-function makeDarkStyle(base: maplibregl.StyleSpecification): maplibregl.StyleSpecification {
+export function makeDarkStyle(base: maplibregl.StyleSpecification): maplibregl.StyleSpecification {
   const style = structuredClone(base);
   for (const layer of style.layers) {
     if (DARK_HIDE.test(layer.id)) {

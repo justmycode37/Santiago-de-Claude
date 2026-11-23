@@ -6,8 +6,19 @@
 // known the place is on OpenStreetMap and Wikidata (PlaceSearch.enrich). Being near counts a little.
 // With "New to Switzerland" on in Settings, categories for newcomers come first: language courses (the community
 // events) and town halls & migration offices. Those events are not on the map otherwise (12-events.ts).
+import { map } from './map.ts';
+import { eventMarkers, updateCards } from './map-events.ts';
+import { showToast, toast } from './menu.ts';
+import { KIND, inputs, list } from './search.ts';
+import { NEAR_PHRASE, fold, searchOrigin, searchPlaces, searchPlacesOnline } from './search-places.ts';
+import { areaChip, clearPlacePins, onTap } from './search-pins.ts';
+import { choose, closeSearch, setField, topUiBottom } from './trip-ends.ts';
+import { loadPlaces } from './map-places.ts';
+import { mapPadding } from './pill.ts';
+import { distKm } from './routing.ts';
+import { journey, searchState } from './state.ts';
 
-interface SearchCategory {
+export interface SearchCategory {
   key: string;
   label: string;
   icon: SearchIcon;
@@ -54,7 +65,7 @@ function categoriesForYou(): SearchCategory[] {
   return [...newcomer, ...order.map(categoryByKey)];
 }
 // What was typed, as a category: ours by name or word, else any kind of place the place search knows ("dentist")
-function categoryForText(text: string): SearchCategory | null {
+export function categoryForText(text: string): SearchCategory | null {
   const q = fold(text).replace(NEAR_PHRASE, '').trim();
   if (q.length < 3) return null;
   for (const c of CATEGORY_LIST) {
@@ -80,7 +91,7 @@ function chipFor(c: SearchCategory) {
   onTap(b, () => enterCategory(c));
   return b;
 }
-function renderCategories() {
+export function renderCategories() {
   const all = categoriesForYou();
   const groups: [string, SearchCategory[]][] = [
     ['New to Switzerland', all.filter((c) => c.newcomer)],
@@ -103,7 +114,7 @@ function renderCategories() {
   list.scrollTop = 0;
 }
 // While typing: the category the text names, as the first row ("Restaurants · the best nearby")
-function categoryRow(c: SearchCategory) {
+export function categoryRow(c: SearchCategory) {
   const li = document.createElement('li');
   li.setAttribute('role', 'option');
   li.className = 'cat-row';
@@ -132,14 +143,14 @@ const cuisineOr = (category: string) => { const [kind, extra] = category.split('
 const categoryMarkers = new Map<string, maplibregl.Marker>();
 let categoryPlaces: CategoryPlace[] = [];
 let categoryReq = 0;
-const CATEGORY_CARDS = 6; // at most this many cards at once: the map stays readable
+export const CATEGORY_CARDS = 6; // at most this many cards at once: the map stays readable
 
-function enterCategory(c: SearchCategory) {
+export function enterCategory(c: SearchCategory) {
   clearPlacePins(); // also leaves the category before (exitCategory)
-  activeCategory = c;
-  results = [];
-  lastSearch = null;
-  reqId++;
+  searchState.category = c;
+  searchState.results = [];
+  searchState.last = null;
+  searchState.reqId++;
   setField('to', c.label);
   closeSearch();
   if (c.events) {
@@ -149,10 +160,10 @@ function enterCategory(c: SearchCategory) {
   }
   loadCategory(c, false);
 }
-function exitCategory() {
-  if (!activeCategory) return;
-  const label = activeCategory.label;
-  activeCategory = null;
+export function exitCategory() {
+  if (!searchState.category) return;
+  const label = searchState.category.label;
+  searchState.category = null;
   categoryReq++;
   categoryPlaces = [];
   clearCategoryCards();
@@ -169,13 +180,13 @@ function showNearestEvents(c: SearchCategory) {
   map.flyTo({ center: near[0][0].geometry.coordinates, zoom: Math.max(map.getZoom(), 14), speed: 1.4 });
 }
 
-async function loadCategory(c: SearchCategory, areaOnly: boolean) {
+export async function loadCategory(c: SearchCategory, areaOnly: boolean) {
   const id = ++categoryReq;
   const view = map.getBounds();
   const bbox: PlaceBbox | undefined = areaOnly ? [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()] : undefined;
   showToast(`Finding the best ${c.label.toLowerCase()} here…`, 8000);
   const [online] = await Promise.all([searchPlacesOnline(c.query!, bbox).catch(() => null), loadPlaces()]);
-  if (id !== categoryReq || activeCategory !== c) return;
+  if (id !== categoryReq || searchState.category !== c) return;
   const from = searchOrigin();
   // the 30 nearest: their details come in one request, so the best of them can be told apart
   const found = (online ? online.results : []).slice().sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)).slice(0, 30);
@@ -219,7 +230,7 @@ async function loadCategory(c: SearchCategory, areaOnly: boolean) {
   }
   if (!found.some((p) => !p.details)) return;
   await PlaceSearch.enrich(found).catch(() => found);
-  if (id !== categoryReq || activeCategory !== c) return;
+  if (id !== categoryReq || searchState.category !== c) return;
   categoryPlaces = rank();
   clearCategoryCards(); // the cards again, now with photos and websites
   updateCategoryCards();
@@ -231,7 +242,7 @@ function clearCategoryCards() {
 }
 // The best places that fit on the screen without covering each other, like the event cards
 function updateCategoryCards() {
-  if (!activeCategory || activeCategory.events || journeyDest) { clearCategoryCards(); return; }
+  if (!searchState.category || searchState.category.events || journey.dest) { clearCategoryCards(); return; }
   const { clientWidth, clientHeight } = map.getContainer();
   const shown: { p: CategoryPlace; point: maplibregl.Point }[] = [];
   const height = (p: CategoryPlace) => (p.photo ? 180 : 125); // the card and its tail, above its place
@@ -254,8 +265,6 @@ function updateCategoryCards() {
   clearCategoryCards();
   for (const [k, m] of next) categoryMarkers.set(k, m);
 }
-map.on('moveend', updateCategoryCards);
-map.on('resize', updateCategoryCards);
 
 const GLOBE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
 function makePlaceCard(p: CategoryPlace) {
@@ -305,4 +314,10 @@ function makePlaceCard(p: CategoryPlace) {
   }
   card.append(inner);
   return card;
+}
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  map.on('moveend', updateCategoryCards);
+  map.on('resize', updateCategoryCards);
 }

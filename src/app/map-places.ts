@@ -1,25 +1,32 @@
 // ---------- Places: toilets, drinking water, health, help… (map-layers.js, map-places.js) ----------
 // Shown with the events button, for the groups switched on under "Events and places" in Settings.
 // The data (~2.5 MB: Bern, and the toilets of all of Switzerland) is loaded the first time it is needed.
-const PLACES_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlaceDotProps> = { type: 'FeatureCollection', features: [] };
-let PLACES: MapPlaces | null = null;
+import { map } from './map.ts';
+import { eventsOn } from './map-events.ts';
+import { showToast } from './menu.ts';
+import { showDestinationJourney } from './trip-ends.ts';
+import { platformPopup } from './platforms.ts';
+import { mk } from './live-vehicles.ts';
+import { journey, popup } from './state.ts';
+export const PLACES_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlaceDotProps> = { type: 'FeatureCollection', features: [] };
+export let PLACES: MapPlaces | null = null;
 let placesLoading: Promise<boolean> | null = null;
 // Even density: about the same number of icons on screen at every zoom (~70 on a phone). Each icon keeps
 // PLACE_SPACING px of room around it; where icons would crowd, the higher-ranked ones (map-layers.js) are placed
 // first and the rest appear as you zoom in. The room shrinks with zoom because icons grow (0.8× → 1×), and close
 // in, where few places are left to add, it lets nearly all of them show.
-const PLACE_MIN_ZOOM = 12.5;
+export const PLACE_MIN_ZOOM = 12.5;
 const PLACE_SPACING: maplibregl.ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 13, 16, 17, 8, 18.5, 3];
-const PLACE_LAYERS = ['places'];
-const GROUP_BY_KEY = Object.fromEntries(MAP_LAYERS.GROUPS.map((g) => [g.key, g]));
+export const PLACE_LAYERS = ['places'];
+export const GROUP_BY_KEY = Object.fromEntries(MAP_LAYERS.GROUPS.map((g) => [g.key, g]));
 const BERN_BOX = [[7.34, 46.9], [7.5, 46.99]];
 
 // Place groups to draw now (none while the events button is off or a journey is on)
-const placeGroupsShown = (): MapGroupKey[] => (eventsOn && !journeyDest ? SETTINGS.mapGroups().filter((k) => k !== 'events') : []);
+const placeGroupsShown = (): MapGroupKey[] => (eventsOn && !journey.dest ? SETTINGS.mapGroups().filter((k) => k !== 'events') : []);
 // not the 'sign' icons (platform sector signs, station furniture): they would bury the app's own platform dots
 const placeFilter = (groups: MapGroupKey[]): maplibregl.FilterSpecification => ['all', ['in', ['get', 'g'], ['literal', groups]], ['!=', ['get', 'gl'], 'sign']];
 
-function placeLayers(theme: Theme): maplibregl.LayerSpecification[] {
+export function placeLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
   const groups = placeGroupsShown();
   return [{
@@ -48,7 +55,7 @@ function placeLayers(theme: Theme): maplibregl.LayerSpecification[] {
   }];
 }
 
-function loadPlaces() {
+export function loadPlaces() {
   if (!placesLoading) placesLoading = new Promise((resolve) => {
     const s = document.createElement('script');
     s.src = 'map-places.js';
@@ -67,7 +74,7 @@ function indexPlaces(data: MapPlaces | undefined) {
 }
 // The places only go to the map (where building and indexing them keeps the page and a map worker busy) once
 // they are to be shown; the search uses PLACES directly.
-let placesOnMap = false;
+export let placesOnMap = false;
 function showPlacesIfNeeded() {
   if (placesOnMap || !PLACES || !placeGroupsShown().length) return;
   placesOnMap = true;
@@ -83,7 +90,7 @@ function showPlacesIfNeeded() {
   if (src) src.setData(PLACES_FC);
 }
 
-function updatePlaces() {
+export function updatePlaces() {
   const groups = placeGroupsShown();
   if (groups.length && !PLACES) loadPlaces();
   showPlacesIfNeeded();
@@ -92,10 +99,10 @@ function updatePlaces() {
     map.setLayoutProperty(id, 'visibility', groups.length ? 'visible' : 'none');
     map.setFilter(id, placeFilter(groups));
   }
-  if (popupPlace && !groups.includes(popupPlace)) { popupPlace = null; platformPopup.remove(); }
+  if (popup.place && !groups.includes(popup.place)) { popup.place = null; platformPopup.remove(); }
 }
 
-const viewNearBern = () => {
+export const viewNearBern = () => {
   const b = map.getBounds();
   return b.getEast() > BERN_BOX[0][0] && b.getWest() < BERN_BOX[1][0] && b.getNorth() > BERN_BOX[0][1] && b.getSouth() < BERN_BOX[1][1];
 };
@@ -103,14 +110,14 @@ const viewNearBern = () => {
 const WHEELCHAIR = { yes: 'Wheelchair accessible', limited: 'Partly wheelchair accessible', no: 'Not wheelchair accessible' };
 const ACCESS = { customers: 'Customers only', private: 'Private', permit: 'Permit needed', key: 'Key needed', permissive: 'Open to the public',
   wheelchair: 'Wheelchair users only', unsure: 'May be closed or locked' };
-function openPlace(i: number) {
+export function openPlace(i: number) {
   const row = PLACES && PLACES.items[i];
   if (!row) return;
-  popupReq++;
+  popup.req++;
   const [lon, lat, ci, name, x = {}] = row;
   const [g, glyph, , label] = PLACES!.cats[ci];
   const group = GROUP_BY_KEY[g];
-  popupPlace = g;
+  popup.place = g;
 
   const dot = mk('span', 'pl-dot');
   dot.style.setProperty('--c', `var(--${group.color})`);
@@ -171,22 +178,26 @@ function openPlace(i: number) {
   const go = mk('button', 'pl-go', 'Directions');
   go.type = 'button';
   go.addEventListener('click', () => {
-    popupPlace = null;
+    popup.place = null;
     platformPopup.remove();
     showDestinationJourney({ title: name || label, lngLat: [lon, lat] });
   });
   body.append(go, mk('p', 'pl-src', 'Source: ' + PLACES!.sources[x.s || 0]));
   platformPopup.setLngLat([lon, lat]).setDOMContent(body).addTo(map);
 }
-for (const id of PLACE_LAYERS) {
-  map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
-}
 
-function bearingDeg(a: LngLat, b: LngLat) {
+export function bearingDeg(a: LngLat, b: LngLat) {
   const toRad = Math.PI / 180;
   const dLng = (b[0] - a[0]) * toRad;
   const y = Math.sin(dLng) * Math.cos(b[1] * toRad);
   const x = Math.cos(a[1] * toRad) * Math.sin(b[1] * toRad) - Math.sin(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.cos(dLng);
   return (Math.atan2(y, x) / toRad + 360) % 360;
+}
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  for (const id of PLACE_LAYERS) {
+    map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+  }
 }

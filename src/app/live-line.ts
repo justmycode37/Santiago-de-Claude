@@ -1,4 +1,14 @@
 // ---- The live line in the sheet's header: "120 m to Platform 7 · S1 in 4 min", "On 10 · 3 stops to Bern" ----
+import { gpsOn } from './location.ts';
+import { setRoute } from './journey-map.ts';
+import { fmtTime, hasForecast, lateMin, liveMs, stepFeatures, stopName } from './journey-steps.ts';
+import { journeyProgress, stopKms, tripLayout, vehicleState } from './tracking.ts';
+import { rideTrip } from './live-engine.ts';
+import { fmtDist, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
+import { h, kBadge, kDelay, quayOf } from './sheet.ts';
+import { renderHead } from './sheet-content.ts';
+import { startJourney, updateProgress } from './pill.ts';
+import { journey, tracking } from './state.ts';
 function boardName(r: JourneyRideStep) {
   const raw = platformOf(r.s.from), edge = r.depAt && r.depAt.edge;
   const num = splitPlatform(raw === '–' ? '' : raw).num || (edge && edge.ref) || '';
@@ -16,7 +26,7 @@ function platChange(r: JourneyRideStep | null | undefined) {
 }
 // A change ahead that live times make impossible: the next ride leaves before you can walk there
 function brokenChange(now: number, from: number) {
-  return journeySteps.find((st, i) => {
+  return journey.steps.find((st, i) => {
     if (st.type !== 'change' || i < from) return false;
     const arr = liveMs(st.prev.to, 'arr'), dep = liveMs(st.next.from, 'dep');
     const live = hasForecast(st.prev.to, 'arr') || hasForecast(st.next.from, 'dep');
@@ -30,24 +40,24 @@ function hurry(left: number, r: JourneyRideStep, now: number) {
   const kmh = (SETTINGS.prefs && SETTINGS.prefs().walkKmh) || 4.7;
   return KANTE_LIVE.runOrWait(leftS, left / (kmh / 3.6));
 }
-function liveParts(now: number): LiveLine | null {
-  const t = track && gpsOn() ? track : null;
+export function liveParts(now: number): LiveLine | null {
+  const t = tracking.track && gpsOn() ? tracking.track : null;
   if (t && t.off) return { kind: 'off', parts: [`Off the route · ${fmtDist(t.d)} away`], replan: true };
   if (t && t.missed) {
     const r = t.missed;
     return { kind: 'off', parts: ['Missed ', kBadge(r.s.line), `? It left at ${fmtTime(r.t0)}`], replan: true };
   }
-  const cancelled = journeySteps.find((st) => st.type === 'ride' && st.s.legs.some((_, n) => rideTrip(st.s, n, true)?.cancelled)
-    && (!t || journeySteps.indexOf(st) >= t.i) && now < st.t1!) as JourneyRideStep | undefined;
+  const cancelled = journey.steps.find((st) => st.type === 'ride' && st.s.legs.some((_, n) => rideTrip(st.s, n, true)?.cancelled)
+    && (!t || journey.steps.indexOf(st) >= t.i) && now < st.t1!) as JourneyRideStep | undefined;
   if (cancelled) return { kind: 'off', parts: [kBadge(cancelled.s.line), ' is cancelled'], replan: true };
   // GPS on a walk or change: run or wait decides it, not the timetable's walking time
-  const walking = t && !t.arrived && journeySteps[t.i].type !== 'ride' && !journeySteps[t.i].final;
+  const walking = t && !t.arrived && journey.steps[t.i].type !== 'ride' && !journey.steps[t.i].final;
   const broken = brokenChange(now, t ? t.i + (walking ? 1 : 0) : 0);
   if (broken) {
     return { kind: 'off', replan: true, parts: [`Not enough time to change at ${stopName(broken.next.from)} · `, kBadge(broken.next.line), ` leaves ${fmtTime(liveMs(broken.next.from, 'dep'))}`] };
   }
   if (t) {
-    const st = journeySteps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000;
+    const st = journey.steps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000;
     if (t.arrived) return { kind: 'gps', parts: ['You have arrived'] };
     if (st.type === 'ride') {
       const j = st.s.line;
@@ -67,36 +77,35 @@ function liveParts(now: number): LiveLine | null {
       parts: [h('span', 'live-lead', where, kBadge(r.s.line)), ` ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.from, 'dep')), platChange(r)] };
   }
   // no GPS: from the live timetable
-  const ride = journeySteps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
+  const ride = journey.steps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
   if (ride) {
     const v = vehicleState(ride, now);
     const where = !v ? '' : v.at ? ` at ${v.at}` : ` between ${v.from} and ${v.to}`;
     return { kind: 'est', parts: [kBadge(ride.s.line), where || ' under way', lateTag(lateMin(ride.s.to, 'arr'))] };
   }
-  const r = journeySteps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && st.t0 > now);
+  const r = journey.steps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && st.t0 > now);
   if (r && r.t0! - now < 3600000) {
     return { kind: 'est', parts: [kBadge(r.s.line), ` leaves ${boardName(r)} ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.from, 'dep')), platChange(r)] };
   }
   return null;
 }
-function renderLive() { renderHead(); }
-function replan() {
-  if (!journeyDest) return;
-  journeyQuery = { mode: 'dep', date: '', time: '' };
-  startJourney(journeyDest, true);
+export function renderLive() { renderHead(); }
+export function replan() {
+  if (!journey.dest) return;
+  journey.query = { mode: 'dep', date: '', time: '' };
+  startJourney(journey.dest, true);
 }
 
 let progressQueued = false;
-function scheduleProgress() {
+export function scheduleProgress() {
   if (progressQueued) return;
   progressQueued = true;
   requestAnimationFrame(() => { progressQueued = false; updateProgress(); });
 }
-let routeKey = '';
-function redrawRoute(force?: boolean) {
+export function redrawRoute(force?: boolean) {
   const p = journeyProgress();
   const key = p ? `${p.i}|${Math.round(p.kmIn * 200)}` : '-'; // redraw every 5 m
-  if (!force && key === routeKey) return;
-  routeKey = key;
-  setRoute(stepFeatures(journeySteps));
+  if (!force && key === journey.routeKey) return;
+  journey.routeKey = key;
+  setRoute(stepFeatures(journey.steps));
 }

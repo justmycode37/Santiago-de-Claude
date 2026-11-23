@@ -37,6 +37,17 @@ const notReleased = (file: string) => /-dev\.html$/.test(file) || file === 'conf
 
 const rel = (file: string) => path.relative(ROOT, file);
 
+/**
+ * The pages' modules. Each is bundled with what it imports into dist/<its path under src/>.js (src/main.ts →
+ * main.js); what they load with import() becomes a file of its own in dist/chunks/, fetched when first needed.
+ * A page loads one with the marker "<!-- build: src/main.ts type="module" -->".
+ */
+export const ENTRIES = ['src/main.ts'];
+/** Loaded by the pages from the CDN, through their import map: left as imports. */
+const EXTERNAL = ['three', 'three/addons/*'];
+/** What the last bundle wrote: the file of each entry, and the files it imports (for <link rel="modulepreload">). */
+let bundled = new Map<string, { file: string; imports: string[] }>();
+
 /** What esbuild writes: today's syntax as it is (nothing lowered), and the text as written (no \u escapes). */
 const OUTPUT = { target: 'esnext', charset: 'utf8', logLevel: 'silent' } as const;
 
@@ -67,6 +78,42 @@ export function buildScript(name: string): void {
   fs.writeFileSync(path.join(DIST, out), stripTypes(path.join(SRC, name)));
 }
 
+/** The modules of ENTRIES → dist/, with their source maps. */
+export function bundle(): void {
+  fs.rmSync(path.join(DIST, 'chunks'), { recursive: true, force: true });
+  let result: esbuild.BuildResult<{ metafile: true }>;
+  try {
+    result = esbuild.buildSync({
+      ...OUTPUT, entryPoints: ENTRIES.map((e) => path.join(ROOT, e)), bundle: true, splitting: true, format: 'esm',
+      outdir: DIST, outbase: SRC, entryNames: '[dir]/[name]', chunkNames: 'chunks/[name]-[hash]', sourcemap: true,
+      external: EXTERNAL, metafile: true,
+    });
+  } catch (e) {
+    throw failed(e);
+  }
+  bundled = new Map();
+  const outputs = result.metafile.outputs;
+  const web = (file: string) => path.relative(DIST, path.join(ROOT, file)).split(path.sep).join('/');
+  for (const [file, out] of Object.entries(outputs)) {
+    if (!out.entryPoint) continue;
+    // every file it imports, and what those import in turn: all of them are needed before it can run
+    const imports: string[] = [], seen = new Set<string>();
+    const walk = (f: string) => {
+      for (const i of outputs[f].imports) if (i.kind === 'import-statement' && !i.external && !seen.has(i.path)) { seen.add(i.path); imports.push(web(i.path)); walk(i.path); }
+    };
+    walk(file);
+    bundled.set(out.entryPoint, { file: web(file), imports });
+  }
+}
+
+/** A module of ENTRIES as a page loads it: the file, and the files it imports fetched alongside. */
+function moduleTags(source: string, indent: string, page: string): string {
+  const b = bundled.get(source);
+  if (!b) throw new Error(`${page}: ${source} is not a module of ENTRIES (scripts/build.mts)`);
+  const up = '../'.repeat(page.split('/').length - 1); // pages in folders (demo/index.html)
+  return [...b.imports.map((f) => `${indent}<link rel="modulepreload" href="${up}${f}" />`), `${indent}<script type="module" src="${up}${b.file}"></script>`].join('\n');
+}
+
 /** What a build marker names, as one script: a file, or a folder's files in file name order. */
 function inlineScript(source: string): string {
   const at = path.join(ROOT, source);
@@ -84,7 +131,8 @@ export function buildPage(page: string): void {
   const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
   const out = path.join(DIST, page);
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, html.replace(MARKER, (_line, indent: string, source: string, attributes: string) => `${indent}<script${attributes}>\n${inlineScript(source)}${indent}</script>`));
+  fs.writeFileSync(out, html.replace(MARKER, (_line, indent: string, source: string, attributes: string) =>
+    (ENTRIES.includes(source) ? moduleTags(source, indent, page) : `${indent}<script${attributes}>\n${inlineScript(source)}${indent}</script>`)));
 }
 
 /** The pages in the repository root (and the demo page). */
@@ -121,7 +169,8 @@ export function copyStatic(release: boolean): void {
 }
 
 export function buildScripts(release = false): void {
-  for (const f of tsFiles(SRC)) buildScript(f);
+  bundle();
+  for (const f of tsFiles(SRC)) if (!ENTRIES.includes('src/' + f)) buildScript(f);
   for (const page of pages(release)) buildPage(page);
 }
 

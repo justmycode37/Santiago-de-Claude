@@ -2,23 +2,31 @@
 // Exact position of every platform (Gleis) and bus/tram stop edge (Kante) in Switzerland, from the
 // official ATLAS data (platforms.js, built by tools/build_platforms.py). Always drawn on the map from
 // zoom 17, and used to put journey boarding/alighting points on the right platform.
-const PLATFORM_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlatformDotProps> = { type: 'FeatureCollection', features: [] };
-const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+import { map } from './map.ts';
+import { userLngLat } from './location.ts';
+import { pinTap } from './pins.ts';
+import { PLACE_LAYERS, loadPlaces, openPlace } from './map-places.ts';
+import { fmtTime } from './journey-steps.ts';
+import { badge, levelShort, mk, nounOf } from './live-vehicles.ts';
+import { kIcon } from './sheet.ts';
+import { distKm } from './routing.ts';
+import { popup, sheet } from './state.ts';
+export const PLATFORM_FC: GeoJSON.FeatureCollection<GeoJSON.Point, PlatformDotProps> = { type: 'FeatureCollection', features: [] };
+export const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 // The ~52,000 dots are only handed to the map the first time it comes near the zoom where they show:
 // indexing them occupies a map worker, which would otherwise hold up the base map tiles.
-let platformsOnMap = false;
+export let platformsOnMap = false;
 function showPlatformsIfNeeded() {
   if (platformsOnMap || !PLATFORM_FC.features.length || map.getZoom() < PLATFORM_MIN_ZOOM - 1.5) return;
   platformsOnMap = true;
   const src = map.getSource('platforms') as maplibregl.GeoJSONSource | undefined;
   if (src) src.setData(PLATFORM_FC);
 }
-map.on('zoomend', showPlatformsIfNeeded);
-const PLATFORMS = new Map<string, PlatformStop>(); // station id (UIC) → { name, mode, edges: [{ ref, key, bearing, ll }] }
+export const PLATFORMS = new Map<string, PlatformStop>(); // station id (UIC) → { name, mode, edges: [{ ref, key, bearing, ll }] }
 const PLATFORM_MODES: Record<PlatformModeCode, PlatformMode> = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
 
 // Comparable platform name: "7A-D" → "7", "Kante H" → "H", "K1" → "K1", "–" → ""
-function platformKey(p: string | number | null | undefined) {
+export function platformKey(p: string | number | null | undefined) {
   const s = String(p || '').toUpperCase().replace(/^(GLEIS|GL\.|KANTE|QUAI|VOIE|BINARIO|STEG|PERRON)\s*/, '').trim();
   const digits = /^\d+/.exec(s);
   return digits ? digits[0] : s.replace(/[^0-9A-Z]/g, '');
@@ -43,8 +51,8 @@ function indexPlatforms(data: PlatformData | undefined) {
 
 // Loaded after the first map view (it is ~2 MB), as a script so it also works when index.html is opened
 // as a file. startPlatforms() runs on the first map idle, when a journey needs it, or after 8 s at the latest.
-let startPlatforms!: () => void;
-const platformsReady = new Promise<void>((resolve) => {
+export let startPlatforms!: () => void;
+export const platformsReady = new Promise<void>((resolve) => {
   let started = false;
   startPlatforms = () => {
     if (started) return;
@@ -62,12 +70,11 @@ const platformsReady = new Promise<void>((resolve) => {
     document.head.appendChild(s);
   };
 });
-setTimeout(startPlatforms, 8000);
 
 // Neutral white dots that only appear when zoomed in close (street level)
-const PLATFORM_MIN_ZOOM = 17;
+export const PLATFORM_MIN_ZOOM = 17;
 const PLATFORM_TEXT_NUDGE = 0.135; // em down: the font sits high in its line box (measured)
-function platformLayers(theme: Theme): maplibregl.LayerSpecification[] {
+export function platformLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const labelled: maplibregl.ExpressionSpecification = ['!=', ['get', 'ref'], ''];
   const fadeIn: maplibregl.ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], PLATFORM_MIN_ZOOM, 0, PLATFORM_MIN_ZOOM + 0.4, 1];
   return [
@@ -93,25 +100,9 @@ function platformLayers(theme: Theme): maplibregl.LayerSpecification[] {
 }
 
 // Tap a platform: its name and the next departures from exactly that platform / edge (live)
-const platformPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'pf-pop', maxWidth: 'none', offset: 16 });
-let popupReq = 0;
-let popupPlace: MapGroupKey | null = null; // the place (toilet, pharmacy…) whose card is open
-// Forgiving tap: the nearest dot or place icon within ~16 px, so small dots are easy to hit on a phone
-map.on('click', (e) => {
-  if (WALK_PACE.drawing()) return; // the taps draw a path (developer options)
-  if (pinTap(e.lngLat.toArray())) return; // placing a pin, or closing the "From here / To here" menu
-  const r = 16;
-  const layers = ['platform-dot', ...PLACE_LAYERS].filter((id) => map.getLayer(id));
-  const hits = layers.length
-    ? map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers }) : [];
-  if (!hits.length) { popupReq++; popupPlace = null; platformPopup.remove(); return; }
-  const dist = (f: maplibregl.MapGeoJSONFeature) => map.project((f.geometry as GeoJSON.Point).coordinates as LngLat).dist(e.point);
-  const hit = hits.reduce((a, b) => (dist(b) < dist(a) ? b : a));
-  if (hit.layer.id === 'platform-dot') openPlatform(hit as PlatformDotFeature);
-  else openPlace(hit.properties.i);
-});
-async function openPlatform(f: PlatformTap) {
-  popupPlace = null;
+export const platformPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'pf-pop', maxWidth: 'none', offset: 16 });
+export async function openPlatform(f: PlatformTap) {
+  popup.place = null;
   const st = PLATFORMS.get(String(f.properties.id));
   // i = null: the stop as a whole (e.g. recognised by Scan without knowing which edge), all its departures
   const whole = st && f.properties.i == null;
@@ -119,7 +110,7 @@ async function openPlatform(f: PlatformTap) {
     ? { ref: '', level: null, ll: st.edges.reduce<LngLat>((s, e) => [s[0] + e.ll[0] / st.edges.length, s[1] + e.ll[1] / st.edges.length], [0, 0]) }
     : st && st.edges[f.properties.i!];
   if (!edge) return;
-  const req = ++popupReq;
+  const req = ++popup.req;
   const word = edge.ref ? nounOf(st!.mode) : 'Stop';
   const dot = mk('span', 'pf-dot', edge.ref);
   const name = mk('div', 'pf-name');
@@ -143,7 +134,7 @@ async function openPlatform(f: PlatformTap) {
       if (edge.ref) to.stop = { uic: String(f.properties.id), ref: edge.ref };
       if (edge.level != null) to.level = edge.level;
       const near = userLngLat && distKm(userLngLat, edge.ll) < 0.8;
-      s3Step = null;
+      sheet.s3Step = null;
       Station3D.open({ key: key3d, from: near ? { ll: userLngLat! } : undefined, to, prefs: SETTINGS.journey(), returnFocus: view3d });
     });
     box.append(view3d);
@@ -156,7 +147,7 @@ async function openPlatform(f: PlatformTap) {
     box.querySelector('.pf-retry')?.remove();
     try {
       const all = await KANTE_BOARD!.load(f.properties.id, st!, f.properties.i);
-      if (req !== popupReq) return;
+      if (req !== popup.req) return;
       const here = whole ? all : all.filter((d) => d.edges.includes(f.properties.i!));
       note.textContent = !all.length ? 'No departures in the next hours.' : here.length ? '' : 'From other platforms:';
       list.replaceChildren(...(here.length ? here : all).slice(0, 6).map((d) => {
@@ -166,7 +157,7 @@ async function openPlatform(f: PlatformTap) {
         return li;
       }));
     } catch (e) {
-      if (req !== popupReq) return;
+      if (req !== popup.req) return;
       const why = engineFailure(e);
       note.textContent = why ? engineMessage(why, 'Departures') : 'Departures could not be loaded.';
       if (why !== 'off') {
@@ -181,14 +172,34 @@ async function openPlatform(f: PlatformTap) {
   load();
 }
 // Why a call to the Kante engine failed: off (the page has none), down (it cannot be reached), or null for anything else
-const engineFailure = (e: unknown): 'off' | 'down' | null => {
+export const engineFailure = (e: unknown): 'off' | 'down' | null => {
   const why = KANTE ? KANTE.failure(e) : 'off';
   return why === 'off' || why === 'down' ? why : null;
 };
 // What a journey or a board says instead, when the engine cannot answer. Journeys, departures and live data all come
 // from it; the map, search, events and places do not need it.
-const engineMessage = (why: 'off' | 'down', what: string) => (why === 'off'
+export const engineMessage = (why: 'off' | 'down', what: string) => (why === 'off'
   ? `${what} come from the Kante engine, which is switched off for this page.`
   : `${what} come from the Kante engine, which isn't answering right now.`);
-map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
-map.on('mouseleave', 'platform-dot', () => { map.getCanvas().style.cursor = ''; });
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  map.on('zoomend', showPlatformsIfNeeded);
+  setTimeout(startPlatforms, 8000);
+  // Forgiving tap: the nearest dot or place icon within ~16 px, so small dots are easy to hit on a phone
+  map.on('click', (e) => {
+    if (WALK_PACE.drawing()) return; // the taps draw a path (developer options)
+    if (pinTap(e.lngLat.toArray())) return; // placing a pin, or closing the "From here / To here" menu
+    const r = 16;
+    const layers = ['platform-dot', ...PLACE_LAYERS].filter((id) => map.getLayer(id));
+    const hits = layers.length
+      ? map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers }) : [];
+    if (!hits.length) { popup.req++; popup.place = null; platformPopup.remove(); return; }
+    const dist = (f: maplibregl.MapGeoJSONFeature) => map.project((f.geometry as GeoJSON.Point).coordinates as LngLat).dist(e.point);
+    const hit = hits.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+    if (hit.layer.id === 'platform-dot') openPlatform(hit as PlatformDotFeature);
+    else openPlace(hit.properties.i);
+  });
+  map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'platform-dot', () => { map.getCanvas().style.cursor = ''; });
+}

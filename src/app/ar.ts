@@ -8,6 +8,13 @@
 //        the label says only what the engine has due now, and asks you to check the display.
 //      - The way: an arrow toward your boarding edge, from GPS + compass, only while both are fresh and good enough.
 //      ?ar=0 in the page address hides the button (remembered; ?ar=1 shows it again). ----
+import { openScanWith, scanHooks } from './menu.ts';
+import { userAccuracy, userLngLat } from './location.ts';
+import { bearingDeg } from './map-places.ts';
+import { lineLabel, modeOf, stopName, stopUic } from './journey-steps.ts';
+import { h, kBtn, kIcon, quayOf } from './sheet.ts';
+import { distKm } from './routing.ts';
+import type { DeviceOrientationAsk } from './menu.ts';
 
 const AR_ON = (() => { // on unless switched off with ?ar=0 (remembered; ?ar=1 switches it on again)
   try {
@@ -30,7 +37,7 @@ function arTargetOf(st: JourneyStep): ArTarget | null {
 }
 
 /** The AR button for a journey step, or null (feature off, or nothing to board next). */
-function arStepButton(st: JourneyStep): HTMLElement | null {
+export function arStepButton(st: JourneyStep): HTMLElement | null {
   if (!AR_ON || !arTargetOf(st)) return null;
   return kBtn('view3d ar-btn', 'Find the stop, your vehicle and the way with the camera', () => arOpen(st), kIcon('nav', 16), 'AR');
 }

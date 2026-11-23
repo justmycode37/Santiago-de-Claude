@@ -1,6 +1,8 @@
 // ---- Map symbols drawn on a canvas when MapLibre first needs them (ids: "sg|l|7|Platform|dark", "arr|k|light", …) ----
+import { map } from './map.ts';
+import { WALK } from './journey-map.ts';
 const SPRITE_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const INK = '#14161A';
+export const INK = '#14161A';
 function spriteCanvas(w: number, h: number, ratio: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
   c.width = Math.ceil(w * ratio);
@@ -34,7 +36,7 @@ const VEHICLE_GLYPH: Record<string, string> = {
   funicular: '<path d="M3 20.5L21 9.5"/><path d="M6.5 16.6V11l9-5.5v5.6"/><path d="M6.5 13.4l9-5.5"/>',
 };
 // The engine's modes → the glyphs above
-const vehicleGlyph = (mode: string) => (mode === 'rail' || mode === 'rack' ? 'rail' : mode === 'tram' || mode === 'metro' ? 'tram'
+export const vehicleGlyph = (mode: string) => (mode === 'rail' || mode === 'rack' ? 'rail' : mode === 'tram' || mode === 'metro' ? 'tram'
   : mode === 'boat' ? 'boat' : mode === 'cableway' || mode === 'lift' ? 'cable' : mode === 'funicular' ? 'funicular' : 'bus');
 function vehicleSprite(glyph: string, bg: string, fg: string, label: string, extra: boolean, dark: boolean, ratio: number) {
   const svg = VEHICLE_GLYPH[glyph] || VEHICLE_GLYPH.bus;
@@ -188,8 +190,12 @@ function levelSprite(up: boolean, label: string, dark: boolean, ratio: number) {
   ctx.fillText(label, m + 22, cy + .5);
   return spriteOut(c, ctx, ratio);
 }
-map.on('styleimagemissing', (e) => {
-  if (map.hasImage(e.id)) return;
-  const s = makeSprite(e.id);
-  if (s) map.addImage(e.id, s.data, { pixelRatio: s.ratio });
-});
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  map.on('styleimagemissing', (e) => {
+    if (map.hasImage(e.id)) return;
+    const s = makeSprite(e.id);
+    if (s) map.addImage(e.id, s.data, { pixelRatio: s.ratio });
+  });
+}

@@ -1,9 +1,6 @@
 // The journey sheet and its controls (src/app/60-sheet.ts … 66-pill.ts): the types these parts share with each
 // other and with the rest of the page's script.
 
-/** The name of an icon of the sheet's set (KICON in 60-sheet.ts). */
-type KIconName = keyof typeof KICON;
-
 /**
  * A child of h(): an element (or any other node) or text; a number is written as text; null, undefined, false
  * and '' are skipped; arrays are flattened, however deep.

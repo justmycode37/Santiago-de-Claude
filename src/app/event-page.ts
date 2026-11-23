@@ -1,4 +1,8 @@
 // ---------- Event page (URL: #event/<id>, so the back gesture/button works) ----------
+import { setMenu } from './menu.ts';
+import { inSwitzerland, onPosition } from './location.ts';
+import { blurSearch, showDestinationJourney } from './trip-ends.ts';
+import { popup } from './state.ts';
 const evPage = document.getElementById('evPage')!;
 const evHero = document.getElementById('evHero')!;
 const evContent = document.getElementById('evContent')!;
@@ -7,24 +11,19 @@ let pushedHash = false;
 
 const findEvent = (id: string) => EVENTS.features.find((f) => f.properties.id === id);
 
-function openEvent(id: string) {
+export function openEvent(id: string) {
   pushedHash = true;
   location.hash = 'event/' + encodeURIComponent(id);
 }
 
-let eventsAtPin: EventFeature[] = [];
 const related = document.getElementById('evRelated') as HTMLSelectElement;
-related.addEventListener('change', () => {
-  history.replaceState(null, '', '#event/' + encodeURIComponent(related.value));
-  routeFromHash();
-});
 
 function renderEventPage(f: EventFeature) {
   const p = f.properties;
   pageEvent = f;
   // every event at this pin, soonest end first: the list is the only way to reach the others
   const end = (e: EventFeature) => (e.properties.through ? Date.parse(e.properties.through) : Infinity);
-  const choices = eventsAtPin.includes(f) ? eventsAtPin.slice().sort((a, b) => (end(a) - end(b)) || 0) : [];
+  const choices = popup.eventsAtPin.includes(f) ? popup.eventsAtPin.slice().sort((a, b) => (end(a) - end(b)) || 0) : [];
   related.replaceChildren();
   related.parentElement!.hidden = choices.length < 2;
   if (choices.length > 1) {
@@ -87,39 +86,46 @@ function closeEvent() {
   routeFromHash();
 }
 
-window.addEventListener('hashchange', () => { if (!location.hash) pushedHash = false; routeFromHash(); });
-document.getElementById('evBack')!.addEventListener('click', closeEvent);
-eventJourneyButton.addEventListener('click', () => {
-  const event = pageEvent;
-  if (!event) return;
-  if (!window.isSecureContext || !navigator.geolocation) {
-    eventJourneyStatus.textContent = !window.isSecureContext ? 'Open this page over HTTPS to use your location.' : 'This browser can’t share your location.';
-    return;
-  }
-  const request = ++eventLocationRequest;
-  eventJourneyButton.disabled = true;
-  eventJourneyStatus.textContent = 'Finding your current location…';
-  navigator.geolocation.getCurrentPosition(position => {
-    if (request !== eventLocationRequest) return;
-    eventJourneyButton.disabled = false;
-    if (!inSwitzerland([position.coords.longitude, position.coords.latitude])) {
-      eventJourneyStatus.textContent = 'Journeys are available from locations in Switzerland.';
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  related.addEventListener('change', () => {
+    history.replaceState(null, '', '#event/' + encodeURIComponent(related.value));
+    routeFromHash();
+  });
+  window.addEventListener('hashchange', () => { if (!location.hash) pushedHash = false; routeFromHash(); });
+  document.getElementById('evBack')!.addEventListener('click', closeEvent);
+  eventJourneyButton.addEventListener('click', () => {
+    const event = pageEvent;
+    if (!event) return;
+    if (!window.isSecureContext || !navigator.geolocation) {
+      eventJourneyStatus.textContent = !window.isSecureContext ? 'Open this page over HTTPS to use your location.' : 'This browser can’t share your location.';
       return;
     }
-    onPosition(position);
-    const destination = event.properties.areaOnly
-      ? event.properties.title + ' (' + event.properties.city + ' area)'
-      : event.properties.title;
-    pushedHash = false;
-    history.replaceState(null, '', location.pathname + location.search);
-    routeFromHash();
-    showDestinationJourney({ title: destination, lngLat: event.geometry.coordinates });
-  }, error => {
-    if (request !== eventLocationRequest) return;
-    eventJourneyButton.disabled = false;
-    eventJourneyStatus.textContent = error.code === 1
-      ? 'Allow location access in your browser, then tap Show journey again.'
-      : 'Your location could not be found. Tap Show journey to try again.';
-  }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
-});
-routeFromHash(); // a shared #event/… link opens straight on the page
+    const request = ++eventLocationRequest;
+    eventJourneyButton.disabled = true;
+    eventJourneyStatus.textContent = 'Finding your current location…';
+    navigator.geolocation.getCurrentPosition(position => {
+      if (request !== eventLocationRequest) return;
+      eventJourneyButton.disabled = false;
+      if (!inSwitzerland([position.coords.longitude, position.coords.latitude])) {
+        eventJourneyStatus.textContent = 'Journeys are available from locations in Switzerland.';
+        return;
+      }
+      onPosition(position);
+      const destination = event.properties.areaOnly
+        ? event.properties.title + ' (' + event.properties.city + ' area)'
+        : event.properties.title;
+      pushedHash = false;
+      history.replaceState(null, '', location.pathname + location.search);
+      routeFromHash();
+      showDestinationJourney({ title: destination, lngLat: event.geometry.coordinates });
+    }, error => {
+      if (request !== eventLocationRequest) return;
+      eventJourneyButton.disabled = false;
+      eventJourneyStatus.textContent = error.code === 1
+        ? 'Allow location access in your browser, then tap Show journey again.'
+        : 'Your location could not be found. Tap Show journey to try again.';
+    }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
+  });
+  routeFromHash(); // a shared #event/… link opens straight on the page
+}

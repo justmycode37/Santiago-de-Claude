@@ -1,38 +1,23 @@
 // ---------- Journey (public transport and walks, planned by the Kante engine: src/engine-journey.ts) ----------
-const ROUTE_FC: RouteCollection = { type: 'FeatureCollection', features: [] };
-let journeyStep = 0;
-let journeySteps: JourneyStep[] = [];
-let journeyReq = 0;
-const journeyEl = document.getElementById('journey')!;
-const jHead = document.getElementById('jHead')!;
-const jBody = document.getElementById('jBody')!;
-const jFoot = document.getElementById('jFoot')!;
-const jHandle = document.getElementById('jHandle')!;
-let journeyConn: Journey | null = null; // the journey on show
-let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
-let journeyOrigin: JourneyOrigin | null = null; // …and its place, as the last plan asked for it
-let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
-let sheetRetry = false;            // …with "Try again" beside it: the engine could not be reached
-let journeyDest: JourneyDest | null = null;
-let journeyQuery: JourneyQuery = { mode: 'dep', date: '', time: '' }; // empty date/time = now
-let journeyOptions: JourneyOptions | null = null; // every way on offer to make the trip: { list, walk, best, earlier, later }
-let journeyList = false;   // the sheet lists them to choose from (not the journey itself)
-let journeyTab: JourneyTab = 'pt';     // …those by public transport, or 'walk': on foot all the way
-let journeyMore: JourneyMoreDir | null = null;    // 'earlier' | 'later' while more of them are being fetched
-let progressTimer: number | null = null;
-let liveTimer: number | null = null;
+import { map } from './map.ts';
+import { journey } from './state.ts';
+export const ROUTE_FC: RouteCollection = { type: 'FeatureCollection', features: [] };
+export const journeyEl = document.getElementById('journey')!;
+export const jHead = document.getElementById('jHead')!;
+export const jBody = document.getElementById('jBody')!;
+export const jFoot = document.getElementById('jFoot')!;
+export const jHandle = document.getElementById('jHandle')!;
 
 // ---- The journey on the map, drawn like the Kante app (nikitas-implementation): rides in their line colour
 //      with a casing, a stop circle at every stop, walks as a yellow band with arrows, a sign where you board ----
-const WALK = '#FFD34B';
+export const WALK = '#FFD34B';
 const WALK_EDGE = '#14161A';
-let routeOverview = true; // the whole journey at once: nothing dimmed until a step is picked
-const stepOpacity = (dim: number, on = 1): number | maplibregl.ExpressionSpecification => (routeOverview ? on : ['case', ['==', ['get', 'step'], journeyStep], on, dim]);
+const stepOpacity = (dim: number, on = 1): number | maplibregl.ExpressionSpecification => (journey.overview ? on : ['case', ['==', ['get', 'step'], journey.step], on, dim]);
 // …and the part of the trip already behind you fades
 const routeOpacity = (dim: number, on = 1): maplibregl.ExpressionSpecification => ['*', ['case', ['==', ['get', 'done'], true], .35, 1], stepOpacity(dim, on)];
 
 // → { below: lines (under the map's labels), above: points and signs }
-function routeLayers(theme: Theme): RouteLayers {
+export function routeLayers(theme: Theme): RouteLayers {
   const dark = theme === 'dark';
   const casing = dark ? '#0B0D10' : '#FFFFFF';
   const zoomW = (a: number, b: number): maplibregl.ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], 10, a, 17, b];
@@ -86,7 +71,7 @@ function routeLayers(theme: Theme): RouteLayers {
   };
 }
 
-function refreshRouteHighlight() {
+export function refreshRouteHighlight() {
   if (!map.getLayer('route-ride')) return;
   map.setPaintProperty('route-ride-casing', 'line-opacity', routeOpacity(.5));
   map.setPaintProperty('route-ride', 'line-opacity', routeOpacity(.4));
@@ -101,7 +86,7 @@ function refreshRouteHighlight() {
   map.setPaintProperty('route-stops', 'circle-stroke-opacity', routeOpacity(.4));
 }
 
-function setRoute(features: RouteFeature[]) {
+export function setRoute(features: RouteFeature[]) {
   ROUTE_FC.features = features;
   const src = map.getSource<maplibregl.GeoJSONSource>('route');
   if (src) src.setData(ROUTE_FC);

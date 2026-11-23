@@ -1,5 +1,12 @@
 // ---- Line colours: every line gets one colour of the app palette (sun stays for walks),
 //      the same on its badge and on the map. [name, light bg, light text, dark bg, dark (vivid) colour] ----
+import { destMarker } from './search.ts';
+import { platformKey } from './platforms.ts';
+import { INK } from './sprites.ts';
+import { journeyProgress, stopKms } from './tracking.ts';
+import { levelShort, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
+import { distKm, lengthKm } from './routing.ts';
+import { searchState } from './state.ts';
 const PALETTE = [
   ['navy', '#344D77', '#FFFFFF', '#141D2D', '#9DB4DD'],
   ['rose', '#C55A82', '#FFFFFF', '#2C1520', '#E28CAD'],
@@ -15,7 +22,7 @@ function hashText(s: string) {
   return h >>> 0;
 }
 const lineColors = new Map<string, LineColor>();
-function lineColor(j: LineLike): LineColor {
+export function lineColor(j: LineLike): LineColor {
   const cat = (j.category || '').toUpperCase(), num = String(j.number || ''), label = lineLabel(j);
   const key = `${j.operator || ''}|${cat}|${num}`;
   if (lineColors.has(key)) return lineColors.get(key)!;
@@ -32,7 +39,7 @@ function lineColor(j: LineLike): LineColor {
   return c;
 }
 // CSS picks the light or the dark pair
-function lineVars<E extends HTMLElement>(el: E, j: LineLike) {
+export function lineVars<E extends HTMLElement>(el: E, j: LineLike) {
   const c = lineColor(j);
   el.style.setProperty('--lc', c.bg);
   el.style.setProperty('--lf', c.fg);
@@ -59,9 +66,9 @@ const MODE_ICON = {
   straight: '<path d="M12 20V4M6 10l6-6 6 6"/>',
   stairs: '<path d="M4 20h5v-5h5v-5h5V5"/>',
 };
-const icon = (name: keyof typeof MODE_ICON) => `<svg viewBox="0 0 24 24" aria-hidden="true">${MODE_ICON[name]}</svg>`;
+export const icon = (name: keyof typeof MODE_ICON) => `<svg viewBox="0 0 24 24" aria-hidden="true">${MODE_ICON[name]}</svg>`;
 
-function modeOf(category: string | null | undefined): LineMode {
+export function modeOf(category: string | null | undefined): LineMode {
   const c = (category || '').toUpperCase(); // some rides come without a category
   if (/^(IC|ICE|ICN|IR|IRE|EC|EN|EXT|NJ|RE|R|RB|S|SN|PE|TGV|RJX|TER)$/.test(c)) return 'train';
   if (/^(T|TRAM|M)$/.test(c)) return 'tram';
@@ -69,7 +76,7 @@ function modeOf(category: string | null | undefined): LineMode {
   if (/^(FUN|PB|GB|SL|LB|ASC)$/.test(c)) return 'cable';
   return 'bus';
 }
-function lineLabel(j: LineLike) {
+export function lineLabel(j: LineLike) {
   const c = (j.category || '').toUpperCase();
   // "000063" → "63"; a placeholder like "?" (replacement buses) is no number
   const n = /[A-Za-z0-9]/.test(j.number || '') ? String(j.number).replace(/^0+(?=\d)/, '') : '';
@@ -79,8 +86,8 @@ function lineLabel(j: LineLike) {
   return `${c} ${n}`.trim();
 }
 
-const fmtTime = (iso: string | number | null | undefined) => iso ? new Date(iso).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-function dayLabel(iso: string | number) {
+export const fmtTime = (iso: string | number | null | undefined) => iso ? new Date(iso).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+export function dayLabel(iso: string | number) {
   const d = new Date(iso), now = new Date();
   const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
   if (d.toDateString() === now.toDateString()) return 'Today';
@@ -88,23 +95,23 @@ function dayLabel(iso: string | number) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 // ---- A stop of a ride: the engine's call there (KanteStopCall: its boarding point, times, delays) ----
-type StopTime = 'arr' | 'dep';
-const stopName = (c: KanteStopCall) => c.quay.stationName;
+export type StopTime = 'arr' | 'dep';
+export const stopName = (c: KanteStopCall) => c.quay.stationName;
 // The station's UIC number ("8507000"), as platforms.js and the 3D models know it; else the engine's own id
-const stopUic = (c: KanteStopCall) => (KANTE && KANTE.uicOf(c.quay.stationId)) || c.quay.stationId;
+export const stopUic = (c: KanteStopCall) => (KANTE && KANTE.uicOf(c.quay.stationId)) || c.quay.stationId;
 const delayOf = (c: KanteStopCall, which: StopTime) => (which === 'arr' ? c.arrDelayS : c.depDelayS);
 // The timetable's time at a stop, ms (null where the ride has none: no arrival where it starts)
-const planMs = (c: KanteStopCall | null | undefined, which: StopTime) => (c && c[which] != null ? c[which]! * 1000 : null);
+export const planMs = (c: KanteStopCall | null | undefined, which: StopTime) => (c && c[which] != null ? c[which]! * 1000 : null);
 // Live (real-time) time at a stop in ms: the timetable plus the engine's delay
-function liveMs(c: KanteStopCall | null | undefined, which: StopTime) {
+export function liveMs(c: KanteStopCall | null | undefined, which: StopTime) {
   return c && c[which] != null ? (c[which]! + (delayOf(c, which) || 0)) * 1000 : null;
 }
 // Minutes late
-const lateMin = (c: KanteStopCall | null | undefined, which: StopTime) => (c && c[which] != null && delayOf(c, which) != null ? Math.round(delayOf(c, which)! / 60) : 0);
+export const lateMin = (c: KanteStopCall | null | undefined, which: StopTime) => (c && c[which] != null && delayOf(c, which) != null ? Math.round(delayOf(c, which)! / 60) : 0);
 // The engine has a forecast (or a measured time) for it, not only the timetable
-const hasForecast = (c: KanteStopCall | null | undefined, which: StopTime) => !!c && c[which] != null && delayOf(c, which) != null;
+export const hasForecast = (c: KanteStopCall | null | undefined, which: StopTime) => !!c && c[which] != null && delayOf(c, which) != null;
 
-const isRide = (p: JourneyPart | null | undefined): p is JourneyRide => !!p && p.type === 'ride';
+export const isRide = (p: JourneyPart | null | undefined): p is JourneyRide => !!p && p.type === 'ride';
 const sameStation = (q: KanteQuay | null | undefined, c: KanteStopCall | null | undefined) => !!(q && c && q.stationId === c.quay.stationId);
 
 // Every stop of a ride on its exact boarding point, as the engine names it
@@ -120,7 +127,7 @@ const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa
   ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true });
 // After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
 // engine-journey.js leaves it)
-function syncEnds(steps: JourneyStep[]) {
+export function syncEnds(steps: JourneyStep[]) {
   steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
     const old = st.ends || [];
@@ -131,7 +138,7 @@ function syncEnds(steps: JourneyStep[]) {
 }
 
 // Turn the journey's parts into swipeable steps: walk → ride → change → ride → … → walk → arrive
-function buildSteps(conn: Journey, destTitle: string) {
+export function buildSteps(conn: Journey, destTitle: string) {
   const steps: JourneyStep[] = [];
   type PendingWalk = { min: number; lines: LngLat[][]; ends: [WalkEnd, WalkEnd][]; start: number | null; leg: KanteWalkLeg | null };
   const empty = (): PendingWalk => ({ min: 0, lines: [], ends: [], start: null, leg: null });
@@ -155,7 +162,7 @@ function buildSteps(conn: Journey, destTitle: string) {
       // walks start/end on the platform you get off / on, not at the station's centre
       let a: LngLat = [s.from.lon, s.from.lat], b: LngLat = [s.to.lon, s.to.lat];
       // the first walk starts where you are (GPS), or at the place the trip starts from (a pin, a search result)
-      let fromEnd: WalkEnd = idx === 0 ? (tripStart ? {} : { gps: true }) : { platform: true };
+      let fromEnd: WalkEnd = idx === 0 ? (searchState.tripStart ? {} : { gps: true }) : { platform: true };
       let toEnd: WalkEnd = idx === conn.parts.length - 1 ? {} : { platform: true };
       if (lastRide && sameStation(s.from.quay, lastRide.to)) { a = at.get(lastRide)!.arr; fromEnd = platformEnd(at.get(lastRide)!.arrAt); }
       const nextRide = conn.parts.slice(idx + 1).find(isRide);
@@ -212,7 +219,7 @@ function buildSteps(conn: Journey, destTitle: string) {
 }
 
 // Time every ride, change and the last walk by the live forecasts (run again whenever they change)
-function applyLiveTimes(steps: JourneyStep[]) {
+export function applyLiveTimes(steps: JourneyStep[]) {
   let end: number | null = null;
   steps.forEach((st) => {
     if (st.type === 'ride') {
@@ -229,7 +236,7 @@ function applyLiveTimes(steps: JourneyStep[]) {
   });
 }
 
-function stepCoords(st: JourneyStep) {
+export function stepCoords(st: JourneyStep) {
   const c: LngLat[] = [];
   (st.lines || []).forEach((l) => c.push(...l));
   if (st.path) c.push(...st.path);
@@ -244,7 +251,7 @@ function stepCoords(st: JourneyStep) {
 }
 
 // Split a line at a fraction of its length → [travelled, ahead]
-function splitLine(cs: LngLat[], frac: number): [done: LngLat[], ahead: LngLat[], at: LngLat] {
+export function splitLine(cs: LngLat[], frac: number): [done: LngLat[], ahead: LngLat[], at: LngLat] {
   const total = lengthKm(cs);
   let target = total * frac, acc = 0;
   for (let i = 1; i < cs.length; i++) {
@@ -268,7 +275,7 @@ function pointAlong(cs: LngLat[], km: number): LngLat | undefined {
 }
 
 // Floor change on a walk ("Go down to level −4"); platforms without a level are at street level
-function levelChange(st: JourneyStep): JourneyLevelChange | null {
+export function levelChange(st: JourneyStep): JourneyLevelChange | null {
   const lv = (x: number | null | undefined) => (x == null ? 0 : x);
   const depLevel = (r: JourneyRideStep | undefined) => r && r.depAt && r.depAt.edge && r.depAt.edge.level;
   const arrLevel = (r: JourneyRideStep | undefined) => r && r.arrAt && r.arrAt.edge && r.arrAt.edge.level;
@@ -291,7 +298,7 @@ function signId(st: JourneyRideStep) {
   return `sg|l|${label}|${label ? platformWord(j) : ''}`;
 }
 
-function stepFeatures(steps: JourneyStep[]) {
+export function stepFeatures(steps: JourneyStep[]) {
   const f: RouteFeature[] = [];
   const add = (geometry: RouteFeature['geometry'], properties: RouteFeatureProps) => f.push({ type: 'Feature', properties, geometry });
   const line = (cs: LngLat[] | undefined, kind: 'ride' | 'walk' | 'wcov', step: number, extra?: Partial<RouteFeatureProps>) => cs && cs.length > 1 && add({ type: 'LineString', coordinates: cs }, { kind, step, ...extra });

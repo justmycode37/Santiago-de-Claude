@@ -2,6 +2,10 @@
 //      connection of its own timetable, and names operators its own way ("SBB", where the engine says
 //      "Schweizerische Bundesbahnen SBB"). So the engine's rides are first found among its connections, by their
 //      stops and times; only an exact match is priced. Journeys themselves never come from there. ----
+import { isRide, lineLabel, stopName, stopUic } from './journey-steps.ts';
+import { h, kBtn } from './sheet.ts';
+import { swissTicketTime } from './journey-actions.ts';
+import { journey } from './state.ts';
 const FARE_API = 'https://transport.opendata.ch/v1/';
 const ticketQuotes = new WeakMap<Journey, Promise<TicketFare | null>>();
 const ticketAmount = (amount: unknown): amount is number => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
@@ -68,9 +72,9 @@ function quoteTicket(conn: Journey) {
   return ticketQuotes.get(conn)!;
 }
 
-function ticketPricing(hasTicket: boolean) {
-  const conn = journeyConn;
-  const rides = journeySteps.filter((step) => step.type === 'ride').map((step) => step.s);
+export function ticketPricing(hasTicket: boolean) {
+  const conn = journey.conn;
+  const rides = journey.steps.filter((step) => step.type === 'ride').map((step) => step.s);
   const tracking = SETTINGS.prefs().fareTracking;
   if (!conn || !rides.length || (!tracking && !hasTicket)) return null;
   const iso = (c: KanteStopCall) => (c.dep != null ? new Date(c.dep * 1000).toISOString() : null);

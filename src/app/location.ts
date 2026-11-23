@@ -1,19 +1,24 @@
 // ---------- Current location ----------
+import { CH_BOUNDS, map } from './map.ts';
+import { showToast } from './menu.ts';
+import { destMarker, inputs, startMarker } from './search.ts';
+import { scheduleProgress } from './live-line.ts';
+import { journey } from './state.ts';
 const accEl = document.createElement('div');
 accEl.className = 'user-accuracy';
 const accMarker = new maplibregl.Marker({ element: accEl });
 const dotEl = document.createElement('div');
 dotEl.className = 'user-dot';
-const userMarker = new maplibregl.Marker({ element: dotEl });
-let userLngLat: LngLat | null = null;
-let userAccuracy = 0;
+export const userMarker = new maplibregl.Marker({ element: dotEl });
+export let userLngLat: LngLat | null = null;
+export let userAccuracy = 0;
 let lastFixAt = 0;
 let centeredOnUser = false;
-const fixAge = () => (lastFixAt ? Date.now() - lastFixAt : Infinity);
+export const fixAge = () => (lastFixAt ? Date.now() - lastFixAt : Infinity);
 // A recent, usable GPS fix (watchPosition can stay quiet while you stand still, so allow a while)
-const gpsOn = () => !!userLngLat && fixAge() < 90000 && userAccuracy < 400;
+export const gpsOn = () => !!userLngLat && fixAge() < 90000 && userAccuracy < 400;
 
-const inSwitzerland = ([lng, lat]: LngLat) =>
+export const inSwitzerland = ([lng, lat]: LngLat) =>
   lng >= CH_BOUNDS[0][0] && lng <= CH_BOUNDS[1][0] &&
   lat >= CH_BOUNDS[0][1] && lat <= CH_BOUNDS[1][1];
 
@@ -27,11 +32,10 @@ function updateAccuracy() {
   accEl.style.width = accEl.style.height = d + 'px';
   accEl.style.display = d < 40 ? 'none' : '';
 }
-map.on('zoom', updateAccuracy);
 
 let lastSavedAt = 0;
 let lastRealPos: PositionFix | null = null; // the newest fix from the phone itself, to come back to after a simulated walk
-function onPosition(pos: PositionFix) {
+export function onPosition(pos: PositionFix) {
   if (!pos.simulated) lastRealPos = pos;
   const lngLat: LngLat = [pos.coords.longitude, pos.coords.latitude];
   if (!inSwitzerland(lngLat)) {
@@ -62,10 +66,10 @@ function onPosition(pos: PositionFix) {
     centeredOnUser = true;
     map.jumpTo({ center: lngLat, zoom: 15 });
   }
-  if (journeyConn) scheduleProgress(); // follow the trip with every fix
+  if (journey.conn) scheduleProgress(); // follow the trip with every fix
 }
 
-function onPositionError(err: GeolocationPositionError) {
+export function onPositionError(err: GeolocationPositionError) {
   if (userLngLat) return; // keep the last known position
   const msg = err.code === 1
     ? 'Location access is off. Allow it in Settings › Safari › Location.'
@@ -73,23 +77,26 @@ function onPositionError(err: GeolocationPositionError) {
   showToast(msg, 6000);
 }
 
-if (!window.isSecureContext) {
-  showToast('Open this page over HTTPS to use your location.', 8000);
-} else if (!('geolocation' in navigator)) {
-  showToast('This browser does not support location.');
-} else {
-  // The quick coarse fix and the precise live updates were already asked for in the <head> (EARLY_GEO)
-  // (after this script has run: onPosition uses things declared further down)
-  setTimeout(() => EARLY_GEO.attach(onPosition, onPositionError), 0);
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  map.on('zoom', updateAccuracy);
+  if (!window.isSecureContext) {
+    showToast('Open this page over HTTPS to use your location.', 8000);
+  } else if (!('geolocation' in navigator)) {
+    showToast('This browser does not support location.');
+  } else {
+    // The quick coarse fix and the precise live updates were already asked for in the <head> (EARLY_GEO)
+    // (after this script has run: onPosition uses things declared further down)
+    setTimeout(() => EARLY_GEO.attach(onPosition, onPositionError), 0);
+  }
+  // Developer options: walking a path drawn on the map puts your position at its end
+  WALK_PACE.attach({
+    map,
+    position: (pos) => { centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)
+    restore: () => {
+      if (!lastRealPos) return; // no real position: you stay where the walk ended
+      lastFixAt = 0;
+      onPosition(lastRealPos);
+    },
+  });
 }
-
-// Developer options: walking a path drawn on the map puts your position at its end
-WALK_PACE.attach({
-  map,
-  position: (pos) => { centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)
-  restore: () => {
-    if (!lastRealPos) return; // no real position: you stay where the walk ended
-    lastFixAt = 0;
-    onPosition(lastRealPos);
-  },
-});

@@ -2,10 +2,21 @@
 // Three ways, all ending in dropPin(): drag the pin out of the card onto the map · tap the pin, then tap the
 // map · long-press (or right-click) the map and pick "From here" / "To here". A pin already on the map can be
 // dragged to move it.
+import { map } from './map.ts';
+import { setMenu, showToast } from './menu.ts';
+import { inSwitzerland } from './location.ts';
+import { FIELDS, PIN_ART, destMarker, form, inputs, startMarker, toks } from './search.ts';
+import { pins } from './search-pins.ts';
+import { blurSearch, closeSearch, pointOf, setField, setPlanOpen, setStart, showDestinationJourney } from './trip-ends.ts';
+import { platformPopup } from './platforms.ts';
+import { journeyEl } from './journey-map.ts';
+import { setDetent, sheetDetent } from './sheet.ts';
+import { renderSheet } from './sheet-content.ts';
+import { journey, searchState } from './state.ts';
 const PIN_WORD = { from: 'start', to: 'destination' };
 const pinHint = document.getElementById('pinHint')!;
 let armedPin: TripField | null = null; // the pin that the next tap on the map places
-function armPin(f: TripField | null) {
+export function armPin(f: TripField | null) {
   armedPin = f;
   for (const k of FIELDS) toks[k].classList.toggle('armed', k === f);
   document.body.classList.toggle('pin-armed', !!f);
@@ -18,7 +29,6 @@ function armPin(f: TripField | null) {
   if (f === 'from') setPlanOpen(true);
   if (document.body.classList.contains('journey-mode') && sheetDetent !== 'low') setDetent('low'); // as much map to tap on as there is
 }
-document.getElementById('pinHintCancel')!.addEventListener('click', () => armPin(null));
 
 // → false when the pin cannot go there
 function dropPin(f: TripField, lngLat: LngLat) {
@@ -33,12 +43,12 @@ function dropPin(f: TripField, lngLat: LngLat) {
 async function namePin(r: SearchResult) {
   if (!window.PlaceSearch || !PlaceSearch.reverse) return;
   const hit = await PlaceSearch.reverse(r.lngLat).catch(() => null);
-  const f = tripStart === r ? 'from' : journeyDest === r ? 'to' : null; // it may have been swapped, or replaced, meanwhile
+  const f = searchState.tripStart === r ? 'from' : journey.dest === r ? 'to' : null; // it may have been swapped, or replaced, meanwhile
   if (!hit || !f) return;
   r.title = hit.title;
   if (document.activeElement !== inputs[f] && !(pins && pins.field === f)) setField(f, r.title);
-  if (f === 'from') journeyFrom = r.title;
-  else journeySteps.forEach((st) => { if (st.final) st.toName = r.title; if (st.type === 'arrive') st.destTitle = r.title; });
+  if (f === 'from') journey.from = r.title;
+  else journey.steps.forEach((st) => { if (st.final) st.toName = r.title; if (st.type === 'arrive') st.destTitle = r.title; });
   if (document.body.classList.contains('journey-mode')) renderSheet();
 }
 
@@ -111,45 +121,9 @@ function endPinDrag(f: TripField, d: PinDrag, cancelled: boolean) {
   toks[f].classList.remove('out');
   if (p) dropPin(f, map.unproject(p).toArray());
 }
-for (const f of FIELDS) {
-  const tok = toks[f];
-  let drag: PinDrag | null = null;      // { id, x0, y0, x, y, lift, on, raf }: a press on the pin; on = it has left its place
-  let dragged = false;  // the click that follows a drag is not a tap
-  tok.addEventListener('pointerdown', (e) => {
-    if (e.button > 0 || drag) return;
-    dragged = false;
-    // a finger hides what is under it, a mouse pointer does not
-    drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, lift: e.pointerType === 'mouse' ? 0 : 52, on: false };
-    try { tok.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
-  });
-  tok.addEventListener('pointermove', (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    drag.x = e.clientX;
-    drag.y = e.clientY;
-    if (!drag.on) {
-      if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 8) return;
-      beginPinDrag(f, drag);
-    }
-    movePinGhost(drag);
-  });
-  const finish = (e: PointerEvent, cancelled: boolean) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const d = drag;
-    drag = null;
-    if (!d.on) return;
-    dragged = true;
-    endPinDrag(f, d, cancelled);
-  };
-  tok.addEventListener('pointerup', (e) => finish(e, false));
-  tok.addEventListener('pointercancel', (e) => finish(e, true));
-  tok.addEventListener('click', () => {
-    if (dragged) { dragged = false; return; }
-    armPin(armedPin === f ? null : f);
-  });
-}
 
 // Long press / right click on the map: "From here" · "To here"
-const pinMenu = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'pf-pop pin-menu', maxWidth: 'none', offset: 10 });
+export const pinMenu = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'pf-pop pin-menu', maxWidth: 'none', offset: 10 });
 let pinMenuAt = 0;     // when it last opened (Android sends both a long press and a context menu)
 let pinMenuQuiet = 0;  // until then, a click on the map is the end of the long press, not a tap to close it
 function openPinMenu(lngLat: LngLat) {
@@ -171,24 +145,8 @@ function openPinMenu(lngLat: LngLat) {
   }
   pinMenu.setLngLat(lngLat).setDOMContent(body).addTo(map);
 }
-map.on('contextmenu', (e) => { e.preventDefault(); openPinMenu(e.lngLat.toArray()); });
-{
-  let timer = 0, at: maplibregl.Point | null = null;
-  const cancel = () => { clearTimeout(timer); timer = 0; };
-  map.on('touchstart', (e) => {
-    cancel();
-    const oe = e.originalEvent;
-    if (oe.touches.length !== 1 || oe.target !== map.getCanvas()) return; // not a pinch, not a marker
-    at = e.point;
-    const lngLat = e.lngLat.toArray();
-    timer = setTimeout(() => { timer = 0; openPinMenu(lngLat); }, 550);
-  });
-  map.on('touchmove', (e) => { if (timer && (e.originalEvent.touches.length !== 1 || e.point.dist(at!) > 10)) cancel(); });
-  map.on('touchend', () => { cancel(); if (pinMenu.isOpen()) pinMenuQuiet = Date.now() + 400; });
-  map.on('touchcancel', cancel);
-}
 // A tap on the map with a pin armed, or with the menu open → true: the tap has been used
-function pinTap(lngLat: LngLat) {
+export function pinTap(lngLat: LngLat) {
   if (armedPin) {
     const f = armedPin;
     armPin(null);
@@ -199,17 +157,73 @@ function pinTap(lngLat: LngLat) {
   if (Date.now() > pinMenuQuiet) pinMenu.remove();
   return true;
 }
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  armPin(null);
-  pinMenu.remove();
-});
 
-// A pin on the map dragged somewhere else moves that end of the trip (and stays where it was if it cannot go there)
-for (const [f, marker] of [['from', startMarker], ['to', destMarker]] as const) {
-  marker.on('dragstart', () => { pinMenu.remove(); armPin(null); });
-  marker.on('dragend', () => {
-    const was = pointOf(f);
-    if (!dropPin(f, marker.getLngLat().toArray()) && was) marker.setLngLat(was.lngLat);
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  document.getElementById('pinHintCancel')!.addEventListener('click', () => armPin(null));
+  for (const f of FIELDS) {
+    const tok = toks[f];
+    let drag: PinDrag | null = null;      // { id, x0, y0, x, y, lift, on, raf }: a press on the pin; on = it has left its place
+    let dragged = false;  // the click that follows a drag is not a tap
+    tok.addEventListener('pointerdown', (e) => {
+      if (e.button > 0 || drag) return;
+      dragged = false;
+      // a finger hides what is under it, a mouse pointer does not
+      drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, lift: e.pointerType === 'mouse' ? 0 : 52, on: false };
+      try { tok.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
+    });
+    tok.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      if (!drag.on) {
+        if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 8) return;
+        beginPinDrag(f, drag);
+      }
+      movePinGhost(drag);
+    });
+    const finish = (e: PointerEvent, cancelled: boolean) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const d = drag;
+      drag = null;
+      if (!d.on) return;
+      dragged = true;
+      endPinDrag(f, d, cancelled);
+    };
+    tok.addEventListener('pointerup', (e) => finish(e, false));
+    tok.addEventListener('pointercancel', (e) => finish(e, true));
+    tok.addEventListener('click', () => {
+      if (dragged) { dragged = false; return; }
+      armPin(armedPin === f ? null : f);
+    });
+  }
+  map.on('contextmenu', (e) => { e.preventDefault(); openPinMenu(e.lngLat.toArray()); });
+  {
+    let timer = 0, at: maplibregl.Point | null = null;
+    const cancel = () => { clearTimeout(timer); timer = 0; };
+    map.on('touchstart', (e) => {
+      cancel();
+      const oe = e.originalEvent;
+      if (oe.touches.length !== 1 || oe.target !== map.getCanvas()) return; // not a pinch, not a marker
+      at = e.point;
+      const lngLat = e.lngLat.toArray();
+      timer = setTimeout(() => { timer = 0; openPinMenu(lngLat); }, 550);
+    });
+    map.on('touchmove', (e) => { if (timer && (e.originalEvent.touches.length !== 1 || e.point.dist(at!) > 10)) cancel(); });
+    map.on('touchend', () => { cancel(); if (pinMenu.isOpen()) pinMenuQuiet = Date.now() + 400; });
+    map.on('touchcancel', cancel);
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    armPin(null);
+    pinMenu.remove();
   });
+  // A pin on the map dragged somewhere else moves that end of the trip (and stays where it was if it cannot go there)
+  for (const [f, marker] of [['from', startMarker], ['to', destMarker]] as const) {
+    marker.on('dragstart', () => { pinMenu.remove(); armPin(null); });
+    marker.on('dragend', () => {
+      const was = pointOf(f);
+      if (!dropPin(f, marker.getLngLat().toArray()) && was) marker.setLngLat(was.lngLat);
+    });
+  }
 }

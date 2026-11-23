@@ -2,18 +2,34 @@
 // Timetables only give stop coordinates, so the lines between them are routed:
 //   walking → OSM foot routing (routing.openstreetmap.de), trains → BRouter rail profile (brouter.de),
 //   buses/trams → OSM road routing. Anything implausible falls back to the straight line.
+import { map } from './map.ts';
+import { updateCards } from './map-events.ts';
+import { userAccuracy, userLngLat } from './location.ts';
+import { destMarker, startMarker } from './search.ts';
+import { clearPlacePins, render } from './search-pins.ts';
+import { blurSearch, setField, setFollowing, setPlanOpen } from './trip-ends.ts';
+import { armPin, pinMenu } from './pins.ts';
+import { updatePlaces } from './map-places.ts';
+import { jBody, jFoot, jHead, setRoute } from './journey-map.ts';
+import { liveMs, modeOf } from './journey-steps.ts';
+import { nowMarker, placeUserDot, vehMarker } from './tracking.ts';
+import { fmtDist, platformOf, vehUpdate } from './live-vehicles.ts';
+import { connEnd, connStart, queueSheet, s3Plan, s3Prefs } from './sheet-content.ts';
+import { updateProgress } from './pill.ts';
+import { closeTimeSheet, updateWhenChip } from './time-picker.ts';
+import { journey, searchState, sheet, tracking } from './state.ts';
 const routeCache = new Map<string, Promise<unknown>>();
 function getJSON<T>(url: string) {
   if (!routeCache.has(url)) routeCache.set(url, fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null));
   return routeCache.get(url) as Promise<T | null>;
 }
-function distKm(a: LngLatFirst, b: LngLatFirst) {
+export function distKm(a: LngLatFirst, b: LngLatFirst) {
   const R = 6371, toRad = Math.PI / 180;
   const dLat = (b[1] - a[1]) * toRad, dLng = (b[0] - a[0]) * toRad;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const lengthKm = (cs: LngLat[]) => cs.reduce((sum, c, i) => (i ? sum + distKm(cs[i - 1], c) : 0), 0);
+export const lengthKm = (cs: LngLat[]) => cs.reduce((sum, c, i) => (i ? sum + distKm(cs[i - 1], c) : 0), 0);
 const plausible = (route: LngLat[] | false | null | undefined, straight: LngLat[]) => route && route.length > 1 && lengthKm(route) <= Math.max(lengthKm(straight) * 2.5, lengthKm(straight) + 0.4);
 const ll = (c: LngLat) => `${c[0].toFixed(6)},${c[1].toFixed(6)}`;
 
@@ -55,7 +71,7 @@ async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd], netOnl
 
 // A route on the pedestrian network → written directions in the shape walkDirections() lists them (each moment worth
 // a word, and how far it goes on from there), and its floor changes for the map
-function netDirections(r: WalkRouteResult): { dirs?: KanteWalkDir[]; floors: KanteFloorChange[] } {
+export function netDirections(r: WalkRouteResult): { dirs?: KanteWalkDir[]; floors: KanteFloorChange[] } {
   const cum = [0];
   for (let i = 1; i < r.coords.length; i++) cum.push(cum[i - 1] + distKm(r.coords[i - 1], r.coords[i]) * 1000);
   const slice = (m0: number, m1: number) => r.coords.filter((_, i) => cum[i] >= m0 - 0.5 && cum[i] <= m1 + 0.5);
@@ -182,15 +198,15 @@ async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
 }
 
 // Walks only, again (after a live platform change): every walk whose line is no longer the one its last answer drew
-function refineWalks(id: number, onlyMoved?: boolean) {
+export function refineWalks(id: number, onlyMoved?: boolean) {
   let scheduled = false;
   const redraw = () => {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => { scheduled = false; if (id === journeyReq) { routeKey = ''; updateProgress(); } });
+    requestAnimationFrame(() => { scheduled = false; if (id === journey.req) { journey.routeKey = ''; updateProgress(); } });
   };
-  const task: WalkTask = (promise, apply) => { promise.then((res) => { if (id !== journeyReq) return; apply(res); geoVersion++; redraw(); }); };
-  journeySteps.forEach((st) => {
+  const task: WalkTask = (promise, apply) => { promise.then((res) => { if (id !== journey.req) return; apply(res); tracking.geoVersion++; redraw(); }); };
+  journey.steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
     if (onlyMoved && st._netFor === st.lines && st._netSig === walkSig(st)) return;
     // no walk any more (both rides at the same point now): an answer still on its way must not bring it back
@@ -209,7 +225,7 @@ const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since) are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   const rev = (st.walkRev = (st.walkRev || 0) + 1), sig = walkSig(st);
-  const current = () => st.walkRev === rev && journeySteps.includes(st);
+  const current = () => st.walkRev === rev && journey.steps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
   const done = () => { st._netFor = st.lines; st._netSig = sig; };
   return Object.assign(current, { done });
@@ -265,8 +281,8 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     current.done();
     // walking all the way: timed by the whole walk on the network, once every stretch of it is in
     const ws = st.walks.filter(Boolean);
-    if (!journeySteps.some((x) => x.type === 'ride') && ws.length === lines.length && ws.every((w) => w.net && w.dist != null)) {
-      retimeWalkConn(journeyConn, ws.reduce((m, w) => m + w.dist!, 0));
+    if (!journey.steps.some((x) => x.type === 'ride') && ws.length === lines.length && ws.every((w) => w.net && w.dist != null)) {
+      retimeWalkConn(journey.conn, ws.reduce((m, w) => m + w.dist!, 0));
     }
     queueSheet(); // metres and written directions
   }));
@@ -282,10 +298,10 @@ const walkGoal = (st: JourneyWalkStep | JourneyChangeStep, end: LngLat) => (st.t
 //    path stays (with its time); otherwise the time to spare is counted on the walk drawn
 //  - to the first ride: you leave so as to be at the stop at the same time; to the door: the engine's arrival
 //    stays. Either way only while the network walk is at most 2 minutes longer than the engine's
-function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
+export function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
   if (res.dist == null) return false;
   const netS = res.dist / (walkKmh() / 3.6);
-  if (!journeySteps.some((x) => x.type === 'ride')) { retimeWalkConn(journeyConn, res.dist); return true; }
+  if (!journey.steps.some((x) => x.type === 'ride')) { retimeWalkConn(journey.conn, res.dist); return true; }
   const engS = st.walkS != null ? st.walkS : ((st.type === 'change' ? st.walkMin : st.min) || 0) * 60;
   if (st.type === 'change') {
     const wait = ((liveMs(st.next.from, 'dep') || 0) - (liveMs(st.prev.to, 'arr') || 0)) / 1000;
@@ -299,10 +315,10 @@ function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
   if (!st.final && st.t1 != null) {
     st.t0 = st.t1 - netS * 1000;
     st.min = Math.max(1, Math.round(netS / 60));
-    if (journeySteps[0] === st && journeyConn) {
-      journeyConn.t0 = st.t0;
+    if (journey.steps[0] === st && journey.conn) {
+      journey.conn.t0 = st.t0;
       // the option's row lists the walks in minutes: this one as it is drawn (the walks before the first ride)
-      journeyConn.accessS = netS;
+      journey.conn.accessS = netS;
       queueSheet(true);
     }
   }
@@ -311,10 +327,10 @@ function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
 
 // Walking all the way: the trip's times, its card and its place among the options follow the walk drawn
 // (network metres at your walking speed) instead of the engine's estimate
-function retimeWalkConn(conn: Journey | null | undefined, metres: number | null) {
+export function retimeWalkConn(conn: Journey | null | undefined, metres: number | null) {
   if (!conn || metres == null) return;
   const secs = metres / (walkKmh() / 3.6);
-  const arriveBy = journeyQuery.mode === 'arr' && !!(journeyQuery.date || journeyQuery.time);
+  const arriveBy = journey.query.mode === 'arr' && !!(journey.query.date || journey.query.time);
   const t0 = conn.t0, t1 = conn.t1;
   const a = arriveBy ? t1 - secs * 1000 : t0, b = arriveBy ? t1 : t0 + secs * 1000;
   // the trip itself, once per distance; its steps every time (a trip opened again is built with the engine's times)
@@ -332,8 +348,8 @@ function retimeWalkConn(conn: Journey | null | undefined, metres: number | null)
     conn.walkM = Math.round(metres);
     conn._netMetres = Math.round(metres);
   }
-  if (conn === journeyConn) {
-    const steps = journeySteps.filter((st) => st.type === 'walk' || st.type === 'arrive');
+  if (conn === journey.conn) {
+    const steps = journey.steps.filter((st) => st.type === 'walk' || st.type === 'arrive');
     const stale = steps.some((st) => (st.type === 'walk' ? st.t0 !== a || st.t1 !== b : st.type === 'arrive' && st.time !== conn.t1));
     steps.forEach((st) => {
       if (st.type === 'walk') { st.t0 = a; st.t1 = b; st.min = Math.max(1, Math.round(secs / 60)); st.walkS = secs; }
@@ -343,7 +359,7 @@ function retimeWalkConn(conn: Journey | null | undefined, metres: number | null)
   }
   if (!fresh) return;
   // its place among the options: the quicker way first (as the engine ranks them, one change worth 3 minutes)
-  const o = journeyOptions;
+  const o = journey.options;
   if (o && o.walk === conn && o.list && o.list.length) {
     // as KanteJourney.pick(): the best by transport, unless walking is no slower and within your longest walk
     const cost = (c: Journey) => (arriveBy ? -connStart(c) : connEnd(c)) + (c.transfers || 0) * 180000;
@@ -352,32 +368,32 @@ function retimeWalkConn(conn: Journey | null | undefined, metres: number | null)
     const maxWalk = Number(SETTINGS.prefs && SETTINGS.prefs().maxWalkMin) || Infinity;
     o.best = noSlower && secs <= maxWalk * 60 ? conn : pt;
   }
-  queueSheet(conn === journeyConn);
+  queueSheet(conn === journey.conn);
 }
 // The "On foot" option before it is opened: its walk on the network, so its tab and card already show those times
 // (kept while these options are on offer, also when another of them has been opened meanwhile)
-function netWalkOption(conn: Journey, from: LngLat, dest: JourneyDest) {
+export function netWalkOption(conn: Journey, from: LngLat, dest: JourneyDest) {
   if (!conn || !window.WALKROUTE) return;
-  routeWalk(from, dest.lngLat, [tripStart ? {} : { gps: true }, {}], true).then((r) => {
-    if (journeyOptions && journeyOptions.walk === conn && r && r.net) retimeWalkConn(conn, r.dist);
+  routeWalk(from, dest.lngLat, [searchState.tripStart ? {} : { gps: true }, {}], true).then((r) => {
+    if (journey.options && journey.options.walk === conn && r && r.net) retimeWalkConn(conn, r.dist);
   });
 }
 
-function refineJourney(id: number) {
+export function refineJourney(id: number) {
   let pending = 0, scheduled = false;
   const redraw = () => {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => { scheduled = false; if (id === journeyReq) { routeKey = ''; updateProgress(); } });
+    requestAnimationFrame(() => { scheduled = false; if (id === journey.req) { journey.routeKey = ''; updateProgress(); } });
   };
   const task = <T>(promise: Promise<T>, apply: (res: T) => void) => {
     pending++;
-    promise.then((res) => { if (id !== journeyReq) return; apply(res); geoVersion++; redraw(); });
+    promise.then((res) => { if (id !== journey.req) return; apply(res); tracking.geoVersion++; redraw(); });
   };
-  const keys3d = new Set(journeySteps.map((st) => (s3Plan(st) || {}).key).filter(Boolean));
+  const keys3d = new Set(journey.steps.map((st) => (s3Plan(st) || {}).key).filter(Boolean));
   // get the 3D view ready in the background, so "3D view" opens at once
-  if (keys3d.size) setTimeout(() => { if (id === journeyReq) keys3d.forEach((k) => Station3D.preload(k)); }, 2500);
-  journeySteps.forEach((st) => {
+  if (keys3d.size) setTimeout(() => { if (id === journey.req) keys3d.forEach((k) => Station3D.preload(k)); }, 2500);
+  journey.steps.forEach((st) => {
     const plan = (st.lines || []).length ? s3Plan(st) : null;
     if (plan) refineStationWalk(st as JourneyWalkStep | JourneyChangeStep, plan, task);
     else if (st.type === 'walk' || st.type === 'change') refineWalk(st, task);
@@ -386,47 +402,47 @@ function refineJourney(id: number) {
 }
 
 // keepPlan: only the destination goes (its field was cleared); the card and the start stay for another one
-function endJourney(keepPlan?: boolean) {
-  const had = !!journeyDest;
-  journeyReq++;
+export function endJourney(keepPlan?: boolean) {
+  const had = !!journey.dest;
+  journey.req++;
   document.body.classList.remove('journey-mode');
   setFollowing(false);
-  clearInterval(progressTimer);
-  clearInterval(liveTimer);
-  journeyConn = null;
-  journeyDest = null;
-  journeyOptions = null;
-  journeyList = false;
-  journeyMore = null;
+  clearInterval(journey.progressTimer);
+  clearInterval(journey.liveTimer);
+  journey.conn = null;
+  journey.dest = null;
+  journey.options = null;
+  journey.list = false;
+  journey.more = null;
   vehUpdate(); // live vehicles come back (from zoom 14)
   updateCards(); // events and places come back if they were on
   updatePlaces();
-  track = null;
-  jFocus = null;
-  sheetMsg = '';
-  sheetRetry = false;
-  headKey = '';
+  tracking.track = null;
+  sheet.focus = null;
+  sheet.msg = '';
+  sheet.retry = false;
+  sheet.headKey = '';
   jHead.replaceChildren();
   jBody.replaceChildren();
   jFoot.replaceChildren();
-  sheetY = window.innerHeight;
+  sheet.y = window.innerHeight;
   nowMarker.remove();
   vehMarker.remove();
   closeTimeSheet();
   setRoute([]);
-  journeySteps = [];
+  journey.steps = [];
   placeUserDot(); // back to plain GPS
   destMarker.remove();
   clearPlacePins();
   armPin(null);
   pinMenu.remove();
   setField('to', '');
-  results = [];
-  lastSearch = null;
+  searchState.results = [];
+  searchState.last = null;
   updateWhenChip();
   render();
   if (keepPlan === true) return;
-  tripStart = null;
+  searchState.tripStart = null;
   startMarker.remove();
   setField('from', '');
   blurSearch();

@@ -1,8 +1,17 @@
 // ---- The places of a search as pins on the map ("Show on map"): tap one to make it that end of the trip ----
+import { map } from './map.ts';
+import { showToast } from './menu.ts';
+import { COLLAPSED_COUNT, KIND, inputs, list } from './search.ts';
+import { combineResults, searchPlaces, searchPlacesOnline } from './search-places.ts';
+import { blurSearch, choose, select } from './trip-ends.ts';
+import { categoryForText, categoryRow, exitCategory, loadCategory, renderCategories } from './categories.ts';
+import { loadPlaces } from './map-places.ts';
+import { mapPadding } from './pill.ts';
+import { journey, searchState } from './state.ts';
 const placeMarkers: maplibregl.Marker[] = [];
-const areaChip = document.getElementById('areaChip')!;
-let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map
-function clearPlacePins() {
+export const areaChip = document.getElementById('areaChip')!;
+export let pins: FieldSearch | null = null; // { text, field }: the search whose places are on the map
+export function clearPlacePins() {
   exitCategory();
   for (const m of placeMarkers) m.remove();
   placeMarkers.length = 0;
@@ -30,10 +39,10 @@ function drawPlacePins(places: SearchResult[], text: string, field: TripField) {
   }
   pins = { text, field };
 }
-function showPlacesOnMap() {
-  const places = results.filter((r) => r.origin === 'place');
+export function showPlacesOnMap() {
+  const places = searchState.results.filter((r) => r.origin === 'place');
   if (!places.length) return;
-  const field = activeField;
+  const field = searchState.field;
   drawPlacePins(places, inputs[field].value.trim(), field);
   list.classList.remove('open');
   blurSearch();
@@ -47,27 +56,26 @@ function showPlacesOnMap() {
 }
 // "Search this area": the same search again, for the part of the map now in view. The camera stays put.
 async function searchArea() {
-  if (activeCategory && !activeCategory.events) { areaChip.hidden = true; loadCategory(activeCategory, true); return; }
+  if (searchState.category && !searchState.category.events) { areaChip.hidden = true; loadCategory(searchState.category, true); return; }
   if (!pins) return;
-  const { text, field } = pins, id = ++reqId, view = map.getBounds();
+  const { text, field } = pins, id = ++searchState.reqId, view = map.getBounds();
   areaChip.hidden = true;
   const bbox: PlaceBbox = [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()];
   const [online] = await Promise.all([searchPlacesOnline(text, bbox).catch(() => null), loadPlaces()]);
-  if (id !== reqId || !pins || pins.text !== text) return;
+  if (id !== searchState.reqId || !pins || pins.text !== text) return;
   const found = combineResults(text, null, online, searchPlaces(text, true))
     .filter((r) => r.origin === 'place' && view.contains(r.lngLat));
   if (!found.length) { showToast(`Nothing found for “${text}” in this part of the map.`); return; }
-  results = found;
-  lastSearch = { field, text };
+  searchState.results = found;
+  searchState.last = { field, text };
   drawPlacePins(found, text, field);
 }
-areaChip.addEventListener('click', searchArea);
 
 // A tap on a result row. On phones the click only comes after the browser has moved focus away from the
 // search box, and that blur hides the list, so the click never reaches the row. Touches are therefore handled
 // on touchend, before any of that happens, and the click that would follow is cancelled. Mouse, keyboard and
 // screen readers still use the click.
-function onTap(el: HTMLElement, fn: () => void) {
+export function onTap(el: HTMLElement, fn: () => void) {
   let start: { x: number; y: number } | null = null;
   el.addEventListener('pointerdown', (e) => e.preventDefault()); // mouse: keep focus in the search box
   el.addEventListener('touchstart', (e) => {
@@ -88,36 +96,36 @@ function onTap(el: HTMLElement, fn: () => void) {
   el.addEventListener('click', fn);
 }
 
-function render(emptyText = 'No results') {
+export function render(emptyText = 'No results') {
   list.innerHTML = '';
-  if (!inputs[activeField].value.trim()) {
+  if (!inputs[searchState.field].value.trim()) {
     // nothing typed: the categories (where to, not where from, and not while a trip is on show)
-    if (activeField === 'to' && !journeyDest && document.activeElement === inputs.to) renderCategories();
+    if (searchState.field === 'to' && !journey.dest && document.activeElement === inputs.to) renderCategories();
     else list.classList.remove('open');
     return;
   }
-  const typedCategory = categoryForText(inputs[activeField].value);
-  if (typedCategory && activeField === 'to') list.appendChild(categoryRow(typedCategory));
-  if (!results.length) {
+  const typedCategory = categoryForText(inputs[searchState.field].value);
+  if (typedCategory && searchState.field === 'to') list.appendChild(categoryRow(typedCategory));
+  if (!searchState.results.length) {
     const li = document.createElement('li');
     li.className = 'empty';
     li.textContent = emptyText;
     list.appendChild(li);
   }
-  const placeCount = results.filter((r) => r.origin === 'place').length;
+  const placeCount = searchState.results.filter((r) => r.origin === 'place').length;
   let onMapLast: HTMLElement | null = null;
-  if (placeCount >= 2 && results[0].origin === 'place' && !(typedCategory && activeField === 'to')) {
+  if (placeCount >= 2 && searchState.results[0].origin === 'place' && !(typedCategory && searchState.field === 'to')) {
     const onMap = document.createElement('li');
     onMap.className = 'on-map';
     onMap.setAttribute('role', 'option');
     onMap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20"/></svg>';
-    onMap.append(placeCategory ? `Show ${placeCount} ${placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
+    onMap.append(searchState.placeCategory ? `Show ${placeCount} ${searchState.placeCategory.toLowerCase()} on the map` : `Show ${placeCount} places on the map`);
     onTap(onMap, showPlacesOnMap);
     // a kind of place ("restaurant"): all of them on the map comes first; a name ("Migros"): its matches come first
-    if (placeCategory) list.appendChild(onMap);
+    if (searchState.placeCategory) list.appendChild(onMap);
     else onMapLast = onMap;
   }
-  const visible = expanded ? results : results.slice(0, placeCategory ? 5 : COLLAPSED_COUNT);
+  const visible = searchState.expanded ? searchState.results : searchState.results.slice(0, searchState.placeCategory ? 5 : COLLAPSED_COUNT);
   visible.forEach((r, i) => {
     const li = document.createElement('li');
     li.setAttribute('role', 'option');
@@ -141,11 +149,11 @@ function render(emptyText = 'No results') {
     list.appendChild(li);
   });
   if (onMapLast) list.appendChild(onMapLast);
-  if (!expanded && results.length > visible.length) {
+  if (!searchState.expanded && searchState.results.length > visible.length) {
     const more = document.createElement('li');
     more.className = 'more';
     more.textContent = 'Show more…';
-    onTap(more, () => { expanded = true; render(); });
+    onTap(more, () => { searchState.expanded = true; render(); });
     list.appendChild(more);
   }
   if (window.PlaceSearch && visible.some((r) => r.source)) { // places from places.js: credit their source
@@ -155,5 +163,10 @@ function render(emptyText = 'No results') {
     list.appendChild(attr);
   }
   list.classList.add('open');
-  if (!expanded) list.scrollTop = 0;
+  if (!searchState.expanded) list.scrollTop = 0;
+}
+
+/** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
+export function start() {
+  areaChip.addEventListener('click', searchArea);
 }
