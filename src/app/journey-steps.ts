@@ -486,6 +486,11 @@ function signId(st: JourneyRideStep) {
   return `sg|l|${label}|${label ? platformWord(j) : ''}`;
 }
 
+/** The routed points a..b of a walk's line of n points; before a and after b its guessed ends (approxTo / approxFrom). */
+export function routedSpan(w: RoutedWalk, n: number): [a: number, b: number] {
+  const a = w.approxTo != null && w.approxTo < n - 1 ? w.approxTo : 0;
+  return [a, w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : n - 1];
+}
 export function stepFeatures(steps: JourneyStep[]) {
   const f: RouteFeature[] = [];
   const add = (geometry: RouteFeature['geometry'], properties: RouteFeatureProps) => f.push({ type: 'Feature', properties, geometry });
@@ -511,8 +516,7 @@ export function stepFeatures(steps: JourneyStep[]) {
       const w = st.walks && st.walks[k];
       if (!w || w.approx) doneLine(l, 'walk', i, from, { approx: true });
       else {
-        const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
-        const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
+        const [a, b] = routedSpan(w, l.length);
         let at = from;
         const pieces: [from: number, to: number, guess: boolean][] = [[0, a, true], [a, b, false], [b, l.length - 1, true]];
         pieces.forEach(([x, y, guess]) => {

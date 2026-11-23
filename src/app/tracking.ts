@@ -5,7 +5,7 @@ import { map } from './map.ts';
 import { showToast } from '../toast.ts';
 import { fixAge, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';
 import { destMarker } from './search.ts';
-import { hasForecast, icon, journeyEnd, lineLabel, lineVars, liveMs, modeOf, splitLine, stopName } from './journey-steps.ts';
+import { hasForecast, icon, journeyEnd, lineLabel, lineVars, liveMs, modeOf, routedSpan, splitLine, stopName } from './journey-steps.ts';
 import { rideTrip } from './live-engine.ts';
 import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
@@ -211,8 +211,7 @@ function guessedKm(st: JourneyStep, cum: number[]): [number, number][] {
   (st.lines || []).forEach((l, k) => {
     const w = st.walks![k], z = o + l.length - 1;
     if (w && l.length > 1 && (w.approxTo != null || w.approxFrom != null)) {
-      const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
-      const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
+      const [a, b] = routedSpan(w, l.length);
       if (w.approx) out.push([cum[o], cum[z]]);
       else {
         if (a > 0) out.push([cum[o], cum[o + a]]);
