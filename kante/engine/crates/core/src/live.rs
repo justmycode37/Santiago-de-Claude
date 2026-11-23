@@ -137,8 +137,7 @@ pub trait LiveView: Send + Sync {
     }
     /// Calls `f` for every trip that has live data. Returns `false` when the
     /// view cannot list its trips; the router then plans without the
-    /// per-stop lower bounds it derives from them (results are the same,
-    /// long searches are slower).
+    /// per-stop lower bounds it derives from them (long searches are slower).
     fn for_each_trip(&self, _f: &mut dyn FnMut(Date, TripIdx, &TripLive)) -> bool {
         false
     }

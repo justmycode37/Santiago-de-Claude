@@ -690,6 +690,10 @@ mod tests {
         if rng.below(6) == 0 {
             q.modes = Mode::Bus.bit() | Mode::Rail.bit();
         }
+        if rng.below(4) == 0 {
+            // Arrive-by: the target is finite before the first journey is found.
+            q.max_arr = Some(from + rng.range(10, 240) * 60);
+        }
         q
     }
 

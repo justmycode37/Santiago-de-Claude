@@ -40,6 +40,12 @@
 //!   `Journey::dep == q.from`. Arrival times of the on-board trip are clamped
 //!   to `q.from` from below. A cancellation flag on the trip the traveller is
 //!   sitting in is ignored (skipped positions are honoured).
+//! - **Target pruning**: labels that cannot beat the best arrival found so far
+//!   even on the fastest path to the destination are dropped (see
+//!   `lower_bounds.rs`). That changes nothing, except where live times step
+//!   back: a late trip continuing in-seat as one the feed has no delay for is
+//!   ridden at the continuation's scheduled times, and a journey that relies
+//!   on such a step may be pruned.
 
 mod days;
 mod departures;
@@ -111,8 +117,8 @@ impl Router {
     }
 
     /// Switch target pruning with per-stop lower bounds on or off (on by
-    /// default). Results are the same either way; this exists for testing
-    /// and measuring.
+    /// default). Results are the same either way (but see "Target pruning"
+    /// above); this exists for testing and measuring.
     pub fn set_target_bounds(&self, on: bool) {
         self.target_bounds.store(on, std::sync::atomic::Ordering::Relaxed);
     }
@@ -186,6 +192,9 @@ pub struct Query<'a> {
     pub from: Secs,
     /// Length of the departure window; 0 = one earliest-arrival search.
     pub window: Secs,
+    /// Latest acceptable arrival at the destination; later journeys are
+    /// neither returned nor explored.
+    pub max_arr: Option<Secs>,
     /// (stop, seconds needed to reach it from the origin). Ignored when `onboard` is set.
     pub access: &'a [(StopIdx, Secs)],
     /// (stop, seconds from it to the destination).
@@ -211,6 +220,7 @@ impl<'a> Query<'a> {
             date,
             from,
             window: 0,
+            max_arr: None,
             access,
             egress,
             onboard: None,
