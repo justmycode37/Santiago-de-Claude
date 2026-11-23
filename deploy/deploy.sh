@@ -34,7 +34,8 @@ build_release() { # build_release <commit> <release dir>
 # engine's to say.
 register() {
   local reg=$ROOT/raw/register/adr.csv.zip tmp
-  register_ok() { (source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh) && register_ok "$1"); }
+  # quiet: a missing or broken file is the case this handles, not a traceback for the log
+  register_ok() { [[ -s $1 ]] && (source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh) && register_ok "$1") 2>/dev/null; }
   register_ok "$reg" && return 0
   tmp=$(mktemp -d "$ROOT/raw/.register.XXXXXX") || { log "warning: no valid building address register, and no room to fetch one"; return 0; }
   KANTE_RAW=$tmp timeout 1200 kante/scripts/fetch-data.sh --register || true
