@@ -303,5 +303,30 @@ console.log('7. a walk in parts: a guess on the second one');
   check(same(o, plain), 'approxStart 0 / approxEnd at the last point (nothing guessed): as without them');
 }
 
+console.log('8. a lift between two guesses: [A, B0, B2, C], B0 and B2 one place on floors 0 and 2');
+{
+  // 40 m out of a building to the lift (a guess), up it (mapped), 40 m on to a door (a guess); the engine's steps
+  const B = off(P, 40, 0), g = [P, B, [B[0], B[1]] as LngLat, off(B, 0, 40)];
+  const lift = (x: Partial<KanteWalk>) => leg(g, { levels: [0, 0, 2, 2], lifts: 1, ...x }, [
+    { kind: 'depart', text: 'Head east', distM: 40, durS: 30, from: 0, to: 1 },
+    { kind: 'lift', text: 'Take the lift up to level 2', distM: 0, durS: 60, from: 1, to: 2, level: 0, toLevel: 2 },
+    { kind: 'walk', text: 'Head north', distM: 40, durS: 30, from: 2, to: 3, level: 2 }]);
+  const lvl = (list: Feature[]) => list.filter((f) => f.properties.kind === 'lvl').map((f) => f.geometry.coordinates);
+  const run = (x: Partial<KanteWalk>) => {
+    const st = walkOf(lift(x));
+    return { st: st as Step & { floors?: { at: LngLat; from: number; to: number }[] | null }, features: steps.stepFeatures([st]) };
+  };
+  const p = run({}), o = run({ approxStart: 1, approxEnd: 2 });
+  check(same(texts(p.st.walks![0]), ['Head east', 'Take the lift up to level 2', 'Head north']) && same(lvl(p.features), [B]), '(without the fields: the lift said, and its floor change on the map)');
+  const t = texts(o.st.walks![0]);
+  check(t.length === 3 && GUESS.test(t[0]) && t[1] === 'Take the lift up to level 2' && GUESS.test(t[2]), `with them: "${t.join('", "')}"`);
+  check(!o.st.walks![0].approx && o.st.kanteWalk === true, 'the lift is routed: the walk is not all a guess');
+  check(same(o.st.floors, [{ at: B, from: 0, to: 2 }]) && same(lvl(o.features), [B]), 'its floor change stays, on the card and on the map');
+  check(same(walkLines(o.features).filter(([kind]) => kind === 'dashed'), [['dashed', 2], ['dashed', 2]]), 'the two guesses drawn dashed');
+  // a routed part of no length and on one floor is still all a guess (as in 6)
+  const flat = walkOf(leg(g, { approxStart: 1, approxEnd: 2 }));
+  check(!!flat.walks![0].approx && texts(flat.walks![0]).length === 1, 'the same point twice on one floor, no lift: all a guess, said once');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

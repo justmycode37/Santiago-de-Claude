@@ -370,12 +370,16 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   const whole = (x: number | null | undefined) => Math.round(x || 0);
   // Its guessed ends (approxStart / approxEnd: across open ground, or out of a building through no known door):
   // points 0 … to and from … last. The routed part between them is r0 … r1; none (all of it guessed) when the
-  // guesses meet or what is left between them has no length. (A walk without a path, `approximate`, is all a guess.)
+  // guesses meet, or when what is left between them neither goes anywhere nor changes floor (a lift is two points at
+  // one place on two floors: routed). (A walk without a path, `approximate`, is all a guess.)
   const last = coords.length - 1, path = !leg.approximate;
   const to = path && leg.approxStart != null && leg.approxStart > 0 ? Math.min(leg.approxStart, last) : null;
   const from = path && leg.approxEnd != null && leg.approxEnd < last ? Math.max(leg.approxEnd, 0) : null;
   const r0 = to != null ? to : 0, r1 = from != null ? from : last;
-  const all = (to != null || from != null) && (r1 <= r0 || metres(coords.slice(r0, r1 + 1)) < 0.5);
+  const floors = (leg.levels || []).slice(r0, r1 + 1).filter((l) => l != null);
+  const climbs = floors.some((l) => whole(l) !== whole(floors[0]))
+    || (leg.steps || []).some((s) => s.from >= r0 && s.to <= r1 && s.toLevel != null && whole(s.toLevel) !== whole(s.level));
+  const all = (to != null || from != null) && (r1 <= r0 || (!climbs && metres(coords.slice(r0, r1 + 1)) < 0.5));
   const dirs: KanteWalkDir[] = [];
   (leg.steps || []).forEach((s) => {
     if (s.kind === 'arrive') return; // the page ends the list with its own "Arrive at …"
@@ -386,6 +390,8 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text,
       coords: coords.slice(Math.max(s.from, r0), Math.min(s.to, r1) + 1) }; // the engine's directions are of the routed part
     if (change) { d.from = whole(s.level); d.to = whole(s.toLevel); }
+    // one that went somewhere, but only along a guess (none of its way left on the routed part): the guess says it
+    if (s.to > s.from && d.coords.length < 2 && !change && (to != null || from != null)) return;
     dirs.push(d);
   });
   // A change with an official minimum change time is timed by that, while the engine's path runs between the
