@@ -176,7 +176,7 @@ Follow-up, deliberately not in this integration:
 - RightSide and Scan: `/api/due?quay=<SLOID>` for the exact boarding edge and `/api/identify` to bind a seen vehicle
   to its trip (#23). The journey already resolves the ATLAS SLOID quay.
 - `tools/station3d_sbb_layers.py` for the other stations; the corridor-cutaway shader in `station3d.js`.
-- Walk tiles for Zürich (`tools/build_walkgraph.py --area zurich`); solid companions for the other stations.
+- Solid companions for the other stations.
 
 ## Duplicates
 
@@ -188,7 +188,8 @@ Follow-up, deliberately not in this integration:
   `station3d-solid.js` (one building at true heights). Different views of the same model files and the same
   `station-route.js` routes, so both stay. (Later replaced: since November 2026 only `station3d-solid.js` remains,
   through the station view; `station3d.js` was removed.)
-- **Walk geometry:** `walkroute.js` where tiles exist; the online routers only as fallback.
+- **Walk geometry:** `walkroute.js` where tiles exist; the online routers only as fallback. (Later removed: every
+  walk outside a station model is the Kante engine's, see `docs/walking-routes.md`.)
 - **#17's commit inside #18:** disappears by merging #17 first.
 
 ## Test plan for the combined branch

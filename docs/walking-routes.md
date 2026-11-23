@@ -51,7 +51,7 @@ The fields of a walking leg are in `KanteWalk` (`src/types/kante.d.ts`, `kante/e
 path; the page then draws it without a door. `/api/walk` takes, for each end, a boarding point (`quay`: its id or
 SLOID), a point taken as it is (`exact`: where a station model's paths begin) or a coordinate.
 `KanteJourney.routed()` turns a walk into the shape the page draws (`src/engine-journey.ts`; an `approximate` one is
-the straight line with the engine's time); `routeWalk()` in `src/app/routing.ts` asks for one. A walk moved since the
+the straight line with the engine's time, metres and "Walk about …" direction); `routeWalk()` in `src/app/routing.ts` asks for one. A walk moved since the
 plan through a station whose model has no route (or does not load) is asked for once, along the streets. A walk the
 model draws takes the time of the way drawn: the model's for its part, the engine's for the stretches before and
 after it. Between the start and the model only a stretch under 2 m is left out; the stretch from the model to
