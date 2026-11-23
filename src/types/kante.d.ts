@@ -116,6 +116,10 @@ interface KanteMeta {
   features: string[];
   counts: { stations: number; quays: number; trips: number; walkEdges: number };
   attribution: string[];
+  /** The commit the engine was built from; null for a build without KANTE_COMMIT. Older engines send neither. */
+  commit?: string | null;
+  /** The release the engine runs from (the folder of its executable); null if unknown. */
+  release?: string | null;
 }
 
 // ---- GET /api/search, /api/reverse (answers a KantePlace)

@@ -286,6 +286,9 @@ function prune(list: Journey[]) {
     && (b.dep > a.dep || b.arr < a.arr || b.transfers < a.transfers)));
 }
 const byDeparture = (a: Journey, b: Journey) => a.dep - b.dep;
+// The rides a journey makes: the same trips on the same service days between the same stops, in order ('' with none)
+const ridesOf = (j: { legs: KanteLeg[] }) => j.legs.filter((l): l is KanteRideLeg => l.type === 'ride')
+  .map((l) => `${l.tripId}|${l.serviceDate}|${l.from.seq}|${l.to.seq}`).join(' ');
 
 // fromLL: [lng, lat]; dest: a search result ({ lngLat }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
 function request(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null) {
@@ -346,7 +349,12 @@ async function more(o: JourneyOptions | null | undefined, dir: 'earlier' | 'late
   const res = await ask({ ...r.body, page: cursor });
   const seen = new Set(o.list.map((c) => c.id));
   const fresh = res ? offers(res, r.body).list.filter((j) => !seen.has(j.id)).map(journeyOf) : [];
-  o.list = prune([...o.list, ...fresh]).sort(byDeparture);
+  // a journey that makes the same rides as one in the list (its times moved by a live update since: another id)
+  // replaces it, rather than being shown beside it
+  const again = new Map(fresh.map((j) => [ridesOf(j), j] as const).filter(([k]) => k));
+  const kept = o.list.filter((c) => !again.has(ridesOf(c)));
+  if (o.best && again.has(ridesOf(o.best))) o.best = again.get(ridesOf(o.best))!;
+  o.list = prune([...kept, ...fresh]).sort(byDeparture);
   r[dir] = (res && res[dir]) || null;
   o[dir] = !!r[dir];
   return true;
