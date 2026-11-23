@@ -64,7 +64,7 @@ type Node = u32;
 
 /// The distance search may settle `BUDGET_BASE` nodes, and `BUDGET_PER_CALL`
 /// more per bound check (a proxy for the work of the journey search).
-const BUDGET_BASE: f64 = 2000.0;
+const BUDGET_BASE: f64 = 200.0;
 const BUDGET_PER_CALL: f64 = 1.0;
 
 /// Distinguishes routers, so data derived from a snapshot or a footpath set
