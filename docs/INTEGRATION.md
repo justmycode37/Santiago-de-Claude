@@ -182,6 +182,7 @@ Follow-up, deliberately not in this integration:
 - **Sign text parsing:** one parser, `SIGNLOC.parse`, for platform, sector and exit signs. Scan keeps stop-name
   matching.
 - **Stop departures:** Scan and RightSide read Kante `/api/due`; transport.opendata.ch stationboards only as fallback.
+  (Later removed from the site: departures, journeys and live data come only from the engine, see `docs/journeys.md`.)
 - **Two 3D viewers:** `station3d.js` (floors pulled apart, routing, indoor position, showcase walk) and
   `station3d-solid.js` (one building at true heights). Different views of the same model files and the same
   `station-route.js` routes, so both stay.

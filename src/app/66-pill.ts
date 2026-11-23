@@ -12,14 +12,14 @@ interface BarRide extends BarPart { kind: 'ride'; label: string }
 interface BarGap extends BarPart { kind: 'gap' }
 type BarSeg = BarRide | BarGap;
 function barLayout() {
-  const t0 = new Date(journeyConn!.from.departure!).getTime(), t1 = Math.max(new Date(journeyConn!.to.arrival!).getTime(), journeyEnd());
+  const t0 = journeyConn!.t0, t1 = Math.max(journeyConn!.t1, journeyEnd());
   const W = jBar.clientWidth, L = W - 2 * BAR.pad;
   const segs: BarSeg[] = [];
   let cursor = t0, rides = 0;
-  journeyConn!.sections.filter((s) => s.journey).forEach((s) => {
-    const a = Math.max(cursor, liveMs(s.departure, 'departure')!), b = Math.max(a, liveMs(s.arrival, 'arrival')!);
+  journeyConn!.parts.filter(isRide).forEach((s) => {
+    const a = Math.max(cursor, liveMs(s.from, 'dep')!), b = Math.max(a, liveMs(s.to, 'arr')!);
     if (a > cursor || rides) segs.push({ kind: 'gap', a: cursor, b: a, min: rides ? 28 : 17 } as BarGap); // a change, or the walk to the first stop
-    segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.journey!) } as BarRide);
+    segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.line) } as BarRide);
     cursor = b;
     rides++;
   });
@@ -131,12 +131,12 @@ function tick() {
 }
 
 function updatePillTimes() {
-  const plan = new Date(journeyConn!.to.arrival!).getTime(), live = journeyEnd();
+  const plan = journeyConn!.t1, live = journeyEnd();
   const el = document.getElementById('jArr')!;
   el.textContent = fmtTime(live);
   el.classList.toggle('late', live - plan >= 60000);
 }
-function renderJourney(conn: OdConnection, destTitle: string) {
+function renderJourney(conn: Journey, destTitle: string) {
   journeyConn = conn;
   journeySteps = buildSteps(conn, destTitle);
   platKey = platSig();
@@ -146,7 +146,8 @@ function renderJourney(conn: OdConnection, destTitle: string) {
   autoStep = 0;
   jFocus = null;
   sheetMsg = '';
-  document.getElementById('jDep')!.textContent = fmtTime(conn.from.departure);
+  sheetRetry = false;
+  document.getElementById('jDep')!.textContent = fmtTime(conn.t0);
   updatePillTimes();
   trackJourney();
   renderBar();
@@ -220,6 +221,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   document.getElementById('jDep')!.textContent = '--:--';
   document.getElementById('jArr')!.textContent = '--:--';
   sheetMsg = 'Finding a connection…';
+  sheetRetry = false;
   track = null;
   placeUserDot(); // plain GPS until the new trip follows you
   renderSheet();
@@ -231,16 +233,13 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   clearInterval(progressTimer);
   progressTimer = setInterval(tick, 5000);
   clearInterval(liveTimer);
-  liveTimer = setInterval(refreshLive, 60000); // live forecasts once a minute while the trip is on
-  clearInterval(kanteTimer);
-  kanteTimer = setInterval(kantePoll, 30000); // …and every 30 s from the Kante engine, for the rides it knows
+  liveTimer = setInterval(livePoll, 30000); // live times from the Kante engine every 30 s while the trip is on
   vehStop(); // the map shows only the trip
 
   const from = tripStart ? tripStart.lngLat : userLngLat || map.getCenter().toArray();
   try {
-    // exact platforms if their data is there in time; never hold a journey up for more than 4 s
-    startPlatforms();
-    const [opts] = await Promise.all([findOptions(from, r), Promise.race([platformsReady, new Promise((ok) => setTimeout(ok, 4000))])]);
+    startPlatforms(); // the platform dots on the map (the journey's boarding points come from the engine)
+    const opts = await KanteJourney.plans(from, r, journeyQuery);
     if (id !== journeyReq) return;
     if (!opts) { sheetMsg = 'No public transport connection found for this trip.'; renderSheet(); return; }
     // More than one way to go: the list to choose from, with the best one on the map. (Under way, a new
@@ -252,8 +251,19 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
     renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
     if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
-    kanteMatch(id);    // the engine's trip for every ride, for its live data
+    livePoll(); // live times for its rides at once
   } catch (e) {
-    if (id === journeyReq) { sheetMsg = 'Connections could not be loaded. Check your internet connection.'; renderSheet(); }
+    if (id !== journeyReq) return;
+    // the engine is switched off or cannot be reached: say so, and (when it can come back) offer to ask again
+    const why = engineFailure(e);
+    sheetMsg = why ? engineMessage(why, 'Journeys') : 'Connections could not be loaded. Check your internet connection.';
+    sheetRetry = why !== 'off';
+    renderSheet();
   }
+}
+// "Try again" after the engine could not be reached: the same trip, at the same time
+function retryJourney() {
+  if (!journeyDest) return;
+  if (KANTE) KANTE.ready(true); // it no longer counts as down
+  startJourney(journeyDest, true);
 }

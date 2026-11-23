@@ -21,8 +21,8 @@ interface SheetPositions { full: number; mid: number; low: number; h: number }
 interface JourneyFocus { step: number; dir: number }
 
 /**
- * What quayOf() (60-sheet.ts) reads of a ride's step: its section, and where it stops once the step has been
- * placed. A row of the list of journeys (optionRow() in 62-sheet-content.ts) has only the section.
+ * What quayOf() (60-sheet.ts) reads of a ride's step: its ride, and where it stops once the step has been
+ * placed. A row of the list of journeys (optionRow() in 62-sheet-content.ts) has only the ride.
  */
 type QuayRide = Pick<JourneyRideStep, 's'> & Partial<Pick<JourneyRideStep, 'depAt' | 'arrAt'>>;
 

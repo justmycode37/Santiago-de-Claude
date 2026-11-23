@@ -179,6 +179,7 @@
               max-height: 58vh; overflow-y: auto; border-radius: 22px 22px 0 0; background: rgba(28,28,30,.86);
               backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
   .sv-hint { margin: 0; font-size: 14px; color: #c7c7cc; }
+  .sv-retry { margin-top: 8px; height: 36px; padding: 0 14px; border: 0; border-radius: 12px; background: rgba(255,255,255,.14); color: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
   .sv-main { display: flex; gap: 12px; align-items: center; }
   .sv-main .sv-ic { width: 40px; height: 40px; }
   .sv-main .sv-ic svg { width: 24px; height: 24px; }
@@ -799,23 +800,21 @@
     ev.depBusy = true;
     evidence.set(c.uic, ev);
     try {
-      // The Kante engine knows the edge of every departure (engine-departures.js: d.edges, the first one is the
-      // edge the rule below would name). Without it, transport.opendata.ch and that rule.
-      const exact = window.KANTE_BOARD ? await window.KANTE_BOARD.load(c.uic, c.st, app!.platformLL) : null;
-      const res = exact || await fetch(app!.OPENDATA + 'stationboard?' + new URLSearchParams({ id: c.uic, limit: '30' }));
-      const all = exact || ((await (res as Response).json() as OdStationboardResponse).stationboard || []).filter((d) => d.stop && d.stop.departure);
-      ev.departures = all.map((d) => {
-        const next = d.passList && d.passList[1] ? app!.coordOf(d.passList[1]) : null;
-        const ll = d.edges ? null : app!.platformLL(d.stop, null, next);
-        const edge = d.edges ? (d.edges.length ? d.edges[0] : -1) : c.st.edges.findIndex((e) => e.ll === ll);
-        return { time: (d.stop.prognosis && d.stop.prognosis.departure) || d.stop.departure!, delay: d.stop.delay || 0,
-                 line: (d.number || d.name || '').replace(/^\D+\s/, ''), cat: d.category || '', to: d.to || '', edge: edge >= 0 ? edge : null, edges: d.edges, raw: d };
-      });
+      // The Kante engine knows the edge of every departure (engine-departures.js: d.edges; the first one counts)
+      if (!window.KANTE_BOARD) throw Object.assign(new Error('engine-departures.js not loaded'), { reason: 'off' });
+      const all = await window.KANTE_BOARD.load(c.uic, c.st);
+      ev.departures = all.map((d) => ({ time: d.time, delay: d.late,
+        line: (d.shown.number || d.shown.name || '').replace(/^\D+\s/, ''), cat: d.shown.category || '', to: d.headsign || d.towards || '',
+        edge: d.edges.length ? d.edges[0] : null, edges: d.edges, raw: d }));
       ev.depFailed = false;
+      ev.depWhy = null;
       ev.depAt = Date.now();
-    } catch {
+    } catch (e) {
       ev.departures = ev.departures || null;
       ev.depFailed = true;
+      // the engine is switched off for the page, or cannot be reached: the sheet says so
+      const why = e && typeof e === 'object' && 'reason' in e ? (e as KanteError).reason : null;
+      ev.depWhy = why === 'off' || why === 'down' ? why : null;
       ev.depAt = Date.now() - 45000; // try again in 15 s
     }
     ev.depBusy = false;
@@ -1441,7 +1440,7 @@
       for (const d of deps.slice(0, 4)) {
         const li = $('li');
         li.append($('time', null, new Date(d.time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })),
-          app!.badge ? app!.badge(d.raw) : $('span', 'sv-line', d.line || d.cat), $('span', 'sv-to', d.to));
+          app!.badge ? app!.badge(d.raw.shown) : $('span', 'sv-line', d.line || d.cat), $('span', 'sv-to', d.to));
         if (d.delay > 0) li.append($('span', 'sv-late', `+${d.delay}′`));
         ul.appendChild(li);
       }
@@ -1449,7 +1448,21 @@
     } else if (deps) nodes.push($('p', 'sv-hint', 'No departures in the next hours.'));
     else {
       if (depDue(ev)) departures(c).catch(() => {});
-      nodes.push($('p', 'sv-hint', ev.depFailed ? 'Departures could not be loaded.' : 'Loading departures…'));
+      // departures come from the Kante engine: when it is off or down, say so (and, when it can come back, try again)
+      const why = ev.depFailed ? ev.depWhy : null;
+      nodes.push($('p', 'sv-hint', why === 'off' ? 'Departures come from the Kante engine, which is switched off for this page.'
+        : why === 'down' ? "Departures come from the Kante engine, which can't be reached right now."
+          : ev.depFailed ? 'Departures could not be loaded.' : 'Loading departures…'));
+      if (ev.depFailed && why !== 'off') {
+        const again = $('button', 'sv-retry', 'Try again');
+        again.addEventListener('click', () => {
+          ev.depAt = 0;
+          if (window.KANTE) window.KANTE.ready(true);
+          departures(c).catch(() => {});
+          if (ui) ui.shownKey = '';
+        });
+        nodes.push(again);
+      }
     }
 
     const actions = $('div', 'sv-actions');
