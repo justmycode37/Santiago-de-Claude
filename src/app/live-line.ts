@@ -78,7 +78,7 @@ export function liveParts(now: number): LiveLine | null {
     return { kind: 'off', replan: true, parts: [`Not enough time to change at ${stopName(broken.next.from)} · `, kBadge(broken.next.line), ` leaves ${fmtTime(liveMs(broken.next.from, 'dep'))}`] };
   }
   if (t) {
-    const st = journey.steps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000;
+    const st = journey.steps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000; // from where you are (on a guessed stretch too)
     if (t.arrived) return { kind: 'gps', parts: ['You have arrived'] };
     if (st.type === 'ride') {
       const j = st.s.line;
@@ -125,7 +125,7 @@ export function scheduleProgress() {
 }
 export function redrawRoute(force?: boolean) {
   const p = journeyProgress();
-  const key = p ? `${p.i}|${Math.round(p.kmIn * 200)}` : '-'; // redraw every 5 m
+  const key = p ? `${p.i}|${Math.round((p.walkedKmIn != null ? p.walkedKmIn : p.kmIn) * 200)}` : '-'; // redraw every 5 m drawn as walked
   if (!force && key === journey.routeKey) return;
   journey.routeKey = key;
   setRoute(stepFeatures(journey.steps));

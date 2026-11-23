@@ -496,7 +496,7 @@ export function stepFeatures(steps: JourneyStep[]) {
   const doneLine = (cs: LngLat[] | undefined, kind: 'ride' | 'walk', step: number, from: number, extra?: Partial<RouteFeatureProps>) => { // from: km into its step where this line starts
     if (!cs || cs.length < 2) return;
     if (!p || step > p.i) return line(cs, kind, step, extra);
-    const len = lengthKm(cs), k = p.kmIn - from;
+    const len = lengthKm(cs), k = (p.walkedKmIn != null ? p.walkedKmIn : p.kmIn) - from; // (along a guess, up to where it begins)
     if (step < p.i || k >= len) return line(cs, kind, step, { ...extra, done: true });
     if (k <= 0) return line(cs, kind, step, extra);
     const [a, b] = splitLine(cs, k / len);

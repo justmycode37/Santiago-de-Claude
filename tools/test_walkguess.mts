@@ -4,8 +4,9 @@
 // in src/app/tracking.ts, refineWalks() in src/app/routing.ts, which asks the engine's /api/walk again). Without them
 // everything must come out as the page made it before it said and tracked guesses (test_walkguess_plain.json: this
 // test run with GOLDEN=1 at ade69857, the engine as the one walking router before #73 was merged in, with only
-// snapToTrip() exported); with them the guessed stretches are drawn dashed, said as a guess, left out of how far GPS
-// moves you along the walk, and the blue dot is not put on them. The modules are imported as they are, with the
+// snapToTrip() exported); with them the guessed stretches are drawn dashed and said as a guess, GPS on one counts
+// where it is but the walk is drawn as walked only up to where the guess begins, and the blue dot is not put on one.
+// (What the page shows while following a journey along such a walk: test_walktrack.mts.) The modules are imported as they are, with the
 // parts of the page they import stubbed. Offline; exit code 1 on any failure.
 //
 //   node --experimental-test-module-mocks tools/test_walkguess.mts          (GOLDEN=1: print the outputs to record)
@@ -84,7 +85,7 @@ interface Step {
   from: null;
 }
 interface Feature { geometry: { type: string; coordinates: LngLat[] | LngLat }; properties: { kind: string; approx?: boolean } }
-interface Track { i: number; kmIn: number; km: number; d: number; off: boolean; arrived?: boolean }
+interface Track { i: number; kmIn: number; walkedKmIn?: number; km: number; d: number; off: boolean; arrived?: boolean }
 interface Conn { t0: number; t1: number; parts: { type: string; durationS: number; dep: number; arr: number }[]; walkM: number }
 const load = (file: string) => import(new URL(file, APP).href);
 type Walk = NonNullable<Step['walks']>[number];
@@ -129,8 +130,10 @@ function walkOf(l: KanteWalk, t0?: number, secs = 300): Step {
 }
 const texts = (w: { dirs?: Dir[] } | null) => ((w && w.dirs) || []).map((d) => d.text);
 const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
-const snap = (p: LngLat, ref = 0) => { const s = tracking.snapToTrip(p, ref, Date.now())!; return { i: s.i, kmIn: r6(s.kmIn), d: r6(s.d) }; };
-const tracked = () => { const t = S.tracking.track; return t && { i: t.i, kmIn: r6(t.kmIn), d: r6(t.d), off: t.off, arrived: !!t.arrived }; };
+// where a fix counts (kmIn), and on a guessed stretch how far the walk is drawn as walked (walked)
+const walkedOf = (s: Track) => (s.walkedKmIn != null ? { walked: r6(s.walkedKmIn) } : {});
+const snap = (p: LngLat, ref = 0) => { const s = tracking.snapToTrip(p, ref, Date.now())!; return { i: s.i, kmIn: r6(s.kmIn), d: r6(s.d), ...walkedOf(s) } as { i: number; kmIn: number; d: number; walked?: number }; };
+const tracked = () => { const t = S.tracking.track; return t && { i: t.i, kmIn: r6(t.kmIn), d: r6(t.d), off: t.off, arrived: !!t.arrived, ...walkedOf(t) } as { i: number; kmIn: number; d: number; off: boolean; arrived: boolean; walked?: number }; };
 const walkOut = (st: Step) => ({ lines: st.lines, walk: (st.walks && st.walks[0]) || null, kanteWalk: !!st.kanteWalk });
 
 // ---- the scenarios: each gives what the page made of the walk, as JSON; `x` adds the engine's fields ----
@@ -228,7 +231,7 @@ for (const k of Object.keys(scenarios) as Name[]) check(same(plain[k], BEFORE[k]
 check(same(walkLines(plain.basic.features), [['solid', 6]]) && plain.basic.kanteWalk && plain.basic.asked === 0, "basic: drawn solid, the engine's path kept in a station without a way through");
 check(!plain.offRoute.second.off && plain.offRoute.second.d === 0 && plain.door.atDoor.arrived, 'on the line and at the door: on the route, arrived');
 
-console.log('2. with them: dashed, said as a guess, not tracked along');
+console.log('2. with them: dashed, said as a guess, drawn as walked only along the paths');
 {
   const o = await scenarios.basic({ approxStart: 1, approxEnd: 4 }) as any;
   const p = plain.basic;
@@ -240,9 +243,11 @@ console.log('2. with them: dashed, said as a guess, not tracked along');
   check(same(d[0].coords, G.slice(0, 2)) && same(d[3].coords, G.slice(4)), 'each guess over its own points');
   check(same(d[1].coords[0], G[1]) && same(d[2].coords[d[2].coords.length - 1], G[4]) && d[1].text === 'Head north, then 60 m along Kramgasse',
     "the engine's directions are of the routed part (\"Head north\" begins where the paths do, and is focused there)");
-  check(o.snaps[0].kmIn === 0 && o.snaps[0].d === p.snaps[0].d && p.snaps[0].kmIn > 0, 'GPS beside the guessed start: as far from the line, not moved along it');
+  check(o.snaps[0].walked === 0 && o.snaps[0].kmIn === p.snaps[0].kmIn && o.snaps[0].d === p.snaps[0].d && p.snaps[0].kmIn > 0,
+    'GPS beside the guessed start: where it is, as far from the line, but not drawn as walked');
   check(same(o.snaps[1], p.snaps[1]) && same(o.snaps[3], p.snaps[3]), 'on the routed part and where it ends: as before');
-  check(o.snaps[2].d === p.snaps[2].d && o.snaps[2].kmIn === o.snaps[3].kmIn && o.snaps[2].kmIn < p.snaps[2].kmIn, 'beside the guessed end: no further along than where the paths end');
+  check(o.snaps[2].d === p.snaps[2].d && o.snaps[2].kmIn === p.snaps[2].kmIn && o.snaps[2].walked === o.snaps[3].kmIn && o.snaps[2].walked! < p.snaps[2].kmIn,
+    'beside the guessed end: where it is, drawn as walked up to where the paths end');
   check(o.kanteWalk && o.asked === 0, "the engine's path drawn; in a station without a way through, kept (the engine not asked again)");
   check(o.walk.net === true && o.walk.approxTo === 1 && o.walk.approxFrom === 4 && !o.walk.approx, 'kept as the walk\'s approxTo / approxFrom');
 }
@@ -256,14 +261,14 @@ console.log('3. routed again by the engine: its answer\'s guesses are guesses to
   check(same(walkLines(o.features), [['dashed', 2], ['solid', 4], ['dashed', 2]]), 'drawn dashed at both ends');
   const t = texts(o.walk);
   check(t.length === 4 && GUESS.test(t[0]) && GUESS.test(t[3]), `said as a guess ("${t[0]}")`);
-  check(o.snap.kmIn === 0 && o.snap.d === p.snap.d && p.snap.kmIn > 0, 'a fix beside its guessed start: not moved along it');
+  check(o.snap.walked === 0 && o.snap.kmIn === p.snap.kmIn && o.snap.d === p.snap.d && p.snap.kmIn > 0, 'a fix beside its guessed start: not drawn as walked');
 }
 
 console.log('4. on the dashed start: not "off the route", and the blue dot where GPS puts you');
 {
   const o = scenarios.offRoute({ approxStart: 1 });
   check(!o.second!.off && o.second!.d === 0 && o.first!.d === 0, `two fixes on the guessed start: 0 m from the line, on the route (${o.second!.d} m, off: ${o.second!.off})`);
-  check(o.second!.kmIn === 0 && o.first!.kmIn === 0, 'and not moved along it');
+  check(o.second!.walked === 0 && o.first!.walked === 0 && Math.abs(o.second!.kmIn - 0.11) < 0.001, `where they are (${o.second!.kmIn} km), but not drawn as walked`);
   check(same(o.dot, P), `the blue dot at the fix, not pulled to where the walk begins (${JSON.stringify(o.dot)})`);
   const q = plain.offRoute.dot as LngLat;
   check(!!q && distKmFlat(q, P) < 0.001 && plain.offRoute.second.kmIn > 0.1, '(without the fields: the dot on the line, at the fix, 110 m along)');
@@ -273,7 +278,8 @@ console.log('5. at the door at the end of a guessed tail, arrived');
 {
   const o = scenarios.door({ approxEnd: 1 });
   check(o.atDoor!.arrived, `a fix at the door: arrived (${JSON.stringify(o.atDoor)})`);
-  check(Math.abs(o.before.kmIn - 0.07) < 0.001 && o.before.kmIn < plain.door.before.kmIn && o.before.d === plain.door.before.d, `30 m before it: where the paths end (${o.before.kmIn} km)`);
+  check(Math.abs(o.before.walked! - 0.07) < 0.001 && o.before.kmIn === plain.door.before.kmIn && o.before.d === plain.door.before.d,
+    `30 m before it: where it is (${o.before.kmIn} km), drawn as walked up to where the paths end (${o.before.walked} km)`);
 }
 
 console.log('6. guesses that meet, a repeated point, a two-point guess');
@@ -281,12 +287,13 @@ console.log('6. guesses that meet, a repeated point, a two-point guess');
   const m = scenarios.meet({ approxStart: 1, approxEnd: 1 }) as any;
   check(same(walkLines(m.features), [['dashed', 3]]) && m.walk.approx, 'guesses that meet: one dashed line, all of it a guess');
   check(texts(m.walk).length === 1 && GUESS.test(texts(m.walk)[0]), `said once ("${texts(m.walk)[0]}"), nothing else`);
-  check(m.snap.kmIn === 0 && m.snap.d === plain.meet.snap.d, 'a fix past the middle: not moved along it');
+  check(m.snap.walked === 0 && m.snap.kmIn === plain.meet.snap.kmIn && m.snap.d === plain.meet.snap.d, 'a fix past the middle: where it is, not drawn as walked');
   const r = scenarios.repeated({ approxStart: 1, approxEnd: 2 }) as any;
   check(same(walkLines(r.features), [['dashed', 4]]), 'a repeated point between the guesses: no solid line of no length');
   const t = scenarios.two({ approxStart: 1 });
-  check(t.aside.kmIn === 0 && t.aside.d === plain.two.aside.d, `two points guessed through the last, a fix past its end to the side: not moved along it (${t.aside.kmIn} km)`);
-  check(same(t.atEnd, plain.two.atEnd), 'beside its end: at the end, as without the fields');
+  check(t.aside.walked === 0 && same({ ...t.aside, walked: undefined }, { ...plain.two.aside, walked: undefined }),
+    `two points guessed through the last, a fix past its end to the side: where it is (${t.aside.kmIn} km), not drawn as walked`);
+  check(same(t.atEnd, plain.two.atEnd), `beside its end: at the end, as without the fields (${JSON.stringify(t.atEnd)} / ${JSON.stringify(plain.two.atEnd)})`);
 }
 
 console.log('7. a walk in parts: a guess on the second one');
@@ -294,8 +301,8 @@ console.log('7. a walk in parts: a guess on the second one');
   const o = scenarios.parts({ approxStart: 1 }) as any;
   check(same(walkLines(o.features), [['solid', 2], ['dashed', 2], ['solid', 2]]), 'the first part solid, the second one\'s guessed start dashed');
   check(GUESS.test(o.texts[1][0]) && !o.texts[0].some((x: string) => GUESS.test(x)), 'said as a guess on the second part only');
-  check(Math.abs(o.snap.kmIn - 0.1) < 0.001 && plain.parts.snap.kmIn > 0.14 && o.snap.d === plain.parts.snap.d,
-    `a fix on it: where the first part ends (${o.snap.kmIn} km; without the fields ${plain.parts.snap.kmIn} km)`);
+  check(Math.abs(o.snap.walked - 0.1) < 0.001 && o.snap.kmIn === plain.parts.snap.kmIn && plain.parts.snap.kmIn > 0.14 && o.snap.d === plain.parts.snap.d,
+    `a fix on it: where it is (${o.snap.kmIn} km), drawn as walked up to where the first part ends (${o.snap.walked} km)`);
 }
 {
   const none = (last: number) => ({ approxStart: 0, approxEnd: last });

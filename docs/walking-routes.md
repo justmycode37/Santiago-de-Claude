@@ -38,8 +38,10 @@ update.
   20 m, so the two tracks of one platform are a few metres apart, not round its far end.
 - **Guesses are shown as guesses**: a straight bit over 20 m onto or off the paths, through a house to its door, or
   into a building where no door could be used, is drawn dashed and written as one ("Walk about 30 m where no way is
-  mapped", "Then about 60 m …"); the engine's own directions start where the paths do. GPS on a guessed stretch does
-  not move you along the walk (you are where the paths begin or end), except within 25 m of the walk's end.
+  mapped", "Then about 60 m …"); the engine's own directions start where the paths do. A lift between two guesses
+  (two points at one place on two floors) is routed, and said. GPS on a guessed stretch counts where you are (the
+  distance left, the bar, boarding the next ride and arriving go by it), but the walk is drawn as walked only up to
+  where the guess begins, except within 25 m of the walk's end.
 - **Your position and addresses** are on the street, not in the underpass below them, unless they are right on a way
   of another floor (3 m) with no way on the street within 10 m.
 
