@@ -3,24 +3,29 @@
 # existing files are kept unless you pass --refresh.
 #
 #   scripts/fetch-data.sh [--refresh]
+#   scripts/fetch-data.sh --register   only the building address register, if it is not there yet
 #
 # Sources (all open, no key needed):
 #   - National GTFS timetable   opentransportdata.swiss (updated Mon + Thu; the
 #                               timetable year in force today, see timetable_year)
 #   - atlas boarding points      opentransportdata.swiss (daily)
 #   - OpenStreetMap Switzerland  download.geofabrik.de   (daily)
+#   - Building address register  data.geo.admin.ch (swisstopo, weekly; optional: the doors of
+#                                buildings OpenStreetMap maps without one)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 refresh=0
 [[ "${1:-}" == "--refresh" ]] && refresh=1
+only_register=0
+[[ "${1:-}" == "--register" ]] && only_register=1
 
 OTD=https://data.opentransportdata.swiss
 RAW=${KANTE_RAW:-data/raw}
 UA="kante-prototype/0.1"
 
-fetch() { # fetch <url> <dest>
-  local url=$1 dest=$2
+fetch() { # fetch <url> <dest> [check [max seconds]]: check is a command run on the downloaded file before it replaces <dest>
+  local url=$1 dest=$2 check=${3:-} max=${4:-}
   if [[ -s "$dest" && $refresh -eq 0 ]]; then
     echo "have  $dest"
     return
@@ -29,7 +34,8 @@ fetch() { # fetch <url> <dest>
   echo "fetch $dest"
   # -L: the timetable permalink redirects to a signed storage URL.
   # Explicit returns: this runs inside `if`, where `set -e` does not stop a failed command.
-  if ! curl -fSL --retry 3 -A "$UA" -o "$dest.part" "$url"; then
+  # max seconds (the register only, which is not worth holding up a build or the timetable for): each try, and the retries together.
+  if ! curl -fSL --retry 3 ${max:+--max-time "$max" --retry-max-time "$max"} -A "$UA" -o "$dest.part" "$url"; then
     rm -f "$dest.part"
     return 1
   fi
@@ -38,8 +44,52 @@ fetch() { # fetch <url> <dest>
     rm -f "$dest.part"
     return 1
   fi
+  if [[ -n $check ]] && ! $check "$dest.part"; then
+    echo "error: $url is not what the engine reads; keeping the file there is" >&2
+    rm -f "$dest.part"
+    return 1
+  fi
   mv "$dest.part" "$dest"
 }
+
+# The official building address register (~140 MB): an entrance point per building address. Optional: without it
+# the engine knows OpenStreetMap's doors only; a failed download keeps the file there is.
+REGISTER_URL=https://data.geo.admin.ch/ch.swisstopo.amtliches-gebaeudeadressverzeichnis/amtliches-gebaeudeadressverzeichnis_ch/amtliches-gebaeudeadressverzeichnis_ch_2056.csv.zip
+# The register's CSV must have the columns kante-link/src/register.rs reads, or the build would quietly fall back
+# to OpenStreetMap's doors.
+register_ok() { # the right columns, and over a million real addresses with coordinates in Switzerland
+  python3 -I -c '
+import io, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+names = [n for n in z.namelist() if n.endswith(".csv")]
+if not names: sys.exit(1)
+f = io.TextIOWrapper(z.open(names[0]), encoding="utf-8-sig")
+head = f.readline().rstrip("\r\n").split(";")
+need = ["ADR_STATUS", "ADR_NUMBER", "ADR_EASTING", "ADR_NORTHING", "STN_LABEL"]
+if not set(need) <= set(head): sys.exit(1)
+st, nb, e, n = (head.index(c) for c in need[:4])
+ok = 0
+for line in f:
+    r = line.rstrip("\r\n").split(";")
+    if len(r) != len(head) or r[st] != "real" or not r[nb]: continue
+    try: x, y = float(r[e]), float(r[n])
+    except ValueError: continue
+    if 2480000 <= x <= 2840000 and 1070000 <= y <= 1300000:
+        ok += 1
+        if ok >= 1000000: sys.exit(0)
+sys.exit(1)' "$1"
+}
+register() {
+  if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip register_ok 1200; then
+    if [[ -s "$RAW"/register/adr.csv.zip ]]; then echo "keep  $RAW/register/adr.csv.zip (could not fetch a new one)"
+    else echo "warning: no building address register; the engine will have OpenStreetMap's doors only" >&2; fi
+  fi
+  return 0
+}
+if (( only_register )); then
+  register
+  exit 0
+fi
 
 # The timetable year in force on a date: a new one starts on the second Sunday of
 # December (13 Dec 2026, 12 Dec 2027). KANTE_GTFS_DATASET overrides the dataset.
@@ -95,6 +145,8 @@ if ! fetch "https://download.geofabrik.de/europe/switzerland-latest.osm.pbf" "$R
   [[ -s "$RAW"/osm/switzerland-latest.osm.pbf ]] || exit 1
   echo "keep  $RAW/osm/switzerland-latest.osm.pbf (could not fetch a new one)"
 fi
+
+register
 
 echo
 echo "Raw data ready in $RAW."
