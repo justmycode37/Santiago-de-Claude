@@ -1,6 +1,6 @@
 // The in-app 3D station view (src/station-view.ts → station-view.js, docs/station-view.md): the continuous model of
 // station3d-solid.js in an overlay, with step-by-step guidance and the indoor position. The page reaches it through
-// Station3D (the stand-in in index.html sends every open() that is not the onboarding demo here).
+// Station3D (the stand-in in index.html, src/inline/station3d-loader.ts, sends every open() here).
 
 /** The renderer, station3d-solid.js (an ES module): what station-view.ts uses of it. */
 interface SolidUserState {

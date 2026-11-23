@@ -1,16 +1,20 @@
 # Indoor position in stations: floor and place from the phone's sensors
 
-The 3D station view (`station3d.js`, models in `stations3d/`, see [stations3d/SCHEMA.md](../stations3d/SCHEMA.md))
-shows the walk through a station floor by floor. GPS alone cannot follow it there: it is 20–50 m off indoors, gone
-underground, and knows no floor. This part works out **which floor you are on and where**, from everything the phone
-has, and hands that to the viewer.
+The 3D station view (`station-view.js`, see [station3d-solid.md](station3d-solid.md); models in `stations3d/`, see
+[stations3d/SCHEMA.md](../stations3d/SCHEMA.md)) shows the walk through a station floor by floor. GPS alone cannot
+follow it there: it is 20–50 m off indoors, gone underground, and knows no floor. This part works out **which floor
+you are on and where**, from everything the phone has, and hands that to the view.
+
+What the view shows of it: the station view writes the floor and its probability in its header and on the floor
+buttons when its renderer reports a position (`SolidView.user`). The renderer, `station3d-solid.js`, does not take a
+position yet (it has no `setUser`), so for now the estimate runs but is not drawn. The first viewer (`station3d.js`),
+which drew it as a dot, was removed in November 2026, and with it its development page `indoorloc-dev.html`.
 
 | File | What |
 | --- | --- |
 | `indoorloc.js` | The filter (`INDOORLOC`): station model as a graph, particle filter, browser sensors, recorder, replay |
 | `signloc.js` | Signs as evidence (`SIGNLOC`): "Gleis 7 Sektor C", "Gleise 1–6 →", exits, named underpasses, shops |
 | `indoornav.js` | Glue (`INDOORNAV`): runs the filter while a station is open in 3D, feeds `Station3D.setUser` |
-| `indoorloc-dev.html` | Development page: live sensors, floor probabilities, "I'm here", signs, record / export / replay |
 | `tools/sim_indoorloc.cts` | Simulated walks through a model with realistic sensor noise; scores and a regression check |
 
 ## How it works
@@ -77,10 +81,14 @@ phone adapter (`Sensors`: step detection, gyro/compass fusion) is only exercised
 
 ## Testing on a phone
 
-1. Serve over HTTPS (`python3 tools/serve.py` behind `tailscale serve`) and open `indoorloc-dev.html?key=bern`.
-2. **Start sensors** (iOS asks for motion access), then **Record**.
-3. Walk a route. Every so often tap **I'm here…** and then your place on the model: that is the ground truth.
-4. **Stop**, **Export**. Replay it with **Import & replay** (animated in the 3D view) or
+There is no development page for it any more (`indoorloc-dev.html` drew on the removed first viewer). A recording
+can be made in the app itself, from the browser's console (remote debugging):
+
+1. Serve over HTTPS (`python3 tools/serve.py` behind `tailscale serve`) and open a station in 3D (the sensors start
+   with the view; on iOS with the first tap in it).
+2. `r = INDOORNAV.record()`, walk a route, and now and then `INDOORNAV.here({ level, xy })` where you are: that is
+   the ground truth.
+3. `INDOORNAV.stopRecording()`, then save `INDOORNAV.exportLog(r)` and replay it with
    `node tools/sim_indoorloc.cts --replay file.json`.
 
 In the app nothing is needed: opening a station in 3D starts it (iOS: the first tap in the 3D view asks for motion
@@ -91,15 +99,12 @@ not say otherwise. The journey's start alone never shows a position (the trip ma
 off): the dot appears once a recent GPS fix near the station, a sign or the traveller's own "I am here" says they
 are there (`INDOORNAV.state().live`).
 
-`station3d.js` got a few small additions for this:
-- `setUser` takes `levelSure: true` from the indoor position, so a floor the filter is sure of beats the floor of the
-  viewer's previous route snap; and `at` (when the GPS fix was taken, ms since 1970). The app passes it, a fix older
-  than a minute does not count as "here" for the indoor position, and a remembered fix that old is not shown when the
-  view opens.
+What `Station3D` (`src/types/station3d.d.ts`) has for this:
+- `setUser` takes `levelSure: true` and the floor probabilities from the indoor position, and `at` (when the GPS fix
+  was taken, ms since 1970). The app passes it, a fix older than a minute does not count as "here" for the indoor
+  position, and a remembered fix that old is not shown when the view opens.
 - `'opening'` (`{ key, replaces }`) at every `open()`: a station that replaces another one says no `'close'`, so the
   indoor position ends the old station's showing there and the stand-in in `index.html` forgets the old opening.
-- `'here'` (`{ step, xy, level }`) when the traveller taps "I'm here" at a step: the indoor position takes it like
-  `INDOORNAV.here()`, so later steps move the dot even without GPS.
 
 ## Research behind the choices (November 2026)
 

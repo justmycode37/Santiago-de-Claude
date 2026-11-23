@@ -11,11 +11,9 @@
   interface Need { key: NeedKey; color: string; title: string; note: string; icon: string }
   /** What the demo reports while it runs, and how it ended. */
   type Act = 1 | 2 | 3;
-  type DemoState = Act | 'arrived' | 'error' | 'playing';
+  type DemoState = Act | 'arrived' | 'error';
   type DemoEnd = 'finished' | 'skipped' | 'unavailable';
   interface Demo { over: Promise<DemoEnd>; close(): void; /** Reduced motion: on to the next act; false when there is none. */ next(): boolean }
-  /** A listener for one of the viewer's events, kept to take it off again. */
-  type Heard = [name: keyof Station3DEventMap, fn: (detail: never) => void];
   type PageName = 'welcome' | 'demo' | 'speed' | 'access';
 
   const KEY = 'onboarding';
@@ -56,28 +54,19 @@
   };
 
   // ---------- The demo: the one seam to the showcase ----------
-  // A short journey in Bern, played by itself in three acts (docs/onboarding.md):
-  //   1  a first-person walk across Hirschengraben to tram platform B (the 3D station view, detail scene),
-  //   2  the ride to Bern, Bahnhof on a tilted map: the app notices that you are on the tram and follows it,
-  //   3  a first-person walk from the tram stop to the main entrance of the station.
+  // A short journey in Bern, played by itself in three acts on a tilted map of its own (docs/onboarding.md):
+  //   1  the walk across Hirschengraben to tram platform B,
+  //   2  the ride to Bern, Bahnhof: the app notices that you are on the tram and follows it,
+  //   3  the walk from the tram stop to the main entrance of the station.
   // It is a fixed script: no timetable request, the same at any time of day. Nothing else in this file depends on
   // what the demo is; `startDemo` is the only place that knows.
-  const UIC_HG = '8579896', UIC_BHF = '8576646';
-  const WALK_1: Station3DOpenOptions = {
-    key: 'bern', title: 'Bern, Hirschengraben',
-    from: { stop: { uic: UIC_HG, ref: 'C' } }, to: { stop: { uic: UIC_HG, ref: 'B' } },
-    arrive: { look: [-105.5, -222] },             // along the platform, to where the tram comes from
-  };
-  const WALK_3: Station3DOpenOptions = {
-    key: 'bern', title: 'Bern, Bahnhof',
-    from: { stop: { uic: UIC_BHF, ref: 'B' } }, to: { xy: [75.8, -38.9], level: 0, label: 'the main station' },
-    arrive: { look: [72, -22] },                  // the station's main entrance
-    povYaw: -86,                                  // it opens looking back at the tram you got off; the head turns to the way as you set off
-  };
-  const SPEED_1 = 1.5, SPEED_3 = 1.9;             // of a normal walking pace (the viewer's own default is 1.5)
-  // The tram track from the south end of Hirschengraben past platform B to the stop at the station and on
-  // (stations3d/bern.js, tracks 3, 238, 139, 187), in the model's metres: x east, y north
   type XY = [x: number, y: number];
+  // The two walks as the station router finds them in stations3d/bern.js (Hirschengraben stop C → stop B; Bern,
+  // Bahnhof stop B → in front of the main entrance), and the tram track from the south end of Hirschengraben past
+  // platform B to the stop at the station and on (tracks 3, 238, 139, 187): in the model's metres, x east, y north
+  const WALK_1: XY[] = [[-68.8, -200.8], [-78.4, -198.5], [-85.7, -204.2], [-93, -202.3], [-94.1, -202.8], [-98.6, -207.9], [-99.9, -210.4]];
+  const WALK_3: XY[] = [[120.3, -126.7], [118.7, -120.3], [117.6, -116.1], [116.8, -113.1], [116.6, -112.4], [116.4, -108.7], [103.6, -104.1],
+    [100, -93.2], [94.9, -84.9], [94.9, -83.1], [94.3, -81.3], [93.3, -80.1], [86, -66], [79.4, -53.1], [75.8, -38.9]];
   const TRACK: XY[] = [[-124.94, -292.28], [-101.92, -209.02], [-98.92, -201.22], [-96.81, -197.73], [-93.51, -193.85], [-88.1, -189.5],
     [-81.77, -185.81], [-68.47, -179.57], [-60.85, -176.88], [-51.79, -174.12], [-32.43, -169.1], [6.48, -159.55], [45.36, -150.04],
     [61.27, -145.76], [75.1, -141.14], [141.57, -117.85], [181.2, -104.6]];
@@ -85,8 +74,10 @@
   const toLngLat = (p: XY): [number, number] => [MODEL_ORIGIN[0] + p[0] / KX, MODEL_ORIGIN[1] + p[1] / KY];
   const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
   const smooth = (t: number) => { t = clamp(t, 0, 1); return t * t * t * (t * (t * 6 - 15) + 10); };
+  const gentle = (t: number) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
   // A line by its length: the point and the compass bearing at s metres, and the s nearest to a point
-  function byLength(line: XY[]) {
+  interface Line { total: number; at(s: number): XY; bearing(s: number): number; nearest(p: XY): number }
+  function byLength(line: XY[]): Line {
     const cum = [0];
     for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
     const total = cum[cum.length - 1];
@@ -109,26 +100,19 @@
     };
     return { total, at, bearing, nearest };
   }
-  const track = byLength(TRACK);
-  const TRAM_LEN = 42;
+  const track = byLength(TRACK), walk1 = byLength(WALK_1), walk3 = byLength(WALK_3);
   const S_HG = track.nearest([-102.4, -207.2]);    // where the tram's front stops at Hirschengraben B: just past the end of the walk
   const S_BHF = track.nearest([113, -127.9]);      // …and at Bern, Bahnhof B: just before the place where the walk crosses the track
   const LINE = '9';
-
-  // What the detail renderer offers for a tram, once it has it (station3d-detail.ts); everything here copes without
-  interface Tram {
-    place(s: number): void;
-    run(o: { from: number; to: number; seconds: number; ease?: 'arrive' | 'depart' | 'linear' }): Promise<void>;
-    doors(open: boolean): void;
-    show(v: boolean): void;
-    remove(): void;
-  }
-  interface TramScene { addVehicle?(spec: { kind: 'tram'; line?: string; path: XY[]; length?: number }): Tram }
+  const WALK_MS = 1.3;                              // a normal walking pace, metres a second…
+  const SPEED_1 = 1.5, SPEED_3 = 1.9;               // …and how much faster each walk plays it
+  const Z_WALK = 18.6, Z_RIDE = 17.7;              // the map's zoom while walking and riding
+  const COLOR_WALK = '#FFD34B', COLOR_WALK_EDGE = '#14161A';   // walks as the journey map draws them (40-journey-map.ts)
 
   // The demo's own clock: everything in it that walks, waits or glides asks this clock. The journey plays at PACE
   // times the pace it was made at, and FAST times that again while the picture is held down. What has its own fixed
-  // length on the screen (a fade, the doors, the trip at a glance) and what waits for something to load uses
-  // `real`, which no pace changes.
+  // length on the screen (a fade, the trip at a glance) and what waits for something to load uses `real`, which no
+  // pace changes.
   const PACE = 3, FAST = 2;
   interface Clock { rate(): number; set(rate: number): void; wait(ms: number): Promise<void>; real(ms: number): Promise<void>; stop(): void }
   function makeClock(): Clock {
@@ -149,9 +133,9 @@
     };
   }
 
-  // ----- Before act 1: the trip at a glance, while the street is being built behind it -----
+  // ----- Before act 1: the trip at a glance, while the map loads behind it -----
   const ICON_WALK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12.5" cy="4.6" r="1.8" fill="currentColor" stroke="none" /><path d="M12.5 8.2l-2.6 5 3.1 2.6.6 5M9.9 13.2l-1.2 3.6-2.4 3M12.5 8.2l3.2 2.6 2.8.6M12.3 8.4l-3.6 1.4-.9 3" /></svg>';
-  interface Plan { hide(): void; destroy(): void }
+  interface Plan { hide(): void; fail(): void; destroy(): void }
   function makePlan(host: HTMLElement): Plan {
     const box = document.createElement('div');
     box.className = 'ob-plan on';
@@ -164,47 +148,67 @@
           <li class="walk"><i>${ICON_WALK}</i><span><b>Walk to the station</b><small>Under the Baldachin to the main entrance, 100 m</small></span></li>
         </ol>
         <div class="ob-plan-bar"><i></i></div>
+        <p class="ob-plan-err" hidden>The map for the demo could not be loaded.</p>
       </div>`;
     host.appendChild(box);
     return {
       hide() { box.classList.remove('on'); },
+      // the trip at a glance stays: it is all the demo can show now
+      fail() { box.querySelector<HTMLElement>('.ob-plan-bar')!.hidden = true; box.querySelector<HTMLElement>('.ob-plan-err')!.hidden = false; },
       destroy() { box.remove(); },
     };
   }
 
-  // ----- Act 2: the ride, on a map of its own inside the demo's box -----
-  interface Ride { ready: Promise<boolean>; show(): void; hide(): void; play(hold: Promise<unknown>): Promise<void>; still(): void; destroy(): void }
+  // ----- The journey, on a map of its own inside the demo's box -----
   const ICON_TRAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5" width="13" height="12.5" rx="3" /><path d="M5.5 11.5h13M9 20.5l1.5-3M15 20.5l-1.5-3M9 5l3-2.5L15 5" /><circle cx="9" cy="14.5" r=".9" fill="currentColor" stroke="none" /><circle cx="15" cy="14.5" r=".9" fill="currentColor" stroke="none" /></svg>';
   const ICON_WAIT = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>';
   const ICON_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.4" /></svg>';
+  interface Trip {
+    /** The map is there (false: it could not be loaded). */
+    ready: Promise<boolean>;
+    walk1(): Promise<void>;
+    ride(): Promise<void>;
+    walk3(): Promise<void>;
+    /** Reduced motion: the end of that act as a still picture. */
+    still(act: Act): void;
+    destroy(): void;
+  }
 
-  function makeRide(host: HTMLElement, clock: Clock): Ride {
+  function makeTrip(host: HTMLElement, clock: Clock): Trip {
     const box = document.createElement('div');
-    box.className = 'ob-ride';
-    box.innerHTML = `<div class="ob-ride-map"></div>
+    box.className = 'ob-trip';
+    box.innerHTML = `<div class="ob-trip-map"></div>
       <div class="ob-card" role="status"><span class="ob-card-ic"></span><span class="ob-card-t"><b></b><small></small></span></div>`;
     host.appendChild(box);
     const card = box.querySelector<HTMLElement>('.ob-card')!;
-    const say = (icon: string, title: string, sub: string, kind: 'wait' | 'tram' | 'off') => {
+    const say = (icon: string, title: string, sub: string, kind: 'walk' | 'wait' | 'tram' | 'off') => {
       card.dataset.kind = kind;
       card.querySelector('.ob-card-ic')!.innerHTML = icon;
       card.querySelector('b')!.textContent = title;
       card.querySelector('small')!.textContent = sub;
     };
+    const walking1 = () => say(ICON_WALK, 'Walk to tram platform B', `Across Hirschengraben, 40 m. Tram ${LINE} comes in 1 min`, 'walk');
     const waiting = () => say(ICON_WAIT, `Waiting for tram ${LINE}`, 'Bern, Hirschengraben, platform B', 'wait');
     const riding = () => say(ICON_TRAM, `You’re on tram ${LINE}`, 'The app noticed that you got on. Next stop: Bern, Bahnhof', 'tram');
     const there = () => say(ICON_OFF, 'Bern, Bahnhof: get off here', 'Then a short walk to the main entrance of the station', 'off');
-    waiting();
+    const walking3 = () => say(ICON_WALK, 'Walk to the main entrance', 'Across Bahnhofplatz and under the Baldachin, 100 m', 'walk');
+    const done = () => say(ICON_OFF, 'You have arrived', 'Bern main station, main entrance', 'off');
+    walking1();
 
     const S0 = S_HG - 9, S1 = S_BHF - 9;          // where you are in the tram: at its first door
     let map: maplibregl.Map | null = null, puck: maplibregl.Marker | null = null, puckEl: HTMLElement | null = null;
     let raf = 0, dead = false;
     const wait = clock.wait;
-    const view = (s: number, zoom: number, bearing: number) => {
+    let cam: { c: XY; b: number } | null = null;   // where the map looks now: its centre and bearing
+    const place = (you: XY, center: XY, zoom: number, bearing: number) => {
       if (!map) return;
-      if (puck) puck.setLngLat(toLngLat(track.at(s)));
-      map.jumpTo({ center: toLngLat(track.at(s + 16)), zoom, bearing, pitch: 54 });
+      if (puck) puck.setLngLat(toLngLat(you));
+      map.jumpTo({ center: toLngLat(center), zoom, bearing, pitch: 54 });
+      cam = { c: center, b: bearing };
     };
+    // you at s on the line; the map looks a little ahead of you
+    const view = (line: Line, s: number, ahead: number, zoom: number, bearing: number) => place(line.at(s), line.at(s + ahead), zoom, bearing);
+    const asTram = (on: boolean) => { if (puckEl) puckEl.classList.toggle('tram', on); };
 
     const ready = new Promise<boolean>((ok) => { try {
       const gl = (window as { maplibregl?: typeof maplibregl }).maplibregl;
@@ -222,8 +226,8 @@
       style().then((st) => {
         if (dead) return ok(false);
         map = new gl.Map({
-          container: box.querySelector<HTMLElement>('.ob-ride-map')!, style: st, interactive: false, attributionControl: false,
-          center: toLngLat(track.at(S0 + 16)), zoom: 17.7, bearing: track.bearing(S0 + 10), pitch: 54, maxPitch: 60,
+          container: box.querySelector<HTMLElement>('.ob-trip-map')!, style: st, interactive: false, attributionControl: false,
+          center: toLngLat(walk1.at(8)), zoom: Z_WALK, bearing: walk1.bearing(4), pitch: 54, maxPitch: 60,
           pixelRatio: Math.min(window.devicePixelRatio || 1, 2), fadeDuration: 0, refreshExpiredTiles: false,
         });
         map.on('error', () => {});
@@ -233,82 +237,110 @@
           try {
             const flat = st.layers.find((l) => l.type === 'fill' && (l as { 'source-layer'?: string })['source-layer'] === 'building') as { source: string } | undefined;
             if (flat) map.addLayer({
-              id: 'ob-ride-houses', type: 'fill-extrusion', source: flat.source, 'source-layer': 'building', minzoom: 15,
+              id: 'ob-trip-houses', type: 'fill-extrusion', source: flat.source, 'source-layer': 'building', minzoom: 15,
               paint: {
                 'fill-extrusion-color': dark ? '#3a3d47' : '#e9e6e0', 'fill-extrusion-opacity': .94,
                 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 15],
               },
             });
           } catch (e) {}
-          const coords: [number, number][] = [];
-          for (let s = S0 - 30; s <= S1 + 26; s += 2) coords.push(toLngLat(track.at(s)));
-          map.addSource('ob-ride', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } } });
-          map.addLayer({ id: 'ob-ride-case', type: 'line', source: 'ob-ride', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': dark ? '#1c1c1e' : '#ffffff', 'line-width': 11 } });
-          map.addLayer({ id: 'ob-ride-line', type: 'line', source: 'ob-ride', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#d6001c', 'line-width': 6.5 } });
-          const stop = (s: number, name: string, side: 'left' | 'right') => {
+          const line = (id: string, coords: [number, number][], paint: { color: string; width: number; edge: string; edgeWidth: number }) => {
+            map!.addSource(id, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } } });
+            const layout = { 'line-cap': 'round', 'line-join': 'round' } as const;
+            map!.addLayer({ id: id + '-case', type: 'line', source: id, layout, paint: { 'line-color': paint.edge, 'line-width': paint.edgeWidth } });
+            map!.addLayer({ id: id + '-line', type: 'line', source: id, layout, paint: { 'line-color': paint.color, 'line-width': paint.width } });
+          };
+          const ride: [number, number][] = [];
+          for (let s = S0 - 30; s <= S1 + 26; s += 2) ride.push(toLngLat(track.at(s)));
+          line('ob-ride', ride, { color: '#d6001c', width: 6.5, edge: dark ? '#1c1c1e' : '#ffffff', edgeWidth: 11 });
+          for (const [id, w] of [['ob-walk1', WALK_1], ['ob-walk3', WALK_3]] as const) line(id, w.map(toLngLat), { color: COLOR_WALK, width: 7, edge: COLOR_WALK_EDGE, edgeWidth: 10 });
+          const stop = (at: XY, name: string, side: 'left' | 'right') => {
             const e = document.createElement('div');
             e.className = 'ob-stop ' + side;
             e.innerHTML = `<i></i><span>${name}</span>`;
-            new gl.Marker({ element: e, anchor: 'center' }).setLngLat(toLngLat(track.at(s))).addTo(map!);
+            new gl.Marker({ element: e, anchor: 'center' }).setLngLat(toLngLat(at)).addTo(map!);
           };
-          stop(S0, 'Hirschengraben', 'left');
-          stop(S1, 'Bern, Bahnhof', 'right');
+          stop(track.at(S0), 'Hirschengraben', 'left');
+          stop(track.at(S1), 'Bern, Bahnhof', 'right');
+          stop(walk3.at(walk3.total), 'Main entrance', 'right');
           puckEl = document.createElement('div');
           puckEl.className = 'ob-puck';
           puckEl.innerHTML = `<span class="ob-puck-you"></span><span class="ob-puck-tram">${ICON_TRAM}<b>${LINE}</b></span>`;
-          puck = new gl.Marker({ element: puckEl, anchor: 'center' }).setLngLat(toLngLat(track.at(S0))).addTo(map);
+          puck = new gl.Marker({ element: puckEl, anchor: 'center' }).setLngLat(toLngLat(walk1.at(0))).addTo(map);
+          view(walk1, 0, 8, Z_WALK, walk1.bearing(4));
           ok(true);
         });
       }).catch(() => ok(false));
     } catch (e) { ok(false); } });
-    // a map that is not there in time (no network, a style that never loads) must not hold the journey up
-    const soon = () => Promise.race([ready, clock.real(4000).then(() => false)]);
+
+    // Along `line` from s0 to s1 in T ms of the demo's clock. The map looks `ahead` metres in front of you and turns
+    // towards `aim` (default: the way the line goes), both a little behind, so that nothing jumps from one part of
+    // the journey to the next
+    const glide = (line: Line, s0: number, s1: number, T: number, ease: (t: number) => number, ahead: number, zoom: (u: number) => number,
+      aim = (s: number) => line.bearing(s + ahead * 1.4)) => {
+      let went = 0, last = 0;
+      return new Promise<void>((finished) => {
+        const tick = (now: number) => {
+          if (dead) return finished();
+          const dt = last ? Math.min(100, now - last) : 0;
+          last = now;
+          went += dt * clock.rate();
+          const u = clamp(went / T, 0, 1), s = s0 + (s1 - s0) * ease(u);
+          const to = line.at(s + ahead), c = cam ? cam.c : to, b = cam ? cam.b : aim(s);
+          const kc = 1 - Math.exp(-dt / 350), kb = 1 - Math.exp(-dt / 900);
+          let d = aim(s) - b;
+          d = ((d + 540) % 360) - 180;
+          place(line.at(s), [c[0] + (to[0] - c[0]) * kc, c[1] + (to[1] - c[1]) * kc], zoom(u), b + d * kb);
+          if (u < 1) raf = requestAnimationFrame(tick); else finished();
+        };
+        raf = requestAnimationFrame(tick);
+      });
+    };
+    // a few steps from one line to the next (onto the tram, off it)
+    const hop = (from: XY, to: XY, T: number, zoom: (u: number) => number, aim: number) => {
+      const step = byLength([from, to]);
+      return glide(step, 0, step.total, T, smooth, 0, zoom, () => aim);
+    };
+    const walkTime = (line: Line, speed: number) => line.total / (WALK_MS * speed) * 1000;
 
     return {
       ready,
-      show() { box.classList.add('on'); if (map) map.resize(); },
-      hide() { box.classList.remove('on'); },
-      // The whole ride: you wait, the tram is recognised, it glides to the station. `hold` is what has to be over
-      // before the map starts to move (the next 3D scene being built would make it stutter).
-      async play(hold) {
-        await soon();
+      async walk1() {
+        walking1();
+        asTram(false);
+        await glide(walk1, 0, walk1.total, walkTime(walk1, SPEED_1), gentle, 8, () => Z_WALK);
+      },
+      // You wait, the tram is recognised, it glides to the station
+      async ride() {
         waiting();
-        view(S0, 17.7, track.bearing(S0 + 10));
-        await wait(900);
+        // from the end of the walk to the tram's door, while the map draws back a little
+        await hop(walk1.at(walk1.total), track.at(S0), 900, (u) => Z_WALK + (Z_RIDE - Z_WALK) * smooth(u), track.bearing(S0 + 22));
+        await wait(2400);                       // a moment to read that the app knows you are waiting
         if (dead) return;
-        if (puckEl) puckEl.classList.add('tram');
+        asTram(true);
         riding();
-        await Promise.race([Promise.all([hold, wait(1700)]), clock.real(5000)]);
+        await wait(1700);
         if (dead) return;
-        const T = 9000;
-        let went = 0, bearing = track.bearing(S0 + 10), last = 0;
-        await new Promise<void>((done) => {
-          const tick = (now: number) => {
-            if (dead) return done();
-            if (!last) last = now;
-            went += Math.min(100, now - last) * clock.rate();
-            const u = clamp(went / T, 0, 1), s = S0 + (S1 - S0) * smooth(u);
-            // the map turns with the tram, a little behind it
-            let d = track.bearing(s + 22) - bearing;
-            d = ((d + 540) % 360) - 180;
-            bearing += d * (1 - Math.exp(-(now - last) / 900));
-            last = now;
-            view(s, 17.7 - .55 * Math.sin(Math.PI * u), bearing);
-            if (u < 1) raf = requestAnimationFrame(tick); else done();
-          };
-          raf = requestAnimationFrame(tick);
-        });
+        await glide(track, S0, S1, 9000, smooth, 16, (u) => Z_RIDE - .55 * Math.sin(Math.PI * u));
         if (dead) return;
         there();
         await wait(1500);
       },
-      // Reduced motion: the end of the ride as a still picture
-      still() {
-        soon().then(() => {
-          if (dead) return;
-          if (puckEl) puckEl.classList.add('tram');
-          there();
-          view(S1, 17.5, track.bearing(S1 - 20));
+      async walk3() {
+        asTram(false);
+        walking3();
+        await hop(track.at(S1), walk3.at(0), 900, () => Z_RIDE, walk3.bearing(14));
+        if (dead) return;
+        await glide(walk3, 0, walk3.total, walkTime(walk3, SPEED_3), gentle, 10, (u) => Z_RIDE + (Z_WALK - Z_RIDE) * smooth(u * 4));
+        if (dead) return;
+        done();
+      },
+      still(act) {
+        ready.then((ok) => {
+          if (!ok || dead) return;
+          if (act === 1) { asTram(false); waiting(); view(walk1, walk1.total, 8, Z_WALK, walk1.bearing(walk1.total - 6)); }
+          else if (act === 2) { asTram(true); there(); view(track, S1, -10, Z_RIDE, track.bearing(S1 - 20)); }
+          else { asTram(false); done(); view(walk3, walk3.total, -14, Z_WALK - .3, walk3.bearing(walk3.total - 10)); }
         });
       },
       destroy() {
@@ -322,31 +354,21 @@
   }
 
   // Starts the demo inside `host`. `onState` hears the act that begins (1, 2, 3), 'arrived' (the journey is at its
-  // end; the last view stays open), 'error' (it could not be shown; the 3D view says why and offers "Try again") and
-  // 'playing' (it runs after all). `over` resolves once it has gone: 'finished' (after arriving), 'skipped'
-  // (before) or 'unavailable'. close() ends it from outside. With prefers-reduced-motion nothing moves by itself:
-  // `next()` steps to the following act and returns false once there is none.
+  // end; the last picture stays) and 'error' (the map could not be shown). `over` resolves once it has gone:
+  // 'finished' (after arriving), 'skipped' (before) or 'unavailable'. close() ends it from outside; so does the
+  // back gesture. With prefers-reduced-motion nothing moves by itself: `next()` steps to the following act and
+  // returns false once there is none.
   // While the picture is held down (anywhere on it, or on the button at its right edge), everything runs FAST times
   // as fast as it does otherwise.
   function startDemo(host: HTMLElement, onState: (state: DemoState, act: Act) => void): Demo {
-    // Always window.Station3D as it is now: the viewer may be loaded on first use and replace a stand-in object
-    const S = () => window.Station3D;
-    const none: Demo = { over: Promise.resolve('unavailable'), close() {}, next: () => false };
-    if (!S() || !SETTINGS) return none;
     const still = reducedMotion();
-    let end: (how: DemoEnd) => void, act: Act = 1, arrived = false, failed = false, ended = false, switching = false;
-    let tram: Tram | null = null, tramOn: unknown = null, tramIn: Promise<void> | null = null;
-    let built1: () => void = () => {}, built3: () => void = () => {}, walking1 = false, walking3 = false, fast = false;
+    let end: (how: DemoEnd) => void, act: Act = 1, arrived = false, failed = false, ended = false, fast = false;
     const over = new Promise<DemoEnd>((resolve) => { end = resolve; });
-    const clock = makeClock(), wait = clock.wait, real = clock.real;
-    const ride = makeRide(host, clock);
+    const clock = makeClock(), real = clock.real;
+    const trip = makeTrip(host, clock);
     const plan = makePlan(host);
-    const heard: Heard[] = [];
-    const hear = <K extends keyof Station3DEventMap>(name: K, fn: (detail: Station3DEventMap[K]) => void) => { heard.push([name, fn]); S().on(name, fn); };
-    const deaf = () => { for (const [name, fn] of heard.splice(0)) S().off(name, fn as (detail: unknown) => void); };
 
     // ----- hold to go faster -----
-    const pace = (base: number) => base * clock.rate();
     const hold = document.createElement('button');
     hold.type = 'button';
     hold.className = 'ob-fast';
@@ -358,9 +380,8 @@
       fast = on;
       clock.set(on ? PACE * FAST : PACE);
       host.classList.toggle('ob-fasting', on);
-      try { if (S().isOpen() && S().isPlaying()) S().play({ speed: pace(act === 3 ? SPEED_3 : SPEED_1) }); } catch (e) {}
     };
-    const down = (e: Event) => { if (!(e.target as HTMLElement).closest('.s3-state, a')) setFast(true); };
+    const down = (e: Event) => { if (!(e.target as HTMLElement).closest('a')) setFast(true); };
     const up = () => setFast(false);
     const key = (e: KeyboardEvent) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setFast(e.type === 'keydown'); } };
     const noMenu = (e: Event) => e.preventDefault();
@@ -370,92 +391,27 @@
     hold.addEventListener('keyup', key);
     for (const n of ['pointerup', 'pointercancel', 'blur'] as const) window.addEventListener(n, up);
 
+    // ----- the back gesture leads on, as the button does -----
+    let pushed = false;
+    const onPop = () => { if (pushed) { pushed = false; finish(); } };
+    try { history.pushState({ onboardingDemo: true }, ''); pushed = true; } catch (e) {}
+    window.addEventListener('popstate', onPop);
+
     const finish = () => {
       if (ended) return;
       setFast(false);
       ended = true;
-      deaf();
       clock.stop();
       host.removeEventListener('pointerdown', down);
       host.removeEventListener('contextmenu', noMenu);
       for (const n of ['pointerup', 'pointercancel', 'blur'] as const) window.removeEventListener(n, up);
+      window.removeEventListener('popstate', onPop);
+      if (pushed) { pushed = false; try { history.back(); } catch (e) {} }
       host.classList.remove('ob-fasting');
       hold.remove();
-      try { if (tram) tram.remove(); } catch (e) {}
-      if (S().isOpen()) S().close();
-      ride.destroy();
+      trip.destroy();
       plan.destroy();
       end(failed ? 'unavailable' : arrived ? 'finished' : 'skipped');
-    };
-    // Both walks are opened waiting at their start, out of sight, and set off when their cover has gone
-    const walk = (w: Station3DOpenOptions) =>
-      S().open({ ...w, pov: true, play: false, chrome: 'demo', prefs: SETTINGS.journey(), mount: host });
-    // A tram in the detail scene, if the renderer has one
-    const addTram = (): Tram | null => {
-      try {
-        const h = (S().detail ? S().detail() : null) as TramScene | null;
-        return h && h.addVehicle ? h.addVehicle({ kind: 'tram', line: LINE, path: TRACK, length: TRAM_LEN }) : null;
-      } catch (e) { return null; }
-    };
-    const redraw = () => { try { if (S().redraw) S().redraw(); } catch (e) {} };
-
-    // Act 1: the trip at a glance covers the view until the street is built (and for long enough to be read),
-    // then the walk sets off
-    const setOff1 = async () => {
-      if (walking1 || ended) return;
-      walking1 = true;
-      await real(350);                               // a few frames of the finished street, behind the cover
-      if (ended) return;
-      plan.hide();
-      if (still || failed) return;
-      await real(700);                               // the cover has faded
-      if (!ended && !failed && S().isOpen()) S().play({ speed: pace(SPEED_1) });
-    };
-    // Act 1 → 2 → 3
-    const toRide = async () => {
-      if (act !== 1 || ended) return;
-      act = 2;
-      if (tramIn) await Promise.race([tramIn, real(9000)]);
-      if (tram && !ended) { try { tram.doors(true); redraw(); } catch (e) {} await real(900); }   // the doors take their time
-      else await wait(900);
-      if (ended) return;
-      onState(2, 2);
-      ride.show();
-      await real(650);                               // the map has faded in over the 3D view
-      if (ended) return;
-      // the first walk goes and the second is built, out of sight; it waits at its start
-      switching = true;
-      try { if (tram) tram.remove(); } catch (e) {}
-      tram = null; tramIn = null; tramOn = null;
-      const built = new Promise<void>((ok) => { built3 = ok; });
-      if (S().isOpen()) S().close();
-      await real(60);
-      if (ended) return;
-      try { walk(WALK_3); } catch (e) { failed = true; }
-      switching = false;
-      await ride.play(Promise.race([built, real(3500)]));   // the scene of the second walk is built before the map moves
-      if (ended) return;
-      act = 3;
-      onState(3, 3);
-      ride.hide();
-      if (failed) return onState('error', 3);
-      setOff3();
-    };
-    // The second walk sets off, and the tram you came on shuts its doors and drives on
-    const setOff3 = async () => {
-      if (walking3 || ended) return;
-      walking3 = true;
-      const t = tram;
-      if (t) { try { t.doors(false); redraw(); } catch (e) {} }
-      await real(650);                               // the map has faded out
-      await wait(1500);                              // a look at the tram you got off
-      if (ended) return;
-      if (S().isOpen()) S().play({ speed: pace(SPEED_3) });
-      if (!t) return;
-      await wait(2500);                              // …once you are clear of the track
-      if (ended || tram !== t) return;
-      t.run({ from: S_BHF, to: track.total + 30, seconds: 9 / clock.rate(), ease: 'depart' }).then(() => { try { t.remove(); } catch (e) {} if (tram === t) tram = null; }, () => {});
-      redraw();
     };
     const arrive = () => {
       if (arrived || ended) return;
@@ -464,80 +420,47 @@
       hold.remove();
       onState('arrived', 3);
     };
-    const walked = () => { if (act === 1) toRide(); else if (act === 3) arrive(); };
-
-    hear('arrived', () => { if (!still) walked(); });
-    hear('step', (e) => { if (e && e.step && e.step.kind === 'arrive' && !still) walked(); });
-    hear('progress', (e) => {                        // the tram pulls in as you reach the platform
-      if (act !== 1 || !tram || tramIn || e.total - e.along > 15) return;
-      tram.show(true);
-      tramIn = tram.run({ from: S_HG - 62, to: S_HG, seconds: 7 / clock.rate(), ease: 'arrive' }).catch(() => {});
-      redraw();
-    });
-    hear('detail', () => {
-      if (act === 1) built1(); else if (act === 2) built3();
-      const scene = S().detail ? S().detail() : null;
-      if (ended || still || (tram && scene === tramOn)) return;   // (reduced motion: nothing that moves by itself)
-      // a scene that was built anew (a change of theme) has lost its tram: it comes back where it was
-      const came = !!tram && !!tramIn;
-      tram = addTram();
-      tramOn = scene;
-      tramIn = null;
-      if (!tram) return;
-      if (act === 1 && !came) { tram.place(S_HG - 62); tram.show(false); }
-      else if (act === 1) { tram.place(S_HG); tramIn = Promise.resolve(); }
-      else if (!walking3) { tram.place(S_BHF); tram.doors(true); }
-      else { tram.remove(); tram = null; }
-      redraw();
-    });
-    hear('error', (e) => {
-      if (e && e.code === 'lost') return;             // the drawing surface was lost (the app in the background): the view comes back by itself
+    const fail = () => {
+      if (ended) return;
       failed = true;
-      built1();                                       // the cover goes, so that what the view says can be read
-      if (act !== 2) onState('error', act);
-    });
-    hear('close', () => { if (!switching) finish(); });   // the view's own way out (the back gesture)
-    hear('open', () => {                                 // also after the view's "Try again"
-      if (act === 1) real(5000).then(() => built1());     // a street that is not built by then is not coming: the plain model shows
-      // the cover has gone already (the viewer came late, or after "Try again"): the walk sets off now
-      if (act === 1 && walking1 && !still) real(600).then(() => { if (!ended && !failed && S().isOpen() && !S().isPlaying()) S().play({ speed: pace(SPEED_1) }); });
-      if (!failed) return;
-      failed = false;
-      if (act !== 2) onState('playing', act);
-      if (act === 3) setOff3();                         // "Try again" worked: the second walk was opened waiting
-    });
-    try {
-      onState(1, 1);
-      const built = new Promise<void>((ok) => { built1 = ok; });
-      walk(WALK_1);
-      Promise.all([real(still ? 400 : 3800), Promise.race([built, real(12000)])]).then(setOff1);
-    } catch (e) {
-      ended = true;
-      deaf();
-      clock.stop();
       hold.remove();
-      ride.destroy();
-      plan.destroy();
-      return none;
-    }
+      plan.fail();
+      onState('error', act);
+    };
+
+    // The trip at a glance covers the map until it is there (and for long enough to be read), then the walk sets off
+    onState(1, 1);
+    Promise.all([real(still ? 400 : 3800), Promise.race([trip.ready, real(12000).then(() => false)])]).then(async ([, ok]) => {
+      if (ended) return;
+      if (!ok) return fail();
+      await real(350);                               // a few frames of the finished map, behind the cover
+      if (ended) return;
+      plan.hide();
+      if (still) { trip.still(act); return; }
+      await real(700);                               // the cover has faded
+      if (ended) return;
+      await trip.walk1();
+      if (ended) return;
+      act = 2;
+      onState(2, 2);
+      await trip.ride();
+      if (ended) return;
+      act = 3;
+      onState(3, 3);
+      await trip.walk3();
+      if (ended) return;
+      await real(400);
+      arrive();
+    });
     // Reduced motion: nothing walks or glides; each press shows the next act as a still picture
     const next = () => {
       if (!still || ended || arrived || failed) return false;
-      if (act === 1) {
-        act = 2;
-        onState(2, 2);
-        plan.hide();
-        ride.show();
-        ride.still();
-        switching = true;
-        if (S().isOpen()) S().close();
-        real(60).then(() => { if (ended) return; try { walk(WALK_3); } catch (e) { failed = true; } switching = false; });
-      } else if (act === 2) {
-        act = 3;
-        onState(3, 3);
-        ride.hide();
-        if (failed) onState('error', 3); else arrive();
-      } else return false;
+      plan.hide();
+      if (act === 3) return false;
+      act = act === 1 ? 2 : 3;
+      onState(act, act);
+      trip.still(act);
+      if (act === 3) arrive();
       return true;
     };
     return { over, close: finish, next };
@@ -700,7 +623,7 @@
       madeInert.push(n);
     }
   }
-  const paintChrome = () => { if (themeMeta && isOpen) themeMeta.setAttribute('content', getComputedStyle(el!).getPropertyValue('--sp-bg').trim()); };
+  const paintChrome = () => { if (themeMeta && isOpen && el) themeMeta.setAttribute('content', getComputedStyle(el).getPropertyValue('--sp-bg').trim()); };
   // The app is still starting behind a first visit: what it adds or sets after us is covered too
   const again = () => { if (isOpen) { setInert(); paintChrome(); } };
   document.addEventListener('DOMContentLoaded', again);
@@ -726,16 +649,12 @@
     const skip = $('#obSkip'), say = $('#obDemoSay'), acts = $('#obActs');
     const ACT_SAYS = ['', 'Walking across Hirschengraben to the tram stop.', 'On tram 9 to Bern, Bahnhof. The app noticed that you got on.', 'Walking from the tram stop to the main entrance of the station.'];
     const still = reducedMotion();
-    const waiting = () => {
-      skip.textContent = still ? 'Next' : 'Skip the demo';
-      skip.className = 'ob-btn soft';
-    };
-    waiting();
+    skip.textContent = still ? 'Next' : 'Skip the demo';
+    skip.className = 'ob-btn soft';
     say.textContent = '';
     page('demo');
     const mine = demo = startDemo($('#obDemoHost'), (state, act) => {
       acts.dataset.act = String(act);
-      if (state === 'playing') return waiting();
       if (typeof state === 'number') { say.textContent = ACT_SAYS[state]; return; }
       skip.textContent = 'Continue';
       skip.className = 'ob-btn primary go';

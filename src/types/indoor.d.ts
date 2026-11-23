@@ -1,4 +1,4 @@
-// The indoor position in the 3D station view (indoornav.js, loaded with station3d.js by the stand-in in index.html;
+// The indoor position in the 3D station view (indoornav.js, loaded at the first opening by the stand-in in index.html;
 // details in docs/indoor-positioning.md): what the page calls. Below it, what indoorloc.ts (`INDOORLOC`: the filter,
 // the phone's sensors, recordings) and signloc.ts (`SIGNLOC`: signs as evidence) give; tools/sim_indoorloc.cts
 // loads those two in Node.
@@ -30,7 +30,7 @@ interface IndoorNavApi {
   state(): IndoorNavState;
   /** The viewer opened before indoornav.js had loaded: join the opening that is showing (the stand-in in index.html calls this). */
   attach(opened: Station3DEventMap['open']): void;
-  /** A raw sensor log for tuning, from now on (development page). */
+  /** A raw sensor log for tuning, from now on (from the console). */
   record(): IndoorRecorder;
   stopRecording(): IndoorRecorder | null;
   /** The recording as a JSON file (an `IndoorLog`). Without `r`: the one that is running. */
@@ -309,7 +309,7 @@ interface IndoorLogMeta {
   name?: string;
   simulated?: boolean;
 }
-/** A recording: what the development page exports and replays (indoorloc-dev.html), `Recorder.toJSON()`. */
+/** A recording: `INDOORNAV.exportLog()`, `Recorder.toJSON()`; tools/sim_indoorloc.cts --replay reads it. */
 interface IndoorLog { meta?: IndoorLogMeta; events: IndoorLogEvent[] }
 
 interface IndoorSensorsOptions {

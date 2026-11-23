@@ -24,7 +24,7 @@ npm run build   # dist/ once, without the dev server
 | `src/<name>.ts` | `<name>.js`, a script the page loads (`src/live.ts` → `live.js`) |
 | `src/app/*.ts` | the page's own script, joined in file name order and written into `index.html` |
 | `src/inline/*.ts` | the small scripts written into `index.html` (theme, first visit, early location and map style) |
-| `src/pages/*.ts` | the scripts written into the other pages (dev pages, scan bench, solid view, demo pages) |
+| `src/pages/*.ts` | the scripts written into the other pages (scan bench, solid view, demo pages) |
 | `src/types/*.d.ts` | nothing: the types the scripts share |
 | `*.html` | copied, with each line `<!-- build: src/… -->` replaced by a `<script>` holding that file or folder |
 | `*.css`, the `.js` files in the repository root (generated data, `config.js`) | copied as they are |
