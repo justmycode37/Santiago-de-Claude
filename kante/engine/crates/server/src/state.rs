@@ -636,7 +636,7 @@ impl App {
         // fall into an underpass or onto a deck that happens to be nearest.
         // from each of the point's lines onto the network and from the doors of the building it is in (a station is
         // entered at street level, as above)
-        let end = match (ep.station, self.walk.as_ref()) {
+        let mut end = match (ep.station, self.walk.as_ref()) {
             (Some(_), Some(walk)) => End::station(walk, self.doors.as_ref(), ep.pos, profile),
             (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, profile),
             _ => End::exact(ep.pos, None),
@@ -655,7 +655,10 @@ impl App {
             // the metres from the point to the network and from it to the stop are in `c`; a stop is reached when a
             // candidate's walk to it leaves room for the buffer
             let limit = (max_s - ACCESS_BUFFER_S).max(0) as f32;
-            let costs = ends::reach_costs(walk, &end, &targets, profile, max_s as f32, limit);
+            // a step-free walker takes a line through a building or onto another floor only when no other way onto the
+            // network reaches any stop (the journey then says so: plan.rs)
+            let (chosen, costs) = ends::reach_end(walk, &end, &targets, profile, max_s as f32, limit);
+            end = chosen;
             for (k, c) in costs.into_iter().enumerate() {
                 let i = idx[k];
                 if let Some((c, j)) = c {

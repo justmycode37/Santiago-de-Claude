@@ -326,3 +326,146 @@ fn a_station_is_entered_from_a_way_that_leads_on() {
     let (c, w1, _) = reach_and_walk(&r, &ix, &station, &to, &STEP_FREE, 600.0);
     assert!(c.is_some() && w1.path.stairs_up == 0 && w1.path.stairs_down == 0, "{c:?}");
 }
+
+#[test]
+fn a_stop_some_walk_reaches_within_the_limit_is_reached_whatever_the_preferred_route_takes() {
+    // last review, finding 1: from one candidate, the route the penalties prefer (a quiet detour, 100.8 s) is over the
+    // limit, the quicker one along a busy road (85.4 s) within it
+    let mut w = World::new();
+    w.way((-10.0, 0.0), (0.0, 0.0), 2, EdgeKind::Footway, 0);
+    w.way((0.0, 0.0), (100.0, 0.0), 4, EdgeKind::RoadBusy, 0);
+    w.way((0.0, 0.0), (0.0, 10.0), 1, EdgeKind::Footway, 0);
+    w.way((0.0, 10.0), (100.0, 10.0), 4, EdgeKind::Footway, 0);
+    w.way((100.0, 10.0), (100.0, 0.0), 1, EdgeKind::Footway, 0);
+    w.way((100.0, 0.0), (110.0, 0.0), 2, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, -5.0, 1.0, &NORMAL);
+    let to = stop(&r, 105.0, 0.0, &NORMAL);
+    let preferred = walk(&r, &here, &to, &NORMAL).unwrap();
+    assert!(preferred.secs > 95.0, "the penalties prefer the detour: {} s", preferred.secs);
+    let (c, w1, _) = reach_and_walk(&r, &ix, &here, &to, &NORMAL, 95.0);
+    let c = c.expect("reached: a walk within the limit exists");
+    assert!(c <= 95.0 && (c - w1.secs).abs() < 0.5, "{c} s, drawn {} s", w1.secs);
+}
+
+#[test]
+fn many_doors_never_crowd_out_the_points_own_lines() {
+    // last review, finding 1: a building with 300 doors; the point's own line (main's snap, through the wall) stays
+    let mut w = World::new();
+    w.way((-20.0, -3.0), (320.0, -3.0), 20, EdgeKind::Sidewalk, 0);
+    let b = w.building(0.0, 0.0, 300.0, 20.0);
+    for i in 0..300 {
+        w.door(b, 0.5 + i as f32, 0.0, DoorKind::Yes, DOOR_WC_UNKNOWN);
+    }
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 150.0, 10.0, &NORMAL);
+    let main = snap_main(&r, pt(150.0, 10.0), &NORMAL).unwrap();
+    assert!(here.joins.len() <= MAX_JOINS + 8, "{}", here.joins.len());
+    assert!(here.joins.iter().any(|j| j.door.is_none() && j.snap.edge == main.edge), "main's snap is still a candidate");
+}
+
+#[test]
+fn a_line_through_a_building_is_taken_only_where_no_other_will_do() {
+    // last review, walk #2366: a clear 38 m line north to a way that goes 676 m round, a 57 m line south through a
+    // house to a way that goes straight to the end; the second is cheaper even with the line's weight
+    let mut w = World::new();
+    w.way((-300.0, 38.0), (200.0, 38.0), 8, EdgeKind::Footway, 0);
+    w.way((-300.0, 38.0), (-300.0, -57.0), 4, EdgeKind::Footway, 0);
+    w.way((-300.0, -57.0), (200.0, -57.0), 8, EdgeKind::Footway, 0);
+    w.way((200.0, -57.0), (900.0, -57.0), 10, EdgeKind::Footway, 0);
+    w.building(-10.0, -40.0, 10.0, -20.0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        assert!(here.joins.iter().any(|j| j.unsure) && here.joins.iter().any(|j| !j.unsure), "{:?}", here.joins);
+        let to = stop(&r, 850.0, -57.0, &p);
+        let all = End { joins: here.joins.clone(), ..here.clone() };
+        let (_, _, _, gen_wall) = r.route_between(&all.sources(), &to.sources(), &p).unwrap();
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        let d = draw(Some(&ix), &here, &to, &w1);
+        assert!(!w1.from.unsure && !d.wall && d.step_free, "the clear line: {:?}", w1.from);
+        assert!(w1.secs > gen_wall, "the walk through the house was the cheaper one: {} s against {gen_wall}", w1.secs);
+        // the stop search takes the same, and so does the walk drawn for it
+        let (c, w2, _) = reach_and_walk(&r, &ix, &here, &to, &p, 3600.0);
+        assert!(c.is_some() && !w2.from.unsure, "{:?}", w2.from);
+    }
+    // with nothing clear that leads anywhere, the line through the house is still a way out (a guess)
+    let mut w = World::new();
+    w.way((-200.0, -57.0), (900.0, -57.0), 10, EdgeKind::Footway, 0);
+    w.building(-10.0, -40.0, 10.0, -20.0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 0.0, 0.0, &NORMAL);
+    let to = stop(&r, 850.0, -57.0, &NORMAL);
+    let (c, w1, d) = reach_and_walk(&r, &ix, &here, &to, &NORMAL, 3600.0);
+    assert!(c.is_some() && w1.from.unsure && d.approx_start.is_some() && !d.step_free);
+}
+
+#[test]
+fn a_step_free_walker_takes_a_line_through_a_building_only_when_nothing_else_reaches_any_stop() {
+    // last review, wheelchair trip #596: a clear line reaches one stop; a line through a house reaches another, nearer
+    let mut w = World::new();
+    w.way((-300.0, 30.0), (300.0, 30.0), 12, EdgeKind::Footway, 0);
+    w.way((-300.0, -30.0), (300.0, -30.0), 12, EdgeKind::Footway, 0);
+    w.building(-10.0, -25.0, 10.0, -5.0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 0.0, 0.0, &STEP_FREE);
+    let targets = [snap(&r, 250.0, 30.0, &STEP_FREE), snap(&r, 20.0, -30.0, &STEP_FREE)];
+    let (end, c) = reach_end(&r, &here, &targets, &STEP_FREE, 1200.0, 1200.0);
+    assert!(end.joins.iter().all(|j| !j.unsure), "only the clear lines: {:?}", end.joins);
+    assert!(c[0].is_some(), "the stop up the clear way");
+    // the stop beyond the house is reached the long way round, if at all, never through the house
+    if let Some((_, k)) = c[1] {
+        assert!(!end.joins[k].unsure);
+    }
+    // a normal walker may take the line through the house for the stop only it reaches quickly
+    let (end, c) = reach_end(&r, &place(&r, &ix, 0.0, 0.0, &NORMAL), &targets, &NORMAL, 60.0, 60.0);
+    assert!(c[0].is_none() && c[1].is_some_and(|(_, k)| end.joins[k].unsure), "{c:?}");
+    // nothing clear reaches any stop: the line through the house, which the journey then says (plan.rs)
+    let mut w = World::new();
+    w.way((-300.0, -30.0), (300.0, -30.0), 12, EdgeKind::Footway, 0);
+    w.building(-10.0, -25.0, 10.0, -5.0);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 0.0, 0.0, &STEP_FREE);
+    let (end, c) = reach_end(&r, &here, &[snap(&r, 20.0, -30.0, &STEP_FREE)], &STEP_FREE, 1200.0, 1200.0);
+    assert!(c[0].is_some_and(|(_, k)| end.joins[k].unsure), "{c:?}");
+}
+
+#[test]
+fn a_point_on_a_footbridge_starts_on_it() {
+    // last review, walk #16572: the point 1.64 m from a footbridge, nothing on the ground within 10 m; a way on the
+    // ground 26 m away would make the walk shorter, but the line to it leaves the bridge sideways
+    let mut w = World::new();
+    w.way((-60.0, 1.64), (60.0, 1.64), 6, EdgeKind::Footway, EF_BRIDGE);
+    w.way((60.0, 1.64), (400.0, 1.64), 10, EdgeKind::Footway, 0);
+    w.way((400.0, 1.64), (400.0, -26.0), 1, EdgeKind::Footway, 0);
+    w.way((-100.0, -26.0), (400.0, -26.0), 10, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        let to = stop(&r, 300.0, -26.0, &p);
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        let d = draw(Some(&ix), &here, &to, &w1);
+        assert!(r.graph().edges[w1.from.snap.edge as usize].flags & EF_BRIDGE != 0 && d.approx_start.is_none(), "on the footbridge: {:?}", w1.from);
+        let (c, w2, _) = reach_and_walk(&r, &ix, &here, &to, &p, 3600.0);
+        assert!(c.is_some() && r.graph().edges[w2.from.snap.edge as usize].flags & EF_BRIDGE != 0);
+    }
+}
+
+#[test]
+fn a_point_on_the_ground_does_not_start_on_a_bridge_further_off() {
+    // last review, finding 3: the ground 8 m away goes round; a bridge 25 m away goes straight to the stop. snap_point
+    // chose the ground, and now so does the walk
+    let mut w = World::new();
+    w.way((-300.0, 8.0), (300.0, 8.0), 12, EdgeKind::Footway, 0);
+    w.way((300.0, 8.0), (300.0, 25.0), 1, EdgeKind::Footway, 0);
+    w.way((-300.0, 25.0), (300.0, 25.0), 12, EdgeKind::Footway, EF_BRIDGE);
+    w.way((-300.0, 25.0), (-300.0, 200.0), 4, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    assert!((snap_point(&r, pt(0.0, 0.0), &NORMAL).unwrap().dist_m - 8.0).abs() < 0.5);
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        let to = stop(&r, -300.0, 150.0, &p);
+        let w1 = walk(&r, &here, &to, &p).unwrap();
+        assert!(r.graph().edges[w1.from.snap.edge as usize].flags & EF_BRIDGE == 0 && !w1.from.unsure, "on the ground: {:?}", w1.from);
+    }
+}

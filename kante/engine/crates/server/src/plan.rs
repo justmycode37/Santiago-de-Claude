@@ -161,6 +161,7 @@ impl App {
             approx_end: None,
             network: None,
             no_step_free_door: false,
+            unsure_end: false,
         };
         if a.stop.is_some() && a.stop == b.stop {
             leg.geometry = vec![lonlat(&a.pos), lonlat(&a.pos)];
@@ -186,6 +187,7 @@ impl App {
                 leg.door = w.to.door.and_then(|o| self.door_json(o));
                 leg.start_door = w.from.door.and_then(|o| self.door_json(o));
                 leg.no_step_free_door = b.end.no_step_free_door;
+                leg.unsure_end = w.from.unsure || w.to.unsure;
                 leg.covered = p.covered.iter().map(|&(v0, v1, c)| json::WalkCovered { kind: c.as_str(), from: v0 + shift, to: v1 + shift }).collect();
                 let last_vertex = leg.geometry.len().saturating_sub(1) as u32;
                 let n_steps = p.steps.len();
@@ -413,6 +415,17 @@ impl App {
                 _ => None,
             };
             if let JLeg::Walk(w) = &mut legs[i] {
+                // a step-free walker's first or last walk that starts or ends through a building or onto another
+                // floor: only when no other way onto the network reaches any stop (App::reach), and said here
+                if w.unsure_end && (profile.wheelchair || profile.is_step_free()) {
+                    let place = if w.kind == "egress" { &w.to.name } else { &w.from.name };
+                    alerts.push(json::JourneyAlert {
+                        severity: "warning",
+                        kind: "other",
+                        leg: Some(i),
+                        text: format!("No step-free way onto the street is known at {place}: this walk is guessed through a building or to another floor"),
+                    });
+                }
                 if let Some(nd) = next_dep {
                     let start = prev_arr.unwrap_or(w.dep);
                     let m = if w.kind == "transfer" { margin as i64 } else { 0 };

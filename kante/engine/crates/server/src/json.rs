@@ -306,6 +306,9 @@ pub struct WalkLeg {
     /// Step-free: the destination building has doors, but none is step-free.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub no_step_free_door: bool,
+    /// It starts or ends with a line through a building or onto another floor (not sent: a journey's alert says so).
+    #[serde(skip)]
+    pub unsure_end: bool,
 }
 
 #[derive(Serialize, Clone)]
