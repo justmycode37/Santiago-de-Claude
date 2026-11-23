@@ -43,9 +43,9 @@ router finds best for it is within the limit.
   the server ignores one built for another graph, and `kante build` builds it again when it is from another graph
   or another schema.
 
-Nationally (November 2026 data): 2,782,877 buildings, 2,904,196 doors (156,434 mapped, 2,747,762 from the
-register), 21,210 doors with no way out within 80 m, 48,746 joined only through a building (1.7 %: mostly sheds and
-annexes behind a house, a third of them register sub-addresses such as "5.1"). The index takes 334 MB in the
+Nationally (November 2026 data): 2,782,877 buildings, 2,902,699 doors (156,434 mapped, 2,746,265 from the
+register), 21,207 doors with no way out within 80 m, 50,594 joined only through a building (1.7 %: mostly sheds and
+annexes behind a house, a third of them register sub-addresses such as "5.1"). The index takes about 330 MB in the
 server.
 
 ## Lifts
