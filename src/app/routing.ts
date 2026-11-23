@@ -229,8 +229,7 @@ async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     model = await Station3D.loadData(plan.key);
     route = model && stationRouter()!.route(model, plan.from, plan.to, s3Prefs(st));
   } catch (e) { route = null; }
-  // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path (one
-  // whose ends it only guessed goes on to the pedestrian network, as the engine's walks elsewhere: refineStationWalk())
+  // no path in the model: the street router, or for a walk the Kante engine has routed, the engine's own path
   if (!route || route.points.length < 2 || route.same) return st.kanteWalk ? null : street();
   const inside = route.points.map((p) => stationRouter()!.toLngLat(model!, p));
   const parts: LngLat[][] = [], walks: RoutedWalk[] = [];
@@ -304,7 +303,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
       st.walks = res.walks;
       st.floors = res.floors;
       queueSheet();
-    } else if (engineGuess(st)) return refineWalk(st, task); // the engine's path, its ends guessed: not left at that
+    }
     current.done();
   });
 }
@@ -323,7 +322,8 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     const end: [WalkEnd, WalkEnd] = [(ends[0] || [])[0] || {}, (ends[ends.length - 1] || [])[1] || {}];
     task(routeWalk(all[0], walkGoal(st, all[all.length - 1]), end, true), (res) => {
       if (!current() || !st.kanteWalk) return;
-      if (res && netWalkFits(st, res)) {
+      // (the engine's path with guessed ends: only for a way the network has found, not for a guess of its own)
+      if (res && !(res.approx && engineGuess(st)) && netWalkFits(st, res)) {
         st.lines = [res.coords];
         st.walks = [res];
         st.floors = res.floors && res.floors.length ? res.floors : null;

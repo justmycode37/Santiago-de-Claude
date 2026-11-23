@@ -362,6 +362,14 @@ async function more(o: JourneyOptions | null | undefined, dir: 'earlier' | 'late
 function walkParts(leg: KanteWalk): KanteWalkParts {
   const coords = leg.geometry;
   const whole = (x: number | null | undefined) => Math.round(x || 0);
+  // Its guessed ends (approxStart / approxEnd: across open ground, or out of a building through no known door):
+  // points 0 … to and from … last. The routed part between them is r0 … r1; none (all of it guessed) when the
+  // guesses meet or what is left between them has no length.
+  const last = coords.length - 1;
+  const to = leg.approxStart != null && leg.approxStart > 0 ? Math.min(leg.approxStart, last) : null;
+  const from = leg.approxEnd != null && leg.approxEnd < last ? Math.max(leg.approxEnd, 0) : null;
+  const r0 = to != null ? to : 0, r1 = from != null ? from : last;
+  const all = (to != null || from != null) && (r1 <= r0 || metres(coords.slice(r0, r1 + 1)) < 0.5);
   const dirs: KanteWalkDir[] = [];
   (leg.steps || []).forEach((s) => {
     if (s.kind === 'arrive') return; // the page ends the list with its own "Arrive at …"
@@ -369,7 +377,8 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     const change = vertical && s.toLevel != null && whole(s.toLevel) !== whole(s.level);
     const down = /-down$/.test(s.kind) || (change && s.toLevel! < (s.level || 0));
     const up = /-up$/.test(s.kind) || (change && !down);
-    const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text, coords: coords.slice(s.from, s.to + 1) };
+    const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text,
+      coords: coords.slice(Math.max(s.from, r0), Math.min(s.to, r1) + 1) }; // the engine's directions are of the routed part
     if (change) { d.from = whole(s.level); d.to = whole(s.toLevel); }
     dirs.push(d);
   });
@@ -379,21 +388,19 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
   const dist = leg.kind === 'transfer' && pathS > leg.durationS + 150 ? null : leg.distanceM;
   const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs };
-  // Its guessed ends (approxStart / approxEnd: across open ground, or out of a building through no known door):
-  // the page's approxTo / approxFrom, as a walk on the pedestrian network has them (drawn dashed), said as a guess
-  const last = coords.length - 1;
-  const to = leg.approxStart != null && leg.approxStart > 0 ? Math.min(leg.approxStart, last) : null;
-  const from = leg.approxEnd != null && leg.approxEnd < last ? Math.max(leg.approxEnd, 0) : null;
+  // the guessed ends become the page's approxTo / approxFrom, as a walk on the pedestrian network has them (drawn
+  // dashed), and are said as a guess; all of it guessed: drawn dashed, one guess said, nothing of the engine's
   if (to != null || from != null) {
-    const all = to === last || from === 0; // the guesses meet: none of it is routed
     Object.assign(walk, { approxTo: to, approxFrom: from }, all ? { approx: true } : null);
     const about = (cs: LngLat[]) => `about ${Math.max(10, Math.round(metres(cs) / 10) * 10)} m where no way is mapped`;
-    const head = all ? coords : to != null ? coords.slice(0, to + 1) : null;
-    if (head) {
-      if (dirs[0] && dirs[0].kind === 'depart') dirs[0].kind = 'walk';
-      dirs.unshift({ kind: 'depart', text: `Walk ${about(head)}`, coords: head });
+    if (all) dirs.splice(0, dirs.length, { kind: 'depart', text: `Walk ${about(coords)}`, coords });
+    else {
+      if (to != null) {
+        if (dirs[0] && dirs[0].kind === 'depart') dirs[0].kind = 'walk';
+        dirs.unshift({ kind: 'depart', text: `Walk ${about(coords.slice(0, to + 1))}`, coords: coords.slice(0, to + 1) });
+      }
+      if (from != null) dirs.push({ kind: 'walk', text: `Then ${about(coords.slice(from))}`, coords: coords.slice(from) });
     }
-    if (from != null && !all) dirs.push({ kind: 'walk', text: `Then ${about(coords.slice(from))}`, coords: coords.slice(from) });
   }
   return { lines: [coords], walks: [walk],
     floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! })) };
