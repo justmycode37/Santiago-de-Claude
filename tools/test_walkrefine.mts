@@ -101,9 +101,12 @@ interface PlatformEdge { ll: LngLat; ref?: string; level: number }
 // the routers it asks: the pedestrian network hands back promises kept in `pending`, the station models in `station`
 let page: AppPage;
 const APP = new URL('../src/app/', import.meta.url);
-// (Node 24 calls the option `exports`, Node 22 `namedExports`)
+// The module's exports go in as `exports` from Node 24.15 and 25.9 on, as `namedExports` before (which later
+// versions still take, with a deprecation warning)
+const [major, minor] = process.versions.node.split('.').map(Number);
+const hasExports = major > 25 || (major === 25 && minor >= 9) || (major === 24 && minor >= 15);
 const fake = (file: string, exports: Record<string, unknown>) => mock.module(new URL(file, APP).href,
-  (Number(process.versions.node.split('.')[0]) >= 24 ? { exports } : { namedExports: exports }) as Parameters<typeof mock.module>[1]);
+  (hasExports ? { exports } : { namedExports: exports }) as Parameters<typeof mock.module>[1]);
 const nothing = () => {};
 const marker = { remove: nothing };
 fake('map.ts', { map: { flyTo: nothing } });
