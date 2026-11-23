@@ -50,9 +50,8 @@ export interface RoutedWalk {
   /** The door the walk ends at. */
   door?: { ll: LngLat; type: string; addr: string } | null;
   floors?: KanteFloorChange[];
-  /** The engine's time for it, seconds, and as the trip shows it (at least half a minute when it has a way to go). */
+  /** Its time, seconds: the engine's (or a station model's). */
   walkS?: number;
-  shownS?: number;
 }
 /** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
  *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */
@@ -220,7 +219,6 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
     if (res.walks.every(answered)) current.done(); else current.retry();
     walkTime(st, res.walks);
-    queueSheet();
   });
 }
 // One walk (or change). As planned it has the engine's walk already; moved since, or at another platform at the same
@@ -242,7 +240,6 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     st.floors = floors.length ? floors : null;
     if (res.every(answered)) current.done(); else current.retry();
     walkTime(st, res);
-    queueSheet(); // metres and written directions
   });
 }
 
@@ -266,7 +263,7 @@ function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) 
   if (st.type === 'change') st.walkMin = min; else st.min = min;
   if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - s * 1000;
   applyLiveTimes(journey.steps);
-  queueSheet(true); // the minutes on the card, and the journey's times in the header and the pill
+  queueSheet(true); // the card (its minutes, metres and directions), and the journey's times in the header and the pill
 }
 
 // Where a walk leads: for the walk to the destination the place itself, not the door its last route ended at (which

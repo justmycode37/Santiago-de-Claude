@@ -391,9 +391,9 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
  *  metres and its written direction ("Walk about 390 m to …"). */
 function routed(leg: KanteWalk): ((KanteRoutedWalk | KanteStraightWalk) & { floors: KanteFloorChange[] }) | null {
   if (!leg.geometry || leg.geometry.length < 2) return null;
-  if (leg.approximate) return { coords: leg.geometry, steps: null, dist: leg.distanceM, dirs: walkParts(leg).walks[0].dirs, approx: true, floors: [], walkS: leg.durationS, shownS: shownSecs(leg) };
+  if (leg.approximate) return { coords: leg.geometry, steps: null, dist: leg.distanceM, dirs: walkParts(leg).walks[0].dirs, approx: true, floors: [], walkS: leg.durationS };
   const p = walkParts(leg);
-  return { ...p.walks[0], floors: p.floors, walkS: leg.durationS, shownS: shownSecs(leg) };
+  return { ...p.walks[0], floors: p.floors, walkS: leg.durationS };
 }
 // A walk or change step gets the engine's walk: its time, and its path, directions and floor changes when the
 // engine has routed it; an approximate one stays a dashed straight line, with the engine's metres and direction

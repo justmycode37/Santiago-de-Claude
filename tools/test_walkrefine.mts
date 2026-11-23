@@ -32,7 +32,7 @@ interface FakeStop { quay?: { label: string; id?: string } | FakeQuay; dep?: num
 interface FakeQuay { id?: string; lon: number; lat: number; precision: string; label: string; level: number }
 interface FakePlatformAt { ll: LngLat; edge: { ref: string; bearing: null; level: number; ll: LngLat; side: string }; travel: null }
 /** A routed walk as the step keeps it (RoutedWalk in src/app/routing.ts), as far as these tests read it. */
-interface FakeRouted { coords: LngLat[]; dist: number | null; approx?: boolean; net?: boolean; walkS?: number; shownS?: number;
+interface FakeRouted { coords: LngLat[]; dist: number | null; approx?: boolean; net?: boolean; walkS?: number;
   door?: { ll: LngLat; type: string; addr: string } | null; dirs?: { text: string }[];
   covered?: { kind: string; coords: LngLat[] }[]; approxTo?: number | null; approxFrom?: number | null; floors?: KanteFloorChange[] }
 /** A step of the journey (type: 'walk', 'change', 'ride', 'arrive'). */
@@ -316,7 +316,7 @@ console.log("4. the engine's walk as the page keeps it");
   const old = J.routed({ kind: 'direct', durationS: 60, distanceM: 80, approximate: false, geometry: [A, B], levels: [null, null], steps: [step('walk', 0, 1)] })!;
   check(old.door === null && old.covered!.length === 0 && old.approxTo === null && old.approxFrom === null, 'from an older engine (no doors): the path alone');
   const none = J.routed({ durationS: 200, distanceM: 80, approximate: true, geometry: [A, B], levels: [null, null], steps: [] });
-  check(!!none && none.approx === true && none.coords.length === 2 && none.walkS === 200 && none.shownS === 200 && none.dist === 80,
+  check(!!none && none.approx === true && none.coords.length === 2 && none.walkS === 200 && none.dist === 80,
     "no path found: the straight line, with the engine's time for it");
   check(J.routed({ durationS: 60, distanceM: 0, approximate: true, geometry: [A], levels: [null], steps: [] }) === null, 'no line at all: none');
   const sf = J.routed({ ...leg, door: undefined, noStepFreeDoor: true })!;
