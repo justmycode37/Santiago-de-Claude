@@ -1452,7 +1452,13 @@ fn live_bounds_match_global_lookback() {
             let got = w.rt.plan(&q);
             q.live = Some(&global);
             let want = w.rt.plan(&q);
-            let key = |js: &[Journey]| js.iter().map(|j| (j.dep, j.arr, j.transfers)).collect::<Vec<_>>();
+            // An earliest-arrival search (window 0) rides the first trip of
+            // every line in one pass: of two options that tie on arrival and
+            // changes it keeps whichever is found first, so its departure
+            // depends on the scan order like the legs do. A range search has
+            // one departure per pass, the later one first.
+            let fixed_dep = q.window > 0 || q.onboard.is_some();
+            let key = |js: &[Journey]| js.iter().map(|j| (if fixed_dep { j.dep } else { 0 }, j.arr, j.transfers)).collect::<Vec<_>>();
             assert_eq!(key(&got), key(&want), "seed {seed} date {} from {} window {} onboard {:?}", q.date, q.from, q.window, q.onboard.map(|o| (o.trip, o.date)));
             // Leg for leg too, except where two vehicles reach a stop at the
             // same time: which one a label keeps depends on the order patterns
@@ -1471,6 +1477,43 @@ fn live_bounds_match_global_lookback() {
     }
     println!("{queries} queries, {journeys} journeys, {live_rides} rides on trips with live data; {identical} queries identical leg for leg");
     assert!(journeys > 1500 && live_rides > 300, "too little to mean anything: {journeys} journeys, {live_rides} live rides");
+}
+
+/// A stop that a pattern calls at twice gets the larger of the two delays,
+/// and only the dates with most live trips get per-pattern and per-stop bounds.
+#[test]
+fn delay_index_repeated_stops_and_many_dates() {
+    let mut b = Builder::new();
+    let (a, x, c, d) = (b.stop("A"), b.stop("X"), b.stop("C"), b.stop("D"));
+    let line = b.line("loop", Mode::Bus);
+    let lp = b.pattern(line, &[a, x, c, x, d]);
+    let ts = b.trips_every(lp, hm(8, 0), 3600, 3, &[0, 300, 600, 900, 1200]);
+    let back = b.pattern(line, &[d, a]);
+    let bs = b.trips_every(back, hm(8, 0), 3600, 3, &[0, 300]);
+    let w = World::new(b);
+    let tt = w.tt();
+    let pat = |id: usize| tt.trips[w.t(id) as usize].pattern;
+    let mut live = TestLive::default();
+    // Late only from the second call at X on; another trip a minute late throughout.
+    live.delay(QD, w.t(ts[0]), 5, 3, 700);
+    live.delay(QD, w.t(ts[1]), 5, 0, 60);
+    // One live trip on each of ten more dates: more dates than are indexed in full.
+    let sparse: Vec<Date> = (1..=10).map(|i| QD + i).collect();
+    for &date in &sparse {
+        live.delay(date, w.t(ts[2]), 5, 0, 30);
+    }
+    live.index(tt);
+    let bd = live.delay_bounds(QD);
+    assert_eq!((bd.stop(a), bd.stop(x), bd.stop(c), bd.stop(d)), (Some(60), Some(700), Some(60), Some(700)));
+    assert_eq!((bd.pattern(pat(ts[0])), bd.pattern(pat(bs[0]))), (Some(700), None));
+    let full = sparse.iter().filter(|&&date| !live.delay_bounds(date).pattern.is_empty()).count();
+    assert_eq!(full, kante_core::DelayIndex::MAX_DATES - 1);
+    for &date in &sparse {
+        let bd = live.delay_bounds(date);
+        // Without the per-pattern bounds every pattern looks back by the date's maximum.
+        let want = if bd.pattern.is_empty() { Some(30) } else { None };
+        assert_eq!((bd.max, bd.pattern(pat(ts[0])), bd.pattern(pat(bs[0]))), (30, Some(30), want), "date {date}");
+    }
 }
 
 /// A train almost 3 h late is still caught, and lines without live data

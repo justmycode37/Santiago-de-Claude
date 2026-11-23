@@ -294,7 +294,7 @@ fn run(rt: &Router, days: &DaySet, q: &Query, s: &mut Scratch) -> Vec<Journey> {
     let speed = if q.walk_speed.is_finite() && q.walk_speed > 0.05 { q.walk_speed } else { kante_core::DEFAULT_SPEED_MPS };
     // Without live data on any date the search can touch (continuations and
     // on-board starts reach ±3 days), plan as without live data.
-    let live = q.live.filter(|l| (-3..=3).any(|d| l.delay_bounds(q.date + d).any()));
+    let live = q.live.filter(|l| (-3..=3).any(|d| l.delay_bounds(q.date.saturating_add(d)).any()));
     let bounds = match live {
         Some(l) => [0, 1, 2].map(|d| l.delay_bounds(q.date + d - 1).fit(tt.patterns.len(), tt.stops.len())),
         None => [DelayBounds::NONE; 3],

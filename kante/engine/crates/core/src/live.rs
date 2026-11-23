@@ -179,10 +179,11 @@ impl DelayBounds<'_> {
         if max == NO_LIVE {
             return None;
         }
+        // A bound is never negative: the router subtracts it to look back.
         match v.get(i) {
             Some(&NO_LIVE) => None,
-            Some(&b) => Some(b),
-            None => Some(max),
+            Some(&b) => Some(b.max(0)),
+            None => Some(max.max(0)),
         }
     }
     /// Drops per-pattern / per-stop bounds that were not built for a
@@ -207,16 +208,38 @@ pub struct DelayIndex {
 }
 
 impl DelayIndex {
+    /// Dates that get per-pattern and per-stop bounds. Those cost memory per
+    /// date (4 bytes per pattern and stop); a feed normally spans two or three.
+    pub const MAX_DATES: usize = 8;
+
     /// Bounds of `trips`. Without a timetable (or for a date with a trip it
-    /// does not know) only the per-date maximum is kept.
-    pub fn build<'a>(tt: Option<&Timetable>, trips: impl IntoIterator<Item = (Date, TripIdx, &'a TripLive)>) -> Self {
+    /// does not know) only the per-date maximum is kept; the same goes for all
+    /// but the [`Self::MAX_DATES`] dates with most live trips.
+    pub fn build<'a, I>(tt: Option<&Timetable>, trips: I) -> Self
+    where
+        I: IntoIterator<Item = (Date, TripIdx, &'a TripLive)>,
+        I::IntoIter: Clone,
+    {
+        let trips = trips.into_iter();
+        let mut counts: Vec<(Date, usize)> = Vec::new();
+        for (date, _, _) in trips.clone() {
+            match counts.iter_mut().find(|c| c.0 == date) {
+                Some(c) => c.1 += 1,
+                None => counts.push((date, 1)),
+            }
+        }
+        counts.sort_unstable_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        counts.truncate(Self::MAX_DATES);
         let mut ix = DelayIndex::default();
         let mut unknown: Vec<Date> = Vec::new();
         for (date, trip, l) in trips {
             let k = match ix.dates.iter().position(|e| e.0 == date) {
                 Some(k) => k,
                 None => {
-                    let (np, ns) = tt.map_or((0, 0), |tt| (tt.patterns.len(), tt.stops.len()));
+                    let (np, ns) = match tt {
+                        Some(tt) if counts.iter().any(|c| c.0 == date) => (tt.patterns.len(), tt.stops.len()),
+                        _ => (0, 0),
+                    };
                     ix.dates.push((date, 0, vec![NO_LIVE; np], vec![NO_LIVE; ns]));
                     ix.dates.len() - 1
                 }
@@ -225,8 +248,13 @@ impl DelayIndex {
             let worst = l.dep_delay.iter().copied().max().unwrap_or(0).max(0);
             e.1 = e.1.max(worst);
             let Some(tt) = tt else { continue };
+            if e.2.is_empty() {
+                continue;
+            }
             let Some(t) = tt.trips.get(trip as usize) else {
-                unknown.push(date);
+                if !unknown.contains(&date) {
+                    unknown.push(date);
+                }
                 continue;
             };
             let p = t.pattern;
