@@ -94,6 +94,11 @@ fn dist_point_seg(p: P, a: P, b: P) -> f64 {
     dist(p, (a.0 + t * dx, a.1 + t * dy))
 }
 
+/// Is `p` within `tol` metres of the ring's outline?
+pub fn near(p: P, ring: &[P], tol: f64) -> bool {
+    near_boundary(p, std::slice::from_ref(&ring.to_vec()), tol)
+}
+
 fn near_boundary(p: P, rings: &[Vec<P>], tol: f64) -> bool {
     for ring in rings {
         let n = ring.len();
@@ -242,6 +247,28 @@ pub fn corner_vertices(rings: &[Vec<P>], min_deg: f64) -> Vec<(u32, u32, f64)> {
 /// `stretch` times longer than with every visible pair linked, with far fewer
 /// edges. Returns index pairs into `cands`, each once, `i < j`.
 pub fn visibility_edges(rings: &[Vec<P>], cands: &[(u32, u32)], outline: bool, stretch: f64) -> Vec<(u32, u32)> {
+    visibility_edges_around(rings, &[], cands, outline, stretch)
+}
+
+/// Does p–q cut through one of these buildings (cross a wall, or run inside one)?
+pub fn hits_obstacle(p: P, q: P, obstacles: &[Vec<P>]) -> bool {
+    obstacles.iter().any(|r| {
+        let n = r.len();
+        if (0..n).any(|i| proper_cross(p, q, r[i], r[(i + 1) % n])) {
+            return true;
+        }
+        let one = std::slice::from_ref(r);
+        let k = ((dist(p, q) / 2.0).ceil() as usize).clamp(3, 24);
+        (0..k).any(|i| {
+            let t = (i as f64 + 0.5) / k as f64;
+            let s = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+            point_in_rings(s, one) && !near_boundary(s, one, 0.3)
+        })
+    })
+}
+
+/// [`visibility_edges`], where a pair is also not visible through a building standing in the area.
+pub fn visibility_edges_around(rings: &[Vec<P>], obstacles: &[Vec<P>], cands: &[(u32, u32)], outline: bool, stretch: f64) -> Vec<(u32, u32)> {
     let c = cands.len();
     let pts: Vec<P> = cands.iter().map(|&(r, v)| rings[r as usize][v as usize]).collect();
     let mut d = vec![f64::INFINITY; c * c];
@@ -304,7 +331,7 @@ pub fn visibility_edges(rings: &[Vec<P>], cands: &[(u32, u32)], outline: bool, s
     let mut out: Vec<(u32, u32)> = Vec::new();
     for (l, i, j) in pairs {
         let (i, j) = (i as usize, j as usize);
-        if d[i * c + j] <= stretch * l || !segment_inside(pts[i], pts[j], rings) {
+        if d[i * c + j] <= stretch * l || !segment_inside(pts[i], pts[j], rings) || hits_obstacle(pts[i], pts[j], obstacles) {
             continue;
         }
         out.push((i as u32, j as u32));

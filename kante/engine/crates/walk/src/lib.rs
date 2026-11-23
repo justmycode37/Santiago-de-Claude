@@ -198,6 +198,45 @@ pub struct WalkPath {
     /// Level per geometry vertex, LEVEL_NONE where unknown.
     pub levels: Vec<Level2>,
     pub steps: Vec<PathStep>,
+    /// Stretches under a roof: (first vertex, last vertex, what covers them), in order.
+    pub covered: Vec<(u32, u32, Cover)>,
+}
+
+/// What a covered stretch of a walk runs under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub enum Cover {
+    /// `covered=*` along a street (arcades, colonnades, roofs).
+    Arcade,
+    /// `tunnel=building_passage`: through a building.
+    Passage,
+    /// `tunnel=*`: an underpass.
+    Underpass,
+    /// Corridors and `indoor=*` ways.
+    Indoors,
+}
+
+impl Cover {
+    pub fn of(kind: EdgeKind, flags: u16) -> Option<Cover> {
+        if flags & EF_INDOOR != 0 || kind == EdgeKind::Corridor {
+            Some(Cover::Indoors)
+        } else if flags & EF_TUNNEL != 0 && flags & EF_COVERED != 0 {
+            Some(Cover::Passage)
+        } else if flags & EF_COVERED != 0 {
+            Some(Cover::Arcade)
+        } else if flags & EF_TUNNEL != 0 {
+            Some(Cover::Underpass)
+        } else {
+            None
+        }
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Cover::Arcade => "arcade",
+            Cover::Passage => "passage",
+            Cover::Underpass => "underpass",
+            Cover::Indoors => "indoors",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -295,6 +334,14 @@ impl WalkRouter {
     /// to the bound *and* carries several avoided stair flights can be missed.
     pub fn one_to_many(&self, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
         search::one_to_many(&self.graph, &self.net, from, targets, profile, max_time_s)
+    }
+
+    /// [`WalkRouter::one_to_many`] from the best of several starting points,
+    /// each given with the metres already walked to reach it (counted in the
+    /// result) and a route-choice penalty in seconds (not counted): the doors
+    /// of a building, say.
+    pub fn many_to_many(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
+        search::many_to_many(&self.graph, &self.net, froms, targets, profile, max_time_s)
     }
 
     /// Best walk between two snapped points with geometry and instructions.

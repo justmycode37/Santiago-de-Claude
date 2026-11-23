@@ -48,6 +48,10 @@ pub struct BuildStats {
     pub secs_ways: f32,
     pub secs_nodes: f32,
     pub secs_build: f32,
+    /// Lift outlines drawn one per floor that were joined into the lift below or above them.
+    pub lifts_stacked: u64,
+    /// Straight lines from a path's end inside a platform or square to the area's outline.
+    pub inside_joins: u64,
 }
 
 pub struct Built {
@@ -88,6 +92,60 @@ impl Csr {
     }
 }
 
+/// Building outlines that straight lines across an area may not cross (a kiosk standing in a square).
+pub struct Obstacles {
+    rings: Vec<Vec<LatLon>>,
+    grid: FxHashMap<(i32, i32), Vec<u32>>,
+}
+
+impl Obstacles {
+    const CELL: i32 = 5000; // 1e-7 degrees: about 55 × 38 m
+    pub fn new(b: &crate::buildings::BuildingsRaw) -> Self {
+        let rings: Vec<Vec<LatLon>> = (0..b.len() as u32).map(|i| b.ring_of(i).to_vec()).collect();
+        let mut grid: FxHashMap<(i32, i32), Vec<u32>> = FxHashMap::default();
+        for (i, r) in rings.iter().enumerate() {
+            let mut bb = BBox::empty();
+            r.iter().for_each(|p| bb.extend(p));
+            let (y0, y1, x0, x1) = (bb.min.lat.div_euclid(Self::CELL), bb.max.lat.div_euclid(Self::CELL), bb.min.lon.div_euclid(Self::CELL), bb.max.lon.div_euclid(Self::CELL));
+            if (y1 - y0 + 1) * (x1 - x0 + 1) > 400 {
+                continue;
+            }
+            for y in y0..=y1 {
+                for x in x0..=x1 {
+                    grid.entry((y, x)).or_default().push(i as u32);
+                }
+            }
+        }
+        Obstacles { rings, grid }
+    }
+    /// The buildings that stand in an area (given as rings in `frame`): not one the whole area lies in (a station hall).
+    fn within(&self, bb: &BBox, frame: &Frame, area: &[Vec<P>]) -> Vec<Vec<P>> {
+        let mut ids: Vec<u32> = Vec::new();
+        for y in bb.min.lat.div_euclid(Self::CELL)..=bb.max.lat.div_euclid(Self::CELL) {
+            for x in bb.min.lon.div_euclid(Self::CELL)..=bb.max.lon.div_euclid(Self::CELL) {
+                if let Some(v) = self.grid.get(&(y, x)) {
+                    ids.extend_from_slice(v);
+                }
+            }
+        }
+        ids.sort_unstable();
+        ids.dedup();
+        let outer = &area[0];
+        ids.into_iter()
+            .filter_map(|i| {
+                let r: Vec<P> = self.rings[i as usize].iter().map(|p| frame.to_xy(*p)).collect();
+                let hall = outer.iter().filter(|p| area::point_in_rings(**p, std::slice::from_ref(&r)) || area::near(**p, &r, 1.0)).count() * 10 >= outer.len() * 8;
+                (!hall).then_some(r)
+            })
+            .collect()
+    }
+}
+
+/// An outdoor square on the street (not a platform, not indoors, below or above ground): buildings standing in it block it.
+fn open_square(c: &WayClass) -> bool {
+    c.kind != EdgeKind::Platform && c.flags & (EF_INDOOR | EF_TUNNEL | EF_BRIDGE | EF_COVERED) == 0 && matches!(c.level.first, LEVEL_NONE | 0)
+}
+
 struct AreaDef {
     id: i64,
     class: WayClass,
@@ -100,7 +158,7 @@ struct AreaDef {
 
 /// Candidate points of an area and the straight edges between them, as pairs
 /// of needed-node indices.
-fn area_pairs(a: &AreaDef, coords: &[LatLon], cnt: &[u8]) -> Vec<(u32, u32)> {
+fn area_pairs(a: &AreaDef, coords: &[LatLon], cnt: &[u8], obstacles: Option<&Obstacles>) -> Vec<(u32, u32)> {
     let rings_idx: Vec<Vec<u32>> = a
         .rings
         .iter()
@@ -176,7 +234,16 @@ fn area_pairs(a: &AreaDef, coords: &[LatLon], cnt: &[u8]) -> Vec<(u32, u32)> {
     if cands.len() < 2 {
         return Vec::new();
     }
-    area::visibility_edges(&rings, &cands, walk, 1.04)
+    // buildings standing in a square block its straight lines (a platform's roof does not)
+    let blocked = match obstacles {
+        Some(o) if open_square(&a.class) => {
+            let mut bb = BBox::empty();
+            rings_idx.iter().flatten().for_each(|&i| bb.extend(&coords[i as usize]));
+            o.within(&bb, &frame, &rings)
+        }
+        _ => Vec::new(),
+    };
+    area::visibility_edges_around(&rings, &blocked, &cands, walk, 1.04)
         .into_iter()
         .map(|(i, j)| {
             let (a, b) = (cands[i as usize], cands[j as usize]);
@@ -184,6 +251,234 @@ fn area_pairs(a: &AreaDef, coords: &[LatLon], cnt: &[u8]) -> Vec<(u32, u32)> {
         })
         .filter(|(x, y)| x != y)
         .collect()
+}
+
+/// Paths that end inside a platform or square polygon on its floor — the head
+/// of the stairs or escalator up to a platform, a footway that stops in a
+/// square — are joined to the area by straight lines to the nearest points of
+/// up to six of its outline edges (within 60 m, never out of the polygon or
+/// across a hole). A path in a tunnel or on a bridge only meets an area that
+/// is one too, so the passage under a platform is not glued to it.
+///
+/// A platform polygon is also crossed every 20 m along its outline: a straight
+/// line from the outline to the nearest point of each other outline edge
+/// within 40 m, so two points across a long island platform (the two tracks
+/// of it) are joined straight, not round its far end.
+fn join_inside(b: &mut Builder, areas: &[AreaDef], outline: &[Vec<u32>], area_edges: &[Range<u32>], coords: &[LatLon], obstacles: Option<&Obstacles>) -> u64 {
+    const OFF_GROUND: u16 = EF_TUNNEL | EF_BRIDGE;
+    const RUNG_M: f64 = 20.0;
+    let ground = |l: Level2| if l == LEVEL_NONE { 0 } else { l };
+    // per node: (floor, tunnel/bridge bits) of each non-area way ending or passing there
+    let mut at: FxHashMap<u32, Vec<(Level2, u16)>> = FxHashMap::default();
+    for e in &b.edges {
+        if e.kind == EdgeKind::Lift || e.flags & EF_AREA != 0 {
+            continue;
+        }
+        at.entry(e.a).or_default().push((ground(e.level_a), e.flags & OFF_GROUND));
+        at.entry(e.b).or_default().push((ground(e.level_b), e.flags & OFF_GROUND));
+    }
+    let cell = |p: LatLon| ((p.lat as i64) / 3000, (p.lon as i64) / 4000); // about 33 × 30 m
+    let mut grid: FxHashMap<(i64, i64), Vec<u32>> = FxHashMap::default();
+    for &n in at.keys() {
+        grid.entry(cell(b.gpos[n as usize])).or_default().push(n);
+    }
+    /// A point where an outline edge is cut: (edge, segment, t along it, position).
+    type Cut = (u32, u32, f64, LatLon);
+    /// One end of a new straight line: a graph node, or a cut (index into this area's cuts).
+    #[derive(Clone, Copy)]
+    enum End {
+        Node(u32),
+        Cut(usize),
+    }
+    let (edges, geom, gpos) = (&b.edges, &b.geom, &b.gpos);
+    let plans: Vec<(u32, Vec<Cut>, Vec<(End, End)>)> = (0..areas.len())
+        .into_par_iter()
+        .filter_map(|ai| {
+            let a = &areas[ai];
+            if outline[ai].is_empty() || a.class.kind == EdgeKind::Lift || a.rings.iter().map(|r| r.len()).sum::<usize>() > 6000 {
+                return None;
+            }
+            let pts: Vec<Vec<LatLon>> = a.rings.iter().map(|r| r.iter().map(|&i| coords[i as usize]).filter(|p| !p.is_none()).collect()).filter(|r: &Vec<LatLon>| r.len() >= 3).collect();
+            if pts.is_empty() {
+                return None;
+            }
+            let mut bb = BBox::empty();
+            pts.iter().flatten().for_each(|p| bb.extend(p));
+            if bb.max.dist_m(&bb.min) > 1000.0 {
+                return None;
+            }
+            let frame = Frame::new(pts[0][0]);
+            let rings: Vec<Vec<P>> = pts.iter().map(|r| r.iter().map(|p| frame.to_xy(*p)).collect()).collect();
+            let blocked = match obstacles {
+                Some(o) if open_square(&a.class) => o.within(&bb, &frame, &rings),
+                _ => Vec::new(),
+            };
+            let clear = |p: P, q: P| area::segment_inside(p, q, &rings) && !area::hits_obstacle(p, q, &blocked);
+            // outline edges in the local frame
+            let lines: Vec<(u32, Vec<P>)> = outline[ai]
+                .iter()
+                .map(|&e| {
+                    let ed = &edges[e as usize];
+                    (e, geom[ed.geom_off as usize..ed.geom_off as usize + ed.geom_len as usize].iter().map(|p| frame.to_xy(*p)).collect())
+                })
+                .collect();
+            // the nearest point of an outline edge to p: (distance, segment, t, point)
+            let foot = |p: P, line: &[P]| -> (f64, u32, f64, P) {
+                let mut best = (f64::INFINITY, 0u32, 0.0, p);
+                for (si, w) in line.windows(2).enumerate() {
+                    let (u, v) = (w[0], w[1]);
+                    let (dx, dy) = (v.0 - u.0, v.1 - u.1);
+                    let l2 = dx * dx + dy * dy;
+                    let t = if l2 < 1e-9 { 0.0 } else { (((p.0 - u.0) * dx + (p.1 - u.1) * dy) / l2).clamp(0.0, 1.0) };
+                    let q = (u.0 + dx * t, u.1 + dy * t);
+                    let d = ((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt();
+                    if d < best.0 {
+                        best = (d, si as u32, t, q);
+                    }
+                }
+                best
+            };
+            let mut cuts: Vec<Cut> = Vec::new();
+            let mut lines_out: Vec<(End, End)> = Vec::new();
+
+            // paths ending inside
+            let level = ground(a.class.level.first);
+            let off = a.class.flags & OFF_GROUND;
+            let mut own: FxHashSet<u32> = FxHashSet::default();
+            for e in outline[ai].iter().copied().chain(area_edges[ai].clone()) {
+                own.insert(edges[e as usize].a);
+                own.insert(edges[e as usize].b);
+            }
+            let (c0, c1) = (cell(bb.min), cell(bb.max));
+            for cy in c0.0..=c1.0 {
+                for cx in c0.1..=c1.1 {
+                    for &n in grid.get(&(cy, cx)).map(|v| v.as_slice()).unwrap_or(&[]) {
+                        if own.contains(&n) || !at[&n].iter().any(|&(l, f)| l == level && f == off) {
+                            continue;
+                        }
+                        let p = frame.to_xy(gpos[n as usize]);
+                        if !area::point_in_rings(p, &rings) {
+                            continue;
+                        }
+                        let mut feet: Vec<(f64, u32, u32, f64, P)> =
+                            lines.iter().map(|(e, l)| (*e, foot(p, l))).filter(|(_, f)| f.0 <= 60.0 && f.0 > 0.3).map(|(e, f)| (f.0, e, f.1, f.2, f.3)).collect();
+                        feet.sort_by(|x, y| x.0.total_cmp(&y.0));
+                        let mut kept = 0;
+                        for (_, e, si, t, q) in feet {
+                            if kept >= 6 {
+                                break;
+                            }
+                            if clear(p, q) {
+                                cuts.push((e, si, t, frame.to_ll(q)));
+                                lines_out.push((End::Node(n), End::Cut(cuts.len() - 1)));
+                                kept += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // rungs across a platform
+            if a.class.kind == EdgeKind::Platform {
+                for (li, (e, line)) in lines.iter().enumerate() {
+                    let mut walked = 0.0;
+                    let mut next = RUNG_M / 2.0;
+                    for (si, w) in line.windows(2).enumerate() {
+                        let l = ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt();
+                        while next < walked + l && l > 1e-6 {
+                            let t = (next - walked) / l;
+                            let p = (w[0].0 + (w[1].0 - w[0].0) * t, w[0].1 + (w[1].1 - w[0].1) * t);
+                            next += RUNG_M;
+                            let mut here: Option<usize> = None;
+                            for (lj, (f, other)) in lines.iter().enumerate() {
+                                if lj == li {
+                                    continue;
+                                }
+                                let (d, sj, tj, q) = foot(p, other);
+                                if !(d > 1.0 && d <= 40.0) || !clear(p, q) {
+                                    continue;
+                                }
+                                let k = *here.get_or_insert_with(|| {
+                                    cuts.push((*e, si as u32, t, frame.to_ll(p)));
+                                    cuts.len() - 1
+                                });
+                                cuts.push((*f, sj, tj, frame.to_ll(q)));
+                                lines_out.push((End::Cut(k), End::Cut(cuts.len() - 1)));
+                            }
+                        }
+                        walked += l;
+                    }
+                }
+            }
+            (!lines_out.is_empty()).then_some((ai as u32, cuts, lines_out))
+        })
+        .collect();
+    // cut each outline edge from its far end backwards, so the positions still to come stay on the same edge
+    let mut all: Vec<(Cut, usize, usize)> = Vec::new(); // (cut, plan, index in plan)
+    for (pi, (_, cuts, _)) in plans.iter().enumerate() {
+        for (k, c) in cuts.iter().enumerate() {
+            all.push((*c, pi, k));
+        }
+    }
+    all.sort_by(|x, y| x.0 .0.cmp(&y.0 .0).then(y.0 .1.cmp(&x.0 .1)).then(y.0 .2.total_cmp(&x.0 .2)));
+    let mut node_of: Vec<Vec<u32>> = plans.iter().map(|p| vec![u32::MAX; p.1.len()]).collect();
+    let mut last: Option<(u32, u32, f64, u32)> = None; // the cut just made: (edge, seg, t, node)
+    for ((e, seg, t, pos), pi, k) in all {
+        if let Some((le, ls, lt, ln)) = last {
+            if le == e && ls == seg && (lt - t).abs() < 1e-4 {
+                node_of[pi][k] = ln;
+                continue;
+            }
+        }
+        let ed = b.edges[e as usize];
+        let last_seg = ed.geom_len as u32 - 2;
+        let n = if seg == 0 && t < 1e-6 {
+            ed.a
+        } else if seg == last_seg && t > 1.0 - 1e-6 {
+            ed.b
+        } else if t < 1e-6 {
+            b.split_edge(e, seg - 1, pos)
+        } else {
+            b.split_edge(e, seg, pos)
+        };
+        node_of[pi][k] = n;
+        last = Some((e, seg, t, n));
+    }
+    let mut made = 0;
+    for (pi, (ai, _, lines)) in plans.iter().enumerate() {
+        let a = &areas[*ai as usize];
+        let name = b.name(&a.name);
+        for &(x, y) in lines {
+            let node = |e: End| match e {
+                End::Node(n) => n,
+                End::Cut(k) => node_of[pi][k],
+            };
+            let (na, nb) = (node(x), node(y));
+            if na == nb || na == u32::MAX || nb == u32::MAX {
+                continue;
+            }
+            let (pa, pb) = (b.gpos[na as usize], b.gpos[nb as usize]);
+            let geom_off = b.geom.len() as u32;
+            b.geom.push(pa);
+            b.geom.push(pb);
+            b.edges.push(WalkEdge {
+                a: na,
+                b: nb,
+                geom_off,
+                geom_len: 2,
+                kind: a.class.kind,
+                level_a: a.class.level.first,
+                level_b: a.class.level.first,
+                steps: 0,
+                flags: (a.class.flags & (EF_INDOOR | EF_TUNNEL | EF_BRIDGE | EF_COVERED | EF_WHEELCHAIR_NO | EF_WHEELCHAIR_YES | EF_ROUGH)) | EF_AREA,
+                len_dm: (pa.dist_m(&pb) * 10.0).round() as u32,
+                name,
+            });
+            b.push_meta(a.id, NO_IDX, (0.0, 1.0), a.class.layer);
+            made += 1;
+        }
+    }
+    made
 }
 
 pub(crate) struct Builder<'a> {
@@ -619,6 +914,8 @@ impl<'a> Builder<'a> {
 
 struct LiftDef {
     nodes: Vec<u32>,
+    /// Centre of the outline in the national planar frame (a lift drawn as a way).
+    centre: (f64, f64),
     levels: Vec<Level2>,
     flags: u16,
     private: bool,
@@ -646,7 +943,7 @@ fn morton(p: LatLon) -> u64 {
     spread(x) | (spread(y) << 1)
 }
 
-pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, mut stats: BuildStats) -> Built {
+pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, obstacles: Option<&Obstacles>, mut stats: BuildStats) -> Built {
     let nn = nodes.coords.len();
     let coords = &nodes.coords;
     let recs = &ways.recs;
@@ -734,7 +1031,7 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
         rings.extend(collect(&r.inners));
         areas.push(AreaDef { id: r.id, class: r.class, name: r.name.clone(), rings, way: NO_IDX, rel: ri as u32 });
     }
-    let pairs: Vec<Vec<(u32, u32)>> = areas.par_iter().map(|a| area_pairs(a, coords, &cnt)).collect();
+    let pairs: Vec<Vec<(u32, u32)>> = areas.par_iter().map(|a| area_pairs(a, coords, &cnt, obstacles)).collect();
     for ps in &pairs {
         for &(x, y) in ps {
             junction[x as usize] = true;
@@ -815,6 +1112,26 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
     // ------------------------------------------------ 5. levels of multi-level ways
     let adj = Csr::new(b.gpos.len(), &b.edges);
     b.orient_levels(&adj, &way_edges);
+    drop(adj);
+
+    // ------------------------------------------------ 5a. paths that end inside a platform or square
+    {
+        let outline: Vec<Vec<u32>> = areas
+            .iter()
+            .map(|a| {
+                let recs_of: Vec<u32> = if a.way != NO_IDX {
+                    vec![a.way]
+                } else {
+                    let r = &rels.areas[a.rel as usize];
+                    r.outers.iter().chain(r.inners.iter()).filter_map(|id| rec_of(*id).map(|i| i as u32)).collect()
+                };
+                recs_of.iter().flat_map(|&w| way_edges[w as usize].clone()).collect()
+            })
+            .collect();
+        let joined = join_inside(&mut b, &areas, &outline, &area_edges, coords, obstacles);
+        b.stats.inside_joins += joined;
+    }
+    let adj = Csr::new(b.gpos.len(), &b.edges);
 
     // crossings described on the node rather than on the way
     for e in b.edges.iter_mut() {
@@ -842,8 +1159,12 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             }
             b.stats.lift_ways += 1;
             on_lift_way.extend(ns.iter().copied());
+            let ring: Vec<(f32, f32)> = ways.refs_of(w).iter().map(|&r| coords[r as usize]).filter(|p| !p.is_none()).map(|p| p.xy()).collect();
+            let k = ring.len().max(1) as f64;
+            let centre = (ring.iter().map(|p| p.0 as f64).sum::<f64>() / k, ring.iter().map(|p| p.1 as f64).sum::<f64>() / k);
             lifts.push(LiftDef {
                 nodes: ns,
+                centre,
                 levels: if w.lift != NO_IDX { ways.lift_levels[w.lift as usize].clone() } else { Vec::new() },
                 flags: w.class.flags & (EF_WHEELCHAIR_NO | EF_WHEELCHAIR_YES),
                 private: w.class.roles & R_LIFT_PRIVATE != 0,
@@ -851,6 +1172,70 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
                 node_lift: false,
             });
         }
+    }
+    // A lift drawn as one outline per floor (Zürich HB): outlines on different floors standing on top of each
+    // other (centres within 2.5 m) are one lift, with a port on each floor.
+    {
+        let cs: Vec<(f64, f64)> = lifts.iter().map(|l| l.centre).collect();
+        let mut cell: FxHashMap<(i64, i64), Vec<usize>> = FxHashMap::default();
+        for (i, c) in cs.iter().enumerate() {
+            if !lifts[i].nodes.is_empty() {
+                cell.entry(((c.0 / 5.0).floor() as i64, (c.1 / 5.0).floor() as i64)).or_default().push(i);
+            }
+        }
+        let mut into: Vec<usize> = (0..lifts.len()).collect();
+        fn root(p: &mut [usize], mut x: usize) -> usize {
+            while p[x] != x {
+                p[x] = p[p[x]];
+                x = p[x];
+            }
+            x
+        }
+        for i in 0..lifts.len() {
+            let (cx, cy) = ((cs[i].0 / 5.0).floor() as i64, (cs[i].1 / 5.0).floor() as i64);
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    for &j in cell.get(&(cx + dx, cy + dy)).map(|v| v.as_slice()).unwrap_or(&[]) {
+                        if j <= i || lifts[i].levels == lifts[j].levels || lifts[i].levels.is_empty() || lifts[j].levels.is_empty() {
+                            continue;
+                        }
+                        if ((cs[i].0 - cs[j].0).powi(2) + (cs[i].1 - cs[j].1).powi(2)).sqrt() < 2.5 {
+                            let (a, c) = (root(&mut into, i), root(&mut into, j));
+                            if a != c {
+                                into[a.max(c)] = a.min(c);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut merged = 0;
+        for i in 0..lifts.len() {
+            let r = root(&mut into, i);
+            if r == i {
+                continue;
+            }
+            let other = std::mem::replace(&mut lifts[i], LiftDef { nodes: Vec::new(), centre: (0.0, 0.0), levels: Vec::new(), flags: 0, private: true, way_id: 0, node_lift: false });
+            let keep = &mut lifts[r];
+            for n in other.nodes {
+                if !keep.nodes.contains(&n) {
+                    keep.nodes.push(n);
+                }
+            }
+            for l in other.levels {
+                if !keep.levels.contains(&l) {
+                    keep.levels.push(l);
+                }
+            }
+            keep.flags |= other.flags;
+            if keep.flags & EF_WHEELCHAIR_NO != 0 && keep.flags & EF_WHEELCHAIR_YES != 0 {
+                keep.flags &= !EF_WHEELCHAIR_YES;
+            }
+            keep.private &= other.private;
+            merged += 1;
+        }
+        lifts.retain(|l| !l.nodes.is_empty());
+        b.stats.lifts_stacked += merged;
     }
     let mut lift_node_set: FxHashSet<u32> = on_lift_way.clone();
     for t in &nodes.tags {
@@ -873,7 +1258,7 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
         } else if t.class.extra & X_WC_YES != 0 {
             flags |= EF_WHEELCHAIR_YES;
         }
-        lifts.push(LiftDef { nodes: vec![n], levels: t.levels.clone(), flags, private: t.class.extra & X_LIFT_PRIVATE != 0, way_id: 0, node_lift: true });
+        lifts.push(LiftDef { nodes: vec![n], centre: (0.0, 0.0), levels: t.levels.clone(), flags, private: t.class.extra & X_LIFT_PRIVATE != 0, way_id: 0, node_lift: true });
     }
 
     // barriers nobody passes: every way ends at its own copy of the node
@@ -948,6 +1333,11 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             if distinct && missing.len() == by_layer.len() {
                 for (k, &i) in by_layer.iter().enumerate() {
                     ports[i].1 = missing[k];
+                }
+            } else if missing.len() == 1 {
+                // the lift serves one floor more than its ports name: that is where the others are
+                for &i in &none_ports {
+                    ports[i].1 = missing[0];
                 }
             }
         }
@@ -1316,7 +1706,7 @@ mod tests {
             ways.recs.push(WayRec { id: w.0, class, name, refs_off, refs_len: w.1.len() as u32, plat, rel: NO_IDX, lift, closed });
         }
         let nodes = Nodes { coords, tags, stops, n_nodes: node_ids.len() as u64 };
-        let built = build(&Relations::default(), &ways, &nodes, None, BuildStats::default());
+        let built = build(&Relations::default(), &ways, &nodes, None, None, BuildStats::default());
         let problems = stats::check(&built.graph, &built.extract);
         assert!(problems.is_empty(), "{problems:?}");
         built
@@ -1469,6 +1859,80 @@ mod tests {
         assert!((g.edges[lift].len_m() - 2.8).abs() < 0.2);
         assert_eq!(g.edge_way[lift], 12);
         assert_eq!(walk(g, (-200.0, 0.0), (202.0, 2.0), true).unwrap().lifts, 1);
+    }
+
+    #[test]
+    fn lift_drawn_once_per_floor_is_one_lift() {
+        // the same shaft drawn on level 0 (20..23) and on level 1 (30..33), each reached by its floor's corridor
+        let b = world(
+            &[
+                (1, -200.0, 0.0, &[]),
+                (2, 202.0, 2.0, &[]),
+                (20, 0.0, 0.0, &[]),
+                (21, 2.0, 0.0, &[]),
+                (22, 2.0, 2.0, &[]),
+                (23, 0.0, 2.0, &[]),
+                (30, 0.0, 0.1, &[]),
+                (31, 2.0, 0.1, &[]),
+                (32, 2.0, 2.1, &[]),
+                (33, 0.0, 2.1, &[]),
+            ],
+            &[
+                (10, &[1, 20], &[("highway", "footway"), ("level", "0")]),
+                (11, &[2, 32], &[("highway", "footway"), ("level", "1")]),
+                (12, &[20, 21, 22, 23, 20], &[("highway", "elevator"), ("level", "0")]),
+                (13, &[30, 31, 32, 33, 30], &[("highway", "elevator"), ("level", "1")]),
+            ],
+        );
+        let g = &b.graph;
+        assert_eq!(b.stats.lifts_stacked, 1);
+        let lift = g.edges.iter().position(|e| e.kind == EdgeKind::Lift).expect("a lift edge between the floors");
+        assert_eq!((g.edges[lift].level_a, g.edges[lift].level_b), (0, 2));
+        assert_eq!(walk(g, (-200.0, 0.0), (202.0, 2.0), true).unwrap().lifts, 1);
+    }
+
+    #[test]
+    fn stairs_up_into_a_platform_are_joined_to_it_not_the_passage_below() {
+        // a 200 m × 10 m platform; stairs come up inside it from a passage on level -1 that runs under it
+        const FOOT0: Kv = &[("highway", "footway"), ("level", "0")];
+        let b = world(
+            &[
+                (1, 0.0, 0.0, &[]),
+                (2, 200.0, 0.0, &[]),
+                (3, 200.0, 10.0, &[]),
+                (4, 0.0, 10.0, &[]),
+                (5, -100.0, 0.0, &[]),
+                (6, 100.0, 5.0, &[]),
+                (7, 110.0, 5.0, &[]),
+                (8, 110.0, 100.0, &[]),
+            ],
+            &[
+                (10, &[1, 2, 3, 4, 1], &[("railway", "platform"), ("area", "yes"), ("level", "0")]),
+                (11, &[5, 1], FOOT0),
+                (12, &[6, 7], &[("highway", "steps"), ("level", "-1;0")]),
+                (13, &[7, 8], &[("highway", "footway"), ("level", "-1"), ("tunnel", "yes")]),
+            ],
+        );
+        let g = &b.graph;
+        assert!(b.stats.inside_joins > 0);
+        let joined = |x: f64, y: f64| at(g, x, y).iter().any(|&n| g.incident(n).iter().any(|&e| g.edges[e as usize].flags & EF_AREA != 0 && g.edge_way[e as usize] == 10));
+        assert!(joined(100.0, 5.0), "the head of the stairs is on the platform");
+        assert!(!joined(110.0, 5.0), "the foot of the stairs is under it");
+        // from the platform's far end to the passage: down the stairs in the middle, not round anything
+        let r = walk(g, (200.0, 5.0), (110.0, 100.0), false).unwrap();
+        assert!(r.dist_m < 230.0, "{}", r.dist_m);
+    }
+
+    #[test]
+    fn a_long_island_platform_is_crossed_where_you_stand() {
+        // 300 m × 8 m, reached only at one corner: its two sides meet at the ends only
+        let b = world(
+            &[(1, 0.0, 0.0, &[]), (2, 300.0, 0.0, &[]), (3, 300.0, 8.0, &[]), (4, 0.0, 8.0, &[]), (5, -100.0, 0.0, &[])],
+            &[(10, &[1, 2, 3, 4, 1], &[("railway", "platform"), ("area", "yes")]), (11, &[5, 1], FOOT)],
+        );
+        let g = &b.graph;
+        let r = walk(g, (150.0, 0.0), (150.0, 8.0), false).unwrap();
+        assert!(r.dist_m < 25.0, "across, not round the end: {}", r.dist_m);
     }
 
     #[test]

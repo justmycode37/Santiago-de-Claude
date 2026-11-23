@@ -103,6 +103,9 @@ pub struct PlaceRef {
     pub lat: Option<f64>,
     pub lon: Option<f64>,
     pub name: Option<String>,
+    /// `/api/walk` only: a boarding point (quay id or SLOID). The walk then starts or ends on that
+    /// platform or bay, on its floor, as a change in a journey does; `lat`/`lon` are ignored.
+    pub quay: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -278,6 +281,45 @@ pub struct WalkLeg {
     pub geometry: Vec<[f64; 2]>,
     pub levels: Vec<Option<f32>>,
     pub steps: Vec<WalkStep>,
+    /// The door of the destination building the walk ends at (its last vertex).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub door: Option<WalkDoor>,
+    /// The door of the building the walk starts in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_door: Option<WalkDoor>,
+    /// Vertex ranges under a roof: arcades, passages through buildings, underpasses, indoors.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub covered: Vec<WalkCovered>,
+    /// Vertices `0 ..= approxStart` are a guess (a straight line across open ground, or out of a building
+    /// through no known door); likewise `approxEnd ..` at the end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approx_start: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approx_end: Option<u32>,
+    /// Step-free: the destination building has doors, but none is step-free.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub no_step_free_door: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WalkDoor {
+    pub lat: f64,
+    pub lon: f64,
+    /// OSM `entrance=*` (main, yes, shop, service, …), or `addr` for a point of the building address register.
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub addr: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wheelchair: Option<&'static str>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WalkCovered {
+    pub kind: &'static str,
+    pub from: u32,
+    pub to: u32,
 }
 
 #[derive(Serialize, Clone)]

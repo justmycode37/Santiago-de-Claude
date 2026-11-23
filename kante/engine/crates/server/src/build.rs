@@ -9,6 +9,7 @@
 //! | `osm`       | `raw/osm/switzerland-latest.osm.pbf`    | `walkgraph.bin`, `osm-extract.bin`  |
 //! | `links`     | the three files above                   | `links.bin`                         |
 //! | `search`    | `timetable.bin`, the PBF                | `search.bin`                        |
+//! | `doors`     | the PBF, `walkgraph.bin`, `osm-extract.bin`, `raw/register/adr.csv.zip` (optional) | `doors.bin` (again whenever `osm` runs) |
 
 use crate::Args;
 use anyhow::{bail, Context, Result};
@@ -54,6 +55,7 @@ pub fn run(args: &Args) -> Result<()> {
     let extract_path = built.join("osm-extract.bin");
     let links_path = built.join("links.bin");
     let search_path = built.join("search.bin");
+    let doors_path = built.join("doors.bin");
     let pbf = raw.join("osm/switzerland-latest.osm.pbf");
 
     if wanted("timetable", &[&tt_path]) {
@@ -69,9 +71,20 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("osm", &[&graph_path, &extract_path]) {
+    // buildings: obstacles for the straight lines across squares, and the doors
+    let mut buildings: Option<kante_osm::buildings::BuildingsRaw> = None;
+    let osm_wanted = wanted("osm", &[&graph_path, &extract_path]);
+    if osm_wanted || wanted("doors", &[&doors_path]) {
+        step("buildings", || {
+            let b = kante_osm::buildings::import_buildings(&pbf, bbox.as_ref())?;
+            eprintln!("   {} buildings, {} mapped entrances", b.len(), b.entrances.len());
+            buildings = Some(b);
+            Ok(())
+        })?;
+    }
+    if osm_wanted {
         step("osm", || {
-            let (graph, extract) = kante_osm::import(&kante_osm::OsmOptions { pbf: pbf.clone(), bbox })?;
+            let (graph, extract, _) = kante_osm::import_full(&kante_osm::OsmOptions { pbf: pbf.clone(), bbox }, buildings.as_ref())?;
             eprintln!("   {} nodes, {} edges, {} platforms", graph.nodes.len(), graph.edges.len(), extract.platforms.len());
             io::save(&graph_path, WALKGRAPH_SCHEMA, &graph)?;
             io::save(&extract_path, EXTRACT_SCHEMA, &extract)
@@ -96,6 +109,39 @@ pub fn run(args: &Args) -> Result<()> {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let idx = kante_search::build(&tt, pbf.exists().then_some(pbf.as_path()), None)?;
             io::save(&search_path, "search-v1", &idx)
+        })?;
+    }
+    // the doors refer to the walk graph's edges: built again whenever the graph is
+    if osm_wanted || wanted("doors", &[&doors_path]) {
+        step("doors", || {
+            let raw_b = buildings.take().expect("buildings read above");
+            // the official address register gives the buildings without a mapped door theirs; without it, OSM's doors only
+            let reg_path = raw.join("register/adr.csv.zip");
+            let register = if reg_path.exists() {
+                match kante_link::register::read(&reg_path, bbox.as_ref()) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("   warning: {e:#}; doors from OpenStreetMap only");
+                        Vec::new()
+                    }
+                }
+            } else {
+                eprintln!("   no {} (scripts/fetch-data.sh): doors from OpenStreetMap only", reg_path.display());
+                Vec::new()
+            };
+            let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
+            let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
+            let router = kante_walk::WalkRouter::new(Arc::new(graph));
+            let (doors, st) = kante_link::doors::build(&raw_b, &register, &router, &extract);
+            eprintln!(
+                "   {} addresses; {} doors from the register; {} doors on {} buildings ({} doors too far from any way)",
+                register.len(),
+                st.register_doors,
+                doors.doors.len(),
+                st.buildings_with_doors,
+                st.unattached
+            );
+            io::save(&doors_path, DOORS_SCHEMA, &doors)
         })?;
     }
     eprintln!("build complete: {}", built.display());

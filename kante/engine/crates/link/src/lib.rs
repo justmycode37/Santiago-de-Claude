@@ -90,6 +90,9 @@
 //! only stairs), carries two lift rides. These estimates are *not verified*
 //! step-free; the walk router finds no path for them.
 
+pub mod doors;
+pub mod register;
+
 use kante_core::geo::{self, project_on_segment, BBox, LatLon};
 use kante_core::*;
 use kante_walk::{SnapOptions, WalkRouter};

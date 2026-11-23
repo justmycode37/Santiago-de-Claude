@@ -23,6 +23,8 @@ build_release() { # build_release <commit> <release dir>
   ln -s "$ROOT/profiles" "$rel/data/profiles"
   # which timetable this release was built from (refresh-data.sh compares it with the one in force)
   cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
+  # an input added after the host was set up (the building address register): fetched once; the build works without it
+  [[ -s $ROOT/raw/register/adr.csv.zip ]] || KANTE_RAW=$ROOT/raw kante/scripts/fetch-data.sh --register || true
   "$rel/kante" build --data "$rel/data"
 }
 

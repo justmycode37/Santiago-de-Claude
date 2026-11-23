@@ -436,7 +436,7 @@ pub fn classify_way(t: &Tags, closed: bool, relation: bool) -> WayClass {
     c.layer = match t.layer.trim().parse::<i8>() {
         Ok(v) => v,
         Err(_) if set(t.bridge) => 1,
-        Err(_) if set(t.tunnel) && t.tunnel != "building_passage" => -1,
+        Err(_) if set(t.tunnel) && t.tunnel != "building_passage" && t.covered != "arcade" => -1,
         Err(_) => 0,
     };
 
@@ -537,7 +537,8 @@ pub fn classify_way(t: &Tags, closed: bool, relation: bool) -> WayClass {
         }
         c.kind = kind;
         c.flags |= extra;
-        if set(t.tunnel) {
+        // an arcade along a street is often tagged as a tunnel too; it is open to the street
+        if set(t.tunnel) && !(t.covered == "arcade" && t.tunnel != "building_passage") {
             c.flags |= EF_TUNNEL;
             if t.tunnel == "building_passage" {
                 c.flags |= EF_COVERED;

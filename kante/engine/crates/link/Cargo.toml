@@ -10,3 +10,5 @@ rayon.workspace = true
 rustc-hash.workspace = true
 kante-walk.workspace = true
 serde.workspace = true
+kante-osm.workspace = true
+zip.workspace = true

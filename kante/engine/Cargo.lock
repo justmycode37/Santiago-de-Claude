@@ -585,10 +585,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "kante-core",
+ "kante-osm",
  "kante-walk",
  "rayon",
  "rustc-hash",
  "serde",
+ "zip",
 ]
 
 [[package]]

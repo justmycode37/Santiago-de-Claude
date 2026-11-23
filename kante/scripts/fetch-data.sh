@@ -3,17 +3,22 @@
 # existing files are kept unless you pass --refresh.
 #
 #   scripts/fetch-data.sh [--refresh]
+#   scripts/fetch-data.sh --register   only the building address register, if it is not there yet
 #
 # Sources (all open, no key needed):
 #   - National GTFS timetable   opentransportdata.swiss (updated Mon + Thu; the
 #                               timetable year in force today, see timetable_year)
 #   - atlas boarding points      opentransportdata.swiss (daily)
 #   - OpenStreetMap Switzerland  download.geofabrik.de   (daily)
+#   - Building address register  data.geo.admin.ch (swisstopo, weekly; optional: the doors of
+#                                buildings OpenStreetMap maps without one)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 refresh=0
 [[ "${1:-}" == "--refresh" ]] && refresh=1
+only_register=0
+[[ "${1:-}" == "--register" ]] && only_register=1
 
 OTD=https://data.opentransportdata.swiss
 RAW=${KANTE_RAW:-data/raw}
@@ -40,6 +45,21 @@ fetch() { # fetch <url> <dest>
   fi
   mv "$dest.part" "$dest"
 }
+
+# The official building address register (~140 MB): an entrance point per building address. Optional: without it
+# the engine knows OpenStreetMap's doors only; a failed download keeps the file there is.
+REGISTER_URL=https://data.geo.admin.ch/ch.swisstopo.amtliches-gebaeudeadressverzeichnis/amtliches-gebaeudeadressverzeichnis_ch/amtliches-gebaeudeadressverzeichnis_ch_2056.csv.zip
+register() {
+  if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip; then
+    if [[ -s "$RAW"/register/adr.csv.zip ]]; then echo "keep  $RAW/register/adr.csv.zip (could not fetch a new one)"
+    else echo "warning: no building address register; the engine will have OpenStreetMap's doors only" >&2; fi
+  fi
+  return 0
+}
+if (( only_register )); then
+  register
+  exit 0
+fi
 
 # The timetable year in force on a date: a new one starts on the second Sunday of
 # December (13 Dec 2026, 12 Dec 2027). KANTE_GTFS_DATASET overrides the dataset.
@@ -95,6 +115,8 @@ if ! fetch "https://download.geofabrik.de/europe/switzerland-latest.osm.pbf" "$R
   [[ -s "$RAW"/osm/switzerland-latest.osm.pbf ]] || exit 1
   echo "keep  $RAW/osm/switzerland-latest.osm.pbf (could not fetch a new one)"
 fi
+
+register
 
 echo
 echo "Raw data ready in $RAW."

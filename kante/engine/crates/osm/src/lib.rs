@@ -214,6 +214,7 @@
 
 pub mod area;
 pub mod build;
+pub mod buildings;
 pub mod read;
 pub mod stats;
 mod stitch;
@@ -242,6 +243,13 @@ pub fn import(opts: &OsmOptions) -> Result<(WalkGraph, OsmExtract)> {
 
 /// Like [`import`], also returning counters and timings.
 pub fn import_with_stats(opts: &OsmOptions) -> Result<(WalkGraph, OsmExtract, BuildStats)> {
+    import_full(opts, None)
+}
+
+/// Like [`import_with_stats`]; straight lines across squares and platforms do not
+/// cross these buildings (see [`buildings::import_buildings`]).
+pub fn import_full(opts: &OsmOptions, buildings: Option<&buildings::BuildingsRaw>) -> Result<(WalkGraph, OsmExtract, BuildStats)> {
+    let obstacles = buildings.map(build::Obstacles::new);
     let mut stats = BuildStats::default();
     let t = Instant::now();
     let rels = read::read_relations(&opts.pbf)?;
@@ -262,7 +270,7 @@ pub fn import_with_stats(opts: &OsmOptions) -> Result<(WalkGraph, OsmExtract, Bu
     // the id table was only needed to resolve way → node references
     let mut ways = ways;
     ways.node_ids = Vec::new();
-    let mut built = build::build(&rels, &ways, &nodes, opts.bbox.as_ref(), stats);
+    let mut built = build::build(&rels, &ways, &nodes, opts.bbox.as_ref(), obstacles.as_ref(), stats);
     built.stats.secs_build = t.elapsed().as_secs_f32();
     rss("build");
     Ok((built.graph, built.extract, built.stats))

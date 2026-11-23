@@ -1315,3 +1315,38 @@ fn step_free_snap_skips_stair_landings() {
     // A small piece nothing else is attached to is not a crumb.
     assert_eq!(r.snap(pt(15.0, 301.0), &SnapOptions { profile: Some(STEP_FREE), ..o }).unwrap().edge, alone);
 }
+
+#[test]
+fn many_to_many_takes_the_best_source() {
+    // Several doors of a building: the metres already walked to a source are counted, a route-choice
+    // penalty steers the choice without being counted.
+    let r = random_city(7, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(99);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for _ in 0..8 {
+        let (a, b) = (pick(&mut rng), pick(&mut rng));
+        let targets: Vec<Snap> = (0..30).map(|_| pick(&mut rng)).collect();
+        let one = r.one_to_many(&a, &targets, &NORMAL, 3600.0);
+        // one source, 12 m before it: the same walks, 12 m longer
+        let shifted = r.many_to_many(&[(a, 12.0, 0.0)], &targets, &NORMAL, 3600.0);
+        // the other source made useless by a penalty: the same walks as from the first alone
+        let steered = r.many_to_many(&[(b, 0.0, 100_000.0), (a, 0.0, 0.0)], &targets, &NORMAL, 3600.0);
+        for k in 0..targets.len() {
+            match (one[k], shifted[k], steered[k]) {
+                (Some(o), Some(s), Some(t)) => {
+                    assert!(close(s.var_m, o.var_m + 12.0, 0.05) && close(s.fix_s, o.fix_s, 0.05), "{s:?} vs {o:?}");
+                    assert!(close(t.var_m, o.var_m, 0.05) && close(t.fix_s, o.fix_s, 0.05), "{t:?} vs {o:?}");
+                    checked += 1;
+                }
+                (None, _, None) => {}
+                x => panic!("{x:?}"),
+            }
+        }
+    }
+    assert!(checked > 100, "{checked}");
+}

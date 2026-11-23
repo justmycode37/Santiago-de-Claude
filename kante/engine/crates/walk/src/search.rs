@@ -158,6 +158,11 @@ fn relax(s: &mut [u32; 8], gen: u32, nd: f32, var: f32, fix: f32, parc: u32, pno
 
 /// Seeds the two ends of the source edge. Returns false if the snap is invalid.
 fn seed(g: &WalkGraph, net: &Net, s: &mut Scratch, from: &Snap, h: impl Fn(u32) -> f32) -> bool {
+    seed_with(g, net, s, from, h, 0.0, 0.0)
+}
+
+/// [`seed`] for a source reached at a cost already: `gen0` generalised seconds, `var0` metres.
+fn seed_with(g: &WalkGraph, net: &Net, s: &mut Scratch, from: &Snap, h: impl Fn(u32) -> f32, gen0: f32, var0: f32) -> bool {
     if from.edge as usize >= g.edges.len() {
         return false;
     }
@@ -176,6 +181,7 @@ fn seed(g: &WalkGraph, net: &Net, s: &mut Scratch, from: &Snap, h: impl Fn(u32) 
         if !gc.is_finite() {
             continue;
         }
+        let (gc, var) = (gc + gen0, var + var0);
         if relax(&mut s.st[node as usize], gen, gc, var, fix, NO_NODE, mark) {
             s.heap.push(gc + h(node), node);
         }
@@ -184,18 +190,29 @@ fn seed(g: &WalkGraph, net: &Net, s: &mut Scratch, from: &Snap, h: impl Fn(u32) 
 }
 
 pub(crate) fn one_to_many(g: &WalkGraph, net: &Net, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
+    many_to_many(g, net, &[(*from, 0.0, 0.0)], targets, profile, max_time_s)
+}
+
+/// [`one_to_many`] from whichever of several sources is best: each comes with
+/// metres already walked to it (`var_m`, counted in the result) and a penalty
+/// in generalised seconds for route choice only.
+pub(crate) fn many_to_many(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
     let mut out: Vec<Option<WalkCost>> = vec![None; targets.len()];
-    if targets.is_empty() || !(max_time_s >= 0.0) {
+    if targets.is_empty() || froms.is_empty() || !(max_time_s >= 0.0) {
         return out;
     }
     SCRATCH.with(|cell| {
         let s = &mut *cell.borrow_mut();
         s.begin(net.n as usize, profile);
-        if !seed(g, net, s, from, |_| 0.0) {
+        let speed = profile.speed_mps.max(0.05);
+        let mut any = false;
+        for (f, var0, pen) in froms {
+            any |= seed_with(g, net, s, f, |_| 0.0, var0 / speed + pen, *var0);
+        }
+        if !any {
             return;
         }
         let gen = s.gen;
-        let speed = profile.speed_mps.max(0.05);
         let bound = max_time_s * bound_slack(profile);
 
         // Mark the nodes from which a target can be finished.
@@ -260,8 +277,6 @@ pub(crate) fn one_to_many(g: &WalkGraph, net: &Net, from: &Snap, targets: &[Snap
         }
 
         // Finish each target inside its edge.
-        let fs = from.frac.clamp(0.0, 1.0);
-        let src = net.edge_arcs(g, from.edge);
         for (i, (tg, te)) in targets.iter().zip(&tends).enumerate() {
             if te.ia == NO_NODE {
                 continue;
@@ -286,12 +301,15 @@ pub(crate) fn one_to_many(g: &WalkGraph, net: &Net, from: &Snap, targets: &[Snap
                     best = (d + gc, f32::from_bits(sn[S_VAR]) + var, f32::from_bits(sn[S_FIX]) + fix);
                 }
             }
-            if tg.edge == from.edge {
+            for (from, var0, pen) in froms.iter().filter(|f| f.0.edge == tg.edge) {
+                let fs = from.frac.clamp(0.0, 1.0);
+                let src = net.edge_arcs(g, from.edge);
                 let (arc, scale) = if ft >= fs { (src.fwd, ft - fs) } else { (src.back, fs - ft) };
                 if arc != NO_NODE {
                     let (gc, var, fix) = t.arc(&net.arcs[arc as usize], scale);
+                    let gc = gc + var0 / speed + pen;
                     if gc < best.0 {
-                        best = (gc, var, fix);
+                        best = (gc, var + var0, fix);
                     }
                 }
             }

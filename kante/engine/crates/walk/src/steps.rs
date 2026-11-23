@@ -513,6 +513,9 @@ pub(crate) fn build(g: &WalkGraph, geom: &[LatLon], levels: &[Level2], pieces: &
                     name = g.names[ni as usize].clone();
                 }
                 let tunnel = cx.mostly(gr, |p| p.flags & EF_TUNNEL != 0);
+                // under the arcades along a street (covered, not through a building)
+                let arcade = !tunnel && cx.mostly(gr, |p| p.flags & EF_COVERED != 0 && p.flags & (EF_TUNNEL | EF_INDOOR) == 0 && p.kind != EdgeKind::Corridor);
+                let passage = tunnel && cx.mostly(gr, |p| p.flags & EF_COVERED != 0);
                 let bridge = cx.mostly(gr, |p| p.flags & EF_BRIDGE != 0);
                 // Any stretch over open ground makes it a square to cross, not a street to follow.
                 let area = ps.iter().any(|p| p.flags & EF_AREA != 0 && p.dist >= FOLD_M);
@@ -523,14 +526,20 @@ pub(crate) fn build(g: &WalkGraph, geom: &[LatLon], levels: &[Level2], pieces: &
                         "through"
                     } else if area {
                         "across"
+                    } else if arcade {
+                        "under the arcades along"
                     } else {
                         "along"
                     };
                     format!(" {prep} {name}")
                 } else if indoor && !tunnel {
                     String::new()
+                } else if passage {
+                    " through the passage".to_string()
                 } else if tunnel {
                     if road { " through the tunnel" } else { " through the underpass" }.to_string()
+                } else if arcade && !area {
+                    " under the arcades".to_string()
                 } else if bridge {
                     if road { " across the bridge" } else { " across the footbridge" }.to_string()
                 } else if area {
