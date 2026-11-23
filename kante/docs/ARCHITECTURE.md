@@ -93,7 +93,22 @@ with samples under `…/data/`. Treat every downloaded file as untrusted data.
 - `LinkData`: per-Stop `StopLink` (snap onto the graph, level, side of road)
   and `Footpaths` for the normal and the step-free profile.
 - `LiveView` / `TripLive`: per-trip delays, cancellations, changed boarding
-  points for one service date.
+  points for one service date. `LiveView::delay_bounds` (a `DelayIndex`,
+  built by `LiveSnapshotBuilder::build_indexed`) bounds the delays per date,
+  pattern and stop: the router looks back for late trips only as far as the
+  trips of that pattern or stop need, and plans without live data where a
+  query's dates have none. `LiveView::for_each_trip` lists the live trips and
+  `LiveView::derived` / `Footpaths::derived` hold what the router derives from
+  a snapshot or a footpath set, once per snapshot or set.
+- **Target pruning** (`raptor::lower_bounds`): a label at stop `s` at time `t`
+  is dropped once `t + lb(s)` reaches the best arrival found with that many
+  rides. `lb` is the distance to the destination in a minimum-travel-time
+  graph over stations (fastest scheduled hop per pattern, in-seat
+  continuations, footpaths at the query's speed, live hops that are faster
+  than scheduled), found by a lazy, budgeted backward Dijkstra per query. It
+  never over-estimates, except across a step back in time (a late trip
+  continuing in-seat as one the feed has no delay for): a journey that relies
+  on one may be pruned.
 
 ## Crate APIs
 
@@ -130,6 +145,8 @@ impl Router {
     pub fn find_trip(&self, gtfs_trip_id: &str) -> Option<TripIdx>;
     /// Trips carrying this Swiss journey id (several GTFS variants can share one).
     pub fn find_sjyid(&self, sjyid: &str) -> &[TripIdx];
+    /// Target pruning with per-stop lower bounds, on by default (for tests and measuring).
+    pub fn set_target_bounds(&self, on: bool);
 }
 
 pub struct Query<'a> {

@@ -186,6 +186,9 @@ pub fn footpaths(n_stops: usize, list: &[(StopIdx, StopIdx, u16, u16)]) -> Footp
 #[derive(Default)]
 pub struct TestLive {
     pub map: FxHashMap<(Date, TripIdx), TripLive>,
+    /// Per-pattern / per-stop delay bounds, once [`TestLive::index`] was called;
+    /// without them the `LiveView` defaults apply (global `max_delay`).
+    pub bounds: Option<DelayIndex>,
 }
 
 impl TestLive {
@@ -199,6 +202,11 @@ impl TestLive {
     }
     pub fn cancel(&mut self, date: Date, trip: TripIdx) -> &mut Self {
         self.map.entry((date, trip)).or_default().cancelled = true;
+        self
+    }
+    /// Compute per-date, per-pattern and per-stop delay bounds (call after the last change).
+    pub fn index(&mut self, tt: &Timetable) -> &mut Self {
+        self.bounds = Some(DelayIndex::build(Some(tt), self.map.iter().map(|(&(d, t), l)| (d, t, l))));
         self
     }
     pub fn skip(&mut self, date: Date, trip: TripIdx, n_stops: usize, pos: usize) -> &mut Self {
@@ -221,5 +229,24 @@ impl LiveView for TestLive {
             f(d, t, l);
         }
         true
+    }
+    fn delay_bounds(&self, date: Date) -> DelayBounds<'_> {
+        match &self.bounds {
+            Some(b) => b.get(date),
+            None => DelayBounds { max: self.max_delay(), pattern: &[], stop: &[] },
+        }
+    }
+}
+
+/// Only the required `LiveView` methods: the router looks back by the global
+/// `max_delay` on every pattern and stop, as it did before per-pattern bounds.
+pub struct GlobalOnly<'a>(pub &'a TestLive);
+
+impl LiveView for GlobalOnly<'_> {
+    fn trip(&self, date: Date, trip: TripIdx) -> Option<&TripLive> {
+        self.0.trip(date, trip)
+    }
+    fn max_delay(&self) -> Secs {
+        self.0.max_delay()
     }
 }

@@ -6,7 +6,7 @@
 use crate::matcher::{MatchMethod, MatchedTrip, Matcher, REPORTED_ARR, REPORTED_DEP, REPORTED_SKIP};
 use crate::model::{FeedMeta, RtJourney};
 use kante_core::time::{Date, Secs};
-use kante_core::{DerivedSlot, ExtraTrip, LiveView, Timetable, TripIdx, TripLive, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
+use kante_core::{DelayBounds, DelayIndex, DerivedSlot, ExtraTrip, LiveView, Timetable, TripIdx, TripLive, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
@@ -50,6 +50,8 @@ pub struct LiveSnapshot {
     /// Trips running at least [`LATE_THRESHOLD`] late, latest first.
     late: Vec<(Date, TripIdx, Secs)>,
     common_max_delay: Secs,
+    /// Delay bounds per date, pattern and stop for the router.
+    bounds: DelayIndex,
     /// Journeys that are not in the timetable, and their index by id.
     extras: Vec<ExtraTrip>,
     extra_ids: HashMap<String, usize>,
@@ -105,6 +107,9 @@ impl LiveView for LiveSnapshot {
     #[inline]
     fn max_delay(&self) -> Secs {
         self.max_delay
+    }
+    fn delay_bounds(&self, date: Date) -> DelayBounds<'_> {
+        self.bounds.get(date)
     }
     fn extras(&self) -> &[ExtraTrip] {
         &self.extras
@@ -275,7 +280,19 @@ impl LiveSnapshotBuilder {
         self.snap.trips.is_empty()
     }
 
-    pub fn build(mut self) -> LiveSnapshot {
+    /// The snapshot, with delay bounds per date only: the router looks back
+    /// by the date's largest delay on every pattern. See [`Self::build_indexed`].
+    pub fn build(self) -> LiveSnapshot {
+        self.finish(None)
+    }
+
+    /// The snapshot, with delay bounds per date, pattern and stop of `tt`, so
+    /// that the router looks back far only where late trips run.
+    pub fn build_indexed(self, tt: &Timetable) -> LiveSnapshot {
+        self.finish(Some(tt))
+    }
+
+    fn finish(mut self, tt: Option<&Timetable>) -> LiveSnapshot {
         // Only delays a traveller can still meet: trips that run, at stops they serve.
         let (mut max, mut common) = (0, 0);
         let mut late = Vec::new();
@@ -300,6 +317,7 @@ impl LiveSnapshotBuilder {
         self.snap.max_delay = max;
         self.snap.common_max_delay = common;
         self.snap.late = late;
+        self.snap.bounds = DelayIndex::build(tt, self.snap.trips.iter().map(|(&(d, t), l)| (d, t, l)));
         self.snap
     }
 }
@@ -387,7 +405,7 @@ impl LiveSnapshotBuilder {
 mod tests {
     use super::*;
     use crate::matcher::testkit::*;
-    use kante_core::NONE;
+    use kante_core::{PatternIdx, StopIdx, NONE};
 
     const SIRI: &str = r#"<Siri><ServiceDelivery><ResponseTimestamp>2026-11-20T21:55:05Z</ResponseTimestamp>
 <EstimatedTimetableDelivery><EstimatedJourneyVersionFrame>
@@ -652,5 +670,53 @@ mod tests {
         let empty = LiveSnapshotBuilder::new().build();
         assert!(empty.is_empty() && empty.max_delay() == 0 && empty.timestamp() == 0);
         assert!(empty.trip(fri, 0).is_none());
+    }
+
+    #[test]
+    fn delay_bounds_per_pattern_and_stop() {
+        let (tt, ids) = bern();
+        let fri = day("2026-11-20");
+        let mk = |trip: TripIdx, delay: i32, cancelled: bool| {
+            let n = tt.pattern_stops(tt.trips[trip as usize].pattern).len();
+            MatchedTrip {
+                date: fri,
+                trip,
+                live: TripLive { arr_delay: vec![delay; n], dep_delay: vec![delay; n], cancelled, observed_pos: -1, ..Default::default() },
+                platform_changes: Vec::new(),
+                method: MatchMethod::JourneyId,
+                calls: 3,
+                aligned: 3,
+                on_schedule: 3,
+                implausible: 0,
+                own_timestamp: true,
+                first_reported: 0,
+                reported: vec![REPORTED_ARR | REPORTED_DEP; n],
+            }
+        };
+        let fill = || {
+            let mut b = LiveSnapshotBuilder::new();
+            b.push(mk(ids.ic, 9000, false));
+            b.push(mk(ids.bus, -30, false));
+            b.push(mk(ids.night, 1200, true));
+            b
+        };
+        let snap = fill().build_indexed(&tt);
+        let b = snap.delay_bounds(fri);
+        assert!(b.any() && b.max == 9000);
+        let delays = [(ids.ic, 9000), (ids.bus, 0), (ids.night, 1200)];
+        for p in 0..tt.patterns.len() as PatternIdx {
+            let want = delays.iter().filter(|d| tt.trips[d.0 as usize].pattern == p).map(|d| d.1).max();
+            assert_eq!(b.pattern(p), want, "pattern {p}");
+        }
+        for s in 0..tt.stops.len() as StopIdx {
+            let want = delays.iter().filter(|d| tt.pattern_stops(tt.trips[d.0 as usize].pattern).contains(&s)).map(|d| d.1).max();
+            assert_eq!(b.stop(s), want, "stop {s}");
+        }
+        assert!(!snap.delay_bounds(fri + 1).any(), "nothing live the next day");
+        // Without the timetable: the date's maximum everywhere.
+        let snap = fill().build();
+        assert_eq!(snap.delay_bounds(fri).pattern(0), Some(9000));
+        assert_eq!(snap.delay_bounds(fri).stop(0), Some(9000));
+        assert!(!snap.delay_bounds(fri - 1).any());
     }
 }

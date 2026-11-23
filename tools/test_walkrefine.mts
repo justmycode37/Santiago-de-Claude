@@ -20,8 +20,8 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 
 // ---- the app as these tests stand in for it: only what the routing code and the engine's journeys read and write ----
 interface Deferred<T> { p: Promise<T>; res: (answer: T) => void }
-/** A stop of a ride: its platform (and the one forecast), or its time. */
-interface FakeStop { platform?: string; station?: { id: number }; prognosis?: { platform: string }; departure?: string; arrival?: string }
+/** A stop of a ride, as the engine's call: its boarding point (by its name), or its times (unix seconds). */
+interface FakeStop { quay?: { label: string } | FakeQuay; dep?: number; arr?: number }
 /** Where a ride is boarded or left, as the engine has it (requay()). */
 interface FakeQuay { lon: number; lat: number; precision: string; label: string; level: number }
 interface FakePlatformAt { ll: LngLat; edge: { ref: string; bearing: null; level: number; ll: LngLat; side: string }; travel: null }
@@ -33,9 +33,9 @@ interface FakeStep {
   points?: LngLat[];
   ends?: [WalkEnd, WalkEnd][];
   walks?: { to?: string }[];
-  prev?: { arrival: FakeStop };
-  next?: { departure: FakeStop };
-  from?: { arrival: FakeStop } | null;
+  prev?: { to: FakeStop };
+  next?: { from: FakeStop };
+  from?: { to: FakeStop } | null;
   kanteWalk?: boolean;
   final?: boolean;
   toLL?: LngLat;
@@ -44,8 +44,8 @@ interface FakeStep {
   min?: number;
   walkMin?: number;
   walkS?: number;
-  // a ride of an engine journey
-  s?: { departure: { kante: { quay: FakeQuay } }; arrival: { kante: { quay: FakeQuay } } };
+  // a ride: its stops (the engine's calls) and its trips
+  s?: { stops: { quay: FakeQuay }[]; legs: object[] };
   depLL?: LngLat;
   arrLL?: LngLat;
   depAt?: FakePlatformAt;
@@ -53,10 +53,11 @@ interface FakeStep {
   stops?: LngLat[];
   path?: LngLat[];
   // the arrival
-  time?: string;
+  time?: number;
 }
-interface FakeSection { walk?: { duration: number }; journey?: object; departure?: object; arrival?: object; kante?: { durationS: number }; _netWalkS?: number }
-interface FakeConn { from: { departure: string }; to: { arrival: string }; sections: FakeSection[]; _netMetres?: number }
+/** A part of a journey: a ride, or the engine's walk. */
+interface FakePart { type: string; durationS?: number; dep?: number; arr?: number }
+interface FakeConn { t0: number; t1: number; parts: FakePart[]; transfers?: number; walkM?: number; accessS?: number; _netMetres?: number }
 /** What routeWalk() answers, what stationWalk() does, and the engine's walk (KANTE.walk()). */
 interface FakeRouted { net?: boolean; coords?: LngLat[]; dist: number }
 interface FakeStationWalk { lines: LngLat[][]; walks: { to?: string }[]; floors: KanteFloorChange[] | null }
@@ -101,7 +102,7 @@ type AppContext = AppPage & AppRouting;
 interface EngineWindow {
   KANTE: { available(): boolean; walk(): Promise<FakeEngineWalk> } | undefined;
   SETTINGS: { prefs(): object; transportations?(): string[] };
-  KanteJourney?: { requay(steps: FakeStep[], changed: () => void): void };
+  KanteJourney?: { requay(steps: object[], changed: () => void): void };
 }
 /** The page the router's script runs in: the globals handed to it, and the WALKROUTE it leaves there. */
 interface RouterPage { [name: string]: unknown; globalThis?: RouterPage; WALKROUTE?: WalkRouteApi }
@@ -114,9 +115,9 @@ function app() {
     prefs: { walkKmh: 3.6, maxWalkMin: 20 }, tripStart: null, window: { WALKROUTE: {} }, sheets: 0, timed: 0, pending: [], station: [], plan: null, console, Date, Math, JSON, Map, Promise };
   Object.assign(c, {
     requestAnimationFrame: (f: () => void) => f(), updateProgress() {}, queueSheet(t?: boolean) { c.sheets++; if (t) c.timed++; },
-    platformOf: (s: FakeStop) => (s.prognosis && s.prognosis.platform) || s.platform || '–', s3Plan: () => c.plan,
-    SETTINGS: { prefs: () => c.prefs }, connStart: (x: FakeConn) => Date.parse(x.from.departure), connEnd: (x: FakeConn) => Date.parse(x.to.arrival),
-    fmtDist: (m: number) => `${Math.round(m)} m`, liveMs: (stop: FakeStop, which: 'arrival' | 'departure') => Date.parse(stop[which]!),
+    platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', s3Plan: () => c.plan,
+    SETTINGS: { prefs: () => c.prefs }, connStart: (x: FakeConn) => x.t0, connEnd: (x: FakeConn) => x.t1,
+    fmtDist: (m: number) => `${Math.round(m)} m`, liveMs: (stop: FakeStop, which: 'arr' | 'dep') => stop[which]! * 1000,
   });
   vm.createContext(c);
   vm.runInContext(ROUTING, c);
@@ -138,11 +139,12 @@ function engine() {
 }
 const A: LngLat = [7.43, 46.94], B: LngLat = [7.44, 46.95], C: LngLat = [7.45, 46.96];
 const net = (cs: LngLat[]) => ({ net: true, coords: cs, dist: 100 });
-const stop = (platform: string): FakeStop => ({ platform, station: { id: 8507000 } });
+const stop = (platform: string): FakeStop => ({ quay: { label: platform } });
+const at = (iso: string) => Date.parse(iso) / 1000; // unix seconds, as the engine gives times
 
 console.log('1. a walk cancelled while its route is on the way stays cancelled');
 {
-  const c = app(), st = { type: 'change', lines: [[A, B]], prev: { arrival: stop('1') }, next: { departure: stop('2') } };
+  const c = app(), st = { type: 'change', lines: [[A, B]], prev: { to: stop('1') }, next: { from: stop('2') } };
   c.journeySteps.push(st);
   c.refineWalks(1);
   st.lines = []; // requay(): both rides at the same point now
@@ -153,7 +155,7 @@ console.log('1. a walk cancelled while its route is on the way stays cancelled')
 
 console.log('2. a walk through a modelled station, moved while the model loads');
 {
-  const c = app(), st = { type: 'change', lines: [[A, B]], prev: { arrival: stop('1') }, next: { departure: stop('2') } };
+  const c = app(), st = { type: 'change', lines: [[A, B]], prev: { to: stop('1') }, next: { from: stop('2') } };
   c.plan = { key: 'bern' };
   c.journeySteps.push(st);
   c.refineWalks(1);
@@ -169,11 +171,11 @@ console.log('2. a walk through a modelled station, moved while the model loads')
 
 console.log('3. a platform change at the same point (only its name changes)');
 {
-  const c = app(), st: FakeStep = { type: 'walk', lines: [[A, B]], next: { departure: stop('1') }, from: null };
+  const c = app(), st: FakeStep = { type: 'walk', lines: [[A, B]], next: { from: stop('1') }, from: null };
   c.plan = { key: 'bern' };
   c.journeySteps.push(st);
   c.refineWalks(1);
-  st.next!.departure.prognosis = { platform: '2' }; // Gleis 1 → Gleis 2, the same coordinates
+  st.next!.from.quay = { label: '2' }; // Gleis 1 → Gleis 2, the same coordinates
   c.refineWalks(1, true);
   check(c.station.length === 2, 'the walk is routed again to the new platform');
   c.station[1].res({ lines: [[A, [7.44, 46.951], B]], walks: [{ to: '2' }], floors: null }); await settle();
@@ -181,7 +183,7 @@ console.log('3. a platform change at the same point (only its name changes)');
   check(st.walks![0].to === '2', "the first answer (to Gleis 1) arrives late and is dropped");
   c.refineWalks(1, true);
   check(c.station.length === 2, 'and it is not routed again while nothing changes');
-  st.next!.departure.prognosis = { platform: '3' }; // changed again, after its route was drawn
+  st.next!.from.quay = { label: '3' }; // changed again, after its route was drawn
   c.refineWalks(1, true);
   check(c.station.length === 3, 'a routed walk is routed again when only the platform changes');
 }
@@ -192,15 +194,15 @@ console.log('3. a platform change at the same point (only its name changes)');
   vm.createContext(c);
   vm.runInContext(ENGINE, c);
   const quay = (label: string) => ({ lon: B[0], lat: B[1], precision: 'edge', label, level: 0 });
-  const dep = { kante: { quay: quay('1') } }, arr = { kante: { quay: { lon: C[0], lat: C[1], precision: 'edge', label: '5', level: 0 } } };
+  const dep = { quay: quay('1') }, arr = { quay: { lon: C[0], lat: C[1], precision: 'edge', label: '5', level: 0 } };
   const edge = (ref: string, ll: LngLat) => ({ ll, edge: { ref, bearing: null, level: 0, ll, side: '' }, travel: null });
   const walk = { type: 'walk', lines: [[A, B]] };
-  const ride = { type: 'ride', s: { departure: dep, arrival: arr }, depLL: B, arrLL: C, depAt: edge('1', B), arrAt: edge('5', C), stops: [B, C], path: [B, C] };
+  const ride = { type: 'ride', s: { stops: [dep, arr], legs: [{}] }, depLL: B, arrLL: C, depAt: edge('1', B), arrAt: edge('5', C), stops: [B, C], path: [B, C] };
   const steps = [walk, ride, { type: 'arrive' }];
   let changed = 0;
   w.KanteJourney!.requay(steps, () => changed++);
   check(changed === 0, 'requay(): nothing changed, nothing to do');
-  dep.kante.quay = quay('2');
+  dep.quay = quay('2');
   w.KanteJourney!.requay(steps, () => changed++);
   check(changed === 1 && ride.depAt.edge.ref === '2', 'requay(): another platform at the same point counts as a change (its edge is updated)');
   check(walk.lines[0][1] === B, 'requay(): the walk itself is left as it is (routed again by refineWalks())');
@@ -208,7 +210,7 @@ console.log('3. a platform change at the same point (only its name changes)');
 
 console.log('4. the engine answers after the network: the network route comes back');
 {
-  const c = app(), st = { type: 'walk', lines: [[A, B]], kanteWalk: false, next: { departure: stop('1') } };
+  const c = app(), st = { type: 'walk', lines: [[A, B]], kanteWalk: false, next: { from: stop('1') } };
   c.journeySteps.push(st, { type: 'ride' });
   c.refineWalks(1, true);
   c.pending[0].d.res(net([A, [7.435, 46.945], B])); await settle();
@@ -221,7 +223,7 @@ console.log('4. the engine answers after the network: the network route comes ba
 
 console.log('5. the walk to the destination is routed to the place, not to the door it found');
 {
-  const c = app(), st = { type: 'walk', final: true, lines: [[A, B]], toLL: B, from: { arrival: stop('3') } };
+  const c = app(), st = { type: 'walk', final: true, lines: [[A, B]], toLL: B, from: { to: stop('3') } };
   c.journeySteps.push(st, { type: 'ride' });
   c.refineWalks(1);
   c.pending[0].d.res(net([A, [7.435, 46.945], [7.4399, 46.9499]])); await settle(); // ends at the door
@@ -233,13 +235,13 @@ console.log('5. the walk to the destination is routed to the place, not to the d
 console.log('6. walking all the way, opened again: the network times though the distance is known');
 {
   const c = app();
-  const conn = { from: { departure: '2026-11-21T12:00:00Z' }, to: { arrival: '2026-11-21T12:10:00Z' },
-    sections: [{ walk: { duration: 600 }, departure: {}, arrival: {}, kante: { durationS: 900 } }] };
+  const conn = { t0: Date.parse('2026-11-21T12:00:00Z'), t1: Date.parse('2026-11-21T12:10:00Z'),
+    parts: [{ type: 'walk', durationS: 900, dep: at('2026-11-21T12:00:00Z'), arr: at('2026-11-21T12:15:00Z') }] };
   c.journeyConn = conn;
   c.retimeWalkConn(conn, 600); // 600 m at 3.6 km/h: 10 min
-  check(conn.sections[0].kante.durationS === 600, "the engine's walk time follows (decorate() reads it)");
-  const t0 = Date.parse('2026-11-21T12:00:00Z'), walk = { type: 'walk', t0, t1: t0 + 900000 }; // decorate(): the engine's 15 min
-  c.journeySteps = [walk, { type: 'arrive', time: '2026-11-21T12:15:00Z' }];
+  check(conn.parts[0].durationS === 600, "the engine's walk time follows (buildSteps() reads it)");
+  const t0 = Date.parse('2026-11-21T12:00:00Z'), walk = { type: 'walk', t0, t1: t0 + 900000 }; // setWalk(): the engine's 15 min
+  c.journeySteps = [walk, { type: 'arrive', time: Date.parse('2026-11-21T12:15:00Z') }];
   c.timed = 0;
   c.retimeWalkConn(conn, 600);
   check(walk.t1 === t0 + 600000, "the walk ends at 12:10, not the engine's 12:15");
@@ -251,19 +253,19 @@ console.log('7. requay(): a change left without a walk, and the engine walk answ
   const { J, walks } = engine();
   const quay = (ll: LngLat, label: string) => ({ lon: ll[0], lat: ll[1], precision: 'edge', label, level: 0 });
   const edge = (ref: string, ll: LngLat) => ({ ll, edge: { ref, bearing: null, level: 0, ll, side: '' }, travel: null });
-  const ride = (dep: string, arr: string, d: LngLat, a: LngLat) => ({ type: 'ride', s: { departure: { kante: { quay: quay(d, dep) } }, arrival: { kante: { quay: quay(a, arr) } } },
+  const ride = (dep: string, arr: string, d: LngLat, a: LngLat) => ({ type: 'ride', s: { stops: [{ quay: quay(d, dep) }, { quay: quay(a, arr) }], legs: [{}] },
     depLL: d, arrLL: a, depAt: edge(dep, d), arrAt: edge(arr, a), stops: [d, a], path: [d, a] });
   // both rides now at the same point: the change has no walk left, and no walk time either
   const r1 = ride('1', '5', A, B), r2 = ride('6', '7', C, [7.47, 46.97]);
   const change = { type: 'change', lines: [[B, C]], points: [B, C], walkMin: 5, walkS: 300 };
-  r2.s.departure.kante.quay = quay(B, '6');
+  r2.s.stops[0].quay = quay(B, '6');
   J.requay([r1, change, r2, { type: 'arrive' }], () => {});
   check(change.lines.length === 0 && change.walkMin === 0 && change.walkS === 0, 'a change without a walk has no walk time (its spare time is the whole wait)');
   // moved: the station model's way is in before the engine's walk answers; the engine's time still counts
   const r3 = ride('1', '5', A, B), r4 = ride('6', '7', C, [7.47, 46.97]);
   const ch = { type: 'change', lines: [[B, C]], points: [B, C], walkMin: 5, walkS: 300 };
   const D: LngLat = [7.46, 46.965];
-  r4.s.departure.kante.quay = quay(D, '8');
+  r4.s.stops[0].quay = quay(D, '8');
   let changed = 0;
   J.requay([r3, ch, r4, { type: 'arrive' }], () => changed++);
   const model: LngLat[][] = [[B, [7.455, 46.962], [7.4601, 46.9651]]]; // the model ends at another point on the right platform
@@ -271,6 +273,11 @@ console.log('7. requay(): a change left without a walk, and the engine walk answ
   walks[0].res({ durationS: 90, geometry: [B, D], approximate: false, steps: [] }); await settle();
   check(ch.walkS === 90 && ch.walkMin === 2, `the engine's walk time is taken (${ch.walkS} s, ${ch.walkMin} min)`);
   check(ch.lines === model, "the station model's way stays drawn");
+  // the last ride ends on another platform and no walk follows it: the arrival step ends there too
+  const r5 = ride('1', '5', A, B), arrive = { type: 'arrive', from: r5.s, end: B };
+  r5.s.stops[1].quay = quay(C, '6');
+  J.requay([r5, arrive], () => {});
+  check(arrive.end[0] === C[0] && arrive.end[1] === C[1], "requay(): the arrival step follows the last ride's new platform when no walk comes after it");
 }
 
 console.log("8. the floor a lift starts on, from the router (step-free from platform 10 to 12 at Zürich HB)");
@@ -305,8 +312,8 @@ console.log("8. the floor a lift starts on, from the router (step-free from plat
 console.log('9. On foot: its network time kept while those options are on show; your longest walk in the ranking');
 {
   const c = app();
-  const walk: FakeConn = { from: { departure: '2026-11-21T12:00:00Z' }, to: { arrival: '2026-11-21T12:10:00Z' }, sections: [{ walk: { duration: 600 }, departure: {}, arrival: {} }] };
-  const pt = { from: { departure: '2026-11-21T12:00:00Z' }, to: { arrival: '2026-11-21T12:40:00Z' }, sections: [{ journey: {} }] };
+  const walk: FakeConn = { t0: Date.parse('2026-11-21T12:00:00Z'), t1: Date.parse('2026-11-21T12:10:00Z'), parts: [{ type: 'walk', durationS: 600 }] };
+  const pt: FakeConn = { t0: Date.parse('2026-11-21T12:00:00Z'), t1: Date.parse('2026-11-21T12:40:00Z'), parts: [{ type: 'ride' }], transfers: 0 };
   c.journeyOptions = { list: [pt], walk, best: pt };
   c.netWalkOption(walk, A, { lngLat: B });
   c.journeyReq = 2; // another option opened meanwhile
@@ -327,17 +334,17 @@ console.log('10. times that follow the walk drawn');
   const c = app();
   c.netWalkFits = c.real.netWalkFits;
   // the first walk, longer on the network: the option row's walk minutes too
-  const conn: FakeConn = { from: { departure: '2026-11-21T12:00:00Z' }, to: { arrival: '2026-11-21T12:30:00Z' },
-    sections: [{ walk: { duration: 300 } }, { journey: {} }] };
+  const conn: FakeConn = { t0: Date.parse('2026-11-21T12:00:00Z'), t1: Date.parse('2026-11-21T12:30:00Z'),
+    parts: [{ type: 'walk', durationS: 300 }, { type: 'ride' }] };
   c.journeyConn = conn;
   const t1 = Date.parse('2026-11-21T12:05:00Z');
   const first = { type: 'walk', t0: t1 - 300000, t1, min: 5, walkS: 300 };
   c.journeySteps = [first, { type: 'ride' }];
   c.netWalkFits(first, { dist: 420 }); // 7 min at 3.6 km/h
-  check(conn.from.departure === '2026-11-21T11:58:00.000Z' && conn.sections[0]._netWalkS === 420, 'leave 2 minutes earlier; the row lists a 7-minute walk');
+  check(conn.t0 === Date.parse('2026-11-21T11:58:00Z') && conn.accessS === 420, 'leave 2 minutes earlier; the row lists a 7-minute walk');
   // a change: its end moves with its walk
   const change = { type: 'change', t0: t1, t1: t1 + 300000, walkMin: 5, walkS: 300,
-    prev: { arrival: { arrival: '2026-11-21T12:05:00Z' } }, next: { departure: { departure: '2026-11-21T12:15:00Z' } } };
+    prev: { to: { arr: at('2026-11-21T12:05:00Z') } }, next: { from: { dep: at('2026-11-21T12:15:00Z') } } };
   c.journeySteps = [{ type: 'ride' }, change, { type: 'ride' }];
   c.netWalkFits(change, { dist: 180 }); // 3 min
   check(change.t1 === t1 + 180000 && change.walkMin === 3, "a change's walk ends when the network walk does");

@@ -1,5 +1,5 @@
 // Indoor position for the 3D station view: ties indoorloc.js (the filter and the phone's sensors) and signloc.js
-// (signs read by Scan) to station3d.js. Loaded by index.html; does nothing until a station is opened in 3D.
+// (signs read by Scan) to the station view (station-view.js). Loaded by index.html; does nothing until a station is opened in 3D.
 //
 //   - When Station3D opens a station, the station's model is loaded and an indoor Filter starts. If the route starts
 //     on a platform (you just got off a train there) and GPS does not say you are elsewhere, it starts there too.
@@ -76,7 +76,7 @@
       // a hesitant estimate shows as a wide circle: the floor is said only when one floor clearly wins
       const acc = Math.max(3, e.sigma * (e.confident ? 1.5 : 2.5));
       const heading = ses.sensors && ses.sensors.heading != null ? ses.sensors.heading : lastGps && lastGps.heading;
-      // with what the filter thinks of every floor: the station view shows it (station3d.js ignores it)
+      // with what the filter thinks of every floor: the station view shows it
       S3().setUser({ xy: [e.x, e.y], level: e.levelProb > 0.6 ? e.level : undefined, levelSure: e.confident, accuracy: acc, heading,
         levelProbs: e.levelProbs, levelProb: e.levelProb });
     };
@@ -211,8 +211,6 @@
     // another station replaces the one showing (no 'close' then): that session ends its showing now, so neither its
     // estimate nor its local coordinates reach the next station
     s3.on('opening', (o) => { if (ses && ses.open && o && ses.key !== o.key) closed(); });
-    // "I'm here" in the viewer: the traveller says where they are
-    s3.on('here', (o) => { if (ses && ses.filter && ses.open && o) here({ level: o.level, xy: o.xy }); });
   }
   // iOS: motion access may only be asked from a tap. The first tap while a station is open is that tap (the
   // viewer's own compass request, for its heading, comes from a tap too, so the traveller sees one prompt).
@@ -221,7 +219,7 @@
     if (!ses || !ses.open || !ses.filter || ses.sensors) return;
     const path = e.composedPath ? e.composedPath() : [e.target];
     const has = (cls: string) => path.some((n) => n && (n as Element).classList && (n as Element).classList.contains(cls));
-    if ((has('s3') || has('stv')) && !has('s3-close')) startSensors();   // station3d.js's view, or station-view.js's
+    if (has('stv') && !has('stv-close')) startSensors();   // station-view.js's view
   }, true);
   window.addEventListener('scan:text', (e) => sign(e.detail && e.detail.text, e.detail && e.detail.at));
   if (S3()) hook(); else window.addEventListener('load', hook);

@@ -1,5 +1,5 @@
 // Indoor positioning in stations: which floor you are on and where, from the phone's sensors and the station 3D
-// model (stations3d/<key>.js, format in stations3d/SCHEMA.md; drawn by station3d.js, routed by station-route.js).
+// model (stations3d/<key>.js, format in stations3d/SCHEMA.md; drawn by the station view, routed by station-route.js).
 // indoornav.js ties it to the app: it feeds the estimate to Station3D.setUser({ xy, level, accuracy, heading }).
 //
 // Four parts, usable on their own (no DOM needed except for Sensors, so the filter runs in Node for tests):

@@ -2,12 +2,12 @@
 // with the route as a tube and the floors above it cut open) in an overlay over the map, with the walk step by step.
 // Loaded the first time a station is opened (the stand-in Station3D in index.html sends its open() here), together
 // with the station's model (stations3d/<key>.js), its continuous companion (stations3d/<key>.solid.js), the router
-// (station-route.js), station-view.css and three.js (the import map in index.html). docs/station-view.md
+// (station-route.js), station-view.css and three.js (the import map in index.html). docs/station3d-solid.md
 //
-//   StationView.open({ key, from, to, prefs, returnFocus })   as Station3D.open (the 2D-only options are ignored)
+//   StationView.open({ key, from, to, prefs, title, returnFocus })   as Station3D.open
 //   StationView.close() · isOpen() · setUser(u) · on(name, fn) / off · preload(key) · has(key) after ready()
 //
-// Events as Station3D's (src/types/station3d.d.ts): 'opening', 'open', 'close', 'step', 'done', 'here', 'error'.
+// Events as Station3D's (src/types/station3d.d.ts): 'opening', 'open', 'close', 'step', 'done', 'error'.
 // indoornav.js hears them through the stand-in, and feeds the position back with setUser (with the floor
 // probabilities of the indoor filter).
 (function () {
@@ -137,7 +137,7 @@
   let historyState = false;        // a history entry of ours: the phone's back button closes the view
 
   function shell(): Ui {
-    const close = btn('stv-close s3-close', 'Close the 3D view', () => close3d(), icon('close', 20)) as HTMLButtonElement;
+    const close = btn('stv-close', 'Close the 3D view', () => close3d(), icon('close', 20)) as HTMLButtonElement;
     const title = el('b', 'stv-title'), sub = el('small', 'stv-sub'), you = el('div', 'stv-you');
     you.setAttribute('aria-live', 'polite');
     const head = el('header', 'stv-top', close, el('div', 'stv-head', title, sub, you));

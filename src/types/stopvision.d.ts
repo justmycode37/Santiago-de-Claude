@@ -15,13 +15,8 @@ interface StopVisionPosition { ll: LngLat; acc: number; age: number }
 interface StopVisionHooks {
   /** Every stop by UIC number ("8507000"). */
   PLATFORMS: Map<string, StopVisionStop>;
-  /** transport.opendata.ch's address, ending in "/v1/". */
-  OPENDATA: string;
-  /** The page's rule for the edge a departure leaves from: the named platform, else the edge facing the way it goes. */
-  platformLL: KantePlatformLL;
-  coordOf(stop: OdCheckpoint): LngLat | null;
   /** The line's badge as the page draws it; without it Scan writes the line number itself. */
-  badge?(departure: OdStationboardEntry): HTMLElement;
+  badge?(line: LineLike): HTMLElement;
   /** null = no position (yet, or location is off). */
   position(): StopVisionPosition | null;
   /** Close Scan and show the stop on the map; edge: index into the stop's edges, null = the stop as a whole. */
@@ -124,8 +119,8 @@ interface StopVisionPhoto {
 
 /** One departure on the sheet. */
 interface StopVisionDeparture {
-  /** ISO 8601, the expected time when there is one. */
-  time: string;
+  /** When it is expected to leave, ms. */
+  time: number;
   /** Minutes late. */
   delay: number;
   line: string;
@@ -133,9 +128,9 @@ interface StopVisionDeparture {
   to: string;
   /** The edge it leaves from (index), null = unknown. */
   edge: number | null;
-  /** From the Kante engine: every edge it leaves from. */
-  edges: number[] | undefined;
-  raw: OdStationboardEntry;
+  /** Every edge it leaves from ([] = the engine does not place it on one). */
+  edges: number[];
+  raw: BoardDeparture;
 }
 
 /** What has been found out about one stop. Every part is missing until it has been looked at. */
@@ -174,7 +169,11 @@ interface StopVisionEvidence {
   departures?: StopVisionDeparture[] | null;
   depBusy?: boolean;
   depFailed?: boolean;
+  /** Why the departures could not be loaded: the engine is switched off for the page, or cannot be reached. */
+  depWhy?: KanteFailure | null;
+  /** When departures were asked last (ms), and when they last came in. */
   depAt?: number;
+  depOkAt?: number;
 }
 
 /** Which edge of a stop the camera looks at and how that is known; maybe = a guess. */

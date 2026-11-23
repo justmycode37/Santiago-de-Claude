@@ -203,7 +203,7 @@ type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // What a walk was routed for besides its line: what its ends are and the platforms it leaves from and goes to (a
 // platform can change without its point moving, and a station model routes to the platform by its name)
 const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
-  const stops = st.type === 'change' ? [st.prev.arrival, st.next.departure] : [st.from && st.from.arrival, st.next && st.next.departure];
+  const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
   return JSON.stringify([st.ends || [], stops.map((s) => (s ? platformOf(s) : ''))]);
 };
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since) are dropped
@@ -288,7 +288,7 @@ function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
   if (!journeySteps.some((x) => x.type === 'ride')) { retimeWalkConn(journeyConn, res.dist); return true; }
   const engS = st.walkS != null ? st.walkS : ((st.type === 'change' ? st.walkMin : st.min) || 0) * 60;
   if (st.type === 'change') {
-    const wait = ((liveMs(st.next.departure, 'departure') || 0) - (liveMs(st.prev.arrival, 'arrival') || 0)) / 1000;
+    const wait = ((liveMs(st.next.from, 'dep') || 0) - (liveMs(st.prev.to, 'arr') || 0)) / 1000;
     if (!(netS <= wait)) return false;
     st.walkS = netS;
     st.walkMin = Math.max(1, Math.round(netS / 60));
@@ -300,10 +300,9 @@ function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
     st.t0 = st.t1 - netS * 1000;
     st.min = Math.max(1, Math.round(netS / 60));
     if (journeySteps[0] === st && journeyConn) {
-      journeyConn.from.departure = new Date(st.t0).toISOString();
+      journeyConn.t0 = st.t0;
       // the option's row lists the walks in minutes: this one as it is drawn (the walks before the first ride)
-      const before = journeyConn.sections.slice(0, journeyConn.sections.findIndex((x) => x.journey));
-      before.forEach((x, k) => { x._netWalkS = k ? 0 : netS; });
+      journeyConn.accessS = netS;
       queueSheet(true);
     }
   }
@@ -312,34 +311,33 @@ function netWalkFits(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
 
 // Walking all the way: the trip's times, its card and its place among the options follow the walk drawn
 // (network metres at your walking speed) instead of the engine's estimate
-function retimeWalkConn(conn: OdConnection | null | undefined, metres: number | null) {
+function retimeWalkConn(conn: Journey | null | undefined, metres: number | null) {
   if (!conn || metres == null) return;
   const secs = metres / (walkKmh() / 3.6);
   const arriveBy = journeyQuery.mode === 'arr' && !!(journeyQuery.date || journeyQuery.time);
-  const t0 = new Date(conn.from.departure!).getTime(), t1 = new Date(conn.to.arrival!).getTime();
+  const t0 = conn.t0, t1 = conn.t1;
   const a = arriveBy ? t1 - secs * 1000 : t0, b = arriveBy ? t1 : t0 + secs * 1000;
   // the trip itself, once per distance; its steps every time (a trip opened again is built with the engine's times)
   const fresh = conn._netMetres !== Math.round(metres);
   if (fresh) {
-    conn.from.departure = new Date(a).toISOString();
-    conn.to.arrival = new Date(b).toISOString();
-    const sec = conn.sections && conn.sections[0];
-    if (sec && !sec.journey) {
-      conn.sections.slice(1).forEach((x) => { if (!x.journey && x.walk) x.walk.duration = 0; }); // all of it is on the first
-      if (sec.walk) sec.walk.duration = Math.round(secs);
-      if (sec.kante) (sec.kante as KanteWalkLeg).durationS = Math.round(secs); // decorate() times the walk by it
-      if (sec.departure) sec.departure.departure = conn.from.departure;
-      if (sec.arrival) sec.arrival.arrival = conn.to.arrival;
+    conn.t0 = a;
+    conn.t1 = b;
+    const leg = conn.parts[0];
+    if (leg && leg.type === 'walk') {
+      conn.parts.slice(1).forEach((x) => { if (x.type === 'walk') x.durationS = 0; }); // all of it is on the first
+      leg.durationS = Math.round(secs); // buildSteps() times the walk by it
+      leg.dep = a / 1000;
+      leg.arr = b / 1000;
     }
-    if (conn.kante) conn.kante.walkM = Math.round(metres);
+    conn.walkM = Math.round(metres);
     conn._netMetres = Math.round(metres);
   }
   if (conn === journeyConn) {
     const steps = journeySteps.filter((st) => st.type === 'walk' || st.type === 'arrive');
-    const stale = steps.some((st) => (st.type === 'walk' ? st.t0 !== a || st.t1 !== b : st.type === 'arrive' && st.time !== conn.to.arrival));
+    const stale = steps.some((st) => (st.type === 'walk' ? st.t0 !== a || st.t1 !== b : st.type === 'arrive' && st.time !== conn.t1));
     steps.forEach((st) => {
       if (st.type === 'walk') { st.t0 = a; st.t1 = b; st.min = Math.max(1, Math.round(secs / 60)); st.walkS = secs; }
-      if (st.type === 'arrive') st.time = conn.to.arrival;
+      if (st.type === 'arrive') st.time = conn.t1;
     });
     if (fresh || stale) queueSheet(true);
   }
@@ -348,8 +346,8 @@ function retimeWalkConn(conn: OdConnection | null | undefined, metres: number | 
   const o = journeyOptions;
   if (o && o.walk === conn && o.list && o.list.length) {
     // as KanteJourney.pick(): the best by transport, unless walking is no slower and within your longest walk
-    const cost = (c: OdConnection) => (arriveBy ? -connStart(c) : connEnd(c)) + (c.kante ? (c.kante.transfers || 0) * 180000 : 0);
-    const pt = o.list.reduce((x: OdConnection, y: OdConnection) => (cost(x) <= cost(y) ? x : y));
+    const cost = (c: Journey) => (arriveBy ? -connStart(c) : connEnd(c)) + (c.transfers || 0) * 180000;
+    const pt = o.list.reduce((x: Journey, y: Journey) => (cost(x) <= cost(y) ? x : y));
     const noSlower = arriveBy ? connStart(conn) >= connStart(pt) : connEnd(conn) <= connEnd(pt);
     const maxWalk = Number(SETTINGS.prefs && SETTINGS.prefs().maxWalkMin) || Infinity;
     o.best = noSlower && secs <= maxWalk * 60 ? conn : pt;
@@ -358,7 +356,7 @@ function retimeWalkConn(conn: OdConnection | null | undefined, metres: number | 
 }
 // The "On foot" option before it is opened: its walk on the network, so its tab and card already show those times
 // (kept while these options are on offer, also when another of them has been opened meanwhile)
-function netWalkOption(conn: OdConnection, from: LngLat, dest: JourneyDest) {
+function netWalkOption(conn: Journey, from: LngLat, dest: JourneyDest) {
   if (!conn || !window.WALKROUTE) return;
   routeWalk(from, dest.lngLat, [tripStart ? {} : { gps: true }, {}], true).then((r) => {
     if (journeyOptions && journeyOptions.walk === conn && r && r.net) retimeWalkConn(conn, r.dist);
@@ -383,70 +381,8 @@ function refineJourney(id: number) {
     const plan = (st.lines || []).length ? s3Plan(st) : null;
     if (plan) refineStationWalk(st as JourneyWalkStep | JourneyChangeStep, plan, task);
     else if (st.type === 'walk' || st.type === 'change') refineWalk(st, task);
-    if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.journey.category)), (res) => { st.path = res; });
+    if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.line.category)), (res) => { st.path = res; });
   });
-}
-
-// Timetable data: transport.opendata.ch (the official Swiss timetable, incl. SBB, PostBus, city transport)
-const OPENDATA = 'https://transport.opendata.ch/v1/';
-const coordParam = (ll: LngLat) => `${ll[1].toFixed(6)},${ll[0].toFixed(6)}`; // lat,lng
-async function nearestStation(ll: LngLat) {
-  const res = await fetch(`${OPENDATA}locations?` + new URLSearchParams({ x: ll[1], y: ll[0], type: 'station' } as {} as Record<string, string>));
-  const data: OdLocationsResponse = await res.json();
-  const st = (data.stations || []).find((x) => x.id);
-  return st ? st.id! : null;
-}
-// → { list, best, … } as KanteJourney.plans() gives it (no walking all the way, no earlier / later), or null
-async function connections(from: string | null, to: string | null): Promise<JourneyOptions | null> {
-  if (!from || !to) return null;
-  const q: Record<string, string> = { from, to, limit: '5' };
-  const { mode, date, time } = journeyQuery;
-  if (date) q.date = date;
-  if (time) q.time = time;
-  if (mode === 'arr' && (date || time)) q.isArrivalTime = '1';
-  const params = new URLSearchParams(q);
-  SETTINGS.transportations().forEach((t) => params.append('transportations[]', t));
-  const res = await fetch(`${OPENDATA}connections?` + params);
-  const data: OdConnectionsResponse = await res.json();
-  // Settings: walks retimed to your walking speed; prefer connections whose walks and changes fit
-  const all = (data.connections || []).map(SETTINGS.retime);
-  const fits = all.filter(SETTINGS.connectionFits);
-  const list = (fits.length ? fits : all).sort((a, b) => (new Date(a.from.departure!) as unknown as number) - (new Date(b.from.departure!) as unknown as number));
-  if (!list.length) return null;
-  const offer = (shown: OdConnection[], best: OdConnection) => ({ list: shown, best, walk: null, earlier: false, later: false });
-  if (mode === 'arr' && (date || time)) {
-    // those that still arrive by the chosen time; first the one that leaves last
-    const target = new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime();
-    const ok = list.filter((c) => new Date(c.to.arrival!).getTime() <= target + 60000);
-    const shown = ok.length ? ok : list;
-    return offer(shown, shown.reduce((best, c) => (new Date(c.to.arrival!) > new Date(best.to.arrival!) ? c : best)));
-  }
-  const after = date || time
-    ? new Date(`${date || dateValue(new Date())}T${time || timeValue(new Date())}`).getTime() - 60000
-    : Date.now() - 60000;
-  const ahead = list.filter((c) => new Date(c.from.departure!).getTime() >= after);
-  const shown = ahead.length ? ahead : list;
-  return offer(shown, shown[0]);
-}
-// Exact coordinates can fail when a point is far from any stop (e.g. a municipality's centre in the fields),
-// so fall back to the place name and then to the nearest stations at either end.
-// → every way on offer: { list, walk, best, earlier, later }, or null
-async function findOptions(fromLL: LngLat, r: JourneyDest): Promise<JourneyOptions | null> {
-  // the team's own Kante engine first (engine-journey.js); without an answer from it, the public timetable below
-  const own = window.KanteJourney ? await KanteJourney.plans(fromLL, r, journeyQuery) : null;
-  if (own) return own;
-  const from = coordParam(fromLL), to = coordParam(r.lngLat);
-  let c = await connections(from, to);
-  if (c) return c;
-  if (r.origin === 'gg25' || r.origin === 'gazetteer') {
-    c = await connections(from, r.title.replace(/\s*\([A-Z]{2}\)\s*$/, ''));
-    if (c) return c;
-  }
-  const toStation = await nearestStation(r.lngLat);
-  c = await connections(from, toStation);
-  if (c) return c;
-  const fromStation = await nearestStation(fromLL);
-  return connections(fromStation, toStation);
 }
 
 // keepPlan: only the destination goes (its field was cleared); the card and the start stay for another one
@@ -457,7 +393,6 @@ function endJourney(keepPlan?: boolean) {
   setFollowing(false);
   clearInterval(progressTimer);
   clearInterval(liveTimer);
-  clearInterval(kanteTimer);
   journeyConn = null;
   journeyDest = null;
   journeyOptions = null;
@@ -469,6 +404,7 @@ function endJourney(keepPlan?: boolean) {
   track = null;
   jFocus = null;
   sheetMsg = '';
+  sheetRetry = false;
   headKey = '';
   jHead.replaceChildren();
   jBody.replaceChildren();
