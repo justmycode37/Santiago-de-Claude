@@ -172,7 +172,7 @@ async function openPlatform(f: PlatformTap) {
       if (why !== 'off') {
         const again = mk('button', 'pf-3d pf-retry', 'Try again');
         again.type = 'button';
-        again.addEventListener('click', (ev) => { ev.stopPropagation(); window.KANTE?.ready(true); load(); });
+        again.addEventListener('click', (ev) => { ev.stopPropagation(); load(); });
         note.after(again);
       }
     }
@@ -189,6 +189,6 @@ const engineFailure = (e: unknown): 'off' | 'down' | null => {
 // from it; the map, search, events and places do not need it.
 const engineMessage = (why: 'off' | 'down', what: string) => (why === 'off'
   ? `${what} come from the Kante engine, which is switched off for this page.`
-  : `${what} come from the Kante engine, which can't be reached right now.`);
+  : `${what} come from the Kante engine, which isn't answering right now.`);
 map.on('mouseenter', 'platform-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
 map.on('mouseleave', 'platform-dot', () => { map.getCanvas().style.cursor = ''; });

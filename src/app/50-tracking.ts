@@ -65,22 +65,26 @@ function stopKms(st: JourneyRideStep): number[] {
 // Where a ride's vehicle is now → { km, at } or { km, from, to } (+ engine: the Kante engine's position, when it
 // placed it), or null when it is not on this part of its route
 function vehicleState(st: JourneyRideStep, now: number): VehicleState | null { return engineVehicle(st, now) || timedVehicle(st, now); }
-// The engine's position (timed from measured stops, forecasts or on-board reports), laid onto the drawn ride: of
-// whichever of the ride's trips is on this part of it now
+// The engine's position (timed from measured stops, forecasts or on-board reports), laid onto the drawn ride: of the
+// trip the ride is on now. A ride you stay seated on over several trips is on the last one that has left the stop
+// where it begins (by the live times): an older answer for the trip before must not place the vehicle there.
 function engineVehicle(st: JourneyRideStep, now: number): EngineVehiclePlace | null {
-  for (let n = 0; n < st.s.legs.length; n++) {
-    const k = st.s.live[n], trip = rideTrip(st.s, n), pos = trip && trip.position;
-    if (!pos) continue;
-    // the engine's "now": the position's t plus the time since that answer came in (so a wrong phone clock doesn't matter)
-    const tNow = (pos.t != null ? pos.t : k.at / 1000) + (now - k.at) / 1000;
-    const p = KANTE_LIVE.advance(pos, trip!.calls, tNow);
-    // the trip's stops laid onto the ride's by seq; a position elsewhere leaves the timetable placing below
-    const r = KANTE_LIVE.rideKm(p, st.s.seqIdx[n], stopKms(st), st.stopIdx || []);
-    if (!r) continue;
-    const name = (x: number) => st.s.stops[x] && stopName(st.s.stops[x]);
-    return r.at != null ? { km: r.km, at: name(r.at), engine: p!, tNow, trip: trip! } : { km: r.km, from: name(r.from), to: name(r.to), engine: p!, tNow, trip: trip! };
+  const s = st.s;
+  let n = 0;
+  for (let x = 1; x < s.legs.length; x++) {
+    const k = s.seqIdx[x].get(s.legs[x].from.seq), t = k == null ? null : liveMs(s.stops[k], 'dep');
+    if (t != null && now >= t) n = x;
   }
-  return null;
+  const k = s.live[n], trip = rideTrip(s, n), pos = trip && trip.position;
+  if (!pos) return null;
+  // the engine's "now": the position's t plus the time since that answer came in (so a wrong phone clock doesn't matter)
+  const tNow = (pos.t != null ? pos.t : k.at / 1000) + (now - k.at) / 1000;
+  const p = KANTE_LIVE.advance(pos, trip!.calls, tNow);
+  // the trip's stops laid onto the ride's by seq; a position elsewhere leaves the timetable placing below
+  const r = KANTE_LIVE.rideKm(p, s.seqIdx[n], stopKms(st), st.stopIdx || []);
+  if (!r) return null;
+  const name = (x: number) => st.s.stops[x] && stopName(st.s.stops[x]);
+  return r.at != null ? { km: r.km, at: name(r.at), engine: p!, tNow, trip: trip! } : { km: r.km, from: name(r.from), to: name(r.to), engine: p!, tNow, trip: trip! };
 }
 // From its live stop times: at a stop while it is due there, else between two stops in proportion to time
 function timedVehicle(st: JourneyRideStep, now: number): TimedVehiclePlace | null {

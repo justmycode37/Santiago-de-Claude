@@ -332,9 +332,9 @@ type KanteParams = Record<string, string | number | boolean | null | undefined>;
 interface KanteEngineUrl { url: string | null; fromLink: boolean; ignored?: string }
 
 /**
- * Why a call failed. off: the page has no engine (config.js, ?engine=off, ?kante=off); down: it cannot be
- * reached, answered with a server error or took too long (it then counts as down for RETRY_MS); refused: it said
- * no to this request (`status`, a 4xx: no route found, an unknown station), and is up.
+ * Why a call failed. off: the page has no engine (config.js, ?engine=off, ?kante=off); down: the request failed
+ * (no answer, too slow, a server error, too many requests); refused: the engine said no to this request (`status`
+ * 400, 404, 410 or 422: no route found, an unknown station), and is up.
  */
 type KanteFailure = 'off' | 'down' | 'refused';
 interface KanteError extends Error { reason: KanteFailure; status?: number }
@@ -350,16 +350,13 @@ interface KanteApi {
   fromLink: boolean;
   /** A ?kante= address in the link that was not followed (only an engine on this machine is). */
   ignored: string | undefined;
-  /** ms a failed engine counts as down before it is asked again. */
+  /** ms between two tries of /api/meta while it cannot be reached (src/app/56-live-engine.ts). */
   RETRY_MS: number;
-  /** Switched on, and not down just now. */
+  /** Switched on, and its last request did not fail. */
   available(): boolean;
-  /** Switched on, and /api/meta has answered (it is up, and its features are known). */
+  /** /api/meta has answered once (its features are known). */
   ok(): boolean;
-  /**
-   * The engine's /api/meta, asked once; while it fails, again once RETRY_MS have passed. force: now, and the engine
-   * no longer counts as down (a "Try again"). null: switched off, or not reachable.
-   */
+  /** The engine's /api/meta: asked when it is not known yet (or with force), else the one it gave. null: off, or not reachable. */
   ready(force?: boolean): Promise<KanteMeta | null>;
   /** Whether the engine has an optional part ('due', 'stream', …), by its /api/meta. */
   has(feature: string): boolean;

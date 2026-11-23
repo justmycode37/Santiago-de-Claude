@@ -197,7 +197,8 @@ function fitStep(i: number) {
   if (st) fitCoords(stepCoords(st));
 }
 
-async function startJourney(r: JourneyDest, keepQuery?: boolean) {
+// origin: where the trip starts and what it is called; left out: the start, else your position, else the map centre
+async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: JourneyOrigin) {
   const id = ++journeyReq;
   if (!keepQuery) journeyQuery = { mode: 'dep', date: '', time: '' };
   journeyDest = r;
@@ -206,7 +207,9 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   journeyOptions = null;
   journeyList = false;
   journeyMore = null;
-  journeyFrom = tripStart ? tripStart.title : userLngLat ? 'Your location' : 'Map centre';
+  journeyOrigin = origin || (tripStart ? { ll: tripStart.lngLat, label: tripStart.title }
+    : userLngLat ? { ll: userLngLat, label: 'Your location' } : { ll: map.getCenter().toArray(), label: 'Map centre' });
+  journeyFrom = journeyOrigin.label;
   updateWhenChip();
   jFocus = null;
   openDirs.clear();
@@ -236,7 +239,7 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
   liveTimer = setInterval(livePoll, 30000); // live times from the Kante engine every 30 s while the trip is on
   vehStop(); // the map shows only the trip
 
-  const from = tripStart ? tripStart.lngLat : userLngLat || map.getCenter().toArray();
+  const from = journeyOrigin.ll;
   try {
     startPlatforms(); // the platform dots on the map (the journey's boarding points come from the engine)
     const opts = await KanteJourney.plans(from, r, journeyQuery);
@@ -261,9 +264,9 @@ async function startJourney(r: JourneyDest, keepQuery?: boolean) {
     renderSheet();
   }
 }
-// "Try again" after the engine could not be reached: the same trip, at the same time
+// "Try again" after the engine could not be reached: the same trip, from the same place, at the same time (the
+// first try has moved the map, so the map centre is no longer where it started)
 function retryJourney() {
   if (!journeyDest) return;
-  if (KANTE) KANTE.ready(true); // it no longer counts as down
-  startJourney(journeyDest, true);
+  startJourney(journeyDest, true, journeyOrigin || undefined);
 }

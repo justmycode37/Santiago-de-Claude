@@ -19,6 +19,9 @@ interface JourneyDest {
   origin?: string;
 }
 
+/** Where a plan starts from (startJourney()): the place, and its name in the sheet ("Your location", "Map centre", a start). */
+interface JourneyOrigin { ll: LngLat; label: string }
+
 // ---------------------------------------------------------------- a journey
 
 /**

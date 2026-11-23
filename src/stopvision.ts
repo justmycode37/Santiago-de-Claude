@@ -808,7 +808,7 @@
         edge: d.edges.length ? d.edges[0] : null, edges: d.edges, raw: d }));
       ev.depFailed = false;
       ev.depWhy = null;
-      ev.depAt = Date.now();
+      ev.depAt = ev.depOkAt = Date.now();
     } catch (e) {
       ev.departures = ev.departures || null;
       ev.depFailed = true;
@@ -1166,7 +1166,7 @@
     return null;
   }
 
-  // ---- your next ride, as the Kante engine sees it now (/api/due via KANTE_LIVE; without the engine: the route)
+  // ---- your next ride, as the Kante engine sees it now (/api/due through the engine's client, KANTE; without the engine: the route)
   // The engine names the boarding point (quayLabel) and the direction the vehicle leaves in (departBearing): either
   // ties the ride to one edge of the stop, also where edges have no letters.
   let routeLive: StopVisionRouteLive | null = null, routeLiveBusy = false;
@@ -1435,6 +1435,24 @@
       row('route', `Your ${route.line || 'ride'} leaves from ${route.name}, not from this stop.`);
     }
     if (place.childNodes.length) nodes.push(place);
+    // departures come from the Kante engine: when a refresh fails, say so (and, when it can come back, offer to try
+    // again); rows already shown stay, marked with the time they were last brought up to date
+    const failed = (stale: boolean) => {
+      const why = ev.depWhy;
+      const reason = why === 'off' ? 'Departures come from the Kante engine, which is switched off for this page.'
+        : why === 'down' ? "Departures come from the Kante engine, which isn't answering right now."
+          : 'Departures could not be loaded.';
+      const since = ev.depOkAt ? new Date(ev.depOkAt).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+      nodes.push($('p', 'sv-hint', stale && since ? `Not updated since ${since}. ${reason}` : reason));
+      if (why === 'off') return;
+      const again = $('button', 'sv-retry', 'Try again');
+      again.addEventListener('click', () => {
+        ev.depAt = 0;
+        departures(c).catch(() => {});
+        if (ui) ui.shownKey = '';
+      });
+      nodes.push(again);
+    };
     if (deps && deps.length) {
       const ul = $('ul', 'sv-deps');
       for (const d of deps.slice(0, 4)) {
@@ -1445,24 +1463,12 @@
         ul.appendChild(li);
       }
       nodes.push(ul);
-    } else if (deps) nodes.push($('p', 'sv-hint', 'No departures in the next hours.'));
+      if (ev.depFailed) failed(true);
+    } else if (deps && !ev.depFailed) nodes.push($('p', 'sv-hint', 'No departures in the next hours.'));
     else {
       if (depDue(ev)) departures(c).catch(() => {});
-      // departures come from the Kante engine: when it is off or down, say so (and, when it can come back, try again)
-      const why = ev.depFailed ? ev.depWhy : null;
-      nodes.push($('p', 'sv-hint', why === 'off' ? 'Departures come from the Kante engine, which is switched off for this page.'
-        : why === 'down' ? "Departures come from the Kante engine, which can't be reached right now."
-          : ev.depFailed ? 'Departures could not be loaded.' : 'Loading departures…'));
-      if (ev.depFailed && why !== 'off') {
-        const again = $('button', 'sv-retry', 'Try again');
-        again.addEventListener('click', () => {
-          ev.depAt = 0;
-          if (window.KANTE) window.KANTE.ready(true);
-          departures(c).catch(() => {});
-          if (ui) ui.shownKey = '';
-        });
-        nodes.push(again);
-      }
+      if (ev.depFailed) failed(!!deps);
+      else nodes.push($('p', 'sv-hint', 'Loading departures…'));
     }
 
     const actions = $('div', 'sv-actions');

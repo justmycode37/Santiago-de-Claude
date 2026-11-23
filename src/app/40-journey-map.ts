@@ -10,6 +10,7 @@ const jFoot = document.getElementById('jFoot')!;
 const jHandle = document.getElementById('jHandle')!;
 let journeyConn: Journey | null = null; // the journey on show
 let journeyFrom = 'Your location'; // where the trip starts: your position, or the map centre without one
+let journeyOrigin: JourneyOrigin | null = null; // …and its place, as the last plan asked for it
 let sheetMsg = '';                 // "Finding a connection…" and the like, while there is no trip to show
 let sheetRetry = false;            // …with "Try again" beside it: the engine could not be reached
 let journeyDest: JourneyDest | null = null;

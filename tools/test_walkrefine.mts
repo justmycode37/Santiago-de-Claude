@@ -102,7 +102,7 @@ type AppContext = AppPage & AppRouting;
 interface EngineWindow {
   KANTE: { available(): boolean; walk(): Promise<FakeEngineWalk> } | undefined;
   SETTINGS: { prefs(): object; transportations?(): string[] };
-  KanteJourney?: { requay(steps: FakeStep[], changed: () => void): void };
+  KanteJourney?: { requay(steps: object[], changed: () => void): void };
 }
 /** The page the router's script runs in: the globals handed to it, and the WALKROUTE it leaves there. */
 interface RouterPage { [name: string]: unknown; globalThis?: RouterPage; WALKROUTE?: WalkRouteApi }
@@ -273,6 +273,11 @@ console.log('7. requay(): a change left without a walk, and the engine walk answ
   walks[0].res({ durationS: 90, geometry: [B, D], approximate: false, steps: [] }); await settle();
   check(ch.walkS === 90 && ch.walkMin === 2, `the engine's walk time is taken (${ch.walkS} s, ${ch.walkMin} min)`);
   check(ch.lines === model, "the station model's way stays drawn");
+  // the last ride ends on another platform and no walk follows it: the arrival step ends there too
+  const r5 = ride('1', '5', A, B), arrive = { type: 'arrive', from: r5.s, end: B };
+  r5.s.stops[1].quay = quay(C, '6');
+  J.requay([r5, arrive], () => {});
+  check(arrive.end[0] === C[0] && arrive.end[1] === C[1], "requay(): the arrival step follows the last ride's new platform when no walk comes after it");
 }
 
 console.log("8. the floor a lift starts on, from the router (step-free from platform 10 to 12 at Zürich HB)");

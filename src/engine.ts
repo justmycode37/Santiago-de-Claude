@@ -7,13 +7,14 @@
 //     ?engine=off in the page address switches it off; ?kante=<url> picks an engine on this machine (localhost,
 //     127.x, [::1]) for testing. Any other ?kante=<url> is ignored: what the page sends the engine says where you
 //     look and where you are going, so a link must not choose who gets it.
-//   - Whether it is up: after a failed call (no answer, a server error, too slow) it counts as down for RETRY_MS,
-//     so what runs by itself (live data, vehicles, the meta) does not keep asking. What the traveller asks for
-//     (a journey, a departure board, a walk) still tries; any answer brings the engine back up, and ready(true) does.
+//   - Whether it is up: a failed request (no answer, too slow, a server error, too many requests) marks it down;
+//     any answer marks it up again. Nothing is held back while it is down: every caller asks at its own pace (the
+//     live trips every 30 s, the vehicles every 15 s, the meta every RETRY_MS), so each attempt is a real request.
 //   - What it has: /api/meta, asked once it can be reached, lists its optional features ('due', 'stream', …).
 //
-// Every call returns the engine's JSON, or throws a KanteError (reason off, down or refused). The responses are
-// described in kante/engine/crates/server/src/json.rs and kante/docs/LIVE-API.md.
+// Every call returns the engine's JSON, or throws a KanteError: off (no engine), down (the request failed) or
+// refused (the engine answered no: 400, 404, 410 or 422, e.g. no route found or an unknown station). The responses
+// are described in kante/engine/crates/server/src/json.rs and kante/docs/LIVE-API.md.
 (function () {
   const DEFAULT_URL = 'https://kante.omniroute.app';
   const RETRY_MS = 30000;
@@ -52,65 +53,69 @@
   const { url, fromLink, ignored } = engineUrl(location.search, window.APP_CONFIG);
   const BASE = url || '';
   if (ignored) console.warn('Kante engine: ?kante= only accepts an engine on this machine; ignored', ignored);
-  let downUntil = 0;
+  let down = false;
   let meta: KanteMeta | null = null, metaP: Promise<KanteMeta | null> | null = null, metaBusy = false, features = new Set<string>();
 
-  const available = () => !!BASE && Date.now() >= downUntil;
+  const available = () => !!BASE && !down;
   const fail = (reason: KanteFailure, message: string, status?: number): KanteError => Object.assign(new Error(message), { reason, status });
   const href = (path: string, params?: KanteParams | null) => {
     const qs = params ? new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '') as string[][]).toString() : '';
     return BASE + path + (qs ? '?' + qs : '');
   };
+  // The statuses that mean the engine says no to this request; any other failure is a failed request
+  const NO = new Set([400, 404, 410, 422]);
+  // The engine answered (a refusal included): it is up, and its features are asked for if they are not known yet
+  function answered() {
+    down = false;
+    if (!meta && !metaBusy) setTimeout(ready, 0);
+  }
 
-  // asked: the traveller is waiting for this answer (a journey, a board), so it is tried even while the engine
-  // counts as down; everything else gives up at once then
-  interface CallOptions { params?: KanteParams | null; body?: object; timeout?: number; asked?: boolean }
-  async function call(path: string, { params, body, timeout = 8000, asked }: CallOptions = {}) {
+  interface CallOptions { params?: KanteParams | null; body?: object; timeout?: number }
+  // The timeout covers the whole answer, its body included
+  async function call(path: string, { params, body, timeout = 8000 }: CallOptions = {}) {
     if (!BASE) throw fail('off', 'engine switched off');
-    if (!asked && !available()) throw fail('down', 'engine unavailable');
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeout);
-    let res: Response;
     try {
-      res = await fetch(href(path, params), {
-        signal: ctl.signal,
-        ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
-      });
+      let res: Response;
+      try {
+        res = await fetch(href(path, params), {
+          signal: ctl.signal,
+          ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+        });
+      } catch (e) {
+        throw fail('down', 'engine: ' + ((e as Error).message || 'no answer')); // offline, refused or too slow
+      }
+      if (NO.has(res.status)) { answered(); throw fail('refused', 'engine: HTTP ' + res.status, res.status); }
+      if (!res.ok) throw fail('down', 'engine: HTTP ' + res.status, res.status); // 5xx, 429, …: failed, not a no
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw fail('down', 'engine: ' + (ctl.signal.aborted ? 'too slow' : 'not JSON'));
+      }
+      answered();
+      return data;
     } catch (e) {
-      downUntil = Date.now() + RETRY_MS; // offline, refused or too slow
-      throw fail('down', 'engine: ' + ((e as Error).message || 'no answer'));
+      if ((e as KanteError).reason === 'down') down = true;
+      throw e;
     } finally {
       clearTimeout(timer);
     }
-    // 4xx is the engine saying no to this request (for example no route found): it is still up
-    if (res.status >= 500) { downUntil = Date.now() + RETRY_MS; throw fail('down', 'engine: HTTP ' + res.status, res.status); }
-    if (!res.ok) throw fail('refused', 'engine: HTTP ' + res.status, res.status);
-    let data;
-    try {
-      data = await res.json();
-    } catch (e) {
-      downUntil = Date.now() + RETRY_MS;
-      throw fail('down', 'engine: not JSON');
-    }
-    const wasDown = !available();
-    downUntil = 0; // it answers: up
-    if (wasDown || !meta) setTimeout(ready, 0); // its features, if they are not known yet
-    return data;
   }
 
-  // The meta, once it has answered (null while the engine is off or can't be reached). A failure is asked again
-  // once RETRY_MS have passed, or at once with force (the engine then no longer counts as down).
+  // The meta, once it has answered (null while the engine is off or can't be reached). Asked again by whoever
+  // calls this while it is not known (src/app/56-live-engine.ts: every RETRY_MS); force: also when it is known.
   function ready(force?: boolean): Promise<KanteMeta | null> {
     if (!BASE) return Promise.resolve(null);
-    if (force) downUntil = 0;
-    if (meta) return Promise.resolve(meta);
-    if (metaBusy || (metaP && !force && !available())) return metaP!;
+    if (meta && !force) return Promise.resolve(meta);
+    if (metaBusy) return metaP!;
     metaBusy = true;
     metaP = call('/api/meta', { timeout: 4000 }).then((m: KanteMeta) => {
-      meta = m && typeof m === 'object' ? m : null;
+      meta = m && typeof m === 'object' ? m : meta;
       features = new Set((meta && Array.isArray(meta.features) && meta.features) || []);
       return meta;
-    }, () => null).finally(() => { metaBusy = false; });
+    }, () => meta).finally(() => { metaBusy = false; });
     return metaP;
   }
 
@@ -131,7 +136,7 @@
     ignored,
     RETRY_MS,
     available,
-    ok: () => !!meta && available(),
+    ok: () => !!meta,
     ready,
     has: (f) => features.has(f),
     failure: (e) => (e && typeof e === 'object' && 'reason' in e ? (e as KanteError).reason : null),
@@ -139,11 +144,11 @@
     uicOf,
     stationIdOf,
     meta: () => call('/api/meta'),
-    departures: (params) => call('/api/departures', { params, asked: true }), // { station | quay, time, limit }
+    departures: (params) => call('/api/departures', { params }), // { station | quay, time, limit }
     trip: (id, date) => call('/api/trip', { params: { id, date } }),
     vehicles: (params) => call('/api/vehicles', { params }),
     due: (params, ms) => call('/api/due', { params, timeout: ms || 6000 }),
-    plan: (body) => call('/api/plan', { body, timeout: 15000, asked: true }),
+    plan: (body) => call('/api/plan', { body, timeout: 15000 }),
     walk: (body) => call('/api/walk', { body }),
   };
   ready();

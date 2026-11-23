@@ -288,12 +288,15 @@
         if (prev.type === 'change') prev.points[1] = d.ll; else prev.board = d.ll;
         if (from) rewalk.set(prev, [(rewalk.get(prev) || [from])[0], d.ll]);
       }
-      if (!same(a.ll, st.arrLL) && next && (next.type === 'walk' || next.type === 'change')) {
-        const to = next.type === 'change' ? next.points[1] : next.toLL || lastOf(next); // the place, not the door last found
-        if (next.type === 'change') next.points[0] = a.ll;
-        else next.alight = a.ll;
+      if (!same(a.ll, st.arrLL)) {
+        // the arrival step ends where the last ride now ends, whether a walk follows it or not
         if (final.type === 'arrive' && final.from === st.s) final.end = a.ll;
-        if (to) rewalk.set(next, [a.ll, (rewalk.get(next) || [null, to] as [null, LngLat])[1]]);
+        if (next && (next.type === 'walk' || next.type === 'change')) {
+          const to = next.type === 'change' ? next.points[1] : next.toLL || lastOf(next); // the place, not the door last found
+          if (next.type === 'change') next.points[0] = a.ll;
+          else next.alight = a.ll;
+          if (to) rewalk.set(next, [a.ll, (rewalk.get(next) || [null, to] as [null, LngLat])[1]]);
+        }
       }
       const routed = st.path !== st.stops; // the track or road between the stops has been drawn in
       st.stops[0] = d.ll;

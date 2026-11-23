@@ -107,7 +107,7 @@ the build or deploy (`npm run check` reports; on `main` it already reports 1121 
 | #18 "Inside view" button (`s3HasSolid`, `s3SolidUrl`) | `index.html` app script | `src/app/62-sheet-content.ts` (next to `s3Plan`) |
 | #13 `buildSteps` ends, `tripStart` start | `index.html` | `src/app/44-journey-steps.ts` |
 | #13 off-route tolerance on foot | `index.html` | `src/app/50-tracking.ts` (`trackJourney`) |
-| #13 `syncEnds` / re-refine after `requay` | `index.html` | `src/app/54-live-timetable.ts` |
+| #13 `syncEnds` / re-refine after `requay` | `index.html` | `src/app/56-live-engine.ts` (`liveUpdated`; first in `54-live-timetable.ts`, since removed) |
 | #13 On foot card, header, ranking | `index.html` | `src/app/62-sheet-content.ts`, `66-pill.ts` |
 | #13 `routeWalk`, `refineJourney`, `netDirections`, walk revisions | `index.html` | `src/app/70-routing.ts` |
 | #13 `walkgraph/` published | `.github/workflows/pages.yml` | `STATIC_DIRS` in `scripts/build.mts` |
@@ -151,8 +151,9 @@ In this integration:
 2. **Scan's read text → indoor position (Scan → #8).** Every text Scan reads is dispatched as `scan:text`; inside a
    station `SIGNLOC` decides. Scan does not grow its own platform/sector sign parser; where it needs one it calls
    `SIGNLOC.parse`.
-3. **Scan's route check uses Kante `/api/due` (#11 → Scan)** through the `KANTE_LIVE` client, with the stationboard
-   as fallback, as RightSide does (#11 → #15, already in #15).
+3. **Scan's route check uses Kante `/api/due` (#11 → Scan)**, as RightSide does (#11 → #15, already in #15). (Since
+   then it goes through the engine's one client, `KANTE` in `src/engine.ts`, and the stationboard fallback is gone;
+   see `docs/journeys.md`.)
 4. **Walk router hands off to every station model (#13 ↔ #17, `main`).** The hand-off is keyed on `Station3D.has()`,
    so Zürich HB, Brünnen and Bümpliz Nord are covered without changes. Walk tiles exist only for Bern; elsewhere the
    street parts fall back to the online routers.

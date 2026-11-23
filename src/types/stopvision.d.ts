@@ -171,7 +171,9 @@ interface StopVisionEvidence {
   depFailed?: boolean;
   /** Why the departures could not be loaded: the engine is switched off for the page, or cannot be reached. */
   depWhy?: KanteFailure | null;
+  /** When departures were asked last (ms), and when they last came in. */
   depAt?: number;
+  depOkAt?: number;
 }
 
 /** Which edge of a stop the camera looks at and how that is known; maybe = a guess. */

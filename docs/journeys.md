@@ -14,13 +14,14 @@ The one place that knows where the engine is and whether it is up.
   `?engine=off` or `?kante=off` in the page address switches it off; `?kante=<url>` points the page at an engine on
   this machine (`localhost`, `127.x`, `[::1]`). Any other `?kante=<url>` is ignored (and logged): the engine learns
   where the traveller is and where they are going, so a link may not choose who receives that.
-- **Availability.** A failed call (no answer, a 5xx, too slow) marks the engine down for 30 s. Background calls
-  (live trips, vehicles, `/api/due`, the meta) give up at once while it is down; what the traveller asks for (a
-  journey, a departure board) still tries, and any answer marks it up again. `KANTE.ready(true)` ("Try again") asks
-  at once.
+- **Availability.** A failed request (no answer, too slow — the timeout covers the body too —, a 5xx, a 429)
+  marks the engine down; any answer, a refusal included, marks it up. Nothing is held back while it is down: each
+  caller asks at its own pace (live trips every 30 s, vehicles every 15 s, Scan every 15 s, the meta every 30 s while
+  it is not known), so every attempt is a real request.
 - **Features.** `/api/meta` is asked once the engine answers; `KANTE.has('stream' | 'due' | …)` reads its list.
 - **Errors.** Every call returns the engine's JSON or throws a `KanteError` whose `reason` is `off`, `down` or
-  `refused` (a 4xx: no route, unknown station). `KANTE.failure(e)` reads it.
+  `refused`. Only 400, 404, 410 and 422 are `refused` (no route, unknown station, no further page); only a refusal
+  is taken as "none" (no journey, no departures, no earlier or later page). `KANTE.failure(e)` reads it.
 
 ## The journey model: `src/engine-journey.ts` (`window.KanteJourney`)
 
@@ -76,9 +77,9 @@ engine does not place on an edge has none (`[]`) and is listed under "From other
 
 | Where | What it says |
 | --- | --- |
-| Journey sheet | "Journeys come from the Kante engine, which can't be reached right now." with **Try again**; "… which is switched off for this page." without it |
+| Journey sheet | "Journeys come from the Kante engine, which isn't answering right now." with **Try again** (from the same start as the plan that failed); "… which is switched off for this page." without it |
 | Platform card | the same for departures, with **Try again** |
-| Scan | the same for departures, with **Try again** (it also asks again by itself every 15 s) |
+| Scan | the same for departures, with **Try again** (it also asks again by itself every 15 s); rows already shown stay, marked "Not updated since …" |
 | Live data, live vehicles, `/api/due` | nothing: the journey keeps its last times, the map shows no vehicles |
 
 ## The fare
