@@ -56,8 +56,8 @@ on the carriageway counts four times.
   for another, and `kante build` builds it again whenever its inputs were built again, are another build, or it has
   another schema.
 
-Nationally (November 2026 data): 2,782,877 buildings, 2,902,699 doors (156,434 mapped, 2,746,265 from the
-register), 21,207 doors with no way out within 80 m, 50,594 joined only through a building (1.7 %: mostly sheds and
+Nationally (November 2026 data): 2,782,877 buildings, 2,902,150 doors (156,434 mapped, 2,745,716 from the
+register), 21,212 doors with no way out within 80 m, 55,341 joined only through a building (1.9 %: mostly sheds and
 annexes behind a house, a third of them register sub-addresses such as "5.1"). The index takes about 330 MB in the
 server.
 

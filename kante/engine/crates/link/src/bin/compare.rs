@@ -304,21 +304,34 @@ fn segment(data: &Path, c: [f64; 4]) -> Result<()> {
     Ok(())
 }
 
-/// For each walk (`{"key", "geometry": [[lon, lat], …], "arcade": [[segment, network end first], …]}` per line):
+/// For each walk (`{"key", "geometry": [[lon, lat], …], "ends": [[segment, network end first], …]}` per line):
 /// the segments that run through a building ([`through_sampled`]).
 fn through(data: &Path) -> Result<()> {
     let ix = load_doors(data)?;
     let g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
     let router = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
-    // a straight line onto a way under a roof (the graph's own tag, EF_COVERED): the last 5 m before it are exempt
-    let covered_at = |p: LatLon| router.snap(p, &kante_walk::SnapOptions { max_dist_m: 0.05, level: None, profile: None, exclude_kinds: 0 }).is_some_and(|s| router.graph().edges[s.edge as usize].flags & EF_COVERED != 0);
+    // a straight line onto a way under a roof (the graph's own tag, EF_COVERED): the last 5 m before it are exempt.
+    // A line onto a node is onto every way at it, so a point on a covered way's vertex counts too (the snap below
+    // takes one of the ways there, as the engine does, but not necessarily the same one).
+    let cell = |p: LatLon| ((p.lat_deg() * 1e6).floor() as i32, (p.lon_deg() * 1e6).floor() as i32);
+    let mut covered_vertices: FxHashMap<(i32, i32), Vec<LatLon>> = FxHashMap::default();
+    for (e, ed) in router.graph().edges.iter().enumerate() {
+        if ed.flags & EF_COVERED != 0 {
+            for q in router.graph().edge_geom(e as u32) {
+                covered_vertices.entry(cell(*q)).or_default().push(*q);
+            }
+        }
+    }
+    let covered_at = |p: LatLon| {
+        let (a, b) = cell(p);
+        (a - 1..=a + 1).any(|x| (b - 1..=b + 1).any(|y| covered_vertices.get(&(x, y)).is_some_and(|v| v.iter().any(|q| q.dist_m(&p) <= 0.05))))
+            || router.snap(p, &kante_walk::SnapOptions { max_dist_m: 0.05, level: None, profile: None, exclude_kinds: 0 }).is_some_and(|s| router.graph().edges[s.edge as usize].flags & EF_COVERED != 0)
+    };
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();
     for line in stdin.lock().lines() {
         let v: serde_json::Value = serde_json::from_str(&line?)?;
         let geom: Vec<LatLon> = v["geometry"].as_array().context("geometry")?.iter().map(|c| LatLon::from_deg(c[1].as_f64().unwrap_or(0.0), c[0].as_f64().unwrap_or(0.0))).collect();
-        // segments onto a way under an arcade: (segment, its network end is its first point); the last 5 m before
-        // the way do not count, as in the engine
         // the straight lines onto the network: (segment, its network end is its first point)
         let ends: Vec<(usize, bool)> = v["ends"].as_array().map(|a| a.iter().filter_map(|x| Some((x[0].as_u64()? as usize, x[1].as_bool()?))).collect()).unwrap_or_default();
         let arcade: Vec<(usize, bool)> = ends.into_iter().filter(|&(i, first)| i + 1 < geom.len() && covered_at(if first { geom[i] } else { geom[i + 1] })).collect();
