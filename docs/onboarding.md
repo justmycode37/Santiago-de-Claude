@@ -23,7 +23,7 @@ Nothing in the introduction waits on the demo: it can be skipped, and a demo tha
    A stricter need shows the milder ones as included, as in Settings.
 5. **Open the map**: the location prompt comes only now.
 
-Every answer is written straight into the settings (`SETTINGS.set`, `settings.js`); the introduction keeps nothing of its own.
+Every answer is written straight into the settings (`SETTINGS.set`, `settings.ts`); the introduction keeps nothing of its own.
 
 ## Files
 
@@ -41,7 +41,7 @@ Every answer is written straight into the settings (`SETTINGS.set`, `settings.js
   Any of them means the app was used before: it is marked `done` without showing.
 - `?intro` shows it again (dropped from the address afterwards). `?intro=0` switches it off, for tests and screen recordings.
 - Settings › "Show the introduction again".
-- If `onboarding.js` or `onboarding.css` cannot load, the app starts as usual.
+- If `onboarding.css` cannot load, the app starts as usual.
 
 ## The demo
 

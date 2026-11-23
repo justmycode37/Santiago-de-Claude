@@ -1,6 +1,6 @@
 # Scan: recognising stops with the camera
 
-Menu › **Scan** opens the rear camera (or takes a photo). Code: `stopvision.js`, loaded on first use; the photo
+Menu › **Scan** opens the rear camera (or takes a photo). Code: `stopvision.ts`, loaded on first use; the photo
 database `stop-images/` is built by `tools/build_stop_images.py`.
 
 ## What it tells you
@@ -41,7 +41,7 @@ the compass, the edge positions in `platforms.js`, the per-edge timetable and `/
 - Reading passes take turns between Tesseract's sparse-text and page modes and between the upper part and the
   whole frame: each reads signs the others miss.
 - Every reading is sent to the app as a `scan:text` event (`{ text, tap }`); platform/bay words are parsed with
-  `SIGNLOC.parse` (signloc.js) when it is loaded.
+  `SIGNLOC.parse` (signloc.ts) when it is loaded.
 
 ## Tested
 
@@ -55,7 +55,7 @@ scenes, small angled signs) stay "Nearby".
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| Sign layout | `layoutOf()`, `locateName()`, `signRegion()` in `stopvision.js` | OCR words with picture-pixel boxes; where a name is written; the sign plate around it |
+| Sign layout | `layoutOf()`, `locateName()`, `signRegion()` in `stopvision.ts` | OCR words with picture-pixel boxes; where a name is written; the sign plate around it |
 | Highlight overlay | `drawHighlight()` | Outline + dim + label for any box in picture pixels on a `object-fit: cover` video or image |
 | Side of the road | `sideOf()`, `standing()` | Which of two facing edges you are at, from GPS + accuracy (abstains when unclear) |
 | Edge names | `edgeName()`, `towards()` | "Bay A (towards …)" / "the stop towards …" from platforms.js + GTFS lines |

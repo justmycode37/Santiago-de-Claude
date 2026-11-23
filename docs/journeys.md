@@ -6,7 +6,7 @@ Everything the app knows about public transport comes from the team's Kante engi
 switched off or cannot be reached, the app says so where a journey or a departure board would be, and the map,
 search, events and places go on working.
 
-## The engine's client: `src/engine.ts` (`window.KANTE`)
+## The engine's client: `src/engine.ts` (`KANTE`)
 
 The one place that knows where the engine is and whether it is up.
 
@@ -23,9 +23,9 @@ The one place that knows where the engine is and whether it is up.
   `refused`. Only 400, 404, 410 and 422 are `refused` (no route, unknown station, no further page); only a refusal
   is taken as "none" (no journey, no departures, no earlier or later page). `KANTE.failure(e)` reads it.
 
-## The journey model: `src/engine-journey.ts` (`window.KanteJourney`)
+## The journey model: `src/engine-journey.ts` (`KanteJourney`)
 
-A `Journey` (types in `src/types/app-journey.d.ts`) is the engine's journey from `POST /api/plan`, with the fields
+A `Journey` (its type is in `src/engine-journey.ts`) is the engine's journey from `POST /api/plan`, with the fields
 the app adds:
 
 | Field | What it is |
@@ -67,7 +67,7 @@ map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip 
 (`live-vehicles.ts`, `/api/stream` or `/api/vehicles`) use: positions moved on in time, km along the drawn ride,
 the honest wording of how a position was worked out, and the bounding boxes.
 
-## Departure boards: `src/engine-departures.ts` (`window.KANTE_BOARD`)
+## Departure boards: `src/engine-departures.ts` (`KANTE_BOARD`)
 
 The card of a tapped platform and Scan both read `KANTE_BOARD.load()`: the engine's departures for the stop
 (`GET /api/departures`), each with the edges of `platforms.js` it leaves from. A departure whose boarding point the
