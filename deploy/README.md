@@ -53,9 +53,6 @@ A release built without the building address register (by a `deploy.sh` from bef
 failed) is noticed on the next run, before the "nothing new" exit: the register is fetched and, if that works, the
 same commit is built again. This is tried once per release (`~/kante-host/state/register-tried`).
 
-When the commit it checks out changes `deploy.sh` itself, the script starts again as the new one before it builds, so
-a change to the deploy takes effect in the same deploy (bash would otherwise go on with the copy it has read).
-
 A commit is tried once. If its build fails, the running engine stays as it is and the next commit is
 tried. The two newest releases are kept. A deploy takes about 2½ minutes on a
 12-core machine (the buildings and their doors add about 15 s on 32 cores), and the engine is down for a few seconds at the restart.
