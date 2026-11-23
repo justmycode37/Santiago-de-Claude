@@ -210,7 +210,9 @@ type KantePlanOptions = {
 /** The options as the app sends them, from the traveller's settings (KanteJourney.options()). */
 type KanteRoutingOptions = KantePlanOptions & Required<Pick<KantePlanOptions, 'walkSpeed' | 'stairs' | 'escalators' | 'wheelchair' | 'transferMarginS' | 'maxWalkMin'>>;
 /** A place by the engine's id, or by coordinate. */
-type KantePlaceRef = { id?: string; lat?: number; lon?: number; name?: string };
+/** `quay` (/api/walk only): a boarding point by its id, walked from or to on its own platform and floor; `exact`
+ *  (/api/walk only): the point as it is, not the door of the building it lies in. An older engine ignores both. */
+type KantePlaceRef = { id?: string; lat?: number; lon?: number; name?: string; quay?: string; exact?: boolean };
 type KantePlanRequest = {
   from?: KantePlaceRef;
   to: KantePlaceRef;
@@ -264,7 +266,22 @@ interface KanteWalk {
   /** The floor at each point of `geometry`. */
   levels: (number | null)[];
   steps: KanteWalkStep[];
+  // From engines that know buildings' doors (all optional: an older engine sends none of these)
+  /** The door of the destination building the walk ends at (its last point), and the one it starts from. */
+  door?: KanteWalkDoor;
+  startDoor?: KanteWalkDoor;
+  /** Stretches under a roof, as ranges of `geometry`. */
+  covered?: { kind: 'arcade' | 'passage' | 'underpass' | 'indoors'; from: number; to: number }[];
+  /** Points 0…approxStart and approxEnd… are a guess (a straight line across open ground, or into a building
+   *  through no known door). */
+  approxStart?: number;
+  approxEnd?: number;
+  /** Step-free: the destination building has doors, but none is step-free. */
+  noStepFreeDoor?: boolean;
 }
+/** A door of a building: OSM's `entrance=*` (main, yes, shop, service, …), or `addr` for a point of the official
+ *  building address register. */
+interface KanteWalkDoor { lat: number; lon: number; kind: string; addr?: string; wheelchair?: 'yes' | 'no' | 'limited' }
 /** A walk as a leg of a journey. */
 interface KanteWalkLeg extends KanteWalk { type: 'walk' }
 /** A ride on one trip, as a leg of a journey. */
@@ -422,8 +439,8 @@ interface KanteWalkDir {
   from?: number;
   to?: number;
 }
-/** A walk as the app keeps a routed one. `steps` are a street router's; the engine's walk has `dirs` instead. */
-interface KanteRoutedWalk { coords: LngLat[]; steps: null; dist: number | null; dirs: KanteWalkDir[] }
+/** A walk as the app keeps a routed one (RoutedWalk), from the engine's walk. */
+interface KanteRoutedWalk extends RoutedWalk { steps: null; dirs: KanteWalkDir[] }
 /** Where a walk changes floor, and between which floors. */
 interface KanteFloorChange { at: LngLat; from: number; to: number }
 /** The engine's walk in the three fields a step keeps a routed walk in. */
@@ -448,6 +465,8 @@ interface KanteJourneyApi {
   walkSecs(leg: KanteWalk): number;
   /** Gives a walk or change step the engine's walk: its time, and its path, directions and floor changes when it has one. */
   setWalk(st: JourneyWalkStep | JourneyChangeStep, leg: KanteWalk): void;
+  /** The engine's walk as the page keeps a routed one, with its floor changes; null when it found no path. */
+  routed(leg: KanteWalk): (KanteRoutedWalk & { floors: KanteFloorChange[] }) | null;
   /** Writes an answer of /api/trip for trip n of the ride (its leg) into the ride's stops. */
   applyTrip(ride: JourneyRide, n: number, trip: KanteTrip): void;
   /**

@@ -35,12 +35,10 @@ interface Journey extends KanteJourney {
    * walk legs. A change at the very same boarding point has no walk.
    */
   parts: JourneyPart[];
-  /** When it starts, ms: the engine's `dep`, or earlier when the first walk is longer on the walking network. */
+  /** When it starts, ms: the engine's `dep`. */
   t0: number;
   /** When it arrives as timetabled, ms: the last ride's arrival plus the walk after it (a later live arrival is the steps'). */
   t1: number;
-  /** 70-routing.ts: the walk before the first ride as the walking network routed it, seconds (the option's row). */
-  accessS?: number;
 }
 type JourneyPart = JourneyRide | KanteWalkLeg;
 
@@ -130,6 +128,8 @@ interface JourneyEdge {
 /** Where a stop of a ride is (KanteJourney.at()). */
 interface JourneyPlatformAt {
   ll: LngLat;
+  /** The engine's boarding point (its quay id). */
+  quay?: string;
   /** null: the engine only knows the stop, not the platform or edge. */
   edge: JourneyEdge | null;
   /** The compass direction the vehicle leaves in. */
@@ -157,6 +157,28 @@ interface RoutedWalk {
   steps: OsrmStep[] | null;
   dist: number | null;
   dirs?: KanteWalkDir[];
+  /** Routed on a walking network (the engine's): the blue dot may sit on it. */
+  net?: boolean;
+  /** A straight line, not a route (no router found a way). */
+  approx?: boolean;
+  /** Coordinate indices: the guessed straight bits from the start (0…approxTo) and to the end (approxFrom…). */
+  approxTo?: number | null;
+  approxFrom?: number | null;
+  /** Stretches under arcades, through passages and underpasses, indoors. */
+  covered?: { kind: string; coords: LngLat[] }[];
+  /** The door the walk ends at. */
+  door?: { ll: LngLat; type: string; addr: string } | null;
+  floors?: KanteFloorChange[];
+}
+/** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
+ *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */
+interface WalkEnd {
+  gps?: boolean;
+  platform?: boolean;
+  level?: number | null;
+  ref?: string | null;
+  quay?: string;
+  exact?: boolean;
 }
 /** What a routed walk through a station puts on its step (stationWalk()); `floors` null: routed along the streets. */
 interface StationWalkParts { lines: LngLat[][]; walks: RoutedWalk[]; floors: KanteFloorChange[] | null }
@@ -212,6 +234,13 @@ interface JourneyFootStep extends JourneyStepBase {
   walkS?: number;
   /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
   kanteWalk?: boolean;
+  /** What each of `lines` was routed between, the revision of its route, the lines and the ends and platforms its
+   *  last answer was for (walkSig()), and for the walk to the destination the place it leads to. */
+  ends?: [WalkEnd, WalkEnd][];
+  walkRev?: number;
+  _netFor?: LngLat[][];
+  _netSig?: string;
+  toLL?: LngLat;
 }
 
 /** On foot to the first stop, or (final) from the last stop to the destination. A trip without a ride is one final walk. */

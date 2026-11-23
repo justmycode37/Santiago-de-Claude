@@ -7,7 +7,7 @@ only takes the types out, so `dist/live.js` is `src/live.ts` line for line and n
 npm install     # once; needs Node.js 22.18 or newer
 npm run dev     # builds dist/, serves http://localhost:8000, rebuilds when you save a file
 npm run check   # check the types
-npm test        # the station router's tests
+npm test        # the station router's and the walks' tests
 npm run build   # dist/ once, without the dev server
 ```
 

@@ -14,7 +14,7 @@ engine is at https://kante.omniroute.app.
 | Path | What |
 |---|---|
 | `engine/crates/` | The engine. `docs/ARCHITECTURE.md` explains the crates |
-| `scripts/fetch-data.sh` | Downloads the timetable, the stop registry and OpenStreetMap Switzerland (about 900 MB) |
+| `scripts/fetch-data.sh` | Downloads the timetable, the stop registry, OpenStreetMap Switzerland and the building address register (about 1 GB) |
 | `scripts/plan.py` | Plans a trip from the command line |
 
 ## Running it

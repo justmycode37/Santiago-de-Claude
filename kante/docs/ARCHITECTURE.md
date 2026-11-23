@@ -46,8 +46,8 @@ in the design is Bern-specific: the walking area is a bounding box option.
 | `engine/crates/rt` | SIRI-ET and GTFS-RT parsing and polling |
 | `engine/crates/server` | `kante` binary: `kante build`, `kante serve` |
 | `app/` | Web app; `app/src/api/types.ts` is the HTTP contract |
-| `data/raw/` | Inputs: `gtfs/gtfs.zip`, `atlas/*.csv`, `osm/switzerland-latest.osm.pbf` |
-| `data/built/` | Caches written by `kante build`: `timetable.bin`, `walkgraph.bin`, `osm-extract.bin`, `links.bin`, `search.bin` |
+| `data/raw/` | Inputs: `gtfs/gtfs.zip`, `atlas/*.csv`, `osm/switzerland-latest.osm.pbf`, `register/adr.csv.zip` (optional: building addresses, for doors) |
+| `data/built/` | Caches written by `kante build`: `timetable.bin`, `walkgraph.bin`, `osm-extract.bin`, `links.bin`, `search.bin`, `doors.bin` |
 
 Prior research (data sources, formats, measured coverage, Bern test case) is in
 `/home/niknal/.t3/scratch/2026-11-20-i-want-you-to-look-59090bd5/reports/`

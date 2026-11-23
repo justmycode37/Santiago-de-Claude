@@ -33,7 +33,7 @@ git clone https://github.com/justmycode37/Santiago-de-Claude ~/kante-host/repo
 ~/kante-host/repo/deploy/install.sh
 ```
 
-`install.sh` downloads `cloudflared` and the data (about 900 MB), builds the first release and starts the
+`install.sh` downloads `cloudflared` and the data (about 1 GB), builds the first release and starts the
 services. For live data, put the opentransportdata.swiss key in `~/kante-host/secrets/otd.json` as
 `{"siri-et": "…"}` (mode 600) before running it, or add it later and restart `kante-engine`.
 
@@ -42,14 +42,15 @@ services. For live data, put the opentransportdata.swiss key in `~/kante-host/se
 `deploy.sh` fetches `main`. If `kante/engine` has not changed it does nothing. Otherwise it:
 
 1. builds the engine,
-2. builds the data caches with the new engine, in a new folder under `~/kante-host/releases/`,
+2. builds the data caches with the new engine, in a new folder under `~/kante-host/releases/` (the building
+   address register, an input added later, is downloaded first if the host has none yet; the build works without it),
 3. points `~/kante-host/current` at the new folder and restarts the engine,
 4. checks that the engine answers, has a timetable and can search. If not, it goes back to the release
    before.
 
 A commit is tried once. If its build fails, the running engine stays as it is and the next commit is
-tried. The two newest releases are kept. A deploy takes about 2 minutes on a
-12-core machine, and the engine is down for a few seconds at the restart.
+tried. The two newest releases are kept. A deploy takes about 2½ minutes on a
+12-core machine (the buildings and their doors add about 15 s on 32 cores), and the engine is down for a few seconds at the restart.
 
 ## The public address
 

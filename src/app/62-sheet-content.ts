@@ -168,9 +168,8 @@ function optionRow(conn: Journey, now: number) {
   let walkS = 0;
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
   const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m > 3) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
-  const access = conn.parts.findIndex(isRide); // the walks before the first ride: as the network drew them, once it has
-  conn.parts.forEach((s, k) => {
-    if (s.type === 'walk') { walkS += conn.accessS != null && k < access ? (k ? 0 : conn.accessS) : KanteJourney.walkSecs(s); return; }
+  conn.parts.forEach((s) => {
+    if (s.type === 'walk') { walkS += KanteJourney.walkSecs(s); return; }
     addWalk();
     add(kBadge(s.line, null, chainIcon(s.line)));
   });

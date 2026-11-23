@@ -51,9 +51,6 @@ type SettingsChangeListener = (patch: Partial<Settings>, by: SettingsChangedBy |
 /** The journey options the 3D station view's router takes (station-route.ts). */
 type JourneySettings = Pick<Settings, 'stepFree' | 'fewerStairs' | 'noEscalators' | 'wheelchair' | 'walkKmh'>;
 
-/** Valhalla pedestrian costing options: route for a wheelchair, or keep away from steps. */
-type WalkCosting = { type: 'wheelchair' } | { step_penalty: number };
-
 interface SettingsApi {
   /** Opens the Settings page (URL #settings); `anchor` = id of a heading on the page to open it at. */
   open(anchor?: string): void;
@@ -62,8 +59,6 @@ interface SettingsApi {
   eventTags(): string[];
   /** The map groups the events button shows, in the order of MAP_LAYERS.GROUPS. */
   mapGroups(): MapGroupKey[];
-  /** How walks are to be routed, or null for the normal walking router. */
-  walkCosting(): WalkCosting | null;
   /** The transport types to travel with (KanteJourney.options() turns them into the engine's modes); [] = all. */
   transportations(): TransportMode[];
   /** The settings with the accessibility options worked out (wheelchair → step-free → fewer stairs, no escalators). */

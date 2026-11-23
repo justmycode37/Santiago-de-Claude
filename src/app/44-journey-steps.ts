@@ -116,8 +116,8 @@ function placeRide(s: JourneyRide) {
 }
 
 // What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
-const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa && pa.edge
-  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true });
+const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => ({ ...(pa && pa.edge
+  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true }), ...(pa && pa.quay ? { quay: pa.quay } : {}) });
 // After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
 // engine-journey.js leaves it)
 function syncEnds(steps: JourneyStep[]) {
