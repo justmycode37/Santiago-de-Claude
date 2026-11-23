@@ -7,8 +7,10 @@ stretches before and after a station model). The engine routes on one pedestrian
 Switzerland, built from OpenStreetMap (`kante/engine/crates/osm`, `walk`, `link`; the doors in
 `kante/engine/crates/link/src/doors.rs`). Inside the ten stations with a 3D
 model the model's own router (`src/station-route.ts`) draws the part inside, so the map shows the way the 3D view
-does. When the engine finds no path, or cannot be reached, the walk is a dashed straight line (timed by the engine
-when it answered).
+does. When the engine finds no path, or cannot be reached, the walk is a dashed straight line, timed by the engine
+when it answered. A walk asked for again that gets no answer is timed as the engine times a straight line, the time to
+spare at a change says so ("About 3 min to spare — the walk is estimated"), and it is asked again with the next live
+update.
 
 ## What the network knows
 
@@ -50,8 +52,9 @@ path; the page then draws it without a door. `/api/walk` takes, for each end, a 
 SLOID), a point taken as it is (`exact`: where a station model's paths begin) or a coordinate.
 `KanteJourney.routed()` turns a walk into the shape the page draws (`src/engine-journey.ts`; an `approximate` one is
 the straight line with the engine's time); `routeWalk()` in `src/app/routing.ts` asks for one. A walk moved since the
-plan through a station whose model has no route (or does not load) is asked for once, along the streets; one the model
-draws is asked for once more for its time. Between the model's end and the destination (or the start and the model)
+plan through a station whose model has no route (or does not load) is asked for once, along the streets. A walk the
+model draws takes the time of the way drawn: the model's for its part, the engine's for the stretches before and
+after it. Between the model's end and the destination (or the start and the model)
 only a stretch under 2 m is left out, so the engine still leads the last metres to its door.
 
 ## Data

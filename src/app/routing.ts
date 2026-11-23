@@ -198,7 +198,9 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   const current = () => st.walkRev === rev && journey.steps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
   const done = () => { st._netFor = st.lines; st._netSig = sig; };
-  return Object.assign(current, { done });
+  // no answer (the engine is down or cannot be reached): nothing is on its way any more, so it is asked again
+  const retry = () => { st._askFor = undefined; st._askSig = undefined; };
+  return Object.assign(current, { done, retry });
 }
 // Through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router or the
 // engine's path, so the map shows the same way as the 3D view; and the time of the way it draws
@@ -212,7 +214,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     st.walks = res.walks;
     st.floors = res.floors;
     if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
-    current.done();
+    if (res.walks.every(answered)) current.done(); else current.retry();
     walkTime(st, res.walks);
     queueSheet();
   });
@@ -234,18 +236,27 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     // floor changes where the walk actually takes them (else the platform levels imply one)
     const floors = res.flatMap((w) => w.floors || []);
     st.floors = floors.length ? floors : null;
-    current.done();
+    if (res.every(answered)) current.done(); else current.retry();
     walkTime(st, res);
     queueSheet(); // metres and written directions
   });
 }
 
+// A part of a walk that has its time: the engine answered (with a path, or with the straight line it found no path
+// for), or it is a station model's
+const answered = (w: RoutedWalk) => w.walkS != null;
+// How the engine times a walk it finds no path for (plan.rs): its straight line, a third longer, at the walking pace
+const DETOUR = 1.35;
 // The time of a walk as it is now drawn: the engine's for each part of it (a station model's for its part), its
-// minutes, and for the walk to the first ride when to leave (so as to be at the stop at the same time)
+// minutes, and for the walk to the first ride when to leave (so as to be at the stop at the same time). A part
+// without an answer is timed as the engine times a straight line, and the walk's time is marked as an estimate.
 function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) {
-  if (walks.some((w) => w.walkS == null)) return;
-  const s = walks.reduce((sum, w) => sum + w.walkS!, 0), dist = walks.reduce((sum, w) => sum + (w.dist || 0), 0);
+  const pace = KanteJourney.options().walkSpeed; // m/s
+  const metres = (w: RoutedWalk) => (w.dist != null ? w.dist : lengthKm(w.coords) * 1000 * DETOUR);
+  const s = Math.round(walks.reduce((sum, w) => sum + (answered(w) ? w.walkS! : metres(w) / pace), 0));
+  const dist = walks.reduce((sum, w) => sum + metres(w), 0);
   st.walkS = s;
+  st.walkEst = !walks.every(answered);
   const min = Math.round(KanteJourney.walkSecs({ distanceM: dist, durationS: s }) / 60);
   if (st.type === 'change') st.walkMin = min; else st.min = min;
   if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - s * 1000;

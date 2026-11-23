@@ -381,10 +381,11 @@ function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to
     h('span', 'tl-name', h('strong', null, name)));
 }
 function spareLine(st: JourneyChangeStep) {
-  const { s, level, extra, short, text } = spareOf(st);
+  const { s, level, extra, short, est, text } = spareOf(st);
+  const note = short ? ` — less than your ${extra} min extra change time` : est ? ' — the walk is estimated' : '';
   return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
-    level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
-      : h('span', null, h('b', null, text), short ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
+    level === 'missed' ? h('span', null, h('b', null, est ? `Change may be missed — about ${Math.max(1, Math.round(-s / 60))} min short` : `Missed change — ${kDurExact(-s)} too late`))
+      : h('span', null, h('b', null, text), note ? h('small', null, note) : null));
 }
 function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
   const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,

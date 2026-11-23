@@ -216,6 +216,7 @@ async function live(tripId: string, calls: KanteStopCall[]) {
 /** The engine answers the request it was asked (k: which one) with a walk between the points asked for. */
 const answer = (k: number, durationS: number, more: Partial<FakeEngineWalk> = {}) => {
   const x = page.asked[k];
+  if (!x) return settle(); // (not asked: the checks after it say so)
   x.d.res(walk([at(x.body.from)!, at(x.body.to)!], { durationS, distanceM: Math.round(durationS * 1.3), ...more }));
   return settle();
 };
@@ -541,6 +542,31 @@ console.log("14. a station model's path replaces the engine's: its time with it 
   await answer(0, 363, { distanceM: 465 });
   check(st.lines!.length === 2 && same(st.lines![1][1], P), "drawn: the model's way out, then the engine's");
   check(st.walkS === 423 && st.min === 7, `its time is the drawn path's, 60 s + 363 s (${st.walkS} s, ${st.min} min)`);
+}
+
+console.log('15. a change routed again without an answer: its time estimated, and asked again (finding 3)');
+{
+  const c = app();
+  const P9 = east(B, 150), P12 = east(B, 400);
+  const off = quayAt('q7', B, '7'), on = quayAt('q9', P9, '9');
+  const after = (q: KanteQuay) => [callAt(3, q, undefined, T(30)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50))];
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, off, T(20))),
+    walkLeg('transfer', point(B, off), point(P9, on), T(20), 120), rideLeg('t2', ...after(on) as [KanteStopCall, KanteStopCall])];
+  const steps = await show(legs, A);
+  const i = steps.findIndex((x) => x.type === 'change'), ch = steps[i];
+  check(JS.spareOf(ch).text === '8 min to spare', `as planned: ${JS.spareOf(ch).text}`);
+  await live('t2', after(quayAt('q12', P12, '12'))); // the next train leaves from platform 12, 250 m further on
+  check(c.asked.length === 1 && c.asked[0].body.to.quay === 'q12', 'the walk to platform 12 is asked of the engine');
+  c.asked[0].d.rej(new Error('down')); await settle();
+  const est = JS.spareOf(ch);
+  check(est.text === 'About 3 min to spare', `no answer: the time to spare is an estimate for the new platform, not the old walk's (${est.text})`);
+  check(walkLines(i).length === 1 && walkLines(i)[0].properties.approx === true, 'drawn as the straight line it is');
+  await live('t2', after(quayAt('q12', P12, '12'))); // the next live update, with nothing new
+  check(c.asked.length === 2 && c.asked[1].body.to.quay === 'q12', `not taken for done: asked again (${c.asked.length} requests)`);
+  await answer(1, 300);
+  check(JS.spareOf(ch).text === '5 min to spare' && !walkLines(i)[0].properties.approx, `answered: the engine's time (${JS.spareOf(ch).text})`);
+  await live('t2', after(quayAt('q12', P12, '12')));
+  check(c.asked.length === 2, 'and once answered, not asked again');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

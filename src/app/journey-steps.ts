@@ -68,6 +68,8 @@ export interface JourneyFootStep extends JourneyStepBase {
   // The engine's walk (KanteJourney.setWalk() and requay()):
   /** Its time on foot, to the second. */
   walkS?: number;
+  /** …only an estimate: routed again, it had no answer (its straight line, timed as the engine times one). */
+  walkEst?: boolean;
   /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
   kanteWalk?: boolean;
   // what its ends are, the revision of its route, the lines its last answer drew (a walk moved since has new ones), and for the walk to the destination the place it leads to
@@ -405,7 +407,10 @@ export function spareOf(st: JourneyChangeStep) {
   const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
   const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
   const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
-  return { s, level, extra, short, easy: level === 'ok' && !short, text: `${kDurExact(s)} to spare` };
+  // the walk's time an estimate (no router answered for the platform it now leads to): said so, in whole minutes
+  const est = !!st.walkEst;
+  const text = !est ? `${kDurExact(s)} to spare` : s < 60 ? 'Less than a minute to spare' : `About ${kDur(Math.floor(s / 60) * 60)} to spare`;
+  return { s, level, extra, short, est, easy: level === 'ok' && !short && !est, text };
 }
 
 export function stepCoords(st: JourneyStep) {
