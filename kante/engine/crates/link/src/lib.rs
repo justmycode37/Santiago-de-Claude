@@ -91,7 +91,10 @@
 //! step-free; the walk router finds no path for them.
 
 pub mod doors;
+pub mod ends;
 pub mod register;
+#[cfg(test)]
+mod test_world;
 
 use kante_core::geo::{self, project_on_segment, BBox, LatLon};
 use kante_core::*;

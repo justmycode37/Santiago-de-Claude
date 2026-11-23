@@ -43,9 +43,11 @@ pub fn run(args: &Args) -> Result<()> {
     std::fs::create_dir_all(&built)?;
     let force = args.has("force");
     let only: Option<Vec<&str>> = args.get("only").map(|s| s.split(',').collect());
-    let wanted = |name: &str, outputs: &[&Path]| match &only {
+    // a step runs when one of its outputs is missing or was written in an older format (a cache the server would
+    // refuse), or when it is named in --only
+    let wanted = |name: &str, outputs: &[(&Path, &str)]| match &only {
         Some(list) => list.contains(&name),
-        None => force || outputs.iter().any(|p| !p.exists()),
+        None => force || outputs.iter().any(|(p, schema)| io::schema_of(p).as_deref() != Some(*schema)),
     };
     let bbox = args.get("walk-bbox").map(parse_bbox).transpose()?;
 
@@ -57,7 +59,7 @@ pub fn run(args: &Args) -> Result<()> {
     let doors_path = built.join("doors.bin");
     let pbf = raw.join("osm/switzerland-latest.osm.pbf");
 
-    if wanted("timetable", &[&tt_path]) {
+    if wanted("timetable", &[(&tt_path, TIMETABLE_SCHEMA)]) {
         step("timetable", || {
             let atlas = raw.join("atlas");
             let tt = kante_gtfs::import(&kante_gtfs::ImportOptions {
@@ -72,8 +74,15 @@ pub fn run(args: &Args) -> Result<()> {
 
     // buildings: obstacles for the straight lines across squares, and the doors
     let mut buildings: Option<kante_osm::buildings::BuildingsRaw> = None;
-    let osm_wanted = wanted("osm", &[&graph_path, &extract_path]);
-    if osm_wanted || wanted("doors", &[&doors_path]) {
+    let osm_wanted = wanted("osm", &[(&graph_path, WALKGRAPH_SCHEMA), (&extract_path, EXTRACT_SCHEMA)]);
+    // the doors refer to the graph's edges: built again with the graph, and whenever they belong to another one
+    let doors_wanted = wanted("doors", &[(&doors_path, DOORS_SCHEMA)])
+        || (!osm_wanted && only.is_none() && {
+            let g = io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).ok();
+            let d = io::load::<Doors>(&doors_path, DOORS_SCHEMA).ok();
+            !matches!((g, d), (Some(g), Some(d)) if d.graph == graph_fingerprint(&g))
+        });
+    if osm_wanted || doors_wanted {
         step("buildings", || {
             let b = kante_osm::buildings::import_buildings(&pbf, bbox.as_ref())?;
             eprintln!("   {} buildings, {} mapped entrances", b.len(), b.entrances.len());
@@ -90,7 +99,7 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("links", &[&links_path]) {
+    if wanted("links", &[(&links_path, LINKS_SCHEMA)]) {
         step("links", || {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
@@ -103,7 +112,7 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("search", &[&search_path]) {
+    if wanted("search", &[(&search_path, "search-v1")]) {
         step("search", || {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let idx = kante_search::build(&tt, pbf.exists().then_some(pbf.as_path()), None)?;
@@ -111,7 +120,7 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
     // the doors refer to the walk graph's edges: built again whenever the graph is
-    if osm_wanted || wanted("doors", &[&doors_path]) {
+    if osm_wanted || doors_wanted {
         step("doors", || {
             let raw_b = buildings.take().expect("buildings read above");
             // the official address register gives the buildings without a mapped door theirs; without it, OSM's doors only
@@ -133,12 +142,13 @@ pub fn run(args: &Args) -> Result<()> {
             let router = kante_walk::WalkRouter::new(Arc::new(graph));
             let (doors, st) = kante_link::doors::build(&raw_b, &register, &router, &extract);
             eprintln!(
-                "   {} addresses; {} doors from the register; {} doors on {} buildings ({} doors too far from any way)",
+                "   {} addresses; {} doors from the register; {} doors, {} buildings ({} doors too far from any way, {} joined only through a building)",
                 register.len(),
                 st.register_doors,
                 doors.doors.len(),
-                st.buildings_with_doors,
-                st.unattached
+                doors.buildings.len(),
+                st.unattached,
+                st.through_only
             );
             io::save(&doors_path, DOORS_SCHEMA, &doors)
         })?;

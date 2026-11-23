@@ -408,7 +408,7 @@ pub struct LinkData {
 
 // ---------------------------------------------------------------- doors
 
-pub const DOORS_SCHEMA: &str = "doors-v3";
+pub const DOORS_SCHEMA: &str = "doors-v4";
 
 /// What kind of way into a building a [`Door`] is: OSM `entrance=*` (or a bare
 /// `door=*`), or a point of the official building address register.
@@ -553,8 +553,8 @@ pub struct Doors {
 /// Between two rings of a building in `Doors::ring`.
 pub const RING_BREAK: [i16; 2] = [i16::MIN, i16::MIN];
 
-/// Changes whenever the graph does (nodes, edges, their ends and lengths):
-/// ties caches that refer to edges by number to the graph they were made for.
+/// Changes whenever the graph does: nodes, edges (ends, kind, levels, flags, length) and every point of their
+/// geometry. Ties caches that refer to edges by number to the graph they were made for.
 pub fn graph_fingerprint(g: &WalkGraph) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut mix = |v: u64| {
@@ -564,10 +564,14 @@ pub fn graph_fingerprint(g: &WalkGraph) -> u64 {
     mix(g.edges.len() as u64);
     for e in &g.edges {
         mix(((e.a as u64) << 32) | e.b as u64);
-        mix(((e.len_dm as u64) << 16) | ((e.kind as u64) << 8) | e.geom_len as u64);
+        mix(((e.len_dm as u64) << 32) | ((e.flags as u64) << 16) | ((e.kind as u64) << 8) | e.steps as u64);
+        mix(((e.level_a as u8 as u64) << 48) | ((e.level_b as u8 as u64) << 40) | ((e.geom_len as u64) << 32) | e.geom_off as u64);
     }
-    for n in g.nodes.iter().step_by(7) {
+    for n in &g.nodes {
         mix(((n.lat as u32 as u64) << 32) | n.lon as u32 as u64);
+    }
+    for p in &g.geom {
+        mix(((p.lat as u32 as u64) << 32) | p.lon as u32 as u64);
     }
     h
 }

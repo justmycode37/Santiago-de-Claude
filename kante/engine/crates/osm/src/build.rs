@@ -357,11 +357,12 @@ fn join_inside(b: &mut Builder, areas: &[AreaDef], outline: &[Vec<u32>], area_ed
                             continue;
                         }
                         let p = frame.to_xy(gpos[n as usize]);
-                        if !area::point_in_rings(p, &rings) {
+                        // inside, or right on the outline (a path that ends on it without sharing its node)
+                        if !area::point_in_rings(p, &rings) && !area::near_any(p, &rings, 0.05) {
                             continue;
                         }
                         let mut feet: Vec<(f64, u32, u32, f64, P)> =
-                            lines.iter().map(|(e, l)| (*e, foot(p, l))).filter(|(_, f)| f.0 <= 60.0 && f.0 > 0.01).map(|(e, f)| (f.0, e, f.1, f.2, f.3)).collect();
+                            lines.iter().map(|(e, l)| (*e, foot(p, l))).filter(|(_, f)| f.0 <= 60.0).map(|(e, f)| (f.0, e, f.1, f.2, f.3)).collect();
                         feet.sort_by(|x, y| x.0.total_cmp(&y.0));
                         let mut kept = 0;
                         for (_, e, si, t, q) in feet {
@@ -1175,18 +1176,41 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             });
         }
     }
-    // A lift drawn as one outline per floor (Zürich HB): outlines of one floor each, on different floors, that
-    // overlap or touch with their centres within 4 m (mappers draw the floors a few metres apart) are one lift, with
-    // a port on each floor. Two shafts side by side, or lifts drawn for several floors each, are never joined.
+    // A lift drawn as one outline per floor (Zürich HB) is one lift, with a port on each floor. Joined are only
+    // outlines that are each drawn for one floor (an outline with several levels is a lift of its own; one without
+    // a level is never joined: its floor is not known), of the same access, whose polygons overlap or lie within
+    // 0.5 m of each other. The closest pairs are joined first, and never so that a lift would get two outlines on
+    // one floor: two shafts side by side that serve a common floor stay two lifts, also through a third outline.
     {
-        let cs: Vec<(f64, f64)> = lifts.iter().map(|l| l.centre).collect();
+        let one_floor: Vec<usize> = (0..lifts.len()).filter(|&i| !lifts[i].node_lift && lifts[i].levels.len() == 1 && lifts[i].ring.len() >= 3).collect();
         let mut cell: FxHashMap<(i64, i64), Vec<usize>> = FxHashMap::default();
-        for (i, c) in cs.iter().enumerate() {
-            if !lifts[i].nodes.is_empty() {
-                cell.entry(((c.0 / 5.0).floor() as i64, (c.1 / 5.0).floor() as i64)).or_default().push(i);
+        for &i in &one_floor {
+            let c = lifts[i].centre;
+            cell.entry(((c.0 / 10.0).floor() as i64, (c.1 / 10.0).floor() as i64)).or_default().push(i);
+        }
+        let mut pairs: Vec<(f64, f64, usize, usize)> = Vec::new();
+        for &i in &one_floor {
+            let c = lifts[i].centre;
+            let (cx, cy) = ((c.0 / 10.0).floor() as i64, (c.1 / 10.0).floor() as i64);
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    for &j in cell.get(&(cx + dx, cy + dy)).map(|v| v.as_slice()).unwrap_or(&[]) {
+                        let (a, z) = (&lifts[i], &lifts[j]);
+                        if j <= i || a.levels == z.levels || a.private != z.private {
+                            continue;
+                        }
+                        let d = area::ring_distance(&a.ring, &z.ring);
+                        if d <= 0.5 {
+                            let cd = ((a.centre.0 - z.centre.0).powi(2) + (a.centre.1 - z.centre.1).powi(2)).sqrt();
+                            pairs.push((d, cd, i, j));
+                        }
+                    }
+                }
             }
         }
+        pairs.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.total_cmp(&y.1)).then(x.2.cmp(&y.2)).then(x.3.cmp(&y.3)));
         let mut into: Vec<usize> = (0..lifts.len()).collect();
+        let mut floors: Vec<Vec<Level2>> = lifts.iter().map(|l| l.levels.clone()).collect();
         fn root(p: &mut [usize], mut x: usize) -> usize {
             while p[x] != x {
                 p[x] = p[p[x]];
@@ -1194,27 +1218,15 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             }
             x
         }
-        for i in 0..lifts.len() {
-            let (cx, cy) = ((cs[i].0 / 5.0).floor() as i64, (cs[i].1 / 5.0).floor() as i64);
-            for dx in -1..=1 {
-                for dy in -1..=1 {
-                    for &j in cell.get(&(cx + dx, cy + dy)).map(|v| v.as_slice()).unwrap_or(&[]) {
-                        if j <= i || lifts[i].levels.len() != 1 || lifts[j].levels.len() != 1 || lifts[i].levels == lifts[j].levels {
-                            continue;
-                        }
-                        let bb = |a: &LiftDef| a.ring.iter().fold((f64::MAX, f64::MAX, f64::MIN, f64::MIN), |b, p| (b.0.min(p.0), b.1.min(p.1), b.2.max(p.0), b.3.max(p.1)));
-                        let (x, y) = (bb(&lifts[i]), bb(&lifts[j]));
-                        let touch = x.0 <= y.2 + 0.2 && y.0 <= x.2 + 0.2 && x.1 <= y.3 + 0.2 && y.1 <= x.3 + 0.2;
-                        let near = ((cs[i].0 - cs[j].0).powi(2) + (cs[i].1 - cs[j].1).powi(2)).sqrt() < 4.0;
-                        if lifts[i].ring.len() >= 3 && lifts[j].ring.len() >= 3 && touch && near {
-                            let (a, c) = (root(&mut into, i), root(&mut into, j));
-                            if a != c {
-                                into[a.max(c)] = a.min(c);
-                            }
-                        }
-                    }
-                }
+        for (_, _, i, j) in pairs {
+            let (a, c) = (root(&mut into, i), root(&mut into, j));
+            if a == c || floors[a].iter().any(|l| floors[c].contains(l)) {
+                continue; // one lift never has two outlines on one floor
             }
+            let (keep, gone) = (a.min(c), a.max(c));
+            into[gone] = keep;
+            let moved = std::mem::take(&mut floors[gone]);
+            floors[keep].extend(moved);
         }
         let mut merged = 0;
         for i in 0..lifts.len() {
@@ -1238,7 +1250,6 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
             if keep.flags & EF_WHEELCHAIR_NO != 0 && keep.flags & EF_WHEELCHAIR_YES != 0 {
                 keep.flags &= !EF_WHEELCHAIR_YES;
             }
-            keep.private &= other.private;
             merged += 1;
         }
         lifts.retain(|l| !l.nodes.is_empty());
@@ -1341,8 +1352,9 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
                 for (k, &i) in by_layer.iter().enumerate() {
                     ports[i].1 = missing[k];
                 }
-            } else if missing.len() == 1 {
-                // the lift serves one floor more than its ports name: that is where the others are
+            } else if missing.len() == 1 && !known.is_empty() && !distinct {
+                // the lift serves one floor more than its levelled ports name, and its other ports are on one
+                // layer: that floor is where they are (ports on different layers stay apart, unlevelled)
                 for &i in &none_ports {
                     ports[i].1 = missing[0];
                 }
@@ -1578,8 +1590,7 @@ pub fn build(rels: &Relations, ways: &Ways, nodes: &Nodes, bbox: Option<&BBox>, 
                     extract.carriageway_names.len() as u32 - 1
                 })
             };
-            // a tunnel or bridge (an untagged one counts as layer -1 / +1), or another floor
-            let off_ground = w.class.layer != 0 || (!w.class.level.is_none() && w.class.level.first != 0);
+            let off_ground = w.class.roles & R_OFF_GROUND != 0;
             for (bit, kind) in [(R_CARR_ROAD, CarriagewayKind::Road), (R_CARR_TRAM, CarriagewayKind::TramTrack), (R_CARR_RAIL, CarriagewayKind::RailTrack)] {
                 if roles & bit != 0 {
                     extract.carriageways.push(Carriageway { kind, geom_off: off as u32, geom_len: len as u16, name, off_ground });
@@ -1933,21 +1944,57 @@ mod tests {
         assert!(walk(g, (-200.0, 0.0), (202.0, 2.0), true).is_none(), "no ride from floor 0 to floor 3");
     }
 
+    /// Lift outlines (id, corners, level, access) each reached by a footway on its floor from (-200, k):
+    /// returns the levels joined by each lift edge.
+    fn lift_world(outlines: &[(i64, &[(f64, f64)], &str, &str)]) -> (Built, Vec<(Level2, Level2)>) {
+        let mut nodes: Vec<(i64, f64, f64, Kv)> = Vec::new();
+        let mut ways: Vec<(i64, Vec<i64>, Vec<(&str, &str)>)> = Vec::new();
+        for (k, (id, pts, level, access)) in outlines.iter().enumerate() {
+            let ids: Vec<i64> = (0..pts.len()).map(|i| id * 100 + i as i64).collect();
+            for (i, p) in pts.iter().enumerate() {
+                nodes.push((ids[i], p.0, p.1, &[]));
+            }
+            let mut ring = ids.clone();
+            ring.push(ids[0]);
+            let mut tags = vec![("highway", "elevator"), ("level", *level)];
+            if !access.is_empty() {
+                tags.push(("access", *access));
+            }
+            ways.push((*id, ring, tags));
+            nodes.push((id * 100 + 99, -200.0, k as f64 * 3.0, &[]));
+            ways.push((id * 10 + 1, vec![id * 100 + 99, ids[0]], vec![("highway", "footway"), ("level", *level)]));
+        }
+        let ws: Vec<(i64, &[i64], Kv)> = ways.iter().map(|(i, r, t)| (*i, r.as_slice(), t.as_slice())).collect();
+        let b = world(&nodes, &ws);
+        let lifts = b.graph.edges.iter().filter(|e| e.kind == EdgeKind::Lift).map(|e| (e.level_a, e.level_b)).collect();
+        (b, lifts)
+    }
+
     #[test]
-    fn one_floor_outlines_side_by_side_are_not_stacked() {
-        // two shafts 2.3 m apart (centres), each drawn for one floor (0 and 1): they do not touch
-        let b = world(
-            &[(1, -200.0, 0.0, &[]), (3, 202.0, 2.0, &[]), (20, 0.0, 0.0, &[]), (21, 2.0, 0.0, &[]), (22, 2.0, 2.0, &[]), (23, 0.0, 2.0, &[]),
-              (30, 2.3, 0.0, &[]), (31, 4.3, 0.0, &[]), (32, 4.3, 2.0, &[]), (33, 2.3, 2.0, &[])],
-            &[
-                (10, &[1, 20], &[("highway", "footway"), ("level", "0")]),
-                (12, &[3, 32], &[("highway", "footway"), ("level", "1")]),
-                (14, &[20, 21, 22, 23, 20], &[("highway", "elevator"), ("level", "0")]),
-                (15, &[30, 31, 32, 33, 30], &[("highway", "elevator"), ("level", "1")]),
-            ],
-        );
-        assert_eq!(b.stats.lifts_stacked, 0);
-        assert!(!b.graph.edges.iter().any(|e| e.kind == EdgeKind::Lift));
+    fn lift_outlines_are_joined_by_their_shapes() {
+        let sq = |x: f64, y: f64| -> Vec<(f64, f64)> { vec![(x, y), (x + 2.0, y), (x + 2.0, y + 2.0), (x, y + 2.0)] };
+        let diamond = |x: f64, y: f64| -> Vec<(f64, f64)> { vec![(x + 1.0, y), (x + 2.0, y + 1.0), (x + 1.0, y + 2.0), (x, y + 1.0)] };
+        // one shaft, its floors drawn 30 cm apart: one lift
+        let (_, l) = lift_world(&[(1, &sq(0.0, 0.0), "0", ""), (2, &sq(2.3, 0.0), "1", "")]);
+        assert_eq!(l, vec![(0, 2)], "a 30 cm gap between a shaft's floor outlines");
+        // two diamond-shaped shafts whose boxes overlap but whose shapes are 0.7 m apart: two
+        let (_, l) = lift_world(&[(1, &diamond(0.0, 0.0), "0", ""), (2, &diamond(1.5, 1.5), "1", "")]);
+        assert!(l.is_empty(), "diamonds with overlapping boxes: {l:?}");
+        // two shafts 1 m apart: two
+        let (_, l) = lift_world(&[(1, &sq(0.0, 0.0), "0", ""), (2, &sq(3.0, 0.0), "1", "")]);
+        assert!(l.is_empty(), "{l:?}");
+        // two shafts sharing a wall, one 0↔1, the other 0↔2: never one lift 0↔1↔2 through the union
+        let (b, l) = lift_world(&[(1, &sq(0.0, 0.0), "0", ""), (2, &sq(0.0, 0.0), "1", ""), (3, &sq(2.0, 0.0), "0", ""), (4, &sq(2.0, 0.0), "2", "")]);
+        assert_eq!(b.stats.lifts_stacked, 2);
+        let mut l = l;
+        l.sort();
+        assert_eq!(l, vec![(0, 2), (0, 4)], "two lifts");
+        // a staff lift's outline is not joined with a public one's
+        let (_, l) = lift_world(&[(1, &sq(0.0, 0.0), "0", ""), (2, &sq(0.0, 0.0), "1", "private")]);
+        assert!(l.is_empty(), "{l:?}");
+        // an outline drawn for two floors is a lift of its own and joins nothing
+        let (_, l) = lift_world(&[(1, &sq(0.0, 0.0), "0;1", ""), (2, &sq(0.0, 0.0), "2", "")]);
+        assert!(l.iter().all(|&(a, z)| (a, z) == (0, 2)), "{l:?}");
     }
 
     #[test]
@@ -2016,6 +2063,17 @@ mod tests {
         assert_eq!(at(g, 0.0, 0.0).len(), 2);
         assert_eq!(g.edges.iter().filter(|e| e.kind == EdgeKind::Lift).count(), 1);
         assert_eq!(walk(g, (-200.0, 0.0), (200.0, 0.0), true).unwrap().lifts, 1);
+    }
+
+    #[test]
+    fn a_lift_tagged_with_one_level_still_joins_unlevelled_ways_on_two_layers() {
+        // Bellinzona: an elevator node with `level=2` between a path and one in a tunnel, neither with a level
+        let b = world(
+            &[(1, -200.0, 0.0, &[]), (2, 200.0, 0.0, &[]), (5, 0.0, 0.0, &[("highway", "elevator"), ("level", "2")])],
+            &[(10, &[1, 5], FOOT), (11, &[5, 2], &[("highway", "footway"), ("tunnel", "yes")])],
+        );
+        assert_eq!(b.graph.edges.iter().filter(|e| e.kind == EdgeKind::Lift).count(), 1);
+        assert_eq!(walk(&b.graph, (-200.0, 0.0), (200.0, 0.0), true).unwrap().lifts, 1);
     }
 
     #[test]

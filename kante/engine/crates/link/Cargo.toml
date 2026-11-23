@@ -10,5 +10,6 @@ rayon.workspace = true
 rustc-hash.workspace = true
 kante-walk.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 kante-osm.workspace = true
 zip.workspace = true

@@ -291,6 +291,8 @@ pub const R_PLATFORM_EDGE: u16 = 1 << 8;
 pub const R_MEMBER: u16 = 1 << 9;
 /// Walk class inherited from the relation the way is a ring of.
 pub const R_INHERITED: u16 = 1 << 10;
+/// A carriageway in a tunnel, on a bridge, or on another layer or floor: not on the ground.
+pub const R_OFF_GROUND: u16 = 1 << 11;
 
 #[derive(Clone, Copy, Debug)]
 pub struct WayClass {
@@ -439,6 +441,11 @@ pub fn classify_way(t: &Tags, closed: bool, relation: bool) -> WayClass {
         Err(_) if set(t.tunnel) && t.tunnel != "building_passage" && t.covered != "arcade" => -1,
         Err(_) => 0,
     };
+    if c.roles & (R_CARR_ROAD | R_CARR_TRAM | R_CARR_RAIL) != 0
+        && ((set(t.tunnel) && t.tunnel != "building_passage") || set(t.bridge) || c.layer != 0 || (!c.level.is_none() && c.level.first != 0))
+    {
+        c.roles |= R_OFF_GROUND;
+    }
 
     // --- lifts mapped as ways
     if lift_area(t) && !platform {

@@ -57,13 +57,27 @@ fetch() { # fetch <url> <dest> [check]: check is a command run on the downloaded
 REGISTER_URL=https://data.geo.admin.ch/ch.swisstopo.amtliches-gebaeudeadressverzeichnis/amtliches-gebaeudeadressverzeichnis_ch/amtliches-gebaeudeadressverzeichnis_ch_2056.csv.zip
 # The register's CSV must have the columns kante-link/src/register.rs reads, or the build would quietly fall back
 # to OpenStreetMap's doors.
-register_ok() {
+register_ok() { # the right columns, and over a million real addresses with coordinates in Switzerland
   python3 -I -c '
 import io, sys, zipfile
 z = zipfile.ZipFile(sys.argv[1])
 names = [n for n in z.namelist() if n.endswith(".csv")]
-head = io.TextIOWrapper(z.open(names[0]), encoding="utf-8-sig").readline().rstrip("\r\n").split(";") if names else []
-sys.exit(0 if {"ADR_STATUS", "ADR_NUMBER", "ADR_EASTING", "ADR_NORTHING", "STN_LABEL"} <= set(head) else 1)' "$1"
+if not names: sys.exit(1)
+f = io.TextIOWrapper(z.open(names[0]), encoding="utf-8-sig")
+head = f.readline().rstrip("\r\n").split(";")
+need = ["ADR_STATUS", "ADR_NUMBER", "ADR_EASTING", "ADR_NORTHING", "STN_LABEL"]
+if not set(need) <= set(head): sys.exit(1)
+st, nb, e, n = (head.index(c) for c in need[:4])
+ok = 0
+for line in f:
+    r = line.rstrip("\r\n").split(";")
+    if len(r) != len(head) or r[st] != "real" or not r[nb]: continue
+    try: x, y = float(r[e]), float(r[n])
+    except ValueError: continue
+    if 2480000 <= x <= 2840000 and 1070000 <= y <= 1300000:
+        ok += 1
+        if ok >= 1000000: sys.exit(0)
+sys.exit(1)' "$1"
 }
 register() {
   if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip register_ok; then

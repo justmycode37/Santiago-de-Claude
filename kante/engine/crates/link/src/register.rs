@@ -39,6 +39,7 @@ pub fn read(zip_path: &Path, bbox: Option<&BBox>) -> Result<Vec<Address>> {
     let col = |c: &str| cols.iter().position(|x| *x == c).with_context(|| format!("register: no column {c}"));
     let (status, number, east, north, street) = (col("ADR_STATUS")?, col("ADR_NUMBER")?, col("ADR_EASTING")?, col("ADR_NORTHING")?, col("STN_LABEL")?);
     let mut out = Vec::new();
+    let mut valid = 0usize;
     for line in lines {
         let line = line?;
         let r: Vec<&str> = line.split(';').collect();
@@ -47,21 +48,55 @@ pub fn read(zip_path: &Path, bbox: Option<&BBox>) -> Result<Vec<Address>> {
             continue;
         }
         let (Ok(e), Ok(n)) = (r[east].trim().parse::<f64>(), r[north].trim().parse::<f64>()) else { continue };
+        if !(LV95_E.contains(&e) && LV95_N.contains(&n)) {
+            continue;
+        }
+        valid += 1;
         let pos = lv95_to_wgs84(e, n);
         if bbox.is_some_and(|b| !b.contains(&pos)) {
             continue;
         }
         out.push(Address { pos, label: format!("{} {}", r[street], r[number]).trim().to_string() });
     }
-    if bbox.is_none() && out.len() < 1_000_000 {
-        bail!("{}: only {} addresses; the file looks cut short", zip_path.display(), out.len());
-    }
+    check_count(zip_path, valid)?;
     Ok(out)
+}
+
+/// Switzerland in LV95 metres.
+const LV95_E: std::ops::RangeInclusive<f64> = 2_480_000.0..=2_840_000.0;
+const LV95_N: std::ops::RangeInclusive<f64> = 1_070_000.0..=1_300_000.0;
+/// The register has about 3.2 million real addresses; one with fewer than this is not the register.
+pub const MIN_ADDRESSES: usize = 1_000_000;
+
+fn check_count(zip_path: &Path, valid: usize) -> Result<()> {
+    if valid < MIN_ADDRESSES {
+        bail!("{}: only {valid} real addresses with coordinates in Switzerland; the file looks cut short or broken", zip_path.display());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_register_with_the_right_header_but_no_usable_rows_is_refused() {
+        let dir = std::env::temp_dir().join(format!("kante-register-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("adr.csv.zip");
+        for body in ["", "real;3;x;y;Bahnhofstrasse\n", "real;3;2600000;1200000;Bahnhofstrasse\n"] {
+            let f = std::fs::File::create(&path).unwrap();
+            let mut z = zip::ZipWriter::new(f);
+            z.start_file("adr.csv", zip::write::SimpleFileOptions::default()).unwrap();
+            use std::io::Write;
+            z.write_all(format!("ADR_STATUS;ADR_NUMBER;ADR_EASTING;ADR_NORTHING;STN_LABEL\n{body}").as_bytes()).unwrap();
+            z.finish().unwrap();
+            // nationally and for a box alike
+            assert!(read(&path, None).is_err(), "{body:?}");
+            assert!(read(&path, Some(&BBox::from_deg(46.0, 7.0, 47.0, 8.0))).is_err(), "{body:?}");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn lv95() {
         // Grellingerstrasse 31, Basel (the register's first row): the same as tools' Python formula gave

@@ -60,6 +60,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/stream", get(stream))
         .route("/api/plan", post(plan))
         .route("/api/walk", post(walk))
+        .route("/api/reach", post(reach))
         .with_state(app)
 }
 
@@ -81,6 +82,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
             trips: tt.trips.len(),
             walk_edges: app.walk.as_ref().map(|w| w.graph().edges.len()).unwrap_or(0),
             doors: app.doors.as_ref().map(|d| d.doors.doors.len()).unwrap_or(0),
+            register_doors: app.doors.as_ref().map(|d| d.register_doors).unwrap_or(0),
         },
         attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map: © swisstopo"],
     })
@@ -483,6 +485,31 @@ async fn match_trip(State(app): S, Q(p): Q<MatchParams>) -> Result<Json<json::Ma
 
 async fn plan(State(app): S, Json(req): Json<json::PlanRequest>) -> Result<Json<json::PlanResponse>, ApiError> {
     let res = tokio::task::spawn_blocking(move || app.plan(&req)).await.map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    res.map(Json).map_err(bad)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReachRequest {
+    from: json::PlaceRef,
+    #[serde(default)]
+    options: json::PlanOptions,
+}
+
+/// POST /api/reach {from, options} → `{"stops": [[quay id, seconds], …]}`: the boarding points a journey planned
+/// from (or to) this place may walk to within `options.maxWalkMin`, with the seconds it counts for each (the 30 s
+/// access buffer included). For comparing builds of the engine (`kante/tools/compare`).
+async fn reach(State(app): S, Json(req): Json<ReachRequest>) -> Result<Json<serde_json::Value>, ApiError> {
+    let res = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        let profile = crate::plan::profile_from(&req.options);
+        let ep = app.resolve(&req.from)?;
+        let max_s = (req.options.max_walk_min.clamp(1.0, 90.0) * 60.0) as time::Secs;
+        let r = app.reach(&ep, &profile, max_s);
+        let stops: Vec<(String, time::Secs)> = r.stops.iter().map(|&(s, t)| (app.tt.stops[s as usize].gtfs_id.clone(), t)).collect();
+        Ok(serde_json::json!({ "stops": stops }))
+    })
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     res.map(Json).map_err(bad)
 }
 

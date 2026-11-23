@@ -299,6 +299,10 @@ pub struct WalkLeg {
     pub approx_start: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approx_end: Option<u32>,
+    /// Vertices `network[0] ..= network[1]` are on the walking network; the others are the straight lines from the
+    /// point (into its building's door and out of it) and to the door or point at the end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<[u32; 2]>,
     /// Step-free: the destination building has doors, but none is step-free.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub no_step_free_door: bool,
@@ -488,6 +492,8 @@ pub struct Counts {
     pub walk_edges: usize,
     /// Doors of buildings the walks may start or end at (0 without `doors.bin`).
     pub doors: usize,
+    /// ... of which placed from the official building address register (0 when it was not there at build time).
+    pub register_doors: usize,
 }
 
 // ------------------------------------------------------------------ live data (see docs/LIVE-API.md)

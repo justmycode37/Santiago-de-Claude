@@ -109,13 +109,13 @@ pub struct Endpoint {
     pub station: Option<StationIdx>,
 }
 
-pub use kante_link::doors::{DoorChoice, DoorOpt, Ends};
+use kante_link::ends::{self, End};
 
 /// Stops reachable on foot from an endpoint.
 pub struct Reach {
     pub stops: Vec<(StopIdx, Secs)>,
-    pub snap: Option<Snap>,
-    pub doors: DoorChoice,
+    /// The endpoint's ways onto the network the stops were reached from (the walks drawn take them too).
+    pub end: End,
 }
 
 /// Seconds added to every walked access/egress on top of the walking time:
@@ -593,36 +593,17 @@ impl App {
         }
     }
 
-    /// Snap a free position (an address, a pin, the user) onto the walking network.
-    /// On the ground floor: not in the underpass or the corridor below it, unless
-    /// the point is right on such a way (3 m) and no way on the ground is within 10 m.
+    /// Snap a free position (an address, a pin, the user) onto the walking network: on the ground
+    /// ([`ends::snap_point`]).
     pub fn snap_free(&self, pos: LatLon, profile: &WalkProfile) -> Option<Snap> {
-        let walk = self.walk.as_ref()?;
-        let no_vertical = (1u32 << EdgeKind::Steps as u8) | (1 << EdgeKind::Escalator as u8) | (1 << EdgeKind::Lift as u8);
-        let base = SnapOptions { max_dist_m: 60.0, level: Some(0), profile: Some(*profile), exclude_kinds: no_vertical | (1 << EdgeKind::RoadBusy as u8) };
-        let g = walk.graph();
-        let ground = |s: &Snap| {
-            let e = &g.edges[s.edge as usize];
-            e.flags & EF_TUNNEL == 0 || e.flags & EF_COVERED != 0
-        };
-        let street = |o: &SnapOptions| walk.snap_candidates(pos, o, 6).into_iter().find(ground);
-        // right on a way of another floor (within 3 m) with no way on the ground within 10 m: that one (the corridor
-        // of a station you stand in); else the ground
-        let near_ground = street(&SnapOptions { max_dist_m: 10.0, ..base });
-        near_ground
-            .or_else(|| walk.snap(pos, &SnapOptions { max_dist_m: 3.0, level: None, ..base }))
-            .or_else(|| street(&base))
-            .or_else(|| street(&SnapOptions { max_dist_m: 250.0, exclude_kinds: no_vertical, ..base }))
-            .or_else(|| walk.snap(pos, &SnapOptions { level: None, ..base }))
-            .or_else(|| walk.snap(pos, &SnapOptions { max_dist_m: 250.0, level: None, exclude_kinds: no_vertical, ..base }))
+        ends::snap_point(self.walk.as_ref()?, pos, profile)
     }
 
-    /// The doors through which a walk may leave (or enter) the building `pos` is in, best first: only those this
-    /// walker may use.
-    pub fn door_choice(&self, pos: LatLon, profile: &WalkProfile) -> DoorChoice {
-        match (self.doors.as_ref(), self.walk.as_ref()) {
-            (Some(ix), Some(walk)) => ix.choice(walk, pos, profile),
-            _ => DoorChoice::default(),
+    /// A place's ways onto the network: the point itself, and the doors of the building it is in.
+    pub fn place_end(&self, pos: LatLon, profile: &WalkProfile) -> End {
+        match self.walk.as_ref() {
+            Some(walk) => End::place(walk, self.doors.as_ref(), pos, self.snap_free(pos, profile), profile),
+            None => End::exact(pos, None),
         }
     }
 
@@ -654,12 +635,14 @@ impl App {
             }
             _ => self.snap_free(ep.pos, profile),
         };
-        // a place in a building: from its doors (a station is entered at street level, as above), else, or when
-        // no door leads anywhere, straight from the point
-        let doors = if ep.station.is_none() { self.door_choice(ep.pos, profile) } else { DoorChoice::default() };
-        let ends = Ends::new(&doors, snap);
+        // from the point, and from the doors of the building it is in (a station is entered at street level, as
+        // above)
+        let end = match (ep.station, self.walk.as_ref()) {
+            (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, snap, profile),
+            _ => End::exact(ep.pos, snap),
+        };
         let mut routed: Vec<bool> = vec![false; near.len()];
-        if let (Some(walk), true) = (self.walk.as_ref(), snap.is_some() || !ends.doors.is_empty()) {
+        if let (Some(walk), false) = (self.walk.as_ref(), end.joins.is_empty()) {
             let mut idx = Vec::with_capacity(near.len());
             let mut targets = Vec::with_capacity(near.len());
             for (i, &s) in near.iter().enumerate() {
@@ -668,14 +651,12 @@ impl App {
                     targets.push(l.snap);
                 }
             }
-            // the way onto the network at the start is in `c` already; the buffer is not walking
-            let limit = (max_s - ACCESS_BUFFER_S).max(0) as f32;
-            let costs = kante_link::doors::reach_costs(walk, &ends, &targets, profile, limit);
+            // the metres from the point to the network and from it to the stop are in `c`
+            let costs = ends::reach_costs(walk, &end, &targets, profile, max_s as f32);
             for (k, c) in costs.into_iter().enumerate() {
                 let i = idx[k];
                 if let Some(c) = c {
-                    let extra = targets[k].dist_m;
-                    let secs = walk_secs(c.var_m + extra, c.fix_s, speed).ceil() as Secs + ACCESS_BUFFER_S;
+                    let secs = walk_secs(c.var_m, c.fix_s, speed).ceil() as Secs + ACCESS_BUFFER_S;
                     routed[i] = true;
                     if secs <= max_s {
                         best.insert(near[i], secs);
@@ -686,7 +667,7 @@ impl App {
         // Stops the network search could not reach (not linked, or no walking
         // data here): fall back to the straight line with a detour factor,
         // but only nearby, so a river or motorway is not walked through.
-        let have_network = snap.is_some() || !ends.doors.is_empty();
+        let have_network = !end.joins.is_empty();
         for (i, &s) in near.iter().enumerate() {
             if routed[i] {
                 continue;
@@ -702,6 +683,6 @@ impl App {
         }
         let mut stops: Vec<(StopIdx, Secs)> = best.into_iter().collect();
         stops.sort_unstable();
-        Reach { stops, snap, doors }
+        Reach { stops, end }
     }
 }

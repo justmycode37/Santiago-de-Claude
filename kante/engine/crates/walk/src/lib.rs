@@ -351,6 +351,15 @@ impl WalkRouter {
         search::many_to_many(&self.graph, &self.net, froms, targets, profile, max_time_s)
     }
 
+    /// [`WalkRouter::route`] from the best of several starting points to the best of several end points, each
+    /// with metres already walked to or from it and a route-choice penalty in seconds, as
+    /// [`WalkRouter::many_to_many`] takes them: for one end point, the start taken is the one that search's cost
+    /// for it comes from. Returns (start index, end index, walk between them, generalised seconds with both offsets).
+    pub fn route_between(&self, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile) -> Option<(usize, usize, WalkPath, f32)> {
+        let (i, j, legs, gen) = search::route_between(&self.graph, &self.net, froms, tos, profile)?;
+        Some((i, j, path::build(self, &froms[i].0, &tos[j].0, profile, &legs), gen))
+    }
+
     /// Best walk between two snapped points with geometry and instructions.
     /// Only `edge` and `frac` of the snaps decide the route. Gives up beyond
     /// roughly an hour more than four times the beeline.

@@ -1350,3 +1350,64 @@ fn many_to_many_takes_the_best_source() {
     }
     assert!(checked > 100, "{checked}");
 }
+
+#[test]
+fn route_between_takes_the_source_many_to_many_counts() {
+    // the drawn walk and the stop search must not choose differently: same source, same cost
+    let r = random_city(11, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(5);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for round in 0..10 {
+        let prof = if round % 2 == 0 { NORMAL } else { avoid() };
+        let froms: Vec<(Snap, f32, f32)> = (0..4).map(|k| (pick(&mut rng), 7.0 * k as f32, if k == 2 { 20.0 } else { 0.0 })).collect();
+        let targets: Vec<Snap> = (0..20).map(|_| pick(&mut rng)).collect();
+        let many = r.many_to_many(&froms, &targets, &prof, 3600.0);
+        for (t, m) in targets.iter().zip(&many) {
+            match (m, r.route_between(&froms, &[(*t, 0.0, 0.0)], &prof)) {
+                (Some(c), Some((i, _, p, _))) => {
+                    let (var, fix) = (p.cost.var_m + froms[i].1, p.cost.fix_s);
+                    assert!(close(c.var_m, var, 0.05) && close(c.fix_s, fix, 0.05), "{c:?} vs source {i}: {var} {fix}");
+                    checked += 1;
+                }
+                (None, None) => {}
+                (a, b) => panic!("{a:?} vs {:?}", b.map(|x| x.0)),
+            }
+        }
+    }
+    assert!(checked > 100, "{checked}");
+}
+
+#[test]
+fn route_between_takes_the_best_target() {
+    // several end points, each with its own offset: the one whose walk plus offset is cheapest, as if each had been
+    // tried on its own
+    let r = random_city(12, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(9);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for round in 0..40 {
+        let prof = if round % 2 == 0 { NORMAL } else { avoid() };
+        let froms: Vec<(Snap, f32, f32)> = (0..3).map(|k| (pick(&mut rng), 5.0 * k as f32, 0.0)).collect();
+        let tos: Vec<(Snap, f32, f32)> = (0..4).map(|k| (pick(&mut rng), 9.0 * k as f32, if k == 1 { 30.0 } else { 0.0 })).collect();
+        let each: Vec<Option<f32>> = tos.iter().map(|t| r.route_between(&froms, std::slice::from_ref(t), &prof).map(|x| x.3)).collect();
+        let best = each.iter().flatten().fold(f32::INFINITY, |a, &b| a.min(b));
+        match r.route_between(&froms, &tos, &prof) {
+            Some((_, j, _, c)) => {
+                assert!(close(c, best, 0.05), "{c} vs {best}");
+                assert!(close(each[j].unwrap(), c, 0.05));
+                checked += 1;
+            }
+            None => assert!(best.is_infinite()),
+        }
+    }
+    assert!(checked > 20, "{checked}");
+}

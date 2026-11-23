@@ -2,11 +2,12 @@
 //! with boarding points and walking geometry.
 
 use crate::json::{self, Leg as JLeg};
-use crate::state::{level_f, lonlat, App, DoorChoice, DoorOpt, Endpoint, Ends, Reach};
+use crate::state::{level_f, lonlat, App, Endpoint, Reach};
+use kante_link::ends::{self, End};
 use kante_core::time::{self, Date, Secs};
 use kante_core::*;
 use kante_raptor::{Journey, Leg, Onboard, Query};
-use kante_walk::{StepKind, WalkPath};
+use kante_walk::StepKind;
 use std::time::Instant;
 
 pub fn profile_from(o: &json::PlanOptions) -> WalkProfile {
@@ -93,37 +94,24 @@ pub struct WalkEnd {
     pub name: String,
     pub pos: LatLon,
     pub stop: Option<StopIdx>,
-    pub snap: Option<Snap>,
-    /// The doors of the building the end is in (the walk then leaves or enters it through one).
-    pub doors: DoorChoice,
+    /// Its ways onto the walking network (the point itself, the doors of the building it is in).
+    pub end: End,
 }
-
-/// Is a walk step-free? No stairs, escalators or floors joined without a ramp or lift on its path, and not into
-/// a building through no known door (`wall`) or one whose doors are all `wheelchair=no` (`no_step_free_door`).
-fn step_free(p: &WalkPath, wall: bool, no_step_free_door: bool) -> bool {
-    p.stairs_up == 0 && p.stairs_down == 0 && p.escalators == 0 && p.unmapped_level_changes == 0 && !wall && !no_step_free_door
-}
-
-/// A straight line onto the network longer than this is a guess across open ground.
-const GUESS_M: f32 = 20.0;
 
 impl App {
     fn stop_end(&self, s: StopIdx) -> WalkEnd {
         let stop = &self.tt.stops[s as usize];
         let station = &self.tt.stations[stop.station as usize];
-        WalkEnd { name: station.name.clone(), pos: stop.pos, stop: Some(s), snap: self.link(s).map(|l| l.snap), doors: DoorChoice::default() }
-    }
-
-    /// A railway platform's registry point often lies on the track itself: a walk to it ends on the platform.
-    fn on_track(&self, e: &WalkEnd) -> bool {
+        // A railway platform's registry point often lies on the track itself: a walk to it ends on the platform.
         let railish = Mode::Rail.bit() | Mode::Metro.bit() | Mode::RackRail.bit() | Mode::Funicular.bit();
-        e.stop.is_some_and(|s| self.tt.stops[s as usize].modes & railish != 0)
+        let end = End::stop(stop.pos, self.link(s).map(|l| l.snap), stop.modes & railish != 0);
+        WalkEnd { name: station.name.clone(), pos: stop.pos, stop: Some(s), end }
     }
 
-    fn door_json(&self, o: &DoorOpt) -> Option<json::WalkDoor> {
+    fn door_json(&self, door: u32) -> Option<json::WalkDoor> {
         let ix = self.doors.as_ref()?;
-        let d = &ix.doors.doors[o.door as usize];
-        let addr = ix.doors.addr_of(o.door);
+        let d = &ix.doors.doors[door as usize];
+        let addr = ix.doors.addr_of(door);
         Some(json::WalkDoor {
             lat: d.pos.lat_deg(),
             lon: d.pos.lon_deg(),
@@ -171,6 +159,7 @@ impl App {
             covered: vec![],
             approx_start: None,
             approx_end: None,
+            network: None,
             no_step_free_door: false,
         };
         if a.stop.is_some() && a.stop == b.stop {
@@ -178,73 +167,22 @@ impl App {
             leg.levels = vec![None, None];
             return leg;
         }
-        // a walk timed by a journey (to the first stop, from the last) keeps to that time: the best door within it
-        let budget = matches!(kind, "access" | "egress").then_some(leg.duration_s as f32);
-        let walk = self.walk.as_ref().and_then(|w| kante_link::doors::best_walk(w, &Ends::new(&a.doors, a.snap), &Ends::new(&b.doors, b.snap), profile, budget));
-        match walk.map(|w| (w.from, w.to, w.path)) {
-            Some((ja, jb, p)) => {
-                let lv0 = p.levels.first().and_then(|l| level_f(*l));
-                let lv1 = p.levels.last().and_then(|l| level_f(*l));
-                // From the point to the network: inside to the door and out of it, or straight onto the nearest way
-                // (a railway platform is left from the platform itself, not from its point on the track)
-                let mut head: Vec<LatLon> = Vec::new();
-                match ja.door {
-                    Some(o) => {
-                        let dp = self.doors.as_ref().map(|ix| ix.doors.doors[o.door as usize].pos).unwrap_or(a.pos);
-                        if o.inside_m > 1.5 {
-                            head.push(a.pos);
-                        }
-                        if o.snap.dist_m > 0.5 {
-                            head.push(dp);
-                        }
-                    }
-                    None if ja.snap.dist_m > 1.5 && !self.on_track(a) => head.push(a.pos),
-                    None => {}
-                }
-                let shift = head.len() as u32;
-                for q in &head {
-                    leg.geometry.push(lonlat(q));
-                    leg.levels.push(lv0);
-                }
-                leg.geometry.extend(p.geometry.iter().map(lonlat));
-                leg.levels.extend(p.levels.iter().map(|l| level_f(*l)));
-                let path_end = leg.geometry.len() as u32 - 1;
-                // ... and from the network to the door (the walk ends there), or to the point
-                match jb.door {
-                    Some(o) if o.snap.dist_m > 0.5 => {
-                        let dp = self.doors.as_ref().map(|ix| ix.doors.doors[o.door as usize].pos).unwrap_or(b.pos);
-                        leg.geometry.push(lonlat(&dp));
-                        leg.levels.push(lv1);
-                    }
-                    Some(_) => {}
-                    None if jb.snap.dist_m > 1.5 && !self.on_track(b) => {
-                        leg.geometry.push(lonlat(&b.pos));
-                        leg.levels.push(lv1);
-                    }
-                    None => {}
-                }
-                // Guesses: a straight line over 20 m across open ground, or through the wall of a building where no
-                // door could be used (whether that is step-free is not known either)
-                // (a door joined only through its own house: the way round the house is not mapped either)
-                let wall_a = (ja.door.is_none() && a.doors.in_building && shift > 0) || ja.door.is_some_and(|o| o.through);
-                let wall_b = (jb.door.is_none() && b.doors.in_building && leg.geometry.len() as u32 - 1 > path_end) || jb.door.is_some_and(|o| o.through);
-                let guess_a = match ja.door {
-                    Some(o) => o.snap.dist_m > GUESS_M || o.through,
-                    None => (ja.snap.dist_m > GUESS_M && !self.on_track(a)) || wall_a,
-                };
-                let guess_b = match jb.door {
-                    Some(o) => o.snap.dist_m > GUESS_M || o.through,
-                    None => (jb.snap.dist_m > GUESS_M && !self.on_track(b)) || wall_b,
-                };
-                if guess_a && shift > 0 {
-                    leg.approx_start = Some(shift);
-                }
-                if guess_b && leg.geometry.len() as u32 - 1 > path_end {
-                    leg.approx_end = Some(path_end);
-                }
-                leg.door = jb.door.as_ref().and_then(|o| self.door_json(o));
-                leg.start_door = ja.door.as_ref().and_then(|o| self.door_json(o));
-                leg.no_step_free_door = b.doors.no_step_free_door;
+        let walk = self.walk.as_ref().and_then(|w| ends::walk(w, &a.end, &b.end, profile));
+        match walk {
+            Some(w) => {
+                // from the point into the building's door and out of it, or straight onto the network; the path; on
+                // to the door or the point at the other end (see kante_link::ends)
+                let d = ends::draw(self.doors.as_ref(), &a.end, &b.end, &w);
+                let p = &w.path;
+                let shift = d.head;
+                leg.geometry = d.geometry.iter().map(lonlat).collect();
+                leg.levels = d.levels.iter().map(|l| level_f(*l)).collect();
+                leg.approx_start = d.approx_start;
+                leg.approx_end = d.approx_end;
+                leg.network = Some([d.head, d.path_end]);
+                leg.door = w.to.door.and_then(|o| self.door_json(o));
+                leg.start_door = w.from.door.and_then(|o| self.door_json(o));
+                leg.no_step_free_door = b.end.no_step_free_door;
                 leg.covered = p.covered.iter().map(|&(v0, v1, c)| json::WalkCovered { kind: c.as_str(), from: v0 + shift, to: v1 + shift }).collect();
                 let last_vertex = leg.geometry.len().saturating_sub(1) as u32;
                 let n_steps = p.steps.len();
@@ -292,16 +230,15 @@ impl App {
                         };
                     }
                 }
-                let extra = ja.extra_m + jb.extra_m;
-                leg.distance_m = (p.dist_m + extra).round() as u32;
+                leg.distance_m = w.dist_m.round() as u32;
                 leg.stairs_up = p.stairs_up;
                 leg.stairs_down = p.stairs_down;
                 leg.lifts = p.lifts;
                 leg.escalators = p.escalators;
                 leg.unmapped_level_changes = p.unmapped_level_changes;
-                leg.step_free = step_free(&p, wall_a || wall_b, a.doors.no_step_free_door || b.doors.no_step_free_door);
+                leg.step_free = d.step_free;
                 if kind == "direct" {
-                    let secs = walk_secs(p.cost.var_m + extra, p.cost.fix_s, speed).ceil() as i64;
+                    let secs = w.secs.ceil() as i64;
                     leg.duration_s = secs;
                     leg.arr = dep + secs;
                 }
@@ -617,7 +554,7 @@ impl App {
         if egress.stops.is_empty() {
             return Err("no public transport stop within walking distance of the destination".into());
         }
-        let to_end = WalkEnd { name: to_ep.place.name.clone(), pos: to_ep.pos, stop: None, snap: egress.snap, doors: egress.doors };
+        let to_end = WalkEnd { name: to_ep.place.name.clone(), pos: to_ep.pos, stop: None, end: egress.end.clone() };
 
         let mut query = Query {
             date: 0,
@@ -666,7 +603,7 @@ impl App {
                 modes: None,
                 dist_m: None,
             };
-            let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, snap: None, doors: DoorChoice::default() };
+            let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, end: End::exact(here.pos, None) };
             let out: Vec<json::Journey> =
                 journeys.iter().take(6).map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, live)).collect();
             return Ok(json::PlanResponse {
@@ -684,7 +621,7 @@ impl App {
         // ---- door-to-door plan
         let from_ep: Endpoint = self.resolve(req.from.as_ref().ok_or("from is required")?)?;
         let access: Reach = self.reach(&from_ep, &profile, max_walk);
-        let from_end = WalkEnd { name: from_ep.place.name.clone(), pos: from_ep.pos, stop: None, snap: access.snap, doors: access.doors.clone() };
+        let from_end = WalkEnd { name: from_ep.place.name.clone(), pos: from_ep.pos, stop: None, end: access.end.clone() };
         query.access = &access.stops;
 
         // What to search: forward from a time, or backward from a deadline.
@@ -789,24 +726,13 @@ impl App {
                 return Ok(self.stop_end(s));
             }
             let p = self.resolve(r)?;
-            let doors = if p.station.is_none() && !r.exact { self.door_choice(p.pos, &profile) } else { DoorChoice::default() };
-            Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, snap: self.snap_free(p.pos, &profile), doors })
+            // a place: from the point or its building's doors, as the stop search takes it; a station or a point
+            // given exactly (where a station model's own paths begin): straight from it
+            let end = if p.station.is_none() && !r.exact { self.place_end(p.pos, &profile) } else { End::exact(p.pos, self.snap_free(p.pos, &profile)) };
+            Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })
         };
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);
         Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use kante_walk::WalkCost;
-    #[test]
-    fn a_walk_through_a_wall_or_to_a_building_without_a_step_free_door_is_not_step_free() {
-        let p = WalkPath { cost: WalkCost::default(), dist_m: 10.0, stairs_up: 0, stairs_down: 0, lifts: 0, escalators: 0, unmapped_level_changes: 0, geometry: vec![], levels: vec![], steps: vec![], covered: vec![] };
-        assert!(step_free(&p, false, false));
-        assert!(!step_free(&p, true, false), "into a building through no known door");
-        assert!(!step_free(&p, false, true), "the building's doors are all wheelchair=no");
-        assert!(!step_free(&WalkPath { stairs_up: 12, ..p.clone() }, false, false));
-    }
-}

@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""Compare two running engines (A: the reference, usually `main`; B: the change) on the same samples.
+
+    compare.py --a http://127.0.0.1:8091 --b http://127.0.0.1:8092 --samples samples.json \
+               --data B-data-dir --bin path/to/compare --out results/ [--threads 32]
+
+Samples come from `compare sample` (crates/link/src/bin/compare.rs). Writes every answer to `--out` and a summary
+(`summary.md`): reach (stops walked to from each point, normal and step-free, at several limits), walks, plans,
+lines through buildings, and cost (latency, memory). See README.md.
+"""
+import argparse, concurrent.futures as cf, json, os, statistics, subprocess, sys, time, urllib.request
+
+LIMITS = [5, 10, 20]
+PROFILES = {'normal': {}, 'stepfree': {'stairs': 'never', 'escalators': False}}
+DATE_UNIX = 1795503600  # Tuesday 2026-11-24 08:00 in Zürich
+
+
+def post(base, path, body, timeout=60):
+    req = urllib.request.Request(base + path, data=json.dumps(body).encode(), headers={'content-type': 'application/json'})
+    t = time.perf_counter()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read()), time.perf_counter() - t
+    except urllib.error.HTTPError as e:
+        return {'error': e.read().decode(errors='replace')[:300]}, time.perf_counter() - t
+    except Exception as e:  # noqa: BLE001 - a failed request is a result too
+        return {'error': str(e)}, time.perf_counter() - t
+
+
+def run(pool, fn, items):
+    out = [None] * len(items)
+    futs = {pool.submit(fn, it): i for i, it in enumerate(items)}
+    for n, f in enumerate(cf.as_completed(futs)):
+        out[futs[f]] = f.result()
+        if n % 5000 == 4999:
+            print(f'  {n + 1}/{len(items)}', file=sys.stderr)
+    return out
+
+
+def pct(xs, p):
+    if not xs:
+        return None
+    xs = sorted(xs)
+    return xs[min(len(xs) - 1, int(p / 100 * len(xs)))]
+
+
+def place(p):
+    return {'lat': p['lat'], 'lon': p['lon'], 'name': p['kind']}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--a', required=True)
+    ap.add_argument('--b', required=True)
+    ap.add_argument('--samples', required=True)
+    ap.add_argument('--data', required=True, help="B's data dir (for the building outlines)")
+    ap.add_argument('--bin', required=True, help='the compare binary')
+    ap.add_argument('--out', required=True)
+    ap.add_argument('--threads', type=int, default=32)
+    ap.add_argument('--only', default='reach,walks,plans,cost')
+    args = ap.parse_args()
+    os.makedirs(args.out, exist_ok=True)
+    S = json.load(open(args.samples))
+    only = set(args.only.split(','))
+    pool = cf.ThreadPoolExecutor(args.threads)
+    summary = {}
+
+    if 'reach' in only:
+        jobs = [(i, prof, lim) for i in range(len(S['points'])) for prof in PROFILES for lim in LIMITS]
+        def reach(job):
+            i, prof, lim = job
+            body = {'from': place(S['points'][i]), 'options': {'maxWalkMin': lim, **PROFILES[prof]}}
+            return [post(e, '/api/reach', body)[0] for e in (args.a, args.b)]
+        res = run(pool, reach, jobs)
+        with open(os.path.join(args.out, 'reach.jsonl'), 'w') as f:
+            for job, (ra, rb) in zip(jobs, res):
+                f.write(json.dumps({'point': job[0], 'profile': job[1], 'limit': job[2], 'a': ra, 'b': rb}) + '\n')
+        summary['reach'] = reach_summary(S, jobs, res)
+
+    if 'walks' in only:
+        jobs = [(i, prof) for i in range(len(S['walks'])) for prof in PROFILES]
+        def walk(job):
+            i, prof = job
+            w = S['walks'][i]
+            body = {'from': place(w['from']), 'to': place(w['to']), 'options': PROFILES[prof]}
+            return [post(e, '/api/walk', body)[0] for e in (args.a, args.b)]
+        res = run(pool, walk, jobs)
+        with open(os.path.join(args.out, 'walks.jsonl'), 'w') as f:
+            for job, (wa, wb) in zip(jobs, res):
+                f.write(json.dumps({'walk': job[0], 'profile': job[1], 'a': wa, 'b': wb}) + '\n')
+        summary['walks'] = walk_summary(S, jobs, res)
+        summary['through'] = through_summary(args, jobs, res)
+
+    if 'plans' in only:
+        jobs = [(i, 'stepfree' if i % 4 == 3 else 'normal') for i in range(len(S['trips']))]
+        def plan(job):
+            i, prof = job
+            t = S['trips'][i]
+            body = {'from': place(t['from']), 'to': place(t['to']), 'time': DATE_UNIX + (i % 12) * 3600, 'options': PROFILES[prof]}
+            return [post(e, '/api/plan', body, 120)[0] for e in (args.a, args.b)]
+        res = run(pool, plan, jobs)
+        with open(os.path.join(args.out, 'plans.jsonl'), 'w') as f:
+            for job, (pa, pb) in zip(jobs, res):
+                f.write(json.dumps({'trip': job[0], 'profile': job[1], 'a': slim_plan(pa), 'b': slim_plan(pb)}) + '\n')
+        summary['plans'] = plan_summary(jobs, res)
+
+    if 'cost' in only:
+        summary['cost'] = cost(args, S)
+
+    json.dump(summary, open(os.path.join(args.out, 'summary.json'), 'w'), indent=1)
+    print(json.dumps(summary, indent=1))
+
+
+def reach_summary(S, jobs, res):
+    out = {}
+    for prof in PROFILES:
+        for lim in LIMITS:
+            k = f'{prof} {lim} min'
+            st = {'points': 0, 'errors': 0, 'stops_a': 0, 'stops_b': 0, 'lost': 0, 'points_with_lost': 0, 'gained': 0, 'later': [], 'earlier': 0, 'by_kind': {}}
+            lost_list = []
+            for (i, p, l), (ra, rb) in zip(jobs, res):
+                if p != prof or l != lim:
+                    continue
+                st['points'] += 1
+                if 'error' in ra or 'error' in rb:
+                    st['errors'] += 1
+                    continue
+                a, b = dict(map(tuple, ra['stops'])), dict(map(tuple, rb['stops']))
+                st['stops_a'] += len(a)
+                st['stops_b'] += len(b)
+                lost = [s for s in a if s not in b]
+                st['lost'] += len(lost)
+                st['gained'] += sum(1 for s in b if s not in a)
+                kind = S['points'][i]['kind']
+                bk = st['by_kind'].setdefault(kind, {'points': 0, 'lost': 0, 'stops_a': 0})
+                bk['points'] += 1
+                bk['lost'] += len(lost)
+                bk['stops_a'] += len(a)
+                if lost:
+                    st['points_with_lost'] += 1
+                    lost_list.append({'point': i, 'kind': kind, 'lost': [(s, a[s]) for s in lost]})
+                for s in a:
+                    if s in b:
+                        d = b[s] - a[s]
+                        if d > 0:
+                            st['later'].append(d)
+                        elif d < 0:
+                            st['earlier'] += 1
+            later = st.pop('later')
+            st['later'] = len(later)
+            st['later_s_p50_p95_max'] = [pct(later, 50), pct(later, 95), max(later) if later else None]
+            st['later_over_60s'] = sum(1 for d in later if d > 60)
+            st['lost_examples'] = lost_list[:40]
+            out[k] = st
+    return out
+
+
+def walk_len(w):
+    return None if 'error' in w else w.get('distanceM')
+
+
+def walk_summary(S, jobs, res):
+    out = {}
+    for prof in PROFILES:
+        st = {'pairs': 0, 'a_routed': 0, 'b_routed': 0, 'routed_a_not_b': [], 'ratios_dist': [], 'ratios_time': [], 'over_1_5': []}
+        for (i, p), (wa, wb) in zip(jobs, res):
+            if p != prof:
+                continue
+            st['pairs'] += 1
+            ra = 'error' not in wa and not wa.get('approximate')
+            rb = 'error' not in wb and not wb.get('approximate')
+            st['a_routed'] += ra
+            st['b_routed'] += rb
+            if ra and not rb:
+                st['routed_a_not_b'].append(i)
+            if ra and rb and wa['distanceM'] > 0:
+                rd, rt = wb['distanceM'] / wa['distanceM'], wb['durationS'] / max(1, wa['durationS'])
+                st['ratios_dist'].append(rd)
+                st['ratios_time'].append(rt)
+                if rd > 1.5 or rt > 1.5:
+                    st['over_1_5'].append({'walk': i, 'a_m': wa['distanceM'], 'b_m': wb['distanceM'], 'a_s': wa['durationS'], 'b_s': wb['durationS'],
+                                           'from': S['walks'][i]['from'], 'to': S['walks'][i]['to'], 'b_start_door': bool(wb.get('startDoor')), 'b_door': bool(wb.get('door'))})
+        rd, rt = st.pop('ratios_dist'), st.pop('ratios_time')
+        st['ratio_dist_p5_p50_p95_max'] = [pct(rd, 5), pct(rd, 50), pct(rd, 95), max(rd) if rd else None]
+        st['ratio_time_p5_p50_p95_max'] = [pct(rt, 5), pct(rt, 50), pct(rt, 95), max(rt) if rt else None]
+        st['count_over_1_5'] = len(st['over_1_5'])
+        out[prof] = st
+    return out
+
+
+def through_summary(args, jobs, res):
+    """Which straight segments of each walk run through a building (B's outlines), and how they are drawn."""
+    lines = []
+    for n, ((i, p), (wa, wb)) in enumerate(zip(jobs, res)):
+        for side, w in (('a', wa), ('b', wb)):
+            if 'error' not in w and not w.get('approximate'):
+                lines.append(json.dumps({'key': [n, side], 'geometry': w['geometry']}))
+    r = subprocess.run([args.bin, 'through', args.data], input='\n'.join(lines) + '\n', capture_output=True, text=True, check=True)
+    hits = {}
+    for line in r.stdout.splitlines():
+        v = json.loads(line)
+        hits[tuple(v['key'])] = v['through']
+    out = {}
+    for side in ('a', 'b'):
+        st = {'walks': 0, 'with_connector_through': 0, 'connector_through_drawn_solid': 0, 'connector_through_step_free': 0, 'network_through': 0, 'solid_examples': []}
+        for n, ((i, p), ws) in enumerate(zip(jobs, res)):
+            w = ws[0] if side == 'a' else ws[1]
+            if (n, side) not in hits:
+                continue
+            st['walks'] += 1
+            nv = len(w['geometry'])
+            if side == 'b' and w.get('network'):
+                n0, n1 = w['network']
+            else:  # A draws one straight line at each end where the point is more than 1.5 m off the network
+                n0, n1 = (1 if nv > 2 else 0), (nv - 2 if nv > 2 else nv - 1)
+            covered = [(c['from'], c['to']) for c in w.get('covered', [])]
+            segs = hits[(n, side)]
+            conn = [s for s in segs if s < n0 or s >= n1]
+            net = [s for s in segs if n0 <= s < n1 and not any(a <= s < b for a, b in covered)]
+            if net:
+                st['network_through'] += 1
+            if conn:
+                st['with_connector_through'] += 1
+                a0, a1 = w.get('approxStart'), w.get('approxEnd')
+                solid = [s for s in conn if not ((a0 is not None and s < a0) or (a1 is not None and s >= a1))]
+                if solid:
+                    st['connector_through_drawn_solid'] += 1
+                    if len(st['solid_examples']) < 30:
+                        st['solid_examples'].append({'walk': i, 'profile': p, 'segments': solid, 'geometry': [w['geometry'][s] for s in solid]})
+                if w.get('stepFree'):
+                    st['connector_through_step_free'] += 1
+        out[side] = st
+    return out
+
+
+def slim_plan(p):
+    if 'error' in p:
+        return p
+    return {'journeys': [{'dep': j['dep'], 'arr': j['arr'], 'transfers': j['transfers'], 'walkS': j.get('walkS')} for j in p.get('journeys', [])], 'walkOnly': bool(p.get('walkOnly'))}
+
+
+def plan_summary(jobs, res):
+    st = {'trips': len(jobs), 'a_journey': 0, 'b_journey': 0, 'a_not_b': [], 'later': [], 'earlier': 0, 'same': 0}
+    for (i, prof), (pa, pb) in zip(jobs, res):
+        ja = [] if 'error' in pa else pa.get('journeys', [])
+        jb = [] if 'error' in pb else pb.get('journeys', [])
+        st['a_journey'] += bool(ja)
+        st['b_journey'] += bool(jb)
+        if ja and not jb:
+            st['a_not_b'].append({'trip': i, 'profile': prof, 'b': pb.get('error', '')[:200]})
+        if ja and jb:
+            aa, ab = min(j['arr'] for j in ja), min(j['arr'] for j in jb)
+            if ab > aa:
+                st['later'].append({'trip': i, 'profile': prof, 'by_s': ab - aa})
+            elif ab < aa:
+                st['earlier'] += 1
+            else:
+                st['same'] += 1
+    by = [x['by_s'] for x in st['later']]
+    st['later_count'] = len(by)
+    st['later_s_p50_p95_max'] = [pct(by, 50), pct(by, 95), max(by) if by else None]
+    st['later'] = sorted(st['later'], key=lambda x: -x['by_s'])[:60]
+    return st
+
+
+def cost(args, S):
+    """Latency with 4 requests at a time (each engine on its own), and the servers' memory."""
+    out = {}
+    pool = cf.ThreadPoolExecutor(4)
+    for name, base in (('a', args.a), ('b', args.b)):
+        walks = [{'from': place(w['from']), 'to': place(w['to'])} for w in S['walks'][:2000]]
+        plans = [{'from': place(t['from']), 'to': place(t['to']), 'time': DATE_UNIX} for t in S['trips'][:400]]
+        tw = [x[1] for x in run(pool, lambda b: post(base, '/api/walk', b), walks)]
+        tp = [x[1] for x in run(pool, lambda b: post(base, '/api/plan', b, 120), plans)]
+        out[name] = {'walk_ms_p50_p95': [round(pct(tw, 50) * 1e3, 1), round(pct(tw, 95) * 1e3, 1)], 'plan_ms_p50_p95': [round(pct(tp, 50) * 1e3, 1), round(pct(tp, 95) * 1e3, 1)]}
+    return out
+
+
+if __name__ == '__main__':
+    main()

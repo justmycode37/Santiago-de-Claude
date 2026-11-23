@@ -94,6 +94,32 @@ fn dist_point_seg(p: P, a: P, b: P) -> f64 {
     dist(p, (a.0 + t * dx, a.1 + t * dy))
 }
 
+/// Is `p` within `tol` metres of any of the rings' outlines?
+pub fn near_any(p: P, rings: &[Vec<P>], tol: f64) -> bool {
+    near_boundary(p, rings, tol)
+}
+
+/// Distance between two polygons (rings, open): 0 when they overlap or touch.
+pub fn ring_distance(a: &[P], b: &[P]) -> f64 {
+    let (one_a, one_b) = (std::slice::from_ref(&a.to_vec()).to_vec(), std::slice::from_ref(&b.to_vec()).to_vec());
+    if a.iter().any(|p| point_in_rings(*p, &one_b)) || b.iter().any(|p| point_in_rings(*p, &one_a)) {
+        return 0.0;
+    }
+    let (na, nb) = (a.len(), b.len());
+    let mut d = f64::INFINITY;
+    for i in 0..na {
+        let (u, v) = (a[i], a[(i + 1) % na]);
+        for j in 0..nb {
+            let (x, y) = (b[j], b[(j + 1) % nb]);
+            if proper_cross(u, v, x, y) {
+                return 0.0;
+            }
+            d = d.min(dist_point_seg(u, x, y)).min(dist_point_seg(x, u, v));
+        }
+    }
+    d
+}
+
 /// Is `p` within `tol` metres of the ring's outline?
 pub fn near(p: P, ring: &[P], tol: f64) -> bool {
     near_boundary(p, std::slice::from_ref(&ring.to_vec()), tol)
