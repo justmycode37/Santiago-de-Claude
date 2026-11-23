@@ -475,23 +475,28 @@ console.log("11. the engine's answer without a path still times the walk");
   check(c.sheets > sheets, 'and the card is drawn again');
 }
 
-console.log("12. a walk through a modelled station, moved: the model's way, the engine's time, and the card follows it");
+console.log("12. a change through a modelled station, moved: the model's way and its time, and the time to spare with them");
 {
   const c = app();
   c.plan = { key: 'bern' };
-  const st: FakeStep = { type: 'change', lines: [[A, B]], prev: { to: stop('1') }, next: { from: stop('2') }, walkMin: 1, walkS: 50 };
-  S.journey.steps.push(st);
-  R.refineWalks(1);
-  c.station[0].res(model([A, [7.435, 46.945], B])); await settle();
-  check(c.asked.length === 0, 'as planned: the model draws it, the engine is not asked');
-  st.lines = [[A, C]];
-  R.refineWalks(1, true);
-  c.station[1].res(model([A, [7.44, 46.955], C])); await settle();
-  check(c.asked.length === 1 && same(at(c.asked[0].body.to), C), 'moved: one request, for its time');
-  const sheets = c.sheets;
-  c.asked[0].d.res(walk([A, C], { durationS: 230 })); await settle();
-  check(st.walkMin === 4 && st.walkS === 230 && st.lines![0][1][1] === 46.955, `the time is the engine's, the way the model's (${st.walkMin} min)`);
-  check(c.sheets === sheets + 1, `walkTime() draws the card again (${c.sheets - sheets})`);
+  const D: LngLat = east(C, 60);
+  const off = quayAt('q7', B, '7'), on = quayAt('q9', C, '9');
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, off, T(20))),
+    walkLeg('transfer', point(B, off), point(C, on), T(20), 90),
+    rideLeg('t2', callAt(3, on, undefined, T(26)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50)))];
+  const steps = await show(legs, A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  check(JS.spareOf(ch).text === '4 min to spare', `as planned, the engine's 90 s: ${JS.spareOf(ch).text}`);
+  c.station[0].res(model([B, [7.445, 46.955], C], true, 150)); await settle();
+  check(c.asked.length === 0, 'the model draws it, the engine is not asked');
+  check(ch.walkS === 150 && ch.walkMin === 3 && JS.spareOf(ch).text === '3 min to spare', `the time is the drawn way's, 150 s (${JS.spareOf(ch).text})`);
+  // live: the next train leaves from platform 12, further on
+  await live('t2', [callAt(3, quayAt('q12', D, '12'), undefined, T(26)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50))]);
+  check(c.station.length === 2, 'moved: the model routes it again');
+  c.station[1].res(model([B, [7.446, 46.956], D], true, 300)); await settle();
+  check(c.asked.length === 0 && same(ch.lines![0][2], D), "the model's way to platform 12, the engine not asked");
+  const spare = JS.spareOf(ch);
+  check(ch.walkS === 300 && ch.walkMin === 5 && spare.text === '1 min to spare' && spare.level === 'tight', `after the redraw: its time and the time to spare (${ch.walkMin} min, ${spare.text})`);
 }
 
 console.log("13. the last metres from a station model to the destination's door");
@@ -516,6 +521,26 @@ console.log("13. the last metres from a station model to the destination's door"
   R.refineWalks(1);
   c2.station[0].res(model([B, end], false)); await settle();
   check(c2.asked.length === 0 && st2.lines!.length === 1, 'one under 2 m from it is not');
+}
+
+console.log("14. a station model's path replaces the engine's: its time with it (finding 4)");
+{
+  // a planned two-minute egress; the model draws its way out of the station (60 s) and the engine the 465 m on to
+  // the place (363 s): the walk takes what the drawn path takes
+  const c = app();
+  c.plan = { key: 'bern' };
+  const P: LngLat = east(B, 470), exit: LngLat = east(B, 40);
+  const arrive = quayAt('q7', B, '7');
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, arrive, T(30))),
+    walkLeg('egress', point(B, arrive), point(P), T(30), 120)];
+  const steps = await show(legs, P);
+  const st = steps.find((x) => x.type === 'walk' && x.final)!;
+  check(st.min === 2, `as planned: ${st.min} min`);
+  c.station[0].res(model([B, exit], false, 60)); await settle();
+  check(c.asked.length === 1 && same(at(c.asked[0].body.to), P), 'the stretch from the model to the place is asked of the engine');
+  await answer(0, 363, { distanceM: 465 });
+  check(st.lines!.length === 2 && same(st.lines![1][1], P), "drawn: the model's way out, then the engine's");
+  check(st.walkS === 423 && st.min === 7, `its time is the drawn path's, 60 s + 363 s (${st.walkS} s, ${st.min} min)`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

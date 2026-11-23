@@ -154,7 +154,7 @@ export async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan:
     return d;
   });
   parts.push(inside);
-  walks.push({ coords: inside, steps: null, dist: route.length, dirs });
+  walks.push({ coords: inside, steps: null, dist: route.length, dirs, walkS: route.seconds });
   // to the destination: to the place itself, so that the engine picks its door
   if (!route.toStop) await join(inside[inside.length - 1], walkGoal(st, b), [{ exact: true }, (ends[ends.length - 1] || [])[1] || {}]);
   // the model's floor changes, and any on the street parts before and after it
@@ -201,28 +201,20 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   return Object.assign(current, { done });
 }
 // Through a station with a 3D model: its own paths (right underpass, stairs, lifts), not the street router or the
-// engine's path, so the map shows the same way as the 3D view
+// engine's path, so the map shows the same way as the 3D view; and the time of the way it draws
 function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: StationWalkPlan, task: WalkTask) {
   const first = st.walkRev == null;
   const current = newWalkRev(st);
-  const all = (st.lines || []).flat(), ends = st.ends || [];
   task(stationWalk(st, plan, first), (res) => {
     if (!current()) return;
-    if (res) {
-      st.lines = res.lines;
-      st.walks = res.walks;
-      st.floors = res.floors;
-      queueSheet();
-    }
+    if (!res) { current.done(); return; } // as planned, and the model has no way: the engine's walk stays, with its time
+    st.lines = res.lines;
+    st.walks = res.walks;
+    st.floors = res.floors;
+    if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
     current.done();
-    if (first || !res || all.length < 2) return;
-    // moved since the plan: the engine's time for the walk as it now stands; routed along the streets, the engine
-    // has answered already, else (the model draws its way) it is asked
-    if (res.street) {
-      if (res.walks.length === 1) { st.kanteWalk = !res.walks[0].approx; walkTime(st, res.walks[0]); }
-    } else {
-      task(routeWalk(all[0], walkGoal(st, all[all.length - 1]), [(ends[0] || [])[0] || {}, (ends[ends.length - 1] || [])[1] || {}]), (t) => { if (current()) walkTime(st, t); });
-    }
+    walkTime(st, res.walks);
+    queueSheet();
   });
 }
 // One walk (or change). As planned it has the engine's walk already; moved since, or at another platform at the same
@@ -233,27 +225,30 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   const current = newWalkRev(st);
   if (first) { current.done(); return; } // the engine's walk as the plan came (a walk it found no path for stays straight)
   const lines = st.lines || [];
-  lines.forEach((line, k) => task(routeWalk(line[0], k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1], st.ends && st.ends[k]), (res) => {
+  const goal = (line: LngLat[], k: number) => (k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1]);
+  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k]))), (res) => {
     if (!current()) return;
-    st.lines[k] = res.coords;
-    (st.walks || (st.walks = []))[k] = res;
-    if (lines.length === 1) { st.kanteWalk = !res.approx; walkTime(st, res); }
+    st.lines = res.map((w) => w.coords);
+    st.walks = res;
+    st.kanteWalk = res.every((w) => !w.approx);
     // floor changes where the walk actually takes them (else the platform levels imply one)
-    const floors = st.walks.flatMap((w) => (w && w.floors) || []);
+    const floors = res.flatMap((w) => w.floors || []);
     st.floors = floors.length ? floors : null;
     current.done();
+    walkTime(st, res);
     queueSheet(); // metres and written directions
-  }));
+  });
 }
 
-// The engine's time for a walk routed again: its time on foot, its minutes, and for the walk to the first ride when
-// to leave (so as to be at the stop at the same time)
-function walkTime(st: JourneyWalkStep | JourneyChangeStep, res: RoutedWalk) {
-  if (res.walkS == null) return;
-  st.walkS = res.walkS;
-  const min = Math.round((res.shownS != null ? res.shownS : res.walkS) / 60);
+// The time of a walk as it is now drawn: the engine's for each part of it (a station model's for its part), its
+// minutes, and for the walk to the first ride when to leave (so as to be at the stop at the same time)
+function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) {
+  if (walks.some((w) => w.walkS == null)) return;
+  const s = walks.reduce((sum, w) => sum + w.walkS!, 0), dist = walks.reduce((sum, w) => sum + (w.dist || 0), 0);
+  st.walkS = s;
+  const min = Math.round(KanteJourney.walkSecs({ distanceM: dist, durationS: s }) / 60);
   if (st.type === 'change') st.walkMin = min; else st.min = min;
-  if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - res.walkS * 1000;
+  if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - s * 1000;
   queueSheet(); // the minutes on the card
 }
 

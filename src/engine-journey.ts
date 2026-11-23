@@ -227,7 +227,7 @@ function at(ride: JourneyRide, k: number): JourneyPlatformAt {
 // A walk shorter than half a minute would round to "0 min" and drop out of the trip; one that has a way
 // to go still counts as a walk
 /** A walk's time as the trip shows it, seconds: at least half a minute when it has a way to go (10 m or more). */
-const shownSecs = (leg: KanteWalk) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
+const shownSecs = (leg: Pick<KanteWalk, 'distanceM' | 'durationS'>) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
 function journeyOf(j: KanteJourney): Journey {
   const groups: (KanteRideLeg[] | KanteWalkLeg)[] = [];
   let ride: KanteRideLeg[] | null = null;
