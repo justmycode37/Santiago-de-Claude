@@ -875,13 +875,21 @@ impl App {
         };
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);
         let limit = req.limit_s.filter(|l| l.is_finite() && *l >= 0.0);
-        // a change asked again (after a live platform change), with the time there is for it: walked as a journey's
-        // change is (change_walk), each walk timed as drawn
+        // a change asked again (after a live platform change or a delay), with the time there is for it: walked and
+        // timed as a journey's change is (change_walk): by its footpath and the timetable's minimum change time when
+        // there is a footpath between the two, else each walk as drawn
         if let (Some(room), Some(sa), Some(sb)) = (limit, ea.stop, eb.stop) {
             // timed as drawn, or with no path as the straight line is
-            let w = self.walk_leg("direct", &ea, &eb, now, now, &profile);
+            let mut w = self.walk_leg("direct", &ea, &eb, now, now, &profile);
+            let footpath = self.footpaths_for(&profile).get(sa, sb);
+            if let (Some((v, f)), false) = (footpath, w.approximate) {
+                let secs = walk_secs(v as f32, f as f32, profile.speed_mps).ceil() as i64;
+                w.duration_s = secs;
+                w.arr = now + secs;
+                w.official_min_s = self.tt.official_transfer(sa, sb);
+            }
             let margin = req.options.transfer_margin_s.clamp(0, 1800) as i64;
-            let mut out = self.change_walk(&w, sa, sb, room as i64, margin, &profile, req.options.flatter_changes, true).unwrap_or(w);
+            let mut out = self.change_walk(&w, sa, sb, room as i64, margin, &profile, req.options.flatter_changes, footpath.is_none()).unwrap_or(w);
             out.kind = "direct";
             return Ok(out);
         }
