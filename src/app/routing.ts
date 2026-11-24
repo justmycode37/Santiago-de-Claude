@@ -255,9 +255,12 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
 function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: StationWalkPlan, task: WalkTask) {
   const first = st.walkRev == null;
   const current = newWalkRev(st);
+  const asked = st.lines;
   task(stationWalk(st, plan, first), (res) => {
     if (!current()) return;
     if (!res) { current.done(); return; } // as planned, and the model has no way: the engine's walk stays, with its time
+    // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays
+    if (!res.walks.every(answered) && asked === st._netFor) { current.retry(); return; }
     st.lines = res.lines;
     st.walks = res.walks;
     st.floors = res.floors;
@@ -290,8 +293,12 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   }
   // a change of one stretch: within the time there is for it (a walk through a station model has its own way)
   const limit = st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
+  const asked = st.lines;
   task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k], limit))), (res) => {
     if (!current()) return;
+    // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays, and it
+    // is asked again on a later poll
+    if (!res.every(answered) && asked === st._netFor) { current.retry(); return; }
     st.lines = res.map((w) => w.coords);
     st.walks = res;
     st.kanteWalk = res.every((w) => !w.approx);

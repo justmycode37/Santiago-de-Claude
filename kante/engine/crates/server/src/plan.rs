@@ -592,8 +592,9 @@ impl App {
         // change time (the walk is drawn between the platforms' registry points, which can lie far apart, and that
         // time is what people walk)
         let fit = |hills: HillsPref| Some(walk(hills, limit)).filter(routed).map(|o| as_drawn(o, room));
-        // (timed as drawn, with no footpath's time: longer than the room is too long)
-        let too_long = |o: &json::WalkLeg| o.drawn_s.is_some_and(|d| d > room && (own_time || d > o.duration_s));
+        // too long: timed longer than the room (a quicker way may still make it), or drawn longer than it and than
+        // it is timed (with no footpath's time, drawn longer than the room)
+        let too_long = |o: &json::WalkLeg| o.duration_s > room || o.drawn_s.is_some_and(|d| d > room && (own_time || d > o.duration_s));
         // seconds the flatter way must leave beyond the margin, so that the change is not tight
         let untight = (TIGHT_S - margin).max(0);
         match profile.hills {
@@ -881,8 +882,9 @@ impl App {
         if let (Some(room), Some(sa), Some(sb)) = (limit, ea.stop, eb.stop) {
             // timed as drawn, or with no path as the straight line is
             let mut w = self.walk_leg("direct", &ea, &eb, now, now, &profile);
+            // (a footpath with no path mapped is the planner's estimate: its time, as planned)
             let footpath = self.footpaths_for(&profile).get(sa, sb);
-            if let (Some((v, f)), false) = (footpath, w.approximate) {
+            if let Some((v, f)) = footpath {
                 let secs = walk_secs(v as f32, f as f32, profile.speed_mps).ceil() as i64;
                 w.duration_s = secs;
                 w.arr = now + secs;
@@ -945,7 +947,9 @@ fn avoid_choice(quick: &json::WalkLeg, w: &json::WalkLeg, room: i64, untight: i6
 /// platforms' registry points, which can lie far apart, and that time is what people walk.
 fn as_drawn(mut o: json::WalkLeg, room: i64) -> json::WalkLeg {
     let d = o.drawn_s.unwrap_or(o.duration_s);
-    if o.official_min_s.is_none() && d > room && d > o.duration_s {
+    // longer as drawn than the room: missed, as drawn; timed longer than the room but drawn (the quickest way) within
+    // it: made, as drawn
+    if o.official_min_s.is_none() && ((d > room && d > o.duration_s) || (o.duration_s > room && d < o.duration_s)) {
         o.duration_s = d;
         o.arr = o.dep + d;
     }
@@ -1158,6 +1162,8 @@ mod tests {
         assert_eq!((o.duration_s, o.arr), (240, 1240));
         // it fits: as timed
         assert_eq!(as_drawn(change(120, 200, 0), 210).duration_s, 120);
+        // timed 9 min 54 s, the quickest drawn 9 min 14 s, 9 min 15 s between the rides: made, as drawn
+        assert_eq!(as_drawn(change(594, 554, 0), 555).duration_s, 554);
         // a minimum change time: as the timetable says
         let mut capped = change(120, 240, 0);
         capped.official_min_s = Some(120);
