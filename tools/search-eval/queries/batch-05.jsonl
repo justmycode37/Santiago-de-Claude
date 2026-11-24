@@ -1,0 +1,210 @@
+{"t": "T005", "q": "Oberwangen TG, Sonnenhof", "style": "exact", "local": false}
+{"t": "T005", "q": "sonnenhof oberwangen", "style": "casual", "local": false}
+{"t": "T005", "q": "oberwangen sonnenh", "style": "partial", "local": false}
+{"t": "T005", "q": "oberwangen sonenhof", "style": "typo", "local": false}
+{"t": "T005", "q": "bushaltestelle sonnenhof oberwangen", "style": "descriptive", "local": false}
+{"t": "T015", "q": "Vattiz, vitg", "style": "exact", "local": false}
+{"t": "T015", "q": "vattiz vitg", "style": "casual", "local": false}
+{"t": "T015", "q": "vitg vat", "style": "partial", "local": false}
+{"t": "T015", "q": "vatiz vitg", "style": "typo", "local": false}
+{"t": "T015", "q": "bus stop vattiz vitg", "style": "descriptive", "local": false}
+{"t": "T025", "q": "Lausanne, Tour Haldimand-Lac", "style": "exact", "local": false}
+{"t": "T025", "q": "tour haldimand lac lausanne", "style": "casual", "local": false}
+{"t": "T025", "q": "lausanne tour hald", "style": "partial", "local": false}
+{"t": "T025", "q": "lausanne tour haldimnad lac", "style": "typo", "local": false}
+{"t": "T025", "q": "arrêt tour haldimand lac", "style": "descriptive", "local": false}
+{"t": "T035", "q": "Niederrohrdorf, Vogelrüti", "style": "exact", "local": false}
+{"t": "T035", "q": "vogelrüti niederrohrdorf", "style": "casual", "local": false}
+{"t": "T035", "q": "niederrohrdorf vogelr", "style": "partial", "local": false}
+{"t": "T035", "q": "niederrohrdorf vogelrueti", "style": "typo", "local": false}
+{"t": "T035", "q": "haltestelle vogelrüti niederrohrdorf", "style": "descriptive", "local": false}
+{"t": "T045", "q": "Kandersteg, Talstat. Oeschinen", "style": "exact", "local": false}
+{"t": "T045", "q": "kandersteg talstat oeschinen", "style": "casual", "local": false}
+{"t": "T045", "q": "kandersteg talstation oesch", "style": "partial", "local": false}
+{"t": "T045", "q": "kandersteg talstation oeschienn", "style": "typo", "local": false}
+{"t": "T045", "q": "bus stop oeschinen valley station kandersteg", "style": "descriptive", "local": false}
+{"t": "T055", "q": "Fenil-sur-Corsier, vieille rte", "style": "exact", "local": false}
+{"t": "T055", "q": "vieille rte fenil", "style": "casual", "local": false}
+{"t": "T055", "q": "fenil sur corsier vieil", "style": "partial", "local": false}
+{"t": "T055", "q": "fenil sur corsier vieile rte", "style": "typo", "local": false}
+{"t": "T055", "q": "arrêt vieille route fenil sur corsier", "style": "descriptive", "local": false}
+{"t": "T065", "q": "Kloten Balsberg, Bahnhof", "style": "exact", "local": false}
+{"t": "T065", "q": "kloten balsberg", "style": "casual", "local": false}
+{"t": "T065", "q": "kloten balsb", "style": "partial", "local": false}
+{"t": "T065", "q": "kloten baslberg", "style": "typo", "local": false}
+{"t": "T065", "q": "tram stop kloten balsberg", "style": "descriptive", "local": false}
+{"t": "T075", "q": "Muttenz, Rothausstrasse", "style": "exact", "local": false}
+{"t": "T075", "q": "rothausstrasse muttenz", "style": "casual", "local": false}
+{"t": "T075", "q": "muttenz rothausstr", "style": "partial", "local": false}
+{"t": "T075", "q": "muttenz rothausstrase", "style": "typo", "local": false}
+{"t": "T075", "q": "tramhaltestelle rothausstrasse muttenz", "style": "descriptive", "local": false}
+{"t": "T085", "q": "Zürich, Aargauerstrasse", "style": "exact", "local": false}
+{"t": "T085", "q": "aargauerstrasse zürich", "style": "casual", "local": false}
+{"t": "T085", "q": "zürich aargauerstr", "style": "partial", "local": false}
+{"t": "T085", "q": "zurich aargauerstrasse", "style": "typo", "local": false}
+{"t": "T085", "q": "tram stop aargauerstrasse zurich", "style": "descriptive", "local": false}
+{"t": "T095", "q": "Lausanne, Port-Franc", "style": "exact", "local": false}
+{"t": "T095", "q": "port franc lausanne", "style": "casual", "local": false}
+{"t": "T095", "q": "lausanne port fra", "style": "partial", "local": false}
+{"t": "T095", "q": "lausanne port frnac", "style": "typo", "local": false}
+{"t": "T095", "q": "arrêt de tram port franc lausanne", "style": "descriptive", "local": false}
+{"t": "T105", "q": "Blankenburg", "style": "exact", "local": false}
+{"t": "T105", "q": "blankenburg bahnhof", "style": "casual", "local": false}
+{"t": "T105", "q": "blankenb", "style": "partial", "local": false}
+{"t": "T105", "q": "blankeburg", "style": "typo", "local": false}
+{"t": "T105", "q": "blankenburg train station", "style": "descriptive", "local": false}
+{"t": "T115", "q": "Aarwangen", "style": "exact", "local": false}
+{"t": "T115", "q": "aarwang", "style": "partial", "local": false}
+{"t": "T115", "q": "arwangen", "style": "typo", "local": false}
+{"t": "T115", "q": "Aarwangen Bhf", "style": "alias", "local": false}
+{"t": "T115", "q": "aarwangen train station", "style": "descriptive", "local": false}
+{"t": "T125", "q": "Rheinfall Schlössli Wörth", "style": "exact", "local": false}
+{"t": "T125", "q": "schlössli wörth", "style": "casual", "local": false}
+{"t": "T125", "q": "rheinfall schlössli wör", "style": "partial", "local": false}
+{"t": "T125", "q": "rheinfall schloessli wörth", "style": "typo", "local": false}
+{"t": "T125", "q": "boat landing schlössli wörth", "style": "descriptive", "local": false}
+{"t": "T135", "q": "Handegg", "style": "exact", "local": false}
+{"t": "T135", "q": "luftseilbahn handegg", "style": "casual", "local": false}
+{"t": "T135", "q": "hande", "style": "partial", "local": false}
+{"t": "T135", "q": "handeg", "style": "typo", "local": false}
+{"t": "T135", "q": "handegg cable car station", "style": "descriptive", "local": false}
+{"t": "T145", "q": "Lausanne", "style": "exact", "local": false}
+{"t": "T145", "q": "lausanne gare", "style": "casual", "local": false}
+{"t": "T145", "q": "gare de lausa", "style": "partial", "local": false}
+{"t": "T145", "q": "lausane gare", "style": "typo", "local": false}
+{"t": "T145", "q": "lausanne main train station", "style": "descriptive", "local": false}
+{"t": "T155", "q": "Neuchâtel", "style": "exact", "local": false}
+{"t": "T155", "q": "gare neuch", "style": "partial", "local": false}
+{"t": "T155", "q": "neuchatel gare", "style": "typo", "local": false}
+{"t": "T155", "q": "Neuchâtel CFF", "style": "alias", "local": false}
+{"t": "T155", "q": "neuchâtel train station", "style": "descriptive", "local": false}
+{"t": "T165", "q": "Baden", "style": "exact", "local": false}
+{"t": "T165", "q": "baden bahn", "style": "partial", "local": false}
+{"t": "T165", "q": "bahnhof bdaen", "style": "typo", "local": false}
+{"t": "T165", "q": "Baden Bhf", "style": "alias", "local": false}
+{"t": "T165", "q": "baden train station", "style": "descriptive", "local": false}
+{"t": "T175", "q": "Chigny", "style": "exact", "local": false}
+{"t": "T175", "q": "chigny gare", "style": "casual", "local": false}
+{"t": "T175", "q": "gare de chig", "style": "partial", "local": false}
+{"t": "T175", "q": "gare chingy", "style": "typo", "local": false}
+{"t": "T175", "q": "chigny train station", "style": "descriptive", "local": false}
+{"t": "T185", "q": "Forch, Gleis 4", "style": "exact", "local": false}
+{"t": "T185", "q": "forch gleis 4", "style": "casual", "local": false}
+{"t": "T185", "q": "Forch Gl. 4", "style": "alias", "local": false}
+{"t": "T185", "q": "forch 4 glei", "style": "partial", "local": false}
+{"t": "T185", "q": "forch station platform 4", "style": "descriptive", "local": false}
+{"t": "T195", "q": "Olten, Gleis 1", "style": "exact", "local": false}
+{"t": "T195", "q": "olten gleis 1", "style": "casual", "local": false}
+{"t": "T195", "q": "Olten Gl. 1", "style": "alias", "local": false}
+{"t": "T195", "q": "olten 1 glei", "style": "partial", "local": false}
+{"t": "T195", "q": "olten train station platform 1", "style": "descriptive", "local": false}
+{"t": "T205", "q": "Basel, Aeschenplatz, Kante A", "style": "exact", "local": false}
+{"t": "T205", "q": "aeschenplatz kante a", "style": "casual", "local": false}
+{"t": "T205", "q": "Basel Aeschenpl. Kante A", "style": "alias", "local": false}
+{"t": "T205", "q": "aeschenplatz a bas", "style": "partial", "local": false}
+{"t": "T205", "q": "basel aeschenplatz platform a", "style": "descriptive", "local": false}
+{"t": "T215", "q": "Bern, Hirschengraben, Kante A", "style": "exact", "local": false}
+{"t": "T215", "q": "hirschengraben kante a bern", "style": "casual", "local": false}
+{"t": "T215", "q": "Berne Hirschengraben quai A", "style": "alias", "local": false}
+{"t": "T215", "q": "hirschengraben a ber", "style": "partial", "local": false}
+{"t": "T215", "q": "bern hirschengraben platform a", "style": "descriptive", "local": false}
+{"t": "T225", "q": "Chemin de la Bessonnette 9", "style": "exact", "local": false}
+{"t": "T225", "q": "chêne bougeries chemin de la bessonnette 9", "style": "casual", "local": false}
+{"t": "T225", "q": "chemin de la bessonnette 9 chêne-boug", "style": "partial", "local": false}
+{"t": "T225", "q": "chemin de la bessonnette 9 chene-bougeries", "style": "typo", "local": false}
+{"t": "T225", "q": "ch. de la bessonnette 9 1224", "style": "alias", "local": false}
+{"t": "T235", "q": "Eisenbahnstrasse 8", "style": "exact", "local": true}
+{"t": "T235", "q": "langenthal eisenbahnstrasse 8", "style": "casual", "local": false}
+{"t": "T235", "q": "eisenbahnstrasse 8 langen", "style": "partial", "local": false}
+{"t": "T235", "q": "eisenbahnstrase 8 langenthal", "style": "typo", "local": false}
+{"t": "T235", "q": "eisenbahnstr. 8 4900", "style": "alias", "local": false}
+{"t": "T245", "q": "Rue des Artisans 121", "style": "exact", "local": true}
+{"t": "T245", "q": "vuadens rue des artisans 121", "style": "casual", "local": false}
+{"t": "T245", "q": "rue des artisans 121 vuad", "style": "partial", "local": false}
+{"t": "T245", "q": "rue des artissans 121 vuadens", "style": "typo", "local": false}
+{"t": "T245", "q": "121 rue des artisans 1628 vuadens", "style": "descriptive", "local": false}
+{"t": "T255", "q": "Hubstrasse 24", "style": "exact", "local": true}
+{"t": "T255", "q": "hubstrasse 24 wil", "style": "casual", "local": false}
+{"t": "T255", "q": "hubstrasse 24 will sg", "style": "typo", "local": false}
+{"t": "T255", "q": "hubstr. 24 9500", "style": "alias", "local": false}
+{"t": "T255", "q": "hubstrasse 24 9500 wil sg", "style": "descriptive", "local": false}
+{"t": "T265", "q": "Herweg 1", "style": "exact", "local": true}
+{"t": "T265", "q": "männedorf herweg 1", "style": "casual", "local": false}
+{"t": "T265", "q": "herweg 1 männe", "style": "partial", "local": false}
+{"t": "T265", "q": "herweg 1 maennedorf", "style": "typo", "local": false}
+{"t": "T265", "q": "8708 männedorf herweg 1", "style": "descriptive", "local": false}
+{"t": "T275", "q": "Senda Diavolezza 74", "style": "exact", "local": false}
+{"t": "T275", "q": "senda diavolezza 74 7504", "style": "casual", "local": false}
+{"t": "T275", "q": "senda diavolezza 74 pontre", "style": "partial", "local": false}
+{"t": "T275", "q": "senda diavoleza 74 pontresina", "style": "typo", "local": false}
+{"t": "T275", "q": "74 senda diavolezza pontresina", "style": "descriptive", "local": false}
+{"t": "T285", "q": "Apotheke zur Mühlebrücke Fernand Jolissaint", "style": "exact", "local": false}
+{"t": "T285", "q": "apotheke mühlebrücke biel", "style": "casual", "local": false}
+{"t": "T285", "q": "biel apotheke mühlebr", "style": "partial", "local": false}
+{"t": "T285", "q": "apotheke muehlebruecke biel", "style": "typo", "local": false}
+{"t": "T285", "q": "pharmacy mühlebrücke bienne", "style": "descriptive", "local": false}
+{"t": "T295", "q": "Gesundheitszentrum für das Alter Bullinger-Hardau", "style": "exact", "local": false}
+{"t": "T295", "q": "bullinger hardau gesundheitszentrum", "style": "casual", "local": false}
+{"t": "T295", "q": "zürich bullinger har", "style": "partial", "local": false}
+{"t": "T295", "q": "gesundheitszentrum bullinger hardau zurich", "style": "typo", "local": false}
+{"t": "T295", "q": "alterszentrum bullinger hardau zürich", "style": "descriptive", "local": false}
+{"t": "T305", "q": "Elim Open Doors", "style": "exact", "local": false}
+{"t": "T305", "q": "elim open doors basel", "style": "casual", "local": false}
+{"t": "T305", "q": "basel elim open doo", "style": "partial", "local": false}
+{"t": "T305", "q": "elim open dosrs", "style": "typo", "local": false}
+{"t": "T305", "q": "elim open doors claragraben", "style": "descriptive", "local": false}
+{"t": "T315", "q": "Gemeindeverwaltung Urnäsch", "style": "exact", "local": false}
+{"t": "T315", "q": "gemeinde urnäsch", "style": "casual", "local": false}
+{"t": "T315", "q": "gemeindeverwaltung urn", "style": "partial", "local": false}
+{"t": "T315", "q": "gemeindeverwaltung urnasch", "style": "typo", "local": false}
+{"t": "T315", "q": "urnäsch gemeindeverwaltung dorfplatz", "style": "descriptive", "local": false}
+{"t": "T325", "q": "Coop", "style": "exact", "local": true}
+{"t": "T325", "q": "coop reichenburg", "style": "casual", "local": false}
+{"t": "T325", "q": "coop reichenbu", "style": "partial", "local": false}
+{"t": "T325", "q": "coop reicheburg", "style": "typo", "local": false}
+{"t": "T325", "q": "coop kantonsstrasse 60 reichenburg", "style": "descriptive", "local": false}
+{"t": "T335", "q": "Résidence les Pervenches", "style": "exact", "local": false}
+{"t": "T335", "q": "les pervenches", "style": "casual", "local": true}
+{"t": "T335", "q": "carouge résidence les perv", "style": "partial", "local": false}
+{"t": "T335", "q": "residence les pervenches carouge", "style": "typo", "local": false}
+{"t": "T335", "q": "résidence les pervenches rue jacques-grosselin", "style": "descriptive", "local": false}
+{"t": "T345", "q": "playground", "style": "exact", "local": true}
+{"t": "T345", "q": "kinderspielplatz", "style": "casual", "local": true}
+{"t": "T345", "q": "spielpla", "style": "partial", "local": true}
+{"t": "T345", "q": "spielplaz", "style": "typo", "local": true}
+{"t": "T345", "q": "spielplatz in der nähe", "style": "descriptive", "local": true}
+{"t": "T355", "q": "cash machine", "style": "exact", "local": true}
+{"t": "T355", "q": "cashpoint", "style": "casual", "local": true}
+{"t": "T355", "q": "bankoma", "style": "partial", "local": true}
+{"t": "T355", "q": "ATM", "style": "alias", "local": true}
+{"t": "T355", "q": "nächster bancomat", "style": "descriptive", "local": true}
+{"t": "T365", "q": "supermarket", "style": "exact", "local": true}
+{"t": "T365", "q": "lebensmittelladen", "style": "casual", "local": true}
+{"t": "T365", "q": "supermar", "style": "partial", "local": true}
+{"t": "T365", "q": "supermakt", "style": "typo", "local": true}
+{"t": "T365", "q": "nächster supermarkt", "style": "descriptive", "local": true}
+{"t": "T375", "q": "drinking water fountain", "style": "exact", "local": true}
+{"t": "T375", "q": "trinkbrunnen", "style": "casual", "local": true}
+{"t": "T375", "q": "trinkwass", "style": "partial", "local": true}
+{"t": "T375", "q": "trinkbrunen", "style": "typo", "local": true}
+{"t": "T375", "q": "drinking water near me", "style": "descriptive", "local": true}
+{"t": "T385", "q": "cash machine", "style": "exact", "local": true}
+{"t": "T385", "q": "geldautomat", "style": "casual", "local": true}
+{"t": "T385", "q": "bancom", "style": "partial", "local": true}
+{"t": "T385", "q": "ATM", "style": "alias", "local": true}
+{"t": "T385", "q": "bancomat in der nähe", "style": "descriptive", "local": true}
+{"t": "T395", "q": "Portalban", "style": "exact", "local": false}
+{"t": "T395", "q": "portalban suisse", "style": "casual", "local": false}
+{"t": "T395", "q": "portalb", "style": "partial", "local": false}
+{"t": "T395", "q": "portalabn", "style": "typo", "local": false}
+{"t": "T395", "q": "village de portalban", "style": "descriptive", "local": false}
+{"t": "T405", "q": "Walkringen", "style": "exact", "local": false}
+{"t": "T405", "q": "walkringen bern", "style": "casual", "local": false}
+{"t": "T405", "q": "walkrin", "style": "partial", "local": false}
+{"t": "T405", "q": "walkrigen", "style": "typo", "local": false}
+{"t": "T405", "q": "dorf walkringen", "style": "descriptive", "local": false}
+{"t": "T415", "q": "7543", "style": "exact", "local": false}
+{"t": "T415", "q": "7543 schweiz", "style": "casual", "local": false}
+{"t": "T415", "q": "754", "style": "partial", "local": false}
+{"t": "T415", "q": "plz 7543", "style": "alias", "local": false}
+{"t": "T415", "q": "postcode 7543", "style": "descriptive", "local": false}

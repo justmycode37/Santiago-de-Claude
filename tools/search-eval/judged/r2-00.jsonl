@@ -1,0 +1,243 @@
+{"k": "332f4ad8a02bfaa6", "g": 3, "why": "Row 1 matches the house number and town with variant spelling"}
+{"k": "e3645cafce3a18c4", "g": 3, "why": "Requested address is row 1"}
+{"k": "5b2c5cd56dd7301f", "g": 3, "why": "Requested address is row 1"}
+{"k": "c1b86efbe2d3fc17", "g": 3, "why": "Requested address is row 1"}
+{"k": "ad9eecf1926c9c9e", "g": 3, "why": "Requested address is row 1"}
+{"k": "f5b15386bb4b4a21", "g": 3, "why": "Requested address is row 1"}
+{"k": "ae00e8f527b9507f", "g": 3, "why": "Requested address is row 1"}
+{"k": "133f624d34d931e0", "g": 3, "why": "Requested address is row 1"}
+{"k": "97f37115b4584a84", "g": 3, "why": "Requested address is row 1"}
+{"k": "bbe737e7e4f8acd3", "g": 3, "why": "Requested address is row 1"}
+{"k": "104b8f8c25af1c9c", "g": 3, "why": "Requested address is row 1"}
+{"k": "925eb62701889598", "g": 3, "why": "Requested address is row 1"}
+{"k": "37bcf5382e4eff24", "g": 3, "why": "Requested address is row 1"}
+{"k": "a468b9c30ef8b52d", "g": 3, "why": "Requested address is row 1"}
+{"k": "9a584ae3b7cd7f09", "g": 3, "why": "Requested address is row 1"}
+{"k": "4229399a1b4f4d83", "g": 3, "why": "Requested address is row 1"}
+{"k": "746f69f7bde7e3b6", "g": 3, "why": "Requested address is row 1"}
+{"k": "063e8a0134addf87", "g": 2, "why": "Exact address is row 2 after the unnumbered street"}
+{"k": "2f2c59ef8ef6b18f", "g": 2, "why": "Exact address is row 2 after the unnumbered street"}
+{"k": "f1f9ba126449eaf1", "g": 2, "why": "Exact address is row 2 after the unnumbered street"}
+{"k": "0f64bb6385b4363c", "g": 2, "why": "Exact address is row 3 after two unnumbered street entries"}
+{"k": "1e2401c431659da5", "g": 3, "why": "Requested address is row 1"}
+{"k": "8016a1aafb8f1163", "g": 3, "why": "Requested address is row 1"}
+{"k": "e3d31145417a1927", "g": 3, "why": "Requested address is row 1"}
+{"k": "9cd5eb7792018f97", "g": 3, "why": "Requested address is row 1"}
+{"k": "6852757c94778407", "g": 3, "why": "Requested address is row 1"}
+{"k": "cdabc8be3d54b5ed", "g": 3, "why": "Requested address is row 1"}
+{"k": "f0ae9cad72a141cd", "g": 3, "why": "Requested address is row 1"}
+{"k": "8651a0213969f62a", "g": 3, "why": "Requested address is row 1"}
+{"k": "9c7088371aa03125", "g": 3, "why": "Requested address is row 1"}
+{"k": "f7d17bbd16bb615c", "g": 3, "why": "Requested address is row 1"}
+{"k": "63bda6ebe2649ab7", "g": 3, "why": "Requested address is row 1"}
+{"k": "cf62940a08cebdcb", "g": 3, "why": "Requested address is row 1"}
+{"k": "2f59c947fe45c88e", "g": 3, "why": "Requested address is row 1"}
+{"k": "e64c3247cbcdad51", "g": 3, "why": "Requested address is row 1"}
+{"k": "8d13720ae5847200", "g": 3, "why": "Requested address is row 1"}
+{"k": "a0cceff583c3b22f", "g": 3, "why": "Requested address is row 1"}
+{"k": "98b9e23e9eb6e8f1", "g": 2, "why": "Exact address is row 2 after the unnumbered street"}
+{"k": "38a9f4c39d8c1e4a", "g": 3, "why": "Requested address is row 1"}
+{"k": "89477d58f3c3f44a", "g": 3, "why": "Requested address is row 1"}
+{"k": "17cad65119470097", "g": 2, "why": "Exact address is row 2 after the unnumbered street"}
+{"k": "a1ddc339146ba03e", "g": 3, "why": "Requested address is row 1"}
+{"k": "fd16bf8de450b4f8", "g": 3, "why": "Requested address is row 1"}
+{"k": "d3d08cfe0deeb10b", "g": 3, "why": "Requested address is row 1"}
+{"k": "af596fa7b685225c", "g": 3, "why": "Requested address is row 1"}
+{"k": "2e70e8c829754920", "g": 1, "why": "Correct street and town, but house number 25a is missing"}
+{"k": "9a997bcfe9febd68", "g": 3, "why": "Requested address is row 1"}
+{"k": "3563736ebaa078d8", "g": 3, "why": "Requested address is row 1"}
+{"k": "8f5a20ab3fe62db3", "g": 1, "why": "Distant playground in row 1, 58.0 km away"}
+{"k": "c95fc61b45c61d65", "g": 2, "why": "Usable playground in row 3, 853 m away"}
+{"k": "73bf28149283f08f", "g": 3, "why": "Nearby playground in row 1, 853 m away"}
+{"k": "b7129510d65ca8e9", "g": 2, "why": "Usable playground in row 1, 2.5 km away"}
+{"k": "cf103e5bed3a1028", "g": 2, "why": "Usable playground in row 2, 2.5 km away"}
+{"k": "c740de3d5c6abc20", "g": 1, "why": "Distant post office in row 1, 102.3 km away"}
+{"k": "721bc33de69cb992", "g": 2, "why": "Usable post office in row 1, 2.0 km away"}
+{"k": "8720b2470265e93b", "g": 2, "why": "Usable post office in row 1, 2.0 km away"}
+{"k": "e2c691a9a1d5d1e0", "g": 2, "why": "Usable post office in row 1, 2.0 km away"}
+{"k": "758ddba93d9739a9", "g": 3, "why": "Nearby pharmacy in row 1, 564 m away"}
+{"k": "deb766625711f0b5", "g": 2, "why": "Usable pharmacy in row 2, 564 m away"}
+{"k": "677e18eee0f4ca22", "g": 3, "why": "Nearby pharmacy in row 1, 564 m away"}
+{"k": "9c879ff9b08de484", "g": 3, "why": "Nearby pharmacy in row 1, 564 m away"}
+{"k": "5090f2746a120cca", "g": 2, "why": "Usable pharmacy in row 2, 564 m away"}
+{"k": "8d05f28c65972c04", "g": 1, "why": "Distant social services office in row 2, 18.5 km away"}
+{"k": "661fa81cc92369b1", "g": 1, "why": "Distant social counseling office in row 2, 23.5 km away"}
+{"k": "2045a32ac1e4ba9c", "g": 1, "why": "Distant social services office in row 2, 18.5 km away"}
+{"k": "5f5ee92bafac0537", "g": 1, "why": "Distant social services office in row 1, 117.3 km away"}
+{"k": "4aca7fc1a2b3ea90", "g": 1, "why": "Distant social services office in row 1, 117.3 km away"}
+{"k": "b699fbe29a0624a0", "g": 1, "why": "Distant social services office in row 1, 28.8 km away"}
+{"k": "ec53bd19b11cc34a", "g": 1, "why": "Distant social services office in row 1, 164.0 km away"}
+{"k": "8eeb77fafeb4ce74", "g": 1, "why": "Distant social services office in row 1, 28.8 km away"}
+{"k": "40e62142185bfd23", "g": 1, "why": "Distant social services office in row 1, 28.8 km away"}
+{"k": "3482680843632b57", "g": 1, "why": "Distant social services office in row 1, 164.0 km away"}
+{"k": "5009503eebe26a87", "g": 3, "why": "Nearby pharmacy in row 1, 1.2 km away"}
+{"k": "a62b40a26de899f9", "g": 2, "why": "Usable pharmacy in row 2, 1.2 km away"}
+{"k": "445373002dcb69ec", "g": 3, "why": "Nearby pharmacy in row 1, 1.2 km away"}
+{"k": "d7d6ec2efcbe6047", "g": 3, "why": "Nearby pharmacy in row 1, 1.6 km away"}
+{"k": "0840bd1784b7acd1", "g": 2, "why": "Usable pharmacy in row 2, 1.2 km away"}
+{"k": "d5dc156cd03dad8d", "g": 0, "why": "No result identifies a defibrillator"}
+{"k": "f6f1891388eb4969", "g": 0, "why": "No result identifies a defibrillator"}
+{"k": "634391ce9623aa00", "g": 3, "why": "Nearby pharmacy in row 1, 154 m away"}
+{"k": "ac8960ff41da1f7c", "g": 3, "why": "Nearby pharmacy in row 1, 154 m away"}
+{"k": "2c27b1a47e9a1a2e", "g": 3, "why": "Nearby pharmacy in row 1, 154 m away"}
+{"k": "c5dad73fa6de4051", "g": 3, "why": "Nearby pharmacy in row 1, 154 m away"}
+{"k": "19e222b1560b215c", "g": 1, "why": "Distant post office in row 2, 37.7 km away"}
+{"k": "6c3787e1318fbbab", "g": 3, "why": "Nearby post office in row 1, 277 m away"}
+{"k": "beb0312c81f861af", "g": 1, "why": "Distant post office in row 1, 27.0 km away"}
+{"k": "ffc2da192c0cdff5", "g": 1, "why": "Distant post office in row 1, 37.7 km away"}
+{"k": "8f7060a7ef2885b2", "g": 1, "why": "Distant post office in row 1, 27.0 km away"}
+{"k": "ba49f3b62d3ffdb4", "g": 0, "why": "No result identifies a cash machine"}
+{"k": "f3cf1e94bc089f9a", "g": 0, "why": "No result identifies a cash machine"}
+{"k": "c8e6d1300d4f3649", "g": 1, "why": "Distant cash machine in row 2, 67.3 km away"}
+{"k": "fe83297d867e8a8e", "g": 0, "why": "No result identifies a cash machine"}
+{"k": "b2ab464b9e8d5d5a", "g": 1, "why": "Distant cash machine in row 1, 65.8 km away"}
+{"k": "4bdc9df30983ee07", "g": 2, "why": "Usable pediatric hospital in row 1, 1.8 km away"}
+{"k": "a55653d4b757fa25", "g": 1, "why": "Row 1 is the local hospital bus stop"}
+{"k": "26ade1ea2eb5f2f0", "g": 2, "why": "Usable pediatric hospital in row 1, 1.8 km away"}
+{"k": "675a03d1c4a28e5c", "g": 1, "why": "Row 1 is the local hospital bus stop"}
+{"k": "aaa8b0a6fdddd878", "g": 1, "why": "Distant playground in row 1, 120.9 km away"}
+{"k": "cb044cd596767988", "g": 2, "why": "Usable playground in row 3, 2.0 km away"}
+{"k": "d1b421e6dd45f165", "g": 2, "why": "Usable playground in row 1, 2.0 km away"}
+{"k": "00e64b7171e222ab", "g": 2, "why": "Usable pharmacy in row 3, 1.4 km away"}
+{"k": "495be9d41c6463b7", "g": 3, "why": "Nearby pharmacy in row 1, 1.5 km away"}
+{"k": "5d924410bd33cf98", "g": 3, "why": "Nearby pharmacy in row 1, 1.5 km away"}
+{"k": "0652f7cdf650acc5", "g": 3, "why": "Nearby pharmacy in row 1, 1.4 km away"}
+{"k": "93fc20028a31df42", "g": 2, "why": "Usable pharmacy in row 3, 1.4 km away"}
+{"k": "1321ac3131752b65", "g": 2, "why": "Usable dentist in row 1, 1.8 km away"}
+{"k": "61402fad2e2a7e24", "g": 2, "why": "Usable dentist in row 1, 1.8 km away"}
+{"k": "ee89efdcf9fc5992", "g": 2, "why": "Usable dentist in row 1, 1.8 km away"}
+{"k": "7ddefae6e70d6e18", "g": 1, "why": "Distant dentist in row 2, 40.3 km away"}
+{"k": "defbe6060b403beb", "g": 1, "why": "Distant emergency shelter in row 3, 39.5 km away"}
+{"k": "8cea16051a944414", "g": 1, "why": "Distant emergency shelter in row 3, 39.5 km away"}
+{"k": "3590358c504f1a3c", "g": 1, "why": "Distant emergency shelter in row 3, 39.5 km away"}
+{"k": "c50d63420aa1c5e6", "g": 1, "why": "Distant emergency shelter in row 3, 39.5 km away"}
+{"k": "fe35585971901ecd", "g": 1, "why": "Distant drinking fountain in row 1, 38.6 km away"}
+{"k": "5ea692627c1e3eaf", "g": 1, "why": "Distant drinking fountain in row 1, 38.6 km away"}
+{"k": "20d2da963901dbaa", "g": 1, "why": "Distant drinking fountain in row 1, 38.6 km away"}
+{"k": "43ae96c9404027e5", "g": 1, "why": "Distant social services office in row 1, 146.1 km away"}
+{"k": "fd36e55392325896", "g": 1, "why": "Distant social services office in row 2, 27.1 km away"}
+{"k": "a128a9997950f622", "g": 1, "why": "Distant social services office in row 3, 27.1 km away"}
+{"k": "d31658604407526a", "g": 1, "why": "Distant social services office in row 2, 27.1 km away"}
+{"k": "26f353ddd5d9771a", "g": 3, "why": "Nearby social counseling office in row 1, 1.5 km away"}
+{"k": "40a1c1a4e6cab9ec", "g": 1, "why": "Distant social services office in row 1, 127.2 km away"}
+{"k": "21e32aa7cfa8f930", "g": 1, "why": "Distant social services office in row 1, 6.4 km away"}
+{"k": "94c5520548b6a12d", "g": 3, "why": "Nearby social counseling office in row 1, 1.5 km away"}
+{"k": "4e7529f29e4ac8b7", "g": 1, "why": "Distant social services office in row 1, 127.2 km away"}
+{"k": "7ce1df4fe001030a", "g": 3, "why": "Nearby dentist in row 1, 1.2 km away"}
+{"k": "723bc2b3309873a9", "g": 3, "why": "Nearby dentist in row 1, 1.2 km away"}
+{"k": "8740b4b5e2520b9a", "g": 3, "why": "Nearby dentist in row 1, 1.3 km away"}
+{"k": "fcf845fa80fc0c82", "g": 1, "why": "Distant dentist in row 1, 4.6 km away"}
+{"k": "b4fa37ad3a8f6297", "g": 3, "why": "Nearby dentist in row 1, 1.2 km away"}
+{"k": "016be0f5d95b3a74", "g": 3, "why": "Nearby supermarket in row 1, 1.0 km away"}
+{"k": "4249b3737f277982", "g": 0, "why": "Distant convenience store and unrelated towns"}
+{"k": "48393aa9f281bcea", "g": 3, "why": "Nearby supermarket in row 1, 1.0 km away"}
+{"k": "a8c7dc1ccae74941", "g": 1, "why": "Distant supermarket in row 1, 30.6 km away"}
+{"k": "5899bac894ec760b", "g": 3, "why": "Nearby supermarket in row 1, 1.0 km away"}
+{"k": "dfb80ea8044fa9f0", "g": 3, "why": "Nearby hospital in row 1, 992 m away"}
+{"k": "b67ba60aed9ce3e8", "g": 3, "why": "Nearby hospital in row 1, 992 m away"}
+{"k": "e52789a718c1324e", "g": 2, "why": "Usable hospital in row 2, 1.3 km away"}
+{"k": "5b15cd4d12040fb0", "g": 3, "why": "Nearby hospital in row 1, 992 m away"}
+{"k": "1b9b565eda8a1b3d", "g": 0, "why": "All three rows are regional names"}
+{"k": "f0ae0856d83aab62", "g": 3, "why": "Nearby GP practice in row 1, 1.0 km away"}
+{"k": "018c5b71357de047", "g": 3, "why": "Nearby GP practice in row 1, 1.0 km away"}
+{"k": "33356d825b0cfdfd", "g": 3, "why": "Nearby GP practice in row 1, 1.0 km away"}
+{"k": "bf0da54beed23952", "g": 1, "why": "Distant drinking fountain in row 1, 46.0 km away"}
+{"k": "20c86cfceb4fae43", "g": 1, "why": "Distant drinking fountain in row 1, 46.0 km away"}
+{"k": "6d966fdc277cc6eb", "g": 1, "why": "Distant drinking fountain in row 1, 46.0 km away"}
+{"k": "2c6598295e2f45a1", "g": 1, "why": "Distant drinking fountain in row 1, 130.3 km away"}
+{"k": "ac93ad08d9a87bdb", "g": 1, "why": "Distant emergency shelter in row 1, 22.9 km away"}
+{"k": "67ee275df8840881", "g": 1, "why": "Distant emergency shelter in row 1, 22.9 km away"}
+{"k": "b973ba58a0c3c4f2", "g": 1, "why": "Distant emergency shelter in row 1, 22.9 km away"}
+{"k": "30307f53c4fd43d2", "g": 1, "why": "Distant emergency shelter in row 1, 22.9 km away"}
+{"k": "9aa3132c9b1fc40d", "g": 1, "why": "Distant library in row 1, 3.9 km away"}
+{"k": "f44b5bf40de9cfdd", "g": 1, "why": "Distant library in row 2, 23.3 km away"}
+{"k": "1de4f9c9e339f11d", "g": 2, "why": "Usable library in row 3, 2.3 km away"}
+{"k": "4fc70b0eccff8cf9", "g": 1, "why": "Distant library in row 1, 3.9 km away"}
+{"k": "a48a03c3f858331b", "g": 1, "why": "Distant library in row 2, 23.3 km away"}
+{"k": "00fb3856abda9bba", "g": 1, "why": "Distant police station in row 1, 19.7 km away"}
+{"k": "10e3ab59b3eb56cc", "g": 1, "why": "Distant police station in row 2, 27.3 km away"}
+{"k": "b387c6c0076c68f4", "g": 1, "why": "Distant police station in row 2, 27.3 km away"}
+{"k": "62da59cabcf43a9f", "g": 1, "why": "Distant police station in row 2, 27.3 km away"}
+{"k": "201abf5c4598cc43", "g": 1, "why": "Distant police station in row 2, 27.3 km away"}
+{"k": "dae33e92e4247975", "g": 3, "why": "Nearby supermarket in row 1, 862 m away"}
+{"k": "d7b676e32ec2cd82", "g": 3, "why": "Nearby supermarket in row 1, 862 m away"}
+{"k": "f65cf5c2316d54c1", "g": 3, "why": "Nearby supermarket in row 1, 862 m away"}
+{"k": "f7f49d2cc9b629d7", "g": 3, "why": "Nearby supermarket in row 1, 862 m away"}
+{"k": "7da7491b6806120c", "g": 1, "why": "Distant drinking fountain in row 1, 85.8 km away"}
+{"k": "fff8b206b4bd2cd6", "g": 1, "why": "Distant drinking fountain in row 1, 85.8 km away"}
+{"k": "9acacc28e7ef8a42", "g": 1, "why": "Distant drinking fountain in row 1, 136.6 km away"}
+{"k": "40008aca77e2c6bc", "g": 2, "why": "Usable hospital in row 1, 2.9 km away"}
+{"k": "e080d73f94991025", "g": 2, "why": "Usable hospital in row 1, 2.9 km away"}
+{"k": "6ee03415d72b339e", "g": 2, "why": "Usable hospital in row 1, 2.9 km away"}
+{"k": "4a158e3c1a050869", "g": 1, "why": "Distant hospital in row 2, 8.9 km away"}
+{"k": "a2bf53fe9cf9fbec", "g": 2, "why": "Usable hospital in row 1, 2.9 km away"}
+{"k": "10c2f3d58e391b66", "g": 0, "why": "Artwork label does not establish a drinking water source"}
+{"k": "87f9cda0755a70a8", "g": 1, "why": "Distant drinking fountain in row 1, 24.8 km away"}
+{"k": "c9eaa70e26cc0d7d", "g": 0, "why": "Artwork label does not establish a drinking water source"}
+{"k": "5daf712373fcda40", "g": 0, "why": "No result identifies a drinking fountain"}
+{"k": "800ee2ef325b689a", "g": 1, "why": "Distant shelter in row 1, 73.2 km away"}
+{"k": "fac0ebbbdcfe835b", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "9869fdd1cb1b58bb", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "a7a58be55c4f2728", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "c8fbffdc3155afcd", "g": 1, "why": "Distant shelter in row 1, 73.2 km away"}
+{"k": "cd4a913a112c939d", "g": 1, "why": "Distant library in row 2, 24.7 km away"}
+{"k": "d24685cb0d88f044", "g": 2, "why": "Usable library in row 1, 1.8 km away"}
+{"k": "bf09c2adf817bec0", "g": 2, "why": "Usable mobile library in row 3, 922 m away"}
+{"k": "067c1ae9b2f3b26f", "g": 2, "why": "Usable library in row 1, 1.8 km away"}
+{"k": "129908a155986235", "g": 2, "why": "Usable library in row 1, 1.8 km away"}
+{"k": "2c7fb5893d38d65b", "g": 1, "why": "Distant emergency shelter in row 1, 161.6 km away"}
+{"k": "2f14121eb64072cd", "g": 1, "why": "Distant emergency shelter in row 1, 161.6 km away"}
+{"k": "0cc735d8a33af555", "g": 1, "why": "Distant emergency shelter in row 1, 161.6 km away"}
+{"k": "38f05bdb68b15b38", "g": 1, "why": "Distant emergency shelter in row 1, 161.6 km away"}
+{"k": "1ff322fd1968917e", "g": 2, "why": "Usable dentist in row 1, 2.2 km away"}
+{"k": "fe8eae48e0c61ffe", "g": 2, "why": "Usable dentist in row 1, 2.2 km away"}
+{"k": "cd6d14b65d45970f", "g": 1, "why": "Distant dentist in row 1, 3.1 km away"}
+{"k": "c52b03f01e0af05e", "g": 1, "why": "Distant dentist in row 3, 126.7 km away"}
+{"k": "e25a5a5db22268a3", "g": 2, "why": "Usable pharmacy in row 2, 1.2 km away"}
+{"k": "0be66c98a0203e00", "g": 3, "why": "Nearby pharmacy in row 1, 1.2 km away"}
+{"k": "65cf6e5c2cb1c58e", "g": 3, "why": "Nearby pharmacy in row 1, 1.2 km away"}
+{"k": "adb1495b1573364e", "g": 3, "why": "Nearby pharmacy in row 1, 1.2 km away"}
+{"k": "83b82e9090acb3d1", "g": 1, "why": "Distant library in row 2, 37.7 km away"}
+{"k": "0cebcf83eac1a6b5", "g": 2, "why": "Usable library in row 3, 2.4 km away"}
+{"k": "0f1d244497756161", "g": 2, "why": "Usable library in row 2, 1.7 km away"}
+{"k": "ef68fb9b530d2897", "g": 2, "why": "Usable library in row 2, 1.7 km away"}
+{"k": "fdc500bf56d85843", "g": 1, "why": "Distant library in row 2, 37.7 km away"}
+{"k": "5f1e9c273707cc1a", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "34cfdb9107dd56cd", "g": 1, "why": "Distant shelter in row 1, 48.0 km away"}
+{"k": "3da50b7e70b5d100", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "56b554a4e888be66", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "88b1b819ee214838", "g": 0, "why": "No result identifies a usable shelter"}
+{"k": "1e721265360a74b1", "g": 3, "why": "Nearby library in row 1, 98 m away"}
+{"k": "5213ce7c478628a3", "g": 3, "why": "Nearby police station in row 1, 320 m away"}
+{"k": "58089a5a629758f5", "g": 1, "why": "Distant police station in row 2, 17.7 km away"}
+{"k": "557272fc166466c4", "g": 1, "why": "Distant police station in row 3, 17.7 km away"}
+{"k": "bc19a7cb0faad1e7", "g": 1, "why": "Distant police station in row 2, 17.7 km away"}
+{"k": "0bc82966dedf191f", "g": 3, "why": "Nearby police station in row 1, 320 m away"}
+{"k": "04cec46fc5f27086", "g": 0, "why": "No result identifies a cash machine"}
+{"k": "1b377cf76ef6f50e", "g": 0, "why": "No result identifies a cash machine"}
+{"k": "b3574a18edf64de5", "g": 1, "why": "Distant cash machine in row 2, 28.1 km away"}
+{"k": "140218d27adf6d1f", "g": 0, "why": "No result identifies a cash machine"}
+{"k": "d973b0195fd37001", "g": 1, "why": "Distant cash machine in row 2, 28.1 km away"}
+{"k": "1aa1538e7ef73954", "g": 1, "why": "Distant GP practice in row 2, 38.0 km away"}
+{"k": "3fea7346f4a7593e", "g": 0, "why": "Sports shop and caves are unrelated to GP care"}
+{"k": "e8a3832d443242f9", "g": 1, "why": "Distant GP practice in row 2, 38.0 km away"}
+{"k": "9fe2ce92705474e9", "g": 1, "why": "Distant GP practice in row 2, 27.9 km away"}
+{"k": "e4c8129cdd9bba14", "g": 0, "why": "Sports shop and caves are unrelated to GP care"}
+{"k": "9a9537bb99051d21", "g": 1, "why": "Distant playground in row 3, 49.1 km away"}
+{"k": "c8ba3ce2f59ceed5", "g": 1, "why": "Distant playground in row 2, 81.5 km away"}
+{"k": "02374030a3908000", "g": 1, "why": "Distant playground in row 2, 81.5 km away"}
+{"k": "bfc19480b8395f1f", "g": 1, "why": "Distant playground in row 2, 81.5 km away"}
+{"k": "623fff50573bc86c", "g": 1, "why": "Distant playground in row 2, 81.5 km away"}
+{"k": "fb64f8a99ce052cf", "g": 1, "why": "Distant emergency shelter in row 1, 62.0 km away"}
+{"k": "ee169e840e051e48", "g": 1, "why": "Distant emergency shelter in row 1, 62.0 km away"}
+{"k": "8ff4ed8eb4b960bc", "g": 1, "why": "Distant emergency shelter in row 1, 62.0 km away"}
+{"k": "4bd8ecbcb9fdc1d3", "g": 1, "why": "Distant playground in row 2, 89.7 km away"}
+{"k": "3f472c3d17ed7976", "g": 1, "why": "Distant playground in row 1, 74.8 km away"}
+{"k": "f215b8cc8c86b627", "g": 2, "why": "Usable playground in row 1, 2.0 km away"}
+{"k": "47a1faa369a1aa25", "g": 2, "why": "Usable playground in row 1, 2.0 km away"}
+{"k": "e6572f05097fa603", "g": 1, "why": "Distant playground in row 2, 89.7 km away"}
+{"k": "83e334d2083de414", "g": 0, "why": "Artwork label does not establish a drinking water source"}
+{"k": "dfeb0a87b5e9f6ac", "g": 0, "why": "Artwork label does not establish a drinking water source"}
+{"k": "4fd37a97f948c4ad", "g": 0, "why": "Artwork label does not establish a drinking water source"}
+{"k": "1706cabefdd46c29", "g": 1, "why": "Distant drinking fountain in row 1, 77.1 km away"}
+{"k": "a7dcc7a6ce9a12e2", "g": 0, "why": "No result identifies a cash machine"}

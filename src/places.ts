@@ -169,7 +169,7 @@ const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 const NEARBY = /\s*\b(near me|nearby|near by|around me|close by|close to me|in der nahe|in meiner nahe|pres de moi|vicino)\s*$/;
 
 function matchCategory(text: string) {
-  const q = fold(text).replace(NEARBY, '').replace(/^(the |a |an |some )/, '');
+  const q = fold(text).replace(NEARBY, '').replace(/^(the |a |an |some )/, '').replace(/^(closest|nearest|next|nachste[rsn]?|naechste[rsn]?) /, '');
   if (!q) return null;
   for (const c of CATEGORIES) if (c.words.some((w) => fold(w) === q)) return c;
   // while typing: "restau" → Restaurants (a word long enough not to be the start of a name by chance)
@@ -295,8 +295,10 @@ async function photonByName(text: string, center: LngLat, origin: Origin, bbox: 
   if (bbox) params.set('bbox', bbox.map(round).join(','));
   const data = await getJSON<PhotonAnswer>(`${PHOTON}api/?${params}`);
   const list = dedupe((data.features || []).map((f) => fromPhoton(f, origin)).filter(Boolean) as Found[]);
-  // Photon's order is by how well the name matches; nearer places move up (300 m ≈ one place in the list)
-  return list.map((r, i) => ({ r, score: i * 0.3 + distance(center, r.lngLat) / 1000 }))
+  // Photon's order is by how well the name matches; nearer places move up (300 m ≈ one place in the list), nearer
+  // to you when you are on the map
+  const from = origin || center;
+  return list.map((r, i) => ({ r, score: i * 0.3 + distance(from, r.lngLat) / 1000 }))
     .sort((a, b) => a.score - b.score).map((x) => x.r);
 }
 
@@ -310,7 +312,7 @@ async function google(text: string, center: LngLat, origin: Origin, radiusKm: nu
     : { locationBias: { circle: { center: { latitude: +round(center[1]), longitude: +round(center[0]) }, radius: Math.min(radiusKm * 1000, 50000) } } };
   const body = JSON.stringify({
     textQuery: text,
-    languageCode: 'en',
+    languageCode: window.APP_LANG?.pick(['de', 'fr', 'it', 'en']) ?? 'en',
     regionCode: 'CH',
     pageSize: 20,
     ...where,

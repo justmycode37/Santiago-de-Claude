@@ -1,0 +1,210 @@
+{"t":"T008","q":"Fortunau (Ayent), Les Fiefs","style":"exact","local":false}
+{"t":"T008","q":"les fiefs fortunau","style":"casual","local":false}
+{"t":"T008","q":"fortunau les fie","style":"partial","local":false}
+{"t":"T008","q":"fortunau les feifs","style":"typo","local":false}
+{"t":"T008","q":"arrêt les fiefs ayent","style":"descriptive","local":false}
+{"t":"T018","q":"Bad Ragaz, Pizolbahn","style":"exact","local":false}
+{"t":"T018","q":"pizolbahn","style":"casual","local":true}
+{"t":"T018","q":"bad ragaz pizolb","style":"partial","local":false}
+{"t":"T018","q":"bad ragaz pizolban","style":"typo","local":false}
+{"t":"T018","q":"pizolbahn bus stop bad ragaz","style":"descriptive","local":false}
+{"t":"T028","q":"Neftenbach, alte Post","style":"exact","local":false}
+{"t":"T028","q":"alte post","style":"casual","local":true}
+{"t":"T028","q":"neftenbach alte pos","style":"partial","local":false}
+{"t":"T028","q":"neftenbach alte psot","style":"typo","local":false}
+{"t":"T028","q":"haltestelle alte post neftenbach","style":"descriptive","local":false}
+{"t":"T038","q":"Concise, Platet-Christine","style":"exact","local":false}
+{"t":"T038","q":"platet christine","style":"casual","local":false}
+{"t":"T038","q":"concise platet chris","style":"partial","local":false}
+{"t":"T038","q":"concise platet cristine","style":"typo","local":false}
+{"t":"T038","q":"arrêt platet christine concise","style":"descriptive","local":false}
+{"t":"T048","q":"Taverne, Paese","style":"exact","local":false}
+{"t":"T048","q":"paese","style":"casual","local":true}
+{"t":"T048","q":"taverne pae","style":"partial","local":false}
+{"t":"T048","q":"taverne pase","style":"typo","local":false}
+{"t":"T048","q":"fermata paese taverne","style":"descriptive","local":false}
+{"t":"T058","q":"Basel, Markthalle","style":"exact","local":false}
+{"t":"T058","q":"markthalle","style":"casual","local":true}
+{"t":"T058","q":"basel markthal","style":"partial","local":false}
+{"t":"T058","q":"markthalle basle","style":"alias","local":false}
+{"t":"T058","q":"markthalle tram stop basel","style":"descriptive","local":false}
+{"t":"T068","q":"Genève, Maison de la Paix","style":"exact","local":false}
+{"t":"T068","q":"maison de la paix","style":"casual","local":false}
+{"t":"T068","q":"genève maison de la pai","style":"partial","local":false}
+{"t":"T068","q":"maison de la paix geneva","style":"alias","local":false}
+{"t":"T068","q":"arrêt tram maison de la paix genève","style":"descriptive","local":false}
+{"t":"T078","q":"Birsfelden, Bären","style":"exact","local":false}
+{"t":"T078","q":"bären","style":"casual","local":true}
+{"t":"T078","q":"birsfelden bär","style":"partial","local":false}
+{"t":"T078","q":"birsfelden baren","style":"typo","local":false}
+{"t":"T078","q":"haltestelle bären birsfelden","style":"descriptive","local":false}
+{"t":"T088","q":"Zürich, Heerenwiesen","style":"exact","local":false}
+{"t":"T088","q":"heerenwiesen","style":"casual","local":false}
+{"t":"T088","q":"zürich heerenw","style":"partial","local":false}
+{"t":"T088","q":"zurich heerenwiesen","style":"typo","local":false}
+{"t":"T088","q":"heerenwiesen tram stop zurich","style":"descriptive","local":false}
+{"t":"T098","q":"Biberist Ost","style":"exact","local":false}
+{"t":"T098","q":"biberist ost","style":"casual","local":false}
+{"t":"T098","q":"biberist ost bahn","style":"partial","local":false}
+{"t":"T098","q":"biberist ots","style":"typo","local":false}
+{"t":"T098","q":"bahnhof biberist ost","style":"descriptive","local":false}
+{"t":"T108","q":"Seftigen","style":"exact","local":false}
+{"t":"T108","q":"seftigen","style":"casual","local":false}
+{"t":"T108","q":"seftig","style":"partial","local":false}
+{"t":"T108","q":"sefigen","style":"typo","local":false}
+{"t":"T108","q":"seftigen train station","style":"descriptive","local":false}
+{"t":"T118","q":"La Brinaz","style":"exact","local":false}
+{"t":"T118","q":"la brinaz","style":"casual","local":false}
+{"t":"T118","q":"la brin","style":"partial","local":false}
+{"t":"T118","q":"la brinz","style":"typo","local":false}
+{"t":"T118","q":"gare de la brinaz","style":"descriptive","local":false}
+{"t":"T128","q":"Rüschlikon (See)","style":"exact","local":false}
+{"t":"T128","q":"rüschlikon see","style":"casual","local":false}
+{"t":"T128","q":"rüschlikon schiffst","style":"partial","local":false}
+{"t":"T128","q":"rueschlikon see","style":"typo","local":false}
+{"t":"T128","q":"rüschlikon boat stop","style":"descriptive","local":false}
+{"t":"T138","q":"Verbier Les Creux","style":"exact","local":false}
+{"t":"T138","q":"les creux verbier","style":"casual","local":false}
+{"t":"T138","q":"verbier les cre","style":"partial","local":false}
+{"t":"T138","q":"verbier les cruex","style":"typo","local":false}
+{"t":"T138","q":"télécabine les creux verbier","style":"descriptive","local":false}
+{"t":"T148","q":"Lugano","style":"exact","local":false}
+{"t":"T148","q":"lugano","style":"casual","local":false}
+{"t":"T148","q":"lugan","style":"partial","local":false}
+{"t":"T148","q":"lugano ffs","style":"alias","local":false}
+{"t":"T148","q":"lugano train station","style":"descriptive","local":false}
+{"t":"T158","q":"Aarau","style":"exact","local":false}
+{"t":"T158","q":"aarau","style":"casual","local":false}
+{"t":"T158","q":"aara","style":"partial","local":false}
+{"t":"T158","q":"aarau bhf","style":"alias","local":false}
+{"t":"T158","q":"aarau train station","style":"descriptive","local":false}
+{"t":"T168","q":"Uster","style":"exact","local":false}
+{"t":"T168","q":"uster","style":"casual","local":false}
+{"t":"T168","q":"uste","style":"partial","local":false}
+{"t":"T168","q":"usetr","style":"typo","local":false}
+{"t":"T168","q":"bahnhof uster","style":"descriptive","local":false}
+{"t":"T178","q":"St-Triphon-Village","style":"exact","local":false}
+{"t":"T178","q":"st triphon village","style":"casual","local":false}
+{"t":"T178","q":"st triphon vill","style":"partial","local":false}
+{"t":"T178","q":"saint triphon village","style":"alias","local":false}
+{"t":"T178","q":"gare st triphon village","style":"descriptive","local":false}
+{"t":"T188","q":"Giubiasco, Binario 1","style":"exact","local":false}
+{"t":"T188","q":"giubiasco binario 1","style":"casual","local":false}
+{"t":"T188","q":"giubiasco 1 bina","style":"partial","local":false}
+{"t":"T188","q":"giubiasco bin. 1","style":"alias","local":false}
+{"t":"T188","q":"giubiasco train platform 1","style":"descriptive","local":false}
+{"t":"T198","q":"Luzern, Gleis 3","style":"exact","local":false}
+{"t":"T198","q":"luzern gleis 3","style":"casual","local":false}
+{"t":"T198","q":"luzern 3 glei","style":"partial","local":false}
+{"t":"T198","q":"lucerne platform 3","style":"alias","local":false}
+{"t":"T198","q":"bahnhof luzern gleis 3","style":"descriptive","local":false}
+{"t":"T208","q":"Lugano, Binario 4","style":"exact","local":false}
+{"t":"T208","q":"lugano binario 4","style":"casual","local":false}
+{"t":"T208","q":"lugano 4 bina","style":"partial","local":false}
+{"t":"T208","q":"lugano ffs bin. 4","style":"alias","local":false}
+{"t":"T208","q":"stazione lugano binario 4","style":"descriptive","local":false}
+{"t":"T218","q":"Basel, Bahnhof SBB, Kante K","style":"exact","local":false}
+{"t":"T218","q":"basel sbb kante k","style":"casual","local":false}
+{"t":"T218","q":"basel bahnhof sbb K kan","style":"partial","local":false}
+{"t":"T218","q":"basel sbb K","style":"alias","local":false}
+{"t":"T218","q":"basel sbb stop K","style":"descriptive","local":false}
+{"t":"T228","q":"Goldgasse 13, 4710 Balsthal","style":"exact","local":false}
+{"t":"T228","q":"goldgasse 13","style":"casual","local":true}
+{"t":"T228","q":"goldgasse 13 balst","style":"partial","local":false}
+{"t":"T228","q":"goldgase 13 balsthal","style":"typo","local":false}
+{"t":"T228","q":"goldgasse 13 in balsthal","style":"descriptive","local":false}
+{"t":"T238","q":"Feldstrasse 40, 9500 Wil SG","style":"exact","local":false}
+{"t":"T238","q":"feldstrasse 40","style":"casual","local":true}
+{"t":"T238","q":"feldstrasse 40 in wil sg","style":"descriptive","local":false}
+{"t":"T238","q":"feldstrase 40 wil sg","style":"typo","local":false}
+{"t":"T238","q":"feldstr. 40 wil sg","style":"alias","local":false}
+{"t":"T248","q":"Bahnweg 15, 9443 Widnau","style":"exact","local":false}
+{"t":"T248","q":"bahnweg 15","style":"casual","local":true}
+{"t":"T248","q":"bahnweg 15 widn","style":"partial","local":false}
+{"t":"T248","q":"banhweg 15 widnau","style":"typo","local":false}
+{"t":"T248","q":"bahnweg 15 in widnau","style":"descriptive","local":false}
+{"t":"T258","q":"Dammweg 29, 3013 Bern","style":"exact","local":false}
+{"t":"T258","q":"dammweg 29","style":"casual","local":true}
+{"t":"T258","q":"dammweg 29 ber","style":"partial","local":false}
+{"t":"T258","q":"damweg 29 bern","style":"typo","local":false}
+{"t":"T258","q":"dammweg 29 berne","style":"alias","local":false}
+{"t":"T268","q":"Lindenstrasse 21, 6015 Luzern","style":"exact","local":false}
+{"t":"T268","q":"lindenstrasse 21","style":"casual","local":true}
+{"t":"T268","q":"lindenstrasse 21 luze","style":"partial","local":false}
+{"t":"T268","q":"lindenstrase 21 luzern","style":"typo","local":false}
+{"t":"T268","q":"lindenstr. 21 luzern","style":"alias","local":false}
+{"t":"T278","q":"Geyisriedweg / Chemin Geyisried 4, 2504 Biel/Bienne","style":"exact","local":false}
+{"t":"T278","q":"geyisriedweg 4","style":"casual","local":false}
+{"t":"T278","q":"geyisriedweg 4 bie","style":"partial","local":false}
+{"t":"T278","q":"geyisredweg 4 biel","style":"typo","local":false}
+{"t":"T278","q":"chemin geyisried 4 bienne","style":"alias","local":false}
+{"t":"T288","q":"Coop","style":"exact","local":true}
+{"t":"T288","q":"coop seefeldstrasse 199 zürich","style":"casual","local":false}
+{"t":"T288","q":"coop zürich seefeldstr","style":"partial","local":false}
+{"t":"T288","q":"coop zurich seefeldstrasse 199","style":"typo","local":false}
+{"t":"T288","q":"coop supermarket seefeldstrasse 199","style":"descriptive","local":false}
+{"t":"T298","q":"Volg","style":"exact","local":true}
+{"t":"T298","q":"volg goldiwil","style":"casual","local":false}
+{"t":"T298","q":"volg goldiw","style":"partial","local":false}
+{"t":"T298","q":"volg goldwil","style":"typo","local":false}
+{"t":"T298","q":"volg supermarkt goldiwil","style":"descriptive","local":false}
+{"t":"T308","q":"Gemeinde- und Schulbibliothek Maur","style":"exact","local":false}
+{"t":"T308","q":"bibliothek maur","style":"casual","local":false}
+{"t":"T308","q":"maur schulbiblio","style":"partial","local":false}
+{"t":"T308","q":"bibliotek maur","style":"typo","local":false}
+{"t":"T308","q":"public library maur","style":"descriptive","local":false}
+{"t":"T318","q":"Sonnenhalde","style":"exact","local":true}
+{"t":"T318","q":"sonnenhalde st gallen","style":"casual","local":false}
+{"t":"T318","q":"st gallen sonnenhal","style":"partial","local":false}
+{"t":"T318","q":"sonenhalde st gallen","style":"typo","local":false}
+{"t":"T318","q":"sonnenhalde sonnenhaldenstrasse 57 st gallen","style":"descriptive","local":false}
+{"t":"T328","q":"Haus Ahorn","style":"exact","local":true}
+{"t":"T328","q":"haus ahorn schaffhausen","style":"casual","local":false}
+{"t":"T328","q":"schaffhausen haus aho","style":"partial","local":false}
+{"t":"T328","q":"haus ahrom schaffhausen","style":"typo","local":false}
+{"t":"T328","q":"haus ahorn ungarbühlstrasse 2a schaffhausen","style":"descriptive","local":false}
+{"t":"T338","q":"Police municipale","style":"exact","local":true}
+{"t":"T338","q":"police municipale martigny","style":"casual","local":false}
+{"t":"T338","q":"martigny police muni","style":"partial","local":false}
+{"t":"T338","q":"police muncipale martigny","style":"typo","local":false}
+{"t":"T338","q":"municipal police station martigny","style":"descriptive","local":false}
+{"t":"T348","q":"sozialdienst","style":"casual","local":true}
+{"t":"T348","q":"sozialberat","style":"partial","local":true}
+{"t":"T348","q":"sozialdinst","style":"typo","local":true}
+{"t":"T348","q":"social services","style":"alias","local":true}
+{"t":"T348","q":"social services near me","style":"descriptive","local":true}
+{"t":"T358","q":"apotheke","style":"casual","local":true}
+{"t":"T358","q":"apoth","style":"partial","local":true}
+{"t":"T358","q":"apoteke","style":"typo","local":true}
+{"t":"T358","q":"pharmacy","style":"alias","local":true}
+{"t":"T358","q":"nächste apotheke","style":"descriptive","local":true}
+{"t":"T368","q":"fontaine potable","style":"casual","local":true}
+{"t":"T368","q":"fontaine eau pot","style":"partial","local":true}
+{"t":"T368","q":"fontaine eau potabe","style":"typo","local":true}
+{"t":"T368","q":"drinking fountain","style":"alias","local":true}
+{"t":"T368","q":"fontaine d'eau potable près de moi","style":"descriptive","local":true}
+{"t":"T378","q":"notunterkunft","style":"casual","local":true}
+{"t":"T378","q":"notunterk","style":"partial","local":true}
+{"t":"T378","q":"notunterkunt","style":"typo","local":true}
+{"t":"T378","q":"emergency shelter","style":"alias","local":true}
+{"t":"T378","q":"nächste notunterkunft","style":"descriptive","local":true}
+{"t":"T388","q":"notschlafstelle","style":"casual","local":true}
+{"t":"T388","q":"notschlafst","style":"partial","local":true}
+{"t":"T388","q":"notschlafstele","style":"typo","local":true}
+{"t":"T388","q":"emergency shelter","style":"alias","local":true}
+{"t":"T388","q":"overnight shelter near me","style":"descriptive","local":true}
+{"t":"T398","q":"Hinterkappelen","style":"exact","local":false}
+{"t":"T398","q":"hinterkappelen","style":"casual","local":false}
+{"t":"T398","q":"hinterkapp","style":"partial","local":false}
+{"t":"T398","q":"hinterkapelen","style":"typo","local":false}
+{"t":"T398","q":"ort hinterkappelen","style":"descriptive","local":false}
+{"t":"T408","q":"Dällikon","style":"exact","local":false}
+{"t":"T408","q":"dällikon","style":"casual","local":false}
+{"t":"T408","q":"dällik","style":"partial","local":false}
+{"t":"T408","q":"daellikon","style":"typo","local":false}
+{"t":"T408","q":"gemeinde dällikon","style":"descriptive","local":false}
+{"t":"T418","q":"3296","style":"exact","local":false}
+{"t":"T418","q":"329","style":"partial","local":false}
+{"t":"T418","q":"32966","style":"typo","local":false}
+{"t":"T418","q":"plz 3296","style":"alias","local":false}
+{"t":"T418","q":"postal code 3296","style":"descriptive","local":false}

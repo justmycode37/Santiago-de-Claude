@@ -1,0 +1,418 @@
+{"k": "58cdbaac4c19ab6a", "g": 0, "why": "Unrelated locations"}
+{"k": "318d73af8131a5ef", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "8d0896d1cf0c9928", "g": 1, "why": "Right locality only"}
+{"k": "e186175a90ae7c16", "g": 0, "why": "No results"}
+{"k": "f8239113d91556bd", "g": 1, "why": "Right locality only"}
+{"k": "60b6141bcf8ab5fd", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "ec1f2b9f9c96e6dd", "g": 1, "why": "Station area or street only"}
+{"k": "0f5844ece9748a0f", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "4e0452f42b3bbe04", "g": 1, "why": "Station area or street only"}
+{"k": "270ac982051e2cdf", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "f4f128606b3eb12a", "g": 1, "why": "Right locality only"}
+{"k": "b4f4d4d09d2c3308", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "b781d5229ec85246", "g": 1, "why": "Station area or street only"}
+{"k": "3990030ce1cf35e4", "g": 1, "why": "Station bike rental and other nearby businesses"}
+{"k": "ccb79c30ab421e85", "g": 0, "why": "Unrelated locations"}
+{"k": "223419f2a6429513", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "ca961b880f45f01a", "g": 1, "why": "Right locality only"}
+{"k": "74db7aa4350bacfc", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "ebb217cd30386541", "g": 1, "why": "Station area or street only"}
+{"k": "89dc43b726492ff0", "g": 2, "why": "Adjacent Brig Bahnhofplatz rail station is a useful alternative"}
+{"k": "77e32620a1fbbc0f", "g": 0, "why": "Unrelated locations"}
+{"k": "6354d0f3a81a7996", "g": 0, "why": "No results"}
+{"k": "c582b571e7a9281d", "g": 0, "why": "Unrelated locations"}
+{"k": "c633bf35e80c094d", "g": 0, "why": "No results"}
+{"k": "2df9163bc0e3b755", "g": 1, "why": "Right locality only"}
+{"k": "adb3ca8534d849b7", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "bf7413660d5a84ff", "g": 1, "why": "Station area or street only"}
+{"k": "156cb4962d420f1d", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "5f95e38a39ad9481", "g": 1, "why": "Station area or street only"}
+{"k": "12d14674f3091880", "g": 1, "why": "Bus stop serving the requested rail station"}
+{"k": "ed61a3bb3220cd9b", "g": 1, "why": "Right locality only"}
+{"k": "dd8ba59f94893221", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "419970ecc50c0c18", "g": 0, "why": "Unrelated locations"}
+{"k": "8a0164e494bab52f", "g": 0, "why": "No results"}
+{"k": "d8fa0448c84d9973", "g": 1, "why": "Right locality only"}
+{"k": "79afc53709124efc", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "4070e49cacb5d623", "g": 1, "why": "Station area or street only"}
+{"k": "372ca34345b18159", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "89dc04d765aa7abd", "g": 1, "why": "Right locality only"}
+{"k": "41c18a4705276779", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "2875d3332bdae088", "g": 1, "why": "Station area or street only"}
+{"k": "e8f8b05150c6ead8", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "5ad7b1fc71e343de", "g": 1, "why": "Right locality only"}
+{"k": "752862641de4781b", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "c1f6f2cd21a0e35a", "g": 1, "why": "Right locality only"}
+{"k": "be3f6f1f315f7f9c", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "c7c2e178faeff2a2", "g": 0, "why": "Unrelated locations"}
+{"k": "56b639c3b3a2138f", "g": 0, "why": "No results"}
+{"k": "a3c7e46ff69bc82f", "g": 0, "why": "Unrelated locations"}
+{"k": "5a28ffdb7e849c19", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "2b3fdc536fa421db", "g": 0, "why": "Unrelated locations"}
+{"k": "cf13b364767e2335", "g": 0, "why": "No results"}
+{"k": "99b4ae33223d2ead", "g": 1, "why": "Right locality only"}
+{"k": "f95b0ec67c022e72", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "17c49b4928817a42", "g": 0, "why": "Unrelated locations"}
+{"k": "28092db10e77a17c", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "73bb1c70ee5d8321", "g": 0, "why": "Unrelated locations"}
+{"k": "886bbbcb3b62f2cd", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "acdd3b5ab128fe3b", "g": 0, "why": "Unrelated locations"}
+{"k": "9d3eb78140c55395", "g": 0, "why": "No results"}
+{"k": "bf0009a441a0df4e", "g": 1, "why": "La Palaz locality only"}
+{"k": "ff68034825cdcecb", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "8d204fb52706dafb", "g": 1, "why": "La Palaz locality only"}
+{"k": "10879868a71d4c20", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "1b829d6e557f83fe", "g": 1, "why": "La Palaz locality only"}
+{"k": "6e2c806318a85d58", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "e1789f85729ff9a8", "g": 1, "why": "La Palaz locality only"}
+{"k": "a768d601dce61a03", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "c13dacb40647fd25", "g": 1, "why": "Localities within Château-d'Oex only"}
+{"k": "3fbc02271e53c623", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "87cd8e79d937c032", "g": 0, "why": "Unrelated locations"}
+{"k": "ecb4367511b95e32", "g": 1, "why": "Bus stop serving the requested rail station"}
+{"k": "1f8f418bfb85d9ca", "g": 1, "why": "Right locality only"}
+{"k": "60e16841f5b9aa20", "g": 1, "why": "Bus stop serving the requested rail station"}
+{"k": "25021ecf5751fd6c", "g": 1, "why": "Right locality only"}
+{"k": "39634673110291af", "g": 1, "why": "Bus stop serving the requested rail station"}
+{"k": "49cf5ac752c8ecc9", "g": 0, "why": "Unrelated locations"}
+{"k": "c0d9f7d5a8cf4092", "g": 1, "why": "Bus stop serving the requested rail station"}
+{"k": "ccf87836e81b3764", "g": 1, "why": "Station area or street only"}
+{"k": "1677142bee94ad5a", "g": 1, "why": "Bus stop serving the requested rail station"}
+{"k": "d2fa58d6072493fe", "g": 1, "why": "Right locality only"}
+{"k": "4d40ed503915739c", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "e8b06bf2b8c1283c", "g": 1, "why": "Station area or street only"}
+{"k": "0047f72e88db64e9", "g": 0, "why": "No results"}
+{"k": "fadcd51e934a5e8e", "g": 1, "why": "Station area or street only"}
+{"k": "6dd3399d83359b83", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "4b1435cc915c432d", "g": 1, "why": "Right locality only"}
+{"k": "67607ff37b32699d", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "ddba6adba0a0a9a5", "g": 0, "why": "Unrelated locations"}
+{"k": "52955acfc54e9a1e", "g": 0, "why": "No results"}
+{"k": "f9e800208de8dc8a", "g": 1, "why": "Right locality only"}
+{"k": "21466acbaec60c09", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "b6292f46c1f3846e", "g": 0, "why": "Unrelated locations"}
+{"k": "2c72d96417bcd011", "g": 2, "why": "Correct rail station in row 2"}
+{"k": "510ea6f8f56c0a69", "g": 1, "why": "Right locality only"}
+{"k": "f8c685cae40fbef6", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "77ab0da6a94a0c17", "g": 1, "why": "Right locality only"}
+{"k": "c38e784f4e65cc30", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "6120f9fc52b59009", "g": 0, "why": "Unrelated locations"}
+{"k": "d9c2fc9e805f9f82", "g": 0, "why": "No results"}
+{"k": "e709bbdbaa6d6671", "g": 1, "why": "Right locality only"}
+{"k": "b4a812609298d9e1", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "7715f26214af9007", "g": 1, "why": "Right locality only"}
+{"k": "7298ce1f2da41fd9", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "243103ebb23339fa", "g": 1, "why": "Right locality only"}
+{"k": "cc499bdd7fc6ad5d", "g": 0, "why": "No results"}
+{"k": "eec814c3b27cde3d", "g": 0, "why": "Unrelated locations"}
+{"k": "0ec3878440f2b1d4", "g": 0, "why": "No results"}
+{"k": "005d70904e3e536e", "g": 0, "why": "No results"}
+{"k": "4a5a4b359284d49b", "g": 1, "why": "Right locality only"}
+{"k": "3cf841683e5ad449", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "57b861e26f6310c5", "g": 1, "why": "Right locality only"}
+{"k": "4926a5cc361f1e63", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "40f94bc25a77a100", "g": 0, "why": "Unrelated locations"}
+{"k": "8f832e545ad700e3", "g": 0, "why": "No results"}
+{"k": "f3426dc0c43e5394", "g": 0, "why": "Unrelated locations"}
+{"k": "19c75b6b748adda7", "g": 0, "why": "No results"}
+{"k": "919ea43e92a056ce", "g": 1, "why": "Right locality only"}
+{"k": "82cf9c71ea747d35", "g": 0, "why": "No results"}
+{"k": "c184ee9c49337eb4", "g": 1, "why": "Right locality only"}
+{"k": "ac4014ab1abf9365", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "78baa52ff8af0fc4", "g": 1, "why": "Station area or street only"}
+{"k": "f0e0d4a54ff7cc6e", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "815da088938ba545", "g": 1, "why": "Station area or street only"}
+{"k": "9f9be86808f5da21", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "ddca46d45fdd7e4b", "g": 1, "why": "Right locality only"}
+{"k": "45d984a8f5272d3e", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "147dee93892ed562", "g": 0, "why": "Unrelated locations"}
+{"k": "de202a6002e234fd", "g": 0, "why": "No results"}
+{"k": "c77e1ff7601affd6", "g": 1, "why": "Right locality only"}
+{"k": "021650a1059c7072", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "315bf7d1b3a11b81", "g": 1, "why": "Right locality only"}
+{"k": "a7044768430f866b", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "372c1d82cb69a969", "g": 1, "why": "Right locality only"}
+{"k": "9debec1367c019c2", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "e1a7d9ed86a1d4ab", "g": 1, "why": "Right locality only"}
+{"k": "353817b9335d8c27", "g": 3, "why": "Correct rail station in row 1"}
+{"k": "fde74743a1263ac2", "g": 0, "why": "No results"}
+{"k": "019396182bf79cdd", "g": 1, "why": "Aarau hospital grounds only"}
+{"k": "eb77218c0c9508d7", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "9d4e535f1b4879aa", "g": 1, "why": "Aarau hospital grounds only"}
+{"k": "c289a61d986a631e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "a7bde524baec5e8e", "g": 1, "why": "Aarau hospital grounds only"}
+{"k": "ae379062ccf582e3", "g": 2, "why": "Correct bus stop in row 2"}
+{"k": "9e89557c8a6f8d53", "g": 1, "why": "Aarau hospital grounds only"}
+{"k": "f7431a10e8e3604c", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "4f32301b6a6fa688", "g": 0, "why": "Unrelated locations"}
+{"k": "b85590848e08fb56", "g": 0, "why": "No results"}
+{"k": "9974fa993a1fc1ce", "g": 1, "why": "Right locality only"}
+{"k": "63eb3c834559780c", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "26138dac7d16f0d0", "g": 0, "why": "Similar names in other towns"}
+{"k": "d58e4d1aca253ae6", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "1b7e37a168cdb068", "g": 1, "why": "Right locality only"}
+{"k": "68ba722d1ac04e50", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ace773cccf90f5a9", "g": 1, "why": "Right locality only"}
+{"k": "aec9742346a81a2b", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "23822c415eeff014", "g": 0, "why": "No results"}
+{"k": "1606a119d295c1b0", "g": 1, "why": "Right locality only"}
+{"k": "b088f4b4f842edaf", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "6b98148acc0c29dc", "g": 0, "why": "Unrelated locations"}
+{"k": "061dd0fe70e77280", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f9ddf4295c747d41", "g": 0, "why": "Unrelated locations"}
+{"k": "d918cf06a4ff51a3", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "786b0cba1c8c6da5", "g": 1, "why": "Right locality only"}
+{"k": "32a6e6351a7411ae", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f3b9695db2d87c39", "g": 0, "why": "No results"}
+{"k": "887121ff1b4a8721", "g": 0, "why": "Results miss the Rieu stop and its surroundings"}
+{"k": "979202972eb4cdd7", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5d1c64ba410d82fe", "g": 0, "why": "Results miss the Rieu stop and its surroundings"}
+{"k": "a8b51f86b280fdab", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "b2ac2e83653e08a9", "g": 0, "why": "Results miss the Rieu stop and its surroundings"}
+{"k": "a652b8d638b3c609", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "8a7fb3684cd06b8d", "g": 0, "why": "Results miss the Rieu stop and its surroundings"}
+{"k": "cc2682a336888002", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ce784f6a08f94af6", "g": 0, "why": "Results miss the Rieu stop and its surroundings"}
+{"k": "0db26fb1207454ff", "g": 0, "why": "No results"}
+{"k": "08b4b63a38468096", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "d168a3d0e2a74dfc", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "efc00932a22df068", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "958ef079f1194b05", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f5d3b6fb2e7b13b6", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "d60deedbfc2a3926", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "2f40295120d9a1b9", "g": 1, "why": "Right locality only"}
+{"k": "87dc577659fce63c", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "dee61ded936c14f4", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "e76d82e5d1287f52", "g": 0, "why": "No results"}
+{"k": "d2519cd432c924c3", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "af191f060479307f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "a462dc3934fc2f1c", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "4f36c2263bab57d6", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "a1e7e9b11e8bf350", "g": 0, "why": "Unrelated locations"}
+{"k": "3e933bcfc8f9bbfa", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "c5c308d455068da5", "g": 0, "why": "Unrelated locations"}
+{"k": "534d4d4a53120172", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "3cbabeb702b58304", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "a53b05520323979b", "g": 0, "why": "No results"}
+{"k": "dfee30c0ec0bdbfc", "g": 1, "why": "Right locality only"}
+{"k": "5e1609eaf467b5f3", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "780fd61b4369c965", "g": 1, "why": "Right locality only"}
+{"k": "5975d3e66175e6fc", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "86eefcbf182f6fd7", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "de0c2a6b664d0c28", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "184b56debc476828", "g": 1, "why": "Right locality only"}
+{"k": "63318b5195616c2b", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "4380e2758761609c", "g": 0, "why": "No results"}
+{"k": "89a3627ef580c7ca", "g": 1, "why": "Addresses in Fortunau only"}
+{"k": "a501f81bf6af1915", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f4d91050c8f82d7d", "g": 0, "why": "Unrelated locations"}
+{"k": "09ee794e46bbd03e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "17bcfde708d2c13a", "g": 0, "why": "Unrelated locations"}
+{"k": "74b027f18442f8ae", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "cca8aa59ac710453", "g": 0, "why": "Unrelated locations"}
+{"k": "3924bd43a66b774a", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "a791675f02ea5351", "g": 0, "why": "No results"}
+{"k": "39eac956254f7743", "g": 1, "why": "Galgenfeld area and addresses"}
+{"k": "a29067a37618b81c", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f3c09b74c8cf98f6", "g": 1, "why": "Galgenfeld area and addresses"}
+{"k": "80af16c93aaf000b", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "6022f369c46e3d85", "g": 1, "why": "Galgenfeld area and addresses"}
+{"k": "7a09f0edaaffdcfc", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "856f632ab064f455", "g": 1, "why": "Right locality only"}
+{"k": "68e0600f05d817da", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "d5bf622c3301beca", "g": 0, "why": "Unrelated locations"}
+{"k": "54ccd8fa3747f941", "g": 0, "why": "No results"}
+{"k": "42b5c888f06d38b4", "g": 1, "why": "Right locality only"}
+{"k": "1184fcfa57a42735", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "0286cc64af3a6ae5", "g": 1, "why": "Right locality only"}
+{"k": "89db37ed4ae23a47", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "1bf667632f464b2c", "g": 1, "why": "Right locality only"}
+{"k": "f49139b1006f22c3", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5c2839529b2d8677", "g": 1, "why": "Right locality only"}
+{"k": "e861a88f01ec4cbd", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "c038be1743092f35", "g": 0, "why": "No results"}
+{"k": "0dc074e63170a0fc", "g": 0, "why": "Unrelated locations"}
+{"k": "7fb99f91f282563d", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "7c06399754eaed25", "g": 1, "why": "Mauvaise Combe ditch and address"}
+{"k": "83956de5b68a0a0f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "246841d1daa070f5", "g": 0, "why": "Unrelated locations"}
+{"k": "0fb11903df65aef1", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5545741b421180a1", "g": 0, "why": "Unrelated locations"}
+{"k": "a7fbe32e3de1802f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "2546230024d991ac", "g": 0, "why": "Unrelated locations"}
+{"k": "38a3328c0b824a9d", "g": 0, "why": "No results"}
+{"k": "81aaa838e9ec8385", "g": 1, "why": "Right locality only"}
+{"k": "222ecf9b473f9b1f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "4815e3e313ae20ba", "g": 0, "why": "Unrelated locations"}
+{"k": "d379ab4d8ba1d88f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ee548d5b08cd8d34", "g": 0, "why": "Unrelated locations"}
+{"k": "f900d489e027c68e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f075d0e0b9e2dced", "g": 0, "why": "Unrelated locations"}
+{"k": "b83b6fcd948f39b5", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5a62c4b834c29080", "g": 0, "why": "No results"}
+{"k": "dd05f794b9cfa7bb", "g": 0, "why": "No results"}
+{"k": "bdd17c99a704f034", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "edcf5585d633231e", "g": 0, "why": "Unrelated locations"}
+{"k": "14d4c7b569741817", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "7d8afbf2d93b75d0", "g": 1, "why": "Kallernhag area and addresses"}
+{"k": "a86708af2f2622ed", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "8aedc9444b49cac8", "g": 1, "why": "Right locality only"}
+{"k": "a8335c189bf9b023", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "0c37936dcebbe67f", "g": 0, "why": "No results"}
+{"k": "8e7c84c8445373c8", "g": 1, "why": "Rohr area and nearby addresses"}
+{"k": "1cdfab8641c066df", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "32b4e7650f2d359f", "g": 1, "why": "Rohr area and nearby addresses"}
+{"k": "714bb8f11d299e71", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "48f00e7da0ba4d64", "g": 1, "why": "Rohr area and nearby addresses"}
+{"k": "5e898c603585fc29", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ab5f82dcdac086e7", "g": 1, "why": "Right locality only"}
+{"k": "fd366d6a9f43bb59", "g": 0, "why": "No results"}
+{"k": "fd692c65976639e2", "g": 0, "why": "Unrelated locations"}
+{"k": "15eeb9338a57cf1b", "g": 0, "why": "No results"}
+{"k": "babe4df955e2675f", "g": 1, "why": "Right locality only"}
+{"k": "7f3f63b810242687", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "cfd14b5e7bc50fe5", "g": 1, "why": "Right locality only"}
+{"k": "de9f9ee5caf007f5", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "c6a0fbd5f6636a2f", "g": 0, "why": "Unrelated locations"}
+{"k": "5b9779108656359f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "fa5f95644d83b805", "g": 0, "why": "Unrelated locations"}
+{"k": "0b17380cbb0463c8", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "639342e2e63f9c3a", "g": 0, "why": "Unrelated locations"}
+{"k": "b39fb1a4f29c9bd4", "g": 0, "why": "No results"}
+{"k": "f9b4d064cfd644fa", "g": 1, "why": "PSI West points to the other side of the site"}
+{"k": "7c15d00c7dd2d7ea", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5d5a8f1b9bd7e4d5", "g": 0, "why": "Unrelated locations"}
+{"k": "016282072fed67f2", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "b477a1ce1f607d88", "g": 1, "why": "PSI West points to the other side of the site"}
+{"k": "62dcb8b5daac9520", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5952590399d0c59c", "g": 1, "why": "PSI West points to the other side of the site"}
+{"k": "886479fbc146c12a", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ab0312404fc04812", "g": 0, "why": "Unrelated locations"}
+{"k": "5e446a58e1dc2096", "g": 0, "why": "No results"}
+{"k": "49ad74a3b731bd81", "g": 1, "why": "Pfannenstiel area appears"}
+{"k": "804b5bb3296a94e9", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "10088352e281ce0c", "g": 1, "why": "Pfannenstiel area appears"}
+{"k": "50d038a24ae66005", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "9bd00075072addfe", "g": 1, "why": "Pfannenstiel area appears"}
+{"k": "4d68946dfa60840c", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "89f86992e7e84d90", "g": 1, "why": "Right locality only"}
+{"k": "f21dac31ed7efe66", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "57659088f9d6cd6b", "g": 0, "why": "No results"}
+{"k": "914244732b3d196c", "g": 1, "why": "Pizolbahn cableway base only"}
+{"k": "7223bc5c269a4c8c", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "bb82154b02595225", "g": 1, "why": "Pizolbahn cableway base only"}
+{"k": "f2ccb3996ab6316f", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "d172af84536412e3", "g": 1, "why": "Pizolbahn cableway base only"}
+{"k": "2b23e6acb2fe5346", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f8d94cbdc3b01cf6", "g": 1, "why": "Right locality only"}
+{"k": "5dda540864b48322", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "4b13bce83e76d67a", "g": 0, "why": "No results"}
+{"k": "0b3c7b8cceb788d5", "g": 1, "why": "Tatironne area and nearby places"}
+{"k": "dcba1ab3bac3e1c2", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "6d061b10b457e532", "g": 1, "why": "Tatironne area and nearby places"}
+{"k": "285ff07caef12270", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "a6686dbea0a58937", "g": 1, "why": "Tatironne area and nearby places"}
+{"k": "ac07d9979c2ea0e8", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "075cc6460df2936c", "g": 1, "why": "Right locality only"}
+{"k": "9dfeea76c4dc6a0d", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "c20f14d89612cfb9", "g": 1, "why": "Tatironne area and nearby places"}
+{"k": "387da2e64097cdd7", "g": 0, "why": "No results"}
+{"k": "f613ec2bbdc05ec6", "g": 1, "why": "Rivier park only"}
+{"k": "f7ff369ed7c5a0b9", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "e7f59155f41069d9", "g": 1, "why": "Rivier park only"}
+{"k": "9a887860952952b4", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "773d2e523bdef272", "g": 1, "why": "Rivier park only"}
+{"k": "42df914a9bfd3f0a", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "0a16ecd665c8b85b", "g": 0, "why": "Unrelated locations"}
+{"k": "4742f91601f7afb2", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "556e8cfc5504d54a", "g": 1, "why": "Rivier park only"}
+{"k": "ed44906fdc58dbb5", "g": 0, "why": "No results"}
+{"k": "82c9c55ea70da594", "g": 1, "why": "Right locality only"}
+{"k": "eea8303ca148ab24", "g": 0, "why": "No results"}
+{"k": "33df32cc718f6357", "g": 1, "why": "Station area and addresses"}
+{"k": "3ae4d36fac4a354f", "g": 1, "why": "Erlenbach rail station serves the location"}
+{"k": "99b3a98dfafdd4ed", "g": 1, "why": "Right locality only"}
+{"k": "c39b1bee8568725c", "g": 0, "why": "No results"}
+{"k": "56df69a02b8d0443", "g": 1, "why": "Right locality only"}
+{"k": "2556e3c75f6705ee", "g": 0, "why": "No results"}
+{"k": "7fea98f29f3a6251", "g": 0, "why": "Unrelated locations"}
+{"k": "aae31461a0b14568", "g": 0, "why": "No results"}
+{"k": "dc80cd2d38fcda2b", "g": 1, "why": "Holzboden locality and building"}
+{"k": "262ab35db1ec6cd8", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "d477476d3d01d916", "g": 0, "why": "Similar names in other towns"}
+{"k": "66a03afbbfe3f785", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f7d6bbfba5fcab2c", "g": 1, "why": "Holzboden locality and building"}
+{"k": "c1e2553803f7b955", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "00875b554c152564", "g": 1, "why": "Right locality only"}
+{"k": "56453dfa6941d838", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ec2f28451a608065", "g": 1, "why": "Holzboden locality and building"}
+{"k": "19f53621e4711c00", "g": 0, "why": "No results"}
+{"k": "7e832155254fabb4", "g": 1, "why": "Ausserkaien locality only"}
+{"k": "b57fdfefeb082b26", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "c01e807d257add9a", "g": 1, "why": "Ausserkaien locality only"}
+{"k": "656f714adfbdcd88", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "0086e67c2c271e8f", "g": 1, "why": "Ausserkaien locality only"}
+{"k": "8cfb88adec4b8748", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "3251a0fcba14da6b", "g": 1, "why": "Right locality only"}
+{"k": "50ae4ff1800e4a22", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "6f0e88b664d318fa", "g": 1, "why": "Ausserkaien locality only"}
+{"k": "0354b633578259b9", "g": 0, "why": "No results"}
+{"k": "2431a523b2c528e4", "g": 1, "why": "Right locality only"}
+{"k": "977d2a65985a7b17", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "b16c5353e122119c", "g": 1, "why": "Glycines locality appears"}
+{"k": "21d1974aa2bce456", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "91057ab7a2841fb7", "g": 1, "why": "Glycines locality appears"}
+{"k": "0f48f4609485757e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "9d418b2e306ee4d6", "g": 1, "why": "Right locality only"}
+{"k": "f8822f8afdf348fd", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "71b312aa66626fa8", "g": 1, "why": "Glycines locality appears"}
+{"k": "9e9953c2e42e6ad6", "g": 0, "why": "No results"}
+{"k": "7bf3f0b407d8b244", "g": 0, "why": "Unrelated locations"}
+{"k": "a770af593d597b8a", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "757980d1569e723e", "g": 0, "why": "Unrelated locations"}
+{"k": "a535ada177914760", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "06da8d70162d9cbb", "g": 0, "why": "Unrelated locations"}
+{"k": "5fbcf5cf5be2941e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "d4a56788761d8767", "g": 0, "why": "Unrelated locations"}
+{"k": "00c083389c7ed453", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "160f0f79337b36b0", "g": 0, "why": "No results"}
+{"k": "f74d18a90d838b0c", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "957c2c27cf78fb6b", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "8c278e047d52e2cc", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "26097c34cc2214a9", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "ad068da73f4e60e4", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "d8f4e86e40989374", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "66418fba5dbd9e67", "g": 0, "why": "Unrelated locations"}
+{"k": "e3469d9f7758cb35", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "03f31220655b7db0", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "57bba52666ecbeee", "g": 0, "why": "No results"}
+{"k": "899daada5edc9471", "g": 1, "why": "Right locality only"}
+{"k": "edd2c5961295ce64", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "47170d7baa611c52", "g": 1, "why": "Right locality only"}
+{"k": "8b93ce46418b610e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "8137e016092befb8", "g": 1, "why": "Right locality only"}
+{"k": "8f208422f6601c76", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "c9e3d3e9c37d7567", "g": 1, "why": "Right locality only"}
+{"k": "f6d903d5878efced", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "bd7efe401270c2d7", "g": 0, "why": "No results"}
+{"k": "cbbe4ab2b6919629", "g": 0, "why": "Unrelated locations"}
+{"k": "19f2492f8ff7bc8e", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "de81ed49d5161a48", "g": 0, "why": "Similar names in other towns"}
+{"k": "9f6175b722685501", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "6f8e67c97cd97cf1", "g": 0, "why": "Unrelated locations"}
+{"k": "25b4ba6c178296ca", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "1ca81fdd698c427a", "g": 0, "why": "Unrelated locations"}
+{"k": "51c54b28b1861653", "g": 0, "why": "No results"}
+{"k": "35b711db5c963e5d", "g": 0, "why": "No results"}
+{"k": "558958128959097e", "g": 1, "why": "Caselle locality appears"}
+{"k": "5902bc0a1cb8fce3", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "712be08aad0ab6a8", "g": 1, "why": "Caselle locality appears"}
+{"k": "f910d87b5f6260a2", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "f646bf6ca66d4c8e", "g": 1, "why": "Caselle locality appears"}
+{"k": "78efbb20582089a8", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "0953e50378060705", "g": 1, "why": "Caselle locality appears"}
+{"k": "fe9d08d9e6548513", "g": 3, "why": "Correct bus stop in row 1"}
+{"k": "5adf0d80c1645640", "g": 1, "why": "Caselle locality appears"}
+{"k": "66dce6bce362a834", "g": 0, "why": "No results"}
+{"k": "646d4ba57c15e998", "g": 1, "why": "Addresses near the requested stop"}
+{"k": "c88fbc600540ba52", "g": 3, "why": "Correct bus stop in row 1"}

@@ -9,6 +9,8 @@ import { fmtDist } from './live-vehicles.ts';
 import { distKm } from './routing.ts';
 import { searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
+import { KANTE } from '../engine.ts';
+import { PLATFORMS, platformKey } from './platforms.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
 import type { PlaceBbox, PlaceSearchAnswer, PlaceSearchResult } from '../places.ts';
 import type { LngLatFirst, PlaceMatches, SearchResult, SwisstopoSearchAnswer } from './search.ts';
@@ -88,7 +90,8 @@ export function searchPlaces(text: string, many?: boolean): PlaceMatches {
   const customerAsked = cats.length > 0 && cats.every((i) => PLACES!.cats[i][3] === 'Customer toilet');
   const forAll = (r: MapPlaceRow) => !(r[4] && r[4].k && r[4].k !== 'permissive' && PLACES!.cats[r[2]][0] === 'toilets')
     || (customerAsked && r[4].k === 'customers');
-  const kinds = cats.length ? near(PLACES!.items.filter((r) => catSet.has(r[2]) && forAll(r)), many ? 40 : 6) : [];
+  // Bern's places (all but the toilets) say nothing about elsewhere: the nearest of a kind count within 10 km
+  const kinds = cats.length ? near(PLACES!.items.filter((r) => catSet.has(r[2]) && forAll(r)), many ? 40 : 6).filter(([, km]) => km <= 10) : [];
 
   // a name: every word appears in it. Stops and stations come from the swisstopo search instead, and some official
   // items are only named after where they stand ("Bahnhofplatz 1"), so they don't count as names.
@@ -134,6 +137,67 @@ async function searchSwisstopo(text: string): Promise<SearchResult[]> {
   });
 }
 
+// Stops and stations, streets and house numbers, places: the Kante engine's own search (kante/engine/crates/search),
+// which knows every stop of the timetable and ranks them by how much is served there, reads "HB", "Bhf", "Genf",
+// ae/oe/ue and one typo, and puts nearer ones first among equals. null while the engine is off or does not answer.
+const MODE_WORD: Partial<Record<KanteMode, string>> = { rail: 'Train', tram: 'Tram', bus: 'Bus', metro: 'Metro', boat: 'Boat',
+  funicular: 'Funicular', cableway: 'Cable car', rack: 'Rack railway', lift: 'Lift' };
+const POI_KIND: [RegExp, SearchResult['kind']][] = [[/pharm|hospital|doctor|clinic|dentist/i, 'health'], [/restaurant|fast food|food/i, 'food'],
+  [/caf[eé]|bakery|ice cream/i, 'cafe'], [/bar|pub/i, 'bar'], [/shop|supermarket|store|market|kiosk/i, 'shop'], [/hotel|hostel|guest/i, 'bed'],
+  [/atm|cash|bank/i, 'money'], [/toilet/i, 'toilet'], [/peak|summit|mountain|viewpoint/i, 'mountain'], [/park|forest|lake|nature/i, 'nature']];
+// Words that say a stop is meant ("bus stop Zytglogge", "Haltestelle Rössliplatz", "arrêt Rieu"): the engine
+// wants every word to be in the name, so they are left out, and its stops go first. ("Bahnhof", "gare", "Bhf",
+// "HB" stay: the engine knows them as a town's station.)
+const STOP_WORDS = /\b(bus ?stop|tram ?stop|train ?station|railway station|stop|station|bushaltestelle|tramhaltestelle|haltestelle|arr[eê]t|fermata)\b/giu;
+// A platform or stop edge asked for at the end: "Bern Gleis 7", "lausanne voie 70", "Zytglogge Kante B", "bern 7"
+// (bare: a number or a letter alone, which may also be a house number: then the text is searched as it is too)
+const PLATFORM_WORDS = /^(.+?)[\s,]+(?:(?:train|tram|bus)\s+)?(?:gleis|gl\.?|track|platform|plattform|quai|voie|v\.|binario|bin\.|kante|perron|bay|steig)\s*(\d{1,2}[a-z]?|[a-z])$/iu;
+const BARE_REF = /^(.{3,}?)[\s,]+(\d{1,2}|[a-z])$/iu;
+const PLATFORM_MODE: Record<string, string> = { train: 'Train', tram: 'Tram', bus: 'Bus', boat: 'Boat', cable: 'Cable car' };
+async function searchKante(text: string): Promise<SearchResult[] | null> {
+  if (!KANTE.available()) return null;
+  const from = searchOrigin();
+  const ask = (q: string) => KANTE.search({ q, lat: from[1].toFixed(4), lon: from[0].toFixed(4), limit: 10 }).then((r) => r.results);
+  const named = PLATFORM_WORDS.exec(text.trim()), bareRef = named ? null : BARE_REF.exec(text.trim());
+  const platform = named || bareRef;
+  const plain = (named ? named[1] : text).replace(STOP_WORDS, ' ').replace(/\s+/g, ' ').trim();
+  const stopAsked = !!plain && plain !== text.replace(/\s+/g, ' ').trim();
+  const slow = new Promise<null>((ok) => setTimeout(() => ok(null), 1500)); // a slow engine does not hold up the list
+  const [res, stopRes] = await Promise.race([Promise.all([
+    ask(stopAsked ? plain : text),
+    bareRef ? ask(bareRef[1]) : Promise.resolve(null), // "bern 7": Bern's platform 7, or a house number 7
+  ]), slow]) || [null, null];
+  if (!res) return null;
+  const results = stopAsked ? [...res.filter((p) => p.kind === 'station'), ...res.filter((p) => p.kind !== 'station')] : res;
+  // the platform of the first stop found that has one of that name
+  const platforms: SearchResult[] = [];
+  if (platform) {
+    const key = platformKey(platform[2]);
+    for (const p of (stopRes || results).filter((x) => x.kind === 'station').slice(0, 2)) {
+      const st = PLATFORMS.get(KANTE.uicOf(p.id) || '');
+      const e = st && st.edges.find((x) => x.key === key);
+      if (!st || !e) continue;
+      const km = distKm(from, e.ll);
+      platforms.push({ title: `${st.name}, platform ${e.ref}`, subtitle: [PLATFORM_MODE[st.mode] || 'Stop', fmtDist(km * 1000)].join(' · '),
+        kind: 'station', origin: 'kante', lngLat: e.ll, distance: km * 1000 });
+      break;
+    }
+  }
+  return [...platforms, ...results.map((p): SearchResult => {
+    const dist = p.distM != null ? fmtDist(p.distM) : '';
+    const base = { title: p.name, origin: 'kante' as const, lngLat: [p.lon, p.lat] as LngLat, distance: p.distM ?? null, kanteId: p.id };
+    if (p.kind === 'station') {
+      const modes = [...new Set((p.modes || []).map((m) => MODE_WORD[m]).filter(Boolean))];
+      return { ...base, kind: 'station', subtitle: [modes.join(', ') || 'Stop', dist].filter(Boolean).join(' · ') };
+    }
+    if (p.kind === 'address') return { ...base, kind: 'address', subtitle: p.detail || '' };
+    // a place: "Pharmacy · Spitalgasse 4, Bern" → "Pharmacy · 120 m · Spitalgasse 4, Bern"
+    const [what, ...where] = (p.detail || '').split(' · ');
+    const kind = (POI_KIND.find(([re]) => re.test(what)) || [null, 'other'])[1];
+    return { ...base, kind, subtitle: [what, dist, where.join(' · ')].filter(Boolean).join(' · ') };
+  })];
+}
+
 // Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.ts: OpenStreetMap, or Google
 // with a key): around the part of the map in view, with distances from you (or from the middle of the map once it
 // shows somewhere else). bbox [west, south, east, north]: only places inside it ("Search this area")
@@ -149,8 +213,31 @@ export function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<Plac
 
 const nearM = (a: LngLatFirst, b: LngLatFirst, m: number) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
 
-// One list from the three sources: our own places (map-places.js), places online (places.ts), swisstopo
-export function combineResults(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches): SearchResult[] {
+// The same thing from two sources: the same name at the same spot, or the same address
+const sameAs = (a: SearchResult, b: SearchResult) => (fold(a.title) === fold(b.title) && nearM(a.lngLat, b.lngLat, 200))
+  || (a.kind === 'address' && b.kind === 'address' && nearM(a.lngLat, b.lngLat, 30));
+
+// One list from the sources: the engine's search (Kante), our own places (map-places.js), places online
+// (places.ts), swisstopo. The engine's list leads, ranked as it ranks it, except for a kind of place ("pharmacy",
+// "toilet"), where the nearest of that kind lead; what another source has as well is left out of the others.
+export function combineResults(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches,
+  kante: SearchResult[] | null = null): SearchResult[] {
+  const rest = combineOthers(text, swiss, online, local);
+  if (!kante || !kante.length) return rest;
+  const kindAsked = local.kinds.length > 0 || !!searchState.placeCategory;
+  if (kindAsked) {
+    // the places of that kind from all sources, nearest first; then the rest
+    const fresh = kante.filter((k) => !rest.some((r) => sameAs(k, r)));
+    const isPlace = (r: SearchResult) => r.kind !== 'station' && r.kind !== 'address' && r.distance != null;
+    const near = [...rest.filter((r) => r.origin === 'place'), ...fresh.filter(isPlace)]
+      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    return [...near, ...rest.filter((r) => r.origin !== 'place'), ...fresh.filter((k) => !isPlace(k))];
+  }
+  return [...kante, ...rest.filter((r) => !kante.some((k) => sameAs(k, r)))];
+}
+
+// The others, as the page had them before the engine's search: our own places, places online, swisstopo
+function combineOthers(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches): SearchResult[] {
   const { kinds, names } = local;
   const bern = [...kinds, ...names];
   // a place in both the Bern data and online keeps the Bern entry
@@ -189,17 +276,18 @@ export async function search(text: string) {
   const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
   let online: PlaceSearchAnswer | null = null;
   let onlineDone = false;
-  const onlineReq = searchPlacesOnline(text).catch(() => null).then((v) => { online = v; onlineDone = true; });
-  const [swiss] = await Promise.all([
+  const onlineReq = searchPlacesOnline(remoteText).catch(() => null).then((v) => { online = v; onlineDone = true; });
+  const [swiss, , kante] = await Promise.all([
     searchSwisstopo(remoteText).catch(() => null),
     loadPlaces(), // usually loaded already (downloaded after the first map view)
+    searchKante(remoteText).catch(() => null),
   ]);
   if (id !== searchState.reqId) return; // a newer query is in flight
   const local = searchPlaces(text);
   const show = (final: boolean) => {
     if (field !== searchState.field) return; // the other field has been picked meanwhile
-    searchState.results = combineResults(text, swiss, online, local);
-    render(!final ? 'Searching…' : swiss || online ? 'No results' : 'Search unavailable');
+    searchState.results = combineResults(text, swiss, online, local, kante);
+    render(!final ? 'Searching…' : swiss || online || kante ? 'No results' : 'Search unavailable');
   };
   // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow
   // answer from one source never holds up the others

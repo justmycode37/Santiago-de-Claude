@@ -182,6 +182,8 @@ export const KANTE = {
   /** 8507000 → "st:Parentch:1:sloid:7000"; null for anything but a Swiss UIC number. */
   stationIdOf,
   meta: (): Promise<KanteMeta> => call('/api/meta'),
+  /** The engine's type-ahead search: stations, addresses and places, nearest to `lat`/`lon` first among equals. */
+  search: (params: { q: string; lat?: string; lon?: string; limit?: number }): Promise<KanteSearchResponse> => call('/api/search', { params, timeout: 3000 }),
   departures: (params: KanteDeparturesParams): Promise<KanteDeparturesResponse> => call('/api/departures', { params }), // { station | quay, time, limit }
   /** date: the trip's operating day, "2026-11-21". */
   trip: (id: string, date: string): Promise<KanteTrip> => call('/api/trip', { params: { id, date } }),
