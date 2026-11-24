@@ -227,9 +227,11 @@ export function createArSession(ride: ArRide) {
     const f = `ar${++frameSeq}`;
     note({ at: now, type: 'words', capturedAt, texts });
     if (now - capturedAt > L.LATE_S || capturedAt > now + 0.05) { note({ at: now, type: 'words_dropped', why: 'late' }); return; }
-    const placed = tracks.map((t) => ({ t, box: t.contestedAt >= capturedAt ? null : boxAt(t, capturedAt) }));
-    for (const { t, box } of placed) {
-      if (!box) continue;
+    // where every track was then; one whose identity came into doubt since cannot own the text, but its box still
+    // keeps its text from going to a neighbour
+    const placed = tracks.map((t) => ({ t, box: boxAt(t, capturedAt), owner: t.contestedAt < capturedAt }));
+    for (const { t, box, owner } of placed) {
+      if (!box || !owner) continue;
       const others = placed.filter((p) => p.t !== t && p.box).map((p) => p.box!);
       const r = ARCORE.read(texts, { box, score: t.score }, others, capturedAt, `${f}:${t.id}`);
       if (!r.raw.length && !r.observed.length) continue;

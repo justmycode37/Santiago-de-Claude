@@ -174,6 +174,17 @@ suite('A read on a small, far vehicle stays on it, not on the biggest box', [
     words: { captured: 0.6, on: { FAR: ['9', 'Wabern'] } }, expect: { BIG: 'none', FAR: 'red' } },
 ]);
 
+suite('A vehicle in doubt keeps its text from its neighbour', [
+  { at: 0, say: 'board; A in front of a big box C that contains it', board: board(), det: { A: [0.3, 0.3, 0.3, 0.4], C: [0, 0.2, 0.7, 0.6] },
+    expect: { A: 'none', C: 'none' } },
+  { at: 0.3, say: 'two boxes now fit A equally: A is in doubt, C is not', det: { A: [0.27, 0.3, 0.3, 0.4], X: [0.33, 0.3, 0.3, 0.4], C: [0, 0.2, 0.7, 0.6] },
+    expect: { A: 'none', X: 'none', C: 'none' } },
+  { at: 0.6, say: 'reads of t=0 and t=0.3 arrive, on what was A: C does not get them', det: { A: [0.27, 0.3, 0.3, 0.4], X: [0.33, 0.3, 0.3, 0.4], C: [0, 0.2, 0.7, 0.6] },
+    words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { C: 'none' } },
+  { at: 0.65, say: 'again', det: { A: [0.27, 0.3, 0.3, 0.4], X: [0.33, 0.3, 0.3, 0.4], C: [0, 0.2, 0.7, 0.6] },
+    words: { captured: 0.01, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { C: 'none' } },
+]);
+
 // ---------------------------------------------------------------- stale and truncated boards
 suite('Green and red need a complete, fresh board', [
   { at: 0, say: 'a board cut at its limit', board: board(BASE, false), det: { A: LEFT, B: RIGHT }, expect: { A: 'none' } },
