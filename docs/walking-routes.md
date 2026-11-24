@@ -87,13 +87,13 @@ ways: a walk's time is always the time it takes, and whether a stop can be reach
   park or garden count 5 % less; parking aisles, driveways and service roads with limited access (303 000 edges)
   at least 30 % more.
 - **Closed at night**: a way with `opening_hours`, or `access:conditional` / `foot:conditional` `no @ (…)`, and the
-  paths of a park or the corridors of a mall with opening hours (5 552 edges, 320 of 404 hours readable) count 20
+  paths of a park or the corridors of a mall with opening hours (5 983 edges, 319 of 404 hours readable) count 20
   times while closed at the walk's time: a journey's walks at the journey's time asked (or the page's), `/api/walk` at its `time`
   (without one every way is open). Only what can be read for certain counts: an hour of a public holiday, sunrise,
   week numbers or a comment make the hours unreadable, and unreadable is open. A walk that still has to go through
   one says so (`closedM`). Of 900 walks in ten city centres, 12 are walked otherwise at 23:30 than at noon.
 - **The front door**: a building's main entrance is preferred to its other mapped doors (by 3 m), a door that looks
-  onto another street than its address's (a side or back door; 274 000 doors) counts 15 m more, and when the place
+  onto another street than its address's (a side or back door; 270 000 doors) counts 15 m more, and when the place
   asked for is an address one of its doors has, the others count 20 m more. A straight line onto the network that
   walks over a carriageway to reach the sidewalk across it counts twice (a busy one) or 1.5 times; a door keeps the
   ways out it had and gets the one on its own side as well.
