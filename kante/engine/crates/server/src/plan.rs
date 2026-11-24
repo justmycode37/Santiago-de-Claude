@@ -466,7 +466,7 @@ impl App {
             if let (Some(nd), Some(&(_, a, b))) = (next_dep, changes.iter().find(|c| c.0 == i)) {
                 if let JLeg::Walk(w) = &mut legs[i] {
                     let room = nd - prev_arr.unwrap_or(w.dep) - margin as i64;
-                    if let Some(other) = self.change_walk(w, a, b, room, margin as i64, profile, flatter) {
+                    if let Some(other) = self.change_walk(w, a, b, room, margin as i64, profile, flatter, false) {
                         *w = other;
                     }
                 }
@@ -566,15 +566,21 @@ impl App {
     /// Neither leaves a change tight (under [`TIGHT_S`] to spare, `margin` included) for a flatter way. Every walk of
     /// a change is drawn within `room` (as the walker prefers when that fits, else the quickest): the footpaths time
     /// the quickest walk when the preferred one is over their bound, and the walk drawn must be one that makes it.
-    /// [`json::WalkLeg::flatter`] says by how much the walk is longer and climbs less. `None`: walk it as it is.
+    /// [`json::WalkLeg::flatter`] says by how much the walk is longer and climbs less. `own_time`: there is no
+    /// footpath's time (`/api/walk` asked for a change again): every walk is timed as drawn. `None`: walk it as it is.
     #[allow(clippy::too_many_arguments)]
-    fn change_walk(&self, w: &json::WalkLeg, a: StopIdx, b: StopIdx, room: i64, margin: i64, profile: &WalkProfile, flatter: bool) -> Option<json::WalkLeg> {
+    fn change_walk(&self, w: &json::WalkLeg, a: StopIdx, b: StopIdx, room: i64, margin: i64, profile: &WalkProfile, flatter: bool, own_time: bool) -> Option<json::WalkLeg> {
         if w.approximate || w.drawn_s.is_none() || self.walk.is_none() {
             return None;
         }
         let walk = |hills: HillsPref, limit: Option<f32>| {
             let mut o = self.walk_leg_within("transfer", &self.stop_end(a), &self.stop_end(b), w.dep, w.arr, &WalkProfile { hills, ..*profile }, limit);
             o.official_min_s = w.official_min_s;
+            // no footpath's time (a change asked again): each walk timed as drawn
+            if let (true, Some(d)) = (own_time, o.drawn_s) {
+                o.duration_s = d;
+                o.arr = o.dep + d;
+            }
             o
         };
         let routed = |o: &json::WalkLeg| !o.approximate && o.drawn_s.is_some();
@@ -877,7 +883,21 @@ impl App {
             Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })
         };
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);
-        Ok(self.walk_leg_within("direct", &ea, &eb, now, now, &profile, req.limit_s.filter(|l| l.is_finite() && *l >= 0.0)))
+        let limit = req.limit_s.filter(|l| l.is_finite() && *l >= 0.0);
+        // a change asked again (after a live platform change), with the time there is for it: walked as a journey's
+        // change is (change_walk), each walk timed as drawn
+        if let (Some(room), Some(sa), Some(sb)) = (limit, ea.stop, eb.stop) {
+            let mut w = self.walk_leg("transfer", &ea, &eb, now, now, &profile);
+            if let Some(d) = w.drawn_s {
+                w.duration_s = d;
+                w.arr = now + d;
+            }
+            let margin = req.options.transfer_margin_s.clamp(0, 1800) as i64;
+            let mut out = self.change_walk(&w, sa, sb, room as i64, margin, &profile, req.options.flatter_changes, true).unwrap_or(w);
+            out.kind = "direct";
+            return Ok(out);
+        }
+        Ok(self.walk_leg_within("direct", &ea, &eb, now, now, &profile, limit))
     }
 }
 

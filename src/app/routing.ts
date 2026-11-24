@@ -155,7 +155,9 @@ export async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan:
   const a = lines[0][0], last = lines[lines.length - 1], b = last[last.length - 1];
   const ends = st.ends || [];
   const street = async (): Promise<StationWalkParts> => {
-    const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], k === lines.length - 1 ? walkGoal(st, l[l.length - 1]) : l[l.length - 1], ends[k])));
+    // a change of one stretch: within the time there is for it, as refineWalk() asks
+    const limit = st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
+    const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], k === lines.length - 1 ? walkGoal(st, l[l.length - 1]) : l[l.length - 1], ends[k], limit)));
     const floors = walks.flatMap((w) => w.floors || []);
     return { lines: walks.map((w) => w.coords), walks, floors: floors.length ? floors : null, street: true };
   };
@@ -224,12 +226,16 @@ export function refineWalks(id: number, onlyMoved?: boolean) {
 }
 type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // What a walk was routed for besides its line: what its two ends are and the platforms it leaves from and goes to (a
-// platform can change without its point moving, and a station model routes to the platform by its name). Where its
-// lines meet inside it (syncEnds()) is not: that follows from how it is drawn.
+// platform can change without its point moving, and a station model routes to the platform by its name), and for a
+// change whether its walk fits in the time there is (a delay that makes it too long asks for the way that fits; an
+// answer asked for before is dropped). Where its lines meet inside it (syncEnds()) is not: that follows from how it is
+// drawn.
 const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
   const ends = st.ends || [];
-  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : ''))]);
+  const room = st.type === 'change' ? changeRoomS(st) : null;
+  const fits = room == null || st.walkS == null || st.walkS <= room;
+  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : '')), fits]);
 };
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
 // ends and platforms the walk no longer has, are dropped
