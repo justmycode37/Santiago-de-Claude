@@ -134,6 +134,8 @@ A type error never blocks a build or a deploy; `npm run check` and the Check wor
   module of the page that uses the DOM (with the DOM's types, which clash with Node's elsewhere); `livemap/`'s own.
 - `livemap/page.ts` and `page-old.ts` are the scripts of the live map's two pages; its server writes them into
   the HTML when it serves a page.
+- `npm run search-eval` scores the search bar against about 2,100 queries for real targets, offline, from
+  recorded answers of the sources (`tools/search-eval/`, [its README](../tools/search-eval/README.md)).
 - `npm run check` checks all of it: the app, the other pages, `scripts/`, `tools/` and `livemap/`.
 
 Still JavaScript, on purpose: the generated data files, `config.example.js` (a template for `config.js`, which the

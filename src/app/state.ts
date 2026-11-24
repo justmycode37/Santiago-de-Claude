@@ -21,8 +21,10 @@ import type { TrackState } from './tracking.ts';
 export interface JourneyDest {
   title: string;
   lngLat: LngLat;
-  /** Where a search result comes from ('address', 'gg25', 'gazetteer', 'place', 'pin', …); a place or event of the map has none. */
+  /** Where a search result comes from ('address', 'gg25', 'gazetteer', 'kante', 'place', 'pin', …); a place or event of the map has none. */
   origin?: string;
+  /** A result of the Kante engine's search: its id ('st:…' is a station, planned to as such). */
+  kanteId?: string;
 }
 /** Where a plan starts from (startJourney()): the place, and its name in the sheet ("Your location", "Map centre", a start). */
 export interface JourneyOrigin { ll: LngLat; label: string }

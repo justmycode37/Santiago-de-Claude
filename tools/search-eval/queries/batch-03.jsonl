@@ -1,0 +1,215 @@
+{"t": "T003", "q": "Grund b. Gstaad, Grundbrücke", "style": "exact", "local": false}
+{"t": "T003", "q": "grundbrücke", "style": "casual", "local": true}
+{"t": "T003", "q": "grundbrücke gsta", "style": "partial", "local": false}
+{"t": "T003", "q": "grundbrucke gstaad", "style": "typo", "local": false}
+{"t": "T003", "q": "arrêt grundbrücke gstaad", "style": "descriptive", "local": false}
+{"t": "T013", "q": "Oftringen,Kallernhag/Center A1", "style": "exact", "local": false}
+{"t": "T013", "q": "center a1 oftringen", "style": "casual", "local": false}
+{"t": "T013", "q": "oftringen kaller", "style": "partial", "local": false}
+{"t": "T013", "q": "kallernahg oftringen", "style": "typo", "local": false}
+{"t": "T013", "q": "haltestelle center a1 oftringen", "style": "descriptive", "local": false}
+{"t": "T023", "q": "Rehetobel, Ausserkaien", "style": "exact", "local": false}
+{"t": "T023", "q": "ausserkaien rehetobel", "style": "casual", "local": false}
+{"t": "T023", "q": "rehetobel ausserk", "style": "partial", "local": false}
+{"t": "T023", "q": "ausserkainen rehetobel", "style": "typo", "local": false}
+{"t": "T023", "q": "haltestelle ausserkaien", "style": "descriptive", "local": false}
+{"t": "T033", "q": "Burgdorf, Mühlegasse", "style": "exact", "local": false}
+{"t": "T033", "q": "mühlegasse", "style": "casual", "local": true}
+{"t": "T033", "q": "burgdorf mühleg", "style": "partial", "local": false}
+{"t": "T033", "q": "muhlegasse burgdorf", "style": "typo", "local": false}
+{"t": "T033", "q": "bus stop mühlegasse burgdorf", "style": "descriptive", "local": false}
+{"t": "T043", "q": "Luzern, Fluhmühle", "style": "exact", "local": false}
+{"t": "T043", "q": "fluhmühle luzern", "style": "casual", "local": false}
+{"t": "T043", "q": "luzern fluhmü", "style": "partial", "local": false}
+{"t": "T043", "q": "fluhmuhle luzern", "style": "typo", "local": false}
+{"t": "T043", "q": "fluhmühle lucerne", "style": "alias", "local": false}
+{"t": "T053", "q": "Oberburg, Ziegelgut", "style": "exact", "local": false}
+{"t": "T053", "q": "ziegelgut oberburg", "style": "casual", "local": false}
+{"t": "T053", "q": "oberburg ziegelg", "style": "partial", "local": false}
+{"t": "T053", "q": "ziegelgutt oberburg", "style": "typo", "local": false}
+{"t": "T053", "q": "haltestelle ziegelgut oberburg", "style": "descriptive", "local": false}
+{"t": "T063", "q": "Basel, Studio Basel", "style": "exact", "local": false}
+{"t": "T063", "q": "studio basel", "style": "casual", "local": false}
+{"t": "T063", "q": "basel stud", "style": "partial", "local": false}
+{"t": "T063", "q": "studo basel", "style": "typo", "local": false}
+{"t": "T063", "q": "studio basel tram stop", "style": "descriptive", "local": false}
+{"t": "T073", "q": "Gümligen, Bahnhof (Tram)", "style": "exact", "local": false}
+{"t": "T073", "q": "gümligen bahnhof tram", "style": "casual", "local": false}
+{"t": "T073", "q": "gümligen tram bahn", "style": "partial", "local": false}
+{"t": "T073", "q": "gumligen bahnhof tram", "style": "typo", "local": false}
+{"t": "T073", "q": "tram stop gümligen station", "style": "descriptive", "local": false}
+{"t": "T083", "q": "Carouge GE, Rondeau", "style": "exact", "local": false}
+{"t": "T083", "q": "rondeau carouge", "style": "casual", "local": false}
+{"t": "T083", "q": "carouge rond", "style": "partial", "local": false}
+{"t": "T083", "q": "rondeu carouge", "style": "typo", "local": false}
+{"t": "T083", "q": "arrêt tram rondeau carouge", "style": "descriptive", "local": false}
+{"t": "T093", "q": "Zürich, Wipkingerplatz", "style": "exact", "local": false}
+{"t": "T093", "q": "wipkingerplatz", "style": "casual", "local": false}
+{"t": "T093", "q": "zürich wipking", "style": "partial", "local": false}
+{"t": "T093", "q": "zurich wipkingerplatz", "style": "typo", "local": false}
+{"t": "T093", "q": "tram stop wipkingerplatz", "style": "descriptive", "local": false}
+{"t": "T103", "q": "Le Pâquier-Montbarry", "style": "exact", "local": false}
+{"t": "T103", "q": "paquier montbarry", "style": "casual", "local": false}
+{"t": "T103", "q": "le pâquier montb", "style": "partial", "local": false}
+{"t": "T103", "q": "le pâquier montbary", "style": "typo", "local": false}
+{"t": "T103", "q": "gare du pâquier montbarry", "style": "descriptive", "local": false}
+{"t": "T113", "q": "Dielsdorf", "style": "exact", "local": false}
+{"t": "T113", "q": "bahnhof dielsdorf", "style": "casual", "local": false}
+{"t": "T113", "q": "dielsdorf bahn", "style": "partial", "local": false}
+{"t": "T113", "q": "dielsdrf bahnhof", "style": "typo", "local": false}
+{"t": "T113", "q": "dielsdorf train station", "style": "descriptive", "local": false}
+{"t": "T123", "q": "Interlaken West (See)", "style": "exact", "local": false}
+{"t": "T123", "q": "interlaken west schiff", "style": "casual", "local": false}
+{"t": "T123", "q": "interlaken west schiffl", "style": "partial", "local": false}
+{"t": "T123", "q": "interlaken west scheff", "style": "typo", "local": false}
+{"t": "T123", "q": "interlaken west boat landing", "style": "descriptive", "local": false}
+{"t": "T133", "q": "Mörlialp (Talstation)", "style": "exact", "local": false}
+{"t": "T133", "q": "mörlialp talstation", "style": "casual", "local": false}
+{"t": "T133", "q": "mörlialp tals", "style": "partial", "local": false}
+{"t": "T133", "q": "moerlialp talstation", "style": "typo", "local": false}
+{"t": "T133", "q": "mörlialp cable car base station", "style": "descriptive", "local": false}
+{"t": "T143", "q": "Basel SBB", "style": "exact", "local": false}
+{"t": "T143", "q": "basel sbb", "style": "casual", "local": false}
+{"t": "T143", "q": "basel hauptb", "style": "partial", "local": false}
+{"t": "T143", "q": "basel sb", "style": "typo", "local": false}
+{"t": "T143", "q": "basel main train station", "style": "descriptive", "local": false}
+{"t": "T153", "q": "Chur", "style": "exact", "local": false}
+{"t": "T153", "q": "chur bahnhof", "style": "casual", "local": false}
+{"t": "T153", "q": "chur bahnho", "style": "partial", "local": false}
+{"t": "T153", "q": "churr bahnhof", "style": "typo", "local": false}
+{"t": "T153", "q": "chur train station", "style": "descriptive", "local": false}
+{"t": "T163", "q": "Montreux", "style": "exact", "local": false}
+{"t": "T163", "q": "montreux gare", "style": "casual", "local": false}
+{"t": "T163", "q": "montreux train stat", "style": "partial", "local": false}
+{"t": "T163", "q": "gare montrex", "style": "typo", "local": false}
+{"t": "T163", "q": "montreux train station", "style": "descriptive", "local": false}
+{"t": "T173", "q": "Rapperswil SG", "style": "exact", "local": false}
+{"t": "T173", "q": "rapperswil sg bahnhof", "style": "casual", "local": false}
+{"t": "T173", "q": "rapperswil sg bahn", "style": "partial", "local": false}
+{"t": "T173", "q": "rapperswli sg", "style": "typo", "local": false}
+{"t": "T173", "q": "rapperswil sg train station", "style": "descriptive", "local": false}
+{"t": "T183", "q": "Genolier", "style": "exact", "local": false}
+{"t": "T183", "q": "genolier gare", "style": "casual", "local": false}
+{"t": "T183", "q": "gare geno", "style": "partial", "local": false}
+{"t": "T183", "q": "gare genollier", "style": "typo", "local": false}
+{"t": "T183", "q": "genolier train station", "style": "descriptive", "local": false}
+{"t": "T193", "q": "Winterthur Töss, Gleis 1", "style": "exact", "local": false}
+{"t": "T193", "q": "winterthur töss gleis 1", "style": "casual", "local": false}
+{"t": "T193", "q": "winterthur töss 1 gl", "style": "alias", "local": false}
+{"t": "T193", "q": "winterthur toss gleis 1", "style": "typo", "local": false}
+{"t": "T193", "q": "winterthur töss railway platform 1", "style": "descriptive", "local": false}
+{"t": "T203", "q": "Bern Wankdorf, Gleis 1", "style": "exact", "local": false}
+{"t": "T203", "q": "wankdorf bern gleis 1", "style": "casual", "local": false}
+{"t": "T203", "q": "bern wankdorf 1 gl", "style": "alias", "local": false}
+{"t": "T203", "q": "bern wankdrof gleis 1", "style": "typo", "local": false}
+{"t": "T203", "q": "bern wankdorf train platform 1", "style": "descriptive", "local": false}
+{"t": "T213", "q": "Aarburg-Oftringen, Gleis 1", "style": "exact", "local": false}
+{"t": "T213", "q": "aarburg oftringen gleis 1", "style": "casual", "local": false}
+{"t": "T213", "q": "aarburg-oftringen 1 gl", "style": "alias", "local": false}
+{"t": "T213", "q": "aarburg oftrigen gleis 1", "style": "typo", "local": false}
+{"t": "T213", "q": "aarburg-oftringen railway platform 1", "style": "descriptive", "local": false}
+{"t": "T223", "q": "Rotkreuz, Gleis 1", "style": "exact", "local": false}
+{"t": "T223", "q": "rotkreuz gleis 1", "style": "casual", "local": false}
+{"t": "T223", "q": "rotkreuz 1 gl", "style": "alias", "local": false}
+{"t": "T223", "q": "rotkreutz gleis 1", "style": "typo", "local": false}
+{"t": "T223", "q": "rotkreuz train station platform 1", "style": "descriptive", "local": false}
+{"t": "T233", "q": "Langgasse 41", "style": "exact", "local": false}
+{"t": "T233", "q": "langgasse 41", "style": "casual", "local": true}
+{"t": "T233", "q": "langgasse 41 9008 st gallen", "style": "descriptive", "local": false}
+{"t": "T233", "q": "langgase 41 st gallen", "style": "typo", "local": false}
+{"t": "T233", "q": "langgasse 41 sankt gallen", "style": "alias", "local": false}
+{"t": "T243", "q": "Chemin du Boisy 22", "style": "exact", "local": false}
+{"t": "T243", "q": "chemin du boisy 22", "style": "casual", "local": true}
+{"t": "T243", "q": "chemin du boisy 22 1004 lausanne", "style": "descriptive", "local": false}
+{"t": "T243", "q": "chemin du boiy 22 lausanne", "style": "typo", "local": false}
+{"t": "T243", "q": "ch. du boisy 22 lausanne", "style": "alias", "local": false}
+{"t": "T253", "q": "Rathausgasse 72", "style": "exact", "local": false}
+{"t": "T253", "q": "rathausgasse 72", "style": "casual", "local": true}
+{"t": "T253", "q": "rathausgasse 72 3011 bern", "style": "descriptive", "local": false}
+{"t": "T253", "q": "rathausgase 72 bern", "style": "typo", "local": false}
+{"t": "T253", "q": "rathausgasse 72 berne", "style": "alias", "local": false}
+{"t": "T263", "q": "Länggasse 4", "style": "exact", "local": false}
+{"t": "T263", "q": "länggasse 4", "style": "casual", "local": true}
+{"t": "T263", "q": "länggasse 4 6208 oberkirch", "style": "descriptive", "local": false}
+{"t": "T263", "q": "laenggasse 4 oberkirch", "style": "typo", "local": false}
+{"t": "T263", "q": "länggasse 4 oberkirch lu", "style": "alias", "local": false}
+{"t": "T273", "q": "Via Mondacce 104c", "style": "exact", "local": false}
+{"t": "T273", "q": "via mondacce 104c", "style": "casual", "local": false}
+{"t": "T273", "q": "via mondacce 104c 6648 minusio", "style": "descriptive", "local": false}
+{"t": "T273", "q": "via mondace 104c minusio", "style": "typo", "local": false}
+{"t": "T273", "q": "v. mondacce 104c minusio", "style": "alias", "local": false}
+{"t": "T283", "q": "Dorfplatz 2", "style": "exact", "local": false}
+{"t": "T283", "q": "dorfplatz 2", "style": "casual", "local": true}
+{"t": "T283", "q": "dorfplatz 2 8737 gommiswald", "style": "descriptive", "local": false}
+{"t": "T283", "q": "dorfplaz 2 gommiswald", "style": "typo", "local": false}
+{"t": "T283", "q": "dorfpl. 2 gommiswald", "style": "alias", "local": false}
+{"t": "T293", "q": "Mediathek", "style": "exact", "local": true}
+{"t": "T293", "q": "mediathek brig glis", "style": "casual", "local": false}
+{"t": "T293", "q": "brig glis mediat", "style": "partial", "local": false}
+{"t": "T293", "q": "mediatheek brig glis", "style": "typo", "local": false}
+{"t": "T293", "q": "mediathek library brig", "style": "descriptive", "local": false}
+{"t": "T303", "q": "Vielle halle", "style": "exact", "local": true}
+{"t": "T303", "q": "vielle halle couvet", "style": "casual", "local": false}
+{"t": "T303", "q": "couvet vielle hal", "style": "partial", "local": false}
+{"t": "T303", "q": "vieille halle couvet", "style": "typo", "local": false}
+{"t": "T303", "q": "salle vielle halle couvet", "style": "descriptive", "local": false}
+{"t": "T313", "q": "Ärzteteam Unterwetzikon", "style": "exact", "local": false}
+{"t": "T313", "q": "ärzteteam wetzikon", "style": "casual", "local": false}
+{"t": "T313", "q": "ärzteteam unterwetz", "style": "partial", "local": false}
+{"t": "T313", "q": "aerzteteam unterwetzikon", "style": "typo", "local": false}
+{"t": "T313", "q": "ärzteteam clinic unterwetzikon", "style": "descriptive", "local": false}
+{"t": "T323", "q": "Durchgangsheim Anker", "style": "exact", "local": false}
+{"t": "T323", "q": "anker winterthur", "style": "casual", "local": false}
+{"t": "T323", "q": "winterthur durchgangsh", "style": "partial", "local": false}
+{"t": "T323", "q": "durchgangsheim ankr winterthur", "style": "typo", "local": false}
+{"t": "T323", "q": "durchgangsheim anker habsburgstrasse", "style": "descriptive", "local": false}
+{"t": "T333", "q": "Jungwachthütte", "style": "exact", "local": true}
+{"t": "T333", "q": "jungwachthütte rüti zh", "style": "casual", "local": false}
+{"t": "T333", "q": "rüti jungwachthüt", "style": "partial", "local": false}
+{"t": "T333", "q": "jungwachthutte rüti", "style": "typo", "local": false}
+{"t": "T333", "q": "jungwachthütte schwarz 8 rüti", "style": "descriptive", "local": false}
+{"t": "T343", "q": "Police Lavaux", "style": "exact", "local": false}
+{"t": "T343", "q": "police lavaux lutry", "style": "casual", "local": false}
+{"t": "T343", "q": "lutry police lav", "style": "partial", "local": false}
+{"t": "T343", "q": "police lavux lutry", "style": "typo", "local": false}
+{"t": "T343", "q": "poste de police lavaux lutry", "style": "descriptive", "local": false}
+{"t": "T353", "q": "pharmacy", "style": "exact", "local": true}
+{"t": "T353", "q": "pharmacie près de moi", "style": "descriptive", "local": true}
+{"t": "T353", "q": "pharmacie", "style": "alias", "local": true}
+{"t": "T353", "q": "pharmacee", "style": "typo", "local": true}
+{"t": "T353", "q": "apotheke", "style": "casual", "local": true}
+{"t": "T363", "q": "Sozialberatung", "style": "exact", "local": true}
+{"t": "T363", "q": "social services near me", "style": "descriptive", "local": true}
+{"t": "T363", "q": "sozialdienst", "style": "casual", "local": true}
+{"t": "T363", "q": "sozialberat", "style": "partial", "local": true}
+{"t": "T363", "q": "social services", "style": "alias", "local": true}
+{"t": "T373", "q": "fontaine d’eau potable", "style": "exact", "local": true}
+{"t": "T373", "q": "drinking water fountain near me", "style": "descriptive", "local": true}
+{"t": "T373", "q": "fontaine potable", "style": "casual", "local": true}
+{"t": "T373", "q": "eau potab", "style": "partial", "local": true}
+{"t": "T373", "q": "drinking fountain", "style": "alias", "local": true}
+{"t": "T383", "q": "Bibliothek", "style": "exact", "local": true}
+{"t": "T383", "q": "nächste bibliothek", "style": "descriptive", "local": true}
+{"t": "T383", "q": "library", "style": "alias", "local": true}
+{"t": "T383", "q": "bibliot", "style": "partial", "local": true}
+{"t": "T383", "q": "bibliothèque", "style": "casual", "local": true}
+{"t": "T393", "q": "Polizeiposten", "style": "exact", "local": true}
+{"t": "T393", "q": "polizei in der nähe", "style": "descriptive", "local": true}
+{"t": "T393", "q": "police station", "style": "alias", "local": true}
+{"t": "T393", "q": "polizeipos", "style": "partial", "local": true}
+{"t": "T393", "q": "poste de police", "style": "casual", "local": true}
+{"t": "T403", "q": "Bäretswil", "style": "exact", "local": false}
+{"t": "T403", "q": "bäretswil", "style": "casual", "local": false}
+{"t": "T403", "q": "bäret", "style": "partial", "local": false}
+{"t": "T403", "q": "baeretswil", "style": "typo", "local": false}
+{"t": "T403", "q": "gemeinde bäretswil", "style": "descriptive", "local": false}
+{"t": "T413", "q": "Schübelbach", "style": "exact", "local": false}
+{"t": "T413", "q": "schübelbach", "style": "casual", "local": false}
+{"t": "T413", "q": "schübelb", "style": "partial", "local": false}
+{"t": "T413", "q": "schuebelbach", "style": "typo", "local": false}
+{"t": "T413", "q": "gemeinde schübelbach", "style": "descriptive", "local": false}
+{"t": "T423", "q": "7559", "style": "exact", "local": false}
+{"t": "T423", "q": "plz7559", "style": "casual", "local": false}
+{"t": "T423", "q": "7559 schw", "style": "partial", "local": false}
+{"t": "T423", "q": "plzz 7559", "style": "typo", "local": false}
+{"t": "T423", "q": "7559 Switzerland", "style": "descriptive", "local": false}

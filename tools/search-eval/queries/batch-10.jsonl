@@ -1,0 +1,210 @@
+{"t":"T010","q":"Stäfa, Kniebreche","style":"exact","local":false}
+{"t":"T010","q":"kniebreche stäfa","style":"casual","local":false}
+{"t":"T010","q":"stäfa knieb","style":"partial","local":false}
+{"t":"T010","q":"staefa kniebreche","style":"typo","local":false}
+{"t":"T010","q":"haltestelle kniebreche stäfa","style":"descriptive","local":false}
+{"t":"T020","q":"Lausanne, Parc Rivier","style":"exact","local":false}
+{"t":"T020","q":"parc rivier","style":"casual","local":false}
+{"t":"T020","q":"lausanne parc rivi","style":"partial","local":false}
+{"t":"T020","q":"parc riveir lausanne","style":"typo","local":false}
+{"t":"T020","q":"arrêt parc rivier lausanne","style":"descriptive","local":false}
+{"t":"T030","q":"La Tzoumaz, Vouatère","style":"exact","local":false}
+{"t":"T030","q":"vouatère la tzoumaz","style":"casual","local":false}
+{"t":"T030","q":"la tzoumaz vouat","style":"partial","local":false}
+{"t":"T030","q":"vouatere la tzoumaz","style":"typo","local":false}
+{"t":"T030","q":"arrêt vouatère la tzoumaz","style":"descriptive","local":false}
+{"t":"T040","q":"Wädenswil, Schluchtal","style":"exact","local":false}
+{"t":"T040","q":"schluchtal wädenswil","style":"casual","local":false}
+{"t":"T040","q":"wädenswil schluch","style":"partial","local":false}
+{"t":"T040","q":"waedenswil schluchtal","style":"typo","local":false}
+{"t":"T040","q":"bus stop schluchtal wädenswil","style":"descriptive","local":false}
+{"t":"T050","q":"St. Margarethen TG, Sedel","style":"exact","local":false}
+{"t":"T050","q":"sedel st margarethen","style":"casual","local":false}
+{"t":"T050","q":"st margarethen tg sed","style":"partial","local":false}
+{"t":"T050","q":"st margareten tg sedel","style":"typo","local":false}
+{"t":"T050","q":"haltestelle sedel st margarethen tg","style":"descriptive","local":false}
+{"t":"T060","q":"Basel, MParc","style":"exact","local":false}
+{"t":"T060","q":"mparc","style":"casual","local":true}
+{"t":"T060","q":"basel mpa","style":"partial","local":false}
+{"t":"T060","q":"basel mprac","style":"typo","local":false}
+{"t":"T060","q":"tram stop mparc basel","style":"descriptive","local":false}
+{"t":"T070","q":"Binningen, Oberdorf","style":"exact","local":false}
+{"t":"T070","q":"oberdorf","style":"casual","local":true}
+{"t":"T070","q":"binningen oberd","style":"partial","local":false}
+{"t":"T070","q":"biningen oberdorf","style":"typo","local":false}
+{"t":"T070","q":"tramhaltestelle oberdorf binningen","style":"descriptive","local":false}
+{"t":"T080","q":"Carouge GE, Armes","style":"exact","local":false}
+{"t":"T080","q":"armes carouge","style":"casual","local":false}
+{"t":"T080","q":"carouge arm","style":"partial","local":false}
+{"t":"T080","q":"caroueg armes","style":"typo","local":false}
+{"t":"T080","q":"arrêt de tram armes carouge","style":"descriptive","local":false}
+{"t":"T090","q":"Bern, Bärenplatz","style":"exact","local":false}
+{"t":"T090","q":"bärenplatz","style":"casual","local":true}
+{"t":"T090","q":"bern bärenp","style":"partial","local":false}
+{"t":"T090","q":"barenplatz bern","style":"typo","local":false}
+{"t":"T090","q":"tram stop bärenplatz bern","style":"descriptive","local":false}
+{"t":"T100","q":"Möhlin","style":"exact","local":false}
+{"t":"T100","q":"möhlin bahnhof","style":"casual","local":false}
+{"t":"T100","q":"möhli","style":"partial","local":false}
+{"t":"T100","q":"mohlin","style":"typo","local":false}
+{"t":"T100","q":"möhlin train station","style":"descriptive","local":false}
+{"t":"T110","q":"Jestetten","style":"exact","local":false}
+{"t":"T110","q":"jestet","style":"partial","local":false}
+{"t":"T110","q":"jesteten","style":"typo","local":false}
+{"t":"T110","q":"jestetten bhf","style":"alias","local":false}
+{"t":"T110","q":"bahnhof jestetten","style":"descriptive","local":false}
+{"t":"T120","q":"Rupperswil","style":"exact","local":false}
+{"t":"T120","q":"rupperswil bhf","style":"alias","local":false}
+{"t":"T120","q":"rupp","style":"partial","local":false}
+{"t":"T120","q":"ruperswil","style":"typo","local":false}
+{"t":"T120","q":"bahnhof rupperswil","style":"descriptive","local":false}
+{"t":"T130","q":"Port","style":"exact","local":true}
+{"t":"T130","q":"port schiff","style":"casual","local":true}
+{"t":"T130","q":"prot schiff","style":"typo","local":true}
+{"t":"T130","q":"port schiffstat","style":"partial","local":true}
+{"t":"T130","q":"port boat landing","style":"descriptive","local":true}
+{"t":"T140","q":"Zuoz Chaunt da Crusch","style":"exact","local":false}
+{"t":"T140","q":"chaunt da crusch","style":"casual","local":false}
+{"t":"T140","q":"zuoz chaunt da cru","style":"partial","local":false}
+{"t":"T140","q":"zuoz chaunt da cruh","style":"typo","local":false}
+{"t":"T140","q":"chaunt da crusch lift zuoz","style":"descriptive","local":false}
+{"t":"T150","q":"Biel/Bienne","style":"exact","local":false}
+{"t":"T150","q":"biel bienne","style":"casual","local":false}
+{"t":"T150","q":"biel bien","style":"partial","local":false}
+{"t":"T150","q":"gare de bienne","style":"alias","local":false}
+{"t":"T150","q":"biel train station","style":"descriptive","local":false}
+{"t":"T160","q":"Solothurn","style":"exact","local":false}
+{"t":"T160","q":"soloth","style":"partial","local":false}
+{"t":"T160","q":"soloturn","style":"typo","local":false}
+{"t":"T160","q":"soleure","style":"alias","local":false}
+{"t":"T160","q":"bahnhof solothurn","style":"descriptive","local":false}
+{"t":"T170","q":"Locarno","style":"exact","local":false}
+{"t":"T170","q":"locarno ffs","style":"alias","local":false}
+{"t":"T170","q":"locar","style":"partial","local":false}
+{"t":"T170","q":"locanro","style":"typo","local":false}
+{"t":"T170","q":"stazione di locarno","style":"descriptive","local":false}
+{"t":"T180","q":"Galmiz","style":"exact","local":false}
+{"t":"T180","q":"galm","style":"partial","local":false}
+{"t":"T180","q":"galmizz","style":"typo","local":false}
+{"t":"T180","q":"galmiz bhf","style":"alias","local":false}
+{"t":"T180","q":"gare de galmiz","style":"descriptive","local":false}
+{"t":"T190","q":"Rapperswil SG Gleis 1","style":"exact","local":false}
+{"t":"T190","q":"rapperswil sg 1","style":"casual","local":false}
+{"t":"T190","q":"rapperswil sg gleiis 1","style":"typo","local":false}
+{"t":"T190","q":"rapperswil sg gl 1","style":"alias","local":false}
+{"t":"T190","q":"rapperswil sg train platform 1","style":"descriptive","local":false}
+{"t":"T200","q":"Fribourg/Freiburg voie 1","style":"exact","local":false}
+{"t":"T200","q":"fribourg 1","style":"casual","local":false}
+{"t":"T200","q":"fribourg 1 platf","style":"partial","local":false}
+{"t":"T200","q":"freiburg gleis 1","style":"alias","local":false}
+{"t":"T200","q":"gare de fribourg voie 1","style":"descriptive","local":false}
+{"t":"T210","q":"Zollikofen Gleis 22","style":"exact","local":false}
+{"t":"T210","q":"zollikofen 22","style":"casual","local":false}
+{"t":"T210","q":"zollikofen glies 22","style":"typo","local":false}
+{"t":"T210","q":"zollikofen gl 22","style":"alias","local":false}
+{"t":"T210","q":"bahnhof zollikofen gleis 22","style":"descriptive","local":false}
+{"t":"T220","q":"Wil SG Gleis 3","style":"exact","local":false}
+{"t":"T220","q":"wil sg 3","style":"casual","local":false}
+{"t":"T220","q":"wil sg gleiss 3","style":"typo","local":false}
+{"t":"T220","q":"wil sg gl 3","style":"alias","local":false}
+{"t":"T220","q":"wil sg train platform 3","style":"descriptive","local":false}
+{"t":"T230","q":"Avenue de France 15, Lausanne","style":"exact","local":false}
+{"t":"T230","q":"avenue de france 15","style":"casual","local":true}
+{"t":"T230","q":"av de france 15 lausanne","style":"alias","local":false}
+{"t":"T230","q":"avenue de frnace 15 lausanne","style":"typo","local":false}
+{"t":"T230","q":"avenue de france 15 1004 laus","style":"partial","local":false}
+{"t":"T240","q":"Chemin de Bethléem 7, Fribourg","style":"exact","local":false}
+{"t":"T240","q":"chemin de bethléem 7","style":"casual","local":true}
+{"t":"T240","q":"ch de bethléem 7 fribourg","style":"alias","local":false}
+{"t":"T240","q":"chemin de bethleem 7 fribourg","style":"typo","local":false}
+{"t":"T240","q":"chemin de bethléem 7 1700 frib","style":"partial","local":false}
+{"t":"T250","q":"Bahnhofstrasse 27, Steinen","style":"exact","local":false}
+{"t":"T250","q":"bahnhofstrasse 27","style":"casual","local":true}
+{"t":"T250","q":"bahnhofstr. 27 steinen","style":"alias","local":false}
+{"t":"T250","q":"bahnhofsstrasse 27 steinen","style":"typo","local":false}
+{"t":"T250","q":"bahnhofstrasse 27 6422 stein","style":"partial","local":false}
+{"t":"T260","q":"Rothornstrasse 20, Sörenberg","style":"exact","local":false}
+{"t":"T260","q":"rothornstrasse 20","style":"casual","local":true}
+{"t":"T260","q":"rothornstr. 20 sörenberg","style":"alias","local":false}
+{"t":"T260","q":"rothornstrasse 20 soerenberg","style":"typo","local":false}
+{"t":"T260","q":"rothornstrasse 20 6174 sören","style":"partial","local":false}
+{"t":"T270","q":"Niuwriitiwald 1204d, Brienz BE","style":"exact","local":false}
+{"t":"T270","q":"niuwriitiwald 1204d","style":"casual","local":false}
+{"t":"T270","q":"niuwritiwald 1204d brienz","style":"typo","local":false}
+{"t":"T270","q":"niuwriitiwald 1204d 3855 brie","style":"partial","local":false}
+{"t":"T270","q":"adresse niuwriitiwald 1204d brienz","style":"descriptive","local":false}
+{"t":"T280","q":"Marktstrasse 28, Lachen SZ","style":"exact","local":false}
+{"t":"T280","q":"marktstrasse 28","style":"casual","local":true}
+{"t":"T280","q":"marktstr. 28 lachen","style":"alias","local":false}
+{"t":"T280","q":"marktstrase 28 lachen sz","style":"typo","local":false}
+{"t":"T280","q":"marktstrasse 28 8853 lach","style":"partial","local":false}
+{"t":"T290","q":"Universitätsbibliothek Basel","style":"exact","local":false}
+{"t":"T290","q":"uni bibliothek basel","style":"casual","local":false}
+{"t":"T290","q":"basel universitätsbibl","style":"partial","local":false}
+{"t":"T290","q":"ub basel","style":"alias","local":false}
+{"t":"T290","q":"basel university library","style":"descriptive","local":false}
+{"t":"T300","q":"GO Poschta","style":"exact","local":false}
+{"t":"T300","q":"go poschta widnau","style":"casual","local":false}
+{"t":"T300","q":"widnau go posch","style":"partial","local":false}
+{"t":"T300","q":"go poshta widnau","style":"typo","local":false}
+{"t":"T300","q":"go poschta supermarket widnau","style":"descriptive","local":false}
+{"t":"T310","q":"Apotheke Altorfer","style":"exact","local":false}
+{"t":"T310","q":"altorfer apotheke rüti","style":"casual","local":false}
+{"t":"T310","q":"rüti apotheke altor","style":"partial","local":false}
+{"t":"T310","q":"apotheke altorfer ruti","style":"typo","local":false}
+{"t":"T310","q":"altorfer pharmacy rüti","style":"descriptive","local":false}
+{"t":"T320","q":"Bibliothek Laubegg","style":"exact","local":false}
+{"t":"T320","q":"laubegg bibliothek bern","style":"casual","local":false}
+{"t":"T320","q":"bern bibliothek laub","style":"partial","local":false}
+{"t":"T320","q":"bibliothek laubeg bern","style":"typo","local":false}
+{"t":"T320","q":"laubegg library bern","style":"descriptive","local":false}
+{"t":"T330","q":"Poste de Corsier","style":"exact","local":true}
+{"t":"T330","q":"poste corsier-sur-vevey","style":"casual","local":false}
+{"t":"T330","q":"corsier-sur-vevey pos","style":"partial","local":false}
+{"t":"T330","q":"poste de coriser","style":"typo","local":true}
+{"t":"T330","q":"post office corsier-sur-vevey","style":"descriptive","local":false}
+{"t":"T340","q":"Volg","style":"exact","local":true}
+{"t":"T340","q":"volg vicques","style":"casual","local":false}
+{"t":"T340","q":"vicques vol","style":"partial","local":false}
+{"t":"T340","q":"volg vicqes","style":"typo","local":false}
+{"t":"T340","q":"volg supermarket vicques","style":"descriptive","local":false}
+{"t":"T350","q":"Sozialberatung","style":"exact","local":true}
+{"t":"T350","q":"social services","style":"casual","local":true}
+{"t":"T350","q":"sozialberat","style":"partial","local":true}
+{"t":"T350","q":"sozialberatng","style":"typo","local":true}
+{"t":"T350","q":"social services near me","style":"descriptive","local":true}
+{"t":"T360","q":"Notschlafstelle","style":"exact","local":true}
+{"t":"T360","q":"emergency shelter","style":"casual","local":true}
+{"t":"T360","q":"notschlafst","style":"partial","local":true}
+{"t":"T360","q":"notschlafstele","style":"typo","local":true}
+{"t":"T360","q":"nächste notschlafstelle","style":"descriptive","local":true}
+{"t":"T370","q":"Bibliothek","style":"exact","local":true}
+{"t":"T370","q":"library","style":"casual","local":true}
+{"t":"T370","q":"bibliot","style":"partial","local":true}
+{"t":"T370","q":"biblitohek","style":"typo","local":true}
+{"t":"T370","q":"library near me","style":"descriptive","local":true}
+{"t":"T380","q":"Pharmacie","style":"exact","local":true}
+{"t":"T380","q":"pharmacy","style":"casual","local":true}
+{"t":"T380","q":"pharm","style":"partial","local":true}
+{"t":"T380","q":"pharamcie","style":"typo","local":true}
+{"t":"T380","q":"pharmacie près de moi","style":"descriptive","local":true}
+{"t":"T390","q":"Spielplatz","style":"exact","local":true}
+{"t":"T390","q":"playground","style":"casual","local":true}
+{"t":"T390","q":"spielpl","style":"partial","local":true}
+{"t":"T390","q":"spielpaltz","style":"typo","local":true}
+{"t":"T390","q":"spielplatz in der nähe","style":"descriptive","local":true}
+{"t":"T400","q":"Chardonne","style":"exact","local":false}
+{"t":"T400","q":"chardonne","style":"casual","local":false}
+{"t":"T400","q":"chardon","style":"partial","local":false}
+{"t":"T400","q":"chardone","style":"typo","local":false}
+{"t":"T400","q":"commune de chardonne","style":"descriptive","local":false}
+{"t":"T410","q":"Läufelfingen","style":"exact","local":false}
+{"t":"T410","q":"läufelfingen","style":"casual","local":false}
+{"t":"T410","q":"läufelf","style":"partial","local":false}
+{"t":"T410","q":"laufelfingen","style":"typo","local":false}
+{"t":"T410","q":"gemeinde läufelfingen","style":"descriptive","local":false}
+{"t":"T420","q":"8835","style":"exact","local":false}
+{"t":"T420","q":"8835 schweiz","style":"casual","local":false}
+{"t":"T420","q":"88355","style":"typo","local":false}
+{"t":"T420","q":"CH-8835","style":"alias","local":false}
+{"t":"T420","q":"PLZ 8835","style":"descriptive","local":false}

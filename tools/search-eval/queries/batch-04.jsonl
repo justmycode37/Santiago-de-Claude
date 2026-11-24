@@ -1,0 +1,215 @@
+{"t": "T004", "q": "Genève, Rieu", "style": "exact", "local": false}
+{"t": "T004", "q": "rieu", "style": "casual", "local": true}
+{"t": "T004", "q": "genève rie", "style": "partial", "local": false}
+{"t": "T004", "q": "geneve rieu", "style": "typo", "local": false}
+{"t": "T004", "q": "arrêt rieu genève", "style": "descriptive", "local": false}
+{"t": "T014", "q": "Oberhof, Rohr", "style": "exact", "local": false}
+{"t": "T014", "q": "rohr oberhof", "style": "casual", "local": false}
+{"t": "T014", "q": "oberhof roh", "style": "partial", "local": false}
+{"t": "T014", "q": "oberhof ror", "style": "typo", "local": false}
+{"t": "T014", "q": "haltestelle rohr", "style": "descriptive", "local": true}
+{"t": "T024", "q": "Chavannes-R., Glycines", "style": "exact", "local": false}
+{"t": "T024", "q": "glycines", "style": "casual", "local": true}
+{"t": "T024", "q": "chavannes r gly", "style": "partial", "local": false}
+{"t": "T024", "q": "chavannes r glyciens", "style": "typo", "local": false}
+{"t": "T024", "q": "arrêt glycines chavannes renens", "style": "descriptive", "local": false}
+{"t": "T034", "q": "Cadempino, Ronchetto", "style": "exact", "local": false}
+{"t": "T034", "q": "ronchetto cadempino", "style": "casual", "local": false}
+{"t": "T034", "q": "cadempino ronch", "style": "partial", "local": false}
+{"t": "T034", "q": "cadempino roncheto", "style": "typo", "local": false}
+{"t": "T034", "q": "fermata ronchetto cadempino", "style": "descriptive", "local": false}
+{"t": "T044", "q": "Turbenthal, Gosswil", "style": "exact", "local": false}
+{"t": "T044", "q": "gosswil", "style": "casual", "local": false}
+{"t": "T044", "q": "turbenthal goss", "style": "partial", "local": false}
+{"t": "T044", "q": "turbenthal goswil", "style": "typo", "local": false}
+{"t": "T044", "q": "haltestelle gosswil turbenthal", "style": "descriptive", "local": false}
+{"t": "T054", "q": "Naters, Bine", "style": "exact", "local": false}
+{"t": "T054", "q": "bine naters", "style": "casual", "local": false}
+{"t": "T054", "q": "naters bin", "style": "partial", "local": false}
+{"t": "T054", "q": "naters binne", "style": "typo", "local": false}
+{"t": "T054", "q": "haltestelle bine", "style": "descriptive", "local": true}
+{"t": "T064", "q": "Zürich, Paradeplatz", "style": "exact", "local": false}
+{"t": "T064", "q": "paradeplatz", "style": "casual", "local": false}
+{"t": "T064", "q": "zürich paradepl", "style": "partial", "local": false}
+{"t": "T064", "q": "zurich paradeplatz", "style": "typo", "local": false}
+{"t": "T064", "q": "paradeplatz tram stop", "style": "descriptive", "local": false}
+{"t": "T074", "q": "Zürich, Kinkelstrasse", "style": "exact", "local": false}
+{"t": "T074", "q": "kinkelstrasse", "style": "casual", "local": false}
+{"t": "T074", "q": "zürich kinkelstr", "style": "partial", "local": false}
+{"t": "T074", "q": "zurich kinkelstrasse", "style": "typo", "local": false}
+{"t": "T074", "q": "kinkelstrasse tram stop zurich", "style": "descriptive", "local": false}
+{"t": "T084", "q": "Bern, Stöckacker (Tram)", "style": "exact", "local": false}
+{"t": "T084", "q": "stöckacker tram bern", "style": "casual", "local": false}
+{"t": "T084", "q": "bern stöcka", "style": "partial", "local": false}
+{"t": "T084", "q": "bern stockacker tram", "style": "typo", "local": false}
+{"t": "T084", "q": "tramhaltestelle stöckacker bern", "style": "descriptive", "local": false}
+{"t": "T094", "q": "Basel, Hegenheimerstrasse", "style": "exact", "local": false}
+{"t": "T094", "q": "hegenheimerstr basel", "style": "casual", "local": false}
+{"t": "T094", "q": "basel hegenheim", "style": "partial", "local": false}
+{"t": "T094", "q": "basel hegenheimerstrase", "style": "typo", "local": false}
+{"t": "T094", "q": "hegenheimerstrasse tram stop basel", "style": "descriptive", "local": false}
+{"t": "T104", "q": "Cheseaux", "style": "exact", "local": false}
+{"t": "T104", "q": "cheseaux", "style": "casual", "local": false}
+{"t": "T104", "q": "chesea", "style": "partial", "local": false}
+{"t": "T104", "q": "chesaux", "style": "typo", "local": false}
+{"t": "T104", "q": "gare de cheseaux", "style": "descriptive", "local": false}
+{"t": "T114", "q": "La Conversion", "style": "exact", "local": false}
+{"t": "T114", "q": "la conversion", "style": "casual", "local": false}
+{"t": "T114", "q": "la conver", "style": "partial", "local": false}
+{"t": "T114", "q": "la converison", "style": "typo", "local": false}
+{"t": "T114", "q": "gare de la conversion", "style": "descriptive", "local": false}
+{"t": "T124", "q": "Céligny (lac)", "style": "exact", "local": false}
+{"t": "T124", "q": "céligny lac", "style": "casual", "local": false}
+{"t": "T124", "q": "lac célig", "style": "partial", "local": false}
+{"t": "T124", "q": "celigny lac", "style": "typo", "local": false}
+{"t": "T124", "q": "embarcadère de céligny", "style": "descriptive", "local": false}
+{"t": "T134", "q": "Valbella Stätz (Stätzertäli)", "style": "exact", "local": false}
+{"t": "T134", "q": "valbella stätz", "style": "casual", "local": false}
+{"t": "T134", "q": "valbella stä", "style": "partial", "local": false}
+{"t": "T134", "q": "valbella staetz", "style": "typo", "local": false}
+{"t": "T134", "q": "seilbahnstation valbella stätz", "style": "descriptive", "local": false}
+{"t": "T144", "q": "Genève", "style": "exact", "local": false}
+{"t": "T144", "q": "genève", "style": "casual", "local": false}
+{"t": "T144", "q": "gare genè", "style": "partial", "local": false}
+{"t": "T144", "q": "gare geneve", "style": "typo", "local": false}
+{"t": "T144", "q": "genève cornavin", "style": "alias", "local": false}
+{"t": "T154", "q": "Sion", "style": "exact", "local": false}
+{"t": "T154", "q": "sion gare", "style": "casual", "local": false}
+{"t": "T154", "q": "gare sio", "style": "partial", "local": false}
+{"t": "T154", "q": "sionn gare", "style": "typo", "local": false}
+{"t": "T154", "q": "sion train station", "style": "descriptive", "local": false}
+{"t": "T164", "q": "Yverdon-les-Bains", "style": "exact", "local": false}
+{"t": "T164", "q": "yverdon les bains", "style": "casual", "local": false}
+{"t": "T164", "q": "gare yver", "style": "partial", "local": false}
+{"t": "T164", "q": "yverdon les bans", "style": "typo", "local": false}
+{"t": "T164", "q": "yverdon", "style": "alias", "local": false}
+{"t": "T174", "q": "Frauenfeld", "style": "exact", "local": false}
+{"t": "T174", "q": "frauenfeld", "style": "casual", "local": false}
+{"t": "T174", "q": "bahnhof frauenf", "style": "partial", "local": false}
+{"t": "T174", "q": "frauenfled bahnhof", "style": "typo", "local": false}
+{"t": "T174", "q": "bahnhof frauenfeld", "style": "descriptive", "local": false}
+{"t": "T184", "q": "Wienacht-Tobel", "style": "exact", "local": false}
+{"t": "T184", "q": "wienacht tobel", "style": "casual", "local": false}
+{"t": "T184", "q": "wienacht tob", "style": "partial", "local": false}
+{"t": "T184", "q": "wienacht toble", "style": "typo", "local": false}
+{"t": "T184", "q": "wienacht tobel train station", "style": "descriptive", "local": false}
+{"t": "T194", "q": "Emmenbrücke Gleis 1", "style": "exact", "local": false}
+{"t": "T194", "q": "emmenbrücke 1", "style": "casual", "local": false}
+{"t": "T194", "q": "emmenbrucke gleis 1", "style": "typo", "local": false}
+{"t": "T194", "q": "emmenbrücke gl. 1", "style": "alias", "local": false}
+{"t": "T194", "q": "bahnhof emmenbrücke gleis 1", "style": "descriptive", "local": false}
+{"t": "T204", "q": "Renens VD voie 1", "style": "exact", "local": false}
+{"t": "T204", "q": "renens vd 1", "style": "casual", "local": false}
+{"t": "T204", "q": "renens vd voiee 1", "style": "typo", "local": false}
+{"t": "T204", "q": "renens vd quai 1", "style": "alias", "local": false}
+{"t": "T204", "q": "gare de renens vd voie 1", "style": "descriptive", "local": false}
+{"t": "T214", "q": "Zürich Oerlikon Gleis 8", "style": "exact", "local": false}
+{"t": "T214", "q": "zürich oerlikon 8", "style": "casual", "local": false}
+{"t": "T214", "q": "zurich oerlikon gleis 8", "style": "typo", "local": false}
+{"t": "T214", "q": "zürich oerlikon gl. 8", "style": "alias", "local": false}
+{"t": "T214", "q": "zürich oerlikon station platform 8", "style": "descriptive", "local": false}
+{"t": "T224", "q": "Pfäffikon SZ Gleis 7", "style": "exact", "local": false}
+{"t": "T224", "q": "pfäffikon sz 7", "style": "casual", "local": false}
+{"t": "T224", "q": "pfaffikon sz gleis 7", "style": "typo", "local": false}
+{"t": "T224", "q": "pfäffikon sz gl. 7", "style": "alias", "local": false}
+{"t": "T224", "q": "bahnhof pfäffikon sz gleis 7", "style": "descriptive", "local": false}
+{"t": "T234", "q": "Aletschbord 4, 3914 Belalp", "style": "exact", "local": false}
+{"t": "T234", "q": "aletschbord 4", "style": "casual", "local": false}
+{"t": "T234", "q": "aletschbord 4 bela", "style": "partial", "local": false}
+{"t": "T234", "q": "aletschbord 4 belap", "style": "typo", "local": false}
+{"t": "T234", "q": "adresse aletschbord 4 belalp", "style": "descriptive", "local": false}
+{"t": "T244", "q": "Dörfli Bächlen 14, 3753 Oey", "style": "exact", "local": false}
+{"t": "T244", "q": "dörfli bächlen 14", "style": "casual", "local": false}
+{"t": "T244", "q": "dörfli bächlen 14 375", "style": "partial", "local": false}
+{"t": "T244", "q": "dorfli bächlen 14 oey", "style": "typo", "local": false}
+{"t": "T244", "q": "adresse dörfli bächlen 14 oey", "style": "descriptive", "local": false}
+{"t": "T254", "q": "Felsenegg 20, 6300 Zugerberg", "style": "exact", "local": false}
+{"t": "T254", "q": "felsenegg 20", "style": "casual", "local": true}
+{"t": "T254", "q": "felsenegg 20 zugerb", "style": "partial", "local": false}
+{"t": "T254", "q": "felseneg 20 zugerberg", "style": "typo", "local": false}
+{"t": "T254", "q": "adresse felsenegg 20 zugerberg", "style": "descriptive", "local": false}
+{"t": "T264", "q": "Oeligass 94, 5063 Wölflinswil", "style": "exact", "local": false}
+{"t": "T264", "q": "oeligass 94", "style": "casual", "local": false}
+{"t": "T264", "q": "oeligass 94 wölfl", "style": "partial", "local": false}
+{"t": "T264", "q": "oeligass 94 wolflinswil", "style": "typo", "local": false}
+{"t": "T264", "q": "adresse oeligass 94 wölflinswil", "style": "descriptive", "local": false}
+{"t": "T274", "q": "Via Vals 5, 7165 Breil/Brigels", "style": "exact", "local": false}
+{"t": "T274", "q": "via vals 5", "style": "casual", "local": false}
+{"t": "T274", "q": "via vals 5 brige", "style": "partial", "local": false}
+{"t": "T274", "q": "via vals 5 briegels", "style": "typo", "local": false}
+{"t": "T274", "q": "via vals 5 brigels", "style": "alias", "local": false}
+{"t": "T284", "q": "Voa da Solis 63, 7082 Vaz/Obervaz", "style": "exact", "local": false}
+{"t": "T284", "q": "voa da solis 63", "style": "casual", "local": false}
+{"t": "T284", "q": "voa da solis 63 oberv", "style": "partial", "local": false}
+{"t": "T284", "q": "voa da sollis 63 obervaz", "style": "typo", "local": false}
+{"t": "T284", "q": "voa da solis 63 obervaz", "style": "alias", "local": false}
+{"t": "T294", "q": "Post", "style": "exact", "local": true}
+{"t": "T294", "q": "lengnau be post", "style": "casual", "local": false}
+{"t": "T294", "q": "lengnau be pos", "style": "partial", "local": false}
+{"t": "T294", "q": "lengnau be psot", "style": "typo", "local": false}
+{"t": "T294", "q": "post office lengnau be", "style": "descriptive", "local": false}
+{"t": "T304", "q": "Medizinisches Forschungszentrum", "style": "exact", "local": true}
+{"t": "T304", "q": "forschungszentrum st gallen", "style": "casual", "local": false}
+{"t": "T304", "q": "st gallen medizinisches forsch", "style": "partial", "local": false}
+{"t": "T304", "q": "medizinisches forschungszetrum st gallen", "style": "typo", "local": false}
+{"t": "T304", "q": "medical research center st gallen", "style": "descriptive", "local": false}
+{"t": "T314", "q": "Jugendhaus Gaswärch", "style": "exact", "local": false}
+{"t": "T314", "q": "gaswärch glarus", "style": "casual", "local": false}
+{"t": "T314", "q": "jugendhaus gasw", "style": "partial", "local": false}
+{"t": "T314", "q": "gaswarch glarus", "style": "typo", "local": false}
+{"t": "T314", "q": "jugendtreff gaswärch glarus", "style": "descriptive", "local": false}
+{"t": "T324", "q": "Volg", "style": "exact", "local": true}
+{"t": "T324", "q": "volg schneisingen", "style": "casual", "local": false}
+{"t": "T324", "q": "volg schneis", "style": "partial", "local": false}
+{"t": "T324", "q": "volg schneisigen", "style": "typo", "local": false}
+{"t": "T324", "q": "volg dorfstrasse 9 schneisingen", "style": "descriptive", "local": false}
+{"t": "T334", "q": "Altersheim Ruttigen", "style": "exact", "local": false}
+{"t": "T334", "q": "ruttigen olten", "style": "casual", "local": false}
+{"t": "T334", "q": "altersheim rutti", "style": "partial", "local": false}
+{"t": "T334", "q": "altersheim ruttign olten", "style": "typo", "local": false}
+{"t": "T334", "q": "ruttigen retirement home olten", "style": "descriptive", "local": false}
+{"t": "T344", "q": "Denner", "style": "exact", "local": true}
+{"t": "T344", "q": "denner aarwangen", "style": "casual", "local": false}
+{"t": "T344", "q": "denner aarw", "style": "partial", "local": false}
+{"t": "T344", "q": "denner aarwagen", "style": "typo", "local": false}
+{"t": "T344", "q": "denner langenthalstrasse 21 aarwangen", "style": "descriptive", "local": false}
+{"t": "T354", "q": "post office", "style": "exact", "local": true}
+{"t": "T354", "q": "post", "style": "casual", "local": true}
+{"t": "T354", "q": "postfil", "style": "partial", "local": true}
+{"t": "T354", "q": "post ofice", "style": "typo", "local": true}
+{"t": "T354", "q": "nächste postfiliale", "style": "descriptive", "local": true}
+{"t": "T364", "q": "dentist", "style": "exact", "local": true}
+{"t": "T364", "q": "zahnarzt", "style": "casual", "local": true}
+{"t": "T364", "q": "zahnar", "style": "partial", "local": true}
+{"t": "T364", "q": "zahnarztpraxs", "style": "typo", "local": true}
+{"t": "T364", "q": "dentist near me", "style": "descriptive", "local": true}
+{"t": "T374", "q": "hospital", "style": "exact", "local": true}
+{"t": "T374", "q": "spital", "style": "casual", "local": true}
+{"t": "T374", "q": "krankenh", "style": "partial", "local": true}
+{"t": "T374", "q": "spittal", "style": "typo", "local": true}
+{"t": "T374", "q": "nächstes spital", "style": "descriptive", "local": true}
+{"t": "T384", "q": "police station", "style": "exact", "local": true}
+{"t": "T384", "q": "polizeiposten", "style": "casual", "local": true}
+{"t": "T384", "q": "polizeip", "style": "partial", "local": true}
+{"t": "T384", "q": "polizeiposen", "style": "typo", "local": true}
+{"t": "T384", "q": "nearest police station", "style": "descriptive", "local": true}
+{"t": "T394", "q": "social services", "style": "exact", "local": true}
+{"t": "T394", "q": "sozialamt", "style": "casual", "local": true}
+{"t": "T394", "q": "sozialber", "style": "partial", "local": true}
+{"t": "T394", "q": "sozialdinst", "style": "typo", "local": true}
+{"t": "T394", "q": "soziale beratung in der nähe", "style": "descriptive", "local": true}
+{"t": "T404", "q": "Valbella", "style": "exact", "local": false}
+{"t": "T404", "q": "valbella", "style": "casual", "local": false}
+{"t": "T404", "q": "valbel", "style": "partial", "local": false}
+{"t": "T404", "q": "valbela", "style": "typo", "local": false}
+{"t": "T404", "q": "valbella schweiz", "style": "descriptive", "local": false}
+{"t": "T414", "q": "Flawil", "style": "exact", "local": false}
+{"t": "T414", "q": "flawil", "style": "casual", "local": false}
+{"t": "T414", "q": "flawi", "style": "partial", "local": false}
+{"t": "T414", "q": "flawill", "style": "typo", "local": false}
+{"t": "T414", "q": "flawil st gallen", "style": "descriptive", "local": false}
+{"t": "T424", "q": "7017", "style": "exact", "local": false}
+{"t": "T424", "q": "7017 flims", "style": "casual", "local": false}
+{"t": "T424", "q": "7017 fli", "style": "partial", "local": false}
+{"t": "T424", "q": "70177", "style": "typo", "local": false}
+{"t": "T424", "q": "plz 7017", "style": "descriptive", "local": false}

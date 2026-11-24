@@ -1,0 +1,215 @@
+{"t": "T001", "q": "Aarau, Kantonsspital Ost", "style": "exact", "local": false}
+{"t": "T001", "q": "kantonsspital ost aarau", "style": "casual", "local": false}
+{"t": "T001", "q": "aarau kantonsspi", "style": "partial", "local": false}
+{"t": "T001", "q": "aarau kantonspital ost", "style": "typo", "local": false}
+{"t": "T001", "q": "bus stop aarau kantonsspital ost", "style": "descriptive", "local": false}
+{"t": "T011", "q": "La Tourne, La Mauvaise-Combe", "style": "exact", "local": false}
+{"t": "T011", "q": "mauvaise combe", "style": "casual", "local": false}
+{"t": "T011", "q": "la tourne mauvaise com", "style": "partial", "local": false}
+{"t": "T011", "q": "la tourne la mauvase combe", "style": "typo", "local": false}
+{"t": "T011", "q": "arrêt la mauvaise combe", "style": "descriptive", "local": false}
+{"t": "T021", "q": "Erlenbach i.S., Bahnhof", "style": "exact", "local": false}
+{"t": "T021", "q": "erlenbach im simmental bahnhof", "style": "casual", "local": false}
+{"t": "T021", "q": "erlenbach i.s. bahn", "style": "partial", "local": false}
+{"t": "T021", "q": "erlenbach i.s. banhof", "style": "typo", "local": false}
+{"t": "T021", "q": "bus stop erlenbach im simmental station", "style": "descriptive", "local": false}
+{"t": "T031", "q": "Bonstetten, Lätten", "style": "exact", "local": false}
+{"t": "T031", "q": "lätten bonstetten", "style": "casual", "local": false}
+{"t": "T031", "q": "bonstetten lät", "style": "partial", "local": false}
+{"t": "T031", "q": "bonstetten laetten", "style": "typo", "local": false}
+{"t": "T031", "q": "haltestelle lätten", "style": "descriptive", "local": true}
+{"t": "T041", "q": "Mendrisio, Centro Studi 2", "style": "exact", "local": false}
+{"t": "T041", "q": "centro studi 2 mendrisio", "style": "casual", "local": false}
+{"t": "T041", "q": "mendrisio centro stu", "style": "partial", "local": false}
+{"t": "T041", "q": "mendrisio centro stdui 2", "style": "typo", "local": false}
+{"t": "T041", "q": "fermata centro studi 2", "style": "descriptive", "local": true}
+{"t": "T051", "q": "Olten, Höhenstrasse West", "style": "exact", "local": false}
+{"t": "T051", "q": "höhenstrasse west olten", "style": "casual", "local": false}
+{"t": "T051", "q": "olten höhenstrasse wes", "style": "partial", "local": false}
+{"t": "T051", "q": "olten hohenstrasse west", "style": "typo", "local": false}
+{"t": "T051", "q": "haltestelle höhenstrasse west", "style": "descriptive", "local": true}
+{"t": "T061", "q": "Zürich, Ottikerstrasse", "style": "exact", "local": false}
+{"t": "T061", "q": "ottikerstrasse", "style": "casual", "local": false}
+{"t": "T061", "q": "zürich ottikerstr", "style": "partial", "local": false}
+{"t": "T061", "q": "zurich ottikerstrasse", "style": "typo", "local": false}
+{"t": "T061", "q": "ottikerstrasse tram stop", "style": "descriptive", "local": false}
+{"t": "T071", "q": "Chêne-Bougeries, Grange-Canal", "style": "exact", "local": false}
+{"t": "T071", "q": "grange canal", "style": "casual", "local": false}
+{"t": "T071", "q": "chêne-bougeries grange can", "style": "partial", "local": false}
+{"t": "T071", "q": "chene-bougeries grange-canal", "style": "typo", "local": false}
+{"t": "T071", "q": "arrêt de tram grange canal", "style": "descriptive", "local": false}
+{"t": "T081", "q": "Bern, Zytglogge", "style": "exact", "local": false}
+{"t": "T081", "q": "zytglogge", "style": "casual", "local": false}
+{"t": "T081", "q": "bern zytglo", "style": "partial", "local": false}
+{"t": "T081", "q": "bern zytgloge", "style": "typo", "local": false}
+{"t": "T081", "q": "zytglogge tram stop berne", "style": "descriptive", "local": false}
+{"t": "T091", "q": "Oberwil BL, Zentrum", "style": "exact", "local": false}
+{"t": "T091", "q": "zentrum oberwil bl", "style": "casual", "local": false}
+{"t": "T091", "q": "oberwil bl zent", "style": "partial", "local": false}
+{"t": "T091", "q": "oberwil bl zenrtum", "style": "typo", "local": false}
+{"t": "T091", "q": "tramhaltestelle zentrum oberwil bl", "style": "descriptive", "local": false}
+{"t": "T101", "q": "Heimberg", "style": "exact", "local": false}
+{"t": "T101", "q": "heimberg bhf", "style": "casual", "local": false}
+{"t": "T101", "q": "bahnhof heimb", "style": "partial", "local": false}
+{"t": "T101", "q": "hiemberg bahnhof", "style": "typo", "local": false}
+{"t": "T101", "q": "Heimberg train station", "style": "descriptive", "local": false}
+{"t": "T111", "q": "Lachen SZ", "style": "exact", "local": false}
+{"t": "T111", "q": "lachen sz bahnhof", "style": "casual", "local": false}
+{"t": "T111", "q": "lachen sz bahn", "style": "partial", "local": false}
+{"t": "T111", "q": "lachen sz banhof", "style": "typo", "local": false}
+{"t": "T111", "q": "Lachen SZ train station", "style": "descriptive", "local": false}
+{"t": "T121", "q": "Zürichhorn (See)", "style": "exact", "local": false}
+{"t": "T121", "q": "zürichhorn see", "style": "casual", "local": false}
+{"t": "T121", "q": "schiffstation zürichh", "style": "partial", "local": false}
+{"t": "T121", "q": "zurichhorn see", "style": "typo", "local": false}
+{"t": "T121", "q": "zürichhorn boat landing", "style": "descriptive", "local": false}
+{"t": "T131", "q": "Curtinella", "style": "exact", "local": false}
+{"t": "T131", "q": "curtinella bahn", "style": "casual", "local": false}
+{"t": "T131", "q": "curtine", "style": "partial", "local": false}
+{"t": "T131", "q": "curtinela", "style": "typo", "local": false}
+{"t": "T131", "q": "curtinella cable car", "style": "descriptive", "local": false}
+{"t": "T141", "q": "Bern", "style": "exact", "local": false}
+{"t": "T141", "q": "bern bahnhof", "style": "casual", "local": false}
+{"t": "T141", "q": "bahnhof ber", "style": "partial", "local": false}
+{"t": "T141", "q": "bahnhoff bern", "style": "typo", "local": false}
+{"t": "T141", "q": "Berne train station", "style": "alias", "local": false}
+{"t": "T151", "q": "Thun", "style": "exact", "local": false}
+{"t": "T151", "q": "Thun Bhf", "style": "alias", "local": false}
+{"t": "T151", "q": "thun bahn", "style": "partial", "local": false}
+{"t": "T151", "q": "thun banhof", "style": "typo", "local": false}
+{"t": "T151", "q": "Thun train station", "style": "descriptive", "local": false}
+{"t": "T161", "q": "Bellinzona", "style": "exact", "local": false}
+{"t": "T161", "q": "bellinzona stazione", "style": "casual", "local": false}
+{"t": "T161", "q": "stazione bellin", "style": "partial", "local": false}
+{"t": "T161", "q": "bellinzoan stazione", "style": "typo", "local": false}
+{"t": "T161", "q": "Bellinzona train station", "style": "descriptive", "local": false}
+{"t": "T171", "q": "Vevey", "style": "exact", "local": false}
+{"t": "T171", "q": "vevey gare", "style": "casual", "local": false}
+{"t": "T171", "q": "gare vev", "style": "partial", "local": false}
+{"t": "T171", "q": "gare vevye", "style": "typo", "local": false}
+{"t": "T171", "q": "Gare de Vevey", "style": "alias", "local": false}
+{"t": "T181", "q": "Biel (Goms)", "style": "exact", "local": false}
+{"t": "T181", "q": "biel goms", "style": "casual", "local": false}
+{"t": "T181", "q": "biel goms bahn", "style": "partial", "local": false}
+{"t": "T181", "q": "biel gmos", "style": "typo", "local": false}
+{"t": "T181", "q": "Biel Goms train station", "style": "descriptive", "local": false}
+{"t": "T191", "q": "Lausanne voie 70", "style": "exact", "local": false}
+{"t": "T191", "q": "lausanne 70", "style": "casual", "local": false}
+{"t": "T191", "q": "lausanne v. 70", "style": "alias", "local": false}
+{"t": "T191", "q": "lausanne voiee 70", "style": "typo", "local": false}
+{"t": "T191", "q": "Lausanne station platform 70", "style": "descriptive", "local": false}
+{"t": "T201", "q": "Busswil BE Gleis 3", "style": "exact", "local": false}
+{"t": "T201", "q": "busswil be 3", "style": "casual", "local": false}
+{"t": "T201", "q": "busswil be gl. 3", "style": "alias", "local": false}
+{"t": "T201", "q": "busswil be gelis 3", "style": "typo", "local": false}
+{"t": "T201", "q": "Busswil BE station platform 3", "style": "descriptive", "local": false}
+{"t": "T211", "q": "Neuchâtel voie 1", "style": "exact", "local": false}
+{"t": "T211", "q": "neuchâtel 1", "style": "casual", "local": false}
+{"t": "T211", "q": "Neuchâtel Gleis 1", "style": "alias", "local": false}
+{"t": "T211", "q": "neuchatel voie 1", "style": "typo", "local": false}
+{"t": "T211", "q": "Neuchâtel station platform 1", "style": "descriptive", "local": false}
+{"t": "T221", "q": "Genève-Champel, gare/Peschier quai D", "style": "exact", "local": false}
+{"t": "T221", "q": "geneve champel gare peschier D", "style": "casual", "local": false}
+{"t": "T221", "q": "genève champel gare peschier D arr", "style": "partial", "local": false}
+{"t": "T221", "q": "genève champel gare peschir quai D", "style": "typo", "local": false}
+{"t": "T221", "q": "Geneva Champel Peschier stop platform D", "style": "descriptive", "local": false}
+{"t": "T231", "q": "Buhofstrasse 19", "style": "exact", "local": false}
+{"t": "T231", "q": "buhofstrasse 19 rheineck", "style": "casual", "local": false}
+{"t": "T231", "q": "Buhofstr. 19 Rheineck", "style": "alias", "local": false}
+{"t": "T231", "q": "buhofstrase 19 rheineck", "style": "typo", "local": false}
+{"t": "T231", "q": "Buhofstrasse 19 9424 Rheineck", "style": "descriptive", "local": false}
+{"t": "T241", "q": "Cozzera 20", "style": "exact", "local": false}
+{"t": "T241", "q": "cozzera 20 ghirone", "style": "casual", "local": false}
+{"t": "T241", "q": "cozzera 20 6720 ghi", "style": "partial", "local": false}
+{"t": "T241", "q": "cozera 20 ghirone", "style": "typo", "local": false}
+{"t": "T241", "q": "Cozzera 20 6720 Ghirone", "style": "descriptive", "local": false}
+{"t": "T251", "q": "Museumstrasse / Rue du Musée 12b", "style": "exact", "local": false}
+{"t": "T251", "q": "museumstrasse 12b", "style": "casual", "local": true}
+{"t": "T251", "q": "Rue du Musée 12b Bienne", "style": "alias", "local": false}
+{"t": "T251", "q": "rue du musee 12b bienne", "style": "typo", "local": false}
+{"t": "T251", "q": "Museumstrasse 12b 2502 Biel", "style": "descriptive", "local": false}
+{"t": "T261", "q": "Place du Collège 1", "style": "exact", "local": true}
+{"t": "T261", "q": "place du collège 1 sonvilier", "style": "casual", "local": false}
+{"t": "T261", "q": "place du collège 1 sonvi", "style": "partial", "local": false}
+{"t": "T261", "q": "place du college 1 sonvilier", "style": "typo", "local": false}
+{"t": "T261", "q": "Place du Collège 1 2615 Sonvilier", "style": "descriptive", "local": false}
+{"t": "T271", "q": "Poststrasse 4", "style": "exact", "local": true}
+{"t": "T271", "q": "poststrasse 4 rupperswil", "style": "casual", "local": false}
+{"t": "T271", "q": "Poststr. 4 Rupperswil", "style": "alias", "local": false}
+{"t": "T271", "q": "poststrase 4 rupperswil", "style": "typo", "local": false}
+{"t": "T271", "q": "Poststrasse 4 5102 Rupperswil", "style": "descriptive", "local": false}
+{"t": "T281", "q": "Dorfstrasse 25a", "style": "exact", "local": true}
+{"t": "T281", "q": "dorfstrasse 25a sool", "style": "casual", "local": false}
+{"t": "T281", "q": "Dorfstr. 25a Sool", "style": "alias", "local": false}
+{"t": "T281", "q": "dorfstrase 25a sool", "style": "typo", "local": false}
+{"t": "T281", "q": "Dorfstrasse 25a 8762 Sool", "style": "descriptive", "local": false}
+{"t": "T291", "q": "Benu", "style": "exact", "local": true}
+{"t": "T291", "q": "benu seefeldstrasse", "style": "casual", "local": false}
+{"t": "T291", "q": "benu seefeldstr", "style": "partial", "local": false}
+{"t": "T291", "q": "bneu zürich seefeldstrasse", "style": "typo", "local": false}
+{"t": "T291", "q": "Benu Apotheke Seefeldstrasse 18 Zürich", "style": "descriptive", "local": false}
+{"t": "T301", "q": "Aldi", "style": "exact", "local": true}
+{"t": "T301", "q": "aldi siebnen", "style": "casual", "local": false}
+{"t": "T301", "q": "aldi siebn", "style": "partial", "local": false}
+{"t": "T301", "q": "aldi siebenn", "style": "typo", "local": false}
+{"t": "T301", "q": "aldi supermarket siebnen", "style": "descriptive", "local": false}
+{"t": "T311", "q": "Amavita Central Basel", "style": "exact", "local": false}
+{"t": "T311", "q": "amavita centralbahnplatz", "style": "casual", "local": false}
+{"t": "T311", "q": "basel amavita cent", "style": "partial", "local": false}
+{"t": "T311", "q": "amavtia central basel", "style": "typo", "local": false}
+{"t": "T311", "q": "Amavita pharmacy Centralbahnplatz Basel", "style": "descriptive", "local": false}
+{"t": "T321", "q": "Coop", "style": "exact", "local": true}
+{"t": "T321", "q": "coop filisur", "style": "casual", "local": false}
+{"t": "T321", "q": "coop fili", "style": "partial", "local": false}
+{"t": "T321", "q": "coop filsiur", "style": "typo", "local": false}
+{"t": "T321", "q": "Coop supermarket Filisur", "style": "descriptive", "local": false}
+{"t": "T331", "q": "Feldheim", "style": "exact", "local": true}
+{"t": "T331", "q": "feldheim reiden", "style": "casual", "local": false}
+{"t": "T331", "q": "reiden feldh", "style": "partial", "local": false}
+{"t": "T331", "q": "feldhiem reiden", "style": "typo", "local": false}
+{"t": "T331", "q": "Feldheim Feldheimstrasse 1 Reiden", "style": "descriptive", "local": false}
+{"t": "T341", "q": "IWAZ Haus A", "style": "exact", "local": false}
+{"t": "T341", "q": "iwaz wetzikon haus a", "style": "casual", "local": false}
+{"t": "T341", "q": "iwaz haus a wetzi", "style": "partial", "local": false}
+{"t": "T341", "q": "iwaz haus a wetizkon", "style": "typo", "local": false}
+{"t": "T341", "q": "IWAZ Haus A Neugrundstrasse 4 Wetzikon", "style": "descriptive", "local": false}
+{"t": "T351", "q": "pharmacy", "style": "exact", "local": true}
+{"t": "T351", "q": "apotheke", "style": "casual", "local": true}
+{"t": "T351", "q": "pharm", "style": "partial", "local": true}
+{"t": "T351", "q": "apoteke", "style": "typo", "local": true}
+{"t": "T351", "q": "nächste apotheke", "style": "descriptive", "local": true}
+{"t": "T361", "q": "drinking water fountain", "style": "exact", "local": true}
+{"t": "T361", "q": "fontaine potable", "style": "casual", "local": true}
+{"t": "T361", "q": "fontaine eau pot", "style": "partial", "local": true}
+{"t": "T361", "q": "fontaine eau potabel", "style": "typo", "local": true}
+{"t": "T361", "q": "fontaine d’eau potable près de moi", "style": "descriptive", "local": true}
+{"t": "T371", "q": "police station", "style": "exact", "local": true}
+{"t": "T371", "q": "polizeiposten", "style": "casual", "local": true}
+{"t": "T371", "q": "polizeipos", "style": "partial", "local": true}
+{"t": "T371", "q": "polizeipostne", "style": "typo", "local": true}
+{"t": "T371", "q": "nächster polizeiposten", "style": "descriptive", "local": true}
+{"t": "T381", "q": "library", "style": "exact", "local": true}
+{"t": "T381", "q": "bibliothek", "style": "casual", "local": true}
+{"t": "T381", "q": "biblio", "style": "partial", "local": true}
+{"t": "T381", "q": "bilbiothek", "style": "typo", "local": true}
+{"t": "T381", "q": "library near me", "style": "descriptive", "local": true}
+{"t": "T391", "q": "drinking water fountain", "style": "exact", "local": true}
+{"t": "T391", "q": "trinkbrunnen", "style": "casual", "local": true}
+{"t": "T391", "q": "trinkbrun", "style": "partial", "local": true}
+{"t": "T391", "q": "trinkbrunen", "style": "typo", "local": true}
+{"t": "T391", "q": "trinkwasserbrunnen in der nähe", "style": "descriptive", "local": true}
+{"t": "T401", "q": "Zizers", "style": "exact", "local": false}
+{"t": "T401", "q": "zizers", "style": "casual", "local": false}
+{"t": "T401", "q": "ziz", "style": "partial", "local": false}
+{"t": "T401", "q": "zizres", "style": "typo", "local": false}
+{"t": "T401", "q": "gemeinde zizers", "style": "descriptive", "local": false}
+{"t": "T411", "q": "Schaffhausen", "style": "exact", "local": false}
+{"t": "T411", "q": "schaffhausen", "style": "casual", "local": false}
+{"t": "T411", "q": "schaffh", "style": "partial", "local": false}
+{"t": "T411", "q": "schafhausen", "style": "typo", "local": false}
+{"t": "T411", "q": "Schaffhouse", "style": "alias", "local": false}
+{"t": "T421", "q": "6677", "style": "exact", "local": false}
+{"t": "T421", "q": "ch 6677", "style": "casual", "local": false}
+{"t": "T421", "q": "667", "style": "partial", "local": false}
+{"t": "T421", "q": "CH-6677", "style": "alias", "local": false}
+{"t": "T421", "q": "CAP 6677", "style": "descriptive", "local": false}
