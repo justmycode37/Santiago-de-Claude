@@ -586,5 +586,34 @@ do {
           "but not when the camera runs at 1.2 s per frame")
 }
 
+// MARK: - The second display reader without an accepted numeral (plan step 3)
+do {
+    let bus = vd(.bus, 0.1, 0.1, w: 0.6, h: 0.7)
+    let weak = [VehicleText(text: "Ostermundi9en", box: CGRect(x: 0.2, y: 0.15, width: 0.3, height: 0.04), score: 0.45),
+                VehicleText(text: "1O", box: CGRect(x: 0.12, y: 0.15, width: 0.05, height: 0.05), score: 0.5),
+                VehicleText(text: "Werbung", box: CGRect(x: 0.2, y: 0.7, width: 0.3, height: 0.05), score: 0.5),   // low on the body
+                VehicleText(text: "Sure", box: CGRect(x: 0.2, y: 0.25, width: 0.2, height: 0.04), score: 0.9)]     // already accepted
+    let regions = VehicleDisplayRecognitionPolicy.unanchoredRegions(weak, detection: bus, otherBoxes: [])
+    check(regions.count == 2 && regions.allSatisfy { $0.midY < 0.3 }, "weak display-band lines are re-read, not the body or accepted ones (\(regions))")
+    check(VehicleDisplayRecognitionPolicy.unanchoredRegions(weak, detection: bus, otherBoxes: [CGRect(x: 0, y: 0, width: 1, height: 0.3)]).isEmpty,
+          "never text that lies in another vehicle")
+    let frame = UUID(), trackID = UUID()
+    func obs(_ text: String, _ scores: [Float], track: UUID = trackID) -> AlternativeDisplayObservation {
+        AlternativeDisplayObservation(engineID: VehicleDisplayRecognitionPolicy.engineID, modelID: VehicleDisplayRecognitionPolicy.modelID,
+            configID: VehicleDisplayRecognitionPolicy.configID, frameID: frame, capturedAt: t0, trackID: track, text: text,
+            characterScores: scores, region: regions[0], samplingID: "unanchored-native")
+    }
+    let good = VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 0.98, count: 13)), trackID: trackID, frameID: frame, at: t0)
+    check(good?.text == "Ostermundigen" && (good?.score ?? 0) > 0.95, "a confident complete re-read joins the frame's text")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 0.9, count: 13)), trackID: trackID, frameID: frame, at: t0) == nil,
+          "mean under 0.95: dropped")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [0.3] + [Float](repeating: 1, count: 12)), trackID: trackID, frameID: frame, at: t0) == nil,
+          "one weak character: dropped")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 12)), trackID: trackID, frameID: frame, at: t0) == nil,
+          "incomplete character scores: dropped")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 13), track: UUID()), trackID: trackID, frameID: frame, at: t0) == nil,
+          "another track's read: dropped")
+}
+
 print("\(checks - failures)/\(checks) checks passed")
 exit(failures == 0 ? 0 : 1)

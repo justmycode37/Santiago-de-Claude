@@ -283,7 +283,9 @@ final class LocalVehiclePipeline: @unchecked Sendable {
                     let displayRequest = VNRecognizeTextRequest()
                     displayRequest.recognitionLevel = displayRecognitionLevel; displayRequest.usesLanguageCorrection = false
                     displayRequest.recognitionLanguages = ["de-DE", "fr-FR", "en-US"]
-                    displayRequest.minimumTextHeight = 0.025
+                    // Half the body pass's floor: a far display's lines are small even in its own band, and a weak
+                    // line Vision boxes here can still be re-read by the second recognizer (unanchoredRegions).
+                    displayRequest.minimumTextHeight = 0.0125
                     try VNImageRequestHandler(cgImage: displayCG).perform([displayRequest])
                     let roi = CGRect(x: displayCrop.minX / image.extent.width, y: 1-displayCrop.maxY/image.extent.height,
                                      width: displayCrop.width/image.extent.width, height: displayCrop.height/image.extent.height)
@@ -343,6 +345,34 @@ final class LocalVehiclePipeline: @unchecked Sendable {
                 } else {
                     displayIssue = displayLoadState.issue
                     fallbackFailure = displayIssue == .initializationFailed ? "display_recognition_failed" : "display_model_unavailable"
+                }
+            }
+            // No accepted route numeral, so no proposal: the second recognizer still re-reads Vision's weak lines in
+            // the display band. What it reads confidently joins the frame's text; the matcher decides as always.
+            if proposal == nil, !reading.ambiguous, !reading.outOfService, reading.line == nil || reading.destination == nil {
+                let regions = VehicleDisplayRecognitionPolicy.unanchoredRegions(texts, detection: track.detection, otherBoxes: otherBoxes)
+                if !regions.isEmpty, displayLoadState.begin(modelPresent: displayModelURL != nil, dictionaryPresent: displayCharactersURL != nil),
+                   let displayModelURL, let displayCharactersURL {
+                    do { displayRecognizer = try VehicleDisplayRecognizer(modelURL: displayModelURL, charactersURL: displayCharactersURL) }
+                    catch { displayLoadState.rejectInitialization() }
+                }
+                if !regions.isEmpty, let displayRecognizer {
+                    var reread: [VehicleText] = []
+                    for region in regions {
+                        do {
+                            if let observation = try displayRecognizer.recognize(image: image, region: region, trackID: track.id,
+                                frameID: frameID, capturedAt: at, samplingID: "unanchored-native") {
+                                additionalAlternatives.append(observation)
+                                if let text = VehicleDisplayRecognitionPolicy.unanchoredText(observation, trackID: track.id, frameID: frameID, at: at) {
+                                    reread.append(text)
+                                }
+                            }
+                        } catch { fallbackFailure = "display_crop_unsupported_or_failed" }
+                    }
+                    if !reread.isEmpty {
+                        texts.append(contentsOf: reread)
+                        reading = VehicleTextRules.read(texts, detection: track.detection, otherBoxes: otherBoxes, at: at, frameID: frameID, layout: displayLayout)
+                    }
                 }
             }
             if routeReread, !reading.ambiguous, !reading.outOfService, reading.line == nil,
