@@ -145,11 +145,12 @@ if (( only_elevation )); then
   fi
   if (( have < size )); then
     echo "fetch $dest (10 GB)"
-    # resumed (and resumed on a retry) only from an edition its ETag vouches for: the server refuses the range (412)
-    # when the file is another one; never more than the file's size in one answer (curl stops at it, 63): what it
-    # writes stays within the room checked above and the reserve
+    # resumed only from an edition its ETag vouches for: the server refuses the range (412) when the file is another
+    # one. One answer, never more than what is missing (curl 8.4 and later stop at it, 63), so what it writes stays
+    # within the room checked above and the reserve; no retries inside curl (each would be allowed as much again):
+    # the next night goes on. Within KANTE_DEM_MAX_TIME seconds (curl 28), so that a deadline still cleans up.
     rc=0
-    code=$(curl -fSL --retry 5 ${etag:+-C -} --max-filesize "$size" -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
+    code=$(curl -fSL ${etag:+-C -} --max-filesize "$(( size - have ))" ${KANTE_DEM_MAX_TIME:+--max-time "$KANTE_DEM_MAX_TIME"} -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
     if (( rc )); then
       # another edition (412), a range that cannot be resumed (416), a server that ignores ranges (curl 33), more than
       # the file (63), or no ETag to resume by: start again next time; the disk full (curl 23): the part removed, so

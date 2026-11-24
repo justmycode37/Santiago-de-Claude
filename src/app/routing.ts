@@ -261,6 +261,9 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
 // engine's path, so the map shows the same way as the 3D view; and the time of the way it draws
 function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: StationWalkPlan, task: WalkTask) {
   const first = st.walkRev == null;
+  // until the answer says the model drew it, the change may be drawn on the street within its time: keyed by it, so a
+  // delay meanwhile drops the answer and asks again
+  st._modelDrawn = false;
   const current = newWalkRev(st);
   const asked = st.lines;
   task(stationWalk(st, plan, first), (res) => {

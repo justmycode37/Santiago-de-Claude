@@ -54,7 +54,8 @@ if grep -q -- '--elevation' "$repo/kante/scripts/fetch-data.sh" 2>/dev/null; the
   if [[ ! -s $dem ]] && ! [[ -n $(find "$dem.rejected" -mtime -7 2>/dev/null) ]]; then
     rm -f "$dem.rejected"
     log "fetching the terrain model (10 GB)"
-    KANTE_RAW=$ROOT/raw timeout 5400 "$repo/kante/scripts/fetch-data.sh" --elevation || log "terrain model download failed; trying again tomorrow"
+    # curl's own deadline (the script cleans up after it); `timeout` only as a backstop
+    KANTE_RAW=$ROOT/raw KANTE_DEM_MAX_TIME=5400 timeout 5700 "$repo/kante/scripts/fetch-data.sh" --elevation || log "terrain model download failed; trying again tomorrow"
   fi
   # the model is there and the running engine has no slopes: a release with it, unless a release failed tonight (a
   # release that failed is not tried again right after)

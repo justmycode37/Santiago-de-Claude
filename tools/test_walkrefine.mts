@@ -949,5 +949,24 @@ console.log('31. a change a station model draws is not drawn again for a delay (
   c.plan = null;
 }
 
+console.log('32. a station model that falls back to the street for a moved change: a delay meanwhile asks again (review Sol round 10)');
+{
+  const c = app();
+  c.plan = { key: 'bern' };
+  const steps = await show(hillChange(120, 20), A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  c.station[0].res(model([B, P9])); await settle(); // the model draws it
+  await live('t2', outT2(23, quayAt('q12', P12, '12'))); // platform 12: the model again
+  check(c.station.length === 2, 'the model is asked for the moved change');
+  c.station[1].res(null as unknown as FakeModel); await settle(); // no model: the street, within the time there is
+  check(c.asked.length === 1 && c.asked[0].body.limitS === 180, `the street way within 180 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  c.trips.t1 = { tripId: 't1', serviceDate: '2026-11-23', calls: inT1(21.5) as KanteStopCall[] } as KanteTrip;
+  await LE.livePoll(); await settle(); // 90 s, the street answer still on the way
+  await answer(0, 170);
+  check(JS.spareOf(ch).s !== 90 - 170, 'the answer for 180 s is dropped');
+  check(c.station.length === 3 || c.asked.length === 2, `and it is asked again (${c.station.length} model, ${c.asked.length} engine requests)`);
+  c.plan = null;
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
