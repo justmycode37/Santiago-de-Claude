@@ -1067,7 +1067,8 @@ impl<'a> Engine<'a> {
         stats::add(12, t_seeds.elapsed().as_nanos() as u64);
         if window == 0 {
             for (n, &s) in acc.iter().enumerate() {
-                self.s.lab[s as usize * R].ready = q.from + self.s.access[s as usize] - late[n];
+                // (not for a stop the traveller would rather not walk to: see the range iterations below)
+                self.s.lab[s as usize * R].ready = if late[n] > 0 { INF } else { q.from + self.s.access[s as usize] };
                 self.touch(s);
             }
             count!(0);
@@ -1089,11 +1090,15 @@ impl<'a> Engine<'a> {
             while i < seeds.len() {
                 count!(0);
                 let tau = seeds[i].tau;
-                // Where the traveller of this iteration (leaving at `tau` as departures are counted) can be at each
-                // access stop: a stop whose departures count `late` earlier is left for `late` after `tau`, and
-                // none before `q.from` (`tau` is before it in the iterations of such a stop's first departures).
+                // When the traveller of this iteration can be at each access stop by walking there: a ride or a
+                // change that reaches the stop later is dropped for the journey that walks there and boards the same
+                // vehicle (`walkable`, `set_ready`). Never before `q.from` (`tau` is before it in the iterations of
+                // the first departures of a stop with `access_late`). And not at all at a stop with `access_late`:
+                // the journey that walks there is another offer, not the same one made better. It is found by its
+                // own seed and compared as it is counted; and where its seed lies past the window, the journey
+                // through the stop must not go for one that is not in the answer.
                 for (n, &s) in acc.iter().enumerate() {
-                    self.s.lab[s as usize * R].ready = (tau + late[n]).max(q.from) + self.s.access[s as usize] - late[n];
+                    self.s.lab[s as usize * R].ready = if late[n] > 0 { INF } else { tau.max(q.from) + self.s.access[s as usize] };
                     self.touch(s);
                 }
                 self.ride_stamp = self.next_stamp();

@@ -321,6 +321,36 @@ fn a_late_stop_does_not_put_the_traveller_at_the_others_before_they_leave() {
 }
 
 #[test]
+fn a_journey_through_a_late_stop_stays_when_walking_there_is_past_the_window() {
+    // The bus from the near stop N reaches the far station L (a 25 minute walk, `access_late`) at 11:35 for the
+    // train at 12:30. Walking to L for that train means leaving at 12:05, after the window (08:00 to 12:00): that
+    // journey is not in the answer, and the one by bus must not be dropped for it.
+    let mut b = Builder::new();
+    let (n, l, z) = (b.stop("N"), b.stop("L"), b.stop("Z"));
+    let (bus, rail) = (b.line("1", Mode::Bus), b.line("S", Mode::Rail));
+    let (pb, pr) = (b.pattern(bus, &[n, l]), b.pattern(rail, &[l, z]));
+    let feeder = b.trip(pb, &[hm(11, 20), hm(11, 35)]);
+    let train = b.trip(pr, &[hm(12, 30), hm(12, 50)]);
+    let w = World::new(b);
+    let (acc_, egr_, late) = ([(n, 300), (l, 1500)], [(z, 0)], [0, 1800]);
+    let mut q = query(hm(8, 0), &acc_, &egr_, &w.none);
+    q.window = 4 * 3600;
+    q.access_late = &late;
+    let by_bus = vec![(vec![(w.t(feeder), 0, 1), (w.t(train), 0, 1)], hm(11, 15), hm(12, 50))];
+    let got = |q: &Query| w.plan(q).iter().map(|j| (rides(j), j.dep, j.arr)).collect::<Vec<_>>();
+    assert_eq!(got(&q), by_bus);
+    // (the last hour alone, as a search in chunks asks it)
+    q.from = hm(11, 0) + 1;
+    q.window = 3599;
+    assert_eq!(got(&q), by_bus);
+    // with the walk inside the window, the journey on foot to the train (counted as leaving at 11:35) is in the
+    // answer and beats the one by bus, as any journey leaving later with fewer rides does
+    q.from = hm(8, 0);
+    q.window = 5 * 3600;
+    assert_eq!(got(&q), vec![(vec![(w.t(train), 0, 1)], hm(11, 35), hm(12, 50))]);
+}
+
+#[test]
 fn footpath_change_and_walking_speed() {
     let mut b = Builder::new();
     let (a, x, y, z) = (b.stop("A"), b.stop("X"), b.stop("Y"), b.stop("Z"));

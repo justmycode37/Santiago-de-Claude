@@ -706,7 +706,8 @@ impl App {
         if !nothing(&first) {
             return first;
         }
-        let mut tried = asked;
+        // (what the first search looked at: with the far stops, twice the longest walk already)
+        let mut tried = far_reach(req, &profile_from(&req.options), asked, asked);
         for reach in [2 * asked, FARTHEST] {
             if reach > tried && reach <= FARTHEST {
                 tried = reach;
@@ -759,10 +760,7 @@ impl App {
 
         // the stops beyond the longest walk, up to twice as far, for a journey that is far better (see `plan`); not
         // beyond a walk that is already longer than the traveller's, taken because there was nothing within it
-        let far = match req.arrive_by || profile.wheelchair || profile.is_step_free() || reach > max_walk {
-            true => reach,
-            false => (2 * reach).min(FARTHEST_REACH),
-        };
+        let far = far_reach(req, &profile, reach, max_walk);
         let to_ep = self.resolve(&req.to)?;
         let (egress, far_egress) = self.reach_and_beyond(&to_ep, &profile, reach, far, true);
         if egress.stops.is_empty() && far_egress.is_empty() {
@@ -828,8 +826,16 @@ impl App {
                 dist_m: None,
             };
             let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, end: End::exact(here.pos, None) };
+            // six that keep to the longest walk, and beside them up to six with a longer one
+            let from_far = |j: &Journey| matches!(j.legs.last(), Some(Leg::Egress { from, .. }) if far_egress.iter().any(|&(f, _)| f == *from));
+            let (mut near_n, mut long_n) = (0, 0);
+            let shown = journeys.iter().filter(|j| {
+                let n = if from_far(j) { &mut long_n } else { &mut near_n };
+                *n += 1;
+                *n <= 6
+            });
             let out: Vec<json::Journey> =
-                journeys.iter().take(6).map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, opt.flatter_changes, max_walk, live)).collect();
+                shown.map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, opt.flatter_changes, max_walk, live)).collect();
             return Ok(json::PlanResponse {
                 from: from_place,
                 to: to_ep.place,
@@ -930,7 +936,8 @@ impl App {
                         // Journeys must arrive by `limit`: the engine need not explore later ones.
                         query.max_arr = by_arrival.then_some(limit);
                         picked = search(&query, s, total + tail, if tail > 0 { 6 } else { 4 }).into_iter().filter(|j| if by_arrival { j.arr <= limit } else { j.dep <= limit }).collect();
-                        if picked.len() >= 3 {
+                        // (three within the longest walk, as when looking ahead)
+                        if picked.iter().filter(|j| !is_long(j)).count() >= 3 {
                             break;
                         }
                     }
@@ -1040,6 +1047,17 @@ impl App {
             return Ok(out);
         }
         Ok(self.walk_leg_within("direct", &ea, &eb, now, now, &profile, limit))
+    }
+}
+
+/// How far the stops beyond the walk `reach` are looked at, for a journey that is far better for a longer walk (see
+/// `App::plan`): twice as far. No farther than `reach` (none) when asked to arrive by a time, for a step-free walker
+/// or one in a wheelchair, and when `reach` is already more than the traveller's longest walk (taken because there
+/// was nothing within it).
+fn far_reach(req: &json::PlanRequest, profile: &WalkProfile, reach: Secs, longest_walk: Secs) -> Secs {
+    match req.arrive_by || profile.wheelchair || profile.is_step_free() || reach > longest_walk {
+        true => reach,
+        false => (2 * reach).min(FARTHEST_REACH),
     }
 }
 
