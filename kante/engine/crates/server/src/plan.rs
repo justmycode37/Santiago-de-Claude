@@ -142,6 +142,16 @@ impl App {
     /// Build a walk leg between two points. `dep`/`arr` are the times the
     /// router planned with; the path is recomputed here for its geometry.
     pub fn walk_leg(&self, kind: &'static str, a: &WalkEnd, b: &WalkEnd, dep: i64, arr: i64, profile: &WalkProfile) -> json::WalkLeg {
+        // a walk a journey has timed (to its first stop, from its last): the candidate the stop search took for that
+        // time, the cheapest of those within it (ends::reach_costs)
+        let limit = matches!(kind, "access" | "egress").then_some((arr - dep).max(0) as f32);
+        self.walk_leg_within(kind, a, b, dep, arr, profile, limit)
+    }
+
+    /// [`App::walk_leg`], drawn as the walk this walker prefers when it takes at most `limit` seconds, else as the
+    /// quickest ([`ends::walk_within`]).
+    #[allow(clippy::too_many_arguments)]
+    fn walk_leg_within(&self, kind: &'static str, a: &WalkEnd, b: &WalkEnd, dep: i64, arr: i64, profile: &WalkProfile, limit: Option<f32>) -> json::WalkLeg {
         let speed = profile.speed_mps;
         let mut leg = json::WalkLeg {
             kind,
@@ -181,9 +191,6 @@ impl App {
             leg.levels = vec![None, None];
             return leg;
         }
-        // a walk a journey has timed (to its first stop, from its last): the candidate the stop search took for that
-        // time, the cheapest of those within it (ends::reach_costs)
-        let limit = matches!(kind, "access" | "egress").then_some(leg.duration_s as f32);
         let walk = self.walk.as_ref().and_then(|w| ends::walk_within(w, &a.end, &b.end, profile, limit));
         match walk {
             Some(w) => {
@@ -556,25 +563,33 @@ impl App {
     /// - one who minds them a little, with `flatter` on, walks the way a walker who avoids them takes when it climbs
     ///   at least 5 m less and still leaves a minute in hand.
     ///
-    /// Neither leaves a change tight (under [`TIGHT_S`] to spare, `margin` included) for a flatter way.
+    /// Neither leaves a change tight (under [`TIGHT_S`] to spare, `margin` included) for a flatter way. Every walk of
+    /// a change is drawn within `room` (as the walker prefers when that fits, else the quickest): the footpaths time
+    /// the quickest walk when the preferred one is over their bound, and the walk drawn must be one that makes it.
     /// [`json::WalkLeg::flatter`] says by how much the walk is longer and climbs less. `None`: walk it as it is.
     #[allow(clippy::too_many_arguments)]
     fn change_walk(&self, w: &json::WalkLeg, a: StopIdx, b: StopIdx, room: i64, margin: i64, profile: &WalkProfile, flatter: bool) -> Option<json::WalkLeg> {
         if w.approximate || w.drawn_s.is_none() || self.walk.is_none() {
             return None;
         }
+        // drawn within the time there is: the walk this walker prefers when it fits, else the quickest
+        let limit = Some(room.max(0) as f32);
         let walk = |hills: HillsPref| {
-            let mut o = self.walk_leg("transfer", &self.stop_end(a), &self.stop_end(b), w.dep, w.arr, &WalkProfile { hills, ..*profile });
+            let mut o = self.walk_leg_within("transfer", &self.stop_end(a), &self.stop_end(b), w.dep, w.arr, &WalkProfile { hills, ..*profile }, limit);
             o.official_min_s = w.official_min_s;
             o
         };
+        // a walk drawn longer than the time there is, and than the footpath's time (which times the quickest walk when
+        // the preferred one is over its bound): the quickest within the time, timed as the footpath says
+        let fitted = (w.drawn_s.is_some_and(|d| d > room && d > w.duration_s)).then(|| walk(profile.hills)).filter(|o| !o.approximate && o.drawn_s.is_some());
+        let w = fitted.as_ref().unwrap_or(w);
         // seconds the flatter way must leave beyond the margin, so that the change is not tight
         let untight = (TIGHT_S - margin).max(0);
-        match profile.hills {
+        let other = match profile.hills {
             HillsPref::Avoid => {
                 let quick = walk(HillsPref::Normal);
                 if quick.approximate || quick.drawn_s.is_none() {
-                    return None; // no quicker way to fall back on
+                    return fitted.clone(); // no quicker way to fall back on
                 }
                 match flatter_way(&quick, w, room, untight, 0) {
                     Some(f) if f.extra_s > 0 || f.less_climb_m > 0 => Some(retimed(w.clone(), quick.duration_s, f)),
@@ -586,11 +601,11 @@ impl App {
             }
             HillsPref::Normal if flatter && w.climb_m >= 5 => {
                 let flat = walk(HillsPref::Avoid);
-                let f = flatter_way(w, &flat, room, untight.max(60), 5)?;
-                Some(retimed(flat, w.duration_s, f))
+                flatter_way(w, &flat, room, untight.max(60), 5).map(|f| retimed(flat, w.duration_s, f))
             }
             _ => None,
-        }
+        };
+        other.or_else(|| fitted.clone())
     }
 
     /// Range search over `[from, from + total]`, split into `chunks` windows

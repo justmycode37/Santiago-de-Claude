@@ -1561,3 +1561,28 @@ fn a_search_back_from_the_end_times_the_walk_as_walked() {
     let down = r.one_to_many(&z, &[a], &ignore, 900.0)[0].unwrap();
     assert!(close(fwd.var_m, 310.0, 0.1) && close(down.var_m, 302.0, 0.1), "{} {}", down.var_m, fwd.var_m);
 }
+
+#[test]
+fn a_search_back_from_the_end_takes_escalators_the_way_they_run() {
+    // stop —— the foot of an escalator up —— its top —— destination: the escalator is the only way
+    let mut b = Gb::new();
+    let (n0, n1, n2, n3) = (b.node(0.0, 0.0), b.node(50.0, 0.0), b.node(80.0, 0.0), b.node(130.0, 0.0));
+    let stop = b.edge(n0, n1, EdgeKind::Footway);
+    let esc = b.edge(n1, n2, EdgeKind::Escalator);
+    b.fl(esc, EF_ONEWAY_AB | EF_UP_AB);
+    let dest = b.edge(n2, n3, EdgeKind::Footway);
+    let r = b.build();
+    let (s, d) = (on(stop, 0.5, &r), on(dest, 0.5, &r));
+    // walked: up from the stop to the destination, not down
+    assert!(r.one_to_many(&s, &[d], &NORMAL, 900.0)[0].is_some());
+    assert!(r.one_to_many(&d, &[s], &NORMAL, 900.0)[0].is_none());
+    // searched back from the destination (an egress): the walk from the stop up, as walked
+    let back = WalkProfile { backwards: true, ..NORMAL };
+    let c = r.one_to_many(&d, &[s], &back, 900.0)[0].unwrap();
+    let fwd = r.one_to_many(&s, &[d], &NORMAL, 900.0)[0].unwrap();
+    assert!(close(c.var_m, fwd.var_m, 0.1) && close(c.fix_s, fwd.fix_s, 0.1), "{c:?} {fwd:?}");
+    // and not from a stop above, down the escalator
+    assert!(r.one_to_many(&s, &[d], &back, 900.0)[0].is_none());
+    // routes still go only the way it runs
+    assert!(r.route(&s, &d, &NORMAL).is_some() && r.route(&d, &s, &NORMAL).is_none());
+}

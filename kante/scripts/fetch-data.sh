@@ -124,11 +124,12 @@ if (( only_elevation )); then
   echo "$etag" > "$dest.part.etag"
   if [[ -z $size ]] || (( have < size )); then
     echo "fetch $dest (10 GB)"
-    if ! curl -fSL --retry 5 -C - -A "$UA" -o "$dest.part" "$DEM_URL"; then
-      # a refused range cannot be resumed: start again next time
-      [[ -e $dest.part ]] && (( $(stat -c %s "$dest.part") >= ${size:-0} )) && rm -f "$dest.part"
+    # resumed only from the same edition: the server refuses the range (412) when the file is another one
+    code=$(curl -fSL --retry 5 -C - -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || {
+      # another edition, or a range that cannot be resumed: start again next time
+      if [[ $code == 412 || $code == 416 ]]; then rm -f "$dest.part" "$dest.part.etag"; fi
       exit 1
-    fi
+    }
   fi
   if [[ -z $size || $(stat -c %s "$dest.part") != "$size" ]] || ! dem_ok "$dest.part"; then
     echo "error: $DEM_URL gave $(stat -c %s "$dest.part") bytes of ${size:-unknown}, not the terrain model the engine reads" >&2

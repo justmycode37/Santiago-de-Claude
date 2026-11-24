@@ -31,16 +31,16 @@ PORT=${KANTE_PORT:-8080}
 built=0
 
 # --- terrain model (an optional input, so never a reason to stop: without it walks are timed as if flat)
+dem=$ROOT/raw/dem/swissaltiregio.tif
+sloped() { curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["counts"].get("slopedEdges", 0))' 2>/dev/null || echo unknown; }
 terrain=0
 if grep -q -- '--elevation' "$repo/kante/scripts/fetch-data.sh" 2>/dev/null; then
-  if [[ ! -s $ROOT/raw/dem/swissaltiregio.tif ]]; then
+  # one the build could not read was put aside: fetched again after a week, not every night
+  if [[ ! -s $dem ]] && ! [[ -n $(find "$dem.rejected" -mtime -7 2>/dev/null) ]]; then
     log "fetching the terrain model (10 GB)"
     KANTE_RAW=$ROOT/raw timeout 5400 "$repo/kante/scripts/fetch-data.sh" --elevation || log "terrain model download failed; trying again tomorrow"
   fi
-  if [[ -s $ROOT/raw/dem/swissaltiregio.tif ]]; then
-    sloped=$(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["counts"].get("slopedEdges", 0))' 2>/dev/null || echo unknown)
-    [[ $sloped == 0 ]] && terrain=1
-  fi
+  [[ -s $dem && $(sloped) == 0 ]] && terrain=1
 fi
 
 # --- timetable, stop registry, map
@@ -61,6 +61,12 @@ fi
 if (( terrain && ! built )); then
   log "the running engine has no slopes: building a release with the terrain model"
   KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force || log "the release with the terrain model failed; the running engine is untouched"
+fi
+# built with the terrain model and still no slopes: the build could not read it (`kante build` says why in the
+# deploy log). Put aside, so that it is not built with again every night, and fetched again in a week.
+if (( terrain )) && [[ -s $dem && $(sloped) == 0 ]]; then
+  log "the engine built with the terrain model has no slopes: putting $dem aside"
+  mv -f "$dem" "$dem.rejected" || true
 fi
 
 # --- learned travel and dwell times

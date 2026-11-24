@@ -266,7 +266,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
             let ea = net.edge_arcs(g, t.edge);
             let mut te = TargetEnds { ia: ea.ia, ib: ea.ib, fwd: ea.fwd, back: ea.back };
             for (arc, node) in [(&mut te.fwd, ea.ia), (&mut te.back, ea.ib)] {
-                if *arc != NO_NODE && !s.table.usable[net.arcs[*arc as usize].cls as usize] {
+                if *arc != NO_NODE && (!s.table.usable[net.arcs[*arc as usize].cls as usize] || net.arcs[*arc as usize].head_block & s.table.dir_mask != 0) {
                     *arc = NO_NODE;
                 }
                 if *arc != NO_NODE && s.st[node as usize][S_MARK] != gen {
