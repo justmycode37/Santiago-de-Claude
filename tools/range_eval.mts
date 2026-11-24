@@ -54,6 +54,7 @@ const toFrame = (r: Row, box: number[], text: string, score: number): ArText => 
   const [rx, ry, rw, rh] = r.region;
   return { text, score, box: [(rx + box[0] * rw) / W, (ry + box[1] * rh) / H, (box[2] * rw) / W, (box[3] * rh) / H] };
 };
+const ONLY = arg('--variants');
 const variants: Record<string, (r: Row) => Promise<ArText[] | null>> = {
   'bench, one frame': async (r) => r.bench.map((t) => toFrame(r, t.box, t.text, t.score)),
   'web, one frame': async (r) => web(r, r.crop),
@@ -61,6 +62,7 @@ const variants: Record<string, (r: Row) => Promise<ArText[] | null>> = {
   'web, sharpest of 3': async (r) => (r.best ? web(r, r.best) : null),
   'web, max of 3': async (r) => (r.max ? web(r, r.max) : null),
 };
+if (ONLY) for (const k of Object.keys(variants)) if (!ONLY.split(',').some((o) => k.startsWith(o))) delete variants[k];
 const cache = new Map<string, ArText[]>();
 async function web(r: Row, file: string, side = 640) {
   const key = `${r.dir}|${file}|${side}`;
@@ -115,13 +117,13 @@ for (let i = 0; i < BUCKETS.length - 1; i++) {
 
 // passes at a 0.6 s OCR cadence (every third frame at 5 frames/s)
 console.log('\n## Passes, read every 0.6 s: first acceptance of the right ride (decide), and any wrong acceptance\n');
-console.log('| front end | passes accepted | glyph height at first acceptance (median, smallest) | wrong rides accepted | right ride flagged wrong |');
+console.log('| front end | passes accepted | glyph height at first acceptance (median, smallest) | wrong rides accepted | right ride flagged wrong (of which naming another service: red in the app) |');
 console.log('|---|---:|---|---:|---:|');
 const passes = new Map<number, Row[]>();
 for (const r of data.frames) (passes.get(r.event) || passes.set(r.event, []).get(r.event)!).push(r);
 let uid = 0;
 for (const name of Object.keys(variants)) {
-  let accepted = 0, wrongAccepted = 0, rightFlagged = 0, trials = 0;
+  let accepted = 0, wrongAccepted = 0, rightFlagged = 0, rightRed = 0, trials = 0;
   const at: number[] = [];
   for (const [, rows] of passes) {
     rows.sort((a, b) => a.frame - b.frame);
@@ -134,23 +136,24 @@ for (const name of Object.keys(variants)) {
       reads.push({ r, reading: A.read(t, { box: r.box, score: 0.9 }, [], r.t, `rv${uid++}`, true) });
     }
     const run = (exp: ArCandidate) => {
-      let first: Row | null = null, flagged = false;
+      let first: Row | null = null, flagged = false, named = false;
       for (let i = 0; i < reads.length; i++) {
         const now = reads[i].r.t;
         const d = A.decide(reads.slice(0, i + 1).map((x) => x.reading).filter((x) => now - x.at <= 2), now, { ...exp, board }, now);
         if (d.state === 'match' && !first) first = reads[i].r;
-        if (d.state === 'wrong') flagged = true;
+        if (d.state === 'wrong') { flagged = true; if (d.other || d.reason === 'out_of_service') named = true; }
       }
-      return { first, flagged };
+      return { first, flagged, named };
     };
     const pos = run(truth);
     if (pos.first) { accepted++; at.push(pos.first.glyphPx); }
     if (pos.flagged) rightFlagged++;
+    if (pos.named) rightRed++;
     const others = board.filter((c) => !A.sameDisplay(c, truth));
     const picks = [...others.filter((c) => A.lineKey(c.line) === A.lineKey(truth.line)).slice(0, 1),
       ...others.filter((c) => A.destinationSimilarity(c.destination, truth.destination) >= 0.9).slice(0, 1), others[0], others[7 % others.length]];
     for (const w of picks) { trials++; if (run(w).first) wrongAccepted++; }
   }
   at.sort((a, b) => a - b);
-  console.log(`| ${name} | ${accepted}/${passes.size} | ${at.length ? `${at[at.length >> 1]} px, ${at[0]} px` : '-'} | ${wrongAccepted}/${trials} | ${rightFlagged} |`);
+  console.log(`| ${name} | ${accepted}/${passes.size} | ${at.length ? `${at[at.length >> 1]} px, ${at[0]} px` : '-'} | ${wrongAccepted}/${trials} | ${rightFlagged} (${rightRed}) |`);
 }

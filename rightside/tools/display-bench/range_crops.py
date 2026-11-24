@@ -15,7 +15,7 @@ C. What there is to read: for every frame of a tied track, the upper band of the
    The bench's own front end (ocr_frames.py: PP-OCRv5 det + rec, the crop enlarged to 1600 px, at most twice) reads
    every crop; the web's (src/ppocr.ts) reads them in range_eval.mts.
 
-    python -I range_crops.py --bench DIR --video VIDEO --detections det5.jsonl --frames FRAMES/VIDEO --models DIR --out OUT [--fps 5]
+    python -I range_crops.py --bench DIR --video VIDEO --detections det5.jsonl --frames FRAMES/VIDEO --models DIR --out OUT [--fps 5] [--bench-fps 1]
 """
 import argparse, difflib, importlib.util, json, os, sys, unicodedata
 
@@ -107,6 +107,7 @@ def main():
     ap.add_argument("--models", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--fps", type=float, default=5)
+    ap.add_argument("--bench-fps", type=float, default=1, help="frames/s of the labelled bench set (data: 1, data-holdout: 2)")
     a = ap.parse_args()
     spec = importlib.util.spec_from_file_location("ocr_frames", os.path.join(HERE, "ocr_frames.py"))
     assert spec and spec.loader
@@ -141,7 +142,7 @@ def main():
             if not f1 or not f1["vehicles"]:
                 continue
             v1 = max(f1["vehicles"], key=lambda v: v["box"][3])
-            m = int(round((num(name) - 1) * a.fps)) + 1  # same moment at a fps frames/s
+            m = int(round((num(name) - 1) / a.bench_fps * a.fps)) + 1  # same moment at a.fps frames/s
             best = max(((iou(v1["box"], b), (m, tuple(b))) for b in [v["box"] for v in frames5.get(m, {"vehicles": []})["vehicles"]]), default=(0, None))
             if best[0] >= 0.5:
                 tids.add(at[best[1]])

@@ -52,13 +52,15 @@ export const PPOCR_LIMITS = {
 
 // ---------------------------------------------------------------- pixels
 /**
- * Resize an RGBA region (x, y, w, h in source pixels) to outW × outH: bilinear, averaged over k × k samples per output
- * pixel when shrinking (k = the shrink factor, rounded up). Point sampling would alias an LED display's dot grid
- * into gaps that split its digits apart.
+ * Resize an RGBA region (x, y, w, h in source pixels) to outW × outH. Shrinking: bilinear, averaged over k × k samples
+ * per output pixel (k = the shrink factor, rounded up); point sampling would alias an LED display's dot grid into gaps
+ * that split its digits apart. Enlarging (per axis): bicubic (OpenCV's, a = −0.75), as the bench's front end enlarges
+ * small crops; bilinear blurred small glyphs (docs/ar-reading-range.md).
  */
 export function resizeRegion(img: OcrImage, x: number, y: number, w: number, h: number, outW: number, outH: number): OcrImage {
   const out = new Uint8ClampedArray(outW * outH * 4);
   const sx = w / outW, sy = h / outH, W = img.width, H = img.height, d = img.data;
+  if (sx < 1 && sy < 1) return cubic(img, x, y, sx, sy, outW, outH, out);
   const kx = Math.max(1, Math.ceil(sx - 1e-9)), ky = Math.max(1, Math.ceil(sy - 1e-9)), acc = [0, 0, 0, 0];
   for (let oy = 0; oy < outH; oy++) for (let ox = 0; ox < outW; ox++) {
     acc[0] = acc[1] = acc[2] = acc[3] = 0;
@@ -71,6 +73,35 @@ export function resizeRegion(img: OcrImage, x: number, y: number, w: number, h: 
     }
     const o = (oy * outW + ox) * 4, n = kx * ky;
     for (let k = 0; k < 4; k++) out[o + k] = acc[k] / n;
+  }
+  return { data: out, width: outW, height: outH };
+}
+
+/** Keys' cubic kernel with a = −0.75 (OpenCV's INTER_CUBIC). */
+function keys(t: number) {
+  const A = -0.75, u = Math.abs(t);
+  return u <= 1 ? (A + 2) * u ** 3 - (A + 3) * u ** 2 + 1 : u < 2 ? A * u ** 3 - 5 * A * u ** 2 + 8 * A * u - 4 * A : 0;
+}
+function cubic(img: OcrImage, x: number, y: number, sx: number, sy: number, outW: number, outH: number, out: Uint8ClampedArray): OcrImage {
+  const W = img.width, H = img.height, d = img.data;
+  const wx = new Float64Array(4), wy = new Float64Array(4), acc = [0, 0, 0, 0];
+  for (let oy = 0; oy < outH; oy++) {
+    const fy = y + (oy + 0.5) * sy - 0.5, y0 = Math.floor(fy);
+    for (let j = 0; j < 4; j++) wy[j] = keys(fy - (y0 - 1 + j));
+    for (let ox = 0; ox < outW; ox++) {
+      const fx = x + (ox + 0.5) * sx - 0.5, x0 = Math.floor(fx);
+      for (let i = 0; i < 4; i++) wx[i] = keys(fx - (x0 - 1 + i));
+      acc[0] = acc[1] = acc[2] = acc[3] = 0;
+      for (let j = 0; j < 4; j++) {
+        const yy = Math.min(H - 1, Math.max(0, y0 - 1 + j));
+        for (let i = 0; i < 4; i++) {
+          const xx = Math.min(W - 1, Math.max(0, x0 - 1 + i)), p = (yy * W + xx) * 4, wgt = wx[i] * wy[j];
+          for (let k = 0; k < 4; k++) acc[k] += d[p + k] * wgt;
+        }
+      }
+      const o = (oy * outW + ox) * 4;
+      for (let k = 0; k < 4; k++) out[o + k] = acc[k]; // Uint8ClampedArray rounds and clamps
+    }
   }
   return { data: out, width: outW, height: outH };
 }
