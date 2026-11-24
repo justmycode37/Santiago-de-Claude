@@ -15,6 +15,7 @@ import { SETTINGS } from './settings.ts';
 import type { JourneyChangeStep, JourneyStep, JourneyWalkStep } from './app/journey-steps.ts';
 import type { TransportMode } from './settings.ts';
 import type { KanteFloorChange, KanteTimeQuery, KanteWalkDir } from './engine.ts';
+import type { RoutedWalk } from './app/routing.ts';
 
 // ---------------------------------------------------------------- a journey
 
@@ -29,14 +30,10 @@ export interface Journey extends KanteJourney {
    * walk legs. A change at the very same boarding point has no walk.
    */
   parts: JourneyPart[];
-  /** When it starts, ms: the engine's `dep`, or earlier when the first walk is longer on the walking network. */
+  /** When it starts, ms: the engine's `dep`. */
   t0: number;
   /** When it arrives as timetabled, ms: the last ride's arrival plus the walk after it (a later live arrival is the steps'). */
   t1: number;
-  /** routing.ts: the walk before the first ride as the walking network routed it, seconds (the option's row). */
-  accessS?: number;
-  // walked all the way: the network metres its times were set by (retimeWalkConn())
-  _netMetres?: number
 }
 export type JourneyPart = JourneyRide | KanteWalkLeg;
 /** A line as the badges, colours and modes read it (lineLabel(), lineColor(), modeOf()): category "IC", number "8". */
@@ -109,6 +106,8 @@ export interface JourneyEdge {
 /** Where a stop of a ride is (KanteJourney.at()). */
 export interface JourneyPlatformAt {
   ll: LngLat;
+  /** The engine's boarding point (its quay id). */
+  quay?: string;
   /** null: the engine only knows the stop, not the platform or edge. */
   edge: JourneyEdge | null;
   /** The compass direction the vehicle leaves in. */
@@ -116,8 +115,11 @@ export interface JourneyPlatformAt {
 }
 // ---------------------------------------------------------------- KanteJourney (src/engine-journey.ts): journeys
 
-/** A walk as the app keeps a routed one. `steps` are a street router's; the engine's walk has `dirs` instead. */
-export interface KanteRoutedWalk { coords: LngLat[]; steps: null; dist: number | null; dirs: KanteWalkDir[] }
+/** A walk as the app keeps a routed one (RoutedWalk), from the engine's walk. Its guessed ends (approxStart /
+ *  approxEnd) are its approxTo / approxFrom, and `approx` when all of it is a guess (walkParts()). */
+export interface KanteRoutedWalk extends RoutedWalk { steps: null; dirs: KanteWalkDir[] }
+/** The engine found no path: the straight line between the points, with the engine's time for it. */
+export interface KanteStraightWalk extends RoutedWalk { steps: null; approx: true; noPath: true }
 /** The engine's walk in the three fields a step keeps a routed walk in. */
 export interface KanteWalkParts { lines: LngLat[][]; walks: KanteRoutedWalk[]; floors: KanteFloorChange[] }
 
@@ -219,14 +221,14 @@ function at(ride: JourneyRide, k: number): JourneyPlatformAt {
   const exact = q.precision === 'edge' || (q.precision === 'edge-at-station' && !!q.label);
   const edge = exact ? { ref: q.label || '', level: q.level == null ? null : q.level, ll, side: q.side ? q.side.text : '' } : null;
   const b = k === 0 ? ride.legs[0].bearing : null;
-  return { ll, edge, travel: b == null ? null : b };
+  return { ll, edge, travel: b == null ? null : b, quay: q.id };
 }
 
 // ---- Journeys ----
 // A walk shorter than half a minute would round to "0 min" and drop out of the trip; one that has a way
 // to go still counts as a walk
 /** A walk's time as the trip shows it, seconds: at least half a minute when it has a way to go (10 m or more). */
-const shownSecs = (leg: KanteWalk) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
+const shownSecs = (leg: Pick<KanteWalk, 'distanceM' | 'durationS'>) => (leg.distanceM >= 10 ? Math.max(30, leg.durationS) : leg.durationS);
 function journeyOf(j: KanteJourney): Journey {
   const groups: (KanteRideLeg[] | KanteWalkLeg)[] = [];
   let ride: KanteRideLeg[] | null = null;
@@ -238,16 +240,20 @@ function journeyOf(j: KanteJourney): Journey {
       return;
     }
     ride = null;
-    if (leg.kind === 'transfer' && !(leg.distanceM > 0)) return; // changing at the same boarding point: no walk
+    // changing at the very same boarding point in no time: no walk (a lift between two platforms at one point has
+    // its time and its directions: kept)
+    if (leg.kind === 'transfer' && !(leg.distanceM > 0) && !(leg.durationS > 0) && !(leg.steps && leg.steps.length)) return;
     groups.push(leg);
   });
   const parts = groups.map((g): JourneyPart => (Array.isArray(g) ? rideOf(g) : g));
-  // the arrival as timetabled (the pill marks a later live arrival): the last ride's, plus the walk after it
+  // the arrival as timetabled (the pill marks a later live arrival): the last ride's, plus the seconds of the walk
+  // after it, to the nearest minute
   let arrival = j.arr;
   const last = parts.map((p) => p.type === 'ride').lastIndexOf(true);
   if (last >= 0) {
     arrival = (parts[last] as JourneyRide).to.arr!;
-    parts.slice(last + 1).forEach((p) => { arrival += Math.round(shownSecs(p as KanteWalkLeg) / 60) * 60; });
+    parts.slice(last + 1).forEach((p) => { arrival += shownSecs(p as KanteWalkLeg); });
+    arrival = Math.round(arrival / 60) * 60;
   }
   return { ...j, parts, t0: j.dep * 1000, t1: arrival * 1000 };
 }
@@ -366,6 +372,18 @@ async function more(o: JourneyOptions | null | undefined, dir: 'earlier' | 'late
 function walkParts(leg: KanteWalk): KanteWalkParts {
   const coords = leg.geometry;
   const whole = (x: number | null | undefined) => Math.round(x || 0);
+  // Its guessed ends (approxStart / approxEnd: across open ground, or out of a building through no known door):
+  // points 0 … to and from … last. The routed part between them is r0 … r1; none (all of it guessed) when the
+  // guesses meet, or when what is left between them neither goes anywhere nor changes floor (a lift is two points at
+  // one place on two floors: routed). (A walk without a path, `approximate`, is all a guess.)
+  const last = coords.length - 1, path = !leg.approximate;
+  const to = path && leg.approxStart != null && leg.approxStart > 0 ? Math.min(leg.approxStart, last) : null;
+  const from = path && leg.approxEnd != null && leg.approxEnd < last ? Math.max(leg.approxEnd, 0) : null;
+  const r0 = to != null ? to : 0, r1 = from != null ? from : last;
+  const floors = (leg.levels || []).slice(r0, r1 + 1).filter((l) => l != null);
+  const climbs = floors.some((l) => whole(l) !== whole(floors[0]))
+    || (leg.steps || []).some((s) => s.from >= r0 && s.to <= r1 && s.toLevel != null && whole(s.toLevel) !== whole(s.level));
+  const all = (to != null || from != null) && (r1 <= r0 || (!climbs && metres(coords.slice(r0, r1 + 1)) < 0.5));
   const dirs: KanteWalkDir[] = [];
   (leg.steps || []).forEach((s) => {
     if (s.kind === 'arrive') return; // the page ends the list with its own "Arrive at …"
@@ -373,8 +391,11 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     const change = vertical && s.toLevel != null && whole(s.toLevel) !== whole(s.level);
     const down = /-down$/.test(s.kind) || (change && s.toLevel! < (s.level || 0));
     const up = /-up$/.test(s.kind) || (change && !down);
-    const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text, coords: coords.slice(s.from, s.to + 1) };
+    const d: KanteWalkDir = { kind: down ? 'stairs-down' : up ? 'stairs-up' : !dirs.length ? 'depart' : 'walk', text: s.text,
+      coords: coords.slice(Math.max(s.from, r0), Math.min(s.to, r1) + 1) }; // the engine's directions are of the routed part
     if (change) { d.from = whole(s.level); d.to = whole(s.toLevel); }
+    // one that went somewhere, but only along a guess (none of its way left on the routed part): the guess says it
+    if (s.to > s.from && d.coords.length < 2 && !change && (to != null || from != null)) return;
     dirs.push(d);
   });
   // A change with an official minimum change time is timed by that, while the engine's path runs between the
@@ -382,34 +403,82 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   // stations; cap_by_official in the engine). Metres that contradict the minutes are left out.
   const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
   const dist = leg.kind === 'transfer' && pathS > leg.durationS + 150 ? null : leg.distanceM;
-  return { lines: [coords], walks: [{ coords, steps: null, dist, dirs }],
+  // its guessed ends, said as a guess, each over its own points ("Walk about 30 m where no way is mapped", "Then
+  // about 60 m …"); all of it guessed: that one line instead of the engine's directions
+  const about = (cs: LngLat[]) => `about ${Math.max(10, Math.round(metres(cs) / 10) * 10)} m where no way is mapped`;
+  if (all) dirs.splice(0, dirs.length, { kind: 'depart', text: `Walk ${about(coords)}`, coords });
+  else {
+    if (to != null) {
+      if (dirs[0] && dirs[0].kind === 'depart') dirs[0].kind = 'walk';
+      dirs.unshift({ kind: 'depart', text: `Walk ${about(coords.slice(0, to + 1))}`, coords: coords.slice(0, to + 1) });
+    }
+    if (from != null) dirs.push({ kind: 'walk', text: `Then ${about(coords.slice(from))}`, coords: coords.slice(from) });
+  }
+  // the building at the end: which door, or that none is step-free
+  const door = leg.door ? { ll: [leg.door.lon, leg.door.lat] as LngLat, type: leg.door.kind, addr: leg.door.addr || '' } : null;
+  if (leg.noStepFreeDoor) dirs.push({ kind: 'walk', text: 'No step-free entrance is mapped for this building', coords: [] });
+  if (door) dirs.push({ kind: 'walk', text: door.addr ? `In at the entrance, ${door.addr}` : door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [door.ll] });
+  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door,
+    // the guessed ends (drawn dashed, not counted as progress along the walk: snapToTrip() in tracking.ts), and the
+    // stretches under a roof
+    approxTo: to, approxFrom: from, ...(all ? { approx: true } : {}),
+    covered: (leg.covered || []).map((c) => ({ kind: c.kind, coords: coords.slice(c.from, c.to + 1) })) };
+  return { lines: [coords], walks: [walk],
     floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! })) };
 }
+// Metres along a line (flat, fine over a walk)
+function metres(cs: LngLat[]) {
+  let m = 0;
+  for (let i = 1; i < cs.length; i++) {
+    const k = Math.cos(cs[i][1] * Math.PI / 180);
+    m += Math.hypot((cs[i][0] - cs[i - 1][0]) * k, cs[i][1] - cs[i - 1][1]) * 111320;
+  }
+  return m;
+}
+// As routeWalk() keeps it: routed, or (no path found) the straight line with the engine's time for it all the same
+/** The engine's walk as routeWalk() keeps it; without a path (`approximate`), the straight line with its time, its
+ *  metres and its written direction ("Walk about 390 m to …"). */
+function routed(leg: KanteWalk): ((KanteRoutedWalk | KanteStraightWalk) & { floors: KanteFloorChange[] }) | null {
+  if (!leg.geometry || leg.geometry.length < 2) return null;
+  if (leg.approximate) return { coords: leg.geometry, steps: null, dist: leg.distanceM, dirs: walkParts(leg).walks[0].dirs, approx: true, noPath: true, floors: [], walkS: leg.durationS };
+  const p = walkParts(leg);
+  return { ...p.walks[0], floors: p.floors, walkS: leg.durationS };
+}
 // A walk or change step gets the engine's walk: its time, and its path, directions and floor changes when the
-// engine has routed it (an approximate one is left to the page's own walking routers)
+// engine has routed it (its ends perhaps only guessed); an approximate one stays a dashed straight line, with the
+// engine's metres and direction
 /** Gives a walk or change step the engine's walk: its time, and its path, directions and floor changes when it has one. */
 function setWalk(st: JourneyWalkStep | JourneyChangeStep, leg: KanteWalk) {
   st.walkS = leg.durationS; // to the second, for the time to spare at a change
   st.kanteWalk = !leg.approximate && !!leg.geometry && leg.geometry.length > 1;
   if (st.kanteWalk) Object.assign(st, walkParts(leg));
+  else if (leg.approximate && st.lines.length === 1) {
+    const r = routed(leg);
+    if (r) st.walks = [{ ...r, coords: st.lines[0] }]; // (drawn between the platform and the place, as before)
+  }
 }
 
 // ---- Live ----
 // After live data: a platform change moves the boarding (or alighting) point. Put the ride's ends, and the
 // walks that lead to and from them, on the new one. changed() is called whenever a line on the map has moved.
-const requayed = new WeakMap<JourneyStep, LngLat[][]>(); // the walk requay() last moved, by the lines it drew
 /**
  * After live data: moves the rides' ends, and the walks to and from them, to the boarding points now in use.
- * changed() is called whenever a line on the map has moved (also later, when a walk has been routed again).
+ * changed() is called whenever a line on the map has moved; refineWalks() then asks the engine for the moved walks.
  */
 function requay(steps: JourneyStep[], changed: () => void) {
   const same = (a: LngLat | null | undefined, b: LngLat | null | undefined) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
   const lastOf = (st: JourneyStep) => { const l = st.lines && st.lines[st.lines.length - 1]; return l && l[l.length - 1]; };
   const sameEdge = (x: JourneyPlatformAt, y: JourneyPlatformAt | null | undefined) => {
     const e = x.edge, f = y && y.edge;
-    return (e ? e.ref : null) === (f ? f.ref : null) && (e ? e.level : null) === (f ? f.level : null);
+    return (e ? e.ref : null) === (f ? f.ref : null) && (e ? e.level : null) === (f ? f.level : null) && x.quay === (y && y.quay);
   };
   const rewalk = new Map<JourneyWalkStep | JourneyChangeStep, [LngLat, LngLat]>(); // step → [from, to]
+  // the floors a walk's two ends are on: the platforms of the rides before and after it (street level without one)
+  const level = (x: JourneyPlatformAt | null | undefined) => (x && x.edge && x.edge.level) || 0;
+  const floorsOf = (st: JourneyStep) => {
+    const i = steps.indexOf(st), before = steps[i - 1], after = steps[i + 1];
+    return [level(before && before.type === 'ride' ? before.arrAt : null), level(after && after.type === 'ride' ? after.depAt : null)];
+  };
   let moved = false;
   steps.forEach((st, i) => {
     if (st.type !== 'ride') return;
@@ -417,8 +486,18 @@ function requay(steps: JourneyStep[], changed: () => void) {
     if (same(d.ll, st.depLL) && same(a.ll, st.arrLL) && sameEdge(d, st.depAt) && sameEdge(a, st.arrAt)) return;
     const prev = steps[i - 1], next = steps[i + 1], final = steps[steps.length - 1];
     moved = true;
-    // the same point, another platform (its name or floor): the walks stay, and are routed again to it (refineWalks())
-    if (same(d.ll, st.depLL) && same(a.ll, st.arrLL)) { Object.assign(st, { depAt: d, arrAt: a }); return; }
+    // an end at the same point, another platform (its name or floor): the walks stay, and are routed again to it
+    // (refineWalks()); a change without a walk there (one platform beside the other) gets one if the platform is now
+    // on another floor, whether or not the ride's other end moves too
+    const floorOnly = (w: JourneyStep | undefined) => {
+      if (w && w.type === 'change' && !w.lines.length && w.points[0] && w.points[1] && !rewalk.has(w)) rewalk.set(w, [w.points[0], w.points[1]]);
+    };
+    if (same(d.ll, st.depLL) && !sameEdge(d, st.depAt)) floorOnly(prev);
+    if (same(a.ll, st.arrLL) && !sameEdge(a, st.arrAt)) floorOnly(next);
+    if (same(d.ll, st.depLL) && same(a.ll, st.arrLL)) {
+      Object.assign(st, { depAt: d, arrAt: a });
+      return;
+    }
     if (!same(d.ll, st.depLL) && prev && (prev.type === 'walk' || prev.type === 'change')) {
       const from = prev.type === 'change' ? prev.points[0] : prev.lines[0] && prev.lines[0][0];
       if (prev.type === 'change') prev.points[1] = d.ll; else prev.board = d.ll;
@@ -441,29 +520,18 @@ function requay(steps: JourneyStep[], changed: () => void) {
     Object.assign(st, { depAt: d, depLL: d.ll, arrAt: a, arrLL: a.ll });
   });
   rewalk.forEach(([a, b], st) => {
-    // straight to the new point at once, then the engine's way there when it has one
-    const line: LngLat[] = [a, b], lines = same(a, b) ? [] : [line];
+    // straight to the new point at once; refineWalks() then asks the engine for the way there and its time (no walk
+    // only when both ends are one point on one floor)
+    const [fa, fb] = floorsOf(st);
+    const lines = same(a, b) && fa === fb ? [] : [[a, b]];
     Object.assign(st, { lines, walks: undefined, floors: undefined, kanteWalk: false });
-    requayed.set(st, lines);
-    if (!lines.length) { // no walk left: both rides at one point
+    if (!lines.length) { // no walk left: both rides at one point (nothing to estimate)
       st.walkS = 0;
+      st.walkEst = false;
       if (st.type === 'change') st.walkMin = 0; else st.min = 0;
-      return;
     }
-    if (!K || !K.available()) return;
-    K.walk({ from: { lat: a[1], lon: a[0] }, to: { lat: b[1], lon: b[0] }, options: options() }).then((leg) => {
-      if (!steps.includes(st) || requayed.get(st) !== lines) return; // moved again since
-      // its time always; its path only while the straight line is still drawn (a station model's or the
-      // network's way, in already, stays)
-      if (st.lines === lines && lines[0] === line && line.length === 2) setWalk(st, leg);
-      else st.walkS = leg.durationS;
-      const min = Math.round(shownSecs(leg) / 60);
-      if (st.type === 'change') st.walkMin = min; else st.min = min;
-      if (st.type === 'walk' && !st.final && st.t1 != null) st.t0 = st.t1 - leg.durationS * 1000; // be there at the same time
-      changed();
-    }).catch(() => {});
   });
   if (moved) changed();
 }
 
-export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, applyTrip, requay, options };
+export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options };

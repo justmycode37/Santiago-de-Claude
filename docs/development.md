@@ -29,7 +29,7 @@ npm run build   # dist/ once, without the dev server
 | `src/types/*.d.ts` | nothing: the global types that belong to no module (see below) |
 | `*.html` | copied, with each line `<!-- build: src/… -->` replaced by that script |
 | `*.css`, the `.js` files in the repository root (generated data, `config.js`) | copied as they are |
-| `event-images/`, `stop-images/`, `stations3d/`, `demo-media/`, `walkgraph/` | copied as they are |
+| `event-images/`, `stop-images/`, `stations3d/`, `demo-media/` | copied as they are |
 
 `scripts/build.mts` does this; its `ENTRIES` are the modules a page loads, its `SCRIPTS` the plain scripts (a page
 names both by a marker, and the build writes in their files' names). Add `--release` for exactly what is published:
@@ -109,8 +109,8 @@ before) and the page's script itself; without that, the first visit's cover stil
 `window` holds only what is used from outside the bundle:
 
 - the generated data files and `config.js`, plain scripts that put themselves on `window` (`PLATFORM_DATA`,
-  `MAP_PLACES`, `BERN_EVENTS`, `STATION3D`, …), and the two callbacks the data tiles call when they load
-  (`WALKGRAPH_TILE`, `STOP_IMAGES_TILE`);
+  `MAP_PLACES`, `BERN_EVENTS`, `STATION3D`, …), and the callback the stop images' tiles call when they load
+  (`STOP_IMAGES_TILE`);
 - `APP_LANG` from `translate.js`, which runs before the bundle;
 - `EARLY_GEO`, `EARLY_STYLE` and `scriptFailed` from the scripts in the `<head>` of `index.html` (the location and the
   map style, started before anything else has loaded; what to do when the page's script did not load), and

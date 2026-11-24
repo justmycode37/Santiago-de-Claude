@@ -2,6 +2,6 @@
   // The data builders and the tests. Node runs them as they are (node tools/build-map-places.mts).
   // The few that import a module of the page that uses the DOM are checked with tsconfig.page.json.
   "extends": "../scripts/tsconfig.json",
-  "include": [".", "../src/types/data.d.ts", "../src/types/events.d.ts", "../src/types/station-model.d.ts", "../src/types/walkroute.d.ts", "../src/types/kante.d.ts"],
-  "exclude": ["test_walkroute.mts", "test_walkrefine.mts", "sim_indoorloc.cts", "walk-eval"]
+  "include": [".", "../src/types/data.d.ts", "../src/types/events.d.ts", "../src/types/station-model.d.ts", "../src/types/kante.d.ts"],
+  "exclude": ["test_walkrefine.mts", "sim_indoorloc.cts"]
 }

@@ -112,8 +112,8 @@ accepted the right vehicle and warned "wrong vehicle" for 25–49 % of right veh
   own floor: e.g. Europaplatz platform 1 at −6.1 m, platforms 3/4 and Brünnen at +5.0 m, Bern RBS at −8.5 m. The
   rider is assumed to start the camera at street level (level 0), and ARKit tracks height changes from there.
 - **Not used**: the `stop-images/` photo fingerprints (the most similar photo of the same stop shows the right edge
-  25 % of the time across 7,916 stops, below the 31 % of a random photo), and `walkgraph/` (a routing network, not on
-  `main` yet; no per-edge refs or travel directions — useful later for the walking route itself and exact kerbs).
+  25 % of the time across 7,916 stops, below the 31 % of a random photo), and `walkgraph/` (the web app's former walking
+  network, since replaced by the Kante engine's walks; no per-edge refs or travel directions).
 
 ### Review fixes (cross-provider review of #15 and #24)
 

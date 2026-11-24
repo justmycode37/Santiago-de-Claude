@@ -6,13 +6,13 @@ import { INK } from './sprites.ts';
 import { journeyProgress, stopKms } from './tracking.ts';
 import { levelShort, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
 import { distKm, lengthKm } from './routing.ts';
-import { searchState } from './state.ts';
+import { journey, searchState } from './state.ts';
+import { SETTINGS } from '../settings.ts';
 import { KANTE } from '../engine.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import type { Journey, JourneyPart, JourneyPlatformAt, JourneyRide } from '../engine-journey.ts';
-import type { WalkEnd } from '../walkroute.ts';
 import type { RouteFeature, RouteFeatureProps } from './journey-map.ts';
-import type { RoutedWalk } from './routing.ts';
+import type { RoutedWalk, WalkEnd } from './routing.ts';
 import type { KanteFloorChange, KanteWalkDir } from '../engine.ts';
 
 // ---------------------------------------------------------------- lines
@@ -68,7 +68,10 @@ export interface JourneyFootStep extends JourneyStepBase {
   // The engine's walk (KanteJourney.setWalk() and requay()):
   /** Its time on foot, to the second. */
   walkS?: number;
-  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes. */
+  /** …only an estimate: routed again, it had no answer (its straight line, timed as the engine times one). */
+  walkEst?: boolean;
+  /** The engine has routed it: `lines`, `walks` and `floors` are its path, directions and floor changes (its ends
+   *  perhaps only guessed: the walk's approxTo / approxFrom). */
   kanteWalk?: boolean;
   // what its ends are, the revision of its route, the lines its last answer drew (a walk moved since has new ones), and for the walk to the destination the place it leads to
   ends?: [WalkEnd, WalkEnd][];
@@ -76,6 +79,9 @@ export interface JourneyFootStep extends JourneyStepBase {
   _netFor?: LngLat[][];
   /** …and the ends and platforms it was routed for (walkSig()). */
   _netSig?: string;
+  /** …and what the last request was for (an answer may still be on its way). */
+  _askFor?: LngLat[][];
+  _askSig?: string;
   toLL?: LngLat;
 }
 /** On foot to the first stop, or (final) from the last stop to the destination. A trip without a ride is one final walk. */
@@ -233,6 +239,21 @@ export function dayLabel(iso: string | number) {
   if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
+// "< 1 min", "23 min", "1 h 05 min"; never "0 min" for a time that is not zero
+export function kDur(s: number) {
+  if (s > 0 && s < 60) return '< 1 min';
+  const m = Math.max(0, Math.round(s / 60));
+  if (m < 60) return `${m} min`;
+  const hh = Math.floor(m / 60), r = m % 60;
+  return r ? `${hh} h ${String(r).padStart(2, '0')} min` : `${hh} h`;
+}
+// where seconds decide: "45 s", "1 min 15 s", then whole minutes rounded down
+export function kDurExact(s: number) {
+  s = Math.max(0, Math.round(s));
+  if (s < 60) return `${s} s`;
+  if (s < 90) return s % 60 ? `1 min ${s % 60} s` : '1 min';
+  return kDur(Math.floor(s / 60) * 60);
+}
 // ---- A stop of a ride: the engine's call there (KanteStopCall: its boarding point, times, delays) ----
 export type StopTime = 'arr' | 'dep';
 export const stopName = (c: KanteStopCall) => c.quay.stationName;
@@ -262,17 +283,19 @@ function placeRide(s: JourneyRide) {
 }
 
 // What the end of a walk at a platform is, for the walking router: the platform, on its floor, by its number
-const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => (pa && pa.edge
-  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true });
-// After a live platform change: the walks' ends follow the rides' new boarding points (one line per walk, as
-// engine-journey.ts leaves it)
+const platformEndOf = (pa: JourneyPlatformAt | null | undefined): WalkEnd => ({ ...(pa && pa.edge
+  ? { platform: true, level: pa.edge.level || 0, ref: platformKey(pa.edge.ref) || null } : { platform: true }), ...(pa && pa.quay ? { quay: pa.quay } : {}) });
+// After a live platform change: the walks' ends follow the rides' new boarding points, one pair for each of a
+// walk's lines. Where a walk is drawn in more lines than it has ends for (a station model's way and the streets
+// before or after it), the lines meet where the model's paths begin: points taken as they are.
 export function syncEnds(steps: JourneyStep[]) {
   steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
-    const old = st.ends || [];
+    const old = st.ends || [], n = Math.max(1, (st.lines || []).length);
     const from = st.prevRide ? platformEndOf(st.prevRide.arrAt) : (old[0] || [])[0] || {};
     const to = st.nextRide ? platformEndOf(st.nextRide.depAt) : (old[old.length - 1] || [])[1] || {};
-    st.ends = (st.lines || []).length <= 1 ? [[from, to]] : old;
+    const joint = (k: number, side: 0 | 1): WalkEnd => (old.length === n ? old[k][side] : { exact: true });
+    st.ends = Array.from({ length: n }, (_, k): [WalkEnd, WalkEnd] => [k === 0 ? from : joint(k, 0), k === n - 1 ? to : joint(k, 1)]);
   });
 }
 
@@ -340,7 +363,8 @@ export function buildSteps(conn: Journey, destTitle: string) {
   });
   const w = flushWalk();
   const end = lastRide ? at.get(lastRide)!.arr : null;
-  if (w.min > 0 || !lastRide) {
+  // (a walk of a few seconds to the destination's door stays: its door is where to go in)
+  if (w.min > 0 || !lastRide || (w.leg && w.leg.door)) {
     const t0 = w.start != null ? w.start : lastRide ? planMs(lastRide.to, 'arr')! : conn.t0;
     const last = w.lines[w.lines.length - 1];
     const st: JourneyWalkStep = { type: 'walk', min: w.min, lines: w.lines, ends: w.ends, start: w.start, toName: destTitle, final: true,
@@ -357,7 +381,8 @@ export function buildSteps(conn: Journey, destTitle: string) {
   return steps;
 }
 
-// Time every ride, change and the last walk by the live forecasts (run again whenever they change)
+// Time every ride, change and the last walk by the live forecasts (run again whenever they change). The last walk
+// ends its seconds after the last ride's arrival, to the nearest minute (the seconds added first, then rounded).
 export function applyLiveTimes(steps: JourneyStep[]) {
   let end: number | null = null;
   steps.forEach((st) => {
@@ -369,10 +394,38 @@ export function applyLiveTimes(steps: JourneyStep[]) {
       st.t0 = liveMs(st.prev.to, 'arr');
       st.t1 = st.walkMin > 0 ? st.t0! + st.walkMin * 60000 : liveMs(st.next.from, 'dep');
     } else if (st.type === 'walk' && st.final) {
-      if (st.from) { st.t0 = liveMs(st.from.to, 'arr'); st.t1 = st.t0! + st.min * 60000; }
+      if (st.from) {
+        st.t0 = liveMs(st.from.to, 'arr');
+        st.t1 = Math.round((st.t0! + (st.walkS != null ? st.walkS : st.min * 60) * 1000) / 60000) * 60000;
+      }
       end = st.t1;
     } else if (st.type === 'arrive' && end != null) st.time = end;
   });
+}
+
+// When the journey leaves as it now stands: when its first walk starts (a walk routed again moves it), else the
+// timetable's departure
+export function journeyStart() {
+  const first = journey.steps[0];
+  return first && first.type === 'walk' && first.t0 != null ? first.t0 : journey.conn!.t0;
+}
+// When the journey arrives as it now stands: the arrival step's time (the live times', and the last walk's as routed
+// again), else the timetable's
+export function journeyEnd() {
+  const a = journey.steps[journey.steps.length - 1];
+  return a && a.time != null ? a.time : journey.conn!.t1;
+}
+// Spare time on a change: from getting off to the next departure, less the walk
+export function spareOf(st: JourneyChangeStep) {
+  const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
+  const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
+  const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
+  const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
+  const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
+  // the walk's time an estimate (no router answered for the platform it now leads to): said so, in whole minutes
+  const est = !!st.walkEst;
+  const text = !est ? `${kDurExact(s)} to spare` : s < 60 ? 'Less than a minute to spare' : `About ${kDur(Math.floor(s / 60) * 60)} to spare`;
+  return { s, level, extra, short, est, easy: level === 'ok' && !short && !est, text };
 }
 
 export function stepCoords(st: JourneyStep) {
@@ -437,6 +490,11 @@ function signId(st: JourneyRideStep) {
   return `sg|l|${label}|${label ? platformWord(j) : ''}`;
 }
 
+/** The routed points a..b of a walk's line of n points; before a and after b its guessed ends (approxTo / approxFrom). */
+export function routedSpan(w: RoutedWalk, n: number): [a: number, b: number] {
+  const a = w.approxTo != null && w.approxTo < n - 1 ? w.approxTo : 0;
+  return [a, w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : n - 1];
+}
 export function stepFeatures(steps: JourneyStep[]) {
   const f: RouteFeature[] = [];
   const add = (geometry: RouteFeature['geometry'], properties: RouteFeatureProps) => f.push({ type: 'Feature', properties, geometry });
@@ -447,7 +505,7 @@ export function stepFeatures(steps: JourneyStep[]) {
   const doneLine = (cs: LngLat[] | undefined, kind: 'ride' | 'walk', step: number, from: number, extra?: Partial<RouteFeatureProps>) => { // from: km into its step where this line starts
     if (!cs || cs.length < 2) return;
     if (!p || step > p.i) return line(cs, kind, step, extra);
-    const len = lengthKm(cs), k = p.kmIn - from;
+    const len = lengthKm(cs), k = (p.walkedKmIn != null ? p.walkedKmIn : p.kmIn) - from; // (along a guess, up to where it begins)
     if (step < p.i || k >= len) return line(cs, kind, step, { ...extra, done: true });
     if (k <= 0) return line(cs, kind, step, extra);
     const [a, b] = splitLine(cs, k / len);
@@ -462,8 +520,7 @@ export function stepFeatures(steps: JourneyStep[]) {
       const w = st.walks && st.walks[k];
       if (!w || w.approx) doneLine(l, 'walk', i, from, { approx: true });
       else {
-        const a = w.approxTo != null && w.approxTo < l.length - 1 ? w.approxTo : 0;
-        const b = w.approxFrom != null && w.approxFrom >= a ? w.approxFrom : l.length - 1;
+        const [a, b] = routedSpan(w, l.length);
         let at = from;
         const pieces: [from: number, to: number, guess: boolean][] = [[0, a, true], [a, b, false], [b, l.length - 1, true]];
         pieces.forEach(([x, y, guess]) => {

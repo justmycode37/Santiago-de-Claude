@@ -60,8 +60,6 @@ export type SettingsChangedBy = 'auto';
 export type SettingsChangeListener = (patch: Partial<Settings>, by: SettingsChangedBy | undefined, before: Settings) => void;
 /** The journey options the 3D station view's router takes (station-route.ts). */
 export type JourneySettings = Pick<Settings, 'stepFree' | 'fewerStairs' | 'noEscalators' | 'wheelchair' | 'walkKmh'>;
-/** Valhalla pedestrian costing options: route for a wheelchair, or keep away from steps. */
-export type WalkCosting = { type: 'wheelchair' } | { step_penalty: number };
 
 const KEY = 'app-settings';
 const MODES: TransportMode[] = ['train', 'tram', 'bus', 'ship', 'cableway'];
@@ -171,15 +169,6 @@ const impliedBy: Partial<Record<FlagKey, () => boolean>> = {
 const eventTags = () => (Object.keys(EVENT_TAGS) as EventKey[]).filter((k) => state[k]).flatMap((k) => EVENT_TAGS[k]);
 // Map groups the events button shows, e.g. ['events', 'toilets', …]
 const mapGroups = () => LAYER_KEYS.filter((k) => !state.mapHidden.includes(k));
-
-// Valhalla pedestrian costing for walks, or null for the normal walking router.
-// OpenStreetMap maps escalators as moving steps, so avoiding escalators means avoiding steps.
-function walkCosting(): WalkCosting | null {
-  const s = effective();
-  if (s.stepFree) return { type: 'wheelchair' };
-  if (s.fewerStairs || s.noEscalators) return { step_penalty: 120 };
-  return null;
-}
 
 // The transport types to travel with, or [] for all (engine-journey.ts turns them into the engine's modes)
 const transportations = () => state.modes || [];
@@ -536,8 +525,6 @@ export const SETTINGS = {
   eventTags,
   /** The map groups the events button shows, in the order of MAP_LAYERS.GROUPS. */
   mapGroups,
-  /** How walks are to be routed, or null for the normal walking router. */
-  walkCosting,
   /** The transport types to travel with (KanteJourney.options() turns them into the engine's modes); [] = all. */
   transportations,
   /** The settings with the accessibility options worked out (wheelchair → step-free → fewer stairs, no escalators). */

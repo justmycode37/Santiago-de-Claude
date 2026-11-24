@@ -88,6 +88,9 @@ export const tracking = {
   geoVersion: 1,
   /** GPS progress: { i (step), kmIn (km into it), km (into the trip), d (m off the line), off, missed, arrived }. */
   track: null as TrackState | null,
+  /** The steps of the trip you have arrived at for good (trackOnce()): kept through a gap in GPS, until another trip
+   *  is opened (its steps are new ones). */
+  arrivedAt: null as JourneyStep[] | null,
   /** The step GPS last moved the cards to. */
   autoStep: 0,
   /** When a step was last picked by hand. */
