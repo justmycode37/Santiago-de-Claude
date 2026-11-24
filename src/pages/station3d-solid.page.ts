@@ -10,7 +10,7 @@ declare global {
 interface SolidPageElements {
   view: HTMLElement; title: HTMLElement; journey: HTMLSelectElement; sum: HTMLElement; floors: HTMLElement;
   stepText: HTMLElement; stepMeta: HTMLElement; attrib: HTMLElement; fail: HTMLElement;
-  prev: HTMLButtonElement; next: HTMLButtonElement; play: HTMLButtonElement; wholeBtn: HTMLButtonElement; stretch: HTMLButtonElement;
+  prev: HTMLButtonElement; next: HTMLButtonElement; play: HTMLButtonElement; pov: HTMLButtonElement; wholeBtn: HTMLButtonElement; stretch: HTMLButtonElement;
 }
 /** A journey of the menu: its label, its two ends and its preferences (comma-separated), as in the page's address. */
 type SolidPreset = [label: string, from: string, to: string, prefs: string];
@@ -91,9 +91,13 @@ $('prev').onclick = () => view!.prev();
 $('next').onclick = () => view!.route && view!.next();
 $('wholeBtn').onclick = () => view!.whole();
 $('play').onclick = () => (view!.playing ? view!.pause() : view!.play());
+$('pov').onclick = () => { if (view!.povOn) view!.pov(false); else { view!.pov(true); view!.play(); } };
 $('stretch').onclick = () => { const s = view!.stretch > 1.5 ? 1 : 2.2; view!.setStretch(s); $('stretch').textContent = `↕ ${s}×`; };
 
-function sync({ route, step, focusLevel, playing }: SolidChange) {
+function sync({ route, step, focusLevel, playing, pov }: SolidChange) {
+  $('pov').setAttribute('aria-pressed', pov ? 'true' : 'false');
+  $('pov').classList.toggle('on', !!pov);
+  $('pov').disabled = !route || !!route.same;
   $('play').textContent = playing ? '❚❚' : '▶';
   $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play the way');
   $('play').disabled = !route || !!route.same;

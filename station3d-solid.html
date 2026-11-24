@@ -69,6 +69,13 @@
     .sx-crowd-1 { color: #2fbf71; } .sx-crowd-2 { color: #f2a531; } .sx-crowd-3 { color: #ff5a5f; }
     .sx-crowd-1 s:nth-child(-n+1), .sx-crowd-2 s:nth-child(-n+2), .sx-crowd-3 s { opacity: 1; }
     .sx-board { background: var(--route); color: #14161a; border-color: #14161a; font-size: 13px; font-weight: 800; }
+    .sx-lift { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(12,14,18,.62); pointer-events: none; }
+    .sx-lift[hidden] { display: none; }
+    .sx-lift-car { min-width: 200px; padding: 18px 24px; border-radius: 18px; background: #14161a; color: #ffc928; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
+    .sx-lift-arrow { font-size: 34px; line-height: 1; }
+    .sx-lift-now { font-size: 46px; font-weight: 800; line-height: 1.1; letter-spacing: .02em; }
+    .sx-lift-to { margin-top: 6px; font-size: 14px; color: #e8e8e8; }
+    .sx-lift-to b { color: #fff; }
     .attrib { position: fixed; left: 14px; bottom: 2px; font-size: 10px; color: var(--muted); z-index: 4; }
     @media (max-width: 480px) { #top { right: 70px; } #stepText { font-size: 16px; } }
     #fail { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: var(--bg); }
@@ -94,6 +101,7 @@
       <button class="btn" id="prev" aria-label="Previous step">‹</button>
       <button class="btn" id="next" aria-label="Next step">Next ›</button>
       <button class="btn" id="play" aria-label="Play the way">▶</button>
+      <button class="btn" id="pov" aria-label="Walk it in first person" aria-pressed="false">👁</button>
       <span class="grow"></span>
       <button class="btn" id="wholeBtn">Whole way</button>
       <button class="btn" id="stretch" title="Vertical stretch" aria-label="Vertical stretch">↕ 2.2×</button>

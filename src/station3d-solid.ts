@@ -36,7 +36,7 @@ const POI_NAME: Record<string, string> = { tickets: 'Tickets', toilets: 'Toilets
 /** An end of the way, as the router takes it; none: no way is planned (the station is only shown). */
 type SolidEnd = StationRouteEndpoint | null | undefined;
 /** What onChange is told: the way (if any), the step shown (-1: the whole way) and the floor picked (if one is). */
-export interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null; playing?: boolean }
+export interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null; playing?: boolean; pov?: boolean }
 /** Where you are, as the view shows it (setUser): onUser gets it at every fix. */
 export interface SolidUserState {
   visible: boolean; outside?: boolean; far?: number; x?: number; y?: number;
@@ -128,6 +128,11 @@ export async function open(opts: SolidOptions) {
   const labelsEl = document.createElement('div');
   labelsEl.className = 'sx-labels';
   mount.appendChild(labelsEl);
+  // first person in a lift: what its display would say (the eye would only see the inside of the car)
+  const liftEl = document.createElement('div');
+  liftEl.className = 'sx-lift';
+  liftEl.hidden = true;
+  mount.appendChild(liftEl);
 
   // the corridor cutaway: every architecture material discards fragments above the route, near it
   const CUT = {
@@ -174,10 +179,10 @@ export async function open(opts: SolidOptions) {
   const pal = () => dark()
     ? { bg: 0x101317, top: 0x5a554c, deep: 0x2d3a4d, edge: 0x0a0c0f, wall: 0x6d7480, kerb: 0x1b2027, glass: 0x9fc2e6,
         track: 0x1a1d22, rail: 0x6b717a, step: 0xb9b2a5, riser: 0x55524c, room: 0x6b6f86, outline: 0x8a94a3,
-        truss: 0x3d434c, handrail: 0x0d0f12, glassEdge: 0x7f9fc4 }
+        truss: 0x3d434c, handrail: 0x0d0f12, glassEdge: 0x7f9fc4, povWall: 0x4a4f58 }
     : { bg: 0xeef1f4, top: 0xe9e2d4, deep: 0x8e9cb0, edge: 0x3a4250, wall: 0xf7f5f0, kerb: 0x6a7180, glass: 0x7fb2e5,
         track: 0x50545b, rail: 0x9aa0a8, step: 0xf2ece0, riser: 0x9c9384, room: 0xd9dcef, outline: 0x56606e,
-        truss: 0xaeb5bf, handrail: 0x2a2f37, glassEdge: 0x5d8fc4 };
+        truss: 0xaeb5bf, handrail: 0x2a2f37, glassEdge: 0x5d8fc4, povWall: 0xe4e1da };
   type SolidPalette = ReturnType<typeof pal>;
   function levelColour(id: number, P: SolidPalette) {
     // warm stone at the top, cooler and darker going down; floors above 0 lighter still
@@ -270,10 +275,12 @@ export async function open(opts: SolidOptions) {
   const keep = (level: number, x: number, y: number) => onLevel(level) && inBox(x, y);
   const aroundIn = (ring: XY[]) => !focus || ring.some(([x, y]) => x >= focus!.around[0] && x <= focus!.around[2] && y >= focus!.around[1] && y <= focus!.around[3]);
   function build() {
+    stale = false;
     if (world) { scene.remove(world); freeGroup(world); }
     world = new THREE.Group();
     const P = pal();
     scene.background = new THREE.Color(P.bg);
+    if (scene.fog instanceof THREE.Fog) scene.fog.color.set(P.bg);   // first person: the fog is the background's colour
     shared.outline = new THREE.LineBasicMaterial({ color: P.outline, transparent: true, opacity: 0.35 });
 
     // floors, one mesh per level, and their outlines (the outlines stay when the cutaway opens a floor)
@@ -305,7 +312,19 @@ export async function open(opts: SolidOptions) {
     // walls (OSM), kerbs (floor edges), railings (round the wells)
     const wallLines = (k: StationSolidWall['kind']) => solid!.walls.filter((w) => w.kind === k && onLevel(w.level) && lineIn(w.line));
     world.add(new THREE.Mesh(strip(wallLines('wall'), WALL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.wall, side: THREE.DoubleSide }))));
-    world.add(new THREE.Mesh(strip(wallLines('edge'), KERB_H), cutaway(new THREE.MeshLambertMaterial({ color: P.kerb, side: THREE.DoubleSide }))));
+    if (!pov) world.add(new THREE.Mesh(strip(wallLines('edge'), KERB_H), cutaway(new THREE.MeshLambertMaterial({ color: P.kerb, side: THREE.DoubleSide }))));
+    else {
+      // first person: the edges of the indoor floors raised to walls up to the floor above (at most 3.2 m), so a passage
+      // reads as one from eye level. Schematic: OpenStreetMap has the outline, not the wall (the view says so)
+      const byLv = new Map<number, { line: XY[]; z: number }[]>();
+      for (const w of wallLines('edge')) { if (!byLv.has(w.level)) byLv.set(w.level, []); byLv.get(w.level)!.push(w); }
+      const gs: THREE.BufferGeometry[] = [];
+      for (const [lv, ws] of byLv) {
+        const i = levels.findIndex((l) => l.id === lv), up = i >= 0 ? levels[i + 1] : undefined;
+        gs.push(strip(ws, Math.max(2.4, Math.min(3.2, up ? (up.z - levels[i].z) * S - SLAB_T - 0.05 : 3.2))));
+      }
+      if (gs.length) world.add(new THREE.Mesh(merged(gs), cutaway(new THREE.MeshLambertMaterial({ color: P.povWall, side: THREE.DoubleSide }))));
+    }
     world.add(new THREE.Mesh(strip(wallLines('rail'), RAIL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.glass, side: THREE.DoubleSide, transparent: true, opacity: 0.32, depthWrite: false }))));
     // rooms with outlines (named only)
     const roomGs = [];
@@ -389,7 +408,7 @@ export async function open(opts: SolidOptions) {
   }
   function buildConnectors(P: SolidPalette) {
     const esc: Record<'up' | 'down' | 'both', THREE.BufferGeometry[]> = { up: [], down: [], both: [] }, glass: THREE.BufferGeometry[] = [], slopes: THREE.BufferGeometry[] = [], ramps: THREE.BufferGeometry[] = [], shaftEdges: THREE.BufferGeometry[] = [], rings: THREE.BufferGeometry[] = [], ringsOn: THREE.BufferGeometry[] = [];
-    const glassOn: THREE.BufferGeometry[] = [], edgesOn: THREE.BufferGeometry[] = [], pads: THREE.BufferGeometry[] = [];
+    const glassOn: THREE.BufferGeometry[] = [], edgesOn: THREE.BufferGeometry[] = [], pads: THREE.BufferGeometry[] = [], shafts: THREE.BufferGeometry[] = [];
     // stairs and escalator bodies as closed solids, vertex coloured: treads light, risers and sides darker
     const tCol = new THREE.Color(P.step), rCol = new THREE.Color(P.riser), sCol = new THREE.Color(P.riser).lerp(new THREE.Color(P.step), 0.35);
     const uCol = new THREE.Color(P.riser).multiplyScalar(0.7), trussCol = new THREE.Color(P.truss);
@@ -415,7 +434,7 @@ export async function open(opts: SolidOptions) {
         const box = new THREE.BoxGeometry(2.0, H, 2.0).translate(x - cx, lo * S + H / 2, -(y - cy));
         // the lift the way rides is not cut away with the floors round it (the cut opens its shaft): it stays in view
         const mine = lifts.find((l) => Math.hypot(l.xy[0] - x, l.xy[1] - y) < 4);
-        (mine ? glassOn : glass).push(box);
+        (mine ? glassOn : shafts).push(box);
         (mine ? edgesOn : shaftEdges).push(new THREE.EdgesGeometry(box));
         // the floors it stops at: a quiet ring; where the way gets on and off, a ring in the way's colour
         for (const z of zs) {
@@ -520,6 +539,10 @@ export async function open(opts: SolidOptions) {
       const g = merged(glass.map((x) => { const y = x.index ? x.toNonIndexed() : x; if (y !== x) x.dispose(); y.deleteAttribute('uv'); return y; }));
       world!.add(new THREE.Mesh(g, cutaway(new THREE.MeshLambertMaterial({ color: P.glass, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }))));
     }
+    if (shafts.length) {
+      const g = merged(shafts.map((x) => { const y = x.toNonIndexed(); x.dispose(); y.deleteAttribute('uv'); return y; }));
+      world!.add(new THREE.Mesh(g, cutaway(new THREE.MeshLambertMaterial({ color: P.glass, transparent: true, opacity: 0.2, depthWrite: false, side: pov ? THREE.FrontSide : THREE.DoubleSide }))));
+    }
     if (shaftEdges.length) world!.add(new THREE.LineSegments(merged(shaftEdges), cutaway(new THREE.LineBasicMaterial({ color: P.glassEdge, transparent: true, opacity: 0.7 }))));
     if (rings.length) world!.add(new THREE.Mesh(merged(rings), cutaway(decal(new THREE.MeshBasicMaterial({ color: P.glassEdge, side: THREE.DoubleSide })))));
     if (ringsOn.length) world!.add(new THREE.Mesh(merged(ringsOn), decal(new THREE.MeshBasicMaterial({ color: ROUTE, side: THREE.DoubleSide }))));   // as its shaft: not cut
@@ -529,7 +552,7 @@ export async function open(opts: SolidOptions) {
       world!.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 40), shared.outline!));
     }
     if (glassOn.length) {
-      const m = new THREE.Mesh(merged(glassOn), new THREE.MeshLambertMaterial({ color: P.glass, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }));
+      const m = new THREE.Mesh(merged(glassOn), new THREE.MeshLambertMaterial({ color: P.glass, transparent: true, opacity: 0.3, depthWrite: false, side: pov ? THREE.FrontSide : THREE.DoubleSide }));
       m.renderOrder = 2;
       world!.add(m, new THREE.LineSegments(merged(edgesOn), new THREE.LineBasicMaterial({ color: P.handrail, transparent: true, opacity: 0.85 })));
     }
@@ -543,7 +566,7 @@ export async function open(opts: SolidOptions) {
     const had = focus;
     setFocus();
     if (routeGroup) { scene.remove(routeGroup); freeGroup(routeGroup); routeGroup = null; }
-    if (!first && (had || focus || route)) build();   // another part of the station, or another lift to ride (draws the way)
+    if (!first && (had || focus || route || stale)) build();   // another part of the station, or another lift to ride (draws the way)
     else if (route) drawRoute();
     labelsDirty = true;
     return route;
@@ -552,6 +575,7 @@ export async function open(opts: SolidOptions) {
   function drawRoute() {
     if (routeGroup) { scene.remove(routeGroup); freeGroup(routeGroup); }
     routeGroup = new THREE.Group();
+    if (pov) { floorLine(routeGroup); scene.add(routeGroup); activeDrawn = -2; drawActive(); return; }
     const pts = routePoints();
     if (!pts.some((p, i) => i > 0 && p.distanceTo(pts[i - 1]) > 0.01)) return;
     // a tube per step: on stairs, escalators and ramps a thin one, so the steps under it stay in view; a ball where two
@@ -623,6 +647,41 @@ export async function open(opts: SolidOptions) {
     activeDrawn = -2;
     drawActive();
   }
+  // first person: the way as a yellow line on the floor (a tube at knee height would block the view), with arrowheads
+  // every 4 m; over stairs and escalators a little higher, on their steps
+  function floorLine(g: THREE.Group) {
+    const bands: THREE.BufferGeometry[] = [], marks: THREE.Matrix4[] = [];
+    const lift = new Float32Array(route!.points.length);
+    for (const st of route!.steps) if (st.kind !== 'walk' && st.kind !== 'arrive') for (let k = st.from; k <= st.to; k++) lift[k] = 0.22;
+    const P3 = (k: number) => { const [x, y, l] = route!.points[k]; return V(x, y, zOf(l)).setY(zOf(l) * S + 0.03 + lift[k]); };
+    let next = 2, run = 0;
+    const q = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+    for (let k = 0; k + 1 < route!.points.length; k++) {
+      const a = P3(k), b2 = P3(k + 1), flat = Math.hypot(b2.x - a.x, b2.z - a.z);
+      if (flat < 0.05) continue;   // a lift shaft
+      bands.push(band(a, b2, 0.5, 0));
+      const dir = new THREE.Vector3().subVectors(b2, a).normalize();
+      const zz = new THREE.Vector3().crossVectors(dir, UP).normalize(), yy = new THREE.Vector3().crossVectors(zz, dir);
+      q.setFromRotationMatrix(new THREE.Matrix4().makeBasis(dir, yy, zz));
+      while (next <= run + flat) {
+        const f = (next - run) / flat;
+        marks.push(new THREE.Matrix4().compose(a.clone().lerp(b2, f).setY(a.y + (b2.y - a.y) * f + 0.01), q, one));
+        next += 4;
+      }
+      run += flat;
+    }
+    if (bands.length) {
+      const m = new THREE.MeshBasicMaterial({ color: ROUTE, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+      g.add(new THREE.Mesh(merged(bands), m));
+    }
+    if (marks.length) {
+      const ag = new THREE.BufferGeometry();
+      ag.setAttribute('position', new THREE.Float32BufferAttribute([0.3, 0.02, 0, -0.18, 0.02, -0.2, -0.08, 0.02, 0, 0.3, 0.02, 0, -0.08, 0.02, 0, -0.18, 0.02, 0.2], 3));
+      const arrows = new THREE.InstancedMesh(ag, new THREE.MeshBasicMaterial({ color: ROUTE_CASE, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), marks.length);
+      marks.forEach((m, i) => arrows.setMatrixAt(i, m));
+      g.add(arrows);
+    }
+  }
   // the piece of the way the current step covers: thicker, with a white casing (redrawn when the step changes)
   let activeGroup: THREE.Group | null = null, activeDrawn = -2;
   function drawActive() {
@@ -630,7 +689,7 @@ export async function open(opts: SolidOptions) {
     if (activeGroup && activeDrawn === i && activeGroup.parent) return;
     if (activeGroup) { scene.remove(activeGroup); freeGroup(activeGroup); activeGroup = null; }
     activeDrawn = i;
-    if (!route || i < 0) return;
+    if (!route || i < 0 || pov) return;
     const s = route.steps[i], all = routePoints();
     const pts = all.slice(s.from, Math.max(s.from, s.to) + 1);
     const path = new THREE.CurvePath<THREE.Vector3>();
@@ -970,7 +1029,7 @@ export async function open(opts: SolidOptions) {
     const used = new Set(route ? route.points.map((p) => Math.round(p[2])) : []);
     // each floor named at the edge of its largest slab (the west-most corner), so the stack reads as one building
     for (const lv of levels) {
-      if (!onLevel(lv.id)) continue;
+      if (!onLevel(lv.id) || pov) continue;   // first person: you are on a floor, not looking at the stack
       const big = solid!.slabs.filter((s) => s.level === lv.id && lineIn(s.rings[0])).sort((a, b2) => b2.rings[0].length - a.rings[0].length)[0];
       if (!big) continue;
       const corner = big.rings[0].reduce((m, p) => (p[0] - p[1] < m[0] - m[1] ? p : m), big.rings[0][0]);
@@ -1119,7 +1178,7 @@ export async function open(opts: SolidOptions) {
   function placeLabels() {
     if (labelsDirty) makeLabels();
     // in a lift or on an escalator, the sign rides along with the walker (or with you)
-    const rider = playing && walker ? walker.position : user.mode === 'route' && user.step === stepIdx && youAt ? youAt : null;
+    const rider = pov ? null : playing && walker ? walker.position : user.mode === 'route' && user.step === stepIdx && youAt ? youAt : null;
     if (beacon && beaconRides && rider) beacon.pos.copy(rider).setY(rider.y + 3.4);
     const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
     const camDist = camera.position.distanceTo(controls.target);
@@ -1127,7 +1186,8 @@ export async function open(opts: SolidOptions) {
     for (const L of labels) {
       tmp.copy(L.pos).project(camera);
       let ok = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05;
-      if (ok && L.near && camDist > L.near * 2.2) ok = false;
+      if (ok && L.near && camDist > L.near * 2.2 && !pov) ok = false;
+      if (ok && pov && L.prio < 99 && (camera.position.distanceTo(L.pos) > (L.near ? 45 : 90) || Math.abs(L.z * S - (camera.position.y - EYE)) > 2.8)) ok = false;
       if (ok && L.z * S > CUT.uCutY.value) ok = false;
       if (ok && L.prio < 80 && cutHere(L.pos)) ok = false;
       const x = (tmp.x + 1) / 2 * w, y = (1 - tmp.y) / 2 * h;
@@ -1165,10 +1225,10 @@ export async function open(opts: SolidOptions) {
     glowTick = false;
     if (anim) anim(now);
     if (playing) playFrame(now);
-    const moving = controls.update();
+    const moving = pov && playing ? (camera.lookAt(controls.target), false) : controls.update();
     // depth precision: the near plane follows how far the camera is (no flicker between floors and what lies on them)
     const dist = camera.position.distanceTo(controls.target);
-    const near = Math.min(1.5, Math.max(0.2, dist / 250)), far = dist + 2500;
+    const near = pov ? 0.05 : Math.min(1.5, Math.max(0.2, dist / 250)), far = pov ? 600 : dist + 2500;
     if (Math.abs(camera.near - near) > 0.05 || Math.abs(camera.far - far) > 200) { camera.near = near; camera.far = far; camera.updateProjectionMatrix(); }
     let glowing = false;
     for (const tr of trains) {
@@ -1180,7 +1240,7 @@ export async function open(opts: SolidOptions) {
     }
     CUT.uEye.value.copy(camera.position);
     CUT.uFocus.value.copy(controls.target);
-    CUT.uXR.value = (mode.kind === 'step' && stepIdx >= 0) || playing || following ? XRAY_R : 0;
+    CUT.uXR.value = !pov && ((mode.kind === 'step' && stepIdx >= 0) || playing || following) ? XRAY_R : 0;
     // what stays: everything up to 1.5 m over the floor in focus, and the whole of the step at hand (a stair's top)
     CUT.uXY.value = Math.max(controls.target.y, route && stepIdx >= 0 && !following ? stepTop(stepIdx) : -Infinity) + 1.5;
     renderer.render(scene, camera);
@@ -1312,7 +1372,8 @@ export async function open(opts: SolidOptions) {
     stepIdx = i; mode = { kind: 'step' }; cand = -1; candN = 0;
     const s = route.steps[i], all = routePoints();
     // the play-through's camera looks down at the walker from behind: a wider cut keeps the floors above out of its way
-    cutAlong(all.slice(Math.max(0, s.from - 3), Math.min(all.length, s.to + 4)), playing ? PLAY_CUT_R : CUT_R);
+    if (pov) noCut();   // from inside, the floors above are the ceilings
+    else cutAlong(all.slice(Math.max(0, s.from - 3), Math.min(all.length, s.to + 4)), playing ? PLAY_CUT_R : CUT_R);
     drawActive();
     labelsDirty = true; request(); changed();
   }
@@ -1325,6 +1386,7 @@ export async function open(opts: SolidOptions) {
     flyTo(youAt.clone().add(off), youAt.clone());
   }
   function follow(on: boolean) {
+    if (on && pov) setPov(false);   // following looks down at you, not from your eyes
     if (on && isPlaying()) pause();
     following = !!on;
     user = { ...user, follow: following };
@@ -1333,8 +1395,11 @@ export async function open(opts: SolidOptions) {
   }
   function locate() {
     if (!youAt) return;
+    if (pov) setPov(false);
     if (isPlaying()) pause();
-    const off = new THREE.Vector3().subVectors(camera.position, controls.target).setLength(80);
+    const off = new THREE.Vector3().subVectors(camera.position, controls.target);
+    if (off.length() < 1 || off.y < 5) off.set(-0.45, 0.8, 0.4);
+    off.setLength(80);
     flyTo(youAt.clone().add(off), youAt.clone());
   }
 
@@ -1354,7 +1419,8 @@ export async function open(opts: SolidOptions) {
     route.steps.forEach((s, i) => {
       if (s.kind === 'arrive' || s.to <= s.from) return;
       const conn = s.kind !== 'walk';
-      const d = Math.min(conn ? 5 : 9, Math.max(conn ? 2.5 : 1.2, (s.seconds || 0) / PLAY_SPEED));
+      const d = pov ? Math.min(conn ? 14 : 30, Math.max(conn ? 3 : 1.5, (s.seconds || 0) / POV_SPEED))
+        : Math.min(conn ? 5 : 9, Math.max(conn ? 2.5 : 1.2, (s.seconds || 0) / PLAY_SPEED));
       const idx = [s.from], cum = [0];
       for (let k = s.from + 1; k <= s.to; k++) {
         const p = route!.points[k - 1], q = route!.points[k];
@@ -1391,31 +1457,39 @@ export async function open(opts: SolidOptions) {
       // reduced motion: the steps one after the other, each framed as Next › would
       const go = () => {
         if (!route || stepIdx >= route.steps.length - 1) { pause(); return; }
-        step(stepIdx + 1);
+        if (pov) povJump(stepIdx + 1); else step(stepIdx + 1);
       };
       stepper = window.setInterval(go, 3500);
-      if (stepIdx < 0 || stepIdx >= route.steps.length - 1) step(0); else changed();
+      if (stepIdx < 0 || stepIdx >= route.steps.length - 1) { if (pov) povJump(0); else step(0); } else changed();
       return;
     }
     buildTimeline();
     if (!timeline.length) return;
     // from the step shown (or the start), unless the last run stopped in the middle of it
     const pc = timeline.find((x) => x.i === stepIdx);
-    if (!(playT > 0 && playT < playEnd && pc && playT >= pc.t0 && playT < pc.t1)) playT = pc ? pc.t0 : 0;
+    const resumed = playT > 0 && playT < playEnd && !!pc && playT >= pc.t0 && playT < pc.t1;
+    if (!resumed) playT = pc ? pc.t0 : 0;
     playing = true; playLast = performance.now();
+    cueNext = true;   // the first frame shows the step it is in
+    if (pov) {
+      if (resumed) camera.getWorldDirection(povDir); else aimAlong(timeline.find((x) => x.i === poseAt(playT).i)!.idx[0]);
+      controls.enabled = false; anim = null; request(); return;
+    }
     if (!walker) { walker = puck(ROUTE, ROUTE_CASE, ROUTE_CASE); scene.add(walker); }
     walker.visible = true;
     const p0 = poseAt(playT);
     heading = p0.dir != null ? p0.dir : heading;
     // the camera starts behind the walker
     flyTo(chasePos(p0.p, heading), p0.p.clone());
-    cueNext = true;   // the first frame shows the step it is in
     request();
   }
   function pause() {
     if (stepper) { clearInterval(stepper); stepper = 0; }
+    controls.enabled = true;
+    liftHide();
     if (!playing) { changed(); return; }
     playing = false;
+    if (pov) lookFrom(camera.position.clone());   // paused: drag to look round
     changed(); request();
   }
   const CHASE_D = 80, CHASE_E = 56 * Math.PI / 180, PLAY_CUT_R = 30;
@@ -1431,11 +1505,18 @@ export async function open(opts: SolidOptions) {
     const pose = poseAt(playT);
     here = pose.along;
     if (pose.dir != null) { let d = pose.dir - heading; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; heading += d * Math.min(1, dt * 3.5); }
-    walker!.position.copy(pose.p).setY(pose.p.y - ROUTE_Y + 0.3);
-    walker!.rotation.y = -heading;
     if (pose.i !== stepIdx || cueNext) { cueNext = false; cue(pose.i); }
     else if (now - labelTick > 400) { labelTick = now; refreshBeacon(); }   // "In 30 m"
-    if (!anim) {
+    if (pov) {
+      povLook(pose.p.clone().setY(pose.p.y - ROUTE_Y + EYE), pose.along, pose.dir == null, dt);
+      const st = route!.steps[pose.i];
+      if (st && st.kind === 'elevator') liftShow(st, levelOfZ((pose.p.y - ROUTE_Y) / S));
+      else liftHide();
+    } else {
+      walker!.position.copy(pose.p).setY(pose.p.y - ROUTE_Y + 0.3);
+      walker!.rotation.y = -heading;
+    }
+    if (!pov && !anim) {
       const k = 1 - Math.exp(-dt * 2.5);
       controls.target.lerp(pose.p, k);
       camera.position.lerp(chasePos(pose.p, heading), k);
@@ -1444,9 +1525,127 @@ export async function open(opts: SolidOptions) {
       playing = false; playT = 0;
       if (walker) walker.visible = false;
       here = null;
-      step(route!.steps.length - 1);   // there: the end of the way, framed
+      if (pov) { liftHide(); controls.enabled = true; alongPlatform(); lookFrom(camera.position.clone()); cue(route!.steps.length - 1); }
+      else step(route!.steps.length - 1);   // there: the end of the way, framed
     }
   }
+
+  // ------------------------------------------------------------------ first person
+  // The play-through at eye height (1.65 m) and true heights: the floors above are ceilings (no cut, no see-through
+  // hole), fog hides what is far, the edges of the floors stand as schematic walls, and the way is a line on the floor.
+  // The eye goes along the way on the same timeline (slower), looking where the way goes 7 m ahead (2.5 m on stairs and
+  // escalators, so the view looks down an escalator), pitch at most 20°; in a lift it keeps looking the way it did.
+  // Paused, a drag looks round (the camera turns about a point just in front of the eye); ‹ › jump to a step's start.
+  const EYE = 1.65, POV_SPEED = 3.5, MAX_PITCH = Math.tan(20 * Math.PI / 180);
+  let pov = false, povS = 2.2, stale = false;   // stale: built for first person, not rebuilt since
+  const povDir = new THREE.Vector3(1, 0, 0);
+  function setPov(on: boolean) {
+    if (on === pov || (on && (!route || route.same))) return;
+    halt();
+    if (on) {
+      pov = true;
+      povS = S; S = 1;
+      scene.fog = new THREE.Fog(pal().bg, 14, 110);
+      Object.assign(controls, { minDistance: 0.01, maxDistance: 1e4, maxPolarAngle: Math.PI * 0.95, minPolarAngle: Math.PI * 0.05, enablePan: false, enableZoom: false });
+    } else leavePov();
+    build(); redrawTrains(); replayFix();
+    labelsDirty = true;
+    if (on) { buildTimeline(); povJump(Math.max(0, Math.min(stepIdx, route!.steps.length - 1))); }
+    else if (stepIdx >= 0) step(stepIdx); else whole();
+    request();
+  }
+  /** Back to the model: the stretch, no fog, the orbit's limits, the camera well above where it looked (the fly out
+   *  starts there). The caller builds and frames. */
+  function leavePov() {
+    if (!pov) return;
+    pov = false;
+    S = povS;
+    scene.fog = null;
+    liftHide();
+    Object.assign(controls, { minDistance: 15, maxDistance: 1600, maxPolarAngle: Math.PI * 0.49, minPolarAngle: 0, enablePan: true, enableZoom: true, enabled: true });
+    settle();
+    camera.position.copy(controls.target).add(new THREE.Vector3(-0.45, 0.8, 0.4).setLength(40));
+    stale = true;
+  }
+  /** First person: stand where step i starts, looking along it. */
+  function povJump(i: number) {
+    if (!route) return;
+    const st = route.steps[i], [x, y, l] = route.points[st.from];
+    const eye = V(x, y, zOf(l)).setY(zOf(l) * S + EYE);
+    // look along the way: the first point ahead that is not straight up or down (a lift) — this step's or a later one
+    aimAlong(st.from);
+    const pc = timeline.find((t) => t.i === i);
+    playT = pc ? pc.t0 : 0;
+    if (st.kind === 'elevator' && stepper) liftShow(st, Math.round(st.level)); else liftHide();
+    lookFrom(eye);
+    cue(i);
+  }
+  /** Drops what OrbitControls still had to turn or pan (its damping), so it cannot move a camera put in place. */
+  function settle() { controls.enableDamping = false; controls.update(); controls.enableDamping = true; }
+  /** Look along the way from point k: to the first point ahead that is not straight up or down (a lift); at the end, along
+   *  the platform. */
+  function aimAlong(k0: number) {
+    const [x, y] = route!.points[k0];
+    for (let k = k0 + 1; k < route!.points.length; k++) {
+      const [x2, y2] = route!.points[k];
+      if (Math.hypot(x2 - x, y2 - y) > 1) { povDir.set(x2 - x, 0, -(y2 - y)).normalize(); return; }
+    }
+    alongPlatform();
+  }
+  function lookFrom(eye: THREE.Vector3) {
+    settle();
+    camera.position.copy(eye);
+    controls.target.copy(eye).addScaledVector(povDir, 0.6);
+    anim = null; request();
+  }
+  function povLook(eye: THREE.Vector3, along: number, inLift: boolean, dt: number) {
+    const L = route!.steps[stepIdx] && route!.steps[stepIdx].kind !== 'walk' ? 2.5 : 7;
+    const a = inLift ? null : SR.pointAt(route!, along + L);
+    if (a) {
+      const want = V(a[0], a[1], zOf(a[2])).setY(zOf(a[2]) * S + EYE).sub(eye);
+      const h = Math.hypot(want.x, want.z);
+      if (h > 0.5) {
+        // turn by yaw and pitch (a lerp of the vectors would never turn round when the way doubles back)
+        const k = 1 - Math.exp(-dt * 3.5);
+        const yaw0 = Math.atan2(povDir.z, povDir.x), pitch0 = Math.asin(Math.max(-1, Math.min(1, povDir.y)));
+        let dy = Math.atan2(want.z, want.x) - yaw0;
+        while (dy > Math.PI) dy -= 2 * Math.PI;
+        while (dy <= -Math.PI) dy += 2 * Math.PI;
+        const pitch1 = Math.max(-Math.atan(MAX_PITCH), Math.min(Math.atan(MAX_PITCH), Math.atan2(want.y, h)));
+        const yaw = yaw0 + dy * k, pitch = pitch0 + (pitch1 - pitch0) * k;
+        povDir.set(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw));
+      }
+    }
+    camera.position.copy(eye);
+    controls.target.copy(eye).addScaledVector(povDir, 0.6);
+  }
+  /** At the end of the way: look along the nearest track on its floor (out of a lift you would face its doors). */
+  function alongPlatform() {
+    const [x, y, l] = route!.points[route!.points.length - 1], z = zOf(l);
+    let best = Infinity, dx = 0, dy = 0;
+    for (const t of solid!.tracks) {
+      if (Math.abs(t.z - z) > 2) continue;
+      for (let k = 0; k + 1 < t.line.length; k++) {
+        const [ax, ay] = t.line[k], [bx, by] = t.line[k + 1], ex = bx - ax, ey = by - ay;
+        const u = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / Math.max(ex * ex + ey * ey, 1e-6)));
+        const d = Math.hypot(x - ax - ex * u, y - ay - ey * u);
+        if (d < best) { best = d; dx = ex; dy = ey; }
+      }
+    }
+    if (best > 25 || !(dx || dy)) return;
+    const along = new THREE.Vector3(dx, 0, -dy).normalize();
+    if (along.dot(povDir) < 0) along.negate();
+    povDir.copy(along);
+  }
+  function liftShow(st: StationRouteStep, now: number) {
+    const arrow = arrowOf(st) || '↕';
+    const html = `<div class="sx-lift-car"><div class="sx-lift-arrow">${arrow}</div><div class="sx-lift-now">${escHtml(levelTag(now))}</div>`
+      + `<div class="sx-lift-to">Lift to <b>${escHtml(levelName(st.toLevel))}</b></div></div>`;
+    if (liftEl.innerHTML !== html) liftEl.innerHTML = html;
+    liftEl.hidden = false;
+  }
+  function liftHide() { if (!liftEl.hidden) liftEl.hidden = true; }
+  function replayFix() { if (lastFix) { const f = lastFix, c = cand, n = candN; setUser(f); cand = c; candN = n; } }
 
   // ------------------------------------------------------------------ views
   function whole() {
@@ -1490,12 +1689,14 @@ export async function open(opts: SolidOptions) {
   /** You took over (a button, a floor): the play-through stops, and your position does not move the step for a while. */
   function halt() {
     manualAt = performance.now();
+    liftHide();
+    controls.enabled = true;
     if (following) follow(false);
     playing = false; playT = 0;
     if (stepper) { clearInterval(stepper); stepper = 0; }
     if (walker && walker.visible) { walker.visible = false; here = snapPrev && user.mode === 'route' ? snapPrev.along : null; }
   }
-  function changed() { if (opts.onChange) opts.onChange({ route, step: stepIdx, focusLevel: stepIdx < 0 && mode.kind === 'floor' ? mode.id : null, playing: isPlaying() }); }
+  function changed() { if (opts.onChange) opts.onChange({ route, step: stepIdx, focusLevel: stepIdx < 0 && mode.kind === 'floor' ? mode.id : null, playing: isPlaying(), pov }); }
 
   // ------------------------------------------------------------------ start
   if (opts.from && opts.to) plan(opts.from, opts.to, opts.prefs, true);
@@ -1506,17 +1707,21 @@ export async function open(opts: SolidOptions) {
   return {
     model, solid, levels,
     get route() { return route; },
-    plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { halt(); snapPrev = null; plan(from, to, p); whole(); return route; },
-    step: (i: number) => { halt(); step(i); }, whole: () => { halt(); whole(); }, floor: (id: number | null) => { halt(); floor(id); },
-    next: () => { halt(); step(stepIdx + 1); }, prev: () => { halt(); step(stepIdx - 1); },
+    plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { if (pov) { const tr = trains.map((t) => t.input); leavePov(); tr.forEach((t) => drawTrain(t)); } halt(); snapPrev = null; plan(from, to, p); whole(); return route; },
+    step: (i: number) => { halt(); if (pov && route) povJump(Math.max(0, Math.min(route.steps.length - 1, i))); else step(i); },
+    whole: () => { setPov(false); halt(); whole(); }, floor: (id: number | null) => { setPov(false); halt(); floor(id); },
+    next: () => { halt(); if (pov && route) povJump(Math.min(route.steps.length - 1, stepIdx + 1)); else step(stepIdx + 1); },
+    prev: () => { halt(); if (pov && route) { if (stepIdx > 0) povJump(stepIdx - 1); else setPov(false); } else step(stepIdx - 1); },
+    /** First person: the play-through at eye height (true heights, ceilings, schematic walls). */
+    pov: (on: boolean) => setPov(!!on), get povOn() { return pov; },
     /** The play-through: a walker goes the way and the camera follows it, step by step. */
     play, pause, get playing() { return isPlaying(); },
     /** Your position (Station3D.setUser): a puck, and on the way the step you are at. */
     setUser, get user() { return user; }, follow, locate,
     /** true: the whole station; false: only the part the route uses (the default). */
-    showAll: (on: boolean) => { showAll = !!on; setFocus(); build(); labelsDirty = true; if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
+    showAll: (on: boolean) => { showAll = !!on; setFocus(); build(); labelsDirty = true; if (pov) { noCut(); request(); return; } if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
     get focused() { return !!focus; },
-    setStretch: (s: number) => { halt(); S = s; build(); redrawTrains(); if (lastFix) { const f = lastFix, c = cand, n = candN; setUser(f); cand = c; candN = n; } if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
+    setStretch: (s: number) => { leavePov(); halt(); S = s; build(); redrawTrains(); replayFix(); if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
     get stretch() { return S; },
     /** The train at the platform the way leads to (null: none). Returns where it was laid out (null: the model has
      *  no sectors at that platform, so nothing is drawn). */
@@ -1530,10 +1735,10 @@ export async function open(opts: SolidOptions) {
         // a sector the model does not have: the router would aim at the whole platform instead, so it does not count
         return [n, r && !r.incomplete && r.toSectors && r.toSectors.length ? r.seconds : Infinity];
       })),
-    reset: () => { halt(); if (stepIdx >= 0) step(stepIdx); else whole(); },
+    reset: () => { halt(); if (pov && route) povJump(Math.max(0, stepIdx)); else if (stepIdx >= 0) step(stepIdx); else whole(); },
     dispose: () => { disposed = true; playing = false; if (stepper) clearInterval(stepper); cancelAnimationFrame(raf); clearTimeout(glowTimer);
       for (const g of [activeGroup, you, walker]) if (g) freeGroup(g); document.removeEventListener('visibilitychange', onVisible); if (world) freeGroup(world); if (routeGroup) freeGroup(routeGroup); dropTrain();
-      textures.chevron.dispose(); textures.stripe.dispose(); ro.disconnect(); mq.removeEventListener('change', onScheme); controls.dispose(); renderer.dispose(); mount.removeChild(renderer.domElement); mount.removeChild(labelsEl); },
+      textures.chevron.dispose(); textures.stripe.dispose(); ro.disconnect(); mq.removeEventListener('change', onScheme); controls.dispose(); renderer.dispose(); mount.removeChild(renderer.domElement); mount.removeChild(labelsEl); mount.removeChild(liftEl); },
     /** Tests: the camera on (x, y) of a level, from dist metres at elev degrees, from the compass bearing yaw. */
     _look: (x: number, y: number, level: number, dist = 40, elev = 35, yaw = 30) => {
       const t = V(x, y, zOf(level)), e = elev * Math.PI / 180, a = yaw * Math.PI / 180;

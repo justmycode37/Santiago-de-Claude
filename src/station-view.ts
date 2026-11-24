@@ -17,7 +17,7 @@ interface SolidUserState {
   level?: number | null; levelProb?: number | null; levelProbs?: Record<string, number> | null; sure?: boolean;
   acc?: number; mode?: 'route' | 'free'; step?: number; offRouteSec?: number; follow: boolean;
 }
-interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null; playing?: boolean }
+interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null; playing?: boolean; pov?: boolean }
 interface SolidLevel { id: number; z: number; name: string }
 interface SolidView {
   model: StationModel;
@@ -47,6 +47,9 @@ interface SolidView {
   play?(): void;
   pause?(): void;
   readonly playing?: boolean;
+  /** First person: the play-through at eye height. */
+  pov?(on: boolean): void;
+  readonly povOn?: boolean;
   reset(): void;
   dispose(): void;
   _debug(): Record<string, unknown>;
@@ -168,6 +171,7 @@ const ICON: Record<string, string> = {
   whole: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
   alert: '<path d="M12 3l9.5 17H2.5z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   me: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/>',
@@ -455,7 +459,7 @@ function render() {
     g.append(el('div', 'stv-legend', ...([['stv-lg-up', 'Escalator up'], ['stv-lg-down', 'Escalator down'], ['stv-lg-stairs', 'Stairs'], ['stv-lg-lift', 'Lift'], ['stv-lg-route', 'Your way']] as const)
       .map(([c, t]) => el('span', null, el('i', c), t))));
     bar.append(btn('stv-btn stv-primary', null, () => goStep(0), 'Start ›'));
-    if (!r.same) bar.append(playBtn(v, false));
+    if (!r.same) bar.append(playBtn(v, false), povBtn(v, false));
   } else {
     const s = r.steps[step];
     const row = el('div', 'stv-step' + (s.warn ? ' warn' : ''), stepIcon(s), el('div', 'stv-step-main', el('div', 'stv-text', s.text), el('div', 'stv-meta', stepMeta(s, step, n))));
@@ -466,6 +470,8 @@ function render() {
     bar.append(step < n - 1 ? btn('stv-btn stv-primary', null, () => goStep(step + 1), 'Next ›')
       : btn('stv-btn stv-primary', null, () => emit('done', { route: r }), 'Done'));
     if (step < n - 1 || lastChange.playing) bar.append(playBtn(v, !!lastChange.playing));
+    if (!r.same) bar.append(povBtn(v, !!lastChange.pov));
+    if (lastChange.pov) g.append(el('div', 'stv-pov-note', 'First person, at true heights. The walls are drawn from the edges of the floors: schematic.'));
   }
   bar.append(el('span', 'stv-grow'));
   // where you are: shown when the position is known; a tap follows you (and again stops following)
@@ -499,6 +505,16 @@ function playBtn(v: SolidView, on: boolean) {
   const b = btn('stv-btn stv-icon stv-play', on ? 'Pause the play-through' : 'Play the way through', () => { if (v.playing) v.pause!(); else v.play!(); }, icon(on ? 'pause' : 'play', 18));
   b.setAttribute('aria-pressed', on ? 'true' : 'false');
   if (!v.play) b.hidden = true;
+  return b;
+}
+// 👁 first person: the walk at eye height (▶ plays it, ‹ › go from step to step); again to go back to the model
+function povBtn(v: SolidView, on: boolean) {
+  const b = btn('stv-btn stv-icon stv-pov', on ? 'Leave first person' : 'Walk it in first person', () => {
+    if (v.povOn) v.pov!(false);
+    else { v.pov!(true); v.play!(); }
+  }, icon('eye', 18));
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!v.pov) b.hidden = true;
   return b;
 }
 function endName(r: StationRouteResult) {

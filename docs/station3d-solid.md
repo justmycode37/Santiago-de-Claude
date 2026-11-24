@@ -42,9 +42,18 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   fixes on a new step or 3 m into it, never within 20 s of you stepping through the way yourself, and without moving
   the camera. The ◎ button follows you (a drag stops it).
 
-The first-person walk-through is not in the view yet: underground the models have floors but almost no walls, so at
-eye level the stations would not look like themselves. What it takes, and the data that could make the models more
-accurate and cover every Swiss station, is in [station3d-research.md](station3d-research.md).
+- **First person** (👁 in the card, then ▶): the play-through at eye height (1.65 m) and true heights (1×). The floors
+  above are ceilings (no cut, no see-through hole), fog hides what is far, and the edges of the indoor floors stand as
+  walls up to the floor above (at most 3.2 m) — schematic, and the card says so: OpenStreetMap has the outline, not
+  the wall. The way is a yellow line on the floor with arrowheads. The eye looks where the way goes 7 m ahead (2.5 m on
+  stairs and escalators, so it looks down an escalator; pitch at most 20°). In a lift the view gives way to its
+  display (the direction, the floor it passes, where it goes); out of a lift at the end it turns along the platform.
+  Paused, a drag looks round; ‹ › go to the start of a step; a floor, ⌂ or 👁 again leave it. Lift shafts are one-sided
+  here, so from inside one you look out.
+
+What it does not have: walls below ground other than the floors' edges, signs at eye level, platform roofs outside
+Bern. That data, and what could make the models more accurate and cover every Swiss station, is in
+[station3d-research.md](station3d-research.md).
 
 When the walk ends at a platform to board a train, that train stands at the platform as a hologram: its coaches,
 their classes, where to get on (the walk is aimed at that sector) and how full each class is expected to be. See
