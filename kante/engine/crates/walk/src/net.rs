@@ -234,7 +234,8 @@ pub(crate) struct CostTable {
     /// Real seconds per unit of `Arc::share`.
     pub fix_c: [f32; 256],
     pub usable: [bool; 256],
-    /// 1 if this walker cannot pass barrier nodes (`Arc::head_block`), else 0.
+    /// The bits of `Arc::head_block` that keep this search from walking an arc to its end: [`ARC_BARRIER`] for a
+    /// walker who cannot pass barrier nodes, and always [`CostTable::dir_mask`].
     pub head_mask: u8,
     /// Generalised seconds per decimetre of `Arc::slope` (time, effort, steepness).
     pub k_slope: [f32; 3],
@@ -246,7 +247,7 @@ pub(crate) struct CostTable {
 
 impl CostTable {
     pub fn new() -> Self {
-        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: 0, k_slope: [0.0; 3], slope_dir: 0, dir_mask: ARC_NO_FWD }
+        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: ARC_NO_FWD, k_slope: [0.0; 3], slope_dir: 0, dir_mask: ARC_NO_FWD }
     }
     pub fn fill(&mut self, p: &WalkProfile) {
         let speed = p.speed_mps.max(0.05);
@@ -327,7 +328,8 @@ impl CostTable {
 pub(crate) struct EdgeArcs {
     pub ia: u32,
     pub ib: u32,
-    /// Arc a → b (index into `Net::arcs`), `NO_NODE` if not traversable that way.
+    /// Arc a → b (index into `Net::arcs`; `NO_NODE` only for an edge the network leaves out). On a one-way edge
+    /// both arcs exist: `Arc::head_block` says which direction of search may take each.
     pub fwd: u32,
     pub back: u32,
 }

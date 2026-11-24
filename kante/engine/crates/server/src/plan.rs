@@ -572,55 +572,61 @@ impl App {
         if w.approximate || w.drawn_s.is_none() || self.walk.is_none() {
             return None;
         }
-        // drawn within the time there is: the walk this walker prefers when it fits, else the quickest
-        let limit = Some(room.max(0) as f32);
-        let walk = |hills: HillsPref| {
+        let walk = |hills: HillsPref, limit: Option<f32>| {
             let mut o = self.walk_leg_within("transfer", &self.stop_end(a), &self.stop_end(b), w.dep, w.arr, &WalkProfile { hills, ..*profile }, limit);
             o.official_min_s = w.official_min_s;
             o
         };
+        let routed = |o: &json::WalkLeg| !o.approximate && o.drawn_s.is_some();
+        // within the time there is: the way asked for when it fits, else the quickest (ends::walk_within)
+        let limit = Some(room.max(0) as f32);
         // a walk drawn longer than the time there is, and than the footpath's time (which times the quickest walk when
-        // the preferred one is over its bound): the quickest within the time, timed as the footpath says
-        let fitted = (w.drawn_s.is_some_and(|d| d > room && d > w.duration_s))
-            .then(|| walk(profile.hills))
-            .filter(|o| !o.approximate && o.drawn_s.is_some())
-            .map(|mut o| {
-                // even the quickest is longer than the time there is: timed as drawn, so that the change says it is
-                // missed. Not where the timetable gives a minimum change time: the walk is drawn between the
-                // platforms' registry points, which can lie far apart, and that time is what people walk
-                if o.official_min_s.is_none() {
-                    let d = o.drawn_s.unwrap_or(o.duration_s);
-                    if d > room && d > o.duration_s {
-                        o.duration_s = d;
-                        o.arr = o.dep + d;
-                    }
-                }
-                o
-            });
-        let w = fitted.as_ref().unwrap_or(w);
+        // the preferred one is over its bound): drawn again within the time. Even the quickest longer than the time
+        // there is: timed as drawn, so that the change says it is missed; not where the timetable gives a minimum
+        // change time (the walk is drawn between the platforms' registry points, which can lie far apart, and that
+        // time is what people walk)
+        let as_drawn = |mut o: json::WalkLeg| {
+            let d = o.drawn_s.unwrap_or(o.duration_s);
+            if o.official_min_s.is_none() && d > room && d > o.duration_s {
+                o.duration_s = d;
+                o.arr = o.dep + d;
+            }
+            o
+        };
+        let fit = |hills: HillsPref| Some(walk(hills, limit)).filter(routed).map(as_drawn);
+        let too_long = |o: &json::WalkLeg| o.drawn_s.is_some_and(|d| d > room && d > o.duration_s);
         // seconds the flatter way must leave beyond the margin, so that the change is not tight
         let untight = (TIGHT_S - margin).max(0);
-        let other = match profile.hills {
+        match profile.hills {
             HillsPref::Avoid => {
-                let quick = walk(HillsPref::Normal);
-                if quick.approximate || quick.drawn_s.is_none() {
-                    return fitted.clone(); // no quicker way to fall back on
+                // `w` is the flatter way; the quicker one is the way a walker minding hills a little takes, within
+                // the time there is (the quickest when even that is too long)
+                let quick = walk(HillsPref::Normal, limit);
+                if !routed(&quick) {
+                    return if too_long(w) { fit(HillsPref::Avoid) } else { None };
                 }
                 match flatter_way(&quick, w, room, untight, 0) {
                     Some(f) if f.extra_s > 0 || f.less_climb_m > 0 => Some(retimed(w.clone(), quick.duration_s, f)),
                     // as quick, or the same way: as it is
                     Some(_) => None,
                     // no room for it: the quicker way
-                    None => Some(quick),
+                    None => Some(as_drawn(quick)),
                 }
             }
-            HillsPref::Normal if flatter && w.climb_m >= 5 => {
-                let flat = walk(HillsPref::Avoid);
-                flatter_way(w, &flat, room, untight.max(60), 5).map(|f| retimed(flat, w.duration_s, f))
+            hills => {
+                let fitted = if too_long(w) { fit(hills) } else { None };
+                let base = fitted.as_ref().unwrap_or(w);
+                if hills == HillsPref::Normal && flatter && base.climb_m >= 5 {
+                    // the way a walker avoiding hills takes, as it is (not the quickest in its place): flatter_way
+                    // says whether it fits
+                    let flat = walk(HillsPref::Avoid, None);
+                    if let Some(f) = flatter_way(base, &flat, room, untight.max(60), 5) {
+                        return Some(retimed(flat, base.duration_s, f));
+                    }
+                }
+                fitted
             }
-            _ => None,
-        };
-        other.or_else(|| fitted.clone())
+        }
     }
 
     /// Range search over `[from, from + total]`, split into `chunks` windows

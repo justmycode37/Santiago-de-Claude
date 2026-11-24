@@ -9,7 +9,7 @@ lives in `~/kante-host`.
 | `kante-engine.service` | The engine, on `127.0.0.1:8080` only |
 | `kante-tunnel.service` | `cloudflared`, which gives the engine a public HTTPS address without opening a port |
 | `kante-deploy.timer` | Every two minutes, runs `deploy.sh` |
-| `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays), the terrain model (once, and a release with it when the running one has no slopes; one the build cannot read is put aside and fetched again after a week) |
+| `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays), the terrain model (once, and a release with it when the running one has no slopes; one the build cannot read is removed and fetched again after a week) |
 
 ## The running instance
 

@@ -36,8 +36,9 @@ dem=$ROOT/raw/dem/swissaltiregio.tif
 sloped() { curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["counts"].get("slopedEdges", 0))' 2>/dev/null || echo unknown; }
 terrain=0
 if grep -q -- '--elevation' "$repo/kante/scripts/fetch-data.sh" 2>/dev/null; then
-  # one the build could not read was put aside: fetched again after a week, not every night
+  # one the build could not read was removed: fetched again after a week (the marker's time), not every night
   if [[ ! -s $dem ]] && ! [[ -n $(find "$dem.rejected" -mtime -7 2>/dev/null) ]]; then
+    rm -f "$dem.rejected"
     log "fetching the terrain model (10 GB)"
     KANTE_RAW=$ROOT/raw timeout 5400 "$repo/kante/scripts/fetch-data.sh" --elevation || log "terrain model download failed; trying again tomorrow"
   fi
@@ -65,11 +66,12 @@ if (( terrain && ! built )); then
   KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force && live=1 || log "the release with the terrain model failed; the running engine is untouched"
 fi
 # a release built with the terrain model is running, and still has no slopes: the build could not read it (`kante
-# build` says why in the deploy log). Put aside, so that it is not built with again every night, and fetched again in
-# a week (from now: the marker's time). A release that failed says nothing about the model: it stays.
+# build` says why in the deploy log). Removed (10 GB), so that it is not built with again every night, and a marker
+# left so that it is fetched again in a week, not tomorrow. A release that failed says nothing about the model: it
+# stays.
 if (( terrain && live )) && [[ -s $dem && $(sloped) == 0 ]]; then
-  log "the engine built with the terrain model has no slopes: putting $dem aside"
-  mv -f "$dem" "$dem.rejected" && touch "$dem.rejected" || true
+  log "the engine built with the terrain model has no slopes: removing $dem, fetching it again in a week"
+  rm -f "$dem" && touch "$dem.rejected" || true
 fi
 
 # --- learned travel and dwell times
