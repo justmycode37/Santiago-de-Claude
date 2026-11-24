@@ -24,8 +24,8 @@ OTD=https://data.opentransportdata.swiss
 RAW=${KANTE_RAW:-data/raw}
 UA="kante-prototype/0.1"
 
-fetch() { # fetch <url> <dest> [check]: check is a command run on the downloaded file before it replaces <dest>
-  local url=$1 dest=$2 check=${3:-}
+fetch() { # fetch <url> <dest> [check [max seconds]]: check is a command run on the downloaded file before it replaces <dest>
+  local url=$1 dest=$2 check=${3:-} max=${4:-}
   if [[ -s "$dest" && $refresh -eq 0 ]]; then
     echo "have  $dest"
     return
@@ -33,9 +33,9 @@ fetch() { # fetch <url> <dest> [check]: check is a command run on the downloaded
   mkdir -p "$(dirname "$dest")"
   echo "fetch $dest"
   # -L: the timetable permalink redirects to a signed storage URL.
-  # A server that stops sending must not hold up a deploy: give up below 10 kB/s for two minutes, or after an hour.
   # Explicit returns: this runs inside `if`, where `set -e` does not stop a failed command.
-  if ! curl -fSL --retry 3 --connect-timeout 30 --speed-limit 10000 --speed-time 120 --max-time 3600 -A "$UA" -o "$dest.part" "$url"; then
+  # max seconds (the register only, which is not worth holding up a build or the timetable for): each try, and the retries together.
+  if ! curl -fSL --retry 3 ${max:+--max-time "$max" --retry-max-time "$max"} -A "$UA" -o "$dest.part" "$url"; then
     rm -f "$dest.part"
     return 1
   fi
@@ -80,7 +80,7 @@ for line in f:
 sys.exit(1)' "$1"
 }
 register() {
-  if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip register_ok; then
+  if ! fetch "$REGISTER_URL" "$RAW"/register/adr.csv.zip register_ok 1200; then
     if [[ -s "$RAW"/register/adr.csv.zip ]]; then echo "keep  $RAW/register/adr.csv.zip (could not fetch a new one)"
     else echo "warning: no building address register; the engine will have OpenStreetMap's doors only" >&2; fi
   fi
