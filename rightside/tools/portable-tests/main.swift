@@ -529,5 +529,62 @@ do {
     if case .unavailable = far.mode {} else { check(false, "far from the route: no AR path") }
 }
 
+// MARK: - Vehicle tracker (docs/ar-recognition-plan.md, step 1: pan reset, class margin, cadence)
+
+func vd(_ kind: TransportClass, _ x: Double, _ y: Double = 0.3, w: Double = 0.3, h: Double = 0.4, margin: Float = 1, runnerUp: TransportClass? = nil) -> VehicleDetection {
+    VehicleDetection(kind: kind, box: CGRect(x: x, y: y, width: w, height: h), score: 0.8,
+                     mask: VehicleMask(width: 2, height: 2, pixels: [1, 1, 1, 1]), classMargin: margin, runnerUp: runnerUp)
+}
+do {
+    var tracker = VehicleTracker()
+    tracker.update([vd(.tram, 0.2, margin: 0.03, runnerUp: .train)], at: t0)
+    let id = tracker.tracks.first?.id
+    tracker.update([vd(.train, 0.22, margin: 0.05, runnerUp: .tram)], at: t0.addingTimeInterval(0.4))
+    check(tracker.tracks.count == 1 && tracker.tracks.first?.id == id, "a tram that flickers to \"train\" stays one track")
+    check(vd(.train, 0.2, margin: 0.03, runnerUp: .tram).caption == "Tram or train" && vd(.bus, 0.2, margin: 0.02, runnerUp: .tram).caption == "Vehicle"
+          && vd(.bus, 0.2).caption == "Bus", "an unsure class says less, a sure one names it")
+
+    // a pan: the picture moves 0.25 to the left; the vehicle keeps its track when the shift is given
+    var panned = VehicleTracker()
+    panned.update([vd(.bus, 0.5)], at: t0)
+    let busID = panned.tracks.first?.id
+    panned.update([vd(.bus, 0.25)], at: t0.addingTimeInterval(0.4), shift: CGPoint(x: -0.25, y: 0))
+    check(panned.tracks.first?.id == busID, "a pan the camera reports keeps the track")
+    var unshifted = VehicleTracker()
+    unshifted.update([vd(.bus, 0.5)], at: t0)
+    let first = unshifted.tracks.first?.id
+    unshifted.update([vd(.bus, 0.25)], at: t0.addingTimeInterval(0.4))
+    check(unshifted.tracks.first?.id != first, "without the shift, a jump that far starts a new track (no inheritance)")
+
+    // the swap a pan could cause: A leaves on the left, B slides into A's old place; with the shift, B is not A
+    var swap = VehicleTracker()
+    swap.update([vd(.bus, 0.1), vd(.bus, 0.45)], at: t0)
+    let a = swap.tracks[0].id, b = swap.tracks[1].id
+    swap.update([vd(.bus, 0.1)], at: t0.addingTimeInterval(0.4), shift: CGPoint(x: -0.35, y: 0))
+    check(swap.tracks.count == 1 && swap.tracks[0].id == b && swap.tracks[0].id != a, "after a pan, the vehicle in A's old place is B, not A")
+
+    // throttled cadence (1.2 s): a track survives the gap only when the tracker is told the gap
+    var slow = VehicleTracker(); slow.maximumGap = 2.5 * 1.2
+    slow.update([vd(.bus, 0.3)], at: t0)
+    let slowID = slow.tracks.first?.id
+    slow.update([vd(.bus, 0.31)], at: t0.addingTimeInterval(1.2))
+    check(slow.tracks.first?.id == slowID, "at 1.2 s per frame the track survives")
+    var fast = VehicleTracker()
+    fast.update([vd(.bus, 0.3)], at: t0)
+    let fastID = fast.tracks.first?.id
+    fast.update([vd(.bus, 0.31)], at: t0.addingTimeInterval(1.2))
+    check(fast.tracks.first?.id != fastID, "with the old 0.9 s gap it did not")
+
+    // the decision's freshness follows the cadence too
+    var expected = VehicleServiceExpectation(line: "10", destination: "Ostermundigen, Rüti")
+    expected.boardAlternatives = bern
+    let clean = [[VehicleText]](repeating: [text("10", x: 0.12, w: 0.05), text("Ostermundigen Rüti", x: 0.19)], count: 3)
+    let tr = track(clean)
+    let late = tr.lastSeen.addingTimeInterval(1.0)
+    check(VehicleServiceMatcher.decide(tr, expected: expected, now: late).reason == "track_stale", "1 s after the last frame: stale at the normal cadence")
+    check(VehicleServiceMatcher.decide(tr, expected: expected, now: late, freshness: 0.4 + 1.2).state == .visualCandidate,
+          "but not when the camera runs at 1.2 s per frame")
+}
+
 print("\(checks - failures)/\(checks) checks passed")
 exit(failures == 0 ? 0 : 1)

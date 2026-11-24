@@ -11,6 +11,16 @@ struct VehicleDetection {
     let box: CGRect
     let score: Float // Raw model score, never a service confidence or calibrated probability.
     let mask: VehicleMask
+    /// Score gap to the second class, and that class. Under `sureMargin` the class is unsure (YOLOE calls Bern trams
+    /// "train" about five times as often as "tram"): the vehicle is kept, and only its caption says less.
+    var classMargin: Float = 1
+    var runnerUp: TransportClass? = nil
+    static let sureMargin: Float = 0.08
+    /// What the overlay calls it. The class never decides which service a vehicle is.
+    var caption: String {
+        guard classMargin < Self.sureMargin, let runnerUp else { return kind.rawValue.capitalized }
+        return Set([kind, runnerUp]) == [.tram, .train] ? "Tram or train" : "Vehicle"
+    }
 }
 
 struct VehicleMask {
@@ -194,11 +204,15 @@ struct VehicleTrack: Identifiable {
 }
 
 /// Conservative one-to-one association. Ambiguous crossings discard history rather than transfer identity.
+/// Class-agnostic: a tram that flickers between "tram" and "train" stays one track (the class is only a caption).
 struct VehicleTracker {
     private(set) var tracks: [VehicleTrack] = []
     private(set) var lost: [UUID] = []
     private var lastFrameAt: Date?
     static let maximumTracks = 6
+    /// How long an unseen track is kept. The camera sets it from its processing cadence (0.4 s, throttled to 0.8 s in
+    /// Low Power Mode and 1.2 s when hot), so a track outlives the gap between two processed frames.
+    var maximumGap: TimeInterval = 0.9
     mutating func reset() { lost = tracks.map(\.id); tracks = []; lastFrameAt = nil }
     static func iou(_ a: CGRect, _ b: CGRect) -> Double {
         let intersection = a.intersection(b)
@@ -206,13 +220,17 @@ struct VehicleTracker {
         let area = intersection.width * intersection.height
         return area / max(0.000001, a.width * a.height + b.width * b.height - area)
     }
-    mutating func update(_ incoming: [VehicleDetection], at: Date) {
-        guard at.timeIntervalSince1970.isFinite else { reset(); return }
+    /// `shift`: how far the picture moved since the last update because the phone turned (fraction of the upright
+    /// picture, from the camera pose); the old boxes are moved by it before matching, so a pan neither breaks a
+    /// track nor hands it to the vehicle that slid into its old place.
+    mutating func update(_ incoming: [VehicleDetection], at: Date, shift: CGPoint = .zero) {
+        guard at.timeIntervalSince1970.isFinite, shift.x.isFinite, shift.y.isFinite else { reset(); return }
         if let lastFrameAt, at <= lastFrameAt { reset(); return }
-        let previous = tracks.filter { at.timeIntervalSince($0.lastSeen) <= 0.9 && at >= $0.lastSeen }
+        let gap = max(0.9, maximumGap)
+        let previous = tracks.filter { at.timeIntervalSince($0.lastSeen) <= gap && at >= $0.lastSeen }
         let detections = Array(incoming.filter { $0.box.width > 0 && $0.box.height > 0 }.prefix(Self.maximumTracks))
         let candidates = detections.map { detection in
-            previous.indices.filter { previous[$0].detection.kind == detection.kind && Self.iou(previous[$0].detection.box, detection.box) >= 0.3 }
+            previous.indices.filter { Self.iou(previous[$0].detection.box.offsetBy(dx: shift.x, dy: shift.y), detection.box) >= 0.3 }
         }
         var result: [VehicleTrack] = []
         for (index, detection) in detections.enumerated() {
@@ -424,10 +442,14 @@ enum VehicleServiceMatcher {
 
     /// `positions`: per-service likelihoods for this track from live vehicle positions, GPS and compass
     /// (VehiclePositionEvidence.likelihoods); empty when unavailable.
+    /// `freshness`: how old the track's last sighting and read may be when this runs. 0.8 s at the normal cadence; the
+    /// camera widens it with its throttled cadence, or a hot phone could never decide anything.
     static func decide(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
-                       binding: AuthoritativeVehicleBinding? = nil, positions: [String: Double] = [:]) -> VehicleDecision {
+                       binding: AuthoritativeVehicleBinding? = nil, positions: [String: Double] = [:],
+                       freshness: TimeInterval = 0.8) -> VehicleDecision {
         var board = BoardEvidence()
-        var result = decideCore(track, expected: expected, now: now, binding: binding, positions: positions, board: &board)
+        var result = decideCore(track, expected: expected, now: now, binding: binding, positions: positions,
+                                freshness: max(0.8, freshness), board: &board)
         if board.basis != nil, result.state == .visualCandidate || result.state == .verifiedService || result.observedService != nil {
             result.confidence = board.confidence; result.basis = board.basis
         }
@@ -436,13 +458,13 @@ enum VehicleServiceMatcher {
 
     private static func decideCore(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
                                    binding: AuthoritativeVehicleBinding?, positions: [String: Double],
-                                   board: inout BoardEvidence) -> VehicleDecision {
+                                   freshness: TimeInterval, board: inout BoardEvidence) -> VehicleDecision {
         func answer(_ state: VehicleMatchState, _ reason: String) -> VehicleDecision { VehicleDecision(state: state, reason: reason) }
         guard let expected, !expected.line.isEmpty, !expected.destination.isEmpty else { return answer(.unknown, "missing_journey_display") }
         if let context = expected.contextDecision(at: now) { return context }
-        guard now >= track.lastSeen, now.timeIntervalSince(track.lastSeen) < 0.8 else { return answer(.unknown, "track_stale") }
+        guard now >= track.lastSeen, now.timeIntervalSince(track.lastSeen) < freshness else { return answer(.unknown, "track_stale") }
         let readings = track.readings.filter { $0.at <= now && now.timeIntervalSince($0.at) <= 2 }
-        guard let latest = readings.last, now.timeIntervalSince(latest.at) < 0.8 else { return answer(.unknown, "display_stale") }
+        guard let latest = readings.last, now.timeIntervalSince(latest.at) < freshness else { return answer(.unknown, "display_stale") }
         if readings.contains(where: \.outOfService) { return answer(.conflicting, "out_of_service") }
         if readings.contains(where: \.ambiguous) { return answer(.unknown, "ambiguous_display") }
         let line = VehicleTextRules.normalize(expected.line).replacingOccurrences(of: " ", with: "")

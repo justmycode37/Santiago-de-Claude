@@ -43,11 +43,12 @@ struct CameraVehicleOverlay: Identifiable {
 }
 
 /// Main-actor-owned display state. Every invalidation rejects queued publication and clears
-/// feedback. Display timeout alone preserves bounded tracker history, allowing throttled fresh
-/// frames to accumulate evidence; a context/scene interruption resets that history as well.
+/// feedback. Display timeout and a small camera movement alone preserve bounded tracker history
+/// (the tracker moves old boxes by the camera's turn), allowing throttled fresh frames to
+/// accumulate evidence; a big turn or a context/scene interruption resets that history as well.
 struct CameraEvidenceLifecycle {
     enum Invalidation: CaseIterable {
-        case restarted, contextChanged, trackingLost, stopped, thermal, failed, moved, expired
+        case restarted, contextChanged, trackingLost, stopped, thermal, failed, moved, turned, expired
 
         var instruction: String {
             switch self {
@@ -57,7 +58,7 @@ struct CameraEvidenceLifecycle {
             case .stopped: return "Camera stopped. Use the map or reopen the camera to check the display."
             case .thermal: return "Camera recognition paused while the phone cools. Check the line and destination on the vehicle."
             case .failed: return "Vehicle recognition unavailable. Check the line and destination, or use a photo."
-            case .moved: return "Hold steady with the full vehicle and destination display in view."
+            case .moved, .turned: return "Hold steady with the full vehicle and destination display in view."
             case .expired: return "View changed or expired. Read the vehicle's line and destination again."
             }
         }
@@ -88,7 +89,8 @@ struct CameraEvidenceLifecycle {
 
     mutating func invalidate(_ reason: Invalidation, at now: Date = Date()) {
         epoch = UUID()
-        if reason != .expired { trackingEpoch = UUID() }
+        // An expired overlay or a small movement keeps the tracks (the pan reset of the plan's step 1)
+        if reason != .expired && reason != .moved { trackingEpoch = UUID() }
         generationStartedAt = now
         vehicles = []; matches = []; feedbackID = nil; expiresAt = nil
         recognition = reason.instruction
@@ -112,22 +114,32 @@ struct CameraEvidenceLifecycle {
         return candidates.count == 1 ? candidates.first?.id : nil
     }
 
+    /// How old a picture, its display text and the overlay drawn from them may get, from the processing cadence
+    /// (seconds between processed frames). At the normal 0.4 s: 0.7 s, 0.8 s and a 0.5 s lease, as always; throttled
+    /// (0.8 s, 1.2 s) they grow with it, so a hot phone's overlay does not lapse before the next frame can renew it.
+    static func limits(cadence: TimeInterval) -> (capture: TimeInterval, text: TimeInterval, lease: TimeInterval) {
+        let c = min(1.2, max(0.4, cadence.isFinite ? cadence : 0.4))
+        return (0.3 + c, 0.4 + c, 0.1 + c)
+    }
+
     /// Only fresh work from the current active generation can publish. Expiry also rejects work
     /// that completed before its queued timer ran; that work must not resurrect a lost highlight.
     @discardableResult mutating func publish(vehicles incoming: [CameraVehicleOverlay], matches signs: [CameraTextMatch],
                                              token: UUID, capturedAt: Date, now: Date, routeValidUntil: Date? = nil,
-                                             displayIssues: [UUID: DisplayRecognitionIssue] = [:]) -> Bool {
+                                             displayIssues: [UUID: DisplayRecognitionIssue] = [:],
+                                             cadence: TimeInterval = 0.4) -> Bool {
         guard active, token == epoch else { return false }
+        let limit = Self.limits(cadence: cadence)
         guard now.timeIntervalSince1970.isFinite, capturedAt.timeIntervalSince1970.isFinite,
               capturedAt >= generationStartedAt, now >= capturedAt,
-              now.timeIntervalSince(capturedAt) < 0.7, !feedbackExpired(at: now) else {
+              now.timeIntervalSince(capturedAt) < limit.capture, !feedbackExpired(at: now) else {
             invalidate(.expired, at: now)
             return false
         }
         let candidates = incoming.filter { Self.isCandidate($0.decision) }
         let textDates = candidates.compactMap(\.capturedAt)
         guard textDates.count == candidates.count,
-              textDates.allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= capturedAt && now.timeIntervalSince($0) < 0.8 }) else {
+              textDates.allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= capturedAt && now.timeIntervalSince($0) < limit.text }) else {
             invalidate(.expired, at: now)
             return false
         }
@@ -171,8 +183,8 @@ struct CameraEvidenceLifecycle {
             recognition = Invalidation.restarted.instruction
         }
         feedbackID = UUID()
-        expiresAt = min(now.addingTimeInterval(0.5), capturedAt.addingTimeInterval(0.8))
-        if let oldestText = textDates.min() { expiresAt = min(expiresAt!, oldestText.addingTimeInterval(0.8)) }
+        expiresAt = min(now.addingTimeInterval(limit.lease), capturedAt.addingTimeInterval(limit.text))
+        if let oldestText = textDates.min() { expiresAt = min(expiresAt!, oldestText.addingTimeInterval(limit.text)) }
         if !candidates.isEmpty, let routeValidUntil { expiresAt = min(expiresAt!, routeValidUntil) }
         return true
     }

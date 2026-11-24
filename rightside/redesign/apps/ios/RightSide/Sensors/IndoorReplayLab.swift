@@ -331,6 +331,17 @@ private enum IndoorLabRunner {
         var state = CameraEvidenceLifecycle(); state.start(at: at)
         let late = state.publish(vehicles: [candidate()], matches: [], token: state.epoch, capturedAt: at, now: at.addingTimeInterval(0.71))
         checks.append(["name": "700ms_stale_frame", "passed": !late && state.candidateID == nil])
+        // Throttled to 1.2 s (hot phone): a 0.9 s old frame still publishes, and its overlay outlives the gap to the next.
+        state.start(at: at)
+        let throttled = state.publish(vehicles: [candidate()], matches: [], token: state.epoch, capturedAt: at, now: at.addingTimeInterval(0.9), cadence: 1.2)
+        checks.append(["name": "throttled_cadence_publishes", "passed": throttled && (state.expiresAt.map { $0 > at.addingTimeInterval(1.2) } ?? false)])
+        // A small movement clears the overlay but keeps the tracks; a big turn resets them.
+        state.start(at: at)
+        let tracking = state.trackingEpoch
+        state.invalidate(.moved, at: at)
+        let keptOnMove = state.trackingEpoch == tracking && state.vehicles.isEmpty
+        state.invalidate(.turned, at: at)
+        checks.append(["name": "moved_keeps_tracks_turned_resets", "passed": keptOnMove && state.trackingEpoch != tracking])
         state.start(at: at)
         let multiple = state.publish(vehicles: [candidate(),candidate()], matches: [], token: state.epoch, capturedAt: at, now: at)
         checks.append(["name": "ambiguous_two_matches", "passed": multiple && state.candidateID == nil && state.vehicles.allSatisfy { $0.decision.state == .unknown }])

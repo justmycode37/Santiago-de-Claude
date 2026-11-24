@@ -62,6 +62,9 @@ private final class VisionWorkGate: @unchecked Sendable {
     private let pipeline = LocalVehiclePipeline(sceneDetail: .standard, displayLayout: .eitherSide, routeReread: false)
     private let workGate = VisionWorkGate()
     private var renderedPose: simd_float4x4?
+    /// The camera of the last frame handed to the vehicle tracker: the next frame's boxes are matched to its boxes
+    /// moved by the turn in between (trackerShift), and a big turn resets the tracks (.turned).
+    private var trackedCamera: ARCamera?
     private let fleet = BundledTransportPacks.load("bern-fleet", as: FleetPack.self)
     private let boardingPack = BundledTransportPacks.load("bern-boarding", as: BoardingPointPack.self)
     private var localSite: LocalLandmarkSession?
@@ -310,6 +313,25 @@ private final class VisionWorkGate: @unchecked Sendable {
         cameraEvidence.invalidate(reason)
         expiry?.cancel(); expiry = nil
         renderedPose = nil
+        if reason != .moved && reason != .expired { trackedCamera = nil }
+    }
+    /// How far the camera went from `a` to `b`: metres, and degrees between the directions it looks in.
+    static func movement(from a: simd_float4x4, to b: simd_float4x4) -> (metres: Float, degrees: Float) {
+        let za = simd_normalize(SIMD3(a.columns.2.x, a.columns.2.y, a.columns.2.z))
+        let zb = simd_normalize(SIMD3(b.columns.2.x, b.columns.2.y, b.columns.2.z))
+        return (simd_distance(a.columns.3, b.columns.3), acos(max(-1, min(1, simd_dot(za, zb)))) * 180 / .pi)
+    }
+    /// Where the centre of the previous tracked picture lies in this one, as a fraction of the upright portrait
+    /// picture (top-left origin): a point 20 m ahead of the previous camera, projected by both cameras. ARKit's own
+    /// projection takes care of axes and signs. Zero outside portrait (the tracker then matches unshifted boxes).
+    static func trackerShift(from previous: ARCamera?, to camera: ARCamera, upright: CGSize) -> CGPoint {
+        guard let previous, upright.width > 0, upright.height > 0 else { return .zero }
+        let t = previous.transform
+        let ahead = SIMD3(t.columns.3.x, t.columns.3.y, t.columns.3.z) - 20 * SIMD3(t.columns.2.x, t.columns.2.y, t.columns.2.z)
+        let was = previous.projectPoint(ahead, orientation: .portrait, viewportSize: upright)
+        let now = camera.projectPoint(ahead, orientation: .portrait, viewportSize: upright)
+        let shift = CGPoint(x: (now.x - was.x) / upright.width, y: (now.y - was.y) / upright.height)
+        return shift.x.isFinite && shift.y.isFinite ? shift : .zero
     }
     private func invalidateLocalCameraEvidence(_ reason: CameraEvidenceLifecycle.Invalidation, resetAlignment: Bool = true) {
         localExpiry?.cancel(); localExpiry = nil
@@ -445,9 +467,11 @@ private final class VisionWorkGate: @unchecked Sendable {
                 }
             }
         }
-        if let renderedPose, simd_distance(frame.camera.transform.columns.3, renderedPose.columns.3) > 0.05
-            || simd_dot(frame.camera.transform.columns.2, renderedPose.columns.2) < 0.998 {
-            invalidateCameraEvidence(.moved)
+        // The overlay was drawn for a pose: a small movement clears it (the tracks stay), a big turn resets the tracks.
+        if let renderedPose {
+            let m = Self.movement(from: renderedPose, to: frame.camera.transform)
+            if m.metres > 0.5 || m.degrees > 15 { invalidateCameraEvidence(.turned) }
+            else if m.metres > 0.05 || m.degrees > 3.6 { invalidateCameraEvidence(.moved) }
         }
         guard case .normal = frame.camera.trackingState else {
             invalidateCameraEvidence(.trackingLost)
@@ -464,6 +488,14 @@ private final class VisionWorkGate: @unchecked Sendable {
               !processing, frame.timestamp - lastOCR >= interval, view.bounds.width > 0, workGate.acquire() else { return }
         processing = true; lastOCR = frame.timestamp
         let orientation = view.window?.windowScene?.interfaceOrientation ?? .portrait
+        // Tracks follow the camera between processed frames; a turn too big to follow starts them afresh.
+        if let tracked = trackedCamera {
+            let m = Self.movement(from: tracked.transform, to: frame.camera.transform)
+            if m.metres > 0.5 || m.degrees > 15 { invalidateCameraEvidence(.turned) }
+        }
+        let upright = CGSize(width: CVPixelBufferGetHeight(frame.capturedImage), height: CVPixelBufferGetWidth(frame.capturedImage))
+        let trackShift = orientation == .portrait ? Self.trackerShift(from: trackedCamera, to: frame.camera, upright: upright) : .zero
+        trackedCamera = frame.camera
         let imageOrientation: CGImagePropertyOrientation = orientation == .portrait ? .right : orientation == .portraitUpsideDown ? .left : orientation == .landscapeRight ? .down : .up
         let transform = frame.displayTransform(for: orientation, viewportSize: view.bounds.size)
         let buffer = CapturedPixelBuffer(value: frame.capturedImage), pose = frame.camera.transform, capturedAt = Date().addingTimeInterval(-frameAge)
@@ -473,7 +505,8 @@ private final class VisionWorkGate: @unchecked Sendable {
         worker.async { [weak self] in
             defer { workGate.release() }
             let outcome: Result<VehicleFrameResult, Error> = autoreleasepool {
-                Result { try pipeline.process(buffer: buffer.value, orientation: imageOrientation, at: capturedAt, epoch: trackingToken) }
+                Result { try pipeline.process(buffer: buffer.value, orientation: imageOrientation, at: capturedAt, epoch: trackingToken,
+                                              shift: trackShift, trackGap: 2.5 * interval) }
             }
             Task { @MainActor [weak self] in
                 guard let self, self.running, self.epoch == token else { return }
@@ -514,7 +547,8 @@ private final class VisionWorkGate: @unchecked Sendable {
                         : VehiclePositionEvidence.likelihoods(for: track.detection.box, pose: cameraPose,
                               vehicles: self.kanteVehiclesAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? self.kanteVehicles : [],
                               candidates: candidates)
-                    return VehicleServiceMatcher.decide(track, expected: expected, now: now, positions: positions)
+                    return VehicleServiceMatcher.decide(track, expected: expected, now: now, positions: positions,
+                                                        freshness: 0.4 + interval)
                 }
                 func viewBox(_ upright: CGRect) -> CGRect {
                     CameraImageGeometry.rawBox(CGRect(x: upright.minX, y: 1 - upright.maxY, width: upright.width, height: upright.height), orientation: imageOrientation).applying(transform)
@@ -525,12 +559,12 @@ private final class VisionWorkGate: @unchecked Sendable {
                 }
                 let overlays = zip(result.tracks, decisions).map { track, decision in
                     CameraVehicleOverlay(id: track.id, box: viewBox(track.detection.box),
-                        maskRuns: track.detection.mask.runs.map(viewBox), title: track.detection.kind.rawValue.capitalized, decision: decision,
+                        maskRuns: track.detection.mask.runs.map(viewBox), title: track.detection.caption, decision: decision,
                         displayText: track.readings.last?.displayText, capturedAt: track.readings.last?.at)
                 }
                 guard self.cameraEvidence.publish(vehicles: overlays, matches: signs, token: visionToken,
                                                   capturedAt: capturedAt, now: Date(), routeValidUntil: expected?.validUntil,
-                                                  displayIssues: result.displayIssues) else {
+                                                  displayIssues: result.displayIssues, cadence: interval) else {
                     self.renderedPose = nil
                     return
                 }
