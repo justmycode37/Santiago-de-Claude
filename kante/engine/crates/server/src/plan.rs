@@ -27,6 +27,7 @@ pub fn profile_from(o: &json::PlanOptions) -> WalkProfile {
             "avoid" => HillsPref::Avoid,
             _ => HillsPref::Normal,
         },
+        backwards: false,
     }
 }
 
@@ -646,7 +647,7 @@ impl App {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
 
         let to_ep = self.resolve(&req.to)?;
-        let egress = self.reach(&to_ep, &profile, max_walk);
+        let egress = self.reach(&to_ep, &profile, max_walk, true);
         if egress.stops.is_empty() {
             return Err("no public transport stop within walking distance of the destination".into());
         }
@@ -716,7 +717,7 @@ impl App {
 
         // ---- door-to-door plan
         let from_ep: Endpoint = self.resolve(req.from.as_ref().ok_or("from is required")?)?;
-        let access: Reach = self.reach(&from_ep, &profile, max_walk);
+        let access: Reach = self.reach(&from_ep, &profile, max_walk, false);
         let from_end = WalkEnd { name: from_ep.place.name.clone(), pos: from_ep.pos, stop: None, end: access.end.clone() };
         query.access = &access.stops;
 
@@ -838,17 +839,20 @@ impl App {
 }
 
 /// Whether the flatter walk `flat` of a change may replace the quicker `quick`, with `room` seconds for the walk: it
-/// takes `quick`'s time plus the seconds the walks drawn differ (never less), which must leave `in_hand` seconds,
-/// and it climbs at least `less` metres less. The flatter way's extra seconds and metres less climbed.
+/// is timed as `quick` plus the seconds the walks drawn differ (never less), and both that and the flatter walk as
+/// drawn must leave `in_hand` seconds (a change the minimum change time caps is drawn longer than it is timed: the
+/// flatter way must fit as drawn, not only as timed); it climbs at least `less` metres less. The flatter way's extra
+/// seconds and metres less climbed.
 fn flatter_way(quick: &json::WalkLeg, flat: &json::WalkLeg, room: i64, in_hand: i64, less: u32) -> Option<json::FlatterWay> {
     if flat.approximate {
         return None;
     }
-    let extra = (flat.drawn_s? - quick.drawn_s?).max(0);
+    let drawn = flat.drawn_s?;
+    let extra = (drawn - quick.drawn_s?).max(0);
     if flat.climb_m + less > quick.climb_m && less > 0 {
         return None;
     }
-    if quick.duration_s + extra + in_hand > room {
+    if (quick.duration_s + extra).max(drawn) + in_hand > room {
         return None;
     }
     Some(json::FlatterWay { extra_s: extra, less_climb_m: quick.climb_m.saturating_sub(flat.climb_m) })
@@ -1045,10 +1049,12 @@ mod tests {
     fn a_change_capped_by_its_minimum_time_keeps_the_cap() {
         // the timetable's minimum change time (2 min) caps a walk drawn at 9 min; the flat way is a minute longer
         let (quick, flat) = (change(120, 540, 15), change(120, 600, 2));
-        let f = flatter_way(&quick, &flat, 300, 60, 5).unwrap();
-        assert_eq!(retimed(flat, quick.duration_s, f).duration_s, 180);
+        let f = flatter_way(&quick, &flat, 700, 60, 5).unwrap();
+        assert_eq!(retimed(flat.clone(), quick.duration_s, f).duration_s, 180);
+        // 5 min for walking: the flat way fits as timed (3 min) but not as drawn (10 min): the quick way
+        assert!(flatter_way(&quick, &flat, 300, 60, 5).is_none());
         // a flatter way drawn quicker than the quick one is not timed quicker than it
-        let f = flatter_way(&quick, &change(120, 500, 2), 300, 60, 5).unwrap();
+        let f = flatter_way(&quick, &change(120, 500, 2), 700, 60, 5).unwrap();
         assert_eq!(f.extra_s, 0);
     }
 }

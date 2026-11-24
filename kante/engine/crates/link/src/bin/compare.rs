@@ -506,7 +506,7 @@ fn profile_of(o: &serde_json::Value) -> WalkProfile {
         _ => StairsPref::Ok,
     };
     let wheelchair = o["wheelchair"].as_bool().unwrap_or(false);
-    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair, hills: HillsPref::Normal }
+    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair, hills: HillsPref::Normal, backwards: false }
 }
 
 /// Why A (`main`) reaches a stop that B does not, from the built data of both, for each line of stdin

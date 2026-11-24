@@ -25,10 +25,11 @@
 //! Hills (when the graph has slopes, `WalkGraph::slopes`, from `kante-elevation`; the model is
 //! `kante_core::slope`): every arc carries its direction's extra metres of walking time, which add to
 //! `var_m` (so up a hill takes longer than down it), its route-choice effort, weighted by the walker's
-//! `HillsPref` (×0 ignore, ×1 normal, ×3 avoid; a wheelchair at least ×3), and for wheelchairs its grades
+//! `HillsPref` (×0 ignore, ×1 normal, ×3 avoid), and for wheelchairs (unless hills are ignored) its grades
 //! over 6 %. `WalkPath::climb_m` / `descent_m` count the metres climbed and descended. No slope makes an
 //! arc quicker than the flat, so the A* bound holds; the bounded searches allow for the effort
-//! (`search::bound_slack`).
+//! (`search::bound_slack`). A search with `WalkProfile::backwards` (from a destination back to the stops)
+//! costs each arc's slopes as walked the other way, so it times the walk as it is walked.
 //!
 //! Unusable: steps for `StairsPref::Never` and for wheelchairs (unless
 //! `EF_RAMP`), escalators without `escalators`, lifts without `lifts`, an

@@ -1513,11 +1513,19 @@ fn avoiding_hills_takes_a_longer_way_round() {
     assert!(over_hill(&r.route(&from, &to, &NORMAL).unwrap(), &r, hill));
     let avoid = WalkProfile { hills: HillsPref::Avoid, ..NORMAL };
     assert!(!over_hill(&r.route(&from, &to, &avoid).unwrap(), &r, hill));
-    // a wheelchair minds hills as much, and steep grades on top
-    assert!(!over_hill(&r.route(&from, &to, &STEP_FREE).unwrap(), &r, hill));
+    // a wheelchair minds hills as its walker chose, and steep grades on top: over this one (40 + 5 m), round it
+    // when avoiding hills, and round a steeper one either way
+    assert!(over_hill(&r.route(&from, &to, &STEP_FREE).unwrap(), &r, hill));
+    let wc_avoid = WalkProfile { hills: HillsPref::Avoid, ..STEP_FREE };
+    assert!(!over_hill(&r.route(&from, &to, &wc_avoid).unwrap(), &r, hill));
+    let steep = EdgeSlope { steep_dm: [600, 600], ..HILL };
+    let (r2, s2, e2, hill2) = hill_world(steep, 400.0);
+    let (f2, t2) = (on(s2, 0.0, &r2), on(e2, 1.0, &r2));
+    assert!(over_hill(&r2.route(&f2, &t2, &NORMAL).unwrap(), &r2, hill2));
+    assert!(!over_hill(&r2.route(&f2, &t2, &STEP_FREE).unwrap(), &r2, hill2));
     // ... unless hills do not matter to it
     let electric = WalkProfile { hills: HillsPref::Ignore, ..STEP_FREE };
-    assert!(over_hill(&r.route(&from, &to, &electric).unwrap(), &r, hill));
+    assert!(over_hill(&r2.route(&f2, &t2, &electric).unwrap(), &r2, hill2));
     // the stop search times the way it takes, the flat one
     let c = r.one_to_many(&from, &[to], &avoid, 900.0)[0].unwrap();
     assert!(close(c.var_m, 440.0, 2.0), "{}", c.var_m);
@@ -1531,4 +1539,25 @@ fn no_slopes_no_change() {
     r = WalkRouter::new(Arc::new(g));
     let p = r.route(&on(s, 0.0, &r), &on(e, 1.0, &r), &NORMAL).unwrap();
     assert!(close(p.cost.var_m, 340.0, 0.5) && p.climb_m == 0.0);
+}
+
+#[test]
+fn a_search_back_from_the_end_times_the_walk_as_walked() {
+    // 150 m up a hill (10 m more of time going up, 2 m going down), then 150 m on the flat
+    let mut b = Gb::new();
+    let (n0, n1, n2) = (b.node(0.0, 0.0), b.node(150.0, 0.0), b.node(300.0, 0.0));
+    let (up, flat) = (b.edge(n0, n1, EdgeKind::Footway), b.edge(n1, n2, EdgeKind::Footway));
+    let mut slopes = vec![EdgeSlope::default(); 2];
+    slopes[up as usize] = EdgeSlope { up_dm: 120, down_dm: 0, time_dm: [100, 20], effort_dm: [400, 0], steep_dm: [0, 0] };
+    b.g.slopes = slopes;
+    let r = b.build();
+    let (a, z) = (on(up, 0.0, &r), on(flat, 1.0, &r));
+    let ignore = WalkProfile { hills: HillsPref::Ignore, ..NORMAL };
+    let fwd = r.one_to_many(&a, &[z], &ignore, 900.0)[0].unwrap();
+    // from z back to a, walked from a: the climb counts
+    let back = r.one_to_many(&z, &[a], &WalkProfile { backwards: true, ..ignore }, 900.0)[0].unwrap();
+    assert!(close(fwd.var_m, back.var_m, 0.1), "{} {}", fwd.var_m, back.var_m);
+    // walked from z to a it is downhill: quicker
+    let down = r.one_to_many(&z, &[a], &ignore, 900.0)[0].unwrap();
+    assert!(close(fwd.var_m, 310.0, 0.1) && close(down.var_m, 302.0, 0.1), "{} {}", down.var_m, fwd.var_m);
 }

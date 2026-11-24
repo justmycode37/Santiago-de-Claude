@@ -4,8 +4,8 @@
 //! # Which edges have a slope
 //!
 //! - **Out of doors on the ground** (footways, sidewalks, crossings, paths, pedestrian streets and
-//!   squares, roads; not indoors, not on another floor, not on a bridge or in a tunnel): heights every
-//!   [`SAMPLE_M`] along the edge, their ends the heights of its two nodes, smoothed once ([1 2 1]) so
+//!   squares, roads; not indoors, not on another floor, not on a bridge or in a tunnel): heights evenly
+//!   along the edge, at most [`SAMPLE_M`] apart, their ends the heights of its two nodes, smoothed once ([1 2 1]) so
 //!   that a way drawn a metre beside its real place on a hillside does not climb and fall; grades are
 //!   clamped to ±[`MAX_GRADE`].
 //! - **Bridges and tunnels**: the terrain under a bridge (the river) and above a tunnel (the hill) is
@@ -102,15 +102,14 @@ fn finish(fwd: Acc, back: Acc, up: f32, down: f32) -> EdgeSlope {
     }
 }
 
-/// Slopes along a height profile: `h[i]` every `step` metres (the last step may be shorter: `last`).
-fn profile(h: &[f32], step: f32, last: f32, clamped: &mut usize) -> EdgeSlope {
+/// Slopes along a height profile: `h[i]` every `run` metres.
+fn profile(h: &[f32], run: f32, clamped: &mut usize) -> EdgeSlope {
     let (mut fwd, mut back, mut up, mut down) = (Acc::default(), Acc::default(), 0f32, 0f32);
     let n = h.len();
+    if run < 0.05 {
+        return EdgeSlope::default();
+    }
     for i in 0..n.saturating_sub(1) {
-        let run = if i + 2 == n { last } else { step };
-        if run < 0.05 {
-            continue;
-        }
         let mut g = (h[i + 1] - h[i]) / run;
         if g.abs() > MAX_GRADE {
             *clamped += 1;
@@ -175,10 +174,11 @@ pub fn build(g: &WalkGraph, terrain: &dyn Terrain) -> (Vec<EdgeSlope>, SlopeStat
                 cum.push(cum.last().unwrap() + w[0].dist_m(&w[1]));
             }
             let len = *cum.last().unwrap();
+            // evenly spaced, so that smoothing keeps an even grade even
             let steps = ((len / SAMPLE_M).ceil() as usize).max(1);
             plan.push((len, steps, sample_pts.len()));
             for k in 1..steps {
-                sample_pts.push(wgs84_to_lv95(&along(pts, &cum, k as f32 * SAMPLE_M)));
+                sample_pts.push(wgs84_to_lv95(&along(pts, &cum, len * k as f32 / steps as f32)));
             }
         }
         let hs = terrain.heights(&sample_pts);
@@ -196,7 +196,7 @@ pub fn build(g: &WalkGraph, terrain: &dyn Terrain) -> (Vec<EdgeSlope>, SlopeStat
                 for k in 1..steps {
                     let v = hs[off + k - 1];
                     // a sample with no height: on the straight line between the ends
-                    h.push(if v.is_finite() { v } else { ha + (hb - ha) * (k as f32 * SAMPLE_M / len) });
+                    h.push(if v.is_finite() { v } else { ha + (hb - ha) * (k as f32 / steps as f32) });
                 }
                 h.push(hb);
                 // smooth the inside once; the ends stay the nodes' heights, so edges meet
@@ -206,9 +206,8 @@ pub fn build(g: &WalkGraph, terrain: &dyn Terrain) -> (Vec<EdgeSlope>, SlopeStat
                         h[k] = 0.25 * raw[k - 1] + 0.5 * raw[k] + 0.25 * raw[k + 1];
                     }
                 }
-                let last = len - (steps - 1) as f32 * SAMPLE_M;
                 let mut c = 0usize;
-                let s = profile(&h, SAMPLE_M, last, &mut c);
+                let s = profile(&h, len / steps as f32, &mut c);
                 (s, c)
             })
             .collect();
@@ -232,7 +231,7 @@ pub fn build(g: &WalkGraph, terrain: &dyn Terrain) -> (Vec<EdgeSlope>, SlopeStat
                 }
                 if ha.is_finite() && hb.is_finite() && len >= 0.05 {
                     let mut c = 0usize;
-                    out[e] = profile(&[ha, hb], len, len, &mut c);
+                    out[e] = profile(&[ha, hb], len, &mut c);
                     st.clamped += c;
                 }
             }

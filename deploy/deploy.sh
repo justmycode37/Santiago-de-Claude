@@ -25,22 +25,7 @@ build_release() { # build_release <commit> <release dir>
   # which timetable this release was built from (refresh-data.sh compares it with the one in force)
   cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
   register
-  elevation
   "$rel/kante" build --data "$rel/data"
-}
-
-# The terrain model (the hills walks climb, 10 GB): an input added after the host was set up, fetched once (a download
-# cut short is resumed by the next deploy). Without it the build goes on and walks are timed as if flat.
-elevation() {
-  # a checkout whose fetch-data.sh knows no terrain model (one from before it): nothing to do
-  grep -q -- '--elevation' kante/scripts/fetch-data.sh 2>/dev/null || return 0
-  [[ -s $ROOT/raw/dem/swissaltiregio.tif ]] && return 0
-  if KANTE_RAW=$ROOT/raw timeout 1500 kante/scripts/fetch-data.sh --elevation; then
-    log "fetched the terrain model"
-  else
-    log "warning: no terrain model in $ROOT/raw/dem (the next deploy goes on with the download): walks timed as if flat"
-  fi
-  return 0
 }
 
 # The building address register (the doors of most buildings): an input added after the host was set up. Without a
@@ -102,7 +87,8 @@ sync_units() { # new or changed systemd units from the repository (e.g. a new ti
   return 0
 }
 
-slopes_note() { # walk edges with a slope from the terrain model (/api/meta): over 3 million with it
+slopes_note() { # walk edges with a slope from the terrain model (/api/meta): over 3 million with it (refresh-data.sh
+  # fetches the model, 10 GB, outside the deploy's time limit)
   local n
   n=$(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["counts"].get("slopedEdges", 0))' 2>/dev/null || echo 0)
   if (( ${n:-0} < 1000000 )); then log "warning: ${n:-0} walk edges with a slope: walks timed as if flat"; else log "${n} walk edges with a slope"; fi

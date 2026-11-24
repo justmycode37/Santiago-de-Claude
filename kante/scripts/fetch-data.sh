@@ -98,7 +98,8 @@ if (( only_register )); then
 fi
 
 # swisstopo's terrain model, swissALTIRegio (10 m, a cloud-optimised GeoTIFF of 10 GB): what kante build's
-# `elevation` step reads. Downloaded once and resumed where a download was cut short.
+# `elevation` step reads. Downloaded once; a download cut short is resumed, but only from the same edition (its
+# ETag), and the file is used only when it has the size the server gives.
 DEM_URL=https://data.geo.admin.ch/ch.swisstopo.swissaltiregio/swissaltiregio/swissaltiregio_2056_5728.tif
 dem_ok() { # a little-endian BigTIFF of at least 5 GB
   [[ -s $1 ]] && [[ $(head -c 4 "$1" | od -An -tx1 | tr -d ' \n') == 49492b00 ]] && (( $(stat -c %s "$1") > 5000000000 ))
@@ -110,14 +111,21 @@ if (( only_elevation )); then
     exit 0
   fi
   mkdir -p "$RAW/dem"
+  head=$(curl -fsSIL --retry 3 -A "$UA" "$DEM_URL") || { echo "error: $DEM_URL does not answer" >&2; exit 1; }
+  size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9')
+  etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r')
+  # a part of another edition is not resumed
+  if [[ -e $dest.part && "$(cat "$dest.part.etag" 2>/dev/null)" != "$etag" ]]; then rm -f "$dest.part"; fi
+  echo "$etag" > "$dest.part.etag"
   echo "fetch $dest (10 GB)"
   curl -fSL --retry 5 -C - -A "$UA" -o "$dest.part" "$DEM_URL" || exit 1
-  if ! dem_ok "$dest.part"; then
-    echo "error: $DEM_URL is not the terrain model the engine reads" >&2
-    rm -f "$dest.part"
+  if [[ -z $size || $(stat -c %s "$dest.part") != "$size" ]] || ! dem_ok "$dest.part"; then
+    echo "error: $DEM_URL gave $(stat -c %s "$dest.part") bytes of ${size:-unknown}, not the terrain model the engine reads" >&2
+    rm -f "$dest.part" "$dest.part.etag"
     exit 1
   fi
   mv "$dest.part" "$dest"
+  rm -f "$dest.part.etag"
   exit 0
 fi
 

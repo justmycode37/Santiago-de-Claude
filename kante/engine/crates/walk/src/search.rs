@@ -3,7 +3,7 @@
 //! an edge. Per-thread scratch with generation stamps, so a query touches
 //! only the nodes it reaches.
 
-use crate::net::{slope_var, Arc, CostTable, Net, NO_NODE};
+use crate::net::{Arc, CostTable, Net, NO_NODE};
 use crate::WalkCost;
 use kante_core::geo::M_PER_DEG_LAT;
 use kante_core::*;
@@ -148,9 +148,8 @@ fn bound_slack(p: &WalkProfile) -> f32 {
     };
     base + match (p.hills, p.wheelchair) {
         (HillsPref::Ignore, _) => 0.0,
-        (_, true) => 1.0,
         (HillsPref::Normal, false) => 0.3,
-        (HillsPref::Avoid, false) => 1.0,
+        (HillsPref::Normal, true) | (HillsPref::Avoid, _) => 1.0,
     }
 }
 
@@ -309,7 +308,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
                 if sv[S_STAMP] != gen || nd < f32::from_bits(sv[S_DIST]) {
                     sv[S_STAMP] = gen;
                     sv[S_DIST] = nd.to_bits();
-                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + slope_var(a)).to_bits();
+                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + t.slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_H] = su[S_H];
                     heap.push(nd, a.head);
@@ -539,7 +538,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                         sv[S_H] = h(a.head).to_bits();
                     }
                     sv[S_DIST] = nd.to_bits();
-                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + slope_var(a)).to_bits();
+                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + t.slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_PARC] = (base + i) as u32;
                     sv[S_PNODE] = u;

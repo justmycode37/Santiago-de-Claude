@@ -635,9 +635,12 @@ impl App {
         }
     }
 
-    /// Which stops can be walked to from `ep` within `max_s`, and how long it takes.
-    /// Walking is treated as symmetric, so the same call serves access and egress.
-    pub fn reach(&self, ep: &Endpoint, profile: &WalkProfile, max_s: Secs) -> Reach {
+    /// Which stops can be walked to from `ep` within `max_s` (`to_here`: from which stops `ep` can be walked to, an
+    /// egress), and how long it takes. The search always runs from `ep`; for an egress against the direction of
+    /// travel ([`WalkProfile::backwards`]), so its times are those of walking from the stop (up a hill, not down).
+    pub fn reach(&self, ep: &Endpoint, profile: &WalkProfile, max_s: Secs, to_here: bool) -> Reach {
+        let search = WalkProfile { backwards: to_here, ..*profile };
+        let profile = &search;
         let speed = profile.speed_mps;
         let mut best: FxHashMap<StopIdx, Secs> = FxHashMap::default();
         if let Some(st) = ep.station {

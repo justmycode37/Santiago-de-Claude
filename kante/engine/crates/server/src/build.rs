@@ -42,6 +42,14 @@ fn step<T>(name: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     Ok(r)
 }
 
+/// What terrain model is at `path` (file name, size, modification time), if any: slopes made from another are made
+/// again.
+fn dem_id(path: &Path) -> Option<String> {
+    let m = std::fs::metadata(path).ok()?;
+    let t = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+    Some(format!("{} {} {}", path.file_name()?.to_string_lossy(), m.len(), t))
+}
+
 fn parse_bbox(s: &str) -> Result<BBox> {
     let v: Vec<f64> = s.split(',').map(|x| x.trim().parse::<f64>()).collect::<Result<_, _>>().context("--walk-bbox")?;
     if v.len() != 4 {
@@ -158,24 +166,40 @@ pub fn run(args: &Args) -> Result<()> {
             io::save(&doors_path, DOORS_SCHEMA, &doors)
         })?;
     }
-    // the slopes of the graph's edges, from the terrain model: made again with the graph, and whenever they belong
-    // to another one; without the terrain model, none (a stale slopes.bin is removed)
-    let slopes_wanted = wanted("elevation", &[(&slopes_path, SLOPES_SCHEMA)])
-        || (only.is_none() && (osm_wanted || {
-            let g = io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).ok();
-            !matches!(g, Some(g) if crate::state::load_slopes(&slopes_path, &g).is_some())
-        }));
+    // the slopes of the graph's edges, from the terrain model: made again with the graph, with another terrain model
+    // (`Slopes::source` names the file, its size and time), and whenever they belong to another graph; without the
+    // terrain model, none (a slopes.bin left from one is removed)
+    let dem = dem_id(&dem_path);
+    let slopes_wanted = match &only {
+        Some(list) => list.contains(&"elevation"),
+        None => {
+            force
+                || osm_wanted
+                || match (&dem, io::load::<Slopes>(&slopes_path, SLOPES_SCHEMA).ok()) {
+                    (None, None) => false,
+                    (None, Some(_)) | (Some(_), None) => true,
+                    (Some(id), Some(s)) => s.source != *id || io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).map_or(true, |g| s.graph != graph_fingerprint(&g)),
+                }
+        }
+    };
     if slopes_wanted {
         step("elevation", || {
-            if !dem_path.exists() {
-                eprintln!("   no terrain model at {}: walks are timed as if flat (scripts/fetch-data.sh --elevation)", dem_path.display());
+            let flat = |why: String| -> Result<()> {
+                eprintln!("   {why}: walks are timed as if flat");
                 if slopes_path.exists() {
                     std::fs::remove_file(&slopes_path)?;
                 }
-                return Ok(());
-            }
+                Ok(())
+            };
+            let Some(id) = dem.clone() else {
+                return flat(format!("no terrain model at {} (scripts/fetch-data.sh --elevation)", dem_path.display()));
+            };
+            // an input that is optional: one that cannot be read is said, not a reason to stop the build
+            let dem = match kante_elevation::dem::Dem::open(&dem_path) {
+                Ok(d) => d,
+                Err(e) => return flat(format!("the terrain model {} cannot be read ({e:#})", dem_path.display())),
+            };
             let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
-            let dem = kante_elevation::dem::Dem::open(&dem_path)?;
             let (edges, st) = kante_elevation::build(&graph, &dem);
             eprintln!(
                 "   {} edges on the ground, {} bridges and tunnels ({} with no end on the ground), {} flights of stairs; {} nodes outside the terrain model, {} segments steeper than {:.0} %",
@@ -187,15 +211,17 @@ pub fn run(args: &Args) -> Result<()> {
                 st.clamped,
                 kante_elevation::MAX_GRADE * 100.0
             );
-            let source = dem_path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-            io::save(&slopes_path, SLOPES_SCHEMA, &Slopes { graph: graph_fingerprint(&graph), source, edges })
+            if st.no_height * 2 > graph.nodes.len() {
+                return flat(format!("the terrain model {} has no height for {} of {} nodes", dem_path.display(), st.no_height, graph.nodes.len()));
+            }
+            io::save(&slopes_path, SLOPES_SCHEMA, &Slopes { graph: graph_fingerprint(&graph), source: id, edges })
         })?;
     }
 
     // the links refer to the graph's edges and the timetable's stops, and their footpaths are timed with the slopes:
     // built again with any of them, and whenever they belong to another one (caches upgraded in place)
     let links_wanted = wanted("links", &[(&links_path, LINKS_SCHEMA)])
-        || (only.is_none() && (osm_wanted || tt_wanted || slopes_wanted || {
+        || (only.is_none() && (osm_wanted || tt_wanted || {
             let l = io::load::<LinkData>(&links_path, LINKS_SCHEMA).ok();
             let g = io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).ok();
             let t = io::load::<Timetable>(&tt_path, TIMETABLE_SCHEMA).ok();

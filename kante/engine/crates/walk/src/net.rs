@@ -71,9 +71,10 @@ pub(crate) struct Arc {
     /// this arc carries. 65535 unless the crossing or flight is split into
     /// several edges.
     pub share: u16,
-    /// This direction's slopes ([`kante_core::EdgeSlope::dir`]), decimetres: extra metres of walking
-    /// time, route-choice effort for a walker who minds hills, steepness for a wheelchair.
-    pub slope: [u16; 3],
+    /// The slopes ([`kante_core::EdgeSlope::dir`]) of walking the arc (`[0]`) and of walking it the other
+    /// way (`[1]`, for searches against the direction of travel), decimetres: extra metres of walking time,
+    /// route-choice effort for a walker who minds hills, steepness for a wheelchair.
+    pub slope: [[u16; 3]; 2],
 }
 
 impl Arc {
@@ -225,20 +226,22 @@ pub(crate) struct CostTable {
     pub head_mask: u8,
     /// Generalised seconds per decimetre of `Arc::slope` (time, effort, steepness).
     pub k_slope: [f32; 3],
+    /// Which of `Arc::slope` a walk along the arc costs: 1 in a search against the direction of travel.
+    pub slope_dir: usize,
 }
 
 impl CostTable {
     pub fn new() -> Self {
-        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: 0, k_slope: [0.0; 3] }
+        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: 0, k_slope: [0.0; 3], slope_dir: 0 }
     }
     pub fn fill(&mut self, p: &WalkProfile) {
         let speed = p.speed_mps.max(0.05);
         self.head_mask = p.wheelchair as u8;
         // a slope's time counts for everyone; its effort as much as the walker minds hills, and a wheelchair
-        // minds steep grades (unless hills do not matter at all)
+        // minds steep grades on top (unless hills do not matter at all)
         let steep = if p.wheelchair && p.hills != HillsPref::Ignore { 1.0 } else { 0.0 };
-        let effort = if p.wheelchair { p.hills.effort_weight().max(HillsPref::Avoid.effort_weight() * steep) } else { p.hills.effort_weight() };
-        self.k_slope = [0.1 / speed, 0.1 * effort / speed, 0.1 * steep / speed];
+        self.k_slope = [0.1 / speed, 0.1 * p.hills.effort_weight() / speed, 0.1 * steep / speed];
+        self.slope_dir = p.backwards as usize;
         for c in 0..256usize {
             match class_cost(c as u8, p) {
                 Some(cc) => {
@@ -289,19 +292,19 @@ impl CostTable {
         }
         let l = a.len_m * scale;
         let sh = a.share as f32 * scale;
-        (l * self.gen_m[c] + sh * self.gen_c[c] + scale * self.slope_gen(a), l * self.var_m[c] + scale * slope_var(a), l * self.fix_m[c] + sh * self.fix_c[c])
+        (l * self.gen_m[c] + sh * self.gen_c[c] + scale * self.slope_gen(a), l * self.var_m[c] + scale * self.slope_var(a), l * self.fix_m[c] + sh * self.fix_c[c])
     }
     /// Generalised seconds of a whole arc's slopes.
     #[inline]
     pub fn slope_gen(&self, a: &Arc) -> f32 {
-        a.slope[0] as f32 * self.k_slope[0] + a.slope[1] as f32 * self.k_slope[1] + a.slope[2] as f32 * self.k_slope[2]
+        let s = &a.slope[self.slope_dir];
+        s[0] as f32 * self.k_slope[0] + s[1] as f32 * self.k_slope[1] + s[2] as f32 * self.k_slope[2]
     }
-}
-
-/// Metres of walking time a whole arc's slopes add (`var_m`).
-#[inline]
-pub(crate) fn slope_var(a: &Arc) -> f32 {
-    a.slope[0] as f32 * 0.1
+    /// Metres of walking time a whole arc's slopes add (`var_m`).
+    #[inline]
+    pub fn slope_var(&self, a: &Arc) -> f32 {
+        a.slope[self.slope_dir][0] as f32 * 0.1
+    }
 }
 
 /// The two arcs of an edge and its end nodes in the routing network.
@@ -778,16 +781,16 @@ impl Net {
             arc_off[i] += arc_off[i - 1];
         }
         let total = arc_off[n as usize + 1] as usize;
-        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0, slope: [0; 3] };
+        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0, slope: [[0; 3]; 2] };
         let mut arcs = vec![blank; total];
         // the slopes of each direction, when a terrain model gave the graph some
         let has_slopes = g.slopes.len() == g.edges.len();
-        let slope_of = |e: u32, rev: bool| -> [u16; 3] {
+        let slope_of = |e: u32, rev: bool| -> [[u16; 3]; 2] {
             if has_slopes {
-                let (t, f, s) = g.slopes[e as usize].dir(rev);
-                [t, f, s]
+                let ((t, f, s), (t2, f2, s2)) = (g.slopes[e as usize].dir(rev), g.slopes[e as usize].dir(!rev));
+                [[t, f, s], [t2, f2, s2]]
             } else {
-                [0; 3]
+                [[0; 3]; 2]
             }
         };
         // arc_off[i + 1] is the fill cursor of node i; after filling it is the
@@ -849,7 +852,7 @@ impl Net {
         }
         for &(t, h, cls, len_m) in &virt {
             let slot = &mut arc_off[t as usize + 1];
-            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535, slope: [0; 3] };
+            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535, slope: [[0; 3]; 2] };
             *slot += 1;
         }
         arc_off.truncate(n as usize + 1);

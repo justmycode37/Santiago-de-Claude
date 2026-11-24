@@ -169,3 +169,16 @@ fn indoor_ways_are_flat() {
     assert_eq!(sl[c as usize], EdgeSlope::default());
     assert_eq!(sl[p as usize], EdgeSlope::default());
 }
+
+#[test]
+fn an_even_ramp_stays_even() {
+    // review: 11 m at a steady 6 % (samples at 0, 5.5, 11 m now, not 0, 10, 11): no steep metre at its end
+    let mut b = Gb::new();
+    let (s, n) = (b.node(0.0, 0.0), b.node(0.0, 11.0));
+    let e = b.edge(s, n, EdgeKind::Footway, 0);
+    let g = b.done();
+    let (sl, _) = build(&g, &Fn(|_, n| 500.0 + 0.06 * n as f32));
+    let x = sl[e as usize];
+    assert_eq!(x.steep_dm, [0, 0], "{x:?}");
+    assert!(near(x.up_dm as f32 / 10.0, 0.66, 0.1), "{x:?}");
+}

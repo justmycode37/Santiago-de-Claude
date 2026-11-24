@@ -292,15 +292,19 @@ pub struct WalkProfile {
     pub wheelchair: bool,
     /// How much hills matter for route choice ([`crate::slope`]); the time always counts them.
     pub hills: crate::slope::HillsPref,
+    /// The search runs against the direction of travel: from where the walk ends back to where it starts (an
+    /// egress search, from the destination to the stops), so every arc costs what walking it the other way does
+    /// (its slopes: up a hill is not down it).
+    pub backwards: bool,
 }
 
 impl WalkProfile {
     pub const fn normal(speed_mps: f32) -> Self {
-        WalkProfile { speed_mps, stairs: StairsPref::Ok, escalators: true, lifts: true, wheelchair: false, hills: crate::slope::HillsPref::Normal }
+        WalkProfile { speed_mps, stairs: StairsPref::Ok, escalators: true, lifts: true, wheelchair: false, hills: crate::slope::HillsPref::Normal, backwards: false }
     }
     /// Strict step-free: no stairs, no escalators, wheelchair rules.
     pub const fn step_free(speed_mps: f32) -> Self {
-        WalkProfile { speed_mps, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true, hills: crate::slope::HillsPref::Normal }
+        WalkProfile { speed_mps, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true, hills: crate::slope::HillsPref::Normal, backwards: false }
     }
     pub fn is_step_free(&self) -> bool {
         self.stairs == StairsPref::Never
