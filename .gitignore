@@ -27,3 +27,6 @@ data/raw/
 
 # Download cache of the data builders
 tools/cache/
+
+# Answers of a sharded search-eval recording, merged into answers.json.gz by the next run (tools/search-eval/)
+tools/search-eval/answers.*.json.gz
