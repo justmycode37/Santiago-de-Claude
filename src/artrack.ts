@@ -70,6 +70,16 @@ export const AR_LIMITS = {
   IOU_MATCH: 0.2,
   /** A second box (or track) this close to the best one makes the match ambiguous. */
   AMBIGUOUS_RATIO: 0.7,
+  /** A track seen in fewer detections than this, and small beside a remembered vehicle, is flicker (flicker()). */
+  BLIP_HITS: 2,
+  /** A box that holds another vehicle's box (80 % of it, at least this share of its own area) gets no colour. */
+  HOLDS_MIN: 0.05,
+  /** A box whose width or height changes more than this between two detections this far apart (s) may have taken in
+   *  or lost a second vehicle: one vehicle's change on the bench (YOLOX-tiny boxes of labelled passes; width p99.5,
+   *  height p99.9: a passing tram's box changes height often, and two vehicles side by side change its width),
+   *  interpolated, the last value beyond 1 s. */
+  JUMP_W: [[0.2, 1.66], [0.4, 1.76], [0.6, 1.99], [0.8, 2.37], [1.0, 2.78]] as [number, number][],
+  JUMP_H: [[0.2, 1.31], [0.4, 1.42], [0.6, 1.61], [0.8, 1.77], [1.0, 2.0]] as [number, number][],
   /** Two tracks overlapping this much may swap identities: both are revoked. */
   IOU_CROSSING: 0.3,
   /** A track missing from one detection is gone (a vehicle seen again is a new track without a label: another
@@ -95,6 +105,23 @@ export const AR_LIMITS = {
   BOARD_MATCH_S: 300,
   /** Distinct frames that a red needs. */
   RED_FRAMES: 2,
+  /** A track remembers what its display said once this many distinct frames agree within LATCH_S (green or red). */
+  LATCH_FRAMES: 2,
+  LATCH_S: 6,
+  /** A remembered display stays this long after the last read that supported it, while the track stays the same
+   *  vehicle (any doubt about that forgets it). Garbled and unreadable reads neither support nor clear it. */
+  MEMORY_S: 20,
+  /** A picture counts for a display when it matches it this well on its own (the matcher's floor for a frame that
+   *  takes part in a consensus, arcore.ts CONSENSUS_MIN). */
+  PICTURE_MIN: 0.35,
+  /** One picture alone is remembered when it matches this well (its confidence × frame quality). */
+  LATCH_SINGLE_MIN: 0.8,
+  /** Distinct frames that contradict a remembered display before it is forgotten (one only hides the label). */
+  FORGET_FRAMES: 2,
+  /** Two text groups this far apart (share of the box's width) that each match a listed display: two vehicles in one box. */
+  SPLIT_GAP: 0.12,
+  /** A vehicle whose display is remembered is read again after this long (the others go first). */
+  RECHECK_S: 1.5,
   /** Debug capture length. */
   LOG_S: 10,
 };
@@ -109,6 +136,17 @@ interface Track {
   decidedAt: number;
   /** The last moment its identity was in doubt: reads captured before it are not its own. */
   contestedAt: number;
+  /** What its display said, once LATCH_FRAMES frames agreed; kept through unreadable reads. support: the readings
+   *  that said it (checked again when the board's departures change); board: those departures then. */
+  memory: { key: string; decision: ArDecision; since: number; lastSupport: number; frames: number; support: ArReading[]; board: string } | null;
+  /** Capture moment of its last read that showed two displays (a box over two vehicles): no latching near it. */
+  twoAt: number;
+  /** Pictures that each named a display on their own (key), for latching. */
+  named: { key: string; at: number; frame: string; decision: ArDecision }[];
+  /** Frames that contradicted the memory since it was last supported; the first hides the label. */
+  against: { at: number; frame: string }[];
+  /** When the display reader last looked at it. */
+  lastRead: number;
 }
 
 const iou = ARCORE.iou;
@@ -117,6 +155,20 @@ const iou = ARCORE.iou;
 let frameSeq = 0;
 const shifted = (b: ArBox, s: ArShift | null): ArBox => (s ? [b[0] + s.dx, b[1] + s.dy, b[2], b[3]] : b);
 const midX = (b: ArBox) => b[0] + b[2] / 2;
+/** The limit of a JUMP_* table at a step of dt seconds. */
+const jumpLimit = (table: [number, number][], dt: number) => {
+  if (dt <= table[0][0]) return table[0][1];
+  for (let i = 1; i < table.length; i++) {
+    const [t1, v1] = table[i], [t0, v0] = table[i - 1];
+    if (dt <= t1) return v0 + (v1 - v0) * (dt - t0) / (t1 - t0);
+  }
+  return table[table.length - 1][1];
+};
+/** How much of box a lies inside box b (0–1). */
+const insideShare = (a: ArBox, b: ArBox) => {
+  const ix = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0])), iy = Math.max(0, Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]));
+  return (ix * iy) / Math.max(1e-9, a[2] * a[3]);
+};
 
 /** Two reads of one picture as one reading (at the first's moment). Two different line/destination pairs make it
  *  ambiguous, as two pairs in one read do; out of service from either counts. */
@@ -134,7 +186,8 @@ export function joinReadings(a: ArReading, b: ArReading, frameId: string): ArRea
   };
 }
 
-export function createArSession(ride: ArRide) {
+/** onEvent: every event of the session's log as it happens (the bench counts them; the log keeps only LOG_S). */
+export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
   const L = AR_LIMITS;
   let tracks: Track[] = [];
   /** Tracks gone in the last few seconds: their boxes still keep late text from a neighbour; they own nothing. */
@@ -150,12 +203,23 @@ export function createArSession(ride: ArRide) {
   const derot = { on: false, better: 0, worse: 0 };
 
   const note = (e: ArEvent) => {
+    if (onEvent) onEvent(e);
     log.push(e);
     while (log.length && log[0].at < e.at - L.LOG_S) log.shift();
   };
   const contest = (t: Track, at: number, why: string) => {
     if (t.decision || t.readings.length) note({ at, type: 'revoke', track: t.id, why });
-    t.contestedAt = at; t.readings = []; t.decision = null;
+    if (t.memory) note({ at, type: 'forget', track: t.id, why });
+    t.contestedAt = at; t.readings = []; t.decision = null; t.memory = null; t.named = []; t.against = [];
+  };
+
+  /** Identity in some doubt (its box jumped in size): a remembered display is hidden until a picture taken
+   *  after now says it again (and forgotten on one more contradiction); a track with nothing remembered is revoked. */
+  const doubt = (t: Track, at: number, why: string) => {
+    if (!t.memory) { contest(t, at, why); return; }
+    if (!t.against.some((x) => x.frame === why && x.at === at)) t.against.push({ at, frame: why });
+    note({ at, type: 'doubt', track: t.id, why });
+    if (t.against.length >= L.FORGET_FRAMES) contest(t, at, why);
   };
 
   /**
@@ -187,6 +251,14 @@ export function createArSession(ride: ArRide) {
     m.forEach((row, i) => row.forEach((v, j) => { if (v >= L.IOU_MATCH) pairs.push([i, j, v]); }));
     pairs.sort((a, b) => b[2] - a[2]);
     const tUsed = new Set<number>(), dUsed = new Set<number>(), matched: [number, number][] = [];
+    const jumped = new Set<number>();
+    /** A box seen in one detection only, smaller than half of a remembered vehicle's box that did not jump in size:
+     *  detector flicker on a part of that vehicle (as a tram turns, its rear section comes and goes), not a second
+     *  vehicle. Anything else that vanishes into, or crosses, a vehicle's box makes it forget. */
+    const flicker = (hits: number, box: ArBox, of: Track) => {
+      const was = (of.history[of.history.length - 2] || of.history[of.history.length - 1]).box; // before this detection
+      return hits < L.BLIP_HITS && !!of.memory && !jumped.has(of.id) && box[2] * box[3] < 0.5 * Math.min(was[2] * was[3], of.box[2] * of.box[3]);
+    };
     for (const [i, j, v] of pairs) {
       if (tUsed.has(i) || dUsed.has(j)) continue;
       tUsed.add(i); dUsed.add(j); matched.push([i, j]);
@@ -207,6 +279,11 @@ export function createArSession(ride: ArRide) {
         if (bestK >= 0 && bestK !== j) contest(t, at, 'pan_ambiguous');
       }
       const d = dets[j];
+      // a box that grows or shrinks faster than one vehicle's does between two detections (the bench's p99.5) may
+      // have taken in, or lost, a second vehicle
+      const wr = Math.max(d.box[2] / t.box[2], t.box[2] / d.box[2]), hr = Math.max(d.box[3] / t.box[3], t.box[3] / d.box[3]);
+      const dt = at - t.lastSeen;
+      if (wr > jumpLimit(L.JUMP_W, dt) || hr > jumpLimit(L.JUMP_H, dt)) jumped.add(t.id);
       t.box = d.box; t.score = d.score; t.cls = d.cls; t.lastSeen = at; t.hits++;
       t.history.push({ at, box: d.box });
       while (t.history.length && t.history[0].at < at - L.HISTORY_S) t.history.shift();
@@ -219,16 +296,22 @@ export function createArSession(ride: ArRide) {
         // overlap as a share of the vanished vehicle's own box: a small one swallowed by a big merged box counts
         const p = pred[i], b = dets[j].box;
         const ix = Math.max(0, Math.min(p[0] + p[2], b[0] + b[2]) - Math.max(p[0], b[0])), iy = Math.max(0, Math.min(p[1] + p[3], b[1] + b[3]) - Math.max(p[1], b[1]));
-        if (iou(p, b) > 0.05 || (ix * iy) / Math.max(1e-9, p[2] * p[3]) > 0.3) contest(live[k], at, 'occlusion');
+        if (iou(p, b) > 0.05 || (ix * iy) / Math.max(1e-9, p[2] * p[3]) > 0.3) {
+          if (!flicker(u.hits, p, live[k])) contest(live[k], at, 'occlusion');
+        }
       }
     });
     dets.forEach((d, j) => {
       if (dUsed.has(j)) return;
       const t: Track = { id: nextId++, box: d.box, score: d.score, cls: d.cls, born: at, lastSeen: at, hits: 1,
-        history: [{ at, box: d.box }], readings: [], decision: null, decidedAt: -Infinity, contestedAt: -Infinity };
+        history: [{ at, box: d.box }], readings: [], decision: null, decidedAt: -Infinity, contestedAt: -Infinity,
+        memory: null, named: [], against: [], lastRead: -Infinity, twoAt: -Infinity };
       tracks.push(t);
       note({ at, type: 'track_new', track: t.id, box: d.box });
     });
+    // a box that jumped in size: a remembered display waits for a fresh read, any other label goes (a vehicle that
+    // entered and merged in one detection leaves no track to vanish)
+    for (const t of tracks) if (jumped.has(t.id) && (t.memory || t.decision || t.readings.length)) doubt(t, at, 'box_jump');
     // crossings: two vehicles overlapping heavily, or swapping sides while they overlap
     const seen = tracks.filter((t) => t.lastSeen === at);
     for (let a = 0; a < seen.length; a++) for (let b = a + 1; b < seen.length; b++) {
@@ -238,7 +321,8 @@ export function createArSession(ride: ArRide) {
         const pa = A.history[A.history.length - 2].box, pb = B.history[B.history.length - 2].box;
         crossed = Math.sign(midX(pa) - midX(pb)) !== Math.sign(midX(A.box) - midX(B.box));
       }
-      if (crossed) { contest(A, at, 'crossing'); contest(B, at, 'crossing'); }
+      if (crossed && !flicker(B.hits, B.box, A) && !flicker(A.hits, A.box, B)) { contest(A, at, 'crossing'); contest(B, at, 'crossing'); }
+      else if (crossed) for (const T2 of [A, B]) if (!T2.memory) contest(T2, at, 'crossing');
     }
     for (const t of tracks) if (t.lastSeen !== at) { note({ at, type: 'track_lost', track: t.id }); gone.push(t); }
     tracks = tracks.filter((t) => t.lastSeen === at);
@@ -289,27 +373,156 @@ export function createArSession(ride: ArRide) {
       const others = placed.filter((p) => p.t !== t && p.box).map((p) => p.box!);
       const read = ARCORE.read(texts, { box, score: t.score }, others, capturedAt, `${f}:${t.id}`);
       if (!read.raw.length && !read.observed.length) continue;
+      if (twoDisplays(read.observed, box, now)) { read.ambiguous = true; t.twoAt = Math.max(t.twoAt, capturedAt); note({ at: now, type: 'two_displays', track: t.id }); }
       // a read of the same moment (the other OCR engine, same picture) joins it: one frame, never two. Each was
       // placed on the box of its own moment; only what each kept is joined.
       const twin = t.readings.find((x) => Math.abs(x.at - capturedAt) <= L.SAME_FRAME_S);
       const r = twin ? joinReadings(twin, read, `${f}:${t.id}`) : read;
+      // two reads of one picture may each hold one display only: the joined one is checked again
+      if (twin && !r.ambiguous && twoDisplays(r.observed, box, now)) { r.ambiguous = true; t.twoAt = Math.max(t.twoAt, capturedAt); note({ at: now, type: 'two_displays', track: t.id }); }
       if (twin) t.readings = t.readings.filter((x) => x !== twin);
       t.readings.push(r);
       t.readings.sort((a, b) => a.at - b.at);
       const newest = t.readings[t.readings.length - 1].at;
       t.readings = t.readings.filter((x) => newest - x.at <= 2);
-      decideTrack(t, now);
+      decideTrack(t, now, t.readings.includes(r) ? r : null);
     }
   }
 
-  function decideTrack(t: Track, now: number) {
-    if (!t.readings.length) { t.decision = null; return; }
-    const at = t.readings[t.readings.length - 1].at;
+  /** Text groups side by side in one box that each match a listed display: the box holds two vehicles. */
+  function twoDisplays(observed: ArText[], box: ArBox, now: number) {
+    const words = observed.filter((x) => /\p{L}{3}/u.test(x.text)).sort((a, b) => a.box[0] - b.box[0]);
+    if (words.length < 2) return false;
+    const groups: ArText[][] = [[words[0]]];
+    for (const w of words.slice(1)) {
+      const g = groups[groups.length - 1], right = Math.max(...g.map((x) => x.box[0] + x.box[2]));
+      if (w.box[0] - right > L.SPLIT_GAP * box[2]) groups.push([w]); else g.push(w);
+    }
+    if (groups.length < 2) return false;
+    const e = expectation(now);
+    const cands: ArCandidate[] = [{ line: e.line, destination: e.destination, vias: e.vias }, ...(e.board || [])];
+    // nearby route numbers join their group (they stand left or right of the destination)
+    const routes = observed.filter((x) => ARCORE.isRouteToken(ARCORE.lineKey(x.text)));
+    const matched = groups.filter((g) => {
+      const x0 = Math.min(...g.map((x) => x.box[0])) - box[2] * 0.1, x1 = Math.max(...g.map((x) => x.box[0] + x.box[2])) + box[2] * 0.1;
+      const withRoute = [...g, ...routes.filter((r) => r.box[0] >= x0 && r.box[0] + r.box[2] <= x1 && !g.includes(r))];
+      return ARCORE.match(withRoute, cands).outcome === 'matched';
+    });
+    return matched.length >= 2;
+  }
+
+  /** What a decision names: the rider's display, another listed one, a short turn, out of service; null: nothing. */
+  const keyOf = (d: ArDecision): string | null => {
+    if (d.state === 'match') return 'mine';
+    if (d.state !== 'wrong') return null;
+    if (d.reason === 'out_of_service') return 'out_of_service';
+    if (d.other) return 'other:' + ARCORE.identity(d.other);
+    if (d.reason === 'display_short_turn_before_alighting') return 'short_turn';
+    return null;
+  };
+  /** What one picture says on its own: the listed display it matches clearly (the rider's or another), or out of
+   *  service; null when it says nothing clear. Without a board nothing is listed, and nothing is remembered. */
+  function pictureSays(r: ArReading, now: number): { key: string; decision: ArDecision; strength: number } | null {
+    if (r.ambiguous) return null;
+    if (r.outOfService) return { key: 'out_of_service', decision: { state: 'wrong', reason: 'out_of_service', frames: 1 }, strength: 0 };
+    const e = expectation(now);
+    const own: ArCandidate = { line: e.line, destination: e.destination, vias: e.vias, isExpected: true };
+    const alternatives = (e.board || []).filter((c) => !ARCORE.sameDisplay(c, own));
+    if (!e.board || !e.board.length || !r.observed.length) return null;
+    if (!alternatives.length) {
+      // only the rider's display is listed: as the matcher's own rule then (decide()), a sharp, exact read only
+      const m1 = ARCORE.match(r.observed.filter((x) => x.score >= 0.7), [own]);
+      if (m1.outcome !== 'matched' || !m1.best || m1.best.line !== 'exact' || m1.best.destination < 0.85) return null;
+      return { key: 'mine', decision: { state: 'match', reason: 'display_matches', basis: 'consensus', confidence: m1.confidence, frames: 1 }, strength: m1.confidence * r.frameQuality };
+    }
+    const m = ARCORE.match(r.observed, [own, ...alternatives]);
+    if (m.outcome !== 'matched' || !m.best || m.confidence * r.frameQuality < L.PICTURE_MIN) return null;
+    const c = m.best.candidate, strength = m.confidence * r.frameQuality;
+    if (c.isExpected) return { key: 'mine', decision: { state: 'match', reason: 'display_matches', basis: 'consensus', confidence: m.confidence, frames: 1 }, strength };
+    const shortTurn = ARCORE.lineKey(c.line) === ARCORE.lineKey(e.line) && (e.stopsBefore || []).some((x) => ARCORE.sameDestination(x, c.destination));
+    return { key: 'other:' + ARCORE.identity(c), decision: { state: 'wrong', reason: shortTurn ? 'display_short_turn_before_alighting' : 'display_matches_other_departure',
+      other: c, observed: `${c.line} ${c.destination}`, basis: 'consensus', confidence: m.confidence, frames: 1 }, strength };
+  }
+
+  /** Does reading r speak against what the track remembers? */
+  function contradicts(t: Track, r: ArReading, own: string | null, now: number) {
+    const m = t.memory!;
+    if (own) return own !== m.key;
+    if (r.ambiguous) return true;
+    if (r.outOfService) return m.key !== 'out_of_service';
+    if (m.key === 'mine') return ARCORE.credibleContradiction(r, expectation(now));
+    if (m.key.startsWith('other:') && m.decision.other) return ARCORE.credibleContradiction(r, { line: m.decision.other.line, destination: m.decision.other.destination, vias: m.decision.other.vias });
+    return false;
+  }
+
+  /** The departures the matcher compares with, as one string (to tell when they change). */
+  const boardKey = (now: number) => [...new Set((expectation(now).board || []).map(ARCORE.identity))].sort().join(';');
+  /** A box that holds most of another vehicle's box now: not one vehicle. */
+  const holdsAnother = (t: Track) => tracks.some((o) => o !== t && o.lastSeen === t.lastSeen && insideShare(o.box, t.box) >= 0.8
+    && o.box[2] * o.box[3] >= L.HOLDS_MIN * t.box[2] * t.box[3]);
+
+  /** fresh: the reading that just came (null when only the board changed). */
+  function decideTrack(t: Track, now: number, fresh: ArReading | null = null) {
+    if (!t.readings.length) { t.decision = null; if (t.memory && !fresh) recheck(t, now); return; }
+    const newest = t.readings[t.readings.length - 1];
     // judged at the moment of its newest read, as the matcher is meant to be (reads arrive late on a phone)
-    t.decision = ARCORE.decide(t.readings, at, expectation(now), at);
-    t.decidedAt = at;
-    note({ at: now, type: 'decision', track: t.id, state: t.decision.state, reason: t.decision.reason, frames: t.decision.frames ?? null,
-      other: t.decision.other ? `${t.decision.other.line} ${t.decision.other.destination}` : null });
+    const d = t.decision = ARCORE.decide(t.readings, newest.at, expectation(now), newest.at);
+    t.decidedAt = newest.at;
+    note({ at: now, type: 'decision', track: t.id, state: d.state, reason: d.reason, frames: d.frames ?? null,
+      other: d.other ? `${d.other.line} ${d.other.destination}` : null });
+    if (!fresh) { if (t.memory) recheck(t, now); return; }
+    // memory: what the display said, once two pictures agree; garbled reads leave it alone, a contradiction hides
+    // it, a second one forgets it. Only what the new picture says on its own counts (the decision above also weighs
+    // the frames before it), so a garbled read right after a good one adds nothing; a late read counts at its own
+    // capture moment.
+    const at = fresh.at, said = pictureSays(fresh, now), own = said ? said.key : null;
+    // one entry per picture: two reads of one picture (SAME_FRAME_S apart, joined under a new frame id) are one frame
+    const samePicture = (x: { at: number }) => Math.abs(x.at - at) <= L.SAME_FRAME_S;
+    if (said && !t.named.some((x) => x.key === said.key && samePicture(x))) t.named.push({ key: said.key, at, frame: fresh.frameId, decision: said.decision });
+    const latest = Math.max(...t.named.map((x) => x.at), at);
+    t.named = t.named.filter((x) => latest - x.at <= L.LATCH_S);
+    if (t.memory) {
+      if (own === t.memory.key) {
+        // a fresh picture that says it again: it holds longer, and a contradiction before it no longer hides it
+        if (at > t.memory.lastSupport) t.memory.lastSupport = at;
+        if (!t.memory.support.some(samePicture)) { t.memory.frames++; t.memory.support = [...t.memory.support, fresh].slice(-6); }
+        t.against = t.against.filter((x) => x.at > at);
+      } else if (contradicts(t, fresh, own, now)) {
+        if (!t.against.some(samePicture)) t.against.push({ at, frame: fresh.frameId });
+        if (t.against.length >= L.FORGET_FRAMES) contest(t, now, 'display_changed');
+      }
+      return;
+    }
+    // latch only on a fresh, complete board (what it was compared with is everything that is due), never near a read
+    // of two displays in the box, never on a box that holds another vehicle's
+    if (!boardFresh(now) || !board!.complete || Math.abs(at - t.twoAt) <= L.LATCH_S || newest.at - t.twoAt <= L.LATCH_S || holdsAnother(t)) return;
+    if (t.readings.some((x) => x.ambiguous)) return;
+    // LATCH_FRAMES pictures within LATCH_S name the same display and none names another; or the decision itself
+    // already rests on that many frames
+    const k = keyOf(d), support = (key: string) => t.readings.filter((x) => pictureSays(x, now)?.key === key);
+    if (k && (d.frames || 0) >= L.LATCH_FRAMES && !t.named.some((x) => x.key !== k)) {
+      t.memory = { key: k, decision: d, since: at, lastSupport: at, frames: d.frames || 0, support: support(k), board: boardKey(now) };
+    } else if (said) {
+      const same = t.named.filter((x) => x.key === said.key);
+      // a red needs two pictures always (RED_FRAMES); a green may rest on one very clear picture
+      const enough = same.length >= L.LATCH_FRAMES || (said.key === 'mine' && said.strength >= L.LATCH_SINGLE_MIN);
+      if (enough && !t.named.some((x) => x.key !== said.key)) {
+        t.memory = { key: said.key, decision: said.decision, since: same[0].at, lastSupport: at, frames: same.length, support: support(said.key), board: boardKey(now) };
+      }
+    }
+    if (t.memory) { t.against = []; note({ at: now, type: 'remember', track: t.id, key: t.memory.key }); }
+  }
+
+  /** The board's departures changed: a remembered display must still be what its own pictures say against them (a
+   *  departure that was missing may match a short read better), else it is forgotten. */
+  function recheck(t: Track, now: number) {
+    const m = t.memory!, key = boardKey(now);
+    if (key === m.board) return;
+    const says = m.support.map((x) => pictureSays(x, now));
+    const agree = says.filter((x) => x && x.key === m.key);
+    const enough = agree.length >= L.LATCH_FRAMES || (m.key === 'mine' && agree.some((x) => x!.strength >= L.LATCH_SINGLE_MIN));
+    if (!enough || says.some((x) => x && x.key !== m.key)) contest(t, now, 'board_changed');
+    else m.board = key;
   }
 
   /** A new board (Kante /api/due). */
@@ -317,7 +530,7 @@ export function createArSession(ride: ArRide) {
     board = b;
     lastBoardEvent = { at: b.at, type: 'board', board: b }; // whole, so a saved capture replays (tools/test_artrack.mts)
     note(lastBoardEvent);
-    for (const t of tracks) if (t.readings.length) decideTrack(t, b.at); // the alternatives changed
+    for (const t of tracks) if (t.readings.length || t.memory) decideTrack(t, b.at); // the alternatives changed
   }
 
   const display = (line: string, dest: string) => `${line} → ${dest}`;
@@ -351,11 +564,17 @@ export function createArSession(ride: ArRide) {
   function labelsEach(now: number): ArLabel[] {
     const out: ArLabel[] = [];
     const fresh = boardFresh(now);
-    for (const t of tracks) {
-      if (now - t.lastSeen > L.SHOWN_S) continue;
+    const shown = tracks.filter((t) => now - t.lastSeen <= L.SHOWN_S);
+    for (const t of shown) {
       const base = { track: t.id, box: t.box, cls: t.cls };
-      const d = t.decision;
-      if (!d || now - t.decidedAt > L.HOLD_S || t.contestedAt > t.decidedAt) { out.push({ ...base, kind: 'none', text: '', reason: d ? 'expired' : 'no_read' }); continue; }
+      // a box that holds most of another vehicle's box is not one vehicle (the detector drew one box over two, and
+      // one of them on its own as well): no colour on it, whatever it remembers
+      if (holdsAnother(t)) { out.push({ ...base, kind: 'none', text: '', reason: 'box_holds_another' }); continue; }
+      const m = t.memory && now - t.memory.lastSupport <= L.MEMORY_S ? t.memory : null;
+      if (m && t.against.length) { out.push({ ...base, kind: 'none', text: '', reason: 'display_contradicted' }); continue; }
+      const d = m ? { ...m.decision, frames: Math.max(m.decision.frames || 0, m.frames) } : t.decision;
+      if (!m && (!d || now - t.decidedAt > L.HOLD_S || t.contestedAt > t.decidedAt)) { out.push({ ...base, kind: 'none', text: '', reason: d ? 'expired' : 'no_read' }); continue; }
+      if (!d) continue;
       if (d.state === 'match') {
         const text = display(ride.line, ride.destination);
         let why = !board ? 'no_board' : !fresh ? 'board_stale' : !board.complete ? 'board_incomplete' : plausibleRuns(now).why;
@@ -369,7 +588,10 @@ export function createArSession(ride: ArRide) {
         // Red only for text that names something: another departure on the board, a stop of the rider's own route
         // (a short turn), or out of service. A contradiction that names nothing listed ("7 Detrina" for "7 Ostring")
         // is what correlated misreads of the right display look like (the reading-range bench, docs/ar-reading-range.md).
-        const named = !!d.other || d.reason === 'out_of_service' || d.reason === 'display_short_turn_before_alighting';
+        // a remembered "other departure" counts only while the board still lists it (a refresh may drop it)
+        const listed = !d.other || d.reason === 'display_short_turn_before_alighting' || (!!board && board.entries.some((e) => !e.cancelled && e.line && e.headsign
+          && ARCORE.sameDisplay({ line: e.line, destination: e.headsign }, d.other!)));
+        const named = (!!d.other && listed) || d.reason === 'out_of_service' || d.reason === 'display_short_turn_before_alighting';
         const why = !fresh ? (board ? 'board_stale' : 'no_board') : (d.frames || 0) < L.RED_FRAMES ? 'one_frame_only' : !named ? 'names_nothing_listed' : '';
         if (why) out.push({ ...base, kind: other || d.reason === 'out_of_service' ? 'neutral' : 'none', text: other ? `Display: ${other}` : d.reason === 'out_of_service' ? 'Display: not in service' : '', reason: why });
         else out.push({ ...base, kind: 'red', text, reason: d.reason });
@@ -401,8 +623,27 @@ export function createArSession(ride: ArRide) {
     return { text: `${head}${when ? ' · ' + when : ''}${quay}`, state: 'live' };
   }
 
+  // which display the reader looks at next: one vehicle's band at a time, in turn (never by how likely a vehicle is
+  // to be the rider's, so a late real bus is not starved); every third turn, or with no vehicle in view, a band
+  // across the road for one the detector missed
+  let readTurn = 0;
+  /** The next region for the display reader: a vehicle's box (the reader cuts its display band) or 'road'. Vehicles
+   *  whose display is not known yet go first, the one read longest ago first; a known one is read again after
+   *  RECHECK_S; every fourth turn the road band. */
+  function readTarget(now: number): ArBox | 'road' {
+    const shown = tracks.filter((t) => now - t.lastSeen <= 0.5);
+    const turn = readTurn++;
+    if (!shown.length || turn % 4 === 3) return 'road';
+    const known = (t: Track) => !!t.memory && !t.against.length;
+    const due = shown.filter((t) => !known(t) || now - t.lastRead >= L.RECHECK_S)
+      .sort((a, b) => Number(known(a)) - Number(known(b)) || a.lastRead - b.lastRead);
+    if (!due.length) return 'road';
+    due[0].lastRead = now;
+    return due[0].box;
+  }
+
   return {
-    detections, words, board: setBoard, labels, banner, riderRun,
+    detections, words, board: setBoard, labels, banner, riderRun, readTarget,
     /** The board failed to load: nothing changes now, and the old one goes stale on its own (BOARD_STALE_S). */
     boardFailed(at: number) { note({ at, type: 'board_failed' }); },
     /** The last LOG_S seconds, for the debug capture; led by the board in use when it came before them. */

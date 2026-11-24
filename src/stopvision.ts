@@ -18,6 +18,7 @@ import type { LineLike } from './app/journey-steps.ts';
 import type { BoardDeparture } from './engine-departures.ts';
 import type { KanteError, KanteFailure } from './engine.ts';
 import { ORT_DIST } from './ort-dist.ts';
+import { pictureTime } from './pictime.ts';
 
 // ---- what the page gives Scan (src/app/menu.ts) ----
 
@@ -750,7 +751,7 @@ async function readSigns() {
   // tries the other one, for signs that fool the guess
   const other = stillImage && !tap ? stillReads === 2 : ocrPass % 4 === 0;
   const gen = sourceGen;
-  const capturedAt = Date.now();
+  const capturedAt = pictureTime(source()); // the moment this picture was shown (src/pictime.ts)
   const shot = await ocrImage(region, (dark) => (other ? !dark : dark));
   const shotHeading = headingOk() ? heading : null;
   // Tesseract's two ways of finding text each read signs the other misses (measured on Swiss stop signs:

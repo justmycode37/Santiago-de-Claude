@@ -21,6 +21,7 @@ import { distKm } from './routing.ts';
 import type { DeviceOrientationAsk } from './menu.ts';
 import { createArSession, boardOf } from '../artrack.ts';
 import { load } from '../lazy.ts';
+import { pictureTime } from '../pictime.ts';
 import { ORT_DIST } from '../ort-dist.ts';
 import type { OcrModels, OcrRuntime } from '../ppocr.ts';
 import type { ArBox, ArDet, ArRide, ArSession, ArShift, ArText } from '../artrack.ts';
@@ -105,33 +106,68 @@ function arOrt(): Promise<OcrRuntime> {
   return arOrtLoad;
 }
 
-// The vehicle detector: YOLOX-nano (Megvii, Apache-2.0; src/yolox.ts), off the shelf. It replaced COCO-SSD, which on
-// the reading-range bench found a third of the vehicles whose displays were already readable
-// (docs/ar-reading-range.md). The site serves the model (models/yolox/), checked against its SHA-256.
-type ArDetector = { detect(video: HTMLVideoElement): Promise<{ box: ArBox; score: number; cls: string }[]> };
+/** Which vehicle detector: YOLOX-tiny (8-bit) by default, nano when the phone is too slow for it; ?ardet=nano or
+ *  ?ardet=tiny fixes one for a field test (remembered; ?ardet=0 goes back to choosing). */
+const AR_DET = (() => {
+  try {
+    const q = new URLSearchParams(location.search).get('ardet');
+    if (q === 'nano' || q === 'tiny') localStorage.setItem('arDet', q);
+    if (q === '0') localStorage.removeItem('arDet');
+    return localStorage.getItem('arDet') || 'auto';
+  } catch (e) { return 'auto'; }
+})();
+/** Detections slower than this on average (over the first DET_PROBE of them) switch tiny for nano. */
+const DET_SLOW_MS = 220, DET_PROBE = 8;
+
+// The vehicle detector: YOLOX (Megvii, Apache-2.0; src/yolox.ts), off the shelf. It replaced COCO-SSD, which on the
+// reading-range bench found a third of the vehicles whose displays were already readable (docs/ar-reading-range.md);
+// tiny rather than nano finds more far vehicles and merges fewer side by side (docs/ar-labels-bench.md). The site
+// serves the models (models/yolox/), checked against their SHA-256.
+type ArDetector = { name: string; detect(video: HTMLVideoElement): Promise<{ box: ArBox; score: number; cls: string }[]> };
 let arModel: Promise<ArDetector | null> | null = null;
-function arDetector(): Promise<ArDetector | null> {
+/** YOLOX-tiny is too slow here or failed to run (three detections in a row): nano from then on (unless ?ardet=tiny). */
+let detBroken = false;
+function arDetector(which: 'nano' | 'tiny_int8' = AR_DET === 'tiny' ? 'tiny_int8' : AR_DET === 'nano' || detBroken ? 'nano' : 'tiny_int8'): Promise<ArDetector | null> {
   if (!arModel) {
     arModel = (async () => {
       const [rt, yx] = await Promise.all([arOrt(), load(import.meta.url, () => import('../yolox.ts'))]);
-      const r = await fetch(new URL(yx.YOLOX_MODELS.nano.file, document.baseURI).href);
-      if (!r.ok) throw new Error(`yolox_nano.onnx: HTTP ${r.status}`);
-      const session = await yx.loadYolox(rt, await r.arrayBuffer());
+      const r = await fetch(new URL(yx.YOLOX_MODELS[which].file, document.baseURI).href);
+      if (!r.ok) throw new Error(`yolox_${which}.onnx: HTTP ${r.status}`);
+      const session = await yx.loadYolox(rt, await r.arrayBuffer(), which);
       const side = yx.YOLOX_SIDE, canvas = document.createElement('canvas');
       canvas.width = canvas.height = side;
       const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; // a 1080p frame shrinks about 4 times
+      const took: number[] = [];
       return {
+        name: which === 'nano' ? 'nano' : 'tiny',
         async detect(video: HTMLVideoElement) {
+          const t0 = performance.now();
           const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(side / vw, side / vh);
           // the frame into the top-left corner of a grey 416 x 416 square, scaled by the browser
           ctx.fillStyle = 'rgb(114,114,114)'; ctx.fillRect(0, 0, side, side);
           ctx.drawImage(video, 0, 0, Math.round(vw * s), Math.round(vh * s));
           const px = ctx.getImageData(0, 0, side, side).data;
-          return (await yx.yoloxDetectLetterboxed(rt, session, px, s, vw, vh, 0.3)).map((b) => ({ box: b.box as ArBox, score: b.score, cls: b.cls }));
+          const found = (await yx.yoloxDetectLetterboxed(rt, session, px, s, vw, vh, 0.3)).map((b) => ({ box: b.box as ArBox, score: b.score, cls: b.cls }));
+          // too slow on this phone (fewer than about 5 pictures a second): nano from the next detection on
+          if (which !== 'nano' && AR_DET === 'auto' && took.length < DET_PROBE) {
+            took.push(performance.now() - t0);
+            if (took.length === DET_PROBE && took.slice(2).reduce((a, b) => a + b, 0) / (DET_PROBE - 2) > DET_SLOW_MS) {
+              console.info('AR: YOLOX-tiny too slow here, switching to nano');
+              detBroken = true; arModel = null; arDetector('nano');
+              (session as { release?: () => Promise<void> }).release?.().catch(() => {}); // one detection at a time: this was the last
+            }
+          }
+          return found;
         },
       };
-    })().catch((e) => { console.warn('AR: no vehicle detector', e); arModel = null; return null; });
+    })().catch((e) => {
+      console.warn(`AR: no vehicle detector (${which})`, e);
+      arModel = null;
+      if (which === 'nano') return null;
+      detBroken = true; // tiny failed to load: nano
+      return arDetector('nano');
+    });
   }
   return arModel;
 }
@@ -307,6 +343,7 @@ function arLayer(mine: number, target: ArTarget) {
   // field-test capture (?ardebug=1): the last 10 s of events, plus small crops of each vehicle's display band
   const crops: { at: number; track: number; box: ArBox; jpeg: string }[] = [];
   const detectMs: number[] = [];
+  let detName = '', detRetry = 0, detFails = 0;
   let dbgText: HTMLElement | null = null, saveBtn: HTMLElement | null = null;
   if (AR_DEBUG) {
     const save = saveBtn = h('button', null, 'Save last 10 s');
@@ -355,12 +392,11 @@ function arLayer(mine: number, target: ArTarget) {
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   };
 
-  // display reads: PP-OCR on one vehicle's display band at a time, at the camera's full resolution, round robin
-  // (never by how likely a vehicle is to be yours, so a late real bus is not starved); every third turn, or with no
-  // vehicle in view, a band across the road for one the detector missed. Paced by how long a read takes.
+  // display reads: PP-OCR on one vehicle's display band at a time, at the camera's full resolution, in the order
+  // ses.readTarget() gives. Paced by how long a read takes.
   const ocrCanvas = document.createElement('canvas');
   const ocrMs: number[] = [];
-  let ocrBusy = false, ocrTurn = 0, trackTurn = 0, ocrNext = 0, ocrState = 'loading';
+  let ocrBusy = false, ocrNext = 0, ocrState = 'loading';
   const readDisplays = async () => {
     if (ocrBusy || Date.now() < ocrNext || !video.videoWidth) return;
     ocrBusy = true;
@@ -369,11 +405,10 @@ function arLayer(mine: number, target: ArTarget) {
       ocrState = reader ? 'ready' : 'unavailable';
       if (!reader || arSession !== mine) { ocrNext = Date.now() + 5000; return; }
       const vw = video.videoWidth, vh = video.videoHeight, now = nowS();
-      const shown = ses.tracks().filter((t) => now - t.seen <= 0.5);
-      const turn = ocrTurn++;
+      const target = ses.readTarget(now); // a vehicle in turn, or the road band (src/artrack.ts)
       let r: ArBox = [0, 0.2, 1, 0.5]; // the road band
-      if (shown.length && turn % 3 !== 2) {
-        const b = shown[trackTurn++ % shown.length].box; // the next vehicle in turn
+      if (target !== 'road') {
+        const b = target;
         r = [b[0] - b[2] * 0.04, b[1], b[2] * 1.08, b[3] * 0.55]; // its upper part, where the display is
       }
       const x0 = Math.max(0, Math.round(r[0] * vw)), y0 = Math.max(0, Math.round(r[1] * vh));
@@ -381,7 +416,7 @@ function arLayer(mine: number, target: ArTarget) {
       if (w < 24 || hh < 12) return;
       ocrCanvas.width = w; ocrCanvas.height = hh;
       const ctx = ocrCanvas.getContext('2d', { willReadFrequently: true })!;
-      const capturedAt = Date.now() / 1000;
+      const capturedAt = pictureTime(video) / 1000; // the moment this picture was shown: a stalled video reads one picture
       ctx.drawImage(video, x0, y0, w, hh, 0, 0, w, hh);
       const px = ctx.getImageData(0, 0, w, hh);
       const t0 = performance.now();
@@ -422,21 +457,24 @@ function arLayer(mine: number, target: ArTarget) {
     if (dbgText) {
       const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
       const ls = ses.labels(now);
-      dbgText.textContent = `video ${video.videoWidth}×${video.videoHeight} · detect ${Math.round(avg(detectMs))} ms · Tesseract age ${avg(ocrAge).toFixed(1)} s`
+      dbgText.textContent = `video ${video.videoWidth}×${video.videoHeight} · detect ${detName} ${Math.round(avg(detectMs))} ms · Tesseract age ${avg(ocrAge).toFixed(1)} s`
         + ` · PP-OCR ${ocrState}${ocrMs.length ? ' ' + Math.round(avg(ocrMs)) + ' ms' : ''}`
         + ` · motion ${arMotion}${ses.derotation().on ? '' : ' (gyro shift off)'}\n`
         + (ls.length ? ls.map((l) => `#${l.track} ${l.kind} ${l.reason}`).join(' · ') : 'no vehicles');
     }
     // vehicles, about 3 times a second
     if (busy || Date.now() - lastDetect < 330 || !video.videoWidth) return;
+    if (Date.now() < detRetry) return; // no detector, or it kept failing: try again later
     busy = true; // before any await: one detection at a time, also while the model loads
     try {
       const model = await arDetector();
-      if (!model || arSession !== mine) return;
+      if (!model) { detRetry = Date.now() + 15000; return; }
+      if (arSession !== mine) return;
       lastDetect = Date.now();
       const t0 = performance.now(), at = nowS();
       const shift = turn, panned = pan;
       const dets: ArDet[] = await model.detect(video);
+      detName = model.name;
       // only now taken: if the detector throws, the turn counts towards the next detection (a jerk still revokes)
       turn = { dx: turn.dx - shift.dx, dy: turn.dy - shift.dy }; pan -= panned;
       detectMs.push(performance.now() - t0); if (detectMs.length > 20) detectMs.shift();
@@ -444,7 +482,15 @@ function arLayer(mine: number, target: ArTarget) {
       ses.detections(dets, at, motionAt ? shift : null, motionAt ? panned : null); // the picture the detector read was taken at `at`
       keepCrops(at);
       draw(nowS());
-    } catch (e) { /* a frame the detector could not read */ } finally { busy = false; }
+      detFails = 0;
+    } catch (e) {
+      // a frame the detector could not read; three in a row: the model itself fails here (tiny: nano instead)
+      if (++detFails >= 3) {
+        console.warn('AR: the vehicle detector keeps failing', e);
+        detRetry = Date.now() + (detBroken ? 15000 : 2000); // nano failing too: try again now and then
+        detFails = 0; arModel = null; detBroken = true;
+      }
+    } finally { busy = false; }
   };
   const cleanup = () => {
     stopTick();

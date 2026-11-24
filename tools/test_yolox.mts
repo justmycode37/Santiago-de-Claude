@@ -1,5 +1,7 @@
 // Unit tests for src/yolox.ts without the model: the input letterbox and the output decoding (grid, stride, NMS).
-import { yoloxDecode, yoloxInput } from '../src/yolox.ts';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { YOLOX_MODELS, yoloxDecode, yoloxInput } from '../src/yolox.ts';
 
 let passed = 0, failed = 0;
 const check = (ok: boolean, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };
@@ -34,6 +36,13 @@ const b = boxes[0].box;
 // centre 5.5*32 = 176, 4.5*32 = 144 input px; size 128 x 64; / r 0.5 -> picture px: x 224..480, y 224..352
 check(boxes[0].cls === 'bus' && close(boxes[0].score, 0.81), `bus, score obj x cls (${boxes[0].score})`);
 check(close(b[0], 224 / 832) && close(b[1], 224 / 416) && close(b[2], 256 / 832) && close(b[3], 128 / 416), `box back in the picture (${b.map((v) => v.toFixed(3))})`);
+
+console.log('Model files');
+// the files the site serves are the ones the page will accept
+for (const m of ['nano', 'tiny_int8'] as const) {
+  const f = YOLOX_MODELS[m].file, sum = crypto.createHash('sha256').update(fs.readFileSync(new URL(`../${f}`, import.meta.url))).digest('hex');
+  check(sum === YOLOX_MODELS[m].sha256, `${f}: SHA-256 as in src/yolox.ts`);
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

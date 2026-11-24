@@ -16,7 +16,9 @@ The pieces, if you set it up another way:
 
 - Web: open the site with `?ardebug=1` once (remembered; `?ardebug=0` removes it). The AR camera then shows a debug
   line (capture size, detector ms, Tesseract and PP-OCR timing, each vehicle's label and why) and a
-  **Save last 10 s** button. `?arres=max` asks for 4K instead of 1080p (remembered; `?arres=0` goes back).
+  **Save last 10 s** button. `?arres=max` asks for 4K instead of 1080p (remembered; `?arres=0` goes back). The vehicle detector is YOLOX-tiny
+  (8-bit) unless the phone is too slow for it (then nano; the debug line says which); `?ardet=nano` or `?ardet=tiny`
+  fixes one (remembered; `?ardet=0` goes back).
 - The engine must be the one from this branch: `/api/due` with `complete`, `servesTo` and `profiled`. With an older
   engine the camera never shows green (the board is never complete). That is safe, but nothing gets tested.
 - iOS: a build of this branch. The camera's diagnostics line shows pipeline ms, track count and whether processing
@@ -32,7 +34,8 @@ each vehicle's display band. Note the time and what you saw.
 | Check | Where | Write down |
 | --- | --- | --- |
 | Capture size granted | debug line `video W×H`; once more with `?arres=max` | both sizes, and whether 4K changes detect/PP-OCR ms |
-| Speed | debug line: `detect … ms`, `PP-OCR … ms`, `Tesseract age … s` | typical values after a minute |
+| Speed | debug line: `detect tiny … ms` (or nano), `PP-OCR … ms`, `Tesseract age … s` | typical values after a minute; whether it fell back to nano; once each with `?ardet=nano` and `?ardet=tiny` |
+| Memory | follow one tram from far until it has passed | does its label stay while it passes side-on? Save a capture if it drops, or jumps to another tram |
 | Overlay steadiness | boxes while panning slowly, then quickly | do boxes keep their label on a slow pan? A fast jerk should clear labels |
 | Motion permission (iOS Safari) | first open of AR: a prompt; debug line `motion granted` | if `denied` or `unknown`, the gyro shift is off |
 | Gyro shift | debug line says `(gyro shift off)` until the shift has matched boxes better than unshifted ones | pan slowly for a minute: does it turn on? If not, note the phone model (its axes or signs may differ) |

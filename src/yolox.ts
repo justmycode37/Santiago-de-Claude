@@ -13,7 +13,11 @@ export const YOLOX_MODELS = {
     sha256: 'c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d' },
   tiny: { url: 'https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.onnx',
     sha256: '427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7' },
+  // YOLOX-tiny with 8-bit weights (tools/quantize_yolox.py): a quarter of its size, finds more of the far vehicles
+  // than nano and merges fewer side-by-side ones (docs/ar-labels-bench.md); about twice nano's time
+  tiny_int8: { file: 'models/yolox/yolox_tiny_int8.onnx', sha256: '133f59eee2aff39d5e0cf7e19438d4c677fb64392ce7141b6afdb085db4cafaf' },
 };
+export type YoloxModel = 'nano' | 'tiny_int8';
 /** COCO: 5 bus, 6 train (no tram class: trams come out as either). */
 export const YOLOX_CLASSES: Record<number, string> = { 5: 'bus', 6: 'train' };
 const SIDE = 416, STRIDES = [8, 16, 32];
@@ -86,10 +90,10 @@ export function yoloxDecode(raw: ArrayLike<number>, r: number, width: number, he
 }
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
-/** Open YOLOX-nano from `bytes` after checking its SHA-256. */
-export async function loadYolox(rt: OcrRuntime, bytes: ArrayBuffer): Promise<OcrSession> {
-  const sum = hex(await crypto.subtle.digest('SHA-256', bytes));
-  if (sum !== YOLOX_MODELS.nano.sha256) throw new Error(`yolox_nano.onnx: SHA-256 ${sum}, expected ${YOLOX_MODELS.nano.sha256}`);
+/** Open a YOLOX model from `bytes` after checking its SHA-256. */
+export async function loadYolox(rt: OcrRuntime, bytes: ArrayBuffer, which: YoloxModel = 'nano'): Promise<OcrSession> {
+  const sum = hex(await crypto.subtle.digest('SHA-256', bytes)), want = YOLOX_MODELS[which].sha256;
+  if (sum !== want) throw new Error(`yolox_${which}.onnx: SHA-256 ${sum}, expected ${want}`);
   return rt.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
 }
 

@@ -349,6 +349,185 @@ suite('"Bern, Bahnhof" and "Bern Wankdorf, Bahnhof" stay two displays', [
   { at: 0.6, say: 'again: red, not green', det: { A: LEFT }, words: { captured: 0.6, on: { A: ['20', 'Wankdorf Bahnhof'] } }, expect: { A: 'red' } },
 ], { line: '20', destination: 'Bern, Bahnhof', mode: 'bus', tripId: 'T20a', serviceDate: SD });
 
+// ---------------------------------------------------------------- memory: a vehicle keeps what its display said
+const RUTI: [string, string] = ['10', 'Ostermundigen Rüti'];
+/** The detector keeps seeing A (every 0.5 s) between two steps. */
+const seen = (from: number, to: number, want: Want | ((t: number) => Want)): Step[] => {
+  const out: Step[] = [];
+  for (let t = from + 0.5; t < to - 1e-9; t += 0.5) out.push({ at: +t.toFixed(2), say: 'still in view', det: { A: LEFT }, expect: { A: typeof want === 'function' ? want(t) : want } });
+  return out;
+};
+const junk = (b: ArBox): ArText[] => [{ text: 'WW', box: [b[0] + 0.1 * b[2], b[1] + 0.1 * b[3], 0.1 * b[2], 0.08 * b[3]], score: 0.9 },
+  { text: 'KURZ', box: [b[0] + 0.3 * b[2], b[1] + 0.1 * b[3], 0.2 * b[2], 0.08 * b[3]], score: 0.9 }];
+suite('Memory: a display read in two frames stays through garbled reads, then lapses', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'my 10', det: { A: LEFT }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.9, say: 'again: remembered', det: { A: LEFT }, words: { captured: 0.9, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 1.5, say: 'it passes by: garbled text', det: { A: LEFT }, words: { captured: 1.5, on: {}, free: junk(LEFT) }, expect: { A: 'green' } },
+  ...seen(1.5, 5, 'green'),
+  { at: 5, say: 'nothing readable for 4 s', det: { A: LEFT }, words: { captured: 5, on: {}, free: junk(LEFT) }, expect: { A: 'green' } },
+  ...seen(5, 12, 'green'),
+  { at: 12, say: 'still the same vehicle, 11 s after the last good read', board: board(), det: { A: LEFT }, expect: { A: 'green' } },
+  ...seen(12, 22, (t) => (t <= 20.9 ? 'green' : 'none')),
+  { at: 22, say: 'more than 20 s after it: lapsed', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+]);
+suite('Memory: one contradicting frame hides the label, two forget it', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'my 10', det: { A: LEFT }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.9, say: 'again: remembered', det: { A: LEFT }, words: { captured: 0.9, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 1.5, say: 'a 9 to Wabern once: hidden', det: { A: LEFT }, words: { captured: 1.5, on: { A: ['9', 'Wabern'] } }, expect: { A: 'none' } },
+  ...seen(1.5, 4, 'none'),
+  { at: 4, say: 'my 10 again: back', det: { A: LEFT }, words: { captured: 4, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 4.6, say: 'a 9 to Wabern', det: { A: LEFT }, words: { captured: 4.6, on: { A: ['9', 'Wabern'] } }, expect: { A: 'none' } },
+  { at: 5.2, say: 'again: forgotten, and reads before now are not its own', det: { A: LEFT }, words: { captured: 5.2, on: { A: ['9', 'Wabern'] } }, expect: { A: 'none' } },
+  { at: 5.8, say: 'a new read of 9 Wabern: one frame', det: { A: LEFT }, words: { captured: 5.8, on: { A: ['9', 'Wabern'] } }, expect: { A: ['neutral', /Wabern/] } },
+  { at: 6.4, say: 'two: red', det: { A: LEFT }, words: { captured: 6.4, on: { A: ['9', 'Wabern'] } }, expect: { A: 'red' } },
+]);
+suite('Memory: one very clear picture is remembered', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'my 10, once, sharp', det: { A: LEFT }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  ...seen(0.3, 2.5, 'green'),
+  { at: 2.5, say: 'garbled, 2.2 s later: still remembered', det: { A: LEFT }, words: { captured: 2.5, on: {}, free: junk(LEFT) }, expect: { A: 'green' } },
+]);
+const WEAK = (b: ArBox): ArText[] => [{ text: '10', box: [b[0] + 0.05 * b[2], b[1] + 0.08 * b[3], 0.08 * b[2], 0.08 * b[3]], score: 0.75 },
+  { text: 'Ostermundigen', box: [b[0] + 0.16 * b[2], b[1] + 0.08 * b[3], 0.4 * b[2], 0.08 * b[3]], score: 0.75 }];
+suite('Memory: one weak picture is not remembered', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: '"10 Ostermundigen", blurred: green for now', det: { A: LEFT }, words: { captured: 0.3, on: {}, free: WEAK(LEFT) }, expect: { A: 'green' } },
+  ...seen(0.3, 2.5, 'green'),
+  { at: 2.5, say: 'garbled, 2.2 s later: gone', det: { A: LEFT }, words: { captured: 2.5, on: {}, free: junk(LEFT) }, expect: { A: 'none' } },
+]);
+suite('Memory: a remembered red stays red, and a stale board still takes the colour away', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: '9 Wabern', det: { A: LEFT }, words: { captured: 0.3, on: { A: ['9', 'Wabern'] } }, expect: { A: 'neutral' } },
+  { at: 0.9, say: 'again: red, remembered', det: { A: LEFT }, words: { captured: 0.9, on: { A: ['9', 'Wabern'] } }, expect: { A: 'red' } },
+  ...seen(0.9, 6, 'red'),
+  { at: 6, say: 'garbled', det: { A: LEFT }, words: { captured: 6, on: {}, free: junk(LEFT) }, expect: { A: 'red' } },
+  ...seen(6, 45, (t) => (t <= 20.9 ? 'red' : 'none')),
+  { at: 45, say: 'the board is stale (and the memory lapsed)', det: { A: LEFT }, expect: { A: 'none' } },
+]);
+suite('Memory: a stale board takes a remembered green away at once', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'my 10', det: { A: LEFT }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.9, say: 'again: remembered', det: { A: LEFT }, words: { captured: 0.9, on: { A: RUTI } }, expect: { A: 'green' } },
+  ...seen(0.9, 15, 'green'),
+  { at: 15, say: 'a read again: remembered 20 s from now', det: { A: LEFT }, words: { captured: 15, on: { A: RUTI } }, expect: { A: 'green' } },
+  ...seen(15, 41, (t) => (t <= 35 ? 'green' : 'none')),
+  { at: 41, say: 'no board for 41 s: display text only', det: { A: LEFT }, words: { captured: 41, on: { A: RUTI } }, expect: { A: ['neutral', /Display: 10/] } },
+]);
+suite('Memory is forgotten when two vehicles cross', [
+  { at: 0, say: 'board; A is my 10, B beside it', board: board(), det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.5, 0.3, 0.3, 0.4] },
+    words: { captured: 0, on: { A: RUTI } }, expect: { A: 'green', B: 'none' } },
+  { at: 0.6, say: 'again: remembered', det: { A: [0.12, 0.3, 0.3, 0.4], B: [0.48, 0.3, 0.3, 0.4] }, words: { captured: 0.6, on: { A: RUTI } }, expect: { A: 'green', B: 'none' } },
+  { at: 0.9, say: 'they overlap heavily', det: { A: [0.25, 0.3, 0.3, 0.4], B: [0.32, 0.3, 0.3, 0.4] }, expect: { A: 'none', B: 'none' } },
+  { at: 1.2, say: 'apart again: neither has it', det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.5, 0.3, 0.3, 0.4] }, expect: { A: 'none', B: 'none' } },
+]);
+suite('A one-detection box beside a remembered vehicle does not wipe it', [
+  { at: 0, say: 'board; A is my 10', board: board(), det: { A: [0.1, 0.3, 0.3, 0.4] }, words: { captured: 0, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.3, say: 'again: remembered', det: { A: [0.1, 0.3, 0.3, 0.4] }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.5, say: 'a small box flickers at its edge (a part of it)', det: { A: [0.1, 0.3, 0.3, 0.4], P: [0.36, 0.38, 0.1, 0.2] }, expect: { A: 'green', P: 'none' } },
+  { at: 0.7, say: 'gone again; A grows a little', det: { A: [0.1, 0.3, 0.34, 0.41] }, expect: { A: 'green' } },
+]);
+suite('A vehicle seen twice that vanishes into a remembered one wipes it', [
+  { at: 0, say: 'board; A is my 10, B beside it', board: board(), det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.42, 0.38, 0.12, 0.2] }, words: { captured: 0, on: { A: RUTI } }, expect: { A: 'green', B: 'none' } },
+  { at: 0.3, say: 'again: remembered', det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.42, 0.38, 0.12, 0.2] }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green', B: 'none' } },
+  { at: 0.6, say: 'one box over both', det: { A: [0.1, 0.3, 0.44, 0.4] }, expect: { A: 'none' } },
+]);
+suite('A box that jumps in size hides a remembered display until it is read again', [
+  { at: 0, say: 'board; A is my 10', board: board(), det: { A: [0.1, 0.3, 0.25, 0.4] }, words: { captured: 0, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.3, say: 'again: remembered', det: { A: [0.1, 0.3, 0.25, 0.4] }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.5, say: 'the box doubles in width in one detection', det: { A: [0.1, 0.3, 0.5, 0.4] }, expect: { A: 'none' } },
+  { at: 0.8, say: 'its display read again: back', det: { A: [0.1, 0.3, 0.5, 0.4] }, words: { captured: 0.8, on: { A: RUTI } }, expect: { A: 'green' } },
+]);
+const TWO: ArText[] = [{ text: '10', box: [0.08, 0.33, 0.03, 0.03], score: 0.95 }, { text: 'Ostermundigen Rüti', box: [0.12, 0.33, 0.2, 0.03], score: 0.95 },
+  { text: 'Wabern Tram-Endstation', box: [0.6, 0.33, 0.25, 0.03], score: 0.95 }];
+suite('Two displays in one box (two vehicles the detector merged): no label', [
+  { at: 0, say: 'board; one wide box', board: board(), det: { W: [0.05, 0.3, 0.9, 0.4] }, expect: { W: 'none' } },
+  { at: 0.3, say: 'my 10 on the left, Wabern Tram-Endstation (no number) on the right', det: { W: [0.05, 0.3, 0.9, 0.4] },
+    words: { captured: 0.3, on: {}, free: TWO }, expect: { W: 'none' } },
+  { at: 0.6, say: 'again', det: { W: [0.05, 0.3, 0.9, 0.4] }, words: { captured: 0.6, on: {}, free: TWO }, expect: { W: 'none' } },
+]);
+{
+  // the reader: a vehicle not yet known goes before one already known
+  const ses = createArSession(RIDE);
+  ses.board({ at: 0, entries: BASE, complete: true });
+  for (const at of [0, 0.3, 0.9]) {
+    ses.detections([{ box: LEFT, score: 0.9 }, { box: RIGHT, score: 0.9 }], at);
+    if (at) ses.words(displayOn(LEFT, ...RUTI), at, at);
+  }
+  ses.detections([{ box: LEFT, score: 0.9 }, { box: RIGHT, score: 0.9 }], 1.0);
+  const pick = ses.readTarget(1.0), again = ses.readTarget(1.05);
+  check(pick !== 'road' && pick[0] === RIGHT[0], `reader: first the vehicle not yet known (got ${JSON.stringify(pick)})`);
+  check(again !== 'road' && again[0] === RIGHT[0], `reader: the known one waits for its re-check (got ${JSON.stringify(again)})`);
+}
+
+suite('Review: a remembered red goes when a board refresh drops that departure', [
+  { at: 0, say: 'board with a 9 to Wabern', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: '9 Wabern', det: { A: LEFT }, words: { captured: 0.3, on: { A: ['9', 'Wabern'] } }, expect: { A: 'neutral' } },
+  { at: 0.9, say: 'again: red, remembered', det: { A: LEFT }, words: { captured: 0.9, on: { A: ['9', 'Wabern'] } }, expect: { A: 'red' } },
+  { at: 1.5, say: 'a new board without it; a garbled read', board: board(BASE.filter((e) => e.tripId !== 'T9a')), det: { A: LEFT },
+    words: { captured: 1.5, on: {}, free: junk(LEFT) }, expect: { A: 'none' } }, // forgotten: its pictures no longer name anything listed
+]);
+suite('Review: two reads of one picture, one display each, joined: no label', [
+  { at: 0, say: 'board; one wide box', board: board(), det: { W: [0.05, 0.3, 0.9, 0.4] }, expect: { W: 'none' } },
+  { at: 0.3, say: 'one engine reads my 10 on the left', det: { W: [0.05, 0.3, 0.9, 0.4] },
+    words: { captured: 0.3, on: {}, free: TWO.slice(0, 2) }, expect: { W: 'green' } },
+  { at: 0.4, say: 'the other engine reads Wabern Tram-Endstation on the right of the same picture', det: { W: [0.05, 0.3, 0.9, 0.4] },
+    words: { captured: 0.31, on: {}, free: TWO.slice(2) }, expect: { W: 'none' } },
+]);
+// A known limit (docs/ar-labels-bench.md): a box seen once inside a remembered vehicle's box, then gone, is taken for
+// flicker, so the colour comes back; only while both boxes are there is the big one left without colour.
+suite('A box seen once inside a remembered vehicle: no colour while both are seen', [
+  { at: 0, say: 'board; A is my 10', board: board(), det: { A: [0.1, 0.3, 0.4, 0.45] }, words: { captured: 0, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.3, say: 'again: remembered', det: { A: [0.1, 0.3, 0.4, 0.45] }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 0.5, say: 'a small vehicle behind it, inside its box, seen once (no colour on a box holding another)', det: { A: [0.1, 0.3, 0.4, 0.45], S: [0.28, 0.35, 0.16, 0.2] },
+    expect: { A: 'none', S: 'none' } },
+  { at: 0.7, say: 'one box again, the same size: taken for flicker (the known limit)', det: { A: [0.1, 0.3, 0.4, 0.45] }, expect: { A: 'green' } },
+]);
+{
+  // the picture clock: two reads of one presented frame get one moment, a new frame a new one
+  const { pictureTime } = await import('../src/pictime.ts');
+  let cb: ((now: number, meta: { presentationTime?: number }) => void) | null = null;
+  const video = { requestVideoFrameCallback: (f: typeof cb) => { cb = f; return 1; } };
+  pictureTime(video, 1000); // starts watching
+  cb!(performance.now(), { presentationTime: performance.now() });
+  const a = pictureTime(video, 5000), b = pictureTime(video, 9000);
+  check(a === b, `picture clock: the same frame read twice, 4 s apart, has one moment (${a}, ${b})`);
+  cb!(performance.now(), { presentationTime: performance.now() });
+  check(pictureTime(video, 9500) >= a, 'picture clock: a new frame, a moment not before the last');
+  check(pictureTime({}, 1234) === 1234, 'picture clock: without frame callbacks, now');
+}
+
+suite('Review: no memory from a clear read right after a read of two displays in the box', [
+  { at: 0, say: 'board; one wide box', board: board(), det: { W: [0.05, 0.3, 0.9, 0.4] }, expect: { W: 'none' } },
+  { at: 0.3, say: 'two displays in it', det: { W: [0.05, 0.3, 0.9, 0.4] }, words: { captured: 0.3, on: {}, free: TWO }, expect: { W: 'none' } },
+  ...[0.8, 1.3, 1.8, 2.3].map((t): Step => ({ at: t, say: 'still one box', det: { W: [0.05, 0.3, 0.9, 0.4] }, expect: {} })),
+  { at: 2.6, say: 'my 10 alone, sharp: green for now (the decision), not remembered', det: { W: [0.05, 0.3, 0.9, 0.4] },
+    words: { captured: 2.6, on: {}, free: TWO.slice(0, 2) }, expect: { W: 'green' } },
+  ...[3.1, 3.6, 4.1, 4.6].map((t): Step => ({ at: t, say: 'still one box', det: { W: [0.05, 0.3, 0.9, 0.4] }, expect: { W: 'green' } })),
+  { at: 4.9, say: 'garbled, 2.3 s later: gone', det: { W: [0.05, 0.3, 0.9, 0.4] }, words: { captured: 4.9, on: {}, free: junk([0.05, 0.3, 0.9, 0.4]) }, expect: { W: 'none' } },
+]);
+suite('Review: nothing is remembered on an incomplete board', [
+  { at: 0, say: 'a board cut at its limit', board: board(BASE, false), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'my 10', det: { A: LEFT }, words: { captured: 0.3, on: { A: RUTI } }, expect: { A: ['neutral', /Display: 10/] } },
+  { at: 0.9, say: 'again', det: { A: LEFT }, words: { captured: 0.9, on: { A: RUTI } }, expect: { A: ['neutral', /Display: 10/] } },
+  { at: 1.2, say: 'a complete board: green from the reads in hand', board: board(), det: { A: LEFT }, expect: { A: 'green' } },
+  ...seen(1.2, 3.5, 'green'),
+  { at: 3.5, say: 'garbled, 2.6 s after the last good read: gone (it was never remembered)', det: { A: LEFT }, words: { captured: 3.5, on: {}, free: junk(LEFT) }, expect: { A: 'none' } },
+]);
+suite('Review: a box that jumps in size loses a label that is not remembered too', [
+  { at: 0, say: 'board', board: board(), det: { A: [0.1, 0.3, 0.2, 0.4] }, expect: { A: 'none' } },
+  { at: 0.3, say: '"10 Ostermundigen", blurred: green for now', det: { A: [0.1, 0.3, 0.2, 0.4] }, words: { captured: 0.3, on: {}, free: WEAK([0.1, 0.3, 0.2, 0.4]) }, expect: { A: 'green' } },
+  { at: 0.6, say: 'its box triples in width', det: { A: [0.1, 0.3, 0.6, 0.4] }, expect: { A: 'none' } },
+]);
+suite('Review: a late read that contradicts a remembered display counts at its own moment', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  ...seen(0, 2.0, 'none'),
+  { at: 2.0, say: 'my 10, sharp: remembered', det: { A: LEFT }, words: { captured: 2.0, on: { A: RUTI } }, expect: { A: 'green' } },
+  { at: 2.4, say: 'garbled', det: { A: LEFT }, words: { captured: 2.4, on: {}, free: junk(LEFT) }, expect: { A: 'green' } },
+  { at: 2.8, say: 'a slow read of 1.8 arrives: 9 Wabern: hidden', det: { A: LEFT }, words: { captured: 1.8, on: { A: ['9', 'Wabern'] } }, expect: { A: 'none' } },
+]);
+
 // ---------------------------------------------------------------- field captures
 // A capture saved with "Save last 10 s" (src/app/ar.ts: format ar-capture/1) is replayed event by event through a new
 // session. Its `expect` (added by hand once the glitch is understood) names labels that must never appear again,
