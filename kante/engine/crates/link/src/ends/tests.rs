@@ -8,7 +8,7 @@ fn place(r: &WalkRouter, ix: &DoorIndex, x: f32, y: f32, p: &WalkProfile) -> End
     End::place(r, Some(ix), pt(x, y), p)
 }
 fn stop(r: &WalkRouter, x: f32, y: f32, p: &WalkProfile) -> End {
-    End::stop(pt(x, y), Some(snap(r, x, y, p)), false)
+    End::stop(r, None, pt(x, y), Some(snap(r, x, y, p)), false)
 }
 /// Reach the stop's time, and the walk drawn to it: they must agree.
 fn reach_and_walk(r: &WalkRouter, ix: &DoorIndex, from: &End, to: &End, p: &WalkProfile, max_s: f32) -> (Option<f32>, Walk, Drawn) {
@@ -530,4 +530,61 @@ fn a_stop_is_reached_when_the_walk_rounded_up_to_the_second_is_within_the_limit(
     assert!(c.ceil() <= limit, "{c} s reported for a limit of {limit} s");
     let c = reach_costs(&r, &here, &[to.joins[0].snap], &p, quickest.ceil() - 1.0, quickest.ceil() - 1.0)[0];
     assert!(c.is_none(), "no walk within a second less");
+}
+
+#[test]
+fn a_boarding_points_line_to_its_link_through_a_building_is_a_guess() {
+    // review 6, Gänsbrunnen: the stop's point on one side of a house, its link (main's) on the way behind it; the
+    // straight line from the point to the link runs through the house. The link stays, the line is a guess.
+    let mut w = World::new();
+    w.way((-100.0, 20.0), (100.0, 20.0), 8, EdgeKind::Footway, 0);
+    w.building(-10.0, 5.0, 10.0, 15.0);
+    let (r, ix) = w.finish();
+    // the link as the linker makes it: snapped from the stop's point
+    let link = snap(&r, 0.0, 0.0, &STEP_FREE);
+    let at = End::stop(&r, Some(&ix), pt(0.0, 0.0), Some(link), false);
+    assert!(at.joins[0].wall && at.joins[0].unsure, "{:?}", at.joins[0]);
+    let to = End::stop(&r, Some(&ix), pt(80.0, 21.0), Some(snap(&r, 80.0, 20.0, &STEP_FREE)), false);
+    let w1 = walk(&r, &at, &to, &STEP_FREE).unwrap();
+    let d = draw(Some(&ix), &at, &to, &w1);
+    assert!(d.approx_start.is_some() && !d.step_free, "a guess, not step-free: {d:?}");
+    // a railway platform's point (on the track) keeps its line as before
+    let plat = End::stop(&r, Some(&ix), pt(0.0, 0.0), Some(link), true);
+    assert!(!plat.joins[0].unsure);
+}
+
+#[test]
+fn a_line_across_a_railway_track_is_taken_only_where_nothing_else_reaches() {
+    // review 6: two paths 12 m apart with a track on the ground between them, a crossing 150 m along; the point
+    // beside the near path. The stop on the far path is reached over the crossing, not straight over the track.
+    let mut w = World::new();
+    w.way((-200.0, -2.0), (200.0, -2.0), 8, EdgeKind::Footway, 0);
+    w.way((-200.0, 10.0), (200.0, 10.0), 8, EdgeKind::Footway, 0);
+    w.way((150.0, -2.0), (150.0, 10.0), 1, EdgeKind::Crossing, 0);
+    w.rail(&[(-300.0, 4.0), (300.0, 4.0)], false);
+    let (r, ix) = w.finish();
+    for p in [NORMAL, STEP_FREE] {
+        let here = place(&r, &ix, 0.0, 0.0, &p);
+        assert!(here.joins.iter().any(|j| j.snap.dist_m > 9.0 && j.doubt == 2), "the line over the track is a candidate, and a guess: {:?}", here.joins);
+        let to = stop(&r, 0.0, 10.0, &p);
+        let (c, w1, d) = reach_and_walk(&r, &ix, &here, &to, &p, 3600.0);
+        assert!(c.is_some() && w1.from.doubt == 0 && d.approx_start.is_none(), "over the crossing: {:?}", w1.from);
+        assert!(w1.secs > 200.0, "the long way round: {} s", w1.secs);
+        // with only a minute, the line over the track is the only walk in time: taken, as a guess, not step-free
+        let (c, w2, d) = reach_and_walk(&r, &ix, &here, &to, &p, 60.0);
+        assert!(c.is_some() && w2.from.doubt == 2 && d.approx_start.is_some() && !d.step_free, "{:?} {d:?}", w2.from);
+    }
+}
+
+#[test]
+fn a_walk_with_a_guessed_end_is_never_step_free() {
+    // review 6, A: a boarding point 30 m from its link across open ground (a guess by its length), on a step-free path
+    let mut w = World::new();
+    w.way((-100.0, 30.0), (100.0, 30.0), 8, EdgeKind::Footway, 0);
+    let (r, ix) = w.finish();
+    let at = End::stop(&r, Some(&ix), pt(0.0, 0.0), Some(snap(&r, 0.0, 0.0, &STEP_FREE)), false);
+    let to = End::stop(&r, Some(&ix), pt(80.0, 30.0), Some(snap(&r, 80.0, 30.0, &STEP_FREE)), false);
+    let w1 = walk(&r, &at, &to, &STEP_FREE).unwrap();
+    let d = draw(Some(&ix), &at, &to, &w1);
+    assert!(d.approx_start.is_some() && !d.step_free, "{d:?}");
 }

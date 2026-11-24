@@ -42,14 +42,11 @@ services. For live data, put the opentransportdata.swiss key in `~/kante-host/se
 `deploy.sh` fetches `main`. If `kante/engine` has not changed it does nothing. Otherwise it:
 
 1. builds the engine,
-2. builds the data caches with the new engine, in a new folder under `~/kante-host/releases/`. The building
-   address register (the buildings' doors) is required: it is downloaded first if the host has none yet, and checked;
-   without a valid one the build fails and the engine in use stays,
+2. builds the data caches with the new engine, in a new folder under `~/kante-host/releases/`,
 3. points `~/kante-host/current` at the new folder and restarts the engine,
 4. checks that the engine answers, has a timetable and can search. If not, it goes back to the release
-   before. It also logs how many building doors the engine has and how many came from the building address register
-   (both in `/api/meta` too), with a warning when fewer than a million did.
-
+   before. It also logs how many building doors the engine has and how many came from the building address
+   register (`/api/meta`).
 
 A commit is tried once. If its build fails, the running engine stays as it is and the next commit is
 tried. The two newest releases are kept. A deploy takes about 2½ minutes on a

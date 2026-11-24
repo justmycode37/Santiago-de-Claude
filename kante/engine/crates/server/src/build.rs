@@ -9,7 +9,11 @@
 //! | `osm`       | `raw/osm/switzerland-latest.osm.pbf`    | `walkgraph.bin`, `osm-extract.bin`  |
 //! | `links`     | the three files above                   | `links.bin`                         |
 //! | `search`    | `timetable.bin`, the PBF                | `search.bin`                        |
-//! | `doors`     | the PBF, `walkgraph.bin`, `osm-extract.bin`, `raw/register/adr.csv.zip` (optional) | `doors.bin` (again whenever `osm` runs) |
+//! | `doors`     | the PBF, `walkgraph.bin`, `osm-extract.bin`, `raw/register/adr.csv.zip` | `doors.bin` (again whenever `osm` runs) |
+//!
+//! The building address register gives most buildings their doors: without it (missing, unreadable, or fewer than a
+//! million doors from it) the build fails, unless `--without-register` (a regional extract, a test) says to build
+//! with OpenStreetMap's doors only.
 
 use crate::Args;
 use anyhow::{bail, Context, Result};
@@ -48,6 +52,7 @@ pub fn run(args: &Args) -> Result<()> {
     let built = data.join("built");
     std::fs::create_dir_all(&built)?;
     let force = args.has("force");
+    let without_register = args.has("without-register");
     let only: Option<Vec<&str>> = args.get("only").map(|s| s.split(',').collect());
     // a step runs when one of its outputs is missing or was written in an older format (a cache the server would
     // refuse), or when it is named in --only
@@ -116,14 +121,17 @@ pub fn run(args: &Args) -> Result<()> {
             let register = if reg_path.exists() {
                 match kante_link::register::read(&reg_path, bbox.as_ref()) {
                     Ok(r) => r,
-                    Err(e) => {
-                        eprintln!("   warning: {e:#}; doors from OpenStreetMap only");
+                    Err(e) if without_register => {
+                        eprintln!("   warning: {e:#}; doors from OpenStreetMap only (--without-register)");
                         Vec::new()
                     }
+                    Err(e) => bail!("the building address register {} cannot be read: {e:#} (scripts/fetch-data.sh --register; --without-register builds without it)", reg_path.display()),
                 }
-            } else {
-                eprintln!("   no {} (scripts/fetch-data.sh): doors from OpenStreetMap only", reg_path.display());
+            } else if without_register {
+                eprintln!("   no {}: doors from OpenStreetMap only (--without-register)", reg_path.display());
                 Vec::new()
+            } else {
+                bail!("no building address register at {} (scripts/fetch-data.sh --register; --without-register builds without it)", reg_path.display());
             };
             let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
             let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
@@ -138,6 +146,9 @@ pub fn run(args: &Args) -> Result<()> {
                 st.unattached,
                 st.through_only
             );
+            if st.register_doors < 1_000_000 && !without_register {
+                bail!("only {} doors from the building address register {}, fewer than a million: not building (--without-register builds without it)", st.register_doors, reg_path.display());
+            }
             io::save(&doors_path, DOORS_SCHEMA, &doors)
         })?;
     }

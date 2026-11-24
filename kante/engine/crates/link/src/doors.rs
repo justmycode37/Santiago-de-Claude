@@ -492,6 +492,10 @@ pub fn build(raw: &BuildingsRaw, register: &[Address], router: &WalkRouter, extr
         }
     }
     out.graph = graph_fingerprint(router.graph());
+    for c in extract.carriageways.iter().filter(|c| c.kind == CarriagewayKind::RailTrack && !c.off_ground) {
+        let g = &extract.carriageway_geom[c.geom_off as usize..c.geom_off as usize + c.geom_len as usize];
+        out.rails.extend(g.windows(2).map(|w| [w[0], w[1]]));
+    }
     (out, st)
 }
 
@@ -544,6 +548,9 @@ impl FrozenGrid {
 pub struct DoorIndex {
     pub doors: Doors,
     grid: FrozenGrid,
+    /// The tracks on the ground, as planar segments, and a grid of them.
+    rails: Vec<(P, P)>,
+    rail_grid: FrozenGrid,
     /// Doors placed from the address register.
     pub register_doors: usize,
 }
@@ -563,7 +570,23 @@ impl DoorIndex {
             grid.insert(b, x0, y0, x1, y1);
         }
         let register_doors = doors.doors.iter().filter(|d| d.kind == DoorKind::Address).count();
-        DoorIndex { doors, grid: FrozenGrid::new(grid), register_doors }
+        let rails: Vec<(P, P)> = doors.rails.iter().map(|r| (r[0].xy(), r[1].xy())).collect();
+        let mut rg = BoxGrid::default();
+        for (i, (a, b)) in rails.iter().enumerate() {
+            rg.insert(i as u32, a.0.min(b.0), a.1.min(b.1), a.0.max(b.0), a.1.max(b.1));
+        }
+        DoorIndex { doors, grid: FrozenGrid::new(grid), rails, rail_grid: FrozenGrid::new(rg), register_doors }
+    }
+    /// Does the straight line a → b touch or cross a railway track on the ground, however short it is?
+    pub fn crosses_track(&self, a: LatLon, b: LatLon) -> bool {
+        let (p, q) = (a.xy(), b.xy());
+        self.rail_grid
+            .in_box(p.0.min(q.0) - 1.0, p.1.min(q.1) - 1.0, p.0.max(q.0) + 1.0, p.1.max(q.1) + 1.0)
+            .into_iter()
+            .any(|s| {
+                let (u, v) = self.rails[s as usize];
+                hit(p, q, u, v).is_some()
+            })
     }
     /// Was this index made for this graph?
     pub fn fits(&self, g: &WalkGraph) -> bool {

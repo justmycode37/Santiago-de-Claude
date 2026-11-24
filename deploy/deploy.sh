@@ -23,19 +23,6 @@ build_release() { # build_release <commit> <release dir>
   ln -s "$ROOT/profiles" "$rel/data/profiles"
   # which timetable this release was built from (refresh-data.sh compares it with the one in force)
   cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
-  # The building address register gives most buildings their doors: required. Checked as fetch-data.sh checks a
-  # download (its columns, over a million addresses); fetched if the host has none or the one it has is not valid
-  # (set aside as .invalid); without a valid one the build fails, and the engine in use stays.
-  local reg=$ROOT/raw/register/adr.csv.zip
-  reg_ok() { (source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh) && register_ok "$reg"); }
-  if ! reg_ok; then
-    [[ -e $reg ]] && mv -f "$reg" "$reg.invalid"
-    KANTE_RAW=$ROOT/raw timeout 1200 kante/scripts/fetch-data.sh --register || true
-  fi
-  if ! reg_ok; then
-    log "no valid building address register in $ROOT/raw/register (fetch-data.sh --register): not building"
-    return 1
-  fi
   "$rel/kante" build --data "$rel/data"
 }
 

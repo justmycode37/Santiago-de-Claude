@@ -104,7 +104,10 @@ impl App {
         let station = &self.tt.stations[stop.station as usize];
         // A railway platform's registry point often lies on the track itself: a walk to it ends on the platform.
         let railish = Mode::Rail.bit() | Mode::Metro.bit() | Mode::RackRail.bit() | Mode::Funicular.bit();
-        let end = End::stop(stop.pos, self.link(s).map(|l| l.snap), stop.modes & railish != 0);
+        let end = match self.walk.as_ref() {
+            Some(w) => End::stop(w, self.doors.as_ref(), stop.pos, self.link(s).map(|l| l.snap), stop.modes & railish != 0),
+            None => End::exact(stop.pos, self.link(s).map(|l| l.snap)),
+        };
         WalkEnd { name: station.name.clone(), pos: stop.pos, stop: Some(s), end }
     }
 
@@ -275,6 +278,13 @@ impl App {
                 }];
             }
         }
+        // Where a walk leg is finished for output (journeys of every kind, the walk-only answer, /api/walk): a leg
+        // with a guessed end, or no path at all, is never step-free, and a step-free walker's journey says so
+        // (unsure_alert)
+        if leg.approx_start.is_some() || leg.approx_end.is_some() || leg.approximate {
+            leg.step_free = false;
+            leg.unsure_end = true;
+        }
         leg
     }
 
@@ -432,8 +442,7 @@ impl App {
                 _ => None,
             };
             if let JLeg::Walk(w) = &mut legs[i] {
-                // a step-free walker's first or last walk that starts or ends through a building or onto another
-                // floor: only when no other way onto the network reaches any stop (App::reach), and said here
+                // a step-free walker's walk (any of them) with a guessed end: said here
                 alerts.extend(unsure_alert(w, Some(i), profile));
                 if let Some(nd) = next_dep {
                     let start = prev_arr.unwrap_or(w.dep);
@@ -714,8 +723,13 @@ impl App {
         // the journey arriving first is added back for searches that leave at a time (and their pages), not for
         // "arrive by", where it is not what was asked for
         let (picked, pages) = page(picked, !matches!(dir, Dir::ArriveBy(_)));
-        let journeys: Vec<json::Journey> =
+        let mut journeys: Vec<json::Journey> =
             picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, live)).collect();
+        // a journey's last walk is timed by the walk drawn, in travel order (the stop search ran the other way): one
+        // that then arrives after the time asked to arrive by is not one to take
+        if let Dir::ArriveBy(t) = dir {
+            journeys.retain(|j| j.arr <= t);
+        }
 
         let start = match dir {
             Dir::After(t) => t,
@@ -765,16 +779,17 @@ impl App {
 /// ground with no mapped way): taken only where nothing else reaches (kante_link::ends::reach_costs), and said.
 fn unsure_alert(w: &json::WalkLeg, leg: Option<usize>, profile: &WalkProfile) -> Option<json::JourneyAlert> {
     (w.unsure_end && (profile.wheelchair || profile.is_step_free())).then(|| {
-        let place = match w.kind {
-            "egress" => w.to.name.as_str(),
-            "access" => w.from.name.as_str(),
-            _ => "the start or the end",
+        let at = match w.kind {
+            "egress" => format!("at {}", w.to.name),
+            "access" => format!("at {}", w.from.name),
+            "transfer" => format!("for the change at {}", w.to.name),
+            _ => "at the start or the end of this walk".to_string(),
         };
         json::JourneyAlert {
             severity: "warning",
             kind: "other",
             leg,
-            text: format!("No step-free way onto the street is known at {place}: this walk is guessed there (through a building, onto another floor, or across ground with no mapped way)"),
+            text: format!("No step-free way is known {at}: this walk is guessed there (through a building, onto another floor, across a track, or across ground with no mapped way)"),
         }
     })
 }
