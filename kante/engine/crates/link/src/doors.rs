@@ -612,8 +612,13 @@ impl DoorIndex {
     }
     /// Does the straight line a → b run through a building ([`through_building`])?
     pub fn through(&self, a: LatLon, b: LatLon, arcade_m: f32) -> bool {
+        self.through_except(a, b, arcade_m, u32::MAX)
+    }
+    /// [`DoorIndex::through`], leaving building `skip` out.
+    pub fn through_except(&self, a: LatLon, b: LatLon, arcade_m: f32, skip: u32) -> bool {
         let (p, q) = (a.xy(), b.xy());
-        let near = self.grid.in_box(p.0.min(q.0) - 1.0, p.1.min(q.1) - 1.0, p.0.max(q.0) + 1.0, p.1.max(q.1) + 1.0);
+        let mut near = self.grid.in_box(p.0.min(q.0) - 1.0, p.1.min(q.1) - 1.0, p.0.max(q.0) + 1.0, p.1.max(q.1) + 1.0);
+        near.retain(|&x| x != skip);
         let rings: Vec<Vec<Vec<P>>> = near.iter().map(|&b| self.rings_xy(b)).collect();
         through_building(p, q, arcade_m, rings.iter().map(|r| r.as_slice()))
     }

@@ -588,3 +588,38 @@ fn a_walk_with_a_guessed_end_is_never_step_free() {
     let d = draw(Some(&ix), &at, &to, &w1);
     assert!(d.approx_start.is_some() && !d.step_free, "{d:?}");
 }
+
+#[test]
+fn a_point_next_to_its_buildings_wall_leaves_by_its_own_door() {
+    // review 6 (Neon): a rowhouse with neighbours on both sides, the street in front, a step-free main door; the point
+    // 20 cm inside the party wall. The line inside to the door is not through a wall.
+    let mut w = World::new();
+    w.way((-100.0, -3.0), (100.0, -3.0), 8, EdgeKind::Sidewalk, 0);
+    let b = w.building(0.0, 0.0, 20.0, 16.0);
+    w.building(-20.0, 0.0, 0.0, 16.0);
+    w.building(20.0, 0.0, 40.0, 16.0);
+    w.door(b, 10.0, 0.0, DoorKind::Main, DOOR_WC_YES);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 0.2, 8.0, &STEP_FREE);
+    let door = here.joins.iter().find(|j| j.door.is_some()).expect("its door");
+    assert!(!door.wall && door.doubt == 0, "{door:?}");
+    let to = stop(&r, 60.0, -3.0, &STEP_FREE);
+    let w1 = walk(&r, &here, &to, &STEP_FREE).unwrap();
+    let d = draw(Some(&ix), &here, &to, &w1);
+    assert!(w1.from.door.is_some() && d.step_free && d.approx_start.is_none(), "{:?} {d:?}", w1.from);
+}
+
+#[test]
+fn a_walk_through_a_door_that_is_not_step_free_is_not_step_free_for_anyone() {
+    // review 6 (Neon): a normal walker may use a wheelchair=no door; the walk then is not step-free
+    let mut w = World::new();
+    w.way((-100.0, -3.0), (100.0, -3.0), 8, EdgeKind::Sidewalk, 0);
+    let b = w.building(0.0, 0.0, 20.0, 16.0);
+    w.door(b, 10.0, 0.0, DoorKind::Main, DOOR_WC_NO);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 10.0, 8.0, &NORMAL);
+    let to = stop(&r, 60.0, -3.0, &NORMAL);
+    let w1 = walk(&r, &here, &to, &NORMAL).unwrap();
+    let d = draw(Some(&ix), &here, &to, &w1);
+    assert!(w1.from.door.is_some() && !d.step_free, "{:?} {d:?}", w1.from);
+}
