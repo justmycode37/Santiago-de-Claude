@@ -1,35 +1,42 @@
-// The search evaluation: every case of cases.json (make-cases.mts) through the page's own search (search() in
-// src/app/search-places.ts, with swisstopo, OpenStreetMap through Photon and the Bern places as the page has them),
-// and through the Kante engine's /api/search on its own, scored by where the first right answer is in the list.
+// The search evaluation: every case of cases.json (build-cases.mts) through the page's own search (search() in
+// src/app/search-places.ts, with swisstopo and the Bern places as the page has them; Photon only with --photon) and
+// through the Kante engine's /api/search on its own, scored by where the first right answer is in the list.
 // The sources' answers are replayed from answers.json.gz, so a run is offline and gives the same numbers every
-// time; --record asks the sources for the answers that are missing (all of them the first time: about half an hour,
-// paced to be gentle on Photon's public server) and adds them.
+// time; --record asks the sources for the answers that are missing (a few minutes for swisstopo and Kante) and adds
+// them.
 //
 //   node --experimental-test-module-mocks tools/search-eval/eval.mts [options]
 //     --record            ask the sources for answers not recorded yet
 //     --shard k/n         only every n-th case from the k-th; with --record, n such runs record side by side
-//     --group <g>         only the cases of group g (stop-exact, address, …)
+//     --photon            the page's search with Photon too (its public server shuts out a client asking more than
+//                         about once a second: recording all of it takes hours)
+//     --pace <ms>         with --record --photon: the time between two requests to Photon (3000)
+//     --group <g>         only the cases of group g (stop, address, …)
 //     --show <n>          list n cases the page gets wrong (first right answer not in the 3 rows shown)
 //     --system <s>        with --show: 'site' (the default) or 'kante'
+//     --judge-out <file>  write the result lists not judged yet (judged/*.jsonl) for the judges to grade (JSONL)
 //     --update-baseline   write these ranks to baseline.json, which later runs are compared with
 //     --check             exit 1 when the page's top-3 score falls below the baseline's
 // See tools/search-eval/README.md.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import zlib from 'node:zlib';
 import { mock } from 'node:test';
-import type { EvalCase } from './make-cases.mts';
+import type { EvalCase } from './build-cases.mts';
 
 const HERE = new URL('./', import.meta.url);
 const ROOT = new URL('../../', import.meta.url);
 const SRC = new URL('src/', ROOT);
 const ANSWERS = new URL('answers.json.gz', HERE);
 const BASELINE = new URL('baseline.json', HERE);
+const JUDGED = new URL('judged/', HERE);
 const KANTE = 'https://kante.omniroute.app';
 
 const args = process.argv.slice(2);
 const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const RECORD = args.includes('--record');
+const PHOTON = args.includes('--photon');
 const GROUP = opt('--group');
 const SHOW = Number(opt('--show') || 0);
 const SHOW_SYSTEM = (opt('--system') || 'site') as SystemName;
@@ -62,7 +69,8 @@ function trim(url: string, body: unknown): unknown {
   return body;
 }
 // One request at a time per server, this far apart (ms)
-const GAP: Record<string, number> = { 'photon.komoot.io': 400, 'api3.geo.admin.ch': 120, 'kante.omniroute.app': 120 };
+// (--pace <ms> for Photon's public server, which shuts out a client that asks too often: 3000 is safe)
+const GAP: Record<string, number> = { 'photon.komoot.io': Number(opt('--pace') || 3000), 'api3.geo.admin.ch': 120, 'kante.omniroute.app': 120 };
 const nextAt = new Map<string, Promise<void>>();
 function paced(host: string) {
   const prev = nextAt.get(host) || Promise.resolve();
@@ -89,10 +97,14 @@ async function ask(url: string, init?: RequestInit): Promise<Answer> {
   }
 }
 const failures = new Map<string, number>();
+/** The answers this run asked for: a full --record keeps only those. */
+const used = new Set<string>();
 const respond = (a: Answer) => ({ ok: a.s >= 200 && a.s < 300, status: a.s, json: async () => structuredClone(a.b) });
 async function replayFetch(input: string | URL, init?: RequestInit) {
   const url = String(input);
+  if (!PHOTON && url.startsWith('https://photon.komoot.io/')) return respond({ s: 599, b: null }); // as if Photon were down
   const key = init && init.body ? `${url} ${init.body}` : url;
+  used.add(key);
   if (!store[key]) {
     if (!RECORD) { missing++; return respond({ s: 599, b: null }); }
     const host = new URL(url).host;
@@ -196,7 +208,7 @@ for (const [i, c] of cases.entries()) {
     const r = await SYSTEMS[s](c);
     ranks[s][c.id] = rankOf(c, r);
     empty[s][c.id] = !r.length;
-    if (SHOW) rows[s][c.id] = r;
+    rows[s][c.id] = r;
   }));
   if (RECORD && (i + 1) % 25 === 0) {
     saveAnswers();
@@ -204,6 +216,8 @@ for (const [i, c] of cases.entries()) {
     console.log(`  ${i + 1}/${cases.length} cases, ${asked} requests, ${min.toFixed(1)} min (about ${((min / (i + 1)) * (cases.length - i - 1)).toFixed(0)} min to go)`);
   }
 }
+// A full recording keeps only the answers its cases ask for (old cases' answers go)
+if (RECORD && !GROUP && !SHARD) for (const k of Object.keys(store)) if (!used.has(k) && (PHOTON || !k.startsWith('https://photon.komoot.io/'))) { delete store[k]; dirty = true; }
 saveAnswers();
 
 // ---- report ----
@@ -216,8 +230,10 @@ function score(s: SystemName, list: EvalCase[]): Score {
 }
 const groups = [...new Set(cases.map((c) => c.group))];
 const pct = (x: number) => (x * 100).toFixed(1).padStart(5);
-interface Baseline { systems: Record<SystemName, Record<string, number | null>> }
-const base: Baseline | null = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
+interface Baseline { photon?: boolean; systems: Record<SystemName, Record<string, number | null>> }
+const saved: Baseline | null = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
+// compared only with a baseline made the same way (with or without Photon)
+const base = saved && !!saved.photon === PHOTON ? saved : null;
 /** The baseline's top-3 share of these cases, as the change since then: ' +2.1' */
 const delta = (s: SystemName, list: EvalCase[]) => {
   if (!base || !base.systems[s] || list.some((c) => !(c.id in base.systems[s]))) return '';
@@ -235,10 +251,43 @@ console.log(`${'group'.padEnd(14)}${'n'.padStart(5)} │  top1  top3     Δ top1
 console.log('─'.repeat(97));
 for (const g of groups) console.log(line(g, cases.filter((c) => c.group === g)));
 console.log('─'.repeat(97));
+for (const st of [...new Set(cases.map((c) => c.style))].sort()) console.log(line(`  ${st}`, cases.filter((c) => c.style === st)));
+console.log('─'.repeat(97));
 console.log(line('all', cases));
 const macro = (s: SystemName) => groups.reduce((a, g) => a + score(s, cases.filter((c) => c.group === g)).top3, 0) / groups.length;
 console.log(`\ntop3: the first right answer is in the 3 rows the list shows before "Show more". Δ: top3 since baseline.json.`);
+console.log(`The page's search ${PHOTON ? 'with' : 'without'} Photon${PHOTON ? '' : ' (--photon to include it): its place names and kinds of place come mostly from Photon'}.`);
 console.log(`Mean of the groups' top3: page ${pct(macro('site'))}, Kante ${pct(macro('kante'))}`);
+
+// ---- the judges' grades of the top three rows (judged/*.jsonl: {"k": list key, "g": 0…3, "why"}) ----
+// A list is what the person sees: the query, what they wanted, where the map is, the first three rows. Its key
+// changes when any of that does, so a change to the search only needs its changed lists judged.
+const judged: Record<string, { g: number; why?: string }> = {};
+for (const f of fs.existsSync(JUDGED) ? fs.readdirSync(JUDGED).filter((f) => f.endsWith('.jsonl')).sort() : []) {
+  for (const line of fs.readFileSync(new URL(f, JUDGED), 'utf8').split('\n')) {
+    try { const j = JSON.parse(line); if (typeof j.k === 'string' && [0, 1, 2, 3].includes(j.g)) judged[j.k] = { g: j.g, why: j.why }; } catch { /* a blank or broken line */ }
+  }
+}
+const shown = (c: EvalCase, r: Row) => { const d = distM(c.at, r.ll); return `${r.title} — ${r.subtitle} [${r.kind}] · ${d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`} from the map's middle`; };
+const listOf = (c: EvalCase, s: SystemName) => ({ q: c.q, want: c.want, map: c.local ? 'near what they want' : 'in another town', results: rows[s][c.id].slice(0, 3).map((r) => shown(c, r)) });
+const keyOf = (l: ReturnType<typeof listOf>) => crypto.createHash('sha1').update(JSON.stringify(l)).digest('hex').slice(0, 16);
+const grades = (s: SystemName, list: EvalCase[]) => list.map((c) => judged[keyOf(listOf(c, s))]?.g).filter((g): g is number => g != null);
+if (Object.keys(judged).length) {
+  console.log(`\nThe judges' grade of the top three rows (0 nothing useful … 3 what was wanted, first), mean of those judged:`);
+  for (const g of [...groups, 'all']) {
+    const list = g === 'all' ? cases : cases.filter((c) => c.group === g);
+    const [a, k] = [grades('site', list), grades('kante', list)];
+    const mean = (x: number[]) => (x.length ? (x.reduce((p, q) => p + q, 0) / x.length).toFixed(2) : '  – ');
+    console.log(`  ${g.padEnd(12)} page ${mean(a)} (${a.length}/${list.length})   Kante ${mean(k)} (${k.length}/${list.length})`);
+  }
+}
+const judgeOut = opt('--judge-out');
+if (judgeOut) {
+  const todo = new Map<string, ReturnType<typeof listOf>>();
+  for (const c of cases) for (const s of ['site', 'kante'] as SystemName[]) { const l = listOf(c, s); const k = keyOf(l); if (!judged[k]) todo.set(k, l); }
+  fs.writeFileSync(judgeOut, [...todo].map(([k, l]) => JSON.stringify({ k, ...l })).join('\n') + (todo.size ? '\n' : ''));
+  console.log(`\n${todo.size} lists to judge → ${judgeOut}`);
+}
 
 if (base) {
   const moved = (s: SystemName, better: boolean) => cases.filter((c) => {
@@ -269,8 +318,8 @@ if (SHOW) {
 
 if (args.includes('--update-baseline')) {
   if (GROUP || SHARD || missing) { console.error('\n--update-baseline needs all the cases, all recorded (no --group, --shard)'); process.exit(2); }
-  const out: Baseline & { note: string } = { note: 'Ranks of the first right answer per case (null: not in the first 10), written by eval.mts --update-baseline.', systems: ranks };
-  fs.writeFileSync(BASELINE, JSON.stringify(out, null, 0).replace(/,"(?=[a-z-]+\/\d{4}")/g, ',\n"') + '\n');
+  const out: Baseline & { note: string } = { note: 'Ranks of the first right answer per case (null: not in the first 10), written by eval.mts --update-baseline.', photon: PHOTON, systems: ranks };
+  fs.writeFileSync(BASELINE, JSON.stringify(out, null, 0).replace(/,"(?=[a-z]+\/T\d+-\d+")/g, ',\n"') + '\n');
   console.log(`\nbaseline.json written`);
 }
 if (args.includes('--check') && base) {

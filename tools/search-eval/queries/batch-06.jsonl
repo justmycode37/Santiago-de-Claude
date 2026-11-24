@@ -1,0 +1,210 @@
+{"t": "T006", "q": "Brunnen, Schiller", "style": "exact", "local": false}
+{"t": "T006", "q": "schiller brunnen", "style": "casual", "local": false}
+{"t": "T006", "q": "brunnen schil", "style": "partial", "local": false}
+{"t": "T006", "q": "brunen schiller", "style": "typo", "local": false}
+{"t": "T006", "q": "Bushaltestelle Schiller Brunnen", "style": "descriptive", "local": false}
+{"t": "T016", "q": "Villigen, PSI Ost", "style": "exact", "local": false}
+{"t": "T016", "q": "psi ost", "style": "casual", "local": false}
+{"t": "T016", "q": "psi ost vill", "style": "partial", "local": false}
+{"t": "T016", "q": "viligen psi ost", "style": "typo", "local": false}
+{"t": "T016", "q": "PSI Ost bus stop Villigen", "style": "descriptive", "local": false}
+{"t": "T026", "q": "Züberwangen, Weieren", "style": "exact", "local": false}
+{"t": "T026", "q": "weieren züberwangen", "style": "casual", "local": false}
+{"t": "T026", "q": "züberwangen wei", "style": "partial", "local": false}
+{"t": "T026", "q": "zuberwangen weieren", "style": "typo", "local": false}
+{"t": "T026", "q": "Bushaltestelle Weieren Züberwangen", "style": "descriptive", "local": false}
+{"t": "T036", "q": "Rorschach, Fuchsschwanz", "style": "exact", "local": false}
+{"t": "T036", "q": "fuchsschwanz rorschach", "style": "casual", "local": false}
+{"t": "T036", "q": "rorschach fuchssch", "style": "partial", "local": false}
+{"t": "T036", "q": "rorschach fuchschwanz", "style": "typo", "local": false}
+{"t": "T036", "q": "Fuchsschwanz bus stop Rorschach", "style": "descriptive", "local": false}
+{"t": "T046", "q": "Ittigen, Eyfeld", "style": "exact", "local": false}
+{"t": "T046", "q": "eyfeld ittigen", "style": "casual", "local": false}
+{"t": "T046", "q": "ittigen eyf", "style": "partial", "local": false}
+{"t": "T046", "q": "itigen eyfeld", "style": "typo", "local": false}
+{"t": "T046", "q": "Bushaltestelle Eyfeld Ittigen", "style": "descriptive", "local": false}
+{"t": "T056", "q": "Münchenstein, Loogstrasse", "style": "exact", "local": false}
+{"t": "T056", "q": "loogstrasse münchenstein", "style": "casual", "local": false}
+{"t": "T056", "q": "münchenstein loogstr", "style": "partial", "local": false}
+{"t": "T056", "q": "munchenstein loogstrasse", "style": "typo", "local": false}
+{"t": "T056", "q": "Loogstrasse tram stop Münchenstein", "style": "descriptive", "local": false}
+{"t": "T066", "q": "Pratteln, Bahnhofstrasse", "style": "exact", "local": false}
+{"t": "T066", "q": "bahnhofstrasse", "style": "casual", "local": true}
+{"t": "T066", "q": "pratteln bahnhofstr", "style": "partial", "local": false}
+{"t": "T066", "q": "prateln bahnhofstrasse", "style": "typo", "local": false}
+{"t": "T066", "q": "Tramhaltestelle Bahnhofstrasse Pratteln", "style": "descriptive", "local": false}
+{"t": "T076", "q": "Confignon, croisée", "style": "exact", "local": false}
+{"t": "T076", "q": "croisée confignon", "style": "casual", "local": false}
+{"t": "T076", "q": "confignon croi", "style": "partial", "local": false}
+{"t": "T076", "q": "confignon croisee", "style": "typo", "local": false}
+{"t": "T076", "q": "arrêt de tram croisée confignon", "style": "descriptive", "local": false}
+{"t": "T086", "q": "Zürich, Fellenbergstrasse", "style": "exact", "local": false}
+{"t": "T086", "q": "fellenbergstrasse zürich", "style": "casual", "local": false}
+{"t": "T086", "q": "zürich fellenbergstr", "style": "partial", "local": false}
+{"t": "T086", "q": "zurich fellenbergstrasse", "style": "typo", "local": false}
+{"t": "T086", "q": "Fellenbergstrasse tram stop Zurich", "style": "descriptive", "local": false}
+{"t": "T096", "q": "Meiringen", "style": "exact", "local": false}
+{"t": "T096", "q": "meiringen", "style": "casual", "local": false}
+{"t": "T096", "q": "bahnhof meiri", "style": "partial", "local": false}
+{"t": "T096", "q": "meirigen bahnhof", "style": "typo", "local": false}
+{"t": "T096", "q": "Meiringen train station", "style": "descriptive", "local": false}
+{"t": "T106", "q": "Château-d'Hauteville", "style": "exact", "local": false}
+{"t": "T106", "q": "château d hauteville", "style": "casual", "local": false}
+{"t": "T106", "q": "château d haut", "style": "partial", "local": false}
+{"t": "T106", "q": "Chateau-d'Hauteville", "style": "typo", "local": false}
+{"t": "T106", "q": "gare de Château-d'Hauteville", "style": "descriptive", "local": false}
+{"t": "T116", "q": "Samstagern", "style": "exact", "local": false}
+{"t": "T116", "q": "samstagern", "style": "casual", "local": false}
+{"t": "T116", "q": "bahnhof samstag", "style": "partial", "local": false}
+{"t": "T116", "q": "samstagen bahnhof", "style": "typo", "local": false}
+{"t": "T116", "q": "Samstagern train station", "style": "descriptive", "local": false}
+{"t": "T126", "q": "Küsnacht ZH Heslibach", "style": "exact", "local": false}
+{"t": "T126", "q": "heslibach küsnacht", "style": "casual", "local": false}
+{"t": "T126", "q": "küsnacht hesli", "style": "partial", "local": false}
+{"t": "T126", "q": "kusnacht zh heslibach", "style": "typo", "local": false}
+{"t": "T126", "q": "Schiffstation Küsnacht Heslibach", "style": "descriptive", "local": false}
+{"t": "T136", "q": "Sigeroula (station interméd.)", "style": "exact", "local": false}
+{"t": "T136", "q": "sigeroula", "style": "casual", "local": false}
+{"t": "T136", "q": "télécabine siger", "style": "partial", "local": false}
+{"t": "T136", "q": "sigerola", "style": "typo", "local": false}
+{"t": "T136", "q": "station intermédiaire de Sigeroula", "style": "descriptive", "local": false}
+{"t": "T146", "q": "Luzern", "style": "exact", "local": false}
+{"t": "T146", "q": "luzern bahnhof", "style": "casual", "local": false}
+{"t": "T146", "q": "bahnhof luz", "style": "partial", "local": false}
+{"t": "T146", "q": "Lucerne station", "style": "alias", "local": false}
+{"t": "T146", "q": "Luzern train station", "style": "descriptive", "local": false}
+{"t": "T156", "q": "Schaffhausen", "style": "exact", "local": false}
+{"t": "T156", "q": "bahnhof schaff", "style": "partial", "local": false}
+{"t": "T156", "q": "schafhausen bahnhof", "style": "typo", "local": false}
+{"t": "T156", "q": "Schaffhausen Bhf", "style": "alias", "local": false}
+{"t": "T156", "q": "Schaffhausen train station", "style": "descriptive", "local": false}
+{"t": "T166", "q": "Burgdorf", "style": "exact", "local": false}
+{"t": "T166", "q": "burgdorf bahnhof", "style": "casual", "local": false}
+{"t": "T166", "q": "bahnhof burgd", "style": "partial", "local": false}
+{"t": "T166", "q": "burgdrof bahnhof", "style": "typo", "local": false}
+{"t": "T166", "q": "Burgdorf train station", "style": "descriptive", "local": false}
+{"t": "T176", "q": "Gasel", "style": "exact", "local": false}
+{"t": "T176", "q": "gasel", "style": "casual", "local": false}
+{"t": "T176", "q": "bahnhof gas", "style": "partial", "local": false}
+{"t": "T176", "q": "gassel bahnhof", "style": "typo", "local": false}
+{"t": "T176", "q": "Gasel train station", "style": "descriptive", "local": false}
+{"t": "T186", "q": "Jestetten Gleis 1", "style": "exact", "local": false}
+{"t": "T186", "q": "jestetten 1", "style": "casual", "local": false}
+{"t": "T186", "q": "jesteten gleis 1", "style": "typo", "local": false}
+{"t": "T186", "q": "Jestetten Gl. 1", "style": "alias", "local": false}
+{"t": "T186", "q": "Jestetten station platform 1", "style": "descriptive", "local": false}
+{"t": "T196", "q": "Brig Bahnhofplatz Gleis 14", "style": "exact", "local": false}
+{"t": "T196", "q": "brig bahnhofplatz 14", "style": "casual", "local": false}
+{"t": "T196", "q": "brig bahnofplatz gleis 14", "style": "typo", "local": false}
+{"t": "T196", "q": "Brig Bahnhofplatz Gl. 14", "style": "alias", "local": false}
+{"t": "T196", "q": "Brig Bahnhofplatz platform 14", "style": "descriptive", "local": false}
+{"t": "T206", "q": "Winterthur Grüze Gleis 5", "style": "exact", "local": false}
+{"t": "T206", "q": "winterthur grüze 5", "style": "casual", "local": false}
+{"t": "T206", "q": "winterthur gruze gleis 5", "style": "typo", "local": false}
+{"t": "T206", "q": "Winterthur Grüze Gl. 5", "style": "alias", "local": false}
+{"t": "T206", "q": "Winterthur Grüze station platform 5", "style": "descriptive", "local": false}
+{"t": "T216", "q": "Vernier, Etang Casa-Bamba H", "style": "exact", "local": false}
+{"t": "T216", "q": "vernier etang casa bamba h", "style": "casual", "local": false}
+{"t": "T216", "q": "vernier etang casa bama quai h", "style": "typo", "local": false}
+{"t": "T216", "q": "Vernier Étang Casa-Bamba quai H", "style": "alias", "local": false}
+{"t": "T216", "q": "arrêt Vernier Etang Casa-Bamba quai H", "style": "descriptive", "local": false}
+{"t": "T226", "q": "Chemin du Sonalon d'en Haut 46", "style": "exact", "local": false}
+{"t": "T226", "q": "chemin du sonalon d'en haut 46 verbier", "style": "casual", "local": false}
+{"t": "T226", "q": "chemin du sonalon d'en haut 46 ver", "style": "partial", "local": false}
+{"t": "T226", "q": "chemin du sonnalon d'en haut 46 verbier", "style": "typo", "local": false}
+{"t": "T226", "q": "ch. du sonalon d'en haut 46 1936", "style": "alias", "local": false}
+{"t": "T236", "q": "Hauptstrasse 64", "style": "exact", "local": true}
+{"t": "T236", "q": "hauptstrasse 64 1715", "style": "casual", "local": false}
+{"t": "T236", "q": "hauptstrasse 64 alters", "style": "partial", "local": false}
+{"t": "T236", "q": "haupstrasse 64 alterswil", "style": "typo", "local": false}
+{"t": "T236", "q": "hauptstr. 64 alterswil fr", "style": "alias", "local": false}
+{"t": "T246", "q": "Fläscherstrasse 12", "style": "exact", "local": false}
+{"t": "T246", "q": "fläscherstrasse 12 7310", "style": "casual", "local": false}
+{"t": "T246", "q": "fläscherstrasse 12 bad rag", "style": "partial", "local": false}
+{"t": "T246", "q": "flascherstrasse 12 bad ragaz", "style": "typo", "local": false}
+{"t": "T246", "q": "fläscherstr. 12 bad ragaz", "style": "alias", "local": false}
+{"t": "T256", "q": "Kirchweg 1", "style": "exact", "local": true}
+{"t": "T256", "q": "kirchweg 1 4614", "style": "casual", "local": false}
+{"t": "T256", "q": "kirchweg 1 hägen", "style": "partial", "local": false}
+{"t": "T256", "q": "kirchweg 1 hagendorf", "style": "typo", "local": false}
+{"t": "T256", "q": "Kirchweg 1 4614 Hägendorf", "style": "descriptive", "local": false}
+{"t": "T266", "q": "Faltigbergstrasse 7", "style": "exact", "local": false}
+{"t": "T266", "q": "faltigbergstrasse 7 wald zh", "style": "casual", "local": false}
+{"t": "T266", "q": "faltigbergstrasse 7 wal", "style": "partial", "local": false}
+{"t": "T266", "q": "faltigbergstrase 7 wald zh", "style": "typo", "local": false}
+{"t": "T266", "q": "faltigbergstr. 7 8636", "style": "alias", "local": false}
+{"t": "T276", "q": "Teufenthalerstrasse 68", "style": "exact", "local": false}
+{"t": "T276", "q": "teufenthalerstrasse 68 5724", "style": "casual", "local": false}
+{"t": "T276", "q": "teufenthalerstrasse 68 dürr", "style": "partial", "local": false}
+{"t": "T276", "q": "teufenthalerstrasse 68 durrenäsch", "style": "typo", "local": false}
+{"t": "T276", "q": "teufenthalerstr. 68 dürrenäsch", "style": "alias", "local": false}
+{"t": "T286", "q": "Gemeindesaal", "style": "exact", "local": true}
+{"t": "T286", "q": "gemeindesaal kaufdorf", "style": "casual", "local": false}
+{"t": "T286", "q": "kaufdorf gemeindes", "style": "partial", "local": false}
+{"t": "T286", "q": "gemeindesal kaufdorf", "style": "typo", "local": false}
+{"t": "T286", "q": "Gemeindesaal Dorfstrasse 12 Kaufdorf", "style": "descriptive", "local": false}
+{"t": "T296", "q": "insieme Kulturlokal", "style": "exact", "local": false}
+{"t": "T296", "q": "insieme", "style": "casual", "local": true}
+{"t": "T296", "q": "insieme kultur", "style": "partial", "local": false}
+{"t": "T296", "q": "insieme kulturllokal zürich", "style": "typo", "local": false}
+{"t": "T296", "q": "insieme Kulturlokal Regensbergstrasse Zürich", "style": "descriptive", "local": false}
+{"t": "T306", "q": "Coop", "style": "exact", "local": true}
+{"t": "T306", "q": "coop étang", "style": "casual", "local": true}
+{"t": "T306", "q": "coop la chaux-de-fon", "style": "partial", "local": false}
+{"t": "T306", "q": "coop rue de l'etang la chaux-de-fonds", "style": "typo", "local": false}
+{"t": "T306", "q": "Coop rue de l’Étang La Chaux-de-Fonds", "style": "descriptive", "local": false}
+{"t": "T316", "q": "Lidl", "style": "exact", "local": true}
+{"t": "T316", "q": "lidl oberglatt", "style": "casual", "local": false}
+{"t": "T316", "q": "lidl oberg", "style": "partial", "local": false}
+{"t": "T316", "q": "lidl oberglat", "style": "typo", "local": false}
+{"t": "T316", "q": "Lidl Lägernstrasse Oberglatt", "style": "descriptive", "local": false}
+{"t": "T326", "q": "Volg", "style": "exact", "local": true}
+{"t": "T326", "q": "volg brütten", "style": "casual", "local": false}
+{"t": "T326", "q": "volg brüt", "style": "partial", "local": false}
+{"t": "T326", "q": "volg brutten", "style": "typo", "local": false}
+{"t": "T326", "q": "Volg Brüelgasse Brütten", "style": "descriptive", "local": false}
+{"t": "T336", "q": "Kantonspolizei St. Gallen", "style": "exact", "local": true}
+{"t": "T336", "q": "kantonspolizei rapperswil", "style": "casual", "local": false}
+{"t": "T336", "q": "kantonspolizei rapper", "style": "partial", "local": false}
+{"t": "T336", "q": "kantonspolizei raperswil", "style": "typo", "local": false}
+{"t": "T336", "q": "Polizeiposten Neue Jonastrasse Rapperswil", "style": "descriptive", "local": false}
+{"t": "T346", "q": "post office", "style": "exact", "local": true}
+{"t": "T346", "q": "ufficio postale", "style": "alias", "local": true}
+{"t": "T346", "q": "ufficio pos", "style": "partial", "local": true}
+{"t": "T346", "q": "ufficio postle", "style": "typo", "local": true}
+{"t": "T346", "q": "ufficio postale vicino a me", "style": "descriptive", "local": true}
+{"t": "T356", "q": "hospital", "style": "exact", "local": true}
+{"t": "T356", "q": "hôpital", "style": "alias", "local": true}
+{"t": "T356", "q": "hôp", "style": "partial", "local": true}
+{"t": "T356", "q": "hopital", "style": "typo", "local": true}
+{"t": "T356", "q": "hôpital près de moi", "style": "descriptive", "local": true}
+{"t": "T366", "q": "hôpital", "style": "exact", "local": true}
+{"t": "T366", "q": "hospital", "style": "alias", "local": true}
+{"t": "T366", "q": "nearest hosp", "style": "partial", "local": true}
+{"t": "T366", "q": "hopital", "style": "typo", "local": true}
+{"t": "T366", "q": "hôpital le plus proche", "style": "descriptive", "local": true}
+{"t": "T376", "q": "Unterstand", "style": "exact", "local": true}
+{"t": "T376", "q": "shelter", "style": "alias", "local": true}
+{"t": "T376", "q": "unterst", "style": "partial", "local": true}
+{"t": "T376", "q": "unterstad", "style": "typo", "local": true}
+{"t": "T376", "q": "Unterstand in der Nähe", "style": "descriptive", "local": true}
+{"t": "T386", "q": "Hausarzt", "style": "exact", "local": true}
+{"t": "T386", "q": "GP", "style": "alias", "local": true}
+{"t": "T386", "q": "hausar", "style": "partial", "local": true}
+{"t": "T386", "q": "huasarzt", "style": "typo", "local": true}
+{"t": "T386", "q": "closest GP", "style": "descriptive", "local": true}
+{"t": "T396", "q": "Les Acacias", "style": "exact", "local": false}
+{"t": "T396", "q": "les acacias genève", "style": "casual", "local": false}
+{"t": "T396", "q": "les aca", "style": "partial", "local": false}
+{"t": "T396", "q": "les acasias", "style": "typo", "local": false}
+{"t": "T396", "q": "quartier des Acacias Genève", "style": "descriptive", "local": false}
+{"t": "T406", "q": "Schattdorf", "style": "exact", "local": false}
+{"t": "T406", "q": "schattdorf uri", "style": "casual", "local": false}
+{"t": "T406", "q": "schattd", "style": "partial", "local": false}
+{"t": "T406", "q": "schatdorf", "style": "typo", "local": false}
+{"t": "T406", "q": "gemeinde schattdorf", "style": "descriptive", "local": false}
+{"t": "T416", "q": "7505", "style": "exact", "local": false}
+{"t": "T416", "q": "7505 celerina", "style": "casual", "local": false}
+{"t": "T416", "q": "7505 celernia", "style": "typo", "local": false}
+{"t": "T416", "q": "7505 schlarigna", "style": "alias", "local": false}
+{"t": "T416", "q": "PLZ 7505", "style": "descriptive", "local": false}

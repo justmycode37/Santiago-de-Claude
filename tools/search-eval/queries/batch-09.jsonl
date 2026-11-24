@@ -1,0 +1,210 @@
+{"t":"T009","q":"Bern, Galgenfeld","style":"exact","local":false}
+{"t":"T009","q":"galgenfeld bern","style":"casual","local":false}
+{"t":"T009","q":"bern galgenf","style":"partial","local":false}
+{"t":"T009","q":"bern galgenfled","style":"typo","local":false}
+{"t":"T009","q":"bus stop galgenfeld bern","style":"descriptive","local":false}
+{"t":"T019","q":"Bussigny, Tatironne","style":"exact","local":false}
+{"t":"T019","q":"tatironne","style":"casual","local":false}
+{"t":"T019","q":"bussigny tatir","style":"partial","local":false}
+{"t":"T019","q":"bussigny tatirone","style":"typo","local":false}
+{"t":"T019","q":"arrêt tatironne bussigny","style":"descriptive","local":false}
+{"t":"T029","q":"Neuchâtel, Caselle","style":"exact","local":false}
+{"t":"T029","q":"caselle neuchâtel","style":"casual","local":false}
+{"t":"T029","q":"neuchâtel cas","style":"partial","local":false}
+{"t":"T029","q":"neuchatel caselle","style":"typo","local":false}
+{"t":"T029","q":"arrêt caselle neuchâtel","style":"descriptive","local":false}
+{"t":"T039","q":"Schleinikon, Gemeindehaus","style":"exact","local":false}
+{"t":"T039","q":"gemeindehaus","style":"casual","local":true}
+{"t":"T039","q":"schleinikon gemeindeh","style":"partial","local":false}
+{"t":"T039","q":"schleinikon gemeindhaus","style":"typo","local":false}
+{"t":"T039","q":"haltestelle gemeindehaus schleinikon","style":"descriptive","local":false}
+{"t":"T049","q":"Küsnacht ZH, Bergstrasse","style":"exact","local":false}
+{"t":"T049","q":"bergstrasse","style":"casual","local":true}
+{"t":"T049","q":"küsnacht bergstr","style":"partial","local":false}
+{"t":"T049","q":"kusnacht bergstrasse","style":"typo","local":false}
+{"t":"T049","q":"haltestelle bergstrasse küsnacht","style":"descriptive","local":false}
+{"t":"T059","q":"Zürich, Sonneggstrasse","style":"exact","local":false}
+{"t":"T059","q":"sonneggstrasse zürich","style":"casual","local":false}
+{"t":"T059","q":"zürich sonneggstr","style":"partial","local":false}
+{"t":"T059","q":"zurich sonneggstrasse","style":"typo","local":false}
+{"t":"T059","q":"sonneggstrasse tram stop zurich","style":"descriptive","local":false}
+{"t":"T069","q":"Zürich, Schaffhauserplatz","style":"exact","local":false}
+{"t":"T069","q":"schaffhauserplatz","style":"casual","local":false}
+{"t":"T069","q":"zürich schaffhauserpl","style":"partial","local":false}
+{"t":"T069","q":"zürich schafhauserplatz","style":"typo","local":false}
+{"t":"T069","q":"tramhaltestelle schaffhauserplatz zürich","style":"descriptive","local":false}
+{"t":"T079","q":"Lausanne, Malley","style":"exact","local":false}
+{"t":"T079","q":"malley lausanne","style":"casual","local":false}
+{"t":"T079","q":"lausanne mall","style":"partial","local":false}
+{"t":"T079","q":"lausanne maley","style":"typo","local":false}
+{"t":"T079","q":"arrêt tram malley lausanne","style":"descriptive","local":false}
+{"t":"T089","q":"Gümligen, Melchenbühl (Tram)","style":"exact","local":false}
+{"t":"T089","q":"melchenbühl gümligen","style":"casual","local":false}
+{"t":"T089","q":"gümligen melchenb","style":"partial","local":false}
+{"t":"T089","q":"guemligen melchenbühl","style":"typo","local":false}
+{"t":"T089","q":"tramhaltestelle melchenbühl gümligen","style":"descriptive","local":false}
+{"t":"T099","q":"Weissenbach","style":"exact","local":true}
+{"t":"T099","q":"weissenbach bahnhof","style":"casual","local":true}
+{"t":"T099","q":"bahnhof weissenb","style":"partial","local":true}
+{"t":"T099","q":"bahnhof weisenbach","style":"typo","local":true}
+{"t":"T099","q":"weissenbach train station","style":"descriptive","local":true}
+{"t":"T109","q":"Oberei bei Wasen i.E.","style":"exact","local":false}
+{"t":"T109","q":"oberei wasen","style":"casual","local":false}
+{"t":"T109","q":"oberei bei was","style":"partial","local":false}
+{"t":"T109","q":"oberei bei wsaen","style":"typo","local":false}
+{"t":"T109","q":"oberei bei wasen train stop","style":"descriptive","local":false}
+{"t":"T119","q":"Balsthal","style":"exact","local":false}
+{"t":"T119","q":"balsthal bhf","style":"alias","local":false}
+{"t":"T119","q":"bahnhof balst","style":"partial","local":false}
+{"t":"T119","q":"bahnhof baslthal","style":"typo","local":false}
+{"t":"T119","q":"balsthal train station","style":"descriptive","local":false}
+{"t":"T129","q":"Kehrsiten-Bürgenstock","style":"exact","local":false}
+{"t":"T129","q":"kehrsiten bürgenstock","style":"casual","local":false}
+{"t":"T129","q":"kehrsiten bürgen","style":"partial","local":false}
+{"t":"T129","q":"kehrsiten burgenstock","style":"typo","local":false}
+{"t":"T129","q":"kehrsiten bürgenstock boat landing","style":"descriptive","local":false}
+{"t":"T139","q":"Cardada (Funivia)","style":"exact","local":false}
+{"t":"T139","q":"cardada funivia","style":"casual","local":false}
+{"t":"T139","q":"cardada funiv","style":"partial","local":false}
+{"t":"T139","q":"cardada funiva","style":"typo","local":false}
+{"t":"T139","q":"cardada cable car station","style":"descriptive","local":false}
+{"t":"T149","q":"Winterthur","style":"exact","local":false}
+{"t":"T149","q":"winterthur hb","style":"alias","local":false}
+{"t":"T149","q":"winterthur bahn","style":"partial","local":false}
+{"t":"T149","q":"winterhtur bahnhof","style":"typo","local":false}
+{"t":"T149","q":"winterthur train station","style":"descriptive","local":false}
+{"t":"T159","q":"Olten","style":"exact","local":false}
+{"t":"T159","q":"olten bhf","style":"alias","local":false}
+{"t":"T159","q":"olten bahn","style":"partial","local":false}
+{"t":"T159","q":"olten banhof","style":"typo","local":false}
+{"t":"T159","q":"olten train station","style":"descriptive","local":false}
+{"t":"T169","q":"Wil SG","style":"exact","local":false}
+{"t":"T169","q":"wil sg bahnhof","style":"casual","local":false}
+{"t":"T169","q":"wil sg bhf","style":"alias","local":false}
+{"t":"T169","q":"wil sg banhof","style":"typo","local":false}
+{"t":"T169","q":"wil sg train station","style":"descriptive","local":false}
+{"t":"T179","q":"Avenches","style":"exact","local":false}
+{"t":"T179","q":"gare d'avenches","style":"alias","local":false}
+{"t":"T179","q":"gare avench","style":"partial","local":false}
+{"t":"T179","q":"gare avneches","style":"typo","local":false}
+{"t":"T179","q":"avenches train station","style":"descriptive","local":false}
+{"t":"T189","q":"Wetzikon ZH Gleis 1","style":"exact","local":false}
+{"t":"T189","q":"wetzikon 1","style":"casual","local":false}
+{"t":"T189","q":"wetzikon zh 1 gle","style":"partial","local":false}
+{"t":"T189","q":"wetzikon zh gl. 1","style":"alias","local":false}
+{"t":"T189","q":"wetzikon zh train platform 1","style":"descriptive","local":false}
+{"t":"T199","q":"Satigny, Terre Mousson, O","style":"exact","local":false}
+{"t":"T199","q":"terre mousson satigny o","style":"casual","local":false}
+{"t":"T199","q":"satigny terre mousson o qua","style":"partial","local":false}
+{"t":"T199","q":"satigny terre mousson qaui O","style":"typo","local":false}
+{"t":"T199","q":"satigny terre mousson bus platform O","style":"descriptive","local":false}
+{"t":"T209","q":"Yverdon-les-Bains voie 3","style":"exact","local":false}
+{"t":"T209","q":"yverdon les bains 3","style":"casual","local":false}
+{"t":"T209","q":"yverdon-les-bains 3 voi","style":"partial","local":false}
+{"t":"T209","q":"yverdon voie 3","style":"alias","local":false}
+{"t":"T209","q":"yverdon-les-bains train platform 3","style":"descriptive","local":false}
+{"t":"T219","q":"Oberwinterthur Gleis 2","style":"exact","local":false}
+{"t":"T219","q":"oberwinterthur 2","style":"casual","local":false}
+{"t":"T219","q":"oberwinterthur 2 gle","style":"partial","local":false}
+{"t":"T219","q":"oberwinterthur gl. 2","style":"alias","local":false}
+{"t":"T219","q":"oberwinterthur train platform 2","style":"descriptive","local":false}
+{"t":"T229","q":"Place de la Gare 5, Echallens","style":"exact","local":false}
+{"t":"T229","q":"place de la gare 5","style":"casual","local":true}
+{"t":"T229","q":"pl. de la gare 5 echallens","style":"alias","local":false}
+{"t":"T229","q":"place de la gare 5 echalens","style":"typo","local":false}
+{"t":"T229","q":"place de la gare 5 1040 echal","style":"partial","local":false}
+{"t":"T239","q":"Route de Fribourg 19, Prez-vers-Noréaz","style":"exact","local":false}
+{"t":"T239","q":"route de fribourg 19 1746","style":"casual","local":false}
+{"t":"T239","q":"rte de fribourg 19 prez-vers-noréaz","style":"alias","local":false}
+{"t":"T239","q":"route de fribourg 19 prez-vers-noreaz","style":"typo","local":false}
+{"t":"T239","q":"route de fribourg 19 prez","style":"partial","local":false}
+{"t":"T249","q":"Viale alle Cantine 26d, Mendrisio","style":"exact","local":false}
+{"t":"T249","q":"viale alle cantine 26d","style":"casual","local":false}
+{"t":"T249","q":"v.le alle cantine 26d mendrisio","style":"alias","local":false}
+{"t":"T249","q":"viale alle catnine 26d mendrisio","style":"typo","local":false}
+{"t":"T249","q":"viale alle cantine 26d 6850 mend","style":"partial","local":false}
+{"t":"T259","q":"Bahnhofstrasse 24, Erlenbach ZH","style":"exact","local":false}
+{"t":"T259","q":"bahnhofstrasse 24","style":"casual","local":true}
+{"t":"T259","q":"bahnhofstr. 24 erlenbach zh","style":"alias","local":false}
+{"t":"T259","q":"bahnhofsrtasse 24 erlenbach zh","style":"typo","local":false}
+{"t":"T259","q":"bahnhofstrasse 24 8703 erlenb","style":"partial","local":false}
+{"t":"T269","q":"Viale Stefano Franscini 17, Bellinzona","style":"exact","local":false}
+{"t":"T269","q":"viale stefano franscini 17","style":"casual","local":false}
+{"t":"T269","q":"v.le stefano franscini 17 bellinzona","style":"alias","local":false}
+{"t":"T269","q":"viale stefano fransini 17 bellinzona","style":"typo","local":false}
+{"t":"T269","q":"viale stefano franscini 17 6500 bellin","style":"partial","local":false}
+{"t":"T279","q":"Bergstrasse 1, Rüti ZH","style":"exact","local":false}
+{"t":"T279","q":"bergstrasse 1","style":"casual","local":true}
+{"t":"T279","q":"bergstr. 1 rüti zh","style":"alias","local":false}
+{"t":"T279","q":"bergstrasse 1 ruti zh","style":"typo","local":false}
+{"t":"T279","q":"bergstrasse 1 8630 rüt","style":"partial","local":false}
+{"t":"T289","q":"Durchgangszentrum Kollbrunn","style":"exact","local":false}
+{"t":"T289","q":"durchgangszentrum","style":"casual","local":true}
+{"t":"T289","q":"kollbrunn durchgangsz","style":"partial","local":false}
+{"t":"T289","q":"durchgangszentrum kolbrunn","style":"typo","local":false}
+{"t":"T289","q":"durchgangszentrum untere bahnhofstrasse 16 kollbrunn","style":"descriptive","local":false}
+{"t":"T299","q":"Rückkehrzentrum","style":"exact","local":true}
+{"t":"T299","q":"rückkehrzentrum hinteregg","style":"casual","local":false}
+{"t":"T299","q":"hinteregg rückkehrzent","style":"partial","local":false}
+{"t":"T299","q":"ruckkehrzentrum hinteregg","style":"typo","local":false}
+{"t":"T299","q":"rückkehrzentrum ober halden 9 hinteregg","style":"descriptive","local":false}
+{"t":"T309","q":"Denner","style":"exact","local":true}
+{"t":"T309","q":"denner klybeckstrasse basel","style":"casual","local":false}
+{"t":"T309","q":"denner basel klyb","style":"partial","local":false}
+{"t":"T309","q":"dener klybeckstrasse","style":"typo","local":false}
+{"t":"T309","q":"denner supermarkt klybeckstrasse 45","style":"descriptive","local":false}
+{"t":"T319","q":"Farmacia di Besso","style":"exact","local":false}
+{"t":"T319","q":"farmacia besso lugano","style":"casual","local":false}
+{"t":"T319","q":"lugano farmacia di bes","style":"partial","local":false}
+{"t":"T319","q":"farmacia di beso lugano","style":"typo","local":false}
+{"t":"T319","q":"pharmacy via besso 23a lugano","style":"descriptive","local":false}
+{"t":"T329","q":"Ufficio postale","style":"exact","local":true}
+{"t":"T329","q":"posta sonvico","style":"casual","local":false}
+{"t":"T329","q":"sonvico ufficio pos","style":"partial","local":false}
+{"t":"T329","q":"ufficio postale sonivco","style":"typo","local":false}
+{"t":"T329","q":"sonvico post office","style":"descriptive","local":false}
+{"t":"T339","q":"Gesundheitszentrum für das Alter Stampfenbach","style":"exact","local":false}
+{"t":"T339","q":"gesundheitszentrum stampfenbach","style":"casual","local":false}
+{"t":"T339","q":"gesundheitszentrum zürich stampf","style":"partial","local":false}
+{"t":"T339","q":"gesundheitszentrum stampfenabch","style":"typo","local":false}
+{"t":"T339","q":"gesundheitszentrum stampfenbach lindenbachstrasse 1","style":"descriptive","local":false}
+{"t":"T349","q":"medico di base","style":"exact","local":true}
+{"t":"T349","q":"family doctor","style":"casual","local":true}
+{"t":"T349","q":"medico di bas","style":"partial","local":true}
+{"t":"T349","q":"medcio di base","style":"typo","local":true}
+{"t":"T349","q":"medico di famiglia vicino a me","style":"descriptive","local":true}
+{"t":"T359","q":"dentiste","style":"exact","local":true}
+{"t":"T359","q":"dentist","style":"casual","local":true}
+{"t":"T359","q":"denti","style":"partial","local":true}
+{"t":"T359","q":"dentsite","style":"typo","local":true}
+{"t":"T359","q":"dentiste près de moi","style":"descriptive","local":true}
+{"t":"T369","q":"Notunterkunft","style":"exact","local":true}
+{"t":"T369","q":"emergency shelter","style":"casual","local":true}
+{"t":"T369","q":"notunterk","style":"partial","local":true}
+{"t":"T369","q":"notunterkufnt","style":"typo","local":true}
+{"t":"T369","q":"nächste notunterkunft","style":"descriptive","local":true}
+{"t":"T379","q":"dentiste","style":"exact","local":true}
+{"t":"T379","q":"dentist","style":"casual","local":true}
+{"t":"T379","q":"cabinet dent","style":"partial","local":true}
+{"t":"T379","q":"dentise","style":"typo","local":true}
+{"t":"T379","q":"dentiste à proximité","style":"descriptive","local":true}
+{"t":"T389","q":"toilettes publiques","style":"exact","local":true}
+{"t":"T389","q":"public toilets","style":"casual","local":true}
+{"t":"T389","q":"toilettes publ","style":"partial","local":true}
+{"t":"T389","q":"wc publics","style":"alias","local":true}
+{"t":"T389","q":"toilettes près de moi","style":"descriptive","local":true}
+{"t":"T399","q":"Wangs","style":"exact","local":false}
+{"t":"T399","q":"wangs sg","style":"casual","local":false}
+{"t":"T399","q":"st gallen wan","style":"partial","local":false}
+{"t":"T399","q":"wagns","style":"typo","local":false}
+{"t":"T399","q":"dorf wangs st gallen","style":"descriptive","local":false}
+{"t":"T409","q":"Riehen","style":"exact","local":false}
+{"t":"T409","q":"riehen basel","style":"casual","local":false}
+{"t":"T409","q":"basel rieh","style":"partial","local":false}
+{"t":"T409","q":"riehn","style":"typo","local":false}
+{"t":"T409","q":"gemeinde riehen basel stadt","style":"descriptive","local":false}
+{"t":"T419","q":"8863","style":"exact","local":false}
+{"t":"T419","q":"8863 buttikon","style":"casual","local":false}
+{"t":"T419","q":"8863 butt","style":"partial","local":false}
+{"t":"T419","q":"8863 butikon","style":"typo","local":false}
+{"t":"T419","q":"plz 8863","style":"alias","local":false}

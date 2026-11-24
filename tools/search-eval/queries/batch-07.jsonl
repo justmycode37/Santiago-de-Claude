@@ -1,0 +1,210 @@
+{"t": "T007", "q": "Kollbrunn, Weissenthal", "style": "exact", "local": false}
+{"t": "T007", "q": "weissenthal kollbrunn", "style": "casual", "local": false}
+{"t": "T007", "q": "kollbrunn weisse", "style": "partial", "local": false}
+{"t": "T007", "q": "kollbrunn weisenthal", "style": "typo", "local": false}
+{"t": "T007", "q": "haltestelle weissenthal kollbrunn", "style": "descriptive", "local": false}
+{"t": "T017", "q": "Härkingen, Pfannenstiel", "style": "exact", "local": false}
+{"t": "T017", "q": "pfannenstiel", "style": "casual", "local": true}
+{"t": "T017", "q": "härkingen pfannenst", "style": "partial", "local": false}
+{"t": "T017", "q": "harkingen pfannenstiel", "style": "typo", "local": false}
+{"t": "T017", "q": "bus stop pfannenstiel härkingen", "style": "descriptive", "local": false}
+{"t": "T027", "q": "Les Diablerets, accrobranche", "style": "exact", "local": false}
+{"t": "T027", "q": "diablerets accrobranche", "style": "casual", "local": false}
+{"t": "T027", "q": "les diablerets accrob", "style": "partial", "local": false}
+{"t": "T027", "q": "les diablerets acrobranche", "style": "typo", "local": false}
+{"t": "T027", "q": "arrêt accrobranche aux diablerets", "style": "descriptive", "local": false}
+{"t": "T037", "q": "Stein AG, Kreuzstrasse", "style": "exact", "local": false}
+{"t": "T037", "q": "kreuzstrasse", "style": "casual", "local": true}
+{"t": "T037", "q": "stein ag kreuzstr", "style": "partial", "local": false}
+{"t": "T037", "q": "stein ag kreuzstrase", "style": "typo", "local": false}
+{"t": "T037", "q": "bushaltestelle kreuzstrasse stein ag", "style": "descriptive", "local": false}
+{"t": "T047", "q": "Glion-Alpes, gare", "style": "exact", "local": false}
+{"t": "T047", "q": "glion alpes gare", "style": "casual", "local": false}
+{"t": "T047", "q": "glion alpes gar", "style": "partial", "local": false}
+{"t": "T047", "q": "glion alps gare", "style": "typo", "local": false}
+{"t": "T047", "q": "arrêt de bus glion-alpes gare", "style": "descriptive", "local": false}
+{"t": "T057", "q": "Reinach BL, Landhof", "style": "exact", "local": false}
+{"t": "T057", "q": "landhof", "style": "casual", "local": true}
+{"t": "T057", "q": "reinach bl landh", "style": "partial", "local": false}
+{"t": "T057", "q": "reinach bl landof", "style": "typo", "local": false}
+{"t": "T057", "q": "tramhaltestelle landhof reinach bl", "style": "descriptive", "local": false}
+{"t": "T067", "q": "Zürich, Grünaustrasse", "style": "exact", "local": false}
+{"t": "T067", "q": "grünaustrasse", "style": "casual", "local": true}
+{"t": "T067", "q": "zürich grünaustr", "style": "partial", "local": false}
+{"t": "T067", "q": "zurich grünaustrasse", "style": "typo", "local": false}
+{"t": "T067", "q": "tram stop grünaustrasse zürich", "style": "descriptive", "local": false}
+{"t": "T077", "q": "Zürich Altstetten, Bahnhof N", "style": "exact", "local": false}
+{"t": "T077", "q": "altstetten bhf nord", "style": "casual", "local": false}
+{"t": "T077", "q": "altstetten bahnhof nor", "style": "partial", "local": false}
+{"t": "T077", "q": "zürich altsteten bahnhof n", "style": "typo", "local": false}
+{"t": "T077", "q": "tram altstetten bahnhof nord", "style": "descriptive", "local": false}
+{"t": "T087", "q": "Grand-Lancy, Palettes", "style": "exact", "local": false}
+{"t": "T087", "q": "palettes grand lancy", "style": "casual", "local": false}
+{"t": "T087", "q": "grand lancy palet", "style": "partial", "local": false}
+{"t": "T087", "q": "grand lancy paletes", "style": "typo", "local": false}
+{"t": "T087", "q": "arrêt tram palettes grand-lancy", "style": "descriptive", "local": false}
+{"t": "T097", "q": "Arbon", "style": "exact", "local": false}
+{"t": "T097", "q": "arbon", "style": "casual", "local": false}
+{"t": "T097", "q": "arbo", "style": "partial", "local": false}
+{"t": "T097", "q": "arbn", "style": "typo", "local": false}
+{"t": "T097", "q": "Arbon train station", "style": "descriptive", "local": false}
+{"t": "T107", "q": "Biberegg", "style": "exact", "local": false}
+{"t": "T107", "q": "biberegg", "style": "casual", "local": false}
+{"t": "T107", "q": "bibere", "style": "partial", "local": false}
+{"t": "T107", "q": "bibereg", "style": "typo", "local": false}
+{"t": "T107", "q": "bahnhof biberegg", "style": "descriptive", "local": false}
+{"t": "T117", "q": "Root D4", "style": "exact", "local": false}
+{"t": "T117", "q": "root d4", "style": "casual", "local": false}
+{"t": "T117", "q": "d4 roo", "style": "partial", "local": false}
+{"t": "T117", "q": "rot d4", "style": "typo", "local": false}
+{"t": "T117", "q": "root d4 train station", "style": "descriptive", "local": false}
+{"t": "T127", "q": "Gorgier-Chez-le-Bart", "style": "exact", "local": false}
+{"t": "T127", "q": "gorgier chez le bart", "style": "casual", "local": false}
+{"t": "T127", "q": "gorgier chez le bar", "style": "partial", "local": false}
+{"t": "T127", "q": "gorgier chez le bat", "style": "typo", "local": false}
+{"t": "T127", "q": "embarcadère gorgier chez-le-bart", "style": "descriptive", "local": false}
+{"t": "T137", "q": "Mayentset", "style": "exact", "local": false}
+{"t": "T137", "q": "mayentset", "style": "casual", "local": false}
+{"t": "T137", "q": "mayents", "style": "partial", "local": false}
+{"t": "T137", "q": "mayenset", "style": "typo", "local": false}
+{"t": "T137", "q": "téléphérique mayentset", "style": "descriptive", "local": false}
+{"t": "T147", "q": "St. Gallen", "style": "exact", "local": false}
+{"t": "T147", "q": "st gallen", "style": "casual", "local": false}
+{"t": "T147", "q": "st gall", "style": "partial", "local": false}
+{"t": "T147", "q": "st gallen hb", "style": "alias", "local": false}
+{"t": "T147", "q": "St Gallen train station", "style": "descriptive", "local": false}
+{"t": "T157", "q": "Zug", "style": "exact", "local": false}
+{"t": "T157", "q": "zug", "style": "casual", "local": false}
+{"t": "T157", "q": "zugg", "style": "typo", "local": false}
+{"t": "T157", "q": "zug bhf", "style": "alias", "local": false}
+{"t": "T157", "q": "Zug train station", "style": "descriptive", "local": false}
+{"t": "T167", "q": "La Chaux-de-Fonds", "style": "exact", "local": false}
+{"t": "T167", "q": "chaux de fonds", "style": "casual", "local": false}
+{"t": "T167", "q": "la chaux de fon", "style": "partial", "local": false}
+{"t": "T167", "q": "la chaux de fons", "style": "typo", "local": false}
+{"t": "T167", "q": "gare de la chaux-de-fonds", "style": "descriptive", "local": false}
+{"t": "T177", "q": "Château-d'Oex La Palaz", "style": "exact", "local": false}
+{"t": "T177", "q": "chateau d'oex palaz", "style": "casual", "local": false}
+{"t": "T177", "q": "château d'oex la pal", "style": "partial", "local": false}
+{"t": "T177", "q": "château-d'oex la pala", "style": "typo", "local": false}
+{"t": "T177", "q": "gare la palaz château-d'oex", "style": "descriptive", "local": false}
+{"t": "T187", "q": "Elgg Gleis 1", "style": "exact", "local": false}
+{"t": "T187", "q": "elgg 1", "style": "casual", "local": false}
+{"t": "T187", "q": "Elgg Gl. 1", "style": "alias", "local": false}
+{"t": "T187", "q": "Elgg Gles 1", "style": "typo", "local": false}
+{"t": "T187", "q": "Elgg train station platform 1", "style": "descriptive", "local": false}
+{"t": "T197", "q": "Zofingen Gleis 40", "style": "exact", "local": false}
+{"t": "T197", "q": "zofingen 40", "style": "casual", "local": false}
+{"t": "T197", "q": "Zofingen Gl. 40", "style": "alias", "local": false}
+{"t": "T197", "q": "Zofingen Gleiss 40", "style": "typo", "local": false}
+{"t": "T197", "q": "Bahnhof Zofingen Gleis 40", "style": "descriptive", "local": false}
+{"t": "T207", "q": "Schlieren Gleis 1", "style": "exact", "local": false}
+{"t": "T207", "q": "schlieren 1", "style": "casual", "local": false}
+{"t": "T207", "q": "Schlieren Gl. 1", "style": "alias", "local": false}
+{"t": "T207", "q": "Schlieren Glei 1", "style": "typo", "local": false}
+{"t": "T207", "q": "Schlieren station platform 1", "style": "descriptive", "local": false}
+{"t": "T217", "q": "Wettingen Gleis 5", "style": "exact", "local": false}
+{"t": "T217", "q": "wettingen 5", "style": "casual", "local": false}
+{"t": "T217", "q": "Wettingen Gl. 5", "style": "alias", "local": false}
+{"t": "T217", "q": "Wettingen Gleiis 5", "style": "typo", "local": false}
+{"t": "T217", "q": "Bahnhof Wettingen Gleis 5", "style": "descriptive", "local": false}
+{"t": "T227", "q": "Schluechtstrasse 9, 6330 Cham", "style": "exact", "local": false}
+{"t": "T227", "q": "schluechtstrasse 9", "style": "casual", "local": false}
+{"t": "T227", "q": "schluechtstrasse 9 cha", "style": "partial", "local": false}
+{"t": "T227", "q": "schluechtstrase 9 cham", "style": "typo", "local": false}
+{"t": "T227", "q": "schluechtstr. 9 cham", "style": "alias", "local": false}
+{"t": "T237", "q": "Kirchbergstrasse 102, 3400 Burgdorf", "style": "exact", "local": false}
+{"t": "T237", "q": "kirchbergstrasse 102", "style": "casual", "local": true}
+{"t": "T237", "q": "kirchbergstrasse 102 burgd", "style": "partial", "local": false}
+{"t": "T237", "q": "kirchbergstrase 102 burgdorf", "style": "typo", "local": false}
+{"t": "T237", "q": "kirchbergstr. 102 3400", "style": "alias", "local": false}
+{"t": "T247", "q": "Chemin de la Grève 2a, 2025 Chez-le-Bart", "style": "exact", "local": false}
+{"t": "T247", "q": "chemin de la grève 2a", "style": "casual", "local": true}
+{"t": "T247", "q": "chemin de la grève 2a chez-le-bar", "style": "partial", "local": false}
+{"t": "T247", "q": "chemin de la greve 2a chez-le-bart", "style": "typo", "local": false}
+{"t": "T247", "q": "ch. de la grève 2a 2025", "style": "alias", "local": false}
+{"t": "T257", "q": "Kirchrain 171, 5728 Gontenschwil", "style": "exact", "local": false}
+{"t": "T257", "q": "kirchrain 171", "style": "casual", "local": true}
+{"t": "T257", "q": "kirchrain 171 gontens", "style": "partial", "local": false}
+{"t": "T257", "q": "kirchrain 171 gontenscwhil", "style": "typo", "local": false}
+{"t": "T257", "q": "hausnummer 171 kirchrain gontenschwil", "style": "descriptive", "local": false}
+{"t": "T267", "q": "Mühlestrasse 12, 2540 Grenchen", "style": "exact", "local": false}
+{"t": "T267", "q": "mühlestrasse 12", "style": "casual", "local": true}
+{"t": "T267", "q": "mühlestrasse 12 grench", "style": "partial", "local": false}
+{"t": "T267", "q": "muehlestrasse 12 grenchen", "style": "typo", "local": false}
+{"t": "T267", "q": "mühlestr. 12 2540", "style": "alias", "local": false}
+{"t": "T277", "q": "Oberstadtweg 1, 3400 Burgdorf", "style": "exact", "local": false}
+{"t": "T277", "q": "oberstadtweg 1", "style": "casual", "local": true}
+{"t": "T277", "q": "oberstadtweg 1 burgdo", "style": "partial", "local": false}
+{"t": "T277", "q": "oberstadtwg 1 burgdorf", "style": "typo", "local": false}
+{"t": "T277", "q": "hausnummer 1 oberstadtweg burgdorf", "style": "descriptive", "local": false}
+{"t": "T287", "q": "Denner", "style": "exact", "local": true}
+{"t": "T287", "q": "denner birmensdorferstrasse 406", "style": "casual", "local": false}
+{"t": "T287", "q": "denner zürich birmensdorfers", "style": "partial", "local": false}
+{"t": "T287", "q": "denner birmensdorferstrase 406 zürich", "style": "typo", "local": false}
+{"t": "T287", "q": "denner supermarkt birmensdorferstrasse zürich", "style": "descriptive", "local": false}
+{"t": "T297", "q": "Poste Yvonand", "style": "exact", "local": false}
+{"t": "T297", "q": "poste yvonand", "style": "casual", "local": false}
+{"t": "T297", "q": "poste yvon", "style": "partial", "local": false}
+{"t": "T297", "q": "poste yvonad", "style": "typo", "local": false}
+{"t": "T297", "q": "yvonand post office", "style": "descriptive", "local": false}
+{"t": "T307", "q": "Denner", "style": "exact", "local": true}
+{"t": "T307", "q": "denner rue de carouge 64", "style": "casual", "local": false}
+{"t": "T307", "q": "denner genève rue de caro", "style": "partial", "local": false}
+{"t": "T307", "q": "denner rue de carouge 64 geneve", "style": "typo", "local": false}
+{"t": "T307", "q": "supermarché denner rue de carouge genève", "style": "descriptive", "local": false}
+{"t": "T317", "q": "PBZ Bibliothek Witikon", "style": "exact", "local": false}
+{"t": "T317", "q": "pbz witikon", "style": "casual", "local": false}
+{"t": "T317", "q": "pbz bibliothek witik", "style": "partial", "local": false}
+{"t": "T317", "q": "pbz bibliothek witkon", "style": "typo", "local": false}
+{"t": "T317", "q": "public library witikon zurich", "style": "descriptive", "local": false}
+{"t": "T327", "q": "Coop", "style": "exact", "local": true}
+{"t": "T327", "q": "coop zürcher str 204 st gallen", "style": "casual", "local": false}
+{"t": "T327", "q": "coop st gallen zürcher stras", "style": "partial", "local": false}
+{"t": "T327", "q": "coop zurcher strasse 204 st gallen", "style": "typo", "local": false}
+{"t": "T327", "q": "coop supermarkt zürcher strasse st gallen", "style": "descriptive", "local": false}
+{"t": "T337", "q": "Villa Stucki", "style": "exact", "local": false}
+{"t": "T337", "q": "villa stucki bern", "style": "casual", "local": false}
+{"t": "T337", "q": "bern villa stuc", "style": "partial", "local": false}
+{"t": "T337", "q": "villa stuki bern", "style": "typo", "local": false}
+{"t": "T337", "q": "quartierzentrum villa stucki bern", "style": "descriptive", "local": false}
+{"t": "T347", "q": "pharmacy", "style": "exact", "local": true}
+{"t": "T347", "q": "apotheke", "style": "casual", "local": true}
+{"t": "T347", "q": "apoth", "style": "partial", "local": true}
+{"t": "T347", "q": "apothekee", "style": "typo", "local": true}
+{"t": "T347", "q": "nächste apotheke", "style": "descriptive", "local": true}
+{"t": "T357", "q": "playground", "style": "exact", "local": true}
+{"t": "T357", "q": "parco giochi", "style": "casual", "local": true}
+{"t": "T357", "q": "parco gio", "style": "partial", "local": true}
+{"t": "T357", "q": "area giochi", "style": "alias", "local": true}
+{"t": "T357", "q": "parco giochi vicino a me", "style": "descriptive", "local": true}
+{"t": "T367", "q": "Hausarzt", "style": "exact", "local": true}
+{"t": "T367", "q": "family doctor", "style": "casual", "local": true}
+{"t": "T367", "q": "hausar", "style": "partial", "local": true}
+{"t": "T367", "q": "GP", "style": "alias", "local": true}
+{"t": "T367", "q": "hausarzt in der nähe", "style": "descriptive", "local": true}
+{"t": "T377", "q": "library", "style": "exact", "local": true}
+{"t": "T377", "q": "bibliothek", "style": "casual", "local": true}
+{"t": "T377", "q": "biblio", "style": "partial", "local": true}
+{"t": "T377", "q": "bibliotkek", "style": "typo", "local": true}
+{"t": "T377", "q": "nächste bibliothek", "style": "descriptive", "local": true}
+{"t": "T387", "q": "playground", "style": "exact", "local": true}
+{"t": "T387", "q": "spielplatz", "style": "casual", "local": true}
+{"t": "T387", "q": "spielpl", "style": "partial", "local": true}
+{"t": "T387", "q": "spielplaz", "style": "typo", "local": true}
+{"t": "T387", "q": "spielplatz in der nähe", "style": "descriptive", "local": true}
+{"t": "T397", "q": "Twann", "style": "exact", "local": false}
+{"t": "T397", "q": "twann", "style": "casual", "local": false}
+{"t": "T397", "q": "twan", "style": "partial", "local": false}
+{"t": "T397", "q": "twaann", "style": "typo", "local": false}
+{"t": "T397", "q": "twann am bielersee", "style": "descriptive", "local": false}
+{"t": "T407", "q": "Konolfingen", "style": "exact", "local": false}
+{"t": "T407", "q": "konolfingen", "style": "casual", "local": false}
+{"t": "T407", "q": "konolfin", "style": "partial", "local": false}
+{"t": "T407", "q": "konofingen", "style": "typo", "local": false}
+{"t": "T407", "q": "dorf konolfingen", "style": "descriptive", "local": false}
+{"t": "T417", "q": "1091", "style": "exact", "local": false}
+{"t": "T417", "q": "npa 1091", "style": "alias", "local": false}
+{"t": "T417", "q": "1091 code pos", "style": "partial", "local": false}
+{"t": "T417", "q": "code postl 1091", "style": "typo", "local": false}
+{"t": "T417", "q": "code postal 1091", "style": "descriptive", "local": false}

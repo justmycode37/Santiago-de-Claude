@@ -30,3 +30,5 @@ tools/cache/
 
 # Answers of a sharded search-eval recording, merged into answers.json.gz by the next run (tools/search-eval/)
 tools/search-eval/answers.*.json.gz
+# The lists a search-eval run asks the judges to grade (eval.mts --judge-out)
+tools/search-eval/judged/todo/
