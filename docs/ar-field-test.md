@@ -27,7 +27,7 @@ each vehicle's display band. Note the time and what you saw.
 | Speed | debug line: `detect … ms`, `PP-OCR … ms`, `Tesseract age … s` | typical values after a minute |
 | Overlay steadiness | boxes while panning slowly, then quickly | do boxes keep their label on a slow pan? A fast jerk should clear labels |
 | Motion permission (iOS Safari) | first open of AR: a prompt; debug line `motion granted` | if `denied` or `unknown`, the gyro shift is off |
-| Gyro shift | debug line says `(gyro shift off)` if raw boxes matched better | if it turns itself off, note the phone model |
+| Gyro shift | debug line says `(gyro shift off)` until the shift has matched boxes better than unshifted ones | pan slowly for a minute: does it turn on? If not, note the phone model (its axes or signs may differ) |
 | Heat, 10 min (iOS app) | diagnostics line `reduced processing`, `thermalState` | when it throttles, and whether labels still appear |
 | Geo AR coverage (iOS app) | status line on opening the camera | "No geographic AR coverage here" or the scan prompt |
 
