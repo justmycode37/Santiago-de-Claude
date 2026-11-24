@@ -48,3 +48,20 @@ What it checks (`summary.json`):
   every trip that loses its journey or arrives more than five minutes later, with whether B reaches A's first and
   last stop and when.
 - **cost** (`--only cost`): `/api/plan` and `/api/walk` latency, four requests at a time.
+
+## Auditing one engine
+
+`audit.py` asks one engine (no reference) on a fresh sample and counts the answers that break what must always hold:
+a guessed end labelled step-free; in the step-free and wheelchair profiles a guessed end without its alert; a
+straight line onto the network through a building (`compare through`) not marked a guess; legs out of order, a
+journey's times not its legs', an arrive-by journey after its deadline; a reach stop over its limit or lost with more
+time; and any error or timeout (not the answer that no stop is within walking distance of a remote place, which
+it counts on its own). Plans are asked departing and arriving by, with their earlier and later pages.
+
+```bash
+python3 kante/tools/compare/audit.py --engine http://127.0.0.1:8092 --data /tmp/data-b --bin target/release/compare \
+  --seed 1 [--points 5000 --trips 1000] [--out /tmp/audit-1]
+```
+
+It prints each count with up to five `curl` lines to replay, writes every violation to `violations.json`, and exits 1
+if any count is not zero.

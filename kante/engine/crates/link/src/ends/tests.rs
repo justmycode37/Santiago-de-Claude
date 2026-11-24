@@ -623,3 +623,37 @@ fn a_walk_through_a_door_that_is_not_step_free_is_not_step_free_for_anyone() {
     let d = draw(Some(&ix), &here, &to, &w1);
     assert!(w1.from.door.is_some() && !d.step_free, "{:?} {d:?}", w1.from);
 }
+
+#[test]
+fn a_line_inside_to_the_door_that_leaves_the_building_on_the_way_is_through_a_wall() {
+    // the national comparison: a point in a U's left wing, the only door on the right wing, the line inside to it
+    // across the open side
+    let mut w = World::new();
+    w.way((-10.0, 25.0), (100.0, 25.0), 8, EdgeKind::Sidewalk, 0);
+    w.b.buildings.push(kante_osm::buildings::BuildingRaw {
+        outer: [(0.0, 0.0), (30.0, 0.0), (30.0, 20.0), (20.0, 20.0), (20.0, 8.0), (10.0, 8.0), (10.0, 20.0), (0.0, 20.0)].iter().map(|&(x, y)| pt(x, y)).collect(),
+        holes: vec![],
+    });
+    w.door(0, 25.0, 20.0, DoorKind::Main, DOOR_WC_YES);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 5.0, 15.0, &STEP_FREE);
+    let door = here.joins.iter().find(|j| j.door.is_some()).expect("its door");
+    assert!(door.wall && door.doubt == 2, "{door:?}");
+}
+
+#[test]
+fn a_line_inside_to_the_door_through_a_jog_in_its_wall_is_through_a_wall() {
+    // the audit (seed 2, St. Gallen): the line from the point to its building's door crosses a notch in the wall,
+    // half a metre outside it at most
+    let mut w = World::new();
+    w.way((-10.0, -5.0), (40.0, -5.0), 5, EdgeKind::Sidewalk, 0);
+    w.b.buildings.push(kante_osm::buildings::BuildingRaw {
+        outer: [(0.0, 0.0), (8.0, 0.0), (8.0, 2.0), (9.0, 2.0), (9.0, 0.0), (20.0, 0.0), (20.0, 16.0), (0.0, 16.0)].iter().map(|&(x, y)| pt(x, y)).collect(),
+        holes: vec![],
+    });
+    w.door(0, 10.0, 0.0, DoorKind::Main, DOOR_WC_YES);
+    let (r, ix) = w.finish();
+    let here = place(&r, &ix, 6.0, 3.0, &NORMAL);
+    let door = here.joins.iter().find(|j| j.door.is_some()).expect("its door");
+    assert!(door.wall && door.doubt == 2, "{door:?}");
+}

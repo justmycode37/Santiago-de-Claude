@@ -262,9 +262,9 @@ impl End {
                 // a step-free walker prefers a door known to be step-free
                 let kind_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
                 let inside_m = pos.dist_m(&door.pos);
-                // inside to the door: through another building that overlaps this one, a wall too (not this one's
-                // own outline, which a point near its wall and the door on it would both touch)
-                let inside_wall = inside_m > 0.4 && ix.through_except(pos, door.pos, 0.0, b);
+                // inside to the door: through another building that overlaps this one, or out of this one and back
+                // (its own outline is not tested as a wall: a point near it and the door on it would both touch it)
+                let inside_wall = inside_m > 0.4 && (ix.through_except(pos, door.pos, 0.0, b) || ix.leaves(pos, door.pos, b));
                 for a in d.attach_of(di).iter().filter(|a| router.usable(a.edge, profile)) {
                     let snap = Snap { dist_m: a.dist_m(), ..router.snap_at(a.edge, a.frac()) };
                     let wall = a.through() || inside_wall;

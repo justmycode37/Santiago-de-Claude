@@ -614,6 +614,19 @@ impl DoorIndex {
     pub fn through(&self, a: LatLon, b: LatLon, arcade_m: f32) -> bool {
         self.through_except(a, b, arcade_m, u32::MAX)
     }
+    /// Does the straight line a → q from inside building `b` to a door on its outline leave the building on the way
+    /// (at a point every 5 cm, one more than 0.3 m outside it: across a U's open side, round a corner, or through a
+    /// jog in its wall)?
+    pub fn leaves(&self, a: LatLon, q: LatLon, b: u32) -> bool {
+        let (p, q) = (a.xy(), q.xy());
+        let len = ((q.0 - p.0).powi(2) + (q.1 - p.1).powi(2)).sqrt().max(1e-3);
+        let rings = self.rings_xy(b);
+        let steps = (len / 0.05).ceil() as usize;
+        (0..=steps).map(|k| (k as f32 * 0.05).min(len) / len).any(|t| {
+            let x = (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+            !inside(x, &rings) && outline_dist(x, &rings) > 0.3
+        })
+    }
     /// [`DoorIndex::through`], leaving building `skip` out.
     pub fn through_except(&self, a: LatLon, b: LatLon, arcade_m: f32, skip: u32) -> bool {
         let (p, q) = (a.xy(), b.xy());

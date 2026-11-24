@@ -17,7 +17,10 @@ station asked for by its id is entered at street level from the nearest five way
 that are not platforms (`station_candidates`, the first the one `main` takes).
 
 **A building's doors** are candidates next to them when the point is in a building: inside to the door, then out of
-it along one of its ways out. Every door is tried. A step-free walker may not use a `wheelchair=no` door and
+it along one of its ways out. Every door is tried. The line inside to a door is through a wall (a guess) when it
+runs through another building, or leaves this one on the way: somewhere, at points every 5 cm, more than 0.3 m
+outside its outline (across a U's open side, round a corner, through a jog in the wall; `DoorIndex::leaves`). This
+building's own outline is not otherwise a wall to it: a point near the wall and the door on it would both touch it. A step-free walker may not use a `wheelchair=no` door and
 prefers (by 5 m) one known to be step-free. Back doors, garages and register points carry the penalties of
 `DoorKind::penalty_m` (route choice only).
 
