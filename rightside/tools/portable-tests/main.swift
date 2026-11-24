@@ -596,7 +596,7 @@ do {
                 VehicleText(text: "Werbung", box: CGRect(x: 0.2, y: 0.7, width: 0.3, height: 0.05), score: 0.5),   // low on the body
                 VehicleText(text: "Sure", box: CGRect(x: 0.2, y: 0.25, width: 0.2, height: 0.04), score: 0.9)]     // already accepted
     let regions = VehicleDisplayRecognitionPolicy.unanchoredRegions(weak, detection: bus, otherBoxes: [])
-    check(regions.count == 2 && regions.allSatisfy { $0.midY < 0.3 }, "weak display-band lines are re-read, not the body or accepted ones (\(regions))")
+    check(regions.count == 1 && regions.allSatisfy { $0.midY < 0.3 }, "a weak destination line is re-read; not a route numeral, the body or accepted text (\(regions))")
     check(VehicleDisplayRecognitionPolicy.unanchoredRegions(weak, detection: bus, otherBoxes: [CGRect(x: 0, y: 0, width: 1, height: 0.3)]).isEmpty,
           "never text that lies in another vehicle")
     let frame = UUID(), trackID = UUID()
@@ -615,6 +615,20 @@ do {
           "incomplete character scores: dropped")
     check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 13), track: UUID()), trackID: trackID, frameID: frame, at: t0) == nil,
           "another track's read: dropped")
+    for text in ["10 Ostermundigen", "Ostermundigen 10", "1O", "N1 Bern", "10E Wabern"] {
+        check(VehicleDisplayRecognitionPolicy.unanchoredText(obs(text, [Float](repeating: 1, count: text.count)), trackID: trackID, frameID: frame, at: t0) == nil,
+              "a re-read holding a route numeral is dropped: \(text)")
+    }
+    // throttled (1.2 s per frame): three frames fit only a window wider than 2 s
+    var exp = VehicleServiceExpectation(line: "10", destination: "Ostermundigen, Rüti")
+    exp.boardAlternatives = []
+    let d0 = detection()
+    let slowReads = (0..<3).map { i in VehicleTextRules.read([text("10", x: 0.12, w: 0.05), text("Ostermundigen Rüti", x: 0.19)], detection: d0, otherBoxes: [],
+                                                           at: t0.addingTimeInterval(Double(i) * 1.2), frameID: UUID(), layout: .eitherSide) }
+    let slowTrack = VehicleTrack(id: UUID(), detection: d0, lastSeen: t0.addingTimeInterval(2.4), readings: slowReads)
+    check(VehicleServiceMatcher.decide(slowTrack, expected: exp, now: slowTrack.lastSeen).state != .visualCandidate, "three frames 1.2 s apart do not fit 2 s")
+    check(VehicleServiceMatcher.decide(slowTrack, expected: exp, now: slowTrack.lastSeen, freshness: 1.6, window: 3).state == .visualCandidate,
+          "but fit the throttled window")
 }
 
 print("\(checks - failures)/\(checks) checks passed")

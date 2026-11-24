@@ -241,7 +241,8 @@ struct VehicleTracker {
                candidates.filter({ $0.contains(old) }).count == 1 {
                 var track = previous[old]
                 track.detection = detection; track.lastSeen = at
-                track.readings.removeAll { at.timeIntervalSince($0.at) > 2 || $0.at > at }
+                // as long as decide() looks back: 2 s, more when throttled (maximumGap follows the cadence)
+                track.readings.removeAll { at.timeIntervalSince($0.at) > max(2, maximumGap) || $0.at > at }
                 result.append(track)
             } else {
                 result.append(VehicleTrack(id: UUID(), detection: detection, lastSeen: at, readings: []))
@@ -450,10 +451,10 @@ enum VehicleServiceMatcher {
     /// camera widens it with its throttled cadence, or a hot phone could never decide anything.
     static func decide(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
                        binding: AuthoritativeVehicleBinding? = nil, positions: [String: Double] = [:],
-                       freshness: TimeInterval = 0.8) -> VehicleDecision {
+                       freshness: TimeInterval = 0.8, window: TimeInterval = 2) -> VehicleDecision {
         var board = BoardEvidence()
         var result = decideCore(track, expected: expected, now: now, binding: binding, positions: positions,
-                                freshness: max(0.8, freshness), board: &board)
+                                freshness: max(0.8, freshness), window: max(2, window), board: &board)
         if board.basis != nil, result.state == .visualCandidate || result.state == .verifiedService || result.observedService != nil {
             result.confidence = board.confidence; result.basis = board.basis
         }
@@ -462,12 +463,13 @@ enum VehicleServiceMatcher {
 
     private static func decideCore(_ track: VehicleTrack, expected: VehicleServiceExpectation?, now: Date,
                                    binding: AuthoritativeVehicleBinding?, positions: [String: Double],
-                                   freshness: TimeInterval, board: inout BoardEvidence) -> VehicleDecision {
+                                   freshness: TimeInterval, window: TimeInterval, board: inout BoardEvidence) -> VehicleDecision {
         func answer(_ state: VehicleMatchState, _ reason: String) -> VehicleDecision { VehicleDecision(state: state, reason: reason) }
         guard let expected, !expected.line.isEmpty, !expected.destination.isEmpty else { return answer(.unknown, "missing_journey_display") }
         if let context = expected.contextDecision(at: now) { return context }
         guard now >= track.lastSeen, now.timeIntervalSince(track.lastSeen) < freshness else { return answer(.unknown, "track_stale") }
-        let readings = track.readings.filter { $0.at <= now && now.timeIntervalSince($0.at) <= 2 }
+        // 2 s at the normal cadence; throttled to 1.2 s per frame, three frames need more (`window`)
+        let readings = track.readings.filter { $0.at <= now && now.timeIntervalSince($0.at) <= window }
         guard let latest = readings.last, now.timeIntervalSince(latest.at) < freshness else { return answer(.unknown, "display_stale") }
         if readings.contains(where: \.outOfService) { return answer(.conflicting, "out_of_service") }
         if readings.contains(where: \.ambiguous) { return answer(.unknown, "ambiguous_display") }

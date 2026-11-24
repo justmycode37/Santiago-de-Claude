@@ -125,13 +125,15 @@ enum VehicleDisplayRecognitionPolicy {
 
     /// Where the second recognizer may read without an accepted Vision route numeral (docs/ar-recognition-plan.md,
     /// step 3): Vision's own low-confidence lines (0.3–0.7) in this vehicle's display band, the tallest two. A far
-    /// display whose numeral Vision cannot accept otherwise never gets the second reader at all.
+    /// display whose numeral Vision cannot accept otherwise never gets the second reader at all. Destination lines
+    /// only: a line holding a route numeral is the route re-read's (VehicleRouteRecognitionPolicy), with its stricter
+    /// gates; this path never supplies a line number.
     static let unanchoredLines = 2
     static func unanchoredRegions(_ texts: [VehicleText], detection: VehicleDetection, otherBoxes: [CGRect]) -> [CGRect] {
         var regions: [CGRect] = []
         let eligible = texts.filter { t in
             t.score.isFinite && t.score >= 0.3 && t.score < 0.7 && t.box.width >= t.box.height
-                && t.text.rangeOfCharacter(from: .alphanumerics) != nil
+                && Self.destinationOnly(t.text)
                 && t.box.midY < detection.box.minY + detection.box.height * 0.65
                 && associated(t.box, detection: detection, otherBoxes: otherBoxes)
         }.sorted { $0.box.height > $1.box.height }
@@ -148,11 +150,19 @@ enum VehicleDisplayRecognitionPolicy {
     static func unanchoredText(_ o: AlternativeDisplayObservation, trackID: UUID, frameID: UUID, at: Date) -> VehicleText? {
         guard o.engineID == engineID, o.modelID == modelID, o.configID == configID,
               o.trackID == trackID, o.frameID == frameID, o.capturedAt == at,
-              o.characterScores.count == o.text.count, o.text.count >= 2,
-              o.text.rangeOfCharacter(from: .alphanumerics) != nil,
+              o.characterScores.count == o.text.count, destinationOnly(o.text),
               o.characterScores.allSatisfy({ $0.isFinite && $0 >= 0.5 && $0 <= 1 }) else { return nil }
         let mean = o.characterScores.reduce(0, +) / Float(o.characterScores.count)
         return mean >= 0.95 ? VehicleText(text: o.text, box: o.region, score: mean) : nil
+    }
+
+    /// At least three letters and no word that could be a route numeral ("10", "N1", "10E", "1O").
+    static func destinationOnly(_ text: String) -> Bool {
+        let words = text.split(whereSeparator: { $0 == " " || $0 == "," })
+        return text.filter(\.isLetter).count >= 3 && !words.contains { word in
+            String(word).range(of: #"^[A-Za-z]{0,2}[0-9OoIl]{0,2}[0-9][A-Za-z]?$"#, options: .regularExpression) != nil
+                || String(word).range(of: #"^[0-9][0-9OoIl]{0,2}$"#, options: .regularExpression) != nil
+        }
     }
 
     static func associated(_ box: CGRect, detection: VehicleDetection, otherBoxes: [CGRect]) -> Bool {

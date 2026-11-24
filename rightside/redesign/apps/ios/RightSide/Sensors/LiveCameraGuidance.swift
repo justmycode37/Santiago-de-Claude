@@ -309,8 +309,10 @@ private final class VisionWorkGate: @unchecked Sendable {
         guard let context, let location, let visual else { return }
         start(context: context, location: location, visual: visual)
     }
-    private func invalidateCameraEvidence(_ reason: CameraEvidenceLifecycle.Invalidation) {
-        cameraEvidence.invalidate(reason)
+    /// `at`: when the new generation starts. A frame that itself shows the movement passes its own capture time, so
+    /// its result (taken at the new pose) is not rejected as older than the generation it started.
+    private func invalidateCameraEvidence(_ reason: CameraEvidenceLifecycle.Invalidation, at: Date = Date()) {
+        cameraEvidence.invalidate(reason, at: at)
         expiry?.cancel(); expiry = nil
         renderedPose = nil
         if reason != .moved && reason != .expired { trackedCamera = nil }
@@ -467,17 +469,19 @@ private final class VisionWorkGate: @unchecked Sendable {
                 }
             }
         }
+        // When this frame was taken (a little before now), less a margin for the two clock readings
+        let frameTaken = Date().addingTimeInterval(-max(0, ProcessInfo.processInfo.systemUptime - frame.timestamp) - 0.01)
         // The overlay was drawn for a pose: a small movement clears it (the tracks stay), a big turn resets the tracks.
         if let renderedPose {
             let m = Self.movement(from: renderedPose, to: frame.camera.transform)
-            if m.metres > 0.5 || m.degrees > 15 { invalidateCameraEvidence(.turned) }
-            else if m.metres > 0.05 || m.degrees > 3.6 { invalidateCameraEvidence(.moved) }
+            if m.metres > 0.5 || m.degrees > 15 { invalidateCameraEvidence(.turned, at: frameTaken) }
+            else if m.metres > 0.05 || m.degrees > 3.6 { invalidateCameraEvidence(.moved, at: frameTaken) }
         }
         guard case .normal = frame.camera.trackingState else {
             invalidateCameraEvidence(.trackingLost)
             return
         }
-        if cameraEvidence.feedbackExpired(at: Date()) { invalidateCameraEvidence(.expired) }
+        if cameraEvidence.feedbackExpired(at: Date()) { invalidateCameraEvidence(.expired, at: frameTaken) }
         let thermal = ProcessInfo.processInfo.thermalState
         guard thermal != .critical else {
             invalidateCameraEvidence(.thermal); return
@@ -491,7 +495,7 @@ private final class VisionWorkGate: @unchecked Sendable {
         // Tracks follow the camera between processed frames; a turn too big to follow starts them afresh.
         if let tracked = trackedCamera {
             let m = Self.movement(from: tracked.transform, to: frame.camera.transform)
-            if m.metres > 0.5 || m.degrees > 15 { invalidateCameraEvidence(.turned) }
+            if m.metres > 0.5 || m.degrees > 15 { invalidateCameraEvidence(.turned, at: frameTaken) }
         }
         let upright = CGSize(width: CVPixelBufferGetHeight(frame.capturedImage), height: CVPixelBufferGetWidth(frame.capturedImage))
         let trackShift = orientation == .portrait ? Self.trackerShift(from: trackedCamera, to: frame.camera, upright: upright) : .zero
@@ -548,7 +552,7 @@ private final class VisionWorkGate: @unchecked Sendable {
                               vehicles: self.kanteVehiclesAt.map { Date().timeIntervalSince($0) <= VehiclePositionEvidence.dueMaximumAge } == true ? self.kanteVehicles : [],
                               candidates: candidates)
                     return VehicleServiceMatcher.decide(track, expected: expected, now: now, positions: positions,
-                                                        freshness: 0.4 + interval)
+                                                        freshness: 0.4 + interval, window: max(2, 2.5 * interval))
                 }
                 func viewBox(_ upright: CGRect) -> CGRect {
                     CameraImageGeometry.rawBox(CGRect(x: upright.minX, y: 1 - upright.maxY, width: upright.width, height: upright.height), orientation: imageOrientation).applying(transform)
