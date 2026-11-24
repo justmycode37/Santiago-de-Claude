@@ -115,10 +115,27 @@ function arDisplayReader(): Promise<ArReader | null> {
       const rt = window.ort!;
       rt.env.wasm.wasmPaths = ORT_DIST;
       rt.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
-      return { m: await mod.loadModels(rt as unknown as OcrRuntime), read: mod.readRegion };
-    })().catch((e) => { console.warn('AR: no display reader', e); arReader = null; return null; });
+      return { m: await mod.loadModels(rt as unknown as OcrRuntime, arModelBytes), read: mod.readRegion };
+    })().catch((e) => {
+      console.warn('AR: no display reader', e);
+      try { caches.delete('ar-models-v1').catch(() => {}); } catch (x) { /* no Cache Storage */ } // a bad copy is not kept
+      arReader = null; return null;
+    });
   }
   return arReader;
+}
+
+/** A model's bytes, kept in Cache Storage under its fixed-revision address: Hugging Face redirects to a signed address
+ *  that changes every time, so the browser's own cache would fetch the 13 MB again for every AR session. ppocr.ts
+ *  checks the SHA-256 of whatever comes back, cached or not; a mismatch fails the load (and is not kept). */
+async function arModelBytes(url: string): Promise<ArrayBuffer> {
+  let cache: Cache | null = null;
+  try { cache = await caches.open('ar-models-v1'); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch (e) { cache = null; }
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  const bytes = await r.arrayBuffer();
+  if (cache) cache.put(url, new Response(bytes.slice(0), { headers: { 'Content-Type': 'application/octet-stream' } })).catch(() => {});
+  return bytes;
 }
 
 let arSession = 0;
