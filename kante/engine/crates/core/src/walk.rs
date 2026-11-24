@@ -412,7 +412,7 @@ pub struct LinkData {
 
 // ---------------------------------------------------------------- doors
 
-pub const DOORS_SCHEMA: &str = "doors-v4";
+pub const DOORS_SCHEMA: &str = "doors-v5";
 
 /// What kind of way into a building a [`Door`] is: OSM `entrance=*` (or a bare
 /// `door=*`), or a point of the official building address register.
@@ -553,6 +553,8 @@ pub struct Doors {
     pub addr: String,
     /// [`graph_fingerprint`] of the graph the attachments refer to.
     pub graph: u64,
+    /// Railway tracks on the ground, segment by segment: a straight line onto the network across one is a guess.
+    pub rails: Vec<[LatLon; 2]>,
 }
 
 /// Between two rings of a building in `Doors::ring`.

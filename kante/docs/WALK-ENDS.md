@@ -17,25 +17,38 @@ station asked for by its id is entered at street level from the nearest five way
 that are not platforms (`station_candidates`, the first the one `main` takes).
 
 **A building's doors** are candidates next to them when the point is in a building: inside to the door, then out of
-it along one of its ways out. Every door is tried. A step-free walker may not use a `wheelchair=no` door and
+it along one of its ways out. Every door is tried. The line inside to a door is through a wall (a guess) when it
+runs through another building, or leaves this one on the way: somewhere, at points every 5 cm, more than 0.3 m
+outside its outline (across a U's open side, round a corner, through a jog in the wall; `DoorIndex::leaves`). This
+building's own outline is not otherwise a wall to it: a point near the wall and the door on it would both touch it. A step-free walker may not use a `wheelchair=no` door and
 prefers (by 5 m) one known to be step-free. Back doors, garages and register points carry the penalties of
 `DoorKind::penalty_m` (route choice only).
 
 **Reached when some walk gets there within the limit** (`reach_costs`). The limit is the journey's longest walk less
-the 30 s buffer, as before. Preferences (route choice penalties on the way, and those of the candidates) only choose
-among the walks within it. In turn: the walk the router finds best from all candidates, if it is within the limit;
-else the cheapest with its penalties of each candidate's best walk, among those within it; else the quickest walk
-(a search by walked time alone, `WalkRouter::quickest_many`: what the walker cannot use stays out, nothing else
-counts), if it is within. So the doors and the other lines only add stops to what `main`'s own line reaches, and a
-penalty never loses a stop some walk reaches in time. The walk drawn for a journey's first or last walk
-(`walk_within`) takes the same walk: the one the stop search timed.
+the 30 s buffer, as before, and a walk is within it when, rounded up to the whole second as `/api/reach` reports it,
+it is. Preferences (route choice penalties on the way, and those of the candidates) only choose among the walks
+within it: the walk the router finds best from all candidates, if it is within the limit; else, for a stop some walk
+reaches in time (one search by walked time alone, `WalkRouter::quickest_many`: what the walker cannot use stays
+out, nothing else counts), the cheapest with its penalties of each candidate's best walk among those within it, or
+that quickest walk. So the doors and the other lines only add stops to what `main`'s own line reaches, and a penalty
+never loses a stop some walk reaches in time.
 
-**Lines through a building or onto another floor come last.** A line that runs through a building, or onto a way in
-a tunnel or on a bridge that the point is not right on (for a point right on a bridge with no ground near, any line
-longer than 3 m: it leaves the bridge sideways), is unsure (`Join::unsure`). It is a candidate only for the stops,
-or the walk, that no other line reaches; it is never step-free, and it is drawn as a guess. A step-free or wheelchair
-walker takes one only when no other line reaches any stop at all (`reach_end`), and the journey then carries an alert
-saying so.
+**Lines are tried by how much of a guess they are** (`Join::doubt`): first the short lines onto a way at hand (doubt
+0); then lines longer than 20 m, across ground with no mapped way (1); then lines through a building, across a
+railway track on the ground, or onto a way in a tunnel or on a bridge the point is not right on (2; for a point right
+on a bridge with no ground near, any line longer than 3 m, which leaves the bridge sideways). Each doubt is a
+candidate only for the stops no less doubtful line reaches in time, and each end of a walk is tried from its least
+doubtful lines; so more time never loses a stop, for any walker. A boarding point keeps `main`'s link, but its
+straight line to the link is a guess in the same way (not a railway platform's point, which often lies on the
+track). A walk with a guessed end (any doubt, a line longer than 20 m) is drawn as a guess (`approxStart` /
+`approxEnd`) and is never step-free; in the step-free and wheelchair profiles a journey's walk with one (first,
+last, change, or the walk-only answer) carries an alert saying so.
+
+**A journey's first and last walks are timed by the walk drawn**, in travel order (the stop search runs from the
+place outwards; a longer drawn walk first takes the 30 s wait at the stop); an arrive-by journey that then arrives
+after the time asked is dropped. Such a walk may differ from `/api/walk` for the same ends: when the less doubtful
+line does not get there within the walking limit, the journey takes the more doubtful one (and marks it), while
+`/api/walk`, which has no limit, takes the less doubtful one however long.
 
 **Through a building** is geometry (`doors::through_building`): the straight line is cut where it meets each
 building outline (every building of OpenStreetMap, courtyards excluded); a piece inside a building that somewhere
@@ -60,6 +73,10 @@ on the carriageway counts four times.
   underpasses), never across a railway track on the ground however short the line (a track in a tunnel, on a
   bridge, or on another layer or floor does not count). The three cheapest, each onto another way, are kept.
 - Every building is kept, with doors or not, so that a line through any of them is seen.
+- `kante build` needs the building address register (`raw/register/adr.csv.zip`, `scripts/fetch-data.sh
+  --register`): without it, or with one it cannot read or that gives fewer than a million doors, the build fails;
+  `--without-register` builds with OpenStreetMap's doors only (a regional extract, a test).
+- `doors.bin` also keeps the railway tracks on the ground, for the doubt of a line across one.
 - `doors.bin` names the walk graph it was built for (`graph_fingerprint`: every node, edge and point of geometry),
   and `links.bin` the walk graph and the timetable (`Timetable::stops_fingerprint`): the server ignores one built
   for another, and `kante build` builds it again whenever its inputs were built again, are another build, or it has

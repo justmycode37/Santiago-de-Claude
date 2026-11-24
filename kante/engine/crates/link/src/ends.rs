@@ -198,8 +198,9 @@ impl End {
             .map(|s| {
                 let covered = g.edges[s.edge as usize].flags & EF_COVERED != 0;
                 let wall = doors.is_some_and(|ix| ix.through(pos, s.pos, if covered { 5.0 } else { 0.0 }));
-                let doubt = doubt_of(wall || off_floor(g, &s), s.dist_m);
-                Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall, speed), door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt }
+                let track = doors.is_some_and(|ix| ix.crosses_track(pos, s.pos));
+                let doubt = doubt_of(wall || track || off_floor(g, &s), s.dist_m);
+                Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall || track, speed), door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt }
             })
             .collect();
         End { pos, joins, ..Default::default() }
@@ -210,9 +211,21 @@ impl End {
         End { pos, joins: snap.map(|s| Join { snap: s, extra_m: s.dist_m, pen_s: 0.0, door: None, inside_m: 0.0, wall: false, unsure: false, doubt: 0 }).into_iter().collect(), ..Default::default() }
     }
 
-    /// A boarding point, joined to the network at its link.
-    pub fn stop(pos: LatLon, snap: Option<Snap>, on_track: bool) -> End {
-        End { on_track, ..End::exact(pos, snap) }
+    /// A boarding point, joined to the network at its link (`main`'s linker's). The straight line from the point to
+    /// the link is a guess, never step-free, when it runs through a building or across a railway track on the
+    /// ground, or is longer than [`GUESS_M`] (not for a railway platform's point, which often lies on the track
+    /// itself: the walk ends on the platform).
+    pub fn stop(router: &WalkRouter, doors: Option<&DoorIndex>, pos: LatLon, snap: Option<Snap>, on_track: bool) -> End {
+        let mut end = End { on_track, ..End::exact(pos, snap) };
+        if let (Some(j), false) = (end.joins.first_mut(), on_track) {
+            let covered = router.graph().edges[j.snap.edge as usize].flags & EF_COVERED != 0;
+            let wall = doors.is_some_and(|ix| ix.through(pos, j.snap.pos, if covered { 5.0 } else { 0.0 }));
+            let track = doors.is_some_and(|ix| ix.crosses_track(pos, j.snap.pos));
+            j.wall = wall;
+            j.doubt = doubt_of(wall || track, j.snap.dist_m);
+            j.unsure = j.doubt > 0;
+        }
+        end
     }
 
     /// A place (an address, a pin, the user): the point itself, by each of its straight lines onto the network
@@ -226,9 +239,12 @@ impl End {
         for s in point_candidates(router, pos, profile) {
             let covered = g.edges[s.edge as usize].flags & EF_COVERED != 0;
             let wall = doors.is_some_and(|ix| ix.through(pos, s.pos, if covered { 5.0 } else { 0.0 }));
+            // across a railway track on the ground: a guess like one through a building (a door's ways out never do)
+            let track = doors.is_some_and(|ix| ix.crosses_track(pos, s.pos));
             let floor = off_floor_from(g, &s, up);
             let off = if floor { OFF_GROUND_M / speed } else { 0.0 };
-            end.joins.push(Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall, speed) + off, door: None, inside_m: 0.0, wall, unsure: doubt_of(wall || floor, s.dist_m) > 0, doubt: doubt_of(wall || floor, s.dist_m) });
+            let doubt = doubt_of(wall || track || floor, s.dist_m);
+            end.joins.push(Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall || track, speed) + off, door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt });
         }
         let Some(ix) = doors else { return end };
         let d = &ix.doors;
@@ -246,8 +262,9 @@ impl End {
                 // a step-free walker prefers a door known to be step-free
                 let kind_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
                 let inside_m = pos.dist_m(&door.pos);
-                // inside to the door: through another building that overlaps this one, a wall too
-                let inside_wall = inside_m > 0.4 && ix.through(pos, door.pos, 0.0);
+                // inside to the door: through another building that overlaps this one, or out of this one and back
+                // (its own outline is not tested as a wall: a point near it and the door on it would both touch it)
+                let inside_wall = inside_m > 0.4 && (ix.through_except(pos, door.pos, 0.0, b) || ix.leaves(pos, door.pos, b));
                 for a in d.attach_of(di).iter().filter(|a| router.usable(a.edge, profile)) {
                     let snap = Snap { dist_m: a.dist_m(), ..router.snap_at(a.edge, a.frac()) };
                     let wall = a.through() || inside_wall;
@@ -267,13 +284,6 @@ impl End {
             end.joins.truncate(MAX_JOINS.max(own));
         }
         end
-    }
-
-    /// This end with only its sure ways onto the network (not through a building or onto another floor), when it
-    /// has both sure and unsure ones.
-    pub fn sure(&self) -> Option<End> {
-        let n = self.joins.iter().filter(|j| !j.unsure).count();
-        (n > 0 && n < self.joins.len()).then(|| End { joins: self.joins.iter().filter(|j| !j.unsure).copied().collect(), ..self.clone() })
     }
 
     /// The levels of [`Join::doubt`] this end has, from the least.
@@ -313,14 +323,17 @@ pub fn reach_costs(router: &WalkRouter, end: &End, targets: &[Snap], profile: &W
     let mut out: Vec<Option<(WalkCost, usize)>> = vec![None; targets.len()];
     // the short lines at hand first, then lines across unmapped ground, then through a building or onto another floor:
     // each only for the targets the ones before do not reach in time
+    // (a target a less doubtful line did not reach has no walk in time from it, its quickest included: each level
+    // searches only from its own lines)
     for lv in end.doubts() {
-        let index: Vec<usize> = (0..end.joins.len()).filter(|&k| end.joins[k].doubt <= lv).collect();
+        let index: Vec<usize> = (0..end.joins.len()).filter(|&k| end.joins[k].doubt == lv).collect();
         let left: Vec<usize> = (0..targets.len()).filter(|&i| out[i].is_none()).collect();
         if left.is_empty() {
             break;
         }
         let sub: Vec<Snap> = left.iter().map(|&i| targets[i]).collect();
-        for (j, r) in reach_from(router, &end.up_to(lv).sources(), &sub, profile, max_s, limit_s).into_iter().enumerate() {
+        let src: Vec<(Snap, f32, f32)> = index.iter().map(|&k| { let j = &end.joins[k]; (j.snap, j.extra_m, j.pen_s) }).collect();
+        for (j, r) in reach_from(router, &src, &sub, profile, max_s, limit_s).into_iter().enumerate() {
             out[left[j]] = r.map(|(c, k)| (c, index[k]));
         }
     }
@@ -334,20 +347,38 @@ fn reach_from(router: &WalkRouter, src: &[(Snap, f32, f32)], targets: &[Snap], p
     // within the limit as the stop search reports the walk: in whole seconds, rounded up (App::reach)
     let within = |c: WalkCost| walk_secs(c.var_m, c.fix_s, speed).ceil() <= limit_s;
     let mut out: Vec<Option<(WalkCost, usize)>> = vec![None; targets.len()];
+    let mut found = vec![false; targets.len()];
     for (i, r) in router.many_to_many_raw(src, targets, profile, max_s).into_iter().enumerate() {
         if let Some((k, c, _)) = r {
+            found[i] = true;
             let c = with_target(c, &targets[i]);
             if within(c) {
                 out[i] = Some((c, k));
             }
         }
     }
-    let open = |out: &[Option<(WalkCost, usize)>]| (0..targets.len()).filter(|&i| out[i].is_none()).collect::<Vec<usize>>();
-    // each candidate alone: the cheapest (with penalties) of those whose best way is within the limit
-    let mut left = open(&out);
-    if !left.is_empty() && src.len() > 1 {
-        let sub: Vec<Snap> = left.iter().map(|&i| targets[i]).collect();
-        let mut best: Vec<Option<(f32, WalkCost, usize)>> = vec![None; left.len()];
+    // the quickest walk, one search for all the rest: a target some walk reaches within the limit is reached,
+    // whatever the preferred one takes; one no walk reaches in time is out of reach, and costs nothing more
+    let left: Vec<usize> = (0..targets.len()).filter(|&i| out[i].is_none()).collect();
+    if left.is_empty() {
+        return out;
+    }
+    let sub: Vec<Snap> = left.iter().map(|&i| targets[i]).collect();
+    let mut quick: Vec<(usize, WalkCost, usize)> = Vec::new(); // (target, cost, candidate)
+    for (j, r) in router.quickest_many(src, &sub, profile, limit_s).into_iter().enumerate() {
+        if let Some((k, c)) = r {
+            let c = with_target(c, &sub[j]);
+            if within(c) {
+                quick.push((left[j], c, k));
+            }
+        }
+    }
+    // of those, the ones the preferred search found (over the limit): the cheapest (with penalties) of each
+    // candidate's preferred walk that is within it, if one is; else the quickest
+    let pref: Vec<usize> = quick.iter().map(|q| q.0).filter(|&i| found[i]).collect();
+    let mut best: Vec<Option<(f32, WalkCost, usize)>> = vec![None; pref.len()];
+    if !pref.is_empty() && src.len() > 1 {
+        let sub: Vec<Snap> = pref.iter().map(|&i| targets[i]).collect();
         for (k, s) in src.iter().enumerate() {
             for (j, r) in router.many_to_many_raw(std::slice::from_ref(s), &sub, profile, max_s).into_iter().enumerate() {
                 if let Some((_, c, gen)) = r {
@@ -358,22 +389,10 @@ fn reach_from(router: &WalkRouter, src: &[(Snap, f32, f32)], targets: &[Snap], p
                 }
             }
         }
-        for (j, b) in best.into_iter().enumerate() {
-            out[left[j]] = b.map(|b| (b.1, b.2));
-        }
-        left = open(&out);
     }
-    // the quickest walk: a target some walk reaches within the limit is reached, whatever the preferred one takes
-    if !left.is_empty() {
-        let sub: Vec<Snap> = left.iter().map(|&i| targets[i]).collect();
-        for (j, r) in router.quickest_many(src, &sub, profile, limit_s).into_iter().enumerate() {
-            if let Some((k, c)) = r {
-                let c = with_target(c, &sub[j]);
-                if within(c) {
-                    out[left[j]] = Some((c, k));
-                }
-            }
-        }
+    for (i, c, k) in quick {
+        let chosen = pref.iter().position(|&p| p == i).and_then(|j| best[j]).map(|b| (b.1, b.2));
+        out[i] = Some(chosen.unwrap_or((c, k)));
     }
     out
 }
@@ -416,7 +435,7 @@ pub fn walk_within(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile,
     pairs.sort_by_key(|&(x, y)| (x.max(y), x + y, x));
     pairs.pop(); // the last pair is all of both ends: the walk below
     for (x, y) in pairs {
-        if let Some(w) = walk_ends(router, &a.up_to(x), &b.up_to(y), profile, limit_s).filter(|w| limit_s.is_none_or(|l| w.secs <= l + 0.5)) {
+        if let Some(w) = walk_ends(router, &a.up_to(x), &b.up_to(y), profile, limit_s).filter(|w| limit_s.is_none_or(|l| w.secs.ceil() <= l.ceil() + 1e-3)) {
             return Some(w);
         }
     }
@@ -427,8 +446,15 @@ fn walk_ends(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile, limit
     let (sa, sb) = (a.sources(), b.sources());
     let best = router.route_between(&sa, &sb, profile).map(|(i, j, path, _)| walk_of(a, b, i, j, path, profile));
     let Some(limit) = limit_s else { return best };
-    if best.as_ref().is_some_and(|w| w.secs <= limit + 0.5) {
+    // within the limit as the stop search counts it: in whole seconds, rounded up
+    let within = |w: &Walk| w.secs.ceil() <= limit.ceil() + 1e-3;
+    if best.as_ref().is_some_and(within) {
         return best;
+    }
+    // the quickest first: when not even it is within the limit, no other pair need be tried
+    let quickest = router.quickest_between(&sa, &sb, profile).map(|(i, j, path, _)| walk_of(a, b, i, j, path, profile));
+    if !quickest.as_ref().is_some_and(within) {
+        return quickest.or(best);
     }
     let mut pick: Option<(f32, Walk)> = None;
     if sa.len() * sb.len() > 1 {
@@ -436,17 +462,14 @@ fn walk_ends(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile, limit
             for j in 0..sb.len() {
                 if let Some((_, _, path, gen)) = router.route_between(&sa[i..=i], &sb[j..=j], profile) {
                     let w = walk_of(a, b, i, j, path, profile);
-                    if w.secs <= limit + 0.5 && pick.as_ref().is_none_or(|p| gen < p.0) {
+                    if within(&w) && pick.as_ref().is_none_or(|p| gen < p.0) {
                         pick = Some((gen, w));
                     }
                 }
             }
         }
     }
-    if let Some((_, w)) = pick {
-        return Some(w);
-    }
-    router.quickest_between(&sa, &sb, profile).map(|(i, j, path, _)| walk_of(a, b, i, j, path, profile)).or(best)
+    pick.map(|p| p.1).or(quickest)
 }
 
 /// A walk as drawn: from the point (into the building to its door and out, or straight onto the network), the
@@ -515,7 +538,11 @@ pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn {
     let approx_end = (n_tail > 0 && guess(&w.to, b)).then_some(path_end);
     let wall = w.from.wall || w.to.wall;
     let unsure = w.from.unsure || w.to.unsure;
-    let step_free = p.stairs_up == 0 && p.stairs_down == 0 && p.escalators == 0 && p.unmapped_level_changes == 0 && !unsure && !a.no_step_free_door && !b.no_step_free_door;
+    // through a door that is not step-free, for any walker
+    let barred = |j: &Join| j.door.and_then(|d| doors.map(|ix| ix.doors.doors[d as usize].wheelchair == DOOR_WC_NO)).unwrap_or(false);
+    // a walk with a guessed end is never step-free, whatever the guess
+    let guessed = approx_start.is_some() || approx_end.is_some();
+    let step_free = p.stairs_up == 0 && p.stairs_down == 0 && p.escalators == 0 && p.unmapped_level_changes == 0 && !unsure && !guessed && !barred(&w.from) && !barred(&w.to) && !a.no_step_free_door && !b.no_step_free_door;
     Drawn { geometry, levels, head: n_head, path_end, approx_start, approx_end, wall, step_free }
 }
 

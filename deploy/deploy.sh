@@ -13,7 +13,8 @@ log() { echo "deploy: $*"; }
 
 build_release() { # build_release <commit> <release dir>
   local commit=$1 rel=$2
-  (cd kante/engine && CARGO_TARGET_DIR="$ROOT/target" cargo build --release --locked -p kante-server)
+  # the engine names the commit in /api/meta
+  (cd kante/engine && KANTE_COMMIT=$commit CARGO_TARGET_DIR="$ROOT/target" cargo build --release --locked -p kante-server)
   mkdir -p "$rel/data"
   cp "$ROOT/target/release/kante" "$rel/kante"
   echo "$commit" > "$rel/COMMIT"
@@ -23,20 +24,33 @@ build_release() { # build_release <commit> <release dir>
   ln -s "$ROOT/profiles" "$rel/data/profiles"
   # which timetable this release was built from (refresh-data.sh compares it with the one in force)
   cp "$ROOT/raw/gtfs/DATASET" "$rel/DATASET" 2>/dev/null || true
-  # The building address register gives most buildings their doors: required. Checked as fetch-data.sh checks a
-  # download (its columns, over a million addresses); fetched if the host has none or the one it has is not valid
-  # (set aside as .invalid); without a valid one the build fails, and the engine in use stays.
-  local reg=$ROOT/raw/register/adr.csv.zip
-  reg_ok() { (source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh) && register_ok "$reg"); }
-  if ! reg_ok; then
-    [[ -e $reg ]] && mv -f "$reg" "$reg.invalid"
-    KANTE_RAW=$ROOT/raw timeout 1200 kante/scripts/fetch-data.sh --register || true
-  fi
-  if ! reg_ok; then
-    log "no valid building address register in $ROOT/raw/register (fetch-data.sh --register): not building"
-    return 1
-  fi
+  register
   "$rel/kante" build --data "$rel/data"
+}
+
+# The building address register (the doors of most buildings): an input added after the host was set up. Without a
+# valid one (fetch-data.sh's register_ok), it is fetched into a folder of its own and replaces the file there is
+# only if valid. If none can be had, the build goes on, with a warning: whether an engine builds without it is the
+# engine's to say.
+register() {
+  local reg=$ROOT/raw/register/adr.csv.zip tmp
+  # a checkout whose fetch-data.sh knows no register (one from before it): nothing to do
+  grep -q '^register_ok()' kante/scripts/fetch-data.sh 2>/dev/null || return 0
+  # fetch-data.sh's own check; quiet, as a missing or broken file is the case this handles, not a traceback for the log
+  reg_valid() {
+    [[ -s $1 ]] && (unset -f register_ok; source <(sed -n '/^register_ok()/,/^}/p' kante/scripts/fetch-data.sh); declare -F register_ok >/dev/null && register_ok "$1") 2>/dev/null
+  }
+  reg_valid "$reg" && return 0
+  rm -rf "$ROOT"/raw/.register.* 2>/dev/null || true   # left by a run that was killed while fetching (the lock is held)
+  tmp=$(mktemp -d "$ROOT/raw/.register.XXXXXX") || { log "warning: no valid building address register, and no room to fetch one"; return 0; }
+  KANTE_RAW=$tmp timeout 1200 kante/scripts/fetch-data.sh --register || true
+  if reg_valid "$tmp/register/adr.csv.zip" && mkdir -p "$ROOT/raw/register" && mv -f "$tmp/register/adr.csv.zip" "$reg"; then
+    log "fetched the building address register"
+  else
+    log "warning: no valid building address register in $ROOT/raw/register, and none could be fetched"
+  fi
+  rm -rf "$tmp" || true   # never a reason to stop the build
+  return 0
 }
 
 healthy() { # the engine answers, has a timetable that is valid today, and a search index
