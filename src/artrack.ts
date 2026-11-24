@@ -331,7 +331,7 @@ export function createArSession(ride: ArRide) {
     boardFailed(at: number) { note({ at, type: 'board_failed' }); },
     /** The last LOG_S seconds, for the debug capture; led by the board in use when it came before them. */
     log: () => (lastBoardEvent && !log.includes(lastBoardEvent) ? [lastBoardEvent, ...log] : log.slice()),
-    tracks: () => tracks.map((t) => ({ id: t.id, box: t.box, cls: t.cls, readings: t.readings.length, decision: t.decision, contestedAt: t.contestedAt })),
+    tracks: () => tracks.map((t) => ({ id: t.id, box: t.box, cls: t.cls, seen: t.lastSeen, readings: t.readings.length, decision: t.decision, contestedAt: t.contestedAt })),
     derotation: () => ({ ...derot }),
     lastDetections: () => lastDetections,
   };

@@ -17,6 +17,7 @@ import type { SIGNLOC } from './signloc.ts';
 import type { LineLike } from './app/journey-steps.ts';
 import type { BoardDeparture } from './engine-departures.ts';
 import type { KanteError, KanteFailure } from './engine.ts';
+import { ORT_DIST } from './ort-dist.ts';
 
 // ---- what the page gives Scan (src/app/menu.ts) ----
 
@@ -227,7 +228,6 @@ export interface StopVisionDebug {
   edgeOf(c: StopVisionCandidate): StopVisionEdgeGuess | null;
 }
 
-const ORT_DIST = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
 const TESSERACT = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
 const INPUT = 224;
 const MEAN = [0.485, 0.456, 0.406];

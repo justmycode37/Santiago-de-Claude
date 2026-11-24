@@ -3,8 +3,9 @@
 //      - The stop and edge: Scan's live pipeline (stopvision.ts: sign OCR + GPS + compass), with the journey's next ride
 //        as its route, so it outlines the sign it read and says where your ride leaves from.
 //      - Vehicles: buses, trams and trains outlined by an in-browser detector (COCO-SSD, TensorFlow.js), each one a
-//        track of its own (artrack.ts). The words Scan reads go to the vehicle whose box held them when the picture was
-//        taken, through arcore.ts (RightSide's display matcher) against your ride and everything due at the stop (Kante
+//        track of its own (artrack.ts). PP-OCR (ppocr.ts) reads each vehicle's display band at the camera's full
+//        resolution in turn, and a band across the road every third turn; Scan's Tesseract sweeps the whole picture.
+//        What they read goes to the vehicle whose box held it when the picture was taken, through arcore.ts (RightSide's display matcher) against your ride and everything due at the stop (Kante
 //        /api/due). Green ("Your bus 10 → …") and red ("Not yours: …") follow the rules of
 //        docs/ar-recognition-plan.md; otherwise a vehicle shows only what its display says, or nothing.
 //      - The banner: your run, found on the board by its trip (not guessed by line), when it comes and from where.
@@ -19,6 +20,9 @@ import { h, kBtn, kIcon, quayOf } from './sheet.ts';
 import { distKm } from './routing.ts';
 import type { DeviceOrientationAsk } from './menu.ts';
 import { createArSession, boardOf } from '../artrack.ts';
+import { load } from '../lazy.ts';
+import { ORT_DIST } from '../ort-dist.ts';
+import type { OcrModels, OcrRuntime } from '../ppocr.ts';
 import type { ArBox, ArDet, ArRide, ArSession, ArShift, ArText } from '../artrack.ts';
 import type { ScanWordsDetail } from '../stopvision.ts';
 import type { JourneyRideStep, JourneyStep, LineMode } from './journey-steps.ts';
@@ -39,6 +43,19 @@ const AR_DEBUG = (() => { // the field-test capture button: ?ardebug=1 (remember
     if (q === '0') localStorage.removeItem('arDebug');
     return localStorage.getItem('arDebug') === '1';
   } catch (e) { return false; }
+})();
+
+/** The camera resolution asked for: displays are read from full-resolution crops, so more pixels reach further. 1080p
+ *  by default; ?arres=max asks for 4K (remembered; ?arres=0 goes back), to compare cost and reach in a field test. */
+const AR_RESOLUTION = (() => {
+  let max = false;
+  try {
+    const q = new URLSearchParams(location.search).get('arres');
+    if (q === 'max') localStorage.setItem('arRes', 'max');
+    if (q === '0') localStorage.removeItem('arRes');
+    max = localStorage.getItem('arRes') === 'max';
+  } catch (e) { /* storage blocked: the default */ }
+  return max ? { width: { ideal: 3840 }, height: { ideal: 2160 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } };
 })();
 
 /** Where the AR camera guides you: the boarding point of the step's next ride. */
@@ -86,6 +103,24 @@ function arDetector(): Promise<CocoModel | null> {
   return arModel;
 }
 
+// The display reader: PP-OCRv5 det + rec in onnxruntime-web (ppocr.ts), loaded on first use. Scan's photo model
+// (DINOv2) stays unloaded in AR, so the page's ort is free for it.
+type ArReader = { m: OcrModels; read: typeof import('../ppocr.ts').readRegion };
+let arReader: Promise<ArReader | null> | null = null;
+function arDisplayReader(): Promise<ArReader | null> {
+  if (!arReader) {
+    arReader = (async () => {
+      const mod = await load(import.meta.url, () => import('../ppocr.ts'));
+      if (!window.ort) await loadScript(ORT_DIST + 'ort.wasm.min.js');
+      const rt = window.ort!;
+      rt.env.wasm.wasmPaths = ORT_DIST;
+      rt.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
+      return { m: await mod.loadModels(rt as unknown as OcrRuntime), read: mod.readRegion };
+    })().catch((e) => { console.warn('AR: no display reader', e); arReader = null; return null; });
+  }
+  return arReader;
+}
+
 let arSession = 0;
 let arMotion = 'unknown'; // what iOS answered to the motion permission (shown in the debug line)
 function arOpen(st: JourneyStep) {
@@ -93,7 +128,7 @@ function arOpen(st: JourneyStep) {
   if (!target) return;
   // both permissions here, while the tap still counts as a user gesture (iOS)
   const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
-    ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+    ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, ...AR_RESOLUTION }, audio: false })
     : Promise.reject(new Error('no camera API'));
   const orientation = window.DeviceOrientationEvent && typeof (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission === 'function'
     ? (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission!() : Promise.resolve('granted');
@@ -118,6 +153,7 @@ function arOpen(st: JourneyStep) {
   hooks.onClose = done;
   openScanWith(hooks, camera, orientation, () => { if (arSession === mine) arLayer(mine, target); });
   arDetector(); // start loading while the camera starts
+  arDisplayReader();
 }
 
 function arLayer(mine: number, target: ArTarget) {
@@ -238,7 +274,7 @@ function arLayer(mine: number, target: ArTarget) {
     const now = nowS();
     const data = { format: 'ar-capture/1', savedAt: now, ua: navigator.userAgent, video: [video.videoWidth, video.videoHeight],
       motion: arMotion, ride, derotation: ses.derotation(), labels: ses.labels(now), banner: ses.banner(now),
-      detectMs: detectMs.slice(), ocrAgeS: ocrAge.slice(), log: ses.log(), crops: crops.slice() };
+      detectMs: detectMs.slice(), ocrAgeS: ocrAge.slice(), ppocrMs: ocrMs.slice(), log: ses.log(), crops: crops.slice() };
     const name = `ar-capture-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
     const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
@@ -246,6 +282,44 @@ function arLayer(mine: number, target: ArTarget) {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(file); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  };
+
+  // display reads: PP-OCR on one vehicle's display band at a time, at the camera's full resolution, round robin
+  // (never by how likely a vehicle is to be yours, so a late real bus is not starved); every third turn, or with no
+  // vehicle in view, a band across the road for one the detector missed. Paced by how long a read takes.
+  const ocrCanvas = document.createElement('canvas');
+  const ocrMs: number[] = [];
+  let ocrBusy = false, ocrTurn = 0, trackTurn = 0, ocrNext = 0, ocrState = 'loading';
+  const readDisplays = async () => {
+    if (ocrBusy || Date.now() < ocrNext || !video.videoWidth) return;
+    ocrBusy = true;
+    try {
+      const reader = await arDisplayReader();
+      ocrState = reader ? 'ready' : 'unavailable';
+      if (!reader || arSession !== mine) { ocrNext = Date.now() + 5000; return; }
+      const vw = video.videoWidth, vh = video.videoHeight, now = nowS();
+      const shown = ses.tracks().filter((t) => now - t.seen <= 0.5);
+      const turn = ocrTurn++;
+      let r: ArBox = [0, 0.2, 1, 0.5]; // the road band
+      if (shown.length && turn % 3 !== 2) {
+        const b = shown[trackTurn++ % shown.length].box; // the next vehicle in turn
+        r = [b[0] - b[2] * 0.04, b[1], b[2] * 1.08, b[3] * 0.55]; // its upper part, where the display is
+      }
+      const x0 = Math.max(0, Math.round(r[0] * vw)), y0 = Math.max(0, Math.round(r[1] * vh));
+      const w = Math.min(vw - x0, Math.round(r[2] * vw)), hh = Math.min(vh - y0, Math.round(r[3] * vh));
+      if (w < 24 || hh < 12) return;
+      ocrCanvas.width = w; ocrCanvas.height = hh;
+      const ctx = ocrCanvas.getContext('2d', { willReadFrequently: true })!;
+      const capturedAt = Date.now() / 1000;
+      ctx.drawImage(video, x0, y0, w, hh, 0, 0, w, hh);
+      const px = ctx.getImageData(0, 0, w, hh);
+      const t0 = performance.now();
+      const words = await reader.read(reader.m, { data: px.data, width: w, height: hh }, { width: vw, height: vh, x: x0, y: y0 });
+      const ms = performance.now() - t0;
+      ocrMs.push(ms); if (ocrMs.length > 20) ocrMs.shift();
+      ocrNext = Date.now() + Math.max(200, ms); // as much rest as the read took: the detector and Scan need the CPU too
+      if (arSession === mine) ses.words(words.map((x) => ({ text: x.text, box: x.box, score: x.score })), capturedAt, nowS());
+    } catch (e) { ocrNext = Date.now() + 1000; } finally { ocrBusy = false; }
   };
 
   const draw = (now: number) => {
@@ -273,10 +347,12 @@ function arLayer(mine: number, target: ArTarget) {
     const now = nowS();
     info.textContent = `${ses.banner(now).text} — ${where}`;
     draw(now); // labels expire and are revoked between detections too
+    readDisplays();
     if (dbgText) {
       const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
       const ls = ses.labels(now);
-      dbgText.textContent = `video ${video.videoWidth}×${video.videoHeight} · detect ${Math.round(avg(detectMs))} ms · OCR age ${avg(ocrAge).toFixed(1)} s`
+      dbgText.textContent = `video ${video.videoWidth}×${video.videoHeight} · detect ${Math.round(avg(detectMs))} ms · Tesseract age ${avg(ocrAge).toFixed(1)} s`
+        + ` · PP-OCR ${ocrState}${ocrMs.length ? ' ' + Math.round(avg(ocrMs)) + ' ms' : ''}`
         + ` · motion ${arMotion}${ses.derotation().on ? '' : ' (gyro shift off)'}\n`
         + (ls.length ? ls.map((l) => `#${l.track} ${l.kind} ${l.reason}`).join(' · ') : 'no vehicles');
     }
