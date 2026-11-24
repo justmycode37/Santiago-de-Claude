@@ -42,18 +42,28 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   fixes on a new step or 3 m into it, never within 20 s of you stepping through the way yourself, and without moving
   the camera. The ◎ button follows you (a drag stops it).
 
-- **First person** (👁 in the card, then ▶): the play-through at eye height (1.65 m) and true heights (1×). The floors
-  above are ceilings (no cut, no see-through hole), fog hides what is far, and the edges of the indoor floors stand as
-  walls up to the floor above (at most 3.2 m) — schematic, and the card says so: OpenStreetMap has the outline, not
-  the wall. The way is a yellow line on the floor with arrowheads. The eye looks where the way goes 7 m ahead (2.5 m on
-  stairs and escalators, so it looks down an escalator; pitch at most 20°). In a lift the view gives way to its
-  display (the direction, the floor it passes, where it goes); out of a lift at the end it turns along the platform.
-  Paused, a drag looks round; ‹ › go to the start of a step; a floor, ⌂ or 👁 again leave it. Lift shafts are one-sided
-  here, so from inside one you look out.
+- **First person** (👁 in the card, then ▶): the play-through at eye height (1.65 m) and true heights (1×), with fog
+  for what is far. The model is closed for it:
+  - **walls** as high as the room (to the floor above, at most 3.4 m): below ground every edge of a floor except the
+    platform edges along the tracks, at street level and above the edges of the indoor floors, and OpenStreetMap's
+    own walls. They are schematic (OpenStreetMap has the outline, not the wall; the card says so). Each wall **opens
+    where you walk**: wherever a path of the walking graph, a stair, an escalator or a ramp crosses it, so the way never
+    runs through a wall;
+  - **ceilings** below ground at the room's height, open over every stair, escalator, ramp and lift that goes up, and
+    seen from below only (from the floor above they are not there);
+  - **shops** as full-height blocks, and labels only of your floor and not behind a wall or a shop;
+  - the eye and the yellow line on the floor keep 0.7 m and 0.55 m off the walls (OpenStreetMap often draws a
+    passage's path along its edge).
 
-What it does not have: walls below ground other than the floors' edges, signs at eye level, platform roofs outside
-Bern. That data, and what could make the models more accurate and cover every Swiss station, is in
-[station3d-research.md](station3d-research.md).
+  The eye looks where the way goes 7 m ahead (2.5 m on stairs and escalators, pitch at most 20°), turning by yaw and
+  pitch. In a lift the view gives way to its display (direction, the floor it passes, where it goes); out of a lift at
+  the end it turns along the platform. Paused, a drag looks round; ‹ › go to the start of a step; a floor, ⌂, ◎ or 👁
+  again leave it. Lift shafts are one-sided here, so from inside one you look out.
+
+What it does not have: measured walls below ground, signs at eye level, platform roofs outside Bern. Where such data
+could come from (the cadastral survey's underground outlines are open data and the most promising; Google's and
+Apple's indoor data cannot be used) is in [station3d-interior-data.md](station3d-interior-data.md); more open data and
+covering every Swiss station in [station3d-research.md](station3d-research.md).
 
 When the walk ends at a platform to board a train, that train stands at the platform as a hologram: its coaches,
 their classes, where to get on (the walk is aimed at that sector) and how full each class is expected to be. See

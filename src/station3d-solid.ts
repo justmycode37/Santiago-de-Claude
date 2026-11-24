@@ -65,7 +65,7 @@ interface SolidDrawn extends THREE.Object3D { geometry?: THREE.BufferGeometry; m
 interface SolidFrameOptions { elev?: number; yaw?: number | null; pad?: number }
 /** `near`: shown only from closer than about twice this; `up`: metres above the floor; `step`: index into route.steps. */
 interface SolidLabelOptions { up?: number; near?: number; step?: number; html?: string }
-interface SolidLabel extends SolidLabelOptions { el: HTMLDivElement; pos: THREE.Vector3; prio: number; z: number }
+interface SolidLabel extends SolidLabelOptions { el: HTMLDivElement; pos: THREE.Vector3; prio: number; z: number; behind?: boolean }
 type SolidMode = { kind: 'whole' } | { kind: 'step' } | { kind: 'floor'; id: number };
 /** A vehicle at a platform or stop of the way (setTrain): the one the way leads to (board) or starts from (alight).
  *  A train with its coaches, or only the sectors it stops in; a tram or bus of a typical shape at its stop. */
@@ -179,10 +179,10 @@ export async function open(opts: SolidOptions) {
   const pal = () => dark()
     ? { bg: 0x101317, top: 0x5a554c, deep: 0x2d3a4d, edge: 0x0a0c0f, wall: 0x6d7480, kerb: 0x1b2027, glass: 0x9fc2e6,
         track: 0x1a1d22, rail: 0x6b717a, step: 0xb9b2a5, riser: 0x55524c, room: 0x6b6f86, outline: 0x8a94a3,
-        truss: 0x3d434c, handrail: 0x0d0f12, glassEdge: 0x7f9fc4, povWall: 0x4a4f58 }
+        truss: 0x3d434c, handrail: 0x0d0f12, glassEdge: 0x7f9fc4, povWall: 0x4a4f58, povCeil: 0x2a2e35 }
     : { bg: 0xeef1f4, top: 0xe9e2d4, deep: 0x8e9cb0, edge: 0x3a4250, wall: 0xf7f5f0, kerb: 0x6a7180, glass: 0x7fb2e5,
         track: 0x50545b, rail: 0x9aa0a8, step: 0xf2ece0, riser: 0x9c9384, room: 0xd9dcef, outline: 0x56606e,
-        truss: 0xaeb5bf, handrail: 0x2a2f37, glassEdge: 0x5d8fc4, povWall: 0xe4e1da };
+        truss: 0xaeb5bf, handrail: 0x2a2f37, glassEdge: 0x5d8fc4, povWall: 0xe4e1da, povCeil: 0xc9ccd2 };
   type SolidPalette = ReturnType<typeof pal>;
   function levelColour(id: number, P: SolidPalette) {
     // warm stone at the top, cooler and darker going down; floors above 0 lighter still
@@ -311,20 +311,12 @@ export async function open(opts: SolidOptions) {
     }
     // walls (OSM), kerbs (floor edges), railings (round the wells)
     const wallLines = (k: StationSolidWall['kind']) => solid!.walls.filter((w) => w.kind === k && onLevel(w.level) && lineIn(w.line));
-    world.add(new THREE.Mesh(strip(wallLines('wall'), WALL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.wall, side: THREE.DoubleSide }))));
-    if (!pov) world.add(new THREE.Mesh(strip(wallLines('edge'), KERB_H), cutaway(new THREE.MeshLambertMaterial({ color: P.kerb, side: THREE.DoubleSide }))));
-    else {
-      // first person: the edges of the indoor floors raised to walls up to the floor above (at most 3.2 m), so a passage
-      // reads as one from eye level. Schematic: OpenStreetMap has the outline, not the wall (the view says so)
-      const byLv = new Map<number, { line: XY[]; z: number }[]>();
-      for (const w of wallLines('edge')) { if (!byLv.has(w.level)) byLv.set(w.level, []); byLv.get(w.level)!.push(w); }
-      const gs: THREE.BufferGeometry[] = [];
-      for (const [lv, ws] of byLv) {
-        const i = levels.findIndex((l) => l.id === lv), up = i >= 0 ? levels[i + 1] : undefined;
-        gs.push(strip(ws, Math.max(2.4, Math.min(3.2, up ? (up.z - levels[i].z) * S - SLAB_T - 0.05 : 3.2))));
-      }
-      if (gs.length) world.add(new THREE.Mesh(merged(gs), cutaway(new THREE.MeshLambertMaterial({ color: P.povWall, side: THREE.DoubleSide }))));
-    }
+    occluders = [];
+    if (!pov) {
+      wallIndex.clear();
+      world.add(new THREE.Mesh(strip(wallLines('wall'), WALL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.wall, side: THREE.DoubleSide }))));
+      world.add(new THREE.Mesh(strip(wallLines('edge'), KERB_H), cutaway(new THREE.MeshLambertMaterial({ color: P.kerb, side: THREE.DoubleSide }))));
+    } else enclose(P, wallLines);
     world.add(new THREE.Mesh(strip(wallLines('rail'), RAIL_H), cutaway(new THREE.MeshLambertMaterial({ color: P.glass, side: THREE.DoubleSide, transparent: true, opacity: 0.32, depthWrite: false }))));
     // rooms with outlines (named only)
     const roomGs = [];
@@ -332,13 +324,15 @@ export async function open(opts: SolidOptions) {
       if (!onLevel(r.level) || !lineIn(r.ring)) continue;
       const sh = new THREE.Shape(r.ring.map(([x, y]) => new THREE.Vector2(x - cx, y - cy)));
       // low (the height is schematic anyway) and opaque: a block that marks the shop without hiding the way
-      const g = new THREE.ExtrudeGeometry(sh, { depth: Math.min(r.height, ROOM_H), bevelEnabled: false });
+      const g = new THREE.ExtrudeGeometry(sh, { depth: pov ? roomHeight(r.level) : Math.min(r.height, ROOM_H), bevelEnabled: false });
       g.rotateX(-Math.PI / 2); g.translate(0, r.z * S + 0.02, 0);
       roomGs.push(g);
     }
     if (roomGs.length) {
       const g = merged(roomGs);
-      world.add(new THREE.Mesh(g, cutaway(new THREE.MeshLambertMaterial({ color: P.room }))));
+      const rm = new THREE.Mesh(g, cutaway(new THREE.MeshLambertMaterial({ color: P.room })));
+      world.add(rm);
+      if (pov) occluders.push(rm);
       world.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 40), shared.outline));
     }
     // tracks: a dark bed and two rails
@@ -380,6 +374,246 @@ export async function open(opts: SolidOptions) {
     if (route) drawRoute();
   }
   const shared: { outline: THREE.LineBasicMaterial | null } = { outline: null };
+  /** First person: what hides a label behind it (walls, shops). */
+  let occluders: THREE.Object3D[] = [];
+
+  // ------------------------------------------------------------------ first person: the enclosure
+  // From eye level the model has to be closed: walls you cannot look over or through, ceilings below ground, and
+  // openings where you actually walk. OpenStreetMap has the floors, not the walls, so the walls are schematic: below
+  // ground every edge of a floor (but the platform edges along the tracks) is a wall; at street level and above, the
+  // edges of the indoor floors and OpenStreetMap's own walls. Every wall is as high as the room (to the floor above, at
+  // most ROOM_MAX), and it opens where a path of the walking graph, a stair, an escalator or a ramp crosses it, so the
+  // way never runs through a wall. Below ground a ceiling closes the room, open where stairs, escalators and lifts go up.
+  const ROOM_MAX = 3.4, DOOR_M = 1.8;
+  /** How high a room on this level is (m, in the current stretch): to the underside of the floor above, at most ROOM_MAX. */
+  function roomHeight(level: number) {
+    const i = levels.findIndex((l) => l.id === Math.round(level)), up = i >= 0 ? levels[i + 1] : undefined;
+    const room = up ? (up.z - levels[i].z) * S - SLAB_T - 0.05 : ROOM_MAX;
+    return Math.min(ROOM_MAX, room > 0.5 ? room : 2.4);   // floors closer than that: as much as there is
+  }
+  type Crossing = [ax: number, ay: number, bx: number, by: number, gap: number];
+  /** What may pass through a wall on this level: walking paths on it and the stairs, escalators and ramps that reach it. */
+  function crossings(level: number, h: number): Crossing[] {
+    const out: Crossing[] = [];
+    const lv = levels.find((l) => l.id === level);
+    if (!lv) return out;
+    // the part of a piece (heights za → zb, metres) that is within the wall's height, from just under its foot
+    const z0 = lv.z - 0.5, z1 = lv.z + h / S;
+    const clip = (ax: number, ay: number, za: number, bx: number, by: number, zb: number, gap: number) => {
+      let t0 = 0, t1 = 1;
+      if (Math.abs(zb - za) > 1e-6) {
+        const ta = (z0 - za) / (zb - za), tb = (z1 - za) / (zb - za);
+        t0 = Math.max(0, Math.min(ta, tb)); t1 = Math.min(1, Math.max(ta, tb));
+      } else if (za < z0 || za > z1) return;
+      if (t1 <= t0) return;
+      out.push([ax + (bx - ax) * t0, ay + (by - ay) * t0, ax + (bx - ax) * t1, ay + (by - ay) * t1, gap]);
+    };
+    const g = model!.graph, N = g.nodes;
+    for (const e of g.edges) {
+      const a = N[e.a], c = N[e.b];
+      if (Math.abs(a[2] - level) > 1.2 && Math.abs(c[2] - level) > 1.2 && (a[2] - level) * (c[2] - level) > 0) continue;
+      clip(a[0], a[1], zOf(a[2]), c[0], c[1], zOf(c[2]), DOOR_M);
+    }
+    for (const c of solid!.connectors) {
+      if (c.kind === 'elevator') continue;
+      const gap = Math.max(DOOR_M, (c.width || 1.5) + 0.8);
+      for (let k = 0; k + 1 < c.pts.length; k++) clip(c.pts[k][0], c.pts[k][1], c.pts[k][2], c.pts[k + 1][0], c.pts[k + 1][1], c.pts[k + 1][2], gap);
+    }
+    return out;
+  }
+  /** The wall lines with openings cut where something crosses them. */
+  function withDoors(lines: XY[][], cross: Crossing[]): XY[][] {
+    const CELL = 8, grid = new Map<string, number[]>();
+    cross.forEach((c, i) => {
+      for (let gx = Math.floor(Math.min(c[0], c[2]) / CELL); gx <= Math.floor(Math.max(c[0], c[2]) / CELL); gx++)
+        for (let gy = Math.floor(Math.min(c[1], c[3]) / CELL); gy <= Math.floor(Math.max(c[1], c[3]) / CELL); gy++) {
+          const k = gx + ',' + gy;
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k)!.push(i);
+        }
+    });
+    const out: XY[][] = [];
+    for (const line of lines) {
+      for (let s = 0; s + 1 < line.length; s++) {
+        const [ax, ay] = line[s], [bx, by] = line[s + 1], dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+        if (L < 0.05) continue;
+        const cut: [number, number][] = [], seen = new Set<number>();
+        for (let gx = Math.floor(Math.min(ax, bx) / CELL); gx <= Math.floor(Math.max(ax, bx) / CELL); gx++)
+          for (let gy = Math.floor(Math.min(ay, by) / CELL); gy <= Math.floor(Math.max(ay, by) / CELL); gy++)
+            for (const i of grid.get(gx + ',' + gy) || []) {
+              if (seen.has(i)) continue;
+              seen.add(i);
+              const [cx0, cy0, cx1, cy1, gap] = cross[i], ex = cx1 - cx0, ey = cy1 - cy0;
+              const den = dx * ey - dy * ex, el = Math.hypot(ex, ey);
+              if (el < 1e-6) continue;
+              if (Math.abs(den) / (L * el) < 0.17) {
+                // (nearly) along the wall: where it runs within 0.4 m of it, the wall is open (the floor's edge is wrong there)
+                const off0 = Math.abs((cx0 - ax) * dy - (cy0 - ay) * dx) / L, off1 = Math.abs((cx1 - ax) * dy - (cy1 - ay) * dx) / L;
+                if (Math.min(off0, off1) > 0.4) continue;
+                const s0 = ((cx0 - ax) * dx + (cy0 - ay) * dy) / (L * L), s1 = ((cx1 - ax) * dx + (cy1 - ay) * dy) / (L * L);
+                if (Math.max(s0, s1) < -0.02 || Math.min(s0, s1) > 1.02) continue;
+                cut.push([Math.min(s0, s1) - 0.5 / L, Math.max(s0, s1) + 0.5 / L]);
+                continue;
+              }
+              const t = ((cx0 - ax) * ey - (cy0 - ay) * ex) / den, u = ((cx0 - ax) * dy - (cy0 - ay) * dx) / den;
+              if (t < -0.5 / L || t > 1 + 0.5 / L || u < -0.05 || u > 1.05) continue;
+              // the opening is as wide as the gap across the path, wider where the path crosses at a slant
+              const sin = Math.abs(den) / (L * el), half = Math.min(gap / 2 / Math.max(sin, 0.35), 4) / L;
+              cut.push([t - half, t + half]);
+            }
+        cut.sort((p, q) => p[0] - q[0]);
+        let t0 = 0;
+        for (const [c0, c1] of cut) {
+          if (t0 >= 1) break;
+          if (c0 > t0 + 0.02 / L) out.push([[ax + dx * t0, ay + dy * t0], [ax + dx * Math.min(c0, 1), ay + dy * Math.min(c0, 1)]]);
+          t0 = Math.max(t0, c1);
+        }
+        if (t0 < 1) out.push([[ax + dx * t0, ay + dy * t0], [bx, by]]);
+      }
+    }
+    return out.filter((l) => Math.hypot(l[1][0] - l[0][0], l[1][1] - l[0][1]) > 0.05);
+  }
+  // Where the walls are, per level, to keep the eye and the line on the floor off them: OpenStreetMap often draws a
+  // passage's path along its edge, which is now a wall.
+  const WCELL = 6;
+  type WallIdx = { segs: [number, number, number, number][]; grid: Map<string, number[]> };
+  let wallIndex = new Map<number, WallIdx>();
+  function indexWalls(lines: XY[][]): WallIdx {
+    const segs: WallIdx['segs'] = [], grid = new Map<string, number[]>();
+    for (const l of lines) for (let k = 0; k + 1 < l.length; k++) {
+      const i = segs.push([l[k][0], l[k][1], l[k + 1][0], l[k + 1][1]]) - 1;
+      for (let gx = Math.floor(Math.min(l[k][0], l[k + 1][0]) / WCELL); gx <= Math.floor(Math.max(l[k][0], l[k + 1][0]) / WCELL); gx++)
+        for (let gy = Math.floor(Math.min(l[k][1], l[k + 1][1]) / WCELL); gy <= Math.floor(Math.max(l[k][1], l[k + 1][1]) / WCELL); gy++) {
+          const key = gx + ',' + gy;
+          if (!grid.has(key)) grid.set(key, []);
+          grid.get(key)!.push(i);
+        }
+    }
+    return { segs, grid };
+  }
+  /** (x, y) moved out to at least d metres from the walls of that level (two passes, for corners). */
+  function clearOfWalls(x: number, y: number, level: number, d: number): XY {
+    const W = wallIndex.get(Math.round(level));
+    if (!W) return [x, y];
+    for (let pass = 0; pass < 2; pass++) {
+      const gx = Math.floor(x / WCELL), gy = Math.floor(y / WCELL), seen = new Set<number>();
+      let px = 0, py = 0, best = 0;
+      for (let ix = gx - 1; ix <= gx + 1; ix++) for (let iy = gy - 1; iy <= gy + 1; iy++)
+        for (const i of W.grid.get(ix + ',' + iy) || []) {
+          if (seen.has(i)) continue;
+          seen.add(i);
+          const [ax, ay, bx, by] = W.segs[i], dx = bx - ax, dy = by - ay, dl = Math.hypot(dx, dy);
+          if (dl < 1e-6) continue;
+          const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dl * dl)));
+          let qx = x - ax - dx * t, qy = y - ay - dy * t, q = Math.hypot(qx, qy);
+          if (q < 1e-4) { qx = -dy / dl; qy = dx / dl; q = 0; } else { qx /= q; qy /= q; }   // on it: out along its normal
+          // the strongest push wins (summing them overshoots at corners and on walls drawn in many short pieces)
+          if (q < d && d - q > best) { best = d - q; px = qx * best; py = qy * best; }
+        }
+      if (!px && !py) break;
+      x += px; y += py;
+    }
+    return [x, y];
+  }
+  function enclose(P: SolidPalette, wallLines: (k: StationSolidWall['kind']) => StationSolidWall[]) {
+    wallIndex = new Map();
+    const walls: THREE.BufferGeometry[] = [];
+    for (const lv of levels) {
+      if (!onLevel(lv.id)) continue;
+      const lines: XY[][] = wallLines('wall').filter((w) => w.level === lv.id).map((w) => w.line);
+      if (lv.id < 0) {
+        // below ground: every edge of the floor, but where it meets the tracks (a platform edge)
+        const tr = solid!.tracks.filter((t) => levelOfZ(t.z + (t.kind === 'tram' ? 0 : 1.1)) === lv.id);
+        const nearTrack = (x: number, y: number) => tr.some((t) => t.line.some((p, k) => k + 1 < t.line.length && segDist(x, y, p, t.line[k + 1]) < 4.5));
+        for (const s of solid!.slabs) {
+          if (s.level !== lv.id || !lineIn(s.rings[0])) continue;
+          // the outline in pieces of at most 2 m: a long edge may run along the tracks for part of its length only
+          const r = s.rings[0], pts: XY[] = [];
+          for (let k = 0; k < r.length; k++) {
+            const p = r[k], q = r[(k + 1) % r.length], n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 2));
+            for (let j = 0; j < n; j++) pts.push([p[0] + (q[0] - p[0]) * j / n, p[1] + (q[1] - p[1]) * j / n]);
+          }
+          let run: XY[] = [];
+          for (let k = 0; k <= pts.length; k++) {
+            const p = pts[k % pts.length], q = pts[(k + 1) % pts.length];
+            if (k < pts.length && !nearTrack((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)) { if (!run.length) run.push(p); run.push(q); }
+            else if (run.length) { lines.push(run); run = []; }
+          }
+        }
+      } else lines.push(...wallLines('edge').filter((w) => w.level === lv.id).map((w) => w.line));
+      const h = roomHeight(lv.id);
+      const open = withDoors(lines, crossings(lv.id, h));
+      wallIndex.set(lv.id, indexWalls(open));
+      if (open.length) walls.push(strip(open.map((line) => ({ line, z: lv.z })), h));
+      if (lv.id < 0) ceiling(P, lv, h);
+    }
+    if (walls.length) {
+      const m = new THREE.Mesh(merged(walls), new THREE.MeshLambertMaterial({ color: P.povWall, side: THREE.DoubleSide }));
+      world!.add(m);
+      occluders.push(m);
+    }
+  }
+  const segDist = (x: number, y: number, a: XY, b: XY) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / Math.max(dx * dx + dy * dy, 1e-9)));
+    return Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t);
+  };
+  // A ceiling over a floor below ground, at the room's height: the floor's outline, open (in the shader) over every
+  // stair, escalator, ramp and lift that goes up from it near the way.
+  const HOLES = 64;
+  function ceiling(P: SolidPalette, lv: StationLevel, h: number) {
+    const gs: THREE.BufferGeometry[] = [];
+    for (const s of solid!.slabs) {
+      if (s.level !== lv.id || !lineIn(s.rings[0])) continue;
+      const g = new THREE.ShapeGeometry(new THREE.Shape(s.rings[0].map(([x, y]) => new THREE.Vector2(x - cx, y - cy))));
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, lv.z * S + h, 0);
+      gs.push(g);
+    }
+    if (!gs.length) return;
+    const holes: THREE.Vector4[] = [], radii: number[] = [];
+    for (const c of solid!.connectors) {
+      // the band of heights round the ceiling (metres) where something passing needs it open: from head height under it
+      const zc = lv.z + h / S, za = zc - 2.4, zb = zc + 0.6;
+      if (c.kind === 'elevator') {
+        if (Math.min(...c.zs) < zc && Math.max(...c.zs) > zc) { holes.push(new THREE.Vector4(c.xy[0] - cx, -(c.xy[1] - cy), c.xy[0] - cx, -(c.xy[1] - cy))); radii.push(1.6); }
+        continue;
+      }
+      for (let k = 0; k + 1 < c.pts.length; k++) {
+        const [x0, y0, z0] = c.pts[k], [x1, y1, z1] = c.pts[k + 1];
+        if (Math.max(z0, z1) < za || Math.min(z0, z1) > zb || Math.abs(z1 - z0) < 0.05) continue;
+        const ta = (za - z0) / (z1 - z0), tb = (zb - z0) / (z1 - z0);
+        const t0 = Math.max(0, Math.min(ta, tb)), t1 = Math.min(1, Math.max(ta, tb));
+        holes.push(new THREE.Vector4(x0 + (x1 - x0) * t0 - cx, -(y0 + (y1 - y0) * t0 - cy), x0 + (x1 - x0) * t1 - cx, -(y0 + (y1 - y0) * t1 - cy)));
+        radii.push((c.width || 1.5) / 2 + 0.6);
+      }
+    }
+    // the ones nearest the way, if there are more than the shader takes
+    if (holes.length > HOLES && route) {
+      const order = holes.map((v, i) => [i, nearRoute(v.x + cx, -v.y + cy)] as const).sort((a, b) => a[1] - b[1]).slice(0, HOLES).map((x) => x[0]);
+      const h2 = order.map((i) => holes[i]), r2 = order.map((i) => radii[i]);
+      holes.length = 0; radii.length = 0; holes.push(...h2); radii.push(...r2);
+    }
+    const n = Math.min(HOLES, holes.length);
+    while (holes.length < HOLES) { holes.push(new THREE.Vector4()); radii.push(0); }
+    // seen from below only: from the floor above it is not there (it would look like a floor of its own)
+    const mat = new THREE.MeshLambertMaterial({ color: P.povCeil, side: THREE.BackSide });
+    mat.customProgramCacheKey = () => 'sx-ceil';
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, { uHole: { value: holes.slice(0, HOLES) }, uHoleR: { value: radii.slice(0, HOLES) }, uHoleN: { value: n } });
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+          varying vec3 vWP; uniform vec4 uHole[${HOLES}]; uniform float uHoleR[${HOLES}]; uniform int uHoleN;`)
+        .replace('void main() {', `void main() {
+          for (int i = 0; i < ${HOLES}; i++) {
+            if (i >= uHoleN) break;
+            vec2 a = uHole[i].xy, ab = uHole[i].zw - uHole[i].xy, p = vWP.xz;
+            float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+            if (length(p - a - ab * t) < uHoleR[i]) discard;
+          }`);
+    };
+    world!.add(new THREE.Mesh(merged(gs), mat));
+  }
   function freeGroup(g: THREE.Object3D) {
     const mats = new Set<THREE.Material>();
     g.traverse((o: SolidDrawn) => { if (o instanceof THREE.InstancedMesh) o.dispose(); if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => mats.add(m)); });
@@ -653,7 +887,11 @@ export async function open(opts: SolidOptions) {
     const bands: THREE.BufferGeometry[] = [], marks: THREE.Matrix4[] = [];
     const lift = new Float32Array(route!.points.length);
     for (const st of route!.steps) if (st.kind !== 'walk' && st.kind !== 'arrive') for (let k = st.from; k <= st.to; k++) lift[k] = 0.22;
-    const P3 = (k: number) => { const [x, y, l] = route!.points[k]; return V(x, y, zOf(l)).setY(zOf(l) * S + 0.03 + lift[k]); };
+    const P3 = (k: number) => {
+      const [x0, y0, l] = route!.points[k];
+      const [x, y] = lift[k] ? [x0, y0] : clearOfWalls(x0, y0, l, 0.55);   // on stairs it stays on them
+      return V(x, y, zOf(l)).setY(zOf(l) * S + 0.03 + lift[k]);
+    };
     let next = 2, run = 0;
     const q = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
     for (let k = 0; k + 1 < route!.points.length; k++) {
@@ -1019,6 +1257,7 @@ export async function open(opts: SolidOptions) {
     labelsEl.textContent = '';
     labels = [];
     beacon = null;
+    occAt = 0;   // new labels: which are behind a wall is checked at once
     const add = (text: string, x: number, y: number, z: number, cls: string, prio: number, opts2: SolidLabelOptions = {}) => {
       const el = document.createElement('div');
       el.className = 'sx-label ' + cls;
@@ -1174,7 +1413,8 @@ export async function open(opts: SolidOptions) {
     if (s.mode === 'train' && s.ref) return `Platform ${s.ref}`;
     return `${s.mode === 'tram' ? 'Tram' : 'Bus'} ${String(s.name).replace(/^[^,]*,\s*/, '')}${s.ref ? ' ' + s.ref : ''}`;
   };
-  const tmp = new THREE.Vector3();
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), ray = new THREE.Raycaster();
+  let occAt = 0, occTimer = 0;
   function placeLabels() {
     if (labelsDirty) makeLabels();
     // in a lift or on an escalator, the sign rides along with the walker (or with you)
@@ -1183,11 +1423,24 @@ export async function open(opts: SolidOptions) {
     const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
     const camDist = camera.position.distanceTo(controls.target);
     const shown: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    // first person: a label behind a wall or a shop is not shown (checked four times a second, not every frame)
+    const now = performance.now(), check = pov && occluders.length > 0 && now - occAt > 250;
+    if (check) occAt = now;
+    else if (pov && !occTimer) occTimer = window.setTimeout(() => { occTimer = 0; request(); }, 260);   // once still, checked again
     for (const L of labels) {
       tmp.copy(L.pos).project(camera);
       let ok = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05;
       if (ok && L.near && camDist > L.near * 2.2 && !pov) ok = false;
       if (ok && pov && L.prio < 99 && (camera.position.distanceTo(L.pos) > (L.near ? 45 : 90) || Math.abs(L.z * S - (camera.position.y - EYE)) > 2.8)) ok = false;
+      if (ok && check && L.prio < 99) {
+        // only the labels that would show are tested against the walls and shops
+        const d = L.pos.distanceTo(camera.position);
+        // aimed at eye height under the label (a label hangs above the walls; what is between you and its place counts)
+        ray.set(camera.position, tmp2.set(L.pos.x, Math.min(L.pos.y, camera.position.y), L.pos.z).sub(camera.position).normalize());
+        ray.far = Math.max(0.1, d - 0.5);
+        L.behind = ray.intersectObjects(occluders, false).length > 0;
+      }
+      if (ok && pov && L.behind) ok = false;
       if (ok && L.z * S > CUT.uCutY.value) ok = false;
       if (ok && L.prio < 80 && cutHere(L.pos)) ok = false;
       const x = (tmp.x + 1) / 2 * w, y = (1 - tmp.y) / 2 * h;
@@ -1508,7 +1761,7 @@ export async function open(opts: SolidOptions) {
     if (pose.i !== stepIdx || cueNext) { cueNext = false; cue(pose.i); }
     else if (now - labelTick > 400) { labelTick = now; refreshBeacon(); }   // "In 30 m"
     if (pov) {
-      povLook(pose.p.clone().setY(pose.p.y - ROUTE_Y + EYE), pose.along, pose.dir == null, dt);
+      povLook(eyeAt(pose.p, dt), pose.along, pose.dir == null, dt);
       const st = route!.steps[pose.i];
       if (st && st.kind === 'elevator') liftShow(st, levelOfZ((pose.p.y - ROUTE_Y) / S));
       else liftHide();
@@ -1571,7 +1824,7 @@ export async function open(opts: SolidOptions) {
   function povJump(i: number) {
     if (!route) return;
     const st = route.steps[i], [x, y, l] = route.points[st.from];
-    const eye = V(x, y, zOf(l)).setY(zOf(l) * S + EYE);
+    const eye = eyeAt(V(x, y, zOf(l)).setY(zOf(l) * S + ROUTE_Y));
     // look along the way: the first point ahead that is not straight up or down (a lift) — this step's or a later one
     aimAlong(st.from);
     const pc = timeline.find((t) => t.i === i);
@@ -1591,6 +1844,17 @@ export async function open(opts: SolidOptions) {
       if (Math.hypot(x2 - x, y2 - y) > 1) { povDir.set(x2 - x, 0, -(y2 - y)).normalize(); return; }
     }
     alongPlatform();
+  }
+  /** The eye over a point of the way (world, at ROUTE_Y), kept 0.7 m off the walls; the push is smoothed (dt), or set at
+   *  once (no dt). */
+  const eyeOff = new THREE.Vector2();
+  function eyeAt(p: THREE.Vector3, dt?: number) {
+    const x = p.x + cx, y = -p.z + cy, level = levelOfZ((p.y - ROUTE_Y) / S);
+    const st = route && stepIdx >= 0 ? route.steps[stepIdx] : null;
+    const [x2, y2] = st && st.kind !== 'walk' && st.kind !== 'arrive' ? [x, y] : clearOfWalls(x, y, level, 0.7);
+    const k = dt == null ? 1 : 1 - Math.exp(-dt * 6);
+    eyeOff.x += (x2 - x - eyeOff.x) * k; eyeOff.y += (y2 - y - eyeOff.y) * k;
+    return new THREE.Vector3(p.x + eyeOff.x, p.y - ROUTE_Y + EYE, p.z - eyeOff.y);
   }
   function lookFrom(eye: THREE.Vector3) {
     settle();
@@ -1736,7 +2000,7 @@ export async function open(opts: SolidOptions) {
         return [n, r && !r.incomplete && r.toSectors && r.toSectors.length ? r.seconds : Infinity];
       })),
     reset: () => { halt(); if (pov && route) povJump(Math.max(0, stepIdx)); else if (stepIdx >= 0) step(stepIdx); else whole(); },
-    dispose: () => { disposed = true; playing = false; if (stepper) clearInterval(stepper); cancelAnimationFrame(raf); clearTimeout(glowTimer);
+    dispose: () => { disposed = true; playing = false; clearTimeout(occTimer); wallIndex.clear(); if (stepper) clearInterval(stepper); cancelAnimationFrame(raf); clearTimeout(glowTimer);
       for (const g of [activeGroup, you, walker]) if (g) freeGroup(g); document.removeEventListener('visibilitychange', onVisible); if (world) freeGroup(world); if (routeGroup) freeGroup(routeGroup); dropTrain();
       textures.chevron.dispose(); textures.stripe.dispose(); ro.disconnect(); mq.removeEventListener('change', onScheme); controls.dispose(); renderer.dispose(); mount.removeChild(renderer.domElement); mount.removeChild(labelsEl); mount.removeChild(liftEl); },
     /** Tests: the camera on (x, y) of a level, from dist metres at elev degrees, from the compass bearing yaw. */
