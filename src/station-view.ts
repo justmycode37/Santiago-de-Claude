@@ -17,7 +17,7 @@ interface SolidUserState {
   level?: number | null; levelProb?: number | null; levelProbs?: Record<string, number> | null; sure?: boolean;
   acc?: number; mode?: 'route' | 'free'; step?: number; offRouteSec?: number; follow: boolean;
 }
-interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null }
+interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null; playing?: boolean }
 interface SolidLevel { id: number; z: number; name: string }
 interface SolidView {
   model: StationModel;
@@ -43,6 +43,10 @@ interface SolidView {
   clearTrain?(role?: SolidTrainInput['role']): void;
   follow?(on: boolean): void;
   locate?(): void;
+  /** The play-through (a walker going the way, the camera behind it). */
+  play?(): void;
+  pause?(): void;
+  readonly playing?: boolean;
   reset(): void;
   dispose(): void;
   _debug(): Record<string, unknown>;
@@ -162,6 +166,8 @@ const ICON: Record<string, string> = {
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   whole: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
   alert: '<path d="M12 3l9.5 17H2.5z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   me: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/>',
@@ -449,6 +455,7 @@ function render() {
     g.append(el('div', 'stv-legend', ...([['stv-lg-up', 'Escalator up'], ['stv-lg-down', 'Escalator down'], ['stv-lg-stairs', 'Stairs'], ['stv-lg-lift', 'Lift'], ['stv-lg-route', 'Your way']] as const)
       .map(([c, t]) => el('span', null, el('i', c), t))));
     bar.append(btn('stv-btn stv-primary', null, () => goStep(0), 'Start ›'));
+    if (!r.same) bar.append(playBtn(v, false));
   } else {
     const s = r.steps[step];
     const row = el('div', 'stv-step' + (s.warn ? ' warn' : ''), stepIcon(s), el('div', 'stv-step-main', el('div', 'stv-text', s.text), el('div', 'stv-meta', stepMeta(s, step, n))));
@@ -458,8 +465,21 @@ function render() {
     bar.append(btn('stv-btn', 'Previous step', () => goStep(step - 1), '‹'));
     bar.append(step < n - 1 ? btn('stv-btn stv-primary', null, () => goStep(step + 1), 'Next ›')
       : btn('stv-btn stv-primary', null, () => emit('done', { route: r }), 'Done'));
+    if (step < n - 1 || lastChange.playing) bar.append(playBtn(v, !!lastChange.playing));
   }
   bar.append(el('span', 'stv-grow'));
+  // where you are: shown when the position is known; a tap follows you (and again stops following)
+  if (v.locate && v.follow) {
+    const me = btn('stv-btn stv-icon stv-me', 'Follow my position', () => {
+      const on = !(v.user && v.user.follow);
+      v.follow!(on);
+      if (on) v.locate!();
+    }, icon('me', 18));
+    me.hidden = !(v.user && v.user.visible);
+    me.setAttribute('aria-pressed', v.user && v.user.follow ? 'true' : 'false');
+    me.classList.toggle('on', !!(v.user && v.user.follow));
+    bar.append(me);
+  }
   const lb = btn('stv-btn stv-icon', listOpen ? 'Hide all steps' : 'All steps', () => { listOpen = !listOpen; render(); }, icon('list', 18));
   lb.setAttribute('aria-expanded', listOpen ? 'true' : 'false');
   bar.append(lb);
@@ -473,6 +493,13 @@ function render() {
     });
     g.append(ol);
   }
+}
+// ▶ plays the way through (a walker, the camera behind it, the steps as it reaches them); ❚❚ stops it where it is
+function playBtn(v: SolidView, on: boolean) {
+  const b = btn('stv-btn stv-icon stv-play', on ? 'Pause the play-through' : 'Play the way through', () => { if (v.playing) v.pause!(); else v.play!(); }, icon(on ? 'pause' : 'play', 18));
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!v.play) b.hidden = true;
+  return b;
 }
 function endName(r: StationRouteResult) {
   const s = r.toStop, to = cur && cur.opts.to;
@@ -747,6 +774,8 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
 // ------------------------------------------------------------------ you
 function renderYou(u: SolidUserState) {
   if (!ui || !view) return;
+  const me = ui.guide.querySelector<HTMLButtonElement>('.stv-me');
+  if (me) { me.hidden = !(u && u.visible); me.setAttribute('aria-pressed', u && u.follow ? 'true' : 'false'); me.classList.toggle('on', !!(u && u.follow)); }
   const probs = (u && u.visible && u.levelProbs) || {};
   for (const b of ui.floors.querySelectorAll<HTMLButtonElement>('.stv-floor[data-l]')) {
     const id = +b.dataset.l!, p = (probs as Record<string, number>)[id] || 0;

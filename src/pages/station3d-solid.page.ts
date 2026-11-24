@@ -10,7 +10,7 @@ declare global {
 interface SolidPageElements {
   view: HTMLElement; title: HTMLElement; journey: HTMLSelectElement; sum: HTMLElement; floors: HTMLElement;
   stepText: HTMLElement; stepMeta: HTMLElement; attrib: HTMLElement; fail: HTMLElement;
-  prev: HTMLButtonElement; next: HTMLButtonElement; wholeBtn: HTMLButtonElement; stretch: HTMLButtonElement;
+  prev: HTMLButtonElement; next: HTMLButtonElement; play: HTMLButtonElement; wholeBtn: HTMLButtonElement; stretch: HTMLButtonElement;
 }
 /** A journey of the menu: its label, its two ends and its preferences (comma-separated), as in the page's address. */
 type SolidPreset = [label: string, from: string, to: string, prefs: string];
@@ -90,9 +90,13 @@ $('journey').onchange = () => {
 $('prev').onclick = () => view!.prev();
 $('next').onclick = () => view!.route && view!.next();
 $('wholeBtn').onclick = () => view!.whole();
+$('play').onclick = () => (view!.playing ? view!.pause() : view!.play());
 $('stretch').onclick = () => { const s = view!.stretch > 1.5 ? 1 : 2.2; view!.setStretch(s); $('stretch').textContent = `↕ ${s}×`; };
 
-function sync({ route, step, focusLevel }: SolidChange) {
+function sync({ route, step, focusLevel, playing }: SolidChange) {
+  $('play').textContent = playing ? '❚❚' : '▶';
+  $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play the way');
+  $('play').disabled = !route || !!route.same;
   const used = new Set(route ? route.points.map((p) => Math.round(p[2])) : []);
   for (const b of $('floors').querySelectorAll<HTMLButtonElement>('button[data-l]')) {
     b.classList.toggle('used', used.has(+b.dataset.l!));
@@ -158,3 +162,25 @@ if (q.get('train')) {
 }
 // ?step=last (or a number): open at that step of the way
 if (q.get('step') && view!.route) view!.step(q.get('step') === 'last' ? view!.route.steps.length - 1 : +q.get('step')!);
+// ?simulate=4: a made-up position walks the way at 1.3 m/s × 4, a fix a second with 3 m of noise, as the indoor
+// position would feed it (the step card and the sign follow it); &follow=1 has the camera follow it too.
+if (q.get('simulate') && view!.route) {
+  const r = view!.route, k = Math.max(1, +q.get('simulate')! || 1);
+  let m = 0;
+  const at = (d: number): [number, number, number] => {
+    const D = r.dists, p = r.points;
+    let i = 0;
+    while (i + 2 < D.length && D[i + 1] < d) i++;
+    const t = D[i + 1] > D[i] ? Math.min(1, Math.max(0, (d - D[i]) / (D[i + 1] - D[i]))) : 1;
+    return [p[i][0] + (p[i + 1][0] - p[i][0]) * t, p[i][1] + (p[i + 1][1] - p[i][1]) * t, Math.round(p[i][2] + (p[i + 1][2] - p[i][2]) * t)];
+  };
+  const fix = () => {
+    const [x, y, l] = at(m), [x2, y2] = at(m + 3);
+    const heading = (Math.atan2(x2 - x, y2 - y) * 180 / Math.PI + 360) % 360;
+    view!.setUser({ xy: [x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3], level: l, levelSure: true, accuracy: 5, heading });
+    m = Math.min(r.length, m + 1.3 * k);
+  };
+  fix();
+  if (q.get('follow')) view!.follow(true);
+  setInterval(fix, 1000);
+}
