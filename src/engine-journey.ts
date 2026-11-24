@@ -296,10 +296,13 @@ const byDeparture = (a: Journey, b: Journey) => a.dep - b.dep;
 const ridesOf = (j: { legs: KanteLeg[] }) => j.legs.filter((l): l is KanteRideLeg => l.type === 'ride')
   .map((l) => `${l.tripId}|${l.serviceDate}|${l.from.seq}|${l.to.seq}`).join(' ');
 
-// fromLL: [lng, lat]; dest: a search result ({ lngLat }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
-function request(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null) {
+// fromLL: [lng, lat]; dest: a search result ({ lngLat, kanteId }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
+// A station found by the engine's search goes as its id: the trip then ends at the station, not at a door near its middle
+function request(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null; kanteId?: string } | null | undefined, query?: KanteTimeQuery | null) {
   if (!fromLL || !dest || !dest.lngLat) return null;
-  const body: PlanBody = { from: { lat: fromLL[1], lon: fromLL[0] }, to: { lat: dest.lngLat[1], lon: dest.lngLat[0] }, options: options() };
+  const to: KantePlaceRef = { lat: dest.lngLat[1], lon: dest.lngLat[0] };
+  if (dest.kanteId && dest.kanteId.startsWith('st:')) to.id = dest.kanteId;
+  const body: PlanBody = { from: { lat: fromLL[1], lon: fromLL[0] }, to, options: options() };
   const { mode, date, time } = query || {};
   if (date || time) {
     const now = new Date();
@@ -328,7 +331,7 @@ async function ask(body: KantePlanRequest) {
  * found none (or the trip has no end yet). Throws a KanteError when the engine is off or cannot be reached.
  * fromLL: where from; dest: a search result.
  */
-async function plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null): Promise<JourneyOptions | null> {
+async function plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null; kanteId?: string } | null | undefined, query?: KanteTimeQuery | null): Promise<JourneyOptions | null> {
   const body = request(fromLL, dest, query);
   if (!body) return null;
   const res = await ask(body);

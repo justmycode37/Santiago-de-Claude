@@ -12,6 +12,7 @@
 //                         about once a second: recording all of it takes hours)
 //     --pace <ms>         with --record --photon: the time between two requests to Photon (3000)
 //     --group <g>         only the cases of group g (stop, address, …)
+//     --style <s>         with --show: only cases typed in style s (typo, descriptive, …)
 //     --show <n>          list n cases the page gets wrong (first right answer not in the 3 rows shown)
 //     --system <s>        with --show: 'site' (the default) or 'kante'
 //     --judge-out <file>  write the result lists not judged yet (judged/*.jsonl) for the judges to grade (JSONL)
@@ -38,6 +39,7 @@ const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? ar
 const RECORD = args.includes('--record');
 const PHOTON = args.includes('--photon');
 const GROUP = opt('--group');
+const STYLE = opt('--style');
 const SHOW = Number(opt('--show') || 0);
 const SHOW_SYSTEM = (opt('--system') || 'site') as SystemName;
 
@@ -158,8 +160,20 @@ fake('map-places.ts', { PLACES: sandbox.window.MAP_PLACES, loadPlaces: () => Pro
   GROUP_BY_KEY: Object.fromEntries(MAP_LAYERS.GROUPS.map((g: { key: string }) => [g.key, g])) });
 fake('live-vehicles.ts', { fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`) });
 fake('routing.ts', { distKm });
+// the stops' platforms as src/app/platforms.ts indexes platforms.js (platformKey() copied from there)
+const platformKey = (p: string | number | null | undefined) => {
+  const s = String(p || '').toUpperCase().replace(/^(GLEIS|GL\.|KANTE|QUAI|VOIE|BINARIO|STEG|PERRON)\s*/, '').trim();
+  const digits = /^\d+/.exec(s);
+  return digits ? digits[0] : s.replace(/[^0-9A-Z]/g, '');
+};
+const pf: { window: { PLATFORM_DATA?: PlatformData } } = { window: {} };
+vm.runInNewContext(fs.readFileSync(new URL('platforms.js', ROOT), 'utf8'), pf);
+const PLATFORM_MODES: Record<string, string> = { t: 'train', m: 'tram', b: 'bus', s: 'boat', c: 'cable' };
+const PLATFORMS = new Map(Object.entries(pf.window.PLATFORM_DATA!.stops).map(([id, [name, m, raw]]) => [id, { name, mode: PLATFORM_MODES[m] || 'bus',
+  edges: raw.map(([x, y, ref = '']) => ({ ref: ref || '', key: platformKey(ref), ll: [x / 1e5, y / 1e5] as LngLat })) }]));
+fake('platforms.ts', { PLATFORMS, platformKey });
 Object.assign(globalThis, {
-  window: globalThis, APP_CONFIG: {}, fetch: replayFetch,
+  window: globalThis, APP_CONFIG: {}, fetch: replayFetch, location: { search: '' }, // the engine's client (src/engine.ts) reads the page's address
   document: { getElementById: element, createElement: element, head: element() },
   maplibregl: { Marker: class { setLngLat() { return this; } addTo() { return this; } remove() { return this; } } },
 });
@@ -304,7 +318,7 @@ if (base) {
 }
 
 if (SHOW) {
-  const wrong = cases.filter((c) => { const x = ranks[SHOW_SYSTEM][c.id]; return x == null || x > 3; }).slice(0, SHOW);
+  const wrong = cases.filter((c) => { const x = ranks[SHOW_SYSTEM][c.id]; return (!STYLE || c.style === STYLE) && (x == null || x > 3); }).slice(0, SHOW);
   console.log(`\n${wrong.length} cases ${SHOW_SYSTEM === 'site' ? 'the page' : 'Kante'} gets wrong:`);
   for (const c of wrong) {
     console.log(`\n  ${c.id}  ${JSON.stringify(c.q)}  (right within ${c.m} m of ${c.src}; map at ${c.at.join(', ')})  rank ${ranks[SHOW_SYSTEM][c.id] ?? '–'}`);
