@@ -28,7 +28,8 @@ repo=$ROOT/repo
 # shellcheck disable=SC1091
 [[ -f $ROOT/config.env ]] && . "$ROOT/config.env"
 PORT=${KANTE_PORT:-8080}
-built=0
+built=0   # a release was tried this run
+live=0    # ... and is running
 
 # --- terrain model (an optional input, so never a reason to stop: without it walks are timed as if flat)
 dem=$ROOT/raw/dem/swissaltiregio.tif
@@ -53,7 +54,7 @@ if (( now )) || [[ $dow == 1 || $dow == 4 || $running != "$want" ]]; then
   if KANTE_RAW=$ROOT/raw "$repo/kante/scripts/fetch-data.sh" --refresh; then
     log "building a release with the new data"
     built=1   # tried: a release that failed is not tried again right after for the terrain model
-    KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force || log "the release with the new data failed; the running engine is untouched"
+    KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force && live=1 || log "the release with the new data failed; the running engine is untouched"
   else
     log "download failed; keeping the data there is"
   fi
@@ -61,13 +62,14 @@ fi
 
 if (( terrain && ! built )); then
   log "the running engine has no slopes: building a release with the terrain model"
-  KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force || log "the release with the terrain model failed; the running engine is untouched"
+  KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force && live=1 || log "the release with the terrain model failed; the running engine is untouched"
 fi
-# built with the terrain model and still no slopes: the build could not read it (`kante build` says why in the
-# deploy log). Put aside, so that it is not built with again every night, and fetched again in a week.
-if (( terrain )) && [[ -s $dem && $(sloped) == 0 ]]; then
+# a release built with the terrain model is running, and still has no slopes: the build could not read it (`kante
+# build` says why in the deploy log). Put aside, so that it is not built with again every night, and fetched again in
+# a week (from now: the marker's time). A release that failed says nothing about the model: it stays.
+if (( terrain && live )) && [[ -s $dem && $(sloped) == 0 ]]; then
   log "the engine built with the terrain model has no slopes: putting $dem aside"
-  mv -f "$dem" "$dem.rejected" || true
+  mv -f "$dem" "$dem.rejected" && touch "$dem.rejected" || true
 fi
 
 # --- learned travel and dwell times

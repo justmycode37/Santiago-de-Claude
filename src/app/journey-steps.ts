@@ -416,6 +416,13 @@ export function journeyEnd() {
   return a && a.time != null ? a.time : journey.conn!.t1;
 }
 // Spare time on a change: from getting off to the next departure, less the walk
+/** Seconds there are to walk a change in, after the extra change time asked for in Settings (null: no times). */
+export function changeRoomS(st: JourneyChangeStep): number | null {
+  const dep = liveMs(st.next.from, 'dep'), arr = liveMs(st.prev.to, 'arr');
+  if (dep == null || arr == null) return null;
+  const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
+  return Math.max(0, (dep - arr) / 1000 - extra * 60);
+}
 export function spareOf(st: JourneyChangeStep) {
   const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
   const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second

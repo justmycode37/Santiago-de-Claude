@@ -154,6 +154,10 @@ pub struct WalkRequest {
     pub to: PlaceRef,
     #[serde(default)]
     pub options: PlanOptions,
+    /// The walk this walker prefers when it takes at most this many seconds, else the quickest (a change asked
+    /// again: what there is time for).
+    #[serde(default)]
+    pub limit_s: Option<f32>,
 }
 
 #[derive(Serialize)]

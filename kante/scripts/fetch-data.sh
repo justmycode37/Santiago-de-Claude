@@ -114,6 +114,7 @@ if (( only_elevation )); then
   head=$(curl -fsSIL --retry 3 -A "$UA" "$DEM_URL") || { echo "error: $DEM_URL does not answer" >&2; exit 1; }
   size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9' || true)
   etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r' || true)
+  [[ $etag == W/* ]] && etag=''   # a weak one cannot vouch for the bytes of a range: no resuming
   if [[ -z $size ]] || (( size <= 0 )); then
     echo "error: $DEM_URL gives no size: not fetching 10 GB that cannot be checked" >&2
     exit 1
@@ -129,11 +130,14 @@ if (( only_elevation )); then
   if (( have < size )); then
     echo "fetch $dest (10 GB)"
     # resumed only from the same edition: the server refuses the range (412) when the file is another one
-    code=$(curl -fSL --retry 5 -C - -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || {
-      # another edition, or a range that cannot be resumed: start again next time
-      if [[ $code == 412 || $code == 416 ]]; then rm -f "$dest.part" "$dest.part.etag"; fi
+    rc=0
+    code=$(curl -fSL --retry 5 -C - -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
+    if (( rc )); then
+      # another edition (412), a range that cannot be resumed (416), or a server that ignores ranges (curl 33): start
+      # again next time
+      if [[ $code == 412 || $code == 416 ]] || (( rc == 33 )); then rm -f "$dest.part" "$dest.part.etag"; fi
       exit 1
-    }
+    fi
   fi
   got=$(stat -c %s "$dest.part" 2>/dev/null || echo 0)
   if [[ $got != "$size" ]] || ! dem_ok "$dest.part"; then

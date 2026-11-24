@@ -234,7 +234,8 @@ type KantePlanRequest = {
 };
 /** A plan request as the app sends it: always with the traveller's routing options. */
 type KantePlanBody = KantePlanRequest & { options: KanteRoutingOptions };
-type KanteWalkRequest = { from: KantePlaceRef; to: KantePlaceRef; options?: KantePlanOptions };
+/** `limitS`: the walk this walker prefers when it takes at most that long, else the quickest (a change, re-asked). */
+type KanteWalkRequest = { from: KantePlaceRef; to: KantePlaceRef; options?: KantePlanOptions; limitS?: number };
 
 /** One written direction of a walk; `from`..`to` are its part of the walk's `geometry` (indices). */
 interface KanteWalkStep {

@@ -581,7 +581,22 @@ impl App {
         };
         // a walk drawn longer than the time there is, and than the footpath's time (which times the quickest walk when
         // the preferred one is over its bound): the quickest within the time, timed as the footpath says
-        let fitted = (w.drawn_s.is_some_and(|d| d > room && d > w.duration_s)).then(|| walk(profile.hills)).filter(|o| !o.approximate && o.drawn_s.is_some());
+        let fitted = (w.drawn_s.is_some_and(|d| d > room && d > w.duration_s))
+            .then(|| walk(profile.hills))
+            .filter(|o| !o.approximate && o.drawn_s.is_some())
+            .map(|mut o| {
+                // even the quickest is longer than the time there is: timed as drawn, so that the change says it is
+                // missed. Not where the timetable gives a minimum change time: the walk is drawn between the
+                // platforms' registry points, which can lie far apart, and that time is what people walk
+                if o.official_min_s.is_none() {
+                    let d = o.drawn_s.unwrap_or(o.duration_s);
+                    if d > room && d > o.duration_s {
+                        o.duration_s = d;
+                        o.arr = o.dep + d;
+                    }
+                }
+                o
+            });
         let w = fitted.as_ref().unwrap_or(w);
         // seconds the flatter way must leave beyond the margin, so that the change is not tight
         let untight = (TIGHT_S - margin).max(0);
@@ -856,7 +871,7 @@ impl App {
             Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })
         };
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);
-        Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
+        Ok(self.walk_leg_within("direct", &ea, &eb, now, now, &profile, req.limit_s.filter(|l| l.is_finite() && *l >= 0.0)))
     }
 }
 

@@ -13,7 +13,7 @@ import { blurSearch, setField, setFollowing, setPlanOpen } from './trip-ends.ts'
 import { armPin, pinMenu } from './pins.ts';
 import { updatePlaces } from './map-places.ts';
 import { jBody, jFoot, jHead, setRoute } from './journey-map.ts';
-import { applyLiveTimes, modeOf } from './journey-steps.ts';
+import { applyLiveTimes, changeRoomS, modeOf } from './journey-steps.ts';
 import { nowMarker, placeUserDot, vehMarker } from './tracking.ts';
 import { fmtDist, platformOf, vehUpdate } from './live-vehicles.ts';
 import { queueSheet, s3Plan, s3Prefs } from './sheet-content.ts';
@@ -99,11 +99,13 @@ interface BrouterAnswer { features?: { geometry: { coordinates: number[][] } }[]
 // door it ends at, its stretches under a roof and its guessed ends. ends: [from, to], what each end is (WalkEnd): a
 // boarding point (by the engine's id), a point taken as it is, or a place (the walk then ends at its door). No path:
 // the straight line with the engine's time for it; no answer (the engine is off or down): the straight line.
-export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd]): Promise<RoutedWalk> {
+// limitS (a change): the seconds there are for it, so that the way the traveller prefers (round a hill) is taken only
+// when it fits, the quickest otherwise.
+export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd], limitS?: number | null): Promise<RoutedWalk> {
   const [from, to] = ends || [{}, {}];
   const place = (p: LngLat, e: WalkEnd): KantePlaceRef => ({ lat: p[1], lon: p[0], ...(e.quay ? { quay: e.quay } : {}), ...(e.exact ? { exact: true } : {}) });
   try {
-    const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options() }));
+    const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options(), ...(limitS != null ? { limitS } : {}) }));
     if (r) return (r.noPath && (await footWalk(a, b, r))) || r;
   } catch (e) { /* the straight line */ }
   return { coords: [a, b], steps: null, dist: null, approx: true };
@@ -280,7 +282,9 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     });
     return;
   }
-  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k]))), (res) => {
+  // a change of one stretch: within the time there is for it (a walk through a station model has its own way)
+  const limit = st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
+  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k], limit))), (res) => {
     if (!current()) return;
     st.lines = res.map((w) => w.coords);
     st.walks = res;
