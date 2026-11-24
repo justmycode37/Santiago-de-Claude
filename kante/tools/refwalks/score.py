@@ -3,6 +3,7 @@
 
     python3 -I score.py --set refwalks.json --engine http://127.0.0.1:8092 --data DATA --bin compare [--out FILE]
         [--time 2026-11-24T23:30]   (every walk asked for at that time: ways closed then are avoided)
+        [--hills ignore]             (the checks were made on the map without heights)
 
 DATA: a data dir whose graph and walkattr.bin `compare metrics` reads (any build of the same OpenStreetMap file: the
 lines are matched by their geometry).
@@ -40,6 +41,7 @@ def main():
         ap.add_argument('--' + k, required=True)
     ap.add_argument('--out')
     ap.add_argument('--time', help='local time, YYYY-MM-DDTHH:MM (Europe/Zurich)')
+    ap.add_argument('--hills', help='normal, avoid or ignore (the checks were made without heights: ignore compares like with like)')
     args = ap.parse_args()
     at = None
     if args.time:
@@ -48,7 +50,7 @@ def main():
     W = json.load(open(args.set, encoding='utf-8'))['walks']
 
     def ask(w):
-        b = {'from': {'lat': w['from'][0], 'lon': w['from'][1]}, 'to': {'lat': w['to'][0], 'lon': w['to'][1]}, 'options': PROFILES[w['profile']]}
+        b = {'from': {'lat': w['from'][0], 'lon': w['from'][1]}, 'to': {'lat': w['to'][0], 'lon': w['to'][1]}, 'options': {**PROFILES[w['profile']], **({'hills': args.hills} if args.hills else {})}}
         if at:
             b['time'] = at
         return post(args.engine, b)
