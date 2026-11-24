@@ -352,7 +352,11 @@ export function createArSession(ride: ArRide) {
       if (d.state === 'wrong') {
         const other = d.other ? display(d.other.line, d.other.destination) : '';
         const text = d.reason === 'out_of_service' ? 'Not in service' : other ? `Not yours: ${other}` : 'Not yours';
-        const why = !fresh ? (board ? 'board_stale' : 'no_board') : (d.frames || 0) < L.RED_FRAMES ? 'one_frame_only' : '';
+        // Red only for text that names something: another departure on the board, a stop of the rider's own route
+        // (a short turn), or out of service. A contradiction that names nothing listed ("7 Detrina" for "7 Ostring")
+        // is what correlated misreads of the right display look like (the reading-range bench, docs/ar-reading-range.md).
+        const named = !!d.other || d.reason === 'out_of_service' || d.reason === 'display_short_turn_before_alighting';
+        const why = !fresh ? (board ? 'board_stale' : 'no_board') : (d.frames || 0) < L.RED_FRAMES ? 'one_frame_only' : !named ? 'names_nothing_listed' : '';
         if (why) out.push({ ...base, kind: other || d.reason === 'out_of_service' ? 'neutral' : 'none', text: other ? `Display: ${other}` : d.reason === 'out_of_service' ? 'Display: not in service' : '', reason: why });
         else out.push({ ...base, kind: 'red', text, reason: d.reason });
         continue;

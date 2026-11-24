@@ -672,7 +672,7 @@ private struct CameraVehicleBadge: View {
     var compact = false
     var color: Color {
         switch vehicle.decision.state {
-        case .conflicting: return .red
+        case .conflicting: return vehicle.redFromDisplay ? .red : .secondary
         case .visualCandidate: return .primary // the display matches, nothing more: neutral, never amber
         case .verifiedService: return .green
         case .unknown: return .secondary
@@ -711,8 +711,8 @@ struct LiveCameraGuidanceView: View {
                 LiveCameraSurface(controller: controller, journeyContext: context)
                 GeometryReader { proxy in
                     ForEach(controller.vehicles) { vehicle in
-                        // Green only for verified service, red only from the display; a display match alone is neutral (no amber)
-                        let color: Color = vehicle.decision.state == .conflicting ? .red : vehicle.decision.state == .verifiedService ? .green : .white
+                        // Green only for verified service, red only from a display that names something (no amber)
+                        let color: Color = vehicle.redFromDisplay ? .red : vehicle.decision.state == .verifiedService ? .green : .white
                         Path { path in
                             for run in vehicle.maskRuns {
                                 path.addRect(CGRect(x: run.minX * proxy.size.width, y: run.minY * proxy.size.height,

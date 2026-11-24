@@ -315,6 +315,11 @@ suite('A same-display express timed as departed still blocks green', [
   { at: 1, say: 'a same-display run that may not be boarded here', board: board([...BASE, E('T10y', '10', 'Ostermundigen, Rüti', { servesTo: true, pickup: false })]),
     det: { A: LEFT }, words: { captured: 1, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'neutral' } },
 ]);
+suite('Two frames that contradict the display but name nothing listed: no red (a correlated misread)', [
+  { at: 0, say: 'board; my ride is a 7 to Ostring', board: board([E('T7a', '7', 'Bern, Ostring', { servesTo: true }), ...BASE.slice(1)]), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.6, say: '"7 Detrina"', det: { A: LEFT }, words: { captured: 0.6, on: { A: ['7', 'Detrina'] } }, expect: { A: 'none' } },
+  { at: 1.2, say: '"7 Detria" again: still nothing', det: { A: LEFT }, words: { captured: 1.2, on: { A: ['7', 'Detria'] } }, expect: { A: 'none' } },
+], { line: '7', destination: 'Bern, Ostring', mode: 'tram', tripId: 'T7a', serviceDate: SD });
 suite('Short turn: red after two frames', [
   { at: 0, say: 'a 10 to Zollgasse (before my stop) is due', board: board([...BASE, E('T10s', '10', 'Ostermundigen, Zollgasse', { servesTo: false })]),
     det: { A: LEFT }, expect: { A: 'none' } },
