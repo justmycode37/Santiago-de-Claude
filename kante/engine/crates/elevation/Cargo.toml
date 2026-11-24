@@ -1,0 +1,14 @@
+[package]
+name = "kante-elevation"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+kante-core.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+tiff = { version = "0.11", default-features = false, features = ["lzw", "deflate"] }
+
+[dev-dependencies]
+serde_json.workspace = true

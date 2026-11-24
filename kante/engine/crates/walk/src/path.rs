@@ -177,6 +177,8 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
     let mut pts: Vec<(LatLon, f32)> = Vec::new();
     let mut cost = WalkCost { var_m: 0.0, fix_s: 0.0 };
     let (mut dist_m, mut up, mut down) = (0f32, 0f32, 0f32);
+    let (mut climb_m, mut descent_m) = (0f32, 0f32);
+    let slopes = (g.slopes.len() == g.edges.len()).then_some(&g.slopes);
 
     for leg in legs {
         cost.var_m += leg.var_m;
@@ -215,6 +217,11 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
         let scale = (leg.f1 - leg.f0).abs();
         let d = leg.len_m;
         dist_m += d;
+        if let Some(sl) = slopes {
+            let (u, dn) = sl[leg.edge as usize].climb(rev);
+            climb_m += u * scale;
+            descent_m += dn * scale;
+        }
         pts.clear();
         edge_slice(g, leg.edge, leg.f0, leg.f1, &mut cum, &mut pts);
         let v0 = geometry.len() as u32 - 1;
@@ -346,5 +353,5 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
             _ => covered.push((p.v0, p.v1, c)),
         }
     }
-    WalkPath { cost, dist_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, geometry, levels, steps, covered }
+    WalkPath { cost, dist_m, climb_m, descent_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, geometry, levels, steps, covered }
 }

@@ -9,7 +9,7 @@ lives in `~/kante-host`.
 | `kante-engine.service` | The engine, on `127.0.0.1:8080` only |
 | `kante-tunnel.service` | `cloudflared`, which gives the engine a public HTTPS address without opening a port |
 | `kante-deploy.timer` | Every two minutes, runs `deploy.sh` |
-| `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays) |
+| `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays), the terrain model (once, and a release with it when the running one has no slopes; one the build cannot read is removed and fetched again after a week) |
 
 ## The running instance
 
@@ -34,7 +34,8 @@ git clone https://github.com/justmycode37/Santiago-de-Claude ~/kante-host/repo
 ```
 
 `install.sh` downloads `cloudflared` and the data (about 900 MB), builds the first release and starts the
-services. For live data, put the opentransportdata.swiss key in `~/kante-host/secrets/otd.json` as
+services. `kante-data` adds swisstopo's terrain model the first night (10 GB, once; a download cut short goes on the
+next night) and builds a release with it; until then walks are timed as if flat. For live data, put the opentransportdata.swiss key in `~/kante-host/secrets/otd.json` as
 `{"siri-et": "…"}` (mode 600) before running it, or add it later and restart `kante-engine`.
 
 ## What a deploy does

@@ -75,6 +75,13 @@ pub struct PlanOptions {
     pub stairs: String,
     pub escalators: bool,
     pub wheelchair: bool,
+    /// How much hills matter for the way taken: "ignore" (the quickest way, hills or not), "normal" (a flatter way
+    /// when it is little longer), "avoid" (a flatter way even when it is a few minutes longer). Walking times count
+    /// hills whatever this says.
+    pub hills: String,
+    /// At a change with time to spare, walk a flatter way (as "avoid" would) when it still leaves a minute in
+    /// hand. Not with `hills: "ignore"` or `"avoid"` (that walks the flatter way anyway).
+    pub flatter_changes: bool,
     pub transfer_margin_s: i32,
     pub max_walk_min: f32,
     pub modes: Option<Vec<String>>,
@@ -88,6 +95,8 @@ impl Default for PlanOptions {
             stairs: "ok".into(),
             escalators: true,
             wheelchair: false,
+            hills: "normal".into(),
+            flatter_changes: true,
             transfer_margin_s: 120,
             max_walk_min: 20.0,
             modes: None,
@@ -145,6 +154,10 @@ pub struct WalkRequest {
     pub to: PlaceRef,
     #[serde(default)]
     pub options: PlanOptions,
+    /// The walk this walker prefers when it takes at most this many seconds, else the quickest (a change asked
+    /// again: what there is time for).
+    #[serde(default)]
+    pub limit_s: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -268,6 +281,14 @@ pub struct WalkLeg {
     pub arr: i64,
     pub duration_s: i64,
     pub distance_m: u32,
+    /// Metres climbed and descended (from the terrain model; 0 without one).
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub climb_m: u32,
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub descent_m: u32,
+    /// A change walked a flatter way than the quickest, because there is time for it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flatter: Option<FlatterWay>,
     pub stairs_up: u16,
     pub stairs_down: u16,
     pub lifts: u8,
@@ -312,6 +333,19 @@ pub struct WalkLeg {
     /// The seconds of the walk drawn (not sent): a journey's first and last walks are timed by it.
     #[serde(skip)]
     pub drawn_s: Option<i64>,
+}
+
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FlatterWay {
+    /// Seconds longer than the quickest way.
+    pub extra_s: i64,
+    /// Metres less climbed than on the quickest way.
+    pub less_climb_m: u32,
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
 }
 
 #[derive(Serialize, Clone)]
@@ -507,6 +541,8 @@ pub struct Counts {
     pub doors: usize,
     /// ... of which placed from the official building address register (0 when it was not there at build time).
     pub register_doors: usize,
+    /// Walk edges with a slope from the terrain model (0 without `slopes.bin`: walks timed as if flat).
+    pub sloped_edges: usize,
 }
 
 // ------------------------------------------------------------------ live data (see docs/LIVE-API.md)

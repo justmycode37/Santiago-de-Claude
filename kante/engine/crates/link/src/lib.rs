@@ -105,7 +105,7 @@ mod test_world;
 
 use kante_core::geo::{self, project_on_segment, BBox, LatLon};
 use kante_core::*;
-use kante_walk::{SnapOptions, WalkRouter};
+use kante_walk::{SnapOptions, WalkCost, WalkRouter};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -827,14 +827,30 @@ fn footpaths(tt: &Timetable, router: &WalkRouter, links: &[StopLink], profile: &
                 let targets: Vec<StopIdx> = near.iter().copied().filter(|&t| links[t as usize].matched != LinkMatch::None).collect();
                 let snaps: Vec<Snap> = targets.iter().map(|&t| links[t as usize].snap).collect();
                 let costs = router.one_to_many(&from.snap, &snaps, profile, max_s);
-                for (k, c) in costs.into_iter().enumerate() {
-                    let Some(c) = c else { continue };
+                let mut push = |k: usize, c: WalkCost, out: &mut Vec<(StopIdx, u16, u16)>| {
                     let var = c.var_m + from.snap.dist_m + snaps[k].dist_m;
                     if walk_secs(var, c.fix_s, profile.speed_mps) > max_s {
-                        continue;
+                        return false;
                     }
                     reached.insert(targets[k]);
                     out.push((targets[k], var.ceil().min(65535.0) as u16, c.fix_s.ceil().min(65535.0) as u16));
+                    true
+                };
+                let mut left: Vec<usize> = Vec::new();
+                for (k, c) in costs.into_iter().enumerate() {
+                    if !c.is_some_and(|c| push(k, c, &mut out)) {
+                        left.push(k);
+                    }
+                }
+                // a stop the walk this walker prefers does not reach in time (a steep climb feels longer than it
+                // takes, and the search is bounded by how it feels): the quickest walk, when that is in time
+                if !left.is_empty() {
+                    let sub: Vec<Snap> = left.iter().map(|&k| snaps[k]).collect();
+                    for (j, r) in router.quickest_many(&[(from.snap, 0.0, 0.0)], &sub, profile, max_s).into_iter().enumerate() {
+                        if let Some((_, c)) = r {
+                            push(left[j], c, &mut out);
+                        }
+                    }
                 }
             }
             // Never lose a change inside one station, or around a stop that has
@@ -908,7 +924,7 @@ pub fn link(tt: &Timetable, router: &WalkRouter, extract: &OsmExtract, opts: &Li
 
     let normal = footpaths(tt, router, &links, &WalkProfile::normal(DEFAULT_SPEED_MPS), opts.max_transfer_s, None);
     let step_free = footpaths(tt, router, &links, &WalkProfile::step_free(DEFAULT_SPEED_MPS), opts.max_transfer_s, Some(&normal));
-    LinkData { links, normal, step_free, graph: graph_fingerprint(router.graph()), timetable: tt.stops_fingerprint() }
+    LinkData { links, normal, step_free, graph: graph_fingerprint(router.graph()), timetable: tt.stops_fingerprint(), slopes: slopes_fingerprint(&router.graph().slopes) }
 }
 
 /// Human-readable summary of how well the linking went, for the build log.

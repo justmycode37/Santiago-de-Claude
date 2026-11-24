@@ -87,7 +87,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
         valid_to: time::fmt_date(tt.end_date()),
         walk_bbox: [b.min.lon_deg(), b.min.lat_deg(), b.max.lon_deg(), b.max.lat_deg()],
         realtime: app.live.read().meta.clone(),
-        features: vec!["match", "due", "stream", "extras", "gtfs-rt", "identify", "quay-sloid"],
+        features: vec!["match", "due", "stream", "extras", "gtfs-rt", "identify", "quay-sloid", "hills"],
         counts: json::Counts {
             stations: tt.stations.len(),
             quays: tt.stops.len(),
@@ -95,8 +95,9 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
             walk_edges: app.walk.as_ref().map(|w| w.graph().edges.len()).unwrap_or(0),
             doors: app.doors.as_ref().map(|d| d.doors.doors.len()).unwrap_or(0),
             register_doors: app.doors.as_ref().map(|d| d.register_doors).unwrap_or(0),
+            sloped_edges: app.walk.as_ref().map(|w| w.graph().slopes.iter().filter(|s| s.up_dm > 0 || s.down_dm > 0).count()).unwrap_or(0),
         },
-        attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map: © swisstopo"],
+        attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map and heights: © swisstopo"],
         commit: BUILD_COMMIT,
         release: release(),
     })
@@ -518,7 +519,7 @@ async fn reach(State(app): S, Json(req): Json<ReachRequest>) -> Result<Json<serd
         let profile = crate::plan::profile_from(&req.options);
         let ep = app.resolve(&req.from)?;
         let max_s = (req.options.max_walk_min.clamp(1.0, 90.0) * 60.0) as time::Secs;
-        let r = app.reach(&ep, &profile, max_s);
+        let r = app.reach(&ep, &profile, max_s, false);
         // [quay id, seconds, how: station | point | door | line]
         let stops: Vec<(String, time::Secs, &str)> = r.stops.iter().map(|&(s, t)| (app.tt.stops[s as usize].gtfs_id.clone(), t, r.via.get(&s).copied().unwrap_or(""))).collect();
         Ok(serde_json::json!({ "stops": stops }))

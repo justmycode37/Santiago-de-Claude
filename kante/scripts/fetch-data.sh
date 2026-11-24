@@ -4,6 +4,7 @@
 #
 #   scripts/fetch-data.sh [--refresh]
 #   scripts/fetch-data.sh --register   only the building address register, if it is not there yet
+#   scripts/fetch-data.sh --elevation  only the terrain model (10 GB), if it is not there yet
 #
 # Sources (all open, no key needed):
 #   - National GTFS timetable   opentransportdata.swiss (updated Mon + Thu; the
@@ -12,6 +13,9 @@
 #   - OpenStreetMap Switzerland  download.geofabrik.de   (daily)
 #   - Building address register  data.geo.admin.ch (swisstopo, weekly; optional: the doors of
 #                                buildings OpenStreetMap maps without one)
+#   - Terrain model              data.geo.admin.ch (swisstopo swissALTIRegio, 10 m, yearly; optional,
+#                                --elevation only: the hills walks climb. Without it walks are timed as
+#                                if flat. Never fetched again once there, not even with --refresh)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,6 +23,8 @@ refresh=0
 [[ "${1:-}" == "--refresh" ]] && refresh=1
 only_register=0
 [[ "${1:-}" == "--register" ]] && only_register=1
+only_elevation=0
+[[ "${1:-}" == "--elevation" ]] && only_elevation=1
 
 OTD=https://data.opentransportdata.swiss
 RAW=${KANTE_RAW:-data/raw}
@@ -88,6 +94,79 @@ register() {
 }
 if (( only_register )); then
   register
+  exit 0
+fi
+
+# swisstopo's terrain model, swissALTIRegio (10 m, a cloud-optimised GeoTIFF of 10 GB): what kante build's
+# `elevation` step reads. Downloaded once; a download cut short is resumed, but only from the same edition (its
+# ETag), and the file is used only when it has the size the server gives.
+DEM_URL=https://data.geo.admin.ch/ch.swisstopo.swissaltiregio/swissaltiregio/swissaltiregio_2056_5728.tif
+dem_ok() { # a little-endian BigTIFF of at least 5 GB
+  [[ -s $1 ]] && [[ $(head -c 4 "$1" | od -An -tx1 | tr -d ' \n') == 49492b00 ]] && (( $(stat -c %s "$1") > 5000000000 ))
+}
+if (( only_elevation )); then
+  dest=$RAW/dem/swissaltiregio.tif
+  if dem_ok "$dest"; then
+    echo "have  $dest"
+    exit 0
+  fi
+  mkdir -p "$RAW/dem"
+  head=$(curl -fsSIL --retry 3 -A "$UA" "$DEM_URL") || { echo "error: $DEM_URL does not answer" >&2; exit 1; }
+  # the headers of the last answer only (a redirect's come first)
+  head=$(awk '/^HTTP\//{b=""} {b=b $0 "\n"} END{printf "%s", b}' <<<"$head")
+  size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9' || true)
+  etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r' || true)
+  [[ $etag == W/* ]] && etag=''   # a weak one cannot vouch for the bytes of a range: no resuming
+  if [[ -z $size ]] || (( size <= 0 )); then
+    echo "error: $DEM_URL gives no size: not fetching 10 GB that cannot be checked" >&2
+    exit 1
+  fi
+  # a part of another edition (or of one without an ETag), or longer than the file, is not resumed; one that is all
+  # there needs no more (resuming it would be refused, 416, every time)
+  have=$(stat -c %s "$dest.part" 2>/dev/null || echo 0)
+  if [[ -e $dest.part ]] && { [[ -z $etag ]] || [[ "$(cat "$dest.part.etag" 2>/dev/null)" != "$etag" ]] || (( have > size )); }; then
+    rm -f "$dest.part"
+    have=0
+  fi
+  echo "$etag" > "$dest.part.etag"
+  # room for the rest of it, and beside it for what the timetable, the map and a release need (KANTE_DEM_RESERVE
+  # bytes, 20 GB unless said): an optional input never fills the disk the engine needs
+  reserve=${KANTE_DEM_RESERVE:-20000000000}
+  avail=$(df --output=avail -B1 "$RAW/dem" 2>/dev/null | tail -n 1 | tr -dc '0-9' || true)
+  if (( have < size )) && [[ -z $avail ]]; then
+    echo "error: cannot tell how much room there is in $RAW/dem: not fetching 10 GB" >&2
+    [[ -e $dest.part ]] || rm -f "$dest.part.etag"
+    exit 1
+  fi
+  if (( have < size )) && (( avail < size - have + reserve )); then
+    echo "error: $(( (size - have) / 1000000000 )) GB more for the terrain model and $(( reserve / 1000000000 )) GB beside it do not fit in the $(( avail / 1000000000 )) GB free: not fetching it" >&2
+    [[ -e $dest.part ]] || rm -f "$dest.part.etag"
+    exit 1
+  fi
+  if (( have < size )); then
+    echo "fetch $dest (10 GB)"
+    # resumed only from an edition its ETag vouches for: the server refuses the range (412) when the file is another
+    # one. One answer, never more than what is missing (curl 8.4 and later stop at it, 63), so what it writes stays
+    # within the room checked above and the reserve; no retries inside curl (each would be allowed as much again):
+    # the next night goes on. Within KANTE_DEM_MAX_TIME seconds (curl 28), so that a deadline still cleans up.
+    rc=0
+    code=$(curl -fSL ${etag:+-C -} --max-filesize "$(( size - have ))" ${KANTE_DEM_MAX_TIME:+--max-time "$KANTE_DEM_MAX_TIME"} -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
+    if (( rc )); then
+      # another edition (412), a range that cannot be resumed (416), a server that ignores ranges (curl 33), more than
+      # the file (63), or no ETag to resume by: start again next time; the disk full (curl 23): the part removed, so
+      # that it does not keep the space
+      if [[ -z $etag || $code == 412 || $code == 416 ]] || (( rc == 33 || rc == 23 || rc == 63 )); then rm -f "$dest.part" "$dest.part.etag"; fi
+      exit 1
+    fi
+  fi
+  got=$(stat -c %s "$dest.part" 2>/dev/null || echo 0)
+  if [[ $got != "$size" ]] || ! dem_ok "$dest.part"; then
+    echo "error: $DEM_URL gave $got bytes of $size, not the terrain model the engine reads" >&2
+    rm -f "$dest.part" "$dest.part.etag"
+    exit 1
+  fi
+  mv "$dest.part" "$dest"
+  rm -f "$dest.part.etag"
   exit 0
 fi
 
