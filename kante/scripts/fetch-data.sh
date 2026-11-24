@@ -127,6 +127,15 @@ if (( only_elevation )); then
     have=0
   fi
   echo "$etag" > "$dest.part.etag"
+  # room for the rest of it, and beside it for what the timetable, the map and a release need (KANTE_DEM_RESERVE
+  # bytes, 20 GB unless said): an optional input never fills the disk the engine needs
+  reserve=${KANTE_DEM_RESERVE:-20000000000}
+  avail=$(df --output=avail -B1 "$RAW/dem" 2>/dev/null | tail -n 1 | tr -dc '0-9' || true)
+  if (( have < size )) && [[ -n $avail ]] && (( avail < size - have + reserve )); then
+    echo "error: $(( (size - have) / 1000000000 )) GB more for the terrain model and $(( reserve / 1000000000 )) GB beside it do not fit in the $(( avail / 1000000000 )) GB free: not fetching it" >&2
+    [[ -e $dest.part ]] || rm -f "$dest.part.etag"
+    exit 1
+  fi
   if (( have < size )); then
     echo "fetch $dest (10 GB)"
     # resumed only from the same edition: the server refuses the range (412) when the file is another one
@@ -134,8 +143,8 @@ if (( only_elevation )); then
     code=$(curl -fSL --retry 5 -C - -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
     if (( rc )); then
       # another edition (412), a range that cannot be resumed (416), or a server that ignores ranges (curl 33): start
-      # again next time
-      if [[ $code == 412 || $code == 416 ]] || (( rc == 33 )); then rm -f "$dest.part" "$dest.part.etag"; fi
+      # again next time; the disk full (curl 23): the part removed, so that it does not keep the space
+      if [[ $code == 412 || $code == 416 ]] || (( rc == 33 || rc == 23 )); then rm -f "$dest.part" "$dest.part.etag"; fi
       exit 1
     fi
   fi

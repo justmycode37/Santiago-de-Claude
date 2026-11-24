@@ -861,31 +861,39 @@ const hillChange = (secs: number, climb: number, more: Partial<KanteWalk> = {}):
   walkLeg('transfer', point(B, quayAt('q7', B, '7')), point(P9, quayAt('q9', P9, '9')), T(20), secs, { ...(climb ? { climbM: climb } : {}), ...more }),
   rideLeg('t2', ...outT2(23))];
 
-console.log('26. a delay that makes a change too long asks for it again with the time there is, and takes the way that fits');
+console.log('26. a delay asks for a change again with the time there is, and takes the way that fits');
 {
   const c = app();
   const steps = await show(hillChange(120, 0), A);
   const ch = steps.find((x) => x.type === 'change')!;
   check(JS.spareOf(ch).s === 60, `as planned: a minute to spare (${JS.spareOf(ch).text})`);
-  await live('t1', inT1(20.5)); // half a minute late: still fits
-  check(c.asked.length === 0, `a flat change that still fits: not asked again (${c.asked.length} requests)`);
+  await live('t1', inT1(20));
+  check(c.asked.length === 0, `the same times: not asked again (${c.asked.length} requests)`);
+  await live('t1', inT1(20.5)); // half a minute late: within 150 s
+  check(c.asked.length === 1 && c.asked[0].body.limitS === 150 && c.asked[0].body.to.quay === 'q9', `asked again within 150 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  await answer(0, 120);
   await live('t1', inT1(21.5)); // a minute and a half late: 90 s for a 120 s walk
-  check(c.asked.length === 1 && c.asked[0].body.limitS === 90 && c.asked[0].body.to.quay === 'q9', `too long now: asked again within 90 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
-  await answer(0, 85);
+  check(c.asked.length === 2 && c.asked[1].body.limitS === 90, `asked again within 90 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  await answer(1, 85);
   check(JS.spareOf(ch).s === 5, `the way that fits: 5 s to spare (${JS.spareOf(ch).text})`);
   await live('t1', inT1(21.5));
-  check(c.asked.length === 1, 'answered: not asked again');
+  check(c.asked.length === 2, 'answered for this time: not asked again');
 }
 
-console.log('27. a change up a hill is asked again when the time there is changes, by 15 s or more');
+console.log('27. a forecast that moves while an answer is on the way: the answer for the other time is dropped (review Sol round 8)');
 {
   const c = app();
-  const steps = await show(hillChange(120, 20), A);
-  steps.find((x) => x.type === 'change')!;
-  await live('t1', inT1(20.1)); // 6 s later: the same 15 s
-  check(c.asked.length === 0, `6 s: not asked (${c.asked.length} requests)`);
-  await live('t1', inT1(20.5)); // 30 s later: it still fits, but another way may be the one now
-  check(c.asked.length === 1 && c.asked[0].body.limitS === 150, `30 s: asked again within 150 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  const steps = await show(hillChange(120, 0), A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  await live('t1', inT1(21.5)); // 90 s
+  check(c.asked.length === 1 && c.asked[0].body.limitS === 90, 'asked within 90 s');
+  c.trips.t1 = { tripId: 't1', serviceDate: '2026-11-23', calls: inT1(21.55) as KanteStopCall[] } as KanteTrip;
+  await LE.livePoll(); await settle(); // 87 s, the answer for 90 s still on the way
+  check(c.asked.length === 2 && c.asked[1].body.limitS === 87, `asked again within 87 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  await answer(0, 89);
+  check(JS.spareOf(ch).s !== -2, 'the 89 s answer for 90 s is dropped');
+  await answer(1, 86);
+  check(JS.spareOf(ch).s === 1, `the answer for 87 s is taken (${JS.spareOf(ch).text})`);
 }
 
 console.log('28. a delay while a moved change is being asked for drops the answer and asks again (review Neon round 7)');
@@ -926,16 +934,6 @@ console.log('30. a change asked again keeps quiet metres its minimum change time
   check(!!w && w.dist === null, `kind "direct", a minimum change time, steps of 7 min for 2: no metres (${w && w.dist})`);
   const plain = J.routed(walk([B, P9], { durationS: 120, distanceM: 600, steps: [{ ...step('walk', 0, 1), durS: 420 }] }));
   check(!!plain && plain.dist === 600, 'without a minimum change time: its metres');
-}
-
-console.log('31. with fewer stairs a flat change is asked again for its time too (its way can give way to the stairs) (review Neon round 7)');
-{
-  const c = app();
-  prefs.fewerStairs = true;
-  await show(hillChange(120, 0), A);
-  await live('t1', inT1(20.5));
-  check(c.asked.length === 1 && c.asked[0].body.limitS === 150, `asked again within 150 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
-  prefs.fewerStairs = false;
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
