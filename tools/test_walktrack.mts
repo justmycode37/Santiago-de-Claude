@@ -324,5 +324,42 @@ console.log('10. the live header and the change card count the same seconds (rev
   check(!head.startsWith('Not enough time'), `the header agrees: "${head}"`);
 }
 
+console.log('11. got off the tram, the last walk doubling back beside its line: arrived at the destination (review round 4, A)');
+{
+  // The engine's journey (#60's engine, as it answered /api/plan) from Bern, Steigerhubel way [7.4121, 46.9386] to an
+  // address in Bern's old town [7.44718246, 46.94711594] at 09:00 on 24 November 2026: tram 7 to Bern, Zytglogge
+  // (arriving 09:26), then 68 m back west along the tram's line to the address. Moved to 09:00 on a later day.
+  const recorded = JSON.parse((await import('node:fs')).readFileSync(new URL('test_walktrack_zytglogge.json', import.meta.url), 'utf8')) as { journeys: KanteJourney[] };
+  const ADDR: LngLat = [7.44718246, 46.94711594], NINE = 1795507200; // 2026-11-24 09:00 in Zürich
+  /** The recorded journey, moved to 09:00 on a day after every fix so far (shift: by how many seconds). */
+  const plan = (): { journeys: KanteJourney[]; shift: number } => {
+    const shift = nineAm() - NINE;
+    const moved = (o: unknown): unknown => (Array.isArray(o) ? o.map(moved) : o && typeof o === 'object'
+      ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, (k === 'dep' || k === 'arr') && typeof v === 'number' ? v + shift : moved(v)])) : o);
+    return { journeys: (moved(recorded) as typeof recorded).journeys, shift };
+  };
+  /** h:m:s on the journey's day (unix seconds). */
+  const hm = (p: { shift: number }, h: number, m: number, s = 0) => NINE + p.shift + (h - 9) * 3600 + m * 60 + s;
+  let p = plan();
+  await showPlan(p, ADDR, 'Kramgasse');
+  check(steps().join(' ') === 'walk ride walk arrive', `a walk, tram 7, a walk, arrive (${steps().join(' ')})`);
+  const onTram = fixAt([7.44590209, 46.94747353], hm(p, 9, 25, 30), 8);
+  const there = [fixAt(ADDR, hm(p, 9, 27, 25), 8), fixAt(ADDR, hm(p, 9, 27, 40), 8)];
+  check(onTram.live.startsWith('On T 7'), `09:25:30, on the tram: "${onTram.live}"`);
+  check(there.every((f) => f.arrived && f.live === 'You have arrived'), `09:27:25 and 09:27:40 at the address: ${there.map((f) => `"${f.live}"`).join(', ')}`);
+  // before the tram gets there (a minute before its arrival at 09:26), a fix at the address is the tram passing it
+  p = plan();
+  await showPlan(p, ADDR, 'Kramgasse');
+  fixAt([7.44590209, 46.94747353], hm(p, 9, 24, 0), 8);
+  const passing = fixAt(ADDR, hm(p, 9, 24, 50), 8);
+  check(!passing.arrived && passing.live.startsWith('On T 7'), `09:24:50 at the address, the tram not at its stop yet: not arrived ("${passing.live}")`);
+  // in the minute before its arrival (a tram a little early): at the address, 55 m back along the line from its stop
+  p = plan();
+  await showPlan(p, ADDR, 'Kramgasse');
+  fixAt([7.44590209, 46.94747353], hm(p, 9, 25, 0), 8);
+  const early = fixAt(ADDR, hm(p, 9, 25, 45), 8);
+  check(early.arrived && early.live === 'You have arrived', `09:25:45 at the address: "${early.live}"`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

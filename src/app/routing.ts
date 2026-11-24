@@ -1,7 +1,7 @@
 // ---------- Accurate route shapes ----------
 // Walks are the Kante engine's (its path comes with every walk of a journey, and from /api/walk). Only a walk the
 // engine has no path for at all (its map ends at the border) is asked of OSRM's foot profile, as before the engine
-// routed walks (footWalk()). The engine's rides only give stop coordinates, so the lines between them are routed:
+// routed walks (footWalk()): its line and directions, never a time (the engine's stays). The engine's rides only give stop coordinates, so the lines between them are routed:
 // trains → BRouter rail profile (brouter.de), buses/trams → OSM road routing. Anything implausible falls back to the
 // straight line.
 import { map } from './map.ts';
@@ -102,17 +102,18 @@ export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd])
   const place = (p: LngLat, e: WalkEnd): KantePlaceRef => ({ lat: p[1], lon: p[0], ...(e.quay ? { quay: e.quay } : {}), ...(e.exact ? { exact: true } : {}) });
   try {
     const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options() }));
-    if (r) return (r.noPath && (await footWalk(a, b))) || r;
+    if (r) return (r.noPath && (await footWalk(a, b, r))) || r;
   } catch (e) { /* the straight line */ }
   return { coords: [a, b], steps: null, dist: null, approx: true };
 }
 
 // The one walk router besides the engine: OSRM's foot profile (routing.openstreetmap.de), asked as the site asked it
 // before the engine routed walks, only for a walk the engine has no path for at all (outside its map: abroad, past
-// the border). Its line, metres and street-by-street directions, timed at the walking pace; null: no way found.
+// the border). Its line, metres and street-by-street directions; the time stays the engine's (`timed`: the engine's
+// straight line for this walk), as main kept the engine's times for every walk OSRM drew. null: no way found.
 const TURN: Record<string, string> = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
   'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
-export async function footWalk(a: LngLat, b: LngLat): Promise<RoutedWalk | null> {
+export async function footWalk(a: LngLat, b: LngLat, timed: RoutedWalk): Promise<RoutedWalk | null> {
   if (distKm(a, b) < 0.02) return null;
   const d = await getJSON<OsrmAnswer>(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${ll(a)};${ll(b)}?overview=full&geometries=geojson&steps=true`);
   const r = d && d.code === 'Ok' && d.routes[0];
@@ -126,7 +127,7 @@ export async function footWalk(a: LngLat, b: LngLat): Promise<RoutedWalk | null>
     dirs.push({ kind: !dirs.length ? 'depart' : 'walk', text: `${verb} ${fmtDist(dist)}${along}`, coords: (s.geometry && s.geometry.coordinates) || [] });
   });
   const dist = Math.round(r.distance);
-  return { coords: [a, ...r.geometry.coordinates, b], steps: null, dist, dirs, walkS: Math.round(dist / KanteJourney.options().walkSpeed) };
+  return { coords: [a, ...r.geometry.coordinates, b], steps: null, dist, dirs, ...(timed.walkS != null ? { walkS: timed.walkS } : {}) };
 }
 
 async function routeRide(path: LngLat[], mode: LineMode): Promise<LngLat[]> {
@@ -265,14 +266,15 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   const goal = (line: LngLat[], k: number) => (k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1]);
   if (first) { // the engine's walk as the plan came
     current.done();
-    // one it has no path for at all: OSRM's foot profile, else it stays the straight line with the engine's time
+    // one it has no path for at all: OSRM's foot profile draws it and gives its directions (else it stays the
+    // straight line). Either way its times stay the engine's, so the journey opened keeps the times of its row
     const w = st.walks && st.walks[0];
     if (lines.length !== 1 || !w || !w.noPath) return;
-    task(footWalk(lines[0][0], goal(lines[0], 0)), (res) => {
+    task(footWalk(lines[0][0], goal(lines[0], 0), w), (res) => {
       if (!res || !current()) return;
       Object.assign(st, { lines: [res.coords], walks: [res], floors: null });
       current.done();
-      walkTime(st, [res]);
+      queueSheet(); // its line, metres and directions
     });
     return;
   }

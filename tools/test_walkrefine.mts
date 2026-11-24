@@ -697,7 +697,7 @@ console.log('19. a walk of a few metres to a door stays in the trip (finding 6)'
 }
 
 // ---- the review's findings (round 3) ----
-console.log('20. a walk the engine has no path for at all: OSRM foot, as main asked it (review finding 2)');
+console.log('20. a walk the engine has no path for at all: OSRM foot draws it, the times stay the engine\'s (review finding 2; round 4, B)');
 {
   // near Weil am Rhein (Germany): the engine's map ends at the border, so its walks there are straight lines
   const c = app();
@@ -715,8 +715,14 @@ console.log('20. a walk the engine has no path for at all: OSRM foot, as main as
       { distance: 120, name: 'Schulstrasse', maneuver: { type: 'turn', modifier: 'left' }, geometry: { coordinates: [mid, b] } },
       { distance: 0, name: '', maneuver: { type: 'arrive' } }] }] }] };
   };
+  // the journey's row in the list (connStart() and connEnd() in sheet-content.ts: the journey's t0 and t1) and the
+  // journey opened (journeyStart() and journeyEnd(): the header, the pill, the timeline's first and last rows)
+  const times = () => { const c = S.journey.conn as { t0: number; t1: number }; return { row: [c.t0, c.t1], opened: [JS.journeyStart(), JS.journeyEnd()] }; };
+  const mins = (ms: number) => `+${(ms / 1000 - NOW) / 60} min`;
   const steps = await show(legs, W2);
+  const before = times();
   await settle(); await settle();
+  const after = times();
   const first = steps[0], i = steps.findIndex((x) => x.type === 'walk' && x.final), last = steps[i];
   const asked = c.fetched.filter((u) => u.includes('routed-foot'));
   check(asked.length === 2 && c.asked.length === 0, `OSRM foot asked once for each walk without a path (${asked.length}), the engine not again`);
@@ -725,14 +731,20 @@ console.log('20. a walk the engine has no path for at all: OSRM foot, as main as
   check(!!w && w.dist === 420 && !w.approx && !walkLines(i)[0].properties.approx, `its metres (${w && w.dist}), drawn solid`);
   const texts = (w && w.dirs || []).map((d) => d.text);
   check(texts.join(' | ') === 'Walk 300 m along Hauptstrasse | Turn left and walk 120 m along Schulstrasse', `its directions, street by street (${JSON.stringify(texts)})`);
-  check(last.min === 5 && last.walkS === 323, `its time at the walking pace: ${last.walkS} s, ${last.min} min (the engine's guess was 5 min for 360 m)`);
-  check(first.walkS === 231 && first.min === 4 && first.t0 === T(8) * 1000 - 231000, `the first walk too: ${first.walkS} s, leave ${(T(8) * 1000 - first.t0!) / 1000} s before the train`);
+  check(last.min === 5 && last.walkS === 300, `its time the engine's: ${last.walkS} s, ${last.min} min (not 323 s at the walking pace for OSRM's 420 m)`);
+  check(first.walkS === 240 && first.min === 4 && first.t0 === T(4) * 1000, `the first walk too: ${first.walkS} s, leave ${(T(8) * 1000 - first.t0!) / 1000} s before the train (not 231)`);
+  const same2 = (x: number[], y: number[]) => x[0] === y[0] && x[1] === y[1];
+  check(same2(before.row, [T(4) * 1000, T(19) * 1000]) && same2(before.opened, before.row),
+    `before OSRM answers, the row and the journey opened: ${before.row.map(mins).join('–')}, ${before.opened.map(mins).join('–')}`);
+  check(same2(after.row, before.row) && same2(after.opened, before.row),
+    `after it answers, the same: the row ${after.row.map(mins).join('–')}, the journey opened ${after.opened.map(mins).join('–')}`);
   // the engine answers /api/walk without a path (a walk moved by a live update): OSRM foot again
   const r = R.routeWalk(east(W1, 50), east(W2, -50));
   await settle();
   c.asked[0].d.res({ kind: 'direct', durationS: 600, distanceM: 600, approximate: true, geometry: [east(W1, 50), east(W2, -50)], levels: [null, null], steps: [] });
   const rw = await r;
   check(rw.dist === 420 && rw.coords.length === 5 && !!rw.dirs && rw.dirs.length === 2, `routeWalk(): the engine has no path, OSRM foot has (${rw.dist} m)`);
+  check(rw.walkS === 600, `…and its time is the engine's for the walk (${rw.walkS} s)`);
   // OSRM has none either: the dashed line, as the engine had it
   c.foot = () => null;
   const r2 = R.routeWalk(east(W1, 80), east(W2, -80));

@@ -314,20 +314,26 @@ function trackOnce() {
   const offCount = s.d > tol ? ((tracking.track && tracking.track.offCount) || 0) + 1 : 0;
   tracking.track = { ...s, v: tracking.geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (tracking.track.off) return;
-  // Arrived: within 25 m of the trip's end along its line, or, past its last ride, within the GPS accuracy of the
-  // destination (counted as 20 to 40 m; not while a ride passes it). A trip that ends on foot is arrived at only
-  // past its last ride (not on a bus 10 m before the stop a short walk leads on from).
+  // Arrived: within 25 m of the trip's end along its line (a trip that ends on foot only past its last ride: not on
+  // a bus 10 m before the stop a short walk leads on from), or with the fix itself at the end: within the GPS
+  // accuracy (counted as 20 to 40 m) of the destination, or of where the trip's line ends (at least 25 m). That one
+  // counts past the last ride, or from a minute before the last ride gets to its stop (live) on: the last walk can
+  // double back beside the ride, so a fix there snaps onto the ride. Before then a ride passing the destination is
+  // just passing, and in that minute a fix on the ride within 25 m of its stop is the vehicle pulling in.
   const dest = destMarker._map && destMarker.getLngLat().toArray();
   const pastRides = journey.steps.slice(s.i).every((st) => st.type !== 'ride');
   const onFootLast = journey.steps.some((st) => st.type === 'walk' && st.final);
   const radius = Math.min(0.04, Math.max(0.02, userAccuracy / 1000)); // km
-  const atDest = pastRides && !!dest && distKm(userLngLat!, dest) < radius;
-  if ((pastRides || !onFootLast) && (lay.total - s.km < 0.025 || atDest)) {
+  const end = tripEndPoint();
+  const there = (!!dest && distKm(userLngLat!, dest) < radius) || (!!end && distKm(userLngLat!, end) < Math.max(0.025, radius));
+  const lastRide = journey.steps.filter((st): st is JourneyRideStep => st.type === 'ride').pop();
+  const pullingIn = here === lastRide && lay.lens[s.i] - s.kmIn < 0.025;
+  const ridden = pastRides || (!!lastRide && lastRide.t1 != null && (now >= lastRide.t1 || (now >= lastRide.t1 - 60000 && !pullingIn)));
+  if (((pastRides || !onFootLast) && lay.total - s.km < 0.025) || (there && ridden)) {
     tracking.track = { ...arrive(s), offCount: tracking.track.offCount, onRoute };
-    // for good only on a fix that is itself there, at the destination or where the trip's line ends (not one that
-    // is only snapped onto its end from far off: a stray fix)
-    const end = tripEndPoint();
-    if (atDest || (end && distKm(userLngLat!, end) < Math.max(0.025, radius))) tracking.arrivedAt = journey.steps;
+    // for good only on a fix that is itself there (not one that is only snapped onto the trip's end from far off:
+    // a stray fix)
+    if (there) tracking.arrivedAt = journey.steps;
   }
   tracking.track.missed = tracking.track.arrived ? null : missedRide(tracking.track, now);
   // move the cards along with you, unless you have just picked a step yourself

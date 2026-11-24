@@ -215,5 +215,5 @@ Follow-up, deliberately not in this integration:
   in `rightside/` and is not part of the site). Owed: an Xcode build on a Mac, XCTest/UI tests, and recordings on a
   real iPhone at a real stop (Vision read rate, compass, AR alignment, `/api/due` timing). Only Linux/WSL Swift checks
   were possible. Note the AGPL-3.0 licence of the bundled YOLOE detector before any closed-source release.
-- Indoor position (#8) and the walk router (#13) on a real phone with real sensors and GPS.
+- Indoor position (#8) and GPS tracking on the engine's walks on a real phone with real sensors and GPS.
 - Continuous 3D view (#18) performance on a real phone.
