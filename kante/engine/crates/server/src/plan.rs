@@ -779,11 +779,16 @@ impl App {
 /// ground with no mapped way): taken only where nothing else reaches (kante_link::ends::reach_costs), and said.
 fn unsure_alert(w: &json::WalkLeg, leg: Option<usize>, profile: &WalkProfile) -> Option<json::JourneyAlert> {
     (w.unsure_end && (profile.wheelchair || profile.is_step_free())).then(|| {
-        let at = match w.kind {
-            "egress" => format!("at {}", w.to.name),
-            "access" => format!("at {}", w.from.name),
-            "transfer" => format!("for the change at {}", w.to.name),
-            _ => "at the start or the end of this walk".to_string(),
+        // the end that is guessed: the start, the end, or both (a walk with no path at all: both)
+        let (start, end) = match (w.approx_start.is_some(), w.approx_end.is_some()) {
+            (false, false) => (true, true),
+            ends => ends,
+        };
+        let at = match (w.kind, start, end) {
+            ("transfer", _, _) => format!("for the change at {}", w.to.name),
+            (_, true, true) if w.from.name != w.to.name => format!("at {} and at {}", w.from.name, w.to.name),
+            (_, true, _) => format!("at {}", w.from.name),
+            _ => format!("at {}", w.to.name),
         };
         json::JourneyAlert {
             severity: "warning",
@@ -824,6 +829,27 @@ fn page(mut picked: Vec<Journey>, rescue: bool) -> (Vec<Journey>, Option<(Secs, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_step_free_alert_names_the_place_whose_end_is_guessed() {
+        // review 7 (Neon): an access walk guessed only at the stop names the stop, not the address
+        let pt = |name: &str| json::WalkPoint { name: name.into(), lat: 0.0, lon: 0.0, quay: None };
+        let leg = |kind, s: Option<u32>, e: Option<u32>| json::WalkLeg {
+            kind, from: pt("Home"), to: pt("Bern, Zytglogge"), dep: 0, arr: 0, duration_s: 0, distance_m: 0, stairs_up: 0,
+            stairs_down: 0, lifts: 0, escalators: 0, step_free: false, unmapped_level_changes: 0, slack_s: None,
+            official_min_s: None, approximate: s.is_none() && e.is_none(), geometry: vec![], levels: vec![], steps: vec![],
+            door: None, start_door: None, covered: vec![], approx_start: s, approx_end: e, network: None,
+            no_step_free_door: false, unsure_end: true, drawn_s: None,
+        };
+        let wc = WalkProfile::step_free(1.0);
+        let text = |l: json::WalkLeg| unsure_alert(&l, Some(0), &wc).unwrap().text;
+        assert!(text(leg("access", None, Some(3))).contains("known at Bern, Zytglogge:"));
+        assert!(text(leg("access", Some(1), None)).contains("known at Home:"));
+        assert!(text(leg("egress", Some(1), None)).contains("known at Home:"));
+        assert!(text(leg("direct", Some(1), Some(3))).contains("known at Home and at Bern, Zytglogge:"));
+        assert!(text(leg("access", None, None)).contains("known at Home and at Bern, Zytglogge:"));
+        assert!(unsure_alert(&leg("access", None, Some(3)), Some(0), &WalkProfile::normal(1.0)).is_none());
+    }
 
     fn j(dep: Secs, arr: Secs, transfers: u8) -> Journey {
         Journey { dep, arr, transfers, legs: vec![] }
