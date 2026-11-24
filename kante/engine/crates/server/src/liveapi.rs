@@ -330,23 +330,28 @@ pub struct DueQuery {
     pub to: Option<StationIdx>,
 }
 
-/// Every live feed the engine reads answered within [`STALE_S`] (and there is at least one).
+/// Every live feed the engine reads answered within [`STALE_S`], with a document of its own no older than that (a
+/// source can keep serving a frozen one), and there is at least one.
 fn feeds_fresh(app: &App) -> bool {
     let now = wall_clock();
     let live = app.live.read();
-    all_fresh(live.meta.feeds.iter().map(|f| f.polled_at), now)
+    all_fresh(live.meta.feeds.iter().map(|f| (f.polled_at, f.updated_at)), now)
 }
 
-fn all_fresh(polled: impl Iterator<Item = Option<i64>>, now: i64) -> bool {
+fn all_fresh(feeds: impl Iterator<Item = (Option<i64>, Option<i64>)>, now: i64) -> bool {
     let mut any = false;
-    for p in polled {
+    for (polled, updated) in feeds {
         any = true;
-        if !p.is_some_and(|t| now - t <= STALE_S) {
+        let recent = |t: Option<i64>| t.is_some_and(|t| now - t <= STALE_S);
+        if !recent(polled) || !recent(updated) {
             return false;
         }
     }
     any
 }
+
+/// How many departures are looked at; reaching it before the end of the window makes the board incomplete.
+const DEPARTURE_SCAN: usize = 600;
 
 /// Whether a run lets riders off at station `to` later: it stops there (not skipped today) and allows getting off.
 /// `calls`: (station, skipped, drop-off allowed) of each call after this one.
@@ -357,12 +362,12 @@ fn calls_after(calls: impl Iterator<Item = (StationIdx, bool, bool)>, to: Statio
 /// How far past the window a forecast is still looked at: the profiles can bring a call forward into it.
 const PROFILE_MARGIN_S: i64 = 600;
 
-/// The time at call `i` from [`served_with_profiles`] where it changed the forecast: `(arr, dep)`, `dep` kept
-/// absent where the run has none there (it ends here).
-fn profiled_times(served: &[(usize, i64, i64)], i: usize, arr: Option<i64>, dep: Option<i64>) -> Option<(Option<i64>, Option<i64>)> {
-    let &(_, a, d) = served.iter().find(|s| s.0 == i)?;
-    let out = (Some(a), dep.map(|_| d));
-    (out != (arr, dep)).then_some(out)
+/// The time at call `i` from [`served_with_profiles`] where the profiles changed it (compared with the same calls
+/// without them): `(arr, dep)`, `dep` kept absent where the run has none there (it ends here).
+fn profiled_times(profiled: &[(usize, i64, i64)], plain: &[(usize, i64, i64)], i: usize, dep: Option<i64>) -> Option<(Option<i64>, Option<i64>)> {
+    let &(_, a, d) = profiled.iter().find(|s| s.0 == i)?;
+    let &(_, pa, pd) = plain.iter().find(|s| s.0 == i)?;
+    ((a, d) != (pa, pd)).then_some((Some(a), dep.map(|_| d)))
 }
 
 pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
@@ -388,9 +393,13 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     let mut all: Vec<StopIdx> = q.stops.iter().flat_map(|&s| tt.stations[tt.stops[s as usize].station as usize].stops.iter().copied()).collect();
     all.sort_unstable();
     all.dedup();
-    for e in app.router.departures(&all, date, secs, 600, live) {
+    let events = app.router.departures(&all, date, secs, DEPARTURE_SCAN, live);
+    // the scan stopped at its count before the end of the window: later departures are missing
+    let mut capped = events.len() >= DEPARTURE_SCAN;
+    for e in events {
         let dep = time::to_unix(date, e.live_dep);
         if dep > q.t + q.after + PROFILE_MARGIN_S {
+            capped = false;
             break;
         }
         let tl = live.and_then(|l| l.trip(e.date, e.trip));
@@ -452,7 +461,7 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     out.sort_by_key(|d| d.arr.or(d.dep).unwrap_or(i64::MAX));
     // A board cut at `limit` or built on a stale feed can be missing the vehicle in front of the camera: the
     // camera then never says "yours" (docs/ar-recognition-plan.md).
-    let truncated = out.len() > q.limit;
+    let truncated = out.len() > q.limit || capped;
     out.truncate(q.limit);
     json::DueResponse { t: q.t, complete: !truncated && feeds_fresh(app), truncated, due: out }
 }
@@ -466,7 +475,7 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
     let (mut arr, mut dep) = (c.arr.or(c.dep), c.dep);
     let mut profiled = false;
     if run.facts.observed_pos >= 0 && !c.skipped {
-        if let Some((a, d)) = profiled_times(&served_with_profiles(app, run), i, arr, dep) {
+        if let Some((a, d)) = profiled_times(&served_with_profiles(app, run), &run.served(), i, dep) {
             (arr, dep, profiled) = (a, d, true);
         }
     }
@@ -895,9 +904,11 @@ mod tests {
 
     #[test]
     fn a_board_is_complete_only_while_every_feed_answers() {
-        assert!(all_fresh([Some(1000), Some(990)].into_iter(), 1000 + STALE_S - 10));
-        assert!(!all_fresh([Some(1000), Some(500)].into_iter(), 1000), "one feed stale");
-        assert!(!all_fresh([Some(1000), None].into_iter(), 1000), "one feed never answered");
+        let ok = (Some(1000), Some(995));
+        assert!(all_fresh([ok, (Some(990), Some(980))].into_iter(), 1000 + STALE_S - 25));
+        assert!(!all_fresh([ok, (Some(500), Some(500))].into_iter(), 1000), "one feed stale");
+        assert!(!all_fresh([ok, (None, None)].into_iter(), 1000), "one feed never answered");
+        assert!(!all_fresh([ok, (Some(1000), Some(100))].into_iter(), 1000), "fetched, but the document is old (a frozen source)");
         assert!(!all_fresh(std::iter::empty(), 1000), "no live feed at all: timetable only");
     }
 
@@ -913,11 +924,13 @@ mod tests {
 
     #[test]
     fn profiled_times_only_where_the_profile_changed_them() {
-        let served = [(2, 100, 120), (3, 190, 200), (4, 260, 260)];
-        assert_eq!(profiled_times(&served, 3, Some(210), Some(220)), Some((Some(190), Some(200))));
-        assert_eq!(profiled_times(&served, 3, Some(190), Some(200)), None, "unchanged");
-        assert_eq!(profiled_times(&served, 4, Some(300), None), Some((Some(260), None)), "the end of the run has no departure");
-        assert_eq!(profiled_times(&served, 5, Some(300), None), None, "not served");
+        let profiled = [(2, 100, 120), (3, 190, 200), (4, 260, 260)];
+        let plain = [(2, 100, 120), (3, 210, 220), (4, 300, 300)];
+        assert_eq!(profiled_times(&profiled, &plain, 3, Some(220)), Some((Some(190), Some(200))));
+        assert_eq!(profiled_times(&profiled, &profiled, 3, Some(200)), None, "unchanged");
+        assert_eq!(profiled_times(&profiled, &plain, 4, None), Some((Some(260), None)), "the end of the run has no departure");
+        assert_eq!(profiled_times(&profiled, &plain, 5, None), None, "not served");
+        assert_eq!(profiled_times(&profiled, &profiled, 2, Some(110)), None, "the served times' own clamping is not a profile");
     }
 
     #[test]
