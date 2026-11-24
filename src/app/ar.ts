@@ -307,9 +307,9 @@ function arLayer(mine: number, target: ArTarget) {
   // field-test capture (?ardebug=1): the last 10 s of events, plus small crops of each vehicle's display band
   const crops: { at: number; track: number; box: ArBox; jpeg: string }[] = [];
   const detectMs: number[] = [];
-  let dbgText: HTMLElement | null = null;
+  let dbgText: HTMLElement | null = null, saveBtn: HTMLElement | null = null;
   if (AR_DEBUG) {
-    const save = h('button', null, 'Save last 10 s');
+    const save = saveBtn = h('button', null, 'Save last 10 s');
     save.addEventListener('click', () => saveCapture());
     dbgText = h('div', null, '');
     layer.append(h('div', 'ar-dbg', dbgText, save));
@@ -334,9 +334,22 @@ function arLayer(mine: number, target: ArTarget) {
       motion: arMotion, ride, derotation: ses.derotation(), labels: ses.labels(now), banner: ses.banner(now),
       detectMs: detectMs.slice(), ocrAgeS: ocrAge.slice(), ppocrMs: ocrMs.slice(), log: ses.log(), crops: crops.slice() };
     const name = `ar-capture-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
+    const body = JSON.stringify(data);
+    const file = new File([body], name, { type: 'application/json' });
+    const upload = window.APP_CONFIG && window.APP_CONFIG.arCaptureUrl; // the field-test server (tools/ar-test.mts)
+    if (upload) {
+      const say = (t: string) => { if (saveBtn) { saveBtn.textContent = t; setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Save last 10 s'; }, 3000); } };
+      say('Saving…');
+      fetch(`${upload}?name=${encodeURIComponent(name)}`, { method: 'POST', body, headers: { 'content-type': 'application/json' } })
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); say('Saved ✓'); })
+        .catch(() => { say('Upload failed: downloaded'); offerFile(file, name, false); });
+      return;
+    }
+    offerFile(file, name, true);
+  };
+  const offerFile = (file: File, name: string, share: boolean) => {
     const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
-    if (nav.canShare && nav.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(() => {}); return; }
+    if (share && nav.canShare && nav.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(() => {}); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(file); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);

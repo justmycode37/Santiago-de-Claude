@@ -5,6 +5,8 @@ interface AppConfig {
   googlePlacesKey?: string;
   /** Address of the Kante engine (engine.ts, live.ts). Left out: the hosted engine. '': no engine. */
   kanteUrl?: string;
+  /** Where the AR camera's "Save last 10 s" sends its capture (tools/ar-test.mts sets it); left out: shared or downloaded. */
+  arCaptureUrl?: string;
 }
 
 /** Undefined when the site has no config.js. */

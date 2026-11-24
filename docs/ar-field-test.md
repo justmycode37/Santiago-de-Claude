@@ -6,6 +6,14 @@ vehicle blocks that path until it is fixed and tested again.
 
 ## Before you go
 
+**The easy way (web):** on the computer with the engine's data and Tailscale, run `npm run ar-test` (`--data DIR`
+if the data is not in `kante/data`; `tools/ar-test.mts` says more). It builds and starts this branch's engine and
+site and prints a link; open it on the phone (Tailscale on, same account). That page uses this branch's engine, has
+the debug line on, and **Save last 10 s** sends the capture straight to `tools/ar-replays/` on the computer. Leave
+the computer on while you are out. The live-data key (`DIR/secrets/otd.json`) is needed for green.
+
+The pieces, if you set it up another way:
+
 - Web: open the site with `?ardebug=1` once (remembered; `?ardebug=0` removes it). The AR camera then shows a debug
   line (capture size, detector ms, Tesseract and PP-OCR timing, each vehicle's label and why) and a
   **Save last 10 s** button. `?arres=max` asks for 4K instead of 1080p (remembered; `?arres=0` goes back).

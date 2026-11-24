@@ -32,3 +32,4 @@ tools/cache/
 tools/search-eval/answers.*.json.gz
 # The lists a search-eval run asks the judges to grade (eval.mts --judge-out)
 tools/search-eval/judged/todo/
+tools/ar-test-engine.log
