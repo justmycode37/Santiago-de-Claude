@@ -198,15 +198,16 @@ Follow-up, deliberately not in this integration:
   - map load, place search, start-up time and bytes against `main`, no console errors;
   - cold lazy load of the 3D viewer and indoor scripts, failed load, Done, close/reopen, switching stations, Scan
     text between openings;
-  - a Bern journey with walks through Bern station (3D view, step-free, indoor position) and an outdoor walk on the
-    walk router; a pinned start away from GPS; PT / On foot switching while routing is pending; settings changes;
-    missing tiles (Zürich) falling back;
+  - a Bern journey with walks through Bern station (3D view, step-free, indoor position) and an outdoor walk (the
+    engine's); a pinned start away from GPS; PT / On foot switching while routing is pending; settings changes; a
+    walk past the border (Weil am Rhein), where the engine has no path, falling back to OSRM's foot profile;
   - live vehicles and live info on a journey;
   - Scan on a sample image;
   - Zürich HB in the 3D view and in the continuous view, including a missing companion;
-  - the Pages artifact as the workflow assembles it (`walkgraph`, `demo-media`), not just the repository.
+  - the Pages artifact as the workflow assembles it (`demo-media`; `walkgraph/` is gone), not just the repository.
 - Suites: `tools/test_station_route.mjs`, `tools/test_station_route2.mjs`, `node tools/sim_indoorloc.js --check`,
-  #13's walk router test, `cargo test` in `kante/engine`, RightSide portable tests and display bench (Swift on WSL).
+  `npm test` (the walk tests: `tools/test_walkrefine.mts`, `test_walkguess.mts`, `test_walktrack.mts`; #13's walk
+  router test went with the router), `cargo test` in `kante/engine`, RightSide portable tests and display bench (Swift on WSL).
 
 ## Owed after merge
 

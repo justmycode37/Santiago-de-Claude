@@ -44,7 +44,7 @@ fake('live-engine.ts', { rideTrip: () => null });
 // the header's pieces as text: a line's badge is its name
 fake('sheet.ts', { MODE_NAME: {}, h: (_tag: string, _cls: string, ...kids: unknown[]) => kids.join(''), kBadge: (j: { name: string }) => j.name,
   kDelay: (m: number) => `+${m}`, quayOf: () => null });
-fake('live-vehicles.ts', { fmtDist: (m: number) => `${Math.round(m)} m`, levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
+fake('live-vehicles.ts', { fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`), levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
   splitPlatform: () => ({}), vehUpdate: nothing });
 fake('sheet-content.ts', { connStart: (c: { t0: number }) => c.t0, connEnd: (c: { t1: number }) => c.t1, queueSheet: nothing, renderHead: nothing,
   s3Plan: () => null, s3Prefs: () => ({}) });
@@ -59,7 +59,7 @@ let planned: object | null = null;
 fake('../engine.ts', { KANTE: { available: () => true, uicOf: () => null, failure: () => 'down', plan: async () => planned, walk: () => new Promise(nothing) } });
 fake('../station3d.ts', { Station3D: { loadData: () => Promise.resolve({}), preload: nothing, setUser: nothing }, indoor: { nav: null },
   stationRouter: () => ({ route: () => null, toLngLat: nothing }) });
-class Marker { _map: object | null = null; setLngLat() { return this; } addTo() { this._map = {}; return this; } remove() { return this; } }
+class Marker { _map: object | null = null; at: LngLat | null = null; setLngLat(ll: LngLat) { this.at = ll; return this; } addTo() { this._map = {}; return this; } remove() { return this; } }
 const element = () => ({ className: '', title: '', style: {}, setAttribute: nothing, addEventListener: nothing, appendChild: nothing });
 Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { createElement: element }, maplibregl: { Marker } });
 
@@ -68,12 +68,12 @@ interface Feature { geometry: { type: string; coordinates: LngLat[] }; propertie
 interface Track { i: number; kmIn: number; km: number; d: number; off: boolean; arrived?: boolean }
 const load = (file: string) => import(new URL(file, APP).href);
 const J: { plans(fromLL: LngLat, dest: { lngLat: LngLat }): Promise<{ best: { t0: number; t1: number } } | null> } = (await load('../engine-journey.ts')).KanteJourney;
-const JS: { buildSteps(conn: object, destTitle: string): { type: string }[]; stepFeatures(steps: object[]): Feature[] } = await load('journey-steps.ts');
-const LOC: { onPosition(pos: { coords: { longitude: number; latitude: number; accuracy: number }; timestamp: number }): void } = await load('location.ts');
+const JS: { buildSteps(conn: object, destTitle: string): { type: string }[]; stepFeatures(steps: object[]): Feature[]; spareOf(st: object): { s: number; text: string } } = await load('journey-steps.ts');
+const LOC: { onPosition(pos: { coords: { longitude: number; latitude: number; accuracy: number }; timestamp: number }): void; userMarker: { at: LngLat | null } } = await load('location.ts');
 const TR: { trackJourney(): void; progressTime(): { t: number; gps: boolean } } = await load('tracking.ts');
 const LL: { liveParts(now: number): { kind: string; parts: unknown[] } | null } = await load('live-line.ts');
 const R: { lengthKm(cs: LngLat[]): number } = await load('routing.ts');
-const S: { journey: { steps: { type: string }[]; conn: object | null; list: boolean }; tracking: { track: Track | null; geoVersion: number; autoStep: number; userPickedAt: number };
+const S: { journey: { steps: { type: string }[]; conn: object | null; list: boolean }; tracking: { track: Track | null; geoVersion: number; autoStep: number; userPickedAt: number; arrivedAt: object | null };
   searchState: { tripStart: null } } = await load('state.ts');
 follow = () => TR.trackJourney();
 
@@ -102,11 +102,11 @@ const bus = (): KanteRideLeg => ({ type: 'ride', tripId: 't1', serviceDate: '202
   headsign: 'Kornhausplatz', from: { seq: 1, quay: qQ, dep: DEP }, intermediate: [{ seq: 2, quay: qI, arr: DEP + 20, dep: DEP + 20 }],
   to: { seq: 3, quay: qR, arr: ARR }, geometry: [], live: 'timetable' }) as unknown as KanteRideLeg;
 /** The journey on show, with or without the guessed ends, and nothing tracked yet. */
-async function show(guessed: boolean) {
+async function show(guessed: boolean, accessX?: Partial<KanteWalk>) {
   NOW += 3600;
   DEP = NOW + 270; // the walk takes 240 s, then 30 s at the stop
   ARR = DEP + 300;
-  const legs = [access(guessed ? { approxEnd: 2 } : {}), bus(), egress(guessed ? { approxEnd: 1 } : {})];
+  const legs = [access(accessX || (guessed ? { approxEnd: 2 } : {})), bus(), egress(guessed ? { approxEnd: 1 } : {})];
   planned = { journeys: [{ id: 'j1', dep: NOW, arr: ARR + 120, durationS: ARR + 120 - NOW, transfers: 0, walkS: 360, walkM: 320, legs }] };
   const o = await J.plans(O, { lngLat: PIN });
   Object.assign(S.journey, { conn: o!.best, steps: JS.buildSteps(o!.best, 'Kunsthaus'), list: false });
@@ -116,10 +116,23 @@ async function show(guessed: boolean) {
   dest._map = {};
   dest.at = PIN;
 }
+/** Another journey on show, as the engine plans it (walkOnly: walking all the way), with its destination pin. */
+async function showPlan(plan: { journeys: KanteJourney[]; walkOnly?: KanteJourney }, pin: LngLat, title: string) {
+  planned = plan;
+  const o = await J.plans(O, { lngLat: pin });
+  Object.assign(S.journey, { conn: o!.best, steps: JS.buildSteps(o!.best, title), list: false });
+  Object.assign(S.tracking, { track: null, autoStep: -1, userPickedAt: 0 }); // (opening it as pill.ts does)
+  S.tracking.geoVersion++;
+  S.searchState.tripStart = null;
+  dest._map = {};
+  dest.at = pin;
+}
 /** A GPS fix at e m east and n m north of O, 10 m accurate, taken at `when` (unix seconds): what the page shows then (bar: the moment of the trip it shows, s after the walk starts). */
-function fix(e: number, n: number, when: number) {
+const fix = (e: number, n: number, when: number) => fixAt(at(e, n), when);
+/** …at a point, `accuracy` m accurate. */
+function fixAt(ll: LngLat, when: number, accuracy = 10) {
   clock = when * 1000;
-  LOC.onPosition({ coords: { longitude: at(e, n)[0], latitude: at(e, n)[1], accuracy: 10 }, timestamp: clock });
+  LOC.onPosition({ coords: { longitude: ll[0], latitude: ll[1], accuracy }, timestamp: clock });
   const t = S.tracking.track!, line = LL.liveParts(Date.now());
   const walked = JS.stepFeatures(S.journey.steps).filter((f) => f.properties.kind === 'walk' && f.properties.step === t.i && f.properties.done)
     .reduce((m, f) => m + R.lengthKm(f.geometry.coordinates) * 1000, 0);
@@ -182,6 +195,133 @@ async function arriving(guessed: boolean) {
   dest.at = at(0, 12);
   const passing = fix(0, 2, DEP + 60);
   check(!passing.arrived && passing.i === 1 && passing.live.startsWith('On '), `passing the destination on the bus: not arrived ("${passing.live}")`);
+}
+
+// ---- the review's findings (round 3): arrival, guessed walks, the change's seconds ----
+// Each journey below starts a day later than the one before, so its fixes come after every fix before them.
+let day = 0;
+/** 09:00 on a day after every fix so far (unix seconds). */
+function nineAm() {
+  const d = new Date(clock + (++day) * 864e5);
+  d.setHours(9, 0, 0, 0);
+  return Math.floor(d.getTime() / 1000);
+}
+const W0: LngLat = [7.4382, 46.9485], RATHAUS: LngLat = [7.4520, 46.9481], BEND: LngLat = [7.4450, 46.9481];
+/** A point m metres before the end of the line a → b (along it). */
+const before = (a: LngLat, b: LngLat, m: number): LngLat => { const f = m / (R.lengthKm([a, b]) * 1000); return [b[0] + (a[0] - b[0]) * f, b[1] + (a[1] - b[1]) * f]; };
+/** Walking all the way to Bern Rathaus, leaving at 09:00 (with or without a guessed start). */
+async function walkToRathaus(guessed: boolean) {
+  const t0 = nineAm(), g: LngLat[] = guessed ? [W0, before(BEND, W0, 20), BEND, RATHAUS] : [W0, BEND, RATHAUS];
+  const leg = walkLeg('direct', g, point(W0), { name: 'Bern Rathaus', lat: RATHAUS[1], lon: RATHAUS[0] }, t0, 810, guessed ? { approxStart: 1 } : {});
+  await showPlan({ journeys: [], walkOnly: { id: 'w', dep: t0, arr: t0 + 810, durationS: 810, transfers: 0, walkS: 810, walkM: leg.distanceM, legs: [leg] } }, RATHAUS, 'Bern Rathaus');
+  return t0;
+}
+
+console.log('7. arrival: one stray fix does not end the journey for good (review finding 1)');
+for (const guessed of [true, false]) {
+  const t0 = await walkToRathaus(guessed), at908 = t0 + 8 * 60;
+  const here: LngLat = [7.450753, 46.9480774], stray: LngLat = [7.4519996, 46.9493026];
+  const a = fixAt(here, at908, 8), b = fixAt(stray, at908 + 5, 8), c = fixAt(here, at908 + 10, 8);
+  const tag = guessed ? '' : ' (without the approx fields)';
+  check(a.live === '90 m to Bern Rathaus', `at 09:08: "${a.live}"${tag}`);
+  check(c.live === '90 m to Bern Rathaus' && !c.arrived, `a stray fix ${Math.round(R.lengthKm([stray, RATHAUS]) * 1000)} m off the end ("${b.live}") and back: "${c.live}"${tag}`);
+}
+{
+  // 82 m left, then a fix 129 m beyond the end (on the line's extension, 120 m accurate: within the off-route tolerance)
+  const t0 = await walkToRathaus(false);
+  const beyond: LngLat = [RATHAUS[0] + 129 / (111195 * Math.cos(RATHAUS[1] * Math.PI / 180)), RATHAUS[1]];
+  fixAt(before(BEND, RATHAUS, 82), t0 + 700);
+  const b = fixAt(beyond, t0 + 705, 120), c = fixAt(before(BEND, RATHAUS, 82), t0 + 710);
+  check(!b.off && c.live === '80 m to Bern Rathaus', `a fix 129 m beyond the end with 120 m accuracy ("${b.live}"), then 82 m before it: "${c.live}"`);
+}
+{
+  // a ride, then a walk of 12 m: on the bus 10 m before its last stop is within 25 m of the trip's end along its line
+  NOW = nineAm();
+  DEP = NOW + 60; ARR = DEP + 300;
+  const P12 = at(-180, 14);
+  const leg = walkLeg('egress', [R0, P12], point(R0, qR), point(P12), ARR, 20, {});
+  await showPlan({ journeys: [{ id: 'j2', dep: DEP, arr: ARR + 20, durationS: ARR + 20 - DEP, transfers: 0, walkS: 20, walkM: 12, legs: [bus(), leg] }] }, P12, 'Kunsthaus');
+  check(steps().join(' ') === 'ride walk arrive', `a bus, then 12 m on foot (${steps().join(' ')})`);
+  const onBus = fix(-170, 2, ARR - 5);
+  check(onBus.i === 0 && !onBus.arrived && onBus.live.startsWith('On '), `on the bus 10 m before the stop: not arrived ("${onBus.live}")`);
+  const there = fix(-180, 14, ARR + 25);
+  check(there.arrived && there.live === 'You have arrived', `at the destination: "${there.live}"`);
+}
+
+console.log('8. arrived for good: kept through a gap in GPS (review finding 8)');
+{
+  const t0 = await walkToRathaus(true);
+  const end = fixAt(RATHAUS, t0 + 800);
+  clock += 100000; // 100 s without a fix: the progress timer runs on
+  TR.trackJourney();
+  const back = fixAt(before(BEND, RATHAUS, 54), t0 + 920);
+  check(end.arrived && back.arrived && back.live === 'You have arrived', `at the end, then 100 s later a fix 54 m back: "${back.live}"`);
+  const t1 = await walkToRathaus(true); // another trip opened: not arrived there
+  const again = fixAt(before(BEND, RATHAUS, 54), t1 + 700);
+  check(!again.arrived && again.live === '50 m to Bern Rathaus', `another trip opened: "${again.live}"`);
+}
+
+console.log('9. a walk that is all a guess is not drawn as walked; the blue dot stays off guessed stretches (review finding 7)');
+{
+  const t0 = nineAm(), B300 = at(300, 0);
+  const leg = walkLeg('direct', [O, B300], point(O), point(B300), t0, 300, { approximate: true, steps: [step('walk', 0, 1, 'Walk about 390 m to Kunsthaus')] });
+  await showPlan({ journeys: [], walkOnly: { id: 'w', dep: t0, arr: t0 + 300, durationS: 300, transfers: 0, walkS: 300, walkM: 300, legs: [leg] } }, B300, 'Kunsthaus');
+  const f = fix(130, 2, t0 + 130);
+  check(f.walked === 0 && f.live === '170 m to Kunsthaus', `130 m into a walk with no path: none of it drawn as walked (${f.walked} m), "${f.live}"`);
+}
+{
+  // a walk in two parts: the engine's path, then a straight line it found no path for (a station model's way that
+  // failed, a moved end): the dot does not go onto the straight part
+  NOW = nineAm() - 3600; // (show() moves it on an hour)
+  await show(false);
+  const st = S.journey.steps[0] as unknown as { lines: LngLat[][]; walks: object[] };
+  const l1: LngLat[] = [at(0, 0), at(35, 0), at(70, 0)], l2: LngLat[] = [at(70, 0), Q];
+  st.lines = [l1, l2];
+  st.walks = [{ ...st.walks[0], coords: l1 }, { coords: l2, steps: null, dist: null, approx: true }];
+  S.tracking.geoVersion++;
+  fix(20, 0, NOW + 20);
+  const f = fix(150, 3, NOW + 160);
+  const dot = LOC.userMarker.at!;
+  check(R.lengthKm([dot, at(150, 3)]) < 0.0005, `on the straight part, 3 m off it: the dot where GPS says (${Math.round(R.lengthKm([dot, at(150, 0)]) * 1000)} m from the line)`);
+  check(f.walked === 70, `drawn as walked: the path, not the straight part (${f.walked} m)`);
+}
+{
+  // a guessed tail, 20 m before the stop: within 25 m of the walk's end the walk is drawn as walked, but the dot stays
+  // off the guess
+  NOW = nineAm() - 3600;
+  await show(true);
+  [20, 50, 100, 150].forEach((x) => fix(x, 0, NOW + (x / 220) * 240));
+  const f = fix(200, 3, NOW + 200);
+  const dot = LOC.userMarker.at!;
+  check(R.lengthKm([dot, at(200, 3)]) < 0.0005, `20 m before the stop, on the guessed tail: the dot where GPS says (${Math.round(R.lengthKm([dot, at(200, 0)]) * 1000)} m from the line)`);
+  check(f.walked === 200, `and the walk drawn as walked up to you (${f.walked} m)`);
+}
+{
+  // a guessed start, a fix 3 m behind its first point (review Neon 6)
+  NOW = nineAm() - 3600;
+  await show(false, { approxStart: 1 });
+  fix(-3, 0, NOW + 1);
+  const dot = LOC.userMarker.at!;
+  check(R.lengthKm([dot, at(-3, 0)]) < 0.0005, `3 m behind the start of a guessed start: the dot where GPS says (${Math.round(R.lengthKm([dot, at(0, 0)]) * 1000)} m from its first point)`);
+}
+
+console.log('10. the live header and the change card count the same seconds (review finding 5)');
+{
+  // a bus to I, 155 s on foot to the next stop, which the next bus leaves 165 s after the first arrives
+  NOW = nineAm();
+  const qJ = quay('j', at(210, 150), 'Bern, Theaterplatz');
+  const ride = (id: string, a: KanteQuay, dep: number, b: KanteQuay, arr: number) => ({ type: 'ride', tripId: id, serviceDate: '2026-11-24',
+    line: { name: id, category: 'B', mode: 'bus', operator: 'BERNMOBIL' }, headsign: 'x', from: { seq: 1, quay: a, dep, depDelayS: 0 }, intermediate: [],
+    to: { seq: 2, quay: b, arr, arrDelayS: 0 }, geometry: [], live: 'forecast' }) as unknown as KanteRideLeg;
+  const arr = NOW + 600, dep = arr + 165;
+  const change = walkLeg('transfer', [I, at(210, 75), at(210, 150)], point(I, qI), point(at(210, 150), qJ), arr, 155, {});
+  await showPlan({ journeys: [{ id: 'j3', dep: NOW, arr: dep + 300, durationS: dep + 300 - NOW, transfers: 1, walkS: 155, walkM: 150,
+    legs: [ride('10', qQ, NOW, qI, arr), change, ride('12', qJ, dep, qR, dep + 300)] }] }, R0, 'Kornhausplatz');
+  const ch = S.journey.steps.find((x) => x.type === 'change')!;
+  clock = (NOW + 60) * 1000; // no GPS (the last fix is a day old)
+  const line = LL.liveParts(Date.now()), head = line ? line.parts.join('') : '';
+  check(JS.spareOf(ch).text === '10 s to spare', `the card: "${JS.spareOf(ch).text}"`);
+  check(!head.startsWith('Not enough time'), `the header agrees: "${head}"`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

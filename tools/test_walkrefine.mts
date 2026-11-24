@@ -78,6 +78,10 @@ interface AppPage {
   /** What the engine's /api/plan answers (KANTE.plan()), and /api/trip for each trip (KANTE.trip()). */
   planned: KantePlanResponse | null;
   trips: Record<string, KanteTrip>;
+  /** The URLs fetched (the routers on the web: OSRM's foot profile, the ride routers), and what OSRM's foot profile
+   *  answers for a walk between two points (null: no answer). */
+  fetched: string[];
+  foot: ((a: LngLat, b: LngLat) => object | null) | null;
 }
 /** What src/app/routing.ts exports, as far as these tests call it. */
 interface AppRouting {
@@ -103,7 +107,7 @@ interface AppSteps {
   buildSteps(conn: object, destTitle: string): FakeStep[];
   stepFeatures(steps: FakeStep[]): MapFeature[];
   /** The time to spare at a change, as the sheet writes it ("2 min to spare"). */
-  spareOf(st: FakeStep): { s: number; level: string; text: string };
+  spareOf(st: FakeStep): { s: number; level: string; text: string; est: boolean };
   /** When the journey leaves and arrives, as the header, the pill and the timeline's first and last rows show it. */
   journeyStart(): number;
   journeyEnd(): number;
@@ -136,6 +140,7 @@ fake('platforms.ts', { platformKey: (p: string | null | undefined) => String(p |
 fake('sprites.ts', { INK: '#000' });
 fake('tracking.ts', { nowMarker: marker, placeUserDot: nothing, vehMarker: marker, journeyProgress: () => null, stopKms: () => null, tripLive: () => true });
 fake('live-vehicles.ts', { platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', vehUpdate: nothing,
+  fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`),
   levelShort: (l: number) => (l < 0 ? '−' + -l : String(l)), platformWord: () => 'Platform', splitPlatform: (p: string) => ({ num: p || '', sectors: '' }) });
 fake('sheet-content.ts', { queueSheet: nothing, renderSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
 fake('pill.ts', { updateProgress: nothing, updatePillTimes: nothing });
@@ -150,8 +155,15 @@ fake('../engine.ts', { KANTE: { available: () => true, base: 'https://engine.tes
   walk: (body: KanteWalkRequest) => { const d = defer<FakeEngineWalk>(); page.asked.push({ body, d }); return d.p; },
   plan: async () => page.planned, trip: async (tripId: string) => page.trips[tripId] || null } });
 fake('../live.ts', { KANTE_LIVE: { isLive: () => true, liveInfoOf: () => ({}) } });
-// (the rides' tracks and roads are asked of BRouter and OSRM: no answer here, so they stay the lines between the stops)
-Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { hidden: false }, fetch: async () => ({ ok: false }) });
+// (the rides' tracks and roads are asked of BRouter and OSRM: no answer here, so they stay the lines between the stops;
+// OSRM's foot profile answers what the test sets, page.foot)
+const fetchStub = async (url: string) => {
+  page.fetched.push(url);
+  const m = /routed-foot\/route\/v1\/foot\/([-\d.]+),([-\d.]+);([-\d.]+),([-\d.]+)\?/.exec(url);
+  const answer = m && page.foot ? page.foot([+m[1], +m[2]], [+m[3], +m[4]]) : null;
+  return answer ? { ok: true, json: async () => answer } : { ok: false };
+};
+Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { hidden: false }, fetch: fetchStub });
 // (a specifier TypeScript does not follow: the app's modules are checked with the app, not with the tools)
 const load = (file: string) => import(new URL(file, APP).href);
 const R: AppRouting = await load('routing.ts');
@@ -161,7 +173,7 @@ const JS: AppSteps = await load('journey-steps.ts');
 const LE: LiveEngine = await load('live-engine.ts');
 /** A fresh page for a test: nothing asked yet, and the state as when the page has just planned journey 1. */
 function app() {
-  page = { asked: [], station: [], plan: null, planned: null, trips: {} };
+  page = { asked: [], station: [], plan: null, planned: null, trips: {}, fetched: [], foot: null };
   Object.assign(S.journey, { steps: [], req: 1, routeKey: '', conn: null, dest: null, platKey: '' });
   S.tracking.geoVersion = 0;
   return page;
@@ -184,7 +196,7 @@ const east = (p: LngLat, m: number): LngLat => [p[0] + m / (111320 * Math.cos(p[
 
 // ---- journeys as the app has them: the engine's journey (/api/plan) through KanteJourney.plans() and buildSteps(),
 // its walks refined (refineJourney()), and live data through livePoll() (/api/trip) ----
-const NOW = Math.floor(Date.now() / 1000), T = (min: number) => NOW + min * 60; // unix seconds, minutes from now
+const NOW = Math.floor(Date.now() / 60000) * 60, T = (min: number) => NOW + min * 60; // unix seconds, whole minutes from now
 const quayAt = (id: string, ll: LngLat, label: string, level = 0, station = 'st:8507000'): KanteQuay => ({ id, sloid: id, stationId: station,
   stationName: station === 'st:8507000' ? 'Bern' : 'Zürich HB', label, noun: 'edge', lat: ll[1], lon: ll[0], precision: 'edge', level, modes: ['rail'] });
 const callAt = (seq: number, quay: KanteQuay, arr?: number, dep?: number): KanteStopCall => ({ seq, quay, ...(arr != null ? { arr } : {}), ...(dep != null ? { dep } : {}) });
@@ -682,6 +694,149 @@ console.log('19. a walk of a few metres to a door stays in the trip (finding 6)'
   check(i >= 0 && JS.stepFeatures(steps).some((f) => f.properties.kind === 'door' && f.properties.step === i), 'its door on the map');
   check(i >= 0 && !!st.walks && !!st.walks[0].dirs && st.walks[0].dirs.some((d) => d.text === 'In at the entrance, Bundesgasse 3'), 'and in the directions');
   check(JS.journeyEnd() === T(30) * 1000, 'arriving with the train (no minute added)');
+}
+
+// ---- the review's findings (round 3) ----
+console.log('20. a walk the engine has no path for at all: OSRM foot, as main asked it (review finding 2)');
+{
+  // near Weil am Rhein (Germany): the engine's map ends at the border, so its walks there are straight lines
+  const c = app();
+  const W1: LngLat = [7.5891, 47.6318], S1: LngLat = [7.5925, 47.6312], S2: LngLat = [7.6010, 47.6305], W2: LngLat = [7.6051, 47.6300];
+  const s1 = quayAt('qw1', S1, 'A', 0, 'st:8014000'), s2 = quayAt('qw2', S2, 'B', 0, 'st:8014001');
+  const legs: KanteLeg[] = [
+    walkLeg('access', point(W1), point(S1, s1), T(4), 240, { approximate: true, distanceM: 300, steps: [step('walk', 0, 1, 'Walk about 300 m to Weil')] }),
+    rideLeg('t1', callAt(0, s1, undefined, T(8)), callAt(1, s2, T(14))),
+    walkLeg('egress', point(S2, s2), point(W2), T(14), 300, { approximate: true, distanceM: 360, steps: [step('walk', 0, 1, 'Walk about 360 m to Kunsthaus')] })];
+  // OSRM's foot profile: a way along two streets, 420 m (for the walk from W1: 300 m)
+  c.foot = (a, b) => {
+    const mid: LngLat = [(a[0] + b[0]) / 2, a[1]], m = same(a, W1) ? 300 : 420;
+    return { code: 'Ok', routes: [{ geometry: { coordinates: [a, mid, b] }, distance: m, legs: [{ steps: [
+      { distance: m - 120, name: 'Hauptstrasse', maneuver: { type: 'depart' }, geometry: { coordinates: [a, mid] } },
+      { distance: 120, name: 'Schulstrasse', maneuver: { type: 'turn', modifier: 'left' }, geometry: { coordinates: [mid, b] } },
+      { distance: 0, name: '', maneuver: { type: 'arrive' } }] }] }] };
+  };
+  const steps = await show(legs, W2);
+  await settle(); await settle();
+  const first = steps[0], i = steps.findIndex((x) => x.type === 'walk' && x.final), last = steps[i];
+  const asked = c.fetched.filter((u) => u.includes('routed-foot'));
+  check(asked.length === 2 && c.asked.length === 0, `OSRM foot asked once for each walk without a path (${asked.length}), the engine not again`);
+  const w = last.walks && last.walks[0];
+  check(last.lines![0].length === 5 && same(last.lines![0][0], S2) && same(last.lines![0][4], W2), `the last walk drawn along OSRM's way, from the platform to the place (${last.lines![0].length} points)`);
+  check(!!w && w.dist === 420 && !w.approx && !walkLines(i)[0].properties.approx, `its metres (${w && w.dist}), drawn solid`);
+  const texts = (w && w.dirs || []).map((d) => d.text);
+  check(texts.join(' | ') === 'Walk 300 m along Hauptstrasse | Turn left and walk 120 m along Schulstrasse', `its directions, street by street (${JSON.stringify(texts)})`);
+  check(last.min === 5 && last.walkS === 323, `its time at the walking pace: ${last.walkS} s, ${last.min} min (the engine's guess was 5 min for 360 m)`);
+  check(first.walkS === 231 && first.min === 4 && first.t0 === T(8) * 1000 - 231000, `the first walk too: ${first.walkS} s, leave ${(T(8) * 1000 - first.t0!) / 1000} s before the train`);
+  // the engine answers /api/walk without a path (a walk moved by a live update): OSRM foot again
+  const r = R.routeWalk(east(W1, 50), east(W2, -50));
+  await settle();
+  c.asked[0].d.res({ kind: 'direct', durationS: 600, distanceM: 600, approximate: true, geometry: [east(W1, 50), east(W2, -50)], levels: [null, null], steps: [] });
+  const rw = await r;
+  check(rw.dist === 420 && rw.coords.length === 5 && !!rw.dirs && rw.dirs.length === 2, `routeWalk(): the engine has no path, OSRM foot has (${rw.dist} m)`);
+  // OSRM has none either: the dashed line, as the engine had it
+  c.foot = () => null;
+  const r2 = R.routeWalk(east(W1, 80), east(W2, -80));
+  await settle();
+  c.asked[1].d.res({ kind: 'direct', durationS: 600, distanceM: 600, approximate: true, geometry: [east(W1, 80), east(W2, -80)], levels: [null, null], steps: [step('walk', 0, 1, 'Walk about 600 m')] });
+  const rw2 = await r2;
+  check(rw2.approx === true && rw2.dist === 600 && rw2.walkS === 600, `no answer from OSRM either: the engine's straight line, metres and time (${rw2.dist} m, ${rw2.walkS} s)`);
+}
+{
+  // a walk the engine routed, and one with guessed ends: OSRM foot is not asked
+  const c = app();
+  c.foot = () => { throw new Error('not to be asked'); };
+  const r = R.routeWalk(A, B);
+  await settle();
+  c.asked[0].d.res(walk([A, [7.435, 46.945], B], { approxStart: 1 }));
+  const rw = await r;
+  const steps = await show(toDoor(), PLACE);
+  await settle();
+  check(rw.net === true && c.fetched.every((u) => !u.includes('routed-foot')) && steps.length > 0, `a routed walk (guessed ends too): OSRM foot not asked (${c.fetched.length} fetched)`);
+}
+
+console.log('21. a late answer for a platform the walk no longer goes to is dropped (review finding 3)');
+{
+  // the train leaves from platform 1; a live update moves it to platform 2 at the same point, then back to 1 before
+  // /api/walk answers for platform 2 (its stairs: seven minutes)
+  const c = app();
+  const S1: LngLat = east(A, 100);
+  const departure = (q: KanteQuay) => [callAt(0, q, undefined, T(10)), callAt(1, quayAt('q7', B, '7'), T(30))] as [KanteStopCall, KanteStopCall];
+  const p1 = quayAt('q1', S1, '1', 0, 'st:8503000'), p2 = quayAt('q2', S1, '2', -1, 'st:8503000');
+  const steps = await show([walkLeg('access', point(A), point(S1, p1), T(8), 120), rideLeg('t2', ...departure(p1))], B);
+  const first = steps[0];
+  check(JS.journeyStart() === T(8) * 1000, 'as planned: leave two minutes before the train');
+  await live('t2', departure(p2));
+  check(c.asked.length === 1 && c.asked[0].body.to.quay === 'q2', 'platform 2: the walk there is asked for');
+  await live('t2', departure(p1));
+  await answer(0, 420);
+  check(first.walkS === 120 && JS.journeyStart() === T(8) * 1000, `back on platform 1: the late answer for platform 2 is dropped (leave ${(T(10) * 1000 - JS.journeyStart()) / 60000} min before the train)`);
+  await live('t2', departure(p2));
+  check(c.asked.length === 2 && c.asked[1].body.to.quay === 'q2', `platform 2 again: asked again (${c.asked.length} requests)`);
+  await answer(1, 420);
+  check(first.walkS === 420 && JS.journeyStart() === T(3) * 1000, 'and its answer is the walk now');
+}
+
+console.log('22. a change by lift alone keeps its time and its directions (review finding 4)');
+{
+  const c = app();
+  const p7 = quayAt('q7', B, '7', 0), p8 = quayAt('q8', B, '8', 2);
+  const lift: KanteWalkStep = { ...step('lift', 0, 1, 'Take the lift up to level 2'), durS: 150, distM: 0, level: 0, toLevel: 2 };
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, p7, T(20))),
+    walkLeg('transfer', point(B, p7), point(B, p8), T(20), 150, { distanceM: 0, lifts: 1, geometry: [B, B], levels: [0, 2], steps: [lift] }),
+    rideLeg('t2', callAt(3, p8, undefined, T(22)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50)))];
+  const steps = await show(legs, A);
+  const ch = steps.find((x) => x.type === 'change')!, sp = JS.spareOf(ch);
+  check(ch.walkS === 150 && ch.walkMin === 3, `the lift's 150 s (${ch.walkS} s, ${ch.walkMin} min)`);
+  check(!!ch.walks && ch.walks[0].dirs!.some((d) => d.text === 'Take the lift up to level 2'), `and its direction (${ch.walks && JSON.stringify(ch.walks[0].dirs!.map((d) => d.text))})`);
+  check(sp.level === 'missed' && sp.s === -30, `two minutes between the trains: the change is missed by 30 s (${sp.text}, ${sp.s} s)`);
+  // a change at the very same boarding point, in no time: no walk
+  app();
+  const same0 = await show([legs[0], walkLeg('transfer', point(B, p7), point(B, p7), T(20), 0, { distanceM: 0, geometry: [B, B], levels: [0, 0], steps: [] }),
+    rideLeg('t2', callAt(3, p7, undefined, T(22)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50)))], A);
+  const ch0 = same0.find((x) => x.type === 'change')!;
+  check(ch0.lines!.length === 0 && ch0.walkMin === 0 && JS.spareOf(ch0).text === '2 min to spare', `the same point, no time: no walk (${JS.spareOf(ch0).text})`);
+}
+
+console.log('23. the arrival adds the walk\'s seconds, then rounds (review finding 6)');
+{
+  // the train arrives at 0:40 past the minute; the walk on, rerouted, takes 143 s: it ends at 3:03 past, shown as 3
+  const c = app();
+  const P: LngLat = east(B, 150), Q = east(B, -200);
+  const arrival = (q: KanteQuay) => [callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, q, T(30) + 40)] as [KanteStopCall, KanteStopCall];
+  const steps = await show([rideLeg('t1', ...arrival(quayAt('q7', B, '7'))), walkLeg('egress', point(B, quayAt('q7', B, '7')), point(P), T(30) + 40, 120)], P);
+  await live('t1', arrival(quayAt('q3', Q, '3')));
+  await answer(0, 143);
+  const st = steps.find((x) => x.type === 'walk' && x.final)!;
+  check(JS.journeyEnd() === T(33) * 1000 && st.t1 === T(33) * 1000, `arriving ${(JS.journeyEnd() / 1000 - T(30)) / 60} min after the train's minute, not 2 (40 s + 143 s = 3 min 3 s)`);
+}
+
+console.log('24. requay(): a change with no walk whose platform moves a floor while the ride\'s other end moves too (review Neon 3)');
+{
+  const c = app();
+  const after = (q: KanteQuay, end: KanteQuay) => [callAt(3, q, undefined, T(26)), callAt(4, end, T(50))] as [KanteStopCall, KanteStopCall];
+  const legs: KanteLeg[] = [rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, quayAt('q7', B, '7'), T(20))),
+    rideLeg('t2', ...after(quayAt('q8', B, '8'), quayAt('q2', A, '2', 0, 'st:8503000')))];
+  const steps = await show(legs, A);
+  const i = steps.findIndex((x) => x.type === 'change');
+  check(steps[i].lines!.length === 0, 'as planned: no walk');
+  await live('t2', after(quayAt('q18', B, '18', -1), quayAt('q3', C, '3', 0, 'st:8503000')));
+  check(walkLines(i).length === 1 && c.asked.length === 1 && c.asked[0].body.to.quay === 'q18', `platform 18 a floor down, and the train ends elsewhere: the change has a walk, asked for (${c.asked.length} requests)`);
+}
+
+console.log('25. a change moved back to the same platform is not an estimate any more (review Neon 4)');
+{
+  const c = app();
+  const P12 = east(B, 400);
+  const after = (q: KanteQuay) => [callAt(3, q, undefined, T(26)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50))] as [KanteStopCall, KanteStopCall];
+  const steps = await show([rideLeg('t1', callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, quayAt('q7', B, '7'), T(20))),
+    rideLeg('t2', ...after(quayAt('q8', B, '8')))], A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  await live('t2', after(quayAt('q12', P12, '12')));
+  c.asked[0].d.rej(new Error('down')); await settle();
+  check(JS.spareOf(ch).est, `platform 12, no answer: an estimate (${JS.spareOf(ch).text})`);
+  await live('t2', after(quayAt('q7b', B, '7')));
+  const sp = JS.spareOf(ch);
+  check(ch.lines!.length === 0 && !sp.est && sp.text === '6 min to spare', `back beside the arrival: no walk, and not an estimate ("${sp.text}")`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

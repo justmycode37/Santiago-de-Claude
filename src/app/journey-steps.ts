@@ -381,7 +381,8 @@ export function buildSteps(conn: Journey, destTitle: string) {
   return steps;
 }
 
-// Time every ride, change and the last walk by the live forecasts (run again whenever they change)
+// Time every ride, change and the last walk by the live forecasts (run again whenever they change). The last walk
+// ends its seconds after the last ride's arrival, to the nearest minute (the seconds added first, then rounded).
 export function applyLiveTimes(steps: JourneyStep[]) {
   let end: number | null = null;
   steps.forEach((st) => {
@@ -393,7 +394,10 @@ export function applyLiveTimes(steps: JourneyStep[]) {
       st.t0 = liveMs(st.prev.to, 'arr');
       st.t1 = st.walkMin > 0 ? st.t0! + st.walkMin * 60000 : liveMs(st.next.from, 'dep');
     } else if (st.type === 'walk' && st.final) {
-      if (st.from) { st.t0 = liveMs(st.from.to, 'arr'); st.t1 = st.t0! + st.min * 60000; }
+      if (st.from) {
+        st.t0 = liveMs(st.from.to, 'arr');
+        st.t1 = Math.round((st.t0! + (st.walkS != null ? st.walkS : st.min * 60) * 1000) / 60000) * 60000;
+      }
       end = st.t1;
     } else if (st.type === 'arrive' && end != null) st.time = end;
   });

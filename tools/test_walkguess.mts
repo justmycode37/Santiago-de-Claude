@@ -293,7 +293,10 @@ console.log('6. guesses that meet, a repeated point, a two-point guess');
   const t = scenarios.two({ approxStart: 1 });
   check(t.aside.walked === 0 && same({ ...t.aside, walked: undefined }, { ...plain.two.aside, walked: undefined }),
     `two points guessed through the last, a fix past its end to the side: where it is (${t.aside.kmIn} km), not drawn as walked`);
-  check(same(t.atEnd, plain.two.atEnd), `beside its end: at the end, as without the fields (${JSON.stringify(t.atEnd)} / ${JSON.stringify(plain.two.atEnd)})`);
+  // (still on the guess, so the blue dot stays off it; drawn as walked up to the fix, as without the fields)
+  const { walked: upTo, ...atEnd } = t.atEnd;
+  check(same(atEnd, plain.two.atEnd) && upTo === t.atEnd.kmIn,
+    `beside its end: at the end, drawn as walked up to it, as without the fields (${JSON.stringify(t.atEnd)} / ${JSON.stringify(plain.two.atEnd)})`);
 }
 
 console.log('7. a walk in parts: a guess on the second one');

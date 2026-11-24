@@ -1,7 +1,9 @@
 // ---------- Accurate route shapes ----------
-// Walks are the Kante engine's (its path comes with every walk of a journey, and from /api/walk). The engine's rides
-// only give stop coordinates, so the lines between them are routed: trains → BRouter rail profile (brouter.de),
-// buses/trams → OSM road routing. Anything implausible falls back to the straight line.
+// Walks are the Kante engine's (its path comes with every walk of a journey, and from /api/walk). Only a walk the
+// engine has no path for at all (its map ends at the border) is asked of OSRM's foot profile, as before the engine
+// routed walks (footWalk()). The engine's rides only give stop coordinates, so the lines between them are routed:
+// trains → BRouter rail profile (brouter.de), buses/trams → OSM road routing. Anything implausible falls back to the
+// straight line.
 import { map } from './map.ts';
 import { updateCards } from './map-events.ts';
 import { userLngLat } from './location.ts';
@@ -13,7 +15,7 @@ import { updatePlaces } from './map-places.ts';
 import { jBody, jFoot, jHead, setRoute } from './journey-map.ts';
 import { applyLiveTimes, modeOf } from './journey-steps.ts';
 import { nowMarker, placeUserDot, vehMarker } from './tracking.ts';
-import { platformOf, vehUpdate } from './live-vehicles.ts';
+import { fmtDist, platformOf, vehUpdate } from './live-vehicles.ts';
 import { queueSheet, s3Plan, s3Prefs } from './sheet-content.ts';
 import { updateProgress } from './pill.ts';
 import { closeTimeSheet, updateWhenChip } from './time-picker.ts';
@@ -42,6 +44,8 @@ export interface RoutedWalk {
   net?: boolean;
   /** A straight line, not a route (no router found a way). */
   approx?: boolean;
+  /** The engine answered, but has no path for any of it (`approximate`): OSRM's foot profile is asked (footWalk()). */
+  noPath?: boolean;
   /** Coordinate indices: the guessed straight bits from the start (0…approxTo) and to the end (approxFrom…). */
   approxTo?: number | null;
   approxFrom?: number | null;
@@ -83,8 +87,10 @@ export const lengthKm = (cs: LngLat[]) => cs.reduce((sum, c, i) => (i ? sum + di
 const plausible = (route: LngLat[] | false | null | undefined, straight: LngLat[]) => route && route.length > 1 && lengthKm(route) <= Math.max(lengthKm(straight) * 2.5, lengthKm(straight) + 0.4);
 const ll = (c: LngLat) => `${c[0].toFixed(6)},${c[1].toFixed(6)}`;
 
-// What the ride routers answer, as far as it is read: OSRM (routing.openstreetmap.de), BRouter
-interface OsrmRoute { geometry: { coordinates: LngLat[] }; distance: number }
+// What the routers answer, as far as it is read: OSRM (routing.openstreetmap.de; its foot profile with its
+// turn-by-turn steps), BRouter
+interface OsrmStep { distance?: number; name?: string; maneuver?: { type?: string; modifier?: string }; geometry?: { coordinates: LngLat[] } }
+interface OsrmRoute { geometry: { coordinates: LngLat[] }; distance: number; legs?: { steps?: OsrmStep[] }[] }
 interface OsrmAnswer { code: string; routes: OsrmRoute[] }
 interface BrouterAnswer { features?: { geometry: { coordinates: number[][] } }[] }
 // A walk between two points, by the Kante engine (/api/walk): its path, metres, written directions, floor changes, the
@@ -96,9 +102,31 @@ export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd])
   const place = (p: LngLat, e: WalkEnd): KantePlaceRef => ({ lat: p[1], lon: p[0], ...(e.quay ? { quay: e.quay } : {}), ...(e.exact ? { exact: true } : {}) });
   try {
     const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options() }));
-    if (r) return r;
+    if (r) return (r.noPath && (await footWalk(a, b))) || r;
   } catch (e) { /* the straight line */ }
   return { coords: [a, b], steps: null, dist: null, approx: true };
+}
+
+// The one walk router besides the engine: OSRM's foot profile (routing.openstreetmap.de), asked as the site asked it
+// before the engine routed walks, only for a walk the engine has no path for at all (outside its map: abroad, past
+// the border). Its line, metres and street-by-street directions, timed at the walking pace; null: no way found.
+const TURN: Record<string, string> = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
+  'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
+export async function footWalk(a: LngLat, b: LngLat): Promise<RoutedWalk | null> {
+  if (distKm(a, b) < 0.02) return null;
+  const d = await getJSON<OsrmAnswer>(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${ll(a)};${ll(b)}?overview=full&geometries=geojson&steps=true`);
+  const r = d && d.code === 'Ok' && d.routes[0];
+  if (!r || !plausible(r.geometry.coordinates, [a, b])) return null;
+  const dirs: KanteWalkDir[] = [];
+  ((r.legs && r.legs[0] && r.legs[0].steps) || []).forEach((s) => {
+    const m = s.maneuver || {}, dist = Math.round(s.distance || 0);
+    if (m.type === 'arrive' || dist < 3) return;
+    const along = s.name ? ` along ${s.name}` : '';
+    const verb = !dirs.length ? 'Walk' : `${TURN[m.modifier!] || 'Continue'} and walk`;
+    dirs.push({ kind: !dirs.length ? 'depart' : 'walk', text: `${verb} ${fmtDist(dist)}${along}`, coords: (s.geometry && s.geometry.coordinates) || [] });
+  });
+  const dist = Math.round(r.distance);
+  return { coords: [a, ...r.geometry.coordinates, b], steps: null, dist, dirs, walkS: Math.round(dist / KanteJourney.options().walkSpeed) };
 }
 
 async function routeRide(path: LngLat[], mode: LineMode): Promise<LngLat[]> {
@@ -176,8 +204,13 @@ export function refineWalks(id: number, onlyMoved?: boolean) {
   journey.steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
     const sig = walkSig(st);
-    // routed for these lines, ends and platforms already, or asked for and the answer still on its way
-    if (onlyMoved && ((st._netFor === st.lines && st._netSig === sig) || (st._askFor === st.lines && st._askSig === sig))) return;
+    if (onlyMoved) {
+      // asked for these lines, ends and platforms, and the answer on its way (or in)
+      if (st._askFor === st.lines && st._askSig === sig) return;
+      // routed for them already (it was moved away and back before an answer came): what is drawn stays, and an
+      // answer still on its way for the other ends is dropped, by a new revision
+      if (st._netFor === st.lines && st._netSig === sig) { newWalkRev(st).done(); return; }
+    }
     // no walk any more (both rides at the same point now): an answer still on its way must not bring it back
     if (!(st.lines || []).length) { newWalkRev(st); return; }
     const plan = s3Plan(st);
@@ -193,12 +226,13 @@ const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
   const ends = st.ends || [];
   return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : ''))]);
 };
-// A new revision of a walk's route: answers for older ones (it has been moved or rerouted since) are dropped
+// A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
+// ends and platforms the walk no longer has, are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   const rev = (st.walkRev = (st.walkRev || 0) + 1), sig = walkSig(st);
   st._askFor = st.lines;
   st._askSig = sig;
-  const current = () => st.walkRev === rev && journey.steps.includes(st);
+  const current = () => st.walkRev === rev && walkSig(st) === sig && journey.steps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
   const done = () => { st._netFor = st.lines; st._netSig = sig; };
   // no answer (the engine is down or cannot be reached): nothing is on its way any more, so it is asked again
@@ -227,9 +261,21 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
 function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   const first = st.walkRev == null;
   const current = newWalkRev(st);
-  if (first) { current.done(); return; } // the engine's walk as the plan came (a walk it found no path for stays straight)
   const lines = st.lines || [];
   const goal = (line: LngLat[], k: number) => (k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1]);
+  if (first) { // the engine's walk as the plan came
+    current.done();
+    // one it has no path for at all: OSRM's foot profile, else it stays the straight line with the engine's time
+    const w = st.walks && st.walks[0];
+    if (lines.length !== 1 || !w || !w.noPath) return;
+    task(footWalk(lines[0][0], goal(lines[0], 0)), (res) => {
+      if (!res || !current()) return;
+      Object.assign(st, { lines: [res.coords], walks: [res], floors: null });
+      current.done();
+      walkTime(st, [res]);
+    });
+    return;
+  }
   task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k]))), (res) => {
     if (!current()) return;
     st.lines = res.map((w) => w.coords);
@@ -271,14 +317,13 @@ function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) 
 const walkGoal = (st: JourneyWalkStep | JourneyChangeStep, end: LngLat) => (st.type === 'walk' && st.final && st.toLL) || end;
 
 export function refineJourney(id: number) {
-  let pending = 0, scheduled = false;
+  let scheduled = false;
   const redraw = () => {
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => { scheduled = false; if (id === journey.req) { journey.routeKey = ''; updateProgress(); } });
   };
   const task = <T>(promise: Promise<T>, apply: (res: T) => void) => {
-    pending++;
     promise.then((res) => { if (id !== journey.req) return; apply(res); tracking.geoVersion++; redraw(); });
   };
   const keys3d = new Set(journey.steps.map((st) => (s3Plan(st) || {}).key).filter(Boolean));

@@ -7,8 +7,12 @@ stretches before and after a station model). The engine routes on one pedestrian
 Switzerland, built from OpenStreetMap (`kante/engine/crates/osm`, `walk`, `link`; the doors in
 `kante/engine/crates/link/src/doors.rs`). Inside the ten stations with a 3D
 model the model's own router (`src/station-route.ts`) draws the part inside, so the map shows the way the 3D view
-does. When the engine finds no path, or cannot be reached, the walk is a dashed straight line, timed by the engine
-when it answered. A walk asked for again that gets no answer is timed as the engine times a straight line, the time to
+does. When the engine answers that it has no path at all (`approximate`: the place is outside its map, which ends
+at the border), the walk is asked of OSRM's foot profile (`routing.openstreetmap.de/routed-foot`, `footWalk()` in
+`src/app/routing.ts`), as the site asked it before the engine routed walks: its line, metres and street-by-street
+directions, timed at the walking pace. This is the one fallback; it is never asked for a walk the engine routed,
+guessed ends included. When OSRM has no way either, or the engine cannot be reached, the walk is a dashed straight
+line, timed by the engine when it answered. A walk asked for again that gets no answer is timed as the engine times a straight line, the time to
 spare at a change says so ("About 3 min to spare — the walk is estimated"), and it is asked again with the next live
 update.
 
@@ -41,15 +45,20 @@ update.
   mapped", "Then about 60 m …"); the engine's own directions start where the paths do. A lift between two guesses
   (two points at one place on two floors) is routed, and said. GPS on a guessed stretch counts where you are (the
   distance left, the bar, boarding the next ride and arriving go by it), but the walk is drawn as walked only up to
-  where the guess begins, except within 25 m of the walk's end.
+  where the guess begins, except within 25 m of the walk's end. A walk with no path at all (a straight line) counts
+  as a guess throughout.
 - **Your position and addresses** are on the street, not in the underpass below them, unless they are right on a way
   of another floor (3 m) with no way on the street within 10 m.
 
-On a routed walk the blue dot sits on the path while GPS is within its accuracy (not on a guessed stretch).
+On a routed walk the blue dot sits on the path while GPS is within its accuracy (never on a guessed stretch, at its
+end or before its first point included).
 
-You have arrived within 25 m of the trip's end along its line, or, once past its last ride, within the GPS accuracy
-of the destination, counted as 20 to 40 m. Once arrived you stay arrived (walking on into the building does not undo
-it) until another trip is opened.
+You have arrived within 25 m of the trip's end along its line, or within the GPS accuracy of the destination, counted
+as 20 to 40 m; when the trip ends on foot, both only once you are past its last ride. That arrival is kept for good
+only on a fix that is itself there: within 25 m (or that accuracy, up to 40 m) of the point where the trip's line
+ends, or of the destination. A fix that is only snapped onto the end from further off (one stray fix) shows "You have
+arrived" for that fix alone. Arrived for good, you stay arrived, through walking on into the building and through a
+gap in GPS, until another trip is opened.
 
 ## The engine's walk
 

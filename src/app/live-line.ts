@@ -1,7 +1,7 @@
 // ---- The live line in the sheet's header: "120 m to Platform 7 · S1 in 4 min", "On 10 · 3 stops to Bern" ----
 import { gpsOn } from './location.ts';
 import { setRoute } from './journey-map.ts';
-import { fmtTime, hasForecast, lateMin, liveMs, stepFeatures, stopName } from './journey-steps.ts';
+import { fmtTime, hasForecast, lateMin, liveMs, spareOf, stepFeatures, stopName } from './journey-steps.ts';
 import { journeyProgress, stopKms, tripLayout, vehicleState } from './tracking.ts';
 import { rideTrip } from './live-engine.ts';
 import { fmtDist, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
@@ -45,13 +45,14 @@ function platChange(r: JourneyRideStep | null | undefined) {
   const q = r && quayOf(r, 'dep');
   return q && q.planned ? h('b', 'plat-move', ` · ${q.word} ${q.planned} → ${q.label}`) : null;
 }
-// A change ahead that live times make impossible: the next ride leaves before you can walk there
+// A change ahead that live times make impossible: the next ride leaves before you can walk there (by the seconds the
+// change's card counts: spareOf())
 function brokenChange(now: number, from: number) {
   return journey.steps.find((st, i) => {
     if (st.type !== 'change' || i < from) return false;
     const arr = liveMs(st.prev.to, 'arr'), dep = liveMs(st.next.from, 'dep');
     const live = hasForecast(st.prev.to, 'arr') || hasForecast(st.next.from, 'dep');
-    return live && arr != null && dep != null && now < dep && dep - arr < (st.walkMin || 0) * 60000;
+    return live && arr != null && dep != null && now < dep && spareOf(st).s < 0;
   }) as JourneyChangeStep | undefined;
 }
 // Walking to a ride with GPS: is there time to spare, at your walking speed (Settings), for the metres left?
