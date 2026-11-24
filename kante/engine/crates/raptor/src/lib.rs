@@ -72,8 +72,11 @@ use std::sync::{Arc, OnceLock};
 
 pub use footpaths::crowfly_footpaths;
 
-/// Upper limit on rides per journey (`max_transfers` is clamped to `MAX_RIDES - 1`).
-pub const MAX_RIDES: usize = 7;
+/// Upper limit on rides per journey (`max_transfers` is clamped to `MAX_RIDES - 1`). Remote places need many: two
+/// town buses to the station, three trains and three valley buses are eight rides, and with seven the planner
+/// answered with a journey a day later. A round is only run while the one before it still improved a stop that can
+/// beat the best arrival, so the rounds a query does not need cost it nothing.
+pub const MAX_RIDES: usize = 15;
 /// With live data a trip is assumed to leave at most this many seconds before schedule.
 pub const EARLY_SLACK: Secs = 300;
 /// Bitmask with every [`Mode`] allowed.
@@ -207,6 +210,12 @@ pub struct Query<'a> {
     pub max_arr: Option<Secs>,
     /// (stop, seconds needed to reach it from the origin). Ignored when `onboard` is set.
     pub access: &'a [(StopIdx, Secs)],
+    /// For access stops the traveller would rather not walk to (farther than they like to walk): the seconds a
+    /// journey that starts at `access[i]` counts as leaving earlier than it does (empty: none). Such a journey is
+    /// compared, and returned, with that departure (`Journey::dep`, `Leg::Access::dep`): it is in the answer only
+    /// where no journey from another stop leaves after it and arrives as early. What can be caught at the stop is
+    /// decided by the walk alone.
+    pub access_late: &'a [Secs],
     /// (stop, seconds from it to the destination).
     pub egress: &'a [(StopIdx, Secs)],
     pub onboard: Option<Onboard>,
@@ -232,6 +241,7 @@ impl<'a> Query<'a> {
             window: 0,
             max_arr: None,
             access,
+            access_late: &[],
             egress,
             onboard: None,
             footpaths,

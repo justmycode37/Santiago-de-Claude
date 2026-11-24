@@ -54,6 +54,29 @@ The journey sheet, the map, the pill, tracking, the AR camera, the SBB link and 
 when the engine offers it, the one to show first, and the engine's pages for "Earlier" and "Later"
 (`KanteJourney.more()`). It answers `null` when the engine finds no route and throws when the engine is off or down.
 
+## What the engine looks for
+
+- **Changes.** A change takes the walk between the two platforms or stop edges, on the engine's walking network at
+  the traveller's pace, and the *Extra change time* of Settings on top (0 unless the traveller sets it). The
+  timetable's own minimum change times are not used for this; the sheet says how much time a change leaves.
+- **As many rides as it takes.** A journey may have up to fifteen rides: from a village to a mountain valley, two
+  town buses, three trains and three valley buses are no exception. Of the journeys offered, the one shown first is
+  the one that arrives first, where one change less is worth three minutes (`pick()` in `src/engine-journey.ts`).
+- **How far ahead.** The journeys leaving in the next four hours; where that gives fewer than three, in the next
+  sixteen; where nothing leaves in sixteen hours (a bus that does not run on Sundays), the first ones after that,
+  as far as the day after next.
+- **The maximum walk** of Settings holds for the walk to the first stop and from the last, unless a longer walk is
+  far better: stops up to twice as far join the search, and a journey that walks to or from one is offered where
+  it gets there half an hour sooner than any journey within the maximum (or lets you leave that much later). The
+  list marks its walk, and the walk says "Longer than your maximum walk". Not for step-free or wheelchair
+  routing, and not when asked to arrive by a time.
+- **Rather a long walk than no journey.** Where nothing can be reached even so — no stop, or only stops nothing
+  calls at these days — the engine looks twice as far as the maximum walk, then farther (an hour at most),
+  before it answers that there is no journey.
+
+`kante/tools/compare/fastest.py` checks all this on random trips against SBB's planner
+([how](../kante/tools/compare/README.md#does-it-find-the-fastest-journey)).
+
 ## Live data: `src/app/live-engine.ts`
 
 Every ride knows its trips, so while a journey is on (from 30 minutes before to 30 minutes after) each trip of each

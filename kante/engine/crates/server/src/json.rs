@@ -82,9 +82,16 @@ pub struct PlanOptions {
     /// At a change with time to spare, walk a flatter way (as "avoid" would) when it still leaves a minute in
     /// hand. Not with `hills: "ignore"` or `"avoid"` (that walks the flatter way anyway).
     pub flatter_changes: bool,
+    /// Seconds added to every change, on top of the walk between the two boarding points (0: a change takes that
+    /// walk and no more).
     pub transfer_margin_s: i32,
+    /// The longest walk to the first stop and from the last. A journey with a longer one (up to twice as long) is
+    /// offered where it gets there half an hour sooner than any within it, and where nothing can be reached within
+    /// it (`App::plan`); it carries a `long-walk` alert.
     pub max_walk_min: f32,
     pub modes: Option<Vec<String>>,
+    /// The most changes a journey may have; left out: as many as the planner can follow (`kante_raptor::MAX_RIDES`
+    /// rides).
     pub max_transfers: Option<u8>,
 }
 
@@ -97,7 +104,7 @@ impl Default for PlanOptions {
             wheelchair: false,
             hills: "normal".into(),
             flatter_changes: true,
-            transfer_margin_s: 120,
+            transfer_margin_s: 0,
             max_walk_min: 20.0,
             modes: None,
             max_transfers: None,

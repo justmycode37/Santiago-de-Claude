@@ -8,7 +8,7 @@
 //! there (`ride` + change time, or the access time in round 0). Egress is taken
 //! from `ride`, boarding from `ready`.
 //!
-//! Labels of one stop for all rounds share a cache line. A candidate is
+//! Labels of one stop for all rounds lie together (two cache lines). A candidate is
 //! accepted only if it beats the stop's label in the same *and every lower*
 //! round; that makes labels of earlier range iterations (later departures)
 //! prune later iterations correctly without copying labels between rounds.
@@ -156,7 +156,7 @@ struct Scratch {
     bound: Vec<Secs>,
     /// Per stop, the best `ride` (`ready`) label over rounds `0..=k` for the
     /// phase that is running, filled on first use in that phase. Most
-    /// candidates fail against it, and it is eight times denser than `lab`.
+    /// candidates fail against it, and it is sixteen times denser than `lab`.
     star_ride: Vec<Star>,
     star_ready: Vec<Star>,
     /// Phase counter for the `Star` caches.
@@ -169,6 +169,8 @@ struct Scratch {
     improved: Vec<StopIdx>,
     queue: Vec<PatternIdx>,
     acc_stops: Vec<StopIdx>,
+    /// `Query::access_late` of each of `acc_stops`.
+    acc_late: Vec<Secs>,
     boards: Vec<Board>,
     seeds: Vec<Seed>,
     /// (trip, day) of continuation trips already ridden → lowest round.
@@ -1008,13 +1010,24 @@ impl<'a> Engine<'a> {
         let window = q.window.max(0);
         let n_stops = self.s.n_stops;
         let mut acc = std::mem::take(&mut self.s.acc_stops);
-        for &(s, secs) in q.access {
+        // `access[s]` is the walk and the seconds the stop's departures count earlier by (`Query::access_late`):
+        // what a departure there is compared and reported with. The walk alone says which departures can be caught.
+        let mut late = std::mem::take(&mut self.s.acc_late);
+        late.clear();
+        for (n, &(s, secs)) in q.access.iter().enumerate() {
             if (s as usize) < n_stops && secs >= 0 {
+                let h = q.access_late.get(n).copied().unwrap_or(0).max(0);
                 let a = &mut self.s.access[s as usize];
                 if *a == INF {
                     acc.push(s);
+                    late.push(h);
+                    *a = secs.saturating_add(h);
+                } else if secs.saturating_add(h) < *a {
+                    *a = secs.saturating_add(h);
+                    if let Some(i) = acc.iter().position(|&x| x == s) {
+                        late[i] = h;
+                    }
                 }
-                *a = (*a).min(secs);
                 self.touch(s);
                 self.s.sflags[s as usize] |= F_ACCESS;
             }
@@ -1024,9 +1037,9 @@ impl<'a> Engine<'a> {
         let mut seeds = std::mem::take(&mut self.s.seeds);
         #[cfg(feature = "stats")]
         let t_seeds = std::time::Instant::now();
-        for &s in &acc {
+        for (n, &s) in acc.iter().enumerate() {
             let a = self.s.access[s as usize];
-            let r0 = q.from.saturating_add(a);
+            let r0 = q.from.saturating_add(a - late[n]);
             for &Boardable { pattern: p, pos, mode } in self.days.boardable(s) {
                 if mode & q.modes == 0 {
                     continue;
@@ -1094,6 +1107,7 @@ impl<'a> Engine<'a> {
         seeds.clear();
         self.s.seeds = seeds;
         self.s.acc_stops = acc;
+        self.s.acc_late = late;
     }
 
     fn run_onboard(&mut self, ob: Onboard, out: &mut Vec<Journey>) {

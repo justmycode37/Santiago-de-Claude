@@ -65,3 +65,33 @@ python3 kante/tools/compare/audit.py --engine http://127.0.0.1:8092 --data /tmp/
 
 It prints each count with up to five `curl` lines to replay, writes every violation to `violations.json`, and exits 1
 if any count is not zero.
+
+## Does it find the fastest journey?
+
+`fastest.py` asks one engine random trips across the country and checks each answer two ways: against SBB's planner
+(transport.opendata.ch; about a thousand questions a day), and against the engine itself — leaving later can never get
+you there earlier, so a question asked a few hours later that finds an earlier arrival shows a journey the first
+answer missed.
+
+```bash
+# 400 trips between stations of the feed (any two, one of them a large station, or two within 60 km), on a weekday,
+# a Saturday and a Sunday; --points asks from and to a point 50–600 m beside each station, as the app does
+python3 kante/tools/compare/fastest.py sample --gtfs kante/data/raw/gtfs/gtfs.zip --engine http://127.0.0.1:8092 \
+  --trips 400 --out /tmp/trips.json [--points]
+# the same trips on another build, or with other routing options (SBB's answers are kept)
+python3 kante/tools/compare/fastest.py rerun --in /tmp/trips.json --engine http://127.0.0.1:8091 --out /tmp/trips-a.json \
+  [--set maxWalkMin=40]
+# every trip where SBB arrives more than five minutes earlier, with both journeys
+python3 kante/tools/compare/fastest.py report --in /tmp/trips.json --legs
+# the engine against itself (exits 1 if a later question finds an earlier arrival)
+python3 kante/tools/compare/fastest.py later --in /tmp/trips.json --engine http://127.0.0.1:8092
+```
+
+Not every trip SBB wins is a journey the engine should have found. SBB lets you change in the timetable's minimum
+change time, which can be less than the walk between the two platforms takes, starts at a neighbouring station at
+once, and walks up to about twenty minutes in a straight line; the engine walks the way there is, at the traveller's
+pace, and goes beyond the traveller's longest walk only for half an hour gained. What was a fault of the search when
+this was written (November 2026): journeys of more than seven rides were never found, a change at a village stop was
+missed for the two minutes added to every change, a place whose bus does not run for sixteen hours, or whose nearest
+stops nothing calls at out of season, had no journey at all, and a walk a minute over the longest was never taken,
+whatever it saved (the first bus at five instead of home at midnight).

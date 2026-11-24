@@ -403,9 +403,9 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     if (s.to > s.from && d.coords.length < 2 && !change && (to != null || from != null)) return;
     dirs.push(d);
   });
-  // A change with an official minimum change time is timed by that, while the engine's path runs between the
-  // platforms' registry points and can be far longer than what people walk there (long platforms, V-shaped
-  // stations; cap_by_official in the engine). Metres that contradict the minutes are left out.
+  // A change is timed by the engine's footpath between the two platforms; the path drawn (the way this walker
+  // prefers, between the platforms' registry points) can be far longer. Metres that contradict the minutes are
+  // left out.
   const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
   // (a change asked again comes as `direct`, with its minimum change time)
   const dist = (leg.kind === 'transfer' || leg.officialMinS != null) && pathS > leg.durationS + 150 ? null : leg.distanceM;
@@ -547,4 +547,10 @@ function requay(steps: JourneyStep[], changed: () => void) {
   if (moved) changed();
 }
 
-export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options };
+// The walks of a journey that are longer than the maximum walk of Settings (to the first stop: 'access', from the
+// last: 'egress'). The engine takes one only where the journey gets there half an hour sooner than any that keeps
+// to the maximum, or where none does, and says so (its `long-walk` alerts).
+function longWalks(j: KanteJourney): Set<string> {
+  return new Set((j.alerts || []).filter((a) => a.kind === 'long-walk' && a.leg != null && j.legs[a.leg]).map((a) => (j.legs[a.leg!] as KanteWalkLeg).kind));
+}
+export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options, longWalks };
