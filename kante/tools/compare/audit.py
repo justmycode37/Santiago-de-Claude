@@ -15,7 +15,8 @@ counts the answers that break each invariant:
      (`compare through`, the data dir's outlines) where no guessed end is marked, or that is step-free with one;
   4. a journey's legs out of order or overlapping (a ride by its calls' times and delays), a ride boarded before the
      walk to it ends, a journey's dep / arr not its first leg's dep and last leg's arr (plan.rs `journey()`), an
-     arrive-by journey arriving after the deadline;
+     arrive-by journey arriving after the deadline (not the walking-only answer: `walkOnly` is timed as on `main`,
+     and can arrive after an arrive-by deadline on both engines);
   5. /api/reach: a stop over the limit, or a stop reached in 5 minutes and not 10, or in 10 and not 20;
   6. an error or non-200 answer, a timeout, or an answer the checks cannot read.
 

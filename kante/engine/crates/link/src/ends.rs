@@ -340,6 +340,25 @@ pub fn reach_costs(router: &WalkRouter, end: &End, targets: &[Snap], profile: &W
     out
 }
 
+/// How many of a level's candidates have their own preferred walk tried, when the best walk from all of them is over
+/// the limit and the quickest within it (one search each, so a building with many doors stays quick); the rest
+/// keep the quickest walk. The same candidates in [`reach_costs`] and [`walk_within`].
+const PREFER_AT_MOST: usize = 8;
+
+/// The candidates whose own preferred walks are tried: of each level of [`Join::doubt`] (`doubt[k]` of `src[k]`), the
+/// nearest [`PREFER_AT_MOST`] by their line onto the network (metres walked to it), in their order. The stop search
+/// asks one level at a time and the drawn walk several, so both try the same candidates of each level.
+fn preferred(src: &[(Snap, f32, f32)], doubt: &[u8]) -> Vec<usize> {
+    let mut k: Vec<usize> = (0..src.len()).collect();
+    k.sort_by(|&x, &y| doubt[x].cmp(&doubt[y]).then(src[x].1.total_cmp(&src[y].1)).then(x.cmp(&y)));
+    let mut out: Vec<usize> = Vec::new();
+    for lv in k.chunk_by(|&x, &y| doubt[x] == doubt[y]) {
+        out.extend(lv.iter().take(PREFER_AT_MOST));
+    }
+    out.sort_unstable();
+    out
+}
+
 /// [`reach_costs`] from these sources, all alike.
 fn reach_from(router: &WalkRouter, src: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_s: f32, limit_s: f32) -> Vec<Option<(WalkCost, usize)>> {
     let speed = profile.speed_mps.max(0.05);
@@ -379,8 +398,8 @@ fn reach_from(router: &WalkRouter, src: &[(Snap, f32, f32)], targets: &[Snap], p
     let mut best: Vec<Option<(f32, WalkCost, usize)>> = vec![None; pref.len()];
     if !pref.is_empty() && src.len() > 1 {
         let sub: Vec<Snap> = pref.iter().map(|&i| targets[i]).collect();
-        for (k, s) in src.iter().enumerate() {
-            for (j, r) in router.many_to_many_raw(std::slice::from_ref(s), &sub, profile, max_s).into_iter().enumerate() {
+        for k in preferred(src, &vec![0; src.len()]) {
+            for (j, r) in router.many_to_many_raw(std::slice::from_ref(&src[k]), &sub, profile, max_s).into_iter().enumerate() {
                 if let Some((_, c, gen)) = r {
                     let c = with_target(c, &sub[j]);
                     if within(c) && best[j].is_none_or(|b| gen < b.0) {
@@ -458,8 +477,10 @@ fn walk_ends(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile, limit
     }
     let mut pick: Option<(f32, Walk)> = None;
     if sa.len() * sb.len() > 1 {
-        for i in 0..sa.len() {
-            for j in 0..sb.len() {
+        let doubts = |e: &End| e.joins.iter().map(|j| j.doubt).collect::<Vec<u8>>();
+        let (pa, pb) = (preferred(&sa, &doubts(a)), preferred(&sb, &doubts(b)));
+        for &i in &pa {
+            for &j in &pb {
                 if let Some((_, _, path, gen)) = router.route_between(&sa[i..=i], &sb[j..=j], profile) {
                     let w = walk_of(a, b, i, j, path, profile);
                     if within(&w) && pick.as_ref().is_none_or(|p| gen < p.0) {

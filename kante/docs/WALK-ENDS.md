@@ -30,7 +30,9 @@ it is. Preferences (route choice penalties on the way, and those of the candidat
 within it: the walk the router finds best from all candidates, if it is within the limit; else, for a stop some walk
 reaches in time (one search by walked time alone, `WalkRouter::quickest_many`: what the walker cannot use stays
 out, nothing else counts), the cheapest with its penalties of each candidate's best walk among those within it, or
-that quickest walk. So the doors and the other lines only add stops to what `main`'s own line reaches, and a penalty
+that quickest walk. Only the nearest eight candidates of each doubt (by their line onto the network) have their own
+best walk tried, one search each (`PREFER_AT_MOST`; a building can have a hundred doors); the others keep the
+quickest walk, which is always a true answer. On the national samples this changes no stop and no time. So the doors and the other lines only add stops to what `main`'s own line reaches, and a penalty
 never loses a stop some walk reaches in time.
 
 **Lines are tried by how much of a guess they are** (`Join::doubt`): first the short lines onto a way at hand (doubt
