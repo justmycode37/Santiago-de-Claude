@@ -172,7 +172,8 @@ export function createArSession(ride: ArRide) {
     if (turned > L.PAN_MAX) for (const t of live) contest(t, at, 'fast_pan');
     const pred = live.map((t) => shifted(t.box, use));
     // learn whether the gyro shift helps (only when it is big enough to tell)
-    if (shift && Math.hypot(shift.dx, shift.dy) > 0.03) {
+    // learned only with one vehicle and one box in view: a neighbour can fit a shifted box by chance
+    if (shift && Math.hypot(shift.dx, shift.dy) > 0.03 && live.length === 1 && dets.length === 1) {
       live.forEach((t) => {
         const raw = Math.max(0, ...dets.map((d) => iou(t.box, d.box))), moved = Math.max(0, ...dets.map((d) => iou(shifted(t.box, shift), d.box)));
         if (Math.max(raw, moved) >= L.IOU_MATCH) { if (moved >= raw) derot.better++; else derot.worse++; }
@@ -214,7 +215,12 @@ export function createArSession(ride: ArRide) {
     // there (the detector merged two into one box): the track that took that box is in doubt
     live.forEach((u, i) => {
       if (tUsed.has(i)) return;
-      for (const [k, j] of matched) if (iou(pred[i], dets[j].box) > 0.05) contest(live[k], at, 'occlusion');
+      for (const [k, j] of matched) {
+        // overlap as a share of the vanished vehicle's own box: a small one swallowed by a big merged box counts
+        const p = pred[i], b = dets[j].box;
+        const ix = Math.max(0, Math.min(p[0] + p[2], b[0] + b[2]) - Math.max(p[0], b[0])), iy = Math.max(0, Math.min(p[1] + p[3], b[1] + b[3]) - Math.max(p[1], b[1]));
+        if (iou(p, b) > 0.05 || (ix * iy) / Math.max(1e-9, p[2] * p[3]) > 0.3) contest(live[k], at, 'occlusion');
+      }
     });
     dets.forEach((d, j) => {
       if (dUsed.has(j)) return;

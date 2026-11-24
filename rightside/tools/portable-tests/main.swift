@@ -615,7 +615,7 @@ do {
           "incomplete character scores: dropped")
     check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 13), track: UUID()), trackID: trackID, frameID: frame, at: t0) == nil,
           "another track's read: dropped")
-    for text in ["10 Ostermundigen", "Ostermundigen 10", "1O", "N1 Bern", "10E Wabern", "9Wankdorf", "I0 Bern"] {
+    for text in ["10 Ostermundigen", "Ostermundigen 10", "1O", "N1 Bern", "10E Wabern", "9Wankdorf", "I0 Bern", "9-Wabern", "(10) Rüti", "10.Wabern", "10/Rüti", "N1O Bern", "10Ostermundigen"] {
         check(VehicleDisplayRecognitionPolicy.unanchoredText(obs(text, [Float](repeating: 1, count: text.count)), trackID: trackID, frameID: frame, at: t0) == nil,
               "a re-read holding a route numeral is dropped: \(text)")
     }

@@ -108,6 +108,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--fps", type=float, default=5)
     ap.add_argument("--bench-fps", type=float, default=1, help="frames/s of the labelled bench set (data: 1, data-holdout: 2)")
+    ap.add_argument("--reuse", help="an earlier OUT/range.json: its bench reads of the same crops are taken over")
     a = ap.parse_args()
     spec = importlib.util.spec_from_file_location("ocr_frames", os.path.join(HERE, "ocr_frames.py"))
     assert spec and spec.loader
@@ -129,6 +130,9 @@ def main():
     at = {(n, tuple(b)): tid for tid, pts in tracks.items() for n, b in pts}
 
     os.makedirs(os.path.join(a.out, "crops"), exist_ok=True)
+    reuse = {}
+    if a.reuse and os.path.exists(a.reuse):
+        reuse = {(r["event"], r["frame"]): r for r in json.load(open(a.reuse, encoding="utf-8"))["frames"]}
     meta, skipped = [], []
     sized = []  # how each pass's glyphs were sized (to audit)
     tied = {}  # labelled pass -> (track, nearest view) when it falls on exactly one track
@@ -136,7 +140,7 @@ def main():
         e = events.get(lab["event"])
         if not e or not e["frames"][0].startswith(a.video + "/"):
             continue
-        tids, near = set(), None
+        tids, near, unmatched = set(), None, 0
         for name in e["frames"]:
             f1 = ocr1.get(name)
             if not f1 or not f1["vehicles"]:
@@ -146,10 +150,12 @@ def main():
             best = max(((iou(v1["box"], b), (m, tuple(b))) for b in [v["box"] for v in frames5.get(m, {"vehicles": []})["vehicles"]]), default=(0, None))
             if best[0] >= 0.5:
                 tids.add(at[best[1]])
+            else:
+                unmatched += 1  # a labelled view of the vehicle with no 5 frames/s box on it: the tie is not shown
             if near is None or v1["box"][3] > near["box"][3]:
                 near = v1
-        if len(tids) != 1 or near is None:
-            skipped.append({"event": lab["event"], "why": "tracks: %d" % len(tids)})
+        if len(tids) != 1 or near is None or unmatched:
+            skipped.append({"event": lab["event"], "why": f"tracks: {len(tids)}, labelled views on no track: {unmatched}"})
             continue
         tied[lab["event"]] = (tids.pop(), near, lab)
     claimed = {}
@@ -178,7 +184,8 @@ def main():
                 cv2.imwrite(os.path.join(a.out, "crops", base + "_max.png"), np.maximum(np.maximum(three[0], three[1]), three[2]))
                 row["best"], row["max"] = base + "_best.png", base + "_max.png"
             # the bench's own front end on the same crop (texts in crop-relative boxes)
-            texts = of.read_region(crop, [0, 0, 1, 1], det, rec)
+            old = reuse.get((lab["event"], n))
+            texts = old["bench"] if old and old["region"] == list(r) else of.read_region(crop, [0, 0, 1, 1], det, rec)
             row["bench"] = texts
             rows_out.append(row)
         # glyph height share: the median, over this track's frames whose vehicle is whole in the picture (its box
@@ -195,11 +202,15 @@ def main():
                 shares.append(hpx / (bh * H)); by.append(text)
         # only from this track's own reads: a share from the 1 frame/s view (another detector's box) proved unreliable
         share = sorted(shares)[len(shares) // 2] if shares else None
-        if share is None:
-            skipped.append({"event": ev, "why": "the display was never read in this pass, so its glyphs cannot be sized"})
-            continue
+        # a pass whose glyphs cannot be sized stays in (for the per-pass safety trials, which need no size) with an
+        # unknown glyph height; the per-view curve leaves it out
         for row in rows_out:
-            row["glyphPx"] = round(share * row["box"][3] * H, 1)
+            row["glyphPx"] = round(share * row["box"][3] * H, 1) if share is not None else None
+        if share is None:
+            sized.append({"event": ev, "share": None, "from": 0, "texts": []})
+            meta += rows_out
+            print(f"event {lab['event']} ({lab['line']} {lab['destination']}): {len(crops)} frames, glyphs not sized", file=sys.stderr, flush=True)
+            continue
         meta += rows_out
         sized.append({"event": ev, "share": round(share, 4), "from": len(shares), "texts": sorted(set(by))[:6]})
         print(f"event {lab['event']} ({lab['line']} {lab['destination']}): {len(crops)} frames, glyph share {share:.3f} from {len(shares)} reads {sorted(set(by))[:4]}", file=sys.stderr, flush=True)

@@ -222,6 +222,11 @@ suite('Two vehicles cross and the detector sees one box: the label is revoked, n
     words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'none' } },
   { at: 0.33, say: 'one box between them (B in front)', det: { X: [0.25, 0.3, 0.3, 0.4] }, expect: { X: 'none' } },
 ]);
+suite('A small vehicle swallowed by a big merged box revokes the track that took it', [
+  { at: 0, say: 'board; S (small, far) is my 10, M beside it', board: board(), det: { S: [0.3, 0.35, 0.12, 0.12], M: [0.45, 0.3, 0.3, 0.3] },
+    words: { captured: 0, on: { S: ['10', 'Ostermundigen Rüti'] } }, expect: { S: 'green', M: 'none' } },
+  { at: 0.33, say: 'one big box covers both; it is matched to M, S is gone', det: { M: [0.25, 0.25, 0.5, 0.6] }, expect: { M: 'none' } },
+]);
 suite('A gyro with the wrong sign is never used', [
   { at: 0, say: 'board; A is my 10, B to its right', board: board(), det: { A: [0.1, 0.3, 0.25, 0.4], B: [0.45, 0.3, 0.25, 0.4] },
     words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'none' } },

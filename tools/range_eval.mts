@@ -24,16 +24,15 @@ const arg = (k: string, d?: string) => { const i = process.argv.indexOf(k); retu
 const DIRS: string[] = [];
 for (let i = 2; i < process.argv.length && !process.argv[i].startsWith('--'); i++) DIRS.push(process.argv[i]);
 const BENCH = arg('--bench', path.join(ROOT, 'rightside', 'tools', 'display-bench', 'data'))!;
-interface Row { event: number; frame: number; t: number; line: string; destination: string; box: ArBox; glyphPx: number; crop: string;
+interface Row { event: number; frame: number; t: number; line: string; destination: string; box: ArBox; glyphPx: number | null; crop: string;
   region: [number, number, number, number]; best?: string; max?: string; bench: { text: string; score: number; box: number[] }[]; dir: string }
 const data = { video: '', frames: [] as Row[], skipped: [] as unknown[] };
 for (const d of DIRS) {
   const one = JSON.parse(fs.readFileSync(path.join(d, 'range.json'), 'utf8')) as { video: string; frames: Row[]; skipped: unknown[]; sized?: { event: number; from: number }[] };
   // passes whose glyphs were sized from fewer than three reads of their own display (a logo or a single misread can
-  // pass for it): left out
+  // pass for it): their size is unknown. They stay in the per-pass trials (which need no size), not in the curve.
   const unsized = new Set((one.sized || []).filter((x) => x.from < 3).map((x) => x.event));
-  one.skipped.push(...[...unsized].map((event) => ({ event, why: 'glyphs sized from fewer than three reads' })));
-  one.frames = one.frames.filter((r) => !unsized.has(r.event));
+  for (const r of one.frames) if (unsized.has(r.event)) r.glyphPx = null;
   data.video += (data.video ? ', ' : '') + one.video;
   // passes are numbered per bench set (unique across its videos); keep the directory to find the crops
   data.frames.push(...one.frames.map((r) => ({ ...r, dir: d })));
@@ -92,13 +91,13 @@ for (const [name, fn] of Object.entries(variants)) {
     if (!t) continue;
     texts[name].set(`${r.event}/${r.frame}`, t);
     const truth = { line: r.line, destination: r.destination };
-    if (clipped(r)) continue;
+    if (clipped(r) || r.glyphPx == null) continue;
     const m = A.match(t, board);
     const k = m.outcome === 'matched' ? (A.sameDisplay(m.best!.candidate, truth) ? 'right' : 'wrong') : 'none';
     perFrame[name][bucketOf(r.glyphPx)][k]++;
   }
 }
-console.log(`# Reading range pilot: ${data.video}, ${data.frames.length} frames of ${new Set(data.frames.map((r) => r.event)).size} passes (${data.skipped.length} left out), `
+console.log(`# Reading range pilot: ${data.video}, ${data.frames.length} frames of ${new Set(data.frames.map((r) => r.event)).size} passes (${data.skipped.length} left out; ${new Set(data.frames.filter((r) => r.glyphPx == null).map((r) => r.event)).size} not sized: in the per-pass trials only), `
   + `${data.frames.filter(clipped).length} frames with the vehicle cut off by the picture's edge (not in the per-view table); ${Math.round((Date.now() - t0) / 1000)} s
 `);
 console.log('## One view at a time: right display named / wrong display named / neither\n');
@@ -146,7 +145,7 @@ for (const name of Object.keys(variants)) {
       return { first, flagged, named };
     };
     const pos = run(truth);
-    if (pos.first) { accepted++; at.push(pos.first.glyphPx); }
+    if (pos.first) { accepted++; if (pos.first.glyphPx != null) at.push(pos.first.glyphPx); }
     if (pos.flagged) rightFlagged++;
     if (pos.named) rightRed++;
     const others = board.filter((c) => !A.sameDisplay(c, truth));

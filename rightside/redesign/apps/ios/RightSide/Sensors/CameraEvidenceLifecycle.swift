@@ -28,7 +28,7 @@ struct CameraVehicleOverlay: Identifiable {
         switch decision.state {
         case .visualCandidate: return "text.viewfinder"
         case .verifiedService: return "checkmark.circle"
-        case .conflicting: return "xmark.octagon.fill"
+        case .conflicting: return redFromDisplay ? "xmark.octagon.fill" : "questionmark.circle"
         case .unknown: return "questionmark.circle"
         }
     }
@@ -40,7 +40,7 @@ struct CameraVehicleOverlay: Identifiable {
             switch decision.reason {
             case "out_of_service": return "Out of service · do not board"
             case "display_short_turn_before_alighting": return "Ends before your stop"
-            default: return "Different line or destination"
+            default: return redFromDisplay ? "Different line or destination" : "Display differs · check it"
             }
         case .unknown:
             switch decision.reason {
@@ -174,7 +174,7 @@ struct CameraEvidenceLifecycle {
                 : "Display matches. Check the line, destination and boarding area before boarding."
         } else if candidates.count > 1 {
             recognition = "More than one display matches. Point at one vehicle and check which service is boarding."
-        } else if let conflict = incoming.first(where: { $0.decision.state == .conflicting }) {
+        } else if let conflict = incoming.first(where: { $0.decision.state == .conflicting && $0.redFromDisplay }) {
             switch conflict.decision.reason {
             case "out_of_service": recognition = "Vehicle is out of service. Do not board; look for another service."
             case "display_short_turn_before_alighting": recognition = "This vehicle's display ends before your stop. Do not board; check another service."

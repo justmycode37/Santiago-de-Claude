@@ -214,15 +214,21 @@ pub fn live_info(f: &LiveFacts, ages: FeedAges, now: i64) -> json::LiveInfo {
 /// after a measured departure, the hop usually takes its learned time; after a
 /// measured arrival of a bus or tram, it usually stands for its learned dwell.
 fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
+    served_with_profiles_applied(app, run).0
+}
+
+/// [`served_with_profiles`], and whether a learned hop or dwell was used (the order clamp alone is not a profile).
+fn served_with_profiles_applied(app: &App, run: &Run) -> (Vec<(usize, i64, i64)>, bool) {
     let mut served = run.served();
     let f = &run.facts;
     if f.observed_pos < 0 {
-        return served;
+        return (served, false);
     }
-    let Some(k) = served.iter().position(|s| s.0 == f.observed_pos as usize) else { return served };
+    let Some(k) = served.iter().position(|s| s.0 == f.observed_pos as usize) else { return (served, false) };
     if k + 1 >= served.len() {
-        return served;
+        return (served, false);
     }
+    let mut applied = false;
     let tt = &app.tt;
     let st = |i: usize| tt.stops[run.calls[i].stop as usize].station;
     let (a, b) = (st(served[k].0), st(served[k + 1].0));
@@ -234,6 +240,7 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
             // timing point keeps waiting.
             served[k].2 = (served[k].1 + d).max(served[k].2);
             left_measured = true;
+            applied = true;
         }
     }
     if left_measured {
@@ -242,6 +249,7 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
             let next = &mut served[k + 1];
             next.1 = left + h;
             next.2 = next.2.max(next.1);
+            applied = true;
         }
     }
     // Keep every later stop in order after a change.
@@ -251,7 +259,7 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
         s.1 = s.1.max(before);
         s.2 = s.2.max(s.1);
     }
-    served
+    (served, applied)
 }
 
 /// Where the vehicle of `run` is at `now`.
@@ -480,7 +488,8 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     // camera then never says "yours" (docs/ar-recognition-plan.md).
     let truncated = out.len() > q.limit || capped;
     out.truncate(q.limit);
-    json::DueResponse { t: q.t, complete: !truncated && feeds_fresh(app), truncated, due: out }
+    // complete only when this board was built on live data (the snapshot it used), and the feeds are fresh
+    json::DueResponse { t: q.t, complete: !truncated && live.is_some() && feeds_fresh(app), truncated, due: out }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -493,7 +502,8 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
     let forecast = (arr, dep);
     let mut profiled = false;
     if run.facts.observed_pos >= 0 && !c.skipped {
-        if let Some((a, d)) = profiled_times(&served_with_profiles(app, run), &run.served(), i, dep) {
+        let (with, applied) = served_with_profiles_applied(app, run);
+        if let Some((a, d)) = profiled_times(&with, &run.served(), i, dep).filter(|_| applied) {
             (arr, dep, profiled) = (a, d, true);
         }
     }

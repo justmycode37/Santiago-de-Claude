@@ -58,7 +58,11 @@ export function yoloxDecode(raw: ArrayLike<number>, r: number, width: number, he
     for (let gy = 0; gy < g; gy++) for (let gx = 0; gx < g; gx++, k++) {
       const o = k * 85, obj = raw[o + 4];
       if (obj < min) continue;
-      for (const c of [5, 6]) {
+      // the anchor's class is its best of all 80 (as YOLOX's own post-processing): a truck with some "bus" in it is a truck
+      let c = 0;
+      for (let q = 1; q < 80; q++) if (raw[o + 5 + q] > raw[o + 5 + c]) c = q;
+      if (!(c in YOLOX_CLASSES)) continue;
+      {
         const score = obj * raw[o + 5 + c];
         if (score < min) continue;
         const cx = (raw[o] + gx) * s, cy = (raw[o + 1] + gy) * s, bw = Math.exp(raw[o + 2]) * s, bh = Math.exp(raw[o + 3]) * s;

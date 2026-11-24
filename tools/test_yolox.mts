@@ -22,11 +22,14 @@ raw.set([0.5, 0.5, Math.log(4), Math.log(2), 0.9], o); raw[o + 5 + 5] = 0.9; // 
 // the same vehicle seen by a neighbouring cell, weaker: suppressed
 const k2 = k + 1, o2 = k2 * 85;
 raw.set([-0.5, 0.5, Math.log(4), Math.log(2), 0.8], o2); raw[o2 + 5 + 6] = 0.8;
+// a truck (class 7) with some bus in it: its class is truck, never kept
+const k4 = 52 * 52 + 10, o4 = k4 * 85;
+raw.set([0, 0, 1, 1, 0.9], o4); raw[o4 + 5 + 7] = 0.9; raw[o4 + 5 + 5] = 0.4;
 // a person (class 0): never kept
 const k3 = 100, o3 = k3 * 85;
 raw.set([0, 0, 0, 0, 0.99], o3); raw[o3 + 5] = 0.99;
 const boxes = yoloxDecode(raw, 0.5, 832, 416);
-check(boxes.length === 1, `one vehicle (NMS across bus and train; no person): ${boxes.length}`);
+check(boxes.length === 1, `one vehicle (NMS across bus and train; no person, no truck): ${boxes.length}`);
 const b = boxes[0].box;
 // centre 5.5*32 = 176, 4.5*32 = 144 input px; size 128 x 64; / r 0.5 -> picture px: x 224..480, y 224..352
 check(boxes[0].cls === 'bus' && close(boxes[0].score, 0.81), `bus, score obj x cls (${boxes[0].score})`);

@@ -17,7 +17,7 @@ Runs on the timetable of a local engine (no live data needed):
     kante serve --data DIR --port 8091 --app none
     python -I -X utf8 ambiguity_audit.py [engine=http://127.0.0.1:8091] [date=2026-11-25] [per_station=3] [stations_per_city=8]
 """
-import collections, datetime as dt, json, random, sys, unicodedata, urllib.parse, urllib.request
+import collections, datetime as dt, difflib, json, random, sys, unicodedata, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 B = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8091"
@@ -52,6 +52,27 @@ def line_key(name):
         if k.startswith(p) and k[len(p):][:1].isdigit():
             return k[len(p):]
     return k
+
+
+def renderings(dest):
+    """The ways a display may write a destination, as the matcher's weight-1 variants: the whole name, and without the
+    locality before the comma ("Bern, Wankdorf Bahnhof" -> "wankdorf bahnhof")."""
+    full = norm(dest)
+    out = {full.replace(" ", "")}
+    if "," in dest:
+        loc, stop = dest.split(",", 1)
+        out.add(norm(stop).replace(" ", ""))
+        if len(norm(loc).split()) >= 2:
+            out.add((" ".join(norm(loc).split()[1:]) + norm(stop)).replace(" ", ""))
+    return {r for r in out if r}
+
+
+def same_destination(a, b):
+    """Looser than the app's sameDestination (similarity 0.85 instead of 0.9 over the same renderings), so the audit
+    finds at least the rivals the app would: a spelling variant counts as the same display."""
+    if norm(a) == norm(b):
+        return True
+    return any(difflib.SequenceMatcher(None, x, y).ratio() >= 0.85 for x in renderings(a) for y in renderings(b))
 
 
 def unix(day, h, m):
@@ -100,9 +121,10 @@ def situation(args):
     (city, sid), (h, m) = args
     t = unix(DAY, h, m)
     try:
-        board = get("/api/due", station=sid, t=t, before=1200, after=2700, limit=200)["due"]
+        resp = get("/api/due", station=sid, t=t, before=1200, after=2700, limit=200)
     except Exception:
         return []
+    board = resp["due"]
     riders = [d for d in board if d.get("pickup", True) and d.get("dep") and t <= d["dep"] <= t + 900 and not d["cancelled"]
               and d.get("line") and d.get("headsign")]
     out = []
@@ -122,22 +144,26 @@ def situation(args):
         if to == sid:
             continue
         try:
-            served = get("/api/due", station=sid, t=t, before=1200, after=2700, limit=200, to=to)["due"]
+            sresp = get("/api/due", station=sid, t=t, before=1200, after=2700, limit=200, to=to)
         except Exception:
             continue
+        served = sresp["due"]
         me = next((d for d in served if d["tripId"] == r["tripId"] and d["seq"] == r["seq"]), None)
         if not me or me.get("servesTo") is False:
             continue  # the rider's own run must take them there (it was picked from its own later stops)
-        row = {"city": city, "mode": mode_of(r), "hour": h, "w": {}, "dest_only": {}, "board_complete": None}
+        # a board cut at its limit may be missing a rival: such runs are counted apart, never as unique
+        row = {"city": city, "mode": mode_of(r), "hour": h, "w": {}, "dest_only": {}, "truncated": bool(sresp.get("truncated") or resp.get("truncated"))}
         for W in WINDOWS:
             same = [d for d in served if d is not me and not d["cancelled"] and d.get("line") and d.get("headsign")
-                    and line_key(d["line"]["name"]) == line_key(me["line"]["name"]) and norm(d["headsign"]) == norm(me["headsign"])
+                    and line_key(d["line"]["name"]) == line_key(me["line"]["name"]) and same_destination(d["headsign"], me["headsign"])
                     and abs(when(d) - when(me)) <= W]
             dest_only = [d for d in served if d is not me and not d["cancelled"] and d.get("line") and d.get("headsign")
-                         and line_key(d["line"]["name"]) != line_key(me["line"]["name"]) and norm(d["headsign"]) == norm(me["headsign"])
+                         and line_key(d["line"]["name"]) != line_key(me["line"]["name"]) and same_destination(d["headsign"], me["headsign"])
                          and abs(when(d) - when(me)) <= W]
             unsafe = [d for d in same if d.get("pickup") is False or d.get("dep") is None or d.get("servesTo") is not True]
-            if not same:
+            if row["truncated"]:
+                kind = "board cut"
+            elif not same:
                 kind = "unique"
             elif not unsafe:
                 kind = "all safe"
@@ -169,8 +195,8 @@ def pct(a, n):
 
 def table(group_of, title):
     print(f"### {title}\n")
-    print("| group | runs | window | unique | all safe | …a rival on another route | unsafe rival | …quay tells | …direction tells | …neither | destination shared by another line |")
-    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    print("| group | runs | window | board cut at its limit | unique | all safe | …a rival on another route | unsafe rival | …quay tells | …direction tells | …neither | destination shared by another line |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     groups = collections.defaultdict(list)
     for r in rows:
         for g in group_of(r):
@@ -185,7 +211,7 @@ def table(group_of, title):
             neither = sum(1 for r in uns if not r["w"][W]["quay_tells"] and not r["w"][W]["direction_tells"])
             dest = sum(1 for r in rs if r["dest_only"][W])
             route = sum(1 for r in rs if r["w"][W]["kind"] == "all safe" and r["w"][W]["other_route"])
-            print(f"| {g} | {len(rs)} | ±{W // 60} min | {pct(c['unique'], len(rs))} | {pct(c['all safe'], len(rs))} | {pct(route, c['all safe'])} | "
+            print(f"| {g} | {len(rs)} | ±{W // 60} min | {pct(c['board cut'], len(rs))} | {pct(c['unique'], len(rs))} | {pct(c['all safe'], len(rs))} | {pct(route, c['all safe'])} | "
                   f"{pct(c['unsafe rival'], len(rs))} | {pct(q, len(uns))} | {pct(d, len(uns))} | {pct(neither, len(uns))} | {pct(dest, len(rs))} |")
     print()
 

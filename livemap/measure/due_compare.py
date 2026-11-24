@@ -77,6 +77,8 @@ def load_archive(path, days):
                 for d in rec["due"]:
                     if not d.get("aimedArr") or not d.get("arr") or d.get("cancelled") or d.get("live") not in ("observed", "predicted"):
                         continue
+                    if d.get("seq") == 0:
+                        continue  # where a run starts there is no arrival to compare (Ist-Daten has none either)
                     key = (d["serviceDate"], station_of_quay(d.get("quayId"), rec.get("uic")), norm_line(d.get("line")), local_minute(d["aimedArr"]))
                     preds[key].append({"t": rec["t"], "arr": d["arr"], "raw": d.get("forecastArr") or d["arr"], "profiled": bool(d.get("profiled")),
                                        "live": d["live"], "mode": d.get("mode") or "other"})

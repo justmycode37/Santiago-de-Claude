@@ -422,8 +422,10 @@ function arLayer(mine: number, target: ArTarget) {
       if (!model || arSession !== mine) return;
       lastDetect = Date.now();
       const t0 = performance.now(), at = nowS();
-      const shift = turn, panned = pan; turn = { dx: 0, dy: 0 }; pan = 0;
+      const shift = turn, panned = pan;
       const dets: ArDet[] = await model.detect(video);
+      // only now taken: if the detector throws, the turn counts towards the next detection (a jerk still revokes)
+      turn = { dx: turn.dx - shift.dx, dy: turn.dy - shift.dy }; pan -= panned;
       detectMs.push(performance.now() - t0); if (detectMs.length > 20) detectMs.shift();
       if (arSession !== mine) return;
       ses.detections(dets, at, motionAt ? shift : null, motionAt ? panned : null); // the picture the detector read was taken at `at`
