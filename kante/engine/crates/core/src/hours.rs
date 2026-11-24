@@ -70,7 +70,9 @@ impl Rule {
 /// A readable `opening_hours` value or a closing condition.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Hours {
-    rules: Vec<Rule>,
+    /// Sets of rules, each read on its own (one per `no @ (…)` condition; one for opening hours); the hours hold
+    /// when any set does. An empty set always holds (`24/7`).
+    sets: Vec<Vec<Rule>>,
     /// `*:conditional=no @ (…)`: closed while the condition holds (else: open while it holds).
     closed_when: bool,
 }
@@ -78,12 +80,15 @@ pub struct Hours {
 impl Hours {
     /// Whether the rules hold (open hours: open; a condition: it applies) at `t`.
     fn holds(&self, t: WalkTime) -> bool {
-        if self.rules.is_empty() {
+        self.sets.iter().any(|s| Self::set_holds(s, t))
+    }
+    fn set_holds(rules: &[Rule], t: WalkTime) -> bool {
+        if rules.is_empty() {
             return true; // 24/7
         }
         let ranges = |d: WalkTime| -> Option<Vec<(u16, u16)>> {
             let mut cur: Option<Vec<(u16, u16)>> = None;
-            for r in &self.rules {
+            for r in rules {
                 if !r.on(d) {
                     continue;
                 }
@@ -225,7 +230,13 @@ fn rule(p: &mut P, ph: &mut bool) -> Option<Rule> {
         let a = m0 * 32 + if d0 == 0 { 1 } else { d0 };
         let b = m1 * 32 + if d1 == 0 { 31 } else { d1 };
         r.dates.push((a, b));
+        // a comma before another month lists dates; before anything else it starts another rule
+        let save = p.i;
         if !p.eat(b',') {
+            break;
+        }
+        if !p.peek_month() {
+            p.i = save;
             break;
         }
     }
@@ -258,10 +269,6 @@ fn rule(p: &mut P, ph: &mut bool) -> Option<Rule> {
             return None;
         }
     }
-    if *ph && r.wdays == 0 && r.dates.is_empty() {
-        // only a holiday: it says nothing about any day we can tell
-        r.wdays = 0x80;
-    }
     // times, or off
     if p.peek_time() {
         loop {
@@ -290,7 +297,9 @@ fn rule(p: &mut P, ph: &mut bool) -> Option<Rule> {
     Some(r)
 }
 
-fn rules(s: &str) -> Option<Vec<Rule>> {
+/// The rules of one value or condition; `closing`: of a closing condition, where a rule about holidays cannot be
+/// left out (leaving out "but not on holidays" would close the way on them): unreadable.
+fn rules(s: &str, closing: bool) -> Option<Vec<Rule>> {
     let s = s.trim();
     if s.is_empty() || s.len() > 400 {
         return None;
@@ -309,14 +318,16 @@ fn rules(s: &str) -> Option<Vec<Rule>> {
         loop {
             let mut ph = false;
             let mut r = rule(&mut p, &mut ph)?;
-            if ph && !r.off {
-                return None; // open on holidays we cannot tell
+            if ph && (!r.off || closing) {
+                return None; // open (or not closed) on holidays we cannot tell
             }
-            if r == Rule::default() {
+            if r == Rule::default() && !ph {
                 return None; // nothing read
             }
             r.additional = additional;
-            if r.wdays != 0x80 {
+            // closed on holidays (and whatever else the rule names along with them): left out, so the way counts as
+            // open then; a holiday cannot be told, and closing a whole month for one would be wrong
+            if !ph {
                 out.push(r);
             }
             if p.eof() {
@@ -334,15 +345,15 @@ fn rules(s: &str) -> Option<Vec<Rule>> {
 /// `opening_hours=*`, if it can be read with certainty.
 pub fn parse_opening_hours(s: &str) -> Option<Hours> {
     if s.trim() == "24/7" {
-        return Some(Hours { rules: Vec::new(), closed_when: false });
+        return Some(Hours { sets: vec![Vec::new()], closed_when: false });
     }
-    Some(Hours { rules: rules(s)?, closed_when: false })
+    Some(Hours { sets: vec![rules(s, false)?], closed_when: false })
 }
 
 /// `access:conditional` / `foot:conditional`: the conditions under which the way is closed to walkers
 /// (`no @ (…)`, `private @ (…)`; other values are ignored), if there is one and every one of them can be read.
 pub fn parse_closing_condition(s: &str) -> Option<Hours> {
-    let mut all: Vec<Rule> = Vec::new();
+    let mut all: Vec<Vec<Rule>> = Vec::new();
     for part in split_conditions(s) {
         let Some((value, cond)) = part.split_once('@') else { return None };
         match value.trim() {
@@ -352,19 +363,10 @@ pub fn parse_closing_condition(s: &str) -> Option<Hours> {
             _ => continue,
         }
         let cond = cond.trim().trim_start_matches('(').trim_end_matches(')');
-        let mut r = rules(cond)?;
-        // several conditions: closed when any holds (each its own day set, so none replaces another)
-        for x in r.iter_mut().skip(usize::from(all.is_empty())) {
-            x.additional = true;
-        }
-        if !all.is_empty() {
-            if let Some(f) = r.first_mut() {
-                f.additional = true;
-            }
-        }
-        all.extend(r);
+        // each condition read on its own (its later rules replace its earlier ones); closed when any holds
+        all.push(rules(cond, true)?);
     }
-    (!all.is_empty()).then_some(Hours { rules: all, closed_when: true })
+    (!all.is_empty()).then_some(Hours { sets: all, closed_when: true })
 }
 
 /// `a @ (x; y); b @ z` → [`a @ (x; y)`, `b @ z`]: `;` inside brackets belongs to the condition.
@@ -445,6 +447,16 @@ mod tests {
         // holidays closed: the rule is left out, the rest stands
         let h = parse_opening_hours("Mo-Fr 08:00-18:00; PH off").unwrap();
         assert!(!h.closed_at(at(12, 25, 4, 12, 0)));
+        // a holiday rule with a month does not close the month
+        let h = parse_opening_hours("24/7; Dec PH off").unwrap();
+        assert!(!h.closed_at(at(12, 10, 3, 12, 0)));
+        let h = parse_opening_hours("Mo-Su 06:00-22:00; Jul-Aug PH off").unwrap();
+        assert!(!h.closed_at(at(7, 15, 2, 12, 0)), "a holiday rule does not close July");
+        // a comma after months starts another rule (either holds)
+        let h = parse_opening_hours("May-Sep, Mo-Fr 08:00-18:00").unwrap();
+        assert!(!h.closed_at(at(7, 18, 5, 20, 0)) && !h.closed_at(at(12, 2, 2, 12, 0)) && h.closed_at(at(12, 5, 5, 12, 0)));
+        // a closing condition that spares holidays cannot be read: open
+        assert!(parse_closing_condition("no @ (Mo-Fr 08:00-18:00; PH off)").is_none());
     }
     #[test]
     fn closing_conditions() {
@@ -460,6 +472,14 @@ mod tests {
         assert!(!c.closed_at(at(4, 2, 1, 12, 0)));
         assert!(parse_closing_condition("permissive @ (Sa,Su,PH 08:00-24:00)").is_none());
         assert!(parse_closing_condition("no @ (Nov-May); yes @ (Sa)").is_none(), "opened again: not certain");
+        // within one condition a later rule replaces the earlier one for its days
+        let c = parse_closing_condition("no @ (Mo-Fr 08:00-18:00; Fr 12:00-14:00)").unwrap();
+        assert!(!c.closed_at(at(5, 8, 4, 9, 0)), "Friday is closed 12-14 only");
+        assert!(c.closed_at(at(5, 8, 4, 13, 0)));
+        assert!(c.closed_at(at(5, 7, 3, 9, 0)));
+        // two conditions: closed when either holds
+        let c = parse_closing_condition("no @ (Mo 08:00-10:00); no @ (Tu 08:00-10:00)").unwrap();
+        assert!(c.closed_at(at(5, 4, 0, 9, 0)) && c.closed_at(at(5, 5, 1, 9, 0)) && !c.closed_at(at(5, 6, 2, 9, 0)));
         assert!(parse_closing_condition("no @ winter").is_none());
     }
 }

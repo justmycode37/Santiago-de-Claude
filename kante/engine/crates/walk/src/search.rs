@@ -132,6 +132,8 @@ impl std::ops::IndexMut<usize> for Pages {
 }
 
 struct Scratch {
+    /// The network the blocks and the closed hours are for ([`Net::id`]): another one starts afresh.
+    net: u64,
     gen: u32,
     /// One block per search state ([`Pages`]).
     st: Pages,
@@ -154,6 +156,14 @@ struct TargetEnds {
 
 impl Scratch {
     fn begin(&mut self, net: &Net, profile: &WalkProfile, walked: bool) {
+        if self.net != net.id {
+            // blocks of another network hold its node numbers where a stamp may be read (`S_MARK`), and its hours
+            self.st.clear();
+            self.gen = 0;
+            self.table.closed_for = None;
+            self.table.closed.clear();
+            self.net = net.id;
+        }
         self.st.fit(net.ns as usize);
         if self.gen >= u32::MAX - 2 || self.st.live > MAX_PAGES {
             self.st.clear();
@@ -176,6 +186,7 @@ impl Scratch {
 
 thread_local! {
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch {
+        net: u64::MAX,
         gen: 0,
         st: Pages { pages: Vec::new(), live: 0 },
         heap: Heap { v: Vec::new() },

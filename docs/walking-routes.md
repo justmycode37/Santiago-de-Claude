@@ -88,7 +88,7 @@ ways: a walk's time is always the time it takes, and whether a stop can be reach
   at least 30 % more.
 - **Closed at night**: a way with `opening_hours`, or `access:conditional` / `foot:conditional` `no @ (…)`, and the
   paths of a park or the corridors of a mall with opening hours (5 552 edges, 320 of 404 hours readable) count 20
-  times while closed at the walk's time: a journey's walks at the time they set out, `/api/walk` at its `time`
+  times while closed at the walk's time: a journey's walks at the journey's time asked (or the page's), `/api/walk` at its `time`
   (without one every way is open). Only what can be read for certain counts: an hour of a public holiday, sunrise,
   week numbers or a comment make the hours unreadable, and unreadable is open. A walk that still has to go through
   one says so (`closedM`). Of 900 walks in ten city centres, 12 are walked otherwise at 23:30 than at noon.

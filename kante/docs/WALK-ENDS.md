@@ -88,7 +88,7 @@ apart) and 1.5 times over another: the near side is taken unless it is twice as 
   bridge, or on another layer or floor does not count). The three cheapest, each onto another way, are kept, and
   the cheapest when a line over a carriageway counts more (see above), if it is another one: no door loses a way out
   it had (1.38 million of 8.27 million ways out walk over a carriageway).
-- Whether a door looks onto its address's street (`Door::faces`): the nearest named carriageway within 30 m, the
+- Whether a door looks onto its address's street (`Door::faces`): the nearest named carriageway or pedestrian street on the ground within 30 m (names compared without case or accents), the
   line to it through no building, has the street of its address (1 422 601 doors) or another one (273 947); not
   known without an address or a named street near.
 - Every building is kept, with doors or not, so that a line through any of them is seen.

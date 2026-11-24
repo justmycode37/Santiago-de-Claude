@@ -1818,3 +1818,30 @@ fn a_way_closed_at_the_time_is_walked_round() {
     let p = r.route(&on(start, 0.0, &r), &on(end, 1.0, &r), &night).unwrap();
     assert!(close(p.closed_m, 100.0, 0.5), "{}", p.closed_m);
 }
+
+#[test]
+fn crossing_no_holds_even_where_a_crossing_way_is_drawn_through_the_node() {
+    // the footways over the road at x = 0 drawn as a crossing way, the node tagged crossing=no
+    let c = crossing_world(0, NA_CROSSING_NO);
+    let mut g = (**c.r.graph()).clone();
+    for e in g.edges.iter_mut() {
+        if e.kind == EdgeKind::Footway {
+            e.kind = EdgeKind::Crossing;
+        }
+    }
+    let r = WalkRouter::new(Arc::new(g));
+    let (_, _, q, _) = r.quickest_between(&[(c.from, 0.0, 0.0)], &[(c.to, 0.0, 0.0)], &NORMAL).unwrap();
+    assert!(close(q.cost.var_m, 106.0, 0.5), "{:?}", q.cost);
+}
+
+#[test]
+fn a_search_on_another_network_starts_afresh() {
+    // two networks searched in turn on one thread give each its own answer
+    let a = crossing_world(0, 0);
+    let b = crossing_world(0, NA_CROSSING_NO);
+    for _ in 0..3 {
+        let qa = a.r.quickest_between(&[(a.from, 0.0, 0.0)], &[(a.to, 0.0, 0.0)], &NORMAL).unwrap().2;
+        let qb = b.r.quickest_between(&[(b.from, 0.0, 0.0)], &[(b.to, 0.0, 0.0)], &NORMAL).unwrap().2;
+        assert!(close(qa.cost.var_m, 76.0, 0.5) && close(qb.cost.var_m, 106.0, 0.5), "{:?} {:?}", qa.cost, qb.cost);
+    }
+}

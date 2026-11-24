@@ -284,7 +284,7 @@ impl End {
                 // a step-free walker prefers a door known to be step-free
                 let mut kind_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
                 if prefs {
-                    if matches!(door.kind, DoorKind::Yes | DoorKind::Shop | DoorKind::Home) {
+                    if matches!(door.kind, DoorKind::Yes | DoorKind::Shop | DoorKind::Home | DoorKind::Staircase) {
                         kind_m += DOOR_NOT_MAIN_M;
                     }
                     if door.faces == DOOR_FACES_OTHER {
@@ -302,7 +302,8 @@ impl End {
                     let snap = Snap { dist_m: a.dist_m(), ..router.snap_at(a.edge, a.frac()) };
                     let wall = a.through() || inside_wall;
                     let inside_pen = if inside_wall { (line_weight_m(inside_m, false, true) - inside_m) / speed } else { 0.0 };
-                    let pen_s = kind_m / speed + line_pen(g, a.edge, a.dist_m(), a.through(), a.crosses(), speed) + inside_pen;
+                    let crosses = a.crosses().filter(|_| kante_walk::rules::is_on(kante_walk::rules::LINES));
+                    let pen_s = kind_m / speed + line_pen(g, a.edge, a.dist_m(), a.through(), crosses, speed) + inside_pen;
                     end.joins.push(Join { snap, extra_m: inside_m + a.dist_m(), pen_s, door: Some(di), inside_m, wall, unsure: doubt_of(wall || off_floor(g, &snap), a.dist_m()) > 0, doubt: doubt_of(wall || off_floor(g, &snap), a.dist_m()) });
                 }
             }

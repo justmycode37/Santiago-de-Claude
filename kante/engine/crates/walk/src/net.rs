@@ -538,6 +538,8 @@ pub(crate) struct EdgeArcs {
 }
 
 pub(crate) struct Net {
+    /// Unique among the networks of this process (the searches' per-thread scratch is for one at a time).
+    pub id: u64,
     /// Number of nodes of the graph; routing nodes `>= n0` are virtual.
     pub n0: u32,
     /// Number of routing nodes.
@@ -1153,7 +1155,9 @@ impl Net {
         arc_off.truncate(n as usize + 1);
         debug_assert_eq!(arc_off[n as usize] as usize, total);
 
-        let mut net = Net { n0, n, orig, arc_off, arcs, remap, lift_slack_m, n_lift_nodes: special.len() as u32, lift_from, joins, flipped, jun: Junctions::default(), ns: n, hours: Vec::new(), edge_hours: Vec::new() };
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut net = Net { id, n0, n, orig, arc_off, arcs, remap, lift_slack_m, n_lift_nodes: special.len() as u32, lift_from, joins, flipped, jun: Junctions::default(), ns: n, hours: Vec::new(), edge_hours: Vec::new() };
         if has_attrs {
             net.hours = g.attrs.hours.iter().map(|h| parse_hours_entry(h)).collect();
             net.edge_hours = g.attrs.edge_hours.clone();
@@ -1266,7 +1270,7 @@ impl Net {
                 }
                 // the carriageways between the way arrived along and the way out, on each side; the walker crosses
                 // those of the cheaper side
-                if on & rules::CROSS != 0 && !crossing_way(k) && !crossing_way(i) && k != i {
+                if on & rules::CROSS != 0 && k != i {
                     let sweep = |cw: bool| -> (u32, bool) {
                         let (mut c, mut any_road) = (0u32, false);
                         for j in 0..deg {
@@ -1282,13 +1286,14 @@ impl Net {
                         (c, any_road)
                     };
                     let ((c_cw, r_cw), (c_ccw, r_ccw)) = (sweep(true), sweep(false));
+                    // `crossing=no` first: a crossing way drawn through such a node does not make it one
                     if crossing_no && !road(k) && !road(i) && r_cw && r_ccw {
                         cost[k * deg + i] = TRANS_BLOCKED;
                         continue;
                     }
-                    // a walker on a footway or sidewalk (or on a carriageway whose sidewalks are drawn apart);
-                    // along carriageways through a junction the walker is on the road's line already
-                    if !mapped && (!road(k) || !road(i) || apart(k) || apart(i)) {
+                    // a walker on a footway or sidewalk (or on a carriageway whose sidewalks are drawn apart), not on a
+                    // mapped crossing; along carriageways through a junction the walker is on the road's line already
+                    if !mapped && !crossing_way(k) && !crossing_way(i) && (!road(k) || !road(i) || apart(k) || apart(i)) {
                         units += c_cw.min(c_ccw);
                     }
                 }

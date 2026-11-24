@@ -12,12 +12,12 @@
 //! - **Car-only** (`EA_CAR_ONLY`): `highway=service` with `service=parking_aisle|driveway|drive-through`, or with
 //!   `access=destination|customers|delivery|permit|agricultural|forestry|residents` (unless `foot=yes|designated`).
 //! - **Away from traffic** (`EA_FAVOURED`): `Footway` edges that are not cycleways, `Pedestrian` edges (streets and
-//!   squares), and footways and paths in a park or garden (`leisure=park|garden`, the edge's ends and middle in it).
+//!   squares), and footways and paths in a park or garden (`leisure=park|garden`, points 1/4, 1/2 and 3/4 along the edge in it).
 //!   Not sidewalks, crossings, corridors or platforms.
 //! - **Hours** (`EA_HOURS`): the way's own `opening_hours`, else `foot:conditional`, else `access:conditional` (unless
 //!   `foot=yes|designated`) with a `no` or `private` condition; else the hours of an area it lies in (its middle):
 //!   a park or garden (`leisure=park|garden`) for its footways, paths, steps and squares (not the sidewalks round
-//!   it; the edge's ends and middle in it), a mall or an indoor area
+//!   it; points 1/4, 1/2 and 3/4 along the edge in it), a mall or an indoor area
 //!   (`shop=mall`, `indoor=area|yes|corridor`) for indoor ways. Station buildings' hours are not read: they are the
 //!   ticket office's.
 //! - **`crossing=no`** (`NA_CROSSING_NO`) on a node of the graph.
@@ -348,11 +348,24 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
     }
 
     // ---- per edge
-    // the areas an edge lies in (its ends and its middle) that matter to it
+    // the areas an edge lies in (its points a quarter, half and three quarters along: its ends may lie on the
+    // area's outline) that matter to it
     let areas_of = |e: &WalkEdge| -> Vec<u32> {
         let geom = &g.geom[e.geom_off as usize..e.geom_off as usize + e.geom_len as usize];
-        let mid = if geom.len() == 2 { LatLon { lat: (geom[0].lat + geom[1].lat) / 2, lon: (geom[0].lon + geom[1].lon) / 2 } } else { geom[geom.len() / 2] };
-        let pts = [geom[0], mid, geom[geom.len() - 1]];
+        let total: f32 = geom.windows(2).map(|w| w[0].dist_m(&w[1])).sum();
+        let along = |f: f32| -> LatLon {
+            let mut left = f * total;
+            for w in geom.windows(2) {
+                let d = w[0].dist_m(&w[1]);
+                if d > 0.0 && left <= d {
+                    return w[0].lerp(&w[1], left / d);
+                }
+                left -= d;
+            }
+            geom[geom.len() - 1]
+        };
+        let pts = [along(0.25), along(0.5), along(0.75)];
+        let mid = pts[1];
         let Some(cands) = grid.get(&(mid.lat.div_euclid(CELL), mid.lon.div_euclid(CELL))) else { return Vec::new() };
         cands
             .iter()
@@ -369,7 +382,12 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
         .enumerate()
         .map(|(i, e)| {
             let synthetic = e.flags & EF_AREA != 0;
-            let (mut bits, mut h) = if synthetic { (0, u32::MAX) } else { way_bits.get(&g.edge_way[i]).copied().unwrap_or((0, u32::MAX)) };
+            // an edge across a square has the square's way (or relation) id: its hours, nothing else of it
+            let (mut bits, mut h) = if synthetic {
+                (0, way_bits.get(&g.edge_way[i]).map_or(u32::MAX, |x| x.1))
+            } else {
+                way_bits.get(&g.edge_way[i]).copied().unwrap_or((0, u32::MAX))
+            };
             let cycleway = bits & CYCLEWAY != 0;
             bits &= !CYCLEWAY;
             if !matches!(e.kind, EdgeKind::Road | EdgeKind::RoadBusy) {

@@ -96,11 +96,15 @@ pub fn crosses_carriageway(router: &WalkRouter, p: LatLon, q: LatLon, target: u3
     found
 }
 
-/// The street of an address ("Bahnhofstrasse 12, 12a" → "Bahnhofstrasse") and its numbers (["12", "12a"]).
+/// The street of an address ("Bahnhofstrasse 12, 12a" → "Bahnhofstrasse") and its numbers (["12", "12a"]); an
+/// address without a number ("Rue du Rhône") is all street.
 pub fn addr_parts(addr: &str) -> (&str, Vec<&str>) {
     let mut parts = addr.split(", ");
     let first = parts.next().unwrap_or("");
-    let (street, nb) = first.rsplit_once(' ').unwrap_or((first, ""));
+    let (street, nb) = match first.rsplit_once(' ') {
+        Some((s, n)) if n.chars().any(|c| c.is_ascii_digit()) => (s, n),
+        _ => (first, ""),
+    };
     let mut nbs = vec![nb];
     nbs.extend(parts);
     (street, nbs.into_iter().filter(|s| !s.is_empty()).collect())
@@ -110,26 +114,33 @@ pub fn addr_parts(addr: &str) -> (&str, Vec<&str>) {
 pub fn addr_holds(door_addr: &str, addr: &str) -> bool {
     let (s, nbs) = addr_parts(door_addr);
     let (s2, nb2) = addr_parts(addr);
-    !s.is_empty() && s.eq_ignore_ascii_case(s2) && nb2.len() == 1 && nbs.iter().any(|n| n.eq_ignore_ascii_case(nb2[0]))
+    !s.is_empty() && same_street(s, s2) && nb2.len() == 1 && nbs.iter().any(|n| n.eq_ignore_ascii_case(nb2[0]))
 }
 
-/// Whether the nearest named street a door looks onto (a named carriageway within 30 m, the line to it through no
-/// building) is its address's street.
+/// Two street names alike once case and accents are left out.
+fn same_street(a: &str, b: &str) -> bool {
+    kante_core::text::normalize(a) == kante_core::text::normalize(b)
+}
+
+/// Whether the nearest named street a door looks onto (a named carriageway or pedestrian street on the ground within
+/// 30 m, the line to it through no building) is its address's street.
 fn faces(router: &WalkRouter, plan: &Plan, pos: LatLon, addr: &str, scratch: &mut Vec<u32>) -> u8 {
     let (street, _) = addr_parts(addr);
     if street.is_empty() {
         return DOOR_FACES_UNKNOWN;
     }
     let g = router.graph();
-    let roads = (1u32 << EdgeKind::Road as u8) | (1 << EdgeKind::RoadBusy as u8);
+    let roads = (1u32 << EdgeKind::Road as u8) | (1 << EdgeKind::RoadBusy as u8) | (1 << EdgeKind::Pedestrian as u8);
     let opts = SnapOptions { max_dist_m: 30.0, level: Some(0), profile: None, exclude_kinds: !roads };
     let p = pos.xy();
     for s in router.snap_candidates(pos, &opts, 8) {
+        let ed = &g.edges[s.edge as usize];
         let name = g.edge_name(s.edge);
-        if name.is_empty() || plan.through(p, s.pos.xy(), 0.0, scratch) {
+        let off_ground = ed.flags & (EF_BRIDGE | EF_INDOOR) != 0 || (ed.flags & EF_TUNNEL != 0 && ed.flags & EF_COVERED == 0);
+        if name.is_empty() || off_ground || plan.through(p, s.pos.xy(), 0.0, scratch) {
             continue;
         }
-        return if name.eq_ignore_ascii_case(street) { DOOR_FACES_OWN } else { DOOR_FACES_OTHER };
+        return if same_street(name, street) { DOOR_FACES_OWN } else { DOOR_FACES_OTHER };
     }
     DOOR_FACES_UNKNOWN
 }
@@ -483,7 +494,9 @@ fn attach_door(router: &WalkRouter, plan: &Plan, rails: &Rails, pos: LatLon, scr
         let wall = plan.through(p, q, if ed.flags & EF_COVERED != 0 { 5.0 } else { 0.0 }, scratch);
         let crosses = crosses_carriageway(router, pos, s.pos, s.edge);
         let busy = ed.kind == EdgeKind::RoadBusy;
-        out.push((line_weight_m(s.dist_m, busy, wall), line_weight_crossing_m(s.dist_m, busy, wall, crosses), DoorAttach::new(s.edge, s.frac, s.dist_m, wall, crosses)));
+        // with carriageways seen: one whose sidewalks are drawn apart counts as a main road walked on (as `ends` does)
+        let apart = g.attrs.fits(g) && g.attrs.edge(s.edge) & EA_SIDEWALK_SEPARATE != 0 && ed.flags & EF_HAS_SIDEWALK == 0;
+        out.push((line_weight_m(s.dist_m, busy, wall), line_weight_crossing_m(s.dist_m, busy || apart, wall, crosses), DoorAttach::new(s.edge, s.frac, s.dist_m, wall, crosses)));
     }
     // the three cheapest as they were before lines over a carriageway counted more (so no door loses a way out it had),
     // and the cheapest with them, if it is another one

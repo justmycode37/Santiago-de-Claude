@@ -153,8 +153,6 @@ impl App {
     /// quickest ([`ends::walk_within`]).
     #[allow(clippy::too_many_arguments)]
     fn walk_leg_within(&self, kind: &'static str, a: &WalkEnd, b: &WalkEnd, dep: i64, arr: i64, profile: &WalkProfile, limit: Option<f32>) -> json::WalkLeg {
-        // a walk whose time is known avoids ways closed when it sets out (opening hours)
-        let profile = &WalkProfile { at: profile.at.map(|_| WalkTime::from_unix(dep)), ..*profile };
         let speed = profile.speed_mps;
         let mut leg = json::WalkLeg {
             kind,
@@ -685,8 +683,10 @@ impl App {
         let tt = &self.tt;
         let opt = &req.options;
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-        // the stop searches avoid ways closed at the time asked (each walk drawn: when it sets out)
-        let profile = WalkProfile { at: Some(WalkTime::from_unix(req.time.unwrap_or(now))), ..profile_from(opt) };
+        // every walk of the plan, in the stop searches and as drawn, avoids ways closed at the time asked (of the page
+        // asked for): one time for all, so that a walk is drawn the way the stop search timed it
+        let asked = req.page.as_deref().and_then(|p| p.get(2..)).and_then(|t| t.parse::<i64>().ok()).or(req.time).unwrap_or(now);
+        let profile = WalkProfile { at: Some(WalkTime::from_unix(asked)), ..profile_from(opt) };
         let margin = opt.transfer_margin_s.clamp(0, 1800);
         let max_walk = (opt.max_walk_min.clamp(1.0, 90.0) * 60.0) as Secs;
         let live_arc = self.live_view();

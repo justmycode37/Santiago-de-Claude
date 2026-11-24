@@ -65,8 +65,14 @@ def main():
     per = []
     for w, r in zip(W, R):
         m = M.get(w['id'], {})
+        c = w.get('check') or {}
         if 'error' in r or not m:
             tot['errors'] += 1
+            # a golden walk without an answer is a failure, not left out of the count
+            if c.get('golden'):
+                for key in [('all',), ('category', w['category']), ('city', w['city']), ('profile', w['profile']), ('issue', c.get('issue'))]:
+                    groups[key][1] += 1
+                fails.append({'id': w['id'], 'category': w['category'], 'issue': c.get('issue'), 'why': ['no answer or no line: ' + str(r.get('error', ''))], 'check': c.get('reason')})
             continue
         for k in ['sep_m', 'busy_m', 'car_m', 'crossings', 'blocked', 'turns', 'len_m']:
             tot[k] += m.get(k, 0)
@@ -76,7 +82,6 @@ def main():
         tot['closed_m'] += r.get('closedM', 0)
         tot['distance_m'] += r.get('distanceM', 0)
         tot['duration_s'] += r.get('durationS', 0)
-        c = w.get('check') or {}
         rec = {'id': w['id'], 'distanceM': r.get('distanceM'), 'durationS': r.get('durationS'), 'sep_m': m.get('sep_m'), 'crossings': m.get('crossings')}
         if c.get('golden'):
             ways = dict((x[0], x[1]) for x in m.get('ways', []))
