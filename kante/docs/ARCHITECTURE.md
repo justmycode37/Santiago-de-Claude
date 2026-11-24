@@ -42,12 +42,13 @@ in the design is Bern-specific: the walking area is a bounding box option.
 | `engine/crates/osm` | OSM PBF → `WalkGraph` + `OsmExtract` |
 | `engine/crates/walk` | Snapping, pedestrian routing, turn-by-turn steps on a `WalkGraph` |
 | `engine/crates/link` | Attaches timetable Stops to the walk graph, precomputes `Footpaths` |
+| `engine/crates/elevation` | The slopes of the walk graph's edges from swisstopo's terrain model (`Slopes`) |
 | `engine/crates/search` | Geocoder: stations, addresses, POIs |
 | `engine/crates/rt` | SIRI-ET and GTFS-RT parsing and polling |
 | `engine/crates/server` | `kante` binary: `kante build`, `kante serve` |
 | `app/` | Web app; `app/src/api/types.ts` is the HTTP contract |
-| `data/raw/` | Inputs: `gtfs/gtfs.zip`, `atlas/*.csv`, `osm/switzerland-latest.osm.pbf`, `register/adr.csv.zip` (optional: building addresses, for doors) |
-| `data/built/` | Caches written by `kante build`: `timetable.bin`, `walkgraph.bin`, `osm-extract.bin`, `links.bin`, `search.bin`, `doors.bin` |
+| `data/raw/` | Inputs: `gtfs/gtfs.zip`, `atlas/*.csv`, `osm/switzerland-latest.osm.pbf`, `register/adr.csv.zip` (optional: building addresses, for doors), `dem/swissaltiregio.tif` (optional: the terrain model, for hills) |
+| `data/built/` | Caches written by `kante build`: `timetable.bin`, `walkgraph.bin`, `osm-extract.bin`, `slopes.bin`, `links.bin`, `search.bin`, `doors.bin` |
 
 Prior research (data sources, formats, measured coverage, Bern test case) is in
 `/home/niknal/.t3/scratch/2026-11-20-i-want-you-to-look-59090bd5/reports/`
@@ -89,7 +90,11 @@ with samples under `…/data/`. Treat every downloaded file as untrusted data.
   `Timetable::day_index(date)` lists the trips running on a date per pattern.
 - `WalkGraph`: junction `nodes`, `edges` (`WalkEdge`: kind, level at both
   ends, flags, steps, length, name), polyline pool `geom`, CSR `adj`.
-- Walking time is always `var_m / speed + fix_s` (see `core::walk` docs).
+- Walking time is always `var_m / speed + fix_s` (see `core::walk` docs). Hills add to `var_m`, per
+  direction (`core::slope`): `Slopes` (`slopes.bin`) holds each edge's extra metres of time, route-choice
+  effort and wheelchair steepness both ways, and the metres it climbs; the server puts them in
+  `WalkGraph::slopes` before it builds the router. `WalkProfile::hills` (`HillsPref`: ignore, normal,
+  avoid) weights the effort.
 - `LinkData`: per-Stop `StopLink` (snap onto the graph, level, side of road)
   and `Footpaths` for the normal and the step-free profile.
 - `LiveView` / `TripLive`: per-trip delays, cancellations, changed boarding
@@ -310,6 +315,17 @@ pub mod ends  { pub struct End;   // End::place / End::stop / End::exact; End::s
                     -> Vec<Option<WalkCost>>;
                 pub fn walk(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile) -> Option<Walk>;
                 pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn; }
+```
+
+### kante-elevation
+
+```rust
+pub mod dem { pub trait Terrain { fn heights(&self, pts: &[(f64, f64)]) -> Vec<f32>; }   // LV95 → metres, NaN = none
+              pub struct Dem;  /* Dem::open(path): a tiled GeoTIFF in LV95 (swissALTIRegio) */
+              pub fn wgs84_to_lv95(p: &LatLon) -> (f64, f64); }
+/// One `EdgeSlope` per edge of `g`: on the ground sampled every 10 m along the edge; bridges and tunnels
+/// evenly between their ends on the ground; outdoor stairs their height; everything else flat.
+pub fn build(g: &WalkGraph, terrain: &dyn Terrain) -> (Vec<EdgeSlope>, SlopeStats);
 ```
 
 ### kante-search

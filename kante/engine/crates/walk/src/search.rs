@@ -135,14 +135,21 @@ thread_local! {
 /// How far beyond `max_time_s` the generalised cost may go, so that a walk
 /// which takes 14 minutes but "feels" like 18 because it follows a main road
 /// is still found. Covers a walk entirely on `RoadBusy` (×1.3), entirely on
-/// rough ground in a wheelchair (×1.8), and a few avoided stair flights.
+/// rough ground in a wheelchair (×1.8), and a few avoided stair flights; and
+/// hills: a walk climbing all the way at 10 % feels about 1.3 × as long to a
+/// walker who minds them a little, 2 × to one who avoids them, more in a wheelchair.
 fn bound_slack(p: &WalkProfile) -> f32 {
-    if p.wheelchair {
+    let base = if p.wheelchair {
         2.0
     } else if p.stairs == StairsPref::Avoid {
         1.5
     } else {
         1.3
+    };
+    base + match (p.hills, p.wheelchair) {
+        (HillsPref::Ignore, _) => 0.0,
+        (HillsPref::Normal, false) => 0.3,
+        (HillsPref::Normal, true) | (HillsPref::Avoid, _) => 1.0,
     }
 }
 
@@ -259,7 +266,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
             let ea = net.edge_arcs(g, t.edge);
             let mut te = TargetEnds { ia: ea.ia, ib: ea.ib, fwd: ea.fwd, back: ea.back };
             for (arc, node) in [(&mut te.fwd, ea.ia), (&mut te.back, ea.ib)] {
-                if *arc != NO_NODE && !s.table.usable[net.arcs[*arc as usize].cls as usize] {
+                if *arc != NO_NODE && (!s.table.usable[net.arcs[*arc as usize].cls as usize] || net.arcs[*arc as usize].head_block & s.table.dir_mask != 0) {
                     *arc = NO_NODE;
                 }
                 if *arc != NO_NODE && s.st[node as usize][S_MARK] != gen {
@@ -293,7 +300,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
             for a in &net.arcs[net.out(u)] {
                 let c = a.cls as usize;
                 let sh = a.share as f32;
-                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c];
+                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c] + t.slope_gen(a);
                 if !(nd <= bound) || a.head_block & t.head_mask != 0 {
                     continue;
                 }
@@ -301,7 +308,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
                 if sv[S_STAMP] != gen || nd < f32::from_bits(sv[S_DIST]) {
                     sv[S_STAMP] = gen;
                     sv[S_DIST] = nd.to_bits();
-                    sv[S_VAR] = (var + a.len_m * t.var_m[c]).to_bits();
+                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + t.slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_H] = su[S_H];
                     heap.push(nd, a.head);
@@ -389,6 +396,9 @@ const MAX_SOURCES: usize = 1 << 16;
 /// with: for one target, the source it takes is the one that search's cost for the target comes from. Returns
 /// (source, target, legs, generalised cost including both offsets).
 pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile, walked: bool) -> Option<(usize, usize, Vec<Leg>, f32)> {
+    // a route is drawn in the direction of travel (only the searches to many targets run against it)
+    debug_assert!(!profile.backwards, "routes run in the direction of travel");
+    let profile = &WalkProfile { backwards: false, ..*profile };
     let froms: Vec<(usize, &(Snap, f32, f32))> = froms.iter().enumerate().filter(|(_, f)| (f.0.edge as usize) < g.edges.len()).take(MAX_SOURCES).collect();
     let tos: Vec<(usize, &(Snap, f32, f32))> = tos.iter().enumerate().filter(|(_, t)| (t.0.edge as usize) < g.edges.len()).collect();
     if tos.is_empty() || froms.is_empty() {
@@ -519,7 +529,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
             for (i, a) in net.arcs[r].iter().enumerate() {
                 let c = a.cls as usize;
                 let sh = a.share as f32;
-                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c];
+                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c] + t.slope_gen(a);
                 if !(nd < best.0) || a.head_block & t.head_mask != 0 {
                     continue;
                 }
@@ -531,7 +541,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                         sv[S_H] = h(a.head).to_bits();
                     }
                     sv[S_DIST] = nd.to_bits();
-                    sv[S_VAR] = (var + a.len_m * t.var_m[c]).to_bits();
+                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + t.slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_PARC] = (base + i) as u32;
                     sv[S_PNODE] = u;

@@ -16,6 +16,7 @@ kante-osm.workspace = true
 kante-walk.workspace = true
 kante-link.workspace = true
 kante-search.workspace = true
+kante-elevation.workspace = true
 kante-rt.workspace = true
 ureq.workspace = true
 anyhow.workspace = true

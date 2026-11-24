@@ -162,6 +162,11 @@ function walkDist(st: JourneyStep) {
   return lines.every((_, k) => ws[k] && ws[k].dist != null) ? ws.reduce((sum, w) => sum + (w ? w.dist! : 0), 0) : null;
 }
 const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
+// Metres climbed on foot, as the engine counts them ("↑ 25 m" from 10 m: less is the lie of the land)
+function walkClimb(st: JourneyStep) {
+  const m = (st.walks || []).reduce((sum, w) => sum + ((w && w.climb) || 0), 0);
+  return m >= 10 ? Math.round(m / 5) * 5 : 0;
+}
 
 // Written directions for a walk, from the engine's and the station models' directions, with the floor change in its place
 export function walkDirections(st: JourneyStep) {
@@ -479,6 +484,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     }
   }
   const dist = walkDist(st);
+  const climb = walkClimb(st);
   const lvl = levelChange(st);
   const pq = (transfer && quayOf(st.prevRide!, 'arr')) as Quay, nq = (transfer && quayOf(st.nextRide!, 'dep')) as Quay;
   const spare = st.type === 'change' ? spareOf(st) : null;
@@ -486,6 +492,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const meta = [
     !mins && transfer && pq.label && nq.label ? (pq.word === nq.word ? `${pq.word} ${pq.label} → ${nq.label}` : `${pq.short} ${pq.label} → ${nq.short} ${nq.label}`) : '',
     dist ? fmtDist(dist) : '',
+    climb ? `↑ ${climb} m` : '',
     lvl ? lvl.text.replace(/^Go /, '') : '',
     spare && spare.easy ? spare.text : '',
   ].filter(Boolean).join(' · ');
@@ -494,7 +501,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const expanded = openDirs.has(i) || (!!sheet.focus && sheet.focus.step === i);
   const title = `${transfer ? 'Change to' : 'Walk to'} ${target}`;
   const main = h('div', 'tl-main',
-    kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
+    kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}${climb ? `, ${climb} m uphill` : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera

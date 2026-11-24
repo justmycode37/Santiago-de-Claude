@@ -1,0 +1,227 @@
+{"k":"06fc67031e1b185b","g":1,"why":"Closest ATM shown is 166.9 km away"}
+{"k":"0332e74638ba80ce","g":1,"why":"Closest ATM shown is 166.9 km away"}
+{"k":"da088069c9e6b44e","g":0,"why":"Bus stop, bookshop, and car park do not match"}
+{"k":"c7f645aafe7893fd","g":1,"why":"Police stations are 17.8 km away"}
+{"k":"e2673d1bd84ca4fc","g":2,"why":"Interlaken police station is in row 2, 2.8 km away"}
+{"k":"856098689453778d","g":1,"why":"Closest police station shown is 65.5 km away"}
+{"k":"c1c508c2ac5eb61c","g":1,"why":"Police stations are 17.8 km away"}
+{"k":"80ecb9ddd3d1cf0a","g":1,"why":"Closest police station shown is 53.6 km away"}
+{"k":"af8dcc01b980ccb2","g":1,"why":"Social services are shown far from Wil SG"}
+{"k":"d7ba3fe8ca0302ab","g":1,"why":"Closest social services office shown is 58.3 km away"}
+{"k":"ec33253462bc7e8f","g":1,"why":"Closest social counseling centre shown is 27.8 km away"}
+{"k":"82ca61b466743a90","g":1,"why":"Closest social services office shown is 46.4 km away"}
+{"k":"7085d867b2d987f5","g":1,"why":"Social services office in Sargans is 54.2 km away"}
+{"k":"02a69a04eadff756","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"936b8c31e408432a","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"14d20ca18852e3e3","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"edce514252432e84","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"55bf6e82bb7827eb","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"4d854343cf2d90fb","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"3d52c9ecbee52a5d","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"7d179b2c30d4e05f","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"6423175d9750df29","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"b978e7af58fabdec","g":2,"why":"Requested Denner is in row 2"}
+{"k":"1b91dd0d466fbba8","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"2f3de2f7f113167c","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"ad48a73de63fde8c","g":2,"why":"Requested Coop is in row 2, behind a nearer branch"}
+{"k":"7cd7f734f4c03b8e","g":2,"why":"Requested Coop branch is in row 3"}
+{"k":"6fa4f986dc1aecf7","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"d02e83d19204d815","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"2fa3677beba1b714","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"bd0fe5ac8489ac4e","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"3803e29805c5cbfb","g":3,"why":"The matching library at the requested address is first"}
+{"k":"a3fac7889180f50b","g":3,"why":"The matching library at the requested address is first"}
+{"k":"aa2eeb77c29ad807","g":3,"why":"The matching library at the requested address is first"}
+{"k":"e6b15ad6d2901800","g":3,"why":"Main university library at the requested address is first"}
+{"k":"ae93f92c00bcef37","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"cfd89ebe775f6ce0","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"c37f4bd33ab433f9","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"b58f996b8b3ba504","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"8b3962adf750972f","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"29a60143b0ecbe2a","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"dd3d1751afa7ade4","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"a9312e8fdf5aba46","g":3,"why":"The matching library at the requested address is first"}
+{"k":"ba2e0079e4acce7c","g":3,"why":"The matching library at the requested address is first"}
+{"k":"23f26f00421666c4","g":3,"why":"The matching library at the requested address is first"}
+{"k":"edca7628d4c81c5a","g":3,"why":"The matching library at the requested address is first"}
+{"k":"5d1bc366bc2e1142","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"1bd5784a5d63c471","g":3,"why":"The matching post office in the requested town is first"}
+{"k":"8429b8bf6333c3a3","g":3,"why":"The matching post office in the requested town is first"}
+{"k":"5a03e4a248553d8d","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"3459c70101831648","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"425f3dc48b6e779e","g":1,"why":"Same street, but the requested facility is missing"}
+{"k":"a3f5eda98cfcb36a","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"c4565f809354b671","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"0b5fe7691e3cd30d","g":3,"why":"The matching community centre at the requested address is first"}
+{"k":"e7801fa132dab84e","g":2,"why":"The Kulturlokal is second, behind a facility at its address"}
+{"k":"24f6439601f41f48","g":3,"why":"The matching community centre at the requested address is first"}
+{"k":"bf16993adc30b9ed","g":3,"why":"The matching community centre at the requested address is first"}
+{"k":"88030e1e1d9f88a0","g":3,"why":"The matching community centre at the requested address is first"}
+{"k":"43401cdc20d8fe74","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"48d3e1d76a27af12","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"759f2938ee7c3326","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"19369cc23fca2161","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"e5abbf75d8974108","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"e0573119203da398","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"2d0692637a00d197","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"f067b4846f5104ee","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"56b739ca0cbcf3d0","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"2ffdf707dca4042a","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"da139e594b56da43","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"e906ab5db7c368ba","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"29128ac12406b6c7","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"8d498ea24ea20b6e","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"df4e5ac1999ebe90","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"330e8c981d6f35ca","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"b5bf1f562cfd6b84","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"33caee8580444d56","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"c2603c6f81d3a1fa","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"5aa6bb3f509b1ee8","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"988de257bfd76512","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"3163c36fad4afa93","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"472fd827d15e6f9e","g":3,"why":"The matching library at the requested address is first"}
+{"k":"9c4dcac941ce6051","g":3,"why":"The matching library at the requested address is first"}
+{"k":"da079451b4c6424a","g":3,"why":"The matching library at the requested address is first"}
+{"k":"a0441d8d5812c4b7","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"3ae7cb0bdc6f2ddd","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"bb435da27f392acd","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"c704d1b9f731128d","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"94de4effc16964a3","g":3,"why":"The matching clinic in the requested town is first"}
+{"k":"4f1116a0792bf7bd","g":3,"why":"The matching clinic in the requested town is first"}
+{"k":"35d36f9f8c7d5cab","g":3,"why":"The matching clinic in the requested town is first"}
+{"k":"e010146e1e7fe124","g":3,"why":"The matching clinic in the requested town is first"}
+{"k":"cfedb2a3c4b68cce","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"7513300abe18c22b","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"cf252a4785668032","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"2d32a4be96aebc0c","g":3,"why":"The matching social facility in the requested town is first"}
+{"k":"fdc0a3f45558d30b","g":2,"why":"Requested Coop is in row 2, behind a nearer branch"}
+{"k":"67ed37948692fa48","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"fc659a001564b34b","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"18d99af09352e941","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"b50f393ef6c6b3ee","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"213f58ed157c363e","g":2,"why":"A nearby Denner branch in Carouge is first"}
+{"k":"7f9daeeaea4e1284","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"a3aafba89e060ce7","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"ac14d5374b2adb68","g":3,"why":"The matching library at the requested address is first"}
+{"k":"a543bf385dd5817a","g":3,"why":"The matching library at the requested address is first"}
+{"k":"b64420855de3f6d9","g":3,"why":"The matching library at the requested address is first"}
+{"k":"8c2af0c1a3feab50","g":2,"why":"Requested Denner is in row 3, behind nearer branches"}
+{"k":"5b749d88b499a6c2","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"3c4b2efbc5beee3f","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"5aacce8570acf1aa","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"44dc8b5b09a6dce3","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"cd7927b61e55cb62","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"4825e446f2c3943e","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"bd8d2e0bdfb69bef","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"b933868ee25e115b","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"4eb9c42246f44a52","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"b0ea8455843dc156","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"c1d81541d9b03806","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"79838d296f128efe","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"a71b92b1ff2f4bd4","g":3,"why":"The matching pharmacy at the requested address is first"}
+{"k":"b6e65ca3d5de4111","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"ed9bdad88dd89119","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"f99eb121a8724f58","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"cd5cfacfe78574bd","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"da1d12ccf3763b76","g":3,"why":"The matching clinic at the requested address is first"}
+{"k":"b9a6de2c6c7d7b74","g":3,"why":"The matching clinic at the requested address is first"}
+{"k":"0394bcd7dc6ff7bd","g":3,"why":"The matching clinic at the requested address is first"}
+{"k":"aa5bd4f3989cbca1","g":3,"why":"The matching clinic at the requested address is first"}
+{"k":"57ef13c935439a0d","g":3,"why":"The matching clinic at the requested address is first"}
+{"k":"eacae6420c736a5d","g":3,"why":"Requested Jugendhaus is first, listed under Ennenda"}
+{"k":"47a7b90b18ec2ef2","g":3,"why":"Requested Jugendhaus is first, listed under Ennenda"}
+{"k":"742d720afbb53863","g":2,"why":"Post office is in row 2, behind the town hall"}
+{"k":"26e646537637f05d","g":2,"why":"Post office is in row 2, behind the town hall"}
+{"k":"85cd0e31bfe89d59","g":2,"why":"Post office is in row 2, behind the town hall"}
+{"k":"de5f577219cea0b7","g":2,"why":"Post office is in row 2, behind the town hall"}
+{"k":"bb79c278ead60d81","g":1,"why":"Town hall and address appear without a post office result"}
+{"k":"473b64fd06aad41c","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"038840dd1fbb85f9","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"f163130f053a4a2e","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"1bc0b71bf3f5c78d","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"3f6b2e0ea62eeb5a","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"a338c94fb2097a6d","g":3,"why":"The matching library at the requested address is first"}
+{"k":"bedad8b06bf7ff32","g":3,"why":"The matching library at the requested address is first"}
+{"k":"99e6e707b8b4e097","g":3,"why":"The matching library at the requested address is first"}
+{"k":"52c74f9eb033ef5c","g":3,"why":"The matching library at the requested address is first"}
+{"k":"3b24d02d831b74b8","g":2,"why":"Social facility is second, behind the bus stop"}
+{"k":"ee8d4e0d019892e3","g":2,"why":"Social facility is second, behind the bus stop"}
+{"k":"3a3d831bae1fbc01","g":2,"why":"Sonnenhalde social facility is in row 3"}
+{"k":"95101bc6898bbcaa","g":2,"why":"Social facility is second, behind the bus stop"}
+{"k":"740f60974ca001ab","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"1b833e017f69778f","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"d93f2072f0671be3","g":3,"why":"The matching pharmacy in the requested town is first"}
+{"k":"7c24f3766722c4da","g":3,"why":"The matching library at the requested address is first"}
+{"k":"f068dbfd6c9bd7fa","g":3,"why":"The matching library at the requested address is first"}
+{"k":"8e575350411e5b1d","g":3,"why":"The matching library at the requested address is first"}
+{"k":"569028dcbff0e8d8","g":3,"why":"The matching library at the requested address is first"}
+{"k":"846ec1c90f30ed0b","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"5c2c2aab4a29bc2b","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"024128fd34322f6f","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"9c12171ed7de0527","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"711a9cf4e7b318c8","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"baca3fbd8b19327f","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"793f5a7d0e78e3bf","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"6cdfb8eb8a07ee74","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"2cdbc2098ca418a6","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"4abd92bf7d869626","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"8fc98c72d07291bd","g":2,"why":"Durchgangsheim Anker is second, behind Ankerstrasse"}
+{"k":"dec81d1b861a6443","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"62c0c78e4295e45b","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"8e2089880ec701b4","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"4ebc1328b919f4f7","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"bced99dfe0e3ac85","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"d358fcd5dae3e434","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"d33f608bd475c4ce","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"9f559d1d4b345a33","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"09aa6e93a535d485","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"429f5ad375695c22","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"5a0fb7c7705aa813","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"b7aa6f56ca149e69","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"b3490c6cefa7bf9b","g":2,"why":"Brütten Volg is second, behind a nearer branch"}
+{"k":"fec109eac92df30b","g":3,"why":"The matching supermarket in the requested town is first"}
+{"k":"dc355223fb077445","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"3a69e0a5990f9ad0","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"af2ae477a6809e28","g":3,"why":"The matching supermarket at the requested address is first"}
+{"k":"aa960259478edf7d","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"ea24afd0b15c5263","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"e92798fb2da03dac","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"4e3878ddae43ab1f","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"d9868bd18e1bf5d4","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"ab15974e39aeb273","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"48b3a5ce8a622c7a","g":3,"why":"The matching post office at the requested address is first"}
+{"k":"9b0a81935bd268c1","g":3,"why":"The matching post office in the requested town is first"}
+{"k":"2e75b52e93c3ff04","g":3,"why":"The matching post office in the requested town is first"}
+{"k":"09abe9a249ba04c6","g":3,"why":"The matching post office in the requested town is first"}
+{"k":"1937dda98aaa9383","g":3,"why":"The matching post office in the requested town is first"}
+{"k":"fff31c87218dd9c9","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"f07f96b6f204dfa6","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"293470b80d97d261","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"2c16fbd42afc940a","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"a31cf41cd8dd18b9","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"15a989be60b16a11","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"a45b7fc122d62c6a","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"a03ce9c826bb0061","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"dc36d48c2b9afbc8","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"50252f5299c2030e","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"530e5361dec077e2","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"3d30c13580f36252","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"2a82dbfc9ea6ea16","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"f68dcec5a5a65dd3","g":2,"why":"Altersheim Ruttigen is second, behind a farm"}
+{"k":"9404012a45f322c3","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"7c1b23872e923f1d","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"640fac8a339518dc","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"420bffc1247a9ce6","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"6b6edbb9e63d8cb1","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"d394e39b71addcfd","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"22da52d82680a04a","g":3,"why":"The matching social facility at the requested address is first"}
+{"k":"b773261a1c8500cd","g":3,"why":"The matching police station in the requested town is first"}
+{"k":"78d4403d99844d90","g":3,"why":"The matching police station in the requested town is first"}
+{"k":"c3cc0db3f5ccd435","g":3,"why":"The matching police station in the requested town is first"}
+{"k":"cb4f85cb2e4569c7","g":3,"why":"The matching police station in the requested town is first"}
+{"k":"e77673437c6011df","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"ffb8cb53ca2e19af","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"3e5ce937a1d567b3","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"32256796d914a8e0","g":3,"why":"The matching community centre in the requested town is first"}
+{"k":"84233f2c288a823d","g":3,"why":"The matching police station in the requested town is first"}
+{"k":"df8b63e963ab87e8","g":3,"why":"The matching police station in the requested town is first"}

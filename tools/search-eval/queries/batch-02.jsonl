@@ -1,0 +1,215 @@
+{"t":"T002","q":"Brienz BE, Rössliplatz","style":"exact","local":false}
+{"t":"T002","q":"rössliplatz","style":"casual","local":true}
+{"t":"T002","q":"brienz be rössli","style":"partial","local":false}
+{"t":"T002","q":"rossliplatz brienz","style":"typo","local":false}
+{"t":"T002","q":"haltestelle rössliplatz brienz","style":"descriptive","local":false}
+{"t":"T012","q":"Valzeina, Kirche","style":"exact","local":false}
+{"t":"T012","q":"kirche","style":"casual","local":true}
+{"t":"T012","q":"valzeina kir","style":"partial","local":false}
+{"t":"T012","q":"valzeina kirhce","style":"typo","local":false}
+{"t":"T012","q":"bus stop valzeina kirche","style":"descriptive","local":false}
+{"t":"T022","q":"Spiringen, Holzboden","style":"exact","local":false}
+{"t":"T022","q":"holzboden","style":"casual","local":true}
+{"t":"T022","q":"spiringen holzbo","style":"partial","local":false}
+{"t":"T022","q":"spiringen holzbodne","style":"typo","local":false}
+{"t":"T022","q":"haltestelle holzboden spiringen","style":"descriptive","local":false}
+{"t":"T032","q":"Frauenfeld, Westfeld","style":"exact","local":false}
+{"t":"T032","q":"westfeld","style":"casual","local":true}
+{"t":"T032","q":"frauenfeld westf","style":"partial","local":false}
+{"t":"T032","q":"frauenfeld westfled","style":"typo","local":false}
+{"t":"T032","q":"westfeld bus stop frauenfeld","style":"descriptive","local":false}
+{"t":"T042","q":"Altstätten SG, Industriestr.","style":"exact","local":false}
+{"t":"T042","q":"industriestrasse","style":"casual","local":true}
+{"t":"T042","q":"altstätten sg indus","style":"partial","local":false}
+{"t":"T042","q":"altstatten sg industriestr","style":"typo","local":false}
+{"t":"T042","q":"haltestelle industriestrasse altstätten","style":"descriptive","local":false}
+{"t":"T052","q":"Vernier, Grand-Champ","style":"exact","local":false}
+{"t":"T052","q":"grand champ","style":"casual","local":true}
+{"t":"T052","q":"vernier grand-cha","style":"partial","local":false}
+{"t":"T052","q":"vernier grand chmap","style":"typo","local":false}
+{"t":"T052","q":"arrêt grand champ vernier","style":"descriptive","local":false}
+{"t":"T062","q":"Schlieren, Geissweid","style":"exact","local":false}
+{"t":"T062","q":"geissweid","style":"casual","local":false}
+{"t":"T062","q":"schlieren geissw","style":"partial","local":false}
+{"t":"T062","q":"schlieren geisweid","style":"typo","local":false}
+{"t":"T062","q":"geissweid tram stop schlieren","style":"descriptive","local":false}
+{"t":"T072","q":"Zürich, Platte","style":"exact","local":false}
+{"t":"T072","q":"platte","style":"casual","local":true}
+{"t":"T072","q":"zürich plat","style":"partial","local":false}
+{"t":"T072","q":"zurich platte","style":"typo","local":false}
+{"t":"T072","q":"tram stop platte zurich","style":"descriptive","local":false}
+{"t":"T082","q":"Basel, Claraplatz","style":"exact","local":false}
+{"t":"T082","q":"claraplatz","style":"casual","local":false}
+{"t":"T082","q":"basel clarapl","style":"partial","local":false}
+{"t":"T082","q":"basel claraplat","style":"typo","local":false}
+{"t":"T082","q":"claraplatz tram stop basel","style":"descriptive","local":false}
+{"t":"T092","q":"Zürich, Letzigrund","style":"exact","local":false}
+{"t":"T092","q":"letzigrund","style":"casual","local":false}
+{"t":"T092","q":"zürich letzigr","style":"partial","local":false}
+{"t":"T092","q":"zurich letzigrund","style":"typo","local":false}
+{"t":"T092","q":"tramhaltestelle letzigrund zürich","style":"descriptive","local":false}
+{"t":"T102","q":"Meyrin","style":"exact","local":false}
+{"t":"T102","q":"meyrin gare","style":"casual","local":false}
+{"t":"T102","q":"meyrin train stat","style":"partial","local":false}
+{"t":"T102","q":"meyirn gare","style":"typo","local":false}
+{"t":"T102","q":"gare de meyrin","style":"alias","local":false}
+{"t":"T112","q":"Grafenried","style":"exact","local":false}
+{"t":"T112","q":"grafenried","style":"casual","local":false}
+{"t":"T112","q":"grafenried bahn","style":"partial","local":false}
+{"t":"T112","q":"bahnhof grafenreid","style":"typo","local":false}
+{"t":"T112","q":"grafenried train station","style":"descriptive","local":false}
+{"t":"T122","q":"Niederried (See)","style":"exact","local":false}
+{"t":"T122","q":"niederried see","style":"casual","local":false}
+{"t":"T122","q":"niederried schiffan","style":"partial","local":false}
+{"t":"T122","q":"niederried seee","style":"typo","local":false}
+{"t":"T122","q":"niederried boat landing","style":"descriptive","local":false}
+{"t":"T132","q":"Orselina (Funivia Cardada)","style":"exact","local":false}
+{"t":"T132","q":"funivia cardada","style":"casual","local":false}
+{"t":"T132","q":"orselina funivia car","style":"partial","local":false}
+{"t":"T132","q":"orselina funivia cardda","style":"typo","local":false}
+{"t":"T132","q":"cardada cable car orselina","style":"descriptive","local":false}
+{"t":"T142","q":"Zürich HB","style":"exact","local":false}
+{"t":"T142","q":"zürich hb","style":"casual","local":false}
+{"t":"T142","q":"zürich haupt","style":"partial","local":false}
+{"t":"T142","q":"zurich hb","style":"typo","local":false}
+{"t":"T142","q":"Zürich Hauptbahnhof","style":"alias","local":false}
+{"t":"T152","q":"Fribourg/Freiburg","style":"exact","local":false}
+{"t":"T152","q":"fribourg gare","style":"casual","local":false}
+{"t":"T152","q":"gare de frib","style":"partial","local":false}
+{"t":"T152","q":"gare friborug","style":"typo","local":false}
+{"t":"T152","q":"Bahnhof Freiburg im Üechtland","style":"alias","local":false}
+{"t":"T162","q":"Interlaken Ost","style":"exact","local":false}
+{"t":"T162","q":"interlaken ost","style":"casual","local":false}
+{"t":"T162","q":"interlaken ost bahn","style":"partial","local":false}
+{"t":"T162","q":"interlaken ots","style":"typo","local":false}
+{"t":"T162","q":"interlaken ost train station","style":"descriptive","local":false}
+{"t":"T172","q":"Brig","style":"exact","local":false}
+{"t":"T172","q":"brig bhf","style":"casual","local":false}
+{"t":"T172","q":"brig bahn","style":"partial","local":false}
+{"t":"T172","q":"bahnhof birg","style":"typo","local":false}
+{"t":"T172","q":"brig train station","style":"descriptive","local":false}
+{"t":"T182","q":"Ollon VD","style":"exact","local":false}
+{"t":"T182","q":"ollon","style":"casual","local":false}
+{"t":"T182","q":"ollon train stat","style":"partial","local":false}
+{"t":"T182","q":"olon vd","style":"typo","local":false}
+{"t":"T182","q":"gare d'ollon","style":"alias","local":false}
+{"t":"T192","q":"Münchenstein Gleis 1","style":"exact","local":false}
+{"t":"T192","q":"münchenstein 1","style":"casual","local":false}
+{"t":"T192","q":"münchenstein glesi 1","style":"typo","local":false}
+{"t":"T192","q":"Münchenstein Gl. 1","style":"alias","local":false}
+{"t":"T192","q":"Münchenstein station platform 1","style":"descriptive","local":false}
+{"t":"T202","q":"Basel SBB Gleis 16","style":"exact","local":false}
+{"t":"T202","q":"basel sbb 16","style":"casual","local":false}
+{"t":"T202","q":"basel sbb gelis 16","style":"typo","local":false}
+{"t":"T202","q":"Basel SBB Gl. 16","style":"alias","local":false}
+{"t":"T202","q":"Basel SBB train platform 16","style":"descriptive","local":false}
+{"t":"T212","q":"Luzern Gleis 15","style":"exact","local":false}
+{"t":"T212","q":"luzern 15","style":"casual","local":false}
+{"t":"T212","q":"luzern gleiis 15","style":"typo","local":false}
+{"t":"T212","q":"Lucerne platform 15","style":"alias","local":false}
+{"t":"T212","q":"Bahnhof Luzern Gleis 15","style":"descriptive","local":false}
+{"t":"T222","q":"Satigny, Bergère quai K","style":"exact","local":false}
+{"t":"T222","q":"satigny bergère k","style":"casual","local":false}
+{"t":"T222","q":"satigny bergere quai k","style":"typo","local":false}
+{"t":"T222","q":"satigny bergère k pla","style":"partial","local":false}
+{"t":"T222","q":"satigny bergère bus stop platform k","style":"descriptive","local":false}
+{"t":"T232","q":"Route d'Ayer 4","style":"exact","local":true}
+{"t":"T232","q":"route dayer 4 vissoie","style":"casual","local":false}
+{"t":"T232","q":"route d'ayer 4 3961 vis","style":"partial","local":false}
+{"t":"T232","q":"route d'ayre 4 vissoie","style":"typo","local":false}
+{"t":"T232","q":"rte d'ayer 4 3961","style":"alias","local":false}
+{"t":"T242","q":"Oberriedgässli 8a","style":"exact","local":false}
+{"t":"T242","q":"oberriedgässli 8a niederscherli","style":"casual","local":false}
+{"t":"T242","q":"oberriedgässli 8a 3145 nied","style":"partial","local":false}
+{"t":"T242","q":"oberriedgaessli 8a 3145","style":"typo","local":false}
+{"t":"T242","q":"niederscherli oberriedgässli hausnummer 8a","style":"descriptive","local":false}
+{"t":"T252","q":"Bahnhofstrasse 16","style":"exact","local":true}
+{"t":"T252","q":"bahnhofstrasse 16 arbon","style":"casual","local":false}
+{"t":"T252","q":"bahnhofstrasse 16 9320 arb","style":"partial","local":false}
+{"t":"T252","q":"bahnofstrasse 16 arbon","style":"typo","local":false}
+{"t":"T252","q":"bahnhofstr. 16 9320","style":"alias","local":false}
+{"t":"T262","q":"Bahnhaldenstrasse 5","style":"exact","local":false}
+{"t":"T262","q":"bahnhaldenstrasse 5 zürich","style":"casual","local":false}
+{"t":"T262","q":"bahnhaldenstrasse 5 8052 zür","style":"partial","local":false}
+{"t":"T262","q":"bahnhaldensrasse 5 zürich","style":"typo","local":false}
+{"t":"T262","q":"bahnhaldenstr. 5 8052","style":"alias","local":false}
+{"t":"T272","q":"Lützelmattstrasse 1","style":"exact","local":false}
+{"t":"T272","q":"lützelmattstrasse 1 luzern","style":"casual","local":false}
+{"t":"T272","q":"lützelmattstrasse 1 6006 luz","style":"partial","local":false}
+{"t":"T272","q":"lutzelmattstrasse 1 luzern","style":"typo","local":false}
+{"t":"T272","q":"lützelmattstr. 1 6006","style":"alias","local":false}
+{"t":"T282","q":"Stutzstrasse 20","style":"exact","local":true}
+{"t":"T282","q":"stutzstrasse 20 reichenburg","style":"casual","local":false}
+{"t":"T282","q":"stutzstrasse 20 8864 rei","style":"partial","local":false}
+{"t":"T282","q":"stutzstrase 20 reichenburg","style":"typo","local":false}
+{"t":"T282","q":"stutzstr. 20 8864","style":"alias","local":false}
+{"t":"T292","q":"Volg","style":"exact","local":true}
+{"t":"T292","q":"volg st ursen","style":"casual","local":false}
+{"t":"T292","q":"st ursen volg eng","style":"partial","local":false}
+{"t":"T292","q":"vlog st ursen","style":"typo","local":false}
+{"t":"T292","q":"supermarché volg st ursen","style":"descriptive","local":false}
+{"t":"T302","q":"Gemeindebibliothek und Ludothek Ostermundigen","style":"exact","local":false}
+{"t":"T302","q":"bibliothek ostermundigen","style":"casual","local":false}
+{"t":"T302","q":"ostermundigen gemeindebib","style":"partial","local":false}
+{"t":"T302","q":"bibliothel ostermundigen","style":"typo","local":false}
+{"t":"T302","q":"public library and toy library ostermundigen","style":"descriptive","local":false}
+{"t":"T312","q":"Krisenintervention Haus Neumünster","style":"exact","local":false}
+{"t":"T312","q":"krisenintervention neumünster","style":"casual","local":false}
+{"t":"T312","q":"zürich krisenintervention neumün","style":"partial","local":false}
+{"t":"T312","q":"krisenintervention haus neumunster","style":"typo","local":false}
+{"t":"T312","q":"crisis intervention haus neumünster zurich","style":"descriptive","local":false}
+{"t":"T322","q":"Coop","style":"exact","local":true}
+{"t":"T322","q":"coop boudry","style":"casual","local":false}
+{"t":"T322","q":"boudry coop super","style":"partial","local":false}
+{"t":"T322","q":"coop boudyr","style":"typo","local":false}
+{"t":"T322","q":"supermarché coop rue de la poste boudry","style":"descriptive","local":false}
+{"t":"T332","q":"Structure éducative pour adolescents atteints d'autisme","style":"exact","local":false}
+{"t":"T332","q":"structure éducative autisme lausanne","style":"casual","local":false}
+{"t":"T332","q":"lausanne structure éducative autis","style":"partial","local":false}
+{"t":"T332","q":"structure educative autisme lausanne","style":"typo","local":false}
+{"t":"T332","q":"autism centre for teens lausanne route d'oron","style":"descriptive","local":false}
+{"t":"T342","q":"Denner","style":"exact","local":true}
+{"t":"T342","q":"denner jona","style":"casual","local":false}
+{"t":"T342","q":"denner jona molke","style":"partial","local":false}
+{"t":"T342","q":"dener jona","style":"typo","local":false}
+{"t":"T342","q":"denner supermarket molkereistrasse jona","style":"descriptive","local":false}
+{"t":"T352","q":"defibrillator","style":"exact","local":true}
+{"t":"T352","q":"defi","style":"casual","local":true}
+{"t":"T352","q":"defibril","style":"partial","local":true}
+{"t":"T352","q":"AED","style":"alias","local":true}
+{"t":"T352","q":"nächster Defibrillator","style":"descriptive","local":true}
+{"t":"T362","q":"social services","style":"exact","local":true}
+{"t":"T362","q":"sozialdienst","style":"casual","local":true}
+{"t":"T362","q":"soziald","style":"partial","local":true}
+{"t":"T362","q":"sozialdinest","style":"typo","local":true}
+{"t":"T362","q":"soziale beratungsstelle in der nähe","style":"descriptive","local":true}
+{"t":"T372","q":"supermarket","style":"exact","local":true}
+{"t":"T372","q":"supermarché","style":"casual","local":true}
+{"t":"T372","q":"supermar","style":"partial","local":true}
+{"t":"T372","q":"supermarche","style":"typo","local":true}
+{"t":"T372","q":"supermarché près de moi","style":"descriptive","local":true}
+{"t":"T382","q":"shelter","style":"exact","local":true}
+{"t":"T382","q":"unterstand","style":"casual","local":true}
+{"t":"T382","q":"unterst","style":"partial","local":true}
+{"t":"T382","q":"unterstnad","style":"typo","local":true}
+{"t":"T382","q":"shelter near me","style":"descriptive","local":true}
+{"t":"T392","q":"cash machine","style":"exact","local":true}
+{"t":"T392","q":"bancomat","style":"casual","local":true}
+{"t":"T392","q":"bancoma","style":"partial","local":true}
+{"t":"T392","q":"ATM","style":"alias","local":true}
+{"t":"T392","q":"bancomat più vicino","style":"descriptive","local":true}
+{"t":"T402","q":"Sursee","style":"exact","local":false}
+{"t":"T402","q":"sursee","style":"casual","local":false}
+{"t":"T402","q":"surs","style":"partial","local":false}
+{"t":"T402","q":"surrsee","style":"typo","local":false}
+{"t":"T402","q":"stadt sursee","style":"descriptive","local":false}
+{"t":"T412","q":"Verbier","style":"exact","local":false}
+{"t":"T412","q":"verbier","style":"casual","local":false}
+{"t":"T412","q":"verbi","style":"partial","local":false}
+{"t":"T412","q":"verbire","style":"typo","local":false}
+{"t":"T412","q":"verbier switzerland","style":"descriptive","local":false}
+{"t":"T422","q":"3145","style":"exact","local":false}
+{"t":"T422","q":"3145 niederscherli","style":"casual","local":false}
+{"t":"T422","q":"3145 nied","style":"partial","local":false}
+{"t":"T422","q":"3145 niederscheril","style":"typo","local":false}
+{"t":"T422","q":"PLZ 3145","style":"descriptive","local":false}

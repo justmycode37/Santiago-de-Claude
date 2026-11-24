@@ -63,15 +63,31 @@ pub(crate) struct Arc {
     pub edge_dir: u32,
     pub len_m: f32,
     pub cls: u8,
-    /// 1 if the head node is a barrier wheelchairs cannot pass
+    /// [`ARC_BARRIER`] if the head node is a barrier wheelchairs cannot pass
     /// (`NF_NO_WHEELCHAIR`): the arc cannot be walked *to its end* by them,
-    /// though a walk may end part-way along it.
+    /// though a walk may end part-way along it. On a one-way edge (an
+    /// escalator) also [`ARC_NO_FWD`] or [`ARC_NO_BACK`]: both its arcs exist,
+    /// one for searches in the direction of travel, the other for searches
+    /// against it (`WalkProfile::backwards`).
     pub head_block: u8,
     /// Share (×65535) of the class's per-crossing / per-flight constant that
     /// this arc carries. 65535 unless the crossing or flight is split into
     /// several edges.
     pub share: u16,
+    /// The slopes ([`kante_core::EdgeSlope::dir`]) of walking the arc (`[0]`) and of walking it the other
+    /// way (`[1]`, for searches against the direction of travel), decimetres: extra metres of walking time,
+    /// route-choice effort for a walker who minds hills, steepness for a wheelchair.
+    pub slope: [[u16; 3]; 2],
 }
+
+/// `Arc::head_block`: the head is a barrier for wheelchairs.
+pub(crate) const ARC_BARRIER: u8 = 1;
+/// `Arc::head_block`: walking the arc is against its one-way edge (only a search against the direction of travel
+/// takes it, as the walk the other way).
+pub(crate) const ARC_NO_FWD: u8 = 2;
+/// `Arc::head_block`: walking the arc the other way is against its one-way edge (a search against the direction of
+/// travel does not take it).
+pub(crate) const ARC_NO_BACK: u8 = 4;
 
 impl Arc {
     #[inline]
@@ -218,17 +234,30 @@ pub(crate) struct CostTable {
     /// Real seconds per unit of `Arc::share`.
     pub fix_c: [f32; 256],
     pub usable: [bool; 256],
-    /// 1 if this walker cannot pass barrier nodes (`Arc::head_block`), else 0.
+    /// The bits of `Arc::head_block` that keep this search from walking an arc to its end: [`ARC_BARRIER`] for a
+    /// walker who cannot pass barrier nodes, and always [`CostTable::dir_mask`].
     pub head_mask: u8,
+    /// Generalised seconds per decimetre of `Arc::slope` (time, effort, steepness).
+    pub k_slope: [f32; 3],
+    /// Which of `Arc::slope` a walk along the arc costs: 1 in a search against the direction of travel.
+    pub slope_dir: usize,
+    /// The one-way bit of `Arc::head_block` this search may not take ([`ARC_NO_FWD`] or [`ARC_NO_BACK`]).
+    pub dir_mask: u8,
 }
 
 impl CostTable {
     pub fn new() -> Self {
-        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: 0 }
+        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: ARC_NO_FWD, k_slope: [0.0; 3], slope_dir: 0, dir_mask: ARC_NO_FWD }
     }
     pub fn fill(&mut self, p: &WalkProfile) {
         let speed = p.speed_mps.max(0.05);
-        self.head_mask = p.wheelchair as u8;
+        self.dir_mask = if p.backwards { ARC_NO_BACK } else { ARC_NO_FWD };
+        self.head_mask = if p.wheelchair { ARC_BARRIER } else { 0 } | self.dir_mask;
+        // a slope's time counts for everyone; its effort as much as the walker minds hills, and a wheelchair
+        // minds steep grades on top (unless hills do not matter at all)
+        let steep = if p.wheelchair && p.hills != HillsPref::Ignore { 1.0 } else { 0.0 };
+        self.k_slope = [0.1 / speed, 0.1 * p.hills.effort_weight() / speed, 0.1 * steep / speed];
+        self.slope_dir = p.backwards as usize;
         for c in 0..256usize {
             match class_cost(c as u8, p) {
                 Some(cc) => {
@@ -255,6 +284,7 @@ impl CostTable {
     pub fn fill_walked(&mut self, p: &WalkProfile) {
         self.fill(p);
         let speed = p.speed_mps.max(0.05);
+        self.k_slope = [0.1 / speed, 0.0, 0.0];
         for c in 0..256usize {
             if self.usable[c] {
                 self.gen_m[c] = self.var_m[c] / speed + self.fix_m[c];
@@ -273,12 +303,23 @@ impl CostTable {
     #[inline]
     pub fn arc(&self, a: &Arc, scale: f32) -> (f32, f32, f32) {
         let c = a.cls as usize;
-        if !self.usable[c] {
+        if !self.usable[c] || a.head_block & self.dir_mask != 0 {
             return (f32::INFINITY, 0.0, 0.0);
         }
         let l = a.len_m * scale;
         let sh = a.share as f32 * scale;
-        (l * self.gen_m[c] + sh * self.gen_c[c], l * self.var_m[c], l * self.fix_m[c] + sh * self.fix_c[c])
+        (l * self.gen_m[c] + sh * self.gen_c[c] + scale * self.slope_gen(a), l * self.var_m[c] + scale * self.slope_var(a), l * self.fix_m[c] + sh * self.fix_c[c])
+    }
+    /// Generalised seconds of a whole arc's slopes.
+    #[inline]
+    pub fn slope_gen(&self, a: &Arc) -> f32 {
+        let s = &a.slope[self.slope_dir];
+        s[0] as f32 * self.k_slope[0] + s[1] as f32 * self.k_slope[1] + s[2] as f32 * self.k_slope[2]
+    }
+    /// Metres of walking time a whole arc's slopes add (`var_m`).
+    #[inline]
+    pub fn slope_var(&self, a: &Arc) -> f32 {
+        a.slope[self.slope_dir][0] as f32 * 0.1
     }
 }
 
@@ -287,7 +328,8 @@ impl CostTable {
 pub(crate) struct EdgeArcs {
     pub ia: u32,
     pub ib: u32,
-    /// Arc a → b (index into `Net::arcs`), `NO_NODE` if not traversable that way.
+    /// Arc a → b (index into `Net::arcs`; `NO_NODE` only for an edge the network leaves out). On a one-way edge
+    /// both arcs exist: `Arc::head_block` says which direction of search may take each.
     pub fwd: u32,
     pub back: u32,
 }
@@ -740,14 +782,11 @@ impl Net {
             }
         };
         let mut arc_off = vec![0u32; n as usize + 2];
+        // both arcs of every edge: those against a one-way edge for searches against the direction of travel
         for (e, ed) in g.edges.iter().enumerate() {
             let (ia, ib) = ends_of(e as u32, ed);
-            if ed.flags & EF_ONEWAY_BA == 0 {
-                arc_off[ia as usize + 2] += 1;
-            }
-            if ed.flags & EF_ONEWAY_AB == 0 {
-                arc_off[ib as usize + 2] += 1;
-            }
+            arc_off[ia as usize + 2] += 1;
+            arc_off[ib as usize + 2] += 1;
         }
         for &(t, _, _, _) in &virt {
             arc_off[t as usize + 2] += 1;
@@ -756,8 +795,18 @@ impl Net {
             arc_off[i] += arc_off[i - 1];
         }
         let total = arc_off[n as usize + 1] as usize;
-        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0 };
+        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0, slope: [[0; 3]; 2] };
         let mut arcs = vec![blank; total];
+        // the slopes of each direction, when a terrain model gave the graph some
+        let has_slopes = g.slopes.len() == g.edges.len();
+        let slope_of = |e: u32, rev: bool| -> [[u16; 3]; 2] {
+            if has_slopes {
+                let ((t, f, s), (t2, f2, s2)) = (g.slopes[e as usize].dir(rev), g.slopes[e as usize].dir(!rev));
+                [[t, f, s], [t2, f2, s2]]
+            } else {
+                [[0; 3]; 2]
+            }
+        };
         // arc_off[i + 1] is the fill cursor of node i; after filling it is the
         // end of node i = start of node i + 1.
         for (e, ed) in g.edges.iter().enumerate() {
@@ -802,22 +851,24 @@ impl Net {
             // Never shorter than the beeline between its ends: `len_dm` is
             // rounded to decimetres, and A* needs cost >= distance covered.
             let len_m = ed.len_m().max(g.nodes[ed.a as usize].dist_m(&g.nodes[ed.b as usize]));
-            if ed.flags & EF_ONEWAY_BA == 0 {
-                let head_block = (nflag(ed.b) & NF_NO_WHEELCHAIR != 0) as u8;
+            let (ab, ba) = (ed.flags & EF_ONEWAY_BA == 0, ed.flags & EF_ONEWAY_AB == 0);
+            let dir_bits = |fwd: bool, back: bool| if fwd { 0 } else { ARC_NO_FWD } | if back { 0 } else { ARC_NO_BACK };
+            {
+                let head_block = if nflag(ed.b) & NF_NO_WHEELCHAIR != 0 { ARC_BARRIER } else { 0 } | dir_bits(ab, ba);
                 let slot = &mut arc_off[ia as usize + 1];
-                arcs[*slot as usize] = Arc { head: ib, edge_dir: e << 1, len_m, cls: base, head_block, share };
+                arcs[*slot as usize] = Arc { head: ib, edge_dir: e << 1, len_m, cls: base, head_block, share, slope: slope_of(e, false) };
                 *slot += 1;
             }
-            if ed.flags & EF_ONEWAY_AB == 0 {
-                let head_block = (nflag(ed.a) & NF_NO_WHEELCHAIR != 0) as u8;
+            {
+                let head_block = if nflag(ed.a) & NF_NO_WHEELCHAIR != 0 { ARC_BARRIER } else { 0 } | dir_bits(ba, ab);
                 let slot = &mut arc_off[ib as usize + 1];
-                arcs[*slot as usize] = Arc { head: ia, edge_dir: e << 1 | 1, len_m, cls: base, head_block, share };
+                arcs[*slot as usize] = Arc { head: ia, edge_dir: e << 1 | 1, len_m, cls: base, head_block, share, slope: slope_of(e, true) };
                 *slot += 1;
             }
         }
         for &(t, h, cls, len_m) in &virt {
             let slot = &mut arc_off[t as usize + 1];
-            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535 };
+            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535, slope: [[0; 3]; 2] };
             *slot += 1;
         }
         arc_off.truncate(n as usize + 1);
@@ -898,7 +949,7 @@ impl Net {
                 // passage through b, only through a (and the other way round).
                 // With a barrier at both ends it is a piece of its own.
                 let ea = self.edge_arcs(g, e as u32);
-                let open = |n: u32| g.node_flags.get(self.orig_node(n) as usize).copied().unwrap_or(0) & NF_NO_WHEELCHAIR == 0 || table.head_mask == 0;
+                let open = |n: u32| g.node_flags.get(self.orig_node(n) as usize).copied().unwrap_or(0) & NF_NO_WHEELCHAIR == 0 || table.head_mask & ARC_BARRIER == 0;
                 if open(ea.ia) {
                     dsu.find(ea.ia)
                 } else if open(ea.ib) {

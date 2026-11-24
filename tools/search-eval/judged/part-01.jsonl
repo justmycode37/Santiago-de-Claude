@@ -1,0 +1,354 @@
+{"k": "1366ffc2722aef09", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "e68304e8c746eaea", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "83ebd9d9b51a4ca8", "g": 1, "why": "Right street in Rüti, wrong house number"}
+{"k": "7b4eced5503ec3f9", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "a6e55e03b58c8c04", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "dd022e675e0facf8", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "3a62dcad63277f2c", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "a8d38b74252e6159", "g": 2, "why": "Exact address in row 2"}
+{"k": "f69cceddd94b1db6", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "25e07703a2aff3fb", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "219812e2934aaafe", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "a8364c2d46dec61b", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "6a73b864714d5dec", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "71afa71cc9989b85", "g": 0, "why": "The matching street and number are in other towns"}
+{"k": "493823e564c337b2", "g": 1, "why": "Dorfstrasse 25 is in Sool, but 25a is missing"}
+{"k": "64dfdf503b707641", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "e6feedf728059414", "g": 1, "why": "Dorfstrasse 25 is in Sool, but 25a is missing"}
+{"k": "19aa19d0f14b46de", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "7f73cf3f14b0fb4a", "g": 1, "why": "Dorfstrasse 25 is in Sool, but 25a is missing"}
+{"k": "16e815f665449e40", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "718205d5701fae75", "g": 1, "why": "Dorfstrasse 25 is in Sool, but 25a is missing"}
+{"k": "09e799018349ed53", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "3e227c5df64fb840", "g": 1, "why": "Dorfstrasse 25 is in Sool, but 25a is missing"}
+{"k": "aebbd5a748960e8d", "g": 2, "why": "Exact address in row 3"}
+{"k": "4c63a5c6fd00db2f", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "80754192ff04f59f", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "5bb04c1d5c52dadd", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "822bd779fc84ed64", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "2a6e08d2d733ff53", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "cd4d4ad5716b1111", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "7d1af056fb69c23b", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "c4982148176e678b", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "97a2ef6abe52f4fc", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "27b788630ed82356", "g": 0, "why": "The matching street and number are in other towns"}
+{"k": "f447fd5cda2bc0fb", "g": 0, "why": "The matching street and number are in other towns"}
+{"k": "753ef7769977b65d", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "48a1f903c523771c", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "e74f18f85bf3df50", "g": 2, "why": "Exact address in row 3"}
+{"k": "9d0f0238554eaab4", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "c7a1cbf78477c3e7", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "ed7fa9da1ee995e5", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "f95011896a0e6702", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "c4e4fc542ddd0845", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "e78423f1f69cf13e", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "52b0eb5f71f8896e", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "70c2e3d2bd13400e", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "659e60732cf3974b", "g": 3, "why": "Exact street, house number, and town in row 1"}
+{"k": "d6e5322a2766fe97", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "342006a58e1d2895", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "c8df45214792ae8f", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "8bfd2aa21d0c807e", "g": 2, "why": "Row 3 has a playground 853 m away"}
+{"k": "d9030ee32c0dff5e", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "246908e652b28f1c", "g": 3, "why": "Row 1 is a playground within 853 m"}
+{"k": "9d1c0ce6cea69029", "g": 0, "why": "No playground among the results"}
+{"k": "671ec759f8721d5e", "g": 2, "why": "Row 1 offers a playground 2.5 km away"}
+{"k": "66fa29010eacfb2a", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "302f5c53ee75d0da", "g": 0, "why": "No results"}
+{"k": "7763658f19e77099", "g": 1, "why": "The listed post office results are too far away"}
+{"k": "edc72ad0b6343777", "g": 1, "why": "The listed post office results are too far away"}
+{"k": "94ca12266887e123", "g": 0, "why": "No post office among the results"}
+{"k": "a3a88564bb364dc5", "g": 2, "why": "Row 1 offers a post office 2.0 km away"}
+{"k": "9826c4162705cb2d", "g": 0, "why": "No post office among the results"}
+{"k": "0f014babbd0646e0", "g": 2, "why": "Row 1 offers a post office 2.0 km away"}
+{"k": "c7b58421bf9a0bdb", "g": 0, "why": "No post office among the results"}
+{"k": "4d56cffe8c67f3ed", "g": 2, "why": "Row 1 offers a post office 2.0 km away"}
+{"k": "e2dbc42d255b3a38", "g": 0, "why": "No results"}
+{"k": "a48cf8e9c19bdd57", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "db0e3a58ec16355f", "g": 3, "why": "Row 1 is a pharmacy within 564 m"}
+{"k": "6b401060e0905e0d", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "7bd4e62a4c7c0574", "g": 2, "why": "Row 2 has a pharmacy 564 m away"}
+{"k": "f7239c2b8fbfbcdd", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "80cf735238474e0d", "g": 3, "why": "Row 1 is a pharmacy within 564 m"}
+{"k": "c2c27912eac5f503", "g": 0, "why": "No pharmacy among the results"}
+{"k": "15b30ae32c5f543b", "g": 3, "why": "Row 1 is a pharmacy within 564 m"}
+{"k": "520f03410dce3df2", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "d7d097783fd44cd1", "g": 0, "why": "No results"}
+{"k": "bd035f0ed5a2d328", "g": 0, "why": "No social services among the results"}
+{"k": "002c75917d9dc174", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "fe024a12571e92e9", "g": 0, "why": "No social services among the results"}
+{"k": "29cefd661b4f5507", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "4e6273349fef9810", "g": 0, "why": "No social services among the results"}
+{"k": "1619208a3714ef2a", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "06d0a0b01e7d595b", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "5d457c563092d20e", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "321e1094fb3b6b3f", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "4882048f7cfe53a9", "g": 0, "why": "No results"}
+{"k": "2ec8a8010154c732", "g": 0, "why": "No doctor among the results"}
+{"k": "13bc16727565ea8a", "g": 0, "why": "No results"}
+{"k": "23a12a56f541f64c", "g": 0, "why": "No doctor among the results"}
+{"k": "e8632677aaa6af1a", "g": 0, "why": "No results"}
+{"k": "f2cb3b24f8c9ead7", "g": 0, "why": "No doctor among the results"}
+{"k": "2771c34dbb743f6e", "g": 0, "why": "No results"}
+{"k": "ad48aee8ed70e784", "g": 0, "why": "No doctor among the results"}
+{"k": "0d398fa7139fecd8", "g": 0, "why": "No results"}
+{"k": "586d085f225c4e4e", "g": 0, "why": "No doctor among the results"}
+{"k": "0d07c333cc9b12ea", "g": 0, "why": "No results"}
+{"k": "1b3de27b4e2d6fc5", "g": 0, "why": "No social services among the results"}
+{"k": "ca1377eb40248089", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "a1a7452ec4bdb794", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "6af573cfd8ddc088", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "8df8acf2bac38781", "g": 0, "why": "No social services among the results"}
+{"k": "0bc7ccaf64d292d7", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "773e3f699cdfe9c1", "g": 0, "why": "No social services among the results"}
+{"k": "aa4b8be099c5965b", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "569bced8c5f62bc7", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "5fe48bf828a059b6", "g": 0, "why": "No results"}
+{"k": "1166e9df17a644b7", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "8580b5c7757ef742", "g": 3, "why": "Row 1 is a pharmacy within 1.2 km"}
+{"k": "8f9ea8bd18b2cb98", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "fa44e7006dc03d42", "g": 2, "why": "Row 2 has a pharmacy 1.2 km away"}
+{"k": "98cf1f0c876956d1", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "199e2c62e3017e86", "g": 3, "why": "Row 1 is a pharmacy within 1.2 km"}
+{"k": "3d42007ae22c5ff1", "g": 0, "why": "No pharmacy among the results"}
+{"k": "40eb21239087271a", "g": 2, "why": "Row 1 offers a pharmacy 1.6 km away"}
+{"k": "a942eb5266059e52", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "a0911b51bb107296", "g": 0, "why": "No results"}
+{"k": "9a964903c48a423e", "g": 1, "why": "The listed defibrillator results are too far away"}
+{"k": "0f453b63df1d92c7", "g": 0, "why": "No results"}
+{"k": "2ef9b9446308422c", "g": 1, "why": "The listed defibrillator results are too far away"}
+{"k": "6224fac02ac38b00", "g": 0, "why": "No defibrillator among the results"}
+{"k": "61229de630432dbc", "g": 1, "why": "The listed defibrillator results are too far away"}
+{"k": "ad46c17f3b5a6848", "g": 0, "why": "No results"}
+{"k": "2b6f3dafe0be3456", "g": 1, "why": "The listed defibrillator results are too far away"}
+{"k": "5bb261486efc1881", "g": 0, "why": "The local government office does not show an AED"}
+{"k": "38655977648d04e3", "g": 1, "why": "The listed defibrillator results are too far away"}
+{"k": "03bd1b9c28824cc5", "g": 0, "why": "No results"}
+{"k": "be3a938157a70b4e", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "8315d86ef3629981", "g": 3, "why": "Row 1 is a pharmacy within 154 m"}
+{"k": "8cf211be3a6a9eb7", "g": 0, "why": "No pharmacy among the results"}
+{"k": "11f1afaa887024e1", "g": 0, "why": "No results"}
+{"k": "6808fc2722623eab", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "03f4fb4f60e5dcca", "g": 3, "why": "Row 1 is a pharmacy within 154 m"}
+{"k": "785eb423c0981dc1", "g": 0, "why": "No pharmacy among the results"}
+{"k": "0c5f084000517b93", "g": 3, "why": "Row 1 is a pharmacy within 154 m"}
+{"k": "cd453d8b83cacd19", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "9636c71d91f44297", "g": 3, "why": "Row 1 is a pharmacy within 154 m"}
+{"k": "bc22f4a346624fa3", "g": 1, "why": "The listed post office results are too far away"}
+{"k": "b395e8d6de103afb", "g": 1, "why": "The listed post office results are too far away"}
+{"k": "fccb3320e9934725", "g": 0, "why": "Results show post boxes instead of post offices"}
+{"k": "3ab07ed6811ee129", "g": 3, "why": "Row 1 is a post office within 277 m"}
+{"k": "e78c79b72f48a7b7", "g": 0, "why": "No post office among the results"}
+{"k": "5fedad1de3115f16", "g": 1, "why": "The listed post office results are too far away"}
+{"k": "3376d3ab6987b3ba", "g": 0, "why": "No post office among the results"}
+{"k": "41f5cc8d98137761", "g": 1, "why": "The listed post office results are too far away"}
+{"k": "8d5c10dfa1ccb1cd", "g": 0, "why": "No post office among the results"}
+{"k": "254959a0950f8f20", "g": 0, "why": "No results"}
+{"k": "895aa72bb67db09e", "g": 1, "why": "The listed cash machine results are too far away"}
+{"k": "1b037d09d3df8006", "g": 0, "why": "No results"}
+{"k": "d28b6e1932b3cff0", "g": 1, "why": "The listed cash machine results are too far away"}
+{"k": "799491f57aaf4eca", "g": 0, "why": "No results"}
+{"k": "d68bfa06a2346c12", "g": 0, "why": "No cash machine among the results"}
+{"k": "f39714ce201de365", "g": 1, "why": "The listed cash machine results are too far away"}
+{"k": "f6b2468accb097ae", "g": 1, "why": "The listed cash machine results are too far away"}
+{"k": "74850ce9fb297dd9", "g": 0, "why": "No cash machine among the results"}
+{"k": "d016ed3653891d17", "g": 1, "why": "The listed cash machine results are too far away"}
+{"k": "5bc3edfef7578fc4", "g": 0, "why": "No results"}
+{"k": "4f45c2c7601d572a", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "76d0133b4116edfc", "g": 2, "why": "Row 1 offers a hospital 1.8 km away"}
+{"k": "23ed9c1f57e48b45", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "d8711034abbe6580", "g": 1, "why": "Local hospital bus stop gives a way to reach the hospital"}
+{"k": "33e9e4ca354af269", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "7fc7bfb241eebbe9", "g": 2, "why": "Row 1 offers a hospital 1.8 km away"}
+{"k": "e95f3c388f23397c", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "003ff3728b3f570e", "g": 1, "why": "Local hospital bus stop gives a way to reach the hospital"}
+{"k": "b39e7b004deafe78", "g": 0, "why": "No hospital among the results"}
+{"k": "418dd5766b7a5f14", "g": 0, "why": "No results"}
+{"k": "138d2bc6acf73317", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "59bd5a8567cb2d51", "g": 1, "why": "The listed playground results are too far away"}
+{"k": "54abe4e0dfc553e2", "g": 0, "why": "No playground among the results"}
+{"k": "cb7a4556b6ded9a6", "g": 2, "why": "Row 3 has a playground 2.0 km away"}
+{"k": "677ad752bd093393", "g": 0, "why": "No playground among the results"}
+{"k": "7a54ab21c22fb0c7", "g": 2, "why": "Row 1 offers a playground 2.0 km away"}
+{"k": "2b954314e07df0a5", "g": 0, "why": "No playground among the results"}
+{"k": "317a3551580655b8", "g": 0, "why": "No results"}
+{"k": "92f7f0edd1bfb55d", "g": 0, "why": "No results"}
+{"k": "f5376842930eee51", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "ff8f4237ee745db6", "g": 2, "why": "Row 3 has a pharmacy 1.4 km away"}
+{"k": "1e7ceff833c698e8", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "935640ef848ceec7", "g": 3, "why": "Row 1 is a pharmacy within 1.5 km"}
+{"k": "56803f8219d26b4c", "g": 0, "why": "No pharmacy among the results"}
+{"k": "6e974280a30aadd1", "g": 3, "why": "Row 1 is a pharmacy within 1.5 km"}
+{"k": "f06b3431eb19ffc9", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "37871dccbc05226f", "g": 3, "why": "Row 1 is a pharmacy within 1.4 km"}
+{"k": "b7f0b72a8e88e471", "g": 1, "why": "The listed pharmacy results are too far away"}
+{"k": "0e8415bf8edd4e0b", "g": 0, "why": "No results"}
+{"k": "72420cdbb4b353fd", "g": 0, "why": "No dentist among the results"}
+{"k": "13fc866a6fa3b645", "g": 2, "why": "Row 1 offers a dentist 1.8 km away"}
+{"k": "7a08d82df8827f1c", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "b3fef77a81a60e62", "g": 2, "why": "Row 1 offers a dentist 1.8 km away"}
+{"k": "227b36894ca8990b", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "1743fde24f507bc3", "g": 2, "why": "Row 1 offers a dentist 1.8 km away"}
+{"k": "dd702751ee7bff67", "g": 0, "why": "No dentist among the results"}
+{"k": "caed81f945df2fa1", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "e3ff47501939da6f", "g": 0, "why": "No dentist among the results"}
+{"k": "27c801ce7976dbec", "g": 0, "why": "No results"}
+{"k": "1f4dbbf57348c599", "g": 0, "why": "No shelter among the results"}
+{"k": "16cdaa463d0052d9", "g": 1, "why": "The listed shelter results are too far away"}
+{"k": "c057bd3cf798f478", "g": 0, "why": "No shelter among the results"}
+{"k": "bffa1eae74763253", "g": 0, "why": "No results"}
+{"k": "2b8393fce06a4839", "g": 0, "why": "No shelter among the results"}
+{"k": "578d871dc5770a5c", "g": 1, "why": "The listed shelter results are too far away"}
+{"k": "6f0a21e8e9dc5318", "g": 0, "why": "No shelter among the results"}
+{"k": "6ff17c9386998548", "g": 1, "why": "The listed shelter results are too far away"}
+{"k": "582d3e157756815e", "g": 0, "why": "No shelter among the results"}
+{"k": "d8195d86e150958f", "g": 0, "why": "No results"}
+{"k": "32790c8b63176857", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "172632514fa2f2fd", "g": 0, "why": "No results"}
+{"k": "d0f536ac7897b261", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "ed4488e9ee5597a7", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "ab08d4b83fa76095", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "047385e334148b8f", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "92547880db06a757", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "56bf152bb9ac16b5", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "dfa0b21cf84a98ab", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "a87901f054e82f87", "g": 0, "why": "No results"}
+{"k": "a769ec8d0c35a306", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "4fd44ffecb988c12", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "517667eed4ab66bc", "g": 0, "why": "No social services among the results"}
+{"k": "1d746ffa54436027", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "40b25eb09fbc276e", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "5e038b76c6a07575", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "41f11e08a4591a32", "g": 0, "why": "No social services among the results"}
+{"k": "28b02f1250018ca2", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "f595f350ef08d933", "g": 0, "why": "No social services among the results"}
+{"k": "2965168d1afbc5f8", "g": 0, "why": "No results"}
+{"k": "c95849d5ad141e19", "g": 0, "why": "No social services among the results"}
+{"k": "28f1e19deed13c7f", "g": 3, "why": "Row 1 is a social services within 1.5 km"}
+{"k": "949fb0f1420bd8a6", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "b3d3ea10c38e52ba", "g": 0, "why": "No results"}
+{"k": "5fcd7535a246d346", "g": 0, "why": "No social services among the results"}
+{"k": "2d90b04347253045", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "bf3943eb2365df27", "g": 0, "why": "No social services among the results"}
+{"k": "140f93e7daa0ea38", "g": 3, "why": "Row 1 is a social services within 1.5 km"}
+{"k": "fce1a8724e1b9f86", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "c993e585ee013b1f", "g": 1, "why": "The listed social services results are too far away"}
+{"k": "2b7aa350a53bed9f", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "7942ed61ca7b53a3", "g": 3, "why": "Row 1 is a dentist within 1.2 km"}
+{"k": "ca13140483c6aabb", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "afe47d0e14d574ab", "g": 3, "why": "Row 1 is a dentist within 1.2 km"}
+{"k": "9ceb0c61ca66c6a8", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "6d13fa7bffd838eb", "g": 3, "why": "Row 1 is a dentist within 1.3 km"}
+{"k": "e482b458f8edaeda", "g": 0, "why": "No dentist among the results"}
+{"k": "2627d26d4d4fd6e7", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "2d8143fc1aa1c9a9", "g": 1, "why": "The listed dentist results are too far away"}
+{"k": "65e126224f3db752", "g": 0, "why": "No results"}
+{"k": "12d19c7330c29c95", "g": 1, "why": "The listed supermarket results are too far away"}
+{"k": "70c8981098a3f083", "g": 3, "why": "Row 1 is a supermarket within 1.0 km"}
+{"k": "09e996c19c279c3b", "g": 0, "why": "No supermarket among the results"}
+{"k": "85e67fbfd7450ee4", "g": 0, "why": "Only a distant convenience store appears"}
+{"k": "ae0a50f78f72152e", "g": 1, "why": "The listed supermarket results are too far away"}
+{"k": "50f406caea30400a", "g": 3, "why": "Row 1 is a supermarket within 1.0 km"}
+{"k": "cbf7e916ae365298", "g": 0, "why": "No supermarket among the results"}
+{"k": "87bd263f67b0bb7a", "g": 1, "why": "The listed supermarket results are too far away"}
+{"k": "278cdee5b69a31c6", "g": 1, "why": "The listed supermarket results are too far away"}
+{"k": "5c340a7f108d2548", "g": 0, "why": "No results"}
+{"k": "5a320c8bfd4c459b", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "39f62042e43bd0c1", "g": 3, "why": "Row 1 is a hospital within 992 m"}
+{"k": "9d1835cbb8ccf60c", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "b3c28a1035f667bb", "g": 3, "why": "Row 1 is a hospital within 992 m"}
+{"k": "28af5c65888b9255", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "87fa50b057825b31", "g": 0, "why": "No results"}
+{"k": "d196395b38408519", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "c0dab7ac3aab10f0", "g": 3, "why": "Row 1 is a hospital within 992 m"}
+{"k": "7df980d23c3ad291", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "16053df0bc006bbd", "g": 0, "why": "No results"}
+{"k": "d33e2dfde42aa66b", "g": 3, "why": "Row 1 is a doctor within 1.0 km"}
+{"k": "c6fa61c35aa918e2", "g": 3, "why": "Row 1 is a doctor within 1.0 km"}
+{"k": "66997d474cd1b768", "g": 0, "why": "No doctor among the results"}
+{"k": "cdb409ff9f4de40b", "g": 0, "why": "No results"}
+{"k": "47c79785466abb8d", "g": 3, "why": "Row 1 is a doctor within 1.0 km"}
+{"k": "ac447369a369cb49", "g": 3, "why": "Row 1 is a doctor within 1.0 km"}
+{"k": "3bb51f98162142f5", "g": 2, "why": "Row 3 has a doctor 1.0 km away"}
+{"k": "cb4a95b1c534f964", "g": 0, "why": "No doctor among the results"}
+{"k": "ad2ce35784768af0", "g": 3, "why": "Row 1 is a doctor within 1.0 km"}
+{"k": "95b5331074f4b23e", "g": 0, "why": "No results"}
+{"k": "13b6b19580f1497a", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "13852d2d1cac07b5", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "4025af54584a114e", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "466543917c687314", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "742587ba9d0095c8", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "53bff8c43599ea31", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "4c7b0a517566161d", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "387fe0bf7e42b320", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "e25021d582d06de2", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "c26a6408fe90951c", "g": 0, "why": "No results"}
+{"k": "17f269eec5911fc3", "g": 0, "why": "No shelter among the results"}
+{"k": "19029ddc0e96eeda", "g": 1, "why": "The listed shelter results are too far away"}
+{"k": "13e7535222bc69cc", "g": 0, "why": "No shelter among the results"}
+{"k": "1bd236bf4823dc25", "g": 0, "why": "No results"}
+{"k": "254998f4d124bfbf", "g": 0, "why": "No shelter among the results"}
+{"k": "f5098138533fec91", "g": 1, "why": "The listed shelter results are too far away"}
+{"k": "6a9acf45e5a5ef74", "g": 0, "why": "No shelter among the results"}
+{"k": "097b654752bf4f9d", "g": 1, "why": "The listed shelter results are too far away"}
+{"k": "2dd3d64ee0ab74f8", "g": 0, "why": "No shelter among the results"}
+{"k": "2d55d4ede086768c", "g": 0, "why": "No results"}
+{"k": "accac59821e47a0e", "g": 1, "why": "The listed library results are too far away"}
+{"k": "ebc607a982c4a534", "g": 1, "why": "The listed library results are too far away"}
+{"k": "543a510cc0d97206", "g": 1, "why": "The listed library results are too far away"}
+{"k": "b90946b9c84104dd", "g": 1, "why": "The listed library results are too far away"}
+{"k": "a5e24d66b872a366", "g": 1, "why": "The listed library results are too far away"}
+{"k": "864391739de37bb6", "g": 2, "why": "Row 3 has a library 2.3 km away"}
+{"k": "6c8ba0c3edab5ca9", "g": 0, "why": "No library among the results"}
+{"k": "ac0bcbb52c0ddacb", "g": 1, "why": "The listed library results are too far away"}
+{"k": "4d2f6215a03c0596", "g": 1, "why": "The listed library results are too far away"}
+{"k": "883027c1de97cece", "g": 0, "why": "No results"}
+{"k": "a9d718c881e7a885", "g": 0, "why": "No police station among the results"}
+{"k": "badac7e5c3f03008", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "b6b0b29003e50ec8", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "027dd5e70f711c4a", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "30ac0259ee13e57b", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "b2f2107dc8d574fa", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "c533398922ce8b5b", "g": 0, "why": "No police station among the results"}
+{"k": "ab0211c3cbaf8db3", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "3840eed74f5f45ed", "g": 1, "why": "The listed police station results are too far away"}
+{"k": "8267a840cf2b53ca", "g": 0, "why": "No results"}
+{"k": "d38a3ff038f8ddf1", "g": 1, "why": "The listed supermarket results are too far away"}
+{"k": "4021c9de6ab7e60a", "g": 3, "why": "Row 1 is a supermarket within 862 m"}
+{"k": "dfc7935ebb2f0c4a", "g": 0, "why": "No supermarket among the results"}
+{"k": "718b83148823c0ee", "g": 3, "why": "Row 1 is a supermarket within 862 m"}
+{"k": "c1e41608ae045745", "g": 1, "why": "The listed supermarket results are too far away"}
+{"k": "d3925f8c1a55cfc6", "g": 3, "why": "Row 1 is a supermarket within 862 m"}
+{"k": "66b8b2f61a923426", "g": 0, "why": "No supermarket among the results"}
+{"k": "d3fee5c414c8ddcf", "g": 3, "why": "Row 1 is a supermarket within 862 m"}
+{"k": "baadea9d812c829d", "g": 0, "why": "No supermarket among the results"}
+{"k": "11b99dc37fd72d26", "g": 0, "why": "No results"}
+{"k": "99f242468906669b", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "3a3ca8a59aff4843", "g": 0, "why": "No results"}
+{"k": "807785cae3d462ae", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "c98225a2ea35d89d", "g": 0, "why": "No results"}
+{"k": "d0cad16ee4a34788", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "50f251d38087c3b4", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "49dbf88b8b0d946a", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "54ed154cb45a0a27", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "82b7660a5127e838", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "2271dfab883345ed", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "5807c6aa4f5ca150", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "02cabe1e5586db14", "g": 2, "why": "Row 1 offers a hospital 2.9 km away"}
+{"k": "47d533f05dd37060", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "27fbddf03395a8d0", "g": 2, "why": "Row 1 offers a hospital 2.9 km away"}
+{"k": "f70af20e726126d4", "g": 0, "why": "No hospital among the results"}
+{"k": "153fe7ac01fb29cc", "g": 2, "why": "Row 1 offers a hospital 2.9 km away"}
+{"k": "7eafa27a36a4f086", "g": 0, "why": "No hospital among the results"}
+{"k": "ca489f11432c8d3f", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "0a3bb418fd6f37a0", "g": 1, "why": "The listed hospital results are too far away"}
+{"k": "162c788f00e62924", "g": 0, "why": "No results"}
+{"k": "af47861070a7e9ad", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "3e7480f0f441e8a0", "g": 0, "why": "No results"}
+{"k": "06ca80d8a70a0eb7", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "0791c2e6c59a45a9", "g": 0, "why": "Result is artwork in Zürich"}
+{"k": "2a1cffe0b2e2092c", "g": 0, "why": "Result is labeled public art, with no confirmed drinking fountain"}
+{"k": "696aa0a68dd93d08", "g": 1, "why": "The listed drinking water fountain results are too far away"}
+{"k": "9bb2d847d7c2bc06", "g": 0, "why": "No drinking water fountain among the results"}
+{"k": "ac7d1ae3746308bd", "g": 0, "why": "Result is artwork in Zürich"}
+{"k": "d064a53742cc4717", "g": 1, "why": "The listed drinking water fountain results are too far away"}

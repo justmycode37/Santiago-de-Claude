@@ -27,6 +27,12 @@ export interface Settings {
   walkKmh: number;
   /** "Adjust to how I walk": measure the walking pace and move the walking speed to match (walk-pace.ts). */
   autoSpeed: boolean;
+  /** Hills: take a flatter way even when it is a few minutes longer… */
+  avoidHills: boolean;
+  /** …or the quickest way, hills or not (one of the two at most; neither: a flatter way when it is little longer). */
+  ignoreHills: boolean;
+  /** At a change with time to spare, walk round a hill when there is still a minute in hand. */
+  flatterChanges: boolean;
   /** Minutes added to every change. */
   extraChangeMin: number;
   /** The longest single walk, in minutes. */
@@ -75,6 +81,9 @@ const DEFAULTS: Settings = {
   // Walking and changing
   walkKmh: 4.7,
   autoSpeed: false, // measure how fast you walk and move the walking speed to match (walk-pace.ts); off unless you turn it on
+  avoidHills: false,
+  ignoreHills: false,
+  flatterChanges: true,
   extraChangeMin: 2,
   maxWalkMin: 20,
   modes: null, // null = every transport type
@@ -103,7 +112,7 @@ const STEPPERS = {
   extraChangeMin: { min: 0, max: 15, step: 1 },
   maxWalkMin: { min: 5, max: 60, step: 5 },
 };
-const JOURNEY_KEYS: (keyof Settings)[] = ['stepFree', 'fewerStairs', 'noEscalators', 'wheelchair', 'walkKmh', 'extraChangeMin', 'maxWalkMin', 'modes'];
+const JOURNEY_KEYS: (keyof Settings)[] = ['stepFree', 'fewerStairs', 'noEscalators', 'wheelchair', 'walkKmh', 'avoidHills', 'ignoreHills', 'flatterChanges', 'extraChangeMin', 'maxWalkMin', 'modes'];
 // Event tags (events.ts, swiss-workshops.js) each setting shows
 const EVENT_TAGS = {
   newcomer: ['newcomers', 'language'],
@@ -128,6 +137,7 @@ function clean(saved: Record<string, unknown>) {
   const s = { ...DEFAULTS };
   for (const k in DEFAULTS) if (typeof DEFAULTS[k as keyof Settings] === 'boolean' && typeof saved[k] === 'boolean') s[k as FlagKey] = saved[k];
   if (typeof saved.walkKmh === 'number' && saved.walkKmh > 0) s.walkKmh = SPEED_PRESETS[nearestPreset(saved.walkKmh)].kmh;
+  if (s.avoidHills && s.ignoreHills) s.ignoreHills = false;
   for (const k in STEPPERS) {
     const v = saved[k] as number, r = STEPPERS[k as StepperKey];
     if (Number.isInteger(v) && v >= r.min && v <= r.max) s[k as StepperKey] = v;
@@ -157,13 +167,18 @@ function save() {
 
 function effective() {
   const stepFree = state.stepFree || state.wheelchair;
-  return { ...state, stepFree, fewerStairs: state.fewerStairs || stepFree, noEscalators: state.noEscalators || stepFree };
+  // avoiding hills walks the flatter way at changes anyway; not minding them, never
+  const flatterChanges = state.avoidHills || (state.flatterChanges && !state.ignoreHills);
+  return { ...state, stepFree, fewerStairs: state.fewerStairs || stepFree, noEscalators: state.noEscalators || stepFree, flatterChanges };
 }
 const impliedBy: Partial<Record<FlagKey, () => boolean>> = {
   stepFree: () => state.wheelchair,
   fewerStairs: () => state.stepFree || state.wheelchair,
   noEscalators: () => state.stepFree || state.wheelchair,
+  flatterChanges: () => state.avoidHills || state.ignoreHills,
 };
+// Switches of which at most one is on: turning one on turns the other off
+const EXCLUSIVE: Partial<Record<FlagKey, FlagKey>> = { avoidHills: 'ignoreHills', ignoreHills: 'avoidHills' };
 
 // ---- What the settings change ----
 const eventTags = () => (Object.keys(EVENT_TAGS) as EventKey[]).filter((k) => state[k]).flatMap((k) => EVENT_TAGS[k]);
@@ -398,7 +413,10 @@ function themeChanged() {
 page.addEventListener('change', (e) => {
   const t = e.target as HTMLInputElement;
   if (t === darkSwitch) { setTheme(t.checked ? 'dark' : 'light', true); themeChanged(); }
-  else if (t.dataset.setting) update({ [t.dataset.setting]: t.checked });
+  else if (t.dataset.setting) {
+    const other = EXCLUSIVE[t.dataset.setting as FlagKey];
+    update({ [t.dataset.setting]: t.checked, ...(t.checked && other ? { [other]: false } : {}) });
+  }
   else if (t.dataset.layer) {
     const hidden = state.mapHidden.filter((k) => k !== t.dataset.layer);
     if (!t.checked) hidden.push(t.dataset.layer as MapGroupKey);

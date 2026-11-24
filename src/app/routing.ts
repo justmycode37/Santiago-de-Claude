@@ -13,7 +13,7 @@ import { blurSearch, setField, setFollowing, setPlanOpen } from './trip-ends.ts'
 import { armPin, pinMenu } from './pins.ts';
 import { updatePlaces } from './map-places.ts';
 import { jBody, jFoot, jHead, setRoute } from './journey-map.ts';
-import { applyLiveTimes, modeOf } from './journey-steps.ts';
+import { applyLiveTimes, changeRoomS, modeOf } from './journey-steps.ts';
 import { nowMarker, placeUserDot, vehMarker } from './tracking.ts';
 import { fmtDist, platformOf, vehUpdate } from './live-vehicles.ts';
 import { queueSheet, s3Plan, s3Prefs } from './sheet-content.ts';
@@ -57,6 +57,8 @@ export interface RoutedWalk {
   floors?: KanteFloorChange[];
   /** Its time, seconds: the engine's (or a station model's). */
   walkS?: number;
+  /** Metres climbed on it (the engine's, from the terrain model). */
+  climb?: number;
 }
 /** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
  *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */
@@ -103,11 +105,13 @@ interface BrouterAnswer { features?: { geometry: { coordinates: number[][] } }[]
 // door it ends at, its stretches under a roof and its guessed ends. ends: [from, to], what each end is (WalkEnd): a
 // boarding point (by the engine's id), a point taken as it is, or a place (the walk then ends at its door). No path:
 // the straight line with the engine's time for it; no answer (the engine is off or down): the straight line.
-export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd]): Promise<RoutedWalk> {
+// limitS (a change): the seconds there are for it, so that the way the traveller prefers (round a hill) is taken only
+// when it fits, the quickest otherwise.
+export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd], limitS?: number | null): Promise<RoutedWalk> {
   const [from, to] = ends || [{}, {}];
   const place = (p: LngLat, e: WalkEnd): KantePlaceRef => ({ lat: p[1], lon: p[0], ...(e.quay ? { quay: e.quay } : {}), ...(e.exact ? { exact: true } : {}) });
   try {
-    const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options() }));
+    const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options(), ...(limitS != null ? { limitS } : {}) }));
     if (r) return (r.noPath && (await footWalk(a, b, r))) || r;
   } catch (e) { /* the straight line */ }
   return { coords: [a, b], steps: null, dist: null, approx: true };
@@ -157,7 +161,9 @@ export async function stationWalk(st: JourneyWalkStep | JourneyChangeStep, plan:
   const a = lines[0][0], last = lines[lines.length - 1], b = last[last.length - 1];
   const ends = st.ends || [];
   const street = async (): Promise<StationWalkParts> => {
-    const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], k === lines.length - 1 ? walkGoal(st, l[l.length - 1]) : l[l.length - 1], ends[k])));
+    // a change of one stretch: within the time there is for it, as refineWalk() asks
+    const limit = st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
+    const walks = await Promise.all(lines.map((l, k) => routeWalk(l[0], k === lines.length - 1 ? walkGoal(st, l[l.length - 1]) : l[l.length - 1], ends[k], limit)));
     const floors = walks.flatMap((w) => w.floors || []);
     return { lines: walks.map((w) => w.coords), walks, floors: floors.length ? floors : null, street: true };
   };
@@ -226,13 +232,23 @@ export function refineWalks(id: number, onlyMoved?: boolean) {
 }
 type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // What a walk was routed for besides its line: what its two ends are and the platforms it leaves from and goes to (a
-// platform can change without its point moving, and a station model routes to the platform by its name). Where its
-// lines meet inside it (syncEnds()) is not: that follows from how it is drawn.
-const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
+// platform can change without its point moving, and a station model routes to the platform by its name), and for a
+// change the time there is for it: the engine chooses its way by that (round a hill only when there is time, the
+// quickest when even the usual way is too long) and times it as it planned it (a minimum change time included), so a
+// delay that changes it asks again, and an answer asked for another time is dropped. Where its lines meet inside it
+// (syncEnds()) is not: that follows from how it is drawn.
+const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => JSON.stringify([walkEnds(st), walkTimeKey(st)]);
+const walkEnds = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
   const ends = st.ends || [];
   return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : ''))]);
 };
+// A change: the time there is for it, to the second (what it is asked within, limitS); not one a station model draws
+// (its way, and the street stretches to it, do not depend on the time: the street way in its place does)
+function walkTimeKey(st: JourneyWalkStep | JourneyChangeStep) {
+  const room = st.type === 'change' && !st._modelDrawn ? changeRoomS(st) : null;
+  return room == null ? null : Math.round(room);
+}
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
 // ends and platforms the walk no longer has, are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
@@ -241,7 +257,8 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   st._askSig = sig;
   const current = () => st.walkRev === rev && walkSig(st) === sig && journey.steps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
-  const done = () => { st._netFor = st.lines; st._netSig = sig; };
+  // (as it is now: drawn by a station model, it no longer depends on the time there is)
+  const done = () => { st._netFor = st.lines; st._netSig = walkSig(st); st._netEnds = walkEnds(st); };
   // no answer (the engine is down or cannot be reached): nothing is on its way any more, so it is asked again
   const retry = () => { st._askFor = undefined; st._askSig = undefined; };
   return Object.assign(current, { done, retry });
@@ -250,16 +267,23 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
 // engine's path, so the map shows the same way as the 3D view; and the time of the way it draws
 function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: StationWalkPlan, task: WalkTask) {
   const first = st.walkRev == null;
+  // until the answer says the model drew it, the change may be drawn on the street within its time: keyed by it, so a
+  // delay meanwhile drops the answer and asks again
+  st._modelDrawn = false;
   const current = newWalkRev(st);
+  const asked = st.lines;
   task(stationWalk(st, plan, first), (res) => {
     if (!current()) return;
     if (!res) { current.done(); return; } // as planned, and the model has no way: the engine's walk stays, with its time
+    // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays
+    if (!res.walks.every(answered) && asked === st._netFor && walkEnds(st) === st._netEnds) { current.retry(); return; }
     st.lines = res.lines;
     st.walks = res.walks;
     st.floors = res.floors;
+    st._modelDrawn = !res.street;
     if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
-    if (res.walks.every(answered)) current.done(); else current.retry();
     walkTime(st, res.walks);
+    if (res.walks.every(answered)) current.done(); else current.retry();
   });
 }
 // One walk (or change). As planned it has the engine's walk already; moved since, or at another platform at the same
@@ -267,6 +291,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
 // an answer for an older revision (the walk has been moved or rerouted since) is dropped.
 function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   const first = st.walkRev == null;
+  st._modelDrawn = false; // routed on the street: it follows the time there is
   const current = newWalkRev(st);
   const lines = st.lines || [];
   const goal = (line: LngLat[], k: number) => (k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1]);
@@ -284,16 +309,22 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     });
     return;
   }
-  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k]))), (res) => {
+  // a change of one stretch: within the time there is for it (a walk through a station model has its own way)
+  const limit = st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
+  const asked = st.lines;
+  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k], limit))), (res) => {
     if (!current()) return;
+    // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays, and it
+    // is asked again on a later poll
+    if (!res.every(answered) && asked === st._netFor && walkEnds(st) === st._netEnds) { current.retry(); return; }
     st.lines = res.map((w) => w.coords);
     st.walks = res;
     st.kanteWalk = res.every((w) => !w.approx);
     // floor changes where the walk actually takes them (else the platform levels imply one)
     const floors = res.flatMap((w) => w.floors || []);
     st.floors = floors.length ? floors : null;
-    if (res.every(answered)) current.done(); else current.retry();
     walkTime(st, res);
+    if (res.every(answered)) current.done(); else current.retry();
   });
 }
 

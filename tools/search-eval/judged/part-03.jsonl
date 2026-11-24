@@ -1,0 +1,350 @@
+{"k":"f9b8352ce8489975","g":0,"why":"Results point to unrelated locations"}
+{"k":"e67ab51a6a9eac3a","g":3,"why":"Requested supermarket is row 1"}
+{"k":"00903a150028cc31","g":0,"why":"Results point to unrelated locations"}
+{"k":"e0949a1c33bd5d30","g":3,"why":"Requested supermarket is row 1"}
+{"k":"30ee902978c38a9b","g":0,"why":"No results"}
+{"k":"c1217e8eedaa7d70","g":3,"why":"Requested supermarket is row 1"}
+{"k":"ed4c59866a41c120","g":3,"why":"Requested library is row 1"}
+{"k":"5231367834116909","g":3,"why":"Requested library is row 1"}
+{"k":"cdc0beb4909351de","g":3,"why":"Requested library is row 1"}
+{"k":"4ad9020e4e7fb84b","g":3,"why":"Requested library is row 1"}
+{"k":"a2e2e0e38c6ebf63","g":3,"why":"Requested library is row 1"}
+{"k":"37cf73315f3d4321","g":3,"why":"Requested library is row 1"}
+{"k":"a093d9bd0fc870f4","g":1,"why":"The right town appears"}
+{"k":"d411c944fd2b3941","g":0,"why":"No results"}
+{"k":"d89e308abb2a4d90","g":0,"why":"No results"}
+{"k":"a5e1e7e852314b23","g":0,"why":"Results point to unrelated locations"}
+{"k":"32b4e77cd165cc1e","g":3,"why":"Requested community centre is row 1"}
+{"k":"66849ee7ea7e05e9","g":1,"why":"The right town appears"}
+{"k":"9fed9f4fd5507ad7","g":3,"why":"Requested community centre is row 1"}
+{"k":"b5aca4575c2661a3","g":1,"why":"The right town appears"}
+{"k":"c67829bbd898deee","g":3,"why":"Requested community centre is row 1"}
+{"k":"09efd896108cf2bb","g":1,"why":"The right town appears"}
+{"k":"3799935ab79f0103","g":3,"why":"Requested community centre is row 1"}
+{"k":"df06fd32d51e2c62","g":0,"why":"Results point to unrelated locations"}
+{"k":"c35f93bba4183520","g":0,"why":"No results"}
+{"k":"3cecd4f95db61ba5","g":0,"why":"No results"}
+{"k":"361108fa83759a1c","g":3,"why":"Requested clinic is row 1"}
+{"k":"4ab35042aa4829ae","g":1,"why":"The right town appears"}
+{"k":"d4ab3ab686203a90","g":3,"why":"Requested clinic is row 1"}
+{"k":"ff76e664c5ecd505","g":0,"why":"No results"}
+{"k":"f2fdbe59fccdf95a","g":3,"why":"Requested clinic is row 1"}
+{"k":"af8baa74d2337913","g":0,"why":"No results"}
+{"k":"dda6db62a9aab179","g":3,"why":"Requested clinic is row 1"}
+{"k":"cd5029bf4f9b338d","g":0,"why":"No results"}
+{"k":"09d6ad6af05abe90","g":0,"why":"Results point to unrelated locations"}
+{"k":"260b7e404e49930a","g":3,"why":"Requested social facility is row 1"}
+{"k":"d97a22a9b8398f1d","g":0,"why":"No results"}
+{"k":"7de9d546bdf4faac","g":3,"why":"Requested social facility is row 1"}
+{"k":"baa78f415f6656d2","g":0,"why":"Results point to unrelated locations"}
+{"k":"8cb43ad54fbc196f","g":3,"why":"Requested social facility is row 1"}
+{"k":"a363f54ad667ca6e","g":0,"why":"No results"}
+{"k":"10e0b1c80742a46b","g":3,"why":"Requested social facility is row 1"}
+{"k":"34b7302366cad436","g":0,"why":"No results"}
+{"k":"d2a4368793298d5f","g":0,"why":"The same chain appears in distant towns"}
+{"k":"2a3cc55128cfaa17","g":2,"why":"A nearer branch is row 1 and the requested branch follows"}
+{"k":"1c423f22ff799985","g":0,"why":"Results point to unrelated locations"}
+{"k":"8297cf0a06abbbd4","g":3,"why":"Requested supermarket is row 1"}
+{"k":"9a0eae87276c1841","g":1,"why":"The right town appears"}
+{"k":"4cccb538dd10745f","g":3,"why":"Requested supermarket is row 1"}
+{"k":"22d08c2f96fe288a","g":1,"why":"The right town appears"}
+{"k":"f3f14d6d3182bb7c","g":3,"why":"Requested supermarket is row 1"}
+{"k":"80487dbaa64a2815","g":1,"why":"The right town appears"}
+{"k":"0258679ecaeb5461","g":3,"why":"Requested supermarket is row 1"}
+{"k":"e9e6d54634a03523","g":0,"why":"The same chain appears in distant towns"}
+{"k":"449bb824f02b0e75","g":2,"why":"A nearby Denner supermarket is row 1"}
+{"k":"5abc361d7bf75a79","g":0,"why":"Carouge addresses are on different streets outside Genève"}
+{"k":"0fd4bb8d85a4cad7","g":0,"why":"No results"}
+{"k":"e6bd0f83c0953103","g":0,"why":"Results point to unrelated locations"}
+{"k":"9d34cf05806225f1","g":3,"why":"Requested supermarket is row 1"}
+{"k":"759a5cc9dcd1edbe","g":0,"why":"Results point to unrelated locations"}
+{"k":"314905e4a90d8a80","g":0,"why":"No results"}
+{"k":"2315f38e423ebcaf","g":0,"why":"Results point to unrelated locations"}
+{"k":"c4a5543e55392bef","g":3,"why":"Requested supermarket is row 1"}
+{"k":"2e7d74b53d6ee66b","g":0,"why":"No results"}
+{"k":"f1ece7d57a72e1c4","g":3,"why":"Requested library is row 1"}
+{"k":"9a5585bf6322a204","g":1,"why":"The right town appears"}
+{"k":"3c7149915d4c6abf","g":3,"why":"Requested library is row 1"}
+{"k":"aa3449cef1d23390","g":1,"why":"The right town appears"}
+{"k":"ed3e3fe796c5ea53","g":3,"why":"Requested library is row 1"}
+{"k":"5f1ef4cf629725e4","g":1,"why":"The right town appears"}
+{"k":"54a2ef308edc8794","g":0,"why":"No results"}
+{"k":"241b44207f758702","g":0,"why":"No results"}
+{"k":"7f73623665358adb","g":0,"why":"The same chain appears in distant towns"}
+{"k":"4921479a6287c6d2","g":2,"why":"A nearer branch is row 1 and the requested branch follows"}
+{"k":"48efe7d9a65bef35","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"043042dc8c174251","g":3,"why":"Requested supermarket is row 1"}
+{"k":"54e572988248daeb","g":1,"why":"The right neighborhood and street appear"}
+{"k":"ffdd9721432c4348","g":3,"why":"Requested supermarket is row 1"}
+{"k":"0334115e289e3526","g":0,"why":"Results point to unrelated locations"}
+{"k":"9fb0291c75c2b1c6","g":3,"why":"Requested supermarket is row 1"}
+{"k":"8cc8cc4435667584","g":0,"why":"No results"}
+{"k":"24c7c309ac6fbea7","g":0,"why":"Results point to unrelated locations"}
+{"k":"07e9c1ce06d254c7","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"2be5d0d9f569a015","g":0,"why":"No results"}
+{"k":"bf88afee72dfe1ca","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"76c0ca45bb1b5e21","g":0,"why":"Results point to unrelated locations"}
+{"k":"cc5491e667cb932e","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"db9278a5776f5a87","g":0,"why":"No results"}
+{"k":"a150056ce3da4402","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"0bdcb90d743314b1","g":0,"why":"Results point to unrelated locations"}
+{"k":"8e83c20a99dbfd5f","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"b8783401f45334f4","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"eeca5f964deddf00","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"099b96884411540d","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"adc2efce865cc5c8","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"185f6fba7fca28bf","g":0,"why":"Results point to unrelated locations"}
+{"k":"0be2aae1d4be18a7","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"e4cb47b9aff67b72","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"1c4a942cbc4620d8","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"befdd001cf051f38","g":0,"why":"No results"}
+{"k":"2ff8680c531d8c3b","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"6e90548477a031d7","g":1,"why":"The local Neumünster school appears"}
+{"k":"63e858db78268f4b","g":3,"why":"Requested social facility is row 1"}
+{"k":"cf32f06f736fcd5c","g":1,"why":"Neumünster appears alongside a different crisis service"}
+{"k":"e90ffe14926510ad","g":3,"why":"Requested social facility is row 1"}
+{"k":"1b6b4bf30d18bda4","g":1,"why":"Neumünster appears alongside a different crisis service"}
+{"k":"57005884da9d7e43","g":3,"why":"Requested social facility is row 1"}
+{"k":"92e7210dc8137e0b","g":1,"why":"The local Neumünster school appears"}
+{"k":"cd522f3295f0557d","g":3,"why":"Requested social facility is row 1"}
+{"k":"3faa843360f5d42c","g":0,"why":"No results"}
+{"k":"8b7ee17d58346adc","g":1,"why":"The clinic's neighborhood appears"}
+{"k":"ea6f8ef6e4df6c08","g":3,"why":"Requested clinic is row 1"}
+{"k":"9e383b59395256a0","g":1,"why":"The right town appears"}
+{"k":"9bd3c4b8a95cc7f7","g":3,"why":"Requested clinic is row 1"}
+{"k":"3248c3a4e8db2909","g":1,"why":"The clinic's neighborhood appears"}
+{"k":"fd7c6c40935fe179","g":3,"why":"Requested clinic is row 1"}
+{"k":"9ac31a6dd9c52583","g":1,"why":"The clinic's neighborhood appears"}
+{"k":"4bd287bd5d3e345f","g":3,"why":"Requested clinic is row 1"}
+{"k":"9c7876fe4865e629","g":0,"why":"No results"}
+{"k":"5d375b42fbed9567","g":3,"why":"Requested clinic is row 1"}
+{"k":"42e865d7e2a29d34","g":0,"why":"Results point to unrelated locations"}
+{"k":"4184af432297a13a","g":3,"why":"Requested community centre is row 1"}
+{"k":"2b81089fe503fe32","g":1,"why":"The right town appears"}
+{"k":"f784d71fbd52e014","g":0,"why":"No results"}
+{"k":"645fbd65f902403d","g":0,"why":"Results point to unrelated locations"}
+{"k":"2f40de875ebd7ed4","g":3,"why":"Requested community centre is row 1"}
+{"k":"a506490700e49ddb","g":1,"why":"The right town appears"}
+{"k":"75b1fde9f08bb12b","g":0,"why":"No results"}
+{"k":"067d523e6a357808","g":0,"why":"No results"}
+{"k":"4866c0be792fdbd6","g":1,"why":"The right town appears"}
+{"k":"e545541b21a94f8f","g":2,"why":"Post office is row 2 after the town hall"}
+{"k":"3d905af8782c2da2","g":1,"why":"The right town appears"}
+{"k":"a2a6ede92f12629a","g":2,"why":"Post office is row 2 after the town hall"}
+{"k":"6e0ecaf0f9079b70","g":0,"why":"Results point to unrelated locations"}
+{"k":"51284cd2af67dbe2","g":2,"why":"Post office is row 2 after the town hall"}
+{"k":"2c2fedc5b568d31e","g":1,"why":"The right town appears"}
+{"k":"addb36e02ce278de","g":2,"why":"Post office is row 2 after the town hall"}
+{"k":"da902de3ca75ca73","g":2,"why":"Row 1 gives the exact address"}
+{"k":"a415b3db3fa59862","g":1,"why":"The town hall shares the post office's name and address"}
+{"k":"140a39b5198b1acb","g":0,"why":"The same chain appears in distant towns"}
+{"k":"dc79d6adb2fde479","g":3,"why":"Requested supermarket is row 1"}
+{"k":"367251d13bcfc25a","g":1,"why":"The right town appears"}
+{"k":"01738766e9b11411","g":3,"why":"Requested supermarket is row 1"}
+{"k":"c14eebbe691156dc","g":1,"why":"The right town appears"}
+{"k":"19384ade737fbc92","g":3,"why":"Requested supermarket is row 1"}
+{"k":"c29751af80e38db2","g":1,"why":"The right town appears"}
+{"k":"6661553ff9a239c9","g":3,"why":"Requested supermarket is row 1"}
+{"k":"f629bc8221572145","g":0,"why":"Results point to unrelated locations"}
+{"k":"50adba15253c81bf","g":3,"why":"Requested supermarket is row 1"}
+{"k":"f0631a4d3e6c876f","g":0,"why":"Results point to unrelated locations"}
+{"k":"5c001b8f8a95d00c","g":3,"why":"Requested library is row 1"}
+{"k":"c9e9a04a9b97424e","g":0,"why":"Results point to unrelated locations"}
+{"k":"8fdce89c91403b1d","g":3,"why":"Requested library is row 1"}
+{"k":"ea1433d5eb11e742","g":0,"why":"No results"}
+{"k":"7ccdc81f16337491","g":3,"why":"Requested library is row 1"}
+{"k":"0d372d50a0881262","g":0,"why":"Results point to unrelated locations"}
+{"k":"1b843a6f43087459","g":3,"why":"Requested library is row 1"}
+{"k":"917a14dc89e5f534","g":0,"why":"No results"}
+{"k":"af47bf595a770952","g":0,"why":"Same-named places are in other towns"}
+{"k":"c650d504d4c57f1b","g":2,"why":"Social facility is row 2 after the bus stop"}
+{"k":"a06b24dbb120ab44","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"9357cf4268b6337e","g":2,"why":"Social facility is row 2 after the bus stop"}
+{"k":"4605e4b59e139f6d","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"82190f8e22d393d6","g":2,"why":"Social facility is row 3 after the stop and street"}
+{"k":"8b06e2954b0fe6aa","g":1,"why":"The right town appears"}
+{"k":"09728b73de6b38b6","g":2,"why":"Social facility is row 2 after the bus stop"}
+{"k":"9349bd507200c6ac","g":2,"why":"Row 1 gives the exact address"}
+{"k":"1cd8f85e289a3421","g":0,"why":"Results point to unrelated locations"}
+{"k":"449f918d22dc01b7","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"daf242c42784aff4","g":1,"why":"Local Besso schools appear in place of the pharmacy"}
+{"k":"4ba52ab52e830594","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"fb9a2932fbf509c5","g":1,"why":"Local Besso schools appear in place of the pharmacy"}
+{"k":"33ebf88d8433ffd3","g":3,"why":"Requested pharmacy is row 1"}
+{"k":"9a998290e9fb6ba4","g":1,"why":"Local Besso schools appear in place of the pharmacy"}
+{"k":"1fb6134e6873a694","g":0,"why":"No results"}
+{"k":"9a98f3425549dba1","g":2,"why":"Row 1 gives the exact address"}
+{"k":"93cb6e0182c2cf97","g":0,"why":"No results"}
+{"k":"d0789d41792ca973","g":3,"why":"Requested library is row 1"}
+{"k":"5f573c0faabb5224","g":3,"why":"Requested library is row 1"}
+{"k":"06d5f851fbed673f","g":1,"why":"Results include Laubegg schools and a different library"}
+{"k":"c912703cf292dc80","g":3,"why":"Requested library is row 1"}
+{"k":"be82ffc29a16de1a","g":1,"why":"Other Bern libraries appear"}
+{"k":"48364a52ee1cca4a","g":3,"why":"Requested library is row 1"}
+{"k":"d55df48a7a23d54d","g":1,"why":"Results include Laubegg schools and a different library"}
+{"k":"88f27075a3ba01fd","g":3,"why":"Requested library is row 1"}
+{"k":"026f2008af4d2260","g":1,"why":"Laubegg school results identify the campus"}
+{"k":"2b9b5d9da86f6e43","g":0,"why":"No results"}
+{"k":"1c833ca097e2ac00","g":0,"why":"The same chain appears in distant towns"}
+{"k":"b68f50183a78b685","g":3,"why":"Requested supermarket is row 1"}
+{"k":"a3dc31b9003c0ec3","g":1,"why":"The right town appears"}
+{"k":"7799cfb6aaabab90","g":3,"why":"Requested supermarket is row 1"}
+{"k":"2ce74616d497bffd","g":1,"why":"The right town appears"}
+{"k":"55c4bae575204b87","g":3,"why":"Requested supermarket is row 1"}
+{"k":"b586d0431cf063d0","g":1,"why":"The right town appears"}
+{"k":"2e14bf27dd7c1087","g":3,"why":"Requested supermarket is row 1"}
+{"k":"a7bb7aa5c955e5a8","g":0,"why":"No results"}
+{"k":"1032178c2fc74860","g":3,"why":"Requested supermarket is row 1"}
+{"k":"9a6d5c61523a069f","g":0,"why":"The same chain appears in distant towns"}
+{"k":"750d4a153b8438a7","g":3,"why":"Requested supermarket is row 1"}
+{"k":"0a74e41dbd078ff7","g":1,"why":"The right town appears"}
+{"k":"66102ff34cdbcff0","g":3,"why":"Requested supermarket is row 1"}
+{"k":"f4305c2580bfa849","g":0,"why":"Results point to unrelated locations"}
+{"k":"051cd87727e69eb6","g":3,"why":"Requested supermarket is row 1"}
+{"k":"b27fa4658d5db0c4","g":1,"why":"The right town appears"}
+{"k":"fe3a6fc4399677c6","g":3,"why":"Requested supermarket is row 1"}
+{"k":"e0ca1b9918fc30f2","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"f18fb8dccd030244","g":0,"why":"No results"}
+{"k":"e1b6434c2bfa14f3","g":0,"why":"Results point to unrelated locations"}
+{"k":"116c5f61cc06320e","g":3,"why":"Requested social facility is row 1"}
+{"k":"1f3bd5788e5a0b45","g":0,"why":"Ankerstrasse is a different street in Winterthur"}
+{"k":"33d77e30b3f5a0e5","g":2,"why":"Social facility is row 2 after Ankerstrasse"}
+{"k":"92ecefae45a81505","g":1,"why":"The right town appears"}
+{"k":"9f61dd6d77c930a6","g":3,"why":"Requested social facility is row 1"}
+{"k":"e74308e0e1aea2f0","g":0,"why":"No results"}
+{"k":"bbe0446f536214bd","g":0,"why":"No results"}
+{"k":"96a05a1a45fa06a6","g":3,"why":"Requested social facility is row 1"}
+{"k":"c7778b98199b6d52","g":0,"why":"Results point to unrelated locations"}
+{"k":"21303690b9c32fda","g":3,"why":"Requested supermarket is row 1"}
+{"k":"bcb36fb1a1cb271b","g":1,"why":"The right town appears"}
+{"k":"f92a94dd38dd9809","g":3,"why":"Requested supermarket is row 1"}
+{"k":"06359c1817455b4e","g":1,"why":"The right town appears"}
+{"k":"abc2314d1918960c","g":3,"why":"Requested supermarket is row 1"}
+{"k":"6a482e8f85b203c6","g":0,"why":"Results point to unrelated locations"}
+{"k":"f1e9d0703a3af83e","g":3,"why":"Requested supermarket is row 1"}
+{"k":"eaa800583082651c","g":2,"why":"Row 1 gives the exact address"}
+{"k":"bd575a6f48038bc5","g":0,"why":"No results"}
+{"k":"4ee7a89db4c23c92","g":0,"why":"Results show unrelated Coop toilets in other towns"}
+{"k":"8a1877eb58970d37","g":3,"why":"Requested supermarket is row 1"}
+{"k":"5cac1e64fa76681e","g":1,"why":"The right town appears"}
+{"k":"94743e25c1b1dd35","g":3,"why":"Requested supermarket is row 1"}
+{"k":"f4d5c71eb81f8f70","g":1,"why":"The right town appears"}
+{"k":"906e7cda8ae2ad6f","g":3,"why":"Requested supermarket is row 1"}
+{"k":"7537df4221634d70","g":0,"why":"Results point to unrelated locations"}
+{"k":"56ce1be7a3fde5f9","g":3,"why":"Requested supermarket is row 1"}
+{"k":"c639c558d9b6bb60","g":2,"why":"Row 1 gives the exact address"}
+{"k":"cd3ff6b1f50e6614","g":0,"why":"No results"}
+{"k":"306548ecc34a4d7a","g":0,"why":"Results point to unrelated locations"}
+{"k":"3534f1a63f43e57d","g":3,"why":"Requested supermarket is row 1"}
+{"k":"a41266a4868a056d","g":1,"why":"The right town appears"}
+{"k":"430b9ab138ada053","g":3,"why":"Requested supermarket is row 1"}
+{"k":"01f478b338864266","g":1,"why":"The right town appears"}
+{"k":"4f276119c641aa67","g":2,"why":"A nearer branch is row 1 and the requested branch follows"}
+{"k":"2f51abe71b466587","g":1,"why":"The right town appears"}
+{"k":"3a73ed23a09af4ff","g":3,"why":"Requested supermarket is row 1"}
+{"k":"dc076ad76eee5749","g":0,"why":"Results point to unrelated locations"}
+{"k":"56ff2a3d210902f2","g":0,"why":"No results"}
+{"k":"a22ca78cd10db529","g":1,"why":"The local Coop result is a customer toilet"}
+{"k":"784074d35de6e94a","g":3,"why":"Requested supermarket is row 1"}
+{"k":"1b4203db1e57ecf9","g":2,"why":"Row 3 gives the supermarket's exact address"}
+{"k":"fe4c717ccaa4aa81","g":0,"why":"No results"}
+{"k":"39108f298c17b48a","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"f3917f74e0001e94","g":3,"why":"Requested supermarket is row 1"}
+{"k":"3ca2bf00cb38ad64","g":2,"why":"Row 1 gives the exact address"}
+{"k":"f054619073b3a0c8","g":0,"why":"No results"}
+{"k":"be17a7f3eaa3d6e9","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"1f64d0c4d194bf0b","g":3,"why":"Requested supermarket is row 1"}
+{"k":"2107b4e21192c527","g":0,"why":"Results point to unrelated locations"}
+{"k":"2b59ea67971e8c3c","g":3,"why":"Requested social facility is row 1"}
+{"k":"5f687f26931a24e6","g":0,"why":"Ahorn street names in Schaffhausen give the wrong location"}
+{"k":"409b784143ad3ccc","g":3,"why":"Requested social facility is row 1"}
+{"k":"def962a913132c7b","g":0,"why":"Ahorn street names in Schaffhausen give the wrong location"}
+{"k":"eba96682478fc428","g":3,"why":"Requested social facility is row 1"}
+{"k":"da24bc5ed236e0b1","g":1,"why":"The right town appears"}
+{"k":"48566dfc72bdf3f8","g":0,"why":"No results"}
+{"k":"eb14ffc9a61bf4c7","g":2,"why":"Row 1 gives the exact address"}
+{"k":"3335bdb0ae8b006d","g":0,"why":"No results"}
+{"k":"54c823e678ca1798","g":0,"why":"Results point to unrelated locations"}
+{"k":"02a4f5064bef6796","g":3,"why":"Requested post office is row 1"}
+{"k":"40c23ddc3d6ec615","g":1,"why":"The right town appears"}
+{"k":"302ea3457f74579d","g":3,"why":"Requested post office is row 1"}
+{"k":"09f6f0223742c174","g":0,"why":"Results point to unrelated locations"}
+{"k":"1e6ac69ae61f1fa5","g":3,"why":"Requested post office is row 1"}
+{"k":"4aaf7d3b39b9b527","g":0,"why":"No results"}
+{"k":"cddc2a039988ec87","g":3,"why":"Requested post office is row 1"}
+{"k":"f6ab52d1ffd6b360","g":0,"why":"Sonvico addresses point to a different street"}
+{"k":"608aefb6bcbfeabc","g":0,"why":"No results"}
+{"k":"1aa38b3fb8961508","g":1,"why":"The right town appears"}
+{"k":"d8dc1b5459bb773a","g":3,"why":"Requested post office is row 1"}
+{"k":"3c0b0439b4379fcb","g":1,"why":"The right town appears"}
+{"k":"2bd548516acce9bc","g":3,"why":"Requested post office is row 1"}
+{"k":"0ec0e55e69c42036","g":1,"why":"The right town appears"}
+{"k":"d60cf29e3c0fe43e","g":3,"why":"Requested post office is row 1"}
+{"k":"bf63ec00e67d16a3","g":0,"why":"Results point to unrelated locations"}
+{"k":"c309d71a931a2f52","g":3,"why":"Requested post office is row 1"}
+{"k":"3b80f6b77c8d48ef","g":0,"why":"Results point to unrelated locations"}
+{"k":"3dc160c093f6b340","g":0,"why":"No results"}
+{"k":"bb399df6ebcaa588","g":0,"why":"Same-named places are in other towns"}
+{"k":"75c1e14187f75e8f","g":3,"why":"Requested social facility is row 1"}
+{"k":"c6ff6667eee59385","g":2,"why":"Row 1 names Feldheim and row 2 gives its exact address"}
+{"k":"205815d4ee526bca","g":3,"why":"Requested social facility is row 1"}
+{"k":"6df0e8a05a9e62a1","g":2,"why":"Row 1 names Feldheim and row 2 gives its exact address"}
+{"k":"e480603ca42312a8","g":3,"why":"Requested social facility is row 1"}
+{"k":"ed7d2718dd8e0b70","g":1,"why":"The right town appears"}
+{"k":"aad7344a50617b33","g":3,"why":"Requested social facility is row 1"}
+{"k":"dad1d686a53cb777","g":2,"why":"Row 1 gives the exact address"}
+{"k":"4731fa2e456a2b3b","g":2,"why":"Row 1 gives the exact address"}
+{"k":"409c502bcfbd6f32","g":0,"why":"No results"}
+{"k":"a8b73cb684aae3b7","g":3,"why":"Requested social facility is row 1"}
+{"k":"17afe7b966160976","g":0,"why":"No results"}
+{"k":"5dbe7b132392d780","g":3,"why":"Requested social facility is row 1"}
+{"k":"7bcc06de113e9d34","g":0,"why":"No results"}
+{"k":"483d803631c7a2b2","g":3,"why":"Requested social facility is row 1"}
+{"k":"8753a01f17e60bc6","g":0,"why":"No results"}
+{"k":"4aea7d7083ffc27f","g":3,"why":"Requested social facility is row 1"}
+{"k":"65b8920abcba368d","g":0,"why":"Results point to unrelated locations"}
+{"k":"be847cbf2325be0b","g":0,"why":"No results"}
+{"k":"f4bb0d37660bc1b2","g":0,"why":"Results point to unrelated locations"}
+{"k":"0d1c8bea5f4c5922","g":3,"why":"Requested community centre is row 1"}
+{"k":"531835f1bdb3d3c2","g":1,"why":"The right town appears"}
+{"k":"335b8ba0dac920c8","g":3,"why":"Requested community centre is row 1"}
+{"k":"efd352185006884e","g":1,"why":"The right town appears"}
+{"k":"c1beff682666ba0a","g":3,"why":"Requested community centre is row 1"}
+{"k":"183726337be9daa9","g":1,"why":"The right town appears"}
+{"k":"fb8aa38700f84036","g":3,"why":"Requested community centre is row 1"}
+{"k":"169fdb0c96e9d4d5","g":2,"why":"Row 1 gives the exact address"}
+{"k":"498e38974f67f567","g":0,"why":"No results"}
+{"k":"b90bb6543ac98553","g":1,"why":"Ruttigen locality appears"}
+{"k":"e5c02a693f93557e","g":3,"why":"Requested social facility is row 1"}
+{"k":"d33e6921b1ffe393","g":1,"why":"Ruttigen locality appears"}
+{"k":"3cccfd2d0a464764","g":2,"why":"Retirement home is row 2 after the farm"}
+{"k":"4b8282b3446348dc","g":0,"why":"Results point to unrelated locations"}
+{"k":"850f8b172ead0ec8","g":3,"why":"Requested social facility is row 1"}
+{"k":"55b0ad8990c342b2","g":0,"why":"Results point to unrelated locations"}
+{"k":"4a6f4ae0fc26fb6c","g":3,"why":"Requested social facility is row 1"}
+{"k":"653afe5277b5da78","g":0,"why":"No results"}
+{"k":"df0e89f8734778f1","g":0,"why":"Results point to unrelated locations"}
+{"k":"1b60d75329f725e9","g":3,"why":"Requested social facility is row 1"}
+{"k":"d4aa8d5910fe4e91","g":0,"why":"Results point to unrelated locations"}
+{"k":"efbbfd2b351a3c85","g":3,"why":"Requested social facility is row 1"}
+{"k":"736a84167f3258f5","g":0,"why":"No results"}
+{"k":"e05511c168d5ff58","g":3,"why":"Requested social facility is row 1"}
+{"k":"822e49826b256ebe","g":0,"why":"No results"}
+{"k":"235ebd0784ab2967","g":3,"why":"Requested social facility is row 1"}
+{"k":"1cc1b3f94b358197","g":0,"why":"No results"}
+{"k":"8683fb7f838de21c","g":3,"why":"Requested social facility is row 1"}
+{"k":"1dddc6af120913ec","g":0,"why":"St. Gallen is a different city from Rapperswil"}
+{"k":"4e1b361240025953","g":3,"why":"Requested police station is row 1"}
+{"k":"eb41281146180c71","g":1,"why":"The right town appears"}
+{"k":"dd9bd2a154951747","g":3,"why":"Requested police station is row 1"}
+{"k":"49412edab098d132","g":1,"why":"The right town appears"}
+{"k":"811717ff380e2d6b","g":3,"why":"Requested police station is row 1"}
+{"k":"0046ee585860eb80","g":1,"why":"The right town appears"}
+{"k":"127cbe6e741da5bb","g":3,"why":"Requested police station is row 1"}
+{"k":"035a71920c31e55d","g":1,"why":"Addresses on the correct street have different numbers"}
+{"k":"c39cb474c5377b57","g":0,"why":"No results"}
+{"k":"5b589af13387c514","g":3,"why":"Requested community centre is row 1"}
+{"k":"2363bdb598fb7f08","g":3,"why":"Requested community centre is row 1"}
+{"k":"bff5904b2bcf6ffd","g":0,"why":"Results point to unrelated locations"}
+{"k":"94343a232d725edc","g":3,"why":"Requested community centre is row 1"}
+{"k":"9f0777a87ae9e40e","g":0,"why":"Results point to unrelated locations"}

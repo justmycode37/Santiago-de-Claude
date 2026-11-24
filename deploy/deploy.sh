@@ -87,6 +87,13 @@ sync_units() { # new or changed systemd units from the repository (e.g. a new ti
   return 0
 }
 
+slopes_note() { # walk edges with a slope from the terrain model (/api/meta): over 3 million with it (refresh-data.sh
+  # fetches the model, 10 GB, outside the deploy's time limit)
+  local n
+  n=$(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["counts"].get("slopedEdges", 0))' 2>/dev/null || echo 0)
+  if (( ${n:-0} < 1000000 )); then log "warning: ${n:-0} walk edges with a slope: walks timed as if flat"; else log "${n} walk edges with a slope"; fi
+}
+
 doors_note() { # buildings' doors: about 2.9 million, 2.7 million of them from the address register (/api/meta)
   local d r
   read -r d r < <(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null \
@@ -169,6 +176,7 @@ main() {
     echo "$tree" > "$ROOT/state/tree"
     log "${new:0:7} is live"
     doors_note
+    slopes_note
     live_note
     # keep this release and the one before it
     find "$ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -2 | xargs -r rm -rf

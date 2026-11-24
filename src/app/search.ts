@@ -16,8 +16,8 @@ export type SearchKind = PlaceKind | 'address' | 'city' | 'postcode' | 'water' |
 export type SearchIcons = Partial<Record<SearchKind, SearchIcon>> & { other: SearchIcon };
 /** The swisstopo SearchServer's sources of locations: addresses, names on the map, postcodes, municipalities. */
 export type SwisstopoOrigin = 'address' | 'gazetteer' | 'zipcode' | 'gg25';
-/** Where a result comes from: swisstopo, a place (ours or one found online), or a pin put on the map by hand. */
-export type SearchOrigin = SwisstopoOrigin | 'place' | 'pin';
+/** Where a result comes from: swisstopo, the Kante engine's search, a place (ours or one found online), or a pin put on the map by hand. */
+export type SearchOrigin = SwisstopoOrigin | 'kante' | 'place' | 'pin';
 /**
  * One row of the results list, whichever source it is from (swisstopo, our own places, places online), and what a
  * pin dropped on the map is made into. Choosing one makes it an end of the trip.
@@ -35,6 +35,8 @@ export interface SearchResult {
   icon?: SearchIcon;
   /** Places found online (places.ts): who knows them. */
   source?: 'osm' | 'google';
+  /** The Kante engine's id ('st:…' a station, 'poi:…', 'addr:…'): a station is planned to as the station. */
+  kanteId?: string;
 }
 /** Anything that begins with a longitude and a latitude: a LngLat, or a row of map-places.js. */
 export type LngLatFirst = readonly [lng: number, lat: number, ...rest: unknown[]];

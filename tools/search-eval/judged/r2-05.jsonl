@@ -1,0 +1,283 @@
+{"k":"a38ddd7091cf4408","g":3,"why":"Requested tram stop is row 1"}
+{"k":"0215e65193e482bd","g":3,"why":"Requested tram stop is row 1"}
+{"k":"e19e72907c8c8f9a","g":3,"why":"Requested tram stop is row 1"}
+{"k":"a0b9d3fd99f07408","g":3,"why":"Requested tram stop is row 1"}
+{"k":"8e05327f88161220","g":3,"why":"Requested tram stop is row 1"}
+{"k":"9edf91d2b630f988","g":3,"why":"Requested tram stop is row 1"}
+{"k":"f155ca975d1ec01d","g":3,"why":"Requested tram stop is row 1"}
+{"k":"687b366fafead153","g":3,"why":"Requested tram stop is row 1"}
+{"k":"747f80b66059f1b1","g":3,"why":"Requested tram stop is row 1"}
+{"k":"20beaf4f9d904c3a","g":3,"why":"Requested tram stop is row 1"}
+{"k":"12a30f341fcb5f18","g":3,"why":"Requested tram stop is row 1"}
+{"k":"36fe6ffa895a4d86","g":3,"why":"Requested tram stop is row 1"}
+{"k":"67a73915ea8f9539","g":3,"why":"Requested tram stop is row 1"}
+{"k":"3f0c4069bb83650b","g":3,"why":"Requested tram stop is row 1"}
+{"k":"8d5966e9396fa980","g":3,"why":"Requested tram stop is row 1"}
+{"k":"c29f07c65de126b2","g":3,"why":"Requested tram stop is row 1"}
+{"k":"83034b2667432160","g":3,"why":"Requested tram stop is row 1"}
+{"k":"7affd27be4ec3e78","g":3,"why":"Requested tram stop is row 1"}
+{"k":"a9695c62c39fe0c4","g":3,"why":"Requested tram stop is row 1"}
+{"k":"7bea255b19868464","g":3,"why":"Requested tram stop is row 1"}
+{"k":"40f116b2684ee9b0","g":3,"why":"Requested tram stop is row 1"}
+{"k":"c7018551472a143d","g":3,"why":"Requested tram stop is row 1"}
+{"k":"84541fec22b13490","g":3,"why":"Requested tram stop is row 1"}
+{"k":"d7391caad23a8ebc","g":3,"why":"Requested tram stop is row 1"}
+{"k":"9a4c7b04175396fe","g":3,"why":"Requested tram stop is row 1"}
+{"k":"4782a84f0ffbc4e0","g":3,"why":"Requested tram stop is row 1"}
+{"k":"d9427a3dca1abb3e","g":3,"why":"Requested tram stop is row 1"}
+{"k":"4d4698b5bb13096c","g":3,"why":"Requested tram stop is row 1"}
+{"k":"0af2e0d85378c6be","g":3,"why":"Requested tram stop is row 1"}
+{"k":"7c28583847b1851d","g":3,"why":"Requested tram stop is row 1"}
+{"k":"3a66622dbe7c816c","g":3,"why":"Requested tram stop is row 1"}
+{"k":"5376f3febfea323f","g":3,"why":"Requested tram stop is row 1"}
+{"k":"aa2092d36cc95bdd","g":3,"why":"Requested tram stop is row 1"}
+{"k":"10e3b4597bf24a97","g":3,"why":"Requested tram stop is row 1"}
+{"k":"a919895f5a70f0b6","g":3,"why":"Requested tram stop is row 1"}
+{"k":"8a4b33f63270b1ab","g":3,"why":"Requested tram stop is row 1"}
+{"k":"bf7c6269c42b7428","g":3,"why":"Requested tram stop is row 1"}
+{"k":"f9b8c9cf21ba581b","g":3,"why":"Requested tram stop is row 1"}
+{"k":"fa983e81f0e9f099","g":3,"why":"Requested tram stop is row 1"}
+{"k":"21ad2a51abb2db9d","g":3,"why":"Requested tram stop is row 1"}
+{"k":"b7025f14e78458bb","g":3,"why":"Requested tram stop is row 1"}
+{"k":"3b0b69a3f2654fd6","g":2,"why":"Requested tram stop is row 2 behind the train station"}
+{"k":"cb28b8007400d8db","g":3,"why":"Requested tram stop is row 1"}
+{"k":"e968731845a6cdce","g":3,"why":"Requested tram stop is row 1"}
+{"k":"d64f60d65b207669","g":3,"why":"Requested tram stop is row 1"}
+{"k":"8b423efa3bc4c24f","g":3,"why":"Requested tram stop is row 1"}
+{"k":"08396677225b7cb3","g":3,"why":"Requested tram stop is row 1"}
+{"k":"eca6a705deb73739","g":3,"why":"Requested tram stop is row 1"}
+{"k":"ed882167b3df7dda","g":3,"why":"Requested tram stop is row 1"}
+{"k":"e6167be15b89ede6","g":1,"why":"Row 1 serves the named stop by bus only"}
+{"k":"88bd151cf253db81","g":1,"why":"Row 1 serves the named stop by bus only"}
+{"k":"4d8f8b2457cd4daf","g":1,"why":"Row 1 serves the named stop by bus only"}
+{"k":"af01a44e963f5e9c","g":1,"why":"Row 1 serves the named stop by bus only"}
+{"k":"c178f262242a5eed","g":3,"why":"Requested train station is row 1"}
+{"k":"844970884c692432","g":3,"why":"Requested train station is row 1"}
+{"k":"f4544acb057774c7","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"8559f8bf3e82f814","g":3,"why":"Requested train station is row 1"}
+{"k":"f7438e6b6f731ef2","g":3,"why":"Requested train station is row 1"}
+{"k":"0213c00b00335e8d","g":3,"why":"Requested train station is row 1"}
+{"k":"633d5b10c5afa086","g":1,"why":"Arbon municipality is row 3 and the station is missing"}
+{"k":"ad1c98178a57c42f","g":3,"why":"Requested train station is row 1"}
+{"k":"6b6489b2904982c4","g":3,"why":"Requested train station is row 1"}
+{"k":"c2de2f9a5b1298e1","g":3,"why":"Requested train station is row 1"}
+{"k":"53f2467cf05c572a","g":3,"why":"Requested train station is row 1"}
+{"k":"90fd151cb17c4591","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"22db3d5df4fcfeb3","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"738fc49d6d77eb30","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"49d2822b9c274701","g":3,"why":"Requested train station is row 1"}
+{"k":"e62a9c69d360c6f2","g":3,"why":"Requested train station is row 1"}
+{"k":"f5605a0a9dcf92cf","g":3,"why":"Requested train station is row 1"}
+{"k":"31448709f3c28c46","g":3,"why":"Requested train station is row 1"}
+{"k":"bc54a6c19844c53d","g":3,"why":"Requested train station is row 1"}
+{"k":"70918d7cd78a068a","g":3,"why":"Requested train station is row 1"}
+{"k":"01673d445c5fa06e","g":3,"why":"Requested train station is row 1"}
+{"k":"8e2e1ff2ce81c0cb","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"375cc85ce814f6ea","g":3,"why":"Requested train station is row 1"}
+{"k":"df504d1faba128c9","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"a1f67a31bb43f0b4","g":3,"why":"Requested train station is row 1"}
+{"k":"1730dc092458a1c6","g":3,"why":"Requested train station is row 1"}
+{"k":"6d5b06a279749879","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"b63901bbc68c9ecc","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"65708c22dc119ba9","g":1,"why":"Station café is related and the train station is missing"}
+{"k":"538b66133b57aad3","g":3,"why":"Requested train station is row 1"}
+{"k":"535db43cf89b39ad","g":3,"why":"Requested train station is row 1"}
+{"k":"e16f9f671d4037e2","g":3,"why":"Requested train station is row 1"}
+{"k":"8c3fa45dcd94e7ed","g":3,"why":"Requested train station is row 1"}
+{"k":"cf38291768681463","g":3,"why":"Requested train station is row 1"}
+{"k":"c7558018363e3463","g":3,"why":"Requested train station is row 1"}
+{"k":"659dc83936457c14","g":0,"why":"Similar names lead to different places"}
+{"k":"4e9a5eaa9c180506","g":1,"why":"Station square addresses appear without the train station"}
+{"k":"514c66ae73e04681","g":3,"why":"Requested train station is row 1"}
+{"k":"d297c770f8877f28","g":3,"why":"Requested train station is row 1"}
+{"k":"b507f0b59086c0bc","g":3,"why":"Requested train station is row 1"}
+{"k":"98976d8a8b40033c","g":3,"why":"Requested train station is row 1"}
+{"k":"0fa8335858f385a9","g":3,"why":"Requested train station is row 1"}
+{"k":"cd2f3d7a2f764ce9","g":3,"why":"Requested train station is row 1"}
+{"k":"cf92b441575cf767","g":3,"why":"Requested train station is row 1"}
+{"k":"9e3b5532048a5a21","g":3,"why":"Requested train station is row 1"}
+{"k":"bda8bfc953caad01","g":3,"why":"Requested train station is row 1"}
+{"k":"6e4ccc5ac817dbb4","g":3,"why":"Requested train station is row 1"}
+{"k":"f4124913ddcb48e1","g":3,"why":"Requested train station is row 1"}
+{"k":"24ace3d7715adb67","g":3,"why":"Requested train station is row 1"}
+{"k":"e99610b9390fc47a","g":3,"why":"Requested train station is row 1"}
+{"k":"8b15354fef5a3216","g":3,"why":"Requested train station is row 1"}
+{"k":"b6273012cf825988","g":3,"why":"Requested train station is row 1"}
+{"k":"44dc4062b788426d","g":3,"why":"Requested train station is row 1"}
+{"k":"a6559812febbf473","g":3,"why":"Requested train station is row 1"}
+{"k":"c96b386f1ca53773","g":3,"why":"Requested train station is row 1"}
+{"k":"009b97ee65c40ab3","g":2,"why":"Train station is row 3 behind the neighborhood and bus stop"}
+{"k":"200159deb5d8009f","g":3,"why":"Requested train station is row 1"}
+{"k":"4c3744d2ba23c319","g":3,"why":"Requested train station is row 1"}
+{"k":"c44c38818eb76397","g":3,"why":"Requested train station is row 1"}
+{"k":"6a6ba2c10abb07b6","g":3,"why":"Requested train station is row 1"}
+{"k":"95faac84ce4abb94","g":3,"why":"Requested train station is row 1"}
+{"k":"f96ea2f73a798619","g":3,"why":"Requested train station is row 1"}
+{"k":"60a6d66ec9795ffb","g":3,"why":"Requested train station is row 1"}
+{"k":"079a855448c6d2bf","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"1ef65b329ed701ec","g":1,"why":"Bus stop at the station appears without the train station"}
+{"k":"d8135f8d5f4fc899","g":1,"why":"Bus stop at the station appears without the train station"}
+{"k":"15fb26e307912e71","g":3,"why":"Requested train station is row 1"}
+{"k":"558baa50d8039a86","g":3,"why":"Requested train station is row 1"}
+{"k":"08fd3aa347c861c8","g":1,"why":"Station street and addresses appear without the train station"}
+{"k":"7bd67a419cedfe9c","g":3,"why":"Requested train station is row 1"}
+{"k":"a7cbfd18c96bd920","g":3,"why":"Requested train station is row 1"}
+{"k":"bb9a376ea20ff027","g":3,"why":"Requested train station is row 1"}
+{"k":"62d89ff1e6adf19d","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"aac8afd7637973e7","g":1,"why":"Bus stop at the station appears without the train station"}
+{"k":"3814073024dccc48","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"0dd94acc080c4828","g":3,"why":"Requested train station is row 1"}
+{"k":"1488d155b1031fcb","g":3,"why":"Requested train station is row 1"}
+{"k":"4900c38a14391795","g":3,"why":"Requested train station is row 1"}
+{"k":"1fe60a923efe1d18","g":3,"why":"Requested train station is row 1"}
+{"k":"dc4f25f0201e0067","g":1,"why":"Station restaurant appears without the train station"}
+{"k":"819ab4cf17f9793a","g":3,"why":"Requested train station is row 1"}
+{"k":"f4d8c71b8f94add8","g":3,"why":"Requested train station is row 1"}
+{"k":"ae7e8b14f3eb98d5","g":3,"why":"Requested train station is row 1"}
+{"k":"78b5afbb028eb1f4","g":3,"why":"Requested train station is row 1"}
+{"k":"e0a39cd73e1e9c94","g":3,"why":"Requested train station is row 1"}
+{"k":"28cc1c21c831ec85","g":3,"why":"Requested train station is row 1"}
+{"k":"ff834553ca34de56","g":3,"why":"Requested train station is row 1"}
+{"k":"aec575db88cc6be5","g":3,"why":"Requested train station is row 1"}
+{"k":"cf3c9e58dce0b8dc","g":3,"why":"Requested train station is row 1"}
+{"k":"382b7a2a51114427","g":3,"why":"Requested train station is row 1"}
+{"k":"236550d4d6a63911","g":3,"why":"Requested train station is row 1"}
+{"k":"be18d9d82f5630f8","g":3,"why":"Requested train station is row 1"}
+{"k":"e5f664171c087452","g":3,"why":"Requested train station is row 1"}
+{"k":"e8eb8a4cee728cce","g":3,"why":"Requested train station is row 1"}
+{"k":"64216979b036ed17","g":3,"why":"Requested train station is row 1"}
+{"k":"751226390a39230e","g":3,"why":"Requested train station is row 1"}
+{"k":"63b5c57759a472ee","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"f60e6af4b0f8aa2f","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"a7019d19d736b1d4","g":2,"why":"Train station is row 2 behind its bus stop"}
+{"k":"1f8dbfa583ac2664","g":3,"why":"Requested train station is row 1"}
+{"k":"7e1cd8af4c3e9295","g":3,"why":"Requested train station is row 1"}
+{"k":"432a8e489c5f00d1","g":3,"why":"Requested train station is row 1"}
+{"k":"e2deae0f3be7bc9b","g":3,"why":"Requested train station is row 1"}
+{"k":"586cf91224cbbb07","g":3,"why":"Requested train station is row 1"}
+{"k":"e97746044417dbc1","g":3,"why":"Requested train station is row 1"}
+{"k":"d6d12727d0bcee76","g":3,"why":"Requested boat landing is row 1"}
+{"k":"949c0d435a053040","g":3,"why":"Requested boat landing is row 1"}
+{"k":"059634d08f29873a","g":3,"why":"Requested boat landing is row 1"}
+{"k":"aa952b94888a55ad","g":3,"why":"Requested boat landing is row 1"}
+{"k":"4a317d1664ef0500","g":3,"why":"Requested boat landing is row 1"}
+{"k":"76c71c3c9060951c","g":3,"why":"Requested boat landing is row 1"}
+{"k":"a8c0612fed7a8164","g":3,"why":"Requested boat landing is row 1"}
+{"k":"4fd25179b160135b","g":3,"why":"Requested boat landing is row 1"}
+{"k":"1f476daf0a689992","g":3,"why":"Requested boat landing is row 1"}
+{"k":"afa3cf51cb940eec","g":3,"why":"Requested boat landing is row 1"}
+{"k":"2a40655cf9ecd5a4","g":3,"why":"Requested boat landing is row 1"}
+{"k":"6c48ea6c33062bfb","g":2,"why":"Requested boat landing is row 3"}
+{"k":"fba43d519d8dfbce","g":2,"why":"Requested boat landing is row 3"}
+{"k":"34ff38b08c42ea97","g":3,"why":"Requested boat landing is row 1"}
+{"k":"ff0eb39165257524","g":3,"why":"Requested boat landing is row 1"}
+{"k":"e3de5899867d4cd8","g":3,"why":"Requested boat landing is row 1"}
+{"k":"2b122bbe88022467","g":3,"why":"Requested boat landing is row 1"}
+{"k":"563b7189e79f92fa","g":3,"why":"Requested boat landing is row 1"}
+{"k":"a62f70687e83d322","g":3,"why":"Requested boat landing is row 1"}
+{"k":"bb6ec61e3fbe9e35","g":3,"why":"Requested boat landing is row 1"}
+{"k":"8a410304b4bcc825","g":3,"why":"Requested boat landing is row 1"}
+{"k":"170c9c506e6540f1","g":3,"why":"Requested boat landing is row 1"}
+{"k":"a64c5f770b19dbaf","g":3,"why":"Requested boat landing is row 1"}
+{"k":"bc7344c0819aa8d8","g":3,"why":"Requested boat landing is row 1"}
+{"k":"45b2a610fc2ec4a2","g":3,"why":"Requested boat landing is row 1"}
+{"k":"ad894fafb48263cc","g":0,"why":"Matching street name is in Domat/Ems"}
+{"k":"39e324f24b0eed4c","g":0,"why":"Similar names point to unrelated places"}
+{"k":"13628f0fa9b13665","g":0,"why":"Matching street name is in Domat/Ems"}
+{"k":"7ab0a99a0cee9d44","g":3,"why":"Requested cable car station is row 1"}
+{"k":"d25f9216f9ecce47","g":2,"why":"Orselina is row 2 behind the opposite cable car terminal"}
+{"k":"e25ec9f2b7cf3d8d","g":3,"why":"Requested cable car station is row 1"}
+{"k":"56e8671ce5cbd5c6","g":3,"why":"Requested cable car station is row 1"}
+{"k":"6d4e1a91cc02b8a5","g":2,"why":"Stätzertäli station is row 3"}
+{"k":"7919e65dc18cb645","g":1,"why":"Stätzerhorn serves the area but is a different lift station"}
+{"k":"74a5cf67b67d44de","g":2,"why":"Stätzertäli station is row 3"}
+{"k":"6f2faa8c45daaf91","g":1,"why":"Gelmerbahn bus stop is related to the cable car station"}
+{"k":"6b760cd3317a7f7d","g":0,"why":"Results point to unrelated places in Zürich"}
+{"k":"8de4349cf88e48d2","g":1,"why":"Gelmerbahn bus stop is related to the cable car station"}
+{"k":"4c98a78f218b7497","g":2,"why":"Requested intermediate station is row 3"}
+{"k":"783bb7662e0e3285","g":1,"why":"Locality and road appear without the intermediate station"}
+{"k":"0ade975169a8db00","g":1,"why":"Mayentset restaurant appears without the cable car station"}
+{"k":"ef4585b6e11da558","g":1,"why":"Mayentset restaurant appears without the cable car station"}
+{"k":"8253707db223704c","g":1,"why":"Mayentset restaurant appears without the cable car station"}
+{"k":"3128e16f5ea02b07","g":3,"why":"Requested cable car station is row 1"}
+{"k":"825ef9075d7e5ea0","g":3,"why":"Requested cable car station is row 1"}
+{"k":"c777a299e91242d4","g":3,"why":"Requested cable car station is row 1"}
+{"k":"231ce856fe1dfe86","g":3,"why":"Requested cable car station is row 1"}
+{"k":"1df55bffc649eed8","g":3,"why":"Requested cable car station is row 1"}
+{"k":"8b8619c3820907cf","g":3,"why":"Requested cable car station is row 1"}
+{"k":"f61e20c835d8f090","g":3,"why":"Requested cable car station is row 1"}
+{"k":"6a000ec9a3058fa3","g":1,"why":"Named area and bus stop appear without the cable car station"}
+{"k":"3b7351f063bd4db3","g":1,"why":"Named area and bus stop appear without the cable car station"}
+{"k":"59c3aeb99269f7de","g":1,"why":"Named area and bus stop appear without the cable car station"}
+{"k":"ba2a95ccf4e64976","g":2,"why":"Requested village is row 2"}
+{"k":"68b0d8d7e95ed932","g":3,"why":"Requested village is row 1"}
+{"k":"da4dc4f0dc80b9c2","g":3,"why":"Requested village is row 1"}
+{"k":"65f77fcc7e484f26","g":3,"why":"Requested quarter is row 1"}
+{"k":"50b12f630e7ecd85","g":1,"why":"Results are businesses and services within the requested quarter"}
+{"k":"56e2ff8b0da7c9b6","g":3,"why":"Requested quarter is row 1"}
+{"k":"0ad1961abeff0d3f","g":3,"why":"Requested quarter is row 1"}
+{"k":"db81d265b04e51e2","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"0d81ba6f4262ce78","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"cdfa000d346e1bcb","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"ded6ee973676a340","g":3,"why":"Requested village is row 1"}
+{"k":"630f737c32b91693","g":2,"why":"Requested village is row 2"}
+{"k":"aae88d1f595d574b","g":2,"why":"Requested village is row 2"}
+{"k":"a04b8d5f5f3d08c9","g":3,"why":"Requested village is row 1"}
+{"k":"9766ad2436e4312b","g":2,"why":"Requested village is row 3"}
+{"k":"8187d660c933825c","g":3,"why":"Requested village is row 1"}
+{"k":"5e397edd1b283436","g":2,"why":"Requested village is row 2"}
+{"k":"71837544ab5f43ca","g":3,"why":"Requested village is row 1"}
+{"k":"30a5af876d3c6d2b","g":1,"why":"Town hall appears without the requested locality"}
+{"k":"45f7745a2a4506ce","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"3b8582d3e50c1003","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"4555b1c0264ae2f5","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"3b6993df6d3feaf6","g":2,"why":"Municipality is row 2 behind the municipal offices"}
+{"k":"584c0f8404528ad7","g":2,"why":"Town is row 2 behind its train station"}
+{"k":"02935114e56895a7","g":2,"why":"Town is row 2 behind its train station"}
+{"k":"4ec26b6ec154abc1","g":2,"why":"Town is row 2 behind its train station"}
+{"k":"3b1d3146d8254aa6","g":1,"why":"Town hall appears without the requested locality"}
+{"k":"bcff1363245b10ac","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"6974c9f517a61c24","g":3,"why":"Requested village is row 1"}
+{"k":"f8824be21fab472f","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"8a82d83ddbf30735","g":1,"why":"Local bus stop and historic site appear without the village"}
+{"k":"254acd3aafadaf2e","g":2,"why":"Requested village is row 2"}
+{"k":"b40450f57215cfec","g":3,"why":"Requested village is row 1"}
+{"k":"2340030e4f42b520","g":3,"why":"Requested village is row 1"}
+{"k":"5bf812bf257bcb78","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"04513a6feea0760f","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"e7ee76e6663765c8","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"632a07537c9ad0c7","g":3,"why":"Requested village is row 1"}
+{"k":"9f1004866b06a031","g":1,"why":"Local businesses appear without the requested town or village"}
+{"k":"62b49284ecd99f13","g":3,"why":"Requested village is row 1"}
+{"k":"eab8ee0c7d7a72a3","g":3,"why":"Requested village is row 1"}
+{"k":"03cb07036e1a7d94","g":1,"why":"Town hall appears without the requested locality"}
+{"k":"b41b5a40efb09d02","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"323d006bf57730ec","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"9e7665526900190f","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"3716138290975832","g":1,"why":"Local bus stop and street appear without the village"}
+{"k":"a7b2523940b6fd6f","g":2,"why":"Requested village is row 2"}
+{"k":"f27beb50064d72fb","g":3,"why":"Requested village is row 1"}
+{"k":"e3feed06ca733d98","g":2,"why":"Requested village is row 2"}
+{"k":"b16380a2e19aa1f1","g":2,"why":"Municipality is row 2 behind the municipal offices"}
+{"k":"a318fa10d5680b4b","g":2,"why":"Town is row 2 behind its train station"}
+{"k":"ed62dda8532ae426","g":1,"why":"Museum in Riehen is row 2 and the town is missing"}
+{"k":"47719fe96db0b664","g":1,"why":"Museum in Riehen is row 2 and the town is missing"}
+{"k":"9bc330bd11d9d673","g":1,"why":"Local stations appear without the requested town"}
+{"k":"737bf1bbfef1f4c5","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"dcdc93cd02491bd9","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"ed932dacf34f1927","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"2777807ac853318a","g":2,"why":"Town is row 2 behind its train station"}
+{"k":"2341a3205f9dfcff","g":1,"why":"Local stations appear without the requested town"}
+{"k":"16053607dd0b009a","g":0,"why":"Results are for a different village in the Emmental"}
+{"k":"090a8f937948761b","g":2,"why":"Town is row 2 behind its train station"}
+{"k":"ed033a8d181ad896","g":3,"why":"Requested village is row 1"}
+{"k":"45f058d878b50d38","g":2,"why":"Requested village is row 2"}
+{"k":"720021a0f7142836","g":2,"why":"Requested village is row 2"}
+{"k":"216cfe8bca4b9af6","g":3,"why":"Requested village is row 1"}
+{"k":"a00de3fdf96be9db","g":2,"why":"Requested village is row 2"}
+{"k":"2501a32d366fc528","g":3,"why":"Requested village is row 1"}
+{"k":"64fcce8e5ab408ab","g":2,"why":"Municipality is row 2 behind the municipal offices"}
+{"k":"481be190c822d278","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"d9be2144c3c83a45","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"953b8198aad19c81","g":2,"why":"Village is row 2 behind its train station"}
+{"k":"9e085f967d7520fa","g":1,"why":"Local businesses appear without the requested town or village"}

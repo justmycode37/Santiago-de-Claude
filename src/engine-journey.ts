@@ -137,6 +137,8 @@ function options() {
     stairs: p.stepFree ? 'never' : p.fewerStairs ? 'avoid' : 'ok',
     escalators: !p.noEscalators,
     wheelchair: !!p.wheelchair,
+    hills: p.avoidHills ? 'avoid' : p.ignoreHills ? 'ignore' : 'normal',
+    flatterChanges: p.flatterChanges,
     transferMarginS: p.extraChangeMin * 60,
     maxWalkMin: p.maxWalkMin,
   };
@@ -296,10 +298,13 @@ const byDeparture = (a: Journey, b: Journey) => a.dep - b.dep;
 const ridesOf = (j: { legs: KanteLeg[] }) => j.legs.filter((l): l is KanteRideLeg => l.type === 'ride')
   .map((l) => `${l.tripId}|${l.serviceDate}|${l.from.seq}|${l.to.seq}`).join(' ');
 
-// fromLL: [lng, lat]; dest: a search result ({ lngLat }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
-function request(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null) {
+// fromLL: [lng, lat]; dest: a search result ({ lngLat, kanteId }); query: the time picker ({ mode: 'dep' | 'arr', date, time })
+// A station found by the engine's search goes as its id: the trip then ends at the station, not at a door near its middle
+function request(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null; kanteId?: string } | null | undefined, query?: KanteTimeQuery | null) {
   if (!fromLL || !dest || !dest.lngLat) return null;
-  const body: PlanBody = { from: { lat: fromLL[1], lon: fromLL[0] }, to: { lat: dest.lngLat[1], lon: dest.lngLat[0] }, options: options() };
+  const to: KantePlaceRef = { lat: dest.lngLat[1], lon: dest.lngLat[0] };
+  if (dest.kanteId && dest.kanteId.startsWith('st:')) to.id = dest.kanteId;
+  const body: PlanBody = { from: { lat: fromLL[1], lon: fromLL[0] }, to, options: options() };
   const { mode, date, time } = query || {};
   if (date || time) {
     const now = new Date();
@@ -328,7 +333,7 @@ async function ask(body: KantePlanRequest) {
  * found none (or the trip has no end yet). Throws a KanteError when the engine is off or cannot be reached.
  * fromLL: where from; dest: a search result.
  */
-async function plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null } | null | undefined, query?: KanteTimeQuery | null): Promise<JourneyOptions | null> {
+async function plans(fromLL: LngLat | null | undefined, dest: { lngLat?: LngLat | null; kanteId?: string } | null | undefined, query?: KanteTimeQuery | null): Promise<JourneyOptions | null> {
   const body = request(fromLL, dest, query);
   if (!body) return null;
   const res = await ask(body);
@@ -402,7 +407,8 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   // platforms' registry points and can be far longer than what people walk there (long platforms, V-shaped
   // stations; cap_by_official in the engine). Metres that contradict the minutes are left out.
   const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
-  const dist = leg.kind === 'transfer' && pathS > leg.durationS + 150 ? null : leg.distanceM;
+  // (a change asked again comes as `direct`, with its minimum change time)
+  const dist = (leg.kind === 'transfer' || leg.officialMinS != null) && pathS > leg.durationS + 150 ? null : leg.distanceM;
   // its guessed ends, said as a guess, each over its own points ("Walk about 30 m where no way is mapped", "Then
   // about 60 m …"); all of it guessed: that one line instead of the engine's directions
   const about = (cs: LngLat[]) => `about ${Math.max(10, Math.round(metres(cs) / 10) * 10)} m where no way is mapped`;
@@ -418,13 +424,20 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   const door = leg.door ? { ll: [leg.door.lon, leg.door.lat] as LngLat, type: leg.door.kind, addr: leg.door.addr || '' } : null;
   if (leg.noStepFreeDoor) dirs.push({ kind: 'walk', text: 'No step-free entrance is mapped for this building', coords: [] });
   if (door) dirs.push({ kind: 'walk', text: door.addr ? `In at the entrance, ${door.addr}` : door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [door.ll] });
-  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door,
+  // a change walked round a hill because there is time for it: said first
+  if (leg.flatter && dirs.length) dirs.unshift({ kind: 'walk', text: flatterText(leg.flatter), coords: [] });
+  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door, ...(leg.climbM ? { climb: leg.climbM } : {}),
     // the guessed ends (drawn dashed, not counted as progress along the walk: snapToTrip() in tracking.ts), and the
     // stretches under a roof
     approxTo: to, approxFrom: from, ...(all ? { approx: true } : {}),
     covered: (leg.covered || []).map((c) => ({ kind: c.kind, coords: coords.slice(c.from, c.to + 1) })) };
   return { lines: [coords], walks: [walk],
     floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! })) };
+}
+/** What a change walked the flatter way says about it: "There is time for a flatter way: 20 m less uphill, 1 min longer". */
+function flatterText(f: { extraS: number; lessClimbM: number }) {
+  const min = Math.round(f.extraS / 60);
+  return `There is time for a flatter way: ${f.lessClimbM} m less uphill${min >= 1 ? `, ${min} min longer` : ''}`;
 }
 // Metres along a line (flat, fine over a walk)
 function metres(cs: LngLat[]) {

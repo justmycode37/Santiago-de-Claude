@@ -1662,7 +1662,7 @@ pub fn finalize(
         out_way.push(edge_way[old as usize]);
     }
     let csr = Csr::new(nodes.len(), &out_edges);
-    (WalkGraph { nodes, node_flags, adj_off: csr.off, adj: csr.adj, edges: out_edges, edge_way: out_way, geom: out_geom, names }, edge_map)
+    (WalkGraph { nodes, node_flags, adj_off: csr.off, adj: csr.adj, edges: out_edges, edge_way: out_way, geom: out_geom, names, slopes: Vec::new() }, edge_map)
 }
 
 #[cfg(test)]

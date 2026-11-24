@@ -22,6 +22,15 @@
 //! wheelchair mode rough surfaces count ×1.8, unpaved paths ×1.3 and busy
 //! roads ×2 (the largest of these, not their product).
 //!
+//! Hills (when the graph has slopes, `WalkGraph::slopes`, from `kante-elevation`; the model is
+//! `kante_core::slope`): every arc carries its direction's extra metres of walking time, which add to
+//! `var_m` (so up a hill takes longer than down it), its route-choice effort, weighted by the walker's
+//! `HillsPref` (×0 ignore, ×1 normal, ×3 avoid), and for wheelchairs (unless hills are ignored) its grades
+//! over 6 %. `WalkPath::climb_m` / `descent_m` count the metres climbed and descended. No slope makes an
+//! arc quicker than the flat, so the A* bound holds; the bounded searches allow for the effort
+//! (`search::bound_slack`). A search with `WalkProfile::backwards` (from a destination back to the stops)
+//! costs each arc's slopes as walked the other way, so it times the walk as it is walked.
+//!
 //! Unusable: steps for `StairsPref::Never` and for wheelchairs (unless
 //! `EF_RAMP`), escalators without `escalators`, lifts without `lifts`, an
 //! edge against `EF_ONEWAY_*`, and for wheelchairs `EF_WHEELCHAIR_NO` edges
@@ -182,6 +191,9 @@ impl WalkCost {
 pub struct WalkPath {
     pub cost: WalkCost,
     pub dist_m: f32,
+    /// Metres climbed and descended on the way (0 without a terrain model; stairs out of doors included).
+    pub climb_m: f32,
+    pub descent_m: f32,
     /// Number of steps climbed / descended.
     pub stairs_up: u16,
     pub stairs_down: u16,
@@ -336,9 +348,12 @@ impl WalkRouter {
     /// profile's speed. One result per target, in input order; `None` if the
     /// walk this profile would choose takes longer than `max_time_s` (or does
     /// not exist). The search runs on the generalised cost up to 1.3 ×
-    /// `max_time_s` (1.5 × when avoiding stairs, 2 × in wheelchair mode),
-    /// which covers every multiplicative penalty; only a walk that is close
-    /// to the bound *and* carries several avoided stair flights can be missed.
+    /// `max_time_s` (1.5 × when avoiding stairs, 2 × in wheelchair mode; 0.3
+    /// more when minding hills, 1.0 more avoiding them or in a wheelchair: see
+    /// `search::bound_slack`), which covers every multiplicative penalty; a
+    /// walk close to the bound with several avoided stair flights, or one up a
+    /// steep hill all the way, can be missed ([`WalkRouter::quickest_many`]
+    /// finds the quickest walk within the time).
     pub fn one_to_many(&self, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
         search::one_to_many(&self.graph, &self.net, from, targets, profile, max_time_s)
     }
