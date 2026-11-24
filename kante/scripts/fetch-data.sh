@@ -112,6 +112,8 @@ if (( only_elevation )); then
   fi
   mkdir -p "$RAW/dem"
   head=$(curl -fsSIL --retry 3 -A "$UA" "$DEM_URL") || { echo "error: $DEM_URL does not answer" >&2; exit 1; }
+  # the headers of the last answer only (a redirect's come first)
+  head=$(awk '/^HTTP\//{b=""} {b=b $0 "\n"} END{printf "%s", b}' <<<"$head")
   size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9' || true)
   etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r' || true)
   [[ $etag == W/* ]] && etag=''   # a weak one cannot vouch for the bytes of a range: no resuming
@@ -140,7 +142,8 @@ if (( only_elevation )); then
     echo "fetch $dest (10 GB)"
     # resumed only from the same edition: the server refuses the range (412) when the file is another one
     rc=0
-    code=$(curl -fSL --retry 5 -C - -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
+    # resumed (and resumed on a retry) only from an edition its ETag vouches for
+    code=$(curl -fSL --retry 5 ${etag:+-C -} -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
     if (( rc )); then
       # another edition (412), a range that cannot be resumed (416), or a server that ignores ranges (curl 33): start
       # again next time; the disk full (curl 23): the part removed, so that it does not keep the space
