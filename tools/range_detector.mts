@@ -10,7 +10,7 @@
 // YOLOX-tiny (Apache-2.0, src/yolox.ts, in onnxruntime-web like the display reader).
 //
 //   npm i --no-save @tensorflow/tfjs@4.22.0 @tensorflow-models/coco-ssd@2.2.3 jpeg-js@0.4.4 onnxruntime-web@1.20.1
-//   node tools/range_detector.mts FRAMES_DIR OUT_DIR [OUT_DIR…] [--sample 400] [--yolox DIR]
+//   node tools/range_detector.mts FRAMES_DIR OUT_DIR [OUT_DIR…] [--sample 400] [--yolox DIR] [--detections det5.jsonl[,…]]
 //   (FRAMES_DIR: one folder of 5 frames/s JPEGs per video, as range_detect.py read them; DIR: yolox_nano.onnx,
 //   yolox_tiny.onnx)
 import fs from 'node:fs';
@@ -22,6 +22,11 @@ const args = process.argv.slice(2);
 const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const SAMPLE = Number(opt('--sample') || 400);
 const YOLOX_DIR = opt('--yolox');
+// every YOLOE box of every frame (range_detect.py's output), to count a detector's boxes on no vehicle at all
+const ALL = new Map<string, Box[]>();
+for (const f of (opt('--detections') || '').split(',').filter(Boolean)) {
+  for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) if (line.trim()) { const d = JSON.parse(line); ALL.set(d.image, d.vehicles.map((v: { box: Box }) => v.box)); }
+}
 const plain = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
 const [FRAMES, ...DIRS] = plain;
 type Box = [number, number, number, number];
@@ -53,7 +58,7 @@ const iou = (a: Box, b: Box) => {
   const i = Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
   return i / (a[2] * a[3] + b[2] * b[3] - i);
 };
-const coco = (m: Coco) => async (img: Pic, x0 = 0, w = img.width): Promise<Box[]> => {
+const coco = (m: Coco, min = 0.5) => async (img: Pic, x0 = 0, w = img.width): Promise<Box[]> => {
   // as src/app/ar.ts: at most 6 boxes at 0.5, buses and trains (COCO has no tram)
   let data = img.data;
   if (x0 || w !== img.width) {
@@ -61,7 +66,7 @@ const coco = (m: Coco) => async (img: Pic, x0 = 0, w = img.width): Promise<Box[]
     for (let y = 0; y < img.height; y++) data.set(img.data.subarray((y * img.width + x0) * 3, (y * img.width + x0 + w) * 3), y * w * 3);
   }
   const x = tf.tensor3d(data, [img.height, w, 3], 'int32');
-  const got = (await m.detect(x, 6, 0.5)).filter((b) => b.class === 'bus' || b.class === 'train')
+  const got = (await m.detect(x, 6, min)).filter((b) => b.class === 'bus' || b.class === 'train')
     .map((b) => [(x0 + b.bbox[0]) / img.width, b.bbox[1] / img.height, b.bbox[2] / img.width, b.bbox[3] / img.height] as Box);
   x.dispose();
   return got;
@@ -72,27 +77,34 @@ const rgba = (img: Pic) => {
   return { data: o, width: img.width, height: img.height };
 };
 const DETECTORS: Record<string, (img: Pic) => Promise<Box[]>> = {
-  'COCO-SSD lite (today)': (img) => coco(lite)(img),
+  'COCO-SSD lite at 0.5 (the web, before)': (img) => coco(lite)(img),
+  'COCO-SSD lite at 0.3': (img) => coco(lite, 0.3)(img),
   'COCO-SSD lite, two parts': async (img) => {
     const w = Math.round(img.width * 0.6);
     return [...await coco(lite)(img, 0, w), ...await coco(lite)(img, img.width - w, w)];
   },
   'COCO-SSD mobilenet_v2': (img) => coco(full)(img),
 };
-if (ort) for (const m of Object.keys(yolox)) DETECTORS[`YOLOX-${m}`] = async (img) => (await yoloxDetect(ort, yolox[m], rgba(img), 0.3)).map((b) => b.box);
+if (ort) for (const m of Object.keys(yolox)) for (const min of [0.3, 0.5]) DETECTORS[`YOLOX-${m} at ${min}`] = async (img) => (await yoloxDetect(ort, yolox[m], rgba(img), min)).map((b) => b.box);
 
 const BUCKETS = [0, 0.1, 0.15, 0.2, 0.3, 0.5, 1.01];
 const names = Object.keys(DETECTORS);
 const tally: Record<string, { n: number; found: number; readable: number; readableFound: number; ms: number }[]> = {};
 for (const name of names) tally[name] = BUCKETS.slice(0, -1).map(() => ({ n: 0, found: 0, readable: 0, readableFound: 0, ms: 0 }));
+const extra: Record<string, number> = {}; // boxes on no YOLOE vehicle (a false-detection proxy)
+let withAll = 0;
 const t0 = Date.now();
 for (const r of pick) {
   const img = jpeg.default.decode(fs.readFileSync(path.join(FRAMES, r.video, String(r.frame).padStart(5, '0') + '.jpg')), { useTArray: true, formatAsRGBA: false });
   const k = BUCKETS.findIndex((b, i) => r.box[3] >= b && r.box[3] < BUCKETS[i + 1]);
   const readable = r.bench.length > 0; // the bench's front end read some text on it
+  const yoloe = ALL.get(`${r.video}/${String(r.frame).padStart(5, '0')}.jpg`);
+  if (yoloe) withAll++;
   for (const name of names) {
     const s = Date.now();
-    const hit = (await DETECTORS[name](img)).some((b) => iou(b, r.box) >= 0.3);
+    const boxes = await DETECTORS[name](img);
+    const hit = boxes.some((b) => iou(b, r.box) >= 0.3);
+    if (yoloe) extra[name] = (extra[name] || 0) + boxes.filter((b) => yoloe.every((y) => iou(b, y) < 0.3)).length;
     const t = tally[name][k];
     t.ms += Date.now() - s; t.n++; if (hit) t.found++;
     if (readable) { t.readable++; if (hit) t.readableFound++; }
@@ -108,4 +120,5 @@ BUCKETS.slice(0, -1).forEach((b, i) => {
   if (!n) return;
   console.log(`| ${b}–${Math.min(1, BUCKETS[i + 1])} | ${n} | ` + names.map((nm) => { const t = tally[nm][i]; return `${p(t.found, t.n)} (${p(t.readableFound, t.readable)})`; }).join(' | ') + ' |');
 });
+if (withAll) console.log(`| boxes on no YOLOE vehicle, per frame (${withAll} frames) | | ` + names.map((nm) => ((extra[nm] || 0) / withAll).toFixed(2)).join(' | ') + ' |');
 console.log('| ms per frame | | ' + names.map((nm) => String(Math.round(tally[nm].reduce((a, t) => a + t.ms, 0) / Math.max(1, tally[nm].reduce((a, t) => a + t.n, 0))))).join(' | ') + ' |');

@@ -53,6 +53,6 @@ web's Tesseract on a phone.
 - From [the plan](ar-recognition-plan.md): the `due` archive runs once enabled on the server
   (`deploy/units/kante-due-archive.service`); its comparison with Ist-Daten (`livemap/measure/due_compare.py`) needs
   a few days of it. The per-track posterior (step 4) is deferred ([ar-ambiguity-audit.md](ar-ambiguity-audit.md)).
-  The held-out bench set has not been re-extracted at 5 frames/s (kept for one final run).
+  The iOS PP-OCR text detector (step 3) waits for a measurement of Vision on small displays, which needs a Mac.
 - **Only a real phone at a real stop can tell:** detector and PP-OCR speed, LED display reading, the gyro shift's
   axes, compass bias near trams, the iOS permission flow, battery and heat ([ar-field-test.md](ar-field-test.md)).
