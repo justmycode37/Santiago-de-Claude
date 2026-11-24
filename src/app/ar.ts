@@ -237,12 +237,15 @@ function arLayer(mine: number, target: ArTarget) {
   // Field of view of a phone's main camera in portrait video, about 42° across and 69° down (not measured per phone:
   // artrack.ts stops using the shift by itself when unshifted boxes match better).
   const HFOV = 42, VFOV = 69;
-  let turn: ArShift = { dx: 0, dy: 0 }, motionAt = 0;
+  // pan: how far it turned in any orientation (degrees / the narrower field of view), for revoking labels on a jerk
+  let turn: ArShift = { dx: 0, dy: 0 }, pan = 0, motionAt = 0;
   const onMotion = (ev: Event) => {
     const r = (ev as DeviceMotionEvent).rotationRate, t = performance.now();
     const dt = motionAt ? Math.min(0.1, (t - motionAt) / 1000) : 0;
     motionAt = t;
-    if (!r || ((screen.orientation && screen.orientation.angle) || 0) !== 0) return;
+    if (!r) return;
+    pan += (Math.hypot(r.alpha || 0, r.beta || 0, r.gamma || 0) * dt) / HFOV;
+    if (((screen.orientation && screen.orientation.angle) || 0) !== 0) return;
     turn = { dx: turn.dx + ((r.gamma || 0) * dt) / HFOV, dy: turn.dy + ((r.beta || 0) * dt) / VFOV };
   };
   window.addEventListener('devicemotion', onMotion);
@@ -256,7 +259,10 @@ function arLayer(mine: number, target: ArTarget) {
     if (!at) return; // without the capture time a read cannot be put on the right vehicle
     const texts: ArText[] = d.words.filter((w) => w.text && w.text.trim()).map((w) => ({ text: w.text,
       box: [w.box.x0 / d.width, w.box.y0 / d.height, (w.box.x1 - w.box.x0) / d.width, (w.box.y1 - w.box.y0) / d.height] as ArBox,
-      score: Math.max(0.5, Math.min(1, w.conf / 100)) })); // Tesseract gives big lettering a low confidence
+      // Tesseract gives big lettering a low confidence, so a sure-enough word counts at least 0.5; a word it was not
+      // even 30 % sure of is left out (it would otherwise pass the matcher's own 0.3 floor as noise)
+      score: Math.max(0.5, Math.min(1, w.conf / 100)), conf: w.conf })).filter((w) => w.conf >= 30)
+      .map(({ conf: _c, ...w }) => w);
     const now = nowS();
     ocrAge.push(now - at); if (ocrAge.length > 20) ocrAge.shift();
     ses.words(texts, at, now);
@@ -382,18 +388,19 @@ function arLayer(mine: number, target: ArTarget) {
     }
     // vehicles, about 3 times a second
     if (busy || Date.now() - lastDetect < 330 || !video.videoWidth) return;
-    const model = await arDetector();
-    if (!model || arSession !== mine) return;
-    busy = true; lastDetect = Date.now();
+    busy = true; // before any await: one detection at a time, also while the model loads
     try {
+      const model = await arDetector();
+      if (!model || arSession !== mine) return;
+      lastDetect = Date.now();
       const t0 = performance.now(), at = nowS();
-      const shift = turn; turn = { dx: 0, dy: 0 };
+      const shift = turn, panned = pan; turn = { dx: 0, dy: 0 }; pan = 0;
       const found = (await model.detect(video, 6, 0.5)).filter((b) => b.class === 'bus' || b.class === 'train');
       detectMs.push(performance.now() - t0); if (detectMs.length > 20) detectMs.shift();
       if (arSession !== mine) return;
       const vw = video.videoWidth, vh = video.videoHeight;
       const dets: ArDet[] = found.map((b) => ({ box: [b.bbox[0] / vw, b.bbox[1] / vh, b.bbox[2] / vw, b.bbox[3] / vh] as ArBox, score: b.score, cls: b.class }));
-      ses.detections(dets, at, motionAt ? shift : null); // the picture the detector read was taken at `at`
+      ses.detections(dets, at, motionAt ? shift : null, motionAt ? panned : null); // the picture the detector read was taken at `at`
       keepCrops(at);
       draw(nowS());
     } catch (e) { /* a frame the detector could not read */ } finally { busy = false; }

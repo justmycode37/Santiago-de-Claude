@@ -114,7 +114,7 @@ export function dbBoxes(prob: Float32Array, width: number, height: number): [num
     seen[start] = 1; stack.push(start);
     while (stack.length) {
       const p = stack.pop()!, px = p % width, py = (p - px) / width;
-      sum += prob[p]; count++;
+      if (prob[p] > L.DET_THRESH) { sum += prob[p]; count++; } // the score: the region's own pixels, not the dilation's
       if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
       const next = [px > 0 ? p - 1 : -1, px < width - 1 ? p + 1 : -1, py > 0 ? p - width : -1, py < height - 1 ? p + width : -1];
       for (const q of next) if (q >= 0 && !seen[q] && on[q]) { seen[q] = 1; stack.push(q); }
@@ -128,11 +128,12 @@ export function dbBoxes(prob: Float32Array, width: number, height: number): [num
   return out.sort((a, b) => b.area - a.area).map((o) => o.box);
 }
 
-/** The recogniser's tensor for one line: 48 px high, BGR, v/127.5 − 1, padded with zeros to at least 320 wide. */
-export function recInput(line: OcrImage): { data: Float32Array; width: number } {
+/** The recogniser's tensor for one line (x, y, w, h of `img`, default all of it): 48 px high, BGR, v/127.5 − 1,
+ *  padded with zeros to at least 320 wide. One resize from the source pixels. */
+export function recInput(img: OcrImage, x = 0, y = 0, lw = img.width, lh = img.height): { data: Float32Array; width: number } {
   const L = PPOCR_LIMITS;
-  const w = Math.min(L.REC_MAX_W, Math.max(16, Math.ceil(L.REC_H * line.width / Math.max(1, line.height))));
-  const width = Math.max(320, w), r = resizeRegion(line, 0, 0, line.width, line.height, w, L.REC_H);
+  const w = Math.min(L.REC_MAX_W, Math.max(16, Math.ceil(L.REC_H * lw / Math.max(1, lh))));
+  const width = Math.max(320, w), r = resizeRegion(img, x, y, lw, lh, w, L.REC_H);
   const n = width * L.REC_H, out = new Float32Array(3 * n); // zeros: the padding
   for (let y = 0; y < L.REC_H; y++) for (let x = 0; x < w; x++) {
     const i = (y * w + x) * 4, o = y * width + x;
@@ -169,8 +170,7 @@ export async function readRegion(m: OcrModels, img: OcrImage, frame: { width: nu
     const pad = (by1 - by0) * L.REC_PAD_Y, ty0 = Math.max(0, by0 - pad), ty1 = Math.min(1, by1 + pad);
     const x = bx0 * img.width, y = ty0 * img.height, w = (bx1 - bx0) * img.width, h = (ty1 - ty0) * img.height;
     if (w < 5 || h < 5) continue;
-    const line = resizeRegion(img, x, y, w, h, Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
-    const rec = recInput(line);
+    const rec = recInput(img, x, y, w, h);
     const rout = await m.rec.run({ [m.rec.inputNames[0]]: new m.rt.Tensor('float32', rec.data, [1, 3, L.REC_H, rec.width]) });
     const r = Object.values(rout)[0];
     const [, steps, classes] = r.dims;

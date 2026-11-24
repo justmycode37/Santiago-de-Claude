@@ -109,8 +109,6 @@ interface Track {
   decidedAt: number;
   /** The last moment its identity was in doubt: reads captured before it are not its own. */
   contestedAt: number;
-  /** The text behind each reading (by frame id), so a second read of the same moment joins the first. */
-  sources: Map<string, ArText[]>;
 }
 
 const iou = ARCORE.iou;
@@ -119,6 +117,22 @@ const iou = ARCORE.iou;
 let frameSeq = 0;
 const shifted = (b: ArBox, s: ArShift | null): ArBox => (s ? [b[0] + s.dx, b[1] + s.dy, b[2], b[3]] : b);
 const midX = (b: ArBox) => b[0] + b[2] / 2;
+
+/** Two reads of one picture as one reading (at the first's moment). Two different line/destination pairs make it
+ *  ambiguous, as two pairs in one read do; out of service from either counts. */
+export function joinReadings(a: ArReading, b: ArReading, frameId: string): ArReading {
+  const observed = [...a.observed];
+  for (const t of b.observed) if (!observed.some((o) => o.text === t.text && iou(o.box, t.box) > 0.5)) observed.push(t);
+  const pa = a.line != null && a.destination != null ? a.line + '|' + a.destination : null;
+  const pb = b.line != null && b.destination != null ? b.line + '|' + b.destination : null;
+  const clash = !!pa && !!pb && pa !== pb;
+  const pick = pa ? a : pb ? b : null;
+  return {
+    frameId, at: a.at, line: clash || !pick ? null : pick.line, destination: clash || !pick ? null : pick.destination,
+    outOfService: a.outOfService || b.outOfService, ambiguous: a.ambiguous || b.ambiguous || clash,
+    raw: [...new Set([...a.raw, ...b.raw])], observed: observed.slice(0, 24), frameQuality: Math.max(a.frameQuality, b.frameQuality),
+  };
+}
 
 export function createArSession(ride: ArRide) {
   const L = AR_LIMITS;
@@ -130,8 +144,10 @@ export function createArSession(ride: ArRide) {
   let lastDetections = -Infinity;
   const log: ArEvent[] = [];
   let lastBoardEvent: ArEvent | null = null;
-  // the gyro shift is applied only while it helps: on a phone whose axes or signs differ, raw boxes match better
-  const derot = { on: true, better: 0, worse: 0 };
+  // The gyro shift is used only once it has shown it helps: on a phone whose axes or signs differ it would move a
+  // track's box onto its neighbour. Until then (and if it stops helping) boxes are matched unshifted, and a pan
+  // simply breaks tracks (labels are lost, never handed on).
+  const derot = { on: false, better: 0, worse: 0 };
 
   const note = (e: ArEvent) => {
     log.push(e);
@@ -139,15 +155,21 @@ export function createArSession(ride: ArRide) {
   };
   const contest = (t: Track, at: number, why: string) => {
     if (t.decision || t.readings.length) note({ at, type: 'revoke', track: t.id, why });
-    t.contestedAt = at; t.readings = []; t.decision = null; t.sources.clear();
+    t.contestedAt = at; t.readings = []; t.decision = null;
   };
 
-  /** A new set of detections (one picture). shift: how far the phone's turn moved the picture since the last one. */
-  function detections(dets: ArDet[], at: number, shift: ArShift | null = null) {
-    note({ at, type: 'detections', dets: dets.map((d) => ({ box: d.box, score: d.score, cls: d.cls })), shift });
+  /**
+   * A new set of detections (one picture, taken at `at`; older than the last one: ignored). shift: how far the phone's
+   * turn moved the picture since the last one (portrait only); pan: how far it turned, as a fraction of the picture, in
+   * any orientation (default: the shift's length), for revoking every label on a jerk.
+   */
+  function detections(dets: ArDet[], at: number, shift: ArShift | null = null, pan: number | null = null) {
+    if (at <= lastDetections) { note({ at, type: 'detections_dropped', why: 'out_of_order' }); return; }
+    note({ at, type: 'detections', dets: dets.map((d) => ({ box: d.box, score: d.score, cls: d.cls })), shift, pan });
     const live = tracks.filter((t) => at - t.lastSeen <= L.LOST_S);
     const use = derot.on ? shift : null;
-    if (shift && Math.hypot(shift.dx, shift.dy) > L.PAN_MAX) for (const t of live) contest(t, at, 'fast_pan');
+    const turned = pan != null ? pan : shift ? Math.hypot(shift.dx, shift.dy) : 0;
+    if (turned > L.PAN_MAX) for (const t of live) contest(t, at, 'fast_pan');
     const pred = live.map((t) => shifted(t.box, use));
     // learn whether the gyro shift helps (only when it is big enough to tell)
     if (shift && Math.hypot(shift.dx, shift.dy) > 0.03) {
@@ -155,17 +177,18 @@ export function createArSession(ride: ArRide) {
         const raw = Math.max(0, ...dets.map((d) => iou(t.box, d.box))), moved = Math.max(0, ...dets.map((d) => iou(shifted(t.box, shift), d.box)));
         if (Math.max(raw, moved) >= L.IOU_MATCH) { if (moved >= raw) derot.better++; else derot.worse++; }
       });
-      if (derot.on && derot.better + derot.worse >= 12 && derot.worse > 2 * derot.better) { derot.on = false; note({ at, type: 'derotation_off' }); }
+      if (!derot.on && derot.better >= 8 && derot.better >= 4 * derot.worse) { derot.on = true; note({ at, type: 'derotation_on' }); }
+      if (derot.on && derot.worse * 2 > derot.better) { derot.on = false; note({ at, type: 'derotation_off' }); }
     }
     const m = live.map((_, i) => dets.map((d) => iou(pred[i], d.box)));
     // greedy, best overlap first
     const pairs: [number, number, number][] = [];
     m.forEach((row, i) => row.forEach((v, j) => { if (v >= L.IOU_MATCH) pairs.push([i, j, v]); }));
     pairs.sort((a, b) => b[2] - a[2]);
-    const tUsed = new Set<number>(), dUsed = new Set<number>();
+    const tUsed = new Set<number>(), dUsed = new Set<number>(), matched: [number, number][] = [];
     for (const [i, j, v] of pairs) {
       if (tUsed.has(i) || dUsed.has(j)) continue;
-      tUsed.add(i); dUsed.add(j);
+      tUsed.add(i); dUsed.add(j); matched.push([i, j]);
       const t = live[i];
       // ambiguous: another box fits this track almost as well, or another track fits this box almost as well
       const rivalDet = m[i].some((w, k) => k !== j && w >= L.IOU_MATCH && w >= v * L.AMBIGUOUS_RATIO);
@@ -179,10 +202,16 @@ export function createArSession(ride: ArRide) {
       t.history.push({ at, box: d.box });
       while (t.history.length && t.history[0].at < at - L.HISTORY_S) t.history.shift();
     }
+    // a vehicle that vanished where another track's box now is may be hidden behind it, or be the one now seen
+    // there (the detector merged two into one box): the track that took that box is in doubt
+    live.forEach((u, i) => {
+      if (tUsed.has(i)) return;
+      for (const [k, j] of matched) if (iou(pred[i], dets[j].box) > 0.05) contest(live[k], at, 'occlusion');
+    });
     dets.forEach((d, j) => {
       if (dUsed.has(j)) return;
       const t: Track = { id: nextId++, box: d.box, score: d.score, cls: d.cls, born: at, lastSeen: at, hits: 1,
-        history: [{ at, box: d.box }], readings: [], decision: null, decidedAt: -Infinity, contestedAt: -Infinity, sources: new Map() };
+        history: [{ at, box: d.box }], readings: [], decision: null, decidedAt: -Infinity, contestedAt: -Infinity };
       tracks.push(t);
       note({ at, type: 'track_new', track: t.id, box: d.box });
     });
@@ -244,19 +273,17 @@ export function createArSession(ride: ArRide) {
     for (const { t, box, owner } of placed) {
       if (!box || !owner) continue;
       const others = placed.filter((p) => p.t !== t && p.box).map((p) => p.box!);
-      // a read of the same moment (the other OCR engine, same picture) joins it: one frame, never two
+      const read = ARCORE.read(texts, { box, score: t.score }, others, capturedAt, `${f}:${t.id}`);
+      if (!read.raw.length && !read.observed.length) continue;
+      // a read of the same moment (the other OCR engine, same picture) joins it: one frame, never two. Each was
+      // placed on the box of its own moment; only what each kept is joined.
       const twin = t.readings.find((x) => Math.abs(x.at - capturedAt) <= L.SAME_FRAME_S);
-      const all = twin ? [...(t.sources.get(twin.frameId) || []), ...texts] : texts;
-      const at = twin ? twin.at : capturedAt;
-      const r = ARCORE.read(all, { box, score: t.score }, others, at, `${f}:${t.id}`);
-      if (!r.raw.length && !r.observed.length) continue;
-      if (twin) { t.readings = t.readings.filter((x) => x !== twin); t.sources.delete(twin.frameId); }
-      t.sources.set(r.frameId, all);
+      const r = twin ? joinReadings(twin, read, `${f}:${t.id}`) : read;
+      if (twin) t.readings = t.readings.filter((x) => x !== twin);
       t.readings.push(r);
       t.readings.sort((a, b) => a.at - b.at);
       const newest = t.readings[t.readings.length - 1].at;
       t.readings = t.readings.filter((x) => newest - x.at <= 2);
-      for (const k of [...t.sources.keys()]) if (!t.readings.some((x) => x.frameId === k)) t.sources.delete(k);
       decideTrack(t, now);
     }
   }

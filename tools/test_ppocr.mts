@@ -38,6 +38,9 @@ for (let y = 24; y < 26; y++) for (let x = 50; x < 52; x++) prob[y * W + x] = 0.
 for (let y = 2; y < 6; y++) for (let x = 50; x < 60; x++) prob[y * W + x] = 0.35;  // faint: under the box score
 const boxes = dbBoxes(prob, W, H);
 check(boxes.length === 1, `one box: the line; not the speck or the faint patch (${boxes.length})`);
+const thin = new Float32Array(W * H);
+for (let x = 8; x < 40; x++) thin[20 * W + x] = 0.8; // a 1-px line: the dilation must not dilute its score
+check(dbBoxes(thin, W, H).length === 1, 'a thin line keeps its own score (the dilated border does not count)');
 const [x0, y0, x1, y1] = boxes[0];
 check(x0 * W < 8 && x1 * W > 40 && y0 * H < 10 && y1 * H > 16, `the line's box is grown around it (${boxes[0].map((v) => v.toFixed(2))})`);
 

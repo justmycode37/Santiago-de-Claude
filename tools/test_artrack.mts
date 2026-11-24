@@ -53,7 +53,7 @@ interface Step {
   det?: Record<string, ArBox>;
   shift?: { dx: number; dy: number };
   /** a read of the picture taken at `captured`, arriving now: which vehicle showed what (at its box of that moment) */
-  words?: { captured: number; on: Record<string, [string, string]> };
+  words?: { captured: number; on: Record<string, [string, string]>; free?: ArText[] };
   board?: { entries: ArBoardEntry[]; complete?: boolean } | 'fail';
   expect: Record<string, Want>;
   banner?: RegExp;
@@ -80,7 +80,7 @@ function suite(name: string, steps: Step[], ride: ArRide = RIDE) {
       ses.detections(Object.values(st.det).map((box) => ({ box, score: 0.9, cls: 'bus' })), st.at, st.shift || null);
     }
     if (st.words) {
-      const texts = Object.entries(st.words.on).flatMap(([v, [l, d]]) => displayOn(boxAt(v, st.words!.captured)!, l, d));
+      const texts = [...Object.entries(st.words.on).flatMap(([v, [l, d]]) => displayOn(boxAt(v, st.words!.captured)!, l, d)), ...(st.words.free || [])];
       ses.words(texts, st.words.captured, st.at);
     }
     const labels = ses.labels(st.at);
@@ -207,6 +207,32 @@ suite('Two reads of the same picture are one frame', [
   { at: 0.9, say: 'a later picture: two frames, red', det: { A: LEFT }, words: { captured: 0.9, on: { A: ['9', 'Wabern'] } }, expect: { A: 'red' } },
 ]);
 
+suite('Joining two reads of one picture never moves text onto another vehicle', [
+  { at: 0.1, say: 'board; A and B side by side', board: board(), det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.43, 0.3, 0.3, 0.4] }, expect: { A: 'none', B: 'none' } },
+  { at: 0.12, say: 'a read of t=0.1: B shows 10 Rüti at its left edge (where A will be at t=0.22)', det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.43, 0.3, 0.3, 0.4] },
+    words: { captured: 0.1, on: {}, free: [{ text: 'Bernmobil', box: [0.15, 0.4, 0.15, 0.05], score: 0.95 },
+      { text: '10', box: [0.44, 0.33, 0.02, 0.03], score: 0.95 }, { text: 'Rüti', box: [0.465, 0.33, 0.045, 0.03], score: 0.95 }] },
+    expect: { A: 'none', B: 'green' } },
+  { at: 0.22, say: 'both moved right; a read of t=0.22 on A joins its t=0.1 read', det: { A: [0.22, 0.3, 0.3, 0.4], B: [0.55, 0.3, 0.3, 0.4] },
+    words: { captured: 0.22, on: {}, free: [{ text: 'Bernmobil', box: [0.27, 0.4, 0.15, 0.05], score: 0.95 }] }, expect: { A: 'none', B: 'green' } },
+  { at: 0.5, say: 'B leaves: A has nothing of B', det: { A: [0.22, 0.3, 0.3, 0.4] }, expect: { A: 'none' } },
+]);
+suite('Two vehicles cross and the detector sees one box: the label is revoked, not handed on', [
+  { at: 0, say: 'board; A is my 10, B beside it', board: board(), det: { A: [0.1, 0.3, 0.3, 0.4], B: [0.46, 0.3, 0.3, 0.4] },
+    words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'none' } },
+  { at: 0.33, say: 'one box between them (B in front)', det: { X: [0.25, 0.3, 0.3, 0.4] }, expect: { X: 'none' } },
+]);
+suite('A gyro with the wrong sign is never used', [
+  { at: 0, say: 'board; A is my 10, B to its right', board: board(), det: { A: [0.1, 0.3, 0.25, 0.4], B: [0.45, 0.3, 0.25, 0.4] },
+    words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'none' } },
+  { at: 0.33, say: 'a pan moves the picture left by 0.15, the gyro says right by 0.2: B lands where the shift puts A',
+    det: { A: [-0.05, 0.3, 0.25, 0.4], B: [0.3, 0.3, 0.25, 0.4] }, shift: { dx: 0.2, dy: 0 }, expect: { A: 'green', B: 'none' } },
+]);
+suite('Detections out of order are dropped', [
+  { at: 1, say: 'board; A at t=1', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.8, say: 'an older detection arrives late: ignored', det: { A: LEFT }, expect: {} },
+]);
+
 // ---------------------------------------------------------------- stale and truncated boards
 suite('Green and red need a complete, fresh board', [
   { at: 0, say: 'a board cut at its limit', board: board(BASE, false), det: { A: LEFT, B: RIGHT }, expect: { A: 'none' } },
@@ -233,6 +259,13 @@ suite('Green and red need a complete, fresh board', [
     expect: { A: 'neutral', B: 'neutral' } },
   { at: 41.3, say: 'a new board brings them back', board: board(), det: { A: LEFT, B: RIGHT }, words: { captured: 41.3, on: { A: ['10', 'Ostermundigen Rüti'], B: ['9', 'Wabern'] } },
     expect: { A: 'green', B: 'red' } },
+]);
+// Red needs text in two frames, not a complete board (docs/ar-recognition-plan.md): the other departure it names is
+// on the board, and what the display says does not depend on what else might be missing from it.
+suite('Red on an incomplete board, green not', [
+  { at: 0, say: 'a board cut at its limit', board: board(BASE, false), det: { A: LEFT, B: RIGHT }, expect: {} },
+  { at: 0.3, say: 'reads', det: { A: LEFT, B: RIGHT }, words: { captured: 0.3, on: { A: ['10', 'Ostermundigen Rüti'], B: ['9', 'Wabern'] } }, expect: { A: 'neutral', B: 'neutral' } },
+  { at: 0.6, say: 'reads again', det: { A: LEFT, B: RIGHT }, words: { captured: 0.6, on: { A: ['10', 'Ostermundigen Rüti'], B: ['9', 'Wabern'] } }, expect: { A: 'neutral', B: 'red' } },
 ]);
 suite('No board at all: display text only', [
   { at: 0, say: 'A, no board yet', det: { A: LEFT }, expect: { A: 'none' }, banner: /live times unavailable/ },
