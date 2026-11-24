@@ -31,6 +31,9 @@ pub struct RunCall {
     /// there is nothing to board or leave).
     pub pickup: bool,
     pub dropoff: bool,
+    /// As timetabled (for matching what was said with what was measured later, `livemap/measure/due_compare.py`).
+    pub aimed_arr: Option<i64>,
+    pub aimed_dep: Option<i64>,
 }
 
 /// The facts behind `liveInfo`, for timetable trips and extra journeys alike.
@@ -99,6 +102,8 @@ impl Run {
                     skipped: tl.map(|l| l.is_skipped(p)).unwrap_or(false),
                     planned: changed.map(|_| stops[p]),
                     live: tl.is_some_and(|l| l.is_live_at(p)),
+                    aimed_arr: (p > 0).then(|| time::to_unix(date, tt.arr(trip, p))),
+                    aimed_dep: (p + 1 < n).then(|| time::to_unix(date, tt.dep(trip, p))),
                     pickup: p + 1 < n && flags.get(p).is_none_or(|f| f & FLAG_NO_PICKUP == 0),
                     dropoff: p > 0 && flags.get(p).is_none_or(|f| f & FLAG_NO_DROPOFF == 0),
                 }
@@ -130,6 +135,8 @@ impl Run {
                 live: true,
                 pickup: i + 1 < n,
                 dropoff: i > 0,
+                aimed_arr: if i > 0 { c.aimed_arr.or(c.aimed_dep) } else { None },
+                aimed_dep: if i + 1 < n { c.aimed_dep.or(c.aimed_arr) } else { None },
             })
             .collect();
         Run { mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
@@ -473,6 +480,7 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
     let here = &tt.stops[c.stop as usize];
     // After a measured stop, the next calls are timed by the learned hop and dwell profiles (as `position`).
     let (mut arr, mut dep) = (c.arr.or(c.dep), c.dep);
+    let forecast = (arr, dep);
     let mut profiled = false;
     if run.facts.observed_pos >= 0 && !c.skipped {
         if let Some((a, d)) = profiled_times(&served_with_profiles(app, run), &run.served(), i, dep) {
@@ -515,6 +523,10 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
         live_info: live_info(&run.facts, ages, now),
         extra: run.extra,
         profiled,
+        forecast_arr: if profiled { forecast.0 } else { None },
+        forecast_dep: if profiled { forecast.1 } else { None },
+        aimed_arr: c.aimed_arr.or(c.aimed_dep),
+        aimed_dep: c.aimed_dep,
         pickup: c.pickup && !c.skipped,
         serves_to,
         prev_stop: (0..i).rev().find(served).map(at),

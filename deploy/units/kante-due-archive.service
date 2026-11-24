@@ -1,0 +1,13 @@
+[Unit]
+Description=Archive the engine's /api/due answers for later comparison with measured times (livemap/measure/due_archive.py)
+After=kante-engine.service
+
+[Service]
+# Not enabled by install.sh: systemctl --user enable --now kante-due-archive.service
+ExecStart=/usr/bin/python3 -I %h/kante-host/repo/livemap/measure/due_archive.py %h/kante-host/due-archive
+Restart=always
+RestartSec=60
+Nice=10
+
+[Install]
+WantedBy=default.target

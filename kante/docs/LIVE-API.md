@@ -184,6 +184,8 @@ be missing). The AR camera never calls a vehicle "yours" on an incomplete board.
 
 `profiled`: after a measured stop, `arr`/`dep` (and `etaS`, `state`) come from the learned hop and dwell
 profiles, as `position` does on `/api/trip`, not from the forecast; the window applies to those final times.
+`aimedArr`/`aimedDep`: as timetabled; `forecastArr`/`forecastDep` (only where `profiled`): the forecast's own
+times before the profiles, so the two can be compared later (`livemap/measure/due_archive.py`, `due_compare.py`).
 `pickup`: riders may board here (false where the timetable allows only setting down, or the stop is skipped
 today). `servesTo` (with `to=`): whether the run calls at that station after this stop, not skipped today, and
 lets riders off there; an express and a local with the same display differ here. `complete` is about runs that
