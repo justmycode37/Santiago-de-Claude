@@ -43,25 +43,40 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   the camera. The ◎ button follows you (a drag stops it).
 
 - **First person** (👁 in the card, then ▶): the play-through at eye height (1.65 m) and true heights (1×), with fog
-  for what is far. The model is closed for it:
-  - **walls** as high as the room (to the floor above, at most 3.4 m): below ground the walls the **cadastral survey**
-    measured (where its outline of an underground building or underpass runs within 1.5 m of the floor's edge; the
-    floor is drawn on up to them) and every other edge of a floor except the platform edges along the tracks, at street level and above the edges of the indoor floors, and OpenStreetMap's
-    own walls. They are schematic (OpenStreetMap has the outline, not the wall; the card says so). Each wall **opens
-    where you walk**: wherever a path of the walking graph, a stair, an escalator or a ramp crosses it, so the way never
-    runs through a wall;
-  - **ceilings** below ground at the room's height, open over every stair, escalator, ramp and lift that goes up, and
-    seen from below only (from the floor above they are not there);
-  - **shops** as full-height blocks, and labels only of your floor and not behind a wall or a shop;
+  for what is far; below ground the distance is dark (a tunnel, a hall's far end), at street level it is the sky. The
+  model is closed and dressed for it (small canvas textures drawn once, `surfaces()`):
+  - **walls** as high as the room (to the floor that lies over it, at most 3.4 m — not merely the next level of the
+    table: Zürich's −3 is 1.8 m above −4, elsewhere): below ground the walls the **cadastral survey** measured (where
+    its outline of an underground building or underpass runs within 1.5 m of the floor's edge; the floor is drawn on up
+    to them) and every other edge of a floor except the platform edges along the tracks, at street level and above the
+    edges of the indoor floors, and OpenStreetMap's own walls. They are schematic (OpenStreetMap has the outline, not
+    the wall; the card says so), in panels with a skirting and soft shade at the foot and under the ceiling. Each wall
+    **opens where you walk**: wherever the way, a path of the walking graph, a stair, an escalator or a ramp crosses it,
+    so the way never runs through a wall; openings less than 1.2 m apart are one, and what is left between them under
+    1 m (a blade) goes;
+  - **floors** of stone tiles, open where a stair or an escalator passes under them within head height (so the eye
+    never goes through a floor on the way down); a floor with tracks is drawn thick enough to reach below their bed;
+  - **ceilings** below ground at the room's height with panels and light strips, open over every stair, escalator,
+    ramp and lift that passes through and over the wells of the floor above, seen from below only;
+  - **tracks** in a trough: concrete bed, rails, the white safety line 1.2 m in from every platform edge; below ground
+    a ceiling over the tracks 4.1 m up (a double-deck coach fits), the drop to it along the platform edge, and a wall
+    along the outer side of the outer tracks, so past a platform's edge there is a station, not the void;
+  - **shops** as fronts to the ceiling in the colour of their kind (a plinth, glazing between mullions lit from
+    inside, a fascia): a room of OpenStreetMap all round its outline, a shop mapped only as a point (all of Zürich's
+    ShopVille) as a front 4 m wide on the wall nearest it (within 5 m). A room the way walks through is not drawn
+    (OpenStreetMap's path runs through it). Names come from the labels: only of your floor, not behind a wall or a shop
+    (tested in the floor's plan, four times a second);
+  - **stairs** with closed strings, a balustrade and a handrail on each side; escalators with their handrails;
   - the survey's **pillars** (to the ceiling, or up to the canopy over them) and **platform canopies** (at the height
     of a building or roof of the model over them, else 4.6 m);
-  - the eye and the yellow line on the floor keep 0.7 m and 0.55 m off the walls (OpenStreetMap often draws a
-    passage's path along its edge).
+  - the eye and the yellow line on the floor keep 0.65 m off walls, pillars and shops (OpenStreetMap often draws a
+    passage's path along its edge; a point inside a shop is moved out through its nearest side).
 
   The eye looks where the way goes 7 m ahead (2.5 m on stairs and escalators, pitch at most 20°), turning by yaw and
-  pitch. In a lift the view gives way to its display (direction, the floor it passes, where it goes); out of a lift at
-  the end it turns along the platform. Paused, a drag looks round; ‹ › go to the start of a step; a floor, ⌂, ◎ or 👁
-  again leave it. Lift shafts are one-sided here, so from inside one you look out.
+  pitch. In a lift the view gives way to its display over the car's walls (direction, the floor it passes, where it
+  goes); out of a lift at the end it turns along the platform. Paused, a drag looks round; ‹ › go to the start of a
+  step; a floor, ⌂, ◎ or 👁 again leave it. Its shaders are compiled off the main thread where the browser can
+  (`compileAsync`): the last frame stays until they are ready.
 
 What it does not have: inner walls (the survey has only the outer outlines of what is built below ground, and no
 heights), signs at eye level, the survey at Lausanne and Luzern (Vaud and Luzern do not publish it openly). Where such data
@@ -71,7 +86,12 @@ covering every Swiss station in [station3d-research.md](station3d-research.md).
 
 When the walk ends at a platform to board a train, that train stands at the platform as a hologram: its coaches,
 their classes, where to get on (the walk is aimed at that sector) and how full each class is expected to be. See
-[train-formation.md](train-formation.md).
+[train-formation.md](train-formation.md). It stands on its rails (on the track bed, under the platform's edge) and fades into the
+fog in first person. When the journey gives no train there (the view opened from a platform, the presets of the
+development page), a **typical train** stands at the platform the way ends or starts at: four plain coaches round where
+the way arrives, quieter, with no classes and no boarding zone, single-deck on narrow-gauge track; without sectors in the
+model (Bern's RBS platforms) it stands along the platform's own walkway. The shimmer redraws the view only while a train
+is in view. Trains at other platforms are not drawn: they would read as yours.
 
 Step by step (**Next ›**), the camera looks across each floor change so the climb shows in profile, a stair or an
 escalator close up; **Whole way** shows it all. The floor buttons lift away everything above a floor (its outlines stay, as a ghost). Labels are

@@ -166,7 +166,7 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .stv-spin { animation-duration: 3s; } }
 
 /* first person in a lift (station3d-solid.js) */
-.stv .sx-lift { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(12,14,18,.62); pointer-events: none; }
+.stv .sx-lift { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: radial-gradient(120% 90% at 50% 42%, #434850 0%, #24272c 55%, #15171a 100%); pointer-events: none; }
 .stv .sx-lift[hidden] { display: none; }
 .stv .sx-lift-car { min-width: 200px; padding: 18px 24px; border-radius: 18px; background: #14161a; color: #ffc928; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
 .stv .sx-lift-arrow { font-size: 34px; line-height: 1; }
