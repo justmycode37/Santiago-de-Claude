@@ -383,6 +383,8 @@ interface KanteDueResponse {
     servesTo?: boolean | null;
     /** arr/dep come from the learned hop and dwell profiles after a measured stop. */
     profiled?: boolean;
+    /** Riders may board here (false: it only sets down, or is skipped today). */
+    pickup?: boolean;
     /** Boarding points of the stops before and after this one. */
     prevStop?: LngLat | null;
     nextStop?: LngLat | null;

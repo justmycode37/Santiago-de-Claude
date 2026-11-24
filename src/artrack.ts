@@ -33,6 +33,8 @@ export interface ArBoardEntry {
   etaS?: number | null;
   /** null: it only sets down here (no departure). undefined: not told. */
   dep?: number | null;
+  /** false: riders may not board it here (it only sets down, or is skipped today). */
+  pickup?: boolean;
   cancelled?: boolean;
   /** Does it call at the rider's stop after this one? /api/due with `to=`; undefined: not told. */
   servesTo?: boolean | null;
@@ -70,8 +72,11 @@ export const AR_LIMITS = {
   AMBIGUOUS_RATIO: 0.7,
   /** Two tracks overlapping this much may swap identities: both are revoked. */
   IOU_CROSSING: 0.3,
-  /** A track unseen this long is gone; a vehicle seen again later is a new track without a label. */
+  /** A track missing from one detection is gone (a vehicle seen again is a new track without a label: another
+   *  vehicle can take its place, and nothing could tell). Two detections this far apart are not compared at all. */
   LOST_S: 1.2,
+  /** Reads of pictures taken this close together are one frame (Tesseract and PP-OCR can read the same picture). */
+  SAME_FRAME_S: 0.12,
   /** A box is drawn while it was seen this recently. */
   SHOWN_S: 0.6,
   /** The phone turned more than this (fraction of the picture) between two detections: every track is revoked. */
@@ -104,6 +109,8 @@ interface Track {
   decidedAt: number;
   /** The last moment its identity was in doubt: reads captured before it are not its own. */
   contestedAt: number;
+  /** The text behind each reading (by frame id), so a second read of the same moment joins the first. */
+  sources: Map<string, ArText[]>;
 }
 
 const iou = ARCORE.iou;
@@ -116,6 +123,8 @@ const midX = (b: ArBox) => b[0] + b[2] / 2;
 export function createArSession(ride: ArRide) {
   const L = AR_LIMITS;
   let tracks: Track[] = [];
+  /** Tracks gone in the last few seconds: their boxes still keep late text from a neighbour; they own nothing. */
+  let gone: Track[] = [];
   let nextId = 1;
   let board: ArBoard | null = null;
   let lastDetections = -Infinity;
@@ -130,7 +139,7 @@ export function createArSession(ride: ArRide) {
   };
   const contest = (t: Track, at: number, why: string) => {
     if (t.decision || t.readings.length) note({ at, type: 'revoke', track: t.id, why });
-    t.contestedAt = at; t.readings = []; t.decision = null;
+    t.contestedAt = at; t.readings = []; t.decision = null; t.sources.clear();
   };
 
   /** A new set of detections (one picture). shift: how far the phone's turn moved the picture since the last one. */
@@ -173,7 +182,7 @@ export function createArSession(ride: ArRide) {
     dets.forEach((d, j) => {
       if (dUsed.has(j)) return;
       const t: Track = { id: nextId++, box: d.box, score: d.score, cls: d.cls, born: at, lastSeen: at, hits: 1,
-        history: [{ at, box: d.box }], readings: [], decision: null, decidedAt: -Infinity, contestedAt: -Infinity };
+        history: [{ at, box: d.box }], readings: [], decision: null, decidedAt: -Infinity, contestedAt: -Infinity, sources: new Map() };
       tracks.push(t);
       note({ at, type: 'track_new', track: t.id, box: d.box });
     });
@@ -188,8 +197,9 @@ export function createArSession(ride: ArRide) {
       }
       if (crossed) { contest(A, at, 'crossing'); contest(B, at, 'crossing'); }
     }
-    for (const t of tracks) if (at - t.lastSeen > L.LOST_S) note({ at, type: 'track_lost', track: t.id });
-    tracks = tracks.filter((t) => at - t.lastSeen <= L.LOST_S);
+    for (const t of tracks) if (t.lastSeen !== at) { note({ at, type: 'track_lost', track: t.id }); gone.push(t); }
+    tracks = tracks.filter((t) => t.lastSeen === at);
+    gone = gone.filter((t) => at - t.lastSeen <= L.HISTORY_S);
     lastDetections = at;
   }
 
@@ -229,16 +239,24 @@ export function createArSession(ride: ArRide) {
     if (now - capturedAt > L.LATE_S || capturedAt > now + 0.05) { note({ at: now, type: 'words_dropped', why: 'late' }); return; }
     // where every track was then; one whose identity came into doubt since cannot own the text, but its box still
     // keeps its text from going to a neighbour
-    const placed = tracks.map((t) => ({ t, box: boxAt(t, capturedAt), owner: t.contestedAt < capturedAt }));
+    const placed = [...tracks.map((t) => ({ t, box: boxAt(t, capturedAt), owner: t.contestedAt < capturedAt })),
+      ...gone.map((t) => ({ t, box: boxAt(t, capturedAt), owner: false }))];
     for (const { t, box, owner } of placed) {
       if (!box || !owner) continue;
       const others = placed.filter((p) => p.t !== t && p.box).map((p) => p.box!);
-      const r = ARCORE.read(texts, { box, score: t.score }, others, capturedAt, `${f}:${t.id}`);
+      // a read of the same moment (the other OCR engine, same picture) joins it: one frame, never two
+      const twin = t.readings.find((x) => Math.abs(x.at - capturedAt) <= L.SAME_FRAME_S);
+      const all = twin ? [...(t.sources.get(twin.frameId) || []), ...texts] : texts;
+      const at = twin ? twin.at : capturedAt;
+      const r = ARCORE.read(all, { box, score: t.score }, others, at, `${f}:${t.id}`);
       if (!r.raw.length && !r.observed.length) continue;
+      if (twin) { t.readings = t.readings.filter((x) => x !== twin); t.sources.delete(twin.frameId); }
+      t.sources.set(r.frameId, all);
       t.readings.push(r);
       t.readings.sort((a, b) => a.at - b.at);
       const newest = t.readings[t.readings.length - 1].at;
       t.readings = t.readings.filter((x) => newest - x.at <= 2);
+      for (const k of [...t.sources.keys()]) if (!t.readings.some((x) => x.frameId === k)) t.sources.delete(k);
       decideTrack(t, now);
     }
   }
@@ -266,19 +284,30 @@ export function createArSession(ride: ArRide) {
   /** Runs due here whose display is the rider's; and whether all of them take the rider where they are going. */
   function plausibleRuns(now: number) {
     const own = { line: ride.line, destination: ride.destination };
-    const runs = board!.entries.filter((e) => !e.cancelled && e.state !== 'departed' && e.line && e.headsign
-      && ARCORE.sameDisplay({ line: e.line, destination: e.headsign }, own)
-      && (e.etaS == null || e.etaS - (now - board!.at) > -600));
+    // every run on the board with that display, also one timed as departed: a late vehicle may still be standing here
+    const runs = board!.entries.filter((e) => !e.cancelled && e.line && e.headsign
+      && ARCORE.sameDisplay({ line: e.line, destination: e.headsign }, own));
     const isRider = (e: ArBoardEntry) => !!ride.tripId && e.tripId === ride.tripId && (!ride.serviceDate || e.serviceDate === ride.serviceDate);
+    // the planned trip needs no servesTo from an engine that does not send it; one that says "no" always counts
+    const serves = (e: ArBoardEntry) => e.servesTo === true || (isRider(e) && e.servesTo == null);
     const why = !runs.length ? 'no_such_run_due'
-      : runs.some((e) => e.dep === null) ? 'a_run_only_sets_down'
-      : runs.some((e) => !isRider(e) && e.servesTo !== true) ? (runs.some((e) => e.servesTo === false) ? 'a_run_skips_your_stop' : 'stop_served_unknown')
+      : runs.some((e) => e.dep === null || e.pickup === false) ? 'a_run_cannot_be_boarded_here'
+      : runs.some((e) => e.servesTo === false) ? 'a_run_skips_your_stop'
+      : runs.some((e) => !serves(e)) ? 'stop_served_unknown'
       : '';
     return { runs, why };
   }
 
-  /** The label of every vehicle on screen now. */
+  /** The label of every vehicle on screen now. Two vehicles that would both be green are both shown neutral: the
+   *  camera cannot tell the rider which one to take (multiple_matching_vehicles). */
   function labels(now: number): ArLabel[] {
+    const out = labelsEach(now);
+    if (out.filter((l) => l.kind === 'green').length > 1) {
+      for (const l of out) if (l.kind === 'green') Object.assign(l, { kind: 'neutral', text: `Display: ${display(ride.line, ride.destination)}`, reason: 'multiple_matching_vehicles' });
+    }
+    return out;
+  }
+  function labelsEach(now: number): ArLabel[] {
     const out: ArLabel[] = [];
     const fresh = boardFresh(now);
     for (const t of tracks) {
@@ -353,6 +382,7 @@ export function boardOf(d: KanteDueResponse, at: number): ArBoard {
     entries: (d.due || []).filter((x) => x.line && x.headsign).map((x) => ({
       tripId: x.tripId, serviceDate: x.serviceDate, line: x.line!.name, headsign: x.headsign!, vias: x.vias || undefined,
       quayId: x.quayId, quayLabel: x.quayLabel, state: x.state, etaS: x.etaS, dep: x.dep, cancelled: x.cancelled, servesTo: x.servesTo,
+      pickup: x.pickup,
     })),
   };
 }

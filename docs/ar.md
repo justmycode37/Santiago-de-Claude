@@ -18,12 +18,15 @@ runs by itself until it is closed. `?ar=0` in the address hides the button (reme
 The rules come from [ar-recognition-plan.md](ar-recognition-plan.md) and hold by construction:
 
 - **Green** ("Your bus 10 → Rüti"): the display matcher accepts this vehicle's own reads; the board is fresh and
-  complete (`/api/due`'s `complete`); every run due here with that display departs here and calls at your stop
-  (`servesTo`, or it is your trip).
-- **Red** ("Not yours: 9 → Wabern", "Not in service"): text only, in two distinct frames, on a fresh board.
+  complete (`/api/due`'s `complete`); every run on the board with that display (also one timed as departed) can be
+  boarded here (`pickup`) and lets you off at your stop (`servesTo`; your own trip counts when the engine does not
+  say). Two vehicles that would both be green are both shown neutral.
+- **Red** ("Not yours: 9 → Wabern", "Not in service"): text only, in two distinct frames, on a fresh board. Reads
+  of pictures taken within 0.12 s (Tesseract and PP-OCR on the same picture) are one frame.
 - Otherwise the display text alone ("Display: 10 → Rüti"), or nothing. Timing never labels a vehicle.
-- A crossing, an ambiguous match between two detections, a fast pan or a lost track drops the vehicle's reads and
-  label; a vehicle seen again starts without one. A label lapses 8 s after the read that made it.
+- A crossing, an ambiguous match between two detections or a fast pan drops the vehicle's reads and label. A
+  vehicle missing from one detection is gone: seen again, it is a new vehicle without a label (another vehicle may
+  have taken its place). A label lapses 8 s after the read that made it.
 
 `tools/test_artrack.mts` replays scripted events through this code (crossings, late reads, stale and truncated
 boards, wrong quays, twin buses, express and local with the same display, short turns) and checks what is shown

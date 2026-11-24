@@ -217,11 +217,18 @@ function arLayer(mine: number, target: ArTarget) {
   // goes stale on its own after AR_LIMITS.BOARD_STALE_S (no green or red without a fresh one)
   const stopId = stopUic(target.ride.s.from);
   const toId = stopUic(target.ride.s.to);
+  // before: 300, so a late vehicle timed as departed is still on the board (and still blocks green for a twin display).
+  // Answers that come back out of order are dropped: an older board must never replace a newer one.
+  let dueAsked = 0, dueApplied = 0;
   const loadDue = () => {
     const hooks = scanHooks();
     if (!hooks.due || !stopId) return;
-    hooks.due({ station: String(stopId), after: 900, before: 60, to: toId ? String(toId) : undefined, limit: 60 })
-      .then((d) => { if (d) ses.board(boardOf(d, nowS())); else ses.boardFailed(nowS()); }, () => ses.boardFailed(nowS()));
+    const n = ++dueAsked;
+    hooks.due({ station: String(stopId), after: 900, before: 300, to: toId ? String(toId) : undefined, limit: 80 })
+      .then((d) => {
+        if (n < dueApplied) return;
+        if (d) { dueApplied = n; ses.board(boardOf(d, nowS())); } else ses.boardFailed(nowS());
+      }, () => ses.boardFailed(nowS()));
   };
   loadDue();
   const dueTimer = setInterval(loadDue, 15000);

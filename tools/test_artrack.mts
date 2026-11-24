@@ -92,6 +92,15 @@ function suite(name: string, steps: Step[], ride: ArRide = RIDE) {
       check(got === kind && (!re || (!!l && re.test(l.text))),
         `${name} · t=${st.at} ${st.say}: ${v} shows ${kind}${re ? ' ' + re : ''} (got ${got}${l ? ` "${l.text}" ${l.reason}` : ''})`);
     }
+    // no green or red anywhere that this step does not name: not on a vehicle left out of `expect`, nor on a box
+    // the script no longer tracks (a label lingering on, or handed to, another vehicle)
+    const allowed = new Set(Object.entries(st.expect).filter(([, w]) => {
+      const k = Array.isArray(w) ? w[0] : w;
+      return k === 'green' || k === 'red';
+    }).map(([v]) => current[v]));
+    for (const l of labels) {
+      if ((l.kind === 'green' || l.kind === 'red') && !allowed.has(l.box)) check(false, `${name} · t=${st.at} ${st.say}: unexpected ${l.kind} "${l.text}" on track ${l.track}`);
+    }
     if (st.banner) { const b = ses.banner(st.at).text; check(st.banner.test(b), `${name} · t=${st.at} banner ${st.banner} (got "${b}")`); }
   }
   return ses;
@@ -185,6 +194,19 @@ suite('A vehicle in doubt keeps its text from its neighbour', [
     words: { captured: 0.01, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { C: 'none' } },
 ]);
 
+suite('A vehicle that takes the place of a lost one inherits nothing', [
+  { at: 0, say: 'board; A is my 10', board: board(), det: { A: LEFT }, words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green' } },
+  { at: 0.2, say: 'the detector sees nothing', det: {}, expect: {} },
+  { at: 0.5, say: 'B stands where A was, nothing read on it', det: { B: LEFT }, expect: { B: 'none' } },
+]);
+suite('Two reads of the same picture are one frame', [
+  { at: 0, say: 'board', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.5, say: 'Tesseract reads 9 Wabern on the picture of t=0.3', det: { A: LEFT }, words: { captured: 0.3, on: { A: ['9', 'Wabern'] } }, expect: { A: 'neutral' } },
+  { at: 0.7, say: 'PP-OCR reads the same picture (0.05 s apart): still one frame, no red', det: { A: LEFT },
+    words: { captured: 0.35, on: { A: ['9', 'Wabern'] } }, expect: { A: ['neutral', /Display: 9/] } },
+  { at: 0.9, say: 'a later picture: two frames, red', det: { A: LEFT }, words: { captured: 0.9, on: { A: ['9', 'Wabern'] } }, expect: { A: 'red' } },
+]);
+
 // ---------------------------------------------------------------- stale and truncated boards
 suite('Green and red need a complete, fresh board', [
   { at: 0, say: 'a board cut at its limit', board: board(BASE, false), det: { A: LEFT, B: RIGHT }, expect: { A: 'none' } },
@@ -228,11 +250,14 @@ suite('The banner follows the planned trip, not the first run of the line', [
   { at: 2, say: 'my trip is not on the board', board: board(BASE.slice(1)), expect: {}, banner: /not on the live board/ },
   { at: 3, say: 'my trip is cancelled', board: board([{ ...MINE, cancelled: true }]), expect: {}, banner: /cancelled/ },
 ]);
-suite('Twin buses: each green from its own read, never from the other\'s', [
+suite('Twin buses: green from its own read; two at once are both withheld', [
   { at: 0, say: 'two 10 Rüti due, both serve my stop', board: board([...BASE, E('T10c', '10', 'Ostermundigen, Rüti', { servesTo: true, etaS: 400 })]),
     det: { A: LEFT, B: RIGHT }, expect: { A: 'none', B: 'none' } },
   { at: 0.3, say: 'A reads 10 Rüti', det: { A: LEFT, B: RIGHT }, words: { captured: 0.3, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'none' } },
-  { at: 0.6, say: 'B reads 10 Rüti', det: { A: LEFT, B: RIGHT }, words: { captured: 0.6, on: { B: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'green' } },
+  { at: 0.6, say: 'B reads 10 Rüti too: which one to take is not for the camera to say', det: { A: LEFT, B: RIGHT },
+    words: { captured: 0.6, on: { B: ['10', 'Ostermundigen Rüti'] } },
+    expect: { A: ['neutral', /Display: 10/], B: ['neutral', /Display: 10/] } },
+  { at: 1.0, say: 'B leaves: A alone is green again', det: { A: LEFT }, words: { captured: 1.0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green' } },
 ]);
 suite('Express and local with the same display: no green', [
   { at: 0, say: 'a 10 Rüti that skips my stop is due too', board: board([...BASE, E('T10x', '10', 'Ostermundigen, Rüti', { servesTo: false, etaS: 60 })]),
@@ -242,6 +267,20 @@ suite('Express and local with the same display: no green', [
     det: { A: LEFT }, words: { captured: 1, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'neutral' } },
   { at: 2, say: 'a run that only sets down here', board: board([...BASE, E('T10y', '10', 'Ostermundigen, Rüti', { dep: null, servesTo: true })]),
     det: { A: LEFT }, words: { captured: 2, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'neutral' } },
+]);
+suite('My own trip, when the engine says it skips my stop today: no green', [
+  { at: 0, say: 'my trip is on the board with servesTo false', board: board([{ ...MINE, servesTo: false }, ...BASE.slice(1)]), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'A reads 10 Rüti', det: { A: LEFT }, words: { captured: 0.3, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: ['neutral', /Display: 10/] } },
+  { at: 1, say: 'an engine without servesTo: my own trip is enough', board: board([{ ...MINE, servesTo: undefined }, ...BASE.slice(1)]),
+    det: { A: LEFT }, words: { captured: 1, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green' } },
+]);
+suite('A same-display express timed as departed still blocks green', [
+  { at: 0, say: 'the express (skips my stop) should have left a minute ago', board: board([...BASE, E('T10x', '10', 'Ostermundigen, Rüti', { servesTo: false, state: 'departed', etaS: -60 })]),
+    det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: 'A reads 10 Rüti: it may be the late express', det: { A: LEFT }, words: { captured: 0.3, on: { A: ['10', 'Ostermundigen Rüti'] } },
+    expect: { A: ['neutral', /Display: 10/] } },
+  { at: 1, say: 'a same-display run that may not be boarded here', board: board([...BASE, E('T10y', '10', 'Ostermundigen, Rüti', { servesTo: true, pickup: false })]),
+    det: { A: LEFT }, words: { captured: 1, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'neutral' } },
 ]);
 suite('Short turn: red after two frames', [
   { at: 0, say: 'a 10 to Zollgasse (before my stop) is due', board: board([...BASE, E('T10s', '10', 'Ostermundigen, Zollgasse', { servesTo: false })]),
@@ -275,7 +314,7 @@ function replay(cap: Capture, each: (labels: ReturnType<ReturnType<typeof create
 }
 {
   console.log('A capture replays to the labels it was saved with');
-  const steps = (at: number, words: boolean): Step => ({ at, say: '', det: { A: LEFT, B: RIGHT }, expect: {},
+  const steps = (at: number, words: boolean): Step => ({ at, say: '', det: { A: LEFT, B: RIGHT }, expect: { A: 'green', B: at < 0.9 ? 'neutral' : 'red' },
     words: words ? { captured: at, on: { A: ['10', 'Ostermundigen Rüti'], B: ['9', 'Wabern'] } } : undefined });
   const live = suite('  (recording)', [{ at: 0, say: 'board', board: board(), expect: {} }, steps(0.3, true), steps(0.6, false), steps(0.9, true), steps(2.0, false)]);
   const shown = (ls: { track: number; kind: string; text: string }[]) => ls.map((l) => `${l.track}:${l.kind}:${l.text}`).join('|');
