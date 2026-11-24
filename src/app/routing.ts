@@ -60,6 +60,8 @@ export interface RoutedWalk {
   climb?: number;
   /** A change walked round a hill because there was time for it. */
   flatter?: boolean;
+  /** A change the timetable gives a minimum change time (timed by it, not by the way drawn). */
+  capped?: boolean;
 }
 /** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
  *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */
@@ -233,8 +235,9 @@ type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // quickest when even the usual way is too long) and times it as it planned it (a minimum change time included), so a
 // delay that changes it asks again, and an answer asked for another time is dropped. Where its lines meet inside it
 // (syncEnds()) is not: that follows from how it is drawn.
-// A change whose walk is flat (no hill to walk round, not walked round one) and fits its time does not depend on it:
-// it is asked again only once it no longer fits. The others by the time there is, to 15 s.
+// A change whose walk is flat (no hill to walk round, not walked round one, not timed by a minimum change time, for
+// which the way drawn follows the time there is) and fits its time does not depend on it: it is asked again only once
+// it no longer fits. The others by whether it fits and by the time there is, to 15 s.
 const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => JSON.stringify([walkEnds(st), walkTimeKey(st)]);
 const walkEnds = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
@@ -246,8 +249,8 @@ function walkTimeKey(st: JourneyWalkStep | JourneyChangeStep) {
   if (room == null) return null;
   const ws = st.walks || [];
   const fits = st.walkS != null && st.walkS <= room;
-  const flat = ws.every((w) => !w || (!w.flatter && (w.climb || 0) < 5));
-  return fits && flat ? 'fits' : Math.round(room / 15);
+  const flat = ws.every((w) => !w || (!w.flatter && !w.capped && (w.climb || 0) < 5));
+  return fits && flat ? 'fits' : [fits, Math.round(room / 15)];
 }
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
 // ends and platforms the walk no longer has, are dropped

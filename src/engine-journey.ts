@@ -423,7 +423,7 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   if (door) dirs.push({ kind: 'walk', text: door.addr ? `In at the entrance, ${door.addr}` : door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [door.ll] });
   // a change walked round a hill because there is time for it: said first
   if (leg.flatter && dirs.length) dirs.unshift({ kind: 'walk', text: flatterText(leg.flatter), coords: [] });
-  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door, ...(leg.climbM ? { climb: leg.climbM } : {}), ...(leg.flatter ? { flatter: true } : {}),
+  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door, ...(leg.climbM ? { climb: leg.climbM } : {}), ...(leg.flatter ? { flatter: true } : {}), ...(leg.officialMinS != null ? { capped: true } : {}),
     // the guessed ends (drawn dashed, not counted as progress along the walk: snapToTrip() in tracking.ts), and the
     // stretches under a roof
     approxTo: to, approxFrom: from, ...(all ? { approx: true } : {}),
