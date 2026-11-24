@@ -193,11 +193,11 @@ pub mod rules {
         .find(|t| t.0 == name)
         .map_or(default, |t| t.1)
     }
-    /// [`super::SEPARATE_MULT`], or its `KANTE_WALK_TUNE` override.
+    /// `SEPARATE_MULT` (2.5), or its `KANTE_WALK_TUNE` override.
     pub fn separate_mult() -> f32 {
         tune("separate", super::SEPARATE_MULT)
     }
-    /// [`super::FAVOURED_MULT`], or its `KANTE_WALK_TUNE` override (at most 1).
+    /// `FAVOURED_MULT` (0.95), or its `KANTE_WALK_TUNE` override (at most 1).
     pub fn favoured_mult() -> f32 {
         tune("favoured", super::FAVOURED_MULT).min(1.0)
     }

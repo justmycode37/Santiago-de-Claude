@@ -81,18 +81,66 @@ const S_H: usize = 7;
 const SEED_FWD: u32 = u32::MAX;
 const SEED_BACK: u32 = u32::MAX - 1;
 
+/// The blocks of the search states, in pages of [`PAGE`] allocated when first written: a search touches the states
+/// near its start only, and the routing network has some 8.6 million (one per node and per arc into a junction), so a
+/// block for each would hold 270 MB per thread for good. A page never written reads as zeros (no label).
+pub(crate) struct Pages {
+    pages: Vec<Option<Box<[[u32; 8]; PAGE]>>>,
+    live: usize,
+}
+
+const PAGE_BITS: u32 = 10;
+const PAGE: usize = 1 << PAGE_BITS;
+/// More pages than this (64 MB) after a search: all are let go (their labels are of old searches anyway).
+const MAX_PAGES: usize = 2048;
+static ZERO: [u32; 8] = [0; 8];
+
+impl Pages {
+    fn fit(&mut self, states: usize) {
+        let n = states.div_ceil(PAGE);
+        if self.pages.len() < n {
+            self.pages.resize_with(n, || None);
+        }
+    }
+    fn clear(&mut self) {
+        self.pages.iter_mut().for_each(|p| *p = None);
+        self.live = 0;
+    }
+}
+
+impl std::ops::Index<usize> for Pages {
+    type Output = [u32; 8];
+    #[inline]
+    fn index(&self, i: usize) -> &[u32; 8] {
+        match &self.pages[i >> PAGE_BITS] {
+            Some(p) => &p[i & (PAGE - 1)],
+            None => &ZERO,
+        }
+    }
+}
+
+impl std::ops::IndexMut<usize> for Pages {
+    #[inline]
+    fn index_mut(&mut self, i: usize) -> &mut [u32; 8] {
+        let p = &mut self.pages[i >> PAGE_BITS];
+        if p.is_none() {
+            *p = Some(Box::new([[0u32; 8]; PAGE]));
+            self.live += 1;
+        }
+        &mut p.as_mut().unwrap()[i & (PAGE - 1)]
+    }
+}
+
 struct Scratch {
     gen: u32,
-    /// One zero-initialised (lazily mapped) block per search state.
-    st: Vec<[u32; 8]>,
+    /// One block per search state ([`Pages`]).
+    st: Pages,
     heap: Heap,
     table: CostTable,
     /// The profile the table is for (its time left out: hours are set apart), and whether it is the walked-time
     /// one ([`CostTable::fill_walked`]).
     table_for: Option<(WalkProfile, bool)>,
     targets: Vec<TargetEnds>,
-    /// Per junction reached: the best label settled at it (generalised seconds) and the stamp it is for.
-    best: Vec<(u32, f32)>,
 }
 
 #[derive(Clone, Copy)]
@@ -106,18 +154,9 @@ struct TargetEnds {
 
 impl Scratch {
     fn begin(&mut self, net: &Net, profile: &WalkProfile, walked: bool) {
-        let states = net.ns as usize;
-        if self.st.len() < states {
-            self.st = vec![[0u32; 8]; states];
-            self.gen = 0;
-        }
-        if self.best.len() < net.jun.node.len() {
-            self.best = vec![(0, 0.0); net.jun.node.len()];
-            self.gen = 0;
-        }
-        if self.gen >= u32::MAX - 2 {
-            self.st.iter_mut().for_each(|s| *s = [0; 8]);
-            self.best.iter_mut().for_each(|b| *b = (0, 0.0));
+        self.st.fit(net.ns as usize);
+        if self.gen >= u32::MAX - 2 || self.st.live > MAX_PAGES {
+            self.st.clear();
             self.gen = 0;
         }
         self.gen += 1;
@@ -138,12 +177,11 @@ impl Scratch {
 thread_local! {
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch {
         gen: 0,
-        st: Vec::new(),
+        st: Pages { pages: Vec::new(), live: 0 },
         heap: Heap { v: Vec::new() },
         table: CostTable::new(),
         table_for: None,
         targets: Vec::new(),
-        best: Vec::new(),
     });
 }
 
@@ -175,7 +213,7 @@ fn bound_slack(p: &WalkProfile) -> f32 {
 /// state).
 #[inline]
 #[allow(clippy::too_many_arguments)]
-fn relax(st: &mut [[u32; 8]], n: u32, state: u32, node: u32, gen: u32, nd: f32, var: f32, fix: f32, parc: u32, pnode: u32) -> bool {
+fn relax(st: &mut Pages, n: u32, state: u32, node: u32, gen: u32, nd: f32, var: f32, fix: f32, parc: u32, pnode: u32) -> bool {
     let s = &mut st[state as usize];
     if s[S_STAMP] != gen || nd < f32::from_bits(s[S_DIST]) {
         s[S_STAMP] = gen;
@@ -195,7 +233,7 @@ fn relax(st: &mut [[u32; 8]], n: u32, state: u32, node: u32, gen: u32, nd: f32, 
 
 /// The routing node of a state that has a label (read from its block on a junction's state).
 #[inline]
-fn node_of(st: &[[u32; 8]], n: u32, state: u32) -> u32 {
+fn node_of(st: &Pages, n: u32, state: u32) -> u32 {
     if state < n {
         state
     } else {
@@ -270,17 +308,19 @@ pub(crate) fn many_to_many_raw(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f3
 }
 
 /// Is a popped state worth expanding? At a junction, not when another of its states settled so much cheaper that
-/// no transition could make this one's way on better (the junction's largest transition cost).
+/// no transition could make this one's way on better (the junction's largest transition cost). The best settled is
+/// kept on the junction node's own block (its `S_PARC` the stamp, `S_PNODE` the cost), which is no state of its own.
 #[inline]
-fn dominated(net: &Net, best: &mut [(u32, f32)], gen: u32, node: u32, d: f32) -> bool {
+fn dominated(net: &Net, st: &mut Pages, gen: u32, node: u32, d: f32) -> bool {
     let Some(j) = net.jun.of(node) else { return false };
-    let b = &mut best[j];
-    if b.0 != gen {
-        *b = (gen, d);
+    let b = &mut st[node as usize];
+    if b[S_PARC] != gen {
+        b[S_PARC] = gen;
+        b[S_PNODE] = d.to_bits();
         return false;
     }
     let max = net.jun.max[j];
-    max != crate::net::TRANS_BLOCKED && d > b.1 + max as f32 * crate::net::TRANS_UNIT_S
+    max != crate::net::TRANS_BLOCKED && d > f32::from_bits(b[S_PNODE]) + max as f32 * crate::net::TRANS_UNIT_S
 }
 
 /// [`many_to_many_raw`], or with `walked` by the time walked alone (no preferences, no slack): the quickest walk to
@@ -348,7 +388,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
         let t = &s.table;
         let st = &mut s.st;
         let heap = &mut s.heap;
-        let best = &mut s.best;
+
         // once every target's end node is settled, the search goes on while a junction's other arrivals could
         // still finish it more cheaply (its largest transition cost)
         let mut deadline = f32::NEG_INFINITY;
@@ -369,7 +409,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
                 let slack = net.jun.of(v).map_or(0.0, |j| if net.jun.max[j] == crate::net::TRANS_BLOCKED { f32::INFINITY } else { net.jun.max[j] as f32 * crate::net::TRANS_UNIT_S });
                 deadline = deadline.max(d + slack);
             }
-            if dominated(net, best, gen, v, d) {
+            if dominated(net, st, gen, v, d) {
                 continue;
             }
             let (var, fix) = (f32::from_bits(su[S_VAR]), f32::from_bits(su[S_FIX]));
@@ -609,7 +649,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
         let t = &s.table;
         let st = &mut s.st;
         let heap = &mut s.heap;
-        let bests = &mut s.best;
+
         while let Some((key, u)) = heap.pop() {
             if key >= best.0 || key > cap {
                 break;
@@ -631,7 +671,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                     }
                 }
             }
-            if dominated(net, bests, gen, v, d) {
+            if dominated(net, st, gen, v, d) {
                 continue;
             }
             let (var, fix) = (f32::from_bits(su[S_VAR]), f32::from_bits(su[S_FIX]));

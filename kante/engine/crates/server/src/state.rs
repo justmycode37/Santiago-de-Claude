@@ -303,7 +303,8 @@ impl App {
             }
             let t = Instant::now();
             let r = WalkRouter::new(Arc::new(g));
-            eprintln!("  walk index: {:.2}s", t.elapsed().as_secs_f32());
+            let st = r.index_stats();
+            eprintln!("  walk index: {:.2}s ({} junctions with turns or crossings, {} search states, {} MB)", t.elapsed().as_secs_f32(), st.junctions, st.search_states, st.net_bytes / 1_000_000);
             r
         });
         if walk.is_none() {

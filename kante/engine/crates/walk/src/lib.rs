@@ -22,6 +22,21 @@
 //! wheelchair mode rough surfaces count ×1.8, unpaved paths ×1.3 and busy
 //! roads ×2 (the largest of these, not their product).
 //!
+//! With the graph's attributes (`WalkGraph::attrs`, `walkattr.bin`; see
+//! `docs/walking-routes.md`, "Which way"): a carriageway whose sidewalks are
+//! drawn apart counts ×2.5 instead of its own multiplier, a car-only service
+//! road at least ×1.3, a way away from traffic ×0.95 (the A* bound allows for
+//! it), a way closed at `WalkProfile::at` ×20 on top. And at a junction of
+//! three or more ways (`net::Junctions`) passing from one way to another
+//! costs a turn (2 s from 35°, 4 s back) and, from a footway or sidewalk, each
+//! tertiary / secondary / primary carriageway walked over where no crossing is
+//! mapped (15 / 30 / 45 s); `crossing=no` there is not crossed at all. The
+//! search keeps one label per arc into such a junction, so these are exact,
+//! and against the direction of travel the same (the costs are symmetric).
+//! A search by the time walked alone ([`WalkRouter::quickest_many`],
+//! [`WalkRouter::quickest_between`]) leaves all of them out, `crossing=no`
+//! excepted. `KANTE_WALK_RULES_OFF` switches each off ([`rules`]).
+//!
 //! Hills (when the graph has slopes, `WalkGraph::slopes`, from `kante-elevation`; the model is
 //! `kante_core::slope`): every arc carries its direction's extra metres of walking time, which add to
 //! `var_m` (so up a hill takes longer than down it), its route-choice effort, weighted by the walker's
@@ -301,6 +316,9 @@ pub struct IndexStats {
     pub net_bytes: usize,
     /// Graph nodes that are lifts or touch a lift edge.
     pub lift_nodes: usize,
+    /// Junctions with transition costs, and the search states (routing nodes and one per arc into a junction).
+    pub junctions: usize,
+    pub search_states: usize,
 }
 
 impl WalkRouter {
@@ -481,6 +499,8 @@ impl WalkRouter {
             arcs: self.net.arcs.len(),
             net_bytes: self.net.heap_bytes(),
             lift_nodes: self.net.n_lift_nodes as usize,
+            junctions: self.net.jun.node.len(),
+            search_states: self.net.ns as usize,
         }
     }
 }

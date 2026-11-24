@@ -296,6 +296,8 @@ interface KanteWalk {
   network?: [number, number];
   /** Step-free: the destination building has doors, but none is step-free. */
   noStepFreeDoor?: boolean;
+  /** Metres on ways closed at the walk's time (opening hours), taken because no open way would do. */
+  closedM?: number;
 }
 /** A door of a building: OSM's `entrance=*` (main, yes, shop, service, …), or `addr` for a point of the official
  *  building address register. */
