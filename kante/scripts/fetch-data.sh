@@ -146,8 +146,8 @@ if (( only_elevation )); then
   if (( have < size )); then
     echo "fetch $dest (10 GB)"
     # resumed (and resumed on a retry) only from an edition its ETag vouches for: the server refuses the range (412)
-    # when the file is another one; never more than the file's size in one answer (curl stops at it, 63): what it writes stays within the room
-    # checked above and the reserve
+    # when the file is another one; never more than the file's size in one answer (curl stops at it, 63): what it
+    # writes stays within the room checked above and the reserve
     rc=0
     code=$(curl -fSL --retry 5 ${etag:+-C -} --max-filesize "$size" -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
     if (( rc )); then
