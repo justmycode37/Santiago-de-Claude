@@ -252,11 +252,16 @@ function optionRow(conn: Journey, now: number) {
   // line 1: every vehicle's badge, with the walks between them, and how long it all takes
   const chain = h('span', 'chain');
   chain.setAttribute('aria-hidden', 'true');
-  let walkS = 0;
+  let walkS = 0, over = false;
+  const long = KanteJourney.longWalks(conn); // a walk longer than the maximum walk of Settings stands out
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
-  const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m > 3) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
+  const addWalk = () => {
+    const m = Math.round(walkS / 60);
+    if (m > 3) add(h('span', 'chain-walk' + (over ? ' over' : ''), kIcon('walk', 14), String(m)));
+    walkS = 0; over = false;
+  };
   conn.parts.forEach((s) => {
-    if (s.type === 'walk') { walkS += KanteJourney.walkSecs(s); return; }
+    if (s.type === 'walk') { walkS += KanteJourney.walkSecs(s); over = over || long.has(s.kind); return; }
     addWalk();
     add(kBadge(s.line, null, chainIcon(s.line)));
   });
@@ -504,6 +509,11 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}${climb ? `, ${climb} m uphill` : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
+  // a walk longer than the maximum walk of Settings (the engine offers it where the journey is far better for it)
+  if (st.type === 'walk' && journey.conn && KanteJourney.longWalks(journey.conn).has(st.final ? 'egress' : 'access')) {
+    main.append(h('div', 'spare tight', kIcon('alert', 15), h('span', null, h('b', null, 'Longer than your maximum walk'),
+      h('small', null, ` — ${SETTINGS.prefs().maxWalkMin} min`))));
+  }
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
   const row = h('div', 'step-views');
   if (s3Plan(st)) row.append(kBtn('view3d', 'Show this walk in 3D, inside the station', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
