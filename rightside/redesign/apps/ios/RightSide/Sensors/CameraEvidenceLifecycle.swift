@@ -14,7 +14,8 @@ struct CameraVehicleOverlay: Identifiable {
 
     var symbol: String {
         switch decision.state {
-        case .visualCandidate, .verifiedService: return "checkmark.circle"
+        case .visualCandidate: return "text.viewfinder"
+        case .verifiedService: return "checkmark.circle"
         case .conflicting: return "xmark.octagon.fill"
         case .unknown: return "questionmark.circle"
         }
@@ -27,12 +28,12 @@ struct CameraVehicleOverlay: Identifiable {
             switch decision.reason {
             case "out_of_service": return "Out of service · do not board"
             case "display_short_turn_before_alighting": return "Ends before your stop"
-            case "selected_boarding_unavailable": return "Departure unavailable"
-            case "selected_alighting_unavailable": return "Your arrival stop is unavailable"
             default: return "Different line or destination"
             }
         case .unknown:
             switch decision.reason {
+            case "selected_boarding_unavailable": return "Departure unavailable"
+            case "selected_alighting_unavailable": return "Your arrival stop is unavailable"
             case "multiple_matching_vehicles": return "Multiple matches · choose one"
             case "route_context_stale": return "Journey needs refresh"
             case "route_calls_incomplete", "ambiguous_alighting_call": return "Destination stop unconfirmed"
@@ -164,11 +165,13 @@ struct CameraEvidenceLifecycle {
         } else if let conflict = incoming.first(where: { $0.decision.state == .conflicting }) {
             switch conflict.decision.reason {
             case "out_of_service": recognition = "Vehicle is out of service. Do not board; look for another service."
-            case "selected_boarding_unavailable": recognition = "This departure is unavailable for boarding. Check another departure or replan."
-            case "selected_alighting_unavailable": recognition = "This service cannot currently take you to your selected stop. Check another departure or replan."
             case "display_short_turn_before_alighting": recognition = "This vehicle's display ends before your stop. Do not board; check another service."
             default: recognition = "Different line or destination. Do not use this vehicle match; check another vehicle's full display."
             }
+        } else if incoming.contains(where: { $0.decision.reason == "selected_boarding_unavailable" }) {
+            recognition = "This departure is unavailable for boarding. Check another departure or replan."
+        } else if incoming.contains(where: { $0.decision.reason == "selected_alighting_unavailable" }) {
+            recognition = "This service cannot currently take you to your selected stop. Check another departure or replan."
         } else if incoming.contains(where: { $0.decision.reason == "route_context_stale" }) {
             recognition = "Journey information is out of date. Check current departures before comparing this vehicle."
         } else if incoming.contains(where: { ["route_calls_incomplete", "ambiguous_alighting_call"].contains($0.decision.reason) }) {

@@ -541,6 +541,8 @@ do {
     let id = tracker.tracks.first?.id
     tracker.update([vd(.train, 0.22, margin: 0.05, runnerUp: .tram)], at: t0.addingTimeInterval(0.4))
     check(tracker.tracks.count == 1 && tracker.tracks.first?.id == id, "a tram that flickers to \"train\" stays one track")
+    tracker.update([vd(.bus, 0.22)], at: t0.addingTimeInterval(0.8))
+    check(tracker.tracks.first?.id != id, "but a bus in its place is another vehicle")
     check(vd(.train, 0.2, margin: 0.03, runnerUp: .tram).caption == "Tram or train" && vd(.bus, 0.2, margin: 0.02, runnerUp: .tram).caption == "Vehicle"
           && vd(.bus, 0.2).caption == "Bus", "an unsure class says less, a sure one names it")
 

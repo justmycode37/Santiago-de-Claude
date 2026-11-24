@@ -204,12 +204,14 @@ struct VehicleTrack: Identifiable {
 }
 
 /// Conservative one-to-one association. Ambiguous crossings discard history rather than transfer identity.
-/// Class-agnostic: a tram that flickers between "tram" and "train" stays one track (the class is only a caption).
+/// Tram and train are one class here: YOLOE flickers between them on the same Bern tram (the class is only a caption).
+/// A bus and a rail vehicle never share a track.
 struct VehicleTracker {
     private(set) var tracks: [VehicleTrack] = []
     private(set) var lost: [UUID] = []
     private var lastFrameAt: Date?
     static let maximumTracks = 6
+    static func sameKind(_ a: TransportClass, _ b: TransportClass) -> Bool { a == b || (a != .bus && b != .bus) }
     /// How long an unseen track is kept. The camera sets it from its processing cadence (0.4 s, throttled to 0.8 s in
     /// Low Power Mode and 1.2 s when hot), so a track outlives the gap between two processed frames.
     var maximumGap: TimeInterval = 0.9
@@ -230,7 +232,8 @@ struct VehicleTracker {
         let previous = tracks.filter { at.timeIntervalSince($0.lastSeen) <= gap && at >= $0.lastSeen }
         let detections = Array(incoming.filter { $0.box.width > 0 && $0.box.height > 0 }.prefix(Self.maximumTracks))
         let candidates = detections.map { detection in
-            previous.indices.filter { Self.iou(previous[$0].detection.box.offsetBy(dx: shift.x, dy: shift.y), detection.box) >= 0.3 }
+            previous.indices.filter { Self.sameKind(previous[$0].detection.kind, detection.kind)
+                && Self.iou(previous[$0].detection.box.offsetBy(dx: shift.x, dy: shift.y), detection.box) >= 0.3 }
         }
         var result: [VehicleTrack] = []
         for (index, detection) in detections.enumerated() {
@@ -333,8 +336,9 @@ struct VehicleServiceExpectation: Equatable {
               now.timeIntervalSince(observedAt) <= 90 else {
             return VehicleDecision(state: .unknown, reason: "route_context_stale")
         }
-        if boardingUnavailable { return VehicleDecision(state: .conflicting, reason: "selected_boarding_unavailable") }
-        if alightingUnavailable { return VehicleDecision(state: .conflicting, reason: "selected_alighting_unavailable") }
+        // The journey's own state withholds every vehicle; it never paints one red (red is for what its display says).
+        if boardingUnavailable { return VehicleDecision(state: .unknown, reason: "selected_boarding_unavailable") }
+        if alightingUnavailable { return VehicleDecision(state: .unknown, reason: "selected_alighting_unavailable") }
         guard revision != nil, boardingCallID != nil, let alightingCallID,
               let alightingStopID, downstreamCalls.contains(where: { $0.id == alightingCallID && $0.stopID == alightingStopID }) else {
             return VehicleDecision(state: .unknown, reason: "route_calls_incomplete")
