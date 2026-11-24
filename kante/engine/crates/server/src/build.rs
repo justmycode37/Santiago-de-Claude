@@ -176,8 +176,9 @@ pub fn run(args: &Args) -> Result<()> {
             force
                 || osm_wanted
                 || match (&dem, io::load::<Slopes>(&slopes_path, SLOPES_SCHEMA).ok()) {
-                    (None, None) => false,
-                    (None, Some(_)) | (Some(_), None) => true,
+                    // no terrain model: a slopes.bin of any kind (readable or not) is removed
+                    (None, _) => slopes_path.exists(),
+                    (Some(_), None) => true,
                     (Some(id), Some(s)) => s.source != *id || io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).map_or(true, |g| s.graph != graph_fingerprint(&g)),
                 }
         }

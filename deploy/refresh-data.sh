@@ -52,7 +52,8 @@ if (( now )) || [[ $dow == 1 || $dow == 4 || $running != "$want" ]]; then
   log "fetching the timetable ($want, running: ${running:-unknown}) and the map"
   if KANTE_RAW=$ROOT/raw "$repo/kante/scripts/fetch-data.sh" --refresh; then
     log "building a release with the new data"
-    KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force && built=1 || log "the release with the new data failed; the running engine is untouched"
+    built=1   # tried: a release that failed is not tried again right after for the terrain model
+    KANTE_DEPLOY_WAIT=1 "$repo/deploy/deploy.sh" --force || log "the release with the new data failed; the running engine is untouched"
   else
     log "download failed; keeping the data there is"
   fi

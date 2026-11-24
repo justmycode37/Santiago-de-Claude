@@ -396,6 +396,9 @@ const MAX_SOURCES: usize = 1 << 16;
 /// with: for one target, the source it takes is the one that search's cost for the target comes from. Returns
 /// (source, target, legs, generalised cost including both offsets).
 pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile, walked: bool) -> Option<(usize, usize, Vec<Leg>, f32)> {
+    // a route is drawn in the direction of travel (only the searches to many targets run against it)
+    debug_assert!(!profile.backwards, "routes run in the direction of travel");
+    let profile = &WalkProfile { backwards: false, ..*profile };
     let froms: Vec<(usize, &(Snap, f32, f32))> = froms.iter().enumerate().filter(|(_, f)| (f.0.edge as usize) < g.edges.len()).take(MAX_SOURCES).collect();
     let tos: Vec<(usize, &(Snap, f32, f32))> = tos.iter().enumerate().filter(|(_, t)| (t.0.edge as usize) < g.edges.len()).collect();
     if tos.is_empty() || froms.is_empty() {

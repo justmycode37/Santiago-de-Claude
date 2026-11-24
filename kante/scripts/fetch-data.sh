@@ -112,17 +112,21 @@ if (( only_elevation )); then
   fi
   mkdir -p "$RAW/dem"
   head=$(curl -fsSIL --retry 3 -A "$UA" "$DEM_URL") || { echo "error: $DEM_URL does not answer" >&2; exit 1; }
-  size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9')
-  etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r')
-  # a part of another edition, or longer than the file, is not resumed; one that is all there needs no more
-  # (resuming it would be refused, 416, every time)
+  size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9' || true)
+  etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r' || true)
+  if [[ -z $size ]] || (( size <= 0 )); then
+    echo "error: $DEM_URL gives no size: not fetching 10 GB that cannot be checked" >&2
+    exit 1
+  fi
+  # a part of another edition (or of one without an ETag), or longer than the file, is not resumed; one that is all
+  # there needs no more (resuming it would be refused, 416, every time)
   have=$(stat -c %s "$dest.part" 2>/dev/null || echo 0)
-  if [[ -e $dest.part ]] && { [[ "$(cat "$dest.part.etag" 2>/dev/null)" != "$etag" ]] || [[ -z $size ]] || (( have > size )); }; then
+  if [[ -e $dest.part ]] && { [[ -z $etag ]] || [[ "$(cat "$dest.part.etag" 2>/dev/null)" != "$etag" ]] || (( have > size )); }; then
     rm -f "$dest.part"
     have=0
   fi
   echo "$etag" > "$dest.part.etag"
-  if [[ -z $size ]] || (( have < size )); then
+  if (( have < size )); then
     echo "fetch $dest (10 GB)"
     # resumed only from the same edition: the server refuses the range (412) when the file is another one
     code=$(curl -fSL --retry 5 -C - -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || {
@@ -131,8 +135,9 @@ if (( only_elevation )); then
       exit 1
     }
   fi
-  if [[ -z $size || $(stat -c %s "$dest.part") != "$size" ]] || ! dem_ok "$dest.part"; then
-    echo "error: $DEM_URL gave $(stat -c %s "$dest.part") bytes of ${size:-unknown}, not the terrain model the engine reads" >&2
+  got=$(stat -c %s "$dest.part" 2>/dev/null || echo 0)
+  if [[ $got != "$size" ]] || ! dem_ok "$dest.part"; then
+    echo "error: $DEM_URL gave $got bytes of $size, not the terrain model the engine reads" >&2
     rm -f "$dest.part" "$dest.part.etag"
     exit 1
   fi

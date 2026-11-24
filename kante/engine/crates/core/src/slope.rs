@@ -142,7 +142,8 @@ impl EdgeSlope {
 pub struct Slopes {
     /// [`crate::graph_fingerprint`] of the graph the slopes belong to.
     pub graph: u64,
-    /// The terrain model they come from (file name).
+    /// The terrain model they come from: its file name, size and modification time (`kante build` makes the
+    /// slopes again from another).
     pub source: String,
     /// One per edge of the graph.
     pub edges: Vec<EdgeSlope>,
