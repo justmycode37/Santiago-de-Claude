@@ -1,7 +1,0 @@
-{
-  "bern": {"start": [7.43935, 46.94884], "uic": "8507000", "q": ["restaurant", "cafe", "apotheke", "bank", "hotel", "museum", "bar", "kino", "buchhandlung", "coop", "migros", "post"]},
-  "zurich": {"start": [8.54035, 47.37790], "uic": "8503000", "q": ["restaurant", "cafe", "apotheke", "bank", "hotel", "museum", "bar", "kino", "buchhandlung", "coop", "migros", "post"]},
-  "basel": {"start": [7.58945, 47.54800], "uic": "8500010", "q": ["restaurant", "cafe", "apotheke", "bank", "hotel", "museum", "bar", "kino", "buchhandlung", "coop", "migros", "post"]},
-  "geneva": {"start": [6.14240, 46.21010], "uic": "8501008", "q": ["restaurant", "café", "pharmacie", "banque", "hôtel", "musée", "bar", "cinéma", "librairie", "coop", "migros", "poste"]},
-  "lausanne": {"start": [6.62900, 46.51700], "uic": "8501120", "q": ["restaurant", "café", "pharmacie", "banque", "hôtel", "musée", "bar", "cinéma", "librairie", "coop", "migros", "poste"]}
-}

@@ -171,12 +171,12 @@ Follow-up, deliberately not in this integration:
   matching service's platform; a concourse board lists many platforms. Needs board-type and ambiguity handling and
   a `quayLabel/line.name/headsign` adapter first.
 - Port RightSide's `DepartureDisplayMatcher` to the web Scan for vehicle displays.
-- Walk router boarding-edge data (`{ platform, level, ref }` endpoints, doors and kerbs in `walkgraph/`) as the AR
-  boarding target and kerb side for RightSide.
+- The engine's walks (boarding point on its platform and floor, the building's door) as the AR boarding target and
+  kerb side for RightSide (`walkgraph/` and the browser's walking router are gone; see docs/walking-routes.md).
 - RightSide and Scan: `/api/due?quay=<SLOID>` for the exact boarding edge and `/api/identify` to bind a seen vehicle
   to its trip (#23). The journey already resolves the ATLAS SLOID quay.
 - `tools/station3d_sbb_layers.py` for the other stations; the corridor-cutaway shader in `station3d.js`.
-- Walk tiles for Zürich (`tools/build_walkgraph.py --area zurich`); solid companions for the other stations.
+- Solid companions for the other stations.
 
 ## Duplicates
 
@@ -188,7 +188,8 @@ Follow-up, deliberately not in this integration:
   `station3d-solid.js` (one building at true heights). Different views of the same model files and the same
   `station-route.js` routes, so both stay. (Later replaced: since November 2026 only `station3d-solid.js` remains,
   through the station view; `station3d.js` was removed.)
-- **Walk geometry:** `walkroute.js` where tiles exist; the online routers only as fallback.
+- **Walk geometry:** `walkroute.js` where tiles exist; the online routers only as fallback. (Later removed: every
+  walk outside a station model is the Kante engine's, see `docs/walking-routes.md`.)
 - **#17's commit inside #18:** disappears by merging #17 first.
 
 ## Test plan for the combined branch
@@ -197,15 +198,16 @@ Follow-up, deliberately not in this integration:
   - map load, place search, start-up time and bytes against `main`, no console errors;
   - cold lazy load of the 3D viewer and indoor scripts, failed load, Done, close/reopen, switching stations, Scan
     text between openings;
-  - a Bern journey with walks through Bern station (3D view, step-free, indoor position) and an outdoor walk on the
-    walk router; a pinned start away from GPS; PT / On foot switching while routing is pending; settings changes;
-    missing tiles (Zürich) falling back;
+  - a Bern journey with walks through Bern station (3D view, step-free, indoor position) and an outdoor walk (the
+    engine's); a pinned start away from GPS; PT / On foot switching while routing is pending; settings changes; a
+    walk past the border (Weil am Rhein), where the engine has no path, falling back to OSRM's foot profile;
   - live vehicles and live info on a journey;
   - Scan on a sample image;
   - Zürich HB in the 3D view and in the continuous view, including a missing companion;
-  - the Pages artifact as the workflow assembles it (`walkgraph`, `demo-media`), not just the repository.
+  - the Pages artifact as the workflow assembles it (`demo-media`; `walkgraph/` is gone), not just the repository.
 - Suites: `tools/test_station_route.mjs`, `tools/test_station_route2.mjs`, `node tools/sim_indoorloc.js --check`,
-  #13's walk router test, `cargo test` in `kante/engine`, RightSide portable tests and display bench (Swift on WSL).
+  `npm test` (the walk tests: `tools/test_walkrefine.mts`, `test_walkguess.mts`, `test_walktrack.mts`; #13's walk
+  router test went with the router), `cargo test` in `kante/engine`, RightSide portable tests and display bench (Swift on WSL).
 
 ## Owed after merge
 
@@ -213,5 +215,5 @@ Follow-up, deliberately not in this integration:
   in `rightside/` and is not part of the site). Owed: an Xcode build on a Mac, XCTest/UI tests, and recordings on a
   real iPhone at a real stop (Vision read rate, compass, AR alignment, `/api/due` timing). Only Linux/WSL Swift checks
   were possible. Note the AGPL-3.0 licence of the bundled YOLOE detector before any closed-source release.
-- Indoor position (#8) and the walk router (#13) on a real phone with real sensors and GPS.
+- Indoor position (#8) and GPS tracking on the engine's walks on a real phone with real sensors and GPS.
 - Continuous 3D view (#18) performance on a real phone.

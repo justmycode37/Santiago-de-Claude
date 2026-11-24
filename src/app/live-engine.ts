@@ -50,7 +50,9 @@ export async function livePoll() {
     Object.assign(k, { trip, at: Date.now(), fails: 0 });
     KanteJourney.applyTrip(s, n, trip); // its live times and boarding points, into the ride's stops
   }));
-  if (id === journey.req) liveUpdated(before);
+  if (id !== journey.req) return;
+  liveUpdated(before);
+  refineWalks(id, true); // a walk routed again that had no answer is asked again
 }
 const liveSig = () => journey.conn!.parts.filter(isRide)
   .map((s) => [liveMs(s.from, 'dep'), liveMs(s.to, 'arr'), platformOf(s.from), platformOf(s.to), s.from.quay.id, s.to.quay.id].join()).join(';');

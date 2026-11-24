@@ -2,12 +2,11 @@
 import { showToast } from '../toast.ts';
 import { userLngLat } from './location.ts';
 import { jBody, jFoot, jHead, refreshRouteHighlight } from './journey-map.ts';
-import { dayLabel, fmtTime, hasForecast, isRide, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, stopName, stopUic } from './journey-steps.ts';
-import { journeyEnd } from './tracking.ts';
+import { dayLabel, fmtTime, hasForecast, isRide, journeyEnd, journeyStart, kDur, kDurExact, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, spareOf, stopName, stopUic } from './journey-steps.ts';
 import { liveParts, replan } from './live-line.ts';
 import { livePoll } from './live-engine.ts';
 import { cap, compassWord, fmtDist, levelShort, platformOf } from './live-vehicles.ts';
-import { MODE_K, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kDur, kDurExact, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
+import { MODE_K, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
 import type { KIconName } from './sheet.ts';
 import { ticketPricing } from './ticket-pricing.ts';
 import { focusDir, overview, shareJourney, showQuay, startFollowing, ticketLink } from './journey-actions.ts';
@@ -93,22 +92,13 @@ function walkDist(st: JourneyStep) {
 }
 const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
 
-// Written directions for a walk, from the walking router's turn-by-turn steps, with the floor change in its place
-const TURN: Record<string, string> = { left: 'Turn left', right: 'Turn right', 'slight left': 'Bear left', 'slight right': 'Bear right',
-  'sharp left': 'Turn sharp left', 'sharp right': 'Turn sharp right', straight: 'Continue straight', uturn: 'Turn around' };
+// Written directions for a walk, from the engine's and the station models' directions, with the floor change in its place
 export function walkDirections(st: JourneyStep) {
   if (st._dirsV === tracking.geoVersion) return st._dirs!;
   const out: JourneyDirection[] = [];
   (st.walks || []).forEach((w) => {
-    // a stretch through a modelled station: its own directions, floor changes included
+    // the engine's walk, or a stretch through a modelled station: its own directions, floor changes included
     if (w && w.dirs) out.push(...w.dirs);
-  else ((w && w.steps) || []).forEach((s) => {
-    const m = s.maneuver || {}, d = Math.round(s.distance || 0);
-    if (m.type === 'arrive' || d < 3) return;
-    const along = s.name ? ` along ${s.name}` : '';
-    const verb = m.type === 'depart' ? 'Walk' : `${TURN[m.modifier!] || 'Continue'} and walk`;
-    out.push({ kind: m.type === 'depart' ? 'depart' : 'walk', text: `${verb} ${fmtDist(d)}${along}`, coords: s.geometry && s.geometry.coordinates });
-  });
   });
   const lvl = st.floors ? null : levelChange(st);
   if (lvl) {
@@ -189,9 +179,8 @@ function optionRow(conn: Journey, now: number) {
   let walkS = 0;
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
   const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m > 3) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
-  const access = conn.parts.findIndex(isRide); // the walks before the first ride: as the network drew them, once it has
-  conn.parts.forEach((s, k) => {
-    if (s.type === 'walk') { walkS += conn.accessS != null && k < access ? (k ? 0 : conn.accessS) : KanteJourney.walkSecs(s); return; }
+  conn.parts.forEach((s) => {
+    if (s.type === 'walk') { walkS += KanteJourney.walkSecs(s); return; }
     addWalk();
     add(kBadge(s.line, null, chainIcon(s.line)));
   });
@@ -351,14 +340,14 @@ function buildHead(): HTMLDivElement {
   const rides = journey.steps.filter((st) => st.type === 'ride');
   const tr = Math.max(0, rides.length - 1);
   const onFoot = () => { const d = walkDist(journey.steps[0]); return d ? `${fmtDist(d)} on foot` : 'On foot'; };
-  const start = journey.conn.t0;
+  const start = journeyStart();
   const following = document.body.classList.contains('following'); // under way: the pill at the top has the two times
   head.append(
     h('div', 'sheet-title',
       optionCount() > 1 && !following ? kBtn('round-btn', 'All journeys', showOptions, kIcon('back', 18)) : null,
       legChain(), sheetActions()));
   if (!following) head.append(
-    h('div', 'jhead-times', h('b', null, `${fmtTime(journey.conn.t0)} – ${fmtTime(end)}`),
+    h('div', 'jhead-times', h('b', null, `${fmtTime(start)} – ${fmtTime(end)}`),
       h('span', null, `${kDur((end - start) / 1000)} · ${!rides.length ? onFoot() : tr === 0 ? 'Direct' : `${tr} ${tr === 1 ? 'change' : 'changes'}`}`)));
   const act = h('div', 'jhead-act');
   // live: off the route, missed a ride, followed by GPS, or a ride under way — otherwise what to do first
@@ -391,20 +380,12 @@ function placeRow(t: number | null | undefined, name: string, kind: 'from' | 'to
     h('span', 'tl-rail', h('i', kind === 'from' ? 'od-ring' : 'od-pin')),
     h('span', 'tl-name', h('strong', null, name)));
 }
-// Spare time on a change: from getting off to the next departure, less the walk
-function spareOf(st: JourneyChangeStep) {
-  const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
-  const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
-  const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
-  const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
-  const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
-  return { s, level, extra, short, easy: level === 'ok' && !short, text: `${kDurExact(s)} to spare` };
-}
 function spareLine(st: JourneyChangeStep) {
-  const { s, level, extra, short, text } = spareOf(st);
+  const { s, level, extra, short, est, text } = spareOf(st);
+  const note = short ? ` — less than your ${extra} min extra change time` : est ? ' — the walk is estimated' : '';
   return h('div', 'spare ' + level, kIcon(level === 'ok' ? 'check' : 'alert', 15),
-    level === 'missed' ? h('span', null, h('b', null, `Missed change — ${kDurExact(-s)} too late`))
-      : h('span', null, h('b', null, text), short ? h('small', null, ` — less than your ${extra} min extra change time`) : null));
+    level === 'missed' ? h('span', null, h('b', null, est ? `Change may be missed — about ${Math.max(1, Math.round(-s / 60))} min short` : `Missed change — ${kDurExact(-s)} too late`))
+      : h('span', null, h('b', null, text), note ? h('small', null, note) : null));
 }
 function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
   const b = kBtn('step' + (active ? ' active' : '') + ' k-' + d.kind, null, onClick,
@@ -416,6 +397,7 @@ function stepRow(d: JourneyDirection, active: boolean, onClick: () => void) {
 function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const transfer = st.type === 'change';
   const mins = walkMinOf(st);
+  const secs = mins ? mins * 60 : st.walkS || 0; // a walk of a few seconds (to a door) is "< 1 min", not "0 min"
   const target = walkTarget(st);
   if (transfer) {
     const pq = quayOf(st.prevRide!, 'arr'), nq = quayOf(st.nextRide!, 'dep');
@@ -441,7 +423,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
   const expanded = openDirs.has(i) || (!!sheet.focus && sheet.focus.step === i);
   const title = `${transfer ? 'Change to' : 'Walk to'} ${target}`;
   const main = h('div', 'tl-main',
-    kBtn('walk-sum', `${title}, ${kDur(mins * 60)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
+    kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
@@ -463,7 +445,7 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     if (expanded) main.append(h('ol', 'steps', dirs.map((d, k) => stepRow(d, !!sheet.focus && sheet.focus.step === i && sheet.focus.dir === k, () => focusDir(i, k)))));
   }
   return h('li', 'tl-row tl-walk' + (active ? ' active' : ''),
-    h('span', 'tl-time', h('small', null, kDur(mins * 60))),
+    h('span', 'tl-time', h('small', null, kDur(secs))),
     h('span', 'tl-rail walk', kIcon('walk', 18)),
     main);
 }
@@ -609,7 +591,7 @@ export function queueSheet(times?: boolean) {
     renderHead();
     renderBody();
     if (!t) return;
-    document.getElementById('jDep')!.textContent = fmtTime(journey.conn.t0);
+    document.getElementById('jDep')!.textContent = fmtTime(journeyStart());
     updatePillTimes();
     renderBar();
     renderFoot();

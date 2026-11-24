@@ -9,15 +9,15 @@ import { setPlanOpen, topUiBottom } from './trip-ends.ts';
 import { engineFailure, engineMessage, startPlatforms } from './platforms.ts';
 import { updatePlaces } from './map-places.ts';
 import { refreshRouteHighlight, setRoute } from './journey-map.ts';
-import { buildSteps, fmtTime, isRide, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
-import { journeyEnd, nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
+import { buildSteps, fmtTime, isRide, journeyEnd, journeyStart, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
+import { nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
 import { redrawRoute, renderLive } from './live-line.ts';
 import { livePoll, platSig } from './live-engine.ts';
 import { vehStop } from './live-vehicles.ts';
 import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } from './sheet.ts';
 import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
 import { updateWhenChip } from './time-picker.ts';
-import { netWalkOption, refineJourney } from './routing.ts';
+import { refineJourney } from './routing.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import type { Journey } from '../engine-journey.ts';
@@ -33,7 +33,7 @@ interface BarRide extends BarPart { kind: 'ride'; label: string }
 interface BarGap extends BarPart { kind: 'gap' }
 type BarSeg = BarRide | BarGap;
 function barLayout() {
-  const t0 = journey.conn!.t0, t1 = Math.max(journey.conn!.t1, journeyEnd());
+  const t0 = journeyStart(), t1 = Math.max(journey.conn!.t1, journeyEnd());
   const W = jBar.clientWidth, L = W - 2 * BAR.pad;
   const segs: BarSeg[] = [];
   let cursor = t0, rides = 0;
@@ -158,7 +158,7 @@ export function renderJourney(conn: Journey, destTitle: string) {
   sheet.focus = null;
   sheet.msg = '';
   sheet.retry = false;
-  document.getElementById('jDep')!.textContent = fmtTime(conn.t0);
+  document.getElementById('jDep')!.textContent = fmtTime(journeyStart());
   updatePillTimes();
   trackJourney();
   renderBar();
@@ -264,7 +264,6 @@ export async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?:
     if (journey.list && sheetDetent === 'low') placeSheet('mid', true); // room for the first rows
     renderJourney(opts.best, r.title);
     refineJourney(id); // swap straight lines for real walking paths and tracks/roads
-    if (opts.walk && opts.walk !== opts.best) netWalkOption(opts.walk, from, r); // its tab and card in network times
     livePoll(); // live times for its rides at once
   } catch (e) {
     if (id !== journey.req) return;

@@ -5,8 +5,8 @@ import { showToast } from '../toast.ts';
 import { gpsOn, onPosition, onPositionError } from './location.ts';
 import { setFollowing } from './trip-ends.ts';
 import { refreshRouteHighlight } from './journey-map.ts';
-import { fmtTime, lineLabel, stopName, stopUic } from './journey-steps.ts';
-import { journeyEnd, journeyProgress } from './tracking.ts';
+import { fmtTime, journeyEnd, journeyStart, lineLabel, stopName, stopUic } from './journey-steps.ts';
+import { journeyProgress } from './tracking.ts';
 import { h, kIcon, setDetent, sheetDetent } from './sheet.ts';
 import { renderSheet, walkDirections } from './sheet-content.ts';
 import { fitCoords, fitJourney, goToStep, mapPadding } from './pill.ts';
@@ -98,7 +98,7 @@ export function ticketLink() {
 export async function shareJourney() {
   const title = `${journey.from} to ${journey.dest ? journey.dest.title : 'destination'}`;
   const lines = journey.steps.filter((st) => st.type === 'ride').map((st) => lineLabel(st.s.line)).join(' → ');
-  const text = `${title}: ${fmtTime(journey.conn!.t0)} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
+  const text = `${title}: ${fmtTime(journeyStart())} – ${fmtTime(journeyEnd())}${lines ? ` (${lines})` : ''}`;
   const url = location.origin + location.pathname;
   try {
     if (navigator.share) await navigator.share({ title, text, url });
