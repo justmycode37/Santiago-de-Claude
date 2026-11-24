@@ -8,6 +8,7 @@
 mod api;
 mod build;
 mod json;
+mod formation;
 mod live;
 mod identify;
 mod liveapi;

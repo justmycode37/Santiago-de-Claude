@@ -14,6 +14,10 @@
   way are cut open along it (a corridor cutaway: the rest of each floor stays), and a faint copy of the tube shows
   through any floor that still hides it.
 
+When the walk ends at a platform to board a train, that train stands at the platform as a hologram: its coaches,
+their classes, where to get on (the walk is aimed at that sector) and how full each class is expected to be. See
+[train-formation.md](train-formation.md).
+
 Step by step (**Next ›**), the camera looks across each floor change so the climb shows in profile; **Whole way**
 shows it all. The floor buttons lift away everything above a floor (its outlines stay, as a ghost). Labels are
 limited to about 15 at a time, the way's own first.

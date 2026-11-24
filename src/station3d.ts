@@ -14,6 +14,7 @@ import type { INDOORNAV } from './indoornav.ts';
 import type { StationView } from './station-view.ts';
 import type { StationRoute } from './station-route.ts';
 import type { StationRouteEndpoint, StationRoutePrefs, StationRouteResult, StationRouteStep, StationRouteWhy } from './station-route.ts';
+import type { Station3DTrain } from './train-formation.ts';
 
 /** An end of the route as `open()` takes it: an endpoint of the router, which may carry the name to show for it. */
 export type Station3DEndpoint = StationRouteEndpoint & { label?: string };
@@ -27,6 +28,11 @@ export interface Station3DOpenOptions {
   /** The router's options; `prefs.date` is the day closures and notices are judged for (default: today). */
   prefs?: StationRoutePrefs | null;
   title?: string;
+  /** The vehicle the walk leads to (`to` is its platform or stop) and the one it starts from (`from`): drawn there,
+   *  a train with its coaches, and the walk led into (or out of) the coach chosen for the ride (coach-plan.ts,
+   *  docs/train-formation.md). */
+  board?: Station3DTrain | null;
+  alight?: Station3DTrain | null;
   /** The element that gets the focus back on close (default: the one that has it now). */
   returnFocus?: HTMLElement | null;
 }

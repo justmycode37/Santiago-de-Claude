@@ -1,6 +1,7 @@
 import { load } from '../lazy.ts';
 import type { SolidChange, SolidView } from '../station3d-solid.ts';
 import type { StationRouteEndpoint, StationRoutePrefs } from '../station-route.ts';
+import type { TrainCoach } from '../train-formation.ts';
 declare global {
   /** The view, for the console. */
   var SOLID: SolidView | undefined;
@@ -129,3 +130,31 @@ function sync({ route, step, focusLevel }: SolidChange) {
 }
 sync({ route: view!.route, step: -1, focusLevel: null });
 window.SOLID = view!;
+
+// ?train=demo (&ref=7): a made-up IC 2000 (Re 460, two 1st class coaches, a restaurant, 2nd class, a driving trailer)
+// at the platform the way ends at, to see the train without formation data. ?train=sectors&sectors=A-C: only the
+// sectors, as the timetable gives them.
+if (q.get('train')) {
+  const end = view!.route && view!.route.toStop;
+  const ref = q.get('ref') || (end && end.ref) || '';
+  const secs = [...new Set((model.sectors || []).filter((s) => String(s.ref) === ref).map((s) => s.name))].sort();
+  const kinds: [TrainCoach['kind'], TrainCoach['cls']][] = [['loco', null], ['coach', 1], ['coach', 1], ['restaurant', 1], ['coach', 2], ['coach', 2], ['coach', 2], ['coach', 2], ['coach', 2], ['coach', 2]];
+  const coaches: TrainCoach[] = kinds.map(([kind, cls], i) => ({
+    pos: i + 1, number: kind === 'loco' ? null : i + 1, sectors: secs.length ? [secs[Math.min(secs.length - 1, Math.floor(i * secs.length / kinds.length))]] : [],
+    cls, kind, len: kind === 'loco' ? 18.5 : 26.8, closed: false, declassed: false, wheelchair: i === 9, bike: i === 8, stroller: false,
+    family: i === 7, business: i === 2, lowFloor: i === 9, goesTo: null, reaches: null, id: "demo" + i,
+  }));
+  const demo = q.get('train') === 'demo';
+  const mid = secs[Math.floor(secs.length / 2)];
+  view!.setTrain({
+    role: "board", kind: "train",
+    ref, coaches: demo ? coaches : null, sectors: demo ? secs : (q.get('sectors') || secs.join('')).split(/[^A-Z]+|(?=[A-Z])/).filter(Boolean),
+    target: demo ? coaches.map((c, i) => (c.cls === 2 && c.sectors[0] === mid ? i : -1)).filter((i) => i >= 0) : [],
+    crowd: { first: 1, second: 2 }, cls: 2,
+  });
+  // the way to the sector to get on in, as the app aims it
+  if (demo && mid && initial && end) view!.plan(end1(initial[1]), { stop: { uic: end.uic, ref, sector: mid } }, prefsOf(initial[3]));
+  else view!.whole();
+}
+// ?step=last (or a number): open at that step of the way
+if (q.get('step') && view!.route) view!.step(q.get('step') === 'last' ? view!.route.steps.length - 1 : +q.get('step')!);
