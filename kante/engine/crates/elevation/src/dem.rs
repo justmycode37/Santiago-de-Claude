@@ -8,6 +8,7 @@ use rustc_hash::FxHashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tiff::decoder::{Decoder, DecodingResult};
 use tiff::tags::Tag;
 
@@ -37,6 +38,8 @@ pub struct Dem {
     tile_w: u32,
     tile_h: u32,
     tiles_across: u32,
+    /// Tiles that could not be read (a file cut short, a compression this reader does not know).
+    failed: AtomicUsize,
 }
 
 /// A value that is no height: GDAL's nodata (3.4e38) or anything off the scale.
@@ -62,10 +65,29 @@ impl Dem {
             bail!("not in Swiss LV95: tie point {tie:?}");
         }
         let (tile_w, tile_h) = d.chunk_dimensions();
+        if width == 0 || height == 0 || tile_w == 0 || tile_h == 0 {
+            bail!("an empty image");
+        }
         if tile_w == width && height > tile_h {
             bail!("a striped TIFF: tiles needed");
         }
-        Ok(Dem { path: path.to_path_buf(), e0: tie[3], n0: tie[4], px: scale[0], width, height, tile_w, tile_h, tiles_across: width.div_ceil(tile_w) })
+        match d.colortype()? {
+            tiff::ColorType::Gray(32) => {}
+            c => bail!("heights as {c:?}, not 32-bit floats"),
+        }
+        let dem = Dem { path: path.to_path_buf(), e0: tie[3], n0: tie[4], px: scale[0], width, height, tile_w, tile_h, tiles_across: width.div_ceil(tile_w), failed: AtomicUsize::new(0) };
+        // the last tile: a file cut short fails here, not halfway through the build
+        let last = dem.tiles_across * height.div_ceil(tile_h) - 1;
+        match d.read_chunk(last) {
+            Ok(DecodingResult::F32(_)) => Ok(dem),
+            Ok(_) => bail!("heights not as 32-bit floats"),
+            Err(e) => bail!("its last tile cannot be read ({e}): cut short?"),
+        }
+    }
+
+    /// Tiles that could not be read so far.
+    pub fn failed_tiles(&self) -> usize {
+        self.failed.load(Ordering::Relaxed)
     }
 
     /// (column, row) of pixel centres: point (e, n) lies between pixels `floor` and `floor + 1`.
@@ -142,6 +164,9 @@ impl Terrain for Dem {
                 )
                 .collect();
             for (t, tile) in fresh {
+                if tile.is_none() {
+                    self.failed.fetch_add(1, Ordering::Relaxed);
+                }
                 cache.insert(t, tile.unwrap_or(Tile { w: 0, v: Vec::new() }));
             }
             let hs: Vec<f32> = idx.par_iter().map(|&i| self.bilinear(pts[i as usize], &cache)).collect();

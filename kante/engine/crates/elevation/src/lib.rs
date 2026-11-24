@@ -324,8 +324,9 @@ fn interpolate_spans(g: &WalkGraph, classes: &[Class], anchor: &[bool], hn: &mut
             let dist = span_dijkstra(g, classes, &local, &nodes, a);
             let ha = hn[a as usize] as f64;
             for (i, d) in dist.iter().enumerate() {
-                if d.is_finite() && *d > 0.0 {
-                    let w = 1.0 / *d as f64;
+                if d.is_finite() {
+                    // (a span of no length from the anchor: its height)
+                    let w = 1.0 / d.max(0.01) as f64;
                     sum_w[i] += w;
                     sum_wh[i] += w * ha;
                 }

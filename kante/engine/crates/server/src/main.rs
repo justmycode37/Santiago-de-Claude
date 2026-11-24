@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         "build" => build::run(&args),
         "serve" => serve(&args),
         _ => {
-            eprintln!("usage:\n  kante build [--data DIR] [--walk-bbox S,W,N,E] [--only timetable,osm,links,search,doors] [--force] [--without-register]\n  kante serve [--data DIR] [--port 8080] [--bind 0.0.0.0] [--app DIR]");
+            eprintln!("usage:\n  kante build [--data DIR] [--walk-bbox S,W,N,E] [--only timetable,osm,doors,elevation,links,search] [--force] [--without-register]\n  kante serve [--data DIR] [--port 8080] [--bind 0.0.0.0] [--app DIR]");
             Ok(())
         }
     }

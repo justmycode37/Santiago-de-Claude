@@ -348,9 +348,12 @@ impl WalkRouter {
     /// profile's speed. One result per target, in input order; `None` if the
     /// walk this profile would choose takes longer than `max_time_s` (or does
     /// not exist). The search runs on the generalised cost up to 1.3 ×
-    /// `max_time_s` (1.5 × when avoiding stairs, 2 × in wheelchair mode),
-    /// which covers every multiplicative penalty; only a walk that is close
-    /// to the bound *and* carries several avoided stair flights can be missed.
+    /// `max_time_s` (1.5 × when avoiding stairs, 2 × in wheelchair mode; 0.3
+    /// more when minding hills, 1.0 more avoiding them or in a wheelchair: see
+    /// `search::bound_slack`), which covers every multiplicative penalty; a
+    /// walk close to the bound with several avoided stair flights, or one up a
+    /// steep hill all the way, can be missed ([`WalkRouter::quickest_many`]
+    /// finds the quickest walk within the time).
     pub fn one_to_many(&self, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
         search::one_to_many(&self.graph, &self.net, from, targets, profile, max_time_s)
     }

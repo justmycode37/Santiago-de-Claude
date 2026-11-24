@@ -211,6 +211,9 @@ pub fn run(args: &Args) -> Result<()> {
                 st.clamped,
                 kante_elevation::MAX_GRADE * 100.0
             );
+            if dem.failed_tiles() > 0 {
+                return flat(format!("{} tiles of the terrain model {} cannot be read", dem.failed_tiles(), dem_path.display()));
+            }
             if st.no_height * 2 > graph.nodes.len() {
                 return flat(format!("the terrain model {} has no height for {} of {} nodes", dem_path.display(), st.no_height, graph.nodes.len()));
             }

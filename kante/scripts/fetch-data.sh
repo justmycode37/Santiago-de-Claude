@@ -114,11 +114,22 @@ if (( only_elevation )); then
   head=$(curl -fsSIL --retry 3 -A "$UA" "$DEM_URL") || { echo "error: $DEM_URL does not answer" >&2; exit 1; }
   size=$(grep -i '^content-length:' <<<"$head" | tail -n 1 | tr -dc '0-9')
   etag=$(grep -i '^etag:' <<<"$head" | tail -n 1 | cut -d: -f2- | tr -d ' \r')
-  # a part of another edition is not resumed
-  if [[ -e $dest.part && "$(cat "$dest.part.etag" 2>/dev/null)" != "$etag" ]]; then rm -f "$dest.part"; fi
+  # a part of another edition, or longer than the file, is not resumed; one that is all there needs no more
+  # (resuming it would be refused, 416, every time)
+  have=$(stat -c %s "$dest.part" 2>/dev/null || echo 0)
+  if [[ -e $dest.part ]] && { [[ "$(cat "$dest.part.etag" 2>/dev/null)" != "$etag" ]] || [[ -z $size ]] || (( have > size )); }; then
+    rm -f "$dest.part"
+    have=0
+  fi
   echo "$etag" > "$dest.part.etag"
-  echo "fetch $dest (10 GB)"
-  curl -fSL --retry 5 -C - -A "$UA" -o "$dest.part" "$DEM_URL" || exit 1
+  if [[ -z $size ]] || (( have < size )); then
+    echo "fetch $dest (10 GB)"
+    if ! curl -fSL --retry 5 -C - -A "$UA" -o "$dest.part" "$DEM_URL"; then
+      # a refused range cannot be resumed: start again next time
+      [[ -e $dest.part ]] && (( $(stat -c %s "$dest.part") >= ${size:-0} )) && rm -f "$dest.part"
+      exit 1
+    fi
+  fi
   if [[ -z $size || $(stat -c %s "$dest.part") != "$size" ]] || ! dem_ok "$dest.part"; then
     echo "error: $DEM_URL gave $(stat -c %s "$dest.part") bytes of ${size:-unknown}, not the terrain model the engine reads" >&2
     rm -f "$dest.part" "$dest.part.etag"

@@ -406,8 +406,8 @@ impl App {
                     // The buffer is waiting at the stop, not walking.
                     let buf = (crate::state::ACCESS_BUFFER_S as i64).min((arr - dep) as i64);
                     let mut w = self.walk_leg("access", from, &self.stop_end(s), ux(dep), ux(arr) - buf, profile);
-                    // timed by the walk drawn (which runs in travel order, the stop search the other way): a longer
-                    // one takes the wait at the stop, and starts earlier only beyond it
+                    // timed by the walk drawn (the stop search timed the cheapest way of all the candidates, the walk
+                    // drawn may take another): a longer one takes the wait at the stop, and starts earlier only beyond it
                     if let Some(s) = w.drawn_s {
                         let board = ux(arr);
                         w.duration_s = s;
@@ -459,7 +459,7 @@ impl App {
             if let (Some(nd), Some(&(_, a, b))) = (next_dep, changes.iter().find(|c| c.0 == i)) {
                 if let JLeg::Walk(w) = &mut legs[i] {
                     let room = nd - prev_arr.unwrap_or(w.dep) - margin as i64;
-                    if let Some(other) = self.change_walk(w, a, b, room, profile, flatter) {
+                    if let Some(other) = self.change_walk(w, a, b, room, margin as i64, profile, flatter) {
                         *w = other;
                     }
                 }
@@ -476,7 +476,7 @@ impl App {
                         let spare = nd - start - w.duration_s;
                         if spare < 0 {
                             alerts.push(json::JourneyAlert { severity: "severe", kind: "missed-connection", leg: Some(i), text: format!("You will miss this change at {} with the current delays", w.to.name) });
-                        } else if spare < 90 {
+                        } else if spare < TIGHT_S {
                             alerts.push(json::JourneyAlert { severity: "warning", kind: "tight-change", leg: Some(i), text: format!("Tight change at {}: {} s to spare after walking", w.to.name, spare) });
                         } else if let Some(off) = w.official_min_s {
                             if nd - start < off as i64 {
@@ -556,8 +556,10 @@ impl App {
     /// - one who minds them a little, with `flatter` on, walks the way a walker who avoids them takes when it climbs
     ///   at least 5 m less and still leaves a minute in hand.
     ///
+    /// Neither leaves a change tight (under [`TIGHT_S`] to spare, `margin` included) for a flatter way.
     /// [`json::WalkLeg::flatter`] says by how much the walk is longer and climbs less. `None`: walk it as it is.
-    fn change_walk(&self, w: &json::WalkLeg, a: StopIdx, b: StopIdx, room: i64, profile: &WalkProfile, flatter: bool) -> Option<json::WalkLeg> {
+    #[allow(clippy::too_many_arguments)]
+    fn change_walk(&self, w: &json::WalkLeg, a: StopIdx, b: StopIdx, room: i64, margin: i64, profile: &WalkProfile, flatter: bool) -> Option<json::WalkLeg> {
         if w.approximate || w.drawn_s.is_none() || self.walk.is_none() {
             return None;
         }
@@ -566,10 +568,15 @@ impl App {
             o.official_min_s = w.official_min_s;
             o
         };
+        // seconds the flatter way must leave beyond the margin, so that the change is not tight
+        let untight = (TIGHT_S - margin).max(0);
         match profile.hills {
             HillsPref::Avoid => {
                 let quick = walk(HillsPref::Normal);
-                match flatter_way(&quick, w, room, 0, 0) {
+                if quick.approximate || quick.drawn_s.is_none() {
+                    return None; // no quicker way to fall back on
+                }
+                match flatter_way(&quick, w, room, untight, 0) {
                     Some(f) if f.extra_s > 0 || f.less_climb_m > 0 => Some(retimed(w.clone(), quick.duration_s, f)),
                     // as quick, or the same way: as it is
                     Some(_) => None,
@@ -579,7 +586,7 @@ impl App {
             }
             HillsPref::Normal if flatter && w.climb_m >= 5 => {
                 let flat = walk(HillsPref::Avoid);
-                let f = flatter_way(w, &flat, room, 60, 5)?;
+                let f = flatter_way(w, &flat, room, untight.max(60), 5)?;
                 Some(retimed(flat, w.duration_s, f))
             }
             _ => None,
@@ -837,6 +844,9 @@ impl App {
         Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
     }
 }
+
+/// A change with less to spare after walking is tight (an alert says so).
+const TIGHT_S: i64 = 90;
 
 /// Whether the flatter walk `flat` of a change may replace the quicker `quick`, with `room` seconds for the walk: it
 /// is timed as `quick` plus the seconds the walks drawn differ (never less), and both that and the flatter walk as
