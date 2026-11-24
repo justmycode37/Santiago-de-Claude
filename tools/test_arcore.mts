@@ -30,6 +30,9 @@ check(A.isRouteToken('n1') && A.isRouteToken('10e') && !A.isRouteToken('wabern')
 check(A.destinationSimilarity('Wabern, Tram-Endstation', 'Wabern') >= 0.9, '"Wabern" is how "Wabern, Tram-Endstation" is shown');
 check(A.destinationSimilarity('Bern, Wankdorf Bahnhof', 'Wankdorf Bhf') >= 0.9, '"Wankdorf Bhf" for "Bern, Wankdorf Bahnhof"');
 check(A.similarity('Saali', 'Soali') >= 0.85, 'LED a/o counts half an edit');
+check(!A.sameDestination('Bern, Bahnhof', 'Bern Wankdorf, Bahnhof'), '"Bern, Bahnhof" and "Bern Wankdorf, Bahnhof" are two destinations (Swift parity)');
+check(!A.sameDisplay({ line: '10', destination: 'Bern, Bahnhof' }, { line: '10', destination: 'Bern Wankdorf, Bahnhof' }), 'so the 10 to each is a different display, and a rival stays on the board');
+check(A.sameDestination('Wabern, Tram-Endstation', 'Wabern,Tram-Endstation') && A.sameDestination('Bern, Wankdorf Bahnhof', 'Bern, Wankdorf Bhf'), 'the same destination spelt two ways is one');
 
 console.log('One frame against a board');
 const board = [
@@ -151,15 +154,15 @@ function runSet(dir: string, ocr: BenchOcr) {
 }
 const pct = (a: number, n: number) => (n ? (a * 100 / n).toFixed(1) + ' %' : '-');
 
-// The Swift's numbers on the same data (run-eval.sh on Linux, strategy C, 21 Nov 2026): passes accepted, wrong-vehicle
+// The Swift's numbers on the same data (run-eval.sh on Linux, strategy C, 24 Nov 2026, with sameDestination): passes accepted, wrong-vehicle
 // trials flagged. On Linux, Foundation's CGRect.contains(rect) is union(rect) == self, compared exactly, which fails
 // for most float boxes (x + width − x ≠ width), so the Swift's line/destination pairs (VehicleTextRules.read) almost never form there. "Linux"
 // mode below reproduces that and must give exactly the Swift's numbers; "phone" mode is the logic as intended (and as
 // the web runs it).
 interface SwiftNumbers { accepted: number; n: number; flagged: number; negN: number }
 const SWIFT: Record<string, SwiftNumbers> = {
-  data: { accepted: 76, n: 111, flagged: 241, negN: 349 },
-  'data-holdout': { accepted: 27, n: 35, flagged: 81, negN: 113 },
+  data: { accepted: 72, n: 111, flagged: 225, negN: 349 },
+  'data-holdout': { accepted: 26, n: 35, flagged: 77, negN: 113 },
 };
 const linuxContains = (o: ArBox, i: ArBox) => { // union(o, i) == o, compared exactly
   const x0 = Math.min(o[0], i[0]), y0 = Math.min(o[1], i[1]);

@@ -299,7 +299,15 @@ function score(c: ArCandidate, wins: Win[], routeTokens: string[]): ArCandidateS
 }
 
 function sameDisplay(a: ArCandidate, b: ArCandidate) {
-  return lineKey(a.line) === lineKey(b.line) && destinationSimilarity(a.destination, b.destination) >= 0.9;
+  return lineKey(a.line) === lineKey(b.line) && sameDestination(a.destination, b.destination);
+}
+/** Whether two names are the same destination. Only full renderings count (weight 1 variants), so a shared generic part
+ *  ("Bahnhof" of "Bern, Bahnhof" and "Bern Wankdorf, Bahnhof") or a shared locality alone ("Wabern" of two Wabern
+ *  stops) never makes two destinations one. As DepartureDisplayMatcher.sameDestination in the Swift. */
+function sameDestination(a: string, b: string, threshold = 0.9) {
+  const x = weightedVariants(a).filter((v) => v.weight >= 1), y = weightedVariants(b).filter((v) => v.weight >= 1);
+  for (const u of x) for (const v of y) if (similarity(u.words.join(''), v.words.join('')) >= threshold) return true;
+  return false;
 }
 
 /** Compare one frame's display text with every candidate service. positions: likelihoods per identity (0–1). */
@@ -516,7 +524,7 @@ function decide(readingsIn: ArReading[], lastSeen: number, expected: ArExpectati
   if (board.other) {
     const o = board.other, service = `${o.line} ${o.destination}`;
     const stops = expected.stopsBefore || [];
-    if (lineKey(o.line) === lineKey(expected.line) && stops.some((s) => destinationSimilarity(s, o.destination) >= 0.9)) {
+    if (lineKey(o.line) === lineKey(expected.line) && stops.some((s) => sameDestination(s, o.destination))) {
       return withBasis(ans('wrong', 'display_short_turn_before_alighting', { other: o, observed: service }));
     }
     return withBasis(ans('wrong', 'display_matches_other_departure', { other: o, observed: service }));
@@ -549,6 +557,6 @@ function decisionText(d: ArDecision, expected: ArExpectation | null): string {
 }
 
 export const ARCORE = {
-  words, canonical, lineKey, isRouteToken, confusionKey, weightedVariants, similarity, destinationSimilarity, sameDisplay,
+  words, canonical, lineKey, isRouteToken, confusionKey, weightedVariants, similarity, destinationSimilarity, sameDisplay, sameDestination,
   identity, normalize, match, read, decide, decisionText, credibleContradiction, iou, options: OPTIONS,
 };
