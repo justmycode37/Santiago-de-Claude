@@ -16,13 +16,16 @@
 //!   ([`LIFT_S`] each), escalators (length / [`ESCALATOR_MPS`]), expected waits
 //!   at crossings ([`CROSSING_SIGNAL_S`], [`CROSSING_MARKED_S`],
 //!   [`CROSSING_UNMARKED_S`]).
+//!
+//! Hills add to `var_m`: the extra metres their slopes cost ([`crate::slope`]), which depend on the
+//! direction walked, so a footpath up a hill takes longer than the same one down.
 
 use crate::geo::LatLon;
 use crate::timetable::StopIdx;
 use serde::{Deserialize, Serialize};
 
 pub const WALKGRAPH_SCHEMA: &str = "walkgraph-v1";
-pub const LINKS_SCHEMA: &str = "links-v3";
+pub const LINKS_SCHEMA: &str = "links-v4";
 pub const EXTRACT_SCHEMA: &str = "osm-extract-v2";
 
 pub const STAIRS_FACTOR: f32 = 2.2;
@@ -172,6 +175,11 @@ pub struct WalkGraph {
     pub geom: Vec<LatLon>,
     /// `names[0]` is the empty string.
     pub names: Vec<String>,
+    /// One per edge, or empty when no terrain model is loaded (every edge flat). Not part of
+    /// `walkgraph.bin`: `kante build` writes them to `slopes.bin` ([`crate::Slopes`]) and the server
+    /// puts them here before it builds the router.
+    #[serde(skip)]
+    pub slopes: Vec<crate::slope::EdgeSlope>,
 }
 
 impl WalkGraph {
@@ -280,17 +288,19 @@ pub struct WalkProfile {
     /// May use lifts.
     pub lifts: bool,
     /// Wheelchair / pushchair mode: additionally refuses `wheelchair=no` ways
-    /// and impassable barriers, and penalises rough surfaces.
+    /// and impassable barriers, and penalises rough surfaces (and grades over 6 %).
     pub wheelchair: bool,
+    /// How much hills matter for route choice ([`crate::slope`]); the time always counts them.
+    pub hills: crate::slope::HillsPref,
 }
 
 impl WalkProfile {
     pub const fn normal(speed_mps: f32) -> Self {
-        WalkProfile { speed_mps, stairs: StairsPref::Ok, escalators: true, lifts: true, wheelchair: false }
+        WalkProfile { speed_mps, stairs: StairsPref::Ok, escalators: true, lifts: true, wheelchair: false, hills: crate::slope::HillsPref::Normal }
     }
     /// Strict step-free: no stairs, no escalators, wheelchair rules.
     pub const fn step_free(speed_mps: f32) -> Self {
-        WalkProfile { speed_mps, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true }
+        WalkProfile { speed_mps, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true, hills: crate::slope::HillsPref::Normal }
     }
     pub fn is_step_free(&self) -> bool {
         self.stairs == StairsPref::Never
@@ -408,6 +418,8 @@ pub struct LinkData {
     /// [`crate::Timetable::stops_fingerprint`] of the timetable (stops are linked by index, edges by number).
     pub graph: u64,
     pub timetable: u64,
+    /// [`crate::slopes_fingerprint`] of the slopes the footpaths were timed with (0: none, all flat).
+    pub slopes: u64,
 }
 
 // ---------------------------------------------------------------- doors

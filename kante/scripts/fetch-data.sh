@@ -4,6 +4,7 @@
 #
 #   scripts/fetch-data.sh [--refresh]
 #   scripts/fetch-data.sh --register   only the building address register, if it is not there yet
+#   scripts/fetch-data.sh --elevation  only the terrain model (10 GB), if it is not there yet
 #
 # Sources (all open, no key needed):
 #   - National GTFS timetable   opentransportdata.swiss (updated Mon + Thu; the
@@ -12,6 +13,9 @@
 #   - OpenStreetMap Switzerland  download.geofabrik.de   (daily)
 #   - Building address register  data.geo.admin.ch (swisstopo, weekly; optional: the doors of
 #                                buildings OpenStreetMap maps without one)
+#   - Terrain model              data.geo.admin.ch (swisstopo swissALTIRegio, 10 m, yearly; optional,
+#                                --elevation only: the hills walks climb. Without it walks are timed as
+#                                if flat. Never fetched again once there, not even with --refresh)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,6 +23,8 @@ refresh=0
 [[ "${1:-}" == "--refresh" ]] && refresh=1
 only_register=0
 [[ "${1:-}" == "--register" ]] && only_register=1
+only_elevation=0
+[[ "${1:-}" == "--elevation" ]] && only_elevation=1
 
 OTD=https://data.opentransportdata.swiss
 RAW=${KANTE_RAW:-data/raw}
@@ -88,6 +94,30 @@ register() {
 }
 if (( only_register )); then
   register
+  exit 0
+fi
+
+# swisstopo's terrain model, swissALTIRegio (10 m, a cloud-optimised GeoTIFF of 10 GB): what kante build's
+# `elevation` step reads. Downloaded once and resumed where a download was cut short.
+DEM_URL=https://data.geo.admin.ch/ch.swisstopo.swissaltiregio/swissaltiregio/swissaltiregio_2056_5728.tif
+dem_ok() { # a little-endian BigTIFF of at least 5 GB
+  [[ -s $1 ]] && [[ $(head -c 4 "$1" | od -An -tx1 | tr -d ' \n') == 49492b00 ]] && (( $(stat -c %s "$1") > 5000000000 ))
+}
+if (( only_elevation )); then
+  dest=$RAW/dem/swissaltiregio.tif
+  if dem_ok "$dest"; then
+    echo "have  $dest"
+    exit 0
+  fi
+  mkdir -p "$RAW/dem"
+  echo "fetch $dest (10 GB)"
+  curl -fSL --retry 5 -C - -A "$UA" -o "$dest.part" "$DEM_URL" || exit 1
+  if ! dem_ok "$dest.part"; then
+    echo "error: $DEM_URL is not the terrain model the engine reads" >&2
+    rm -f "$dest.part"
+    exit 1
+  fi
+  mv "$dest.part" "$dest"
   exit 0
 fi
 

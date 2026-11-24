@@ -3,7 +3,7 @@
 //! an edge. Per-thread scratch with generation stamps, so a query touches
 //! only the nodes it reaches.
 
-use crate::net::{Arc, CostTable, Net, NO_NODE};
+use crate::net::{slope_var, Arc, CostTable, Net, NO_NODE};
 use crate::WalkCost;
 use kante_core::geo::M_PER_DEG_LAT;
 use kante_core::*;
@@ -135,14 +135,22 @@ thread_local! {
 /// How far beyond `max_time_s` the generalised cost may go, so that a walk
 /// which takes 14 minutes but "feels" like 18 because it follows a main road
 /// is still found. Covers a walk entirely on `RoadBusy` (×1.3), entirely on
-/// rough ground in a wheelchair (×1.8), and a few avoided stair flights.
+/// rough ground in a wheelchair (×1.8), and a few avoided stair flights; and
+/// hills: a walk climbing all the way at 10 % feels about 1.3 × as long to a
+/// walker who minds them a little, 2 × to one who avoids them, more in a wheelchair.
 fn bound_slack(p: &WalkProfile) -> f32 {
-    if p.wheelchair {
+    let base = if p.wheelchair {
         2.0
     } else if p.stairs == StairsPref::Avoid {
         1.5
     } else {
         1.3
+    };
+    base + match (p.hills, p.wheelchair) {
+        (HillsPref::Ignore, _) => 0.0,
+        (_, true) => 1.0,
+        (HillsPref::Normal, false) => 0.3,
+        (HillsPref::Avoid, false) => 1.0,
     }
 }
 
@@ -293,7 +301,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
             for a in &net.arcs[net.out(u)] {
                 let c = a.cls as usize;
                 let sh = a.share as f32;
-                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c];
+                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c] + t.slope_gen(a);
                 if !(nd <= bound) || a.head_block & t.head_mask != 0 {
                     continue;
                 }
@@ -301,7 +309,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
                 if sv[S_STAMP] != gen || nd < f32::from_bits(sv[S_DIST]) {
                     sv[S_STAMP] = gen;
                     sv[S_DIST] = nd.to_bits();
-                    sv[S_VAR] = (var + a.len_m * t.var_m[c]).to_bits();
+                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_H] = su[S_H];
                     heap.push(nd, a.head);
@@ -519,7 +527,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
             for (i, a) in net.arcs[r].iter().enumerate() {
                 let c = a.cls as usize;
                 let sh = a.share as f32;
-                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c];
+                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c] + t.slope_gen(a);
                 if !(nd < best.0) || a.head_block & t.head_mask != 0 {
                     continue;
                 }
@@ -531,7 +539,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                         sv[S_H] = h(a.head).to_bits();
                     }
                     sv[S_DIST] = nd.to_bits();
-                    sv[S_VAR] = (var + a.len_m * t.var_m[c]).to_bits();
+                    sv[S_VAR] = (var + a.len_m * t.var_m[c] + slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_PARC] = (base + i) as u32;
                     sv[S_PNODE] = u;

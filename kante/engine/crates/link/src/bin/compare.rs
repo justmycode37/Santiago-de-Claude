@@ -204,7 +204,7 @@ fn through_sampled(ix: &DoorIndex, p: LatLon, q: LatLon, trim_m: f32) -> bool {
 
 /// The wheelchair walk between two nodes (lat, lon, lat, lon) in two graphs: seconds and edges.
 fn hop(a: &Path, b: &Path, c: [f64; 4]) -> Result<()> {
-    let prof = WalkProfile { speed_mps: 1.3, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true };
+    let prof = WalkProfile { hills: HillsPref::Normal, ..WalkProfile::step_free(1.3) };
     for p in [a, b] {
         let g: WalkGraph = io::load(p, WALKGRAPH_SCHEMA)?;
         let r = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
@@ -506,7 +506,7 @@ fn profile_of(o: &serde_json::Value) -> WalkProfile {
         _ => StairsPref::Ok,
     };
     let wheelchair = o["wheelchair"].as_bool().unwrap_or(false);
-    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair }
+    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair, hills: HillsPref::Normal }
 }
 
 /// Why A (`main`) reaches a stop that B does not, from the built data of both, for each line of stdin

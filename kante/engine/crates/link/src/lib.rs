@@ -908,7 +908,7 @@ pub fn link(tt: &Timetable, router: &WalkRouter, extract: &OsmExtract, opts: &Li
 
     let normal = footpaths(tt, router, &links, &WalkProfile::normal(DEFAULT_SPEED_MPS), opts.max_transfer_s, None);
     let step_free = footpaths(tt, router, &links, &WalkProfile::step_free(DEFAULT_SPEED_MPS), opts.max_transfer_s, Some(&normal));
-    LinkData { links, normal, step_free, graph: graph_fingerprint(router.graph()), timetable: tt.stops_fingerprint() }
+    LinkData { links, normal, step_free, graph: graph_fingerprint(router.graph()), timetable: tt.stops_fingerprint(), slopes: slopes_fingerprint(&router.graph().slopes) }
 }
 
 /// Human-readable summary of how well the linking went, for the build log.

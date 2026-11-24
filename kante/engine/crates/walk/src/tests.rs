@@ -1447,3 +1447,88 @@ fn a_sources_metres_to_the_network_do_not_shrink_the_search() {
     }
     assert!(checked > 50, "{checked}");
 }
+
+// ---------------------------------------------------------------- hills
+
+/// From `a` to `b` 300 m over a hill (up on the first half: `up`, then down), or round it on the flat
+/// (`detour` metres). Returns the router, the start edge, the end edge and the hill edges.
+fn hill_world(up: EdgeSlope, detour: f32) -> (WalkRouter, u32, u32, [u32; 2]) {
+    let mut b = Gb::new();
+    let (a0, a, top, z, z0) = (b.node(-20.0, 0.0), b.node(0.0, 0.0), b.node(150.0, 0.0), b.node(300.0, 0.0), b.node(320.0, 0.0));
+    let start = b.edge(a0, a, EdgeKind::Footway);
+    let h1 = b.edge(a, top, EdgeKind::Footway);
+    let h2 = b.edge(top, z, EdgeKind::Footway);
+    // the detour: two edges out to the side and back, `detour` metres in all
+    let side = ((detour / 2.0).powi(2) - 150f32.powi(2)).max(1.0).sqrt();
+    let m = b.node(150.0, -side);
+    b.edge(a, m, EdgeKind::Footway);
+    b.edge(m, z, EdgeKind::Footway);
+    let end = b.edge(z, z0, EdgeKind::Footway);
+    let mut slopes = vec![EdgeSlope::default(); b.g.edges.len()];
+    slopes[h1 as usize] = up;
+    // down the other side: the mirror of the way up
+    slopes[h2 as usize] = EdgeSlope { up_dm: up.down_dm, down_dm: up.up_dm, time_dm: [up.time_dm[1], up.time_dm[0]], effort_dm: [up.effort_dm[1], up.effort_dm[0]], steep_dm: [up.steep_dm[1], up.steep_dm[0]] };
+    b.g.slopes = slopes;
+    (b.build(), start, end, [h1, h2])
+}
+
+/// 150 m at about 8 % up: 12 m climbed, 10 m more of walking time, 40 m of effort; nothing the other way.
+const HILL: EdgeSlope = EdgeSlope { up_dm: 120, down_dm: 0, time_dm: [100, 0], effort_dm: [400, 0], steep_dm: [50, 50] };
+
+fn over_hill(p: &WalkPath, r: &WalkRouter, hill: [u32; 2]) -> bool {
+    let mid = r.graph().nodes[r.graph().edges[hill[0] as usize].b as usize];
+    p.geometry.iter().any(|q| q.dist_m(&mid) < 1.0)
+}
+
+#[test]
+fn hills_cost_time_and_effort() {
+    // over the hill: 300 m + 10 m of time + 40 m of effort (Normal); round it: 330 m
+    let (r, s, e, hill) = hill_world(HILL, 330.0);
+    let (from, to) = (on(s, 0.0, &r), on(e, 1.0, &r));
+    let ignore = WalkProfile { hills: HillsPref::Ignore, ..NORMAL };
+    let p = r.route(&from, &to, &ignore).unwrap();
+    assert!(over_hill(&p, &r, hill));
+    // the time counts the climb; the way down is as quick as the flat
+    assert!(close(p.cost.var_m, 340.0 + 10.0, 0.5), "{}", p.cost.var_m);
+    assert!(close(p.climb_m, 12.0, 0.1) && close(p.descent_m, 12.0, 0.1), "{} {}", p.climb_m, p.descent_m);
+    // minding hills, the flat way round
+    let p = r.route(&from, &to, &NORMAL).unwrap();
+    assert!(!over_hill(&p, &r, hill));
+    assert!(p.climb_m == 0.0 && close(p.cost.var_m, 370.0, 1.0), "{}", p.cost.var_m);
+    // the way back climbs the other side (also 12 m): the same choices
+    let p = r.route(&to, &from, &ignore).unwrap();
+    assert!(over_hill(&p, &r, hill) && close(p.cost.var_m, 350.0, 0.5));
+    // the searches to many targets agree with the routes
+    let c = r.one_to_many(&from, &[to], &NORMAL, 900.0)[0].unwrap();
+    assert!(close(c.var_m, 370.0, 1.0), "{}", c.var_m);
+    let c = r.one_to_many(&from, &[to], &ignore, 900.0)[0].unwrap();
+    assert!(close(c.var_m, 350.0, 0.5), "{}", c.var_m);
+}
+
+#[test]
+fn avoiding_hills_takes_a_longer_way_round() {
+    // round it: 400 m. Normal minds the hill by 40 m (350 < 400): over it; Avoid by 120 m: round it
+    let (r, s, e, hill) = hill_world(HILL, 400.0);
+    let (from, to) = (on(s, 0.0, &r), on(e, 1.0, &r));
+    assert!(over_hill(&r.route(&from, &to, &NORMAL).unwrap(), &r, hill));
+    let avoid = WalkProfile { hills: HillsPref::Avoid, ..NORMAL };
+    assert!(!over_hill(&r.route(&from, &to, &avoid).unwrap(), &r, hill));
+    // a wheelchair minds hills as much, and steep grades on top
+    assert!(!over_hill(&r.route(&from, &to, &STEP_FREE).unwrap(), &r, hill));
+    // ... unless hills do not matter to it
+    let electric = WalkProfile { hills: HillsPref::Ignore, ..STEP_FREE };
+    assert!(over_hill(&r.route(&from, &to, &electric).unwrap(), &r, hill));
+    // the stop search times the way it takes, the flat one
+    let c = r.one_to_many(&from, &[to], &avoid, 900.0)[0].unwrap();
+    assert!(close(c.var_m, 440.0, 2.0), "{}", c.var_m);
+}
+
+#[test]
+fn no_slopes_no_change() {
+    let (mut r, s, e, _) = hill_world(HILL, 330.0);
+    let mut g = (**r.graph()).clone();
+    g.slopes.clear();
+    r = WalkRouter::new(Arc::new(g));
+    let p = r.route(&on(s, 0.0, &r), &on(e, 1.0, &r), &NORMAL).unwrap();
+    assert!(close(p.cost.var_m, 340.0, 0.5) && p.climb_m == 0.0);
+}

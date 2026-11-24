@@ -205,6 +205,16 @@ fn cap_by_official(tt: &Timetable, fp: &mut Footpaths) -> usize {
     n
 }
 
+/// The slopes in `slopes.bin` when they belong to graph `g` (none when the file is missing, unreadable or of
+/// another build).
+pub fn load_slopes(path: &Path, g: &WalkGraph) -> Option<Vec<EdgeSlope>> {
+    if !path.exists() {
+        return None;
+    }
+    let s = io::load::<Slopes>(path, SLOPES_SCHEMA).ok()?;
+    (s.graph == graph_fingerprint(g) && s.edges.len() == g.edges.len()).then_some(s.edges)
+}
+
 fn timed<T>(what: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     let t = Instant::now();
     let r = f().with_context(|| what.to_string())?;
@@ -266,9 +276,15 @@ impl App {
         let (graph, links) = walk_parts;
 
         let mut walk_bbox = BBox::empty();
-        let walk = graph.map(|g| {
+        let slopes_path = built.join("slopes.bin");
+        let walk = graph.map(|mut g| {
             for n in g.nodes.iter().step_by(64) {
                 walk_bbox.extend(n);
+            }
+            match timed("slopes", || Ok(load_slopes(&slopes_path, &g))) {
+                Ok(Some(s)) => g.slopes = s,
+                _ if slopes_path.exists() => eprintln!("  slopes.bin belongs to another walk graph build: walks timed as if flat (run `kante build`)"),
+                _ => eprintln!("  no slopes.bin: walks timed as if flat (scripts/fetch-data.sh --elevation, then `kante build`)"),
             }
             let t = Instant::now();
             let r = WalkRouter::new(Arc::new(g));
@@ -322,6 +338,11 @@ impl App {
             }
             ok
         });
+        if let (Some(l), Some(w)) = (&links, &walk) {
+            if l.slopes != slopes_fingerprint(&w.graph().slopes) {
+                eprintln!("  links.bin was timed with other slopes: changes keep those times until `kante build` runs");
+            }
+        }
         let (stop_links, fp_normal, fp_step_free) = match links {
             Some(l) if walk.is_some() => (Some(l.links), l.normal, l.step_free),
             _ => {

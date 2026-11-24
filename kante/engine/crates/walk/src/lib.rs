@@ -22,6 +22,14 @@
 //! wheelchair mode rough surfaces count ×1.8, unpaved paths ×1.3 and busy
 //! roads ×2 (the largest of these, not their product).
 //!
+//! Hills (when the graph has slopes, `WalkGraph::slopes`, from `kante-elevation`; the model is
+//! `kante_core::slope`): every arc carries its direction's extra metres of walking time, which add to
+//! `var_m` (so up a hill takes longer than down it), its route-choice effort, weighted by the walker's
+//! `HillsPref` (×0 ignore, ×1 normal, ×3 avoid; a wheelchair at least ×3), and for wheelchairs its grades
+//! over 6 %. `WalkPath::climb_m` / `descent_m` count the metres climbed and descended. No slope makes an
+//! arc quicker than the flat, so the A* bound holds; the bounded searches allow for the effort
+//! (`search::bound_slack`).
+//!
 //! Unusable: steps for `StairsPref::Never` and for wheelchairs (unless
 //! `EF_RAMP`), escalators without `escalators`, lifts without `lifts`, an
 //! edge against `EF_ONEWAY_*`, and for wheelchairs `EF_WHEELCHAIR_NO` edges
@@ -182,6 +190,9 @@ impl WalkCost {
 pub struct WalkPath {
     pub cost: WalkCost,
     pub dist_m: f32,
+    /// Metres climbed and descended on the way (0 without a terrain model; stairs out of doors included).
+    pub climb_m: f32,
+    pub descent_m: f32,
     /// Number of steps climbed / descended.
     pub stairs_up: u16,
     pub stairs_down: u16,

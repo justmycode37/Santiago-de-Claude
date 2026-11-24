@@ -56,6 +56,8 @@ export interface RoutedWalk {
   floors?: KanteFloorChange[];
   /** Its time, seconds: the engine's (or a station model's). */
   walkS?: number;
+  /** Metres climbed on it (the engine's, from the terrain model). */
+  climb?: number;
 }
 /** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
  *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */

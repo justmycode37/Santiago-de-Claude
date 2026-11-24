@@ -1580,7 +1580,23 @@
             <button type="button" data-stepper="maxWalkMin" data-dir="1" aria-label="Longer maximum walk"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10" /></svg></button>
           </span>
         </div>
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--rose)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 19h19M4 19l5.5-8 3 4 2-2.5L20 19" /></svg></span>
+          <span class="set-text"><b id="setAvoidHillsT">Avoid hills</b><small id="setAvoidHillsD">Take a flatter way, even when it is a few minutes longer.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="avoidHills" aria-labelledby="setAvoidHillsT" aria-describedby="setAvoidHillsD" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 19L10 8l4 5 2-2.5L21 19zM3 19h18" /><path d="M9.5 4.5l1.5 1.5 3-3" /></svg></span>
+          <span class="set-text"><b id="setIgnoreHillsT">Hills don’t bother me</b><small id="setIgnoreHillsD">Take the quickest way, uphill or not.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="ignoreHills" aria-labelledby="setIgnoreHillsT" aria-describedby="setIgnoreHillsD" />
+        </label>
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--tang)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18h18M5 18c2-6 5-9 7-9s5 3 7 9" stroke-dasharray="2 2.5" /><path d="M3 21h18" /></svg></span>
+          <span class="set-text"><b id="setFlatChangeT">Flatter way at changes</b><small id="setFlatChangeD">When a change has time to spare, walk round a hill if there is still a minute in hand.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="flatterChanges" aria-labelledby="setFlatChangeT" aria-describedby="setFlatChangeD" />
+        </label>
       </div>
+      <p class="set-foot">Walking times count the hills on the way, from swisstopo’s terrain model.</p>
 
       <h2 class="set-head" id="setModesHead">Transport types</h2>
       <div class="set-group" role="group" aria-labelledby="setModesHead">

@@ -137,6 +137,8 @@ function options() {
     stairs: p.stepFree ? 'never' : p.fewerStairs ? 'avoid' : 'ok',
     escalators: !p.noEscalators,
     wheelchair: !!p.wheelchair,
+    hills: p.avoidHills ? 'avoid' : p.ignoreHills ? 'ignore' : 'normal',
+    flatterChanges: p.flatterChanges,
     transferMarginS: p.extraChangeMin * 60,
     maxWalkMin: p.maxWalkMin,
   };
@@ -418,13 +420,20 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   const door = leg.door ? { ll: [leg.door.lon, leg.door.lat] as LngLat, type: leg.door.kind, addr: leg.door.addr || '' } : null;
   if (leg.noStepFreeDoor) dirs.push({ kind: 'walk', text: 'No step-free entrance is mapped for this building', coords: [] });
   if (door) dirs.push({ kind: 'walk', text: door.addr ? `In at the entrance, ${door.addr}` : door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [door.ll] });
-  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door,
+  // a change walked round a hill because there is time for it: said first
+  if (leg.flatter && dirs.length) dirs.unshift({ kind: 'walk', text: flatterText(leg.flatter), coords: [] });
+  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door, ...(leg.climbM ? { climb: leg.climbM } : {}),
     // the guessed ends (drawn dashed, not counted as progress along the walk: snapToTrip() in tracking.ts), and the
     // stretches under a roof
     approxTo: to, approxFrom: from, ...(all ? { approx: true } : {}),
     covered: (leg.covered || []).map((c) => ({ kind: c.kind, coords: coords.slice(c.from, c.to + 1) })) };
   return { lines: [coords], walks: [walk],
     floors: dirs.filter((d) => d.from != null && d.coords.length).map((d) => ({ at: d.coords[0], from: d.from!, to: d.to! })) };
+}
+/** What a change walked the flatter way says about it: "There is time for a flatter way: 20 m less uphill, 1 min longer". */
+function flatterText(f: { extraS: number; lessClimbM: number }) {
+  const min = Math.round(f.extraS / 60);
+  return `There is time for a flatter way: ${f.lessClimbM} m less uphill${min >= 1 ? `, ${min} min longer` : ''}`;
 }
 // Metres along a line (flat, fine over a walk)
 function metres(cs: LngLat[]) {

@@ -63,10 +63,40 @@ kept for good. A fix that is only snapped onto the end from further off (one str
 arrived" for that fix alone. Arrived for good, you stay arrived, through walking on into the building and through a
 gap in GPS, until another trip is opened.
 
+## Hills
+
+Walks climb and descend the land: the engine reads swisstopo's terrain model (swissALTIRegio, 10 m) and knows how
+much each way climbs, in each direction (`kante/engine/crates/elevation`; the model of what a slope costs is
+`kante/engine/crates/core/src/slope.rs`).
+
+- **Time**: uphill takes longer, from the large GPS studies of walkers rather than the hiking rules (which overstate
+  short climbs): under 2 % nothing, +6 % about 6 % longer, +10 % 13 %, +15 % 24 %; down a hill nothing to −8 %, then a
+  little slower (−15 %: 10 %). The walk from Lausanne station up to the Cathédrale (1 km, 87 m up) takes 15.7 minutes instead
+  of the 14.2 it would on the flat, and 14.9 back down (steep in places).
+- **The way taken** (Settings › Changes and walking): a hill also costs effort that only the choice of way sees, worth
+  about 2 m of flat walking per metre climbed at 6 %, 4 m at 10 %, 6 m at 15 % (steep descents a little). By default
+  the engine walks round a hill when that costs about a minute at most for a short one. **Avoid hills** triples the
+  effort: a flatter way even when it is a few minutes longer. **Hills don't bother me** leaves it out: the quickest
+  way, uphill or not (its time still counts the climb). In a wheelchair grades over 6 % cost more on top, up or down
+  (SN 640 075's limit for footways), unless hills don't matter.
+- **Flatter way at changes** (on unless hills don't matter): a change with time to spare is walked the way a walker who
+  avoids hills takes, when it climbs at least 5 m less and the connection still has a minute in hand beyond the extra
+  change time; the walk says so first ("There is time for a flatter way: 20 m less uphill, 1 min longer"). With
+  Avoid hills a change is walked the flatter way whenever it fits, and the quicker one when it does not.
+- **Shown**: a walk that climbs 10 m or more says so beside its metres ("↑ 25 m").
+- Bridges and tunnels climb evenly between their two ends on the ground (not down to the river under a bridge or over
+  the hill above a tunnel); indoor ways, platforms, lifts and escalators are flat; outdoor stairs climb the height
+  between their two ends, as effort (their time is the stairs' own).
+- Checked against the City of Bern's street slopes (`data/street-slopes.geojson`, 3 382 segments of 30 m or more): the
+  grade from the terrain model is within 0.35 % of the city's on the median segment (90 %: within 1.3 %), on 98 % it
+  climbs the same way, and on 91 % it falls in the same class (flat, moderate, steep, very steep).
+- Without the terrain model (`kante/scripts/fetch-data.sh --elevation`, 10 GB) walks are timed as if flat and the hills
+  settings change nothing; `/api/meta` counts `slopedEdges`.
+
 ## The engine's walk
 
 The fields of a walking leg are in `KanteWalk` (`src/types/kante.d.ts`, `kante/engine/crates/server/src/json.rs`):
-`geometry`, `levels`, `steps`, `distanceM`, `durationS`, and from engines that know doors `door`, `startDoor`,
+`geometry`, `levels`, `steps`, `distanceM`, `durationS`, `climbM` / `descentM` and `flatter` (a change walked round a hill), and from engines that know doors `door`, `startDoor`,
 `covered` (vertex ranges), `approxStart` / `approxEnd` and `noStepFreeDoor`. An engine without them still gives the
 path; the page then draws it without a door. `/api/walk` takes, for each end, a boarding point (`quay`: its id or
 SLOID), a point taken as it is (`exact`: where a station model's paths begin) or a coordinate.
@@ -122,4 +152,4 @@ tracks of the browser's tiles. "Engine before" is the engine on `main` before th
 - The browser router's paths from swissTLM3D (paths outside towns OpenStreetMap lacks) were used on 1 of these 382
   walks; the engine has no swissTLM3D paths.
 
-Sources: © OpenStreetMap contributors (ODbL), © swisstopo (building address register).
+Sources: © OpenStreetMap contributors (ODbL), © swisstopo (building address register, swissALTIRegio).

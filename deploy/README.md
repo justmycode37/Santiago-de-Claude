@@ -34,7 +34,8 @@ git clone https://github.com/justmycode37/Santiago-de-Claude ~/kante-host/repo
 ```
 
 `install.sh` downloads `cloudflared` and the data (about 900 MB), builds the first release and starts the
-services. For live data, put the opentransportdata.swiss key in `~/kante-host/secrets/otd.json` as
+services; the first deploy adds swisstopo's terrain model (10 GB, once; a download cut short goes on at the next
+deploy, and until then walks are timed as if flat). For live data, put the opentransportdata.swiss key in `~/kante-host/secrets/otd.json` as
 `{"siri-et": "…"}` (mode 600) before running it, or add it later and restart `kante-engine`.
 
 ## What a deploy does

@@ -14,16 +14,17 @@ engine is at https://kante.omniroute.app.
 | Path | What |
 |---|---|
 | `engine/crates/` | The engine. `docs/ARCHITECTURE.md` explains the crates |
-| `scripts/fetch-data.sh` | Downloads the timetable, the stop registry, OpenStreetMap Switzerland and the building address register (about 1 GB) |
+| `scripts/fetch-data.sh` | Downloads the timetable, the stop registry, OpenStreetMap Switzerland and the building address register (about 1 GB); `--elevation` swisstopo's terrain model (10 GB), for hills |
 | `scripts/plan.py` | Plans a trip from the command line |
 
 ## Running it
 
-Needs Rust, about 6 GB of disk and 4 GB of memory.
+Needs Rust, about 6 GB of disk (16 GB with the terrain model) and 4 GB of memory.
 
 ```sh
 cd kante
 scripts/fetch-data.sh                                   # → data/raw
+scripts/fetch-data.sh --elevation                       # optional: hills (without it walks are timed as if flat)
 (cd engine && cargo build --release -p kante-server)
 engine/target/release/kante build --data data           # data/raw → data/built, under a minute
 engine/target/release/kante serve --data data --port 8080 --app none

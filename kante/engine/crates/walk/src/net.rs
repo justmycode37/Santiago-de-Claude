@@ -71,6 +71,9 @@ pub(crate) struct Arc {
     /// this arc carries. 65535 unless the crossing or flight is split into
     /// several edges.
     pub share: u16,
+    /// This direction's slopes ([`kante_core::EdgeSlope::dir`]), decimetres: extra metres of walking
+    /// time, route-choice effort for a walker who minds hills, steepness for a wheelchair.
+    pub slope: [u16; 3],
 }
 
 impl Arc {
@@ -220,15 +223,22 @@ pub(crate) struct CostTable {
     pub usable: [bool; 256],
     /// 1 if this walker cannot pass barrier nodes (`Arc::head_block`), else 0.
     pub head_mask: u8,
+    /// Generalised seconds per decimetre of `Arc::slope` (time, effort, steepness).
+    pub k_slope: [f32; 3],
 }
 
 impl CostTable {
     pub fn new() -> Self {
-        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: 0 }
+        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: 0, k_slope: [0.0; 3] }
     }
     pub fn fill(&mut self, p: &WalkProfile) {
         let speed = p.speed_mps.max(0.05);
         self.head_mask = p.wheelchair as u8;
+        // a slope's time counts for everyone; its effort as much as the walker minds hills, and a wheelchair
+        // minds steep grades (unless hills do not matter at all)
+        let steep = if p.wheelchair && p.hills != HillsPref::Ignore { 1.0 } else { 0.0 };
+        let effort = if p.wheelchair { p.hills.effort_weight().max(HillsPref::Avoid.effort_weight() * steep) } else { p.hills.effort_weight() };
+        self.k_slope = [0.1 / speed, 0.1 * effort / speed, 0.1 * steep / speed];
         for c in 0..256usize {
             match class_cost(c as u8, p) {
                 Some(cc) => {
@@ -255,6 +265,7 @@ impl CostTable {
     pub fn fill_walked(&mut self, p: &WalkProfile) {
         self.fill(p);
         let speed = p.speed_mps.max(0.05);
+        self.k_slope = [0.1 / speed, 0.0, 0.0];
         for c in 0..256usize {
             if self.usable[c] {
                 self.gen_m[c] = self.var_m[c] / speed + self.fix_m[c];
@@ -278,8 +289,19 @@ impl CostTable {
         }
         let l = a.len_m * scale;
         let sh = a.share as f32 * scale;
-        (l * self.gen_m[c] + sh * self.gen_c[c], l * self.var_m[c], l * self.fix_m[c] + sh * self.fix_c[c])
+        (l * self.gen_m[c] + sh * self.gen_c[c] + scale * self.slope_gen(a), l * self.var_m[c] + scale * slope_var(a), l * self.fix_m[c] + sh * self.fix_c[c])
     }
+    /// Generalised seconds of a whole arc's slopes.
+    #[inline]
+    pub fn slope_gen(&self, a: &Arc) -> f32 {
+        a.slope[0] as f32 * self.k_slope[0] + a.slope[1] as f32 * self.k_slope[1] + a.slope[2] as f32 * self.k_slope[2]
+    }
+}
+
+/// Metres of walking time a whole arc's slopes add (`var_m`).
+#[inline]
+pub(crate) fn slope_var(a: &Arc) -> f32 {
+    a.slope[0] as f32 * 0.1
 }
 
 /// The two arcs of an edge and its end nodes in the routing network.
@@ -756,8 +778,18 @@ impl Net {
             arc_off[i] += arc_off[i - 1];
         }
         let total = arc_off[n as usize + 1] as usize;
-        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0 };
+        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0, slope: [0; 3] };
         let mut arcs = vec![blank; total];
+        // the slopes of each direction, when a terrain model gave the graph some
+        let has_slopes = g.slopes.len() == g.edges.len();
+        let slope_of = |e: u32, rev: bool| -> [u16; 3] {
+            if has_slopes {
+                let (t, f, s) = g.slopes[e as usize].dir(rev);
+                [t, f, s]
+            } else {
+                [0; 3]
+            }
+        };
         // arc_off[i + 1] is the fill cursor of node i; after filling it is the
         // end of node i = start of node i + 1.
         for (e, ed) in g.edges.iter().enumerate() {
@@ -805,19 +837,19 @@ impl Net {
             if ed.flags & EF_ONEWAY_BA == 0 {
                 let head_block = (nflag(ed.b) & NF_NO_WHEELCHAIR != 0) as u8;
                 let slot = &mut arc_off[ia as usize + 1];
-                arcs[*slot as usize] = Arc { head: ib, edge_dir: e << 1, len_m, cls: base, head_block, share };
+                arcs[*slot as usize] = Arc { head: ib, edge_dir: e << 1, len_m, cls: base, head_block, share, slope: slope_of(e, false) };
                 *slot += 1;
             }
             if ed.flags & EF_ONEWAY_AB == 0 {
                 let head_block = (nflag(ed.a) & NF_NO_WHEELCHAIR != 0) as u8;
                 let slot = &mut arc_off[ib as usize + 1];
-                arcs[*slot as usize] = Arc { head: ia, edge_dir: e << 1 | 1, len_m, cls: base, head_block, share };
+                arcs[*slot as usize] = Arc { head: ia, edge_dir: e << 1 | 1, len_m, cls: base, head_block, share, slope: slope_of(e, true) };
                 *slot += 1;
             }
         }
         for &(t, h, cls, len_m) in &virt {
             let slot = &mut arc_off[t as usize + 1];
-            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535 };
+            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535, slope: [0; 3] };
             *slot += 1;
         }
         arc_off.truncate(n as usize + 1);

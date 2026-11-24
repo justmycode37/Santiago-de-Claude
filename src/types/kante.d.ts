@@ -203,6 +203,12 @@ type KantePlanOptions = {
   stairs?: 'ok' | 'avoid' | 'never';
   escalators?: boolean;
   wheelchair?: boolean;
+  /** How much hills matter for the way taken (walking times count them whatever this says): ignore = the quickest
+   *  way, hills or not; normal = a flatter way when it is little longer; avoid = a flatter way even a few minutes
+   *  longer. An engine without a terrain model ignores it. */
+  hills?: 'ignore' | 'normal' | 'avoid';
+  /** At a change with time to spare, walk the flatter way when it still leaves a minute in hand (with hills: normal). */
+  flatterChanges?: boolean;
   /** Seconds added to every change. */
   transferMarginS?: number;
   maxWalkMin?: number;
@@ -211,7 +217,7 @@ type KantePlanOptions = {
   maxTransfers?: number;
 };
 /** The options as the app sends them, from the traveller's settings (KanteJourney.options()). */
-type KanteRoutingOptions = KantePlanOptions & Required<Pick<KantePlanOptions, 'walkSpeed' | 'stairs' | 'escalators' | 'wheelchair' | 'transferMarginS' | 'maxWalkMin'>>;
+type KanteRoutingOptions = KantePlanOptions & Required<Pick<KantePlanOptions, 'walkSpeed' | 'stairs' | 'escalators' | 'wheelchair' | 'hills' | 'flatterChanges' | 'transferMarginS' | 'maxWalkMin'>>;
 /** A place by the engine's id, or by coordinate. */
 /** `quay` (/api/walk only): a boarding point by its id, walked from or to on its own platform and floor; `exact`
  *  (/api/walk only): the point as it is, not the door of the building it lies in. An older engine ignores both. */
@@ -255,6 +261,12 @@ interface KanteWalk {
   arr: number;
   durationS: number;
   distanceM: number;
+  /** Metres climbed and descended on the way (left out when 0, and by an engine without a terrain model). */
+  climbM?: number;
+  descentM?: number;
+  /** A change walked a flatter way than the quickest, because there is time for it: how much longer, how much less
+   *  climbing. */
+  flatter?: { extraS: number; lessClimbM: number };
   stairsUp: number;
   stairsDown: number;
   lifts: number;

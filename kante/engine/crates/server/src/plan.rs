@@ -22,6 +22,11 @@ pub fn profile_from(o: &json::PlanOptions) -> WalkProfile {
         escalators: o.escalators && !o.wheelchair,
         lifts: true,
         wheelchair: o.wheelchair,
+        hills: match o.hills.as_str() {
+            "ignore" => HillsPref::Ignore,
+            "avoid" => HillsPref::Avoid,
+            _ => HillsPref::Normal,
+        },
     }
 }
 
@@ -145,6 +150,9 @@ impl App {
             arr,
             duration_s: (arr - dep).max(0),
             distance_m: 0,
+            climb_m: 0,
+            descent_m: 0,
+            flatter: None,
             stairs_up: 0,
             stairs_down: 0,
             lifts: 0,
@@ -241,6 +249,8 @@ impl App {
                     }
                 }
                 leg.distance_m = w.dist_m.round() as u32;
+                leg.climb_m = p.climb_m.round() as u32;
+                leg.descent_m = p.descent_m.round() as u32;
                 leg.stairs_up = p.stairs_up;
                 leg.stairs_down = p.stairs_down;
                 leg.lifts = p.lifts;
@@ -371,11 +381,14 @@ impl App {
         to_is_station: Option<StationIdx>,
         profile: &WalkProfile,
         margin: Secs,
+        flatter: bool,
         live: Option<&dyn LiveView>,
     ) -> json::Journey {
         let tt = &self.tt;
         let ux = |s: Secs| time::to_unix(date, s);
         let mut legs: Vec<JLeg> = Vec::with_capacity(j.legs.len());
+        // the stops of each change (by its index in `legs`), to walk it another way below
+        let mut changes: Vec<(usize, StopIdx, StopIdx)> = Vec::new();
         let mut alerts: Vec<json::JourneyAlert> = Vec::new();
         let mut key: u64 = 1469598103934665603;
         let mut mix = |v: u64| {
@@ -419,6 +432,7 @@ impl App {
                 Leg::Transfer { from: a, to: b, dep, arr, .. } => {
                     let mut w = self.walk_leg("transfer", &self.stop_end(a), &self.stop_end(b), ux(dep), ux(arr), profile);
                     w.official_min_s = tt.official_transfer(a, b);
+                    changes.push((legs.len(), a, b));
                     legs.push(JLeg::Walk(w));
                 }
                 Leg::Ride { trip, date: d, from_pos, to_pos, stay_seated, onboard, .. } => {
@@ -441,6 +455,14 @@ impl App {
                 Some(JLeg::Ride(r)) => Some(live_arr(r)),
                 _ => None,
             };
+            if let (Some(nd), Some(&(_, a, b))) = (next_dep, changes.iter().find(|c| c.0 == i)) {
+                if let JLeg::Walk(w) = &mut legs[i] {
+                    let room = nd - prev_arr.unwrap_or(w.dep) - margin as i64;
+                    if let Some(other) = self.change_walk(w, a, b, room, profile, flatter) {
+                        *w = other;
+                    }
+                }
+            }
             if let JLeg::Walk(w) = &mut legs[i] {
                 // a step-free walker's walk (any of them) with a guessed end: said here
                 alerts.extend(unsure_alert(w, Some(i), profile));
@@ -521,6 +543,46 @@ impl App {
             None => ux(j.arr),
         };
         json::Journey { id: format!("{dep}-{arr}-{key:x}"), dep, arr, duration_s: arr - dep, transfers: j.transfers, walk_s, walk_m, legs, alerts }
+    }
+
+    /// A change walked another way than the router timed it with, given `room` seconds for the walk (the time from
+    /// arriving to leaving, less the walker's margin). The footpaths time a change as a walker who minds hills a
+    /// little walks it (`HillsPref::Normal`); a flatter way is timed as that plus the seconds it takes longer
+    /// (so a change the timetable's minimum change time caps stays capped):
+    ///
+    /// - a walker who avoids hills (`w`, the way such a walker routes) walks it when it fits in the room, and
+    ///   otherwise the quicker way the footpaths timed;
+    /// - one who minds them a little, with `flatter` on, walks the way a walker who avoids them takes when it climbs
+    ///   at least 5 m less and still leaves a minute in hand.
+    ///
+    /// [`json::WalkLeg::flatter`] says by how much the walk is longer and climbs less. `None`: walk it as it is.
+    fn change_walk(&self, w: &json::WalkLeg, a: StopIdx, b: StopIdx, room: i64, profile: &WalkProfile, flatter: bool) -> Option<json::WalkLeg> {
+        if w.approximate || w.drawn_s.is_none() || self.walk.is_none() {
+            return None;
+        }
+        let walk = |hills: HillsPref| {
+            let mut o = self.walk_leg("transfer", &self.stop_end(a), &self.stop_end(b), w.dep, w.arr, &WalkProfile { hills, ..*profile });
+            o.official_min_s = w.official_min_s;
+            o
+        };
+        match profile.hills {
+            HillsPref::Avoid => {
+                let quick = walk(HillsPref::Normal);
+                match flatter_way(&quick, w, room, 0, 0) {
+                    Some(f) if f.extra_s > 0 || f.less_climb_m > 0 => Some(retimed(w.clone(), quick.duration_s, f)),
+                    // as quick, or the same way: as it is
+                    Some(_) => None,
+                    // no room for it: the quicker way
+                    None => Some(quick),
+                }
+            }
+            HillsPref::Normal if flatter && w.climb_m >= 5 => {
+                let flat = walk(HillsPref::Avoid);
+                let f = flatter_way(w, &flat, room, 60, 5)?;
+                Some(retimed(flat, w.duration_s, f))
+            }
+            _ => None,
+        }
     }
 
     /// Range search over `[from, from + total]`, split into `chunks` windows
@@ -639,7 +701,7 @@ impl App {
             };
             let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, end: End::exact(here.pos, None) };
             let out: Vec<json::Journey> =
-                journeys.iter().take(6).map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, live)).collect();
+                journeys.iter().take(6).map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, opt.flatter_changes, live)).collect();
             return Ok(json::PlanResponse {
                 from: from_place,
                 to: to_ep.place,
@@ -724,7 +786,7 @@ impl App {
         // "arrive by", where it is not what was asked for
         let (picked, pages) = page(picked, !matches!(dir, Dir::ArriveBy(_)));
         let mut journeys: Vec<json::Journey> =
-            picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, live)).collect();
+            picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, opt.flatter_changes, live)).collect();
         // a journey's last walk is timed by the walk drawn, in travel order (the stop search ran the other way): one
         // that then arrives after the time asked to arrive by is not one to take
         if let Dir::ArriveBy(t) = dir {
@@ -773,6 +835,32 @@ impl App {
         let (ea, eb) = (end(&req.from)?, end(&req.to)?);
         Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
     }
+}
+
+/// Whether the flatter walk `flat` of a change may replace the quicker `quick`, with `room` seconds for the walk: it
+/// takes `quick`'s time plus the seconds the walks drawn differ (never less), which must leave `in_hand` seconds,
+/// and it climbs at least `less` metres less. The flatter way's extra seconds and metres less climbed.
+fn flatter_way(quick: &json::WalkLeg, flat: &json::WalkLeg, room: i64, in_hand: i64, less: u32) -> Option<json::FlatterWay> {
+    if flat.approximate {
+        return None;
+    }
+    let extra = (flat.drawn_s? - quick.drawn_s?).max(0);
+    if flat.climb_m + less > quick.climb_m && less > 0 {
+        return None;
+    }
+    if quick.duration_s + extra + in_hand > room {
+        return None;
+    }
+    Some(json::FlatterWay { extra_s: extra, less_climb_m: quick.climb_m.saturating_sub(flat.climb_m) })
+}
+
+/// The flatter walk of a change, timed as the quicker one (`quick_s`) and the seconds more it takes; it says so when
+/// it climbs at least 5 m less.
+fn retimed(mut w: json::WalkLeg, quick_s: i64, f: json::FlatterWay) -> json::WalkLeg {
+    w.duration_s = quick_s + f.extra_s;
+    w.arr = w.dep + w.duration_s;
+    w.flatter = (f.less_climb_m >= 5).then_some(f);
+    w
 }
 
 /// A step-free walker's walk that starts or ends with a guess (through a building, onto another floor, or across
@@ -835,7 +923,7 @@ mod tests {
         // review 7 (Neon): an access walk guessed only at the stop names the stop, not the address
         let pt = |name: &str| json::WalkPoint { name: name.into(), lat: 0.0, lon: 0.0, quay: None };
         let leg = |kind, s: Option<u32>, e: Option<u32>| json::WalkLeg {
-            kind, from: pt("Home"), to: pt("Bern, Zytglogge"), dep: 0, arr: 0, duration_s: 0, distance_m: 0, stairs_up: 0,
+            kind, from: pt("Home"), to: pt("Bern, Zytglogge"), dep: 0, arr: 0, duration_s: 0, distance_m: 0, climb_m: 0, descent_m: 0, flatter: None, stairs_up: 0,
             stairs_down: 0, lifts: 0, escalators: 0, step_free: false, unmapped_level_changes: 0, slack_s: None,
             official_min_s: None, approximate: s.is_none() && e.is_none(), geometry: vec![], levels: vec![], steps: vec![],
             door: None, start_door: None, covered: vec![], approx_start: s, approx_end: e, network: None,
@@ -917,5 +1005,50 @@ mod tests {
         let all = vec![j(8 * H, 11 * H, 2), j(8 * H + 30, 11 * H + 30 * M, 1), j(10 * H + 30 * M, 11 * H + 45 * M, 0)];
         assert_eq!(page(all.clone(), false), main_page(&all));
         assert_eq!(page(all.clone(), false).0, vec![j(10 * H + 30 * M, 11 * H + 45 * M, 0)]);
+    }
+
+    /// A change's walk: `secs` as the footpaths timed it, `drawn` as drawn, climbing `climb` metres.
+    fn change(secs: i64, drawn: i64, climb: u32) -> json::WalkLeg {
+        let pt = |name: &str| json::WalkPoint { name: name.into(), lat: 0.0, lon: 0.0, quay: None };
+        json::WalkLeg {
+            kind: "transfer", from: pt("A"), to: pt("B"), dep: 1000, arr: 1000 + secs, duration_s: secs, distance_m: 300, climb_m: climb,
+            descent_m: 0, flatter: None, stairs_up: 0, stairs_down: 0, lifts: 0, escalators: 0, step_free: true, unmapped_level_changes: 0,
+            slack_s: None, official_min_s: None, approximate: false, geometry: vec![], levels: vec![], steps: vec![], door: None,
+            start_door: None, covered: vec![], approx_start: None, approx_end: None, network: None, no_step_free_door: false,
+            unsure_end: false, drawn_s: Some(drawn),
+        }
+    }
+
+    #[test]
+    fn a_change_walks_round_the_hill_when_there_is_time() {
+        // the quick way: 4 min, 20 m up; the flat way: 1 min 30 s longer, 4 m up
+        let (quick, flat) = (change(240, 240, 20), change(240, 330, 4));
+        // 7 min for walking: room for it, and a minute in hand
+        let f = flatter_way(&quick, &flat, 420, 60, 5).unwrap();
+        assert_eq!((f.extra_s, f.less_climb_m), (90, 16));
+        let w = retimed(flat.clone(), quick.duration_s, f);
+        assert_eq!((w.duration_s, w.arr), (330, 1330));
+        assert!(w.flatter.is_some());
+        // 6 min 29 s: not a minute in hand
+        assert!(flatter_way(&quick, &flat, 389, 60, 5).is_none());
+        // a walker who avoids hills needs no minute in hand
+        assert!(flatter_way(&quick, &flat, 330, 0, 0).is_some());
+        // only 3 m less uphill: not worth it
+        assert!(flatter_way(&quick, &change(240, 300, 17), 900, 60, 5).is_none());
+        // no path for the flat way
+        let mut none = flat.clone();
+        none.approximate = true;
+        assert!(flatter_way(&quick, &none, 900, 60, 5).is_none());
+    }
+
+    #[test]
+    fn a_change_capped_by_its_minimum_time_keeps_the_cap() {
+        // the timetable's minimum change time (2 min) caps a walk drawn at 9 min; the flat way is a minute longer
+        let (quick, flat) = (change(120, 540, 15), change(120, 600, 2));
+        let f = flatter_way(&quick, &flat, 300, 60, 5).unwrap();
+        assert_eq!(retimed(flat, quick.duration_s, f).duration_s, 180);
+        // a flatter way drawn quicker than the quick one is not timed quicker than it
+        let f = flatter_way(&quick, &change(120, 500, 2), 300, 60, 5).unwrap();
+        assert_eq!(f.extra_s, 0);
     }
 }
