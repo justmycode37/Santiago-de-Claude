@@ -2,7 +2,7 @@
 //      vehicles, and the direction to go. No shutter: it runs by itself, frame after frame, until it is closed.
 //      - The stop and edge: Scan's live pipeline (stopvision.ts: sign OCR + GPS + compass), with the journey's next ride
 //        as its route, so it outlines the sign it read and says where your ride leaves from.
-//      - Vehicles: buses, trams and trains outlined by an in-browser detector (COCO-SSD, TensorFlow.js), each one a
+//      - Vehicles: buses, trams and trains outlined by an in-browser detector (YOLOX-nano in onnxruntime-web), each one a
 //        track of its own (artrack.ts). PP-OCR (ppocr.ts) reads each vehicle's display band at the camera's full
 //        resolution in turn, and a band across the road every third turn; Scan's Tesseract sweeps the whole picture.
 //        What they read goes to the vehicle whose box held it when the picture was taken, through arcore.ts (RightSide's display matcher) against your ride and everything due at the stop (Kante
@@ -85,37 +85,65 @@ export function arStepButton(st: JourneyStep): HTMLElement | null {
 }
 
 // ---------------------------------------------------------------- the live view
-type CocoBox = { bbox: [number, number, number, number]; class: string; score: number };
-type CocoModel = { detect(el: HTMLVideoElement, max?: number, minScore?: number): Promise<CocoBox[]> };
-let arModel: Promise<CocoModel | null> | null = null;
 const loadScript = (src: string) => new Promise<void>((ok, fail) => {
   const s = document.createElement('script');
   s.src = src; s.onload = () => ok(); s.onerror = () => { s.remove(); fail(new Error(src)); };
   document.head.appendChild(s);
 });
-function arDetector(): Promise<CocoModel | null> {
+// onnxruntime-web for both models below. Scan's photo model (DINOv2) stays unloaded in AR, so the page's ort is free.
+let arOrtLoad: Promise<OcrRuntime> | null = null;
+function arOrt(): Promise<OcrRuntime> {
+  if (!arOrtLoad) {
+    arOrtLoad = (async () => {
+      if (!window.ort) await loadScript(ORT_DIST + 'ort.wasm.min.js');
+      const rt = window.ort!;
+      rt.env.wasm.wasmPaths = ORT_DIST;
+      rt.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
+      return rt as unknown as OcrRuntime;
+    })().catch((e) => { arOrtLoad = null; throw e; });
+  }
+  return arOrtLoad;
+}
+
+// The vehicle detector: YOLOX-nano (Megvii, Apache-2.0; src/yolox.ts), off the shelf. It replaced COCO-SSD, which on
+// the reading-range bench found a third of the vehicles whose displays were already readable
+// (docs/ar-reading-range.md). The site serves the model (models/yolox/), checked against its SHA-256.
+type ArDetector = { detect(video: HTMLVideoElement): Promise<{ box: ArBox; score: number; cls: string }[]> };
+let arModel: Promise<ArDetector | null> | null = null;
+function arDetector(): Promise<ArDetector | null> {
   if (!arModel) {
-    arModel = loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js')
-      .then(() => loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'))
-      .then(() => (window as unknown as { cocoSsd: { load(o: object): Promise<CocoModel> } }).cocoSsd.load({ base: 'lite_mobilenet_v2' }))
-      .catch((e) => { console.warn('AR: no vehicle detector', e); arModel = null; return null; });
+    arModel = (async () => {
+      const [rt, yx] = await Promise.all([arOrt(), load(import.meta.url, () => import('../yolox.ts'))]);
+      const r = await fetch(new URL(yx.YOLOX_MODELS.nano.file, document.baseURI).href);
+      if (!r.ok) throw new Error(`yolox_nano.onnx: HTTP ${r.status}`);
+      const session = await yx.loadYolox(rt, await r.arrayBuffer());
+      const side = yx.YOLOX_SIDE, canvas = document.createElement('canvas');
+      canvas.width = canvas.height = side;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; // a 1080p frame shrinks about 4 times
+      return {
+        async detect(video: HTMLVideoElement) {
+          const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(side / vw, side / vh);
+          // the frame into the top-left corner of a grey 416 x 416 square, scaled by the browser
+          ctx.fillStyle = 'rgb(114,114,114)'; ctx.fillRect(0, 0, side, side);
+          ctx.drawImage(video, 0, 0, Math.round(vw * s), Math.round(vh * s));
+          const px = ctx.getImageData(0, 0, side, side).data;
+          return (await yx.yoloxDetectLetterboxed(rt, session, px, s, vw, vh, 0.3)).map((b) => ({ box: b.box as ArBox, score: b.score, cls: b.cls }));
+        },
+      };
+    })().catch((e) => { console.warn('AR: no vehicle detector', e); arModel = null; return null; });
   }
   return arModel;
 }
 
-// The display reader: PP-OCRv5 det + rec in onnxruntime-web (ppocr.ts), loaded on first use. Scan's photo model
-// (DINOv2) stays unloaded in AR, so the page's ort is free for it.
+// The display reader: PP-OCRv5 det + rec in onnxruntime-web (ppocr.ts), loaded on first use.
 type ArReader = { m: OcrModels; read: typeof import('../ppocr.ts').readRegion };
 let arReader: Promise<ArReader | null> | null = null;
 function arDisplayReader(): Promise<ArReader | null> {
   if (!arReader) {
     arReader = (async () => {
-      const mod = await load(import.meta.url, () => import('../ppocr.ts'));
-      if (!window.ort) await loadScript(ORT_DIST + 'ort.wasm.min.js');
-      const rt = window.ort!;
-      rt.env.wasm.wasmPaths = ORT_DIST;
-      rt.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
-      return { m: await mod.loadModels(rt as unknown as OcrRuntime, arModelBytes), read: mod.readRegion };
+      const [rt, mod] = await Promise.all([arOrt(), load(import.meta.url, () => import('../ppocr.ts'))]);
+      return { m: await mod.loadModels(rt, arModelBytes), read: mod.readRegion };
     })().catch((e) => {
       console.warn('AR: no display reader', e);
       try { caches.delete('ar-models-v1').catch(() => {}); } catch (x) { /* no Cache Storage */ } // a bad copy is not kept
@@ -395,11 +423,9 @@ function arLayer(mine: number, target: ArTarget) {
       lastDetect = Date.now();
       const t0 = performance.now(), at = nowS();
       const shift = turn, panned = pan; turn = { dx: 0, dy: 0 }; pan = 0;
-      const found = (await model.detect(video, 6, 0.5)).filter((b) => b.class === 'bus' || b.class === 'train');
+      const dets: ArDet[] = await model.detect(video);
       detectMs.push(performance.now() - t0); if (detectMs.length > 20) detectMs.shift();
       if (arSession !== mine) return;
-      const vw = video.videoWidth, vh = video.videoHeight;
-      const dets: ArDet[] = found.map((b) => ({ box: [b.bbox[0] / vw, b.bbox[1] / vh, b.bbox[2] / vw, b.bbox[3] / vh] as ArBox, score: b.score, cls: b.class }));
       ses.detections(dets, at, motionAt ? shift : null, motionAt ? panned : null); // the picture the detector read was taken at `at`
       keepCrops(at);
       draw(nowS());

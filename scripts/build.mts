@@ -38,7 +38,7 @@ const EXTERNAL = ['three', 'three/addons/*'];
  */
 const MARKER = /^([ \t]*)<!-- build: (src\/[\w./-]+)((?: [a-z]+="[^"]*")*) -->[ \t]*$/gm;
 /** Folders the page loads files from. */
-export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media'];
+export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media', 'models'];
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
 const DEMO_PAGE = 'demo/index.html';
 const DEMO = ['demo/opening.jpg', 'demo/santiago.mp4'];
