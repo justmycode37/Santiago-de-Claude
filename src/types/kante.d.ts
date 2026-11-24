@@ -364,12 +364,21 @@ type KanteBbox = [w: number, s: number, e: number, n: number];
 /** GET /api/due (kante/docs/LIVE-API.md): every trip due at a boarding point, as far as the page uses it. */
 interface KanteDueResponse {
   t: number;
+  /** Nothing is missing: the list was not cut at `limit` and the live feed is not stale (LIVE-API.md). */
+  complete?: boolean;
   due: Array<{
+    tripId?: string;
+    serviceDate?: string;
     line?: { name: string; category?: string; mode?: string };
     headsign?: string | null;
     /** Stops on the way a display may show (LIVE-API.md). */
     vias?: string[] | null;
+    quayId?: string | null;
     quayLabel?: string | null;
+    /** Live departure here, unix seconds; null where it only sets down. */
+    dep?: number | null;
+    /** With `to=`: whether it calls there after this stop. */
+    servesTo?: boolean | null;
     departBearing?: number | null;
     state?: 'approaching' | 'at-stop' | 'departed';
     etaS?: number | null;

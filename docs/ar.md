@@ -8,8 +8,26 @@ runs by itself until it is closed. `?ar=0` in the address hides the button (reme
 | --- | --- | --- |
 | Stop and boarding edge | Scan's sign OCR + GPS + compass. It outlines the sign and says where the next ride leaves from ([scan.md](scan.md)). | Live |
 | Vehicle outline | COCO-SSD (TensorFlow.js `lite_mobilenet_v2`, from jsDelivr) finds buses, trams and trains about 3× a second. | Live; recall and speed on phones not measured |
-| Which vehicle | The words Scan reads on the biggest vehicle (`scan:words`) go to `ARCORE.read` → `ARCORE.decide` (`src/arcore.ts`, RightSide's display matcher). They are compared with the ride and the Kante `/api/due` services: "Your bus 10 → …" or "Not yours: 9 → …". Until a display is read, the label only says what is due now. | Live; whether Tesseract reads LED displays is not measured |
+| Which vehicle | Every detected vehicle is a track (`src/artrack.ts`). The words Scan reads (`scan:words`, stamped with the moment the picture was taken) go to the track whose box held them then, through `ARCORE.read` → `ARCORE.decide` (`src/arcore.ts`, RightSide's display matcher) against the ride and the Kante `/api/due` board. Green, red or the display text only, by the rules below. | Live; whether Tesseract reads LED displays is not measured |
+| Banner | Your run, found on the board by its `tripId` and `serviceDate`: when it comes, and the boarding point when it changed. Times go stale 40 s after the last good poll. | Live |
 | The way | A direction arrow toward the boarding edge plus the distance. Drawn only with a fresh compass heading and GPS accuracy of 30 m or better. | Live; a direction only, not anchored to the floor |
+
+## The labels
+
+The rules come from [ar-recognition-plan.md](ar-recognition-plan.md) and hold by construction:
+
+- **Green** ("Your bus 10 → Rüti"): the display matcher accepts this vehicle's own reads; the board is fresh and
+  complete; every run due here with that display departs here and calls at your stop (`servesTo`, or it is your
+  trip).
+- **Red** ("Not yours: 9 → Wabern", "Not in service"): text only, in two distinct frames, on a fresh board.
+- Otherwise the display text alone ("Display: 10 → Rüti"), or nothing. Timing never labels a vehicle.
+- A crossing, an ambiguous match between two detections, a fast pan or a lost track drops the vehicle's reads and
+  label; a vehicle seen again starts without one. A label lapses 8 s after the read that made it.
+
+`tools/test_artrack.mts` replays scripted events through this code (crossings, late reads, stale and truncated
+boards, wrong quays, twin buses, express and local with the same display, short turns) and checks what is shown
+after each one. `?ardebug=1` adds "Save last 10 s" for field tests ([ar-field-test.md](ar-field-test.md)); a saved
+capture goes into `tools/ar-replays/` and is replayed there too.
 
 ## The decision logic
 

@@ -47,6 +47,8 @@ export interface StopVisionHooks {
   board?: typeof KANTE_BOARD;
   /** The page's sign parser (signloc.ts), once the 3D view has loaded it; without it Scan reads platform names itself. */
   signs?(): typeof SIGNLOC | null;
+  /** The AR camera runs on top: the photo model (DINOv2) stays unloaded, its CPU goes to the vehicle detector and OCR. */
+  ar?: boolean;
 }
 export interface StopVisionRoute {
   uic: string;
@@ -78,7 +80,8 @@ export interface ScanBox { x0: number; y0: number; x1: number; y1: number }
 /** A word OCR read: normalised (n: glued, toks: its words), where, how tall, on which line, how sure (0–100). */
 export interface ScanWord { /** as read */ text: string; n: string; toks: string[]; box: ScanBox; h: number; block: number; line: number; conf: number }
 /** The 'scan:words' event: every word of one reading, its box in picture pixels (width × height) and its confidence (0–100). */
-export interface ScanWordsDetail { words: Array<{ text: string; box: ScanBox; conf: number }>; width: number; height: number; tap: boolean }
+/** capturedAt: Date.now() when the picture the words come from was taken (OCR takes a second or more on a phone). */
+export interface ScanWordsDetail { words: Array<{ text: string; box: ScanBox; conf: number }>; width: number; height: number; tap: boolean; capturedAt: number }
 /** The words of one reading, by line, with the typical and the biggest text height of the confident ones. */
 export interface ScanLayout { words: ScanWord[]; lines: ScanWord[][]; medianH: number; maxH: number; confident: number }
 /** A stop whose name was read: how well (0–1), which of its names, where and how big. */
@@ -747,6 +750,7 @@ async function readSigns() {
   // tries the other one, for signs that fool the guess
   const other = stillImage && !tap ? stillReads === 2 : ocrPass % 4 === 0;
   const gen = sourceGen;
+  const capturedAt = Date.now();
   const shot = await ocrImage(region, (dark) => (other ? !dark : dark));
   const shotHeading = headingOk() ? heading : null;
   // Tesseract's two ways of finding text each read signs the other misses (measured on Swiss stop signs:
@@ -762,7 +766,7 @@ async function readSigns() {
   // other parts of the app can use the words with their place in the picture (the AR camera: vehicle displays)
   try {
     const [fw, fh] = sourceSize();
-    const detail: ScanWordsDetail = { words: layout.words.map((w) => ({ text: w.text, box: w.box, conf: w.conf })), width: fw || 0, height: fh || 0, tap: !!tap };
+    const detail: ScanWordsDetail = { words: layout.words.map((w) => ({ text: w.text, box: w.box, conf: w.conf })), width: fw || 0, height: fh || 0, tap: !!tap, capturedAt };
     window.dispatchEvent(new CustomEvent('scan:words', { detail }));
   } catch (e) {}
   await useText(data.text || '', !!tap, layout, shotHeading);
@@ -1197,6 +1201,7 @@ async function modelBytes() {
 }
 
 async function ensureModel() {
+  if (app && app.ar) return false; // paused in AR (docs/ar-recognition-plan.md, step 1)
   if (modelState === 'ready') return true;
   if (modelState === 'loading' || modelState === 'failed') return false;
   if (!(await loadIndex())) { modelState = 'failed'; return false; }
