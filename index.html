@@ -1375,6 +1375,24 @@
       border: 3.5px solid #fff;
       box-shadow: 0 1px 5px rgba(0,0,0,.3);
     }
+    /* Which way you face (src/app/heading.ts): a beam from the dot, --s half its angle (as wide as the compass is
+       unsure), --a how strong; JS turns it. It sits between the pulse (::before) and the dot (::after). */
+    .user-beam {
+      --s: 30deg;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 120px;
+      height: 120px;
+      margin: -60px 0 0 -60px;
+      pointer-events: none;
+      background: radial-gradient(closest-side, color-mix(in srgb, var(--you) 80%, transparent) 15%, color-mix(in srgb, var(--you) 0%, transparent));
+      -webkit-mask: conic-gradient(from calc(var(--s) * -1), transparent, #000 4deg, #000 calc(var(--s) * 2 - 4deg), transparent calc(var(--s) * 2));
+      mask: conic-gradient(from calc(var(--s) * -1), transparent, #000 4deg, #000 calc(var(--s) * 2 - 4deg), transparent calc(var(--s) * 2));
+      opacity: 0;
+      transition: opacity .4s ease;
+    }
+    .user-beam.on { opacity: var(--a, 1); }
     @keyframes pulse {
       0%   { transform: scale(.4); opacity: 1; }
       100% { transform: scale(1.4); opacity: 0; }
