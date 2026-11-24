@@ -24,7 +24,9 @@
 //! out: motorways, `motorroad=yes`, construction / proposed, `foot=no|private`,
 //! `access=no|private|military` unless `foot=yes|designated|permissive`.
 //! `foot=use_sidepath` roads stay in (as `RoadBusy` or `Road`), so the network
-//! does not break where the separate sidewalk is not connected.
+//! does not break where the separate sidewalk is not connected; route choice
+//! learns of them from `walkattr.bin` ([`attrs`]: road size, sidewalks drawn
+//! apart, car-only service roads, opening hours, `crossing=no`).
 //!
 //! [`EdgeKind`] by tag: `footway=sidewalk` → `Sidewalk`; `footway=crossing` or
 //! `crossing=*` on a footway/path/cycleway → `Crossing`; `conveying=*` on
@@ -213,6 +215,7 @@
 //! bridges are included and not marked.
 
 pub mod area;
+pub mod attrs;
 pub mod build;
 pub mod buildings;
 pub mod read;

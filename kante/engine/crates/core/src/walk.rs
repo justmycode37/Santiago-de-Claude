@@ -180,6 +180,12 @@ pub struct WalkGraph {
     /// puts them here before it builds the router.
     #[serde(skip)]
     pub slopes: Vec<crate::slope::EdgeSlope>,
+    /// What OpenStreetMap says about the edges and nodes beyond their kind and flags (sidewalks drawn apart, the
+    /// size of a road, car-only service roads, opening hours, `crossing=no`), for route choice only. Not part of
+    /// `walkgraph.bin`: `kante build` writes it to `walkattr.bin` ([`WalkAttrs`]); empty when there is none (every
+    /// edge as before these were read).
+    #[serde(skip)]
+    pub attrs: WalkAttrs,
 }
 
 impl WalkGraph {
@@ -196,6 +202,108 @@ impl WalkGraph {
     pub fn edge_name(&self, e: u32) -> &str {
         &self.names[self.edges[e as usize].name as usize]
     }
+}
+
+// ---------------------------------------------------------------- attributes (walkattr.bin)
+
+pub const WALKATTR_SCHEMA: &str = "walkattr-v1";
+
+/// [`WalkAttrs::edge`]: the size of the road a carriageway edge (`Road`, `RoadBusy`) belongs to.
+pub const EA_ROAD: u8 = 0x07;
+/// Not a road for cars (footways, paths, platforms … and cycleways, tracks).
+pub const RC_NONE: u8 = 0;
+/// residential, unclassified, living_street, road.
+pub const RC_MINOR: u8 = 1;
+pub const RC_SERVICE: u8 = 2;
+pub const RC_TERTIARY: u8 = 3;
+pub const RC_SECONDARY: u8 = 4;
+pub const RC_PRIMARY: u8 = 5;
+pub const RC_TRUNK: u8 = 6;
+/// The road's sidewalks are drawn as ways of their own (`sidewalk[:both|:left|:right]=separate` with none tagged on
+/// the road itself, or `foot=use_sidepath`): walking on the carriageway is a last resort.
+pub const EA_SIDEWALK_SEPARATE: u8 = 1 << 3;
+/// A space for cars: `service=parking_aisle|driveway|drive-through`, or a service road whose access is limited
+/// (`destination`, `customers`, `delivery`, …).
+pub const EA_CAR_ONLY: u8 = 1 << 4;
+/// A way for walking away from traffic: a pedestrian street or square, a footway or path that is not a sidewalk,
+/// or any footway or path in a park.
+pub const EA_FAVOURED: u8 = 1 << 5;
+/// Has opening hours or a closing condition ([`WalkAttrs::edge_hours`]).
+pub const EA_HOURS: u8 = 1 << 6;
+
+/// [`WalkAttrs::node`]: `crossing=no`: walkers may not cross the road here.
+pub const NA_CROSSING_NO: u8 = 1 << 0;
+
+/// Per edge and per node of a [`WalkGraph`], what route choice reads beyond kinds and flags. Built by `kante-osm`
+/// with the graph (see its crate docs); [`WalkAttrs::fits`] says whether it belongs to a graph.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct WalkAttrs {
+    /// [`graph_fingerprint`] of the graph it was made for.
+    pub graph: u64,
+    /// `EA_*`, one per edge.
+    pub edge: Vec<u8>,
+    /// `NA_*`, one per node.
+    pub node: Vec<u8>,
+    /// The hours read: `oh:<opening_hours>` (open while it holds) or `no:<condition>` (closed while it holds).
+    pub hours: Vec<String>,
+    /// (edge, index into `hours`), ascending by edge, for the edges with `EA_HOURS`.
+    pub edge_hours: Vec<(u32, u32)>,
+}
+
+impl WalkAttrs {
+    pub fn fits(&self, g: &WalkGraph) -> bool {
+        self.edge.len() == g.edges.len() && self.node.len() == g.nodes.len()
+    }
+    #[inline]
+    pub fn edge(&self, e: u32) -> u8 {
+        self.edge.get(e as usize).copied().unwrap_or(0)
+    }
+    #[inline]
+    pub fn node(&self, n: u32) -> u8 {
+        self.node.get(n as usize).copied().unwrap_or(0)
+    }
+    /// The road size of a carriageway edge ([`RC_NONE`] … [`RC_TRUNK`]).
+    #[inline]
+    pub fn road(&self, e: u32) -> u8 {
+        self.edge(e) & EA_ROAD
+    }
+    /// The hours of an edge, parsed: `None` when it has none or they cannot be read (open).
+    pub fn hours_of(&self, e: u32) -> Option<crate::Hours> {
+        let i = self.edge_hours.binary_search_by_key(&e, |x| x.0).ok()?;
+        parse_hours_entry(&self.hours[self.edge_hours[i].1 as usize])
+    }
+}
+
+/// An entry of [`WalkAttrs::hours`], parsed.
+pub fn parse_hours_entry(s: &str) -> Option<crate::Hours> {
+    if let Some(v) = s.strip_prefix("oh:") {
+        crate::parse_opening_hours(v)
+    } else if let Some(v) = s.strip_prefix("no:") {
+        crate::parse_closing_condition(v)
+    } else {
+        None
+    }
+}
+
+/// Changes whenever the attributes do.
+pub fn attrs_fingerprint(a: &WalkAttrs) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ a.graph;
+    let mut mix = |v: u64| {
+        h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
+    };
+    mix(a.edge.len() as u64);
+    for c in a.edge.chunks(8).chain(a.node.chunks(8)) {
+        mix(c.iter().fold(0u64, |x, &b| x << 8 | b as u64));
+    }
+    for &(e, i) in &a.edge_hours {
+        mix((e as u64) << 32 | i as u64);
+    }
+    for s in &a.hours {
+        for c in s.as_bytes().chunks(8) {
+            mix(c.iter().fold(0u64, |x, &b| x << 8 | b as u64));
+        }
+    }
+    h
 }
 
 /// What kind of OSM object a [`OsmPlatform`] came from.
@@ -296,15 +404,18 @@ pub struct WalkProfile {
     /// egress search, from the destination to the stops), so every arc costs what walking it the other way does
     /// (its slopes: up a hill is not down it).
     pub backwards: bool,
+    /// When the walk is walked (local time), for ways with opening hours ([`WalkAttrs::edge_hours`]): one closed
+    /// then is avoided. `None`: not known, every way open.
+    pub at: Option<crate::WalkTime>,
 }
 
 impl WalkProfile {
     pub const fn normal(speed_mps: f32) -> Self {
-        WalkProfile { speed_mps, stairs: StairsPref::Ok, escalators: true, lifts: true, wheelchair: false, hills: crate::slope::HillsPref::Normal, backwards: false }
+        WalkProfile { speed_mps, stairs: StairsPref::Ok, escalators: true, lifts: true, wheelchair: false, hills: crate::slope::HillsPref::Normal, backwards: false, at: None }
     }
     /// Strict step-free: no stairs, no escalators, wheelchair rules.
     pub const fn step_free(speed_mps: f32) -> Self {
-        WalkProfile { speed_mps, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true, hills: crate::slope::HillsPref::Normal, backwards: false }
+        WalkProfile { speed_mps, stairs: StairsPref::Never, escalators: false, lifts: true, wheelchair: true, hills: crate::slope::HillsPref::Normal, backwards: false, at: None }
     }
     pub fn is_step_free(&self) -> bool {
         self.stairs == StairsPref::Never
@@ -428,7 +539,7 @@ pub struct LinkData {
 
 // ---------------------------------------------------------------- doors
 
-pub const DOORS_SCHEMA: &str = "doors-v5";
+pub const DOORS_SCHEMA: &str = "doors-v6";
 
 /// What kind of way into a building a [`Door`] is: OSM `entrance=*` (or a bare
 /// `door=*`), or a point of the official building address register.
@@ -493,27 +604,44 @@ pub const DOOR_WC_LIMITED: u8 = 3;
 
 /// A way from a door onto the walking network: the straight line from the
 /// door to `edge` at `frac`, `dist_m` long. It crosses no railway track on the
-/// ground; one that runs through a building is marked (`through`). Stored in
-/// 8 bytes.
+/// ground; one that runs through a building is marked (`through`), one that walks over a carriageway on the ground
+/// to reach another way (the sidewalk across the street) too (`crosses`, `crosses_busy`). Stored in 8 bytes.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct DoorAttach {
     pub edge: u32,
     /// Fraction of the edge × 65 535.
     pub frac_q: u16,
-    /// Decimetres; the top bit: the line runs through a building (the way round it is not mapped: a guess).
+    /// Decimetres (at most 819.1 m); the top bit: the line runs through a building (the way round it is not mapped:
+    /// a guess); the next two: it walks over a carriageway ([`DoorAttach::crosses`]), a busy one.
     pub dist_dm: u16,
 }
 
 impl DoorAttach {
     const THROUGH: u16 = 1 << 15;
-    pub fn new(edge: u32, frac: f32, dist_m: f32, through: bool) -> Self {
-        let dm = (dist_m * 10.0).round().min(32767.0) as u16;
-        DoorAttach { edge, frac_q: (frac.clamp(0.0, 1.0) * 65535.0).round() as u16, dist_dm: dm | if through { Self::THROUGH } else { 0 } }
+    const CROSSES: u16 = 1 << 14;
+    const BUSY: u16 = 1 << 13;
+    const DM: u16 = (1 << 13) - 1;
+    /// `crosses`: the line walks over a carriageway on the ground to reach the way (`Some(true)`: a busy one).
+    pub fn new(edge: u32, frac: f32, dist_m: f32, through: bool, crosses: Option<bool>) -> Self {
+        let dm = (dist_m * 10.0).round().min(Self::DM as f32) as u16;
+        let bits = if through { Self::THROUGH } else { 0 }
+            | match crosses {
+                Some(true) => Self::CROSSES | Self::BUSY,
+                Some(false) => Self::CROSSES,
+                None => 0,
+            };
+        DoorAttach { edge, frac_q: (frac.clamp(0.0, 1.0) * 65535.0).round() as u16, dist_dm: dm | bits }
     }
     /// The line runs through a building: the walk round it is not mapped.
     #[inline]
     pub fn through(&self) -> bool {
         self.dist_dm & Self::THROUGH != 0
+    }
+    /// The line walks over a carriageway on the ground to reach its way: `Some(true)` a busy one (tertiary and up, or
+    /// one whose sidewalks are drawn apart).
+    #[inline]
+    pub fn crosses(&self) -> Option<bool> {
+        (self.dist_dm & Self::CROSSES != 0).then_some(self.dist_dm & Self::BUSY != 0)
     }
     #[inline]
     pub fn frac(&self) -> f32 {
@@ -521,9 +649,16 @@ impl DoorAttach {
     }
     #[inline]
     pub fn dist_m(&self) -> f32 {
-        (self.dist_dm & !Self::THROUGH) as f32 * 0.1
+        (self.dist_dm & Self::DM) as f32 * 0.1
     }
 }
+
+/// [`Door::faces`]: not known (no address, or no named street near).
+pub const DOOR_FACES_UNKNOWN: u8 = 0;
+/// The nearest named street the door looks onto is its address's.
+pub const DOOR_FACES_OWN: u8 = 1;
+/// The nearest named street the door looks onto is another one (a side or back door of its address).
+pub const DOOR_FACES_OTHER: u8 = 2;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Door {
@@ -531,6 +666,8 @@ pub struct Door {
     pub kind: DoorKind,
     /// `DOOR_WC_*`.
     pub wheelchair: u8,
+    /// `DOOR_FACES_*`: whether the street the door looks onto is its address's.
+    pub faces: u8,
     /// The door's address ("Bundesgasse 3", "Bahnhofstrasse 12, 12a"):
     /// `Doors::addr[addr_off .. addr_off + addr_len]`, empty if none.
     pub addr_off: u32,

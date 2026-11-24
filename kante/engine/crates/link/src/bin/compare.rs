@@ -6,6 +6,8 @@
 //! compare through <data dir> < walks.jsonl       which straight segments of each walk run through a building
 //! compare lifts <walkgraph a> <walkgraph b>       lift edges in one graph and not the other, with their OSM ids
 //! compare doors <data dir> <n> <seed>             doors joined to the network only through a building, a sample
+//! compare metrics <data dir> < walks.jsonl        what each walk's line walks on, by the data dir's graph and
+//!                                                 attributes (any engine's walk: the graphs share their geometry)
 //! ```
 //!
 //! Points: addresses of the official register that lie inside a building outline, points near streets and paths (up
@@ -346,6 +348,158 @@ fn through(data: &Path) -> Result<()> {
     Ok(())
 }
 
+/// What each walk walks on (one JSON per line in, `{"key", "geometry": [[lon, lat], …]}`; one out): its line matched
+/// to the graph of `data` segment by segment (a segment of an edge's own geometry; straight lines onto the network
+/// match nothing), with the attributes of `walkattr.bin`: metres on carriageways whose sidewalks are drawn apart,
+/// on busy carriageways (tertiary and up) otherwise, on any carriageway, on car-only service roads, on ways away
+/// from traffic, not on the network; and at each node passed from one edge to another, the turn and the busy roads
+/// walked over where no crossing is mapped (`WalkRouter::transition`).
+fn metrics(data: &Path) -> Result<()> {
+    let mut g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
+    let a: WalkAttrs = io::load(&data.join("built/walkattr.bin"), WALKATTR_SCHEMA)?;
+    if a.graph != graph_fingerprint(&g) {
+        bail!("walkattr.bin belongs to another walk graph");
+    }
+    g.attrs = a;
+    let router = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
+    let g = router.graph().clone();
+    let stdin = std::io::stdin();
+    let mut out = std::io::stdout().lock();
+    let snap0 = kante_walk::SnapOptions { max_dist_m: 0.05, level: None, profile: None, exclude_kinds: 0 };
+    for line in stdin.lock().lines() {
+        let v: serde_json::Value = serde_json::from_str(&line?)?;
+        let geom: Vec<LatLon> = v["geometry"].as_array().context("geometry")?.iter().map(|c| LatLon::from_deg(c[1].as_f64().unwrap_or(0.0), c[0].as_f64().unwrap_or(0.0))).collect();
+        let (mut len, mut off, mut sep, mut busy, mut road, mut car, mut fav) = (0f32, 0f32, 0f32, 0f32, 0f32, 0f32, 0f32);
+        // the edges walked, in order, each with the vertex index where it starts
+        let mut seq: Vec<(u32, usize)> = Vec::new();
+        // metres per OSM way, in the order first walked
+        let mut ways: Vec<(i64, f32)> = Vec::new();
+        for i in 0..geom.len().saturating_sub(1) {
+            let (p, q) = (geom[i], geom[i + 1]);
+            let d = p.dist_m(&q);
+            len += d;
+            if d < 0.01 {
+                continue;
+            }
+            let mid = p.lerp(&q, 0.5);
+            let Some(s) = router.snap(mid, &snap0) else {
+                off += d;
+                continue;
+            };
+            let e = s.edge;
+            let ed = &g.edges[e as usize];
+            let ea = g.attrs.edge(e);
+            let carriage = matches!(ed.kind, EdgeKind::Road | EdgeKind::RoadBusy);
+            if carriage {
+                road += d;
+                if ea & EA_SIDEWALK_SEPARATE != 0 && ed.flags & EF_HAS_SIDEWALK == 0 {
+                    sep += d;
+                } else if ea & EA_ROAD >= RC_TERTIARY {
+                    busy += d;
+                }
+            }
+            if ea & EA_CAR_ONLY != 0 {
+                car += d;
+            }
+            if ea & EA_FAVOURED != 0 {
+                fav += d;
+            }
+            if seq.last().is_none_or(|l| l.0 != e) {
+                seq.push((e, i));
+            }
+            let w = g.edge_way[e as usize];
+            match ways.iter_mut().find(|x| x.0 == w) {
+                Some(x) => x.1 += d,
+                None => ways.push((w, d)),
+            }
+        }
+        let (mut crossings, mut cross_s, mut blocked, mut turns, mut turn_s) = (0u32, 0f32, 0u32, 0u32, 0f32);
+        let mut cross_at: Vec<serde_json::Value> = Vec::new();
+        for w in seq.windows(2) {
+            let (e1, e2) = (w[0].0, w[1].0);
+            let (a1, b1, a2, b2) = (g.edges[e1 as usize].a, g.edges[e1 as usize].b, g.edges[e2 as usize].a, g.edges[e2 as usize].b);
+            // the node between them: at the vertex where the second starts
+            let at = geom[w[1].1];
+            let node = [a1, b1].into_iter().filter(|&n| n == a2 || n == b2).min_by(|&x, &y| g.nodes[x as usize].dist_m(&at).total_cmp(&g.nodes[y as usize].dist_m(&at)));
+            let Some(node) = node else { continue };
+            let (t, c, b) = router.transition(node, e1, e2);
+            if t > 0.0 {
+                turns += 1;
+                turn_s += t;
+            }
+            if c > 0.0 || b {
+                crossings += 1;
+                cross_s += c;
+                blocked += b as u32;
+                let p = g.nodes[node as usize];
+                cross_at.push(serde_json::json!([(p.lon_deg() * 1e6).round() / 1e6, (p.lat_deg() * 1e6).round() / 1e6, c, b]));
+            }
+        }
+        let r1 = |x: f32| (x * 10.0).round() / 10.0;
+        writeln!(
+            out,
+            "{}",
+            serde_json::json!({ "key": v["key"], "len_m": r1(len), "off_m": r1(off), "sep_m": r1(sep), "busy_m": r1(busy), "road_m": r1(road), "car_m": r1(car), "favoured_m": r1(fav),
+                "crossings": crossings, "cross_s": r1(cross_s), "blocked": blocked, "turns": turns, "turn_s": r1(turn_s), "cross_at": cross_at,
+                "ways": ways.iter().map(|&(w, m)| serde_json::json!([w, r1(m)])).collect::<Vec<_>>() })
+        )?;
+    }
+    Ok(())
+}
+
+/// The network, its crossings and the buildings' doors in a box, as JSON (for drawing walks over a map): edges
+/// `[kind, road size, drawn apart (0/1), sidewalk on the road (0/1), name, [[lon, lat], …]]`, crossing nodes
+/// `[lon, lat, signals (0/1)]`, doors `[lon, lat, kind, faces]`, building outlines `[[lon, lat], …]`. One box per
+/// line in (`key south west north east`), one JSON per line out.
+fn geo(data: &Path) -> Result<()> {
+    let mut g: WalkGraph = io::load(&data.join("built/walkgraph.bin"), WALKGRAPH_SCHEMA)?;
+    if let Ok(a) = io::load::<WalkAttrs>(&data.join("built/walkattr.bin"), WALKATTR_SCHEMA) {
+        if a.graph == graph_fingerprint(&g) {
+            g.attrs = a;
+        }
+    }
+    let router = kante_walk::WalkRouter::new(std::sync::Arc::new(g));
+    let g = router.graph().clone();
+    let ix = load_doors(data)?;
+    let stdin = std::io::stdin();
+    let mut out = std::io::stdout().lock();
+    for line in stdin.lock().lines() {
+    let line = line?;
+    let f: Vec<&str> = line.split_whitespace().collect();
+    if f.len() != 5 {
+        continue;
+    }
+    let b: Vec<f64> = f[1..].iter().map(|x| x.parse().unwrap_or(0.0)).collect();
+    let bbox = BBox::from_deg(b[0], b[1], b[2], b[3]);
+    let ll = |p: &LatLon| serde_json::json!([(p.lon_deg() * 1e6).round() / 1e6, (p.lat_deg() * 1e6).round() / 1e6]);
+    let mut edges = Vec::new();
+    for e in router.edges_in(&bbox) {
+        let ed = &g.edges[e as usize];
+        let a = g.attrs.edge(e);
+        edges.push(serde_json::json!([format!("{:?}", ed.kind), a & EA_ROAD, (a & EA_SIDEWALK_SEPARATE != 0) as u8, (ed.flags & EF_HAS_SIDEWALK != 0) as u8, g.edge_name(e), g.edge_geom(e).iter().map(ll).collect::<Vec<_>>()]));
+    }
+    let mut crossings = Vec::new();
+    for (n, p) in g.nodes.iter().enumerate() {
+        let f = g.node_flags[n];
+        if bbox.contains(p) && f & (NF_CROSSING | NF_CROSSING_SIGNALS) != 0 {
+            crossings.push(serde_json::json!([(p.lon_deg() * 1e6).round() / 1e6, (p.lat_deg() * 1e6).round() / 1e6, (f & NF_CROSSING_SIGNALS != 0) as u8]));
+        }
+    }
+    let (mut doors, mut outlines) = (Vec::new(), Vec::new());
+    for bl in ix.buildings_near(bbox.min, bbox.max) {
+        if let Some(r) = ix.doors.rings_of(bl).first() {
+            outlines.push(r.iter().map(ll).collect::<Vec<_>>());
+        }
+        for di in ix.doors.doors_of(bl) {
+            let d = &ix.doors.doors[di as usize];
+            doors.push(serde_json::json!([(d.pos.lon_deg() * 1e6).round() / 1e6, (d.pos.lat_deg() * 1e6).round() / 1e6, d.kind.as_str(), d.faces]));
+        }
+    }
+    writeln!(out, "{}", serde_json::json!({ "key": f[0], "edges": edges, "crossings": crossings, "doors": doors, "buildings": outlines }))?;
+    }
+    Ok(())
+}
+
 /// Lift edges in one graph and not the other, by lift (OSM way id, 0 for a lift mapped as a node) and place, each
 /// with what the other graph has there: the same ways joined at one node (no lift needed), a lift between other
 /// floors, or nothing (the ways are not joined there).
@@ -506,7 +660,7 @@ fn profile_of(o: &serde_json::Value) -> WalkProfile {
         _ => StairsPref::Ok,
     };
     let wheelchair = o["wheelchair"].as_bool().unwrap_or(false);
-    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair, hills: HillsPref::Normal, backwards: false }
+    WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wheelchair, lifts: true, wheelchair, hills: HillsPref::Normal, backwards: false, at: None }
 }
 
 /// Why A (`main`) reaches a stop that B does not, from the built data of both, for each line of stdin
@@ -958,6 +1112,8 @@ fn main() -> Result<()> {
     match arg(0) {
         "sample" => sample(arg(1).as_ref(), arg(2).parse().unwrap_or(20000), arg(3).parse().unwrap_or(1)),
         "through" => through(arg(1).as_ref()),
+        "metrics" => metrics(arg(1).as_ref()),
+        "geo" => geo(arg(1).as_ref()),
         "lifts" => lifts(arg(1).as_ref(), arg(2).as_ref()),
         "lift-pairs" => lift_pairs(arg(1).as_ref(), arg(2).as_ref()),
         "edges" => edges(arg(1).as_ref(), arg(2).parse()?, arg(3).parse()?, arg(4).parse().unwrap_or(30.0)),

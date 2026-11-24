@@ -194,6 +194,16 @@ pub fn load_slopes(path: &Path, g: &WalkGraph) -> Option<Vec<EdgeSlope>> {
     (s.graph == graph_fingerprint(g) && s.edges.len() == g.edges.len()).then_some(s.edges)
 }
 
+/// The attributes in `walkattr.bin` when they belong to graph `g` (none when the file is missing, unreadable or of
+/// another build: every edge then as before they were read).
+pub fn load_attrs(path: &Path, g: &WalkGraph) -> Option<WalkAttrs> {
+    if !path.exists() {
+        return None;
+    }
+    let a = io::load::<WalkAttrs>(path, WALKATTR_SCHEMA).ok()?;
+    (a.graph == graph_fingerprint(g) && a.fits(g)).then_some(a)
+}
+
 fn timed<T>(what: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     let t = Instant::now();
     let r = f().with_context(|| what.to_string())?;
@@ -256,6 +266,7 @@ impl App {
 
         let mut walk_bbox = BBox::empty();
         let slopes_path = built.join("slopes.bin");
+        let attrs_path = built.join("walkattr.bin");
         let walk = graph.map(|mut g| {
             for n in g.nodes.iter().step_by(64) {
                 walk_bbox.extend(n);
@@ -265,9 +276,14 @@ impl App {
                 _ if slopes_path.exists() => eprintln!("  slopes.bin belongs to another walk graph build: walks timed as if flat (run `kante build`)"),
                 _ => eprintln!("  no slopes.bin: walks timed as if flat (scripts/fetch-data.sh --elevation, then `kante build`)"),
             }
+            match timed("walk attributes", || Ok(load_attrs(&attrs_path, &g))) {
+                Ok(Some(a)) => g.attrs = a,
+                _ => eprintln!("  no walkattr.bin for this walk graph: sidewalks drawn apart, road sizes and opening hours unknown (run `kante build`)"),
+            }
             let t = Instant::now();
             let r = WalkRouter::new(Arc::new(g));
-            eprintln!("  walk index: {:.2}s", t.elapsed().as_secs_f32());
+            let st = r.index_stats();
+            eprintln!("  walk index: {:.2}s ({} junctions with turns or crossings, {} search states, {} MB)", t.elapsed().as_secs_f32(), st.junctions, st.search_states, st.net_bytes / 1_000_000);
             r
         });
         if walk.is_none() {
@@ -602,9 +618,9 @@ impl App {
     }
 
     /// A place's ways onto the network: the point itself, and the doors of the building it is in.
-    pub fn place_end(&self, pos: LatLon, profile: &WalkProfile) -> End {
+    pub fn place_end(&self, pos: LatLon, profile: &WalkProfile, name: Option<&str>) -> End {
         match self.walk.as_ref() {
-            Some(walk) => End::place(walk, self.doors.as_ref(), pos, profile),
+            Some(walk) => End::place_at(walk, self.doors.as_ref(), pos, profile, name),
             None => End::exact(pos, None),
         }
     }
@@ -636,7 +652,7 @@ impl App {
         // entered at street level, as above)
         let end = match (ep.station, self.walk.as_ref()) {
             (Some(_), Some(walk)) => End::station(walk, self.doors.as_ref(), ep.pos, profile),
-            (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, profile),
+            (None, Some(walk)) => End::place_at(walk, self.doors.as_ref(), ep.pos, profile, Some(ep.place.name.as_str())),
             _ => End::exact(ep.pos, None),
         };
         let mut via: FxHashMap<StopIdx, &'static str> = best.keys().map(|&s| (s, "station")).collect();
