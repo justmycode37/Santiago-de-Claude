@@ -889,6 +889,12 @@ impl App {
                 w.duration_s = secs;
                 w.arr = now + secs;
                 w.official_min_s = self.tt.official_transfer(sa, sb);
+                if w.approximate {
+                    // its one direction ("Walk about …") has the walk's time
+                    if let Some(st) = w.steps.first_mut() {
+                        st.dur_s = secs as u32;
+                    }
+                }
             }
             let margin = req.options.transfer_margin_s.clamp(0, 1800) as i64;
             let mut out = self.change_walk(&w, sa, sb, room as i64, margin, &profile, req.options.flatter_changes, footpath.is_none()).unwrap_or(w);

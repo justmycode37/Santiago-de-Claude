@@ -77,8 +77,9 @@ export interface JourneyFootStep extends JourneyStepBase {
   ends?: [WalkEnd, WalkEnd][];
   walkRev?: number;
   _netFor?: LngLat[][];
-  /** …and the ends and platforms it was routed for (walkSig()). */
+  /** …and the ends and platforms it was routed for (walkSig()), and those alone (walkEnds()). */
   _netSig?: string;
+  _netEnds?: string;
   /** …and what the last request was for (an answer may still be on its way). */
   _askFor?: LngLat[][];
   _askSig?: string;

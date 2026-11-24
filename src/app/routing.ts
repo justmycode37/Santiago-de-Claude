@@ -58,6 +58,8 @@ export interface RoutedWalk {
   walkS?: number;
   /** Metres climbed on it (the engine's, from the terrain model). */
   climb?: number;
+  /** A change walked round a hill because there was time for it. */
+  flatter?: boolean;
 }
 /** What an end of a walk is: your position (GPS), a boarding point (on its floor, by its number and the engine's
  *  `quay` id), a point taken as it is (where a station model's own paths begin), or a place (the walk ends at its door). */
@@ -231,12 +233,22 @@ type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // quickest when even the usual way is too long) and times it as it planned it (a minimum change time included), so a
 // delay that changes it asks again, and an answer asked for another time is dropped. Where its lines meet inside it
 // (syncEnds()) is not: that follows from how it is drawn.
-const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
+// A change whose walk is flat (no hill to walk round, not walked round one) and fits its time does not depend on it:
+// it is asked again only once it no longer fits. The others by the time there is, to 15 s.
+const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => JSON.stringify([walkEnds(st), walkTimeKey(st)]);
+const walkEnds = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
   const ends = st.ends || [];
-  const room = st.type === 'change' ? changeRoomS(st) : null;
-  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : '')), room == null ? null : Math.round(room)]);
+  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : ''))]);
 };
+function walkTimeKey(st: JourneyWalkStep | JourneyChangeStep) {
+  const room = st.type === 'change' ? changeRoomS(st) : null;
+  if (room == null) return null;
+  const ws = st.walks || [];
+  const fits = st.walkS != null && st.walkS <= room;
+  const flat = ws.every((w) => !w || (!w.flatter && (w.climb || 0) < 5));
+  return fits && flat ? 'fits' : Math.round(room / 15);
+}
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
 // ends and platforms the walk no longer has, are dropped
 function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
@@ -245,7 +257,8 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   st._askSig = sig;
   const current = () => st.walkRev === rev && walkSig(st) === sig && journey.steps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
-  const done = () => { st._netFor = st.lines; st._netSig = sig; };
+  // (as it is now: its time, once the answer is in, may make it a change that no longer depends on the time there is)
+  const done = () => { st._netFor = st.lines; st._netSig = walkSig(st); st._netEnds = walkEnds(st); };
   // no answer (the engine is down or cannot be reached): nothing is on its way any more, so it is asked again
   const retry = () => { st._askFor = undefined; st._askSig = undefined; };
   return Object.assign(current, { done, retry });
@@ -260,13 +273,14 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     if (!current()) return;
     if (!res) { current.done(); return; } // as planned, and the model has no way: the engine's walk stays, with its time
     // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays
-    if (!res.walks.every(answered) && asked === st._netFor) { current.retry(); return; }
+    if (!res.walks.every(answered) && asked === st._netFor && walkEnds(st) === st._netEnds) { current.retry(); return; }
     st.lines = res.lines;
     st.walks = res.walks;
     st.floors = res.floors;
     if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
-    if (res.walks.every(answered)) current.done(); else current.retry();
+    // timed first: what it was routed for counts the time it now takes (walkTimeKey())
     walkTime(st, res.walks);
+    if (res.walks.every(answered)) current.done(); else current.retry();
   });
 }
 // One walk (or change). As planned it has the engine's walk already; moved since, or at another platform at the same
@@ -298,15 +312,15 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     if (!current()) return;
     // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays, and it
     // is asked again on a later poll
-    if (!res.every(answered) && asked === st._netFor) { current.retry(); return; }
+    if (!res.every(answered) && asked === st._netFor && walkEnds(st) === st._netEnds) { current.retry(); return; }
     st.lines = res.map((w) => w.coords);
     st.walks = res;
     st.kanteWalk = res.every((w) => !w.approx);
     // floor changes where the walk actually takes them (else the platform levels imply one)
     const floors = res.flatMap((w) => w.floors || []);
     st.floors = floors.length ? floors : null;
-    if (res.every(answered)) current.done(); else current.retry();
     walkTime(st, res);
+    if (res.every(answered)) current.done(); else current.retry();
   });
 }
 

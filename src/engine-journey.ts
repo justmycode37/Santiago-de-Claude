@@ -404,7 +404,8 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   // platforms' registry points and can be far longer than what people walk there (long platforms, V-shaped
   // stations; cap_by_official in the engine). Metres that contradict the minutes are left out.
   const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
-  const dist = leg.kind === 'transfer' && pathS > leg.durationS + 150 ? null : leg.distanceM;
+  // (a change asked again comes as `direct`, with its minimum change time)
+  const dist = (leg.kind === 'transfer' || leg.officialMinS != null) && pathS > leg.durationS + 150 ? null : leg.distanceM;
   // its guessed ends, said as a guess, each over its own points ("Walk about 30 m where no way is mapped", "Then
   // about 60 m …"); all of it guessed: that one line instead of the engine's directions
   const about = (cs: LngLat[]) => `about ${Math.max(10, Math.round(metres(cs) / 10) * 10)} m where no way is mapped`;
@@ -422,7 +423,7 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
   if (door) dirs.push({ kind: 'walk', text: door.addr ? `In at the entrance, ${door.addr}` : door.type === 'main' ? 'In at the main entrance' : 'In at the door marked on the map', coords: [door.ll] });
   // a change walked round a hill because there is time for it: said first
   if (leg.flatter && dirs.length) dirs.unshift({ kind: 'walk', text: flatterText(leg.flatter), coords: [] });
-  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door, ...(leg.climbM ? { climb: leg.climbM } : {}),
+  const walk: KanteRoutedWalk = { coords, steps: null, dist, dirs, net: true, door, ...(leg.climbM ? { climb: leg.climbM } : {}), ...(leg.flatter ? { flatter: true } : {}),
     // the guessed ends (drawn dashed, not counted as progress along the walk: snapToTrip() in tracking.ts), and the
     // stretches under a roof
     approxTo: to, approxFrom: from, ...(all ? { approx: true } : {}),
