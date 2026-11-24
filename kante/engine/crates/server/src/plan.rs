@@ -591,15 +591,7 @@ impl App {
         // there is: timed as drawn, so that the change says it is missed; not where the timetable gives a minimum
         // change time (the walk is drawn between the platforms' registry points, which can lie far apart, and that
         // time is what people walk)
-        let as_drawn = |mut o: json::WalkLeg| {
-            let d = o.drawn_s.unwrap_or(o.duration_s);
-            if o.official_min_s.is_none() && d > room && d > o.duration_s {
-                o.duration_s = d;
-                o.arr = o.dep + d;
-            }
-            o
-        };
-        let fit = |hills: HillsPref| Some(walk(hills, limit)).filter(routed).map(as_drawn);
+        let fit = |hills: HillsPref| Some(walk(hills, limit)).filter(routed).map(|o| as_drawn(o, room));
         let too_long = |o: &json::WalkLeg| o.drawn_s.is_some_and(|d| d > room && d > o.duration_s);
         // seconds the flatter way must leave beyond the margin, so that the change is not tight
         let untight = (TIGHT_S - margin).max(0);
@@ -611,12 +603,10 @@ impl App {
                 if !routed(&quick) {
                     return if too_long(w) { fit(HillsPref::Avoid) } else { None };
                 }
-                match flatter_way(&quick, w, room, untight, 0) {
-                    Some(f) if f.extra_s > 0 || f.less_climb_m > 0 => Some(retimed(w.clone(), quick.duration_s, f)),
-                    // as quick, or the same way: as it is
-                    Some(_) => None,
-                    // no room for it: the quicker way
-                    None => Some(as_drawn(quick)),
+                match avoid_choice(&quick, w, room, untight) {
+                    AvoidChoice::Flatter(f) => Some(retimed(w.clone(), quick.duration_s, f)),
+                    AvoidChoice::AsItIs => None,
+                    AvoidChoice::Quicker => Some(as_drawn(quick, room)),
                 }
             }
             hills => {
@@ -924,6 +914,38 @@ fn flatter_way(quick: &json::WalkLeg, flat: &json::WalkLeg, room: i64, in_hand: 
     Some(json::FlatterWay { extra_s: extra, less_climb_m: quick.climb_m.saturating_sub(flat.climb_m) })
 }
 
+/// How a walker avoiding hills walks a change (their own way `w`, the way a walker minding hills a little takes
+/// `quick`, both drawn within the time there is).
+#[derive(Debug, PartialEq)]
+enum AvoidChoice {
+    /// Their way, timed as the quicker one and the seconds more it takes.
+    Flatter(json::FlatterWay),
+    /// Their way as it is: no longer, and no flatter, than the quicker one.
+    AsItIs,
+    /// There is no room for their way: the quicker one.
+    Quicker,
+}
+
+fn avoid_choice(quick: &json::WalkLeg, w: &json::WalkLeg, room: i64, untight: i64) -> AvoidChoice {
+    match flatter_way(quick, w, room, untight, 0) {
+        Some(f) if f.extra_s > 0 || f.less_climb_m > 0 => AvoidChoice::Flatter(f),
+        Some(_) => AvoidChoice::AsItIs,
+        None => AvoidChoice::Quicker,
+    }
+}
+
+/// A change's walk longer as drawn than the time there is (`room`) and than it is timed: timed as drawn, so that the
+/// change says it is missed. Not where the timetable gives a minimum change time: the walk is drawn between the
+/// platforms' registry points, which can lie far apart, and that time is what people walk.
+fn as_drawn(mut o: json::WalkLeg, room: i64) -> json::WalkLeg {
+    let d = o.drawn_s.unwrap_or(o.duration_s);
+    if o.official_min_s.is_none() && d > room && d > o.duration_s {
+        o.duration_s = d;
+        o.arr = o.dep + d;
+    }
+    o
+}
+
 /// The flatter walk of a change, timed as the quicker one (`quick_s`) and the seconds more it takes; it says so when
 /// it climbs at least 5 m less.
 fn retimed(mut w: json::WalkLeg, quick_s: i64, f: json::FlatterWay) -> json::WalkLeg {
@@ -1109,6 +1131,31 @@ mod tests {
         let mut none = flat.clone();
         none.approximate = true;
         assert!(flatter_way(&quick, &none, 900, 60, 5).is_none());
+    }
+
+    #[test]
+    fn a_walker_avoiding_hills_falls_back_to_the_normal_way() {
+        // the normal way: 3 min 5 s, 20 m up; the flat way: 5 min 50 s, 2 m up
+        let (quick, flat) = (change(185, 185, 20), change(185, 350, 2));
+        // 6 min 30 s for walking: the flat way
+        assert!(matches!(avoid_choice(&quick, &flat, 390, 30), AvoidChoice::Flatter(f) if f.extra_s == 165 && f.less_climb_m == 18));
+        // 5 min: no room for it, the normal way
+        assert_eq!(avoid_choice(&quick, &flat, 300, 30), AvoidChoice::Quicker);
+        // the same way: as it is
+        assert_eq!(avoid_choice(&quick, &change(185, 185, 20), 300, 30), AvoidChoice::AsItIs);
+    }
+
+    #[test]
+    fn a_change_too_long_for_its_time_is_timed_as_drawn_unless_the_timetable_caps_it() {
+        // footpath 2 min, the quickest walk drawn 4 min, 3 min 30 s between the rides: missed, as drawn
+        let o = as_drawn(change(120, 240, 0), 210);
+        assert_eq!((o.duration_s, o.arr), (240, 1240));
+        // it fits: as timed
+        assert_eq!(as_drawn(change(120, 200, 0), 210).duration_s, 120);
+        // a minimum change time: as the timetable says
+        let mut capped = change(120, 240, 0);
+        capped.official_min_s = Some(120);
+        assert_eq!(as_drawn(capped, 210).duration_s, 120);
     }
 
     #[test]

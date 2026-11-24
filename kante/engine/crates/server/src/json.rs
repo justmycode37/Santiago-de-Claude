@@ -335,7 +335,7 @@ pub struct WalkLeg {
     pub drawn_s: Option<i64>,
 }
 
-#[derive(Serialize, Clone, Copy, Debug)]
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct FlatterWay {
     /// Seconds longer than the quickest way.
