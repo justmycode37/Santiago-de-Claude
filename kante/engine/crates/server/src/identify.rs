@@ -247,7 +247,7 @@ pub fn identify(app: &App, q: &IdentifyQuery) -> json::IdentifyResponse {
         v
     });
     if !stops.is_empty() {
-        let due = liveapi::due_in(app, live, &DueQuery { stops, t: q.t, before: 180, after: 300, limit: 200 });
+        let due = liveapi::due_in(app, live, &DueQuery { stops, t: q.t, before: 180, after: 300, limit: 200, to: None });
         for d in due.due {
             let quay = app.stop_ids.get(&d.quay_id).map(|&s| tt.stops[s as usize].pos);
             let at = d.arr.or(d.dep).unwrap_or(q.t);

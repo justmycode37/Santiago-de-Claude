@@ -154,6 +154,7 @@ be there.
 | `t` | default now |
 | `before`, `after` | seconds before/after `t` to include (defaults 120 and 900) |
 | `limit` | default 30 |
+| `to` | the rider's stop, as `station`: each entry then has `servesTo` |
 
 `quay` is the engine's quay id or the **ATLAS SLOID** of the boarding edge (what a journey from `/api/plan`
 gives as `quay.sloid`, and what the app's stop data knows). The two are the same string for nearly every
@@ -163,7 +164,7 @@ boarding point; a platform whose sectors the timetable splits has extra quays fo
 `GET /api/due?quay=ch:1:sloid:76646:0:13` — Bern, Bahnhof, bay E.
 
 ```json
-{ "t": 1795262074, "due": [ {
+{ "t": 1795262074, "complete": true, "truncated": false, "due": [ {
   "tripId": "…", "serviceDate": "2026-11-21", "seq": 5,
   "line": { "name": "10", "category": "T", "mode": "tram", "operator": "BERNMOBIL" },
   "headsign": "Ostermundigen, Rüti", "number": null,
@@ -172,9 +173,19 @@ boarding point; a platform whose sectors the timetable splits has extra quays fo
   "arr": 1795262100, "dep": 1795262130, "delayS": 60, "cancelled": false,
   "approachBearing": 92, "departBearing": 110,
   "state": "approaching", "etaS": 26,
-  "liveInfo": { … }, "extra": false
+  "liveInfo": { … }, "extra": false,
+  "profiled": true, "servesTo": true, "prevStop": [7.4391, 46.9484], "nextStop": [7.4474, 46.9479]
 } ] }
 ```
+
+`complete`: nothing is missing from the list. It is false when more trips were due than `limit` (`truncated`)
+or when a live feed the engine reads has not answered for 5 minutes (a replacement bus or a changed platform could
+be missing). The AR camera never calls a vehicle "yours" on an incomplete board.
+
+`profiled`: after a measured stop, `arr`/`dep` (and `etaS`, `state`) come from the learned hop and dwell
+profiles, as `position` does on `/api/trip`, not from the forecast. `servesTo` (with `to=`): whether the run
+calls at that station after this stop, not skipped today; an express and a local with the same display differ
+here. `prevStop`/`nextStop`: the boarding points of the stops before and after, where it comes from and goes to.
 
 `state`: `approaching` (not yet there), `at-stop` (between live arrival and departure), `departed`.
 

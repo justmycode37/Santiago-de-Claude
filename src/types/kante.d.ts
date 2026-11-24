@@ -366,6 +366,8 @@ interface KanteDueResponse {
   t: number;
   /** Nothing is missing: the list was not cut at `limit` and the live feed is not stale (LIVE-API.md). */
   complete?: boolean;
+  /** More trips were due than `limit`. */
+  truncated?: boolean;
   due: Array<{
     tripId?: string;
     serviceDate?: string;
@@ -379,6 +381,11 @@ interface KanteDueResponse {
     dep?: number | null;
     /** With `to=`: whether it calls there after this stop. */
     servesTo?: boolean | null;
+    /** arr/dep come from the learned hop and dwell profiles after a measured stop. */
+    profiled?: boolean;
+    /** Boarding points of the stops before and after this one. */
+    prevStop?: LngLat | null;
+    nextStop?: LngLat | null;
     departBearing?: number | null;
     state?: 'approaching' | 'at-stop' | 'departed';
     etaS?: number | null;

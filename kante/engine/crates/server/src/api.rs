@@ -389,6 +389,8 @@ struct DueParams {
     before: Option<i64>,
     after: Option<i64>,
     limit: Option<usize>,
+    /// The rider's stop (as `station`): each entry says whether it calls there (`servesTo`).
+    to: Option<String>,
 }
 
 async fn due(State(app): S, Q(p): Q<DueParams>) -> Result<Json<json::DueResponse>, ApiError> {
@@ -424,6 +426,10 @@ async fn due(State(app): S, Q(p): Q<DueParams>) -> Result<Json<json::DueResponse
         before: p.before.unwrap_or(120).clamp(0, 3600),
         after: p.after.unwrap_or(900).clamp(0, 7200),
         limit: p.limit.unwrap_or(30).clamp(1, 200),
+        to: match &p.to {
+            Some(id) => Some(liveapi::station_of(&app, id).ok_or_else(|| bad("unknown station in to"))?),
+            None => None,
+        },
     };
     Ok(Json(liveapi::due(&app, &q)))
 }
