@@ -592,7 +592,8 @@ impl App {
         // change time (the walk is drawn between the platforms' registry points, which can lie far apart, and that
         // time is what people walk)
         let fit = |hills: HillsPref| Some(walk(hills, limit)).filter(routed).map(|o| as_drawn(o, room));
-        let too_long = |o: &json::WalkLeg| o.drawn_s.is_some_and(|d| d > room && d > o.duration_s);
+        // (timed as drawn, with no footpath's time: longer than the room is too long)
+        let too_long = |o: &json::WalkLeg| o.drawn_s.is_some_and(|d| d > room && (own_time || d > o.duration_s));
         // seconds the flatter way must leave beyond the margin, so that the change is not tight
         let untight = (TIGHT_S - margin).max(0);
         match profile.hills {
@@ -877,11 +878,8 @@ impl App {
         // a change asked again (after a live platform change), with the time there is for it: walked as a journey's
         // change is (change_walk), each walk timed as drawn
         if let (Some(room), Some(sa), Some(sb)) = (limit, ea.stop, eb.stop) {
-            let mut w = self.walk_leg("transfer", &ea, &eb, now, now, &profile);
-            if let Some(d) = w.drawn_s {
-                w.duration_s = d;
-                w.arr = now + d;
-            }
+            // timed as drawn, or with no path as the straight line is
+            let w = self.walk_leg("direct", &ea, &eb, now, now, &profile);
             let margin = req.options.transfer_margin_s.clamp(0, 1800) as i64;
             let mut out = self.change_walk(&w, sa, sb, room as i64, margin, &profile, req.options.flatter_changes, true).unwrap_or(w);
             out.kind = "direct";

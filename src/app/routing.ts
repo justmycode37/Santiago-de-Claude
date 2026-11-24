@@ -227,15 +227,16 @@ export function refineWalks(id: number, onlyMoved?: boolean) {
 type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // What a walk was routed for besides its line: what its two ends are and the platforms it leaves from and goes to (a
 // platform can change without its point moving, and a station model routes to the platform by its name), and for a
-// change whether its walk fits in the time there is (a delay that makes it too long asks for the way that fits; an
-// answer asked for before is dropped). Where its lines meet inside it (syncEnds()) is not: that follows from how it is
-// drawn.
+// change the time there is for it. A change asked for again (walkRev 2 on) was asked within that time (limitS): a
+// delay that changes it asks again, and an answer asked for another time is dropped. One as the plan came is timed
+// as the engine planned it (a minimum change time included): asked again only once its walk no longer fits. Where
+// its lines meet inside it (syncEnds()) is not: that follows from how it is drawn.
 const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
   const ends = st.ends || [];
   const room = st.type === 'change' ? changeRoomS(st) : null;
-  const fits = room == null || st.walkS == null || st.walkS <= room;
-  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : '')), fits]);
+  const time = room == null ? null : (st.walkRev || 0) >= 2 ? Math.round(room) : st.walkS == null || st.walkS <= room;
+  return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : '')), time]);
 };
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
 // ends and platforms the walk no longer has, are dropped
