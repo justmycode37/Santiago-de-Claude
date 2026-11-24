@@ -4,7 +4,7 @@
 import { map } from './map.ts';
 import { SATELLITE_STYLE_URL, STYLES, STYLE_URL, makeDarkStyle } from '../map-style.ts';
 import { currentTheme, onThemeChange, root, setTheme, themeMeta } from '../theme.ts';
-import { eventsBtn, viewsBtn } from './menu.ts';
+import { eventsBtn, viewOptions, viewsBtn } from './menu.ts';
 import { showToast } from '../toast.ts';
 import { CATEGORY_CARDS } from './categories.ts';
 import { EMPTY_FC, PLATFORM_FC, PLATFORM_MIN_ZOOM, platformLayers, platformsOnMap, startPlatforms } from './platforms.ts';
@@ -144,7 +144,7 @@ export function setEventsOn(enabled: boolean) {
   updatePlaces();
 }
 
-// ---------- Views: the plain map or the satellite view (••• › Views), remembered on this device ----------
+// ---------- Views: Normal (the plain map) or Satellite (••• › Views), remembered on this device ----------
 export type MapView = 'map' | 'satellite';
 const VIEW_KEY = 'mapView';
 export let mapView: MapView = (() => {
@@ -161,9 +161,8 @@ function loadSatellite(): Promise<maplibregl.StyleSpecification> {
   return satelliteLoad;
 }
 function showView() {
-  const sat = mapView === 'satellite';
-  viewsBtn.setAttribute('aria-pressed', String(sat));
-  viewsBtn.classList.toggle('active', sat);
+  viewsBtn.classList.toggle('active', mapView === 'satellite');
+  viewOptions.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === mapView)));
 }
 /** Switches between the plain map and the satellite view and remembers the choice. Resolves once it is drawn in. */
 export function setMapView(view: MapView): Promise<void> {

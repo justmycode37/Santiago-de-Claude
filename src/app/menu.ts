@@ -2,7 +2,8 @@ import { map } from './map.ts';
 import { showToast } from '../toast.ts';
 import { load, reloadNote } from '../lazy.ts';
 import type { STOPVISION } from '../stopvision.ts';
-import { EVENT_MIN_ZOOM, eventsOn, mapView, setEventsOn, setMapView, updateCards, visibleEvents } from './map-events.ts';
+import { EVENT_MIN_ZOOM, eventsOn, setEventsOn, setMapView, updateCards, visibleEvents } from './map-events.ts';
+import type { MapView } from './map-events.ts';
 import { fixAge, userAccuracy, userLngLat } from './location.ts';
 import { PLATFORMS, openPlatform, platformKey, platformsReady, startPlatforms } from './platforms.ts';
 import { PLACE_MIN_ZOOM, updatePlaces, viewNearBern } from './map-places.ts';
@@ -25,9 +26,17 @@ export function setMenu(open: boolean) {
   menu.classList.toggle('open', open);
   menuBtn.setAttribute('aria-expanded', String(open));
   menuItems.forEach((b) => (b.tabIndex = open ? 0 : -1));
+  if (!open) setViewPick(false);
+}
+// Views: the Normal / Satellite choice beside the Views button
+function setViewPick(open: boolean) {
+  menu.classList.toggle('views-open', open);
+  viewsBtn.setAttribute('aria-expanded', String(open));
+  viewOptions.forEach((b) => (b.tabIndex = open ? 0 : -1));
 }
 export const eventsBtn = document.getElementById('eventsBtn')!;
 export const viewsBtn = document.getElementById('viewsBtn')!;
+export const viewOptions = document.querySelectorAll<HTMLButtonElement>('#viewPick button');
 
 /** iOS Safari: the compass has to be asked for, from a tap. */
 export type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
@@ -123,12 +132,15 @@ export function start() {
     if (journeyChanged && journey.dest) startJourney(journey.dest, true);
     else menuBtn.focus();
   });
-  // Views: the plain map or the satellite view (aerial photos with roads and names)
+  // Views: Normal (the plain map) or Satellite (aerial photos with roads and names)
   viewsBtn.addEventListener('click', () => {
+    const open = !menu.classList.contains('views-open');
+    setViewPick(open);
+    if (open) viewOptions[0].focus();
+  });
+  viewOptions.forEach((b) => b.addEventListener('click', () => {
     setMenu(false);
     menuBtn.focus();
-    const next = mapView === 'satellite' ? 'map' : 'satellite';
-    showToast(next === 'satellite' ? 'Satellite view' : 'Map view');
-    setMapView(next).catch(() => showToast('The satellite view could not be loaded.'));
-  });
+    setMapView(b.dataset.view as MapView).catch(() => showToast('The satellite view could not be loaded.'));
+  }));
 }

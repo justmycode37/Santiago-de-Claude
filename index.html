@@ -136,6 +136,20 @@
       padding: 6px 12px; border-radius: 16px; background: var(--bar-bg); box-shadow: var(--shadow);
       color: var(--icon); font: 600 14px/20px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; white-space: nowrap;
     }
+    /* Views: Normal / Satellite, in place of the Views label while open */
+    .view-pick {
+      position: absolute; top: 162px; right: 54px; display: flex; gap: 4px; padding: 4px; border-radius: 22px;
+      background: var(--bar-bg); box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none; transform: scale(.9); transform-origin: right center;
+      transition: opacity .15s ease, transform .22s var(--spring);
+    }
+    .menu.open.views-open .view-pick { opacity: 1; pointer-events: auto; transform: none; }
+    .menu.views-open #viewsBtn .menu-label { visibility: hidden; }
+    .view-pick button {
+      height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: transparent; color: var(--icon); cursor: pointer;
+      font: 600 14px/20px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; white-space: nowrap;
+    }
+    .view-pick button[aria-pressed="true"] { background: var(--user-blue); color: #fff; }
     /* Toggled-on button (e.g. events shown) */
     .fab.active { background: var(--user-blue); color: #fff; }
     .fab.active:active { background: color-mix(in srgb, var(--user-blue) 82%, #000); }
@@ -1411,13 +1425,18 @@
         <circle cx="12" cy="12" r="3" />
       </svg>
     </button>
-    <button class="fab menu-item" id="viewsBtn" data-slot="3" type="button" aria-label="Satellite view" aria-pressed="false" tabindex="-1">
+    <button class="fab menu-item" id="viewsBtn" data-slot="3" type="button" aria-label="Views" aria-expanded="false" aria-controls="viewPick" tabindex="-1">
       <span class="menu-label" aria-hidden="true">Views</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" />
         <path d="M3.5 12l8.5 4.5 8.5-4.5M3.5 16l8.5 4.5 8.5-4.5" />
       </svg>
     </button>
+    <!-- Views: the two map views, beside the Views button while it is open -->
+    <div class="view-pick" id="viewPick" role="group" aria-label="Map view">
+      <button type="button" data-view="map" aria-pressed="true" tabindex="-1">Normal</button>
+      <button type="button" data-view="satellite" aria-pressed="false" tabindex="-1">Satellite</button>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status"></div>
