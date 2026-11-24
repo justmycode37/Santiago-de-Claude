@@ -2,7 +2,8 @@
 
 Status: agreed in a planning debate between Claude Fable, GPT Astra and Gemini Neon. Built so far: step 1 on both
 clients; from step 2 the profiled, complete `/api/due` with `servesTo`; from step 3 the web's per-track PP-OCR and the
-iOS reading gates. What is built and how it is checked: [ar.md](ar.md); the field sessions: [ar-field-test.md](ar-field-test.md).
+iOS reading gates; the timetable ambiguity audit ([ar-ambiguity-audit.md](ar-ambiguity-audit.md): step 4 deferred) and
+the `due` archive. What is built and how it is checked: [ar.md](ar.md); the field sessions: [ar-field-test.md](ar-field-test.md).
 
 Constraint: **no data collection of our own, and only a few short real-life tests.** Instead of statistical field
 gates, safety rests on structural rules that hold by construction. Open data and the existing public-video bench
