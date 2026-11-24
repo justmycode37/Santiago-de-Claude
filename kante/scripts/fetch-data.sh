@@ -145,17 +145,16 @@ if (( only_elevation )); then
   fi
   if (( have < size )); then
     echo "fetch $dest (10 GB)"
-    # resumed only from the same edition: the server refuses the range (412) when the file is another one
-    rc=0
-    # resumed (and resumed on a retry) only from an edition its ETag vouches for
-    # never more than the file's size in one answer (curl stops at it, 63): what it writes stays within the room
+    # resumed (and resumed on a retry) only from an edition its ETag vouches for: the server refuses the range (412)
+    # when the file is another one; never more than the file's size in one answer (curl stops at it, 63): what it writes stays within the room
     # checked above and the reserve
+    rc=0
     code=$(curl -fSL --retry 5 ${etag:+-C -} --max-filesize "$size" -A "$UA" ${etag:+-H "If-Match: $etag"} -w '%{http_code}' -o "$dest.part" "$DEM_URL") || rc=$?
     if (( rc )); then
       # another edition (412), a range that cannot be resumed (416), a server that ignores ranges (curl 33), more than
-      # the file (63): start again next time; the disk full (curl 23): the part removed, so that it does not keep
-      # the space
-      if [[ $code == 412 || $code == 416 ]] || (( rc == 33 || rc == 23 || rc == 63 )); then rm -f "$dest.part" "$dest.part.etag"; fi
+      # the file (63), or no ETag to resume by: start again next time; the disk full (curl 23): the part removed, so
+      # that it does not keep the space
+      if [[ -z $etag || $code == 412 || $code == 416 ]] || (( rc == 33 || rc == 23 || rc == 63 )); then rm -f "$dest.part" "$dest.part.etag"; fi
       exit 1
     fi
   fi

@@ -251,7 +251,7 @@ function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   st._askSig = sig;
   const current = () => st.walkRev === rev && walkSig(st) === sig && journey.steps.includes(st);
   // the answer is in: this line, for these ends and platforms, has its route
-  // (as it is now: its time, once the answer is in, may make it a change that no longer depends on the time there is)
+  // (as it is now: drawn by a station model, it no longer depends on the time there is)
   const done = () => { st._netFor = st.lines; st._netSig = walkSig(st); st._netEnds = walkEnds(st); };
   // no answer (the engine is down or cannot be reached): nothing is on its way any more, so it is asked again
   const retry = () => { st._askFor = undefined; st._askSig = undefined; };
@@ -273,7 +273,6 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     st.floors = res.floors;
     st._modelDrawn = !res.street;
     if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
-    // timed first: what it was routed for counts the time it now takes (walkTimeKey())
     walkTime(st, res.walks);
     if (res.walks.every(answered)) current.done(); else current.retry();
   });
