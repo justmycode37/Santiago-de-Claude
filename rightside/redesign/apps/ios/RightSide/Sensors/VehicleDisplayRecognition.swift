@@ -156,12 +156,16 @@ enum VehicleDisplayRecognitionPolicy {
         return mean >= 0.95 ? VehicleText(text: o.text, box: o.region, score: mean) : nil
     }
 
-    /// At least three letters and no word that could be a route numeral ("10", "N1", "10E", "1O").
+    /// At least three letters and nothing the matcher would take for a route numeral ("10", "N1", "10E", "1O", and
+    /// "9" of "9Wankdorf": checked with the matcher's own tokenizer, DisplayText.words).
     static func destinationOnly(_ text: String) -> Bool {
-        let words = text.split(whereSeparator: { $0 == " " || $0 == "," })
-        return text.filter(\.isLetter).count >= 3 && !words.contains { word in
-            String(word).range(of: #"^[A-Za-z]{0,2}[0-9OoIl]{0,2}[0-9][A-Za-z]?$"#, options: .regularExpression) != nil
-                || String(word).range(of: #"^[0-9][0-9OoIl]{0,2}$"#, options: .regularExpression) != nil
+        guard text.filter(\.isLetter).count >= 3 else { return false }
+        let tokens = DisplayText.words(text)
+        if tokens.contains(where: { DisplayText.isRouteToken($0) && $0.contains(where: \.isNumber) }) { return false }
+        // a numeral misread with letters ("1O", "I0") is a route numeral too
+        return !text.split(whereSeparator: { $0 == " " || $0 == "," }).contains { word in
+            String(word).range(of: #"^[0-9][0-9OoIl]{0,2}$"#, options: .regularExpression) != nil
+                || String(word).range(of: #"^[OoIl][0-9]{1,2}$"#, options: .regularExpression) != nil
         }
     }
 

@@ -543,7 +543,10 @@ function decide(readingsIn: ArReading[], lastSeen: number, expected: ArExpectati
     if (new Set(credible.map((r) => r.frameId)).size < 2) return ans('unknown', 'display_conflict_unconfirmed');
     const stops = (expected.stopsBefore || []).map(normalize);
     const frames = new Set(credible.map((r) => r.frameId)).size;
-    if (credible.some((r) => r.line === line && r.destination != null && stops.includes(r.destination))) return ans('wrong', 'display_short_turn_before_alighting', { frames });
+    // a short turn only when two distinct frames name a stop before the rider's (one, plus another contradiction,
+    // is a contradiction that names nothing)
+    const turning = new Set(credible.filter((r) => r.line === line && r.destination != null && stops.includes(r.destination)).map((r) => r.frameId)).size;
+    if (turning >= 2) return ans('wrong', 'display_short_turn_before_alighting', { frames: turning });
     return ans('wrong', 'wrong_line_destination_or_short_working', { frames });
   }
   if (latest.line == null || latest.destination == null) return ans('unknown', ef.length ? 'insufficient_temporal_evidence' : 'display_unreadable');

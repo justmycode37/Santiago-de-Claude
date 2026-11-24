@@ -189,13 +189,14 @@ times before the profiles, so the two can be compared later (`livemap/measure/du
 `pickup`: riders may board here (false where the timetable allows only setting down, or the stop is skipped
 today). `servesTo` (with `to=`): whether the run calls at that station after this stop, not skipped today, and
 lets riders off there; an express and a local with the same display differ here. `complete` is about runs that
-can be boarded here: a vehicle that only sets down here and is not yet under way within 4 km may be missing. `prevStop`/`nextStop`: the boarding points of the stops before and after, where it comes from and goes to.
+can be boarded here and those that only set down here and are under way within 4 km at some moment of the window
+(looked at every two minutes). `prevStop`/`nextStop`: the boarding points of the stops before and after, where it comes from and goes to.
 
 `state`: `approaching` (not yet there), `at-stop` (between live arrival and departure), `departed`.
 
 Included: departures from the asked boarding points, counting the platform in use (a train moved from 4 to
 5 shows at 5, not at 4); vehicles already under way that only set down here (e.g. at the end of their run;
-`dep` is null); extra journeys. Not included: a vehicle that only sets down here and has not started yet.
+`dep` is null); extra journeys. Vehicles that only set down here are found among those under way within 4 km at some moment of the window (looked at every two minutes); one that never is, is missing.
 `delayS` is only given where the time is live.
 `approachBearing` is the direction the vehicle drives in when it arrives (from the stop before);
 `departBearing` when it leaves (to the next stop). Either is null where there is no such stop.

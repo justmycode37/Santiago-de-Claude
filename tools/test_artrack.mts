@@ -226,8 +226,19 @@ suite('A gyro with the wrong sign is never used', [
   { at: 0, say: 'board; A is my 10, B to its right', board: board(), det: { A: [0.1, 0.3, 0.25, 0.4], B: [0.45, 0.3, 0.25, 0.4] },
     words: { captured: 0, on: { A: ['10', 'Ostermundigen Rüti'] } }, expect: { A: 'green', B: 'none' } },
   { at: 0.33, say: 'a pan moves the picture left by 0.15, the gyro says right by 0.2: B lands where the shift puts A',
-    det: { A: [-0.05, 0.3, 0.25, 0.4], B: [0.3, 0.3, 0.25, 0.4] }, shift: { dx: 0.2, dy: 0 }, expect: { A: 'green', B: 'none' } },
+    det: { A: [-0.05, 0.3, 0.25, 0.4], B: [0.3, 0.3, 0.25, 0.4] }, shift: { dx: 0.2, dy: 0 }, expect: { A: 'none', B: 'none' } }, // gyro and boxes disagree: revoked
 ]);
+suite('A pan just under the jerk limit: the neighbour does not inherit the green', [
+  { at: 0, say: 'board; two vehicles side by side, the right one is my 10', board: board(), det: { L: [0.2, 0.3, 0.18, 0.4], R: [0.42, 0.3, 0.18, 0.4] },
+    words: { captured: 0, on: { R: ['10', 'Ostermundigen Rüti'] } }, expect: { L: 'none', R: 'green' } },
+  { at: 0.33, say: 'the phone turns: both move right by 0.22, the left one lands in the right one\'s old box', det: { L: [0.42, 0.3, 0.18, 0.4], R: [0.64, 0.3, 0.18, 0.4] },
+    shift: { dx: 0.22, dy: 0 }, expect: { L: 'none', R: 'none' } },
+]);
+suite('A short turn needs two frames naming it', [
+  { at: 0, say: 'board; my 7 to Ostring passes Kursaal first', board: board([E('T7a', '7', 'Bern, Ostring', { servesTo: true }), ...BASE.slice(1)]), det: { A: LEFT }, expect: { A: 'none' } },
+  { at: 0.3, say: '"7 Kursaal"', det: { A: LEFT }, words: { captured: 0.3, on: { A: ['7', 'Bern Kursaal'] } }, expect: { A: 'none' } },
+  { at: 0.6, say: '"7 Detrina": two contradictions, only one names a stop: no red', det: { A: LEFT }, words: { captured: 0.6, on: { A: ['7', 'Detrina'] } }, expect: { A: 'none' } },
+], { line: '7', destination: 'Bern, Ostring', mode: 'tram', tripId: 'T7a', serviceDate: SD, stopsBefore: ['Bern, Kursaal'] });
 suite('Detections out of order are dropped', [
   { at: 1, say: 'board; A at t=1', board: board(), det: { A: LEFT }, expect: { A: 'none' } },
   { at: 0.8, say: 'an older detection arrives late: ignored', det: { A: LEFT }, expect: {} },

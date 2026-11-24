@@ -270,6 +270,8 @@ struct VehicleDecision {
     var confidence: Double? = nil
     /// "consensus" (top-confidence frames agree) or "best_single_frame" (no agreement: the most confident frame).
     var basis: String? = nil
+    /// Distinct frames behind a conflicting answer (the overlay paints red only from two).
+    var frames: Int? = nil
     var label: String {
         switch state {
         case .unknown: return "Service unreadable / unverified"
@@ -359,6 +361,8 @@ enum VehicleServiceMatcher {
         var other: DisplayCandidate?
         /// Frames disagree between the selected ride and another departure.
         var split = false
+        /// Distinct frames behind the settled candidate (red needs two).
+        var frames = 0
         /// With a board: the ranked frames point to the selected ride.
         var acceptedExpected = false
         /// "consensus" or "best_single_frame", and the confidence that decision rests on.
@@ -431,6 +435,7 @@ enum VehicleServiceMatcher {
         let leader = votes.values.max { ($0.count, $0.best) < ($1.count, $1.best) }!
         let rival = top.filter { $0.candidate.identity != leader.candidate.identity }.map(\.confidence).max() ?? 0
         func settle(_ candidate: DisplayCandidate, basis: String, confidence: Double) {
+            evidence.frames = scored.filter { $0.candidate.identity == candidate.identity }.count // one per distinct frame
             if candidate.isExpected { evidence.acceptedExpected = true } else { evidence.other = candidate }
             evidence.basis = basis; evidence.confidence = confidence
         }
@@ -471,7 +476,11 @@ enum VehicleServiceMatcher {
         // 2 s at the normal cadence; throttled to 1.2 s per frame, three frames need more (`window`)
         let readings = track.readings.filter { $0.at <= now && now.timeIntervalSince($0.at) <= window }
         guard let latest = readings.last, now.timeIntervalSince(latest.at) < freshness else { return answer(.unknown, "display_stale") }
-        if readings.contains(where: \.outOfService) { return answer(.conflicting, "out_of_service") }
+        if readings.contains(where: \.outOfService) {
+            var d = answer(.conflicting, "out_of_service")
+            d.frames = Set(readings.filter(\.outOfService).map(\.frameID)).count
+            return d
+        }
         if readings.contains(where: \.ambiguous) { return answer(.unknown, "ambiguous_display") }
         let line = VehicleTextRules.normalize(expected.line).replacingOccurrences(of: " ", with: "")
         let destination = VehicleTextRules.normalize(expected.destination)
@@ -483,9 +492,9 @@ enum VehicleServiceMatcher {
                other.lineKey == DisplayText.lineKey(expected.line),
                expected.downstreamCalls.prefix(alightingIndex).contains(where: {
                    DepartureDisplayMatcher.sameDestination($0.name, other.destination) }) {
-                return VehicleDecision(state: .conflicting, reason: "display_short_turn_before_alighting", observedService: service)
+                return VehicleDecision(state: .conflicting, reason: "display_short_turn_before_alighting", observedService: service, frames: board.frames)
             }
-            return VehicleDecision(state: .conflicting, reason: "display_matches_other_departure", observedService: service)
+            return VehicleDecision(state: .conflicting, reason: "display_matches_other_departure", observedService: service, frames: board.frames)
         }
         if board.split { return answer(.unknown, "display_matches_several_departures") }
         if board.acceptedExpected {
@@ -505,12 +514,19 @@ enum VehicleServiceMatcher {
                 // Recorded Bern footage showed single-frame "conflicts" from adverts ("AARE DACH AG" → line "e"),
                 // phone numbers on vans and the right display in short form ("9 Wabern" for "Wabern, Tram-Endstation").
                 let credible = differing.filter { credibleContradiction($0, expected: expected) }
-                guard Set(credible.map(\.frameID)).count >= 2 else { return answer(.unknown, "display_conflict_unconfirmed") }
-                if let alightingIndex = expected.downstreamCalls.firstIndex(where: { $0.id == expected.alightingCallID }),
-                   credible.contains(where: { reading in
-                       reading.line == line && expected.downstreamCalls.prefix(alightingIndex).contains { VehicleTextRules.normalize($0.name) == reading.destination }
-                   }) { return answer(.conflicting, "display_short_turn_before_alighting") }
-                return answer(.conflicting, "wrong_line_destination_or_short_working")
+                let frames = Set(credible.map(\.frameID)).count
+                guard frames >= 2 else { return answer(.unknown, "display_conflict_unconfirmed") }
+                // A short turn only when two distinct frames name a stop before the rider's: one of them plus another
+                // contradiction is a contradiction that names nothing (the web's arcore.ts does the same).
+                if let alightingIndex = expected.downstreamCalls.firstIndex(where: { $0.id == expected.alightingCallID }) {
+                    let turning = Set(credible.filter { reading in
+                        reading.line == line && expected.downstreamCalls.prefix(alightingIndex).contains { VehicleTextRules.normalize($0.name) == reading.destination }
+                    }.map(\.frameID)).count
+                    if turning >= 2 {
+                        var d = answer(.conflicting, "display_short_turn_before_alighting"); d.frames = turning; return d
+                    }
+                }
+                var d = answer(.conflicting, "wrong_line_destination_or_short_working"); d.frames = frames; return d
             }
             guard latest.line != nil, latest.destination != nil else {
                 return answer(.unknown, board.expectedFrames.isEmpty ? "display_unreadable" : "insufficient_temporal_evidence")

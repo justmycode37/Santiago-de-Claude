@@ -197,6 +197,14 @@ export function createArSession(ride: ArRide) {
         contest(t, at, 'ambiguous_match');
         rivalTracks.forEach((o) => contest(o, at, 'ambiguous_match'));
       }
+      // while the phone turns, the box that fits unshifted and the one that fits shifted by the gyro must be the
+      // same: if they differ, a neighbour may have slid into this vehicle's old place (or the gyro is wrong)
+      if (shift && Math.hypot(shift.dx, shift.dy) > 0.03) {
+        const other = use ? t.box : shifted(t.box, shift);
+        let bestK = -1, bestV = L.IOU_MATCH;
+        dets.forEach((dd, k2) => { const w = iou(other, dd.box); if (w >= bestV) { bestV = w; bestK = k2; } });
+        if (bestK >= 0 && bestK !== j) contest(t, at, 'pan_ambiguous');
+      }
       const d = dets[j];
       t.box = d.box; t.score = d.score; t.cls = d.cls; t.lastSeen = at; t.hits++;
       t.history.push({ at, box: d.box });

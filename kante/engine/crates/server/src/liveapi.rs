@@ -369,6 +369,13 @@ fn calls_after(calls: impl Iterator<Item = (StationIdx, bool, bool)>, to: Statio
 /// How far past the window a forecast is still looked at: the profiles can bring a call forward into it.
 const PROFILE_MARGIN_S: i64 = 600;
 
+/// The moments the vehicles under way are looked at for a window: every 120 s from `from`, and `to` itself.
+fn snapshot_moments(from: i64, to: i64) -> Vec<i64> {
+    let mut m: Vec<i64> = (0..).map(|k| from + 120 * k).take_while(|&t| t < to).collect();
+    m.push(to);
+    m
+}
+
 /// The time at call `i` from [`served_with_profiles`] where the profiles changed it (compared with the same calls
 /// without them): `(arr, dep)`, `dep` kept absent where the run has none there (it ends here).
 fn profiled_times(profiled: &[(usize, i64, i64)], plain: &[(usize, i64, i64)], i: usize, dep: Option<i64>) -> Option<(Option<i64>, Option<i64>)> {
@@ -427,7 +434,10 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     if !q.stops.is_empty() {
         let c = area.min.lerp(&area.max, 0.5);
         let mut under_way = Vec::new();
-        for moment in [q.t - q.before, q.t] {
+        // Every two minutes across the whole window: a short run that starts and ends inside it, or one coming from
+        // further than the 4 km around, is under way within 4 km at one of them (a board without it would wrongly be
+        // complete: a vehicle that only sets down here may show the rider's display).
+        for moment in snapshot_moments(q.t - q.before, q.t + q.after) {
             let (d, s) = time::from_unix(moment);
             under_way.extend(app.router.vehicles(&BBox::around(c, 4000.0), d, s, live));
         }
@@ -455,7 +465,7 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
             }
             for (i, c) in x.calls.iter().enumerate() {
                 let (Some(at), Some(leaves)) = (c.at(), c.leaves()) else { continue };
-                if in_set(c.stop) && leaves >= q.t - q.before && at <= q.t + q.after {
+                if in_set(c.stop) && leaves >= q.t - q.before && at <= q.t + q.after + PROFILE_MARGIN_S {
                     let run = Run::of_extra(x);
                     let delay = c.dep.zip(c.aimed_dep).or(c.arr.zip(c.aimed_arr)).map(|(t, a)| (t - a) as i32);
                     out.push(due_item(app, &run, i, extra_badge(x), x.headsign.clone(), None, ages, q.t, delay, q.to));
@@ -922,6 +932,13 @@ mod tests {
         assert!(!all_fresh([ok, (None, None)].into_iter(), 1000), "one feed never answered");
         assert!(!all_fresh([ok, (Some(1000), Some(100))].into_iter(), 1000), "fetched, but the document is old (a frozen source)");
         assert!(!all_fresh(std::iter::empty(), 1000), "no live feed at all: timetable only");
+    }
+
+    #[test]
+    fn vehicles_are_looked_for_across_the_whole_window() {
+        assert_eq!(snapshot_moments(1000, 1300), vec![1000, 1120, 1240, 1300]);
+        assert_eq!(snapshot_moments(1000, 1000), vec![1000]);
+        assert!(snapshot_moments(0, 1200).windows(2).all(|w| w[1] - w[0] <= 120), "no gap longer than two minutes");
     }
 
     #[test]

@@ -16,8 +16,12 @@ struct CameraVehicleOverlay: Identifiable {
     /// of service. A conflict that names nothing ("7 Detrina" for "7 Ostring") is how correlated misreads of the right
     /// display look (docs/ar-reading-range.md): it is not drawn red.
     var redFromDisplay: Bool {
-        decision.state == .conflicting && (decision.observedService != nil
-            || ["out_of_service", "display_short_turn_before_alighting", "trip_cancelled_pickup_forbidden_or_short_working"].contains(decision.reason))
+        guard decision.state == .conflicting else { return false }
+        // the trip binding's own short working or cancellation (not a display read)
+        if decision.reason == "trip_cancelled_pickup_forbidden_or_short_working" { return true }
+        // a display read: something named, in two distinct frames
+        return (decision.frames ?? 0) >= 2 && (decision.observedService != nil
+            || ["out_of_service", "display_short_turn_before_alighting"].contains(decision.reason))
     }
 
     var symbol: String {

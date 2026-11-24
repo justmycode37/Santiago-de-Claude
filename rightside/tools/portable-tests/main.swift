@@ -615,7 +615,7 @@ do {
           "incomplete character scores: dropped")
     check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 13), track: UUID()), trackID: trackID, frameID: frame, at: t0) == nil,
           "another track's read: dropped")
-    for text in ["10 Ostermundigen", "Ostermundigen 10", "1O", "N1 Bern", "10E Wabern"] {
+    for text in ["10 Ostermundigen", "Ostermundigen 10", "1O", "N1 Bern", "10E Wabern", "9Wankdorf", "I0 Bern"] {
         check(VehicleDisplayRecognitionPolicy.unanchoredText(obs(text, [Float](repeating: 1, count: text.count)), trackID: trackID, frameID: frame, at: t0) == nil,
               "a re-read holding a route numeral is dropped: \(text)")
     }
@@ -629,6 +629,28 @@ do {
     check(VehicleServiceMatcher.decide(slowTrack, expected: exp, now: slowTrack.lastSeen).state != .visualCandidate, "three frames 1.2 s apart do not fit 2 s")
     check(VehicleServiceMatcher.decide(slowTrack, expected: exp, now: slowTrack.lastSeen, freshness: 1.6, window: 3).state == .visualCandidate,
           "but fit the throttled window")
+}
+
+// MARK: - Red needs two frames; a short turn needs two frames naming it (review: Astra)
+do {
+    var exp = VehicleServiceExpectation(line: "7", destination: "Bern, Ostring")
+    exp.requiresRouteContext = false
+    exp.downstreamCalls = [VehicleExpectedCall(id: "k", stopID: "kursaal", name: "Bern, Kursaal"), VehicleExpectedCall(id: "o", stopID: "ostring", name: "Bern, Ostring")]
+    exp.alightingCallID = "o"
+    let d0 = detection()
+    func reads(_ texts: [[VehicleText]]) -> VehicleTrack {
+        let rs = texts.enumerated().map { i, t in VehicleTextRules.read(t, detection: d0, otherBoxes: [], at: t0.addingTimeInterval(Double(i) * 0.5), frameID: UUID(), layout: .eitherSide) }
+        return VehicleTrack(id: UUID(), detection: d0, lastSeen: t0.addingTimeInterval(Double(texts.count - 1) * 0.5), readings: rs)
+    }
+    let mixed = reads([[text("7", x: 0.12, w: 0.05), text("Bern Kursaal", x: 0.19)], [text("7", x: 0.12, w: 0.05), text("Detrina", x: 0.19)]])
+    let dm = VehicleServiceMatcher.decide(mixed, expected: exp, now: mixed.lastSeen)
+    check(dm.reason != "display_short_turn_before_alighting", "one frame naming a stop before plus another contradiction is no short turn (\(dm.reason))")
+    let turn = reads([[text("7", x: 0.12, w: 0.05), text("Bern Kursaal", x: 0.19)], [text("7", x: 0.12, w: 0.05), text("Bern Kursaal", x: 0.19)]])
+    let dt = VehicleServiceMatcher.decide(turn, expected: exp, now: turn.lastSeen)
+    check(dt.reason == "display_short_turn_before_alighting" && dt.frames == 2, "two frames naming it are (\(dt.reason), \(dt.frames ?? 0))")
+    let closed = reads([[text("Dienstfahrt", x: 0.19)]])
+    let dc = VehicleServiceMatcher.decide(closed, expected: exp, now: closed.lastSeen)
+    check(dc.reason == "out_of_service" && dc.frames == 1, "one frame of Dienstfahrt counts one frame (\(dc.frames ?? 0)): not red on its own")
 }
 
 print("\(checks - failures)/\(checks) checks passed")
