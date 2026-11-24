@@ -74,6 +74,8 @@ export interface ArDecision {
   observed?: string;
   basis?: ArBasis | null;
   confidence?: number | null;
+  /** How many distinct frames in the window back this answer (the web's labels need two for red). */
+  frames?: number;
 }
 
 type Box = ArBox;
@@ -458,12 +460,12 @@ function matchFrame(frameId: string, texts: ArText[], candidates: ArCandidate[],
   return m;
 }
 
-interface BoardEvidence { expectedFrames: number[]; other: ArCandidate | null; split: boolean; acceptedExpected: boolean; basis: ArBasis | null; confidence: number | null }
+interface BoardEvidence { expectedFrames: number[]; other: ArCandidate | null; split: boolean; acceptedExpected: boolean; basis: ArBasis | null; confidence: number | null; frames: number }
 function boardEvidence(readings: ArReading[], expected: ArExpectation, positions?: Record<string, number>): BoardEvidence {
   const own: ArCandidate = { line: expected.line, destination: expected.destination, vias: expected.vias, isExpected: true };
   const alternatives = (expected.board || []).filter((c) => !c.isExpected && !sameDisplay(c, own));
   const candidates = [own, ...alternatives];
-  const ev: BoardEvidence = { expectedFrames: [], other: null, split: false, acceptedExpected: false, basis: null, confidence: null };
+  const ev: BoardEvidence = { expectedFrames: [], other: null, split: false, acceptedExpected: false, basis: null, confidence: null, frames: 0 };
   const scored: { candidate: ArCandidate; confidence: number }[] = [];
   const seen = new Set<string>();
   for (const r of readings) {
@@ -494,6 +496,7 @@ function boardEvidence(readings: ArReading[], expected: ArExpectation, positions
   const settle = (c: ArCandidate, basis: ArBasis, confidence: number) => {
     if (c.isExpected) ev.acceptedExpected = true; else ev.other = c;
     ev.basis = basis; ev.confidence = confidence;
+    ev.frames = scored.filter((s) => identity(s.candidate) === identity(c)).length; // one entry per distinct frame
   };
   if (L.count >= 2 && L.least >= CONSENSUS_MIN) {
     if (rival >= L.best * 0.8) ev.split = true; else settle(L.candidate, 'consensus', L.best);
@@ -516,11 +519,11 @@ function decide(readingsIn: ArReading[], lastSeen: number, expected: ArExpectati
   const readings = readingsIn.filter((r) => r.at <= now && now - r.at <= 2);
   const latest = readings[readings.length - 1];
   if (!latest || now - latest.at >= 0.8) return ans('unknown', 'display_stale');
-  if (readings.some((r) => r.outOfService)) return ans('wrong', 'out_of_service');
+  if (readings.some((r) => r.outOfService)) return ans('wrong', 'out_of_service', { frames: new Set(readings.filter((r) => r.outOfService).map((r) => r.frameId)).size });
   if (readings.some((r) => r.ambiguous)) return ans('unknown', 'ambiguous_display');
   const line = normalize(expected.line).replace(/ /g, ''), destination = normalize(expected.destination);
   const board = boardEvidence(readings, expected, positions);
-  const withBasis = (d: ArDecision) => (board.basis ? { ...d, basis: board.basis, confidence: board.confidence } : d);
+  const withBasis = (d: ArDecision) => (board.basis ? { ...d, basis: board.basis, confidence: board.confidence, frames: board.frames } : d);
   if (board.other) {
     const o = board.other, service = `${o.line} ${o.destination}`;
     const stops = expected.stopsBefore || [];
@@ -532,20 +535,21 @@ function decide(readingsIn: ArReading[], lastSeen: number, expected: ArExpectati
   if (board.split) return ans('unknown', 'display_matches_several_departures');
   if (board.acceptedExpected) return withBasis(ans('match', 'display_matches'));
   const ef = board.expectedFrames;
-  if (ef.length >= 3 && latest.at - ef[0] >= 0.8 && ef[ef.length - 1] === latest.at) return ans('match', 'display_matches');
+  if (ef.length >= 3 && latest.at - ef[0] >= 0.8 && ef[ef.length - 1] === latest.at) return ans('match', 'display_matches', { frames: ef.length });
   const differing = readings.filter((r) => (r.line != null && r.line !== line) || (r.destination != null && r.destination !== destination));
   if (differing.length) {
     if (ef.length) return ans('unknown', 'insufficient_temporal_evidence');
     const credible = differing.filter((r) => credibleContradiction(r, expected));
     if (new Set(credible.map((r) => r.frameId)).size < 2) return ans('unknown', 'display_conflict_unconfirmed');
     const stops = (expected.stopsBefore || []).map(normalize);
-    if (credible.some((r) => r.line === line && r.destination != null && stops.includes(r.destination))) return ans('wrong', 'display_short_turn_before_alighting');
-    return ans('wrong', 'wrong_line_destination_or_short_working');
+    const frames = new Set(credible.map((r) => r.frameId)).size;
+    if (credible.some((r) => r.line === line && r.destination != null && stops.includes(r.destination))) return ans('wrong', 'display_short_turn_before_alighting', { frames });
+    return ans('wrong', 'wrong_line_destination_or_short_working', { frames });
   }
   if (latest.line == null || latest.destination == null) return ans('unknown', ef.length ? 'insufficient_temporal_evidence' : 'display_unreadable');
   const complete = readings.filter((r) => r.line === line && r.destination === destination);
   if (new Set(complete.map((r) => r.frameId)).size < 3 || latest.at - complete[0].at < 0.8) return ans('unknown', 'insufficient_temporal_evidence');
-  return ans('match', 'display_matches');
+  return ans('match', 'display_matches', { frames: new Set(complete.map((r) => r.frameId)).size });
 }
 
 /** In words for the screen. */
