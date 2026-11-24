@@ -299,6 +299,28 @@ fn a_stop_the_traveller_would_rather_not_walk_to() {
 }
 
 #[test]
+fn a_late_stop_does_not_put_the_traveller_at_the_others_before_they_leave() {
+    // G is at the door and its departures count half an hour earlier; X is a quarter of an hour's walk. The bus from
+    // G at 08:00 reaches X at 08:05, for the train at 08:10: nobody leaving at 08:00 walks to X by then. (The
+    // iteration of G's bus runs as of 07:30; the traveller is not at X at 07:45 for that.)
+    let mut b = Builder::new();
+    let (g, x, z) = (b.stop("G"), b.stop("X"), b.stop("Z"));
+    let (bus, rail) = (b.line("1", Mode::Bus), b.line("S", Mode::Rail));
+    let (pb, pr) = (b.pattern(bus, &[g, x]), b.pattern(rail, &[x, z]));
+    let feeder = b.trip(pb, &[hm(8, 0), hm(8, 5)]);
+    let first = b.trip(pr, &[hm(8, 10), hm(8, 30)]);
+    let second = b.trip(pr, &[hm(9, 10), hm(9, 30)]);
+    let w = World::new(b);
+    let (acc_, egr_, late) = ([(g, 0), (x, 900)], [(z, 0)], [1800, 0]);
+    let mut q = query(hm(8, 0), &acc_, &egr_, &w.none);
+    q.window = 3600;
+    q.transfer_margin = 0;
+    q.access_late = &late;
+    let got: Vec<(Vec<(TripIdx, u16, u16)>, Secs, Secs)> = w.plan(&q).iter().map(|j| (rides(j), j.dep, j.arr)).collect();
+    assert_eq!(got, vec![(vec![(w.t(feeder), 0, 1), (w.t(first), 0, 1)], hm(7, 30), hm(8, 30)), (vec![(w.t(second), 0, 1)], hm(8, 55), hm(9, 30))]);
+}
+
+#[test]
 fn footpath_change_and_walking_speed() {
     let mut b = Builder::new();
     let (a, x, y, z) = (b.stop("A"), b.stop("X"), b.stop("Y"), b.stop("Z"));

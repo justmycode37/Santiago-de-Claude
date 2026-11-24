@@ -682,33 +682,38 @@ impl App {
         })
     }
 
-    /// The journeys asked for. Where there is none with the traveller's longest walk — no stop within it, or only
-    /// stops nothing leaves from these days (a cable car closed between the seasons) — the stops within twice that
-    /// walk are tried, then four times, up to an hour: a hut twenty-five minutes from the nearest bus is
-    /// still somewhere people go, and a journey with a long walk says more than no journey at all.
+    /// The journeys asked for.
     ///
-    /// Where there are journeys, the longest walk still gives way to one that is far better: the stops up to twice
-    /// as far join the search, and a journey that walks to or from one is offered where it gets there
-    /// [`LONG_WALK_SAVES`] sooner than any that keeps to the longest walk (or leaves that much later, or both
-    /// together): a walk of 21 minutes at midnight instead of the first bus at five ([`settle_long_walks`]). Such
-    /// a journey says so (the `long-walk` alert). Not for a step-free walker or one in a wheelchair, and not when
-    /// asked to arrive by a time.
+    /// The traveller's longest walk gives way to a journey that is far better: the stops up to twice as far are
+    /// searched too, and a journey that walks to or from one is offered beside the others where it gets there
+    /// [`LONG_WALK_SAVES`] sooner than those that keep to the longest walk, or leaves that much later, or the two
+    /// together: a walk of 21 minutes at midnight instead of the first bus at five ([`with_long_walks`]). It says so
+    /// (the `long-walk` alert). The journeys within the longest walk are all still there. Not for a step-free
+    /// walker or one in a wheelchair, and not when asked to arrive by a time.
+    ///
+    /// Where even that leaves no journey — no stop, or only stops nothing calls at these days (a cable car closed
+    /// between the seasons) — the stops within twice the longest walk are taken as if within it, then those within
+    /// an hour: a hut twenty-five minutes from the nearest bus is still somewhere people go, and a journey with a
+    /// long walk says more than no journey at all.
     pub fn plan(&self, req: &json::PlanRequest) -> Result<json::PlanResponse, String> {
         const FARTHEST: Secs = 60 * 60;
         let nothing = |r: &Result<json::PlanResponse, String>| match r {
             Ok(p) => p.journeys.is_empty(),
             Err(e) => e == NO_STOP,
         };
-        let mut reach = (req.options.max_walk_min.clamp(1.0, 90.0) * 60.0) as Secs;
-        let first = self.plan_within(req, reach);
+        let asked = (req.options.max_walk_min.clamp(1.0, 90.0) * 60.0) as Secs;
+        let first = self.plan_within(req, asked);
         if !nothing(&first) {
             return first;
         }
-        while reach < FARTHEST {
-            reach = (reach * 2).min(FARTHEST);
-            let r = self.plan_within(req, reach);
-            if !nothing(&r) {
-                return r;
+        let mut tried = asked;
+        for reach in [2 * asked, FARTHEST] {
+            if reach > tried && reach <= FARTHEST {
+                tried = reach;
+                let r = self.plan_within(req, reach);
+                if !nothing(&r) {
+                    return r;
+                }
             }
         }
         first
@@ -752,24 +757,26 @@ impl App {
         let live: Option<&dyn LiveView> = live_arc.as_deref();
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
 
-        // the stops beyond the walk, up to twice as far, for a journey that is far better (see `plan`)
-        let far = match req.page.is_none() && req.arrive_by && req.onboard.is_none() || profile.wheelchair || profile.is_step_free() {
+        // the stops beyond the longest walk, up to twice as far, for a journey that is far better (see `plan`); not
+        // beyond a walk that is already longer than the traveller's, taken because there was nothing within it
+        let far = match req.arrive_by || profile.wheelchair || profile.is_step_free() || reach > max_walk {
             true => reach,
             false => (2 * reach).min(FARTHEST_REACH),
         };
         let to_ep = self.resolve(&req.to)?;
         let (egress, far_egress) = self.reach_and_beyond(&to_ep, &profile, reach, far, true);
+        if egress.stops.is_empty() && far_egress.is_empty() {
+            return Err(NO_STOP.into());
+        }
         // (searched as so much farther: an arrival through one of them counts that much later)
-        let egress_stops: Vec<(StopIdx, Secs)> = egress.stops.iter().copied().chain(far_egress.iter().map(|&(s, secs)| (s, secs + LONG_WALK_SAVES))).collect();
-        // (stops nothing calls at these days are no stops to arrive at: said at once, without a search that would
-        // look through two days of the whole timetable for a way there)
+        let egress_wide: Vec<(StopIdx, Secs)> = egress.stops.iter().copied().chain(far_egress.iter().map(|&(s, secs)| (s, secs + LONG_WALK_SAVES))).collect();
+        // (stops nothing calls at these days are no stops to arrive at: no search then, which would look through
+        // two days of the whole timetable for a way there)
         let around = match req.page.as_deref() {
             Some(p) => p.get(2..).and_then(|t| t.parse().ok()).unwrap_or(now),
             None => req.time.unwrap_or(now),
         };
-        if !self.served(&egress_stops, around) {
-            return Err(NO_STOP.into());
-        }
+        let (to_near, to_far) = (self.served(&egress.stops, around), self.served(&far_egress, around));
         let to_end = WalkEnd { name: to_ep.place.name.clone(), pos: to_ep.pos, stop: None, end: egress.end.clone() };
 
         let mut query = Query {
@@ -779,7 +786,7 @@ impl App {
             max_arr: None,
             access: &[],
             access_late: &[],
-            egress: &egress_stops,
+            egress: &egress.stops,
             onboard: None,
             footpaths: self.footpaths_for(&profile),
             walk_speed: profile.speed_mps,
@@ -806,7 +813,7 @@ impl App {
             query.date = qdate;
             query.from = qsecs;
             query.onboard = Some(Onboard { trip, date: tdate, next_pos: next as u16 });
-            let journeys = settle_long_walks(self.router.plan(&query), &[], &far_egress);
+            let journeys = long_walk_search(&[], &far_egress, to_near, to_far, |wide| self.router.plan(&if wide { Query { egress: &egress_wide, ..query } } else { query }));
             let stops = tt.pattern_stops(tt.trips[trip as usize].pattern);
             let here = &tt.stops[stops[next] as usize];
             let badge = self.line_badge(trip);
@@ -839,12 +846,21 @@ impl App {
         let from_ep: Endpoint = self.resolve(req.from.as_ref().ok_or("from is required")?)?;
         let (access, far_access) = self.reach_and_beyond(&from_ep, &profile, reach, far, false);
         let from_end = WalkEnd { name: from_ep.place.name.clone(), pos: from_ep.pos, stop: None, end: access.end.clone() };
-        // (a journey that starts at one of them counts as leaving that much earlier: `Query::access_late`)
-        let access_stops: Vec<(StopIdx, Secs)> = access.stops.iter().chain(&far_access).copied().collect();
+        query.access = &access.stops;
+        // (a journey that starts at one of the far ones counts as leaving that much earlier: `Query::access_late`)
+        let access_wide: Vec<(StopIdx, Secs)> = access.stops.iter().chain(&far_access).copied().collect();
         let access_late: Vec<Secs> = access.stops.iter().map(|_| 0).chain(far_access.iter().map(|_| LONG_WALK_SAVES)).collect();
-        query.access = &access_stops;
-        query.access_late = &access_late;
-        let search = |q: &Query, from: Secs, total: Secs, chunks: i32| settle_long_walks(self.range(q, from, total, chunks), &far_access, &far_egress);
+        let (from_near, from_far) = (self.served(&access.stops, around), self.served(&far_access, around));
+        // The journeys within the longest walk and, beside them, those worth a longer one (`long_walk_search`). No
+        // search from or to stops nothing calls at.
+        let search_near = to_near && from_near;
+        let search_wide = (to_far && (from_near || from_far)) || (from_far && to_near);
+        let search = |q: &Query, from: Secs, total: Secs, chunks: i32| {
+            long_walk_search(&far_access, &far_egress, search_near, search_wide, |wide| match wide {
+                true => self.range(&Query { access: &access_wide, access_late: &access_late, egress: &egress_wide, ..*q }, from, total, chunks),
+                false => self.range(q, from, total, chunks),
+            })
+        };
 
         // What to search: forward from a time, or backward from a deadline.
         enum Dir {
@@ -860,9 +876,14 @@ impl App {
             None => Dir::After(req.time.unwrap_or(now)),
         };
         const WANT: usize = 6;
+        // (a journey that walks to or from a stop beyond the longest walk)
+        let is_far = |far: &[(StopIdx, Secs)], s: StopIdx| far.iter().any(|&(f, _)| f == s);
+        let is_long = |j: &Journey| {
+            matches!(j.legs.first(), Some(Leg::Access { to, .. }) if is_far(&far_access, *to)) || matches!(j.legs.last(), Some(Leg::Egress { from, .. }) if is_far(&far_egress, *from))
+        };
         let mut picked: Vec<Journey> = Vec::new();
         let mut qdate = 0;
-        if self.served(&access_stops, around) {
+        if search_near || search_wide {
             match dir {
                 Dir::After(t) => {
                     let (d, s) = time::from_unix(t);
@@ -873,22 +894,27 @@ impl App {
                     for (total, tail) in [(4 * 3600, 1800), (16 * 3600, 0)] {
                         picked = search(&query, s, total, 4);
                         // Options leaving in the last stretch may still be
-                        // beaten by something just outside the search.
+                        // beaten by something just outside the search. (Three within the longest walk: one with a
+                        // longer walk is no reason not to look for them further on.)
                         let safe = picked.iter().filter(|j| j.dep <= s + total - tail).count();
-                        if safe >= 3 || tail == 0 {
+                        if picked.iter().filter(|j| j.dep <= s + total - tail && !is_long(j)).count() >= 3 || tail == 0 {
                             picked.truncate(safe.max(1).min(picked.len()));
                             break;
                         }
                     }
-                    if picked.is_empty() {
-                        // Nothing leaves in sixteen hours (asked on Saturday evening, in a village whose bus does
-                        // not run on Sundays): the first journeys after that, as far as the day after the next.
-                        let (d, s) = time::from_unix(t + 16 * 3600);
+                    // Nothing leaves in sixteen hours (asked on Saturday evening, in a village whose bus does not
+                    // run on Sundays): the first journeys after that, as far as two days from now. Sixteen hours
+                    // at a time, each from its own date: the router knows the day before a query's date and the
+                    // day after, no further.
+                    for hours in [16, 32] {
+                        if !picked.is_empty() {
+                            break;
+                        }
+                        let (d, s) = time::from_unix(t + hours * 3600);
                         qdate = d;
                         query.date = d;
-                        picked = search(&query, s + 1, 32 * 3600, 4);
+                        picked = search(&query, s + 1, 16 * 3600, 4);
                     }
-                    picked.truncate(WANT);
                 }
                 Dir::Before(t) | Dir::ArriveBy(t) => {
                     let by_arrival = matches!(dir, Dir::ArriveBy(_));
@@ -908,17 +934,37 @@ impl App {
                             break;
                         }
                     }
-                    let n = picked.len();
-                    if n > WANT {
-                        picked.drain(..n - WANT);
-                    }
                 }
             }
         }
 
+        // The journeys within the longest walk are shown as if there were no others: the first `WANT` of them (the
+        // last, before a time), less those far slower than the best of them (`page`), and the pages go on from
+        // them. The journeys with a longer walk are shown beside them — those leaving in the same stretch of time,
+        // `WANT` at most, less those far slower than the best of them — and never in their place. With none within
+        // the longest walk, they are the answer.
+        let backwards = matches!(dir, Dir::Before(_) | Dir::ArriveBy(_));
+        let (mut long, mut near): (Vec<Journey>, Vec<Journey>) = picked.into_iter().partition(is_long);
+        let cut = |js: &mut Vec<Journey>| match backwards {
+            true => drop(js.drain(..js.len().saturating_sub(WANT))),
+            false => js.truncate(WANT),
+        };
+        cut(&mut near);
+        match (backwards, near.first(), near.last()) {
+            (false, _, Some(last)) => long.retain(|j| j.dep <= last.dep),
+            (true, Some(first), _) => long.retain(|j| j.dep >= first.dep),
+            _ => {}
+        }
+        cut(&mut long);
         // the journey arriving first is added back for searches that leave at a time (and their pages), not for
         // "arrive by", where it is not what was asked for
-        let (picked, pages) = page(picked, !matches!(dir, Dir::ArriveBy(_)));
+        let rescue = !matches!(dir, Dir::ArriveBy(_));
+        let (near, near_pages) = page(near, rescue);
+        let (long, long_pages) = page(long, rescue);
+        let pages = near_pages.or(long_pages);
+        let mut picked = near;
+        picked.extend(long);
+        picked.sort_by_key(|j| (j.dep, j.arr, j.transfers));
         let mut journeys: Vec<json::Journey> =
             picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, opt.flatter_changes, max_walk, live)).collect();
         // a journey's last walk is timed by the walk drawn, in travel order (the stop search ran the other way): one
@@ -997,63 +1043,76 @@ impl App {
     }
 }
 
-/// A walk beyond the traveller's longest is taken where the journey gets there this much sooner than any that keeps
-/// to it, or leaves this much later, or the two together.
+/// A walk beyond the traveller's longest is worth it where the journey gets there this much sooner than those that
+/// keep to it, or leaves this much later, or the two together.
 const LONG_WALK_SAVES: Secs = 30 * 60;
 /// No stop farther than this walk is looked at.
 const FARTHEST_REACH: Secs = 90 * 60;
 
-/// The journeys of a search whose stops beyond the traveller's longest walk (`far_access`, `far_egress`: stop and
-/// seconds) were handicapped by [`LONG_WALK_SAVES`] — a journey starting at one counted as leaving that much
-/// earlier, one ending at one as arriving that much later —, with the times they really have, by departure.
+/// The journeys within the traveller's longest walk and, beside them, those worth a longer one. `search(false)`
+/// searches with the stops within the longest walk (worth doing: `near`); `search(true)` with those beyond it as
+/// well (`far_access`, `far_egress`: stop and seconds; worth doing: `wide`), handicapped by [`LONG_WALK_SAVES`]: a
+/// journey that starts at one counts as leaving that much earlier (`Query::access_late`), one that ends at one as
+/// arriving that much later.
 ///
-/// The handicap keeps every journey within the longest walk in the answer unless a longer walk beats it by that
-/// much at the end it is longer at. It does not yet say the longer walk is worth it: a journey can leave half an
-/// hour before the bus to arrive a minute before it. So a journey with a longer walk stays only where it has
-/// [`LONG_WALK_SAVES`] on every journey within the longest walk: the minutes it arrives sooner, and the minutes it
-/// leaves later. Arriving later counts against it (leaving an hour after the last bus to arrive an hour and a half
-/// after it is no gain); leaving earlier does not (whoever asked wants to be there).
-fn settle_long_walks(js: Vec<Journey>, far_access: &[(StopIdx, Secs)], far_egress: &[(StopIdx, Secs)]) -> Vec<Journey> {
-    if far_access.is_empty() && far_egress.is_empty() {
-        return js;
+/// The handicapped search comes first. With no journey through a far stop in its answer, that answer is the one
+/// within the longest walk (nothing in it was beaten by a journey that is not there), and it is the only search:
+/// most questions. Otherwise the journeys within the longest walk are searched on their own — one that a
+/// longer walk beats by half an hour is not in the first answer, and it is still what a traveller who keeps to
+/// their longest walk takes — and those through a far stop are added where they are worth it ([`with_long_walks`]).
+fn long_walk_search(far_access: &[(StopIdx, Secs)], far_egress: &[(StopIdx, Secs)], near: bool, wide: bool, search: impl Fn(bool) -> Vec<Journey>) -> Vec<Journey> {
+    if !wide {
+        return if near { search(false) } else { Vec::new() };
     }
     let is_far = |far: &[(StopIdx, Secs)], s: StopIdx| far.iter().any(|&(f, _)| f == s);
-    let mut all: Vec<(Journey, bool)> = js
-        .into_iter()
-        .map(|mut j| {
-            let mut long = false;
-            if let Some(Leg::Access { to, dep, .. }) = j.legs.first_mut() {
-                if is_far(far_access, *to) {
-                    *dep += LONG_WALK_SAVES;
-                    j.dep += LONG_WALK_SAVES;
-                    long = true;
-                }
+    let mut handicapped = search(true);
+    // the journeys through a far stop, with the times they really have
+    let mut long: Vec<Journey> = Vec::new();
+    handicapped.retain_mut(|j| {
+        let mut far = false;
+        if let Some(Leg::Access { to, dep, .. }) = j.legs.first_mut() {
+            if is_far(far_access, *to) {
+                *dep += LONG_WALK_SAVES;
+                j.dep += LONG_WALK_SAVES;
+                far = true;
             }
-            if let Some(Leg::Egress { from, arr, .. }) = j.legs.last_mut() {
-                if is_far(far_egress, *from) {
-                    *arr -= LONG_WALK_SAVES;
-                    j.arr -= LONG_WALK_SAVES;
-                    long = true;
-                }
+        }
+        if let Some(Leg::Egress { from, arr, .. }) = j.legs.last_mut() {
+            if is_far(far_egress, *from) {
+                *arr -= LONG_WALK_SAVES;
+                j.arr -= LONG_WALK_SAVES;
+                far = true;
             }
-            (j, long)
-        })
-        .collect();
-    let worth = |j: &Journey| !all.iter().any(|(k, long)| !long && (j.dep - k.dep).max(0) + (k.arr - j.arr) < LONG_WALK_SAVES);
-    let keep: Vec<bool> = all.iter().map(|(j, long)| !long || worth(j)).collect();
-    let mut keep = keep.into_iter();
-    all.retain(|_| keep.next().unwrap_or(true));
-    all.sort_by_key(|(j, _)| (j.dep, j.arr, j.transfers));
-    all.into_iter().map(|(j, _)| j).collect()
+        }
+        if far {
+            long.push(j.clone());
+        }
+        !far
+    });
+    if long.is_empty() {
+        return handicapped;
+    }
+    with_long_walks(if near { search(false) } else { Vec::new() }, long)
+}
+
+/// The journeys within the traveller's longest walk (`near`, as they were searched) and, beside them, those with a
+/// longer walk (`long`, with the times they really have) that are worth it. By departure.
+///
+/// Worth it: against every journey within the longest walk that leaves less than [`LONG_WALK_SAVES`] before it, or
+/// after it, it has [`LONG_WALK_SAVES`] in hand, counting the minutes it arrives sooner and the minutes it leaves
+/// later. One that leaves that much earlier is another departure: it says nothing about this one (the bus at 21:26
+/// does not make the last train at 22:26 and a walk home pointless, when the next bus arrives at five). Arriving
+/// later counts against it; leaving earlier does not count for or against (whoever asked wants to be there).
+fn with_long_walks(near: Vec<Journey>, long: Vec<Journey>) -> Vec<Journey> {
+    let worth = |j: &Journey| !near.iter().any(|k| j.dep - k.dep < LONG_WALK_SAVES && (j.dep - k.dep).max(0) + (k.arr - j.arr) < LONG_WALK_SAVES);
+    let mut all: Vec<Journey> = long.into_iter().filter(worth).collect();
+    all.extend(near);
+    all.sort_by_key(|j| (j.dep, j.arr, j.transfers));
+    all
 }
 
 fn long_walk_alert(leg: usize, whither: &str, longest_walk: Secs) -> json::JourneyAlert {
-    json::JourneyAlert {
-        severity: "info",
-        kind: "long-walk",
-        leg: Some(leg),
-        text: format!("The walk {whither} is longer than your maximum walk of {} min: nothing nearer gets you there as soon", longest_walk / 60),
-    }
+    json::JourneyAlert { severity: "info", kind: "long-walk", leg: Some(leg), text: format!("The walk {whither} is longer than your maximum walk of {} min", longest_walk / 60) }
 }
 
 /// What a plan answers when the destination has no stop within the walk.
@@ -1220,8 +1279,32 @@ mod tests {
 
     #[test]
     fn a_longer_walk_only_where_it_is_far_better() {
-        // stop 1 is within the longest walk of the start and stop 2 of the end; 8 and 9 are beyond it. As the search
-        // answers: from 8 leaving half an hour earlier than it does, to 9 arriving half an hour later.
+        let jn = |dep: Secs, arr: Secs| Journey { dep, arr, transfers: 0, legs: vec![] };
+        let times = |js: &[Journey]| js.iter().map(|j| (j.dep, j.arr)).collect::<Vec<_>>();
+        let got = |near: &[Journey], long: &[Journey]| times(&with_long_walks(near.to_vec(), long.to_vec()));
+        // the last train and a 25 minute walk, home at 00:10, or the first bus at five: both
+        let (bus, walk) = (jn(23 * H + 26 * M, 29 * H + 26 * M), jn(22 * H + 26 * M, 24 * H + 10 * M));
+        assert_eq!(got(&[bus.clone()], &[walk.clone()]), times(&[walk.clone(), bus.clone()]));
+        // and with a bus an hour before that train, home at 22:10: another departure, the walk home still stands
+        let before = jn(21 * H + 26 * M, 22 * H + 10 * M);
+        assert_eq!(got(&[before.clone(), bus.clone()], &[walk.clone()]), times(&[before, walk.clone(), bus.clone()]));
+        // from the far station at 10:05, there at 10:59; the bus from the near stop leaves at 09:55 and is there at
+        // 11:00: ten minutes later out and a minute sooner there is not worth the walk
+        let near = [jn(9 * H + 55 * M, 11 * H)];
+        assert_eq!(got(&near, &[jn(10 * H + 5 * M, 10 * H + 59 * M)]), times(&near));
+        // leaving 20 minutes later and arriving 15 minutes sooner is: 35 minutes in hand, and the bus stays
+        assert_eq!(got(&near, &[jn(10 * H + 15 * M, 10 * H + 45 * M)]), vec![(9 * H + 55 * M, 11 * H), (10 * H + 15 * M, 10 * H + 45 * M)]);
+        // three hours earlier out for ten minutes sooner there is not
+        assert_eq!(got(&[jn(10 * H, 11 * H)], &[jn(7 * H, 10 * H + 50 * M)]), vec![(10 * H, 11 * H)]);
+        // twenty minutes after the last bus and arriving two hours after it is not
+        assert_eq!(got(&[jn(19 * H, 20 * H)], &[jn(19 * H + 20 * M, 22 * H)]), vec![(19 * H, 20 * H)]);
+        // nothing within the longest walk: every journey with a longer one
+        assert_eq!(got(&[], &[walk.clone()]), times(&[walk]));
+    }
+
+    #[test]
+    fn the_journeys_within_the_longest_walk_are_all_there() {
+        // stop 1 is within the longest walk of the start and stop 2 of the end; 8 and 9 are beyond it
         let (far_a, far_e) = ([(8, 1500)], [(9, 1500)]);
         let jn = |from: StopIdx, dep: Secs, to: StopIdx, arr: Secs| Journey {
             dep,
@@ -1230,31 +1313,31 @@ mod tests {
             legs: vec![Leg::Access { to: from, dep, arr: dep + 600 }, Leg::Egress { from: to, dep: arr - 600, arr }],
         };
         let times = |js: &[Journey]| js.iter().map(|j| (j.dep, j.arr)).collect::<Vec<_>>();
-        // the last train and a 25 minute walk, home at 00:10 (searched as 00:40), or the first bus at five
-        let all = vec![jn(1, 22 * H + 26 * M, 9, 24 * H + 40 * M), jn(1, 23 * H + 26 * M, 2, 29 * H + 26 * M)];
-        let got = settle_long_walks(all, &far_a, &far_e);
+        let asked = std::cell::RefCell::new(Vec::new());
+        let run = |near: &[Journey], handicapped: &[Journey]| {
+            asked.borrow_mut().clear();
+            long_walk_search(&far_a, &far_e, true, true, |wide| {
+                asked.borrow_mut().push(wide);
+                if wide { handicapped.to_vec() } else { near.to_vec() }
+            })
+        };
+        // no journey through a far stop in the handicapped answer: that answer, and no second search
+        let near = [jn(1, 9 * H + 25 * M, 2, 11 * H), jn(1, 9 * H + 55 * M, 2, 11 * H + 20 * M)];
+        assert_eq!((run(&near, &near), asked.borrow().clone()), (near.to_vec(), vec![true]));
+        // The 09:25 bus to the 10:30 train and the same train after a 25 minute walk to the far station, leaving at
+        // 10:00: searched as leaving at 09:30, the walk beats the bus out of the handicapped answer. Against the
+        // 09:55 journey, there at 11:20, it has only 25 minutes: it is not offered. Both journeys within the walk are.
+        let handicapped = [jn(8, 9 * H + 30 * M, 2, 11 * H), near[1].clone()];
+        assert_eq!((run(&near, &handicapped), asked.borrow().clone()), (near.to_vec(), vec![true, false]));
+        // a walk from a far stop at the end, home at 00:10 (searched as 00:40) and not at five: offered, with the
+        // times it has
+        let bus = jn(1, 23 * H + 26 * M, 2, 29 * H + 26 * M);
+        let got = run(&[bus.clone()], &[jn(1, 22 * H + 26 * M, 9, 24 * H + 40 * M), bus.clone()]);
         assert_eq!(times(&got), vec![(22 * H + 26 * M, 24 * H + 10 * M), (23 * H + 26 * M, 29 * H + 26 * M)]);
         assert_eq!(got[0].legs[1], Leg::Egress { from: 9, dep: 24 * H + 30 * M, arr: 24 * H + 10 * M });
-        // from the far station at 10:05 (searched as 09:35), there at 10:59; the bus from the near stop leaves at
-        // 09:55 and is there at 11:00: ten minutes later out and a minute sooner there is not worth the walk
-        let all = vec![jn(8, 9 * H + 35 * M, 2, 10 * H + 59 * M), jn(1, 9 * H + 55 * M, 2, 11 * H)];
-        assert_eq!(times(&settle_long_walks(all, &far_a, &far_e)), vec![(9 * H + 55 * M, 11 * H)]);
-        // leaving 20 minutes later and arriving 15 minutes sooner is: 35 minutes in hand
-        let all = vec![jn(8, 9 * H + 45 * M, 2, 10 * H + 45 * M), jn(1, 9 * H + 55 * M, 2, 11 * H)];
-        assert_eq!(times(&settle_long_walks(all, &far_a, &far_e)), vec![(9 * H + 55 * M, 11 * H), (10 * H + 15 * M, 10 * H + 45 * M)]);
-        // three hours earlier out for ten minutes sooner there is not
-        let all = vec![jn(1, 7 * H, 9, 10 * H + 20 * M), jn(1, 10 * H, 2, 10 * H)];
-        assert_eq!(times(&settle_long_walks(all, &far_a, &far_e)), vec![(10 * H, 10 * H)]);
-        // leaving an hour and a quarter after the last bus and arriving more than that after it is not
-        let all = vec![jn(1, 19 * H + 27 * M, 2, 31 * H + 18 * M), jn(1, 20 * H + 40 * M, 9, 33 * H + 27 * M)];
-        assert_eq!(times(&settle_long_walks(all, &far_a, &far_e)), vec![(19 * H + 27 * M, 31 * H + 18 * M)]);
-        // leaving three hours after it and arriving ten minutes after it is
-        let all = vec![jn(1, 7 * H, 2, 10 * H), jn(8, 9 * H + 30 * M, 2, 10 * H + 10 * M)];
-        assert_eq!(times(&settle_long_walks(all, &far_a, &far_e)), vec![(7 * H, 10 * H), (10 * H, 10 * H + 10 * M)]);
-        // nothing within the longest walk: every journey with a longer one stays; and no far stops: as searched
-        let all = vec![jn(8, 9 * H, 9, 11 * H)];
-        assert_eq!(times(&settle_long_walks(all.clone(), &far_a, &far_e)), vec![(9 * H + 30 * M, 10 * H + 30 * M)]);
-        assert_eq!(settle_long_walks(all.clone(), &[], &[]), all);
+        // from a far stop at the start: leaving when it really does
+        let got = run(&[], &[jn(8, 9 * H, 2, 11 * H)]);
+        assert_eq!((got[0].dep, got[0].legs[0]), (9 * H + 30 * M, Leg::Access { to: 8, dep: 9 * H + 30 * M, arr: 9 * H + 10 * M }));
     }
 
     #[test]

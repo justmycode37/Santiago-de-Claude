@@ -65,14 +65,15 @@ when the engine offers it, the one to show first, and the engine's pages for "Ea
 - **How far ahead.** The journeys leaving in the next four hours; where that gives fewer than three, in the next
   sixteen; where nothing leaves in sixteen hours (a bus that does not run on Sundays), the first ones after that,
   as far as the day after next.
-- **The maximum walk** of Settings holds for the walk to the first stop and from the last, unless a longer walk is
-  far better: stops up to twice as far join the search, and a journey that walks to or from one is offered where
-  it gets there half an hour sooner than any journey within the maximum (or lets you leave that much later). The
-  list marks its walk, and the walk says "Longer than your maximum walk". Not for step-free or wheelchair
-  routing, and not when asked to arrive by a time.
-- **Rather a long walk than no journey.** Where nothing can be reached even so — no stop, or only stops nothing
-  calls at these days — the engine looks twice as far as the maximum walk, then farther (an hour at most),
-  before it answers that there is no journey.
+- **The maximum walk** of Settings holds for the walk to the first stop and from the last. A longer walk is
+  offered where it is far better: the stops up to twice as far (an hour and a half at most) are searched too, and a
+  journey that walks to or from one is listed beside the others where it gets there half an hour sooner than
+  those within the maximum, or lets you leave that much later. The list tints its walk, and the walk says "Longer
+  than your maximum walk". The journeys within the maximum are all still listed. Not for step-free or wheelchair
+  routing, and not for a search that arrives by a time (nor its earlier and later pages).
+- **Rather a long walk than no journey.** Where even that leaves nothing — no stop, or only stops nothing calls
+  at these days — the engine takes the stops within twice the maximum walk as if within it, then those within an
+  hour, before it answers that there is no journey.
 
 `kante/tools/compare/fastest.py` checks all this on random trips against SBB's planner
 ([how](../kante/tools/compare/README.md#does-it-find-the-fastest-journey)).

@@ -1011,12 +1011,13 @@ impl<'a> Engine<'a> {
         let n_stops = self.s.n_stops;
         let mut acc = std::mem::take(&mut self.s.acc_stops);
         // `access[s]` is the walk and the seconds the stop's departures count earlier by (`Query::access_late`):
-        // what a departure there is compared and reported with. The walk alone says which departures can be caught.
+        // what a departure there is compared and reported with. The walk alone (`access[s] - late`) says which
+        // departures can be caught, and when the traveller can be at the stop.
         let mut late = std::mem::take(&mut self.s.acc_late);
         late.clear();
         for (n, &(s, secs)) in q.access.iter().enumerate() {
             if (s as usize) < n_stops && secs >= 0 {
-                let h = q.access_late.get(n).copied().unwrap_or(0).max(0);
+                let h = q.access_late.get(n).copied().unwrap_or(0).clamp(0, DAY);
                 let a = &mut self.s.access[s as usize];
                 if *a == INF {
                     acc.push(s);
@@ -1065,8 +1066,8 @@ impl<'a> Engine<'a> {
         #[cfg(feature = "stats")]
         stats::add(12, t_seeds.elapsed().as_nanos() as u64);
         if window == 0 {
-            for &s in &acc {
-                self.s.lab[s as usize * R].ready = q.from + self.s.access[s as usize];
+            for (n, &s) in acc.iter().enumerate() {
+                self.s.lab[s as usize * R].ready = q.from + self.s.access[s as usize] - late[n];
                 self.touch(s);
             }
             count!(0);
@@ -1088,8 +1089,11 @@ impl<'a> Engine<'a> {
             while i < seeds.len() {
                 count!(0);
                 let tau = seeds[i].tau;
-                for &s in &acc {
-                    self.s.lab[s as usize * R].ready = tau + self.s.access[s as usize];
+                // Where the traveller of this iteration (leaving at `tau` as departures are counted) can be at each
+                // access stop: a stop whose departures count `late` earlier is left for `late` after `tau`, and
+                // none before `q.from` (`tau` is before it in the iterations of such a stop's first departures).
+                for (n, &s) in acc.iter().enumerate() {
+                    self.s.lab[s as usize * R].ready = (tau + late[n]).max(q.from) + self.s.access[s as usize] - late[n];
                     self.touch(s);
                 }
                 self.ride_stamp = self.next_stamp();

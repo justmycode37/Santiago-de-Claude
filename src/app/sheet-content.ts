@@ -509,10 +509,10 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}${climb ? `, ${climb} m uphill` : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
-  // a walk longer than the maximum walk of Settings: the engine takes it only where nothing nearer gets there as soon
+  // a walk longer than the maximum walk of Settings (the engine offers it where the journey is far better for it)
   if (st.type === 'walk' && journey.conn && KanteJourney.longWalks(journey.conn).has(st.final ? 'egress' : 'access')) {
     main.append(h('div', 'spare tight', kIcon('alert', 15), h('span', null, h('b', null, 'Longer than your maximum walk'),
-      h('small', null, ` — ${SETTINGS.prefs().maxWalkMin} min; nothing nearer gets you there as soon`))));
+      h('small', null, ` — ${SETTINGS.prefs().maxWalkMin} min`))));
   }
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
   const row = h('div', 'step-views');

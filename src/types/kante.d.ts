@@ -212,8 +212,8 @@ type KantePlanOptions = {
   /** Seconds added to every change, on top of the walk between the two platforms (the engine's default: 0). */
   transferMarginS?: number;
   /** The longest walk to the first stop and from the last. A journey with a longer one (up to twice as long) is
-   *  offered where it gets there half an hour sooner than any within it, or where there is none; it carries a
-   *  `long-walk` alert. */
+   *  offered beside the others where it has half an hour on them (arriving sooner, leaving later), or where there
+   *  is none; it carries a `long-walk` alert. */
   maxWalkMin?: number;
   /** The modes to travel with; left out: all. */
   modes?: KanteMode[];
@@ -331,8 +331,8 @@ interface KanteRideLeg {
 type KanteLeg = KanteRideLeg | KanteWalkLeg;
 interface KanteJourneyAlert {
   severity: 'info' | 'warning' | 'severe';
-  /** long-walk: the walk to the first stop or from the last (`leg`) is longer than `maxWalkMin`; the engine takes it
-   *  where the journey gets there half an hour sooner than any that keeps to it, or where none does. */
+  /** long-walk: the walk to the first stop or from the last (`leg`) is longer than `maxWalkMin`; the engine offers
+   *  such a journey beside those that keep to it where it has half an hour on them, or where there is none. */
   kind: 'missed-connection' | 'tight-change' | 'cancelled' | 'delay' | 'platform-change' | 'long-walk' | 'other';
   /** The leg it is about (index into `legs`). */
   leg?: number;

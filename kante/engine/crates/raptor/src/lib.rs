@@ -214,7 +214,7 @@ pub struct Query<'a> {
     /// journey that starts at `access[i]` counts as leaving earlier than it does (empty: none). Such a journey is
     /// compared, and returned, with that departure (`Journey::dep`, `Leg::Access::dep`): it is in the answer only
     /// where no journey from another stop leaves after it and arrives as early. What can be caught at the stop is
-    /// decided by the walk alone.
+    /// decided by the walk alone. The other end's counterpart needs no field: seconds added to a stop of `egress`.
     pub access_late: &'a [Secs],
     /// (stop, seconds from it to the destination).
     pub egress: &'a [(StopIdx, Secs)],

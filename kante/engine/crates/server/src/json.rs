@@ -86,8 +86,8 @@ pub struct PlanOptions {
     /// walk and no more).
     pub transfer_margin_s: i32,
     /// The longest walk to the first stop and from the last. A journey with a longer one (up to twice as long) is
-    /// offered where it gets there half an hour sooner than any within it, and where nothing can be reached within
-    /// it (`App::plan`); it carries a `long-walk` alert.
+    /// offered beside the others where it has half an hour on them, and where nothing can be reached within it
+    /// (`App::plan`); it carries a `long-walk` alert.
     pub max_walk_min: f32,
     pub modes: Option<Vec<String>>,
     /// The most changes a journey may have; left out: as many as the planner can follow (`kante_raptor::MAX_RIDES`

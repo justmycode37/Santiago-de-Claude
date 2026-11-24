@@ -4,17 +4,20 @@
 - against SBB's planner (transport.opendata.ch, about 1000 questions a day): where SBB gets there more than a few
   minutes before every journey the engine offers, the engine missed something — or walks or changes differently;
 - against itself: leaving later can never get you there earlier, so a question asked 2, 5 and 9 hours later that
-  finds an earlier arrival shows a journey the first answer missed (no second planner needed).
+  finds an earlier arrival shows a journey the first answer missed (no second planner needed). Of the journeys
+  within the maximum walk: one with a longer walk is offered or not by what leaves around it.
 
   fastest.py sample  --gtfs data/raw/gtfs/gtfs.zip --engine http://127.0.0.1:8080 --trips 400 --out trips.json
   fastest.py rerun   --in trips.json --engine http://127.0.0.1:8081 --out trips-b.json   # SBB's answers are kept
   fastest.py report  --in trips-b.json [--min 5] [--legs]
   fastest.py later   --in trips.json --engine http://127.0.0.1:8081
 
-`sample` picks stations of the feed (any two, one of them a large station, or two within 60 km), on a weekday, a
-Saturday and a Sunday, at hours from 05:00 to 23:00, and asks both planners; `--points` asks from and to a point
-50–600 m beside each station instead (as the app does: a place to a pin). `--set key=value` sets a routing option
-(`--set maxWalkMin=40`). Every trip is written as it is answered, so a run can be stopped and taken up again.
+`sample` picks stations of the feed (any two, one of them a large station, or two within 60 km), on the days of
+`--days` (give a weekday, a Saturday and a Sunday inside the feed's validity: the default ones are of November
+2026), at hours from 05:00 to 23:00, and asks both planners; `--points` asks from and to a point 50–600 m beside
+each station instead (as the app does: a place to a pin). `--set key=value` sets a routing option
+(`--set maxWalkMin=40`). Every trip is written as it is answered, so a run can be stopped and taken up again; a
+question a planner fails to answer is left out.
 """
 import argparse, csv, datetime, io, json, math, os, random, sys, time, urllib.error, urllib.parse, urllib.request, zipfile, zoneinfo
 from concurrent.futures import ThreadPoolExecutor
@@ -70,8 +73,10 @@ def ask_engine(engine, q, options, at=None):
     t0 = time.time()
     try:
         d = http(engine + '/api/plan', {'from': ref(q, 'from'), 'to': ref(q, 'to'), 'time': at or unix(q['when']), 'options': options})
-    except urllib.error.HTTPError as e:  # 400: no route, no stop within walking distance
-        return {'js': [], 'err': e.read().decode()[:200]}
+    except urllib.error.HTTPError as e:
+        if e.code != 400:  # the engine failing is not "no journey"
+            raise
+        return {'js': [], 'err': e.read().decode()[:200]}  # no route, no stop within walking distance
     js = []
     for j in d['journeys']:
         legs = []
@@ -80,7 +85,8 @@ def ask_engine(engine, q, options, at=None):
                 legs.append(f"{l['line'].get('name')} {l['from']['quay']['stationName']} {hm(l['from']['dep'])} > {l['to']['quay']['stationName']} {hm(l['to']['arr'])}")
             elif l['durationS'] >= 60:
                 legs.append(f"  walk ({l['kind']}) {l['durationS'] / 60:.1f} min, {l['distanceM']} m")
-        js.append({'dep': j['dep'], 'arr': j['arr'], 'tr': j['transfers'], 'legs': legs, 'alerts': [a['text'] for a in j.get('alerts', [])]})
+        js.append({'dep': j['dep'], 'arr': j['arr'], 'tr': j['transfers'], 'legs': legs, 'alerts': [a['text'] for a in j.get('alerts', [])],
+                   'long': any(a['kind'] == 'long-walk' for a in j.get('alerts', []))})
     return {'js': js, 'ms': d.get('tookMs'), 'wall': time.time() - t0}
 
 
@@ -105,8 +111,20 @@ def options_of(args):
     return o
 
 
+def first(side, not_before=0):
+    """The journey of an answer that arrives first, of those leaving at or after `not_before`."""
+    return min((j for j in side.get('js', []) if j['dep'] >= not_before), key=lambda j: j['arr'], default=None)
+
+
 def first_arrival(side, not_before=0):
-    return min((j['arr'] for j in side.get('js', []) if j['dep'] >= not_before), default=None)
+    j = first(side, not_before)
+    return j and j['arr']
+
+
+def save(res, path):
+    tmp = path + '.tmp'
+    json.dump(res, open(tmp, 'w'), ensure_ascii=False)
+    os.replace(tmp, path)
 
 
 def cmd_sample(args):
@@ -114,8 +132,10 @@ def cmd_sample(args):
     hubs = [s for s in st if s['name'] in HUBS]
     days = args.days.split(',')
     res = json.load(open(args.out)) if os.path.exists(args.out) else []
-    # (the questions already answered are drawn again and skipped, so a run taken up again goes on where it stopped)
-    done = 0
+    # A run taken up again draws the same questions again and skips those already asked: each trip keeps the number
+    # of its draw (a question that failed is not asked again).
+    asked = max((q.get('draw', i + 1) for i, q in enumerate(res)), default=0)
+    draw = 0
     while len(res) < args.trips:
         kind = rnd.choice(['any', 'any', 'hub', 'near'])
         a = rnd.choice(st)
@@ -136,18 +156,18 @@ def cmd_sample(args):
             q['from'], q['to'], q['points'] = beside(a), beside(b), True
         if km(a, b) < 2:
             continue
-        done += 1
-        if done <= len(res):
+        draw += 1
+        if draw <= asked:
             continue
+        q['draw'] = draw
         try:
             q['k'], q['s'] = ask_engine(args.engine, q, options), ask_sbb(q)
         except Exception as e:  # SBB's planner is slow at times: wait and ask the next one
-            print('failed:', e, file=sys.stderr)
+            print(f"failed, left out: {q['from']['name']} -> {q['to']['name']} {when}: {e}", file=sys.stderr)
             time.sleep(5)
-            done -= 1
             continue
         res.append(q)
-        json.dump(res, open(args.out, 'w'), ensure_ascii=False)
+        save(res, args.out)
         ka, sa = first_arrival(q['k']), first_arrival(q['s'], unix(when) - 60)
         print(len(res), q['from']['name'], '->', q['to']['name'], when, '| engine', ka and hm(ka), '| SBB', sa and hm(sa), '' if not (ka and sa) else f'{round((ka - sa) / 60):+d} min', flush=True)
         time.sleep(1)
@@ -158,7 +178,7 @@ def cmd_rerun(args):
     res = json.load(open(args.inp))
     with ThreadPoolExecutor(4) as ex:
         res = list(ex.map(lambda q: {**q, 'k': ask_engine(args.engine, q, options)}, res))
-    json.dump(res, open(args.out, 'w'), ensure_ascii=False)
+    save(res, args.out)
     ms = sorted(q['k'].get('ms') or 0 for q in res)
     print(f"{len(res)} trips; the engine's own time: median {ms[len(ms) // 2]:.0f} ms, 90 % under {ms[int(len(ms) * .9)]:.0f} ms, longest {ms[-1]:.0f} ms")
     cmd_report(argparse.Namespace(inp=args.out, min=5, legs=False))
@@ -187,8 +207,8 @@ def cmd_report(args):
         print(f"\n{'no journey' if d is None else f'{d:+.0f} min'}  {q['from']['name']} -> {q['to']['name']}  {q['when']}  ({q['km']} km)")
         if not args.legs:
             continue
-        for name, side in (('engine', q['k']), ('SBB', q['s'])):
-            best = min(side.get('js', []), key=lambda j: j['arr'], default=None)
+        for name, side, not_before in (('engine', q['k'], 0), ('SBB', q['s'], unix(q['when']) - 60)):
+            best = first(side, not_before)
             print(f"  {name}: " + (f"{hm(best['dep'])} -> {hm(best['arr'])}, {best['tr']} changes" if best else side.get('err', 'none')))
             for l in (best or {}).get('legs', []):
                 print('      ' + l)
@@ -198,21 +218,26 @@ def cmd_later(args):
     options = options_of(args)
     res = json.load(open(args.inp))
 
+    # (a journey with a walk beyond the maximum is left out on both sides: whether it is offered depends on the
+    # journeys leaving around it, so a later question may rightly offer one the first did not)
+    within = lambda side: {'js': [j for j in side['js'] if not j.get('long')]}
+
     def one(q):
         t = unix(q['when'])
-        first = first_arrival(ask_engine(args.engine, q, options))
+        asked = ask_engine(args.engine, q, options)
+        arr0 = first_arrival(within(asked))
+        if arr0 is None and asked['js']:
+            return None  # only journeys with a longer walk: those within it are on the later pages
         for dh in (2, 5, 9):
-            js = ask_engine(args.engine, q, options, at=t + dh * 3600)['js']
-            if js:
-                b = min(js, key=lambda j: j['arr'])
-                if first is None or b['arr'] < first - 60:
-                    return q, first, dh, b
+            b = first(within(ask_engine(args.engine, q, options, at=t + dh * 3600)))
+            if b and (arr0 is None or b['arr'] < arr0 - 60):
+                return q, arr0, dh, b
         return None
 
     with ThreadPoolExecutor(4) as ex:
         bad = [r for r in ex.map(one, res) if r]
-    for q, first, dh, b in bad:
-        print(f"{q['from']['name']} -> {q['to']['name']} {q['when']}: first arrival {first and hm(first)}; asked {dh} h later: {hm(b['dep'])} -> {hm(b['arr'])}")
+    for q, arr0, dh, b in bad:
+        print(f"{q['from']['name']} -> {q['to']['name']} {q['when']}: first arrival {arr0 and hm(arr0)}; asked {dh} h later: {hm(b['dep'])} -> {hm(b['arr'])}")
     print(f"{len(bad)} of {len(res)} trips: a later question found an earlier arrival")
     return 1 if bad else 0
 
