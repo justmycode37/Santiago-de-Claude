@@ -174,7 +174,7 @@ boarding point; a platform whose sectors the timetable splits has extra quays fo
   "approachBearing": 92, "departBearing": 110,
   "state": "approaching", "etaS": 26,
   "liveInfo": { … }, "extra": false,
-  "profiled": true, "servesTo": true, "prevStop": [7.4391, 46.9484], "nextStop": [7.4474, 46.9479]
+  "profiled": true, "pickup": true, "servesTo": true, "prevStop": [7.4391, 46.9484], "nextStop": [7.4474, 46.9479]
 } ] }
 ```
 
@@ -183,9 +183,11 @@ or when a live feed the engine reads has not answered for 5 minutes (a replaceme
 be missing). The AR camera never calls a vehicle "yours" on an incomplete board.
 
 `profiled`: after a measured stop, `arr`/`dep` (and `etaS`, `state`) come from the learned hop and dwell
-profiles, as `position` does on `/api/trip`, not from the forecast. `servesTo` (with `to=`): whether the run
-calls at that station after this stop, not skipped today; an express and a local with the same display differ
-here. `prevStop`/`nextStop`: the boarding points of the stops before and after, where it comes from and goes to.
+profiles, as `position` does on `/api/trip`, not from the forecast; the window applies to those final times.
+`pickup`: riders may board here (false where the timetable allows only setting down, or the stop is skipped
+today). `servesTo` (with `to=`): whether the run calls at that station after this stop, not skipped today, and
+lets riders off there; an express and a local with the same display differ here. `complete` is about runs that
+can be boarded here: a vehicle that only sets down here and is not yet under way within 4 km may be missing. `prevStop`/`nextStop`: the boarding points of the stops before and after, where it comes from and goes to.
 
 `state`: `approaching` (not yet there), `at-stop` (between live arrival and departure), `departed`.
 

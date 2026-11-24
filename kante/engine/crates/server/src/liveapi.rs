@@ -27,6 +27,10 @@ pub struct RunCall {
     pub planned: Option<StopIdx>,
     /// The times come from a live feed, not the timetable.
     pub live: bool,
+    /// Riders may board / get off here (the timetable's pickup and drop-off flags; never at the run's ends where
+    /// there is nothing to board or leave).
+    pub pickup: bool,
+    pub dropoff: bool,
 }
 
 /// The facts behind `liveInfo`, for timetable trips and extra journeys alike.
@@ -83,6 +87,7 @@ impl Run {
     pub fn of_trip(app: &App, trip: TripIdx, date: Date, tl: Option<&TripLive>) -> Run {
         let tt = &app.tt;
         let stops = tt.pattern_stops(tt.trips[trip as usize].pattern);
+        let flags = tt.pattern_flags(tt.trips[trip as usize].pattern);
         let n = stops.len();
         let calls = (0..n)
             .map(|p| {
@@ -94,6 +99,8 @@ impl Run {
                     skipped: tl.map(|l| l.is_skipped(p)).unwrap_or(false),
                     planned: changed.map(|_| stops[p]),
                     live: tl.is_some_and(|l| l.is_live_at(p)),
+                    pickup: p + 1 < n && flags.get(p).is_none_or(|f| f & FLAG_NO_PICKUP == 0),
+                    dropoff: p > 0 && flags.get(p).is_none_or(|f| f & FLAG_NO_DROPOFF == 0),
                 }
             })
             .collect();
@@ -121,6 +128,8 @@ impl Run {
                 skipped: c.skipped,
                 planned: None,
                 live: true,
+                pickup: i + 1 < n,
+                dropoff: i > 0,
             })
             .collect();
         Run { mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
@@ -339,10 +348,14 @@ fn all_fresh(polled: impl Iterator<Item = Option<i64>>, now: i64) -> bool {
     any
 }
 
-/// Whether a run stops (not skipped) at station `to` after call `i`.
-fn calls_after(stations: impl Iterator<Item = (StationIdx, bool)>, to: StationIdx) -> bool {
-    stations.into_iter().any(|(st, skipped)| st == to && !skipped)
+/// Whether a run lets riders off at station `to` later: it stops there (not skipped today) and allows getting off.
+/// `calls`: (station, skipped, drop-off allowed) of each call after this one.
+fn calls_after(calls: impl Iterator<Item = (StationIdx, bool, bool)>, to: StationIdx) -> bool {
+    calls.into_iter().any(|(st, skipped, dropoff)| st == to && !skipped && dropoff)
 }
+
+/// How far past the window a forecast is still looked at: the profiles can bring a call forward into it.
+const PROFILE_MARGIN_S: i64 = 600;
 
 /// The time at call `i` from [`served_with_profiles`] where it changed the forecast: `(arr, dep)`, `dep` kept
 /// absent where the run has none there (it ends here).
@@ -377,7 +390,7 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     all.dedup();
     for e in app.router.departures(&all, date, secs, 600, live) {
         let dep = time::to_unix(date, e.live_dep);
-        if dep > q.t + q.after {
+        if dep > q.t + q.after + PROFILE_MARGIN_S {
             break;
         }
         let tl = live.and_then(|l| l.trip(e.date, e.trip));
@@ -410,7 +423,7 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
             for k in v.pos as usize..run.calls.len() {
                 let c = &run.calls[k];
                 let Some(a) = c.arr else { continue };
-                if a > q.t + q.after {
+                if a > q.t + q.after + PROFILE_MARGIN_S {
                     break;
                 }
                 if in_set(c.stop) && a >= q.t - q.before && seen.insert((run.id.clone(), v.date, k)) {
@@ -434,6 +447,8 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
             }
         }
     }
+    // what is due in the window by its final (possibly profiled) time
+    out.retain(|d| d.arr.or(d.dep).is_none_or(|a| a <= q.t + q.after));
     out.sort_by_key(|d| d.arr.or(d.dep).unwrap_or(i64::MAX));
     // A board cut at `limit` or built on a stale feed can be missing the vehicle in front of the camera: the
     // camera then never says "yours" (docs/ar-recognition-plan.md).
@@ -456,7 +471,7 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
         }
     }
     let station = |k: usize| tt.stops[run.calls[k].stop as usize].station;
-    let serves_to = to.map(|to| calls_after((i + 1..run.calls.len()).map(|k| (station(k), run.calls[k].skipped)), to));
+    let serves_to = to.map(|to| calls_after((i + 1..run.calls.len()).map(|k| (station(k), run.calls[k].skipped, run.calls[k].dropoff)), to));
     let at = |k: usize| lonlat(&tt.stops[run.calls[k].stop as usize].pos);
     let served = |k: &usize| !run.calls[*k].skipped;
     let state = match (arr, dep) {
@@ -491,6 +506,7 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
         live_info: live_info(&run.facts, ages, now),
         extra: run.extra,
         profiled,
+        pickup: c.pickup && !c.skipped,
         serves_to,
         prev_stop: (0..i).rev().find(served).map(at),
         next_stop: (i + 1..run.calls.len()).find(served).map(at),
@@ -887,10 +903,12 @@ mod tests {
 
     #[test]
     fn serves_the_stop_only_when_it_calls_there_later() {
-        let calls = [(3, false), (7, true), (9, false)];
+        let calls = [(3, false, true), (7, true, true), (9, false, true), (11, false, false)];
         assert!(calls_after(calls.into_iter(), 9));
         assert!(!calls_after(calls.into_iter(), 7), "skipped there today");
         assert!(!calls_after(calls.into_iter(), 4), "not on its way");
+        assert!(!calls_after(calls.into_iter(), 11), "no getting off there");
+        assert!(calls_after([(11, false, false), (11, false, true)].into_iter(), 11), "a station it calls at twice: the call that lets riders off counts");
     }
 
     #[test]

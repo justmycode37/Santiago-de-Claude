@@ -665,7 +665,9 @@ pub struct Due {
     pub extra: bool,
     /// `arr`/`dep` come from the learned hop and dwell profiles after a measured stop, not the forecast.
     pub profiled: bool,
-    /// With `to=`: whether it calls at that station after this stop.
+    /// Riders may board here (false: it only sets down, or is skipped today).
+    pub pickup: bool,
+    /// With `to=`: whether it calls at that station after this stop and lets riders off there.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub serves_to: Option<bool>,
     /// The boarding points of the stop before and after this one (where it comes from and goes to); null at an end.
