@@ -895,7 +895,7 @@ console.log('28. a delay while a moved change is being asked for drops the answe
   const ch = steps.find((x) => x.type === 'change')!;
   await live('t2', outT2(23, quayAt('q12', P12, '12'))); // the next train from platform 12, 400 m on
   check(c.asked.length === 1 && c.asked[0].body.to.quay === 'q12' && c.asked[0].body.limitS === 180, `the walk to platform 12, within 180 s (${JSON.stringify(c.asked.map((x) => [x.body.to.quay, x.body.limitS]))})`);
-  page.trips.t1 = { tripId: 't1', serviceDate: '2026-11-23', calls: inT1(21.5) } as KanteTrip;
+  c.trips.t1 = { tripId: 't1', serviceDate: '2026-11-23', calls: inT1(21.5) as KanteStopCall[] } as KanteTrip;
   await LE.livePoll(); await settle(); // a minute and a half late, its answer still on the way
   check(c.asked.length === 2 && c.asked[1].body.limitS === 90, `asked again within 90 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
   await answer(0, 170); // the answer for 180 s: too late
