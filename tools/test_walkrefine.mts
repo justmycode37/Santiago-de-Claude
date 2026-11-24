@@ -851,5 +851,92 @@ console.log('25. a change moved back to the same platform is not an estimate any
   check(ch.lines!.length === 0 && !sp.est && sp.text === '6 min to spare', `back beside the arrival: no walk, and not an estimate ("${sp.text}")`);
 }
 
+// ---- hills: a change asked again for the time there is (/api/walk limitS) ----
+// a ride arriving at Bern platform 7 (B) at minute `arr`, a change of `secs` to platform 9 (150 m on), the next train
+// leaving it at minute `dep`; the change's walk climbs `climb` metres (0: flat)
+const P9: LngLat = east(B, 150), P12: LngLat = east(B, 400);
+const inT1 = (arr: number) => [callAt(0, quayAt('q1', A, '1', 0, 'st:8503000'), undefined, T(5)), callAt(1, quayAt('q7', B, '7'), T(arr))] as [KanteStopCall, KanteStopCall];
+const outT2 = (dep: number, q: KanteQuay = quayAt('q9', P9, '9')) => [callAt(3, q, undefined, T(dep)), callAt(4, quayAt('q2', A, '2', 0, 'st:8503000'), T(50))] as [KanteStopCall, KanteStopCall];
+const hillChange = (secs: number, climb: number, more: Partial<KanteWalk> = {}): KanteLeg[] => [rideLeg('t1', ...inT1(20)),
+  walkLeg('transfer', point(B, quayAt('q7', B, '7')), point(P9, quayAt('q9', P9, '9')), T(20), secs, { ...(climb ? { climbM: climb } : {}), ...more }),
+  rideLeg('t2', ...outT2(23))];
+
+console.log('26. a delay that makes a change too long asks for it again with the time there is, and takes the way that fits');
+{
+  const c = app();
+  const steps = await show(hillChange(120, 0), A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  check(JS.spareOf(ch).s === 60, `as planned: a minute to spare (${JS.spareOf(ch).text})`);
+  await live('t1', inT1(20.5)); // half a minute late: still fits
+  check(c.asked.length === 0, `a flat change that still fits: not asked again (${c.asked.length} requests)`);
+  await live('t1', inT1(21.5)); // a minute and a half late: 90 s for a 120 s walk
+  check(c.asked.length === 1 && c.asked[0].body.limitS === 90 && c.asked[0].body.to.quay === 'q9', `too long now: asked again within 90 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  await answer(0, 85);
+  check(JS.spareOf(ch).s === 5, `the way that fits: 5 s to spare (${JS.spareOf(ch).text})`);
+  await live('t1', inT1(21.5));
+  check(c.asked.length === 1, 'answered: not asked again');
+}
+
+console.log('27. a change up a hill is asked again when the time there is changes, by 15 s or more');
+{
+  const c = app();
+  const steps = await show(hillChange(120, 20), A);
+  steps.find((x) => x.type === 'change')!;
+  await live('t1', inT1(20.1)); // 6 s later: the same 15 s
+  check(c.asked.length === 0, `6 s: not asked (${c.asked.length} requests)`);
+  await live('t1', inT1(20.5)); // 30 s later: it still fits, but another way may be the one now
+  check(c.asked.length === 1 && c.asked[0].body.limitS === 150, `30 s: asked again within 150 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+}
+
+console.log('28. a delay while a moved change is being asked for drops the answer and asks again (review Neon round 7)');
+{
+  const c = app();
+  const steps = await show(hillChange(120, 0), A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  await live('t2', outT2(23, quayAt('q12', P12, '12'))); // the next train from platform 12, 400 m on
+  check(c.asked.length === 1 && c.asked[0].body.to.quay === 'q12' && c.asked[0].body.limitS === 180, `the walk to platform 12, within 180 s (${JSON.stringify(c.asked.map((x) => [x.body.to.quay, x.body.limitS]))})`);
+  page.trips.t1 = { tripId: 't1', serviceDate: '2026-11-23', calls: inT1(21.5) } as KanteTrip;
+  await LE.livePoll(); await settle(); // a minute and a half late, its answer still on the way
+  check(c.asked.length === 2 && c.asked[1].body.limitS === 90, `asked again within 90 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  await answer(0, 170); // the answer for 180 s: too late
+  check(JS.spareOf(ch).s !== 90 - 170, 'the answer for the other time is dropped');
+  await answer(1, 88);
+  check(JS.spareOf(ch).s === 2 && !JS.spareOf(ch).est, `the answer for 90 s is taken (${JS.spareOf(ch).text})`);
+}
+
+console.log('29. a change asked again for its time alone that gets no answer keeps its walk (review Sol round 6)');
+{
+  const c = app();
+  const steps = await show(hillChange(120, 20), A);
+  const ch = steps.find((x) => x.type === 'change')!;
+  const lines = ch.lines;
+  await live('t1', inT1(20.5));
+  check(c.asked.length === 1, 'asked again for the time there is');
+  c.asked[0].d.rej(new Error('down')); await settle();
+  const sp = JS.spareOf(ch);
+  check(ch.lines === lines && !sp.est && sp.s === 30, `no answer: the walk it has stays, timed as it was (${sp.text})`);
+  await live('t1', inT1(20.5));
+  check(c.asked.length === 2, `and it is asked again (${c.asked.length} requests)`);
+}
+
+console.log('30. a change asked again keeps quiet metres its minimum change time contradicts (review Neon round 6)');
+{
+  app();
+  const w = J.routed(walk([B, P9], { durationS: 120, distanceM: 600, officialMinS: 180, steps: [{ ...step('walk', 0, 1), durS: 420 }] }));
+  check(!!w && w.dist === null, `kind "direct", a minimum change time, steps of 7 min for 2: no metres (${w && w.dist})`);
+  const plain = J.routed(walk([B, P9], { durationS: 120, distanceM: 600, steps: [{ ...step('walk', 0, 1), durS: 420 }] }));
+  check(!!plain && plain.dist === 600, 'without a minimum change time: its metres');
+}
+
+console.log('31. with fewer stairs a flat change is asked again for its time too (its way can give way to the stairs) (review Neon round 7)');
+{
+  const c = app();
+  prefs.fewerStairs = true;
+  await show(hillChange(120, 0), A);
+  await live('t1', inT1(20.5));
+  check(c.asked.length === 1 && c.asked[0].body.limitS === 150, `asked again within 150 s (${JSON.stringify(c.asked.map((x) => x.body.limitS))})`);
+  prefs.fewerStairs = false;
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

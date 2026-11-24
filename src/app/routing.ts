@@ -236,8 +236,10 @@ type WalkTask = <T>(promise: Promise<T>, apply: (res: T) => void) => void;
 // delay that changes it asks again, and an answer asked for another time is dropped. Where its lines meet inside it
 // (syncEnds()) is not: that follows from how it is drawn.
 // A change whose walk is flat (no hill to walk round, not walked round one, not timed by a minimum change time, for
-// which the way drawn follows the time there is) and fits its time does not depend on it: it is asked again only once
-// it no longer fits. The others by whether it fits and by the time there is, to 15 s.
+// which the way drawn follows the time there is), for a traveller with no stairs, escalators or wheelchair to mind
+// (whose way can give way to a quicker one when time is short), and fits its time does not depend on it: it is asked
+// again only once it no longer fits. A change whose walk is not known yet (moved, its answer on the way or none come)
+// and the others: by whether it fits and by the time there is, to 15 s.
 const walkSig = (st: JourneyWalkStep | JourneyChangeStep) => JSON.stringify([walkEnds(st), walkTimeKey(st)]);
 const walkEnds = (st: JourneyWalkStep | JourneyChangeStep) => {
   const stops = st.type === 'change' ? [st.prev.to, st.next.from] : [st.from && st.from.to, st.next && st.next.from];
@@ -248,8 +250,11 @@ function walkTimeKey(st: JourneyWalkStep | JourneyChangeStep) {
   const room = st.type === 'change' ? changeRoomS(st) : null;
   if (room == null) return null;
   const ws = st.walks || [];
+  if (!ws.length || st.walkEst || ws.some((w) => !w || w.approx)) return ['pending', Math.round(room / 15)];
   const fits = st.walkS != null && st.walkS <= room;
-  const flat = ws.every((w) => !w || (!w.flatter && !w.capped && (w.climb || 0) < 5));
+  const o = KanteJourney.options();
+  const plain = o.stairs === 'ok' && o.escalators && !o.wheelchair;
+  const flat = plain && ws.every((w) => !w.flatter && !w.capped && (w.climb || 0) < 5);
   return fits && flat ? 'fits' : [fits, Math.round(room / 15)];
 }
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
