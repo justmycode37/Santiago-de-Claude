@@ -15,6 +15,7 @@ y north. Heights are metres relative to level 0.
 | `<key>/sectors.json` | sector centres per track: `{ ref, name, xy }` | `sectors` | SBB open data (sector boards, platform edges) | `data.sbb.ch` |
 | `<key>/spans.json` | from–to of each sector along the platform edge | `sectorSpans`, heading of the sector signs | SBB open data | `data.sbb.ch` |
 | `<key>/boards.json` | the sector boards themselves (position, letters on both faces, how they are mounted) | `props` (`sector-sign`) | SBB open data | `data.sbb.ch` |
+| `<key>/av_objects.geojson` | the cadastral survey's individual objects round the station (underground buildings, tunnels and underpasses, canopies, pillars), in the model's local metres | the companion's `av` layer (`tools/station3d_av.py`, read by `tools/station3d_solid.py` too): measured walls below ground, pillars, canopies in first person | Amtliche Vermessung (Einzelobjekte) via geodienste.ch; ZH, BE, BS, GE: "Freie Nutzung. Quellenangabe ist Pflicht" | `Amtliche Vermessung Kanton Zürich` / `… Kanton Bern` / `… Kanton Basel-Stadt`, `Mensuration officielle Canton de Genève` (in the companion's attribution) |
 | `<key>/furniture.json` | clocks and ticket machines (no level in the source; `level` is set by hand in the files of `bruennen` and `buempliz-nord`, see below) | `props` (`clock`, `ticket-machine`) | SBB open data | `data.sbb.ch` |
 
 Licences: all three sources are open data that may be used in a public app when the source is named with the

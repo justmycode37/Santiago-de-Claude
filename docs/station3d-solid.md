@@ -44,14 +44,17 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
 
 - **First person** (👁 in the card, then ▶): the play-through at eye height (1.65 m) and true heights (1×), with fog
   for what is far. The model is closed for it:
-  - **walls** as high as the room (to the floor above, at most 3.4 m): below ground every edge of a floor except the
-    platform edges along the tracks, at street level and above the edges of the indoor floors, and OpenStreetMap's
+  - **walls** as high as the room (to the floor above, at most 3.4 m): below ground the walls the **cadastral survey**
+    measured (where its outline of an underground building or underpass runs within 1.5 m of the floor's edge; the
+    floor is drawn on up to them) and every other edge of a floor except the platform edges along the tracks, at street level and above the edges of the indoor floors, and OpenStreetMap's
     own walls. They are schematic (OpenStreetMap has the outline, not the wall; the card says so). Each wall **opens
     where you walk**: wherever a path of the walking graph, a stair, an escalator or a ramp crosses it, so the way never
     runs through a wall;
   - **ceilings** below ground at the room's height, open over every stair, escalator, ramp and lift that goes up, and
     seen from below only (from the floor above they are not there);
   - **shops** as full-height blocks, and labels only of your floor and not behind a wall or a shop;
+  - the survey's **pillars** (to the ceiling, or up to the canopy over them) and **platform canopies** (at the height
+    of a building or roof of the model over them, else 4.6 m);
   - the eye and the yellow line on the floor keep 0.7 m and 0.55 m off the walls (OpenStreetMap often draws a
     passage's path along its edge).
 
@@ -60,7 +63,8 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   the end it turns along the platform. Paused, a drag looks round; ‹ › go to the start of a step; a floor, ⌂, ◎ or 👁
   again leave it. Lift shafts are one-sided here, so from inside one you look out.
 
-What it does not have: measured walls below ground, signs at eye level, platform roofs outside Bern. Where such data
+What it does not have: inner walls (the survey has only the outer outlines of what is built below ground, and no
+heights), signs at eye level, the survey at Lausanne and Luzern (Vaud and Luzern do not publish it openly). Where such data
 could come from (the cadastral survey's underground outlines are open data and the most promising; Google's and
 Apple's indoor data cannot be used) is in [station3d-interior-data.md](station3d-interior-data.md); more open data and
 covering every Swiss station in [station3d-research.md](station3d-research.md).
@@ -84,11 +88,13 @@ The Bern-area companions were built from the OpenStreetMap cache of 21 November 
 | `stations3d/<key>.js` | `tools/build_station3d.py` | OpenStreetMap, ATLAS, SBB open data (see `stations3d/SCHEMA.md`) |
 | `stations3d/<key>.solid.js` | `tools/station3d_solid.py <key>` | the model above + OpenStreetMap from the builder's cache (`tools/cache/<key>.osm.json`) |
 | `tools/station3d_data/<key>/{boards,sectors,furniture}.json` | `tools/station3d_sbb_layers.py <key>` | data.sbb.ch (sector signs, clocks, ticket machines) |
+| `tools/station3d_data/<key>/av_objects.geojson`, the `av` layer of `stations3d/<key>.solid.js` | `tools/station3d_av.py <key>` | the cantons' cadastral survey (Amtliche Vermessung, Einzelobjekte) via geodienste.ch: ZH, BE, BS, GE |
 
 ```bash
 python tools/station3d_sbb_layers.py zurich   # SBB layers (cached in tools/cache/)
 python tools/build_station3d.py zurich         # the model (downloads OSM once, cached)
 python tools/station3d_solid.py zurich         # the 3D companion
+python tools/station3d_av.py zurich            # the cadastral survey's layer (also merged into an existing companion)
 ```
 
 The companion file is separate on purpose: the model format stays as it is, and the router and the indoor position

@@ -98,6 +98,8 @@ export async function open(opts: SolidOptions) {
   const { mount, key } = opts;
   const model = window.STATION3D && window.STATION3D[key];
   const solid = window.STATION3D_SOLID && window.STATION3D_SOLID[key];
+  /** The cadastral survey's layer (tools/station3d_av.py), where the canton publishes it. */
+  const av = solid ? solid.av || null : null;
   const SR = StationRoute;
   if (!model || !solid) throw new Error('no model for ' + key);
   const dark = () => document.documentElement.dataset.theme === 'dark' ||
@@ -522,9 +524,19 @@ export async function open(opts: SolidOptions) {
       if (!onLevel(lv.id)) continue;
       const lines: XY[][] = wallLines('wall').filter((w) => w.level === lv.id).map((w) => w.line);
       if (lv.id < 0) {
-        // below ground: every edge of the floor, but where it meets the tracks (a platform edge)
+        // below ground: the walls the cadastral survey measured (solid.av, tools/station3d_av.py), and every other edge
+        // of the floor, but where it meets the tracks (a platform edge)
+        const measured = (av ? av.walls : []).filter((w) => w.level === lv.id && lineIn(w.line)).map((w) => w.line);
+        lines.push(...measured);
+        const mIdx = indexWalls(measured);
+        const nearMeasured = (x: number, y: number) => {
+          const gx = Math.floor(x / WCELL), gy = Math.floor(y / WCELL);
+          for (let ix = gx - 1; ix <= gx + 1; ix++) for (let iy = gy - 1; iy <= gy + 1; iy++)
+            for (const i of mIdx.grid.get(ix + ',' + iy) || []) { const [ax, ay, bx, by] = mIdx.segs[i]; if (segDist(x, y, [ax, ay], [bx, by]) < AV_BAND) return true; }
+          return false;
+        };
         const tr = solid!.tracks.filter((t) => levelOfZ(t.z + (t.kind === 'tram' ? 0 : 1.1)) === lv.id);
-        const nearTrack = (x: number, y: number) => tr.some((t) => t.line.some((p, k) => k + 1 < t.line.length && segDist(x, y, p, t.line[k + 1]) < 4.5));
+        const nearTrack = (x: number, y: number) => nearMeasured(x, y) || tr.some((t) => t.line.some((p, k) => k + 1 < t.line.length && segDist(x, y, p, t.line[k + 1]) < 4.5));
         for (const s of solid!.slabs) {
           if (s.level !== lv.id || !lineIn(s.rings[0])) continue;
           // the outline in pieces of at most 2 m: a long edge may run along the tracks for part of its length only
@@ -543,7 +555,9 @@ export async function open(opts: SolidOptions) {
       } else lines.push(...wallLines('edge').filter((w) => w.level === lv.id).map((w) => w.line));
       const h = roomHeight(lv.id);
       const open = withDoors(lines, crossings(lv.id, h));
-      wallIndex.set(lv.id, indexWalls(open));
+      // what the eye and the line keep off: the walls, and the survey's pillars on this floor
+      const pillarRings = (av ? av.pillars : []).filter((p) => p.level === lv.id && lineIn(p.ring)).map((p) => p.ring);
+      wallIndex.set(lv.id, indexWalls(open.concat(pillarRings)));
       if (open.length) walls.push(strip(open.map((line) => ({ line, z: lv.z })), h));
       if (lv.id < 0) ceiling(P, lv, h);
     }
@@ -552,7 +566,51 @@ export async function open(opts: SolidOptions) {
       world!.add(m);
       occluders.push(m);
     }
+    if (av) surveyed(P, av);
   }
+  /** The cadastral survey's pieces in first person: the floor up to a measured wall, pillars, platform canopies. */
+  const AV_BAND = 1.8;   // m: a schematic edge this near a measured wall gives way to it
+  function surveyed(P: SolidPalette, a: StationSolidAv) {
+    const prism = (ring: XY[], y0: number, depth: number) => {
+      const g = new THREE.ExtrudeGeometry(new THREE.Shape(ring.map(([x, y]) => new THREE.Vector2(x - cx, y - cy))), { depth, bevelEnabled: false, curveSegments: 1 });
+      g.rotateX(-Math.PI / 2); g.translate(0, y0, 0);
+      return g;
+    };
+    const fills = new Map<number, THREE.BufferGeometry[]>();
+    for (const f of a.fills) {
+      if (!onLevel(f.level) || !lineIn(f.ring)) continue;
+      const lv = levels.find((l) => l.id === f.level);
+      if (!lv) continue;
+      if (!fills.has(f.level)) fills.set(f.level, []);
+      fills.get(f.level)!.push(prism(f.ring, lv.z * S - SLAB_T, SLAB_T));
+    }
+    for (const [lv, gs] of fills) world!.add(new THREE.Mesh(merged(gs), new THREE.MeshLambertMaterial({ color: levelColour(lv, P) })));
+    // a pillar to the ceiling below ground, else up to the canopy over it (or 4.6 m)
+    const pil: THREE.BufferGeometry[] = [];
+    for (const p of a.pillars) {
+      if (!onLevel(p.level) || !lineIn(p.ring)) continue;
+      const lv = levels.find((l) => l.id === p.level);
+      if (!lv) continue;
+      const h = p.level < 0 ? roomHeight(p.level) : ((p.top != null ? p.top : lv.z + 4.6) - lv.z) * S;
+      pil.push(prism(p.ring, lv.z * S, h));
+    }
+    if (pil.length) {
+      const m = new THREE.Mesh(merged(pil), new THREE.MeshLambertMaterial({ color: P.povWall }));
+      world!.add(m);
+      occluders.push(m);
+    }
+    const can: THREE.BufferGeometry[] = [];
+    for (const k of a.canopies) {
+      if (!onLevel(k.level) || !lineIn(k.ring)) continue;
+      can.push(prism(k.ring, k.top * S, 0.3));
+    }
+    if (can.length) world!.add(new THREE.Mesh(merged(can), new THREE.MeshLambertMaterial({ color: P.povCeil })));
+  }
+  const inRing = (r: XY[], x: number, y: number) => {
+    let c = false;
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; }
+    return c;
+  };
   const segDist = (x: number, y: number, a: XY, b: XY) => {
     const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / Math.max(dx * dx + dy * dy, 1e-9)));
     return Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t);
@@ -565,6 +623,13 @@ export async function open(opts: SolidOptions) {
     for (const s of solid!.slabs) {
       if (s.level !== lv.id || !lineIn(s.rings[0])) continue;
       const g = new THREE.ShapeGeometry(new THREE.Shape(s.rings[0].map(([x, y]) => new THREE.Vector2(x - cx, y - cy))));
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, lv.z * S + h, 0);
+      gs.push(g);
+    }
+    for (const f of av ? av.fills : []) {
+      if (f.level !== lv.id || !lineIn(f.ring)) continue;
+      const g = new THREE.ShapeGeometry(new THREE.Shape(f.ring.map(([x, y]) => new THREE.Vector2(x - cx, y - cy))));
       g.rotateX(-Math.PI / 2);
       g.translate(0, lv.z * S + h, 0);
       gs.push(g);
@@ -887,15 +952,21 @@ export async function open(opts: SolidOptions) {
     const bands: THREE.BufferGeometry[] = [], marks: THREE.Matrix4[] = [];
     const lift = new Float32Array(route!.points.length);
     for (const st of route!.steps) if (st.kind !== 'walk' && st.kind !== 'arrive') for (let k = st.from; k <= st.to; k++) lift[k] = 0.22;
-    const P3 = (k: number) => {
-      const [x0, y0, l] = route!.points[k];
-      const [x, y] = lift[k] ? [x0, y0] : clearOfWalls(x0, y0, l, 0.55);   // on stairs it stays on them
-      return V(x, y, zOf(l)).setY(zOf(l) * S + 0.03 + lift[k]);
+    const at = (x0: number, y0: number, l: number, up: number) => {
+      const [x, y] = up ? [x0, y0] : clearOfWalls(x0, y0, l, 0.55);   // on stairs it stays on them
+      return V(x, y, zOf(l)).setY(zOf(l) * S + 0.03 + up);
     };
+    // the points of the way, walks in pieces of at most 1.5 m (each kept off the walls and pillars)
+    const P = route!.points, line: THREE.Vector3[] = [at(P[0][0], P[0][1], P[0][2], lift[0])];
+    for (let k = 0; k + 1 < P.length; k++) {
+      const [x0, y0, l0] = P[k], [x1, y1, l1] = P[k + 1], up = lift[k] && lift[k + 1] ? lift[k] : 0;
+      const n = up ? 1 : Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 1.5));
+      for (let j = 1; j <= n; j++) line.push(j === n ? at(x1, y1, l1, lift[k + 1]) : at(x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n, l0 + (l1 - l0) * j / n, up));
+    }
     let next = 2, run = 0;
     const q = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
-    for (let k = 0; k + 1 < route!.points.length; k++) {
-      const a = P3(k), b2 = P3(k + 1), flat = Math.hypot(b2.x - a.x, b2.z - a.z);
+    for (let k = 0; k + 1 < line.length; k++) {
+      const a = line[k], b2 = line[k + 1], flat = Math.hypot(b2.x - a.x, b2.z - a.z);
       if (flat < 0.05) continue;   // a lift shaft
       bands.push(band(a, b2, 0.5, 0));
       const dir = new THREE.Vector3().subVectors(b2, a).normalize();

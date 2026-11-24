@@ -66,7 +66,7 @@ let initial: SolidPreset | undefined = q.get('from') && q.get('to') ? ['Your jou
 const opts = [...(initial && !presets.includes(initial) ? [initial] : []), ...presets];
 $('journey').innerHTML = opts.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('') + '<option value="x">Explore the station</option>';
 $('title').textContent = model.name;
-$('attrib').textContent = (model.attribution || []).join(' · ');
+$('attrib').textContent = [...new Set([...(model.attribution || []), ...(window.STATION3D_SOLID![key].attribution || [])])].join(' · ');
 
 let view: SolidView | null = null;
 try {

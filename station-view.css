@@ -99,6 +99,7 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 .stv-li .stv-dir svg { width: 9px; height: 9px; }
 .stv-li.on { background: var(--stv-pressed) !important; font-weight: 700 !important; }
 
+.stv-src { margin-top: 8px; font-size: 10px; line-height: 13px; color: var(--stv-sub); }
 .stv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* the train the walk leads to: its coaches as they stand (sector A on the left), your class, how full it will be */
 .stv-train { padding: 10px 12px; border-radius: 18px; background: var(--stv-card); box-shadow: 0 4px 20px rgba(0,0,0,.16); }

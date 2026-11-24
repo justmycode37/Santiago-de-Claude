@@ -45,9 +45,10 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
   ```bash
   node tools/build-map-places.mts
   ```
-- **3D station models (`stations3d/`)** from OSM + ATLAS (requires `pip install shapely`):
+- **3D station models (`stations3d/`)** from OSM + ATLAS, and the cantons' cadastral survey for the first-person walls (requires `pip install shapely pyproj`):
   ```bash
   python3 tools/build_station3d.py
+  python3 tools/station3d_av.py all
   ```
 - **Stop scan database (`stop-images/`)** from GTFS + open photo sources (requires `pip install onnxruntime pillow numpy`; optional `MAPILLARY_TOKEN`):
   ```bash

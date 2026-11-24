@@ -203,7 +203,10 @@ let seq = 0;                     // the latest open(): an older one that finishe
 let user: Station3DUser | null = null, userAt = 0;
 let listOpen = false;
 let lastChange: SolidChange = { route: null, step: -1, focusLevel: null };
-let historyState = false;        // a history entry of ours: the phone's back button closes the view
+let historyState = false;
+/** The sources of the model (OpenStreetMap, the cantons' cadastral survey, …): their terms ask for the credit. Shown
+ *  at the foot of the card, where it wraps. */
+let sources = '';        // a history entry of ours: the phone's back button closes the view
 
 function shell(): Ui {
   const close = btn('stv-close', 'Close the 3D view', () => close3d(), icon('close', 20)) as HTMLButtonElement;
@@ -278,6 +281,7 @@ function open(opts: Station3DOpenOptions) {
   document.documentElement.classList.add('stv-open');
   const model0 = window.STATION3D && window.STATION3D[opts.key];
   ui.title.textContent = opts.title || (model0 && model0.name) || 'Station';
+  sources = '';
   ui.sub.textContent = '';
   ui.you.textContent = '';
   ui.floors.textContent = '';
@@ -302,6 +306,8 @@ function open(opts: Station3DOpenOptions) {
     if (id !== seq || !ui) return;
     const model = window.STATION3D![opts.key];
     ui.title.textContent = opts.title || model.name;
+    const solid = window.STATION3D_SOLID && window.STATION3D_SOLID[opts.key];
+    sources = [...new Set([...(model.attribution || []), ...((solid && solid.attribution) || [])])].join(' · ');
     ui.root.setAttribute('aria-label', '3D view of ' + model.name);
     const from = opts.from || null, to = opts.to || null;
     const v = await mod.open({
@@ -432,9 +438,14 @@ function render() {
 
   const g = ui.guide;
   g.textContent = '';
+  try { renderGuide(v, r, step, focusLevel, g); } finally { if (sources) g.append(el('div', 'stv-src', sources)); }
+}
+function renderGuide(v: SolidView, r: StationRouteResult | null, step: number, focusLevel: number | null, g: HTMLElement) {
+  if (!ui) return;
+  const ui0 = ui;
   if (!r) {
     const lv = focusLevel != null ? v.levels.find((l) => l.id === focusLevel) : null;
-    ui.sub.textContent = lv ? `Level ${levelTag(lv.id)}${lv.name ? ' · ' + lv.name : ''}` : 'Drag to turn, pinch to zoom';
+    ui0.sub.textContent = lv ? `Level ${levelTag(lv.id)}${lv.name ? ' · ' + lv.name : ''}` : 'Drag to turn, pinch to zoom';
     if (cur && (cur.opts.from || cur.opts.to) && !(cur.opts.from && cur.opts.to)) {
       g.append(el('div', 'stv-text', lv ? `Level ${levelTag(lv.id)}${lv.name ? ', ' + lv.name : ''}` : v.model.name));
     } else if (cur && cur.opts.from && cur.opts.to) {
@@ -443,7 +454,7 @@ function render() {
     return;
   }
   const changes = r.steps.filter((s) => s.kind !== 'walk' && s.kind !== 'arrive' && Math.round(s.toLevel) !== Math.round(s.level));
-  ui.sub.textContent = `${Math.round(r.length)} m · ${Math.max(1, Math.round(r.seconds / 60))} min · ${changes.length ? changes.length + ' change' + (changes.length === 1 ? '' : 's') + ' of floor' : 'all on one floor'}`;
+  ui0.sub.textContent = `${Math.round(r.length)} m · ${Math.max(1, Math.round(r.seconds / 60))} min · ${changes.length ? changes.length + ' change' + (changes.length === 1 ? '' : 's') + ' of floor' : 'all on one floor'}`;
   const n = r.steps.length;
   const bar = el('div', 'stv-bar');
   if (focusLevel != null) {
