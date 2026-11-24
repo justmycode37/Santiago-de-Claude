@@ -237,9 +237,10 @@ const walkEnds = (st: JourneyWalkStep | JourneyChangeStep) => {
   const ends = st.ends || [];
   return JSON.stringify([ends.length ? [ends[0][0], ends[ends.length - 1][1]] : [], stops.map((s) => (s ? platformOf(s) : ''))]);
 };
-// A change: the time there is for it, to the second (what it is asked within, limitS)
+// A change: the time there is for it, to the second (what it is asked within, limitS); not one a station model draws
+// (its way, and the street stretches to it, do not depend on the time: the street way in its place does)
 function walkTimeKey(st: JourneyWalkStep | JourneyChangeStep) {
-  const room = st.type === 'change' ? changeRoomS(st) : null;
+  const room = st.type === 'change' && !st._modelDrawn ? changeRoomS(st) : null;
   return room == null ? null : Math.round(room);
 }
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
@@ -270,6 +271,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
     st.lines = res.lines;
     st.walks = res.walks;
     st.floors = res.floors;
+    st._modelDrawn = !res.street;
     if (res.street) st.kanteWalk = res.walks.every((w) => !w.approx);
     // timed first: what it was routed for counts the time it now takes (walkTimeKey())
     walkTime(st, res.walks);

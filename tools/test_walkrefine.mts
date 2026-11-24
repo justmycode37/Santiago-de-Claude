@@ -936,5 +936,18 @@ console.log('30. a change asked again keeps quiet metres its minimum change time
   check(!!plain && plain.dist === 600, 'without a minimum change time: its metres');
 }
 
+console.log('31. a change a station model draws is not drawn again for a delay (review Sol round 9)');
+{
+  const c = app();
+  c.plan = { key: 'bern' };
+  await show(hillChange(120, 20), A);
+  check(c.station.length === 1, 'the model is asked for the change');
+  c.station[0].res(model([B, P9])); await settle();
+  await live('t1', inT1(20.5));
+  await live('t1', inT1(21));
+  check(c.station.length === 1 && c.asked.length === 0, `delays: neither the model nor the engine asked again (${c.station.length} model, ${c.asked.length} engine requests)`);
+  c.plan = null;
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
