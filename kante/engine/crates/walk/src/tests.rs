@@ -84,8 +84,34 @@ impl Gb {
         self.g.edge_way[e as usize] = id;
         e
     }
+    /// Sets `EA_*` attributes of an edge (`walkattr.bin`).
+    pub fn ea(&mut self, e: u32, bits: u8) -> u32 {
+        let n = self.g.edges.len().max(e as usize + 1);
+        self.g.attrs.edge.resize(n, 0);
+        self.g.attrs.edge[e as usize] |= bits;
+        e
+    }
+    /// Sets `NA_*` attributes of a node.
+    pub fn na(&mut self, n: u32, bits: u8) {
+        let len = self.g.nodes.len().max(n as usize + 1);
+        self.g.attrs.node.resize(len, 0);
+        self.g.attrs.node[n as usize] |= bits;
+    }
+    /// Gives an edge opening hours (`oh:…`) or a closing condition (`no:…`).
+    pub fn hours(&mut self, e: u32, h: &str) -> u32 {
+        self.ea(e, EA_HOURS);
+        let i = self.g.attrs.hours.len() as u32;
+        self.g.attrs.hours.push(h.to_string());
+        self.g.attrs.edge_hours.push((e, i));
+        self.g.attrs.edge_hours.sort_unstable();
+        e
+    }
     pub fn build(mut self) -> WalkRouter {
         let n = self.g.nodes.len();
+        if !self.g.attrs.edge.is_empty() || !self.g.attrs.node.is_empty() {
+            self.g.attrs.edge.resize(self.g.edges.len(), 0);
+            self.g.attrs.node.resize(n, 0);
+        }
         let mut off = vec![0u32; n + 1];
         for ed in &self.g.edges {
             off[ed.a as usize + 1] += 1;
@@ -1585,4 +1611,210 @@ fn a_search_back_from_the_end_takes_escalators_the_way_they_run() {
     assert!(r.one_to_many(&s, &[d], &back, 900.0)[0].is_none());
     // routes still go only the way it runs
     assert!(r.route(&s, &d, &NORMAL).is_some() && r.route(&d, &s, &NORMAL).is_none());
+}
+
+// ---------------------------------------------------------------- route choice from walkattr.bin, transitions
+
+fn edges_of(r: &WalkRouter, a: &Snap, b: &Snap, p: &WalkProfile) -> Vec<u32> {
+    r.route_edges(a, b, p).unwrap().into_iter().map(|x| x.0).collect()
+}
+
+#[test]
+fn a_carriageway_whose_sidewalks_are_drawn_apart_is_a_last_resort() {
+    // a -- b ==== road (sidewalks drawn apart) ==== c -- d, and the sidewalk 6 m beside it, 12 m longer
+    let build = |with_sidewalk: bool| {
+        let mut b = Gb::new();
+        let (a, n_b, c, d) = (b.node(-20.0, 0.0), b.node(0.0, 0.0), b.node(100.0, 0.0), b.node(120.0, 0.0));
+        let start = b.edge(a, n_b, EdgeKind::Footway);
+        let road = b.edge(n_b, c, EdgeKind::Road);
+        b.ea(road, EA_SIDEWALK_SEPARATE | RC_SECONDARY);
+        let end = b.edge(c, d, EdgeKind::Footway);
+        let mut side = u32::MAX;
+        if with_sidewalk {
+            let (s0, s1) = (b.node(0.0, 6.0), b.node(100.0, 6.0));
+            b.edge(n_b, s0, EdgeKind::Footway);
+            side = b.edge(s0, s1, EdgeKind::Sidewalk);
+            b.edge(s1, c, EdgeKind::Footway);
+        }
+        (b.build(), start, road, end, side)
+    };
+    let (r, start, road, end, side) = build(true);
+    let (s, t) = (on(start, 0.0, &r), on(end, 1.0, &r));
+    let e = edges_of(&r, &s, &t, &NORMAL);
+    assert!(e.contains(&side) && !e.contains(&road), "{e:?}");
+    // its time is the walk's: 152 m, no penalty in it
+    let p = r.route(&s, &t, &NORMAL).unwrap();
+    assert!(close(p.cost.var_m, 152.0, 0.5), "{:?}", p.cost);
+    // where no sidewalk is drawn, the road is walked: the network is not broken
+    let (r2, start2, road2, end2, _) = build(false);
+    let (s2, t2) = (on(start2, 0.0, &r2), on(end2, 1.0, &r2));
+    assert!(edges_of(&r2, &s2, &t2, &NORMAL).contains(&road2));
+    // whether a target is reached in a time does not depend on it: the quickest walk finds it within its time
+    let q = r2.quickest_many(&[(s2, 0.0, 0.0)], &[t2], &NORMAL, 140.0 / 1.3 + 1.0);
+    assert!(q[0].is_some_and(|(_, c)| close(c.var_m, 140.0, 0.5)), "{q:?}");
+}
+
+/// A primary road along y = 0 with sidewalks 8 m either side; a footway crosses it at x = 0 through the node of the
+/// road (no crossing mapped there); a zebra crossing way at x = 15.
+struct Crossing {
+    r: WalkRouter,
+    from: Snap,
+    to: Snap,
+    zebra: u32,
+    over_road: u32,
+    road: (u32, u32),
+}
+
+fn crossing_world(node_flag: u8, node_attr: u8) -> Crossing {
+    let mut b = Gb::new();
+    let (w, x, e) = (b.node(-100.0, 0.0), b.node(0.0, 0.0), b.node(100.0, 0.0));
+    let r1 = b.edge(w, x, EdgeKind::RoadBusy);
+    let r2 = b.edge(x, e, EdgeKind::RoadBusy);
+    b.ea(r1, RC_PRIMARY);
+    b.ea(r2, RC_PRIMARY);
+    b.nflag(x, node_flag);
+    if node_attr != 0 {
+        b.na(x, node_attr);
+    }
+    let side = |b: &mut Gb, y: f32| {
+        let (n0, nx, n15, n60) = (b.node(-50.0, y), b.node(0.0, y), b.node(15.0, y), b.node(60.0, y));
+        let first = b.edge(n0, nx, EdgeKind::Sidewalk);
+        b.edge(nx, n15, EdgeKind::Sidewalk);
+        b.edge(n15, n60, EdgeKind::Sidewalk);
+        (first, nx, n15)
+    };
+    let (north, nx, n15) = side(&mut b, 8.0);
+    let (south, sx, s15) = side(&mut b, -8.0);
+    let over_road = b.edge(nx, x, EdgeKind::Footway);
+    b.edge(x, sx, EdgeKind::Footway);
+    let zebra = b.edge(n15, s15, EdgeKind::Crossing);
+    b.fl(zebra, EF_MARKED);
+    let r = b.build();
+    let (from, to) = (on(north, 0.4, &r), on(south, 0.4, &r));
+    Crossing { r, from, to, zebra, over_road, road: (r1, r2) }
+}
+
+#[test]
+fn a_busy_road_is_crossed_where_a_crossing_is_mapped() {
+    // over the primary road at its node (76 m) or 15 m along at the zebra (106 m): the zebra
+    let c = crossing_world(0, 0);
+    let e = edges_of(&c.r, &c.from, &c.to, &NORMAL);
+    assert!(e.contains(&c.zebra) && !e.contains(&c.over_road), "{e:?}");
+    // the search to many targets takes it too
+    let m = c.r.many_to_many_raw(&[(c.from, 0.0, 0.0)], &[c.to], &NORMAL, 900.0)[0].unwrap();
+    assert!(close(m.1.var_m, 106.0, 0.5), "{m:?}");
+    // the quickest walk goes straight over: no crossing costs time there
+    let (_, _, q, _) = c.r.quickest_between(&[(c.from, 0.0, 0.0)], &[(c.to, 0.0, 0.0)], &NORMAL).unwrap();
+    assert!(close(q.cost.var_m, 76.0, 0.5), "{:?}", q.cost);
+    // a crossing mapped on the road at that node: straight over
+    let c = crossing_world(NF_CROSSING, 0);
+    let e = edges_of(&c.r, &c.from, &c.to, &NORMAL);
+    assert!(e.contains(&c.over_road) && !e.contains(&c.zebra), "{e:?}");
+}
+
+#[test]
+fn crossing_no_is_not_crossed_by_anyone_but_the_road_is_still_walked() {
+    let c = crossing_world(NF_CROSSING, NA_CROSSING_NO);
+    // not even the quickest walk crosses there
+    let (_, _, q, _) = c.r.quickest_between(&[(c.from, 0.0, 0.0)], &[(c.to, 0.0, 0.0)], &NORMAL).unwrap();
+    assert!(close(q.cost.var_m, 106.0, 0.5), "{:?}", q.cost);
+    assert!(edges_of(&c.r, &c.from, &c.to, &NORMAL).contains(&c.zebra));
+    // along the road through the node: allowed
+    let (a, b) = (on(c.road.0, 0.5, &c.r), on(c.road.1, 0.5, &c.r));
+    assert!(c.r.route(&a, &b, &NORMAL).is_some());
+    // from the road onto the footway beside it: allowed (no carriageway between)
+    let n = on(c.over_road, 0.5, &c.r);
+    assert!(c.r.route(&a, &n, &NORMAL).is_some());
+}
+
+#[test]
+fn a_walk_with_fewer_turns_is_preferred_and_both_searches_agree() {
+    // a grid of sidewalks 50 m apart: every way from one corner to the other is 200 m; round the edge it turns only
+    // at the corners (two ways: free), through the middle it turns at three junctions
+    let mut b = Gb::new();
+    let mut n = [[0u32; 3]; 3];
+    for (i, row) in n.iter_mut().enumerate() {
+        for (j, v) in row.iter_mut().enumerate() {
+            *v = b.node(j as f32 * 50.0, i as f32 * 50.0);
+        }
+    }
+    let (mut first, mut last) = (0, 0);
+    for i in 0..3 {
+        for j in 0..3 {
+            if j < 2 {
+                let e = b.edge(n[i][j], n[i][j + 1], EdgeKind::Sidewalk);
+                if i == 0 && j == 0 {
+                    first = e;
+                }
+            }
+            if i < 2 {
+                let e = b.edge(n[i][j], n[i + 1][j], EdgeKind::Sidewalk);
+                if i == 1 && j == 2 {
+                    last = e;
+                }
+            }
+        }
+    }
+    let r = b.build();
+    let (s, t) = (on(first, 0.0, &r), on(last, 1.0, &r));
+    let p = r.route(&s, &t, &NORMAL).unwrap();
+    assert!(close(p.cost.var_m, 200.0, 0.5));
+    let middle = r.graph().nodes[n[1][1] as usize];
+    assert!(p.geometry.iter().all(|q| q.dist_m(&middle) > 1.0), "round the edge, not through the middle");
+    // the search to many targets counts the same transitions: the same generalised cost as the route
+    let (_, _, _, gen) = r.route_between(&[(s, 0.0, 0.0)], &[(t, 0.0, 0.0)], &NORMAL).unwrap();
+    let m = r.many_to_many_raw(&[(s, 0.0, 0.0)], &[t], &NORMAL, 900.0)[0].unwrap();
+    assert!(close(gen, m.2, 0.01), "{gen} {}", m.2);
+    // and so does the one against the direction of travel
+    let back = r.many_to_many_raw(&[(t, 0.0, 0.0)], &[s], &WalkProfile { backwards: true, ..NORMAL }, 900.0)[0].unwrap();
+    assert!(close(gen, back.2, 0.01), "{gen} {}", back.2);
+}
+
+#[test]
+fn parking_aisles_count_more_than_sidewalks() {
+    // a parking aisle 100 m against a sidewalk beside it, 110 m
+    let mut b = Gb::new();
+    let (a, n1, n2, d) = (b.node(-10.0, 0.0), b.node(0.0, 0.0), b.node(100.0, 0.0), b.node(110.0, 0.0));
+    let start = b.edge(a, n1, EdgeKind::Sidewalk);
+    let aisle = b.edge(n1, n2, EdgeKind::Road);
+    b.ea(aisle, EA_CAR_ONLY | RC_SERVICE);
+    let end = b.edge(n2, d, EdgeKind::Sidewalk);
+    let (s0, s1) = (b.node(0.0, 5.0), b.node(100.0, 5.0));
+    b.edge(n1, s0, EdgeKind::Sidewalk);
+    let side = b.edge(s0, s1, EdgeKind::Sidewalk);
+    b.edge(s1, n2, EdgeKind::Sidewalk);
+    let r = b.build();
+    let e = edges_of(&r, &on(start, 0.0, &r), &on(end, 1.0, &r), &NORMAL);
+    assert!(e.contains(&side) && !e.contains(&aisle), "{e:?}");
+}
+
+#[test]
+fn a_way_closed_at_the_time_is_walked_round() {
+    // a path of 100 m open 06:00-22:00, and a way round it of 150 m
+    let build = |round: bool| {
+        let mut b = Gb::new();
+        let (a, n1, n2, d) = (b.node(-10.0, 0.0), b.node(0.0, 0.0), b.node(100.0, 0.0), b.node(110.0, 0.0));
+        let start = b.edge(a, n1, EdgeKind::Footway);
+        let path = b.edge(n1, n2, EdgeKind::Footway);
+        b.hours(path, "oh:Mo-Su 06:00-22:00");
+        let end = b.edge(n2, d, EdgeKind::Footway);
+        if round {
+            let m = b.node(50.0, 56.0);
+            b.edge(n1, m, EdgeKind::Footway);
+            b.edge(m, n2, EdgeKind::Footway);
+        }
+        (b.build(), start, path, end)
+    };
+    let night = WalkProfile { at: Some(WalkTime { month: 11, mday: 24, wday: 1, minute: 23 * 60 }), ..NORMAL };
+    let day = WalkProfile { at: Some(WalkTime { month: 11, mday: 24, wday: 1, minute: 12 * 60 }), ..NORMAL };
+    let (r, start, path, end) = build(true);
+    let (s, t) = (on(start, 0.0, &r), on(end, 1.0, &r));
+    assert!(!edges_of(&r, &s, &t, &night).contains(&path));
+    assert!(edges_of(&r, &s, &t, &day).contains(&path));
+    assert!(edges_of(&r, &s, &t, &NORMAL).contains(&path), "no time: every way open");
+    assert_eq!(r.route(&s, &t, &day).unwrap().closed_m, 0.0);
+    // nothing else: through it, and said
+    let (r, start, _, end) = build(false);
+    let p = r.route(&on(start, 0.0, &r), &on(end, 1.0, &r), &night).unwrap();
+    assert!(close(p.closed_m, 100.0, 0.5), "{}", p.closed_m);
 }

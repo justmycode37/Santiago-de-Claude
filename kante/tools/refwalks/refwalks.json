@@ -1,0 +1,4464 @@
+{
+ "data": "OpenStreetMap Switzerland 2026-11-21 (switzerland-latest.osm.pbf), register 2026-11-24",
+ "walks": [
+  {
+   "id": "basel-001",
+   "city": "basel",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.554901,
+    7.581514
+   ],
+   "to_name": "Eulerstrasse 20",
+   "check": {
+    "verdict": "A",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "B runs along the edge of the busy magenta Margarethen road; A takes the side streets and crosses at marked crossings (green dots), staying on sidewalks.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      742066014,
+      151
+     ],
+     [
+      1130976175,
+      55
+     ],
+     [
+      26796752,
+      106
+     ],
+     [
+      25201907,
+      94
+     ]
+    ],
+    "must_avoid": [
+     [
+      24539764,
+      23
+     ],
+     [
+      24539765,
+      21
+     ],
+     [
+      137354544,
+      184
+     ],
+     [
+      26174286,
+      84
+     ],
+     [
+      26796753,
+      94
+     ]
+    ],
+    "right_m": 1190,
+    "golden": true
+   }
+  },
+  {
+   "id": "bern-002",
+   "city": "bern",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.942645,
+    7.452218
+   ],
+   "from_name": "Thunstrasse 16",
+   "to": [
+    46.944982,
+    7.449751
+   ],
+   "to_name": "Dalmaziquai 7",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A takes a quiet side street then park path; B follows Thunstrasse sidewalk and crosses at junction crossings. Both end at same door, similar length; neither clearly wrong.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-003",
+   "city": "biel",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.142899,
+    7.251919
+   ],
+   "from_name": "Freiestrasse / Rue Franche 47a",
+   "to": [
+    47.136834,
+    7.245392
+   ],
+   "to_name": "Rüschlistrasse / Rue du Rüschli 28",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A cuts diagonally through the block on paths then crosses at lights; B follows the straight street with crossings and a small start detour. Both plausible, little decisive difference.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-004",
+   "city": "geneva",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.203199,
+    6.134492
+   ],
+   "to_name": "Rue du Stand 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "detail1: A follows the quiet side street along the railway with parked cars, B the sidewalk of the main road; both reach the same junction with crossings, near-equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-005",
+   "city": "lausanne",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.527831,
+    6.631983
+   ],
+   "from_name": "Rue du Valentin 62c",
+   "to": [
+    46.517522,
+    6.62286
+   ],
+   "to_name": "Chemin du Mont-Tendre 6",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "detail2/3: A cuts diagonally across the open junction mid-road; B uses the zebra crossings and the cyan-signal crossing. detail1: both cross the bridge, B on the outer sidewalk.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1421314418,
+      93
+     ],
+     [
+      1034154437,
+      55
+     ],
+     [
+      1034154438,
+      155
+     ]
+    ],
+    "must_avoid": [
+     [
+      1034154455,
+      82
+     ],
+     [
+      1034154456,
+      54
+     ],
+     [
+      1264600388,
+      24
+     ],
+     [
+      1034154449,
+      80
+     ]
+    ],
+    "right_m": 2086,
+    "golden": true
+   }
+  },
+  {
+   "id": "luzern-006",
+   "city": "luzern",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.045352,
+    8.30813
+   ],
+   "from_name": "Bundesplatz 11",
+   "to": [
+    47.042147,
+    8.295009
+   ],
+   "to_name": "Steinhofhalde 3",
+   "check": {
+    "verdict": "unclear",
+    "confidence": "low",
+    "issue": "other",
+    "reason": "A cuts diagonally through a private-looking residential plot with no mapped path (stepfree surface unknown); B follows the magenta road on sidewalks, 100 m longer. Cannot confirm A's shortcut is public.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-007",
+   "city": "stgallen",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.420519,
+    9.37483
+   ],
+   "from_name": "Felsenstrasse 39",
+   "to": [
+    47.419771,
+    9.37155
+   ],
+   "to_name": "Haldenstrasse 21",
+   "check": {
+    "verdict": "A",
+    "confidence": "medium",
+    "issue": "detour",
+    "reason": "A follows the quiet residential street; B cuts through private-looking gardens between houses on a longer, winding line with no mapped path.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      8108940,
+      117
+     ]
+    ],
+    "must_avoid": [
+     [
+      1041687253,
+      89
+     ]
+    ],
+    "right_m": 353,
+    "golden": true
+   }
+  },
+  {
+   "id": "winterthur-008",
+   "city": "winterthur",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.5003,
+    8.7237
+   ],
+   "from_name": "station",
+   "to": [
+    47.505569,
+    8.724288
+   ],
+   "to_name": "Schaffhauserstrasse 18",
+   "check": {
+    "verdict": "A",
+    "confidence": "medium",
+    "issue": "detour",
+    "reason": "B takes a odd loop into a building complex footway east of the tracks before returning; A follows the street to the north with crossings and is shorter.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      380049461,
+      24
+     ],
+     [
+      315995942,
+      64
+     ],
+     [
+      315995941,
+      80
+     ],
+     [
+      134980543,
+      34
+     ],
+     [
+      51748103,
+      28
+     ],
+     [
+      997657897,
+      129
+     ],
+     [
+      699762721,
+      19
+     ],
+     [
+      699762722,
+      185
+     ]
+    ],
+    "must_avoid": [
+     [
+      5659908,
+      66
+     ],
+     [
+      380044861,
+      15
+     ],
+     [
+      113485549,
+      184
+     ],
+     [
+      596299692,
+      39
+     ],
+     [
+      143670511,
+      39
+     ],
+     [
+      473654982,
+      65
+     ],
+     [
+      41266015,
+      52
+     ],
+     [
+      35460547,
+      56
+     ],
+     [
+      739668283,
+      202
+     ]
+    ],
+    "right_m": 809,
+    "golden": true
+   }
+  },
+  {
+   "id": "zurich-009",
+   "city": "zurich",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.3779,
+    8.5403
+   ],
+   "from_name": "station",
+   "to": [
+    47.369658,
+    8.527642
+   ],
+   "to_name": "Schöntalstrasse 7",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A follows the river-side path/street on the east bank and crosses the bridge; B takes the west bank footway. Both use pedestrian ways and similar length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-010",
+   "city": "basel",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.555438,
+    7.575525
+   ],
+   "from_name": "Spalenring 134",
+   "to": [
+    47.561449,
+    7.590905
+   ],
+   "to_name": "Webergasse 2",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A follows the main road with no mapped sidewalk, shorter; B takes a quiet side-street detour 50 m longer. Neither shows a clear fault.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "bern-011",
+   "city": "bern",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    46.94833,
+    7.441488
+   ],
+   "from_name": "Schweizerhofpassage 6",
+   "to": [
+    46.944894,
+    7.460437
+   ],
+   "to_name": "Liebeggweg 22a",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both use pedestrian streets and sidewalks across the old town; A crosses Bundesplatz, B goes via Bärenplatz/Spitalgasse side; lengths nearly equal, no carriageway walking or odd crossing.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-012",
+   "city": "biel",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.1325,
+    7.243
+   ],
+   "from_name": "station",
+   "to": [
+    47.1425,
+    7.252054
+   ],
+   "to_name": "Mittelstrasse / Rue du Milieu 44a",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Stepfree; routes differ only in block-level choice near the end, both on sidewalks and crossing at marked crossings; equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-013",
+   "city": "geneva",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.213922,
+    6.131761
+   ],
+   "to_name": "Rue SCHAUB 33",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "A walks along the white carriageway for ~300 m; B uses the parallel yellow sidewalk and crosses at the junction crossings.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1018288827,
+      136
+     ],
+     [
+      1018288822,
+      169
+     ],
+     [
+      1018288815,
+      29
+     ]
+    ],
+    "must_avoid": [
+     [
+      36951046,
+      136
+     ],
+     [
+      62225366,
+      199
+     ]
+    ],
+    "right_m": 1159,
+    "golden": true
+   }
+  },
+  {
+   "id": "lausanne-014",
+   "city": "lausanne",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.513069,
+    6.626263
+   ],
+   "from_name": "Avenue Frédéric-César-de-La-Harpe 9.1",
+   "to": [
+    46.524232,
+    6.631619
+   ],
+   "to_name": "Rue du Valentin 19",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "detail2: A cuts diagonally across the open junction between zebras; B crosses on the marked zebra and follows the pavement edge. detail3 shows the same pattern.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1264600381,
+      55
+     ],
+     [
+      1264600386,
+      45
+     ]
+    ],
+    "must_avoid": [
+     [
+      25396461,
+      32
+     ],
+     [
+      26367625,
+      71
+     ],
+     [
+      416075075,
+      52
+     ]
+    ],
+    "right_m": 1735,
+    "golden": true
+   }
+  },
+  {
+   "id": "luzern-015",
+   "city": "luzern",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.055072,
+    8.298478
+   ],
+   "from_name": "Luegetenstrasse 1",
+   "to": [
+    47.048068,
+    8.302926
+   ],
+   "to_name": "Hallwilerweg 16",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "A runs down the middle of the junction carriageway diagonally; B follows the sidewalk beside the building and crosses at the marked crossing.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      154461819,
+      61
+     ],
+     [
+      539627109,
+      37
+     ]
+    ],
+    "must_avoid": [
+     [
+      53620026,
+      42
+     ],
+     [
+      539627105,
+      43
+     ]
+    ],
+    "right_m": 1049,
+    "golden": true
+   }
+  },
+  {
+   "id": "stgallen-016",
+   "city": "stgallen",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.420392,
+    9.369812
+   ],
+   "from_name": "Davidstrasse 23",
+   "to": [
+    47.423161,
+    9.369927
+   ],
+   "to_name": "Bahnhofplatz 2",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "A follows the sidewalk and crosses at a mapped crossing near the tracks; B crosses at the signalised junction (cyan) 30 m longer. Both end at same station entrance.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-017",
+   "city": "winterthur",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.5003,
+    8.7237
+   ],
+   "from_name": "station",
+   "to": [
+    47.494264,
+    8.71726
+   ],
+   "to_name": "Lagerplatz 24",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both follow the same footway beside the tracks; differences are a few metres of offset along the building side.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-018",
+   "city": "zurich",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.371476,
+    8.538474
+   ],
+   "from_name": "Bahnhofstrasse 39",
+   "to": [
+    47.36628,
+    8.533039
+   ],
+   "to_name": "Bleicherweg 37",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "A cuts diagonally across the busy junction and mid-block over the main street; B goes via mapped crossing nodes at the junction.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1056214988,
+      20
+     ],
+     [
+      1056214992,
+      48
+     ]
+    ],
+    "must_avoid": [
+     [
+      146977950,
+      78
+     ],
+     [
+      31901962,
+      34
+     ]
+    ],
+    "right_m": 845,
+    "golden": true
+   }
+  },
+  {
+   "id": "basel-019",
+   "city": "basel",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.562078,
+    7.575367
+   ],
+   "from_name": "St. Johanns-Ring 127e",
+   "to": [
+    47.559074,
+    7.584806
+   ],
+   "to_name": "Peterskirchplatz 6",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "detail2: A and B walk residential streets with pavements; B is 12% longer via the main road but with no safety issue. Start in the courtyard identical.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "bern-020",
+   "city": "bern",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    46.949,
+    7.4391
+   ],
+   "from_name": "station",
+   "to": [
+    46.937354,
+    7.447539
+   ],
+   "to_name": "Aegertenstrasse 69",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "carriageway",
+    "reason": "A keeps to the road centreline near the magenta Aegertenstrasse sections, B shifts to the sidewalk side and crosses at the signalised junction; both otherwise equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-021",
+   "city": "biel",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.137554,
+    7.246093
+   ],
+   "from_name": "Zentralstrasse / Rue Centrale 41",
+   "to": [
+    47.133336,
+    7.250583
+   ],
+   "to_name": "Zentralstrasse / Rue Centrale 107",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Both follow Zentralstrasse along the same sidewalks, B switching sides at signalised crossings (cyan); differences of a few metres, nothing wrong visible. Both end at the same entrance.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-022",
+   "city": "geneva",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.209913,
+    6.148797
+   ],
+   "to_name": "Rue Dr-Alfred-VINCENT 11",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A and B take different block routes (A via parallel streets on yellow sidewalks, B through a passage) of equal length; start forecourt both cross at marked crossings. No clear error.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-023",
+   "city": "lausanne",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.515802,
+    6.62656
+   ],
+   "to_name": "Passage de Montriond 4",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Both take almost identical routes from the station, differing by a few metres along the street near the destination; both end at the same door.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-024",
+   "city": "luzern",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.044238,
+    8.299647
+   ],
+   "from_name": "Guggistrasse 14a",
+   "to": [
+    47.05545,
+    8.299094
+   ],
+   "to_name": "Geissmattstrasse 18",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A follows the residential street uphill, B takes footpaths through gardens and beside the railway; similar length, both plausible for a pedestrian in a quiet villa area.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-025",
+   "city": "stgallen",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.421935,
+    9.378124
+   ],
+   "from_name": "Mühlenstrasse 5",
+   "to": [
+    47.428966,
+    9.371653
+   ],
+   "to_name": "Höhenweg 21.01",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Both pass through the same station-area streets via footways and crossings; differences are small variations (A via the tree median, B via the footway side) with no clear fault.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-026",
+   "city": "winterthur",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.5003,
+    8.7237
+   ],
+   "from_name": "station",
+   "to": [
+    47.504447,
+    8.723586
+   ],
+   "to_name": "Ruhtalstrasse 9",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A cuts diagonally across the open station forecourt, B follows the mapped footway around the building; both are on pedestrian space, 19 m difference, same route afterwards.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-027",
+   "city": "zurich",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.369789,
+    8.545928
+   ],
+   "from_name": "Frankengasse 20a",
+   "to": [
+    47.363668,
+    8.553321
+   ],
+   "to_name": "Kleinstrasse 16",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes coincide nearly everywhere; they differ only by a few metres across the open plaza and at corners, all on sidewalks and crossings.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-028",
+   "city": "basel",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.557843,
+    7.596456
+   ],
+   "to_name": "Theodorskirchplatz 7.3",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "A walks the tram carriageway and through the tram platform area; B stays on the sidewalk beside the magenta line.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      130282743,
+      59
+     ],
+     [
+      1164157222,
+      58
+     ],
+     [
+      1090324361,
+      122
+     ],
+     [
+      1079266029,
+      19
+     ]
+    ],
+    "must_avoid": [
+     [
+      130282752,
+      43
+     ],
+     [
+      130435323,
+      171
+     ],
+     [
+      183400319,
+      16
+     ]
+    ],
+    "right_m": 1583,
+    "golden": true
+   }
+  },
+  {
+   "id": "bern-029",
+   "city": "bern",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.949,
+    7.4391
+   ],
+   "from_name": "station",
+   "to": [
+    46.939746,
+    7.451885
+   ],
+   "to_name": "Helvetiastrasse 47",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "detail1: A follows the arcaded Lauben pavement along the lower street, B a parallel street one block north; both pedestrian-friendly, similar length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-030",
+   "city": "biel",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.144601,
+    7.255725
+   ],
+   "from_name": "Wasenstrasse / Rue du Wasen 42",
+   "to": [
+    47.136678,
+    7.244412
+   ],
+   "to_name": "Karl-Neuhaus-Strasse / Rue Karl-Neuhaus 34a",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Routes differ only by a few metres on the Wasenstrasse stretch; A on the quiet street, B on the sidewalk side; neither magenta carriageway, lengths equal.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-031",
+   "city": "geneva",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    46.206363,
+    6.144527
+   ],
+   "from_name": "Place Ruth-BÖSIGER 3",
+   "to": [
+    46.198897,
+    6.137299
+   ],
+   "to_name": "Rue des Bains 28",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Routes differ only in small passage choices near the quay and which side of the street to walk; both use footways and signalised crossings, no carriageway walking or detour.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-032",
+   "city": "lausanne",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    46.521002,
+    6.621113
+   ],
+   "from_name": "Avenue de Tivoli 5.1",
+   "to": [
+    46.514805,
+    6.637704
+   ],
+   "to_name": "Chemin de Longeraie 7.2",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Stepfree; A takes the south sidewalk then a residential street, B stays on the north side of Avenue de Tivoli and crosses at lights; both on sidewalks with crossings, A 7% shorter.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-033",
+   "city": "luzern",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.043149,
+    8.298523
+   ],
+   "from_name": "Tulpenweg 3",
+   "to": [
+    47.046987,
+    8.303039
+   ],
+   "to_name": "Bruchstrasse 73",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A takes garden footpaths and a short cut (767 m); B follows roads and the sidewalk of Bruchstrasse (905 m). Both plausible; A path is mapped footway, B is longer but on sidewalks.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-034",
+   "city": "stgallen",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.418279,
+    9.383031
+   ],
+   "from_name": "Gellertstrasse 4.01",
+   "to": [
+    47.420657,
+    9.372583
+   ],
+   "to_name": "Wassergasse 30",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A and B take different quiet residential streets at the start; at the end (detail2) both reach doors near the roundabout building. No clear defect either way.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-035",
+   "city": "winterthur",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.506666,
+    8.71821
+   ],
+   "from_name": "Walkestrasse 37",
+   "to": [
+    47.505676,
+    8.737549
+   ],
+   "to_name": "Rychenbergstrasse 109a",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both walk the quiet residential street; differences are 5-10 m and the start-door exit; no magenta carriageway or missing crossing involved.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-036",
+   "city": "zurich",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.3779,
+    8.5403
+   ],
+   "from_name": "station",
+   "to": [
+    47.371821,
+    8.543649
+   ],
+   "to_name": "Münstergasse 31",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "A crosses Limmat at Münsterbrücke on the signalised crossings and follows the east quay; B stays on the east side along Limmatquai sidewalk. Both on sidewalks, similar length, same end point.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-037",
+   "city": "basel",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.555756,
+    7.589248
+   ],
+   "from_name": "Falknerstrasse 19",
+   "to": [
+    47.553504,
+    7.584647
+   ],
+   "to_name": "Holbeinstrasse 31",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Routes coincide except at the junction where A crosses at the orange crossing and B at the lit crossing via a small jog; both use marked crossings.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "bern-038",
+   "city": "bern",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    46.949216,
+    7.449104
+   ],
+   "from_name": "Brunngasshalde 61",
+   "to": [
+    46.944711,
+    7.435003
+   ],
+   "to_name": "Kapellenstrasse 9",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "A walks long stretches on the magenta carriageway with separately mapped sidewalks; B takes the northern street on yellow/white ways with crossings, similar length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1474529133,
+      77
+     ],
+     [
+      516844338,
+      234
+     ],
+     [
+      692366214,
+      19
+     ],
+     [
+      3824086,
+      21
+     ],
+     [
+      295151506,
+      209
+     ],
+     [
+      756382353,
+      33
+     ],
+     [
+      602250076,
+      90
+     ],
+     [
+      756751852,
+      45
+     ],
+     [
+      603146021,
+      35
+     ],
+     [
+      603146024,
+      41
+     ],
+     [
+      572719734,
+      26
+     ],
+     [
+      250919581,
+      20
+     ],
+     [
+      554681250,
+      20
+     ]
+    ],
+    "must_avoid": [
+     [
+      741721500,
+      32
+     ],
+     [
+      89438091,
+      19
+     ],
+     [
+      312975223,
+      72
+     ],
+     [
+      288109819,
+      47
+     ],
+     [
+      288113551,
+      98
+     ],
+     [
+      665972180,
+      40
+     ],
+     [
+      287429448,
+      185
+     ],
+     [
+      653789389,
+      40
+     ],
+     [
+      652499470,
+      282
+     ],
+     [
+      566451231,
+      16
+     ],
+     [
+      287185000,
+      142
+     ],
+     [
+      554681248,
+      18
+     ]
+    ],
+    "right_m": 1423,
+    "golden": true
+   }
+  },
+  {
+   "id": "biel-039",
+   "city": "biel",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.134357,
+    7.247641
+   ],
+   "from_name": "Silbergasse / Rue de l'Argent 31a",
+   "to": [
+    47.133822,
+    7.237811
+   ],
+   "to_name": "Unterer Quai / Quai du Bas 1b",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "detail1: A follows the street with crossings around the roundabout, B a parallel route through the block; both step-free, near-equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-040",
+   "city": "geneva",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.206458,
+    6.158744
+   ],
+   "to_name": "Quai Gustave-ADOR 33",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A cuts diagonally across the open station plaza on footways, B follows the street edge; both reach the same crossings; difference small.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-041",
+   "city": "lausanne",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.511789,
+    6.631825
+   ],
+   "to_name": "Avenue de Mon-Loisir 8",
+   "check": {
+    "verdict": "A",
+    "confidence": "low",
+    "issue": "other",
+    "reason": "B cuts through private-looking courtyards and a garden between buildings with no clear public path; A follows streets and mapped footways around the block, only 9 m shorter for B.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-042",
+   "city": "luzern",
+   "category": "road",
+   "profile": "stepfree",
+   "from": [
+    47.04246,
+    8.309678
+   ],
+   "from_name": "Neustadtstrasse 43.6",
+   "to": [
+    47.041725,
+    8.293234
+   ],
+   "to_name": "Steinhofhalde 17",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Stepfree; A uses sidewalks and residential streets 10% shorter, B takes a longer hillside loop on quiet roads. No stairs or carriageway-vs-sidewalk issue visible; both plausible.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-043",
+   "city": "stgallen",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.419629,
+    9.376674
+   ],
+   "from_name": "Falkenburgstrasse 14.01",
+   "to": [
+    47.424269,
+    9.371649
+   ],
+   "to_name": "Poststrasse 20.01",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A approaches via the east street cutting through a pedestrian area; B goes along western street and crosses at lights. Both plausible, ends at different doors in same area.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-044",
+   "city": "winterthur",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.5003,
+    8.7237
+   ],
+   "from_name": "station",
+   "to": [
+    47.503035,
+    8.720011
+   ],
+   "to_name": "Tellstrasse 17.1",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "detail1: A runs straight along the quiet street, B along the parallel edge with small jogs; both fine for a pedestrian, B 7% longer.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-045",
+   "city": "zurich",
+   "category": "road",
+   "profile": "normal",
+   "from": [
+    47.384921,
+    8.524714
+   ],
+   "from_name": "Neugasse 142",
+   "to": [
+    47.376651,
+    8.525628
+   ],
+   "to_name": "Stauffacherstrasse 98",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Both use the same crossings; A crosses a side street at the junction corner and B at the zebra, then both continue on the sidewalk; differences are a few metres.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-046",
+   "city": "basel",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.540861,
+    7.578271
+   ],
+   "to_name": "Margarethenstrasse 6",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "A crosses the busy magenta road diagonally mid-block through the park edge with no crossing; B steps to the zebra (green dot, visible stripes) and crosses there, +2 m.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      675421948,
+      20
+     ]
+    ],
+    "must_avoid": [
+     [
+      432410689,
+      40
+     ]
+    ],
+    "right_m": 1473,
+    "golden": true
+   }
+  },
+  {
+   "id": "biel-047",
+   "city": "biel",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.141095,
+    7.247205
+   ],
+   "from_name": "Kanalgasse / Rue du Canal 33",
+   "to": [
+    47.138546,
+    7.253674
+   ],
+   "to_name": "Schwanengasse / Rue des Cygnes 27",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both cross the junction at marked crossings and follow the canal-side street a few metres apart, A on the canal edge, B on the building side; same length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-048",
+   "city": "geneva",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.193675,
+    6.149672
+   ],
+   "from_name": "Rue LOMBARD 26.1",
+   "to": [
+    46.201804,
+    6.146749
+   ],
+   "to_name": "Rue du Puits-Saint-Pierre 4.1",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Routes differ only at start and across the junction near crossings; both use crossings near the junction with minor diagonal differences.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-049",
+   "city": "lausanne",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.524097,
+    6.625368
+   ],
+   "to_name": "Place Chauderon 20",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "zigzag",
+    "reason": "detail1: A winds through the park lawn on small paths with sharp bends; B takes the direct path to the same street. B is more plausible for stepfree.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-050",
+   "city": "lugano",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.0054,
+    8.9469
+   ],
+   "from_name": "station",
+   "to": [
+    46.004127,
+    8.953068
+   ],
+   "to_name": "Via Maria Luisa Albrizzi 3",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Old-town pedestrian alleys: A passes through the piazza, B takes the street around the block; both plausible, near-equal length, same destination door.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-051",
+   "city": "luzern",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.05648,
+    8.311302
+   ],
+   "from_name": "Löwenstrasse 16b",
+   "to": [
+    47.045028,
+    8.305781
+   ],
+   "to_name": "Himmelrichstrasse 7",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "other",
+    "reason": "A runs through block interiors and between buildings from the start, partly across building footprints; B uses the street sidewalk and crossings at the junction. Both reach the same street later.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-052",
+   "city": "stgallen",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    47.422916,
+    9.377893
+   ],
+   "from_name": "Klosterhof 6a",
+   "to": [
+    47.423854,
+    9.358958
+   ],
+   "to_name": "Schorenstrasse 10",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "A cuts diagonally across the busy junction between the marked crossings; B crosses at the orange zebra/lit crossings. Otherwise identical routes.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      8071153,
+      15
+     ]
+    ],
+    "must_avoid": [],
+    "right_m": 2171,
+    "golden": true
+   }
+  },
+  {
+   "id": "winterthur-053",
+   "city": "winterthur",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.505564,
+    8.738725
+   ],
+   "from_name": "Rychenbergstrasse 121",
+   "to": [
+    47.494827,
+    8.730299
+   ],
+   "to_name": "Langgasse 77",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "carriageway",
+    "reason": "A runs along the south side next to the magenta road while B follows the parallel yellow sidewalk; in detail2 A is on the street side where B uses the park path.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-054",
+   "city": "zurich",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    47.369339,
+    8.544025
+   ],
+   "from_name": "Kirchgasse 4",
+   "to": [
+    47.364855,
+    8.555653
+   ],
+   "to_name": "Apollostrasse 7",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A takes the narrow Kirchgasse-side street uphill, B the sidewalk of the main street then the square; both step-free and similar length, no clear defect.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-055",
+   "city": "basel",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.554523,
+    7.575502
+   ],
+   "to_name": "Thannerstrasse 5",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A follows the sidewalk of the residential side street beside the tram corridor, B the main street with signalised crossings; equal length, both usable.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-056",
+   "city": "biel",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.138933,
+    7.251302
+   ],
+   "from_name": "Oberer Quai / Quai du Haut 56",
+   "to": [
+    47.138442,
+    7.244918
+   ],
+   "to_name": "Zentralstrasse / Rue Centrale 26",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Near the start A goes via the car-park road side then a detour to the same crossing; B takes the direct footway along the hedge. Both reach the same crossings within 3 m of length; no real issue.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-057",
+   "city": "geneva",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.205178,
+    6.131768
+   ],
+   "to_name": "Rue de Saint-Jean 54",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Start inside the station: A leaves along the west side beside the magenta street on its sidewalk, B goes around east via lit crossings; both legitimate, similar length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-058",
+   "city": "lausanne",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.523658,
+    6.633502
+   ],
+   "to_name": "Place de la Riponne 6",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Different old-town routes of similar length; both use footways and plazas, no obvious carriageway walking or steps visible; ends at same plaza door.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-059",
+   "city": "lugano",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.0054,
+    8.9469
+   ],
+   "from_name": "station",
+   "to": [
+    46.008582,
+    8.955248
+   ],
+   "to_name": "Via Greina 2",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "overview: routes are identical through the old town pedestrian lanes; no close-up exists because they do not differ.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-060",
+   "city": "luzern",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.04357,
+    8.315643
+   ],
+   "from_name": "Rösslimatte 52",
+   "to": [
+    47.056252,
+    8.3115
+   ],
+   "to_name": "Löwenstrasse 16a",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "A walks about 100 m inside the tram/road lanes along the quay road; B follows the lakeside promenade sidewalk and crosses at the signal crossing.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1109017396,
+      16
+     ],
+     [
+      13916505,
+      54
+     ],
+     [
+      1076454312,
+      65
+     ],
+     [
+      134989581,
+      23
+     ]
+    ],
+    "must_avoid": [
+     [
+      94721113,
+      25
+     ],
+     [
+      94728340,
+      61
+     ],
+     [
+      1053404813,
+      60
+     ]
+    ],
+    "right_m": 1842,
+    "golden": true
+   }
+  },
+  {
+   "id": "stgallen-061",
+   "city": "stgallen",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    47.424003,
+    9.364598
+   ],
+   "from_name": "Zwinglistrasse 49",
+   "to": [
+    47.424482,
+    9.382833
+   ],
+   "to_name": "Speicherstrasse 5a",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "At the big junction A cuts diagonally along the magenta carriageway over the junction between crossings; B uses the mapped zebra/signal crossings (cyan, orange) on sidewalks. Both end at same building front.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      8071153,
+      15
+     ]
+    ],
+    "must_avoid": [],
+    "door": [
+     47.4244722,
+     9.382839599999999
+    ],
+    "right_m": 1689,
+    "golden": true
+   }
+  },
+  {
+   "id": "winterthur-062",
+   "city": "winterthur",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.497675,
+    8.739099
+   ],
+   "from_name": "St. Gallerstrasse 42e",
+   "to": [
+    47.505611,
+    8.729389
+   ],
+   "to_name": "Haldenstrasse 32",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "A follows quiet residential streets along the railway, B goes via the old town and Römerstrasse sidewalks; both plausible and equal length, no carriageway or crossing errors seen.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-063",
+   "city": "zurich",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.380759,
+    8.525152
+   ],
+   "from_name": "Feldstrasse 149",
+   "to": [
+    47.385667,
+    8.536299
+   ],
+   "to_name": "Nordstrasse 43",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "carriageway",
+    "reason": "A runs closer to the magenta diagonal street for 300 m; B stays on the sidewalk side. Start differs slightly through a parking lot.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-064",
+   "city": "basel",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.543243,
+    7.579278
+   ],
+   "to_name": "St. Margarethen 7",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "crossing",
+    "reason": "detail1: B crosses the side street at the marked zebra and the park road; A crosses a few metres off the zebra, past a parked truck, then doubles back. Minor difference.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-065",
+   "city": "biel",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.139148,
+    7.245783
+   ],
+   "from_name": "Adam-Friedrich-Molz-Gasse / Rue Adam-Friedrich-Molz 31",
+   "to": [
+    47.141922,
+    7.249626
+   ],
+   "to_name": "Freiestrasse / Rue Franche 24a",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A walks the building-side sidewalk of the street, B crosses at the marked crossing to the car-park side; equal length, quiet street, either acceptable.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-066",
+   "city": "geneva",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.203148,
+    6.147929
+   ],
+   "from_name": "Place du Molard 11",
+   "to": [
+    46.197716,
+    6.157957
+   ],
+   "to_name": "Rue de Contamines 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A takes quieter parallel streets through the Molard area, B follows the main street on signalised crossings; B 4% shorter, both on sidewalks or footways, no zigzag or carriageway walking visible.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-067",
+   "city": "lausanne",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.524511,
+    6.633507
+   ],
+   "to_name": "Place de la Riponne 10b",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both go through the pedestrian old-town lanes, A via the west lane crossing the magenta street at a crossing, B via the east lane; equal length, no carriageway walking.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-068",
+   "city": "lugano",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.002593,
+    8.949346
+   ],
+   "from_name": "Via Giuseppe Motta 15",
+   "to": [
+    46.006803,
+    8.956825
+   ],
+   "to_name": "Via Luigi Canonica 5",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes identical, no detail images.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-069",
+   "city": "stgallen",
+   "category": "cross",
+   "profile": "stepfree",
+   "from": [
+    47.424972,
+    9.36868
+   ],
+   "from_name": "Winkelriedstrasse 17",
+   "to": [
+    47.425105,
+    9.383683
+   ],
+   "to_name": "Linsebühlstrasse 77",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "detail1: A crosses the busy junction diagonally through the middle away from the marked crossings; B uses the zebra crossings at the signalised corners.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      8071153,
+      15
+     ]
+    ],
+    "must_avoid": [],
+    "right_m": 1449,
+    "golden": true
+   }
+  },
+  {
+   "id": "zurich-070",
+   "city": "zurich",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.369508,
+    8.54944
+   ],
+   "from_name": "Zeltweg 6",
+   "to": [
+    47.369711,
+    8.54383
+   ],
+   "to_name": "Laternengasse 3",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Routes coincide except for two small corner variations at crossings; both use the signalised crossings; no carriageway walking.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-071",
+   "city": "basel",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.550335,
+    7.595302
+   ],
+   "from_name": "St. Jakobs-Strasse 12",
+   "to": [
+    47.542893,
+    7.593879
+   ],
+   "to_name": "Tellplatz 12",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "Along the tree-lined tram street A hugs the tram-bed side edge and B the road-side sidewalk for about 80 m; 5 m apart, both plausible walks, same afterward.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-072",
+   "city": "biel",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    47.13816,
+    7.251442
+   ],
+   "from_name": "Alexander-Schöni-Strasse / Rue Alexander-Schöni 47",
+   "to": [
+    47.132285,
+    7.250964
+   ],
+   "to_name": "Zentralstrasse / Rue Centrale 98",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "A crosses the open Esplanade plaza and takes the Zentralstrasse sidewalk, B goes around via side streets with crossings; both sensible, A 5% shorter.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-073",
+   "city": "geneva",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.205115,
+    6.131464
+   ],
+   "to_name": "Rue de Saint-Jean 52",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "carriageway",
+    "reason": "A follows the magenta carriageway beside the rail area west of the station; B walks around via street crossings and sidewalks near the church, 40 m longer.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-074",
+   "city": "lausanne",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.517646,
+    6.620762
+   ],
+   "to_name": "Chemin des Fleurettes 32",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A follows the north side of the block along the street edge and crosses at a zebra; B takes the south sidewalk and signalised crossings. Both acceptable; ends identical.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-075",
+   "city": "lugano",
+   "category": "cross",
+   "profile": "normal",
+   "from": [
+    46.0054,
+    8.9469
+   ],
+   "from_name": "station",
+   "to": [
+    46.008043,
+    8.957297
+   ],
+   "to_name": "Via Bertaro Lambertenghi 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes are identical in length and path; no difference to judge.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-076",
+   "city": "basel",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.547636,
+    7.601813
+   ],
+   "from_name": "Luftmattstrasse 26",
+   "to": [
+    47.555756,
+    7.589248
+   ],
+   "to_name": "Falknerstrasse 19",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "door",
+    "reason": "B ends at the door beside the E point on the west street frontage; A ends at a door in an inner alley on the opposite side of the building block. Rest of route near-identical; the start differs trivially.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1130653919,
+      54
+     ],
+     [
+      1333539795,
+      39
+     ],
+     [
+      1490183477,
+      35
+     ],
+     [
+      1490183481,
+      35
+     ],
+     [
+      674314323,
+      29
+     ],
+     [
+      1485804685,
+      21
+     ],
+     [
+      19754138,
+      28
+     ],
+     [
+      137472256,
+      20
+     ],
+     [
+      151407782,
+      65
+     ]
+    ],
+    "must_avoid": [
+     [
+      18283637,
+      215
+     ],
+     [
+      1518807493,
+      49
+     ],
+     [
+      1518807495,
+      16
+     ],
+     [
+      151410251,
+      40
+     ]
+    ],
+    "door": [
+     47.555751,
+     7.5892085
+    ],
+    "right_m": 1564,
+    "golden": true
+   }
+  },
+  {
+   "id": "bern-077",
+   "city": "bern",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    46.949,
+    7.4391
+   ],
+   "from_name": "station",
+   "to": [
+    46.956195,
+    7.452335
+   ],
+   "to_name": "Moserstrasse 14b",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Stepfree; both cross Kirchenfeldbrücke on its sidewalks (A on one side, B the other) and end at the same address, within 12 m of each other; no crossing or carriageway problem.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-078",
+   "city": "biel",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.145775,
+    7.241322
+   ],
+   "from_name": "Beaumontweg / Chemin de Beaumont 36",
+   "to": [
+    47.139124,
+    7.244047
+   ],
+   "to_name": "Unionsgasse / Rue de l'Union 9",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "A turns into a service lane behind the building to its door; B stays on the street sidewalk to a door at the corner. Both plausible.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-079",
+   "city": "geneva",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.212497,
+    6.130251
+   ],
+   "to_name": "Rue Henri-VEYRASSAT 5",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail2: A and B follow opposite sidewalks of the last street to different doors of the destination block; nothing shows which door matches Rue Henri-Veyrassat 5. Main avenue stretch identical.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-080",
+   "city": "lausanne",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    46.521151,
+    6.61974
+   ],
+   "from_name": "Avenue de Tivoli 30",
+   "to": [
+    46.521308,
+    6.628168
+   ],
+   "to_name": "Rue du Port-Franc 11",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "A threads an inner-block alley and courtyard mesh and ends at a door inside the block; B stays on the street sidewalk and ends at the street-facing entrance. B is 20 m longer.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-081",
+   "city": "lugano",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    46.00592,
+    8.942102
+   ],
+   "from_name": "Via Besso 21",
+   "to": [
+    46.00588,
+    8.951597
+   ],
+   "to_name": "Via Pretorio 7a",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "Identical route until the end; A ends at a door on the south arcade side, B at a door on the building's east side by the square. Both plausible entrances near the address.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-082",
+   "city": "luzern",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.048649,
+    8.304936
+   ],
+   "from_name": "Pilatusstrasse 26.1",
+   "to": [
+    47.042336,
+    8.311521
+   ],
+   "to_name": "Kellerstrasse 24d",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "Same route until the end; A stops at a door near the street corner, B walks the parking lane to a door further along the same building. Both mapped doors on the building, cannot tell which is front.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-083",
+   "city": "stgallen",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.418984,
+    9.370907
+   ],
+   "from_name": "Felsenstrasse 91",
+   "to": [
+    47.419814,
+    9.376513
+   ],
+   "to_name": "Schneebergstrasse 4",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes identical along the street and the stair path, same end door.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-084",
+   "city": "zurich",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    47.3779,
+    8.5403
+   ],
+   "from_name": "station",
+   "to": [
+    47.376385,
+    8.5224
+   ],
+   "to_name": "Kanzleistrasse 102",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A and B take parallel residential streets on mapped sidewalks with step-free crossings; B is 1% longer, ends at a door off the street corner. No clear defect.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-085",
+   "city": "basel",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.547387,
+    7.605455
+   ],
+   "from_name": "Hirzbodenweg 124",
+   "to": [
+    47.556032,
+    7.590315
+   ],
+   "to_name": "Freie Strasse 53",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both cross at the mapped crossing near the junction with tiny corner differences; in the Freie Strasse pedestrian zone they end at the same entrance from either side of the street.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-086",
+   "city": "lausanne",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.51459,
+    6.632504
+   ],
+   "to_name": "Chemin du Closelet 4",
+   "check": {
+    "verdict": "unclear",
+    "confidence": "low",
+    "issue": "other",
+    "reason": "A is 89 m shorter via a station crossing at the platforms and a passage between buildings, but its door is across the road from the E point; B detours but ends right at E. Cannot verify A's passage.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-087",
+   "city": "lugano",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    46.006361,
+    8.951352
+   ],
+   "from_name": "Corso Enrico Pestalozzi 3",
+   "to": [
+    46.009952,
+    8.957827
+   ],
+   "to_name": "Via Bertaro Lambertenghi 9a",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Same route; A ends at a door on the street frontage of the building, B at another door 25 m further north on the same facade. Near zebra both cross correctly.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-088",
+   "city": "luzern",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.045388,
+    8.304206
+   ],
+   "from_name": "Obergrundstrasse 51",
+   "to": [
+    47.0435,
+    8.317618
+   ],
+   "to_name": "Anton-Julius-Eggstein-Gasse 3",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "door",
+    "reason": "Same route until the end; doors on the same large building, A side door facing plaza, B near the passage. Neither clearly wrong.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-089",
+   "city": "stgallen",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.4232,
+    9.37
+   ],
+   "from_name": "station",
+   "to": [
+    47.421027,
+    9.364362
+   ],
+   "to_name": "Lustgartenstrasse 14",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "detail1: A ends at a nearer door on the building's long side facing the main road; B walks the sidewalk to the corner door by E. Neither clearly matches Lustgartenstrasse 14.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-090",
+   "city": "zurich",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.3779,
+    8.5403
+   ],
+   "from_name": "station",
+   "to": [
+    47.372928,
+    8.536437
+   ],
+   "to_name": "Sihlstrasse 31",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both cross at mapped crossings and end at street-side doors on Sihlstrasse; A uses a short block passage and is 23 m shorter, B stays on sidewalks; neither walks on carriageway.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-091",
+   "city": "lausanne",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.525585,
+    6.633062
+   ],
+   "to_name": "Avenue de Riant-Mont 14",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "Routes identical until the end; A ends at a garage-like annex at the building's south-west corner, B walks on to the entrance side next to the E point on the street front.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-092",
+   "city": "lugano",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    46.007571,
+    8.949557
+   ],
+   "from_name": "Salita dei Frati 3a",
+   "to": [
+    46.00845,
+    8.947253
+   ],
+   "to_name": "Salita Padre Giovanni Pozzi 5c",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes coincide except the first few metres leaving the start building and the last metres to the door, a few metres apart; no real difference for a walker.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-093",
+   "city": "luzern",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.0502,
+    8.3102
+   ],
+   "from_name": "station",
+   "to": [
+    47.045164,
+    8.312499
+   ],
+   "to_name": "Rösslimattweg 8.1",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "door",
+    "reason": "Same route to the end; A and B end at two nearby doors of the same building in a back-yard area; no clear difference.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-094",
+   "city": "stgallen",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    47.423869,
+    9.372354
+   ],
+   "from_name": "Schützengasse 4",
+   "to": [
+    47.421979,
+    9.377952
+   ],
+   "to_name": "Mühlenstrasse 4",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A follows the street straight south; B takes the parallel path along the green strip; both on pedestrian-accessible ways, similar length. Door differs by a few metres in detail3.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-095",
+   "city": "lausanne",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    46.522419,
+    6.620466
+   ],
+   "from_name": "Avenue de Sévelin 62.1",
+   "to": [
+    46.519142,
+    6.637578
+   ],
+   "to_name": "Rue de l'Ecole-Supérieure 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "A crosses at the zebra and ends at the building's north corner door; B ends at the south-face door on the street with the crossing. Both plausible; address street unclear; lengths equal.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-096",
+   "city": "stgallen",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.426677,
+    9.380027
+   ],
+   "from_name": "Rorschacher Strasse 19a.01",
+   "to": [
+    47.421015,
+    9.37123
+   ],
+   "to_name": "Davidstrasse 3",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "Identical until the last 30 m; A ends at a door at the building's tower corner, B walks further along the sidewalk to a door by the E point. Both on the address street, both plausible.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-097",
+   "city": "lausanne",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    46.5167,
+    6.6291
+   ],
+   "from_name": "station",
+   "to": [
+    46.525557,
+    6.62584
+   ],
+   "to_name": "Rue du Petit-Beaulieu 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "A goes up the western street through Parc and crosses at marked crossings (7% shorter); B takes the eastern route via old town. Ends: A at a door on the main street, B at a rear-side door; unclear.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-098",
+   "city": "stgallen",
+   "category": "door",
+   "profile": "normal",
+   "from": [
+    47.4232,
+    9.37
+   ],
+   "from_name": "station",
+   "to": [
+    47.423273,
+    9.362726
+   ],
+   "to_name": "Stauffacherstrasse 13",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes identical along the path; end doors adjacent on the same building facade.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-099",
+   "city": "stgallen",
+   "category": "door",
+   "profile": "stepfree",
+   "from": [
+    47.418291,
+    9.371254
+   ],
+   "from_name": "Schneebergstrasse 36",
+   "to": [
+    47.424492,
+    9.380284
+   ],
+   "to_name": "Lämmlisbrunnenstrasse 4",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "crossing",
+    "reason": "detail1: B crosses the street at the marked crossing node; A crosses mid-block a few metres further on, without a crossing. Remaining route is identical.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-100",
+   "city": "basel",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.552292,
+    7.588009
+   ],
+   "from_name": "Steinenvorstadt 48",
+   "to": [
+    47.55338,
+    7.582241
+   ],
+   "to_name": "Austrasse 45",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "A cuts diagonally across the busy tram carriageway between sidewalk and island; B goes to the signalised zebra to cross. Detail2: A also cuts the junction corner, B walks around it.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [],
+    "must_avoid": [],
+    "right_m": 702,
+    "golden": false
+   }
+  },
+  {
+   "id": "bern-101",
+   "city": "bern",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    46.949,
+    7.4391
+   ],
+   "from_name": "station",
+   "to": [
+    46.949109,
+    7.435246
+   ],
+   "to_name": "Mauerrain 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes coincide except for a few metres through the station concourse at the start; both identical on streets and crossings afterwards.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-102",
+   "city": "biel",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.135156,
+    7.245795
+   ],
+   "from_name": "Winkelstrasse / Rue de l'Équerre 12a",
+   "to": [
+    47.143038,
+    7.248682
+   ],
+   "to_name": "Adam-Göuffi-Strasse / Rue Adam-Göuffi 13",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both walk through the pedestrian zone and old-town lanes; they differ only in which parallel lane they use between the same points, equal length, no carriageway or crossing issue.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-103",
+   "city": "geneva",
+   "category": "zigzag",
+   "profile": "stepfree",
+   "from": [
+    46.2102,
+    6.1424
+   ],
+   "from_name": "station",
+   "to": [
+    46.209757,
+    6.14594
+   ],
+   "to_name": "Rue Pellegrino-ROSSI 1",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Routes practically identical along Rue; only a small variation at the station-side crossing and end door, same building.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-104",
+   "city": "lausanne",
+   "category": "zigzag",
+   "profile": "stepfree",
+   "from": [
+    46.523321,
+    6.636919
+   ],
+   "from_name": "Rue Louis-Auguste-Curtat 7",
+   "to": [
+    46.525958,
+    6.636027
+   ],
+   "to_name": "Rue de la Barre 14.1",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "overview: routes are identical (446 m both); no close-ups exist because they do not differ.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-105",
+   "city": "lugano",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    46.0054,
+    8.9469
+   ],
+   "from_name": "station",
+   "to": [
+    46.00516,
+    8.951095
+   ],
+   "to_name": "Piazza Dante Alighieri 8",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes are identical in path and length; nothing to separate them.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-106",
+   "city": "luzern",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.051892,
+    8.304762
+   ],
+   "from_name": "Weinmarkt 5",
+   "to": [
+    47.049562,
+    8.302964
+   ],
+   "to_name": "Franziskanerplatz 7",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "No detail images; the two routes are identical (347 m, 268 s) over pedestrian streets and the bridge to the same entrance.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-107",
+   "city": "stgallen",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.424482,
+    9.382833
+   ],
+   "from_name": "Speicherstrasse 5a",
+   "to": [
+    47.422352,
+    9.364529
+   ],
+   "to_name": "Rosenbergweg 6",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "B stays on the north sidewalk of the road; A goes via the car park and crosses at a lit crossing near the end. Both use sidewalks and marked crossings, nearly equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-108",
+   "city": "winterthur",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.499922,
+    8.720516
+   ],
+   "from_name": "Gertrudstrasse 15",
+   "to": [
+    47.497473,
+    8.71506
+   ],
+   "to_name": "Ulrich-Hegner-Strasse 7.1",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes are identical (same length and time), no detail images.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-109",
+   "city": "zurich",
+   "category": "zigzag",
+   "profile": "stepfree",
+   "from": [
+    47.376973,
+    8.539426
+   ],
+   "from_name": "Bahnhofplatz 7",
+   "to": [
+    47.38365,
+    8.531491
+   ],
+   "to_name": "Heinrichstrasse 50",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "detail1: A walks about 100 m along the magenta carriageway between parked cars, though sidewalks are mapped; B follows the sidewalk on the opposite side and crosses at the junction.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      1076300427,
+      65
+     ]
+    ],
+    "must_avoid": [
+     [
+      1076300432,
+      66
+     ]
+    ],
+    "right_m": 1154,
+    "golden": true
+   }
+  },
+  {
+   "id": "basel-110",
+   "city": "basel",
+   "category": "zigzag",
+   "profile": "stepfree",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.546718,
+    7.601072
+   ],
+   "to_name": "Jacob Burckhardt-Strasse 49",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A walks the station platform edge directly (step-free, shorter), B exits to the street sidewalk beside the magenta carriageway and is 29 m longer; both plausible, then identical.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "bern-111",
+   "city": "bern",
+   "category": "zigzag",
+   "profile": "stepfree",
+   "from": [
+    46.960183,
+    7.450873
+   ],
+   "from_name": "Birkenweg 29",
+   "to": [
+    46.959858,
+    7.447373
+   ],
+   "to_name": "Pappelweg 47",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "other",
+    "reason": "A runs on the far side of a hedge along a building's private forecourt (no mapped way), B stays on the public street beside it; B is 8 m shorter and equally step-free.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [],
+    "must_avoid": [
+     [
+      751192265,
+      72
+     ]
+    ],
+    "right_m": 339,
+    "golden": true
+   }
+  },
+  {
+   "id": "biel-112",
+   "city": "biel",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.143587,
+    7.244001
+   ],
+   "from_name": "Harry-Borer-Weg / Chemin Harry-Borer 1a",
+   "to": [
+    47.13631,
+    7.248906
+   ],
+   "to_name": "Alexander-Schöni-Strasse / Rue Alexander-Schöni 24",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Same overall route; differences are a few metres across the square (both cross at zebras) and at the end where A uses the sidewalk and B the roadside to the same door.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-113",
+   "city": "geneva",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    46.207795,
+    6.140532
+   ],
+   "from_name": "Boulevard James-FAZY 12",
+   "to": [
+    46.20686,
+    6.143931
+   ],
+   "to_name": "Rue ROUSSEAU 7",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "zigzag",
+    "reason": "A zigzags through the tram stop area between buildings and crosses several tracks mid-block; B crosses at traffic-light crossings and walks the straight sidewalk, and is shorter.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      626423198,
+      21
+     ],
+     [
+      62710992,
+      49
+     ],
+     [
+      571718491,
+      28
+     ],
+     [
+      5073151,
+      74
+     ],
+     [
+      62498621,
+      28
+     ],
+     [
+      62498619,
+      64
+     ]
+    ],
+    "must_avoid": [
+     [
+      493191513,
+      34
+     ],
+     [
+      626423177,
+      16
+     ],
+     [
+      626423199,
+      19
+     ],
+     [
+      626331906,
+      15
+     ],
+     [
+      1394192334,
+      20
+     ],
+     [
+      1011032885,
+      36
+     ],
+     [
+      493043786,
+      100
+     ],
+     [
+      493043933,
+      65
+     ]
+    ],
+    "right_m": 402,
+    "golden": true
+   }
+  },
+  {
+   "id": "lausanne-114",
+   "city": "lausanne",
+   "category": "zigzag",
+   "profile": "stepfree",
+   "from": [
+    46.511753,
+    6.624667
+   ],
+   "from_name": "Avenue Edouard-Rod 3.1",
+   "to": [
+    46.521645,
+    6.618889
+   ],
+   "to_name": "Avenue de Sévelin 6b",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail2: A follows the avenue pavement past the roundabout; B takes the footpaths through the park and quiet streets. Both pedestrian-suitable, near-equal length (1858 vs 1853 m).",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-115",
+   "city": "lugano",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    46.007358,
+    8.955958
+   ],
+   "from_name": "Corso Elvezia 388b.99",
+   "to": [
+    46.008451,
+    8.951375
+   ],
+   "to_name": "Via Dufour 1",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "detour",
+    "reason": "A detours 26 m through back lanes around the car-park building; B follows the main street sidewalk with signalised crossings, shorter and more natural.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      35067395,
+      58
+     ],
+     [
+      1301437519,
+      84
+     ]
+    ],
+    "must_avoid": [
+     [
+      1301096327,
+      78
+     ],
+     [
+      27868493,
+      16
+     ],
+     [
+      1318746267,
+      30
+     ],
+     [
+      19589848,
+      46
+     ]
+    ],
+    "right_m": 452,
+    "golden": true
+   }
+  },
+  {
+   "id": "luzern-116",
+   "city": "luzern",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.057712,
+    8.307846
+   ],
+   "from_name": "Bergstrasse 28.1",
+   "to": [
+    47.044835,
+    8.306608
+   ],
+   "to_name": "Bundesstrasse 26",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "A and B take parallel city streets with sidewalks and mapped crossings through the grid, A mid-block cut around a corner building; 6 m difference, no carriageway or detour problem.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-117",
+   "city": "stgallen",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.4232,
+    9.37
+   ],
+   "from_name": "station",
+   "to": [
+    47.424642,
+    9.373038
+   ],
+   "to_name": "Poststrasse 11",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Same route to the pedestrian street; A walks the south side, B the north side of the same lane to the same door. No difference that matters.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-118",
+   "city": "winterthur",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.5003,
+    8.7237
+   ],
+   "from_name": "station",
+   "to": [
+    47.501803,
+    8.737614
+   ],
+   "to_name": "Palmstrasse 28",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Same route; tiny difference along the station building footway, immaterial.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-119",
+   "city": "zurich",
+   "category": "zigzag",
+   "profile": "normal",
+   "from": [
+    47.376892,
+    8.555097
+   ],
+   "from_name": "Gloriastrasse 59",
+   "to": [
+    47.38049,
+    8.546811
+   ],
+   "to_name": "Fliederstrasse 5",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "detail1: A crosses the junction diagonally through the carriageway in two steps near the mapped crossing; B stays on the sidewalk and crosses at the crossing node.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [],
+    "must_avoid": [],
+    "right_m": 944,
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-120",
+   "city": "basel",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.55512,
+    7.584367
+   ],
+   "from_name": "Holbeinstrasse 1",
+   "to": [
+    47.564812,
+    7.59803
+   ],
+   "to_name": "Klingentalstrasse 90",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A walks the quiet side street on the west side; B takes the east footway and crosses the street twice; quiet street, equal length, either acceptable.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "bern-121",
+   "city": "bern",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    46.949,
+    7.4391
+   ],
+   "from_name": "station",
+   "to": [
+    46.953364,
+    7.435017
+   ],
+   "to_name": "Gesellschaftsstrasse 33",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "No detail images; routes identical (768 m, 650 s), stepfree along sidewalks next to magenta roads and crossing at crossings.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-122",
+   "city": "biel",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.132869,
+    7.239867
+   ],
+   "from_name": "Aarbergstrasse / Rue d'Aarberg 85",
+   "to": [
+    47.143373,
+    7.247322
+   ],
+   "to_name": "Juravorstadt / Faubourg du Jura 15",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Routes identical except through the old-town pedestrian lanes at the end, where A and B use two parallel lanes of equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-123",
+   "city": "geneva",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    46.20171,
+    6.150142
+   ],
+   "from_name": "Rue du Vieux-Collège 4.1",
+   "to": [
+    46.203414,
+    6.146345
+   ],
+   "to_name": "Rue du Marché 7",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes identical, no detail images.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-124",
+   "city": "lausanne",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.523499,
+    6.626268
+   ],
+   "from_name": "Place Chauderon 12",
+   "to": [
+    46.519706,
+    6.634856
+   ],
+   "to_name": "Galerie Saint-François c",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A and B run along the same bridge street, swapping sides with small offsets; both use sidewalk-level ways, equal length. No meaningful difference.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-125",
+   "city": "lugano",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.010906,
+    8.94611
+   ],
+   "from_name": "Via Bernardino Stazio 6a",
+   "to": [
+    46.010775,
+    8.952989
+   ],
+   "to_name": "Via Dufour 19",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes are identical in path and length; nothing to separate them.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-126",
+   "city": "luzern",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.051741,
+    8.298674
+   ],
+   "from_name": "Baselstrasse 11",
+   "to": [
+    47.040546,
+    8.307463
+   ],
+   "to_name": "Voltastrasse 6",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "No detail images; routes identical (1643 m, 1267 s), along sidewalks of the main street with signalised crossings.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-127",
+   "city": "stgallen",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.4232,
+    9.37
+   ],
+   "from_name": "station",
+   "to": [
+    47.42621,
+    9.376636
+   ],
+   "to_name": "Bohl 4",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both use the pedestrian lane north of the station-side street and the same crossings; A and B are one lane apart for 150 m, equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-128",
+   "city": "winterthur",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.494257,
+    8.730122
+   ],
+   "from_name": "Büelrainstrasse 33.1",
+   "to": [
+    47.492039,
+    8.725778
+   ],
+   "to_name": "Hochwachtstrasse 31.1",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "other",
+    "reason": "A cuts through a private nursery yard and between greenhouses; B stays on the public lane at the west, 18 m longer but on the public way.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      4249215,
+      83
+     ]
+    ],
+    "must_avoid": [
+     [
+      8136992,
+      55
+     ],
+     [
+      4249518,
+      61
+     ],
+     [
+      8136991,
+      42
+     ]
+    ],
+    "right_m": 622,
+    "golden": true
+   }
+  },
+  {
+   "id": "zurich-129",
+   "city": "zurich",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    47.3779,
+    8.5403
+   ],
+   "from_name": "station",
+   "to": [
+    47.370829,
+    8.527806
+   ],
+   "to_name": "Hallwylstrasse 56",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "detail1: routes differ only by a few metres inside the station concourse; identical elsewhere, 1 m length difference.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-130",
+   "city": "basel",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.546155,
+    7.586138
+   ],
+   "from_name": "Güterstrasse 99",
+   "to": [
+    47.54324,
+    7.576698
+   ],
+   "to_name": "Im Margarethental 1c",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "carriageway",
+    "reason": "A runs on the magenta Gundeldinger carriageway for several hundred metres beside mapped sidewalks; B follows the parallel footway/tram-side path and crosses at the lights.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      377466690,
+      130
+     ],
+     [
+      1349189034,
+      146
+     ],
+     [
+      377471149,
+      64
+     ]
+    ],
+    "must_avoid": [
+     [
+      377464578,
+      132
+     ],
+     [
+      457418178,
+      143
+     ],
+     [
+      1355611246,
+      16
+     ],
+     [
+      1355611247,
+      47
+     ]
+    ],
+    "right_m": 1085,
+    "golden": true
+   }
+  },
+  {
+   "id": "bern-131",
+   "city": "bern",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    46.959241,
+    7.452238
+   ],
+   "from_name": "Zielweg 27",
+   "to": [
+    46.95703,
+    7.435817
+   ],
+   "to_name": "Berchtoldstrasse 38",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Both on quiet residential streets; at the junction A goes around the square edge, B crosses via the zebra (green dots). Neither is problematic; 10 m difference over 2.1 km.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-132",
+   "city": "biel",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    47.1325,
+    7.243
+   ],
+   "from_name": "station",
+   "to": [
+    47.135095,
+    7.256495
+   ],
+   "to_name": "Madretschstrasse / Rue de Madretsch 90",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Stepfree; A and B run on the two sides of the same street about 8 m apart, both on sidewalk and crossing at the same marked crossings; equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-133",
+   "city": "geneva",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.204928,
+    6.142292
+   ],
+   "from_name": "Quai des Moulins 5",
+   "to": [
+    46.202952,
+    6.152875
+   ],
+   "to_name": "Rue du Rhône 104",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "A crosses the busy street diagonally between two zebras; B uses the crossing stripes square on. At detail1 A walks beside the building where B follows the quay sidewalk.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      389106731,
+      22
+     ],
+     [
+      905744800,
+      17
+     ],
+     [
+      9245646,
+      24
+     ]
+    ],
+    "must_avoid": [
+     [
+      493037603,
+      33
+     ]
+    ],
+    "right_m": 925,
+    "golden": true
+   }
+  },
+  {
+   "id": "lausanne-134",
+   "city": "lausanne",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    46.5266,
+    6.62636
+   ],
+   "from_name": "Avenue de Beaulieu 41.1",
+   "to": [
+    46.521716,
+    6.631673
+   ],
+   "to_name": "Ruelle Grand-Saint-Jean 4",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A uses the west sidewalk of the avenue, B the east one after a short crossing near the start; same length (872 m), both on mapped sidewalks.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-135",
+   "city": "lugano",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.008513,
+    8.947268
+   ],
+   "from_name": "Salita Padre Giovanni Pozzi 5",
+   "to": [
+    46.004442,
+    8.949441
+   ],
+   "to_name": "Piazza Cioccaro 11",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "A follows the road edge down the hill, B takes the parallel footway on the station side; both reach the same stairs/path, 1 m length difference.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-136",
+   "city": "luzern",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    47.0502,
+    8.3102
+   ],
+   "from_name": "station",
+   "to": [
+    47.053046,
+    8.304904
+   ],
+   "to_name": "Löwengraben 10",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes are identical (1263 m, 989 s) along the quay street to the address; only the door ring differs trivially at the end.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-137",
+   "city": "stgallen",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.421726,
+    9.371472
+   ],
+   "from_name": "Vadianstrasse 25a",
+   "to": [
+    47.422721,
+    9.359081
+   ],
+   "to_name": "Furglerstrasse 3.01",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "No detail images; routes coincide over the whole walk (identical length and time).",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-138",
+   "city": "winterthur",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.499323,
+    8.72405
+   ],
+   "from_name": "Bahnhofplatz 4",
+   "to": [
+    47.494004,
+    8.732848
+   ],
+   "to_name": "Reitweg 12.1",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes identical, no detail images.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-139",
+   "city": "zurich",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    47.3779,
+    8.5403
+   ],
+   "from_name": "station",
+   "to": [
+    47.37383,
+    8.5394
+   ],
+   "to_name": "Oetenbachgasse 15",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "detail1: A and B pass through the pedestrian zone beside the tram street on slightly different lines; detail2 shows both crossing at the same marked zebra. Equivalent for a wheelchair user.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "basel-140",
+   "city": "basel",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.5476,
+    7.5897
+   ],
+   "from_name": "station",
+   "to": [
+    47.557279,
+    7.591144
+   ],
+   "to_name": "Augustinergasse 21",
+   "check": {
+    "verdict": "B",
+    "confidence": "medium",
+    "issue": "crossing",
+    "reason": "A crosses the tram junction diagonally mid-road away from the zebra; B follows the building edge and uses the zebra crossing. Detail1: both along the tram platform; detail3: same Augustinergasse entrance.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "must_use": [
+     [
+      130282743,
+      59
+     ],
+     [
+      332740559,
+      16
+     ]
+    ],
+    "must_avoid": [
+     [
+      130282752,
+      43
+     ]
+    ],
+    "right_m": 1236,
+    "golden": true
+   }
+  },
+  {
+   "id": "bern-141",
+   "city": "bern",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.949,
+    7.4391
+   ],
+   "from_name": "station",
+   "to": [
+    46.947181,
+    7.44044
+   ],
+   "to_name": "Bubenbergplatz 3",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "door",
+    "reason": "Identical through the station hall and crossing; at the end A and B take slightly different paths past the bike stands to nearly the same entrance on the plaza side of the building.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "biel-142",
+   "city": "biel",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.134522,
+    7.256093
+   ],
+   "from_name": "Rainstrasse / Rue du Crêt 3",
+   "to": [
+    47.141793,
+    7.246502
+   ],
+   "to_name": "Ring 18",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "No detail images; routes coincide over the whole walk (identical length and time).",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "geneva-143",
+   "city": "geneva",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    46.202721,
+    6.159029
+   ],
+   "from_name": "Rue de Montchoisy 5",
+   "to": [
+    46.19964,
+    6.148654
+   ],
+   "to_name": "Rue Chausse-Coq 7",
+   "check": {
+    "verdict": "B",
+    "confidence": "low",
+    "issue": "other",
+    "reason": "A passes across the front of the building in a covered/tram-stop area; B follows the pavement along the tracks; start door differs, both plausible. Slight preference B.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lausanne-144",
+   "city": "lausanne",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.518345,
+    6.63348
+   ],
+   "from_name": "Rue du Midi 18",
+   "to": [
+    46.520015,
+    6.635009
+   ],
+   "to_name": "Rue de Bourg 14",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "overview: routes are identical (344 m); no close-ups exist because they do not differ.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "lugano-145",
+   "city": "lugano",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    46.007152,
+    8.949824
+   ],
+   "from_name": "Via Cantonale 7",
+   "to": [
+    46.004695,
+    8.950548
+   ],
+   "to_name": "Via Pessina 19",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes are identical in path and length; nothing to separate them.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "luzern-146",
+   "city": "luzern",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    47.051173,
+    8.298309
+   ],
+   "from_name": "Gibraltarstrasse 30",
+   "to": [
+    47.047403,
+    8.307723
+   ],
+   "to_name": "Hirschmattstrasse 25",
+   "check": {
+    "verdict": "both",
+    "confidence": "low",
+    "issue": "none",
+    "reason": "A goes via the lake-side streets, B via the southern block grid with a few more turns (50 m longer); both on sidewalks and crossings, stepfree, no clear flaw in either.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "stgallen-147",
+   "city": "stgallen",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.4232,
+    9.37
+   ],
+   "from_name": "station",
+   "to": [
+    47.425273,
+    9.378577
+   ],
+   "to_name": "Brühlgasse 35",
+   "check": {
+    "verdict": "both",
+    "confidence": "medium",
+    "issue": "none",
+    "reason": "Same as station walk: A and B use parallel lanes beside the station-side street, both on sidewalks with the same crossings; equal length.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "winterthur-148",
+   "city": "winterthur",
+   "category": "control",
+   "profile": "stepfree",
+   "from": [
+    47.496929,
+    8.728166
+   ],
+   "from_name": "Rosenstrasse 2.1",
+   "to": [
+    47.493238,
+    8.73168
+   ],
+   "to_name": "Langgasse 53",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "Routes identical, no detail images.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  },
+  {
+   "id": "zurich-149",
+   "city": "zurich",
+   "category": "control",
+   "profile": "normal",
+   "from": [
+    47.372273,
+    8.544373
+   ],
+   "from_name": "Rindermarkt 6",
+   "to": [
+    47.380516,
+    8.541893
+   ],
+   "to_name": "Walchestrasse 19",
+   "check": {
+    "verdict": "both",
+    "confidence": "high",
+    "issue": "none",
+    "reason": "overview: routes are identical (1065 m) along the river and bridges; no close-ups exist because they do not differ.",
+    "checked": "2026-11-24",
+    "how": "by eye on SWISSIMAGE with the OpenStreetMap overlay (render.py), A = main, B = this change",
+    "golden": false
+   }
+  }
+ ]
+}

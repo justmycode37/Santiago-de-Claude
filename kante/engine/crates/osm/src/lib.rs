@@ -213,6 +213,7 @@
 //! bridges are included and not marked.
 
 pub mod area;
+pub mod attrs;
 pub mod build;
 pub mod buildings;
 pub mod read;

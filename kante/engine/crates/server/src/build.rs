@@ -6,7 +6,7 @@
 //! | step        | input                                   | output                              |
 //! |-------------|-----------------------------------------|-------------------------------------|
 //! | `timetable` | `raw/gtfs/gtfs.zip`, `raw/atlas/*.csv`  | `timetable.bin`                     |
-//! | `osm`       | `raw/osm/switzerland-latest.osm.pbf`    | `walkgraph.bin`, `osm-extract.bin`  |
+//! | `osm`       | `raw/osm/switzerland-latest.osm.pbf`    | `walkgraph.bin`, `osm-extract.bin`, `walkattr.bin` |
 //! | `links`     | the three files above                   | `links.bin`                         |
 //! | `search`    | `timetable.bin`, the PBF                | `search.bin`                        |
 //! | `doors`     | the PBF, `walkgraph.bin`, `osm-extract.bin`, `raw/register/adr.csv.zip` | `doors.bin` (again whenever `osm` runs) |
@@ -77,6 +77,7 @@ pub fn run(args: &Args) -> Result<()> {
     let tt_path = built.join("timetable.bin");
     let graph_path = built.join("walkgraph.bin");
     let extract_path = built.join("osm-extract.bin");
+    let attrs_path = built.join("walkattr.bin");
     let links_path = built.join("links.bin");
     let search_path = built.join("search.bin");
     let doors_path = built.join("doors.bin");
@@ -100,7 +101,7 @@ pub fn run(args: &Args) -> Result<()> {
 
     // buildings: obstacles for the straight lines across squares, and the doors
     let mut buildings: Option<kante_osm::buildings::BuildingsRaw> = None;
-    let osm_wanted = wanted("osm", &[(&graph_path, WALKGRAPH_SCHEMA), (&extract_path, EXTRACT_SCHEMA)]);
+    let osm_wanted = wanted("osm", &[(&graph_path, WALKGRAPH_SCHEMA), (&extract_path, EXTRACT_SCHEMA), (&attrs_path, WALKATTR_SCHEMA)]);
     // the doors refer to the graph's edges: built again with the graph, and whenever they belong to another one
     let doors_wanted = wanted("doors", &[(&doors_path, DOORS_SCHEMA)])
         || (!osm_wanted && only.is_none() && {
@@ -120,7 +121,21 @@ pub fn run(args: &Args) -> Result<()> {
         step("osm", || {
             let (graph, extract, _) = kante_osm::import_full(&kante_osm::OsmOptions { pbf: pbf.clone(), bbox }, buildings.as_ref())?;
             eprintln!("   {} nodes, {} edges, {} platforms", graph.nodes.len(), graph.edges.len(), extract.platforms.len());
+            let (attrs, st) = kante_osm::attrs::import_attrs(&pbf, &graph, bbox.as_ref())?;
+            eprintln!(
+                "   {} edges ({:.0} km) of roads whose sidewalks are drawn apart, {} car-only, {} away from traffic, {} with hours ({} by an area's; {} of {} hours readable), {} crossing=no nodes",
+                st.separate_edges,
+                st.separate_m / 1000.0,
+                st.car_only_edges,
+                st.favoured_edges,
+                st.hours_edges,
+                st.hours_by_area,
+                st.hours_readable,
+                st.hours,
+                st.crossing_no_nodes
+            );
             io::save(&graph_path, WALKGRAPH_SCHEMA, &graph)?;
+            io::save(&attrs_path, WALKATTR_SCHEMA, &attrs)?;
             io::save(&extract_path, EXTRACT_SCHEMA, &extract)
         })?;
     }
@@ -147,7 +162,9 @@ pub fn run(args: &Args) -> Result<()> {
             } else {
                 bail!("no building address register at {} (scripts/fetch-data.sh --register; --without-register builds without it)", reg_path.display());
             };
-            let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
+            let mut graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
+            // the attributes say which carriageways are busy (a door's way out across one counts more)
+            graph.attrs = crate::state::load_attrs(&attrs_path, &graph).unwrap_or_default();
             let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
             let router = kante_walk::WalkRouter::new(Arc::new(graph));
             let (doors, st) = kante_link::doors::build(&raw_b, &register, &router, &extract);
@@ -160,6 +177,9 @@ pub fn run(args: &Args) -> Result<()> {
                 st.unattached,
                 st.through_only
             );
+            let facing = |f: u8| doors.doors.iter().filter(|d| d.faces == f).count();
+            let crossing = doors.attach.iter().filter(|a| a.crosses().is_some()).count();
+            eprintln!("   {} doors look onto their address's street, {} onto another; {} of {} ways out walk over a carriageway", facing(DOOR_FACES_OWN), facing(DOOR_FACES_OTHER), crossing, doors.attach.len());
             if st.register_doors < 1_000_000 && !without_register {
                 bail!("only {} doors from the building address register {}, fewer than a million: not building (--without-register builds without it)", st.register_doors, reg_path.display());
             }
@@ -238,6 +258,7 @@ pub fn run(args: &Args) -> Result<()> {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let mut graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
             graph.slopes = crate::state::load_slopes(&slopes_path, &graph).unwrap_or_default();
+            graph.attrs = crate::state::load_attrs(&attrs_path, &graph).unwrap_or_default();
             let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
             let router = kante_walk::WalkRouter::new(Arc::new(graph));
             let links = kante_link::link(&tt, &router, &extract, &kante_link::LinkOptions { max_transfer_s: 720.0 });

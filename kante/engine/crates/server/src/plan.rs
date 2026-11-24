@@ -28,6 +28,7 @@ pub fn profile_from(o: &json::PlanOptions) -> WalkProfile {
             _ => HillsPref::Normal,
         },
         backwards: false,
+        at: None,
     }
 }
 
@@ -152,6 +153,8 @@ impl App {
     /// quickest ([`ends::walk_within`]).
     #[allow(clippy::too_many_arguments)]
     fn walk_leg_within(&self, kind: &'static str, a: &WalkEnd, b: &WalkEnd, dep: i64, arr: i64, profile: &WalkProfile, limit: Option<f32>) -> json::WalkLeg {
+        // a walk whose time is known avoids ways closed when it sets out (opening hours)
+        let profile = &WalkProfile { at: profile.at.map(|_| WalkTime::from_unix(dep)), ..*profile };
         let speed = profile.speed_mps;
         let mut leg = json::WalkLeg {
             kind,
@@ -169,7 +172,7 @@ impl App {
             lifts: 0,
             escalators: 0,
             step_free: true,
-            unmapped_level_changes: 0,
+            unmapped_level_changes: 0, closed_m: 0,
             slack_s: None,
             official_min_s: None,
             approximate: false,
@@ -264,6 +267,7 @@ impl App {
                 leg.lifts = p.lifts;
                 leg.escalators = p.escalators;
                 leg.unmapped_level_changes = p.unmapped_level_changes;
+                leg.closed_m = p.closed_m.round() as u32;
                 leg.step_free = d.step_free;
                 if kind == "direct" {
                     let secs = w.secs.ceil() as i64;
@@ -680,12 +684,13 @@ impl App {
         let t0 = Instant::now();
         let tt = &self.tt;
         let opt = &req.options;
-        let profile = profile_from(opt);
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+        // the stop searches avoid ways closed at the time asked (each walk drawn: when it sets out)
+        let profile = WalkProfile { at: Some(WalkTime::from_unix(req.time.unwrap_or(now))), ..profile_from(opt) };
         let margin = opt.transfer_margin_s.clamp(0, 1800);
         let max_walk = (opt.max_walk_min.clamp(1.0, 90.0) * 60.0) as Secs;
         let live_arc = self.live_view();
         let live: Option<&dyn LiveView> = live_arc.as_deref();
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
 
         let to_ep = self.resolve(&req.to)?;
         let egress = self.reach(&to_ep, &profile, max_walk, true);
@@ -856,8 +861,9 @@ impl App {
     }
 
     pub fn walk_direct(&self, req: &json::WalkRequest) -> Result<json::WalkLeg, String> {
-        let profile = profile_from(&req.options);
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+        // a walk asked for a time avoids ways closed then (opening hours); without one, every way is open
+        let profile = WalkProfile { at: req.time.map(WalkTime::from_unix), ..profile_from(&req.options) };
+        let now = req.time.unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0));
         let end = |r: &json::PlaceRef| -> Result<WalkEnd, String> {
             // a boarding point: on its own platform and floor, as in a journey's change
             if let Some(q) = r.quay.as_deref().filter(|q| !q.is_empty()) {
@@ -870,7 +876,7 @@ impl App {
             let end = match (p.station, r.exact, self.walk.as_ref()) {
                 (_, true, _) | (_, _, None) => End::exact(p.pos, self.snap_free(p.pos, &profile)),
                 (Some(_), false, Some(w)) => End::station(w, self.doors.as_ref(), p.pos, &profile),
-                (None, false, Some(_)) => self.place_end(p.pos, &profile),
+                (None, false, Some(_)) => self.place_end(p.pos, &profile, Some(p.place.name.as_str())),
             };
             Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })
         };
@@ -1032,7 +1038,7 @@ mod tests {
         let pt = |name: &str| json::WalkPoint { name: name.into(), lat: 0.0, lon: 0.0, quay: None };
         let leg = |kind, s: Option<u32>, e: Option<u32>| json::WalkLeg {
             kind, from: pt("Home"), to: pt("Bern, Zytglogge"), dep: 0, arr: 0, duration_s: 0, distance_m: 0, climb_m: 0, descent_m: 0, flatter: None, stairs_up: 0,
-            stairs_down: 0, lifts: 0, escalators: 0, step_free: false, unmapped_level_changes: 0, slack_s: None,
+            stairs_down: 0, lifts: 0, escalators: 0, step_free: false, unmapped_level_changes: 0, closed_m: 0, slack_s: None,
             official_min_s: None, approximate: s.is_none() && e.is_none(), geometry: vec![], levels: vec![], steps: vec![],
             door: None, start_door: None, covered: vec![], approx_start: s, approx_end: e, network: None,
             no_step_free_door: false, unsure_end: true, drawn_s: None,
@@ -1120,7 +1126,7 @@ mod tests {
         let pt = |name: &str| json::WalkPoint { name: name.into(), lat: 0.0, lon: 0.0, quay: None };
         json::WalkLeg {
             kind: "transfer", from: pt("A"), to: pt("B"), dep: 1000, arr: 1000 + secs, duration_s: secs, distance_m: 300, climb_m: climb,
-            descent_m: 0, flatter: None, stairs_up: 0, stairs_down: 0, lifts: 0, escalators: 0, step_free: true, unmapped_level_changes: 0,
+            descent_m: 0, flatter: None, stairs_up: 0, stairs_down: 0, lifts: 0, escalators: 0, step_free: true, unmapped_level_changes: 0, closed_m: 0,
             slack_s: None, official_min_s: None, approximate: false, geometry: vec![], levels: vec![], steps: vec![], door: None,
             start_door: None, covered: vec![], approx_start: None, approx_end: None, network: None, no_step_free_door: false,
             unsure_end: false, drawn_s: Some(drawn),

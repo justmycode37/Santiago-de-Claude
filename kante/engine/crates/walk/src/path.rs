@@ -353,5 +353,5 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
             _ => covered.push((p.v0, p.v1, c)),
         }
     }
-    WalkPath { cost, dist_m, climb_m, descent_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, geometry, levels, steps, covered }
+    WalkPath { cost, dist_m, climb_m, descent_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, closed_m: legs.iter().map(|l| l.closed_m).sum(), geometry, levels, steps, covered }
 }

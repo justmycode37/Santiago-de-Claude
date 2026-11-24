@@ -58,6 +58,21 @@ impl World {
         }
         ns
     }
+    /// [`World::way`] with a street name.
+    pub fn named_way(&mut self, a: (f32, f32), b: (f32, f32), n: usize, kind: EdgeKind, name: &str) -> Vec<u32> {
+        let first = self.g.edges.len();
+        let ns = self.way(a, b, n, kind, 0);
+        self.g.names.push(name.to_string());
+        let ix = self.g.names.len() as u32 - 1;
+        for e in &mut self.g.edges[first..] {
+            e.name = ix;
+        }
+        ns
+    }
+    /// A door with its address.
+    pub fn door_addr(&mut self, b: u32, x: f32, y: f32, kind: DoorKind, addr: &str) {
+        self.b.entrances.push(EntranceRaw { pos: pt(x, y), building: b, kind, wheelchair: DOOR_WC_UNKNOWN, addr: addr.to_string() });
+    }
     pub fn building(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) -> u32 {
         self.b.buildings.push(BuildingRaw { outer: vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)], holes: vec![] });
         self.b.buildings.len() as u32 - 1

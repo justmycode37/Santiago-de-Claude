@@ -158,6 +158,10 @@ pub struct WalkRequest {
     /// again: what there is time for).
     #[serde(default)]
     pub limit_s: Option<f32>,
+    /// When the walk sets out (Unix seconds): ways closed then (opening hours) are avoided. Without it every way is
+    /// open, and the walk is timed from now.
+    #[serde(default)]
+    pub time: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -296,6 +300,9 @@ pub struct WalkLeg {
     pub step_free: bool,
     #[serde(skip_serializing_if = "is_zero")]
     pub unmapped_level_changes: u8,
+    /// Metres on ways closed at the walk's time (opening hours), taken because no open way would do.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub closed_m: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slack_s: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]

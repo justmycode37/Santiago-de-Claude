@@ -61,32 +61,38 @@ impl Heap {
         Some((f32::from_bits((top >> 32) as u32), top as u32))
     }
 }
-
-// Node state slots.
+// Search state slots. A search state is a routing node, or at a junction with transition costs one arc into it
+// (`Net::jun`); `st` has one block per state.
 const S_STAMP: usize = 0;
 const S_DIST: usize = 1;
 const S_VAR: usize = 2;
 const S_FIX: usize = 3;
+/// The arc the state was reached along (or a seed tag).
 const S_PARC: usize = 4;
+/// The state that arc left from (or `SEED_FWD` / `SEED_BACK`).
 const S_PNODE: usize = 5;
-/// one_to_many: stamp of a target end node that is not settled yet.
+/// On a node's own block: stamp of a target end node that is not settled yet. On a junction's state: the
+/// junction's node.
 const S_MARK: usize = 6;
-/// route: cached heuristic.
+/// route: cached heuristic; many-to-many: which source the label comes from.
 const S_H: usize = 7;
 
-/// `S_PNODE` of a seed node: reached along the source edge towards `b` / `a`.
+/// `S_PNODE` of a seed state: reached along the source edge towards `b` / `a`.
 const SEED_FWD: u32 = u32::MAX;
 const SEED_BACK: u32 = u32::MAX - 1;
 
 struct Scratch {
     gen: u32,
-    /// One zero-initialised (lazily mapped) block per routing node.
+    /// One zero-initialised (lazily mapped) block per search state.
     st: Vec<[u32; 8]>,
     heap: Heap,
     table: CostTable,
-    /// The profile the table is for, and whether it is the walked-time one ([`CostTable::fill_walked`]).
+    /// The profile the table is for (its time left out: hours are set apart), and whether it is the walked-time
+    /// one ([`CostTable::fill_walked`]).
     table_for: Option<(WalkProfile, bool)>,
     targets: Vec<TargetEnds>,
+    /// Per junction reached: the best label settled at it (generalised seconds) and the stamp it is for.
+    best: Vec<(u32, f32)>,
 }
 
 #[derive(Clone, Copy)]
@@ -99,25 +105,33 @@ struct TargetEnds {
 }
 
 impl Scratch {
-    fn begin(&mut self, nodes: usize, profile: &WalkProfile, walked: bool) {
-        if self.st.len() < nodes {
-            self.st = vec![[0u32; 8]; nodes];
+    fn begin(&mut self, net: &Net, profile: &WalkProfile, walked: bool) {
+        let states = net.ns as usize;
+        if self.st.len() < states {
+            self.st = vec![[0u32; 8]; states];
+            self.gen = 0;
+        }
+        if self.best.len() < net.jun.node.len() {
+            self.best = vec![(0, 0.0); net.jun.node.len()];
             self.gen = 0;
         }
         if self.gen >= u32::MAX - 2 {
             self.st.iter_mut().for_each(|s| *s = [0; 8]);
+            self.best.iter_mut().for_each(|b| *b = (0, 0.0));
             self.gen = 0;
         }
         self.gen += 1;
         self.heap.v.clear();
-        if self.table_for != Some((*profile, walked)) {
+        let key = WalkProfile { at: None, ..*profile };
+        if self.table_for != Some((key, walked)) {
             if walked {
                 self.table.fill_walked(profile);
             } else {
                 self.table.fill(profile);
             }
-            self.table_for = Some((*profile, walked));
+            self.table_for = Some((key, walked));
         }
+        self.table.set_time(net, profile.at);
     }
 }
 
@@ -129,6 +143,7 @@ thread_local! {
         table: CostTable::new(),
         table_for: None,
         targets: Vec::new(),
+        best: Vec::new(),
     });
 }
 
@@ -138,6 +153,9 @@ thread_local! {
 /// rough ground in a wheelchair (×1.8), and a few avoided stair flights; and
 /// hills: a walk climbing all the way at 10 % feels about 1.3 × as long to a
 /// walker who minds them a little, 2 × to one who avoids them, more in a wheelchair.
+/// Not a carriageway whose sidewalks are drawn apart (×4), a way closed at the time (×5) or a long walk of many
+/// turns: a walk the bound misses is found by the search by time walked ([`crate::WalkRouter::quickest_many`]),
+/// which decides whether a stop is reached.
 fn bound_slack(p: &WalkProfile) -> f32 {
     let base = if p.wheelchair {
         2.0
@@ -153,8 +171,12 @@ fn bound_slack(p: &WalkProfile) -> f32 {
     }
 }
 
+/// Writes a label into a state's block if it is better; `node` is the state's routing node (kept on a junction's
+/// state).
 #[inline]
-fn relax(s: &mut [u32; 8], gen: u32, nd: f32, var: f32, fix: f32, parc: u32, pnode: u32) -> bool {
+#[allow(clippy::too_many_arguments)]
+fn relax(st: &mut [[u32; 8]], n: u32, state: u32, node: u32, gen: u32, nd: f32, var: f32, fix: f32, parc: u32, pnode: u32) -> bool {
+    let s = &mut st[state as usize];
     if s[S_STAMP] != gen || nd < f32::from_bits(s[S_DIST]) {
         s[S_STAMP] = gen;
         s[S_DIST] = nd.to_bits();
@@ -162,10 +184,35 @@ fn relax(s: &mut [u32; 8], gen: u32, nd: f32, var: f32, fix: f32, parc: u32, pno
         s[S_FIX] = fix.to_bits();
         s[S_PARC] = parc;
         s[S_PNODE] = pnode;
+        if state >= n {
+            s[S_MARK] = node;
+        }
         true
     } else {
         false
     }
+}
+
+/// The routing node of a state that has a label (read from its block on a junction's state).
+#[inline]
+fn node_of(st: &[[u32; 8]], n: u32, state: u32) -> u32 {
+    if state < n {
+        state
+    } else {
+        st[state as usize][S_MARK]
+    }
+}
+
+/// The generalised seconds of leaving a state along out-arc `i` of its node (0 off a junction), `None` if not
+/// allowed.
+#[inline]
+fn leave(net: &Net, t: &CostTable, state: u32, node: u32, i: usize) -> Option<f32> {
+    if state < net.n {
+        return Some(0.0);
+    }
+    let j = net.jun.of(node)?;
+    let k = (state - net.jun.base[j]) as usize;
+    t.trans(net.jun.units(j, k, i))
 }
 
 /// Seeds the two ends of the source edge, reached at a cost already (`gen0` generalised seconds, `var0` metres),
@@ -178,21 +225,22 @@ fn seed_with(g: &WalkGraph, net: &Net, s: &mut Scratch, from: &Snap, h: impl Fn(
     let f = from.frac.clamp(0.0, 1.0);
     let ea = net.edge_arcs(g, from.edge);
     let gen = s.gen;
-    for (arc, node, scale, mark) in [(ea.fwd, ea.ib, 1.0 - f, SEED_FWD), (ea.back, ea.ia, f, SEED_BACK)] {
+    for (arc, scale, mark) in [(ea.fwd, 1.0 - f, SEED_FWD), (ea.back, f, SEED_BACK)] {
         if arc == NO_NODE {
             continue;
         }
+        let a = &net.arcs[arc as usize];
         // Leaving the edge means passing its end node.
-        if !s.table.through(&net.arcs[arc as usize]) {
+        if !s.table.through(a) {
             continue;
         }
-        let (gc, var, fix) = s.table.arc(&net.arcs[arc as usize], scale);
+        let (gc, var, fix) = s.table.arc(net, a, scale);
         if !gc.is_finite() {
             continue;
         }
         let (gc, var) = (gc + gen0, var + var0);
-        if relax(&mut s.st[node as usize], gen, gc, var, fix, tag, mark) {
-            s.heap.push(gc + h(node), node);
+        if relax(&mut s.st, net.n, a.state, a.head, gen, gc, var, fix, tag, mark) {
+            s.heap.push(gc + h(a.head), a.state);
         }
     }
     true
@@ -221,6 +269,20 @@ pub(crate) fn many_to_many_raw(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f3
     many_to_many_mode(g, net, froms, targets, profile, max_time_s, false)
 }
 
+/// Is a popped state worth expanding? At a junction, not when another of its states settled so much cheaper that
+/// no transition could make this one's way on better (the junction's largest transition cost).
+#[inline]
+fn dominated(net: &Net, best: &mut [(u32, f32)], gen: u32, node: u32, d: f32) -> bool {
+    let Some(j) = net.jun.of(node) else { return false };
+    let b = &mut best[j];
+    if b.0 != gen {
+        *b = (gen, d);
+        return false;
+    }
+    let max = net.jun.max[j];
+    max != crate::net::TRANS_BLOCKED && d > b.1 + max as f32 * crate::net::TRANS_UNIT_S
+}
+
 /// [`many_to_many_raw`], or with `walked` by the time walked alone (no preferences, no slack): the quickest walk to
 /// each target within `max_time_s` (plus the largest offset), and which source it comes from.
 pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32, walked: bool) -> Vec<Option<(usize, WalkCost, f32)>> {
@@ -230,18 +292,23 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
     }
     SCRATCH.with(|cell| {
         let s = &mut *cell.borrow_mut();
-        s.begin(net.n as usize, profile, walked);
+        s.begin(net, profile, walked);
         let speed = profile.speed_mps.max(0.05);
         let gen = s.gen;
+        let n = net.n;
         let mut any = false;
         for (i, (f, var0, pen)) in froms.iter().enumerate() {
             any |= seed_with(g, net, s, f, |_| 0.0, var0 / speed + pen, *var0, seed_tag(i));
-            // which source a node's label comes from (S_H is free in this search)
+            // which source a state's label comes from (S_H)
             if (f.edge as usize) < g.edges.len() {
                 let src = net.edge_arcs(g, f.edge);
-                for node in [src.ia, src.ib] {
-                    if node != NO_NODE && s.st[node as usize][S_STAMP] == gen && s.st[node as usize][S_PARC] == seed_tag(i) {
-                        s.st[node as usize][S_H] = i as u32;
+                for arc in [src.fwd, src.back] {
+                    if arc == NO_NODE {
+                        continue;
+                    }
+                    let st = net.arcs[arc as usize].state as usize;
+                    if s.st[st][S_STAMP] == gen && s.st[st][S_PARC] == seed_tag(i) {
+                        s.st[st][S_H] = i as u32;
                     }
                 }
             }
@@ -252,9 +319,10 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
         // a source's offset (its metres to the network, and its route-choice penalty) may not eat into the bound: the
         // walk from it is bounded as one from a source without them (as one_to_many adds those metres only after)
         let slack = if walked { 1.0 } else { bound_slack(profile) };
-        let bound = max_time_s * slack + froms.iter().map(|f| f.1 / speed + f.2).fold(0.0, f32::max);
+        let extra = if walked || net.jun.node.is_empty() { 0.0 } else { crate::net::TRANS_SLACK_S };
+        let bound = max_time_s * slack + extra + froms.iter().map(|f| f.1 / speed + f.2).fold(0.0, f32::max);
 
-        // Mark the nodes from which a target can be finished.
+        // Mark the nodes from which a target can be finished (on the node's own block).
         let mut tends = std::mem::take(&mut s.targets);
         tends.clear();
         let mut remaining = 0u32;
@@ -280,43 +348,59 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
         let t = &s.table;
         let st = &mut s.st;
         let heap = &mut s.heap;
-        while remaining > 0 {
+        let best = &mut s.best;
+        // once every target's end node is settled, the search goes on while a junction's other arrivals could
+        // still finish it more cheaply (its largest transition cost)
+        let mut deadline = f32::NEG_INFINITY;
+        loop {
             let Some((d, u)) = heap.pop() else { break };
             let su = st[u as usize];
             if d > f32::from_bits(su[S_DIST]) {
                 continue; // stale
             }
-            if d > bound {
+            if d > bound || (remaining == 0 && d > deadline) {
                 break;
             }
-            if su[S_MARK] == gen {
-                st[u as usize][S_MARK] = 0;
+            let v = node_of(st, n, u);
+            if st[v as usize][S_MARK] == gen && (u >= n || u == v) {
+                st[v as usize][S_MARK] = 0;
                 remaining -= 1;
-                if remaining == 0 {
-                    break;
-                }
+                // (at a junction with a way blocked, another arrival may be the only one allowed on: to the bound)
+                let slack = net.jun.of(v).map_or(0.0, |j| if net.jun.max[j] == crate::net::TRANS_BLOCKED { f32::INFINITY } else { net.jun.max[j] as f32 * crate::net::TRANS_UNIT_S });
+                deadline = deadline.max(d + slack);
+            }
+            if dominated(net, best, gen, v, d) {
+                continue;
             }
             let (var, fix) = (f32::from_bits(su[S_VAR]), f32::from_bits(su[S_FIX]));
-            for a in &net.arcs[net.out(u)] {
-                let c = a.cls as usize;
-                let sh = a.share as f32;
-                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c] + t.slope_gen(a);
-                if !(nd <= bound) || a.head_block & t.head_mask != 0 {
+            let r = net.out(v);
+            for (i, a) in net.arcs[r].iter().enumerate() {
+                if a.head_block & t.head_mask != 0 {
                     continue;
                 }
-                let sv = &mut st[a.head as usize];
+                let Some(tc) = leave(net, t, u, v, i) else { continue };
+                let c = a.cls as usize;
+                let sh = a.share as f32;
+                let nd = d + tc + a.len_m * t.gen_per_m(net, a) + sh * t.gen_c[c] + t.slope_gen(a);
+                if !(nd <= bound) {
+                    continue;
+                }
+                let sv = &mut st[a.state as usize];
                 if sv[S_STAMP] != gen || nd < f32::from_bits(sv[S_DIST]) {
                     sv[S_STAMP] = gen;
                     sv[S_DIST] = nd.to_bits();
                     sv[S_VAR] = (var + a.len_m * t.var_m[c] + t.slope_var(a)).to_bits();
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_H] = su[S_H];
-                    heap.push(nd, a.head);
+                    if a.state >= n {
+                        sv[S_MARK] = a.head;
+                    }
+                    heap.push(nd, a.state);
                 }
             }
         }
 
-        // Finish each target inside its edge.
+        // Finish each target inside its edge, from every arrival at its end nodes.
         for (i, (tg, te)) in targets.iter().zip(&tends).enumerate() {
             if te.ia == NO_NODE {
                 continue;
@@ -328,17 +412,25 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
                 if arc == NO_NODE {
                     continue;
                 }
-                let sn = &st[node as usize];
-                if sn[S_STAMP] != gen {
+                let a = &net.arcs[arc as usize];
+                let (gc, var, fix) = t.arc(net, a, scale);
+                if !gc.is_finite() {
                     continue;
                 }
-                let d = f32::from_bits(sn[S_DIST]);
-                if d > bound {
-                    continue;
-                }
-                let (gc, var, fix) = t.arc(&net.arcs[arc as usize], scale);
-                if d + gc < best.0 {
-                    best = (d + gc, f32::from_bits(sn[S_VAR]) + var, f32::from_bits(sn[S_FIX]) + fix, sn[S_H] as usize);
+                let slot = arc as usize - net.out(node).start;
+                for state in net.states_of(node) {
+                    let sn = &st[state as usize];
+                    if sn[S_STAMP] != gen {
+                        continue;
+                    }
+                    let d = f32::from_bits(sn[S_DIST]);
+                    if d > bound {
+                        continue;
+                    }
+                    let Some(tc) = leave(net, t, state, node, slot) else { continue };
+                    if d + tc + gc < best.0 {
+                        best = (d + tc + gc, f32::from_bits(sn[S_VAR]) + var, f32::from_bits(sn[S_FIX]) + fix, sn[S_H] as usize);
+                    }
                 }
             }
             for (k, (from, var0, pen)) in froms.iter().enumerate().filter(|(_, f)| f.0.edge == tg.edge) {
@@ -346,7 +438,7 @@ pub(crate) fn many_to_many_mode(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f
                 let src = net.edge_arcs(g, from.edge);
                 let (arc, scale) = if ft >= fs { (src.fwd, ft - fs) } else { (src.back, fs - ft) };
                 if arc != NO_NODE {
-                    let (gc, var, fix) = t.arc(&net.arcs[arc as usize], scale);
+                    let (gc, var, fix) = t.arc(net, &net.arcs[arc as usize], scale);
                     let gc = gc + var0 / speed + pen;
                     if gc < best.0 {
                         best = (gc, var + var0, fix, k);
@@ -377,6 +469,8 @@ pub(crate) struct Leg {
     pub fix_s: f32,
     /// Graph node at the end of the leg, `NO_NODE` when it ends inside an edge.
     pub end_node: u32,
+    /// Metres of it on a way closed at the walk's time ([`crate::WalkPath::closed_m`]).
+    pub closed_m: f32,
 }
 
 /// A* from `from` to `to`. Returns the legs in travel order.
@@ -384,7 +478,7 @@ pub(crate) fn route(g: &WalkGraph, net: &Net, from: &Snap, to: &Snap, profile: &
     route_between(g, net, &[(*from, 0.0, 0.0)], &[(*to, 0.0, 0.0)], profile, false).map(|r| r.2)
 }
 
-/// `S_PARC` of a node reached straight from source `i` of a search (not along an arc).
+/// `S_PARC` of a state reached straight from source `i` of a search (not along an arc).
 #[inline]
 fn seed_tag(i: usize) -> u32 {
     NO_NODE - i as u32
@@ -406,15 +500,18 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
     }
     SCRATCH.with(|cell| {
         let s = &mut *cell.borrow_mut();
-        s.begin(net.n as usize, profile, walked);
+        s.begin(net, profile, walked);
         let gen = s.gen;
+        let n = net.n;
         let speed = profile.speed_mps.max(0.05);
         let off = |f: &(Snap, f32, f32)| f.1 / speed + f.2;
 
         // Admissible bound: nothing covers ground faster than walking (or an
-        // escalator, for a very slow walker); 0.5 % for the planar metric.
+        // escalator, for a very slow walker) on the way this walker likes best
+        // (the smallest route-choice multiplier); 0.5 % for the planar metric.
         // The nearest target, offsets left out.
-        let rate = (1.0 / speed).min(1.0 / ESCALATOR_MPS) * 0.995;
+        let plain = (1.0 / speed).min(1.0 / ESCALATOR_MPS) * 0.995;
+        let rate = if walked || !crate::net::rules::is_on(crate::net::rules::FAVOURED) { plain } else { plain * crate::net::rules::favoured_mult() };
         let kx = (1e-7 * M_PER_DEG_LAT * (g.nodes[g.edges[tos[0].1 .0.edge as usize].a as usize].lat as f64 * 1e-7).to_radians().cos()) as f32;
         let ky = (1e-7 * M_PER_DEG_LAT) as f32;
         // The bound must aim at the real end points, whatever `pos` says.
@@ -438,16 +535,17 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
             rate * if node >= n0 { (d - slack).max(0.0) } else { d }
         };
 
-        // Cost of finishing each target from each end of its edge: (node, fwd?, target k, generalised)
-        let mut fins: Vec<(u32, bool, usize, f32)> = Vec::new();
+        // Cost of finishing each target from each end of its edge: (node, slot of the arc there, target k,
+        // generalised cost of the arc's part with the target's offset, fwd?)
+        let mut fins: Vec<(u32, usize, usize, f32, bool)> = Vec::new();
         for (k, (_, t)) in tos.iter().enumerate() {
             let ft = t.0.frac.clamp(0.0, 1.0);
             let dst = net.edge_arcs(g, t.0.edge);
             if dst.fwd != NO_NODE {
-                fins.push((dst.ia, true, k, s.table.arc(&net.arcs[dst.fwd as usize], ft).0 + off(t)));
+                fins.push((dst.ia, dst.fwd as usize - net.out(dst.ia).start, k, s.table.arc(net, &net.arcs[dst.fwd as usize], ft).0 + off(t), true));
             }
             if dst.back != NO_NODE {
-                fins.push((dst.ib, false, k, s.table.arc(&net.arcs[dst.back as usize], 1.0 - ft).0 + off(t)));
+                fins.push((dst.ib, dst.back as usize - net.out(dst.ib).start, k, s.table.arc(net, &net.arcs[dst.back as usize], 1.0 - ft).0 + off(t), false));
             }
         }
         fins.retain(|f| f.3.is_finite());
@@ -456,8 +554,8 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
         }
 
         // best = (generalised total, how: 0 direct from a source on the target's edge, 1 via its a, 2 via its b,
-        // that source, that target)
-        let mut best = (f32::INFINITY, 0u8, 0usize, 0usize);
+        // that source, that target, the state finished from)
+        let mut best = (f32::INFINITY, 0u8, 0usize, 0usize, NO_NODE);
         for &(i, f) in &froms {
             for (k, (_, t)) in tos.iter().enumerate() {
                 if f.0.edge != t.0.edge {
@@ -467,16 +565,16 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                 let src = net.edge_arcs(g, f.0.edge);
                 let (arc, scale) = if ft >= fs { (src.fwd, ft - fs) } else { (src.back, fs - ft) };
                 if arc != NO_NODE {
-                    let (gc, _, _) = s.table.arc(&net.arcs[arc as usize], scale);
+                    let (gc, _, _) = s.table.arc(net, &net.arcs[arc as usize], scale);
                     let c = gc + off(f) + off(t);
                     if gc.is_finite() && c < best.0 {
-                        best = (c, 0, i, k);
+                        best = (c, 0, i, k, NO_NODE);
                     }
                 }
             }
         }
         // Give up beyond four times the beeline plus half an hour, the beeline to the farthest end point (so that
-        // more end points never cut a walk to one of them short).
+        // more end points never cut a walk to one of them short). At the plain walking rate, whatever the A* bound.
         let h_far = |node: u32| -> f32 {
             let p = &g.nodes[net.orig_node(node) as usize];
             let mut d2 = 0f32;
@@ -484,7 +582,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                 let (dx, dy) = ((p.lon - tlon) as f32 * kx, (p.lat - tlat) as f32 * ky);
                 d2 = d2.max(dx * dx + dy * dy);
             }
-            rate * d2.sqrt()
+            plain * d2.sqrt()
         };
         let mut any = false;
         let mut cap = 0f32;
@@ -493,9 +591,13 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                 any = true;
             }
             let src = net.edge_arcs(g, f.0.edge);
-            for node in [src.ia, src.ib] {
-                if s.st[node as usize][S_STAMP] == gen {
-                    s.st[node as usize][S_H] = h(node).to_bits();
+            for arc in [src.fwd, src.back] {
+                if arc == NO_NODE {
+                    continue;
+                }
+                let a = &net.arcs[arc as usize];
+                if s.st[a.state as usize][S_STAMP] == gen {
+                    s.st[a.state as usize][S_H] = h(a.head).to_bits();
                 }
             }
             cap = cap.max(h_far(src.ia).max(h_far(src.ib)) * 4.0 + 1800.0 + off(f));
@@ -507,6 +609,7 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
         let t = &s.table;
         let st = &mut s.st;
         let heap = &mut s.heap;
+        let bests = &mut s.best;
         while let Some((key, u)) = heap.pop() {
             if key >= best.0 || key > cap {
                 break;
@@ -516,24 +619,36 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
             if key > d + f32::from_bits(su[S_H]) {
                 continue; // stale
             }
-            if su[S_MARK] == gen {
-                for &(node, fwd, k, c) in &fins {
-                    if node == u && d + c < best.0 {
-                        best = (d + c, if fwd { 1 } else { 2 }, 0, k);
+            let v = node_of(st, n, u);
+            if st[v as usize][S_MARK] == gen {
+                for &(node, slot, k, c, fwd) in &fins {
+                    if node == v {
+                        if let Some(tc) = leave(net, t, u, v, slot) {
+                            if d + tc + c < best.0 {
+                                best = (d + tc + c, if fwd { 1 } else { 2 }, 0, k, u);
+                            }
+                        }
                     }
                 }
             }
+            if dominated(net, bests, gen, v, d) {
+                continue;
+            }
             let (var, fix) = (f32::from_bits(su[S_VAR]), f32::from_bits(su[S_FIX]));
-            let r = net.out(u);
+            let r = net.out(v);
             let base = r.start;
             for (i, a) in net.arcs[r].iter().enumerate() {
-                let c = a.cls as usize;
-                let sh = a.share as f32;
-                let nd = d + a.len_m * t.gen_m[c] + sh * t.gen_c[c] + t.slope_gen(a);
-                if !(nd < best.0) || a.head_block & t.head_mask != 0 {
+                if a.head_block & t.head_mask != 0 {
                     continue;
                 }
-                let sv = &mut st[a.head as usize];
+                let Some(tc) = leave(net, t, u, v, i) else { continue };
+                let c = a.cls as usize;
+                let sh = a.share as f32;
+                let nd = d + tc + a.len_m * t.gen_per_m(net, a) + sh * t.gen_c[c] + t.slope_gen(a);
+                if !(nd < best.0) {
+                    continue;
+                }
+                let sv = &mut st[a.state as usize];
                 let fresh = sv[S_STAMP] != gen;
                 if fresh || nd < f32::from_bits(sv[S_DIST]) {
                     if fresh {
@@ -545,7 +660,10 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
                     sv[S_FIX] = (fix + a.len_m * t.fix_m[c] + sh * t.fix_c[c]).to_bits();
                     sv[S_PARC] = (base + i) as u32;
                     sv[S_PNODE] = u;
-                    heap.push(nd + f32::from_bits(sv[S_H]), a.head);
+                    if a.state >= n {
+                        sv[S_MARK] = a.head;
+                    }
+                    heap.push(nd + f32::from_bits(sv[S_H]), a.state);
                 }
             }
         }
@@ -555,8 +673,10 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
 
         // ---- unpack
         let leg_of = |arc: &Arc, f0: f32, f1: f32, end_node: u32| -> Leg {
-            let (_, var_m, fix_s) = t.arc(arc, (f1 - f0).abs());
-            Leg { edge: arc.edge(), f0, f1, cls: arc.cls, len_m: arc.len_m * (f1 - f0).abs(), var_m, fix_s, end_node }
+            let (_, var_m, fix_s) = t.arc(net, arc, (f1 - f0).abs());
+            let len_m = arc.len_m * (f1 - f0).abs();
+            let closed_m = if t.is_closed(net, arc) { len_m } else { 0.0 };
+            Leg { edge: arc.edge(), f0, f1, cls: arc.cls, len_m, var_m, fix_s, end_node, closed_m }
         };
         let (target, to) = (tos[best.3].0, &tos[best.3].1 .0);
         let ft = to.frac.clamp(0.0, 1.0);
@@ -570,17 +690,16 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
             return Some((best.2, target, legs, best.0));
         }
         // Last leg first, then back along the parents.
-        let mut node = if best.1 == 1 {
+        if best.1 == 1 {
             legs.push(leg_of(&net.arcs[dst.fwd as usize], 0.0, ft, NO_NODE));
-            dst.ia
         } else {
             legs.push(leg_of(&net.arcs[dst.back as usize], 1.0, ft, NO_NODE));
-            dst.ib
-        };
+        }
+        let mut state = best.4;
         let mut guard = 0usize;
         let source;
         loop {
-            let sn = &st[node as usize];
+            let sn = &st[state as usize];
             let (parc, pnode) = (sn[S_PARC], sn[S_PNODE]);
             if parc > NO_NODE - MAX_SOURCES as u32 {
                 // reached straight from a source, along its edge
@@ -599,9 +718,9 @@ pub(crate) fn route_between(g: &WalkGraph, net: &Net, froms: &[(Snap, f32, f32)]
             let arc = &net.arcs[parc as usize];
             let (f0, f1) = if arc.rev() { (1.0, 0.0) } else { (0.0, 1.0) };
             legs.push(leg_of(arc, f0, f1, net.orig_node(arc.head)));
-            node = pnode;
+            state = pnode;
             guard += 1;
-            if guard > net.n as usize {
+            if guard > net.ns as usize {
                 return None; // corrupted parents; cannot happen
             }
         }

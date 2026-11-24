@@ -14,7 +14,7 @@
 //! - **Through a building** ([`crate::doors::through_building`]): such a line counts four times its length plus
 //!   200 m in route choice, and a walk that takes it is drawn as a guess and is not step-free.
 
-use crate::doors::{line_weight_m, DoorIndex, NO_STEP};
+use crate::doors::{addr_holds, crosses_carriageway, line_weight_crossing_m, line_weight_m, DoorIndex, NO_STEP};
 use kante_core::geo::LatLon;
 use kante_core::walk::*;
 use kante_walk::{SnapOptions, WalkCost, WalkPath, WalkRouter};
@@ -70,11 +70,22 @@ pub struct End {
     pub on_track: bool,
 }
 
-/// The extra route-choice seconds of a straight line `dist_m` long onto `edge` ([`line_weight_m`]).
-fn line_pen(g: &WalkGraph, edge: u32, dist_m: f32, wall: bool, speed: f32) -> f32 {
-    let busy = g.edges[edge as usize].kind == EdgeKind::RoadBusy;
-    (line_weight_m(dist_m, busy, wall) - dist_m) / speed
+/// The extra route-choice seconds of a straight line `dist_m` long onto `edge` ([`line_weight_m`]): onto a main road
+/// walked on the carriageway, or onto a carriageway whose sidewalks are drawn apart, four times; walking over another
+/// carriageway on the way ([`crosses_carriageway`]) as [`line_weight_crossing_m`] counts it.
+fn line_pen(g: &WalkGraph, edge: u32, dist_m: f32, wall: bool, crosses: Option<bool>, speed: f32) -> f32 {
+    let apart = kante_walk::rules::is_on(kante_walk::rules::LINES) && g.attrs.fits(g) && g.attrs.edge(edge) & EA_SIDEWALK_SEPARATE != 0 && g.edges[edge as usize].flags & EF_HAS_SIDEWALK == 0;
+    let busy = g.edges[edge as usize].kind == EdgeKind::RoadBusy || apart;
+    (line_weight_crossing_m(dist_m, busy, wall, crosses) - dist_m) / speed
 }
+
+/// Route choice for a building's door beyond its kind ([`DoorKind::penalty_m`]), in metres
+/// (`KANTE_WALK_RULES_OFF=doors` leaves it out): another mapped door than the main entrance, 3 m; a door that looks
+/// onto another street than its address's (a side or back door), 15 m; when the place asked for is an address that
+/// another door of the building has, 20 m.
+pub const DOOR_NOT_MAIN_M: f32 = 3.0;
+pub const DOOR_OTHER_STREET_M: f32 = 15.0;
+pub const DOOR_OTHER_ADDRESS_M: f32 = 20.0;
 
 fn on_ground(g: &WalkGraph, s: &Snap) -> bool {
     let e = &g.edges[s.edge as usize];
@@ -200,7 +211,8 @@ impl End {
                 let wall = doors.is_some_and(|ix| ix.through(pos, s.pos, if covered { 5.0 } else { 0.0 }));
                 let track = doors.is_some_and(|ix| ix.crosses_track(pos, s.pos));
                 let doubt = doubt_of(wall || track || off_floor(g, &s), s.dist_m);
-                Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall || track, speed), door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt }
+                let crosses = crosses_carriageway(router, pos, s.pos, s.edge);
+                Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall || track, crosses, speed), door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt }
             })
             .collect();
         End { pos, joins, ..Default::default() }
@@ -231,6 +243,12 @@ impl End {
     /// A place (an address, a pin, the user): the point itself, by each of its straight lines onto the network
     /// ([`point_candidates`]), and the doors of the building it is in.
     pub fn place(router: &WalkRouter, doors: Option<&DoorIndex>, pos: LatLon, profile: &WalkProfile) -> End {
+        Self::place_at(router, doors, pos, profile, None)
+    }
+
+    /// [`End::place`] of a place asked for by its address ("Bundesgasse 3"): a door of its building with that address
+    /// is preferred to the others ([`DOOR_OTHER_ADDRESS_M`]).
+    pub fn place_at(router: &WalkRouter, doors: Option<&DoorIndex>, pos: LatLon, profile: &WalkProfile, addr: Option<&str>) -> End {
         let g = router.graph();
         let speed = profile.speed_mps.max(0.05);
         let mut end = End { pos, ..Default::default() };
@@ -244,14 +262,18 @@ impl End {
             let floor = off_floor_from(g, &s, up);
             let off = if floor { OFF_GROUND_M / speed } else { 0.0 };
             let doubt = doubt_of(wall || track || floor, s.dist_m);
-            end.joins.push(Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall || track, speed) + off, door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt });
+            let crosses = crosses_carriageway(router, pos, s.pos, s.edge);
+            end.joins.push(Join { snap: s, extra_m: s.dist_m, pen_s: line_pen(g, s.edge, s.dist_m, wall || track, crosses, speed) + off, door: None, inside_m: 0.0, wall, unsure: doubt > 0, doubt });
         }
         let Some(ix) = doors else { return end };
         let d = &ix.doors;
         let strict = profile.wheelchair || profile.is_step_free();
         let (mut barred, mut open) = (0, 0);
+        let prefs = kante_walk::rules::is_on(kante_walk::rules::DOORS);
         for b in ix.buildings_at(pos) {
             end.in_building = true;
+            // the address asked for, when a door of this building has it
+            let wanted = addr.filter(|a| prefs && !a.is_empty() && d.doors_of(b).any(|di| addr_holds(d.addr_of(di), a)));
             for di in d.doors_of(b) {
                 let door = &d.doors[di as usize];
                 if strict && door.wheelchair == DOOR_WC_NO {
@@ -260,7 +282,18 @@ impl End {
                 }
                 open += 1;
                 // a step-free walker prefers a door known to be step-free
-                let kind_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
+                let mut kind_m = door.kind.penalty_m() + if strict && door.wheelchair != DOOR_WC_YES { 5.0 } else { 0.0 };
+                if prefs {
+                    if matches!(door.kind, DoorKind::Yes | DoorKind::Shop | DoorKind::Home) {
+                        kind_m += DOOR_NOT_MAIN_M;
+                    }
+                    if door.faces == DOOR_FACES_OTHER {
+                        kind_m += DOOR_OTHER_STREET_M;
+                    }
+                    if wanted.is_some_and(|a| !addr_holds(d.addr_of(di), a)) {
+                        kind_m += DOOR_OTHER_ADDRESS_M;
+                    }
+                }
                 let inside_m = pos.dist_m(&door.pos);
                 // inside to the door: through another building that overlaps this one, or out of this one and back
                 // (its own outline is not tested as a wall: a point near it and the door on it would both touch it)
@@ -269,7 +302,7 @@ impl End {
                     let snap = Snap { dist_m: a.dist_m(), ..router.snap_at(a.edge, a.frac()) };
                     let wall = a.through() || inside_wall;
                     let inside_pen = if inside_wall { (line_weight_m(inside_m, false, true) - inside_m) / speed } else { 0.0 };
-                    let pen_s = kind_m / speed + line_pen(g, a.edge, a.dist_m(), a.through(), speed) + inside_pen;
+                    let pen_s = kind_m / speed + line_pen(g, a.edge, a.dist_m(), a.through(), a.crosses(), speed) + inside_pen;
                     end.joins.push(Join { snap, extra_m: inside_m + a.dist_m(), pen_s, door: Some(di), inside_m, wall, unsure: doubt_of(wall || off_floor(g, &snap), a.dist_m()) > 0, doubt: doubt_of(wall || off_floor(g, &snap), a.dist_m()) });
                 }
             }
@@ -464,7 +497,11 @@ pub fn walk_within(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile,
 fn walk_ends(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile, limit_s: Option<f32>) -> Option<Walk> {
     let (sa, sb) = (a.sources(), b.sources());
     let best = router.route_between(&sa, &sb, profile).map(|(i, j, path, _)| walk_of(a, b, i, j, path, profile));
-    let Some(limit) = limit_s else { return best };
+    let Some(limit) = limit_s else {
+        // a long walk whose preferences make it feel longer than the search gives itself (four times the beeline
+        // and half an hour): the quickest one, as before preferences counted
+        return best.or_else(|| router.quickest_between(&sa, &sb, profile).map(|(i, j, path, _)| walk_of(a, b, i, j, path, profile)));
+    };
     // within the limit as the stop search counts it: in whole seconds, rounded up
     let within = |w: &Walk| w.secs.ceil() <= limit.ceil() + 1e-3;
     if best.as_ref().is_some_and(within) {

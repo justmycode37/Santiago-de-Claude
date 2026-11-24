@@ -21,7 +21,7 @@ fn main() {
         let o = &v["options"];
         let stairs = match o["stairs"].as_str() { Some("never") => StairsPref::Never, Some("avoid") => StairsPref::Avoid, _ => StairsPref::Ok };
         let wc = o["wheelchair"].as_bool().unwrap_or(false);
-        let prof = WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wc, lifts: true, wheelchair: wc };
+        let prof = WalkProfile { speed_mps: 1.3, stairs, escalators: o["escalators"].as_bool().unwrap_or(true) && !wc, lifts: true, wheelchair: wc, ..WalkProfile::normal(1.3) };
         let max = v["limit"].as_f64().unwrap_or(20.0) as f32 * 60.0;
         let res = match (snap(&v["b_start"]), snap(&v["b_target"])) {
             (Some(s), Some(t)) => r.one_to_many(&s, &[t], &prof, max)[0].map(|c| walk_secs(c.var_m + s.dist_m + t.dist_m, c.fix_s, 1.3).ceil() + 30.0).filter(|secs| *secs <= max),

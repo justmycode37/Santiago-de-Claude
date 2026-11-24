@@ -124,7 +124,7 @@
 mod index;
 mod net;
 mod path;
-pub use net::{LevelJoin, LevelJoinKind};
+pub use net::{rules, LevelJoin, LevelJoinKind};
 mod search;
 mod steps;
 #[cfg(test)]
@@ -204,6 +204,9 @@ pub struct WalkPath {
     /// for step-free and wheelchair profiles. A walk with any of these is not
     /// known to be step-free even if `stairs_up + stairs_down == 0`.
     pub unmapped_level_changes: u8,
+    /// Metres on ways whose opening hours or closing condition exclude the walk's time (`WalkProfile::at`): taken
+    /// only when no open way would do.
+    pub closed_m: f32,
     /// Snapped start → edges → snapped end. At a lift the same position
     /// appears twice, once per level.
     pub geometry: Vec<LatLon>,
@@ -382,7 +385,7 @@ impl WalkRouter {
                 continue;
             }
             for a in &self.net.arcs[self.net.out(r)] {
-                out.push((r, self.net.orig_node(a.head), a.edge(), a.cls, a.len_m, a.head_block));
+                out.push((r, self.net.orig_node(a.head), a.edge(), a.cls, a.len_m, a.head_block & 7));
             }
         }
         out
@@ -433,6 +436,13 @@ impl WalkRouter {
     pub fn route_edges(&self, from: &Snap, to: &Snap, profile: &WalkProfile) -> Option<Vec<(u32, f32, f32)>> {
         let legs = search::route(&self.graph, &self.net, from, to, profile)?;
         Some(legs.iter().filter(|l| l.edge != net::NO_EDGE).map(|l| (l.edge, l.f0, l.f1)).collect())
+    }
+
+    /// Passing graph node `node` from edge `e_in` to edge `e_out`: the route-choice seconds of the turn and of
+    /// walking over busy roads where no crossing is mapped, and whether it is not allowed (`crossing=no`), as the
+    /// rules on now count them (for tools that measure walks).
+    pub fn transition(&self, node: u32, e_in: u32, e_out: u32) -> (f32, f32, bool) {
+        self.net.transition(&self.graph, node, e_in, e_out)
     }
 
     /// Edges intersecting `bbox` (for map overlays), ascending.
