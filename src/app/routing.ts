@@ -285,6 +285,7 @@ function refineStationWalk(st: JourneyWalkStep | JourneyChangeStep, plan: Statio
 // an answer for an older revision (the walk has been moved or rerouted since) is dropped.
 function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
   const first = st.walkRev == null;
+  st._modelDrawn = false; // routed on the street: it follows the time there is
   const current = newWalkRev(st);
   const lines = st.lines || [];
   const goal = (line: LngLat[], k: number) => (k === lines.length - 1 ? walkGoal(st, line[line.length - 1]) : line[line.length - 1]);
