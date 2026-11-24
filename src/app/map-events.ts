@@ -2,9 +2,9 @@
 // Which events show is set on the Settings page (settings.ts). Language courses and other events for newcomers only
 // show for those who said they are new to Switzerland; anyone can still pick them as a category in the search.
 import { map } from './map.ts';
-import { STYLES, STYLE_URL, makeDarkStyle } from '../map-style.ts';
+import { SATELLITE_STYLE_URL, STYLES, STYLE_URL, makeDarkStyle } from '../map-style.ts';
 import { currentTheme, onThemeChange, root, setTheme, themeMeta } from '../theme.ts';
-import { eventsBtn } from './menu.ts';
+import { eventsBtn, viewOptions, viewsBtn } from './menu.ts';
 import { showToast } from '../toast.ts';
 import { CATEGORY_CARDS } from './categories.ts';
 import { EMPTY_FC, PLATFORM_FC, PLATFORM_MIN_ZOOM, platformLayers, platformsOnMap, startPlatforms } from './platforms.ts';
@@ -144,10 +144,43 @@ export function setEventsOn(enabled: boolean) {
   updatePlaces();
 }
 
+// ---------- Views: Normal (the plain map) or Satellite (••• › Views), remembered on this device ----------
+export type MapView = 'map' | 'satellite';
+const VIEW_KEY = 'mapView';
+export let mapView: MapView = (() => {
+  try { return localStorage.getItem(VIEW_KEY) === 'satellite' ? 'satellite' : 'map'; } catch (e) { return 'map'; }
+})();
+// The satellite style is the same in light and dark (photos); fetched the first time it is shown
+let satelliteStyle: maplibregl.StyleSpecification | null = null;
+let satelliteLoad: Promise<maplibregl.StyleSpecification> | null = null;
+function loadSatellite(): Promise<maplibregl.StyleSpecification> {
+  satelliteLoad ||= fetch(SATELLITE_STYLE_URL)
+    .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<maplibregl.StyleSpecification>; })
+    .then((st) => (satelliteStyle = st))
+    .catch((e: unknown) => { satelliteLoad = null; throw e; }); // try again on the next tap
+  return satelliteLoad;
+}
+function showView() {
+  viewsBtn.classList.toggle('active', mapView === 'satellite');
+  viewOptions.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === mapView)));
+}
+/** Switches between the plain map and the satellite view and remembers the choice. Resolves once it is drawn in. */
+export function setMapView(view: MapView): Promise<void> {
+  mapView = view;
+  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+  showView();
+  if (view === 'map') { applyMapTheme(true); return Promise.resolve(); }
+  return loadSatellite().then(() => { if (mapView === 'satellite') applyMapTheme(true); }, (e: unknown) => {
+    if (mapView === 'satellite') setMapView('map');
+    throw e;
+  });
+}
+
 function applyMapTheme(diff: boolean) {
   const theme = currentTheme();
-  if (!STYLES[theme]) return;
-  const style = structuredClone(STYLES[theme]);
+  const base = mapView === 'satellite' && satelliteStyle ? satelliteStyle : STYLES[theme];
+  if (!base) return;
+  const style = structuredClone(base);
   // Dots only show from zoom 17, so tiles past 17 are scaled up from 17 instead of being cut again
   style.sources.platforms = { type: 'geojson', data: platformsOnMap ? PLATFORM_FC : EMPTY_FC, maxzoom: PLATFORM_MIN_ZOOM };
   style.sources.route = { type: 'geojson', data: ROUTE_FC };
@@ -164,6 +197,8 @@ function applyMapTheme(diff: boolean) {
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
   onThemeChange(() => applyMapTheme(true)); // a new theme from Settings or the system: the map's style follows
+  showView();
+  if (mapView === 'satellite') setMapView('satellite').catch(() => showToast('The satellite view could not be loaded.'));
   map.on('moveend', updateCards);
   map.on('zoom', () => {
     if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
