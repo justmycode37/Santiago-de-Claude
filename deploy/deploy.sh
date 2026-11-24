@@ -87,6 +87,17 @@ sync_units() { # new or changed systemd units from the repository (e.g. a new ti
   return 0
 }
 
+doors_note() { # buildings' doors: about 2.9 million, 2.7 million of them from the address register (/api/meta)
+  local d r
+  read -r d r < <(curl -fsS -m 5 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null \
+    | python3 -c 'import json,sys; c=json.load(sys.stdin)["counts"]; print(c.get("doors", 0), c.get("registerDoors", 0))' 2>/dev/null || echo 0 0)
+  if (( ${r:-0} < 1000000 )); then
+    log "warning: ${d:-0} doors, only ${r:-0} from the building address register"
+  else
+    log "${d} doors, ${r} from the building address register"
+  fi
+}
+
 live_note() { # not a reason to go back (the key may be missing or the feed down), but worth a line in the log
   local i
   [[ -s $ROOT/secrets/otd.json ]] || return 0
@@ -157,6 +168,7 @@ main() {
   if healthy; then
     echo "$tree" > "$ROOT/state/tree"
     log "${new:0:7} is live"
+    doors_note
     live_note
     # keep this release and the one before it
     find "$ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -2 | xargs -r rm -rf

@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     }
     let tt: Timetable = io::load(a[0].as_ref(), TIMETABLE_SCHEMA)?;
     let graph: WalkGraph = io::load(a[1].as_ref(), WALKGRAPH_SCHEMA)?;
-    let extract: OsmExtract = io::load(a[2].as_ref(), "osm-extract-v1")?;
+    let extract: OsmExtract = io::load(a[2].as_ref(), kante_core::walk::EXTRACT_SCHEMA)?;
     let t = Instant::now();
     let router = kante_walk::WalkRouter::new(Arc::new(graph));
     eprintln!("walk index {:.2}s", t.elapsed().as_secs_f32());

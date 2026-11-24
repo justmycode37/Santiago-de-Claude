@@ -22,7 +22,8 @@ use crate::timetable::StopIdx;
 use serde::{Deserialize, Serialize};
 
 pub const WALKGRAPH_SCHEMA: &str = "walkgraph-v1";
-pub const LINKS_SCHEMA: &str = "links-v2";
+pub const LINKS_SCHEMA: &str = "links-v3";
+pub const EXTRACT_SCHEMA: &str = "osm-extract-v2";
 
 pub const STAIRS_FACTOR: f32 = 2.2;
 pub const LIFT_S: f32 = 50.0;
@@ -244,6 +245,8 @@ pub struct Carriageway {
     pub geom_len: u16,
     /// Index into `OsmExtract::carriageway_names`; 0 = unnamed.
     pub name: u32,
+    /// In a tunnel, on a bridge, or on another floor (`tunnel`, `bridge`, `layer`, `level`): not on the ground.
+    pub off_ground: bool,
 }
 
 /// Everything the OSM import hands to the linker besides the graph itself.
@@ -401,4 +404,225 @@ pub struct LinkData {
     pub normal: Footpaths,
     /// Shortest walks without stairs or escalators (wheelchair rules).
     pub step_free: Footpaths,
+    /// What the links were made from: [`graph_fingerprint`] of the walk graph and
+    /// [`crate::Timetable::stops_fingerprint`] of the timetable (stops are linked by index, edges by number).
+    pub graph: u64,
+    pub timetable: u64,
+}
+
+// ---------------------------------------------------------------- doors
+
+pub const DOORS_SCHEMA: &str = "doors-v5";
+
+/// What kind of way into a building a [`Door`] is: OSM `entrance=*` (or a bare
+/// `door=*`), or a point of the official building address register.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum DoorKind {
+    Main = 0,
+    /// `entrance=yes`, a bare `door=*`, or an entrance value not listed here.
+    Yes = 1,
+    Shop = 2,
+    Home = 3,
+    Staircase = 4,
+    Service = 5,
+    Exit = 6,
+    Emergency = 7,
+    Garage = 8,
+    /// `access=private|no` on an entrance that is not the main one.
+    Private = 9,
+    /// No door is mapped for the building: a point of the official building
+    /// address register, put on the stretch of outline facing the open.
+    Address = 10,
+}
+
+impl DoorKind {
+    /// How much worse than the best door this kind is, in metres of walking
+    /// (route choice only): back doors, garages and emergency exits only when
+    /// there is nothing else; a register point when no mapped door is near.
+    pub fn penalty_m(self) -> f32 {
+        match self {
+            DoorKind::Main | DoorKind::Yes | DoorKind::Shop | DoorKind::Home => 0.0,
+            DoorKind::Staircase => 2.0,
+            DoorKind::Address => 10.0,
+            DoorKind::Service => 40.0,
+            DoorKind::Exit => 60.0,
+            DoorKind::Garage => 120.0,
+            DoorKind::Emergency | DoorKind::Private => 200.0,
+        }
+    }
+    /// OSM-style word for the API (`entrance=*`), `addr` for a register point.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DoorKind::Main => "main",
+            DoorKind::Yes => "yes",
+            DoorKind::Shop => "shop",
+            DoorKind::Home => "home",
+            DoorKind::Staircase => "staircase",
+            DoorKind::Service => "service",
+            DoorKind::Exit => "exit",
+            DoorKind::Emergency => "emergency",
+            DoorKind::Garage => "garage",
+            DoorKind::Private => "private",
+            DoorKind::Address => "addr",
+        }
+    }
+}
+
+/// `Door::wheelchair`: OSM `wheelchair=*` on the entrance.
+pub const DOOR_WC_UNKNOWN: u8 = 0;
+pub const DOOR_WC_YES: u8 = 1;
+pub const DOOR_WC_NO: u8 = 2;
+pub const DOOR_WC_LIMITED: u8 = 3;
+
+/// A way from a door onto the walking network: the straight line from the
+/// door to `edge` at `frac`, `dist_m` long. It crosses no railway track on the
+/// ground; one that runs through a building is marked (`through`). Stored in
+/// 8 bytes.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DoorAttach {
+    pub edge: u32,
+    /// Fraction of the edge × 65 535.
+    pub frac_q: u16,
+    /// Decimetres; the top bit: the line runs through a building (the way round it is not mapped: a guess).
+    pub dist_dm: u16,
+}
+
+impl DoorAttach {
+    const THROUGH: u16 = 1 << 15;
+    pub fn new(edge: u32, frac: f32, dist_m: f32, through: bool) -> Self {
+        let dm = (dist_m * 10.0).round().min(32767.0) as u16;
+        DoorAttach { edge, frac_q: (frac.clamp(0.0, 1.0) * 65535.0).round() as u16, dist_dm: dm | if through { Self::THROUGH } else { 0 } }
+    }
+    /// The line runs through a building: the walk round it is not mapped.
+    #[inline]
+    pub fn through(&self) -> bool {
+        self.dist_dm & Self::THROUGH != 0
+    }
+    #[inline]
+    pub fn frac(&self) -> f32 {
+        self.frac_q as f32 / 65535.0
+    }
+    #[inline]
+    pub fn dist_m(&self) -> f32 {
+        (self.dist_dm & !Self::THROUGH) as f32 * 0.1
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct Door {
+    pub pos: LatLon,
+    pub kind: DoorKind,
+    /// `DOOR_WC_*`.
+    pub wheelchair: u8,
+    /// The door's address ("Bundesgasse 3", "Bahnhofstrasse 12, 12a"):
+    /// `Doors::addr[addr_off .. addr_off + addr_len]`, empty if none.
+    pub addr_off: u32,
+    pub addr_len: u16,
+    /// `Doors::attach[attach_off .. attach_off + attach_len]`, best first;
+    /// empty when no walkable way is within reach (the door is then not used,
+    /// but its building still counts as one: a walk into it is a guess).
+    pub attach_off: u32,
+    pub attach_len: u8,
+}
+
+/// A building of OpenStreetMap, with its doors if it has any. Its outline (an
+/// outer ring of a multipolygon building is a building of its own) and its
+/// courtyards, each stored open, are `Doors::ring[ring_off .. ring_off +
+/// ring_len]` as offsets from `origin` in 1e-6 degrees (about 10 cm; a
+/// building is never 3 km across), the rings separated by [`RING_BREAK`].
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DoorBuilding {
+    pub origin: LatLon,
+    pub ring_off: u32,
+    pub ring_len: u16,
+    pub door_len: u16,
+    pub door_off: u32,
+}
+
+/// Every building and its doors, for walks that start in or end at a building
+/// and for telling a straight line through a building (`kante-link::doors`).
+/// Built from OSM and the official building address register; see
+/// `kante/docs/WALK-ENDS.md`.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Doors {
+    pub buildings: Vec<DoorBuilding>,
+    pub ring: Vec<[i16; 2]>,
+    pub doors: Vec<Door>,
+    pub attach: Vec<DoorAttach>,
+    pub addr: String,
+    /// [`graph_fingerprint`] of the graph the attachments refer to.
+    pub graph: u64,
+    /// Railway tracks on the ground, segment by segment: a straight line onto the network across one is a guess.
+    pub rails: Vec<[LatLon; 2]>,
+}
+
+/// Between two rings of a building in `Doors::ring`.
+pub const RING_BREAK: [i16; 2] = [i16::MIN, i16::MIN];
+
+/// Changes whenever the graph does: nodes, edges (ends, kind, levels, flags, length) and every point of their
+/// geometry. Ties caches that refer to edges by number to the graph they were made for.
+pub fn graph_fingerprint(g: &WalkGraph) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut mix = |v: u64| {
+        h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
+    };
+    mix(g.nodes.len() as u64);
+    mix(g.edges.len() as u64);
+    for e in &g.edges {
+        mix(((e.a as u64) << 32) | e.b as u64);
+        mix(((e.len_dm as u64) << 32) | ((e.flags as u64) << 16) | ((e.kind as u64) << 8) | e.steps as u64);
+        mix(((e.level_a as u8 as u64) << 48) | ((e.level_b as u8 as u64) << 40) | ((e.geom_len as u64) << 32) | e.geom_off as u64);
+    }
+    for n in &g.nodes {
+        mix(((n.lat as u32 as u64) << 32) | n.lon as u32 as u64);
+    }
+    for p in &g.geom {
+        mix(((p.lat as u32 as u64) << 32) | p.lon as u32 as u64);
+    }
+    h
+}
+
+impl Doors {
+    /// The rings of building `b`: its outline, then its courtyards.
+    pub fn rings_of(&self, b: u32) -> Vec<Vec<LatLon>> {
+        let r = &self.buildings[b as usize];
+        let o = r.origin;
+        self.ring[r.ring_off as usize..r.ring_off as usize + r.ring_len as usize]
+            .split(|d| *d == RING_BREAK)
+            .map(|ring| ring.iter().map(|d| LatLon { lat: o.lat + d[0] as i32 * 10, lon: o.lon + d[1] as i32 * 10 }).collect())
+            .collect()
+    }
+    /// Rings as stored: offsets from `origin`, [`RING_BREAK`] between them; None if a ring is too big for them.
+    pub fn pack_rings(origin: LatLon, rings: &[&[LatLon]]) -> Option<Vec<[i16; 2]>> {
+        let mut out = Vec::new();
+        for (i, ring) in rings.iter().enumerate() {
+            if i > 0 {
+                out.push(RING_BREAK);
+            }
+            for p in ring.iter() {
+                let (dl, dn) = ((p.lat - origin.lat) as f64 / 10.0, (p.lon - origin.lon) as f64 / 10.0);
+                if !(dl.abs() < 32000.0 && dn.abs() < 32000.0) {
+                    return None;
+                }
+                out.push([dl.round() as i16, dn.round() as i16]);
+            }
+        }
+        Some(out)
+    }
+    #[inline]
+    pub fn doors_of(&self, b: u32) -> std::ops::Range<u32> {
+        let r = &self.buildings[b as usize];
+        r.door_off..r.door_off + r.door_len as u32
+    }
+    #[inline]
+    pub fn addr_of(&self, d: u32) -> &str {
+        let d = &self.doors[d as usize];
+        &self.addr[d.addr_off as usize..d.addr_off as usize + d.addr_len as usize]
+    }
+    #[inline]
+    pub fn attach_of(&self, d: u32) -> &[DoorAttach] {
+        let d = &self.doors[d as usize];
+        &self.attach[d.attach_off as usize..d.attach_off as usize + d.attach_len as usize]
+    }
 }

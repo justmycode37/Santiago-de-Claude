@@ -60,6 +60,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/stream", get(stream))
         .route("/api/plan", post(plan))
         .route("/api/walk", post(walk))
+        .route("/api/reach", post(reach))
         .with_state(app)
 }
 
@@ -92,6 +93,8 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
             quays: tt.stops.len(),
             trips: tt.trips.len(),
             walk_edges: app.walk.as_ref().map(|w| w.graph().edges.len()).unwrap_or(0),
+            doors: app.doors.as_ref().map(|d| d.doors.doors.len()).unwrap_or(0),
+            register_doors: app.doors.as_ref().map(|d| d.register_doors).unwrap_or(0),
         },
         attribution: vec!["Timetable and real-time data: opentransportdata.swiss", "Walking network: © OpenStreetMap contributors (ODbL)", "Base map: © swisstopo"],
         commit: BUILD_COMMIT,
@@ -161,7 +164,7 @@ fn fallback_station_search(app: &App, q: &str, near: Option<LatLon>, limit: usiz
 
 /// GET /api/reverse?lat=&lon= → the place a dropped pin should be called.
 async fn reverse(State(app): S, Q(p): Q<LatLonParams>) -> Result<Json<json::Place>, ApiError> {
-    let r = json::PlaceRef { id: None, lat: Some(p.lat), lon: Some(p.lon), name: None };
+    let r = json::PlaceRef { id: None, lat: Some(p.lat), lon: Some(p.lon), name: None, quay: None, exact: false };
     app.resolve(&r).map(|e| Json(e.place)).map_err(bad)
 }
 
@@ -496,6 +499,32 @@ async fn match_trip(State(app): S, Q(p): Q<MatchParams>) -> Result<Json<json::Ma
 
 async fn plan(State(app): S, Json(req): Json<json::PlanRequest>) -> Result<Json<json::PlanResponse>, ApiError> {
     let res = tokio::task::spawn_blocking(move || app.plan(&req)).await.map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    res.map(Json).map_err(bad)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReachRequest {
+    from: json::PlaceRef,
+    #[serde(default)]
+    options: json::PlanOptions,
+}
+
+/// POST /api/reach {from, options} → `{"stops": [[quay id, seconds], …]}`: the boarding points a journey planned
+/// from (or to) this place may walk to within `options.maxWalkMin`, with the seconds it counts for each (the 30 s
+/// access buffer included). For comparing builds of the engine (`kante/tools/compare`).
+async fn reach(State(app): S, Json(req): Json<ReachRequest>) -> Result<Json<serde_json::Value>, ApiError> {
+    let res = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        let profile = crate::plan::profile_from(&req.options);
+        let ep = app.resolve(&req.from)?;
+        let max_s = (req.options.max_walk_min.clamp(1.0, 90.0) * 60.0) as time::Secs;
+        let r = app.reach(&ep, &profile, max_s);
+        // [quay id, seconds, how: station | point | door | line]
+        let stops: Vec<(String, time::Secs, &str)> = r.stops.iter().map(|&(s, t)| (app.tt.stops[s as usize].gtfs_id.clone(), t, r.via.get(&s).copied().unwrap_or(""))).collect();
+        Ok(serde_json::json!({ "stops": stops }))
+    })
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     res.map(Json).map_err(bad)
 }
 

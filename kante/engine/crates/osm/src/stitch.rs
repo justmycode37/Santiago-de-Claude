@@ -15,6 +15,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub const STITCH_MAX_M: f32 = 25.0;
 /// Components at least this long are never treated as fragments.
 pub const ANCHOR_M: f64 = 2000.0;
+// (the length of a component's ways, see `components_with`)
 /// Components shorter than this are removed after stitching.
 pub const PRUNE_BELOW_M: f64 = 150.0;
 
@@ -37,8 +38,18 @@ fn cells_of(a: LatLon, b: LatLon, pad: f32) -> impl Iterator<Item = (i32, i32)> 
 }
 
 /// Component id per node (edges marked dead are ignored), with length and
-/// "contains a platform" per component.
+/// "contains a platform" per component. The length for telling a platform
+/// fragment from the network ([`ANCHOR_M`]) is [`fragment_len`].
 pub(crate) fn components(b: &Builder) -> (Vec<u32>, Vec<f64>, Vec<bool>) {
+    let (comp, len, plat, _) = components_with(b);
+    (comp, len, plat)
+}
+
+/// [`components`] with each component's length of ways: without the straight
+/// lines across platform polygons (made by `join_inside` every 20 m along a
+/// long platform, and the polygon's own diagonals), which would make a long
+/// island platform look like a piece of the network and leave it unstitched.
+fn components_with(b: &Builder) -> (Vec<u32>, Vec<f64>, Vec<bool>, Vec<f64>) {
     let n = b.gpos.len();
     let mut parent: Vec<u32> = (0..n as u32).collect();
     fn find(p: &mut [u32], mut x: u32) -> u32 {
@@ -69,6 +80,7 @@ pub(crate) fn components(b: &Builder) -> (Vec<u32>, Vec<f64>, Vec<bool>) {
         comp[i as usize] = id[r as usize];
     }
     let mut len = vec![0f64; k as usize];
+    let mut ways = vec![0f64; k as usize];
     let mut plat = vec![false; k as usize];
     for (i, e) in b.edges.iter().enumerate() {
         if b.dead[i] {
@@ -76,11 +88,14 @@ pub(crate) fn components(b: &Builder) -> (Vec<u32>, Vec<f64>, Vec<bool>) {
         }
         let c = comp[e.a as usize] as usize;
         len[c] += e.len_dm as f64 * 0.1;
+        if !(e.kind == EdgeKind::Platform && e.flags & EF_AREA != 0) {
+            ways[c] += e.len_dm as f64 * 0.1;
+        }
         if e.kind == EdgeKind::Platform {
             plat[c] = true;
         }
     }
-    (comp, len, plat)
+    (comp, len, plat, ways)
 }
 
 #[inline]
@@ -116,7 +131,7 @@ fn seg_cross(p: LatLon, q: LatLon, u: LatLon, v: LatLon) -> bool {
 /// Join platform fragments to the network. One round; returns the number of
 /// fragments joined.
 pub(crate) fn stitch_round(b: &mut Builder, ways: &Ways, keep: &[bool]) -> u64 {
-    let (comp, clen, cplat) = components(b);
+    let (comp, _, cplat, clen) = components_with(b);
     // fragment nodes with the level they stand on
     let mut frag_level: FxHashMap<u32, Level2> = FxHashMap::default();
     for (i, e) in b.edges.iter().enumerate() {

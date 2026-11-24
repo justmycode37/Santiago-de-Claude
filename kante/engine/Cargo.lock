@@ -585,10 +585,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "kante-core",
+ "kante-osm",
  "kante-walk",
  "rayon",
  "rustc-hash",
  "serde",
+ "serde_json",
+ "zip",
 ]
 
 [[package]]
@@ -653,6 +656,7 @@ dependencies = [
  "kante-rt",
  "kante-search",
  "kante-walk",
+ "libc",
  "parking_lot",
  "rayon",
  "rustc-hash",

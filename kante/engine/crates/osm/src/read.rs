@@ -14,7 +14,7 @@ use rustc_hash::FxHashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-fn for_each_block<T: Send>(pbf: &Path, f: impl Fn(&PrimitiveBlock) -> Option<T> + Sync + Send) -> Result<Vec<T>> {
+pub(crate) fn for_each_block<T: Send>(pbf: &Path, f: impl Fn(&PrimitiveBlock) -> Option<T> + Sync + Send) -> Result<Vec<T>> {
     let reader = BlobReader::from_path(pbf).with_context(|| format!("open {}", pbf.display()))?;
     let res: Result<Vec<Option<T>>> = reader
         .par_bridge()
@@ -262,10 +262,12 @@ pub fn read_ways(pbf: &Path, rels: &Relations) -> Result<Ways> {
                     rel = ri;
                     class.roles |= R_MEMBER;
                     if class.roles & R_WALK == 0 {
-                        // Ring of a walkable area: the outline is walked with the area's class.
+                        // Ring of a walkable area: the outline is walked with the area's class. A lift shaft drawn
+                        // as a hole in the platform or hall around it is that and stays a lift too: it is entered
+                        // from the area's edge.
                         let rc = &rels.areas[ri as usize].class;
                         if rc.roles & R_WALK != 0 {
-                            let keep = class.roles & !(R_AREA | R_LIFT | R_LIFT_PRIVATE);
+                            let keep = class.roles & !R_AREA;
                             class = WayClass { roles: keep | R_WALK | R_INHERITED, kind: rc.kind, flags: rc.flags, level: rc.level, incline: 0, step_count: 0, layer: rc.layer };
                             name = &rels.areas[ri as usize].name;
                         }

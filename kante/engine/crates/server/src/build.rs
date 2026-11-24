@@ -9,6 +9,11 @@
 //! | `osm`       | `raw/osm/switzerland-latest.osm.pbf`    | `walkgraph.bin`, `osm-extract.bin`  |
 //! | `links`     | the three files above                   | `links.bin`                         |
 //! | `search`    | `timetable.bin`, the PBF                | `search.bin`                        |
+//! | `doors`     | the PBF, `walkgraph.bin`, `osm-extract.bin`, `raw/register/adr.csv.zip` | `doors.bin` (again whenever `osm` runs) |
+//!
+//! The building address register gives most buildings their doors: without it (missing, unreadable, or fewer than a
+//! million doors from it) the build fails, unless `--without-register` (a regional extract, a test) says to build
+//! with OpenStreetMap's doors only.
 
 use crate::Args;
 use anyhow::{bail, Context, Result};
@@ -18,13 +23,18 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-pub const EXTRACT_SCHEMA: &str = "osm-extract-v1";
 
 fn step<T>(name: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     eprintln!("== {name}");
     let t = Instant::now();
     let r = f().with_context(|| name.to_string())?;
     eprintln!("== {name} done in {:.1}s", t.elapsed().as_secs_f32());
+    // hand what the step freed back to the system, so the next one does not add its peak on top
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    // SAFETY: malloc_trim only releases free heap memory; no Rust object is touched.
+    unsafe {
+        libc::malloc_trim(0);
+    }
     Ok(r)
 }
 
@@ -42,10 +52,13 @@ pub fn run(args: &Args) -> Result<()> {
     let built = data.join("built");
     std::fs::create_dir_all(&built)?;
     let force = args.has("force");
+    let without_register = args.has("without-register");
     let only: Option<Vec<&str>> = args.get("only").map(|s| s.split(',').collect());
-    let wanted = |name: &str, outputs: &[&Path]| match &only {
+    // a step runs when one of its outputs is missing or was written in an older format (a cache the server would
+    // refuse), or when it is named in --only
+    let wanted = |name: &str, outputs: &[(&Path, &str)]| match &only {
         Some(list) => list.contains(&name),
-        None => force || outputs.iter().any(|p| !p.exists()),
+        None => force || outputs.iter().any(|(p, schema)| io::schema_of(p).as_deref() != Some(*schema)),
     };
     let bbox = args.get("walk-bbox").map(parse_bbox).transpose()?;
 
@@ -54,9 +67,11 @@ pub fn run(args: &Args) -> Result<()> {
     let extract_path = built.join("osm-extract.bin");
     let links_path = built.join("links.bin");
     let search_path = built.join("search.bin");
+    let doors_path = built.join("doors.bin");
     let pbf = raw.join("osm/switzerland-latest.osm.pbf");
 
-    if wanted("timetable", &[&tt_path]) {
+    let tt_wanted = wanted("timetable", &[(&tt_path, TIMETABLE_SCHEMA)]);
+    if tt_wanted {
         step("timetable", || {
             let atlas = raw.join("atlas");
             let tt = kante_gtfs::import(&kante_gtfs::ImportOptions {
@@ -69,16 +84,84 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("osm", &[&graph_path, &extract_path]) {
+    // buildings: obstacles for the straight lines across squares, and the doors
+    let mut buildings: Option<kante_osm::buildings::BuildingsRaw> = None;
+    let osm_wanted = wanted("osm", &[(&graph_path, WALKGRAPH_SCHEMA), (&extract_path, EXTRACT_SCHEMA)]);
+    // the doors refer to the graph's edges: built again with the graph, and whenever they belong to another one
+    let doors_wanted = wanted("doors", &[(&doors_path, DOORS_SCHEMA)])
+        || (!osm_wanted && only.is_none() && {
+            let g = io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).ok();
+            let d = io::load::<Doors>(&doors_path, DOORS_SCHEMA).ok();
+            !matches!((g, d), (Some(g), Some(d)) if d.graph == graph_fingerprint(&g))
+        });
+    if osm_wanted || doors_wanted {
+        step("buildings", || {
+            let b = kante_osm::buildings::import_buildings(&pbf, bbox.as_ref())?;
+            eprintln!("   {} buildings, {} mapped entrances", b.len(), b.entrances.len());
+            buildings = Some(b);
+            Ok(())
+        })?;
+    }
+    if osm_wanted {
         step("osm", || {
-            let (graph, extract) = kante_osm::import(&kante_osm::OsmOptions { pbf: pbf.clone(), bbox })?;
+            let (graph, extract, _) = kante_osm::import_full(&kante_osm::OsmOptions { pbf: pbf.clone(), bbox }, buildings.as_ref())?;
             eprintln!("   {} nodes, {} edges, {} platforms", graph.nodes.len(), graph.edges.len(), extract.platforms.len());
             io::save(&graph_path, WALKGRAPH_SCHEMA, &graph)?;
             io::save(&extract_path, EXTRACT_SCHEMA, &extract)
         })?;
     }
 
-    if wanted("links", &[&links_path]) {
+    // the doors refer to the walk graph's edges: built again whenever the graph is; right after it, so that the
+    // buildings are not held through the steps after (they set the build's peak memory)
+    if osm_wanted || doors_wanted {
+        step("doors", || {
+            let raw_b = buildings.take().expect("buildings read above");
+            // the official address register gives the buildings without a mapped door theirs; without it, OSM's doors only
+            let reg_path = raw.join("register/adr.csv.zip");
+            let register = if reg_path.exists() {
+                match kante_link::register::read(&reg_path, bbox.as_ref()) {
+                    Ok(r) => r,
+                    Err(e) if without_register => {
+                        eprintln!("   warning: {e:#}; doors from OpenStreetMap only (--without-register)");
+                        Vec::new()
+                    }
+                    Err(e) => bail!("the building address register {} cannot be read: {e:#} (scripts/fetch-data.sh --register; --without-register builds without it)", reg_path.display()),
+                }
+            } else if without_register {
+                eprintln!("   no {}: doors from OpenStreetMap only (--without-register)", reg_path.display());
+                Vec::new()
+            } else {
+                bail!("no building address register at {} (scripts/fetch-data.sh --register; --without-register builds without it)", reg_path.display());
+            };
+            let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
+            let extract: OsmExtract = io::load(&extract_path, EXTRACT_SCHEMA)?;
+            let router = kante_walk::WalkRouter::new(Arc::new(graph));
+            let (doors, st) = kante_link::doors::build(&raw_b, &register, &router, &extract);
+            eprintln!(
+                "   {} addresses; {} doors from the register; {} doors, {} buildings ({} doors too far from any way, {} joined only through a building)",
+                register.len(),
+                st.register_doors,
+                doors.doors.len(),
+                doors.buildings.len(),
+                st.unattached,
+                st.through_only
+            );
+            if st.register_doors < 1_000_000 && !without_register {
+                bail!("only {} doors from the building address register {}, fewer than a million: not building (--without-register builds without it)", st.register_doors, reg_path.display());
+            }
+            io::save(&doors_path, DOORS_SCHEMA, &doors)
+        })?;
+    }
+    // the links refer to the graph's edges and the timetable's stops: built again with either, and whenever they
+    // belong to another one (caches upgraded in place)
+    let links_wanted = wanted("links", &[(&links_path, LINKS_SCHEMA)])
+        || (only.is_none() && (osm_wanted || tt_wanted || {
+            let l = io::load::<LinkData>(&links_path, LINKS_SCHEMA).ok();
+            let g = io::load::<WalkGraph>(&graph_path, WALKGRAPH_SCHEMA).ok();
+            let t = io::load::<Timetable>(&tt_path, TIMETABLE_SCHEMA).ok();
+            !matches!((l, g, t), (Some(l), Some(g), Some(t)) if l.graph == graph_fingerprint(&g) && l.timetable == t.stops_fingerprint())
+        }));
+    if links_wanted {
         step("links", || {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let graph: WalkGraph = io::load(&graph_path, WALKGRAPH_SCHEMA)?;
@@ -91,7 +174,7 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("search", &[&search_path]) {
+    if wanted("search", &[(&search_path, "search-v1")]) {
         step("search", || {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let idx = kante_search::build(&tt, pbf.exists().then_some(pbf.as_path()), None)?;

@@ -2,6 +2,7 @@
 //! snapped ends, a level per vertex, totals, and the pieces the instruction
 //! builder works on.
 
+use crate::Cover;
 use crate::net::{steps_as_ramp, C_KIND, K_BOARD, K_JUMP, NO_EDGE};
 use crate::search::Leg;
 use crate::{steps, WalkCost, WalkPath, WalkRouter};
@@ -337,5 +338,13 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
     let escalators = runs(&|c| matches!(c, Cat::Escalator(_) | Cat::Walkway));
 
     let steps = steps::build(g, &geometry, &levels, &pieces);
-    WalkPath { cost, dist_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, geometry, levels, steps }
+    let mut covered: Vec<(u32, u32, Cover)> = Vec::new();
+    for p in pieces.iter().filter(|p| p.edge != NO_EDGE && p.v1 > p.v0) {
+        let Some(c) = Cover::of(p.kind, p.flags) else { continue };
+        match covered.last_mut() {
+            Some(last) if last.2 == c && last.1 == p.v0 => last.1 = p.v1,
+            _ => covered.push((p.v0, p.v1, c)),
+        }
+    }
+    WalkPath { cost, dist_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, geometry, levels, steps, covered }
 }

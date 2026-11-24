@@ -45,3 +45,22 @@ pub fn load<T: DeserializeOwned>(path: &Path, schema: &str) -> Result<T> {
     }
     Ok(bincode::deserialize_from(&mut r)?)
 }
+
+/// The schema a cache file was written with, or None if it is not one (or cannot be read).
+pub fn schema_of(path: &Path) -> Option<String> {
+    let mut r = File::open(path).ok()?;
+    let mut magic = [0u8; 8];
+    r.read_exact(&mut magic).ok()?;
+    if &magic != MAGIC {
+        return None;
+    }
+    let mut len = [0u8; 4];
+    r.read_exact(&mut len).ok()?;
+    let n = u32::from_le_bytes(len) as usize;
+    if n > 256 {
+        return None;
+    }
+    let mut s = vec![0u8; n];
+    r.read_exact(&mut s).ok()?;
+    String::from_utf8(s).ok()
+}

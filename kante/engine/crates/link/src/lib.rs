@@ -89,6 +89,19 @@
 //! unrestricted walk and, where the unrestricted walk exists (the map shows
 //! only stairs), carries two lift rides. These estimates are *not verified*
 //! step-free; the walk router finds no path for them.
+//!
+//! # 4. Buildings, doors and the ends of a walk
+//!
+//! [`doors`] builds every building and its doors (mapped entrances, else points
+//! of the official building address register from [`register`]); [`ends`]
+//! decides where a walk from or to a place joins the network, for the stop
+//! search and the walk drawn alike. Rules: `kante/docs/WALK-ENDS.md`.
+
+pub mod doors;
+pub mod ends;
+pub mod register;
+#[cfg(test)]
+mod test_world;
 
 use kante_core::geo::{self, project_on_segment, BBox, LatLon};
 use kante_core::*;
@@ -895,7 +908,7 @@ pub fn link(tt: &Timetable, router: &WalkRouter, extract: &OsmExtract, opts: &Li
 
     let normal = footpaths(tt, router, &links, &WalkProfile::normal(DEFAULT_SPEED_MPS), opts.max_transfer_s, None);
     let step_free = footpaths(tt, router, &links, &WalkProfile::step_free(DEFAULT_SPEED_MPS), opts.max_transfer_s, Some(&normal));
-    LinkData { links, normal, step_free }
+    LinkData { links, normal, step_free, graph: graph_fingerprint(router.graph()), timetable: tt.stops_fingerprint() }
 }
 
 /// Human-readable summary of how well the linking went, for the build log.
@@ -1023,7 +1036,7 @@ mod tests {
             };
             let off = self.x.carriageway_geom.len() as u32;
             self.x.carriageway_geom.extend(pts.iter().map(|&(x, y)| pt(x, y)));
-            self.x.carriageways.push(Carriageway { kind, geom_off: off, geom_len: pts.len() as u16, name });
+            self.x.carriageways.push(Carriageway { kind, geom_off: off, geom_len: pts.len() as u16, name, off_ground: false });
         }
         fn stop(&mut self, x: f32, y: f32, label: &str, mode: Mode) -> usize {
             if self.tt.stations.is_empty() {

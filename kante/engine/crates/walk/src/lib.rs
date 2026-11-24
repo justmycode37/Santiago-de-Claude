@@ -198,6 +198,45 @@ pub struct WalkPath {
     /// Level per geometry vertex, LEVEL_NONE where unknown.
     pub levels: Vec<Level2>,
     pub steps: Vec<PathStep>,
+    /// Stretches under a roof: (first vertex, last vertex, what covers them), in order.
+    pub covered: Vec<(u32, u32, Cover)>,
+}
+
+/// What a covered stretch of a walk runs under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub enum Cover {
+    /// `covered=*` along a street (arcades, colonnades, roofs).
+    Arcade,
+    /// `tunnel=building_passage`: through a building.
+    Passage,
+    /// `tunnel=*`: an underpass.
+    Underpass,
+    /// Corridors and `indoor=*` ways.
+    Indoors,
+}
+
+impl Cover {
+    pub fn of(kind: EdgeKind, flags: u16) -> Option<Cover> {
+        if flags & EF_INDOOR != 0 || kind == EdgeKind::Corridor {
+            Some(Cover::Indoors)
+        } else if flags & EF_TUNNEL != 0 && flags & EF_COVERED != 0 {
+            Some(Cover::Passage)
+        } else if flags & EF_COVERED != 0 {
+            Some(Cover::Arcade)
+        } else if flags & EF_TUNNEL != 0 {
+            Some(Cover::Underpass)
+        } else {
+            None
+        }
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Cover::Arcade => "arcade",
+            Cover::Passage => "passage",
+            Cover::Underpass => "underpass",
+            Cover::Indoors => "indoors",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -280,6 +319,13 @@ impl WalkRouter {
         out
     }
 
+    /// May this walker start or end a walk on `edge`? (Its kind and tags allow it, and for a step-free walker it
+    /// is not on a crumb cut off by stairs; see [`SNAP_MIN_PIECE_M`].)
+    pub fn usable(&self, edge: u32, profile: &WalkProfile) -> bool {
+        let Some(ed) = self.graph.edges.get(edge as usize) else { return false };
+        index::edge_allowed(edge, ed, &SnapOptions { max_dist_m: 0.0, level: None, profile: Some(*profile), exclude_kinds: 0 }, &self.crumbs)
+    }
+
     /// The point at fraction `frac` of edge `edge` as a [`Snap`] (`dist_m` = 0).
     pub fn snap_at(&self, edge: u32, frac: f32) -> Snap {
         let frac = frac.clamp(0.0, 1.0);
@@ -295,6 +341,67 @@ impl WalkRouter {
     /// to the bound *and* carries several avoided stair flights can be missed.
     pub fn one_to_many(&self, from: &Snap, targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
         search::one_to_many(&self.graph, &self.net, from, targets, profile, max_time_s)
+    }
+
+    /// [`WalkRouter::one_to_many`] from the best of several starting points,
+    /// each given with the metres already walked to reach it (counted in the
+    /// result) and a route-choice penalty in seconds (not counted): the doors
+    /// of a building, say.
+    pub fn many_to_many(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<WalkCost>> {
+        search::many_to_many(&self.graph, &self.net, froms, targets, profile, max_time_s)
+    }
+
+    /// The search of [`WalkRouter::many_to_many`] without its limit: per target, (the source the cheapest way comes
+    /// from, its walking cost with the source's metres, its generalised seconds with the source's offset), for
+    /// every target within the search's bound. For choosing among sources by more than the cheapest way.
+    pub fn many_to_many_raw(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<(usize, WalkCost, f32)>> {
+        search::many_to_many_raw(&self.graph, &self.net, froms, targets, profile, max_time_s)
+    }
+
+    /// The search network's arcs out of every routing node of graph node `node` (for tools that compare builds):
+    /// (routing node, head's graph node, edge or `u32::MAX` for a virtual arc, class, metres, head blocked).
+    pub fn arcs_at(&self, node: u32) -> Vec<(u32, u32, u32, u8, f32, u8)> {
+        let mut out = Vec::new();
+        for r in 0..self.net.n {
+            if self.net.orig_node(r) != node {
+                continue;
+            }
+            for a in &self.net.arcs[self.net.out(r)] {
+                out.push((r, self.net.orig_node(a.head), a.edge(), a.cls, a.len_m, a.head_block));
+            }
+        }
+        out
+    }
+
+    /// [`WalkRouter::route`] from the best of several starting points to the best of several end points, each
+    /// with metres already walked to or from it and a route-choice penalty in seconds, as
+    /// [`WalkRouter::many_to_many`] takes them: for one end point, the start taken is the one that search's cost
+    /// for it comes from. Returns (start index, end index, walk between them, generalised seconds with both offsets).
+    pub fn route_between(&self, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile) -> Option<(usize, usize, WalkPath, f32)> {
+        let (i, j, legs, gen) = search::route_between(&self.graph, &self.net, froms, tos, profile, false)?;
+        Some((i, j, path::build(self, &froms[i].0, &tos[j].0, profile, &legs), gen))
+    }
+
+    /// [`WalkRouter::route_between`] by the time walked alone: the quickest walk this walker can take (what it
+    /// cannot use stays out, its preferences do not count; the sources' and targets' penalties are ignored). The
+    /// last value is its seconds walked, the offsets' metres included.
+    pub fn quickest_between(&self, froms: &[(Snap, f32, f32)], tos: &[(Snap, f32, f32)], profile: &WalkProfile) -> Option<(usize, usize, WalkPath, f32)> {
+        let plain = |v: &[(Snap, f32, f32)]| v.iter().map(|&(s, m, _)| (s, m, 0.0)).collect::<Vec<_>>();
+        let (f, t) = (plain(froms), plain(tos));
+        let (i, j, legs, secs) = search::route_between(&self.graph, &self.net, &f, &t, profile, true)?;
+        Some((i, j, path::build(self, &f[i].0, &t[j].0, profile, &legs), secs))
+    }
+
+    /// [`WalkRouter::many_to_many_raw`] by the time walked alone, as [`WalkRouter::quickest_between`]: per target
+    /// within `max_time_s`, the source the quickest walk comes from and its cost. Whether a target can be walked to
+    /// within a time does not depend on preferences.
+    pub fn quickest_many(&self, froms: &[(Snap, f32, f32)], targets: &[Snap], profile: &WalkProfile, max_time_s: f32) -> Vec<Option<(usize, WalkCost)>> {
+        let f: Vec<(Snap, f32, f32)> = froms.iter().map(|&(s, m, _)| (s, m, 0.0)).collect();
+        let speed = profile.speed_mps.max(0.05);
+        search::many_to_many_mode(&self.graph, &self.net, &f, targets, profile, max_time_s, true)
+            .into_iter()
+            .map(|r| r.filter(|r| walk_secs(r.1.var_m, r.1.fix_s, speed) <= max_time_s + 0.5).map(|r| (r.0, r.1)))
+            .collect()
     }
 
     /// Best walk between two snapped points with geometry and instructions.

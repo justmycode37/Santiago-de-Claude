@@ -6,7 +6,7 @@ use std::sync::Arc;
 fn main() -> anyhow::Result<()> {
     let a: Vec<String> = std::env::args().skip(1).collect();
     let g: WalkGraph = io::load(a[0].as_ref(), WALKGRAPH_SCHEMA)?;
-    let x: OsmExtract = io::load(a[1].as_ref(), "osm-extract-v1")?;
+    let x: OsmExtract = io::load(a[1].as_ref(), kante_core::walk::EXTRACT_SCHEMA)?;
     let v: Vec<f64> = a[2].split(',').map(|x| x.parse().unwrap()).collect();
     let p = LatLon::from_deg(v[0], v[1]);
     let r: f32 = a[3].parse()?;

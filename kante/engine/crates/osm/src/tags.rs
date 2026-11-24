@@ -291,6 +291,8 @@ pub const R_PLATFORM_EDGE: u16 = 1 << 8;
 pub const R_MEMBER: u16 = 1 << 9;
 /// Walk class inherited from the relation the way is a ring of.
 pub const R_INHERITED: u16 = 1 << 10;
+/// A carriageway in a tunnel, on a bridge, or on another layer or floor: not on the ground.
+pub const R_OFF_GROUND: u16 = 1 << 11;
 
 #[derive(Clone, Copy, Debug)]
 pub struct WayClass {
@@ -436,9 +438,14 @@ pub fn classify_way(t: &Tags, closed: bool, relation: bool) -> WayClass {
     c.layer = match t.layer.trim().parse::<i8>() {
         Ok(v) => v,
         Err(_) if set(t.bridge) => 1,
-        Err(_) if set(t.tunnel) && t.tunnel != "building_passage" => -1,
+        Err(_) if set(t.tunnel) && t.tunnel != "building_passage" && t.covered != "arcade" => -1,
         Err(_) => 0,
     };
+    if c.roles & (R_CARR_ROAD | R_CARR_TRAM | R_CARR_RAIL) != 0
+        && ((set(t.tunnel) && t.tunnel != "building_passage") || set(t.bridge) || c.layer != 0 || (!c.level.is_none() && c.level.first != 0))
+    {
+        c.roles |= R_OFF_GROUND;
+    }
 
     // --- lifts mapped as ways
     if lift_area(t) && !platform {
@@ -537,7 +544,8 @@ pub fn classify_way(t: &Tags, closed: bool, relation: bool) -> WayClass {
         }
         c.kind = kind;
         c.flags |= extra;
-        if set(t.tunnel) {
+        // an arcade along a street is often tagged as a tunnel too; it is open to the street
+        if set(t.tunnel) && !(t.covered == "arcade" && t.tunnel != "building_passage") {
             c.flags |= EF_TUNNEL;
             if t.tunnel == "building_passage" {
                 c.flags |= EF_COVERED;

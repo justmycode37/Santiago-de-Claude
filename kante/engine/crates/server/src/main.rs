@@ -1,7 +1,7 @@
 //! `kante` — data build pipeline and HTTP server.
 //!
 //! ```text
-//! kante build [--data DIR] [--walk-bbox S,W,N,E] [--only a,b] [--force]
+//! kante build [--data DIR] [--walk-bbox S,W,N,E] [--only a,b] [--force] [--without-register]
 //! kante serve [--data DIR] [--port 8080] [--bind 0.0.0.0] [--app DIR]
 //! ```
 
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         "build" => build::run(&args),
         "serve" => serve(&args),
         _ => {
-            eprintln!("usage:\n  kante build [--data DIR] [--walk-bbox S,W,N,E] [--only timetable,osm,links,search] [--force]\n  kante serve [--data DIR] [--port 8080] [--bind 0.0.0.0] [--app DIR]");
+            eprintln!("usage:\n  kante build [--data DIR] [--walk-bbox S,W,N,E] [--only timetable,osm,links,search,doors] [--force] [--without-register]\n  kante serve [--data DIR] [--port 8080] [--bind 0.0.0.0] [--app DIR]");
             Ok(())
         }
     }

@@ -1315,3 +1315,135 @@ fn step_free_snap_skips_stair_landings() {
     // A small piece nothing else is attached to is not a crumb.
     assert_eq!(r.snap(pt(15.0, 301.0), &SnapOptions { profile: Some(STEP_FREE), ..o }).unwrap().edge, alone);
 }
+
+#[test]
+fn many_to_many_takes_the_best_source() {
+    // Several doors of a building: the metres already walked to a source are counted, a route-choice
+    // penalty steers the choice without being counted.
+    let r = random_city(7, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(99);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for _ in 0..8 {
+        let (a, b) = (pick(&mut rng), pick(&mut rng));
+        let targets: Vec<Snap> = (0..30).map(|_| pick(&mut rng)).collect();
+        let one = r.one_to_many(&a, &targets, &NORMAL, 3600.0);
+        // one source, 12 m before it: the same walks, 12 m longer
+        let shifted = r.many_to_many(&[(a, 12.0, 0.0)], &targets, &NORMAL, 3600.0);
+        // the other source made useless by a penalty: the same walks as from the first alone
+        let steered = r.many_to_many(&[(b, 0.0, 100_000.0), (a, 0.0, 0.0)], &targets, &NORMAL, 3600.0);
+        for k in 0..targets.len() {
+            match (one[k], shifted[k], steered[k]) {
+                (Some(o), Some(s), Some(t)) => {
+                    assert!(close(s.var_m, o.var_m + 12.0, 0.05) && close(s.fix_s, o.fix_s, 0.05), "{s:?} vs {o:?}");
+                    assert!(close(t.var_m, o.var_m, 0.05) && close(t.fix_s, o.fix_s, 0.05), "{t:?} vs {o:?}");
+                    checked += 1;
+                }
+                (None, _, None) => {}
+                x => panic!("{x:?}"),
+            }
+        }
+    }
+    assert!(checked > 100, "{checked}");
+}
+
+#[test]
+fn route_between_takes_the_source_many_to_many_counts() {
+    // the drawn walk and the stop search must not choose differently: same source, same cost
+    let r = random_city(11, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(5);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for round in 0..10 {
+        let prof = if round % 2 == 0 { NORMAL } else { avoid() };
+        let froms: Vec<(Snap, f32, f32)> = (0..4).map(|k| (pick(&mut rng), 7.0 * k as f32, if k == 2 { 20.0 } else { 0.0 })).collect();
+        let targets: Vec<Snap> = (0..20).map(|_| pick(&mut rng)).collect();
+        let many = r.many_to_many(&froms, &targets, &prof, 3600.0);
+        let raw = r.many_to_many_raw(&froms, &targets, &prof, 3600.0);
+        for ((t, m), w) in targets.iter().zip(&many).zip(&raw) {
+            match (m, r.route_between(&froms, &[(*t, 0.0, 0.0)], &prof)) {
+                (Some(c), Some((i, _, p, gen))) => {
+                    let (var, fix) = (p.cost.var_m + froms[i].1, p.cost.fix_s);
+                    assert!(close(c.var_m, var, 0.05) && close(c.fix_s, fix, 0.05), "{c:?} vs source {i}: {var} {fix}");
+                    // the raw search names the same source (or one exactly as cheap) and the same generalised cost
+                    let (j, cj, gj) = w.unwrap();
+                    assert!(close(gj, gen, 0.05) && close(cj.var_m, c.var_m, 0.05), "raw {j} {gj} vs route {i} {gen}");
+                    assert!(j == i || close(gj, gen, 0.01));
+                    checked += 1;
+                }
+                (None, None) => {}
+                (a, b) => panic!("{a:?} vs {:?}", b.map(|x| x.0)),
+            }
+        }
+    }
+    assert!(checked > 100, "{checked}");
+}
+
+#[test]
+fn route_between_takes_the_best_target() {
+    // several end points, each with its own offset: the one whose walk plus offset is cheapest, as if each had been
+    // tried on its own
+    let r = random_city(12, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(9);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for round in 0..40 {
+        let prof = if round % 2 == 0 { NORMAL } else { avoid() };
+        let froms: Vec<(Snap, f32, f32)> = (0..3).map(|k| (pick(&mut rng), 5.0 * k as f32, 0.0)).collect();
+        let tos: Vec<(Snap, f32, f32)> = (0..4).map(|k| (pick(&mut rng), 9.0 * k as f32, if k == 1 { 30.0 } else { 0.0 })).collect();
+        let each: Vec<Option<f32>> = tos.iter().map(|t| r.route_between(&froms, std::slice::from_ref(t), &prof).map(|x| x.3)).collect();
+        let best = each.iter().flatten().fold(f32::INFINITY, |a, &b| a.min(b));
+        match r.route_between(&froms, &tos, &prof) {
+            Some((_, j, _, c)) => {
+                assert!(close(c, best, 0.05), "{c} vs {best}");
+                assert!(close(each[j].unwrap(), c, 0.05));
+                checked += 1;
+            }
+            None => assert!(best.is_infinite()),
+        }
+    }
+    assert!(checked > 20, "{checked}");
+}
+
+#[test]
+fn a_sources_metres_to_the_network_do_not_shrink_the_search() {
+    // what one_to_many finds from a snap within a time, many_to_many_raw finds from the same snap given with metres
+    // already walked to it (they are added on top of the bound, as one_to_many adds them only after)
+    let r = random_city(13, 12, 10);
+    let g = r.graph().clone();
+    let mut rng = Rng(21);
+    let pick = |rng: &mut Rng| -> Snap {
+        let e = (rng.next() * g.edges.len() as f32) as u32 % g.edges.len() as u32;
+        Snap { edge: e, frac: rng.next(), pos: g.edge_geom(e)[0], dist_m: 0.0 }
+    };
+    let mut checked = 0;
+    for round in 0..20 {
+        let prof = if round % 2 == 0 { NORMAL } else { avoid() };
+        let from = pick(&mut rng);
+        let targets: Vec<Snap> = (0..40).map(|_| pick(&mut rng)).collect();
+        for max in [60.0, 200.0, 600.0] {
+            let plain = r.one_to_many(&from, &targets, &prof, max);
+            let raw = r.many_to_many_raw(&[(from, 80.0, 0.0)], &targets, &prof, max);
+            for (p, q) in plain.iter().zip(&raw) {
+                if let Some(p) = p {
+                    let q = q.expect("found with the metres to the network as well");
+                    assert!(close(q.1.var_m, p.var_m + 80.0, 0.05));
+                    checked += 1;
+                }
+            }
+        }
+    }
+    assert!(checked > 50, "{checked}");
+}

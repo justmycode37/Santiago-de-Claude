@@ -3,10 +3,11 @@
 
 use crate::json::{self, Leg as JLeg};
 use crate::state::{level_f, lonlat, App, Endpoint, Reach};
+use kante_link::ends::{self, End};
 use kante_core::time::{self, Date, Secs};
 use kante_core::*;
 use kante_raptor::{Journey, Leg, Onboard, Query};
-use kante_walk::{StepKind, WalkPath};
+use kante_walk::StepKind;
 use std::time::Instant;
 
 pub fn profile_from(o: &json::PlanOptions) -> WalkProfile {
@@ -93,14 +94,39 @@ pub struct WalkEnd {
     pub name: String,
     pub pos: LatLon,
     pub stop: Option<StopIdx>,
-    pub snap: Option<Snap>,
+    /// Its ways onto the walking network (the point itself, the doors of the building it is in).
+    pub end: End,
 }
 
 impl App {
     fn stop_end(&self, s: StopIdx) -> WalkEnd {
         let stop = &self.tt.stops[s as usize];
         let station = &self.tt.stations[stop.station as usize];
-        WalkEnd { name: station.name.clone(), pos: stop.pos, stop: Some(s), snap: self.link(s).map(|l| l.snap) }
+        // A railway platform's registry point often lies on the track itself: a walk to it ends on the platform.
+        let railish = Mode::Rail.bit() | Mode::Metro.bit() | Mode::RackRail.bit() | Mode::Funicular.bit();
+        let end = match self.walk.as_ref() {
+            Some(w) => End::stop(w, self.doors.as_ref(), stop.pos, self.link(s).map(|l| l.snap), stop.modes & railish != 0),
+            None => End::exact(stop.pos, self.link(s).map(|l| l.snap)),
+        };
+        WalkEnd { name: station.name.clone(), pos: stop.pos, stop: Some(s), end }
+    }
+
+    fn door_json(&self, door: u32) -> Option<json::WalkDoor> {
+        let ix = self.doors.as_ref()?;
+        let d = &ix.doors.doors[door as usize];
+        let addr = ix.doors.addr_of(door);
+        Some(json::WalkDoor {
+            lat: d.pos.lat_deg(),
+            lon: d.pos.lon_deg(),
+            kind: d.kind.as_str(),
+            addr: (!addr.is_empty()).then(|| addr.to_string()),
+            wheelchair: match d.wheelchair {
+                DOOR_WC_YES => Some("yes"),
+                DOOR_WC_NO => Some("no"),
+                DOOR_WC_LIMITED => Some("limited"),
+                _ => None,
+            },
+        })
     }
 
     fn walk_point(&self, e: &WalkEnd) -> json::WalkPoint {
@@ -131,33 +157,43 @@ impl App {
             geometry: vec![],
             levels: vec![],
             steps: vec![],
+            door: None,
+            start_door: None,
+            covered: vec![],
+            approx_start: None,
+            approx_end: None,
+            network: None,
+            no_step_free_door: false,
+            unsure_end: false,
+            drawn_s: None,
         };
         if a.stop.is_some() && a.stop == b.stop {
             leg.geometry = vec![lonlat(&a.pos), lonlat(&a.pos)];
             leg.levels = vec![None, None];
             return leg;
         }
-        let path: Option<WalkPath> = match (self.walk.as_ref(), a.snap.as_ref(), b.snap.as_ref()) {
-            (Some(w), Some(sa), Some(sb)) => w.route(sa, sb, profile),
-            _ => None,
-        };
-        match path {
-            Some(p) => {
-                let (sa, sb) = (a.snap.unwrap(), b.snap.unwrap());
-                // Lead-in / lead-out between the real point and the network.
-                let lead_in = sa.dist_m > 1.5;
-                let lead_out = sb.dist_m > 1.5;
-                let shift = lead_in as u32;
-                if lead_in {
-                    leg.geometry.push(lonlat(&a.pos));
-                    leg.levels.push(p.levels.first().and_then(|l| level_f(*l)));
-                }
-                leg.geometry.extend(p.geometry.iter().map(lonlat));
-                leg.levels.extend(p.levels.iter().map(|l| level_f(*l)));
-                if lead_out {
-                    leg.geometry.push(lonlat(&b.pos));
-                    leg.levels.push(p.levels.last().and_then(|l| level_f(*l)));
-                }
+        // a walk a journey has timed (to its first stop, from its last): the candidate the stop search took for that
+        // time, the cheapest of those within it (ends::reach_costs)
+        let limit = matches!(kind, "access" | "egress").then_some(leg.duration_s as f32);
+        let walk = self.walk.as_ref().and_then(|w| ends::walk_within(w, &a.end, &b.end, profile, limit));
+        match walk {
+            Some(w) => {
+                // from the point into the building's door and out of it, or straight onto the network; the path; on
+                // to the door or the point at the other end (see kante_link::ends)
+                let d = ends::draw(self.doors.as_ref(), &a.end, &b.end, &w);
+                let p = &w.path;
+                let shift = d.head;
+                leg.geometry = d.geometry.iter().map(lonlat).collect();
+                leg.levels = d.levels.iter().map(|l| level_f(*l)).collect();
+                leg.approx_start = d.approx_start;
+                leg.approx_end = d.approx_end;
+                leg.network = Some([d.head, d.path_end]);
+                leg.door = w.to.door.and_then(|o| self.door_json(o));
+                leg.start_door = w.from.door.and_then(|o| self.door_json(o));
+                leg.no_step_free_door = b.end.no_step_free_door;
+                leg.unsure_end = w.from.unsure || w.to.unsure;
+                leg.drawn_s = Some(w.secs.ceil() as i64);
+                leg.covered = p.covered.iter().map(|&(v0, v1, c)| json::WalkCovered { kind: c.as_str(), from: v0 + shift, to: v1 + shift }).collect();
                 let last_vertex = leg.geometry.len().saturating_sub(1) as u32;
                 let n_steps = p.steps.len();
                 leg.steps = p
@@ -195,15 +231,24 @@ impl App {
                         last.text = text;
                     }
                 }
-                leg.distance_m = (p.dist_m + sa.dist_m + sb.dist_m).round() as u32;
+                if let (Some(last), Some(d)) = (leg.steps.last_mut(), leg.door.as_ref()) {
+                    if last.kind == "arrive" {
+                        last.text = match (&d.addr, d.kind) {
+                            (Some(a), _) => format!("Arrive at the entrance, {a}"),
+                            (None, "main") => "Arrive at the main entrance".to_string(),
+                            _ => "Arrive at the entrance".to_string(),
+                        };
+                    }
+                }
+                leg.distance_m = w.dist_m.round() as u32;
                 leg.stairs_up = p.stairs_up;
                 leg.stairs_down = p.stairs_down;
                 leg.lifts = p.lifts;
                 leg.escalators = p.escalators;
                 leg.unmapped_level_changes = p.unmapped_level_changes;
-                leg.step_free = p.stairs_up == 0 && p.stairs_down == 0 && p.escalators == 0 && p.unmapped_level_changes == 0;
+                leg.step_free = d.step_free;
                 if kind == "direct" {
-                    let secs = walk_secs(p.cost.var_m + sa.dist_m + sb.dist_m, p.cost.fix_s, speed).ceil() as i64;
+                    let secs = w.secs.ceil() as i64;
                     leg.duration_s = secs;
                     leg.arr = dep + secs;
                 }
@@ -232,6 +277,13 @@ impl App {
                     to: 1,
                 }];
             }
+        }
+        // Where a walk leg is finished for output (journeys of every kind, the walk-only answer, /api/walk): a leg
+        // with a guessed end, or no path at all, is never step-free, and a step-free walker's journey says so
+        // (unsure_alert)
+        if leg.approx_start.is_some() || leg.approx_end.is_some() || leg.approximate {
+            leg.step_free = false;
+            leg.unsure_end = true;
         }
         leg
     }
@@ -339,7 +391,16 @@ impl App {
                     }
                     // The buffer is waiting at the stop, not walking.
                     let buf = (crate::state::ACCESS_BUFFER_S as i64).min((arr - dep) as i64);
-                    legs.push(JLeg::Walk(self.walk_leg("access", from, &self.stop_end(s), ux(dep), ux(arr) - buf, profile)));
+                    let mut w = self.walk_leg("access", from, &self.stop_end(s), ux(dep), ux(arr) - buf, profile);
+                    // timed by the walk drawn (which runs in travel order, the stop search the other way): a longer
+                    // one takes the wait at the stop, and starts earlier only beyond it
+                    if let Some(s) = w.drawn_s {
+                        let board = ux(arr);
+                        w.duration_s = s;
+                        w.arr = (w.dep + s).min(board);
+                        w.dep = w.arr - s;
+                    }
+                    legs.push(JLeg::Walk(w));
                 }
                 Leg::Egress { from: s, dep, arr } => {
                     let at_station = to_is_station == Some(tt.stops[s as usize].station);
@@ -347,7 +408,13 @@ impl App {
                         continue;
                     }
                     let buf = (crate::state::ACCESS_BUFFER_S as i64).min((arr - dep) as i64);
-                    legs.push(JLeg::Walk(self.walk_leg("egress", &self.stop_end(s), to, ux(dep), ux(arr) - buf, profile)));
+                    let mut w = self.walk_leg("egress", &self.stop_end(s), to, ux(dep), ux(arr) - buf, profile);
+                    // timed by the walk drawn, in travel order (the stop search ran from the destination)
+                    if let Some(s) = w.drawn_s {
+                        w.duration_s = s;
+                        w.arr = w.dep + s;
+                    }
+                    legs.push(JLeg::Walk(w));
                 }
                 Leg::Transfer { from: a, to: b, dep, arr, .. } => {
                     let mut w = self.walk_leg("transfer", &self.stop_end(a), &self.stop_end(b), ux(dep), ux(arr), profile);
@@ -375,6 +442,8 @@ impl App {
                 _ => None,
             };
             if let JLeg::Walk(w) = &mut legs[i] {
+                // a step-free walker's walk (any of them) with a guessed end: said here
+                alerts.extend(unsure_alert(w, Some(i), profile));
                 if let Some(nd) = next_dep {
                     let start = prev_arr.unwrap_or(w.dep);
                     let m = if w.kind == "transfer" { margin as i64 } else { 0 };
@@ -498,8 +567,8 @@ impl App {
             transfers: 0,
             walk_s: w.duration_s,
             walk_m: w.distance_m,
+            alerts: unsure_alert(&w, Some(0), profile).into_iter().collect(),
             legs: vec![JLeg::Walk(w)],
-            alerts: vec![],
         })
     }
 
@@ -519,7 +588,7 @@ impl App {
         if egress.stops.is_empty() {
             return Err("no public transport stop within walking distance of the destination".into());
         }
-        let to_end = WalkEnd { name: to_ep.place.name.clone(), pos: to_ep.pos, stop: None, snap: egress.snap };
+        let to_end = WalkEnd { name: to_ep.place.name.clone(), pos: to_ep.pos, stop: None, end: egress.end.clone() };
 
         let mut query = Query {
             date: 0,
@@ -568,7 +637,7 @@ impl App {
                 modes: None,
                 dist_m: None,
             };
-            let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, snap: None };
+            let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, end: End::exact(here.pos, None) };
             let out: Vec<json::Journey> =
                 journeys.iter().take(6).map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, live)).collect();
             return Ok(json::PlanResponse {
@@ -586,7 +655,7 @@ impl App {
         // ---- door-to-door plan
         let from_ep: Endpoint = self.resolve(req.from.as_ref().ok_or("from is required")?)?;
         let access: Reach = self.reach(&from_ep, &profile, max_walk);
-        let from_end = WalkEnd { name: from_ep.place.name.clone(), pos: from_ep.pos, stop: None, snap: access.snap };
+        let from_end = WalkEnd { name: from_ep.place.name.clone(), pos: from_ep.pos, stop: None, end: access.end.clone() };
         query.access = &access.stops;
 
         // What to search: forward from a time, or backward from a deadline.
@@ -654,8 +723,13 @@ impl App {
         // the journey arriving first is added back for searches that leave at a time (and their pages), not for
         // "arrive by", where it is not what was asked for
         let (picked, pages) = page(picked, !matches!(dir, Dir::ArriveBy(_)));
-        let journeys: Vec<json::Journey> =
+        let mut journeys: Vec<json::Journey> =
             picked.iter().map(|j| self.journey(j, qdate, &from_end, &to_end, from_ep.station, to_ep.station, &profile, margin, live)).collect();
+        // a journey's last walk is timed by the walk drawn, in travel order (the stop search ran the other way): one
+        // that then arrives after the time asked to arrive by is not one to take
+        if let Dir::ArriveBy(t) = dir {
+            journeys.retain(|j| j.arr <= t);
+        }
 
         let start = match dir {
             Dir::After(t) => t,
@@ -679,13 +753,50 @@ impl App {
 
     pub fn walk_direct(&self, req: &json::WalkRequest) -> Result<json::WalkLeg, String> {
         let profile = profile_from(&req.options);
-        let a = self.resolve(&req.from)?;
-        let b = self.resolve(&req.to)?;
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-        let ea = WalkEnd { name: a.place.name.clone(), pos: a.pos, stop: None, snap: self.snap_free(a.pos, &profile) };
-        let eb = WalkEnd { name: b.place.name.clone(), pos: b.pos, stop: None, snap: self.snap_free(b.pos, &profile) };
+        let end = |r: &json::PlaceRef| -> Result<WalkEnd, String> {
+            // a boarding point: on its own platform and floor, as in a journey's change
+            if let Some(q) = r.quay.as_deref().filter(|q| !q.is_empty()) {
+                let s = *self.quays_of(q).first().ok_or_else(|| format!("unknown quay {q}"))?;
+                return Ok(self.stop_end(s));
+            }
+            let p = self.resolve(r)?;
+            // a place: from the point or its building's doors, as the stop search takes it; a station or a point
+            // given exactly (where a station model's own paths begin): straight from it
+            let end = match (p.station, r.exact, self.walk.as_ref()) {
+                (_, true, _) | (_, _, None) => End::exact(p.pos, self.snap_free(p.pos, &profile)),
+                (Some(_), false, Some(w)) => End::station(w, self.doors.as_ref(), p.pos, &profile),
+                (None, false, Some(_)) => self.place_end(p.pos, &profile),
+            };
+            Ok(WalkEnd { name: p.place.name.clone(), pos: p.pos, stop: None, end })
+        };
+        let (ea, eb) = (end(&req.from)?, end(&req.to)?);
         Ok(self.walk_leg("direct", &ea, &eb, now, now, &profile))
     }
+}
+
+/// A step-free walker's walk that starts or ends with a guess (through a building, onto another floor, or across
+/// ground with no mapped way): taken only where nothing else reaches (kante_link::ends::reach_costs), and said.
+fn unsure_alert(w: &json::WalkLeg, leg: Option<usize>, profile: &WalkProfile) -> Option<json::JourneyAlert> {
+    (w.unsure_end && (profile.wheelchair || profile.is_step_free())).then(|| {
+        // the end that is guessed: the start, the end, or both (a walk with no path at all: both)
+        let (start, end) = match (w.approx_start.is_some(), w.approx_end.is_some()) {
+            (false, false) => (true, true),
+            ends => ends,
+        };
+        let at = match (w.kind, start, end) {
+            ("transfer", _, _) => format!("for the change at {}", w.to.name),
+            (_, true, true) if w.from.name != w.to.name => format!("at {} and at {}", w.from.name, w.to.name),
+            (_, true, _) => format!("at {}", w.from.name),
+            _ => format!("at {}", w.to.name),
+        };
+        json::JourneyAlert {
+            severity: "warning",
+            kind: "other",
+            leg,
+            text: format!("No step-free way is known {at}: this walk is guessed there (through a building, onto another floor, across a track, or across ground with no mapped way)"),
+        }
+    })
 }
 
 /// A departure window is Pareto-optimal only within itself: a slow many-change option can survive because the faster
@@ -718,6 +829,27 @@ fn page(mut picked: Vec<Journey>, rescue: bool) -> (Vec<Journey>, Option<(Secs, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_step_free_alert_names_the_place_whose_end_is_guessed() {
+        // review 7 (Neon): an access walk guessed only at the stop names the stop, not the address
+        let pt = |name: &str| json::WalkPoint { name: name.into(), lat: 0.0, lon: 0.0, quay: None };
+        let leg = |kind, s: Option<u32>, e: Option<u32>| json::WalkLeg {
+            kind, from: pt("Home"), to: pt("Bern, Zytglogge"), dep: 0, arr: 0, duration_s: 0, distance_m: 0, stairs_up: 0,
+            stairs_down: 0, lifts: 0, escalators: 0, step_free: false, unmapped_level_changes: 0, slack_s: None,
+            official_min_s: None, approximate: s.is_none() && e.is_none(), geometry: vec![], levels: vec![], steps: vec![],
+            door: None, start_door: None, covered: vec![], approx_start: s, approx_end: e, network: None,
+            no_step_free_door: false, unsure_end: true, drawn_s: None,
+        };
+        let wc = WalkProfile::step_free(1.0);
+        let text = |l: json::WalkLeg| unsure_alert(&l, Some(0), &wc).unwrap().text;
+        assert!(text(leg("access", None, Some(3))).contains("known at Bern, Zytglogge:"));
+        assert!(text(leg("access", Some(1), None)).contains("known at Home:"));
+        assert!(text(leg("egress", Some(1), None)).contains("known at Home:"));
+        assert!(text(leg("direct", Some(1), Some(3))).contains("known at Home and at Bern, Zytglogge:"));
+        assert!(text(leg("access", None, None)).contains("known at Home and at Bern, Zytglogge:"));
+        assert!(unsure_alert(&leg("access", None, Some(3)), Some(0), &WalkProfile::normal(1.0)).is_none());
+    }
 
     fn j(dep: Secs, arr: Secs, transfers: u8) -> Journey {
         Journey { dep, arr, transfers, legs: vec![] }
