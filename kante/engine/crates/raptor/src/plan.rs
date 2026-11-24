@@ -8,7 +8,7 @@
 //! there (`ride` + change time, or the access time in round 0). Egress is taken
 //! from `ride`, boarding from `ready`.
 //!
-//! Labels of one stop for all rounds share a cache line. A candidate is
+//! Labels of one stop for all rounds lie together (two cache lines). A candidate is
 //! accepted only if it beats the stop's label in the same *and every lower*
 //! round; that makes labels of earlier range iterations (later departures)
 //! prune later iterations correctly without copying labels between rounds.
@@ -156,7 +156,7 @@ struct Scratch {
     bound: Vec<Secs>,
     /// Per stop, the best `ride` (`ready`) label over rounds `0..=k` for the
     /// phase that is running, filled on first use in that phase. Most
-    /// candidates fail against it, and it is eight times denser than `lab`.
+    /// candidates fail against it, and it is sixteen times denser than `lab`.
     star_ride: Vec<Star>,
     star_ready: Vec<Star>,
     /// Phase counter for the `Star` caches.
@@ -169,6 +169,8 @@ struct Scratch {
     improved: Vec<StopIdx>,
     queue: Vec<PatternIdx>,
     acc_stops: Vec<StopIdx>,
+    /// `Query::access_late` of each of `acc_stops`.
+    acc_late: Vec<Secs>,
     boards: Vec<Board>,
     seeds: Vec<Seed>,
     /// (trip, day) of continuation trips already ridden → lowest round.
@@ -1008,13 +1010,25 @@ impl<'a> Engine<'a> {
         let window = q.window.max(0);
         let n_stops = self.s.n_stops;
         let mut acc = std::mem::take(&mut self.s.acc_stops);
-        for &(s, secs) in q.access {
+        // `access[s]` is the walk and the seconds the stop's departures count earlier by (`Query::access_late`):
+        // what a departure there is compared and reported with. The walk alone (`access[s] - late`) says which
+        // departures can be caught, and when the traveller can be at the stop.
+        let mut late = std::mem::take(&mut self.s.acc_late);
+        late.clear();
+        for (n, &(s, secs)) in q.access.iter().enumerate() {
             if (s as usize) < n_stops && secs >= 0 {
+                let h = q.access_late.get(n).copied().unwrap_or(0).clamp(0, DAY);
                 let a = &mut self.s.access[s as usize];
                 if *a == INF {
                     acc.push(s);
+                    late.push(h);
+                    *a = secs.saturating_add(h);
+                } else if secs.saturating_add(h) < *a {
+                    *a = secs.saturating_add(h);
+                    if let Some(i) = acc.iter().position(|&x| x == s) {
+                        late[i] = h;
+                    }
                 }
-                *a = (*a).min(secs);
                 self.touch(s);
                 self.s.sflags[s as usize] |= F_ACCESS;
             }
@@ -1024,9 +1038,9 @@ impl<'a> Engine<'a> {
         let mut seeds = std::mem::take(&mut self.s.seeds);
         #[cfg(feature = "stats")]
         let t_seeds = std::time::Instant::now();
-        for &s in &acc {
+        for (n, &s) in acc.iter().enumerate() {
             let a = self.s.access[s as usize];
-            let r0 = q.from.saturating_add(a);
+            let r0 = q.from.saturating_add(a - late[n]);
             for &Boardable { pattern: p, pos, mode } in self.days.boardable(s) {
                 if mode & q.modes == 0 {
                     continue;
@@ -1052,8 +1066,9 @@ impl<'a> Engine<'a> {
         #[cfg(feature = "stats")]
         stats::add(12, t_seeds.elapsed().as_nanos() as u64);
         if window == 0 {
-            for &s in &acc {
-                self.s.lab[s as usize * R].ready = q.from + self.s.access[s as usize];
+            for (n, &s) in acc.iter().enumerate() {
+                // (not for a stop the traveller would rather not walk to: see the range iterations below)
+                self.s.lab[s as usize * R].ready = if late[n] > 0 { INF } else { q.from + self.s.access[s as usize] };
                 self.touch(s);
             }
             count!(0);
@@ -1075,8 +1090,15 @@ impl<'a> Engine<'a> {
             while i < seeds.len() {
                 count!(0);
                 let tau = seeds[i].tau;
-                for &s in &acc {
-                    self.s.lab[s as usize * R].ready = tau + self.s.access[s as usize];
+                // When the traveller of this iteration can be at each access stop by walking there: a ride or a
+                // change that reaches the stop later is dropped for the journey that walks there and boards the same
+                // vehicle (`walkable`, `set_ready`). Never before `q.from` (`tau` is before it in the iterations of
+                // the first departures of a stop with `access_late`). And not at all at a stop with `access_late`:
+                // the journey that walks there is another offer, not the same one made better. It is found by its
+                // own seed and compared as it is counted; and where its seed lies past the window, the journey
+                // through the stop must not go for one that is not in the answer.
+                for (n, &s) in acc.iter().enumerate() {
+                    self.s.lab[s as usize * R].ready = if late[n] > 0 { INF } else { tau.max(q.from) + self.s.access[s as usize] };
                     self.touch(s);
                 }
                 self.ride_stamp = self.next_stamp();
@@ -1094,6 +1116,7 @@ impl<'a> Engine<'a> {
         seeds.clear();
         self.s.seeds = seeds;
         self.s.acc_stops = acc;
+        self.s.acc_late = late;
     }
 
     fn run_onboard(&mut self, ob: Onboard, out: &mut Vec<Journey>) {

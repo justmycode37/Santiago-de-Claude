@@ -33,7 +33,7 @@ export interface Settings {
   ignoreHills: boolean;
   /** At a change with time to spare, walk round a hill when there is still a minute in hand. */
   flatterChanges: boolean;
-  /** Minutes added to every change. */
+  /** Minutes added to every change, on top of the walk between the two platforms. */
   extraChangeMin: number;
   /** The longest single walk, in minutes. */
   maxWalkMin: number;
@@ -84,7 +84,7 @@ const DEFAULTS: Settings = {
   avoidHills: false,
   ignoreHills: false,
   flatterChanges: true,
-  extraChangeMin: 2,
+  extraChangeMin: 0, // a change takes the walk between the two platforms; minutes here are added to it
   maxWalkMin: 20,
   modes: null, // null = every transport type
   // Events and places: groups switched off (map-layers.ts GROUPS keys); only FIRST_LAYERS are on at first
@@ -153,8 +153,13 @@ function clean(saved: Record<string, unknown>) {
 let state = { ...DEFAULTS };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY)!);
-  if (saved && typeof saved === 'object') state = clean(saved);
-  else {
+  if (saved && typeof saved === 'object') {
+    state = clean(saved);
+    // Settings saved when two minutes were added to every change unless the traveller said otherwise (they have no
+    // `walkChanges`): those two minutes were the default, not a wish. A change takes the walk now; whoever wants
+    // minutes on top sets them again.
+    if (!saved.walkChanges && state.extraChangeMin === 2) state.extraChangeMin = 0;
+  } else {
     // Carry over the old event-preference checkboxes
     const old = JSON.parse(localStorage.getItem('event-preferences')!);
     if (Array.isArray(old)) for (const k in EVENT_TAGS) state[k as EventKey] = EVENT_TAGS[k as EventKey].some((t) => old.includes(t));
@@ -162,7 +167,7 @@ try {
 } catch { /* Settings still work for this visit. */ }
 
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* not saved, still applied */ }
+  try { localStorage.setItem(KEY, JSON.stringify({ ...state, walkChanges: true })); } catch { /* not saved, still applied */ }
 }
 
 function effective() {

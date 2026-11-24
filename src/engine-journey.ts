@@ -279,18 +279,20 @@ function offers(res: KantePlanResponse, body: PlanBody): Offers {
 }
 // Which of them to show first. Leaving now or at a set time: the one that gets there first; "arrive by": the
 // one that leaves last. One change less is worth three minutes. Walking all the way wins when it is no
-// slower and within the maximum walk.
+// slower and within the maximum walk (or the journey it beats has a walk beyond the maximum itself).
 function pick({ list, walk }: Offers, body: PlanBody) {
   const cost = (j: KanteJourney) => (body.arriveBy ? -j.dep : j.arr) + j.transfers * 180;
   const best = list.reduce<KanteJourney | null>((a, b) => (a && cost(a) <= cost(b) ? a : b), null);
   if (!walk || !best) return best || walk;
   const noSlower = body.arriveBy ? walk.dep >= best.dep : walk.arr <= best.arr;
-  return noSlower && walk.durationS <= body.options.maxWalkMin * 60 ? walk : best;
+  return noSlower && (walk.durationS <= body.options.maxWalkMin * 60 || longWalks(best).size > 0) ? walk : best;
 }
 // Journeys that another one beats outright (leaving no earlier, arriving no later, with no more changes) are
-// left out: next to its neighbours a page of the engine's answer can hold such leftovers
+// left out: next to its neighbours a page of the engine's answer can hold such leftovers. A journey with a walk
+// beyond the maximum walk beats none that keeps to it: it is offered beside them, not in their place.
 function prune(list: Journey[]) {
-  return list.filter((a) => !list.some((b) => b !== a && b.dep >= a.dep && b.arr <= a.arr && b.transfers <= a.transfers
+  const long = new Map(list.map((j) => [j, longWalks(j).size > 0]));
+  return list.filter((a) => !list.some((b) => b !== a && !(long.get(b) && !long.get(a)) && b.dep >= a.dep && b.arr <= a.arr && b.transfers <= a.transfers
     && (b.dep > a.dep || b.arr < a.arr || b.transfers < a.transfers)));
 }
 const byDeparture = (a: Journey, b: Journey) => a.dep - b.dep;
@@ -403,9 +405,9 @@ function walkParts(leg: KanteWalk): KanteWalkParts {
     if (s.to > s.from && d.coords.length < 2 && !change && (to != null || from != null)) return;
     dirs.push(d);
   });
-  // A change with an official minimum change time is timed by that, while the engine's path runs between the
-  // platforms' registry points and can be far longer than what people walk there (long platforms, V-shaped
-  // stations; cap_by_official in the engine). Metres that contradict the minutes are left out.
+  // A change is timed by the engine's footpath between the two platforms; the path drawn (the way this walker
+  // prefers, between the platforms' registry points) can be far longer. Metres that contradict the minutes are
+  // left out.
   const pathS = (leg.steps || []).reduce((sum, s) => sum + (s.durS || 0), 0);
   // (a change asked again comes as `direct`, with its minimum change time)
   const dist = (leg.kind === 'transfer' || leg.officialMinS != null) && pathS > leg.durationS + 150 ? null : leg.distanceM;
@@ -547,4 +549,10 @@ function requay(steps: JourneyStep[], changed: () => void) {
   if (moved) changed();
 }
 
-export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options };
+// The walks of a journey that are longer than the maximum walk of Settings (to the first stop: 'access', from the
+// last: 'egress'). The engine offers such a journey beside those that keep to the maximum where it has half an hour
+// on them (arriving sooner, leaving later), or where there is none, and says so (its `long-walk` alerts).
+function longWalks(j: KanteJourney): Set<string> {
+  return new Set((j.alerts || []).filter((a) => a.kind === 'long-walk' && a.leg != null && j.legs[a.leg]).map((a) => (j.legs[a.leg!] as KanteWalkLeg).kind));
+}
+export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options, longWalks };

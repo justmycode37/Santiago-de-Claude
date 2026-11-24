@@ -184,27 +184,6 @@ fn merge_few(normal: &Footpaths, step_free: &Footpaths) -> Footpaths {
     out
 }
 
-/// Reference margin the official change times are compared against.
-const OFFICIAL_MARGIN_S: f32 = 120.0;
-
-/// Shorten footpaths so that `var_m / 1.3 + fix_s + 120 s` does not exceed
-/// the official minimum change time of the pair. Returns how many changed.
-fn cap_by_official(tt: &Timetable, fp: &mut Footpaths) -> usize {
-    let mut n = 0;
-    for s in 0..fp.off.len().saturating_sub(1) {
-        for i in fp.off[s] as usize..fp.off[s + 1] as usize {
-            let Some(off) = tt.official_transfer(s as u32, fp.to[i]) else { continue };
-            // Two metres less, so rounding up to whole seconds cannot push it over.
-            let allowed = (((off as f32 - OFFICIAL_MARGIN_S - fp.fix_s[i] as f32).max(0.0) * DEFAULT_SPEED_MPS) - 2.0).max(0.0) as u16;
-            if fp.var_m[i] > allowed {
-                fp.var_m[i] = allowed;
-                n += 1;
-            }
-        }
-    }
-    n
-}
-
 /// The slopes in `slopes.bin` when they belong to graph `g` (none when the file is missing, unreadable or of
 /// another build).
 pub fn load_slopes(path: &Path, g: &WalkGraph) -> Option<Vec<EdgeSlope>> {
@@ -369,14 +348,9 @@ impl App {
                 (None, fp.clone(), fp)
             }
         };
-        // Where the timetable publishes a minimum change time for a pair of
-        // stops, a walker at normal pace must be able to make a change of
-        // that length: the operators plan connections on it. Our own path
-        // between two registry points can be longer than what passengers
-        // really walk (long platforms, V-shaped stations), so cap it.
-        let mut fp_normal = fp_normal;
-        let capped = cap_by_official(&tt, &mut fp_normal);
-        eprintln!("  footpaths capped by official change times: {capped}");
+        // A change takes the walk between the two boarding points, as the footpaths time it (and the seconds the
+        // traveller asks for on top). The timetable's own minimum change times are not used: they are one number
+        // for a whole station and every walker, sometimes more than this walk and sometimes less.
         let fp_few = merge_few(&fp_normal, &fp_step_free);
 
         let t = Instant::now();
