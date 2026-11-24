@@ -17,6 +17,7 @@ kante-walk.workspace = true
 kante-link.workspace = true
 kante-search.workspace = true
 kante-rt.workspace = true
+ureq.workspace = true
 anyhow.workspace = true
 rayon.workspace = true
 serde.workspace = true

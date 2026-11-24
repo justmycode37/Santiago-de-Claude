@@ -61,6 +61,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/plan", post(plan))
         .route("/api/walk", post(walk))
         .route("/api/reach", post(reach))
+        .route("/api/formation", get(crate::formation::formation))
         .with_state(app)
 }
 
@@ -87,7 +88,7 @@ async fn meta(State(app): S) -> Json<json::MetaResponse> {
         valid_to: time::fmt_date(tt.end_date()),
         walk_bbox: [b.min.lon_deg(), b.min.lat_deg(), b.max.lon_deg(), b.max.lat_deg()],
         realtime: app.live.read().meta.clone(),
-        features: vec!["match", "due", "stream", "extras", "gtfs-rt", "identify", "quay-sloid"],
+        features: vec!["match", "due", "stream", "extras", "gtfs-rt", "identify", "quay-sloid", "formation"],
         counts: json::Counts {
             stations: tt.stations.len(),
             quays: tt.stops.len(),

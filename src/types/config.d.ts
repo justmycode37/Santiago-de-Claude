@@ -5,6 +5,9 @@ interface AppConfig {
   googlePlacesKey?: string;
   /** Address of the Kante engine (engine.ts, live.ts). Left out: the hosted engine. '': no engine. */
   kanteUrl?: string;
+  /** An opentransportdata.swiss key for the Train Formation Service, for a test on your own machine: the 3D view then
+   *  asks the service itself for a train's coaches instead of the engine (train-formation.ts). Never on a public site. */
+  formationKey?: string;
 }
 
 /** Undefined when the site has no config.js. */

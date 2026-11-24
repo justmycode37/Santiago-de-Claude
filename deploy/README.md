@@ -133,5 +133,7 @@ The downloaded data is not refreshed by itself. To refresh it, run
 ## Live data keys
 
 `~/kante-host/secrets/otd.json`: `{"siri-et": "…", "gtfs-rt": "…"}`. One opentransportdata.swiss key can be
-subscribed to both products; without `"gtfs-rt"` the SIRI-ET key is tried for GTFS-RT too. After a deploy,
+subscribed to both products; without `"gtfs-rt"` the SIRI-ET key is tried for GTFS-RT too. `"formation"`: a key
+subscribed to the Train Formation Service, for the coaches of a train in the 3D station view (`/api/formation`,
+[docs/train-formation.md](../docs/train-formation.md)); without it the view shows only the sectors a train stops in. After a deploy,
 `deploy.sh` notes in its log whether live data is coming in; `/api/meta` → `realtime.feeds` shows each feed.

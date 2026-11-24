@@ -35,7 +35,12 @@ interface SolidView {
   setStretch(s: number): void;
   /** true: the whole station; false: only the part the route uses (the default). */
   showAll?(on: boolean): void;
+  /** Only the part of the station the route uses is drawn (false: the whole station). */
+  readonly focused?: boolean;
   setUser?(u: (Station3DUser & { levelProbs?: Record<string, number>; levelProb?: number }) | null): void;
+  /** The train at the platform (station3d-solid.ts). */
+  setTrain?(t: SolidTrainInput): TrainLayout | null;
+  clearTrain?(role?: SolidTrainInput['role']): void;
   follow?(on: boolean): void;
   locate?(): void;
   reset(): void;
@@ -54,8 +59,17 @@ interface SolidModule { open(o: SolidOpenOptions): Promise<SolidView> }
 
 import type { StationRouteEndpoint, StationRouteResult, StationRouteStep, StationRouteStopRef } from './station-route.ts';
 import { load, reloadNote } from './lazy.ts';
-import type { Station3DErrorCode, Station3DEventMap, Station3DOpenOptions, Station3DUser } from './station3d.ts';
+import type { Station3DEndpoint, Station3DErrorCode, Station3DEventMap, Station3DOpenOptions, Station3DUser } from './station3d.ts';
 import type { StationRoutePrefs } from './station-route.ts';
+import type { SolidTrainInput } from './station3d-solid.ts';
+import type { TrainCar, TrainLayout } from './train-layout.ts';
+import { endOf, loadTrain, sectorList } from './train-formation.ts';
+import { planCoach } from './coach-plan.ts';
+import type { CoachPlan, CoachPlanContext } from './coach-plan.ts';
+import { Station3D } from './station3d.ts';
+import { StationRoute } from './station-route.ts';
+import { KANTE } from './engine.ts';
+import type { Station3DTrain, TrainCoach, TrainCrowd, TrainShown } from './train-formation.ts';
 const RECENT_MS = 60e3;   // a remembered GPS fix older than this is not shown when the view opens
 
 // ------------------------------------------------------------------ loading
@@ -151,6 +165,13 @@ const ICON: Record<string, string> = {
   list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
   alert: '<path d="M12 3l9.5 17H2.5z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   me: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/>',
+  train: '<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M9 21l-2-4M15 21l2-4"/><path d="M9 14h.01M15 14h.01"/>',
+  wheelchair: '<circle cx="11" cy="4" r="1.6"/><path d="M11 7v6h5l2 5"/><path d="M8 10.5a5.5 5.5 0 1 0 7.5 6.5"/>',
+  bike: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l3 7h-7"/>',
+  family: '<circle cx="8" cy="5" r="2"/><circle cx="16.5" cy="9" r="1.6"/><path d="M8 8v13M5 12h6M16.5 12v9"/>',
+  food: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 1-3 4-3 7h3v11"/>',
+  tram: '<rect x="6" y="5" width="12" height="13" rx="2.5"/><path d="M6 12h12M9 2h6M12 2v3M9 21l1.5-3M15 21l-1.5-3"/>',
+  bus: '<rect x="4" y="4" width="16" height="13" rx="2.5"/><path d="M4 11h16M7 20v-3M17 20v-3M8 14h.01M16 14h.01"/>',
 };
 function icon(name: string, size = 18): SVGSVGElement {
   const t = document.createElement('template');
@@ -163,7 +184,7 @@ const kindName = (k: string) => ({ escalator: 'Escalator', stairs: 'Stairs', ele
 // ------------------------------------------------------------------ the overlay
 interface Ui {
   root: HTMLElement; mount: HTMLElement; title: HTMLElement; sub: HTMLElement; you: HTMLElement; floors: HTMLElement;
-  notice: HTMLElement; guide: HTMLElement; state: HTMLElement; close: HTMLButtonElement;
+  notice: HTMLElement; train: HTMLElement; trainLive: HTMLElement; guide: HTMLElement; state: HTMLElement; close: HTMLButtonElement;
 }
 let ui: Ui | null = null;
 let view: SolidView | null = null;
@@ -186,14 +207,19 @@ function shell(): Ui {
   notice.hidden = true;
   const guide = el('section', 'stv-guide');
   guide.setAttribute('aria-live', 'polite');
+  const train = el('section', 'stv-train');
+  train.setAttribute('aria-label', 'Your train');
+  train.hidden = true;
+  const trainLive = el('div', 'stv-sr');
+  trainLive.setAttribute('aria-live', 'polite');
   const state = el('div', 'stv-state');
   state.hidden = true;
   const mount = el('div', 'stv-canvas');
   mount.setAttribute('aria-hidden', 'true');
-  const root = el('div', 'stv', mount, head, floors, el('div', 'stv-bottom', notice, guide), state);
+  const root = el('div', 'stv', mount, head, floors, el('div', 'stv-bottom', notice, train, guide), state, trainLive);
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
-  return { root, mount, title, sub, you, floors, notice, guide, state, close };
+  return { root, mount, title, sub, you, floors, notice, train, trainLive, guide, state, close };
 }
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') { e.preventDefault(); close3d(); return; }
@@ -247,6 +273,10 @@ function open(opts: Station3DOpenOptions) {
   ui.floors.textContent = '';
   ui.guide.textContent = '';
   ui.notice.hidden = true;
+  ui.train.textContent = '';
+  ui.train.hidden = true;
+  ui.trainLive.textContent = '';
+  trainStates = [];
   ui.root.setAttribute('aria-label', '3D view of the station');
   listOpen = false;
   showState('loading');
@@ -277,6 +307,7 @@ function open(opts: Station3DOpenOptions) {
     // one end only (a platform from the map): that floor, framed
     if (!v.route && (from || to)) { const lv = levelOf(model, (to || from)!); if (lv != null) v.floor(lv); }
     if (v.setUser && user && (user.at == null || Date.now() - user.at < RECENT_MS) && performance.now() - userAt < 10 * RECENT_MS) v.setUser(user);
+    if ((opts.board || opts.alight) && v.setTrain) startTrains(v, opts, id);
     render();
     if (v.user) renderYou(v.user);
     emit('open', { key: opts.key, route: v.route, focus: null });
@@ -292,6 +323,7 @@ function close3d(fromHistory = false) {
   if (!cur && !view) return;
   seq++;
   if (view) { view.dispose(); view = null; }
+  trainStates = [];
   const back = cur && cur.returnFocus;
   cur = null;
   if (ui) ui.root.remove();
@@ -338,7 +370,10 @@ function floorsRail() {
       all.classList.toggle('on', on);
       v.showAll!(on);
     }, 'All');
-    all.setAttribute('aria-pressed', 'false');
+    // as the renderer has it (a new way drawn while the whole station shows keeps showing it)
+    const whole = v.focused === false;
+    all.setAttribute('aria-pressed', whole ? 'true' : 'false');
+    all.classList.toggle('on', whole);
     all.title = 'The whole station';
     ui.floors.append(all);
   }
@@ -445,6 +480,268 @@ function endName(r: StationRouteResult) {
   if (to && to.label) return to.label;
   if (s) return `the ${s.mode === 'tram' ? 'tram' : s.mode === 'bus' ? 'bus' : ''} stop`.replace('the  stop', 'the stop');
   return 'the destination';
+}
+
+// ------------------------------------------------------------------ the vehicles
+// The vehicle the walk leads to (board) and the one it starts from (alight; at a change, both). At once: a train
+// where the timetable says it stops (its sectors), a tram or bus of a typical shape at its stop. Then a train's
+// coaches from the formation data, and the coach chosen for the whole ride (coach-plan.ts): the walk leads through its
+// door into it, or out of it. train-formation.ts loads the data, the renderer draws it; docs/train-formation.md.
+interface TrainState {
+  train: Station3DTrain; shown: TrainShown | null; layout: TrainLayout | null; target: number[];
+  /** The coach chosen for the ride (null: none, or not a train); `planned`: the choice has been made. */
+  plan: CoachPlan | null; planned: boolean;
+  /** Not drawn now: the vehicle you arrive in and the one you take use the same track or stop (one at a time). */
+  hidden: boolean;
+}
+let trainStates: TrainState[] = [];
+/** The ends the way was last aimed at (a coach door), so that it is planned again only when they change. */
+let aimedKey = '';
+const CLASS_KEY = 'stv-class';
+function myClass(): 1 | 2 { try { return localStorage.getItem(CLASS_KEY) === '1' ? 1 : 2; } catch (e) { return 2; } }
+function setClass(c: 1 | 2) { try { localStorage.setItem(CLASS_KEY, String(c)); } catch (e) { /* kept for this opening only */ } }
+let classNow: 1 | 2 = 2;
+const planCtx = (): CoachPlanContext => ({
+  engine: KANTE, cls: classNow, prefs: (cur && cur.opts.prefs) || null,
+  loadModel: (key) => (view && view.model.key === key ? Promise.resolve(view.model) : Station3D.loadData(key)),
+  router: () => StationRoute,
+});
+const vehicleTitle = (t: Station3DTrain) => `${t.mode === 'tram' ? 'Tram' : t.mode === 'bus' ? 'Bus' : ''} ${t.line || t.category}`.trim();
+function startTrains(v: SolidView, opts: Station3DOpenOptions, id: number) {
+  classNow = myClass();
+  aimedKey = '';
+  trainStates = [opts.alight, opts.board].filter((t): t is Station3DTrain => !!t).map((t) => ({ train: t, shown: null, layout: null, target: [], plan: null, planned: t.mode !== 'train', hidden: false }));
+  // the same track or stop for both (they are there one after the other): the one you take, until asked
+  if (sameBerth()) trainStates[0].hidden = true;
+  for (const st of trainStates) draw(v, st);
+  overviewAgain(v);
+  renderTrain();
+  for (const st of trainStates) {
+    if (st.train.mode !== 'train') continue;
+    loadTrain(st.train, KANTE).then((shown) => {
+      if (id !== seq || view !== v || !trainStates.includes(st)) return;
+      st.shown = shown;
+      applyTrains(false);
+    });
+    choose(v, st, id, false);
+  }
+}
+// the coach for this ride (once per ride and class: the same at every station of it)
+function choose(v: SolidView, st: TrainState, id: number, asked: boolean) {
+  const cls = classNow;
+  planCoach(st.train, planCtx()).then((plan) => {
+    if (id !== seq || view !== v || !trainStates.includes(st) || cls !== classNow) return;
+    st.plan = plan; st.planned = true;
+    applyTrains(asked);
+  });
+}
+function draw(v: SolidView, st: TrainState) {
+  const t = st.train, end = endOf(t), s = st.shown, p = st.plan;
+  const mine = p && (t.role === 'board' ? p.board : p.alight);
+  st.target = mine ? [mine.idx] : [];
+  const door = mine && mine.door;
+  st.layout = v.setTrain!({
+    role: t.role, kind: t.mode === 'train' ? 'train' : t.mode === 'tram' ? 'tram' : 'bus', ref: t.ref,
+    coaches: s ? s.coaches : null, sectors: s ? s.sectors : sectorList(t.sectors), target: st.target, sector: door ? door.sector : null,
+    crowd: s ? s.crowd : null, cls: classNow, door: door ? { xy: door.xy, inside: door.inside } : null,
+    pose: t.mode === 'train' ? null : { uic: end.uic, ref: end.ref, ll: end.ll, heading: end.heading }, title: vehicleTitle(t),
+  });
+  // laid out for the card, not drawn
+  if (st.hidden && v.clearTrain) v.clearTrain(t.role);
+}
+/** The vehicle you arrive in and the one you take stop at the same track (or tram or bus stop): drawn together, they
+ *  would stand in each other. */
+function sameBerth(): boolean {
+  const a = trainStates.find((x) => x.train.role === 'alight'), b = trainStates.find((x) => x.train.role === 'board');
+  if (!a || !b || a.train.mode !== b.train.mode) return false;
+  const ea = a.train.alight, eb = b.train.board, pk = StationRoute.platformKey;
+  if (a.train.mode === 'train') return !!ea.key && ea.key === eb.key && !!ea.ref && pk(ea.ref) === pk(eb.ref);
+  return ea.uic === eb.uic && pk(ea.ref) === pk(eb.ref);
+}
+// draws every vehicle as it now is, and aims the way at the chosen doors: while you look at the whole way (not a
+// floor you picked, and not in the middle of the steps unless you changed your class)
+function applyTrains(asked: boolean) {
+  const v = view;
+  if (!v || !cur) return;
+  for (const st of trainStates) draw(v, st);
+  const at = (role: 'board' | 'alight') => {
+    const st = trainStates.find((x) => x.train.role === role), p = st && st.plan;
+    const mine = p && (role === 'board' ? p.board : p.alight), door = mine && mine.door;
+    return st && door ? { stop: { uic: st.train.uic, ref: st.train.ref, at: door.xy, sector: door.sector } } : null;
+  };
+  const toDoor = at('board'), fromDoor = at('alight');
+  const key = JSON.stringify([fromDoor, toDoor]);
+  const from = cur.opts.from, to = cur.opts.to;
+  if (key !== aimedKey && (toDoor || fromDoor) && from && to && lastChange.focusLevel == null && (lastChange.step < 0 || asked)) {
+    aimedKey = key;
+    // the ends keep their positions (a fallback for the router), the stop gains the door
+    const aim = (e: Station3DEndpoint, door: { stop: StationRouteStopRef } | null) => (door ? ({ ...(e as object), ...door } as StationRouteEndpoint) : e);
+    v.plan(aim(from, fromDoor), aim(to, toDoor), cur.opts.prefs || null);
+    floorsRail();
+    syncFloors();
+  } else overviewAgain(v);
+  renderTrain();
+}
+// the whole way framed again with the vehicles in it (the view framed the way alone when it opened)
+function overviewAgain(v: SolidView) {
+  if (trainStates.some((s) => s.layout && s.layout.cars.length) && v.route && lastChange.step < 0 && lastChange.focusLevel == null) v.whole();
+}
+const CROWD_TEXT: Record<TrainCrowd, string> = { 1: 'few people', 2: 'some people', 3: 'many people' };
+function crowdPips(level: TrainCrowd, label: string) {
+  const i = el('i', 'stv-crowd stv-crowd-' + level, el('s'), el('s'), el('s'));
+  i.title = label;
+  i.setAttribute('aria-hidden', 'true');
+  return i;
+}
+function coachName(c: TrainCoach) {
+  if (c.kind === 'loco') return 'Locomotive';
+  if (c.kind === 'restaurant') return 'Restaurant';
+  if (c.kind === 'sleeper') return 'Sleeping car';
+  if (c.kind === 'luggage' || c.kind === 'other') return 'No seats';
+  return c.cls === 12 ? '1st and 2nd class' : c.cls === 1 ? '1st class' : '2nd class';
+}
+const mins = (s: number) => (s < 45 ? 'under a minute' : `${Math.round(s / 60)} min`);
+function classSwitch() {
+  const seg = el('div', 'stv-seg');
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', 'Your class');
+  for (const c of [1, 2] as const) {
+    const b = btn('stv-seg-b' + (classNow === c ? ' on' : ''), c === 1 ? '1st class' : '2nd class', () => {
+      if (classNow === c || !view) return;
+      classNow = c; setClass(c);
+      // the coaches are chosen again for this class (each ride once); the walk follows
+      for (const st of trainStates) if (st.train.mode === 'train') { st.planned = false; choose(view, st, seq, true); }
+      renderTrain();
+      // the card was drawn anew: the focus goes back to this button
+      if (ui) { const again = ui.train.querySelector<HTMLButtonElement>(`.stv-seg-b[data-c="${c}"]`); if (again) again.focus({ preventScroll: true }); }
+    }, c === 1 ? '1st' : '2nd');
+    b.dataset.c = String(c);
+    b.setAttribute('aria-pressed', classNow === c ? 'true' : 'false');
+    seg.append(b);
+  }
+  return seg;
+}
+function renderTrain() {
+  if (!ui) return;
+  const box = ui.train;
+  box.textContent = '';
+  const cards = trainStates.map((st, i) => trainCard(st, i === trainStates.findIndex((x) => x.train.mode === 'train'))).filter(Boolean) as { el: HTMLElement; said: string }[];
+  box.hidden = !cards.length;
+  for (const c of cards) box.append(c.el);
+  // for screen readers: what the cards now say (they are drawn anew each time)
+  const said = cards.map((c) => c.said).join(' ');
+  if (ui.trainLive.textContent !== said) ui.trainLive.textContent = said;
+}
+function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said: string } | null {
+  const t = st.train, s = st.shown, L = st.layout, p = st.plan, end = endOf(t), board = t.role === 'board';
+  const card = el('div', 'stv-vehicle' + (board ? '' : ' alight'));
+  const when = t.dep != null && board ? new Date((t.dep + (t.delayS || 0)) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
+  const where = t.mode === 'train' ? `platform ${t.ref}` : t.ref ? `stop ${t.ref}` : end.name;
+  card.append(el('div', 'stv-train-head', el('span', 'stv-kind stv-k-train', icon(t.mode === 'bus' ? 'bus' : t.mode === 'tram' ? 'tram' : 'train', 18)),
+    el('div', 'stv-train-name', el('b', null, `${board ? '' : 'Arriving: '}${t.mode === 'train' ? (t.line || t.category) + (t.number ? ' · ' + t.number : '') : vehicleTitle(t)}`),
+      el('small', null, `${t.headsign ? 'to ' + t.headsign + ' · ' : ''}${where}${when ? ' · ' + when : ''}`)),
+    withClass ? classSwitch() : null));
+  // one at a time on a shared track: this one is shown, or a button shows it instead of the other
+  if (trainStates.length > 1 && trainStates.some((x) => x.hidden)) {
+    const other = board ? 'the train you arrive in' : 'the one you take';
+    const row = el('div', 'stv-berth', el('span', null, st.hidden ? `Same ${t.mode === 'train' ? 'track' : 'stop'} as ${other}: not drawn now.` : `Shown here; ${other} uses the same ${t.mode === 'train' ? 'track' : 'stop'}.`));
+    if (st.hidden) row.append(btn('stv-btn stv-berth-b', `Show ${board ? 'the vehicle you take' : 'the vehicle you arrive in'} here`, () => {
+      for (const x of trainStates) x.hidden = x !== st;
+      applyTrains(false);
+    }, 'Show it'));
+    card.append(row);
+  }
+  const lines: (Node | string)[] = [];
+  if (t.mode !== 'train') {
+    lines.push(L && L.cars.length ? `A typical ${t.mode} is drawn at its stop: its shape and the exact place it stops are approximate.`
+      : `Where the ${t.mode} stops is not known here (no direction of travel, or the stop is not in this station’s model).`);
+    card.append(el('div', 'stv-train-text', ...lines));
+    return { el: card, said: lines.join('') };
+  }
+  // the coaches as they stand, sector A on the left (coaches the model cannot place: in the formation's order)
+  let cars: TrainCar[] = L ? L.cars.slice() : [];
+  const unplaced = !cars.length && !!(s && s.coaches);
+  if (unplaced) cars = s!.coaches!.map((c, idx) => ({ coach: c, idx, s0: 0, s1: 0, a: [0, 0], b: [0, 0], noseA: false, noseB: false }));
+  const names = L ? L.sectors.map((x) => x.name) : [];
+  if (names.length > 1 && names[0] > names[names.length - 1]) cars.reverse();
+  const secOf = (s0: number, s1: number) => {
+    const m = (s0 + s1) / 2, x = L && L.sectors.find((q) => m >= Math.min(q.s0, q.s1) && m <= Math.max(q.s0, q.s1));
+    return x ? x.name : '';
+  };
+  const strip = el('div', 'stv-cars');
+  strip.setAttribute('role', 'list');
+  const tg = new Set(st.target);
+  let lastSec = '';
+  for (const car of cars) {
+    const c = car.coach, on = !!c && tg.has(car.idx);
+    const sec = c && c.sectors.length ? c.sectors[0] : secOf(car.s0, car.s1);
+    const kids: (Node | string)[] = [];
+    if (c && c.kind === 'coach') kids.push(c.cls === 12 ? '1|2' : String(c.cls));
+    else if (c && c.kind === 'restaurant') kids.push(icon('food', 13));
+    if (c && !c.closed && c.wheelchair) kids.push(icon('wheelchair', 11));
+    else if (c && !c.closed && c.bike) kids.push(icon('bike', 11));
+    else if (c && !c.closed && c.family) kids.push(icon('family', 11));
+    const cls = 'stv-car' + (c ? ' k-' + c.kind + (c.cls ? ' c' + c.cls : '') + (c.closed ? ' closed' : '') : ' k-unknown')
+      + (on ? ' on' : '') + (cars.indexOf(car) === 0 ? ' end-l' : '') + (cars.indexOf(car) === cars.length - 1 ? ' end-r' : '');
+    const item = el('span', 'stv-car-w', el('span', cls, ...kids), el('small', 'stv-car-sec', sec !== lastSec ? sec : ''));
+    item.setAttribute('role', 'listitem');
+    const said = c ? [coachName(c), c.number ? 'coach ' + c.number : '', c.closed ? 'closed' : '', c.declassed && !c.closed ? 'open to all classes today' : '',
+      c.wheelchair ? 'wheelchair spaces' : '', c.bike ? 'bikes' : '', c.family ? 'family zone' : '', c.goesTo ? 'goes to ' + c.goesTo : '',
+      c.sectors.length ? 'sector ' + c.sectors.join(' and ') : '', on ? (board ? 'get on here' : 'you arrive in this coach') : '']
+      : ['Coach', sec ? 'sector ' + sec : ''];
+    item.setAttribute('aria-label', said.filter(Boolean).join(', '));
+    lastSec = sec;
+    strip.append(item);
+  }
+  if (cars.length) card.append(strip);
+  // what it means
+  const mine = p && (board ? p.board : p.alight);
+  const coach = mine && s && s.coaches ? s.coaches[mine.idx] : null;
+  const k = classNow === 1 ? '1st' : '2nd';
+  if (!s || !st.planned) lines.push('Looking up the order of the coaches…');
+  else if (coach && mine) {
+    const sector = mine.door && mine.door.sector ? `sector ${mine.door.sector}` : coach.sectors.length ? `sector ${coach.sectors.join('–')}` : '';
+    const name = coach.number ? `coach ${coach.number}` : 'this coach';
+    if (board) {
+      lines.push(el('b', null, `Get on ${name}${sector ? ' · ' + sector : ''}`), `: ${k} class${p!.board && coach.wheelchair && cur && cur.opts.prefs && cur.opts.prefs.wheelchair ? ', with wheelchair spaces' : ''}.`);
+      const walk = [p!.board && p!.board.seconds != null ? `${mins(p!.board.seconds)} to its door here` : '',
+        p!.alight && p!.alight.seconds != null ? `${mins(p!.alight.seconds)} from it at ${t.alight.name}` : ''].filter(Boolean);
+      if (walk.length) lines.push(` The shortest walk: ${walk.join(' and ')}.`);
+      if (coach.goesTo) lines.push(` The train splits on the way: this coach goes to ${coach.goesTo}.`);
+    } else {
+      lines.push(el('b', null, `You arrive in ${name}${sector ? ' · ' + sector : ''}`), ', the coach suggested where you got on' + (p!.alight && p!.alight.seconds != null ? `: ${mins(p!.alight.seconds)} from its door to where you go next.` : '.'));
+    }
+  } else if (p && p.missing && board) {
+    const parts = [...new Set((s.coaches || []).map((c) => c.goesTo).filter(Boolean))];
+    lines.push(el('b', null, 'No coach to suggest'), '. ' + (
+      p.missing === 'portion' ? `The train splits on the way (to ${parts.join(' and ')}) and its data does not say which part stops at ${t.alight.name}: check the signs on the platform.`
+        : p.missing === 'class' ? `No open ${k} class coach is listed for this train.`
+          : p.missing === 'wheelchair' ? `No ${k} class coach with wheelchair spaces is listed for this train: ask the staff on the platform.`
+            : p.missing === 'unmatched' ? `None of its ${k} class coaches is listed both here and at ${t.alight.name}.`
+              : 'There is no way here to the doors of its coaches.') + ' The way leads to the platform.');
+  } else if (unplaced) {
+    lines.push('This station’s model does not have the sectors of this platform, so the coaches cannot be shown where they stop.');
+  } else if (s.sectors.length) {
+    const r = s.sectors.length > 1 ? `sectors ${s.sectors[0]}–${s.sectors[s.sectors.length - 1]}` : `sector ${s.sectors[0]}`;
+    lines.push(el('b', null, `${board ? 'Stops' : 'Arrives'} in ${r}`), '. ' + (s.missing === 'nokey' ? 'The order of its coaches is not available here (the formation data needs a key on the engine).'
+      : s.missing === 'failed' ? 'The order of its coaches could not be loaded.'
+        : s.missing === 'unplaced' ? 'Its coaches are listed, but not where they stop at this platform.'
+          : !board && s.coaches ? 'Which coach you are in is known only for a ride on one train from where you got on.' : 'No order of its coaches is published for this train.'));
+  } else if (!cars.length) lines.push('Where on the platform it stops is not known.');
+  if (lines.length) card.append(el('div', 'stv-train-text', ...lines));
+  if (s && s.crowd) {
+    const row = el('div', 'stv-train-crowd');
+    for (const [kk, v] of [[1, s.crowd.first], [2, s.crowd.second]] as const) {
+      if (!v) continue;
+      row.append(el('span', 'stv-crowd-item' + (kk === classNow ? ' mine' : ''), crowdPips(v, CROWD_TEXT[v]), `${kk === 1 ? '1st' : '2nd'}: ${CROWD_TEXT[v]}`));
+    }
+    // one figure per class for the whole train: it cannot tell coaches apart, so the choice is by the walk alone
+    row.append(el('small', null, board ? 'expected from here, for the whole train' : 'expected on this ride'));
+    card.append(row);
+  }
+  card.append(el('div', 'stv-train-src', [s && s.coaches ? 'Coaches: Train Formation Service, opentransportdata.swiss' : 'Sectors: timetable',
+    s && s.crowd ? 'occupancy forecast via transport.opendata.ch' : ''].filter(Boolean).join(' · ')));
+  return { el: card, said: lines.map((x) => (typeof x === 'string' ? x : x.textContent || '')).join('') };
 }
 
 // ------------------------------------------------------------------ you

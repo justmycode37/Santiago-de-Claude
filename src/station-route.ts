@@ -76,6 +76,8 @@
 // route picks the best (open ones first). A numeric ref matches exactly ("11" never means platform 1); letter refs also
 // by prefix ("K" ↔ "K1"). A stop id that is not in the model falls back to the ref across the complex, then to the
 // endpoint's xy / ll. A ref with sectors ("7A-D", "7 B", "7BC") aims at the middle of those sectors on that platform.
+// { stop: { …, at: [x, y] } } aims at the point of that platform's own walkway nearest to [x, y] (a coach door), when
+// it is within AT_MAX_M; else at the sectors given, else the whole platform. route.toAt / fromAt say it held.
 // Free positions snap to the nearest point on an open edge (not a node): on the given level, another floor only when
 // nothing on this one is within ~30 m; without a level, outdoor street-level edges first. A position more than 25 m
 // from every edge snaps only to an outdoor street-level walk (never to an indoor floor, a platform, a ramp or a deck).
@@ -122,6 +124,9 @@ export interface StationRouteStopRef {
   ref?: string | number | null;
   /** "B" or "A-D": aim at these sectors of the platform instead of the whole platform. */
   sector?: string | null;
+  /** A point on this platform to aim at (a coach door): the nearest point of the platform's own walkway, if it is
+   *  within AT_MAX_M; else the sectors, else the whole platform. route.toAt / fromAt say whether it held. */
+  at?: XY | null;
 }
 /**
  * Where a route starts or ends. A `{ stop }` may also carry a position (xy / ll, level), used when the model has no
@@ -237,6 +242,9 @@ export interface StationRouteResult {
   /** When the endpoint's ref names sectors ("7A-D", "7 B"). */
   fromSectors?: string[];
   toSectors?: string[];
+  /** The endpoint's `stop.at` (a point on the platform) was aimed at, not only its sectors or the platform. */
+  fromAt?: boolean;
+  toAt?: boolean;
 }
 /** The nearest position on a route to a position fix. */
 export interface StationRouteSnap {
@@ -301,6 +309,8 @@ export interface StationRouteCandidateInfo {
   closedEntrance?: boolean;
   /** The sectors aimed at. */
   sectors?: string[];
+  /** The stop's `at` point was aimed at (on the platform's own walkway). */
+  at?: boolean;
 }
 /** What resolve() gives for an endpoint: every place on the graph it can mean (the route picks the best). */
 export type StationRouteCandidate = StationRouteGraphPlace & StationRouteCandidateInfo;
@@ -790,6 +800,9 @@ function snapToGraph(P: Prepared, x: number, y: number, level: number | null | u
   return bestStreet || bestOut || bestWalk || best;
 }
 
+/** How far a platform point (stop.at) may be from the platform's walkway (m): a door is at the platform edge, the
+ *  walkway along its middle; farther, the point is not on this platform. */
+const AT_MAX_M = 9;
 function sectorsOf(model: StationModel, key: string) {
   return (model.sectors || []).filter((s) => s && platformKey(s.ref) === key && (s.xy || Number.isInteger(s.node)))
     .slice().sort((a, b) => (String(a.name) < String(b.name) ? -1 : String(a.name) > String(b.name) ? 1 : 0));
@@ -887,6 +900,13 @@ function resolve(model: StationModel, ep: Endpoint, date?: Day): StationRouteCan
       } else if (s.xy) out.push(...fromXY(s.xy, s.level, extra, false));
     }
     out = openFirst(out, (x) => x.closedStop);
+    // a point on the platform ({ stop: { …, at } }, a coach door): the nearest point of this platform's own walkway
+    const at = ep.stop.at;
+    if (out.length && at && key) {
+      const lv = out[0].stop!.level != null ? out[0].stop!.level : out[0].point[2];
+      const c = snapToGraph(P, at[0], at[1], lv, { closed, filter: (e) => !!P.platKeys[e] && P.platKeys[e].includes(key) && Math.abs(P.nodes[P.EA[e]][2] - lv) < 0.3 });
+      if (c && c.dist <= AT_MAX_M) return [Object.assign({ edge: c.edge, s: c.s, point: c.point, stop: out[0].stop, closedStop: out[0].closedStop, dist: 0, at: true }, ep.stop.sector ? { sectors: [String(ep.stop.sector).toUpperCase()] } : {})];
+    }
     // sectors named in the ref, or given as { stop: { …, sector } }: aim at them instead of the whole platform
     const secSpec = ep.stop.sector ? refSectors(`${key || '0'} ${ep.stop.sector}`) : sec;
     if (out.length && secSpec && /^\d+$/.test(key)) {
@@ -1846,6 +1866,8 @@ function route(model: StationModel, from: Endpoint, to: Endpoint, prefs?: Prefs)
   if (toStop && dc.stop) out.toStop = toStop;
   if (sc && sc.sectors) out.fromSectors = sc.sectors;
   if (dc && dc.sectors && !incomplete) out.toSectors = dc.sectors;
+  if (sc && sc.at) out.fromAt = true;
+  if (dc && dc.at && !incomplete) out.toAt = true;
   const sentences = [];
   const relaxed: StationRouteRelaxed[] = [];
   if (r.used & (V_WCF | V_STEEP) || (S.wheel && r.used & (V_STAIRS | V_ESC))) relaxed.push('wheelchair');

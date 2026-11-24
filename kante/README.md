@@ -43,7 +43,9 @@ Live data needs a free key from [opentransportdata.swiss](https://api-manager.op
 subscribed to SIRI-ET and, for fresher forecasts, GTFS-RT. Put it in `data/secrets/otd.json` as
 `{"siri-et": "…", "gtfs-rt": "…"}` (or the environment variables `KANTE_OTD_KEY` and `KANTE_OTD_GTFS_RT_KEY`);
 without a GTFS-RT key the SIRI-ET one is tried for both. `data/` is git-ignored: never commit the key. Without
-a key the engine runs on the timetable alone.
+a key the engine runs on the timetable alone. `"formation"` (or `KANTE_OTD_FORMATION_KEY`), a key subscribed to the
+Train Formation Service, opens `GET /api/formation?evu=&date=&train=` (a train's coaches, passed on from the
+service; see `../docs/train-formation.md`).
 
 Learned travel times (optional): `data/profiles/hop.csv.gz` and `dwell.csv.gz`, made by
 `python3 -I livemap/measure/ist_daten_hops.py --days 15 --cache DIR --write-profile` (files

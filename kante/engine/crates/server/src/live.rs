@@ -56,7 +56,7 @@ fn now_unix() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
-fn secret(app: &App, env: &str, name: &str) -> Option<String> {
+pub(crate) fn secret(app: &App, env: &str, name: &str) -> Option<String> {
     if let Ok(k) = std::env::var(env) {
         if !k.trim().is_empty() {
             return Some(k.trim().to_string());
