@@ -30,6 +30,15 @@ update.
   (dashed, not step-free) and the directions say so. A courtyard is not part of its building.
 - **Sidewalks, crossings, arcades, passages, underpasses**: followed, and drawn with a dashed line down the middle
   where covered ("Walk 180 m under the arcades").
+- **Along a road, at its edge**: where no sidewalk is drawn beside a road, the walk follows the road's own line
+  (its centre in OpenStreetMap), and is drawn at the road's edge instead: half the carriageway's width from its
+  line (`width`, else `lanes`, else by the road's size), a metre further on a sidewalk tagged on that side. The side
+  is the one with the road's only sidewalk, else the side the walk comes onto the road from and leaves it by (a
+  stop, a door, a footway), else the inside of its bends; it changes only at a mapped crossing with points of the
+  road within 20 m either side of it. Roundabouts, one-way main roads and living streets (unless a sidewalk is
+  tagged on one side only), tunnels, roads under a roof, service roads and stretches under 8 m stay on the line, and
+  so does any point that would put the line through a building (a narrow street). Only the line moves: the walk,
+  its metres and times, its directions are the same (`kante/engine/crates/walk/src/kerb.rs`).
 - **Floors**: station underpasses, stairs, escalators and lifts by level, with directions such as "Take the stairs
   down to level −1". A lift drawn as one outline per floor (outlines of one floor each that overlap or touch) is one
   lift. Step-free, fewer-stairs and no-escalator
@@ -69,7 +78,8 @@ Of the ways there are, the walk takes the one a careful local walker would. Thes
 ways: a walk's time is always the time it takes, and whether a stop can be reached in time never depends on them
 (`kante/docs/WALK-ENDS.md`). What the engine reads beyond a way's kind is in `walkattr.bin` (`kante build`,
 `kante/engine/crates/osm/src/attrs.rs`); each preference can be switched off to measure it
-(`KANTE_WALK_RULES_OFF=separate,cross,turns,car,favoured,hours,doors,lines`).
+(`KANTE_WALK_RULES_OFF=separate,cross,turns,car,favoured,hours,doors,lines`; `kerb` draws walks along roads on
+the road's line again, as `compare metrics` needs to match them to the graph).
 
 - **On the sidewalk, not in the road**: a road whose sidewalks OpenStreetMap draws as ways of their own
   (`sidewalk[:both|:left|:right]=separate` with none on the road itself, or `foot=use_sidepath`; 3 695 km

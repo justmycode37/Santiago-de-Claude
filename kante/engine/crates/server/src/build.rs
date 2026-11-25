@@ -134,6 +134,7 @@ pub fn run(args: &Args) -> Result<()> {
                 st.hours,
                 st.crossing_no_nodes
             );
+            eprintln!("   {} carriageway edges say where their sidewalks are, {} with one on one side only", st.kerb_tagged_edges, st.kerb_sided_edges);
             io::save(&graph_path, WALKGRAPH_SCHEMA, &graph)?;
             io::save(&attrs_path, WALKATTR_SCHEMA, &attrs)?;
             io::save(&extract_path, EXTRACT_SCHEMA, &extract)

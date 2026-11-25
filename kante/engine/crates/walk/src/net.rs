@@ -144,7 +144,7 @@ pub(crate) fn gen_index(a: &Arc) -> usize {
 }
 
 /// Route-choice rules that can be switched off at run time, to measure each alone: `KANTE_WALK_RULES_OFF` lists
-/// them by name, comma-separated (`separate,cross,turns,car,favoured,hours,doors,lines`, or `all`). Read once.
+/// them by name, comma-separated (`separate,cross,turns,car,favoured,hours,doors,lines,kerb`, or `all`). Read once.
 pub mod rules {
     pub const SEPARATE: u32 = 1 << 0;
     pub const CROSS: u32 = 1 << 1;
@@ -156,7 +156,10 @@ pub mod rules {
     pub const DOORS: u32 = 1 << 6;
     /// Straight lines onto the network that cross a carriageway (`kante-link`).
     pub const LINES: u32 = 1 << 7;
-    const NAMES: [(&str, u32); 8] = [("separate", SEPARATE), ("cross", CROSS), ("turns", TURNS), ("car", CAR), ("favoured", FAVOURED), ("hours", HOURS), ("doors", DOORS), ("lines", LINES)];
+    /// Not route choice: walks along a carriageway drawn at its edge ([`crate::kerb`]). Off, every walk's line lies
+    /// on the graph's edges, as `compare metrics` needs.
+    pub const KERB: u32 = 1 << 8;
+    const NAMES: [(&str, u32); 9] = [("separate", SEPARATE), ("cross", CROSS), ("turns", TURNS), ("car", CAR), ("favoured", FAVOURED), ("hours", HOURS), ("doors", DOORS), ("lines", LINES), ("kerb", KERB)];
 
     /// The rules on: all but those `KANTE_WALK_RULES_OFF` names.
     pub fn on() -> u32 {

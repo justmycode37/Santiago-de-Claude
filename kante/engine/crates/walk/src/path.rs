@@ -56,6 +56,8 @@ pub(crate) struct Piece {
     pub end_node: u32,
     /// Number of steps climbed on this piece (stairs only).
     pub steps: f32,
+    /// Walked from the edge's node `b` towards `a`.
+    pub rev: bool,
 }
 
 /// Level at fraction `f` of an edge.
@@ -209,6 +211,7 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
                 v1: geometry.len() as u32 - 1,
                 end_node: leg.end_node,
                 steps: 0.0,
+                rev: false,
             });
             continue;
         }
@@ -269,7 +272,7 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
                 }
             }
         };
-        pieces.push(Piece { cat, edge: leg.edge, cls: leg.cls, kind: ed.kind, flags: ed.flags, name: ed.name, dist: d, cost: leg_cost, l0, l1, v0, v1, end_node: leg.end_node, steps: steps_n });
+        pieces.push(Piece { cat, edge: leg.edge, cls: leg.cls, kind: ed.kind, flags: ed.flags, name: ed.name, dist: d, cost: leg_cost, l0, l1, v0, v1, end_node: leg.end_node, steps: steps_n, rev });
     }
 
     // The path ends exactly where the caller snapped (the cut point computed
@@ -353,5 +356,17 @@ pub(crate) fn build(r: &WalkRouter, from: &Snap, to: &Snap, profile: &WalkProfil
             _ => covered.push((p.v0, p.v1, c)),
         }
     }
-    WalkPath { cost, dist_m, climb_m, descent_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, closed_m: legs.iter().map(|l| l.closed_m).sum(), geometry, levels, steps, covered }
+    let kerb = if g.attrs.kerb.len() == g.edges.len() {
+        pieces
+            .iter()
+            .filter(|p| p.edge != NO_EDGE && p.v1 > p.v0)
+            .filter_map(|p| {
+                let cross_end = g.node_flags.get(p.end_node as usize).is_some_and(|f| f & (NF_CROSSING | NF_CROSSING_SIGNALS) != 0);
+                crate::kerb::piece(g, p.edge, p.rev, p.v0, p.v1, p.dist, cross_end)
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    WalkPath { cost, dist_m, climb_m, descent_m, stairs_up: up.round() as u16, stairs_down: down.round() as u16, lifts, escalators, unmapped_level_changes: jumps.min(255) as u8, closed_m: legs.iter().map(|l| l.closed_m).sum(), geometry, levels, steps, covered, kerb }
 }

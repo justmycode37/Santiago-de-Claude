@@ -727,3 +727,50 @@ fn a_line_onto_the_network_across_a_busy_road_counts_more() {
     assert_eq!(crate::doors::crosses_carriageway(&r, pt(0.0, 2.0), s.snap.pos, s.snap.edge), Some(true));
     assert_eq!(crate::doors::crosses_carriageway(&r, pt(0.0, 2.0), n.snap.pos, n.snap.edge), None);
 }
+
+#[test]
+fn a_walk_along_a_road_is_drawn_at_its_edge_and_its_ends_stay() {
+    // a residential road along y = 0 that says nothing of its sidewalks: drawn 2.5 m from its line
+    let mut w = World::new();
+    w.way((0.0, 0.0), (200.0, 0.0), 4, EdgeKind::Road, 0);
+    let (ne, nn) = (w.g.edges.len(), w.g.nodes.len());
+    w.g.attrs = WalkAttrs { graph: 0, edge: vec![RC_MINOR; ne], node: vec![0; nn], hours: vec![], edge_hours: vec![], kerb: vec![0; ne] };
+    let (r, ix) = w.finish();
+    let near = |p: LatLon, x: f32, y: f32| p.dist_m(&pt(x, y)) < 0.05;
+    // from a stop 6 m south of the road to a place 6 m south of it: along its south edge
+    let from = stop(&r, 20.0, -6.0, &NORMAL);
+    let to = End::place(&r, Some(&ix), pt(180.0, -6.0), &NORMAL);
+    let (_, _, d) = reach_and_walk(&r, &ix, &from, &to, &NORMAL, 900.0);
+    assert!(near(d.geometry[0], 20.0, -6.0) && near(*d.geometry.last().unwrap(), 180.0, -6.0), "the ends stay");
+    assert_eq!(d.levels.len(), d.geometry.len());
+    assert_eq!(d.head, 1);
+    for p in &d.geometry[d.head as usize..=d.path_end as usize] {
+        assert!((p.lat - pt(0.0, -2.5).lat).abs() <= 2, "2.5 m south of the road's line: {p:?}");
+    }
+    // from a stop on the road's line: the start is drawn there, then at the edge (one point more, before the path)
+    let from = End::stop(&r, None, pt(20.0, 0.0), Some(snap(&r, 20.0, 0.0, &NORMAL)), false);
+    let (_, w2, d) = reach_and_walk(&r, &ix, &from, &to, &NORMAL, 900.0);
+    assert_eq!(d.head, 1, "{:?}", d.geometry);
+    assert_eq!(d.geometry.len(), w2.path.geometry.len() + 2);
+    assert_eq!(d.levels.len(), d.geometry.len());
+    assert!(near(d.geometry[0], 20.0, 0.0) && near(d.geometry[1], 20.0, -2.5), "{:?}", &d.geometry[..2]);
+    assert!(d.approx_start.is_none());
+}
+
+
+#[test]
+fn a_road_too_narrow_for_its_edge_is_drawn_on_its_line_where_a_building_stands() {
+    // a residential road along y = 0, a house from x = 40 to 160 whose wall is 1.5 m south of the road's line
+    let mut w = World::new();
+    w.way((0.0, 0.0), (200.0, 0.0), 4, EdgeKind::Road, 0);
+    w.building(40.0, -12.0, 160.0, -1.5);
+    let (ne, nn) = (w.g.edges.len(), w.g.nodes.len());
+    w.g.attrs = WalkAttrs { graph: 0, edge: vec![RC_MINOR; ne], node: vec![0; nn], hours: vec![], edge_hours: vec![], kerb: vec![0; ne] };
+    let (r, ix) = w.finish();
+    let from = stop(&r, 20.0, -6.0, &NORMAL);
+    let to = End::place(&r, Some(&ix), pt(180.0, -6.0), &NORMAL);
+    let (_, _, d) = reach_and_walk(&r, &ix, &from, &to, &NORMAL, 900.0);
+    for k in 0..d.geometry.len() - 1 {
+        assert!(!ix.through(d.geometry[k], d.geometry[k + 1], 0.0), "segment {k} through the house: {:?}", d.geometry);
+    }
+}

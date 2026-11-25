@@ -31,6 +31,9 @@ not scored (the "both", "unclear" and low-confidence walks are not golden).
 python3 -I score.py --set refwalks.json --engine http://127.0.0.1:8092 --data DATA --bin path/to/compare --out score.json
 ```
 
+`compare metrics` matches a walk's line to the graph within 5 cm: run the engines it measures with
+`KANTE_WALK_RULES_OFF=kerb`, else walks along roads are drawn at the road's edge and count as off the network.
+
 A golden walk passes when it uses at least 70 % of the metres of the right walk's own ways, at most 15 m of the
 wrong walk's, and ends within 5 m of the right door. Reported by category, city, profile and the checker's issue,
 each failure listed (a gain in one place never hides a loss in another). For every walk: metres on carriageways
