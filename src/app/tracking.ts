@@ -13,6 +13,7 @@ import { goToStep } from './pill.ts';
 import { distKm, lengthKm } from './routing.ts';
 import { journey, searchState, tracking } from './state.ts';
 import { KANTE_LIVE } from '../live.ts';
+import { bearingDeg } from '../compass.ts';
 import type { KanteAdvancedPosition } from '../live.ts';
 import type { JourneyRideStep, JourneyStep } from './journey-steps.ts';
 
@@ -275,6 +276,27 @@ export function placeUserDot() {
   const routed = !!st && st.type !== 'ride' && (st.walks || []).some((w) => w && w.net && !w.approx); // only onto real paths, never a straight guess
   if (routed && tracking.track && !tracking.track.guess && tracking.track.d <= Math.max(12, Math.min(userAccuracy, 40))) at = pointAtKm(stepLine(st!), tracking.track.kmIn) || at;
   userMarker.setLngLat(at);
+}
+/**
+ * Where you are on the trip, for the follow camera (follow-cam.ts): on a ride or not, and which way the trip's line
+ * goes there (deg; looking 25 m on, so a bend of the path or track does not swing it), null when GPS does not put you
+ * on a known stretch of it (off the route, on a walk's guessed stretch, arrived, the last metres of a step).
+ */
+let hereFor: { t: TrackState; v: number; here: { onRide: boolean; bearing: number | null } } | null = null;
+export function tripHere(): { onRide: boolean; bearing: number | null } | null {
+  const t = tracking.track;
+  if (!t || t.off || t.arrived || !gpsOn()) return null;
+  // (asked a few times a second: measured again only for a new fix or new lines)
+  if (hereFor && hereFor.t === t && hereFor.v === tracking.geoVersion) return hereFor.here;
+  const st = journey.steps[t.i];
+  const onRide = st.type === 'ride' && !t.missed && t.kmIn > 0;
+  let bearing: number | null = null;
+  if (!t.guess) {
+    const cs = stepLine(st), a = pointAtKm(cs, t.kmIn), b = pointAtKm(cs, t.kmIn + 0.025);
+    if (a && b && distKm(a, b) > 0.008) bearing = bearingDeg(a, b);
+  }
+  hereFor = { t, v: tracking.geoVersion, here: { onRide, bearing } };
+  return hereFor.here;
 }
 export function trackJourney() {
   trackOnce();

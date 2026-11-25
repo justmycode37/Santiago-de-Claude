@@ -504,6 +504,13 @@
     @keyframes pill-in { from { transform: translateY(-130%); } to { transform: none; } }
     body.following .menu { top: calc(env(safe-area-inset-top) + 76px); }
     body.searching .menu { opacity: 0; pointer-events: none; } /* the results list opens over its place */
+    /* North up (src/app/follow-cam.ts): below the menu button while the map is turned or tilted and not following you;
+       the needle points north. Out of the way while the menu is open (its buttons fan out there). */
+    .north-btn { position: fixed; right: 12px; top: calc(env(safe-area-inset-top) + 66px); z-index: 19; transition: top .28s var(--spring), opacity .15s ease; }
+    .north-btn[hidden] { display: none; }
+    .north-btn svg { width: 26px; height: 26px; }
+    body.following .north-btn { top: calc(env(safe-area-inset-top) + 130px); }
+    .menu.open ~ .north-btn, body.searching .north-btn { opacity: 0; pointer-events: none; }
     .menu { transition: top .28s var(--spring), opacity .15s ease; }
     .j-time {
       flex: none;
@@ -1463,6 +1470,10 @@
       <button type="button" data-view="satellite" aria-pressed="false" tabindex="-1">Satellite</button>
     </div>
   </div>
+
+  <button class="fab north-btn" id="northBtn" type="button" aria-label="Turn the map north up" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l4 9.5h-8z" fill="#e5484d" /><path d="M12 21.5l-4-9.5h8z" fill="currentColor" opacity=".45" /></svg>
+  </button>
 
   <div class="toast" id="toast" role="status"></div>
 

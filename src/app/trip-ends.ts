@@ -13,6 +13,7 @@ import { placeSheet, sheetDetent } from './sheet.ts';
 import { renderFoot, renderHead } from './sheet-content.ts';
 import { startJourney } from './pill.ts';
 import { endJourney } from './routing.ts';
+import { stopFollowCam } from './follow-cam.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import type { SearchResult, TripField } from './search.ts';
@@ -39,6 +40,7 @@ export function setFollowing(on: boolean) {
   if (on === document.body.classList.contains('following')) return;
   document.body.classList.toggle('following', on);
   if (on) closeSearch();
+  else stopFollowCam(); // north up and flat again
   if (journey.conn) { renderHead(true); renderFoot(); } // Start has done its work; the pill has the times
   layoutTop();
   if (document.body.classList.contains('journey-mode')) placeSheet(sheetDetent, true);
@@ -77,7 +79,7 @@ export function setStart(r: JourneyDest | null, fly?: boolean) {
   setPlanOpen(true);
   setFollowing(false);
   if (journey.dest) startJourney(journey.dest, true);
-  else if (r && fly) map.flyTo({ center: r.lngLat, zoom: Math.max(map.getZoom(), 15), speed: 1.4 });
+  else if (r && fly) map.flyTo({ center: r.lngLat, zoom: Math.max(map.getZoom(), 15), bearing: 0, pitch: 0, speed: 1.4 });
 }
 export function choose(r: SearchResult, field = searchState.field) {
   if (field === 'from') setStart(r, true);

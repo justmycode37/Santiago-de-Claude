@@ -7,6 +7,8 @@ import { setFollowing } from './trip-ends.ts';
 import { refreshRouteHighlight } from './journey-map.ts';
 import { fmtTime, journeyEnd, journeyStart, lineLabel, stopName, stopUic } from './journey-steps.ts';
 import { journeyProgress } from './tracking.ts';
+import { followCam, pauseFollowCam } from './follow-cam.ts';
+import { askForCompass } from './heading.ts';
 import { h, kIcon, setDetent, sheetDetent } from './sheet.ts';
 import { renderSheet, walkDirections } from './sheet-content.ts';
 import { fitCoords, fitJourney, goToStep, mapPadding } from './pill.ts';
@@ -14,6 +16,7 @@ import { lengthKm } from './routing.ts';
 import { journey, sheet, tracking } from './state.ts';
 import type { TimedPlace } from './tracking.ts';
 export function overview() {
+  pauseFollowCam();
   sheet.focus = null;
   journey.overview = true;
   refreshRouteHighlight();
@@ -24,6 +27,7 @@ export function overview() {
 export function focusDir(i: number, k: number) {
   const st = journey.steps[i], d = st && walkDirections(st)[k];
   if (!d) return;
+  pauseFollowCam();
   sheet.focus = { step: i, dir: k };
   journey.step = i;
   journey.overview = false;
@@ -31,7 +35,7 @@ export function focusDir(i: number, k: number) {
   refreshRouteHighlight();
   const cs = (d.coords || []).filter(Boolean);
   if (cs.length > 1 && lengthKm(cs) > 0.03) fitCoords(cs, 18.5);
-  else if (cs.length) map.flyTo({ center: cs[Math.floor((cs.length - 1) / 2)], zoom: 18.5, padding: mapPadding(), duration: 700 });
+  else if (cs.length) map.flyTo({ center: cs[Math.floor((cs.length - 1) / 2)], zoom: 18.5, bearing: 0, pitch: 0, padding: mapPadding(), duration: 700 });
   if (sheetDetent === 'full') setDetent('mid');
   renderSheet();
 }
@@ -39,22 +43,27 @@ export function focusDir(i: number, k: number) {
 export function showQuay(i: number) {
   const r = journey.steps[i];
   if (!r) return;
+  pauseFollowCam();
   sheet.focus = null;
   journey.step = i;
   journey.overview = false;
   tracking.userPickedAt = Date.now();
   refreshRouteHighlight();
-  if (r.depLL) map.flyTo({ center: r.depLL, zoom: 18.5, padding: mapPadding(), duration: 700 });
+  if (r.depLL) map.flyTo({ center: r.depLL, zoom: 18.5, bearing: 0, pitch: 0, padding: mapPadding(), duration: 700 });
   if (sheetDetent === 'full') setDetent('mid');
   renderSheet();
 }
-// Start: the sheet steps aside and the map shows where you are on the trip (GPS moves it along from there)
+// Start (and "Back to where you are"): the sheet steps aside and the map follows you on the trip, turned the way you
+// face (follow-cam.ts); until there is a GPS fix it shows the step you are on. The tap is the one iPhones need to
+// be asked for the compass.
 export function startFollowing() {
+  void askForCompass(true);
   setFollowing(true);
   if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
   }
   setDetent('low');
+  followCam(); // (once the sheet is down: the camera aims at the free part of the map)
   const p = journeyProgress();
   goToStep(p && !(p as TimedPlace).ended ? p.i : 0, true);
 }

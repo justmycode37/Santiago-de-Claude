@@ -21,6 +21,7 @@ import { updateWhenChip } from './time-picker.ts';
 import { refineJourney } from './routing.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
 import { KanteJourney } from '../engine-journey.ts';
+import { followCamOn, pauseFollowCam } from './follow-cam.ts';
 import type { Journey } from '../engine-journey.ts';
 import type { JourneyDest, JourneyOrigin } from './state.ts';
 const jBar = document.getElementById('jBar')!;
@@ -167,18 +168,18 @@ export function renderJourney(conn: Journey, destTitle: string) {
   redrawRoute(true);
   updateNowMarker();
   refreshRouteHighlight();
-  fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it
+  if (!followCamOn()) fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it
 }
 
 // Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you
 export function goToStep(i: number, auto?: boolean) {
   if (!journey.steps.length) return;
-  if (!auto) tracking.userPickedAt = Date.now();
+  if (!auto) { tracking.userPickedAt = Date.now(); pauseFollowCam(); }
   journey.step = Math.min(journey.steps.length - 1, Math.max(0, i));
   journey.overview = false;
   sheet.focus = null;
   refreshRouteHighlight();
-  fitStep(journey.step);
+  if (!followCamOn()) fitStep(journey.step); // (the follow camera shows where you are on it)
   if (!auto && sheetDetent === 'full') setDetent('mid');
   renderSheet();
 }
@@ -197,7 +198,7 @@ export function mapPadding() {
 export function fitCoords(coords: LngLat[], maxZoom = 17) {
   if (!coords.length) return;
   const b = coords.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
-  map.fitBounds(b, { padding: mapPadding(), maxZoom, duration: 700 });
+  map.fitBounds(b, { padding: mapPadding(), maxZoom, bearing: 0, pitch: 0, duration: 700 });
 }
 export function fitJourney() {
   const all: LngLat[] = [];
@@ -244,7 +245,7 @@ export async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?:
   vehMarker.remove();
   nowMarker.remove();
   setRoute([]);
-  if (!keepQuery) map.flyTo({ center: r.lngLat, zoom: 14, speed: 1.4 }); // between the card above and the sheet below
+  if (!keepQuery) map.flyTo({ center: r.lngLat, zoom: 14, bearing: 0, pitch: 0, speed: 1.4 }); // between the card above and the sheet below
   clearInterval(journey.progressTimer);
   journey.progressTimer = setInterval(tick, 5000);
   clearInterval(journey.liveTimer);

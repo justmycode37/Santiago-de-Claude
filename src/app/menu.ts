@@ -18,6 +18,7 @@ import { SETTINGS } from '../settings.ts';
 import type { StopVisionHooks } from '../stopvision.ts';
 import { KANTE_BOARD } from '../engine-departures.ts';
 import { indoor } from '../station3d.ts';
+import { pauseFollowCam } from './follow-cam.ts';
 // ---------- Top-right menu ----------
 export const menu = document.getElementById('menu')!;
 const menuBtn = document.getElementById('menuBtn')!;
@@ -63,7 +64,8 @@ export function scanHooks(): StopVisionHooks {
       const st = PLATFORMS.get(String(id));
       if (!st) return;
       const ll = i != null && st.edges[i] ? st.edges[i].ll : st.edges[0].ll;
-      map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 18) });
+      pauseFollowCam();
+      map.flyTo({ center: ll, zoom: Math.max(map.getZoom(), 18), bearing: 0, pitch: 0 });
       openPlatform({ properties: { id: String(id), i } });
     },
     toast: (t) => showToast(t),

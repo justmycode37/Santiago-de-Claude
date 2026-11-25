@@ -50,6 +50,7 @@ fake('sheet-content.ts', { connStart: (c: { t0: number }) => c.t0, connEnd: (c: 
   s3Plan: () => null, s3Prefs: () => ({}) });
 fake('pill.ts', { goToStep: nothing, updateProgress: () => follow(), updatePillTimes: nothing, startJourney: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
+fake('heading.ts', { noteFix: nothing, startHeading: nothing }); // (the beam of which way you face: tests of its own)
 fake('../toast.ts', { showToast: nothing });
 fake('../walk-pace.ts', { WALK_PACE: { fix: nothing, attach: nothing } });
 fake('../live.ts', { KANTE_LIVE: { runOrWait: () => ({ text: '', level: null }), liveInfoOf: () => ({}), advance: () => null, rideKm: () => null } });
