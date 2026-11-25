@@ -460,6 +460,26 @@ function vehicleHonesty(st: JourneyRideStep, v: VehicleState, now: number) {
   const forecast = s.stops.some((x) => hasForecast(x, 'dep') || hasForecast(x, 'arr'));
   return forecast ? { text: 'Estimated from forecasts', dim: false } : KANTE_LIVE.liveText({ state: 'timetable' });
 }
+// The ride's vehicle as shown: glided along the ride's line (km) towards where the live data puts it, about 20 times
+// a second between the page's updates (KANTE_LIVE.glide: never backwards, catching up at up to twice its pace)
+let vehShown: { st: JourneyRideStep; path: LngLat[]; km: number; at: number } | null = null;
+let vehAnim = 0, vehAnimAt = 0;
+function shownKm(st: JourneyRideStep, km: number, now: number) {
+  const s = vehShown && vehShown.st === st && vehShown.path === st.path ? vehShown : null;
+  const ahead = vehicleState(st, now + 1000), rate = ahead ? Math.max(0, ahead.km - km) : 0; // km a second
+  const k = s ? KANTE_LIVE.glide(s.km, km, rate, (now - s.at) / 1000, Math.max(0.5, 60 * rate)) : km;
+  vehShown = { st, path: st.path, km: k, at: now };
+  return k;
+}
+function animateVehMarker(t: number) {
+  vehAnim = 0;
+  if (!vehMarker._map || !vehShown || document.hidden) return;
+  vehAnim = requestAnimationFrame(animateVehMarker);
+  if (t - vehAnimAt < 50) return;
+  vehAnimAt = t;
+  const now = Date.now(), st = vehShown.st, v = vehicleState(st, now);
+  if (v) vehMarker.setLngLat(pointAtKm(st.path, shownKm(st, v.km, now))!);
+}
 export function updateNowMarker() {
   const now = Date.now();
   const ride = journey.steps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
@@ -480,9 +500,10 @@ export function updateNowMarker() {
       vehEl.setAttribute('aria-label', `${MODE_NAME[modeOf(j.category)] || 'Vehicle'} ${lineLabel(j)}: ${how.text}`);
     }
     vehEl.classList.toggle('dim', how.dim);
-    vehMarker.setLngLat(pointAtKm(ride!.path, v.km)!);
+    vehMarker.setLngLat(pointAtKm(ride!.path, shownKm(ride!, v.km, now))!);
     if (!vehMarker._map) vehMarker.addTo(map);
-  } else vehMarker.remove();
+    if (!vehAnim) vehAnim = requestAnimationFrame(animateVehMarker);
+  } else { vehMarker.remove(); vehShown = null; }
   const tp = !gpsOn() && !ride ? timeProgress(now) : null;
   const pos = tp && !tp.ended ? pointAtKm(stepLine(journey.steps[tp.i]), tp.kmIn) : null;
   if (pos) { nowMarker.setLngLat(pos); if (!nowMarker._map) nowMarker.addTo(map); }

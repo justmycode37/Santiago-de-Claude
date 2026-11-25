@@ -1,0 +1,77 @@
+// Tests for how vehicles are moved on the map between answers of the engine (src/live.ts): along the way they take
+// (hopPointAt), and gliding to a newer answer instead of jumping (glide). Offline; exit code 1 on any failure.
+//
+//   node tools/test_glide.mts
+import { KANTE_LIVE } from '../src/live.ts';
+
+let passed = 0, failed = 0;
+const check = (ok: boolean, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };
+const { glide, hopFrac, hopPointAt, decodePolyline } = KANTE_LIVE;
+
+console.log('gliding to a newer answer');
+{
+  // a vehicle 100 s from stop to stop (rate 0.01 a second); an answer at 30 s puts it 20 s further on than shown
+  const rate = 0.01, dt = 0.08;
+  let shownF = 0.3, target = 0.5, maxStep = 0, back = false, t = 0;
+  while (t < 40) {
+    const next = glide(shownF, target, rate, dt);
+    maxStep = Math.max(maxStep, (next - shownF) / dt);
+    back ||= next < shownF - 1e-12;
+    shownF = next; target += rate * dt; t += dt;
+  }
+  check(!back, 'behind: never backwards');
+  check(maxStep <= 2 * rate + 1e-9, `behind: at most twice its pace (${(maxStep / rate).toFixed(2)}×)`);
+  check(Math.abs(shownF - target) < 0.002, `behind: caught up within 40 s, closing 1 s of travel a second (${((target - shownF) * 100).toFixed(2)} s of travel left)`);
+}
+{
+  // ahead: an answer puts it 10 s behind what is shown; it slows down, never goes back
+  const rate = 0.01, dt = 0.08;
+  let shownF = 0.5, target = 0.4, back = false;
+  for (let t = 0; t < 30; t += dt) { const next = glide(shownF, target, rate, dt); back ||= next < shownF - 1e-12; shownF = next; target += rate * dt; }
+  check(!back && Math.abs(shownF - target) < 0.003, `ahead: waits for it, never backwards (${((shownF - target) * 100).toFixed(2)} s apart after 30 s)`);
+}
+check(glide(0.1, 0.9, 0.01, 0.08) === 0.9, 'a gap of more than a minute of travel is jumped');
+check(glide(null, 0.4, 0.01, 0.08) === 0.4, 'nothing shown yet: where the answer puts it');
+{
+  // standing still (rate 0), shown 200 m short of it: it gets there all the same
+  let km = 1.0;
+  for (let t = 0; t < 15; t += 0.05) km = glide(km, 1.2, 0, 0.05, 0.5);
+  check(Math.abs(km - 1.2) < 0.002, `a vehicle standing still is reached (${((1.2 - km) * 1000).toFixed(1)} m short after 15 s)`);
+}
+
+console.log('along the way it takes');
+{
+  // an L-shaped hop: 1.1 km east, then 1.1 km north (encoded polyline, as the engine sends it)
+  const enc = '_~n}G_cll@?qzAo}@?';
+  const pts = decodePolyline(enc);
+  check(pts.length === 3 && Math.abs(pts[1][0] - pts[0][0] - 0.01465) < 1e-6, `the polyline decodes (${JSON.stringify(pts)})`);
+  const v = { from: pts[0], to: pts[2], dep: 1000, arr: 1100, hopPath: enc, frac: 0.25, t: 1000 };
+  const mid = hopPointAt(v, 0.5);
+  check(Math.abs(mid[0] - pts[1][0]) < 2e-4 && Math.abs(mid[1] - pts[1][1]) < 2e-4, 'halfway in time is at the corner, not across it');
+  check(Math.abs(hopFrac(v, 1025) - 0.5) < 1e-9, 'its share goes on from frac at the pace of dep→arr');
+  // only part of the way sent (hopSpan): the second half; at 75 % of the whole it is halfway along the part
+  const part = { ...v, hopPath: '_~n}Gq~nl@o}@?', hopSpan: [0.5, 1] as [number, number] };
+  const q = hopPointAt(part, 0.75), corner = pts[1], end = pts[2];
+  check(Math.abs(q[1] - (corner[1] + end[1]) / 2) < 2e-4, 'a part of the way: placed by its span');
+}
+
+console.log('speeding up and braking (the engine\'s motion)');
+{
+  const { wayShare, setLineRefiner } = KANTE_LIVE;
+  // a tram: 1.2 m/s² both ways, cruising at 9.62 m/s, 500 m in 60 s (as the engine works it out)
+  const m: [number, number, number] = [1.2, 1.2, 9.62], len = 500, t = 60;
+  check(Math.abs(wayShare(m, len, t, 5 / 60) * len - 15) < 0.1, `5 s after leaving: 15 m on (${(wayShare(m, len, t, 5 / 60) * len).toFixed(1)} m), not 42 m`);
+  check(Math.abs(wayShare(m, len, t, 0.5) - 0.5) < 0.01, 'halfway in time: halfway along (the same rates both ways)');
+  check(Math.abs(wayShare(m, len, t, 1) - 1) < 1e-6 && wayShare(m, len, t, 0) === 0, 'from the stop to the next');
+  check(wayShare(null, len, t, 0.3) === 0.3, 'without a motion: an even pace');
+  // the map's own lines: only for vehicles on rails
+  const enc = '_~n}G_cll@?qzAo}@?';
+  setLineRefiner((pts) => pts.map(([x, y]) => [x, y + 0.00001] as LngLat));
+  const base = { from: [0, 0] as LngLat, to: [1, 1] as LngLat, dep: 0, arr: 100, hopPath: enc };
+  const tram = hopPointAt({ ...base, line: { mode: 'tram' } }, 0.25), bus = hopPointAt({ ...base, line: { mode: 'bus' } }, 0.25);
+  check(Math.abs(tram[1] - bus[1] - 0.00001) < 1e-9, 'a tram is drawn on the map\'s rails, a bus on its own way');
+  setLineRefiner(null);
+}
+
+console.log(`\n${passed} passed, ${failed} failed`);
+process.exit(failed ? 1 : 0);

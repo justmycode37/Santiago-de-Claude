@@ -12,6 +12,7 @@ mod formation;
 mod live;
 mod identify;
 mod liveapi;
+mod motion;
 mod profiles;
 mod plan;
 mod state;

@@ -102,11 +102,27 @@ Where the vehicle drives between them (see [The way vehicles take](#the-way-vehi
 |---|---|
 | `hopPath` | `between`: the way from `seq` to `nextSeq` on the rails and roads, as a [Google encoded polyline](https://developers.google.com/maps/documentation/utilities/polylinealgorithm) (precision 5), from where the vehicle stands at `seq` to where it stands at `nextSeq` (beside the boarding points, on the track or road). Absent where only the straight line is known |
 | `hopStraight` | some of `hopPath` is a straight line: a stop is off the map |
-| `point` | where the vehicle is at `t` on its track or road: `between`, `frac` of `hopPath`'s length along it (no acceleration or braking: that would need measured positions to check it against, and there are none); `at`, where it stands at `seq`. Absent where not known |
+| `point` | where the vehicle is at `t` on its track or road: `between`, as far along `hopPath` as `motion` takes it in `frac` of the hop's time; `at`, where it stands at `seq`. Absent where not known |
 | `heading` | `between`: the direction it drives in at `point`, degrees from north |
+| `motion` | `between`: `[accel, brake, cruise]` (m/s², m/s², m/s): it leaves `seq` at `dep` speeding up at `accel` to `cruise`, runs at it and brakes at `brake` into `nextSeq` at `arr`. Absent (an even pace) where the hop's time is too short for it |
+| `hopLen` | with `motion`: the hop's length on its way, metres |
 
-To move it on between two requests, go on at the pace of `dep`→`arr` as before and take that share of
-`hopPath`'s length.
+To move it on between two requests, go on at the pace of `dep`→`arr` as before (`frac` of the time), and place it as
+`motion` has it: τ = `frac`·(`arr` − `dep`) seconds in, it has gone ½·accel·τ² while speeding up (τ < cruise/accel),
+then on at `cruise`, and `hopLen` − ½·brake·(`arr` − `dep` − τ)² while braking.
+
+### Times a vehicle can keep
+
+Published times are whole minutes, so a short hop is often given no time at all (leaving one stop and reaching the
+next in the same minute). The times positions are worked out from (`dep`, `arr`, and the `at`/`between` they decide)
+give every hop at least what its vehicle needs to speed up, run and brake over the hop's length
+(`crates/server/src/motion.rs`), borrowed from the stops beside it: it leaves earlier (from its time standing there)
+and arrives later, by up to a minute each. Measured times are never moved. The rates are service figures: trams 1.2
+m/s² both ways, at most 70 km/h (Siemens Combino Plus and Avenio, Bombardier Flexity datasheets: 1.2–1.3 m/s²
+starting, 1.1–1.3 m/s² service braking); buses 1.0 / 1.1 m/s², 80 km/h (passenger comfort, about 1 m/s²); regional
+trains 0.9 / 0.8 m/s², 160 km/h (Stadler FLIRT 1.2–1.3, KISS 0.95–1.1 m/s² starting); long-distance trains 0.5 /
+0.6 m/s², 200 km/h; metros 1.1 m/s², 80 km/h; rack railways, funiculars and cableways 0.5 m/s²; boats 0.2 / 0.3 m/s².
+`/api/due` keeps the times as the feeds and profiles give them.
 
 Each call in `calls` has `live: true` where its times come from a feed (reported, or carried on from an
 earlier report); elsewhere they are the timetable's, and a page should keep any forecast it has from
@@ -121,7 +137,17 @@ As before; every vehicle also has `liveInfo`, `extra`, `frac` and `basis`. `from
 `nextSeq` and `frac` all come from the vehicle's `position`, so they always describe the same hop; so do
 `hopPath`, `hopStraight`, `point` and `heading`. Of a long hop (an express train's 60 km) `hopPath` is only the part
 within 1.5 km of the box, and `hopSpan: [start, end]` says which: the shares of the whole way's length it starts and
-ends at. The vehicle is at `frac` of the whole way, so on the part at (`frac` − start) / (end − start).
+ends at. The vehicle is at `frac` of the whole way, so on the part at (`frac` − start) / (end − start) (with
+`motion`, the share of the way it has gone, as above).
+
+`onward` is the hop after this one, so a page can drive the vehicle on through the stop it stands at (or is heading
+for) until the next answer comes: `{ nextSeq, to, dep, arr, hopPath, hopSpan, hopStraight, motion, hopLen }`, the stop
+after and its boarding point, when it leaves the stop and reaches that one, and its way. The app's map does: past
+`arr` the vehicle stands at `nextSeq`, from `onward.dep` it drives the onward hop. A newer answer is glided to, not
+jumped to (`src/live.ts`, `showVehicle`): at up to twice the vehicle's pace to catch up, slowing down (never
+backwards) to let it come; only a gap of more than a minute of travel is jumped. Replayed on this engine's answers
+15 s apart over 4 minutes in the centres of Bern, Zürich and Luzern (`tools/glide_replay.mts`, timetable times): no
+jumps where the map drew 40–110 jumps per vehicle-hour before (redrawn once a second, jumping to each answer).
 
 A vehicle is found in the box when the way of its hop passes through it, not only the straight line between its
 stops (a train on a bend).
