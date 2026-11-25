@@ -27,12 +27,16 @@ interface SolidView {
   readonly user?: SolidUserState;
   readonly stretch: number;
   plan(from: StationRouteEndpoint | null, to: StationRouteEndpoint | null, prefs?: StationRoutePrefs | null): StationRouteResult | null;
+  /** As plan, keeping the step you are at, first person and the play-through. */
+  reaim?(from: StationRouteEndpoint | null, to: StationRouteEndpoint | null, prefs?: StationRoutePrefs | null): StationRouteResult | null;
   step(i: number): void;
   whole(): void;
   floor(id: number | null): void;
   next(): void;
   prev(): void;
   setStretch(s: number): void;
+  /** px of the canvas the overlay covers at the top and the bottom (the camera centres on the rest). */
+  setInsets?(o: { top?: number; bottom?: number }): void;
   /** true: the whole station; false: only the part the route uses (the default). */
   showAll?(on: boolean): void;
   /** Only the part of the station the route uses is drawn (false: the whole station). */
@@ -71,7 +75,7 @@ import type { StationRoutePrefs } from './station-route.ts';
 import type { SolidTrainInput } from './station3d-solid.ts';
 import type { TrainCar, TrainLayout } from './train-layout.ts';
 import { endOf, loadTrain, sectorList } from './train-formation.ts';
-import { planCoach } from './coach-plan.ts';
+import { planCoach, planNearestDoor } from './coach-plan.ts';
 import type { CoachPlan, CoachPlanContext } from './coach-plan.ts';
 import { Station3D } from './station3d.ts';
 import { StationRoute } from './station-route.ts';
@@ -195,6 +199,7 @@ const kindName = (k: string) => ({ escalator: 'Escalator', stairs: 'Stairs', ele
 interface Ui {
   root: HTMLElement; mount: HTMLElement; title: HTMLElement; sub: HTMLElement; you: HTMLElement; floors: HTMLElement;
   notice: HTMLElement; train: HTMLElement; trainLive: HTMLElement; guide: HTMLElement; state: HTMLElement; close: HTMLButtonElement;
+  head: HTMLElement; sheet: HTMLElement; grip: HTMLButtonElement;
 }
 let ui: Ui | null = null;
 let view: SolidView | null = null;
@@ -229,11 +234,118 @@ function shell(): Ui {
   state.hidden = true;
   const mount = el('div', 'stv-canvas');
   mount.setAttribute('aria-hidden', 'true');
-  const root = el('div', 'stv', mount, head, floors, el('div', 'stv-bottom', notice, train, guide), state, trainLive);
+  // the cards at the bottom are one sheet: dragged (or its grip tapped) down to a single line, up to all of it
+  const grip = btn('stv-grip', 'Show more of the card', () => { if (!dragMoved) setSnap(nextSnap()); }, el('span', 'stv-grip-bar')) as HTMLButtonElement;
+  const sheet = el('div', 'stv-bottom stv-sheet', grip, el('div', 'stv-sheet-body', notice, train, guide));
+  const root = el('div', 'stv', mount, head, floors, sheet, state, trainLive);
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
-  return { root, mount, title, sub, you, floors, notice, train, trainLive, guide, state, close };
+  return { root, mount, title, sub, you, floors, notice, train, trainLive, guide, state, close, head, sheet, grip };
 }
+
+// ------------------------------------------------------------------ the sheet
+// peek: the step at hand in one line and its buttons; half: the card as it was (the train's coaches, the legend);
+// full: all of it with the list of steps. Remembered between openings. Dragged by its grip (or by any part of it that
+// is not a button, while it does not scroll), tapped on the grip it goes one size up (from full, back to peek). While the way plays or in first
+// person it drops to peek by itself (and back after, unless you moved it meanwhile).
+type Snap = 'peek' | 'half' | 'full';
+const SNAP_KEY = 'stv-sheet';
+const SNAPS: Snap[] = ['peek', 'half', 'full'];
+let snap: Snap = 'half', snapAuto: Snap | null = null, dragMoved = false, wasBusy = false;
+function savedSnap(): Snap { try { const v = localStorage.getItem(SNAP_KEY) as Snap; return SNAPS.includes(v) ? v : 'peek'; } catch (e) { return 'peek'; } }
+const nextSnap = (): Snap => (snap === 'peek' ? 'half' : snap === 'half' ? 'full' : 'peek');
+function setSnap(s: Snap, auto = false) {
+  if (!ui) return;
+  if (!auto) { snapAuto = null; try { localStorage.setItem(SNAP_KEY, s); } catch (e) { /* this opening only */ } }
+  snap = s;
+  ui.sheet.dataset.snap = s;
+  ui.grip.setAttribute('aria-label', s === 'full' ? 'Show less of the card' : 'Show more of the card');
+  ui.grip.setAttribute('aria-expanded', s === 'peek' ? 'false' : 'true');
+  if (s === 'full' && !listOpen && view && view.route) { listOpen = true; render(); }
+  else if (s !== 'full' && listOpen) { listOpen = false; render(); }
+  insetsSoon();
+}
+/** First person and the play-through: the sheet to a line (the view is what matters); back to where it was after. */
+function autoPeek(on: boolean) {
+  if (on && snap !== 'peek' && !snapAuto) { snapAuto = snap; setSnap('peek', true); }
+  else if (!on && snapAuto) { const back = snapAuto; snapAuto = null; setSnap(back, true); }
+}
+function dragSheet(e: PointerEvent) {
+  if (!ui || e.button !== 0) return;
+  const t = e.target as HTMLElement;
+  // a button, a link or a list that scrolls keeps its own gestures; the grip and the card's bare surface drag
+  const onGrip = t === ui.grip || ui.grip.contains(t);
+  if (!onGrip && t.closest('button, a, input, select, .stv-cars, .stv-list')) return;
+  // a card that scrolls (its content is longer than the sheet) scrolls; it is dragged by its grip
+  const body = ui.sheet.querySelector<HTMLElement>('.stv-sheet-body');
+  if (!onGrip && body && body.scrollHeight > body.clientHeight + 2) return;
+  const sh = ui.sheet, y0 = e.clientY, h0 = sh.getBoundingClientRect().height, t0 = performance.now();
+  const max = window.innerHeight * 0.86, min = 64;
+  let moved = false, last = y0, lastT = t0, v = 0, want = h0;
+  dragMoved = false;
+  const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== e.pointerId) return;   // another finger
+    const dy = ev.clientY - y0;
+    if (!moved && Math.abs(dy) < 6) return;
+    if (!moved) {
+      moved = true; dragMoved = true; sh.classList.add('dragging');
+      // pulled up: all of the card while it is dragged (at its smallest most of it is hidden, and it could not grow),
+      // as high as it was to begin with
+      sh.style.maxHeight = h0 + 'px';
+      if (dy < 0) sh.dataset.snap = 'full';
+      try { sh.setPointerCapture(e.pointerId); } catch (x) { /* fine */ }
+    }
+    const now = performance.now();
+    v = (ev.clientY - last) / Math.max(1, now - lastT); last = ev.clientY; lastT = now;
+    want = Math.max(min, Math.min(max, h0 - dy));
+    sh.style.maxHeight = want + 'px';
+    ev.preventDefault();
+  };
+  const up = (ev: PointerEvent) => {
+    if (ev.pointerId !== e.pointerId) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    if (!moved) return;
+    if (ev.type === 'pointercancel') {
+      // the browser took the gesture: back as it was, nothing remembered
+      sh.style.maxHeight = ''; sh.classList.remove('dragging'); sh.dataset.snap = snap;
+      setTimeout(() => { dragMoved = false; }, 0);
+      return;
+    }
+    const h = want;   // as high as it was pulled (the card may be shorter than that)
+    sh.style.maxHeight = '';
+    sh.classList.remove('dragging');
+    // a flick goes one size on; else the nearest size, by the height it was let go at
+    let to: Snap;
+    if (v > 0.6) to = snap === 'full' && h > window.innerHeight * 0.45 ? 'half' : 'peek';
+    else if (v < -0.6) to = snap === 'peek' && h < window.innerHeight * 0.4 ? 'half' : 'full';
+    else to = h < window.innerHeight * 0.2 ? 'peek' : h < window.innerHeight * 0.58 ? 'half' : 'full';
+    setSnap(to);
+    setTimeout(() => { dragMoved = false; }, 0);   // the click that ends a drag on the grip does not also toggle
+  };
+  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+/** Tells the renderer what the overlay covers (the header at the top, the sheet at the bottom), once things settle. */
+let insetTimer = 0;
+function insetsSoon() {
+  clearTimeout(insetTimer);
+  insetTimer = window.setTimeout(insets, 30);
+}
+function insets() {
+  if (!ui || !view || !view.setInsets || ui.sheet.classList.contains('dragging')) return;
+  const R = ui.root.getBoundingClientRect(), hb = ui.head.getBoundingClientRect(), sb = ui.sheet.getBoundingClientRect();
+  // a card that does not scroll is all for dragging (a touch on it would otherwise be taken by the browser as a scroll)
+  const body = ui.sheet.querySelector<HTMLElement>('.stv-sheet-body');
+  if (body) body.style.touchAction = body.scrollHeight > body.clientHeight + 2 ? 'pan-y' : 'none';
+  const bottom = Math.max(0, R.bottom - sb.top), top = Math.max(0, hb.bottom - R.top);
+  ui.root.style.setProperty('--stv-sheet-h', Math.round(bottom) + 'px');
+  // the view centres on what is left; a sheet raised high (full) is read, not looked past: the view stays as at half
+  view.setInsets({ top, bottom: Math.min(bottom, R.height * 0.5) });
+}
+let sheetRO: ResizeObserver | null = null;
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') { e.preventDefault(); close3d(); return; }
   if (!view || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -271,7 +383,16 @@ function open(opts: Station3DOpenOptions) {
   if (view) { view.dispose(); view = null; }
   const returnFocus = (cur && cur.returnFocus) || opts.returnFocus || (document.activeElement as HTMLElement | null);
   cur = { key: opts.key, opts, returnFocus };
-  if (!ui) ui = shell();
+  if (!ui) {
+    ui = shell();
+    ui.sheet.addEventListener('pointerdown', dragSheet);
+    sheetRO = new ResizeObserver(insetsSoon);
+    sheetRO.observe(ui.sheet); sheetRO.observe(ui.head); sheetRO.observe(ui.root);
+  }
+  snapAuto = null; wasBusy = false;
+  snap = savedSnap();
+  ui.sheet.dataset.snap = snap;
+  ui.sheet.style.maxHeight = '';
   if (!ui.root.isConnected) {
     document.body.appendChild(ui.root);
     if (!historyState) { try { history.pushState({ stationView: true }, ''); historyState = true; } catch (e) {} }
@@ -320,11 +441,16 @@ function open(opts: Station3DOpenOptions) {
     view = v;
     ui.state.hidden = true;
     floorsRail();
+    insets();
     // one end only (a platform from the map): that floor, framed
     if (!v.route && (from || to)) { const lv = levelOf(model, (to || from)!); if (lv != null) v.floor(lv); }
     if (v.setUser && user && (user.at == null || Date.now() - user.at < RECENT_MS) && performance.now() - userAt < 10 * RECENT_MS) v.setUser(user);
     if ((opts.board || opts.alight) && v.setTrain) startTrains(v, opts, id);
     render();
+    // the sheet as remembered, now that there are steps (the list at full), then the way framed in what it leaves free
+    setSnap(snap, true);
+    insets();
+    if (v.route && lastChange.step < 0 && lastChange.focusLevel == null) v.whole();
     if (v.user) renderYou(v.user);
     emit('open', { key: opts.key, route: v.route, focus: null });
   }).catch((e: Error) => {
@@ -439,6 +565,10 @@ function render() {
   const g = ui.guide;
   g.textContent = '';
   try { renderGuide(v, r, step, focusLevel, g); } finally { if (sources) g.append(el('div', 'stv-src', sources)); }
+  // on entering first person or the play-through (and on leaving it), not at every render: a size you pick meanwhile stays
+  const busy = !!(lastChange.playing || lastChange.pov);
+  if (busy !== wasBusy) { wasBusy = busy; autoPeek(busy); }
+  insetsSoon();
 }
 function renderGuide(v: SolidView, r: StationRouteResult | null, step: number, focusLevel: number | null, g: HTMLElement) {
   if (!ui) return;
@@ -497,7 +627,7 @@ function renderGuide(v: SolidView, r: StationRouteResult | null, step: number, f
     me.classList.toggle('on', !!(v.user && v.user.follow));
     bar.append(me);
   }
-  const lb = btn('stv-btn stv-icon', listOpen ? 'Hide all steps' : 'All steps', () => { listOpen = !listOpen; render(); }, icon('list', 18));
+  const lb = btn('stv-btn stv-icon stv-listb', listOpen ? 'Hide all steps' : 'All steps', () => { listOpen = !listOpen; if (listOpen && snap !== 'full') setSnap('full'); render(); }, icon('list', 18));
   lb.setAttribute('aria-expanded', listOpen ? 'true' : 'false');
   bar.append(lb);
   g.append(bar);
@@ -545,6 +675,8 @@ interface TrainState {
   train: Station3DTrain; shown: TrainShown | null; layout: TrainLayout | null; target: number[];
   /** The coach chosen for the ride (null: none, or not a train); `planned`: the choice has been made. */
   plan: CoachPlan | null; planned: boolean;
+  /** With the nearest door (plan.nearest): why no coach of your class was chosen (null: the coaches are not known). */
+  nearestWhy?: CoachPlan['missing'];
   /** Not drawn now: the vehicle you arrive in and the one you take use the same track or stop (one at a time). */
   hidden: boolean;
 }
@@ -555,6 +687,11 @@ const CLASS_KEY = 'stv-class';
 function myClass(): 1 | 2 { try { return localStorage.getItem(CLASS_KEY) === '1' ? 1 : 2; } catch (e) { return 2; } }
 function setClass(c: 1 | 2) { try { localStorage.setItem(CLASS_KEY, String(c)); } catch (e) { /* kept for this opening only */ } }
 let classNow: 1 | 2 = 2;
+/** Counts the choices of coach asked for (opening, each change of class): an answer to an older one is dropped. */
+let classSeq = 0;
+/** Where the way first reached the platform (before it was aimed at a door): a train whose stopping place is not known
+ *  stands round it, the same however often the coach is chosen again. */
+let arrivalAt: XY | null = null;
 const planCtx = (): CoachPlanContext => ({
   engine: KANTE, cls: classNow, prefs: (cur && cur.opts.prefs) || null,
   loadModel: (key) => (view && view.model.key === key ? Promise.resolve(view.model) : Station3D.loadData(key)),
@@ -563,6 +700,9 @@ const planCtx = (): CoachPlanContext => ({
 const vehicleTitle = (t: Station3DTrain) => `${t.mode === 'tram' ? 'Tram' : t.mode === 'bus' ? 'Bus' : ''} ${t.line || t.category}`.trim();
 function startTrains(v: SolidView, opts: Station3DOpenOptions, id: number) {
   classNow = myClass();
+  classSeq++;
+  const r0 = v.route;
+  arrivalAt = r0 && r0.points.length ? [r0.points[r0.points.length - 1][0], r0.points[r0.points.length - 1][1]] : null;
   aimedKey = '';
   trainStates = [opts.alight, opts.board].filter((t): t is Station3DTrain => !!t).map((t) => ({ train: t, shown: null, layout: null, target: [], plan: null, planned: t.mode !== 'train', hidden: false }));
   // the same track or stop for both (they are there one after the other): the one you take, until asked
@@ -575,18 +715,33 @@ function startTrains(v: SolidView, opts: Station3DOpenOptions, id: number) {
     loadTrain(st.train, KANTE).then((shown) => {
       if (id !== seq || view !== v || !trainStates.includes(st)) return;
       st.shown = shown;
-      applyTrains(false);
+      if (!nearestDoor(v, st, id, false)) applyTrains(false);
     });
     choose(v, st, id, false);
   }
 }
+/** No coach of your class could be chosen (the order of the coaches is not known: the engine has no key for the
+ *  formation service, or the train has none; or none suits): the nearest door of the train instead, so the way still
+ *  leads into it. Once both the train and the choice are in. True when it took over (it applies the trains itself). */
+function nearestDoor(v: SolidView, st: TrainState, id: number, asked: boolean): boolean {
+  const t = st.train, p = st.plan;
+  if (t.mode !== 'train' || t.role !== 'board' || !st.shown || !st.planned) return false;
+  if (p && p.board && p.board.door && !p.nearest) return false;
+  const ask = classSeq;
+  planNearestDoor(t, planCtx(), st.shown.sectors, arrivalAt, st.shown.coaches, p ? p.missing : null).then((np) => {
+    if (id !== seq || view !== v || !trainStates.includes(st) || ask !== classSeq) return;
+    if (np) { st.nearestWhy = p ? p.missing : null; st.plan = np; }
+    applyTrains(asked);
+  });
+  return true;
+}
 // the coach for this ride (once per ride and class: the same at every station of it)
 function choose(v: SolidView, st: TrainState, id: number, asked: boolean) {
-  const cls = classNow;
+  const ask = classSeq;
   planCoach(st.train, planCtx()).then((plan) => {
-    if (id !== seq || view !== v || !trainStates.includes(st) || cls !== classNow) return;
-    st.plan = plan; st.planned = true;
-    applyTrains(asked);
+    if (id !== seq || view !== v || !trainStates.includes(st) || ask !== classSeq) return;
+    st.plan = plan; st.planned = true; st.nearestWhy = undefined;
+    if (!nearestDoor(v, st, id, asked)) applyTrains(asked);
   });
 }
 function draw(v: SolidView, st: TrainState) {
@@ -594,9 +749,12 @@ function draw(v: SolidView, st: TrainState) {
   const mine = p && (t.role === 'board' ? p.board : p.alight);
   st.target = mine ? [mine.idx] : [];
   const door = mine && mine.door;
+  const lay = p && p.nearest ? p.lay : null;
   st.layout = v.setTrain!({
     role: t.role, kind: t.mode === 'train' ? 'train' : t.mode === 'tram' ? 'tram' : 'bus', ref: t.ref,
-    coaches: s ? s.coaches : null, sectors: s ? s.sectors : sectorList(t.sectors), target: st.target, sector: door ? door.sector : null,
+    coaches: lay ? null : s ? s.coaches : null, sectors: lay ? lay.sectors : s ? s.sectors : sectorList(t.sectors),
+    around: lay ? lay.around : null, maxLen: lay ? lay.maxLen : undefined, nearest: !!(p && p.nearest),
+    target: st.target, sector: door ? door.sector : null,
     crowd: s ? s.crowd : null, cls: classNow, door: door ? { xy: door.xy, inside: door.inside } : null,
     pose: t.mode === 'train' ? null : { uic: end.uic, ref: end.ref, ll: end.ll, heading: end.heading }, title: vehicleTitle(t),
   });
@@ -624,15 +782,20 @@ function applyTrains(asked: boolean) {
     return st && door ? { stop: { uic: st.train.uic, ref: st.train.ref, at: door.xy, sector: door.sector } } : null;
   };
   const toDoor = at('board'), fromDoor = at('alight');
-  const key = JSON.stringify([fromDoor, toDoor]);
+  const key = (toDoor || fromDoor) ? JSON.stringify([fromDoor, toDoor]) : '';
   const from = cur.opts.from, to = cur.opts.to;
-  if (key !== aimedKey && (toDoor || fromDoor) && from && to && lastChange.focusLevel == null && (lastChange.step < 0 || asked)) {
+  // aimed at the doors whenever they change (also back at the platform when a class has no coach any more): on the
+  // overview the way is framed anew; in the steps, in first person or playing, you stay where you are on it
+  if (key !== aimedKey && from && to) {
     aimedKey = key;
     // the ends keep their positions (a fallback for the router), the stop gains the door
     const aim = (e: Station3DEndpoint, door: { stop: StationRouteStopRef } | null) => (door ? ({ ...(e as object), ...door } as StationRouteEndpoint) : e);
-    v.plan(aim(from, fromDoor), aim(to, toDoor), cur.opts.prefs || null);
+    const busy = lastChange.step >= 0 || lastChange.focusLevel != null || lastChange.pov || lastChange.playing;
+    if (busy && v.reaim) v.reaim(aim(from, fromDoor), aim(to, toDoor), cur.opts.prefs || null);
+    else v.plan(aim(from, fromDoor), aim(to, toDoor), cur.opts.prefs || null);
     floorsRail();
     syncFloors();
+    if (!busy) overviewAgain(v);
   } else overviewAgain(v);
   renderTrain();
 }
@@ -662,7 +825,7 @@ function classSwitch() {
   for (const c of [1, 2] as const) {
     const b = btn('stv-seg-b' + (classNow === c ? ' on' : ''), c === 1 ? '1st class' : '2nd class', () => {
       if (classNow === c || !view) return;
-      classNow = c; setClass(c);
+      classNow = c; setClass(c); classSeq++;
       // the coaches are chosen again for this class (each ride once); the walk follows
       for (const st of trainStates) if (st.train.mode === 'train') { st.planned = false; choose(view, st, seq, true); }
       renderTrain();
@@ -727,7 +890,7 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
   const tg = new Set(st.target);
   let lastSec = '';
   for (const car of cars) {
-    const c = car.coach, on = !!c && tg.has(car.idx);
+    const c = car.coach, on = tg.has(car.idx);
     const sec = c && c.sectors.length ? c.sectors[0] : secOf(car.s0, car.s1);
     const kids: (Node | string)[] = [];
     if (c && c.kind === 'coach') kids.push(c.cls === 12 ? '1|2' : String(c.cls));
@@ -753,7 +916,18 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
   const coach = mine && s && s.coaches ? s.coaches[mine.idx] : null;
   const k = classNow === 1 ? '1st' : '2nd';
   if (!s || !st.planned) lines.push('Looking up the order of the coaches…');
-  else if (coach && mine) {
+  else if (p && p.nearest && mine && board) {
+    // no coach of your class could be chosen: the nearest door of the train, and why
+    const sector = mine.door && mine.door.sector ? ` · sector ${mine.door.sector}` : '';
+    lines.push(el('b', null, `Get on at the nearest door${sector}`), mine.seconds != null ? ` (${mins(mine.seconds)} on foot).` : '.');
+    const w = st.nearestWhy;
+    lines.push(' ' + (w === 'class' ? `No open ${k} class coach is listed for this train: the way leads to its nearest open coach.`
+      : w === 'wheelchair' ? `No ${k} class coach with wheelchair spaces is listed for this train: the way leads to its nearest open coach; ask the staff on the platform.`
+        : w === 'unreachable' ? `None of its ${k} class coaches can be walked to from here: the way leads to its nearest open coach.`
+        : w === 'portion' ? `The train splits on the way and its data does not say which part stops at ${t.alight.name}: check the signs on the platform.`
+          : `Where its ${k} class coaches are isn’t published for this train, so the way leads to its nearest door. ${k === '1st' ? 'First class coaches have a yellow band and a 1 by the doors.' : 'Second class coaches have a 2 by the doors.'}`)
+      + (p.nearest === 'arrival' ? ' Where on the platform it stops isn’t known either: check the display.' : ''));
+  } else if (coach && mine) {
     const sector = mine.door && mine.door.sector ? `sector ${mine.door.sector}` : coach.sectors.length ? `sector ${coach.sectors.join('–')}` : '';
     const name = coach.number ? `coach ${coach.number}` : 'this coach';
     if (board) {
@@ -777,12 +951,17 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
     lines.push('This station’s model does not have the sectors of this platform, so the coaches cannot be shown where they stop.');
   } else if (s.sectors.length) {
     const r = s.sectors.length > 1 ? `sectors ${s.sectors[0]}–${s.sectors[s.sectors.length - 1]}` : `sector ${s.sectors[0]}`;
-    lines.push(el('b', null, `${board ? 'Stops' : 'Arrives'} in ${r}`), '. ' + (s.missing === 'nokey' ? 'The order of its coaches is not available here (the formation data needs a key on the engine).'
+    lines.push(el('b', null, `${board ? 'Stops' : 'Arrives'} in ${r}`), '. ' + (s.missing === 'nokey' ? 'The order of its coaches isn’t available right now.'
       : s.missing === 'failed' ? 'The order of its coaches could not be loaded.'
         : s.missing === 'unplaced' ? 'Its coaches are listed, but not where they stop at this platform.'
           : !board && s.coaches ? 'Which coach you are in is known only for a ride on one train from where you got on.' : 'No order of its coaches is published for this train.'));
   } else if (!cars.length) lines.push('Where on the platform it stops is not known.');
-  if (lines.length) card.append(el('div', 'stv-train-text', ...lines));
+  if (lines.length) {
+    // the sheet at its smallest shows one line: the first sentence (where to get on)
+    const first = lines[0];
+    card.append(el('div', 'stv-train-sum', typeof first === 'string' ? first : first.textContent || ''));
+    card.append(el('div', 'stv-train-text', ...lines));
+  }
   if (s && s.crowd) {
     const row = el('div', 'stv-train-crowd');
     for (const [kk, v] of [[1, s.crowd.first], [2, s.crowd.second]] as const) {
