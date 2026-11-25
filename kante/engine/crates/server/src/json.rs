@@ -528,6 +528,55 @@ pub struct Vehicle {
     pub point: Option<[f64; 2]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub heading: Option<f32>,
+    /// How it moves on the hop: [accel, brake, cruise] (m/s², m/s², m/s): from `dep`, speeding up at `accel` to
+    /// `cruise`, running at it, braking at `brake` into the stop at `arr`. Absent: at an even pace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motion: Option<[f32; 3]>,
+    /// The hop's length on its way, metres (with `motion`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_len: Option<f32>,
+    /// The hop after this one: from the stop it stands at (or is heading for, `nextSeq`) on to the next it serves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onward: Option<Onward>,
+    /// The hop before: the way it came along into the stop it stands at (or has left, `seq`), so a page can draw its
+    /// whole length on its way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub behind: Option<Behind>,
+}
+
+/// The way of the hop a vehicle came along (`Vehicle::behind`): as `hopPath` / `hopSpan` are for the hop it is on.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Behind {
+    pub hop_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_span: Option<[f32; 2]>,
+}
+
+/// The hop a vehicle drives after the one it is on (`Vehicle::onward`).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Onward {
+    /// The stop it is heading for then, and its boarding point.
+    pub next_seq: u16,
+    pub to: [f64; 2],
+    /// When it leaves the stop it stands at or is heading for, and reaches `nextSeq` (as `dep`/`arr` are timed).
+    pub dep: i64,
+    pub arr: i64,
+    /// Its way, as `hopPath` / `hopStraight` / `hopSpan` are for the hop it is on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_path: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hop_straight: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_span: Option<[f32; 2]>,
+    /// How it moves on the hop: [accel, brake, cruise] (m/s², m/s², m/s): from `dep`, speeding up at `accel` to
+    /// `cruise`, running at it, braking at `brake` into the stop at `arr`. Absent: at an even pace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motion: Option<[f32; 3]>,
+    /// The hop's length on its way, metres (with `motion`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_len: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -663,13 +712,21 @@ pub struct Position {
     /// at. The vehicle is at `frac` of the whole way: on the part at (`frac` − start) / (end − start).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hop_span: Option<[f32; 2]>,
-    /// Where the vehicle is at `t` on its track or road: `between`, `frac` of the way along `hopPath`; otherwise
+    /// Where the vehicle is at `t` on its track or road: `between`, as far along `hopPath` as `motion` takes it in
+    /// `frac` of the hop's time; otherwise
     /// where it stands at `seq` (beside its boarding point). Absent where not known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub point: Option<[f64; 2]>,
     /// `between`: the direction it drives in at `point`, degrees from north.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub heading: Option<f32>,
+    /// How it moves on the hop: [accel, brake, cruise] (m/s², m/s², m/s): from `dep`, speeding up at `accel` to
+    /// `cruise`, running at it, braking at `brake` into the stop at `arr`. Absent: at an even pace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motion: Option<[f32; 3]>,
+    /// The hop's length on its way, metres (with `motion`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_len: Option<f32>,
 }
 
 #[derive(Serialize)]

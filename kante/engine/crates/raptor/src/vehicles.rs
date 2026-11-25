@@ -15,6 +15,9 @@ use kante_core::time::{Date, Secs, DAY};
 use kante_core::{DayIndex, LiveView, PatternIdx, Timetable, TripIdx};
 
 const BUCKET: Secs = 900;
+/// A vehicle is looked for this long past its arrival at its terminus: the server gives a hop too short for its vehicle
+/// the time it needs, up to a minute more (`kante-server`'s `motion::BORROW_S`), and decides itself when it has ended.
+const END_SLACK: Secs = 60;
 
 /// Trips of one service date by the time buckets their scheduled run overlaps.
 pub(crate) struct UnderWay {
@@ -129,7 +132,7 @@ pub(crate) fn vehicles(rt: &Router, bbox: &BBox, date: Date, now: Secs, live: Op
         }
         let uw = day.under_way(tt);
         // A late trip is still under way after its scheduled end, an early one before its start.
-        let (lo, hi) = (t - max_delay, t + early);
+        let (lo, hi) = (t - max_delay - END_SLACK, t + early);
         if hi < 0 || uw.buckets() == 0 || lo / BUCKET >= uw.buckets() as Secs {
             continue;
         }
@@ -154,10 +157,13 @@ pub(crate) fn vehicles(rt: &Router, bbox: &BBox, date: Date, now: Secs, live: Op
                 let arr = |i: usize| times[2 * i] + lv.map_or(0, |l| l.arr_delay_at(i));
                 let dep = |i: usize| times[2 * i + 1] + lv.map_or(0, |l| l.dep_delay_at(i));
                 // First position the vehicle has not left yet.
-                let Some(i) = (0..n).find(|&i| t < dep(i)) else { continue };
+                // (the server's physical times may bring it into its terminus up to END_SLACK later: still under way)
+                let Some(i) = (0..n).find(|&i| t < dep(i)).or_else(|| (n > 1 && t < arr(n - 1) + END_SLACK).then_some(n - 1)) else { continue };
                 let stops = tt.pattern_stops(p);
                 let pos_of = |i: usize| &tt.stops[stops[i] as usize].pos;
-                if t >= arr(i) {
+                // within END_SLACK of its arrival at its terminus: on its last hop still, as the server may have it
+                let last_leg = i + 1 == n && t >= arr(i);
+                if t >= arr(i) && !last_leg {
                     // Standing at stop `i`; a vehicle at its terminus is no longer under way.
                     if i + 1 < n && bbox.contains(pos_of(i)) {
                         out.push(VehicleSeg { trip, date: tdate, pos: i as u16, dwell: true, dep: dep(i) + shift, arr: arr(i + 1) + shift });

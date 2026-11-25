@@ -51,7 +51,7 @@ fake('platforms.ts', { platformKey: () => '' });
 fake('sprites.ts', { INK: '#000' });
 fake('live-engine.ts', { rideTrip: () => null });
 fake('sheet.ts', { MODE_NAME: {} });
-fake('live-vehicles.ts', { fmtDist: (m: number) => `${Math.round(m)} m`, levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
+fake('live-vehicles.ts', { vehShowsTrip: () => false, fmtDist: (m: number) => `${Math.round(m)} m`, levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
   splitPlatform: () => ({}), vehUpdate: nothing });
 fake('sheet-content.ts', { connStart: (c: { t0: number }) => c.t0, connEnd: (c: { t1: number }) => c.t1, queueSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
 fake('pill.ts', { goToStep: nothing, updateProgress: nothing, updatePillTimes: nothing });

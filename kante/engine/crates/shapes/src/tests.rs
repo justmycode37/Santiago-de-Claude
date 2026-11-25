@@ -172,3 +172,27 @@ fn polyline_encoding() {
     assert_eq!(crate::encode(pts), "_p~iF~ps|U_ulLnnqC_mqNvxq`@");
 }
 
+
+#[test]
+fn hop_lengths_measured_once_match_the_ways() {
+    let p = |lat: f64, lon: f64| LatLon::from_deg(lat, lon);
+    let mut sh = crate::Shapes {
+        pattern_shape: vec![0],
+        shape_off: vec![0, 2],
+        shape_hops: vec![0, 1],
+        relation: vec![0],
+        hop_off: vec![0, 3, 5],
+        pts: vec![p(46.94, 7.44), p(46.941, 7.441), p(46.942, 7.441), p(46.942, 7.441), p(46.95, 7.45)],
+        hop_kind: vec![crate::HOP_NET, crate::HOP_LINE],
+        ..Default::default()
+    };
+    assert_eq!(sh.piece_len(0, 0, 2), None, "not measured yet");
+    sh.measure();
+    let way: f32 = sh.piece(0, 0, 2).unwrap().pts.windows(2).map(|w| w[0].dist_m(&w[1])).sum();
+    let m = sh.piece_len(0, 0, 2).unwrap();
+    assert!((m - way).abs() < 0.01, "{m} vs {way}");
+    assert!((sh.piece_len(0, 1, 2).unwrap() - sh.hop(1)[0].dist_m(&sh.hop(1)[1])).abs() < 0.01);
+    sh.hop_kind[1] = crate::HOP_STRAIGHT;
+    assert_eq!(sh.piece_len(0, 0, 2), None, "a straight hop has no way to measure");
+    assert!(sh.piece_len(0, 0, 1).is_some());
+}

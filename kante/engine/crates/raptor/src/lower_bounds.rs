@@ -550,7 +550,7 @@ mod tests {
     /// in-seat continuations (to the same and to other stops), plus three
     /// footpath sets: crow-fly, one-way with fixed costs, none.
     fn world(seed: u64) -> (Router, Vec<Footpaths>) {
-        let mut rng = Rng(seed * 6364136223846793005 + 11);
+        let mut rng = Rng(seed.wrapping_mul(6364136223846793005).wrapping_add(11));
         let mut b = Builder::new();
         let n_stops = rng.range(15, 70) as usize;
         let stops: Vec<_> = (0..n_stops).map(|i| b.stop_at(&format!("S{i}"), rng.below(6000) as f32, rng.below(6000) as f32)).collect();

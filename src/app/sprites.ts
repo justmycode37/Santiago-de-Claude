@@ -30,6 +30,24 @@ function makeSprite(id: string): MapSprite | null {
   if (p[0] === 'vh') return vehicleSprite(p[1], '#' + p[2], '#' + p[3], p[4] || '', p[5] === 'x', dark, ratio);
   return null;
 }
+/** A map symbol (as its id names it) as a canvas, for drawing it outside the map (the live vehicles' canvas): the image and
+ *  how many of its pixels make one CSS pixel. Kept once made. */
+const canvases = new Map<string, { img: HTMLCanvasElement; ratio: number } | null>();
+export function spriteImage(id: string): { img: HTMLCanvasElement; ratio: number } | null {
+  if (canvases.has(id)) return canvases.get(id)!;
+  const sp = makeSprite(id);
+  let out: { img: HTMLCanvasElement; ratio: number } | null = null;
+  if (sp) {
+    const c = document.createElement('canvas');
+    c.width = sp.data.width;
+    c.height = sp.data.height;
+    c.getContext('2d')!.putImageData(sp.data, 0, 0);
+    out = { img: c, ratio: sp.ratio };
+  }
+  if (canvases.size > 500) canvases.clear();
+  canvases.set(id, out);
+  return out;
+}
 // A live vehicle: what it is (bus, tram, train, boat, cable car, funicular) as a pictogram in its line's colour;
 // with the line number beside it when there is room ("vh|tram|E6331A|FFFFFF|10||light"; "x" marks an extra journey)
 const VEHICLE_GLYPH: Record<string, string> = {

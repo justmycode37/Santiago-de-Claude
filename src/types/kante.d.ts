@@ -114,7 +114,7 @@ type KanteLiveWord = 'observed' | 'predicted' | 'timetable';
 /** How a position was worked out. */
 type KanteBasis = 'observed-stop' | 'forecast' | 'timetable';
 
-/** Where a vehicle is at `t`: standing at stop `seq`, or `frac` of the way from `seq` to `nextSeq`. */
+/** Where a vehicle is at `t`: standing at stop `seq`, or `frac` of the time from leaving `seq` to reaching `nextSeq`. */
 interface KantePosition {
   state: 'before-start' | 'at' | 'between' | 'ended';
   seq: number;
@@ -135,11 +135,15 @@ interface KantePosition {
   /** When `hopPath` is only part of the hop's way (/api/vehicles, near the window asked about): the shares of the
    *  whole way's length it starts and ends at. */
   hopSpan?: [number, number];
-  /** Where the vehicle is at `t` on its track or road (`between`: `frac` of the way along it; otherwise where it
+  /** Where the vehicle is at `t` on its track or road (`between`: as far as `motion` takes it in `frac` of the time; otherwise where it
    *  stands at `seq`). */
   point?: LngLat;
   /** `between`: the direction it drives in at `point`, degrees from north. */
   heading?: number;
+  /** How it moves on the hop: [accel, brake, cruise] (m/s², m/s², m/s), from `dep` to `arr`; absent: at an even pace. */
+  motion?: [number, number, number];
+  /** The hop's length on its way, metres (with `motion`). */
+  hopLen?: number;
 }
 
 // ---- GET /api/meta
@@ -245,11 +249,34 @@ interface KanteVehicle {
   /** When `hopPath` is only part of the hop's way (/api/vehicles, near the window asked about): the shares of the
    *  whole way's length it starts and ends at. */
   hopSpan?: [number, number];
-  /** Where the vehicle is at `t` on its track or road (`between`: `frac` of the way along it; otherwise where it
+  /** Where the vehicle is at `t` on its track or road (`between`: as far as `motion` takes it in `frac` of the time; otherwise where it
    *  stands at `seq`). */
   point?: LngLat;
   /** `between`: the direction it drives in at `point`, degrees from north. */
   heading?: number;
+  /** How it moves on the hop: [accel, brake, cruise] (m/s², m/s², m/s), from `dep` to `arr`; absent: at an even pace. */
+  motion?: [number, number, number];
+  /** The hop's length on its way, metres (with `motion`). */
+  hopLen?: number;
+  /** The hop after this one, so a page can drive the vehicle on through the stop until the next answer. */
+  onward?: KanteOnward;
+  /** The hop before: the way it came along into the stop it stands at (or has left), for its tail. */
+  behind?: { hopPath: string; hopSpan?: [number, number] };
+}
+/** The hop a vehicle drives after the one it is on: from the stop it stands at (or is heading for) to the next. */
+interface KanteOnward {
+  nextSeq: number;
+  to: LngLat;
+  /** When it leaves that stop, and reaches `nextSeq`. */
+  dep: number;
+  arr: number;
+  hopPath?: string;
+  hopStraight?: boolean;
+  hopSpan?: [number, number];
+  /** How it moves on the hop: [accel, brake, cruise] (m/s², m/s², m/s), from `dep` to `arr`; absent: at an even pace. */
+  motion?: [number, number, number];
+  /** The hop's length on its way, metres (with `motion`). */
+  hopLen?: number;
 }
 interface KanteVehiclesResponse { t: number; vehicles: KanteVehicle[] }
 

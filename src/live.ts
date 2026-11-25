@@ -31,8 +31,11 @@ export interface KanteJourneyLike { category: string; number: string; operator: 
 /** A trip or a vehicle: anything that says how live it is. */
 export type KanteLiveCarrier = { liveInfo?: KanteLiveInfo | null; live?: KanteLiveWord | boolean | null };
 /** What places a vehicle of /api/vehicles; `t`: the time of the response it came in. */
-export type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & Partial<Pick<KanteVehicle, 'hopPath' | 'hopSpan' | 'point'>>
-  & { frac?: number | null; t?: number | null };
+export type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & Partial<Pick<KanteVehicle, 'hopPath' | 'hopSpan' | 'hopStraight' | 'point' | 'nextSeq' | 'onward' | 'motion' | 'hopLen' | 'behind'>>
+  & { line?: Partial<KanteLine> }
+  & { frac?: number | null; t?: number | null }
+  /** Driven on onto its onward hop by the page (hopAt): it goes on after this hop, though the next one is not known yet. */
+  & { goesOn?: boolean };
 /** A vehicle of /api/vehicles, as far as it tells whether it has left a stop; `info`: its liveInfoOf(), when already worked out. */
 export type KanteVehicleSeen = Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null };
 /** late: the walk is longer than the time left; tight: under three minutes to spare. */
@@ -54,7 +57,7 @@ const isLive = (info: KanteLiveInfo | null | undefined) => !!info && (info.state
 /** A call's live times: the timetable plus the delay. */
 const liveArr = (c: KanteStopCall | null | undefined) => (c && c.arr != null ? c.arr + (c.arrDelayS || 0) : c && c.dep != null ? c.dep + (c.depDelayS || 0) : null);
 const liveDep = (c: KanteStopCall | null | undefined) => (c && c.dep != null ? c.dep + (c.depDelayS || 0) : liveArr(c));
-const clamp01 = (x: number | null | undefined) => Math.min(1, Math.max(0, Number(x) || 0));
+const clamp01 = (x: number | null | undefined) => (x == null || !(x > 0) ? 0 : x < 1 ? x : 1);
 
 // Was the departure from stop `seq` measured (observedKind `dep` or `arr+dep`)?
 /** Was the departure from stop `seq` measured? */
@@ -106,7 +109,9 @@ function rideKm(p: KanteAdvancedPosition | null | undefined, seqIdx: Map<number,
   if (p.state === 'at') return { km: a.km, at: a.k };
   const b = place(p.nextSeq != null ? p.nextSeq : p.seq + 1);
   if (!b || b.k <= a.k) return null;
-  return { km: a.km + (b.km - a.km) * clamp01(p.frac), from: a.k, to: b.k };
+  // speeding up away from the stop and braking into the next, as the engine has it (its `motion`)
+  const t = p.dep != null && p.arr != null ? p.arr - p.dep : 0;
+  return { km: a.km + (b.km - a.km) * wayShare(p.motion, p.hopLen, t, p.frac), from: a.k, to: b.k };
 }
 
 // ---- Saying honestly how a position was worked out. ctx: { basis, from, leftS (seconds since a measured
@@ -163,24 +168,100 @@ function decodePolyline(s: string): LngLat[] {
   }
   return out;
 }
-function hopLine(s: string): HopLine | null {
-  let h = hopLines.get(s);
+// The map lays the ways of buses onto the roads it draws (setLineRefiner(): live-vehicles.ts with live-lines.ts, the
+// base map's roads); vehicles on rails keep the engine's way, which runs on the drawn rails already (within 0.3 m in
+// Bern, half of the time). A laid way keeps the engine's way's length as its measure (`cum`): the same share of it
+// is as far along on either.
+/** A way laid onto the map's own lines: its points, km along the engine's way at each; complete: every tile it crosses was there. */
+export interface LaidWay { pts: LngLat[]; cum: number[]; complete: boolean; tunnel?: Uint8Array | null }
+/** Lays a way (its points, and as sent) onto the map's own lines; null: the way as it is; 'pending': not yet (laid elsewhere). */
+export type LineRefiner = (pts: LngLat[], path: string) => LaidWay | null | 'pending';
+let refiner: LineRefiner | null = null;
+/** A laid line: `complete` (every tile it crosses was there), `drawn` (a vehicle has been drawn on it: it stays as it is). */
+type LaidLine = HopLine & { complete: boolean; drawn?: boolean; version?: number; tunnel?: Uint8Array | null };
+/** How many times more of the map's lines have come (linesCame()): a way laid before is laid again once. */
+let linesVersion = 0;
+const refinedLines = new Map<string, LaidLine>();
+/** Sets (or, null, drops) the refiner. */
+function setLineRefiner(f: LineRefiner | null) {
+  refiner = f;
+  refinedLines.clear();
+}
+/**
+ * More of the map's lines have come: the ways laid without them are laid again, for up to `budgetMs` (then true: more
+ * to do). Those laid in full stay as they are, and so do those a vehicle has been drawn on (laid again under it, it
+ * would move sideways; its next hop is laid with them).
+ */
+function relayLines(budgetMs = Infinity): boolean {
+  if (!refiner) return false;
+  const t0 = performance.now();
+  for (const [k, h] of refinedLines) {
+    if (h.complete || h.drawn || (h.version || 0) >= linesVersion) continue;
+    if (performance.now() - t0 > budgetMs) return true;
+    const laid = refiner(decodePolyline(k), k);
+    if (laid === 'pending') continue; // (laid again once it comes)
+    h.version = linesVersion;
+    if (laid) { h.pts = laid.pts; h.cum = laid.cum; h.complete = laid.complete; h.tunnel = laid.tunnel; } else h.complete = true;
+  }
+  return false;
+}
+/** More of the map's lines have come (then relayLines()): where ways on rails run in tunnels is told again too. */
+function linesCame() {
+  linesVersion++;
+  for (const [k, t] of railTunnelLines) if (!t) railTunnelLines.delete(k); else if (!t.complete) staleTunnels.add(k);
+}
+/** Laid onto the drawn roads: road vehicles. */
+const ROAD_MODES = new Set(['bus', 'ondemand']);
+// How long laying ways may take within one frame (layBudget()): past it, a way not laid yet is the engine's for this
+// frame (not kept); the page draws a road vehicle only once its ways are laid (isLaid()), so none is seen moving across
+let layUntil = Infinity;
+let layLeft = false;
+/** Ways may be laid for `ms` from now (Infinity: as many as asked for). Returns whether some were left unlaid since the last call. */
+function layBudget(ms: number): boolean { layUntil = performance.now() + ms; const left = layLeft; layLeft = false; return left; }
+function hopLine(s: string, refine?: boolean): HopLine | null {
+  let cache = refine && refiner ? refinedLines : hopLines;
+  let h = cache.get(s);
+  if (!h && cache === refinedLines && performance.now() > layUntil) { cache = hopLines; h = cache.get(s); layLeft = true; }
   if (!h) {
-    const pts = decodePolyline(s);
-    if (pts.length < 2) return null;
-    const cum = [0];
-    for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + distKm(pts[k - 1], pts[k]));
-    if (hopLines.size > 3000) hopLines.clear(); // the vehicles of one window are far fewer
-    h = { pts, cum };
-    hopLines.set(s, h);
+    const raw = decodePolyline(s);
+    if (raw.length < 2) return null;
+    const laid = cache === refinedLines ? refiner!(raw, s) : null;
+    // not laid yet: the way as it is for now (not kept as laid; isLaid() says so)
+    if (laid === 'pending') { layLeft = true; return hopLine(s, false); }
+    let cum = laid && laid.cum;
+    if (!cum) {
+      cum = [0];
+      for (let k = 1; k < raw.length; k++) cum.push(cum[k - 1] + distKm(raw[k - 1], raw[k]));
+    }
+    if (cache.size > 3000) cache.clear(); // the vehicles of one window are far fewer (laid again, they come out the same)
+    h = { pts: laid ? laid.pts : raw, cum, complete: laid ? laid.complete : true, version: linesVersion, tunnel: laid && laid.tunnel } as LaidLine;
+    cache.set(s, h);
   }
   return h;
 }
+/** Whether the ways vehicle v is drawn on (its hop and the next) are laid where they are to be (road vehicles). */
+function isLaid(v: KanteVehicleHop): boolean {
+  if (!onRoad(v) || !refiner) return true;
+  // laid in full, or with all the lines there are now (laid before more came: not until laid again), or drawn on
+  const ok = (path: string | undefined) => {
+    if (!path) return true;
+    const h = refinedLines.get(path);
+    return !!h && (h.complete || !!h.drawn || (h.version || 0) >= linesVersion);
+  };
+  return ok(v.hopPath) && ok(v.onward && v.onward.hopPath) && ok(v.behind && v.behind.hopPath);
+}
+/** The segment of line h that km `goal` is on: k with cum[k - 1] ≤ goal ≤ cum[k] (a binary search). */
+function segAt(h: HopLine, goal: number): number {
+  let lo = 1, hi = h.cum.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (h.cum[mid] < goal) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
 /** The point a share f (0…1) of the way along a line. */
 function alongLine(h: HopLine, f: number): LngLat {
-  const goal = clamp01(f) * h.cum[h.cum.length - 1];
-  let k = 1;
-  while (k < h.cum.length - 1 && h.cum[k] < goal) k++;
+  const goal = clamp01(f) * h.cum[h.cum.length - 1], k = segAt(h, goal);
   const a = h.pts[k - 1], b = h.pts[k], l = h.cum[k] - h.cum[k - 1], t = l > 0 ? clamp01((goal - h.cum[k - 1]) / l) : 0;
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
@@ -191,12 +272,35 @@ function alongLine(h: HopLine, f: number): LngLat {
 // Standing at a stop (from = to) it stays there: beside the boarding point, on its track or road (`point`).
 /** Where a vehicle of /api/vehicles is at tNow. */
 function vehicleAt(v: KanteVehicleHop, tNow: number): LngLat {
+  return hopPointAt(v, hopFrac(v, tNow));
+}
+/** How far along its hop (0…1, by time) a vehicle of /api/vehicles is at tNow. */
+function hopFrac(v: KanteVehicleHop, tNow: number): number {
   const span = v.arr - v.dep;
   let f;
   if (v.frac != null && v.t != null) f = Number(v.frac) + (span > 0 ? (tNow - v.t) / span : 0);
   else f = span > 0 ? (tNow - v.dep) / span : tNow >= v.arr ? 1 : 0;
+  return clamp01(f);
+}
+// How far along its way (a share of the length) a vehicle is a share f of the time into its hop: speeding up away
+// from the stop, running, braking into the next (the engine's `motion`, kante/engine/crates/server/src/motion.rs);
+// at an even pace without one
+/** The share of the way a vehicle has gone a share f of the time into its hop. */
+function wayShare(m: [number, number, number] | null | undefined, len: number | null | undefined, t: number, f: number): number {
   f = clamp01(f);
-  const h = v.hopPath ? hopLine(v.hopPath) : null;
+  if (!m || !len || len <= 0 || t <= 0) return f;
+  const [accel, brake, v] = m, tau = f * t, t1 = v / accel, t3 = v / brake;
+  const d = tau < t1 ? 0.5 * accel * tau * tau : tau < t - t3 ? 0.5 * v * t1 + v * (tau - t1) : len - 0.5 * brake * (t - tau) ** 2;
+  return clamp01(d / len);
+}
+/** The point a share f (of the time) along a vehicle's hop: on its way on the rails and roads where known. */
+function hopPointAt(v: KanteVehicleHop, f: number): LngLat {
+  return pointAtShare(v, wayShare(v.motion, v.hopLen, v.arr - v.dep, f));
+}
+/** The point a share f of the way (of its length) along a vehicle's hop. */
+function pointAtShare(v: KanteVehicleHop, f: number): LngLat {
+  f = clamp01(f);
+  const h = v.hopPath ? hopLine(v.hopPath, onRoad(v)) : null;
   if (h) {
     // the same share of the way's length as of the time; on the part sent, where it starts and ends in the whole way
     // (a vehicle that has run off the part sent stays at its end, outside the window, until the next answer)
@@ -206,6 +310,325 @@ function vehicleAt(v: KanteVehicleHop, tNow: number): LngLat {
   if (v.point && v.from[0] === v.to[0] && v.from[1] === v.to[1]) return v.point;
   return [v.from[0] + (v.to[0] - v.from[0]) * f, v.from[1] + (v.to[1] - v.from[1]) * f];
 }
+// ---- The vehicle's body: the stretch of its way it covers, `len` metres long, centred where it is (where it stands at
+//      a stop is its platform's middle). Ahead it runs on along its next hop; behind, along the hop it came along
+//      (`prev`). Where that is not known: a vehicle on rails carries on straight back (a platform is straight), one on
+//      the road is moved forward onto its own way, so it never sticks out across what is beside the road. ----
+const RAIL_MODES = new Set(['rail', 'tram', 'metro', 'funicular', 'rack']);
+const railish = (v: KanteVehicleHop) => !!v.line && RAIL_MODES.has(String(v.line.mode));
+const onRoad = (v: KanteVehicleHop) => !!v.line && ROAD_MODES.has(String(v.line.mode));
+const lineEnd = (line: HopLine) => line.cum[line.cum.length - 1];
+/** The point km along line h (beyond its ends: straight on). */
+function pointOn(h: HopLine, km: number): LngLat {
+  const t = lineEnd(h);
+  if (km <= 0 || t <= 0) {
+    const [p, q] = [h.pts[0], h.pts[1]], l = distKm(p, q) || 1e-9;
+    return [p[0] - (q[0] - p[0]) * (-km / l), p[1] - (q[1] - p[1]) * (-km / l)];
+  }
+  if (km >= t) {
+    const n = h.pts.length, [p, q] = [h.pts[n - 2], h.pts[n - 1]], l = distKm(p, q) || 1e-9;
+    return [q[0] + (q[0] - p[0]) * ((km - t) / l), q[1] + (q[1] - p[1]) * ((km - t) / l)];
+  }
+  return alongLine(h, km / t);
+}
+/** The points of line h from km a to km b: before its start along `before` (its end), past its end along `next`. */
+function stretch(h: HopLine, a: number, b: number, next: HopLine | null, before: HopLine | null = null): LngLat[] {
+  const total = lineEnd(h), out: LngLat[] = [];
+  // all of it before the line's start, or past its end: on the line before, or the next
+  if (b <= 0 && before) return stretch(before, lineEnd(before) + a, lineEnd(before) + b, h);
+  if (a >= total && next) return stretch(next, a - total, b - total, null, h);
+  if (a < 0 && before) {
+    const bt = lineEnd(before), from = bt + a; // before its start: straight on back (the body keeps its length)
+    out.push(pointOn(before, from));
+    for (let k = 1; k < before.pts.length - 1; k++) if (before.cum[k] > from) out.push(before.pts[k]);
+    out.push(h.pts[0]);
+  } else out.push(pointOn(h, a));
+  for (let k = 1; k < h.pts.length - 1; k++) if (h.cum[k] > a && h.cum[k] < b) out.push(h.pts[k]);
+  if (b <= total || !next) out.push(pointOn(h, b));
+  else {
+    out.push(h.pts[h.pts.length - 1]);
+    const rest = b - total;
+    for (let k = 1; k < next.pts.length - 1; k++) if (next.cum[k] < rest) out.push(next.pts[k]);
+    out.push(pointOn(next, rest));
+  }
+  return out;
+}
+// x where it is well above 0, never below 0, smooth between (softplus over a third of `half`): a body kept from sticking
+// out past the start of its way moves off from there gently (barely at all while x is near −half: its vehicle at the
+// stop), not standing still and then all at once
+function ease(x: number, half: number): number {
+  const s = half / 3;
+  if (s <= 0) return Math.max(0, x);
+  return x / s > 30 ? x : s * Math.log1p(Math.exp(x / s));
+}
+/**
+ * The stretch of its way a vehicle shown a share f along its hop covers, `lenM` metres long, its middle `backM` metres
+ * back from where it is (to keep it behind the one in front); `prev`: the hop it came along. Back to front; null where
+ * its way is not known.
+ */
+function bodyAt(v: KanteVehicleHop, f: number, lenM: number, prev?: KanteVehicleHop | null, backM = 0): LngLat[] | null {
+  const b = bodyPlace(v, f, lenM, prev, backM);
+  return b && stretch(b.h, b.c - b.half, b.c + b.half, b.next, b.behind);
+}
+// Where a vehicle's body is: its middle `c` km along line h (path `hs`), with the lines before and after it (paths
+// `bs`, `ns`) it reaches onto
+interface BodyPlace { h: HopLine; hs: string; c: number; half: number; next: HopLine | null; ns: string; behind: HopLine | null; bs: string }
+function bodyPlace(v: KanteVehicleHop, f: number, lenM: number, prev?: KanteVehicleHop | null, backM = 0): BodyPlace | null {
+  const half = lenM / 2000, o = v.onward, rail = railish(v), road = onRoad(v);
+  const ns = o && o.hopPath && (!o.hopSpan || o.hopSpan[0] <= 0) ? o.hopPath : '';
+  const next = ns ? hopLine(ns, road) : null;
+  // the hop it came along: as shown, else as the answer says (`behind`)
+  const pb = prev && prev.hopPath ? prev : v.behind ? { ...v.behind, line: v.line } : null;
+  const bs = pb && pb.hopPath && (!pb.hopSpan || pb.hopSpan[1] >= 1) ? pb.hopPath : '';
+  const behind = bs ? hopLine(bs, road) : null;
+  // where its middle is on line h at km; on the road with nothing known behind: not past the line's start; nothing
+  // known ahead: not past its end (a bus never sticks out straight beyond its way, across what is beside the road). Eased
+  // in (ease()): it sets off from the start as gently as the vehicle does, and comes to a stand at the end so
+  const place = (h: HopLine, hs: string, km: number, onward: HopLine | null, os: string): BodyPlace => {
+    let c = km - backM / 1000;
+    if (!rail && !behind) c = half + ease(c - half, half);
+    if (!rail && !onward && !v.goesOn) { const e = Math.max(half, lineEnd(h) - half); c = e - ease(e - c, half); }
+    return { h, hs, c, half, next: onward, ns: os, behind, bs };
+  };
+  for (const x of [next, behind]) if (x) (x as LaidLine).drawn = true;
+  if (standingAt(v)) {
+    if (next) return place(next, ns, 0, null, '');
+    if (!behind) return null;
+    // at the end of its run: where its way ends (a road vehicle with all of it on its way, as it came in)
+    let c = lineEnd(behind) - backM / 1000;
+    if (!rail) { const e = Math.max(half, lineEnd(behind) - half); c = e - ease(e - c, half); }
+    return { h: behind, hs: bs, c, half, next: null, ns: '', behind: null, bs: '' };
+  }
+  const h = v.hopPath ? hopLine(v.hopPath, road) : null;
+  if (!h) return null;
+  (h as LaidLine).drawn = true;
+  const [a, b] = v.hopSpan || [0, 1], total = lineEnd(h);
+  const km = (b > a ? (clamp01(f) - a) / (b - a) : 0) * total;
+  // on the hop's last part sent, the onward hop goes on from where it ends
+  return place(h, v.hopPath!, km, b >= 1 ? next : null, b >= 1 ? ns : '');
+}
+
+// ---- Tunnels: where a vehicle's way runs in a tunnel, per point of it (a road vehicle's: as laid onto the drawn
+//      roads; one on rails: by the drawn track it is matched to as a whole, setTunneler()), so each of its carriages is
+//      drawn under ground where it is, and none flickers between the two where a tunnel runs beside or under it ----
+/** Where a way on rails runs in a tunnel: per point (km along it), 1 in a tunnel; complete: every tile it crosses was there. */
+export type Tunneler = (pts: LngLat[], path: string) => { cum: ArrayLike<number>; tunnel: Uint8Array; complete: boolean } | null | 'pending';
+let tunneler: Tunneler | null = null;
+const railTunnelLines = new Map<string, { cum: ArrayLike<number>; tunnel: Uint8Array; complete: boolean } | null>();
+const staleTunnels = new Set<string>(); // told without all the tiles they cross: told again, kept as they are meanwhile
+/** Sets (or, null, drops) how ways on rails are told to be in tunnels. */
+function setTunneler(f: Tunneler | null) { tunneler = f; railTunnelLines.clear(); staleTunnels.clear(); }
+function tunnelsOf(path: string, road: boolean): { cum: ArrayLike<number>; tunnel: Uint8Array } | null {
+  if (road) { const h = refinedLines.get(path); return h && h.tunnel ? { cum: h.cum, tunnel: h.tunnel } : null; }
+  if (!tunneler) return null;
+  let t = railTunnelLines.get(path);
+  if (t === undefined || staleTunnels.has(path)) {
+    const raw = decodePolyline(path), got = raw.length > 1 ? tunneler(raw, path) : null;
+    // being told again: as it was until then (none of its carriages comes up out of a tunnel for a moment)
+    if (got === 'pending') return t || null;
+    staleTunnels.delete(path);
+    t = got;
+    if (railTunnelLines.size > 3000) railTunnelLines.clear();
+    railTunnelLines.set(path, t);
+  }
+  return t;
+}
+/**
+ * Per carriage of a vehicle placed as bodyAt() places it, whether it is in a tunnel: `mids`, each carriage's middle,
+ * metres from the back of its body.
+ */
+function bodyTunnels(v: KanteVehicleHop, f: number, lenM: number, prev: KanteVehicleHop | null | undefined, backM: number, mids: number[]): boolean[] {
+  const b = bodyPlace(v, f, lenM, prev, backM), road = onRoad(v);
+  if (!b) return mids.map(() => false);
+  const total = lineEnd(b.h);
+  return mids.map((m) => {
+    let km = b.c - b.half + m / 1000, path = b.hs;
+    if (km < 0 && b.behind) { km += lineEnd(b.behind); path = b.bs; } else if (km > total && b.next) { km -= total; path = b.ns; }
+    const t = path ? tunnelsOf(path, road) : null;
+    if (!t) return false;
+    let lo = 0, hi = t.cum.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (t.cum[mid] < km) lo = mid + 1; else hi = mid; }
+    return t.tunnel[lo] === 1;
+  });
+}
+
+// ---- Gliding: what is shown moves smoothly towards where the data puts the vehicle, along its way. A newer answer that
+//      puts it a little ahead or behind is not jumped to: the shown place goes on at up to twice the vehicle's pace to
+//      catch up, or slows down (never backwards) to let it come; a gap of more than JUMP_S of travel is jumped. ----
+const GLIDE_S = 3; // a gap is closed in about this many seconds
+const JUMP_S = 60;
+/**
+ * One step of a shown place towards its target (a share of a hop, or km along a ride): `rate` is how fast the target
+ * moves (per second, ≥ 0), `dt` the seconds since the last step, `jump` the gap that is jumped rather than closed
+ * (default: JUMP_S of travel at `rate`). The shown place never moves backwards, and moves on at no more than twice
+ * the rate (a vehicle standing still: what closes the gap in about GLIDE_S).
+ */
+function glide(shown: number | null | undefined, target: number, rate: number, dt: number, jump?: number): number {
+  if (shown == null || !Number.isFinite(shown)) return target;
+  const err = target - shown, r = Math.max(0, rate);
+  // far behind: jumped to; far ahead of where it is: it waits there (never back)
+  if (err > (jump != null ? jump : JUMP_S * r)) return target;
+  if (dt <= 0) return shown;
+  const v = Math.min(r > 0 ? 2 * r : Math.abs(err) / GLIDE_S, Math.max(0, r + err / GLIDE_S));
+  return shown + v * Math.min(dt, 1);
+}
+
+/**
+ * What is shown of a vehicle of /api/vehicles: the answer (`rec`) whose hop it is shown on, how far along it (`f`, a
+ * share of the way's length) and where that is (`ll`), as of `at` (ms, the page's monotonic clock: performance.now()).
+ */
+export interface KanteShownVehicle<V extends KanteVehicleHop = KanteVehicleHop> {
+  rec: V; f: number; at: number; ll: LngLat;
+  /** How fast it is shown going, m/s (it changes no faster than a vehicle speeds up or brakes: SHOWN_ACCEL). */
+  v?: number;
+  /** The hop it was shown on before this one (it came along it): its body's tail is on it. */
+  prev?: V | null;
+}
+const sameLL = (a: LngLat, b: LngLat) => a[0] === b[0] && a[1] === b[1];
+const standingAt = (v: KanteVehicleHop) => sameLL(v.from, v.to);
+// The hop a vehicle is on at tNow by its own times, when that is later than its answer: past the end of its hop it
+// stands at the stop it was heading for (where its way ends), and from the onward hop's departure it drives that one
+/** The hop vehicle v is on at tNow by its times (its `onward` hop taken once it is due). */
+function hopAt<V extends KanteVehicleHop>(v: V, tNow: number): V {
+  const o = v.onward, standing = standingAt(v);
+  if (!o || (!standing && tNow < v.arr)) return v;
+  const stop = standing ? v.from : v.to;
+  if (tNow < o.dep) {
+    // (standing until it leaves on the onward hop: that is its departure)
+    return standing ? v : { ...v, from: stop, to: stop, dep: o.dep, point: v.hopPath ? hopPointAt(v, 1) : stop, frac: null, t: null, hopPath: undefined, hopSpan: undefined,
+      motion: undefined, hopLen: undefined, behind: v.hopPath ? { hopPath: v.hopPath, hopSpan: v.hopSpan } : undefined };
+  }
+  return { ...v, from: stop, to: o.to, nextSeq: o.nextSeq, dep: o.dep, arr: o.arr, frac: null, t: null, hopPath: o.hopPath, hopSpan: o.hopSpan,
+    hopStraight: o.hopStraight, point: undefined, onward: undefined, motion: o.motion, hopLen: o.hopLen, goesOn: true,
+    behind: standing ? v.behind : v.hopPath ? { hopPath: v.hopPath, hopSpan: v.hopSpan } : undefined };
+}
+// How far along its trip a vehicle shown on hop `x` a share f along is: heading for stop n, n − ½ … n; standing at n, n
+const progress = (x: KanteVehicleHop, f: number) => (x.nextSeq != null ? x.nextSeq : 0) - (standingAt(x) ? 0 : 0.5 * (1 - f));
+// A newer answer is followed, not jumped to: on the same hop; into the stop at the end of the hop it is shown on; out
+// of the stop it is shown at (or has just come into) onto the next hop. Anything else ahead is jumped to; anything
+// behind what is shown (a delay, an answer worked out a moment before the last) is waited for: a vehicle shown never
+// goes back along its way. What is shown has a speed of its own, which changes no faster than a vehicle speeds up or
+// brakes (SHOWN_ACCEL): it never halts or sets off at once, and it comes to a stand at every stop (the end of each hop).
+const SHOWN_ACCEL = 2, SHOWN_BRAKE = 1.2; // m/s²: the most its shown speed changes; how it brakes into a place it is to reach
+/** Where vehicle v (the newest answer) is shown at tNow (the engine's clock), ms (the page's clock), after `s`. */
+function showVehicle<V extends KanteVehicleHop>(s: KanteShownVehicle<V> | null | undefined, answer: V, tNow: number, ms: number): KanteShownVehicle<V> {
+  const dt = s ? Math.min(1, Math.max(0, (ms - s.at) / 1000)) : 0, v = hopAt(answer, tNow);
+  // shares of the way's length (so a newer answer with other times or motion for the same hop moves nothing by itself),
+  // and how fast that share grows (a second on)
+  const share = (x: V, t: number) => wayShare(x.motion, x.hopLen, x.arr - x.dep, hopFrac(x, t));
+  const rate = (x: V) => Math.max(0, share(x, tNow + 1) - share(x, tNow));
+  // on average (a hop given no time, as measured times can leave one: as if driven at 25 m/s, not leapt)
+  const pace = (x: V) => 1 / Math.max(x.arr - x.dep, wayLenM(x) / 25, 1);
+  const sameHop = (a: V, b: V) => a.nextSeq === b.nextSeq && sameLL(a.from, b.from) && sameLL(a.to, b.to);
+  // what it follows: on hop `rec` towards share `goal` going on at `goalRate` (shares a second); `jumped`: put there
+  let rec = v, goal = 0, goalRate = 0, from = s ? s.f : 0, speed = s && s.v ? s.v : 0, jumped = false;
+  if (!s) jumped = true;
+  else if (sameHop(s.rec, v)) {
+    if (!standingAt(v)) { goal = share(v, tNow); goalRate = rate(v); }
+    // the way as it was first sent while it still reaches well past the vehicle (another part sent for another box
+    // is the same way, give or take a metre: none of that shows)
+    if (s.rec.hopPath && v.hopPath !== s.rec.hopPath && wayLeft(s.rec, s.f) > 0.4) rec = keepWay(v, s.rec);
+  } else if (!standingAt(s.rec) && s.f < 1 && (standingAt(v) ? s.rec.nextSeq === v.nextSeq : sameLL(s.rec.to, v.from))) {
+    rec = s.rec; goal = 1; goalRate = 0; // the answer has it at (or already past) the stop its hop leads to: into it first
+  } else if (!standingAt(v) && (standingAt(s.rec) || s.f >= 1) && sameLL(s.rec.to, v.from)) {
+    from = 0; goal = share(v, tNow); goalRate = rate(v); // it has left the stop it is shown at: out of it
+  } else if (standingAt(v) && !standingAt(s.rec) && sameLL(s.rec.from, v.from)) {
+    rec = s.rec; goal = s.f; // shown leaving a stop that a newer answer has it still standing at (a delay): it stops
+  } else jumped = true;
+  // never back along its way: an answer behind what is shown is waited for, the vehicle coming to a stand
+  if (s && progress(rec, jumped ? (standingAt(rec) ? 0 : share(rec, tNow)) : goal) < progress(s.rec, s.f) - 1e-9) {
+    rec = s.rec; from = s.f; goal = s.f; goalRate = 0; jumped = false;
+  }
+  let f: number;
+  if (standingAt(rec)) { f = 0; speed = 0; } else {
+    const len = wayLenM(rec);
+    if (jumped) { f = share(rec, tNow); speed = rate(rec) * len; } else {
+      // metres along the hop: where it is shown, where it is to be and how fast that goes on
+      const at = from * len, to = goal * len, r = goalRate * len, err = to - at;
+      if (err > JUMP_S * Math.max(r, pace(rec) * len)) { f = goal; speed = r; } else {
+        // the speed it is to have: its own, closing a gap in about GLIDE_S (or braking into it: no creeping up on
+        // it), at most twice its pace; behind it, slower (never back); and slow enough to stand at the stop the hop
+        // ends at
+        const cap = Math.max(2 * r, 2 * pace(rec) * len, 1);
+        let want = err >= 0 ? Math.min(cap, Math.max(r + err / GLIDE_S, Math.sqrt(2 * SHOWN_BRAKE * err))) : Math.max(0, r + err / GLIDE_S);
+        want = Math.min(want, Math.sqrt(2 * SHOWN_BRAKE * Math.max(0, len - at)));
+        speed += Math.max(-SHOWN_ACCEL * dt, Math.min(SHOWN_ACCEL * dt, want - speed));
+        speed = Math.max(0, speed);
+        let m = at + speed * dt;
+        if (m >= len - 0.02) { m = len; speed = 0; }
+        f = len > 0 ? m / len : 1;
+      }
+    }
+  }
+  f = clamp01(f);
+  // the hop it came along: kept while on the same hop, the one it was shown on when it went on from its end
+  const prev = !s ? null : s.rec === rec || sameHop(s.rec, rec) ? s.prev : sameLL(s.rec.to, rec.from) && !standingAt(s.rec) ? s.rec
+    : standingAt(s.rec) && sameLL(s.rec.from, rec.from) ? s.prev : null;
+  return { rec, f, at: ms, ll: standingAt(rec) ? standPoint(rec, prev) : pointAtShare(rec, f), prev, v: speed };
+}
+// Metres of a hop's whole way (its `hopLen`, else as sent and drawn, else as the crow flies)
+function wayLenM(v: KanteVehicleHop): number {
+  if (v.hopLen && v.hopLen > 0) return v.hopLen;
+  const h = v.hopPath ? hopLine(v.hopPath, onRoad(v)) : null;
+  if (h) { const [a, b] = v.hopSpan || [0, 1]; return (lineEnd(h) * 1000) / Math.max(1e-6, b - a); }
+  return Math.max(1, distKm(v.from, v.to) * 1000);
+}
+
+// km of its way sent (`hopPath`) left beyond share f (the way's whole length unknown: as if it were 1 km)
+function wayLeft(v: KanteVehicleHop, f: number): number {
+  const h = v.hopPath ? hopLine(v.hopPath, onRoad(v)) : null;
+  if (!h) return 0;
+  const [a, b] = v.hopSpan || [0, 1];
+  if (f < a) return 0;
+  if (b >= 1) return Infinity;
+  return b > a ? ((b - f) / (b - a)) * lineEnd(h) : 0;
+}
+// The newer answer v with the way of the hop as it was first sent (`was`): its times and onward hop are the newer ones
+const kept = new WeakMap<object, { was: object; v: KanteVehicleHop }>();
+function keepWay<V extends KanteVehicleHop>(v: V, was: V): V {
+  const k = kept.get(v);
+  if (k && k.was === was) return k.v as V;
+  const out = { ...v, hopPath: was.hopPath, hopSpan: was.hopSpan };
+  kept.set(v, { was, v: out });
+  return out;
+}
+// Where a vehicle standing at a stop is: on the way it leaves on (a road vehicle: as laid onto the drawn road), else at
+// the end of the way it came along, else its place beside the boarding point
+function standPoint(v: KanteVehicleHop, prev: KanteVehicleHop | null | undefined): LngLat {
+  if (onRoad(v)) {
+    const o = v.onward, next = o && o.hopPath && (!o.hopSpan || o.hopSpan[0] <= 0) ? hopLine(o.hopPath, true) : null;
+    if (next) return next.pts[0];
+    const pb = prev && prev.hopPath ? prev : v.behind;
+    const behind = pb && pb.hopPath && (!pb.hopSpan || pb.hopSpan[1] >= 1) ? hopLine(pb.hopPath, true) : null;
+    if (behind) return behind.pts[behind.pts.length - 1];
+  }
+  return v.point || v.from;
+}
+
+// ---- The engine's clock on the page: its time (unix s) at a moment of performance.now(). Each answer says the second
+//      it was worked out for (`t`, whole seconds) and comes a little later: the clock is set by the answer that came
+//      soonest after its second (the least delay seen), and never goes back. ----
+/** The engine's clock: answer(t, ms) for each answer as it comes; now(ms). */
+function engineClock() {
+  let off = Infinity, last = -Infinity;
+  const seen: number[] = [];
+  return {
+    /** An answer for second t came at ms (performance.now()). */
+    answer(t: number, ms: number) {
+      seen.push(ms / 1000 - t);
+      if (seen.length > 20) seen.shift();
+      off = Math.min(...seen);
+    },
+    /** The engine's time at ms; NaN before any answer. */
+    now(ms: number) {
+      if (!Number.isFinite(off)) return NaN;
+      last = Math.max(last, ms / 1000 - off);
+      return last;
+    },
+    reset() { off = Infinity; last = -Infinity; seen.length = 0; },
+  };
+}
+
 // Under way (not standing at a stop) after a measured departure from the stop before `nextSeq`. With stops
 // skipped in between this can't be told from the vehicle alone, and nothing is claimed.
 /** Under way after a measured departure from the stop before. */
@@ -238,5 +661,5 @@ export const KANTE_LIVE = {
   /** The largest box the engine answers /api/vehicles for (its diagonal, km). */
   MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
   /** Seconds until it leaves, seconds of walking left. */
-  runOrWait, journeyLike, vehicleAt, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
+  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, pointAtShare, bodyAt, hopAt, wayShare, glide, showVehicle, setLineRefiner, relayLines, linesCame, layBudget, wayLenM, setTunneler, bodyTunnels, isLaid, engineClock, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
 };

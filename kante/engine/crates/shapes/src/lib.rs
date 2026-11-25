@@ -41,6 +41,9 @@ pub struct Shapes {
     pub pts: Vec<LatLon>,
     /// Per hop: how it was found ([`HOP_NET`], [`HOP_LINE`], [`HOP_STRAIGHT`]).
     pub hop_kind: Vec<u8>,
+    /// Per hop: its length, metres ([`Shapes::measure`] works it out after loading; not stored).
+    #[serde(skip)]
+    pub hop_m: Vec<f32>,
 }
 
 /// Ties `shapes.bin` to the timetable: changes whenever the boarding points or the patterns' stops or lines do.
@@ -77,6 +80,26 @@ pub struct Piece {
 impl Shapes {
     pub fn is_empty(&self) -> bool {
         self.hop_kind.is_empty()
+    }
+    /// Works out every hop's length once (the server asks for them for every vehicle of every answer).
+    pub fn measure(&mut self) {
+        self.hop_m = (0..self.hop_kind.len() as u32).map(|h| self.hop(h).windows(2).map(|w| w[0].dist_m(&w[1])).sum()).collect();
+    }
+    /// Metres of pattern `p`'s way from its stop `from` to its stop `to` (`from < to`), as [`Shapes::piece`]'s points
+    /// measure; None where it has none or some hop of it is a straight line (or the lengths were not measured).
+    pub fn piece_len(&self, p: PatternIdx, from: usize, to: usize) -> Option<f32> {
+        let hops = self.hops_of(self.shape_of(p)?);
+        if from >= to || to > hops.len() || self.hop_m.len() != self.hop_kind.len() {
+            return None;
+        }
+        let mut m = 0.0;
+        for &h in &hops[from..to] {
+            if self.hop_kind[h as usize] == HOP_STRAIGHT {
+                return None;
+            }
+            m += self.hop_m[h as usize];
+        }
+        Some(m)
     }
     pub fn shape_of(&self, p: PatternIdx) -> Option<u32> {
         self.pattern_shape.get(p as usize).copied().filter(|&s| s != NONE)

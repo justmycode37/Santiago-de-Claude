@@ -8,6 +8,7 @@ import { fixAge, fixTime, gpsOn, userAccuracy, userLngLat, userMarker } from './
 import { destMarker } from './search.ts';
 import { hasForecast, icon, journeyEnd, lineLabel, lineVars, liveMs, modeOf, routedSpan, splitLine, stopName } from './journey-steps.ts';
 import { rideTrip } from './live-engine.ts';
+import { vehShowsTrip } from './live-vehicles.ts';
 import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
 import { distKm, lengthKm } from './routing.ts';
@@ -482,12 +483,53 @@ function vehicleHonesty(st: JourneyRideStep, v: VehicleState, now: number) {
   const forecast = s.stops.some((x) => hasForecast(x, 'dep') || hasForecast(x, 'arr'));
   return forecast ? { text: 'Estimated from forecasts', dim: false } : KANTE_LIVE.liveText({ state: 'timetable' });
 }
+// The ride's vehicle as shown: glided along the ride's line (km) towards where the live data puts it, about 20 times
+// a second between the page's updates (KANTE_LIVE.glide: never backwards, catching up at up to twice its pace)
+let vehShown: { st: JourneyRideStep; path: LngLat[]; km: number; at: number } | null = null;
+let vehAnim = 0, vehAnimAt = 0;
+function shownKm(st: JourneyRideStep, km: number, now: number) {
+  const s = vehShown && vehShown.st === st && vehShown.path === st.path ? vehShown : null;
+  const ahead = vehicleState(st, now + 1000), rate = ahead ? Math.max(0, ahead.km - km) : 0; // km a second
+  const k = s ? KANTE_LIVE.glide(s.km, km, rate, (now - s.at) / 1000, Math.max(0.5, 60 * rate)) : km;
+  vehShown = { st, path: st.path, km: k, at: now };
+  return k;
+}
+// km along a line, from its cumulative lengths (kept per line array: the line is a new array whenever it changes)
+const cumOf = new WeakMap<LngLat[], number[]>();
+function pointOnLine(cs: LngLat[], km: number): LngLat | null {
+  if (!cs.length) return null;
+  let cum = cumOf.get(cs);
+  if (!cum) { cum = cumKm(cs); cumOf.set(cs, cum); }
+  if (cs.length < 2 || km <= 0) return cs[0];
+  if (km >= cum[cum.length - 1]) return cs[cs.length - 1];
+  let lo = 0, hi = cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= km) lo = mid; else hi = mid; }
+  const l = cum[hi] - cum[lo], t = l > 0 ? (km - cum[lo]) / l : 0, a = cs[lo], b = cs[hi];
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+let vehDrawnKm = NaN;
+function placeVehMarker(st: JourneyRideStep, km: number) {
+  if (Math.abs(km - vehDrawnKm) < 0.0005 && vehMarker._map) return; // under half a metre: as it is
+  vehDrawnKm = km;
+  vehMarker.setLngLat(pointOnLine(st.path, km)!);
+}
+function animateVehMarker(t: number) {
+  vehAnim = 0;
+  if (!vehMarker._map || !vehShown || document.hidden) return;
+  vehAnim = requestAnimationFrame(animateVehMarker);
+  if (t - vehAnimAt < 50) return;
+  vehAnimAt = t;
+  const now = Date.now(), st = vehShown.st, v = vehicleState(st, now);
+  if (v) placeVehMarker(st, shownKm(st, v.km, now));
+}
 export function updateNowMarker() {
   const now = Date.now();
   const ride = journey.steps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
   const gps = !!tracking.track && !tracking.track.off && gpsOn();
   // once GPS shows you on board, your blue dot is the vehicle
-  const v = ride && !(gps && journey.steps[tracking.track!.i] === ride && !tracking.track!.missed) ? vehicleState(ride, now) : null;
+  // (the live layer draws the ride's vehicle itself where it has it: live-vehicles.ts)
+  const drawn = !!ride && ride.s.legs.some((l) => vehShowsTrip(l.tripId, l.serviceDate));
+  const v = ride && !drawn && !(gps && journey.steps[tracking.track!.i] === ride && !tracking.track!.missed) ? vehicleState(ride, now) : null;
   if (v && ride!.path.length > 1) {
     const j = ride!.s.line, key = lineLabel(j) + '|' + j.category;
     if (vehEl.dataset.key !== key) {
@@ -502,9 +544,10 @@ export function updateNowMarker() {
       vehEl.setAttribute('aria-label', `${MODE_NAME[modeOf(j.category)] || 'Vehicle'} ${lineLabel(j)}: ${how.text}`);
     }
     vehEl.classList.toggle('dim', how.dim);
-    vehMarker.setLngLat(pointAtKm(ride!.path, v.km)!);
-    if (!vehMarker._map) vehMarker.addTo(map);
-  } else vehMarker.remove();
+    const km = shownKm(ride!, v.km, now);
+    if (!vehMarker._map) { vehDrawnKm = NaN; placeVehMarker(ride!, km); vehMarker.addTo(map); } else placeVehMarker(ride!, km);
+    if (!vehAnim) vehAnim = requestAnimationFrame(animateVehMarker);
+  } else { vehMarker.remove(); vehShown = null; }
   const tp = !gpsOn() && !ride ? timeProgress(now) : null;
   const pos = tp && !tp.ended ? pointAtKm(stepLine(journey.steps[tp.i]), tp.kmIn) : null;
   if (pos) { nowMarker.setLngLat(pos); if (!nowMarker._map) nowMarker.addTo(map); }
