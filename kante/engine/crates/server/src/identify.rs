@@ -286,12 +286,13 @@ pub fn identify(app: &App, q: &IdentifyQuery) -> json::IdentifyResponse {
     let moving = if q.stops.is_some() { Vec::new() } else { liveapi::vehicles_in(app, live, &BBox::around(q.pos, q.radius), q.t).vehicles };
     for x in moving {
         let (a, b) = (LatLon::from_deg(x.from[1], x.from[0]), LatLon::from_deg(x.to[1], x.to[0]));
-        let here = a.lerp(&b, x.frac);
+        // on its track or road where that is known, else on the straight line between the stops
+        let here = x.point.map_or_else(|| a.lerp(&b, x.frac), |p| LatLon::from_deg(p[1], p[0]));
         let d = here.dist_m(&q.pos);
         if !admit_moving(d, q.radius, q.stops.is_some()) {
             continue;
         }
-        let travel = (a.dist_m(&b) > 5.0).then(|| a.bearing_deg(&b));
+        let travel = x.heading.or_else(|| (a.dist_m(&b) > 5.0).then(|| a.bearing_deg(&b)));
         let vias = run_of(app, live, &x.trip_id, &x.service_date)
             .filter(|r| !r.calls.is_empty())
             .map(|r| {

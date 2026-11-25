@@ -102,6 +102,19 @@ interface KantePosition {
   /** The times the position is timed by: leaving `seq` and reaching `nextSeq`; `at`: arriving at and leaving `seq`. */
   dep?: number;
   arr?: number;
+  /** `between`: the way from `from` to `to` on the rails and roads (Google encoded polyline, precision 5), from where
+   *  the vehicle stands at one stop to where it stands at the next. Absent where only the straight line is known. */
+  hopPath?: string;
+  /** Some of `hopPath` is a straight line (a stop off the map). */
+  hopStraight?: boolean;
+  /** When `hopPath` is only part of the hop's way (/api/vehicles, near the window asked about): the shares of the
+   *  whole way's length it starts and ends at. */
+  hopSpan?: [number, number];
+  /** Where the vehicle is at `t` on its track or road (`between`: `frac` of the way along it; otherwise where it
+   *  stands at `seq`). */
+  point?: LngLat;
+  /** `between`: the direction it drives in at `point`, degrees from north. */
+  heading?: number;
 }
 
 // ---- GET /api/meta
@@ -164,6 +177,13 @@ interface KanteTrip {
   number?: string;
   calls: KanteStopCall[];
   geometry: LngLat[];
+  /** The way the vehicle takes on the rails and roads (`geometry` is the straight line through the stops), from where
+   *  it stands at the first call to where it stands at the last; absent from an engine without its shapes. */
+  path?: LngLat[];
+  /** Per call: its vertex in `path`. */
+  pathAt?: number[];
+  /** The hops (by the index of the call they start at) where `path` is a straight line: a stop off the map. */
+  straightHops?: number[];
   live: KanteLiveWord;
   cancelled?: boolean;
   headwayS?: number;
@@ -192,6 +212,19 @@ interface KanteVehicle {
   basis: KanteBasis;
   liveInfo: KanteLiveInfo;
   extra?: boolean;
+  /** `between`: the way from `from` to `to` on the rails and roads (Google encoded polyline, precision 5), from where
+   *  the vehicle stands at one stop to where it stands at the next. Absent where only the straight line is known. */
+  hopPath?: string;
+  /** Some of `hopPath` is a straight line (a stop off the map). */
+  hopStraight?: boolean;
+  /** When `hopPath` is only part of the hop's way (/api/vehicles, near the window asked about): the shares of the
+   *  whole way's length it starts and ends at. */
+  hopSpan?: [number, number];
+  /** Where the vehicle is at `t` on its track or road (`between`: `frac` of the way along it; otherwise where it
+   *  stands at `seq`). */
+  point?: LngLat;
+  /** `between`: the direction it drives in at `point`, degrees from north. */
+  heading?: number;
 }
 interface KanteVehiclesResponse { t: number; vehicles: KanteVehicle[] }
 
@@ -320,6 +353,13 @@ interface KanteRideLeg {
   to: KanteStopCall;
   intermediate: KanteStopCall[];
   geometry: LngLat[];
+  /** The way the vehicle takes on the rails and roads (`geometry` is the straight line through the stops), from where
+   *  it stands at the first call to where it stands at the last; absent from an engine without its shapes. */
+  path?: LngLat[];
+  /** Per call: its vertex in `path`. */
+  pathAt?: number[];
+  /** The hops (by the index of the call they start at) where `path` is a straight line: a stop off the map. */
+  straightHops?: number[];
   /** The vehicle goes on as this trip: you stay seated from the leg before. */
   stayOnBoard?: boolean;
   onboard?: boolean;

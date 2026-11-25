@@ -363,5 +363,59 @@ console.log('11. got off the tram, the last walk doubling back beside its line: 
   check(early.arrived && early.live === 'You have arrived', `09:25:45 at the address: "${early.live}"`);
 }
 
+console.log('\non a line that comes back beside itself: one stray fix does not move you onto its way back');
+{
+  // A bus as the engine lays it onto the roads (its legs' path and pathAt): 600 m east from A, 60 m north round the
+  // turn to B, and 600 m back west to C, 60 m beside the way out. The traveller boards at A and the walks are none.
+  const A = at(0, -400), B = at(600, -370), C = at(0, -340);
+  const qA = quay('a', A, 'Loop, A'), qB = quay('b', B, 'Loop, B'), qC = quay('c', C, 'Loop, C');
+  /** The bus leaving A at `dep`, as the engine plans it. */
+  const planAt = (dep: number) => {
+    const arr = dep + 240;
+    const loop = { type: 'ride', tripId: 'loop', serviceDate: '2026-11-24', line: { name: '31', category: 'B', mode: 'bus', operator: 'BERNMOBIL' },
+      headsign: 'Loop, C', from: { seq: 1, quay: qA, dep }, intermediate: [{ seq: 2, quay: qB, arr: dep + 120, dep: dep + 120 }], to: { seq: 3, quay: qC, arr },
+      geometry: [A, B, C], path: [A, at(600, -400), B, at(600, -340), C], pathAt: [0, 2, 4], live: 'timetable' };
+    return { journeys: [{ id: 'loop', dep, arr, durationS: arr - dep, transfers: 0, walkS: 0, walkM: 0, legs: [loop] }] } as unknown as { journeys: KanteJourney[] };
+  };
+  NOW = Math.max(NOW, clock / 1000) + 3600; // after every fix so far (the last journey was on a later day)
+  let dep = NOW + 60;
+  const plan = planAt(dep);
+  await showPlan(plan, C, 'Loop, C');
+  const rideStep = S.journey.steps.find((s) => s.type === 'ride') as unknown as { path: LngLat[] };
+  check(!!rideStep && rideStep.path.length === 7, `the ride drawn along the engine's way, not through the stops (${rideStep ? rideStep.path.length : 0} points)`);
+  const km = (e: number, n: number, when: number) => fixAt(at(e, n), when).km;
+  const out = [km(0, -400, dep), km(100, -400, dep + 10), km(200, -400, dep + 20)];
+  // 55 m from the way out, 5 m from the way back (which is 960 m on): you cannot have got there in 10 s
+  const stray = km(300, -345, dep + 30);
+  const after = km(400, -400, dep + 40);
+  check(out.every((k, n) => Math.abs(k - n * 0.1) < 0.01), `on the way out: ${out.map((k) => k.toFixed(2)).join(', ')} km`);
+  check(stray < 0.4, `the stray fix beside the way back: still on the way out (${stray.toFixed(2)} km, not 0.96)`);
+  check(Math.abs(after - 0.4) < 0.01, `and on from there (${after.toFixed(2)} km)`);
+  // having really come round: on the way back, beside the way out, it stays on the way back
+  const back = [km(600, -360, dep + 120), km(450, -340, dep + 140), km(300, -345, dep + 160)];
+  check(back.every((k, n) => k > 0.6 + n * 0.1), `come round, on the way back: ${back.map((k) => k.toFixed(2)).join(', ')} km`);
+  // the way out is one straight 600 m segment: a stray fix near its far end 2 s on does not carry you there
+  dep += 3600;
+  await showPlan(planAt(dep), C, 'Loop, C');
+  km(100, -400, dep + 10);
+  const far = km(590, -390, dep + 12);
+  check(far < 0.3, `a stray fix 490 m on along a straight stretch, 2 s later: ${far.toFixed(2)} km (not 0.59)`);
+  // the same fix followed again (the page does every few seconds): no further, not off the route
+  const again = fixAt(at(590, -390), dep + 12);
+  check(again.km <= far + 0.001 && !again.off, `the same fix again: ${again.km.toFixed(2)} km, ${again.off ? 'off' : 'on'} the route`);
+  // the first fix put you on the way back (a stray fix beside it): three fixes in a row on the way out bring you back
+  dep += 3600;
+  await showPlan(planAt(dep), C, 'Loop, C');
+  const wrong = km(300, -345, dep + 60);
+  const regain = [km(350, -400, dep + 65), km(400, -400, dep + 70), km(450, -400, dep + 75)];
+  check(wrong > 0.9 && regain[2] < 0.5, `put on the way back by a first stray fix (${wrong.toFixed(2)} km), back on the way out by the third fix there: ${regain.map((k) => k.toFixed(2)).join(', ')} km`);
+  // GPS lost on the way out, then three fixes in a row on the way back: believed
+  dep += 3600;
+  await showPlan(planAt(dep), C, 'Loop, C');
+  km(100, -400, dep + 10);
+  const lost = [km(500, -340, dep + 15), km(450, -340, dep + 17), km(400, -340, dep + 19)];
+  check(lost[0] < 0.6 && lost[1] < 0.6 && lost[2] > 0.8, `on the way back only from the third fix in a row there on: ${lost.map((k) => k.toFixed(2)).join(', ')} km`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

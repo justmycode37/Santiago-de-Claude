@@ -214,6 +214,41 @@ function applyTrip(ride: JourneyRide, n: number, trip: KanteTrip) {
   });
 }
 
+// The way the ride's vehicle takes on the rails and roads, as the engine laid each trip onto them, and each stop's
+// vertex in it: from the trip's last answer of /api/trip where there is one (a platform changed since the plan moves
+// the way onto the new track), else as planned (the legs' `path`). null when a leg has none (an engine without its
+// shapes): the line is then drawn through the stops, and routed by the street and rail routers (routing.ts).
+/** The way the ride's vehicle takes, from the engine, and each stop's vertex in it; null when not known. */
+function ridePath(ride: JourneyRide): { path: LngLat[]; idx: number[] } | null {
+  const path: LngLat[] = [], idx: (number | null)[] = ride.stops.map(() => null);
+  for (let n = 0; n < ride.legs.length; n++) {
+    const leg = ride.legs[n], calls = [leg.from, ...leg.intermediate, leg.to], way = legWay(ride, n, calls.length);
+    if (!way) return null;
+    // a trip the vehicle goes on as starts where the one before ended
+    const skip = path.length && same(path[path.length - 1], way.path[0]) ? 1 : 0, base = path.length - skip;
+    path.push(...way.path.slice(skip));
+    calls.forEach((c, k) => {
+      const i = ride.seqIdx[n].get(c.seq);
+      if (i != null && idx[i] == null) idx[i] = base + way.at[k];
+    });
+  }
+  return idx.every((i) => i != null) ? { path, idx: idx as number[] } : null;
+}
+// Leg n's way and each of its calls' vertex: the part of its trip's last answer from its first call to its last, else
+// the leg's own
+function legWay(ride: JourneyRide, n: number, nCalls: number): { path: LngLat[]; at: number[] } | null {
+  const leg = ride.legs[n], trip = ride.live[n] && ride.live[n].trip;
+  if (trip && trip.path && trip.pathAt && trip.pathAt.length === trip.calls.length) {
+    const ia = trip.calls.findIndex((c) => c.seq === leg.from.seq), ib = trip.calls.findIndex((c) => c.seq === leg.to.seq);
+    if (ia >= 0 && ib - ia + 1 === nCalls && trip.pathAt[ib] > trip.pathAt[ia]) {
+      const base = trip.pathAt[ia];
+      return { path: trip.path.slice(base, trip.pathAt[ib] + 1), at: trip.pathAt.slice(ia, ib + 1).map((x) => x - base) };
+    }
+  }
+  return leg.path && leg.pathAt && leg.path.length > 1 && leg.pathAt.length === nCalls ? { path: leg.path, at: leg.pathAt } : null;
+}
+const same = (a: LngLat, b: LngLat) => a[0] === b[0] && a[1] === b[1];
+
 // Where stop k of a ride is boarded or left → { ll, edge, travel }. edge is null when the engine only knows the
 // stop, not the boarding point; travel is the way the vehicle leaves, at the first stop.
 /** Where stop k of a ride is boarded or left: its boarding point, and for the first stop the way the vehicle leaves. */
@@ -497,6 +532,14 @@ function requay(steps: JourneyStep[], changed: () => void) {
   let moved = false;
   steps.forEach((st, i) => {
     if (st.type !== 'ride') return;
+    // the engine's way as its trip's last answer has it: onto the new track where a platform changed, at the ends or
+    // on the way (the ends of the line, at the boarding points, are moved below)
+    const way = st.pathIdx ? ridePath(st.s) : null;
+    if (way && (way.path.length !== st.path.length - 2 || way.path.some((p, k) => !same(p, st.path[k + 1])))) {
+      st.path = [st.path[0], ...way.path, st.path[st.path.length - 1]];
+      st.pathIdx = way.idx.map((k) => k + 1);
+      moved = true;
+    }
     const d = at(st.s, 0), a = at(st.s, st.s.stops.length - 1);
     if (same(d.ll, st.depLL) && same(a.ll, st.arrLL) && sameEdge(d, st.depAt) && sameEdge(a, st.arrAt)) return;
     const prev = steps[i - 1], next = steps[i + 1], final = steps[steps.length - 1];
@@ -555,4 +598,4 @@ function requay(steps: JourneyStep[], changed: () => void) {
 function longWalks(j: KanteJourney): Set<string> {
   return new Set((j.alerts || []).filter((a) => a.kind === 'long-walk' && a.leg != null && j.legs[a.leg]).map((a) => (j.legs[a.leg!] as KanteWalkLeg).kind));
 }
-export const KanteJourney = { plans, more, at, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options, longWalks };
+export const KanteJourney = { plans, more, at, ridePath, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options, longWalks };

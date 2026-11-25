@@ -347,6 +347,12 @@ impl App {
         let stops = tt.pattern_stops(t.pattern);
         let calls: Vec<json::StopCall> = (from_pos..=to_pos).map(|p| self.stop_call(trip, date, p, tl)).collect();
         let geometry = calls.iter().map(|c| [c.quay.lon, c.quay.lat]).collect();
+        let (path, path_at, straight_hops) = if self.shapes.is_some() {
+            let run = crate::liveapi::Run::of_trip(self, trip, date, tl);
+            crate::liveapi::run_path(self, &run, from_pos, to_pos).unwrap_or_default()
+        } else {
+            Default::default()
+        };
         let (towards, bearing) = if from_pos + 1 < stops.len() {
             let a = &tt.stops[stops[from_pos] as usize];
             let b = &tt.stops[stops[from_pos + 1] as usize];
@@ -369,6 +375,9 @@ impl App {
             to: last,
             intermediate: rest,
             geometry,
+            path,
+            path_at,
+            straight_hops,
             stay_on_board: stay,
             onboard,
             headway_s: (t.flags & TRIP_FREQUENCY != 0).then_some(t.headway_s),

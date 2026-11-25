@@ -32,6 +32,8 @@ export let userAccuracy = 0;
 let lastFixAt = 0;
 let centeredOnUser = false;
 export const fixAge = () => (lastFixAt ? Date.now() - lastFixAt : Infinity);
+/** When the last fix was taken (ms; 0: none): the same fix looked at again has the same time. */
+export const fixTime = () => lastFixAt;
 // A recent, usable GPS fix (watchPosition can stay quiet while you stand still, so allow a while)
 export const gpsOn = () => !!userLngLat && fixAge() < 90000 && userAccuracy < 400;
 

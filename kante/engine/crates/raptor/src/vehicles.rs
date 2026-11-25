@@ -116,6 +116,7 @@ pub(crate) fn vehicles(rt: &Router, bbox: &BBox, date: Date, now: Secs, live: Op
     let tt = &*rt.tt;
     let days = rt.days.set(tt, &rt.pat_span, date);
     let boxes = rt.pattern_boxes();
+    let hop_boxes = rt.hop_boxes();
     let max_delay = live.map_or(0, |l| l.max_delay().max(0));
     let early = if live.is_some() { EARLY_SLACK } else { 0 };
     let mut out = Vec::new();
@@ -161,7 +162,15 @@ pub(crate) fn vehicles(rt: &Router, bbox: &BBox, date: Date, now: Secs, live: Op
                     if i + 1 < n && bbox.contains(pos_of(i)) {
                         out.push(VehicleSeg { trip, date: tdate, pos: i as u16, dwell: true, dep: dep(i) + shift, arr: arr(i + 1) + shift });
                     }
-                } else if i > 0 && segment_hits(pos_of(i - 1), pos_of(i), bbox) {
+                } else if i > 0
+                    && (segment_hits(pos_of(i - 1), pos_of(i), bbox)
+                        // the way of the hop, and of those beside it: over a stop skipped today the vehicle is placed
+                        // on the way between the stops it serves
+                        || hop_boxes.is_some_and(|h| {
+                            let off = tt.patterns[p as usize].stops_off as usize;
+                            (i.saturating_sub(2)..=i.min(n - 2)).any(|k| h[off + k].intersects(bbox))
+                        }))
+                {
                     out.push(VehicleSeg { trip, date: tdate, pos: i as u16 - 1, dwell: false, dep: dep(i - 1) + shift, arr: arr(i) + shift });
                 }
             }

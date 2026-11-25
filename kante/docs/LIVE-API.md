@@ -90,7 +90,23 @@ between two requests, start from `frac` at `t` and go on at the pace of `dep`→
 forecast; likewise how long a bus or tram stands at a stop after a measured arrival. On 4.5 M test hops
 this cut the error of the arrival from 33.5 s to 10.6 s on average (`livemap/measure/IST-DATEN.md`). `basis` is `observed-stop` (timed from the last measured stop), `forecast` or `timetable`.
 `from`/`to` are the stops' boarding points (the
-changed one when the platform changed); the line between them is straight.
+changed one when the platform changed).
+
+Where the vehicle drives between them (see [The way vehicles take](#the-way-vehicles-take) below):
+
+```json
+"position": { …, "hopPath": "s~p}GsxgaA…", "point": [7.4321, 46.9502], "heading": 84 }
+```
+
+| Field | |
+|---|---|
+| `hopPath` | `between`: the way from `seq` to `nextSeq` on the rails and roads, as a [Google encoded polyline](https://developers.google.com/maps/documentation/utilities/polylinealgorithm) (precision 5), from where the vehicle stands at `seq` to where it stands at `nextSeq` (beside the boarding points, on the track or road). Absent where only the straight line is known |
+| `hopStraight` | some of `hopPath` is a straight line: a stop is off the map |
+| `point` | where the vehicle is at `t` on its track or road: `between`, `frac` of `hopPath`'s length along it (no acceleration or braking: that would need measured positions to check it against, and there are none); `at`, where it stands at `seq`. Absent where not known |
+| `heading` | `between`: the direction it drives in at `point`, degrees from north |
+
+To move it on between two requests, go on at the pace of `dep`→`arr` as before and take that share of
+`hopPath`'s length.
 
 Each call in `calls` has `live: true` where its times come from a feed (reported, or carried on from an
 earlier report); elsewhere they are the timetable's, and a page should keep any forecast it has from
@@ -102,11 +118,52 @@ with their own operating day as `date`).
 ## `GET /api/vehicles?bbox=w,s,e,n`
 
 As before; every vehicle also has `liveInfo`, `extra`, `frac` and `basis`. `from`, `to`, `dep`, `arr`,
-`nextSeq` and `frac` all come from the vehicle's `position`, so they always describe the same hop.
+`nextSeq` and `frac` all come from the vehicle's `position`, so they always describe the same hop; so do
+`hopPath`, `hopStraight`, `point` and `heading`. Of a long hop (an express train's 60 km) `hopPath` is only the part
+within 1.5 km of the box, and `hopSpan: [start, end]` says which: the shares of the whole way's length it starts and
+ends at. The vehicle is at `frac` of the whole way, so on the part at (`frac` − start) / (end − start).
+
+A vehicle is found in the box when the way of its hop passes through it, not only the straight line between its
+stops (a train on a bend).
 Cancelled trips are left out; extra journeys are included. The lists are computed a few at a time; a
 request may wait briefly when many arrive at once.
 
 Times outside about a year from now (`t`, `dep`, `arr`) are refused with 400.
+
+## The way vehicles take
+
+The Swiss timetable has no `shapes.txt`. `kante build` lays every pattern of the timetable onto the rails, tram
+tracks, roads buses may use, ferry lines and aerialways of OpenStreetMap (`crates/shapes`, `data/built/shapes.bin`).
+`/api/trip` and the ride legs of `/api/plan` give the result for the whole trip or leg:
+
+| Field | |
+|---|---|
+| `path` | the way, `[lon, lat]` points, from where the vehicle stands at the first call to where it stands at the last (`geometry` stays the straight line through the boarding points) |
+| `pathAt` | per call: its vertex in `path` (a stop the line passes twice is still the right pass) |
+| `straightHops` | the hops, by the index of the call they start at, where `path` is a straight line |
+
+How it is found: all the stops of a pattern are laid onto the network at once (a hidden Markov model over a few
+candidate places per stop: each way of the mode within a radius, in each direction it can be driven, plus the stop
+itself for when none fits; Viterbi with one multi-source Dijkstra per hop). So one stop that happens to be nearer
+another track or another street does not move the line there when the stops around it say otherwise, and the line
+never switches track or road for a single stop. The search runs on directed edges: a vehicle never turns back on
+the way it came, a train never takes a switch from one branch into the other (a turn sharper than 100° at a
+junction), and turning back at a stop costs five to ten minutes (trains do so in stub stations). The OSM route
+relation of the pattern's own line (same kind and `ref`, its ways passing the most stops in order, which tells the
+two directions apart) makes its ways cheaper, so the line follows the route as mapped; the platform number on a
+track (`railway:track_ref`) tells which of a station's tracks a train stands on.
+
+Measured on the national timetable fetched 21 Nov 2026 (`kante build --only shapes` on 25 Nov: 145 s on 8 threads, 2.4 GB at most; the engine then needs about 100 MB more): all 108,100 patterns that are not
+lifts laid out; 70 % of them along their own route relation. Of 1.2 million hops, 85 % are on the network; of the
+182,347 straight ones, 179,347 have a stop with no way of its mode near it (abroad: the map is Switzerland's) and
+3,000 (0.3 % of all hops) do not (mostly lines crossing the border and back, such as Bülach–Schaffhausen through
+Germany). A boarding point is 1.8 m from where its vehicle stands (median; 95 % within 12.4 m). `shapes.bin` is
+47 MB. What came out can be looked at with `cargo run --release -p kante-shapes --example shape_stats -- data` and
+`--example shape_debug -- data tram 'pattern:14:Cornavin>Lyon'`.
+
+A run that keeps to its boarding points takes its pattern's way; where a platform changed, or for an extra journey,
+each hop is taken from a pattern that makes the same one (between the same two boarding points); failing that, the
+pattern's own (for a changed platform: the right line, a track off) or the straight line.
 
 ## `GET /api/match` — find the engine's trip for a ride planned elsewhere
 

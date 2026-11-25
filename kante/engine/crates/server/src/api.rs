@@ -296,6 +296,7 @@ async fn trip(State(app): S, Q(p): Q<TripParams>, Q(at): Q<TripTime>) -> Result<
     let n = tt.pattern_stops(t.pattern).len();
     let calls: Vec<json::StopCall> = (0..n).map(|pos| app.stop_call(trip, date, pos, tl)).collect();
     let number = tt.str(t.short_name);
+    let (path, path_at, straight_hops) = liveapi::run_path(&app, &run, 0, n.saturating_sub(1)).unwrap_or_default();
     Ok(Json(json::TripResponse {
         trip_id: p.id,
         service_date: time::fmt_date(date),
@@ -303,6 +304,9 @@ async fn trip(State(app): S, Q(p): Q<TripParams>, Q(at): Q<TripTime>) -> Result<
         headsign: tt.str(t.headsign).to_string(),
         number: (!number.is_empty()).then(|| number.to_string()),
         geometry: calls.iter().map(|c| [c.quay.lon, c.quay.lat]).collect(),
+        path,
+        path_at,
+        straight_hops,
         calls,
         live: App::live_state(tl),
         cancelled: tl.map(|l| l.cancelled).unwrap_or(false),
@@ -336,6 +340,7 @@ fn extra_trip(app: &App, x: &ExtraTrip, now: i64) -> json::TripResponse {
             }
         })
         .collect();
+    let (path, path_at, straight_hops) = liveapi::run_path(app, &run, 0, calls.len().saturating_sub(1)).unwrap_or_default();
     json::TripResponse {
         trip_id: x.id.clone(),
         service_date: time::fmt_date(x.date),
@@ -343,6 +348,9 @@ fn extra_trip(app: &App, x: &ExtraTrip, now: i64) -> json::TripResponse {
         headsign: x.headsign.clone(),
         number: None,
         geometry: calls.iter().map(|c| [c.quay.lon, c.quay.lat]).collect(),
+        path,
+        path_at,
+        straight_hops,
         calls,
         live: if x.observed_pos >= 0 { "observed" } else { "predicted" },
         cancelled: x.cancelled,

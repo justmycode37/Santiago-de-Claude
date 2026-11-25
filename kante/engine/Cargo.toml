@@ -16,6 +16,7 @@ kante-link = { path = "crates/link" }
 kante-search = { path = "crates/search" }
 kante-elevation = { path = "crates/elevation" }
 kante-rt = { path = "crates/rt" }
+kante-shapes = { path = "crates/shapes" }
 anyhow = "1"
 rayon = "1.12"
 serde = { version = "1", features = ["derive"] }
