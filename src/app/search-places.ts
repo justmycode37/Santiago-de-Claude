@@ -2,18 +2,18 @@
 //      lists the nearest ones; a name ("Migros", "Amavita") lists the places called that, nearest first ----
 import { map } from './map.ts';
 import { gpsOn, userLngLat } from './location.ts';
-import { parseResult } from './search.ts';
+import { KIND, isPlaceResult, list, parseResult } from './search.ts';
 import { render } from './search-pins.ts';
 import { GROUP_BY_KEY, PLACES, loadPlaces } from './map-places.ts';
 import { fmtDist } from './live-vehicles.ts';
 import { distKm } from './routing.ts';
 import { searchState } from './state.ts';
-import { PlaceSearch } from '../places.ts';
+import { PlaceSearch, wikidataImages } from '../places.ts';
 import { KANTE } from '../engine.ts';
 import { PLATFORMS, platformKey } from './platforms.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
 import type { PlaceBbox, PlaceSearchAnswer, PlaceSearchResult } from '../places.ts';
-import type { LngLatFirst, PlaceMatches, SearchResult, SwisstopoSearchAnswer } from './search.ts';
+import type { LngLatFirst, PlaceMatches, SearchIcon, SearchResult, SwisstopoSearchAnswer } from './search.ts';
 export const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
 const stem = (w: string) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
   : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
@@ -142,6 +142,39 @@ async function searchSwisstopo(text: string): Promise<SearchResult[]> {
 // ae/oe/ue and one typo, and puts nearer ones first among equals. null while the engine is off or does not answer.
 const MODE_WORD: Partial<Record<KanteMode, string>> = { rail: 'Train', tram: 'Tram', bus: 'Bus', metro: 'Metro', boat: 'Boat',
   funicular: 'Funicular', cableway: 'Cable car', rack: 'Rack railway', lift: 'Lift' };
+// The engine's icon for a place (cats::icon in kante/engine/crates/search) → the map's glyph and colour for that
+// kind of place, and the kind of result it is
+const ICON_PATH: Record<string, string> = {
+  plane: 'M10.5 4.5a1.5 1.5 0 0 1 3 0V9l7.5 4.5v2L13.5 13v4.5l2 1.5v1.5L12 19.5l-3.5 1V19l2-1.5V13L3 15.5v-2L10.5 9z',
+  castle: 'M4 21V8h3v2.5h2V8h2v2.5h2V8h2v2.5h2V8h3v13zM10 21v-3.5a2 2 0 0 1 4 0V21',
+  scissors: 'M3.5 6a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M3.5 18a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M8 7.5L20 18M8 16.5L20 6',
+  tent: 'M2.5 20h19M12 4L3.5 20M12 4l8.5 16M12 13l-3 7M12 13l3 7',
+  mask: 'M4 5h16v7a8 8 0 0 1-16 0zM8.5 10h.01M15.5 10h.01M9 14.5a4 4 0 0 0 6 0',
+  bread: 'M5 11a7 4.5 0 0 1 14 0v8H5zM9 9.5v3M12 9v3M15 9.5v3',
+  eye: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM9.5 12a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0',
+};
+const ENGINE_ICON: Record<string, [glyph: string, color: 'navy' | 'rose' | 'sun' | 'tang', kind: SearchResult['kind']]> = {
+  restaurant: ['fork', 'tang', 'food'], fast_food: ['fork', 'tang', 'food'], cafe: ['cup', 'tang', 'cafe'], bar: ['glass', 'rose', 'bar'],
+  ice_cream: ['icecream', 'tang', 'cafe'], bakery: ['bread', 'tang', 'cafe'], grocery: ['cart', 'rose', 'shop'], mall: ['bag', 'rose', 'shop'],
+  shop: ['bag', 'rose', 'shop'], hairdresser: ['scissors', 'rose', 'shop'], pharmacy: ['cross', 'tang', 'health'],
+  hospital: ['hospital', 'tang', 'health'], doctor: ['cross', 'tang', 'health'], dentist: ['tooth', 'tang', 'health'],
+  hotel: ['bed', 'rose', 'bed'], hut: ['shelter', 'rose', 'bed'], camping: ['tent', 'rose', 'bed'], museum: ['building', 'rose', 'building'],
+  theatre: ['mask', 'rose', 'building'], zoo: ['tree', 'sun', 'other'], castle: ['castle', 'rose', 'building'], sight: ['star', 'rose', 'building'],
+  viewpoint: ['eye', 'sun', 'other'], worship: ['worship', 'navy', 'building'], school: ['school', 'navy', 'building'],
+  library: ['book', 'navy', 'building'], civic: ['building', 'navy', 'building'], police: ['shield', 'navy', 'building'],
+  post: ['mail', 'navy', 'building'], bank: ['cash', 'sun', 'money'], parking: ['parking', 'navy', 'other'], car: ['car', 'rose', 'other'],
+  bike: ['bike', 'rose', 'other'], taxi: ['car', 'rose', 'other'], airport: ['plane', 'navy', 'building'], info: ['info', 'navy', 'other'],
+  sport: ['ball', 'sun', 'sport'], swim: ['swim', 'sun', 'sport'], park: ['tree', 'sun', 'other'], office: ['briefcase', 'navy', 'building'],
+};
+const NATURAL_ICON: Record<string, SearchResult['kind']> = { city: 'city', village: 'city', mountain: 'mountain', water: 'water', nature: 'nature' };
+function engineIcon(icon: string | undefined): { icon?: SearchIcon; kind?: SearchResult['kind'] } {
+  if (!icon) return {};
+  if (NATURAL_ICON[icon]) return { kind: NATURAL_ICON[icon], icon: KIND[NATURAL_ICON[icon]] };
+  const e = ENGINE_ICON[icon];
+  if (!e) return {};
+  const color = MAP_LAYERS.COLORS[e[1]];
+  return { kind: e[2], icon: { color: color.css, fg: e[1] === 'sun' ? color.ink : '', svg: `<path d="${ICON_PATH[e[0]] || MAP_LAYERS.GLYPHS[e[0]]}"/>` } };
+}
 const POI_KIND: [RegExp, SearchResult['kind']][] = [[/pharm|hospital|doctor|clinic|dentist/i, 'health'], [/restaurant|fast food|food/i, 'food'],
   [/caf[eé]|bakery|ice cream/i, 'cafe'], [/bar|pub/i, 'bar'], [/shop|supermarket|store|market|kiosk/i, 'shop'], [/hotel|hostel|guest/i, 'bed'],
   [/atm|cash|bank/i, 'money'], [/toilet/i, 'toilet'], [/peak|summit|mountain|viewpoint/i, 'mountain'], [/park|forest|lake|nature/i, 'nature']];
@@ -154,7 +187,7 @@ const STOP_WORDS = /\b(bus ?stop|tram ?stop|train ?station|railway station|stop|
 const PLATFORM_WORDS = /^(.+?)[\s,]+(?:(?:train|tram|bus)\s+)?(?:gleis|gl\.?|track|platform|plattform|quai|voie|v\.|binario|bin\.|kante|perron|bay|steig)\s*(\d{1,2}[a-z]?|[a-z])$/iu;
 const BARE_REF = /^(.{3,}?)[\s,]+(\d{1,2}|[a-z])$/iu;
 const PLATFORM_MODE: Record<string, string> = { train: 'Train', tram: 'Tram', bus: 'Bus', boat: 'Boat', cable: 'Cable car' };
-async function searchKante(text: string): Promise<SearchResult[] | null> {
+export async function searchKante(text: string): Promise<SearchResult[] | null> {
   if (!KANTE.available()) return null;
   const from = searchOrigin();
   const ask = (q: string) => KANTE.search({ q, lat: from[1].toFixed(4), lon: from[0].toFixed(4), limit: 10 }).then((r) => r.results);
@@ -191,11 +224,35 @@ async function searchKante(text: string): Promise<SearchResult[] | null> {
       return { ...base, kind: 'station', subtitle: [modes.join(', ') || 'Stop', dist].filter(Boolean).join(' · ') };
     }
     if (p.kind === 'address') return { ...base, kind: 'address', subtitle: p.detail || '' };
-    // a place: "Pharmacy · Spitalgasse 4, Bern" → "Pharmacy · 120 m · Spitalgasse 4, Bern"
+    // a place: "Restaurant · Spitalgasse 4, Bern" → "Restaurant · Italian · 120 m · Spitalgasse 4, Bern", with the
+    // icon of its kind and the photo OpenStreetMap links (or, later, Wikidata's: fillPhotos)
     const [what, ...where] = (p.detail || '').split(' · ');
-    const kind = (POI_KIND.find(([re]) => re.test(what)) || [null, 'other'])[1];
-    return { ...base, kind, subtitle: [what, dist, where.join(' · ')].filter(Boolean).join(' · ') };
+    const known = engineIcon(p.icon);
+    const kind = known.kind || (POI_KIND.find(([re]) => re.test(what)) || [null, 'other'])[1];
+    const info = p.info || {};
+    // what it serves: its first cuisine, else "Vegan" / "Vegetarian" for a place that serves nothing else; not when
+    // that is what it is anyway (an ice cream parlour serving ice cream)
+    const dish = (info.cuisine || '').split(', ')[0] || (info.diet === 'Vegan' || info.diet === 'Vegetarian' ? info.diet : '');
+    const serves = fold(dish) === fold(what) ? '' : dish;
+    return { ...base, kind, icon: known.icon, info: p.info, photo: info.image || undefined,
+      subtitle: [what, serves, dist, where.join(' · ')].filter(Boolean).join(' · ') };
   })];
+}
+
+// Photos for the engine's places that OpenStreetMap only links to Wikidata: the place's own photo, else its brand's
+// logo (a Migros, a Coop). Fills `photo` in place; true when it found any.
+export async function fillPhotos(results: SearchResult[] | null): Promise<boolean> {
+  const want = (results || []).filter((r) => !r.photo && r.info && (r.info.wikidata || r.info.brandWikidata)).slice(0, 12);
+  if (!want.length) return false;
+  const pics = await wikidataImages(want.flatMap((r): [string, 'P18' | 'P154'][] =>
+    [...(r.info!.wikidata ? [[r.info!.wikidata, 'P18'] as [string, 'P18']] : []), ...(r.info!.brandWikidata ? [[r.info!.brandWikidata, 'P154'] as [string, 'P154']] : [])]));
+  let any = false;
+  for (const r of want) {
+    const own = r.info!.wikidata && pics.get(`${r.info!.wikidata}:P18`);
+    const logo = r.info!.brandWikidata && pics.get(`${r.info!.brandWikidata}:P154`);
+    if (own) { r.photo = own; any = true; } else if (logo) { r.photo = logo; r.photoIsLogo = true; any = true; }
+  }
+  return any;
 }
 
 // Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.ts: OpenStreetMap, or Google
@@ -226,12 +283,14 @@ export function combineResults(text: string, swiss: SearchResult[] | null, onlin
   if (!kante || !kante.length) return rest;
   const kindAsked = local.kinds.length > 0 || !!searchState.placeCategory;
   if (kindAsked) {
-    // the places of that kind from all sources, nearest first; then the rest
-    const fresh = kante.filter((k) => !rest.some((r) => sameAs(k, r)));
-    const isPlace = (r: SearchResult) => r.kind !== 'station' && r.kind !== 'address' && r.distance != null;
-    const near = [...rest.filter((r) => r.origin === 'place'), ...fresh.filter(isPlace)]
+    // the places of that kind from all sources, nearest first; then the rest. A place found online (Photon,
+    // Google) that the engine has too keeps the engine's row, which has its cuisine, icon and photo.
+    const kept = rest.filter((r) => !(r.source && kante.some((k) => sameAs(k, r))));
+    const fresh = kante.filter((k) => !kept.some((r) => sameAs(k, r)));
+    const isPlace = (r: SearchResult) => isPlaceResult(r) && r.distance != null;
+    const near = [...kept.filter((r) => r.origin === 'place'), ...fresh.filter(isPlace)]
       .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-    return [...near, ...rest.filter((r) => r.origin !== 'place'), ...fresh.filter((k) => !isPlace(k))];
+    return [...near, ...kept.filter((r) => r.origin !== 'place'), ...fresh.filter((k) => !isPlace(k))];
   }
   return [...kante, ...rest.filter((r) => !kante.some((k) => sameAs(k, r)))];
 }
@@ -295,6 +354,12 @@ export async function search(text: string) {
   if (id !== searchState.reqId) return;
   searchState.expanded = false;
   show(onlineDone);
+  // Photos from Wikidata join the engine's rows when they arrive (the rows are the same objects), while this
+  // search's list is still open: not over the map once a result is picked or the places are on the map
+  fillPhotos(kante).then((found) => {
+    if (found && id === searchState.reqId && field === searchState.field && list.classList.contains('open')
+      && searchState.results.some((r) => kante!.includes(r))) render();
+  }).catch(() => {});
   if (onlineDone) return;
   await onlineReq;
   if (id === searchState.reqId) show(true);

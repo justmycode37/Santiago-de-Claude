@@ -15,7 +15,7 @@ pub struct LineBadge {
     pub operator: String,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Place {
     pub id: String,
@@ -29,6 +29,16 @@ pub struct Place {
     pub modes: Option<Vec<&'static str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dist_m: Option<u32>,
+    /// `/api/search`: what to draw for it ("station", "address", or for a place "restaurant", "museum" …;
+    /// the keys are listed in kante/docs/SEARCH.md).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    /// `/api/search`, places: their category ("Restaurant"), also the first part of `detail`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// `/api/search`, places: cuisine, opening hours, website, phone, photo, Wikidata items, when mapped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub info: Option<kante_search::PoiInfo>,
 }
 
 #[derive(Serialize)]

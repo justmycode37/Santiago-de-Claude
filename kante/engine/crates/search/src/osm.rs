@@ -50,6 +50,10 @@ pub struct RawPoi {
     pub class: u8,
     /// Somebody linked a Wikidata or Wikipedia entry.
     pub wiki: bool,
+    /// Search words for what it serves ("pizza pizzeria italian …"), from `cats::details`.
+    pub kw: Span,
+    /// Its `PoiInfo`, encoded (`PoiInfo::encode`).
+    pub info: Span,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -109,8 +113,31 @@ impl RawData {
             score,
             class,
             wiki: false,
+            kw: Span::default(),
+            info: Span::default(),
         };
         self.pois.push(p);
+    }
+
+    /// Details of the place added last, and the words it is found by besides its name and category
+    /// ("pizza italian" for what it serves).
+    pub fn add_poi_info(&mut self, info: &crate::PoiInfo, keywords: &str) {
+        let kw = self.put(keywords);
+        let info = self.put_verbatim(&info.encode());
+        if let Some(p) = self.pois.last_mut() {
+            p.kw = kw;
+            p.info = info;
+        }
+    }
+
+    /// Store `s` as it is: the caller has cleaned it (an encoded `PoiInfo` keeps its 0x1f separators).
+    fn put_verbatim(&mut self, s: &str) -> Span {
+        if s.is_empty() || s.len() > 4096 || self.text.len() + s.len() > u32::MAX as usize - 1024 {
+            return Span::default();
+        }
+        let off = self.text.len() as u32;
+        self.text.push_str(s);
+        Span { off, len: s.len() as u32 }
     }
 
     pub fn add_street(&mut self, name: &str, pts: &[LatLon]) {
@@ -153,6 +180,8 @@ impl RawData {
                 p.postcode = Self::shift(p.postcode, by);
                 p.street = Self::shift(p.street, by);
                 p.hn = Self::shift(p.hn, by);
+                p.kw = Self::shift(p.kw, by);
+                p.info = Self::shift(p.info, by);
                 self.pois.push(p);
             }
         }
@@ -222,6 +251,7 @@ fn handle(ch: &mut Chunk, t: &Tags, pos: LatLon, code: u64, is_way: bool) -> Fou
                     alt.push(' ');
                 }
             }
+            let (info, kw) = cats::details(t);
             let p = RawPoi {
                 name: d.put(name),
                 alt: d.put(&alt),
@@ -235,6 +265,8 @@ fn handle(ch: &mut Chunk, t: &Tags, pos: LatLon, code: u64, is_way: bool) -> Fou
                 score: cls.score,
                 class: cls.class,
                 wiki: !t.wikidata.is_empty() || !t.wikipedia.is_empty(),
+                kw: d.put(&kw),
+                info: d.put_verbatim(&info.encode()),
             };
             found.poi = Some(d.pois.len() as u32);
             d.pois.push(p);

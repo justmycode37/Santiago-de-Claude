@@ -858,7 +858,18 @@ impl SearchIndex {
         match self.kind[di] {
             KIND_STATION => {
                 let st = self.ext[di];
-                Hit { kind: HitKind::Station, id: format!("st:{}", self.st_ids[st as usize]), name: name.to_string(), detail: String::new(), pos, station: Some(st), score }
+                Hit {
+                    kind: HitKind::Station,
+                    id: format!("st:{}", self.st_ids[st as usize]),
+                    name: name.to_string(),
+                    detail: String::new(),
+                    pos,
+                    station: Some(st),
+                    score,
+                    icon: "station".into(),
+                    category: String::new(),
+                    info: None,
+                }
             }
             KIND_POI => {
                 let label = self.cats.get((self.cat[di] & 0xfff) as usize).map(|s| s.as_str()).unwrap_or("Place");
@@ -894,13 +905,37 @@ impl SearchIndex {
                         }
                     }
                 }
-                let code = self.poi_code.get(self.ext[di] as usize).copied().unwrap_or(0);
-                Hit { kind: HitKind::Poi, id: format!("poi:{code}"), name: name.to_string(), detail, pos, station: None, score }
+                let rank = self.ext[di] as usize;
+                let code = self.poi_code.get(rank).copied().unwrap_or(0);
+                let info = if rank < self.poi_info.len() { PoiInfo::decode(self.poi_info.str(rank)).map(Box::new) } else { None };
+                Hit {
+                    kind: HitKind::Poi,
+                    id: format!("poi:{code}"),
+                    name: name.to_string(),
+                    detail,
+                    pos,
+                    station: None,
+                    score,
+                    icon: crate::cats::icon(label, class).into(),
+                    category: label.to_string(),
+                    info,
+                }
             }
             _ => {
                 // A street through several postcodes shows only the town.
                 let detail = if self.cat[di] == 1 { self.loc_parts(self.loc[di]).1.to_string() } else { self.loc_label(self.loc[di]) };
-                Hit { kind: HitKind::Address, id: format!("addr:{}", (self.ext[di] as u64) * 2 + 1), name: name.to_string(), detail, pos, station: None, score }
+                Hit {
+                    kind: HitKind::Address,
+                    id: format!("addr:{}", (self.ext[di] as u64) * 2 + 1),
+                    name: name.to_string(),
+                    detail,
+                    pos,
+                    station: None,
+                    score,
+                    icon: "address".into(),
+                    category: String::new(),
+                    info: None,
+                }
             }
         }
     }
@@ -919,6 +954,9 @@ impl SearchIndex {
             pos: LatLon { lat: self.h_lat[hi], lon: self.h_lon[hi] },
             station: None,
             score,
+            icon: "address".into(),
+            category: String::new(),
+            info: None,
         }
     }
 

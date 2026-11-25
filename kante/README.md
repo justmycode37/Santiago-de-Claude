@@ -36,7 +36,8 @@ scripts/plan.py "Zürich HB" "Ostermundigen, Rüti" 2026-11-23T08:00 steps=1
 `GET /api/meta`, `/api/search`, `/api/reverse`, `/api/departures`, `/api/trip`,
 `/api/vehicles`, `/api/due`, `/api/identify`, `/api/match`, `/api/stream`, and `POST /api/plan`,
 `/api/walk`. Any website may call it
-(CORS is open). The parameters are in `engine/crates/server/src/api.rs`.
+(CORS is open). The parameters are in `engine/crates/server/src/api.rs`; what `/api/search` finds and
+returns (places with their icon, cuisine, hours and photo) is in [docs/SEARCH.md](docs/SEARCH.md).
 
 ## The live-data key
 
