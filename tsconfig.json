@@ -8,7 +8,7 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    // maplibre-gl comes from its CDN as a plain script (index.html): its global maplibregl
+    // the global maplibregl namespace, for its types (src/types/vendor.d.ts); at run time modules import 'maplibre-gl'
     "allowUmdGlobalAccess": true,
     "types": [],
     "noEmit": true,
@@ -18,5 +18,5 @@
   },
   "include": ["src"],
   // the other pages' scripts have their own tsconfig.json: each is checked on its own
-  "exclude": ["src/pages"]
+  "exclude": ["src/pages", "src/sw"]
 }

@@ -25,6 +25,7 @@ npm run build   # dist/ once, without the dev server
 | `src/main.ts` and what it imports | `main-<hash>.js` and `chunks/`: the page's script (`index.html` loads it with `<script type="module">`) |
 | `src/pages/scan-bench.ts`, `src/pages/station3d-solid.page.ts` | `pages/*-<hash>.js`: the scripts of `scan-bench.html` and `station3d-solid.html`, bundled the same way |
 | `src/translate.ts` | `translate-<hash>.js`, a plain script (it runs before maplibre has downloaded) |
+| `src/sw/sw.ts` | `sw.js`, the service worker that keeps the base map on the device (see "The map" below) |
 | `src/inline/*.ts`, the other `src/pages/*.ts` | written into the pages as plain `<script>`s (theme, first visit, early location and map style; the demo pages) |
 | `src/types/*.d.ts` | nothing: the global types that belong to no module (see below) |
 | `*.html` | copied, with each line `<!-- build: src/… -->` replaced by that script |
@@ -101,8 +102,23 @@ that part, exported when others read it. `state.ts` touches nothing of the page,
 
 A module that throws as it loads stops every module that loads after it, so none may: what it reads of a plain
 script (the event data, `config.js`, the station index, `translate.js`) may be missing, and is read with a guard.
-A missing data file costs only what it holds. The plain scripts the page cannot do without are maplibre (no map, as
-before) and the page's script itself; without that, the first visit's cover still goes (`src/inline/early.ts`).
+A missing data file costs only what it holds. What the page cannot do without is maplibre (no map, as before; the
+page's script imports it) and the page's script itself; without that, the first visit's cover still goes (`src/inline/early.ts`).
+
+## The map
+
+MapLibre GL JS 6 is an ES module from unpkg: the modules `import * as maplibregl from 'maplibre-gl'`, which the
+import map in `index.html` points at the CDN (`EXTERNAL` in `scripts/build.mts`; `livemap/` still loads 4.7.1 as a
+plain script). The version is in three places in `index.html` (import map, `modulepreload`, stylesheet) and in
+`package.json`, which gives the types; keep them the same.
+
+The base map is swisstopo's: vector tiles up to zoom 14 (each up to ~220 kB zipped in a city centre), which MapLibre
+cuts into zoom 15–16 tiles itself (its `zoomLevelsToOverscale`, 4 by default) and scales beyond that. The normal
+and the satellite style are fetched with their tile sets written in (`src/tilejson.ts`), so both ask for the same
+tile addresses. `src/sw/sw.ts` keeps swisstopo's tiles, satellite photos, fonts and styles in the browser's Cache
+Storage: tiles are answered from there without the network (refreshed in the background once a week old), the
+rest is refreshed on every use; each cache has a limit on its number of files. It handles no other request, so
+the site's own files are always the browser's as without it. Raise `VERSION` in it to start with empty caches.
 
 ## Globals
 

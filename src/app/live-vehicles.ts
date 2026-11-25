@@ -1,5 +1,6 @@
 // ---- Live vehicles on the map, from zoom 14: the engine's stream when it has one, else every 15 s. Not during
 //      a journey (the trip's own vehicle is shown on it), not while the page is hidden. ----
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { platformPopup } from './platforms.ts';
 import { vehicleGlyph } from './sprites.ts';
@@ -98,7 +99,8 @@ export function vehUpdate() {
     vehFetch(bbox, id);
     vehPollTimer = setInterval(() => vehFetch(bbox, id), 15000);
   }
-  vehDrawTimer = setInterval(vehDraw, 1000); // glide between stops
+  // glide between stops; not while the map is being moved (each redraw re-places every label on the map)
+  vehDrawTimer = setInterval(() => { if (!map.isMoving()) vehDraw(); }, 1000);
 }
 async function vehFetch(bbox: string, id: number) {
   if (vehBusy || document.hidden) return;
@@ -117,6 +119,7 @@ function vehSet(data: KanteVehiclesResponse) {
 function vehDraw() {
   const age = Date.now() - vehAt;
   if (vehList.length && age > VEH_DROP_MS) { vehList = []; vehPopup.remove(); }
+  if (!vehList.length && !VEH_FC.features.length) return; // nothing shown, nothing to show
   const now = vehNow(), old = age > VEH_DIM_MS;
   VEH_FC.features = vehList.map((v, i) => {
     const c = lineColor(v.j), st = v.info && v.info.state;

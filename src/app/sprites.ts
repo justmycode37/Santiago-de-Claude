@@ -199,9 +199,10 @@ function levelSprite(up: boolean, label: string, dark: boolean, ratio: number) {
 
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
-  map.on('styleimagemissing', (e) => {
-    if (map.hasImage(e.id)) return;
-    const s = makeSprite(e.id);
-    if (s) map.addImage(e.id, s.data, { pixelRatio: s.ratio });
+  // Icons the style asks for are drawn here when first needed (MapLibre 6: a resolver, not 'styleimagemissing')
+  map.setMissingStyleImageResolver((id) => {
+    if (map.hasImage(id)) return;
+    const s = makeSprite(id);
+    if (s) map.addImage(id, s.data, { pixelRatio: s.ratio });
   });
 }

@@ -1,6 +1,7 @@
 // ---------- Live tracking: where you and your vehicle are on the trip ----------
 // Swiss operators publish no open live vehicle positions, so a vehicle is placed from its live (real-time)
 // stop times; you are followed by GPS, snapped onto the trip's line. Without GPS, the live times place you.
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
 import { fixAge, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';

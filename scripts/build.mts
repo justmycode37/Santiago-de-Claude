@@ -30,8 +30,10 @@ export const SRC = path.join(ROOT, 'src');
 export const ENTRIES = ['src/main.ts', 'src/pages/scan-bench.ts', 'src/pages/station3d-solid.page.ts'];
 /** Plain scripts beside the bundle, loaded with their own <script src>: translate.js runs before maplibre has downloaded. */
 export const SCRIPTS = ['src/translate.ts'];
+/** The service worker (src/app/map-cache.ts registers it): dist/sw.js, under a name that stays the same. */
+const SERVICE_WORKER = 'src/sw/sw.ts';
 /** Loaded by the pages from the CDN, through their import map: left as imports. */
-const EXTERNAL = ['three', 'three/addons/*'];
+const EXTERNAL = ['three', 'three/addons/*', 'maplibre-gl'];
 /**
  * A line in a page that a script from src/ replaces: "<!-- build: src/inline/early.ts -->". Attributes after the
  * path go onto the <script> tag: "<!-- build: src/main.ts type="module" -->".
@@ -140,6 +142,11 @@ function classicScript(source: string, outdir?: string) {
   });
 }
 
+/** The service worker as dist/sw.js: the browser knows it by its address, so the name has no hash. */
+function serviceWorker(): Made {
+  return { file: 'sw.js', content: classicScript(SERVICE_WORKER).outputFiles![0].contents };
+}
+
 /** The scripts of SCRIPTS: dist/<name>-<hash>.js */
 function classicScripts(built: Built): Made[] {
   return SCRIPTS.flatMap((source) => {
@@ -238,7 +245,7 @@ export function buildScripts(release = false): void {
 }
 function makeScripts(release: boolean): Made[] {
   const built: Built = new Map();
-  const made = [...bundle(built), ...classicScripts(built), ...pages(release).map((p) => buildPage(p, built)),
+  const made = [...bundle(built), ...classicScripts(built), serviceWorker(), ...pages(release).map((p) => buildPage(p, built)),
     ...RETIRED.filter((n) => !fs.existsSync(path.join(ROOT, n + '.js'))).map((n) => ({ file: n + '.js', content: reloadFor(n) }))];
   return made;
 }

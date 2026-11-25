@@ -1,4 +1,5 @@
 // ---- The places of a search as pins on the map ("Show on map"): tap one to make it that end of the trip ----
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
 import { COLLAPSED_COUNT, KIND, inputs, list } from './search.ts';

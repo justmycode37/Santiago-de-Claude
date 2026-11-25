@@ -1,0 +1,10 @@
+{
+  // The service worker (sw.ts): its own world, with the worker's globals instead of the page's.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2023", "webworker"],
+    "moduleDetection": "force"
+  },
+  "include": ["*.ts"],
+  "exclude": []
+}

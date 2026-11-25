@@ -1,6 +1,7 @@
 // ---- Top pill: the trip on one line, roughly to scale in time. Every ride is a solid line with its name above it;
 //      walking, changing and waiting are rows of single dots (always at least a few, so a short change still shows).
 //      The part already behind you fades. Tap to jump to that step. ----
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { updateCards } from './map-events.ts';
 import { setMenu } from './menu.ts';

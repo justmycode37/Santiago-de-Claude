@@ -1,5 +1,7 @@
 // Start the two slow things before the map library and the event data (about 1.5 MB) have downloaded:
 // finding the user's location and fetching the base map style. On a phone each takes a second or more.
+import { fetchStyleWithTiles } from '../tilejson.ts';
+
 (function () {
   // Location: fixes that come in early wait here until the main script attaches to them
   const geo = window.EARLY_GEO = {
@@ -29,19 +31,7 @@
   if (!html.dataset.onboarding) geo.start();
   else document.addEventListener('DOMContentLoaded', () => { if (!geo.held) { delete html.dataset.onboarding; geo.start(); } });
 
-  // Base map style with its two tile sets written in (saves two round trips before the first tile), and every
-  // tile fetched from the style's own host: one HTTP/2 connection for style, fonts, icons and tiles, not six
-  const HOST = 'https://vectortiles.geo.admin.ch';
-  /** TileJSON: what of it is written into the style's source. */
-  type EarlyTileJson = Pick<maplibregl.VectorSourceSpecification, 'tiles' | 'minzoom' | 'maxzoom' | 'bounds' | 'scheme' | 'attribution'>;
-  const json = <T>(u: string): Promise<T> => fetch(u).then((r) => { if (!r.ok) throw new Error(r.status as unknown as string); return r.json(); });
-  window.EARLY_STYLE = json<maplibregl.StyleSpecification>(HOST + '/styles/ch.swisstopo.lightbasemap.vt/style.json').then((style) =>
-    Promise.all(Object.values(style.sources).map((src) => (src.type !== 'vector' || !src.url ? null
-      : json<EarlyTileJson>(src.url).then((tj) => {
-        if (!tj.tiles || !tj.tiles.length) return;
-        src.tiles = [tj.tiles[0].replace(/^https:\/\/vectortiles\d+\./, 'https://vectortiles.')];
-        for (const k of ['minzoom', 'maxzoom', 'bounds', 'scheme', 'attribution'] as const) if (tj[k] != null) (src as Record<typeof k, unknown>)[k] = tj[k];
-        delete src.url;
-      }).catch(() => {})))).then(() => style));
+  // Base map style with its two tile sets written in (src/tilejson.ts): saves two round trips before the first tile
+  window.EARLY_STYLE = fetchStyleWithTiles('https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json');
   window.EARLY_STYLE.catch(() => {}); // handled where it is used
 })();
