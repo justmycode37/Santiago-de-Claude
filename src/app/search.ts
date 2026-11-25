@@ -38,7 +38,16 @@ export interface SearchResult {
   source?: 'osm' | 'google';
   /** The Kante engine's id ('st:…' a station, 'poi:…', 'addr:…'): a station is planned to as the station. */
   kanteId?: string;
+  /** A photo of the place (or, with photoIsLogo, its brand's logo), shown beside its row. */
+  photo?: string;
+  photoIsLogo?: boolean;
+  /** The engine's places: what OpenStreetMap knows about them (cuisine, hours, website, Wikidata). */
+  info?: KantePoiInfo;
 }
+/** A place, which "Show on the map" puts on the map: ours, one found online, or one of the engine's (not a town, a
+ *  mountain or a lake, which are where places are rather than places to go to). */
+export const isPlaceResult = (r: SearchResult) => r.origin === 'place'
+  || (r.origin === 'kante' && !!r.kanteId && r.kanteId.startsWith('poi:') && !['city', 'mountain', 'water', 'nature'].includes(r.kind));
 /** Anything that begins with a longitude and a latitude: a LngLat, or a row of map-places.js. */
 export type LngLatFirst = readonly [lng: number, lat: number, ...rest: unknown[]];
 /** What our own places (map-places.js) have for a search text. */

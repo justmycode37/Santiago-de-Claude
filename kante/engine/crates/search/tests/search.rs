@@ -1,7 +1,7 @@
 //! Behaviour of the geocoder on a small hand-made world.
 
 use kante_core::{LatLon, Station, Timetable};
-use kante_search::{build_from_raw, Hit, HitKind, RawData, SearchIndex, CLASS_NATURE, CLASS_PLACE_MAJOR, CLASS_PLACE_MINOR, CLASS_POI};
+use kante_search::{build_from_raw, Hit, HitKind, PoiInfo, RawData, SearchIndex, CLASS_NATURE, CLASS_PLACE_MAJOR, CLASS_PLACE_MINOR, CLASS_POI};
 
 fn ll(lat: f64, lon: f64) -> LatLon {
     LatLon::from_deg(lat, lon)
@@ -83,6 +83,15 @@ fn world() -> SearchIndex {
     // No address tags: the locality comes from the nearest addresses.
     raw.add_poi("Bundeshaus", "", "Government office", 48, CLASS_POI, "", "", ll(46.9465, 7.4442), 56);
     raw.add_poi("Gurten", "", "Peak", 36, CLASS_NATURE, "", "", ll(46.9173, 7.4438), 60);
+    // Restaurants, found by what they serve as well as by name.
+    raw.add_poi("Da Mario", "", "Restaurant", 33, CLASS_POI, "3011", "Bern", ll(46.9490, 7.4410), 64);
+    raw.add_poi_info(&PoiInfo { cuisine: "Italian, Pizza".into(), website: "https://damario.example".into(), opening_hours: "Mo-Sa 11:00-23:00".into(), ..PoiInfo::default() }, "italian italienisch pizza pizzeria");
+    raw.add_poi("Napoli", "", "Restaurant", 30, CLASS_POI, "8001", "Zürich", ll(47.3770, 8.5400), 68);
+    raw.add_poi_info(&PoiInfo { cuisine: "Pizza".into(), ..PoiInfo::default() }, "pizza pizzeria");
+    raw.add_poi("Sakura", "", "Restaurant", 30, CLASS_POI, "3011", "Bern", ll(46.9478, 7.4430), 72);
+    raw.add_poi_info(&PoiInfo { cuisine: "Sushi, Japanese".into(), image: "https://commons.wikimedia.org/wiki/Special:FilePath/Sakura.jpg?width=400".into(), wikidata: "Q4242".into(), ..PoiInfo::default() }, "sushi japanese japanese japanisch");
+    raw.add_poi("Tibits", "", "Restaurant", 33, CLASS_POI, "3011", "Bern", ll(46.9486, 7.4403), 76);
+    raw.add_poi_info(&PoiInfo { diet: "Vegan options, Vegetarian".into(), ..PoiInfo::default() }, "vegan vegetarian vegetarisch");
     build_from_raw(&tt, &raw)
 }
 
@@ -357,7 +366,8 @@ fn survives_the_cache_file() {
         assert_eq!(names(&back.search(q, None, 5)), names(&ix.search(q, None, 5)));
     }
     let st = back.stats();
-    assert_eq!((st.stations, st.places, st.houses), (17, 15, 53));
+    assert_eq!((st.stations, st.places, st.houses), (17, 19, 53));
+    assert_eq!(back.search("da mario", None, 1)[0].info, ix.search("da mario", None, 1)[0].info);
     // Bundesgasse, Schauplatzgasse, Kornhausplatz, Bahnhofstrasse ×3, Mont-Blanc, 23-Juin, Zytgloggelaube.
     assert_eq!(st.streets, 9);
 }
@@ -390,4 +400,53 @@ fn hostile_input() {
     }
     let _ = ix.reverse(LatLon { lat: i32::MAX, lon: i32::MIN + 1 });
     let _ = ix.search("bern", Some(LatLon { lat: i32::MAX, lon: i32::MAX }), 5);
+}
+
+#[test]
+fn places_by_what_they_serve() {
+    let ix = world();
+    let bern = Some(ll(BERN.0, BERN.1));
+    let zurich = Some(ll(ZURICH.0, ZURICH.1));
+    // The pizzeria near you first, the other one too.
+    assert_eq!(names(&ix.search("pizza", bern, 5)), ["Da Mario", "Napoli"]);
+    assert_eq!(names(&ix.search("pizza", zurich, 5)), ["Napoli", "Da Mario"]);
+    assert_eq!(first(&ix, "pizzeria zürich").name, "Napoli");
+    assert_eq!(first(&ix, "sushi").name, "Sakura");
+    assert_eq!(first(&ix, "japanisch").name, "Sakura");
+    assert_eq!(first(&ix, "vegan").name, "Tibits");
+    // the category's own name, in words
+    assert_eq!(first(&ix, "fast food").name, "McDonald's");
+    // A category word finds every restaurant, nearest first.
+    let found = ix.search("restaurant", bern, 10);
+    let near = names(&found);
+    assert_eq!(&near[..3], ["Tibits", "Da Mario", "Sakura"]);
+    assert!(near.contains(&"Napoli"));
+    // A short prefix is not yet a cuisine ("pi" is not "pizza").
+    assert!(!names(&ix.search("pi", bern, 10)).contains(&"Da Mario"));
+}
+
+#[test]
+fn places_carry_icon_category_and_details() {
+    let ix = world();
+    let h = first(&ix, "da mario");
+    assert_eq!((h.kind, h.icon.as_str(), h.category.as_str()), (HitKind::Poi, "restaurant", "Restaurant"));
+    let info = h.info.as_deref().expect("details");
+    assert_eq!(info.cuisine, "Italian, Pizza");
+    assert_eq!(info.website, "https://damario.example");
+    assert_eq!(info.opening_hours, "Mo-Sa 11:00-23:00");
+    assert!(info.image.is_empty());
+    // the same details from its id, and from a search near by
+    assert_eq!(ix.resolve(&h.id).and_then(|r| r.info).as_deref(), Some(info));
+    let s = first(&ix, "sakura");
+    assert_eq!(s.info.as_ref().map(|i| (i.image.as_str(), i.wikidata.as_str())), Some(("https://commons.wikimedia.org/wiki/Special:FilePath/Sakura.jpg?width=400", "Q4242")));
+    // a place without details has none
+    assert!(first(&ix, "zytglogge").info.is_none());
+    assert_eq!(first(&ix, "zytglogge").icon, "sight");
+    assert_eq!(first(&ix, "dr noyer").icon, "pharmacy");
+    assert_eq!(first(&ix, "gurten").icon, "mountain");
+    assert_eq!(first(&ix, "wabern").icon, "village");
+    assert_eq!(first(&ix, "zürich hb").icon, "station");
+    assert_eq!(first(&ix, "bundesgasse 3").icon, "address");
+    let other = ix.search("coop", None, 5);
+    assert!(other.iter().all(|h| h.icon == "grocery" && h.category == "Supermarket" && h.info.is_none()));
 }

@@ -21,6 +21,31 @@ interface KantePlace {
   lon: number;
   modes?: KanteMode[];
   distM?: number;
+  /** /api/search: what to draw ('station', 'address', or a place's: 'restaurant', 'cafe', 'museum' …; kante/docs/SEARCH.md). */
+  icon?: string;
+  /** /api/search, places: the category ('Restaurant'), also the first part of `detail`. */
+  category?: string;
+  /** /api/search, places: what OpenStreetMap knows about them, when anything. */
+  info?: KantePoiInfo;
+}
+
+/** What a map shows about a place besides its name (/api/search). Every field may be missing. */
+interface KantePoiInfo {
+  /** 'Italian, Pizza' */
+  cuisine?: string;
+  /** 'Vegan options', 'Vegetarian' */
+  diet?: string;
+  /** OpenStreetMap's opening_hours, as mapped */
+  openingHours?: string;
+  website?: string;
+  phone?: string;
+  /** A photo: an https URL of an image */
+  image?: string;
+  /** Its Wikidata item ('Q72'): the photo there (P18) when there is no `image` */
+  wikidata?: string;
+  /** Its brand's Wikidata item: the brand's logo (P154) */
+  brandWikidata?: string;
+  stars?: string;
 }
 
 /** Which side of the street (or of the tracks) a boarding point is on. */

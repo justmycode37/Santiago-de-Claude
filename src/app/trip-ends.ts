@@ -3,7 +3,7 @@ import { map } from './map.ts';
 import { root } from '../theme.ts';
 import { setMenu } from './menu.ts';
 import { userLngLat } from './location.ts';
-import { FIELDS, clears, destMarker, form, inputs, list, startMarker, wrap } from './search.ts';
+import { FIELDS, clears, destMarker, form, inputs, isPlaceResult, list, startMarker, wrap } from './search.ts';
 import { search } from './search-places.ts';
 import { areaChip, clearPlacePins, pins, render, showPlacesOnMap } from './search-pins.ts';
 import { armPin, pinMenu } from './pins.ts';
@@ -170,7 +170,7 @@ export function start() {
     // all on the map; a name or address goes straight there
     const typed = searchState.field === 'to' ? categoryForText(inputs.to.value) : null;
     if (typed) enterCategory(typed);
-    else if (searchState.placeCategory && searchState.results.filter((r) => r.origin === 'place').length >= 2) showPlacesOnMap();
+    else if (searchState.placeCategory && searchState.results.filter(isPlaceResult).length >= 2) showPlacesOnMap();
     else if (searchState.results.length) select(0);
   });
   tripBtn.addEventListener('click', () => { if (planOpen()) swapEnds(); else setPlanOpen(true); });

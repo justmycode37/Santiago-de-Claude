@@ -250,7 +250,7 @@ impl App {
                         if !p.exists() {
                             return None;
                         }
-                        match timed("search index", || io::load::<SearchIndex>(&p, "search-v1")) {
+                        match timed("search index", || io::load::<SearchIndex>(&p, kante_search::SEARCH_SCHEMA)) {
                             Ok(s) => Some(s),
                             Err(e) => {
                                 eprintln!("  search index unavailable: {e:#}");
@@ -456,6 +456,8 @@ impl App {
             lon: s.pos.lon_deg(),
             modes: Some(modes_list(s.modes)),
             dist_m: None,
+            icon: Some("station".into()),
+            ..Default::default()
         }
     }
 
@@ -581,6 +583,7 @@ impl App {
                 lon,
                 modes: None,
                 dist_m: None,
+                ..Default::default()
             },
             pos,
             station: None,
@@ -607,6 +610,9 @@ impl App {
             lon: hit.pos.lon_deg(),
             modes: None,
             dist_m: dist,
+            icon: Some(hit.icon.clone()),
+            category: (!hit.category.is_empty()).then(|| hit.category.clone()),
+            info: hit.info.as_deref().cloned(),
         }
     }
 

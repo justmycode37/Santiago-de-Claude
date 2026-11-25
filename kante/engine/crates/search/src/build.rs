@@ -623,6 +623,10 @@ pub(crate) fn assemble(tt: &Timetable, raw: &RawData, log: &mut dyn FnMut(String
     poi_sorted.dedup_by_key(|p| p.0);
     ix.poi_code = poi_sorted.iter().map(|p| p.0).collect();
     ix.poi_doc = poi_sorted.iter().map(|p| p.1).collect();
+    ix.poi_info = Pool::new();
+    for &(_, di) in &poi_sorted {
+        ix.poi_info.push(raw.s(raw.pois[docs[di as usize].src as usize].info).as_bytes());
+    }
     let mut poi_rank = vec![NONE; n_docs];
     for (r, p) in poi_sorted.iter().enumerate() {
         poi_rank[p.1 as usize] = r as u32;
@@ -646,6 +650,7 @@ pub(crate) fn assemble(tt: &Timetable, raw: &RawData, log: &mut dyn FnMut(String
         let start = fwd.len();
         let mut alt = "";
         let mut keywords = "";
+        let mut serves = "";
         let mut loc = NONE;
         let mut pids: &[u32] = &[];
         let mut extra_loc = "";
@@ -676,6 +681,7 @@ pub(crate) fn assemble(tt: &Timetable, raw: &RawData, log: &mut dyn FnMut(String
                 extra_loc = raw.s(p.street);
                 let label = if is_exhibit(p) { "Exhibit" } else { raw.s(p.label) };
                 keywords = crate::cats::keywords(label);
+                serves = raw.s(p.kw);
                 let id = match cat_ids.get(label) {
                     Some(&i) => i,
                     None if ix.cats.len() < 4000 && !label.is_empty() => {
@@ -727,7 +733,7 @@ pub(crate) fn assemble(tt: &Timetable, raw: &RawData, log: &mut dyn FnMut(String
             };
             cat = if sub < n_name { sub as u16 } else { 0 };
         }
-        if !alt.is_empty() || !keywords.is_empty() {
+        if !alt.is_empty() || !keywords.is_empty() || !serves.is_empty() {
             toks.clear();
             text::tokenize_into(alt, &mut toks);
             for t in toks.iter() {
@@ -735,8 +741,9 @@ pub(crate) fn assemble(tt: &Timetable, raw: &RawData, log: &mut dyn FnMut(String
             }
             toks.clear();
             text::tokenize_into(keywords, &mut toks);
+            text::tokenize_into(serves, &mut toks);
             for t in toks.iter() {
-                add(&mut fwd, t, CLS_ALT, true, 28);
+                add(&mut fwd, t, CLS_ALT, true, 36);
             }
         }
         if loc != NONE {
@@ -759,7 +766,7 @@ pub(crate) fn assemble(tt: &Timetable, raw: &RawData, log: &mut dyn FnMut(String
             text::tokenize_into(extra_loc, &mut toks);
         }
         for t in toks.iter() {
-            add(&mut fwd, t, CLS_LOC, false, 36);
+            add(&mut fwd, t, CLS_LOC, false, 44);
         }
 
         // Document row.

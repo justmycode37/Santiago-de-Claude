@@ -8,7 +8,12 @@
 //! - **Places** from OSM: localities, amenities, shops, sights, peaks, lakes …
 //!   (`cats.rs` decides what counts, what it is called and how prominent it
 //!   is; a Wikidata link is the "well-known" signal). Each also answers to its
-//!   category in four languages ("apotheke", "pharmacie" …).
+//!   category in four languages ("apotheke", "pharmacie" …), and a restaurant
+//!   to what it serves ("pizza", "sushi", "vegan": `cuisine`, `diet:*`). A place
+//!   carries what a map shows with it ([`PoiInfo`]: cuisine, opening hours,
+//!   website, phone, a photo, its Wikidata items) and an icon key
+//!   (`cats::icon`), and a business with a website, hours or a photo ranks a
+//!   little above a bare name.
 //! - **Streets**: one entry per street name + locality, merged from address
 //!   tags and named `highway` ways, positioned at the house nearest to the
 //!   centre of its houses (or the way vertex nearest to the way's centre).
@@ -63,11 +68,11 @@ use kante_core::{BBox, LatLon, StationIdx, Timetable};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-pub use cats::{CLASS_NATURE, CLASS_PLACE_MAJOR, CLASS_PLACE_MINOR, CLASS_POI};
+pub use cats::{icon, CLASS_NATURE, CLASS_PLACE_MAJOR, CLASS_PLACE_MINOR, CLASS_POI};
 pub use osm::RawData;
 
 /// Schema tag for `kante_core::io::save` / `load`.
-pub const SEARCH_SCHEMA: &str = "search-v1";
+pub const SEARCH_SCHEMA: &str = "search-v2";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HitKind {
@@ -89,6 +94,94 @@ pub struct Hit {
     pub station: Option<StationIdx>,
     /// Ranking score (higher is better). For `reverse`: distance in metres.
     pub score: f32,
+    /// What to draw for it: "station", "address", or for a place one of the keys of [`icon`]
+    /// ("restaurant", "cafe", "museum", "city" …).
+    #[serde(default)]
+    pub icon: String,
+    /// Places: their category label ("Restaurant"), the first part of `detail`. Empty otherwise.
+    #[serde(default)]
+    pub category: String,
+    /// Places: what OpenStreetMap knows about them beyond the name, when it knows anything.
+    #[serde(default)]
+    pub info: Option<Box<PoiInfo>>,
+}
+
+/// What a map shows about a place besides its name and category. Every field is optional (empty = unknown).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PoiInfo {
+    /// What a restaurant serves, readable: "Italian, Pizza".
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub cuisine: String,
+    /// "Vegan", "Vegetarian options" …
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub diet: String,
+    /// The OpenStreetMap `opening_hours` value as mapped ("Mo-Fr 08:00-18:30; Sa 08:00-17:00").
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub opening_hours: String,
+    /// An http(s) URL.
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub website: String,
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub phone: String,
+    /// A photo of it: an http(s) URL of an image (Wikimedia Commons ones scaled to 400 px wide).
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub image: String,
+    /// Its Wikidata item ("Q72"): a client may look up a photo there (property P18) when `image` is empty.
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub wikidata: String,
+    /// Its brand's Wikidata item (a Migros or a Coop): the brand's logo is property P154 there.
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub brand_wikidata: String,
+    /// Hotels: their stars ("4", "3S").
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub stars: String,
+}
+
+impl PoiInfo {
+    const FIELDS: usize = 9;
+
+    fn fields(&self) -> [&str; Self::FIELDS] {
+        [&self.cuisine, &self.diet, &self.opening_hours, &self.website, &self.phone, &self.image, &self.wikidata, &self.brand_wikidata, &self.stars]
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fields().iter().all(|f| f.is_empty())
+    }
+
+    /// One string for the index: the fields in order, separated by 0x1f; "" when all are empty.
+    pub(crate) fn encode(&self) -> String {
+        if self.is_empty() {
+            return String::new();
+        }
+        let mut s = String::new();
+        for (i, f) in self.fields().iter().enumerate() {
+            if i > 0 {
+                s.push('');
+            }
+            s.extend(f.chars().map(|c| if c.is_control() { ' ' } else { c }));
+        }
+        s
+    }
+
+    pub(crate) fn decode(s: &str) -> Option<PoiInfo> {
+        if s.is_empty() {
+            return None;
+        }
+        let mut f = s.split('').map(str::to_string);
+        let mut next = || f.next().unwrap_or_default();
+        Some(PoiInfo {
+            cuisine: next(),
+            diet: next(),
+            opening_hours: next(),
+            website: next(),
+            phone: next(),
+            image: next(),
+            wikidata: next(),
+            brand_wikidata: next(),
+            stars: next(),
+        })
+    }
 }
 
 pub(crate) const KIND_STATION: u8 = 0;
@@ -274,6 +367,8 @@ pub struct SearchIndex {
     // ---- places ----
     pub(crate) poi_code: Vec<u64>,
     pub(crate) poi_doc: Vec<u32>,
+    /// Per place, in `poi_code` order: its [`PoiInfo`], encoded ("" for most).
+    pub(crate) poi_info: Pool,
 
     // ---- streets and houses ----
     pub(crate) street_doc: Vec<u32>,
@@ -361,6 +456,7 @@ impl SearchIndex {
             + v4(&self.st_sorted)
             + self.poi_code.len() * 8
             + v4(&self.poi_doc)
+            + self.poi_info.heap()
             + v4(&self.street_doc)
             + v4(&self.house_off)
             + i4(&self.h_lat)

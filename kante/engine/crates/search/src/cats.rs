@@ -58,6 +58,20 @@ pub struct Tags<'a> {
     pub wikipedia: &'a str,
     pub population: &'a str,
     pub typ: &'a str,
+
+    // Details shown with a place, not used to classify it.
+    pub cuisine: &'a str,
+    pub diet_vegan: &'a str,
+    pub diet_vegetarian: &'a str,
+    pub opening_hours: &'a str,
+    pub website: &'a str,
+    pub contact_website: &'a str,
+    pub phone: &'a str,
+    pub contact_phone: &'a str,
+    pub image: &'a str,
+    pub wikimedia_commons: &'a str,
+    pub brand_wikidata: &'a str,
+    pub stars: &'a str,
 }
 
 impl<'a> Tags<'a> {
@@ -111,6 +125,18 @@ impl<'a> Tags<'a> {
                 "wikipedia" => t.wikipedia = v,
                 "population" => t.population = v,
                 "type" => t.typ = v,
+                "cuisine" => t.cuisine = v,
+                "diet:vegan" => t.diet_vegan = v,
+                "diet:vegetarian" => t.diet_vegetarian = v,
+                "opening_hours" => t.opening_hours = v,
+                "website" => t.website = v,
+                "contact:website" => t.contact_website = v,
+                "phone" => t.phone = v,
+                "contact:phone" => t.contact_phone = v,
+                "image" => t.image = v,
+                "wikimedia_commons" => t.wikimedia_commons = v,
+                "brand:wikidata" => t.brand_wikidata = v,
+                "stars" => t.stars = v,
                 _ => {}
             }
         }
@@ -584,6 +610,13 @@ pub fn classify(t: &Tags) -> Option<Class> {
         } else if !t.wikipedia.is_empty() {
             cls.score += 12;
         }
+        // A business somebody keeps up to date (its website, its hours, a photo) is more likely the one meant
+        // than a bare name: what a map with ratings would show first, short of ratings.
+        if cls.class == CLASS_POI {
+            let site = !t.website.is_empty() || !t.contact_website.is_empty();
+            let photo = !t.image.is_empty() || !t.wikimedia_commons.is_empty();
+            cls.score += 2 * site as u8 + !t.opening_hours.is_empty() as u8 + 2 * photo as u8;
+        }
         cls.score = cls.score.min(68);
     }
     Some(cls)
@@ -601,9 +634,9 @@ pub fn keywords(label: &str) -> &'static str {
         "Dentist" => "zahnarzt dentiste dentista",
         "Post office" => "post poste posta",
         "Supermarket" => "supermarkt supermarché supermercato supermarket",
-        "Restaurant" => "restaurant ristorante",
-        "Café" => "cafe kaffee",
-        "Fast food" => "imbiss takeaway",
+        "Restaurant" => "restaurant ristorante essen beiz gasthaus",
+        "Café" => "cafe café kaffee caffè coffee",
+        "Fast food" => "fast food imbiss takeaway fastfood",
         "Hotel" => "hotel",
         "Hostel" => "hostel jugendherberge",
         "Bank" => "bank banque banca",
@@ -616,7 +649,7 @@ pub fn keywords(label: &str) -> &'static str {
         "Library" => "bibliothek bibliothèque biblioteca",
         "Cinema" => "kino cinéma cinema",
         "Theatre" => "theater théâtre teatro",
-        "Bakery" => "bäckerei boulangerie panetteria",
+        "Bakery" => "bäckerei beck boulangerie panetteria",
         "Church" => "kirche église chiesa",
         "Castle" => "schloss burg château castello",
         "Lake" => "see lac lago",
@@ -641,7 +674,7 @@ pub fn keywords(label: &str) -> &'static str {
         "Airport" => "flughafen aéroport aeroporto airport",
         "Fire station" => "feuerwehr",
         "Cemetery" => "friedhof cimetière cimitero",
-        "Gym" => "fitness",
+        "Gym" => "fitness fitnessstudio fitnesscenter",
         "Ticket office" => "billett ticket",
         "Embassy" => "botschaft ambassade",
         "Market" => "markt marché mercato",
@@ -651,11 +684,307 @@ pub fn keywords(label: &str) -> &'static str {
         "Waterfall" => "wasserfall cascade",
         "Bookshop" => "buchhandlung librairie",
         "Florist" => "blumen fleuriste",
-        "Butcher" => "metzgerei boucherie",
+        "Butcher" => "metzgerei metzger boucherie macelleria",
         "Optician" => "optiker",
         "Chemist" => "drogerie",
         "Kiosk" => "kiosk",
+        "Bar" => "bar",
+        "Pub" => "pub bar",
+        "Beer garden" => "biergarten bar",
+        "Ice cream" => "ice cream glace gelato glacé eis gelateria",
+        "Confectionery" => "konditorei confiserie patisserie pâtisserie",
+        "Nightclub" => "nightclub disco",
+        "Park" => "park parc parco",
+        "Vet" => "tierarzt vétérinaire veterinario",
+        "Laundry" => "wäscherei waschsalon laverie",
+        "Convenience store" => "laden dorfladen",
+        "Department store" => "warenhaus kaufhaus",
+        "Clothes shop" => "kleider mode vêtements",
+        "Shoe shop" => "schuhe chaussures",
+        "Electronics shop" => "elektronik",
+        "Bike shop" => "velo velogeschäft",
+        "Toy shop" => "spielwaren spielzeug",
+        "Jeweller" => "schmuck bijouterie",
+        "Car repair" => "garage autowerkstatt",
+        "DIY store" => "baumarkt",
+        "Garden centre" => "gartencenter",
+        "Wine shop" => "wein weinhandlung vins",
+        "Pet shop" => "zoohandlung",
+        "Gallery" => "galerie",
+        "Guest house" => "pension gasthaus",
+        "Sports centre" => "sport sportzentrum",
+        "Physiotherapist" => "physio physiotherapie",
+        "Attraction" => "sehenswürdigkeit",
         _ => "",
+    }
+}
+
+/// The first of several values ("a;b").
+fn first(v: &str) -> &str {
+    v.split(';').next().unwrap_or("").trim()
+}
+
+/// `v` if it is at most `max` bytes: a cut-off URL or opening-hours rule would be wrong, so a longer one is dropped.
+fn capped(v: &str, max: usize) -> &str {
+    if v.len() <= max {
+        v
+    } else {
+        ""
+    }
+}
+
+fn is_qid(v: &str) -> bool {
+    v.len() >= 2 && v.len() <= 12 && v.starts_with('Q') && v[1..].bytes().all(|b| b.is_ascii_digit())
+}
+
+/// "Foo bar.jpg" → the file on Wikimedia Commons, 400 px wide.
+fn commons_file(name: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut url = String::from("https://commons.wikimedia.org/wiki/Special:FilePath/");
+    // A name copied out of a URL is already percent-encoded: its escapes ("%C3%BC") stay as they are.
+    let name = name.trim().as_bytes();
+    for (i, &b) in name.iter().enumerate() {
+        let escape = b == b'%' && name.len() > i + 2 && name[i + 1].is_ascii_hexdigit() && name[i + 2].is_ascii_hexdigit();
+        match b {
+            b' ' => url.push('_'),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'(' | b')' | b',' => url.push(b as char),
+            b'%' if escape => url.push('%'),
+            _ => {
+                url.push('%');
+                url.push(HEX[(b >> 4) as usize] as char);
+                url.push(HEX[(b & 15) as usize] as char);
+            }
+        }
+    }
+    url.push_str("?width=400");
+    url
+}
+
+/// A photo from the `image` or `wikimedia_commons` tag: a Commons file, or a direct https link to a picture.
+/// Pages that only show one (Flickr, Mapillary, a Commons category) are left out.
+fn photo(t: &Tags) -> String {
+    // "File:X.jpg", or the page of a file on Commons or a Wikipedia (".../wiki/Datei:X.jpg"), in any case: the file on
+    // Commons, where nearly all of them are.
+    let file_of = |v: &str| -> Option<String> {
+        let v = v.trim();
+        let page = match v.find("/wiki/") {
+            Some(i) if v[..i].contains("wikimedia.org") || v[..i].contains("wikipedia.org") => &v[i + "/wiki/".len()..],
+            Some(_) => return None,
+            None => v,
+        };
+        let colon = page.find(':')?;
+        if !matches!(page[..colon].to_ascii_lowercase().as_str(), "file" | "image" | "datei" | "fichier" | "bild") {
+            return None;
+        }
+        let name = page[colon + 1..].split(['?', '#']).next().unwrap_or("").trim();
+        (!name.is_empty() && name.len() <= 200).then(|| commons_file(name))
+    };
+    let image = first(t.image);
+    if let Some(u) = file_of(image) {
+        return u;
+    }
+    let lower = image.to_ascii_lowercase();
+    let path = lower.split(['?', '#']).next().unwrap_or("");
+    if lower.starts_with("https://")
+        && image.len() <= 300
+        && !lower.contains("/wiki/")
+        && !image.contains(|c: char| c.is_whitespace() || c.is_control())
+        && [".jpg", ".jpeg", ".png", ".webp"].iter().any(|e| path.ends_with(e))
+    {
+        return image.to_string();
+    }
+    file_of(first(t.wikimedia_commons)).unwrap_or_default()
+}
+
+/// "italian;pizza" → "Italian, Pizza".
+fn cuisine_label(v: &str) -> String {
+    let mut s = String::new();
+    for c in v.split([';', ',']).map(str::trim).filter(|c| !c.is_empty() && c.len() <= 30).take(4) {
+        if !s.is_empty() {
+            s.push_str(", ");
+        }
+        s.push_str(&humanize(&c.to_lowercase()));
+    }
+    s
+}
+
+/// What a map shows about a place besides its name, and the words it is found by for what it serves.
+pub fn details(t: &Tags) -> (crate::PoiInfo, String) {
+    let site = first(if t.website.trim().is_empty() { t.contact_website } else { t.website });
+    let host = site.split('/').next().unwrap_or("");
+    let website = if site.is_empty() || site.contains(|c: char| c.is_whitespace() || c.is_control()) || !site.contains('.') {
+        String::new()
+    } else if let Some(i) = site.find("://") {
+        // "HTTPS://x.ch" -> "https://x.ch"; any other scheme is not a website
+        let scheme = site[..i].to_ascii_lowercase();
+        if scheme == "http" || scheme == "https" { capped(&format!("{scheme}{}", &site[i..]), 200).to_string() } else { String::new() }
+    } else if host.contains(':') && !host.rsplit(':').next().unwrap_or("").bytes().all(|b| b.is_ascii_digit()) {
+        String::new() // "mailto:info@x.ch", "tel:..." (but "x.ch:8080/" is a host and its port)
+    } else {
+        capped(&format!("https://{site}"), 200).to_string()
+    };
+    let mut diet = Vec::new();
+    match t.diet_vegan {
+        "only" => diet.push("Vegan"),
+        "yes" => diet.push("Vegan options"),
+        _ => {}
+    }
+    // a vegan place is vegetarian too: saying so again would read as "only some dishes are"
+    match t.diet_vegetarian {
+        _ if t.diet_vegan == "only" => {}
+        "only" => diet.push("Vegetarian"),
+        "yes" => diet.push("Vegetarian options"),
+        _ => {}
+    }
+    let stars = t.stars.trim();
+    let info = crate::PoiInfo {
+        cuisine: cuisine_label(t.cuisine),
+        diet: diet.join(", "),
+        opening_hours: capped(t.opening_hours.trim(), 255).to_string(),
+        website,
+        phone: capped(first(if t.phone.trim().is_empty() { t.contact_phone } else { t.phone }), 40).to_string(),
+        image: photo(t),
+        wikidata: if is_qid(t.wikidata.trim()) { t.wikidata.trim().to_string() } else { String::new() },
+        brand_wikidata: if is_qid(first(t.brand_wikidata)) { first(t.brand_wikidata).to_string() } else { String::new() },
+        stars: if stars.len() <= 4 && stars.bytes().all(|b| b.is_ascii_alphanumeric()) { stars.to_string() } else { String::new() },
+    };
+    let mut kw = String::new();
+    cuisine_keywords(t.cuisine, t.diet_vegan, t.diet_vegetarian, &mut kw);
+    (info, kw)
+}
+
+/// Words that find a place by what it serves ("pizza", "sushi", "vegan"), from its `cuisine` and `diet:*` tags,
+/// appended to `out`. Every value is searchable as written ("nepalese"); the common ones also in the languages people
+/// type them in. Indexed like category keywords, so they count only when typed (nearly) in full.
+pub fn cuisine_keywords(cuisine: &str, vegan: &str, vegetarian: &str, out: &mut String) {
+    // What is mapped comes first, its translations after: the place's search words are capped
+    // (`RawData::put`), and a long list of cuisines must not push out "vegan".
+    const MAX: usize = 150;
+    let push = |out: &mut String, words: &str| {
+        for w in words.split(' ').filter(|w| !w.is_empty()) {
+            if out.len() + w.len() + 1 > MAX {
+                return;
+            }
+            out.push_str(w);
+            out.push(' ');
+        }
+    };
+    if matches!(vegan, "yes" | "only") {
+        push(out, "vegan");
+    }
+    if matches!(vegetarian, "yes" | "only") || vegan == "only" {
+        push(out, "vegetarian vegetarisch végétarien");
+    }
+    let values: Vec<String> =
+        cuisine.split([';', ',']).map(str::trim).filter(|v| !v.is_empty() && v.len() <= 30).take(6).map(|v| v.to_ascii_lowercase()).collect();
+    // A value as written when it is one word and names a cuisine; "steak_house", "coffee_shop" and "hot_dog" only
+    // through the table below, so "house", "shop" and "dog" find nothing new. "regional" and "swiss" are what most
+    // restaurants here serve: as search words they would bury "Schweizerhof" and "Credit Suisse".
+    for v in &values {
+        let generic = matches!(v.as_str(), "yes" | "no" | "other" | "various" | "local" | "international" | "regional" | "swiss" | "mixed" | "european");
+        if !v.contains(['_', ' ']) && !generic {
+            push(out, v);
+        }
+    }
+    for v in &values {
+        let more = match v.as_str() {
+            "pizza" => "pizzeria",
+            "italian" => "italienisch italien italiano italienne pasta",
+            "burger" => "hamburger burgers",
+            "kebab" => "döner doner kebap",
+            "sushi" => "japanese",
+            "japanese" => "japanisch japonais giapponese",
+            "chinese" => "chinesisch chinois cinese",
+            "thai" => "thailändisch thaï",
+            "indian" => "indisch indien curry",
+            "vietnamese" => "vietnamesisch vietnamien pho",
+            "mexican" => "mexikanisch mexicain tacos",
+            "turkish" => "türkisch turc",
+            "greek" => "griechisch grec",
+            "lebanese" => "libanesisch libanais",
+            "korean" => "koreanisch coréen",
+            "french" => "französisch français",
+            "spanish" => "spanisch espagnol tapas",
+            "asian" => "asiatisch asiatique",
+            "fondue" | "raclette" => "fondue raclette",
+            "steak_house" => "steakhouse steak",
+            "hot_dog" => "hotdog",
+            "bubble_tea" => "bubbletea",
+            "seafood" | "fish" => "fisch poisson seafood",
+            "coffee_shop" => "coffee kaffee",
+            "ice_cream" => "glace gelato eis",
+            "chicken" => "poulet hähnchen",
+            "noodle" | "ramen" => "ramen noodles nudeln",
+            "crepe" => "crêpe crêperie crepes",
+            "breakfast" | "brunch" => "breakfast brunch frühstück",
+            "sandwich" => "sandwiches",
+            "falafel" | "middle_eastern" => "falafel orientalisch",
+            "vegetarian" => "vegetarisch végétarien",
+            _ => "",
+        };
+        push(out, more);
+    }
+}
+
+/// The icon a client shows for a place: one of a fixed set of keys (listed with `/api/search` in
+/// `kante/docs/SEARCH.md`), from its category label. Labels without one of their own get their class's.
+pub fn icon(label: &str, class: u8) -> &'static str {
+    match class {
+        CLASS_PLACE_MAJOR => return "city",
+        CLASS_PLACE_MINOR => return "village",
+        _ => {}
+    }
+    match label {
+        "Restaurant" | "Food court" => "restaurant",
+        "Café" => "cafe",
+        "Bar" | "Pub" | "Beer garden" | "Nightclub" | "Brewery" | "Winery" | "Wine shop" | "Drinks shop" => "bar",
+        "Fast food" => "fast_food",
+        "Ice cream" => "ice_cream",
+        "Bakery" | "Confectionery" | "Chocolate shop" | "Cheese shop" | "Delicatessen" => "bakery",
+        "Supermarket" | "Convenience store" | "Greengrocer" | "Farm shop" | "Butcher" | "Kiosk" | "Newsagent" => "grocery",
+        "Shopping centre" | "Department store" | "Market" => "mall",
+        "Pharmacy" | "Chemist" => "pharmacy",
+        "Hospital" | "Clinic" => "hospital",
+        "Doctor" | "Health care" | "Physiotherapist" | "Psychotherapist" | "Optometrist" | "Medical laboratory" | "Vet" => "doctor",
+        "Dentist" => "dentist",
+        "Hotel" | "Hostel" | "Motel" | "Guest house" | "Holiday apartment" | "Chalet" => "hotel",
+        "Mountain hut" | "Hut" | "Shelter" => "hut",
+        "Campsite" | "Caravan site" => "camping",
+        "Museum" | "Gallery" | "Arts centre" | "Exhibit" => "museum",
+        "Theatre" | "Cinema" | "Event venue" | "Conference centre" | "Exhibition centre" | "Casino" => "theatre",
+        "Zoo" | "Aquarium" | "Theme park" => "zoo",
+        "Castle" | "Fort" | "Manor" | "City gate" | "Historic tower" | "Ruins" | "Monastery" | "Historic building"
+        | "Archaeological site" | "Historic site" => "castle",
+        "Attraction" | "Monument" | "Memorial" | "Artwork" | "Fountain" | "Observation tower" | "Tower" | "Bridge"
+        | "Observatory" | "Lighthouse" | "Square" => "sight",
+        "Viewpoint" => "viewpoint",
+        "Church" | "Mosque" | "Synagogue" | "Temple" | "Place of worship" | "Cemetery" | "Crematorium" | "Wayside shrine" => "worship",
+        "University" | "University building" | "College" | "School" | "Kindergarten" | "Music school" | "Language school"
+        | "Driving school" | "Ski school" | "Educational institution" => "school",
+        "Library" | "Bookshop" => "library",
+        "Town hall" | "Courthouse" | "Government office" | "Embassy" | "Public building" | "Community centre" | "Social facility" => "civic",
+        "Police" | "Fire station" => "police",
+        "Post office" => "post",
+        "Bank" | "Currency exchange" => "bank",
+        "Car park" | "Car park entrance" => "parking",
+        "Petrol station" | "Charging station" | "Car rental" | "Car sharing" | "Car dealer" | "Car repair" | "Motorway services"
+        | "Rest area" => "car",
+        "Bike rental" | "Bike shop" => "bike",
+        "Taxi rank" => "taxi",
+        "Airport" | "Airport terminal" | "Heliport" => "airport",
+        "Ticket office" | "Tourist information" | "Travel agency" => "info",
+        "Stadium" | "Sports centre" | "Sports hall" | "Sports pitch" | "Sports track" | "Golf course" | "Minigolf" | "Ice rink"
+        | "Riding centre" | "Bowling" | "Gym" | "Dojo" | "Escape room" | "Ski area" => "sport",
+        "Swimming pool" | "Water park" | "Lido" | "Bathing place" | "Public bath" | "Sauna" | "Marina" | "Boat rental" => "swim",
+        "Park" | "Garden" | "Nature reserve" | "Playground" | "Dog park" | "Common" | "Picnic site" | "Fire pit" => "park",
+        "Peak" | "Mountain pass" | "Glacier" | "Ridge" | "Valley" | "Gorge" | "Cave" => "mountain",
+        "Lake" | "Pond" | "Reservoir" | "Waterfall" | "Beach" | "Bay" | "Hot spring" => "water",
+        "Forest" | "Island" | "Headland" => "nature",
+        "Hairdresser" | "Beauty salon" => "hairdresser",
+        "Office" | "Company" | "Insurance" | "Law office" | "Estate agent" | "Organisation" | "Employment agency" | "Building" => "office",
+        _ if class == CLASS_NATURE => "nature",
+        _ if label == "Shop" || label.ends_with(" shop") || label.ends_with(" store") => "shop",
+        _ => "place",
     }
 }
 
@@ -683,4 +1012,90 @@ pub fn is_street(highway: &str) -> bool {
             | "tertiary_link"
             | "bridleway"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn photo_of(image: &str, commons: &str) -> String {
+        details(&Tags { image, wikimedia_commons: commons, ..Tags::default() }).0.image
+    }
+
+    #[test]
+    fn photos_from_commons_and_direct_links() {
+        let fp = "https://commons.wikimedia.org/wiki/Special:FilePath/";
+        assert_eq!(photo_of("File:Zytglogge Bern.jpg", ""), format!("{fp}Zytglogge_Bern.jpg?width=400"));
+        assert_eq!(photo_of("", "File:Bärengraben (Bern).jpg"), format!("{fp}B%C3%A4rengraben_(Bern).jpg?width=400"));
+        assert_eq!(photo_of("https://commons.wikimedia.org/wiki/File:Z%C3%BCrich.jpg", ""), format!("{fp}Z%C3%BCrich.jpg?width=400"));
+        assert_eq!(photo_of("https://example.com/a/b.JPG", ""), "https://example.com/a/b.JPG");
+        // not pictures, or not over https: the Commons file instead, if any
+        assert_eq!(photo_of("https://www.flickr.com/photos/1", ""), "");
+        assert_eq!(photo_of("http://example.com/b.jpg", "File:X.png"), format!("{fp}X.png?width=400"));
+        assert_eq!(photo_of("", "Category:Bern"), "");
+        assert_eq!(photo_of("File:a&b?.jpg", ""), format!("{fp}a%26b?width=400"));
+        // pages of a file, in any language or case: the file
+        assert_eq!(photo_of("https://de.wikipedia.org/wiki/Datei:Zytglogge.jpg", ""), format!("{fp}Zytglogge.jpg?width=400"));
+        assert_eq!(photo_of("https://commons.wikimedia.org/wiki/file:Bern.jpg", ""), format!("{fp}Bern.jpg?width=400"));
+        // other wiki pages are not pictures; a lone % is not an escape
+        assert_eq!(photo_of("https://en.wikipedia.org/wiki/Bern.jpg", ""), "");
+        assert_eq!(photo_of("", "File:100%_bio.jpg"), format!("{fp}100%25_bio.jpg?width=400"));
+    }
+
+    #[test]
+    fn details_and_cuisine_words() {
+        let t = Tags {
+            cuisine: "italian;pizza",
+            diet_vegan: "yes",
+            website: "www.example.ch;https://other.ch",
+            contact_phone: "+41 31 000 00 00",
+            opening_hours: "Mo-Fr 11:00-14:00",
+            wikidata: "Q72",
+            brand_wikidata: "not-an-id",
+            stars: "3S",
+            ..Tags::default()
+        };
+        let (info, kw) = details(&t);
+        assert_eq!(info.cuisine, "Italian, Pizza");
+        assert_eq!(info.diet, "Vegan options");
+        assert_eq!(info.website, "https://www.example.ch");
+        assert_eq!(info.phone, "+41 31 000 00 00");
+        assert_eq!(info.opening_hours, "Mo-Fr 11:00-14:00");
+        assert_eq!((info.wikidata.as_str(), info.brand_wikidata.as_str(), info.stars.as_str()), ("Q72", "", "3S"));
+        for w in ["italian", "italienisch", "pizza", "pizzeria", "vegan"] {
+            assert!(kw.split(' ').any(|k| k == w), "{w} in {kw:?}");
+        }
+        assert!(details(&Tags::default()).0.is_empty());
+        let site = |w: &'static str| details(&Tags { website: w, contact_website: "https://fallback.ch", ..Tags::default() }).0.website;
+        assert_eq!(site("HTTPS://x.ch"), "https://x.ch");
+        assert_eq!(site("mailto:info@x.ch"), "");
+        assert_eq!(site("x.ch:8080/menu"), "https://x.ch:8080/menu");
+        assert_eq!(site(" "), "https://fallback.ch");
+        let vegan = details(&Tags { diet_vegan: "only", diet_vegetarian: "yes", cuisine: "regional;steak_house", ..Tags::default() });
+        assert_eq!(vegan.0.diet, "Vegan");
+        for w in ["regional", "swiss", "schweizer", "steak", "house"] {
+            assert_eq!(vegan.1.split(' ').any(|k| k == w), w == "steak", "{w} in {:?}", vegan.1);
+        }
+        assert_eq!(crate::PoiInfo::decode(&info.encode()), Some(info));
+        assert_eq!(crate::PoiInfo::decode(""), None);
+    }
+
+    #[test]
+    fn a_long_list_of_cuisines_keeps_the_diet_and_every_cuisine() {
+        let mut kw = String::new();
+        cuisine_keywords("italian;japanese;thai;vietnamese;chinese;indian", "yes", "", &mut kw);
+        assert!(kw.len() <= 150, "{kw:?}");
+        for w in ["vegan", "italian", "japanese", "thai", "vietnamese", "chinese", "indian"] {
+            assert!(kw.split(' ').any(|k| k == w), "{w} in {kw:?}");
+        }
+    }
+
+    #[test]
+    fn icons() {
+        assert_eq!(icon("Restaurant", CLASS_POI), "restaurant");
+        assert_eq!(icon("Town", CLASS_PLACE_MAJOR), "city");
+        assert_eq!(icon("Shoe shop", CLASS_POI), "shop");
+        assert_eq!(icon("Bicycle repair", CLASS_POI), "place");
+        assert_eq!(icon("Lake", CLASS_NATURE), "water");
+    }
 }
