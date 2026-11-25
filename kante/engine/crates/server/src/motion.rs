@@ -7,7 +7,9 @@
 //! The rates are service figures from manufacturers' datasheets and studies (not the vehicles' utmost): trams
 //! accelerate at 1.2–1.3 m/s² and brake at 1.1–1.3 m/s² (Siemens Combino Plus, Avenio; Bombardier Flexity Swift,
 //! Outlook), city buses at about 1 m/s² (passenger comfort; 2 m/s² is where standing passengers lose balance),
-//! regional trains at 0.95–1.3 m/s² (Stadler FLIRT, KISS); long-distance trains and the rest are slower.
+//! regional trains at 0.95–1.3 m/s² (Stadler FLIRT, KISS); long-distance trains and the rest are slower. There is no
+//! top speed: what limits a hop is how fast the vehicle can speed up and brake; how fast it runs between is what the
+//! times say.
 
 use kante_core::Mode;
 
@@ -16,23 +18,23 @@ pub struct Motion {
     /// m/s²
     pub accel: f32,
     pub brake: f32,
-    /// m/s, the most it runs at between two stops.
+    /// m/s, the most it runs at between two stops (none: infinite).
     pub vmax: f32,
 }
 
 /// The motion of a kind of vehicle; `category` tells long-distance trains (IC, IR, EC, …) from regional ones.
 pub fn of(mode: Option<Mode>, category: &str) -> Option<Motion> {
     let long = matches!(category, "IC" | "ICE" | "ICN" | "IR" | "IRE" | "EC" | "EN" | "NJ" | "TGV" | "RJ" | "RJX" | "PE" | "EXT");
-    let m = |accel, brake, kmh: f32| Motion { accel, brake, vmax: kmh / 3.6 };
+    let m = |accel, brake| Motion { accel, brake, vmax: f32::INFINITY };
     Some(match mode? {
-        Mode::Tram => m(1.2, 1.2, 70.0),
-        Mode::Bus | Mode::OnDemand => m(1.0, 1.1, 100.0),
-        Mode::Rail if long => m(0.5, 0.6, 250.0),
-        Mode::Rail => m(0.9, 0.8, 160.0),
-        Mode::Metro => m(1.1, 1.1, 80.0),
-        Mode::RackRail => m(0.5, 0.5, 40.0),
-        Mode::Funicular | Mode::Cableway => m(0.5, 0.5, 36.0),
-        Mode::Boat => m(0.2, 0.3, 35.0),
+        Mode::Tram => m(1.2, 1.2),
+        Mode::Bus | Mode::OnDemand => m(1.0, 1.1),
+        Mode::Rail if long => m(0.5, 0.6),
+        Mode::Rail => m(0.9, 0.8),
+        Mode::Metro => m(1.1, 1.1),
+        Mode::RackRail => m(0.5, 0.5),
+        Mode::Funicular | Mode::Cableway => m(0.5, 0.5),
+        Mode::Boat => m(0.2, 0.3),
         Mode::Lift | Mode::Other => return None,
     })
 }
@@ -159,10 +161,9 @@ mod tests {
     #[test]
     fn a_tram_needs_time_to_speed_up_and_slow_down() {
         let m = of(Some(Mode::Tram), "T").unwrap();
-        // 400 m: at most 19.4 m/s, 2 × 16 s to reach it and stop again from it, less than the 400 m: about 37 s
+        // 400 m: speeding up for the first half, braking for the second (no top speed): 2·√(400·c), about 37 s
         let t = m.min_time(400.0);
-        assert!((t - (400.0 / m.vmax + m.vmax * (0.5 / 1.2 + 0.5 / 1.2))).abs() < 0.01 && t > 30.0 && t < 40.0, "{t}");
-        // short: never at top speed
+        assert!((t - 2.0 * (400.0f32 * (1.0 / 1.2)).sqrt()).abs() < 0.01 && t > 30.0 && t < 40.0, "{t}");
         assert!((m.min_time(100.0) - 2.0 * (100.0f32 * (1.0 / 1.2)).sqrt()).abs() < 0.01);
         // in 60 s it need not go flat out
         let v = m.cruise(400.0, 60.0).unwrap();
@@ -173,15 +174,15 @@ mod tests {
     #[test]
     fn a_hop_too_short_for_the_vehicle_runs_at_an_even_pace_without_jumps() {
         let m = of(Some(Mode::Tram), "T").unwrap();
-        // 2 km in 100 s is more than a tram at 70 km/h can do: no motion, an even pace
-        assert!(m.cruise(2000.0, 100.0).is_none());
-        assert!((m.share(2000.0, 100.0, 50.0) - 0.5).abs() < 1e-6);
+        // 2 km in 70 s is more than a tram can speed up and brake for: no motion, an even pace
+        assert!(m.cruise(2000.0, 70.0).is_none());
+        assert!((m.share(2000.0, 70.0, 35.0) - 0.5).abs() < 1e-6);
         // where it can: no jump where speeding up, cruising and braking meet
         for (len, t) in [(2000.0f32, 140.0f32), (400.0, 40.0), (400.0, 120.0), (150.0, 25.0)] {
-            let mut last = 0.0;
+            let (v, mut last) = (m.cruise(len, t).unwrap(), 0.0);
             for k in 0..=10000 {
                 let x = m.share(len, t, t * k as f32 / 10000.0) * len;
-                assert!(x - last <= m.vmax * t / 10000.0 + 0.05, "{len} m in {t} s: {last} → {x} at step {k}");
+                assert!(x - last <= v * t / 10000.0 + 0.05, "{len} m in {t} s: {last} → {x} at step {k}");
                 last = x;
             }
         }

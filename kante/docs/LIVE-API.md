@@ -120,10 +120,12 @@ give every hop at least what its vehicle needs to speed up, run and brake over t
 more than a minute: a timing point it leaves on time from) and arrives later, by up to a minute each. Measured times
 are never moved, and the times after a moved one keep their order. A hop too short for its vehicle even so is run at
 an even pace (no `motion`). The rates are service figures: trams 1.2
-m/s² both ways, at most 70 km/h (Siemens Combino Plus and Avenio, Bombardier Flexity datasheets: 1.2–1.3 m/s²
-starting, 1.1–1.3 m/s² service braking); buses 1.0 / 1.1 m/s², 100 km/h (passenger comfort, about 1 m/s²; 100 km/h on motorways); regional
-trains 0.9 / 0.8 m/s², 160 km/h (Stadler FLIRT 1.2–1.3, KISS 0.95–1.1 m/s² starting); long-distance trains 0.5 /
-0.6 m/s², 250 km/h; metros 1.1 m/s², 80 km/h; rack railways, funiculars and cableways 0.5 m/s²; boats 0.2 / 0.3 m/s².
+m/s² both ways (Siemens Combino Plus and Avenio, Bombardier Flexity datasheets: 1.2–1.3 m/s²
+starting, 1.1–1.3 m/s² service braking); buses 1.0 / 1.1 m/s² (passenger comfort, about 1 m/s²); regional
+trains 0.9 / 0.8 m/s² (Stadler FLIRT 1.2–1.3, KISS 0.95–1.1 m/s² starting); long-distance trains 0.5 /
+0.6 m/s²; metros 1.1 m/s²; rack railways, funiculars and cableways 0.5 m/s²; boats 0.2 / 0.3 m/s². There is no top
+speed: a hop's least time is speeding up for half of it and braking for the other half; between, it runs as fast as
+its times say.
 `/api/due` keeps the times as the feeds and profiles give them.
 
 Each call in `calls` has `live: true` where its times come from a feed (reported, or carried on from an
