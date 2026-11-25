@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { coachesFor, evuOf, parseFormation, sectorList } from '../src/train-formation.ts';
 import type { FormationAnswer, TrainCoach } from '../src/train-formation.ts';
-import { layoutTrain } from '../src/train-layout.ts';
+import { layoutTrain, FILLER } from '../src/train-layout.ts';
 
 declare global {
   var window: typeof globalThis;
@@ -187,7 +187,7 @@ for (const [key, ref] of [['bern', '7'], ['zurich', '3'], ['basel', '1'], ['wank
     const lo = Math.min(a.s0, a.s1, b.s0, b.s1), hi = Math.max(a.s0, a.s1, b.s0, b.s1);
     assert(L.cars.length >= 2, 'some coaches');
     assert(Math.abs(L.cars[0].s0 - lo) < 0.01 && Math.abs(L.cars[L.cars.length - 1].s1 - hi) < 0.01, 'they fill the sectors');
-    assert(L.cars.every((c) => c.coach === null && c.idx === -1), 'no coach data');
+    assert(L.cars.every((c, i) => c.coach === null && c.idx === FILLER + i), 'no coach data: numbered from FILLER along the platform');
   });
 }
 test('layoutTrain: the end sectors reach the ends (sector points only), coaches keep their length everywhere', () => {

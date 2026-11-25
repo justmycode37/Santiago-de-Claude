@@ -49,6 +49,7 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
   ```bash
   python3 tools/build_station3d.py
   python3 tools/station3d_av.py all
+  python3 tools/station3d_clear.py zurich   # per station: keeps the walking graph out of wells, lift shafts and walls
   ```
 - **Stop scan database (`stop-images/`)** from GTFS + open photo sources (requires `pip install onnxruntime pillow numpy`; optional `MAPILLARY_TOKEN`):
   ```bash

@@ -12,13 +12,17 @@ import { StationRoute } from './station-route.ts';
 import type { TrainCoach } from './train-formation.ts';
 
 const COACH_M = 26.5;      // a usual coach (IC2000 26.8 m, EW IV 26.4 m)
+/** The index (TrainCar.idx) of the first coach of a train laid out without its formation: FILLER, FILLER + 1, … along
+ *  the platform. Such a coach can be the one to get on (the nearest door, coach-plan.ts planNearestDoor). */
+export const FILLER = 1000;
 const ONE_SECTOR_M = 50;   // a sector's length where the model has only one sector point on the platform
 const TRACK_NEAR_M = 14;   // a track this close to the platform edge is the one along it
 
 export interface TrainSector { name: string; s0: number; s1: number; a: XY; b: XY; mid: XY }
 export interface TrainCar {
   coach: TrainCoach | null;
-  /** Index into the coaches given (-1: a filler, no formation). */
+  /** Index into the coaches given; FILLER + k: the k-th coach of a train laid out without its formation; -1: a part of
+   *  a tram or a bus. */
   idx: number;
   /** Along the platform, metres; s0 < s1. */
   s0: number; s1: number;
@@ -284,7 +288,7 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
     const n = Math.max(2, Math.round((st[1] - st[0]) / COACH_M)), L = (st[1] - st[0]) / n;
     for (let i = 0; i < n; i++) {
       const p = st[0] + i * L, q = p + L;
-      cars.push({ coach: null, idx: -1, s0: p, s1: q, a: at(p), b: at(q), noseA: false, noseB: false });
+      cars.push({ coach: null, idx: FILLER + i, s0: p, s1: q, a: at(p), b: at(q), noseA: false, noseB: false });
     }
   }
   // driving ends: a locomotive has two; else the coach at either end of the train has one

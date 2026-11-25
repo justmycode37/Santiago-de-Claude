@@ -13,7 +13,7 @@
 // has it per coach), so it cannot tell two coaches of your class apart. The card shows it as it is.
 import { coachesAt, coachesFor, formationFor } from './train-formation.ts';
 import type { Station3DTrain, TrainCoach, TrainEngine, TrainPickMissing } from './train-formation.ts';
-import { layoutTrain } from './train-layout.ts';
+import { FILLER, layoutTrain } from './train-layout.ts';
 import type { TrainLayout } from './train-layout.ts';
 import type { StationRoute, StationRouteEndpoint, StationRoutePrefs } from './station-route.ts';
 
@@ -35,6 +35,13 @@ export interface CoachPlan {
   missing: TrainPickMissing | 'unreachable' | 'unmatched' | null;
   /** The walks the choice weighed: to the train ('in'), from it ('out'). */
   weighed: ('in' | 'out')[];
+  /** Not a coach of your class, but the nearest door of the train (planNearestDoor): 'formation': the nearest open
+   *  coach of the known formation (none of your class or with what you need); the order of its coaches is not known
+   *  ('sectors': where the timetable says it stops; 'arrival': not even that, round where the way reaches the
+   *  platform). */
+  nearest?: 'formation' | 'sectors' | 'arrival';
+  /** With `nearest`: how the train was laid out for it (the view lays it out the same, so the coach is the same). */
+  lay?: { sectors: string[]; around: XY | null; maxLen?: number };
 }
 export interface CoachPlanContext {
   engine: TrainEngine;
@@ -48,7 +55,8 @@ export interface CoachPlanContext {
 /** The doors of coach `idx` (an index into the coaches the layout was made from): none for a locomotive. */
 export function doorsOf(layout: TrainLayout, idx: number): Door[] {
   const car = layout.cars.find((c) => c.idx === idx);
-  if (!car || !car.coach || car.coach.kind === 'loco' || car.coach.kind === 'luggage' || car.coach.kind === 'other') return [];
+  // a coach of the formation with seats, or one of a train laid out without it (its kind is not known: any has doors)
+  if (!car || (!car.coach && car.idx < FILLER) || (car.coach && (car.coach.kind === 'loco' || car.coach.kind === 'luggage' || car.coach.kind === 'other'))) return [];
   const L = car.s1 - car.s0, ia = car.noseA ? NOSE_DOOR_M : DOOR_IN_M, ib = car.noseB ? NOSE_DOOR_M : DOOR_IN_M;
   const at = L > ia + ib + 2 ? [car.s0 + ia, car.s1 - ib] : [(car.s0 + car.s1) / 2];
   return at.map((s) => {
@@ -158,7 +166,7 @@ async function chainPlan(chain: Station3DTrain[], ctx: CoachPlanContext): Promis
   const table: Cell[][] = [];
   table[0] = S[0].picks.map((i) => {
     const b = first ? first.best(i) : null;
-    return { cost: first ? (b ? b.seconds : Infinity) : 0, prev: -1 };
+    return { cost: first ? (b ? b.rank : Infinity) : 0, prev: -1 };
   });
   for (let k = 1; k < n; k++) {
     const ch = changes[k - 1];
@@ -177,7 +185,7 @@ async function chainPlan(chain: Station3DTrain[], ctx: CoachPlanContext): Promis
   let end = -1, total = Infinity;
   S[n - 1].picks.forEach((i, j) => {
     const a = last ? last.best(S[n - 1].idxA(S[n - 1].atB[i])) : null;
-    const c = table[n - 1][j].cost + (last ? (a ? a.seconds : Infinity) : 0);
+    const c = table[n - 1][j].cost + (last ? (a ? a.rank : Infinity) : 0);
     if (c < total) { total = c; end = j; }
   });
   if (end < 0 || !Number.isFinite(total)) return out;
@@ -227,7 +235,7 @@ async function plan(t: Station3DTrain, ctx: CoachPlanContext): Promise<CoachPlan
   const cands = picks.map((i) => {
     const c = atB[i], ia = idxA(c);
     const b = sideB ? sideB.best(i) : null, a = sideA && ia >= 0 ? sideA.best(ia) : null;
-    return { id: c.id, i, ia, b, a, inS: sideB ? (b ? b.seconds : Infinity) : null, outS: sideA ? (a ? a.seconds : Infinity) : null };
+    return { id: c.id, i, ia, b, a, inS: sideB ? (b ? b.rank : Infinity) : null, outS: sideA ? (a ? a.rank : Infinity) : null };
   });
   const chosen = pickCoach(cands);
   const weighed: ('in' | 'out')[] = [...(sideB ? ['in' as const] : []), ...(sideA ? ['out' as const] : [])];
@@ -270,21 +278,74 @@ async function side(ctx: CoachPlanContext, key: string | null, uic: string, ref:
   const layout = layoutTrain(model, ref, { coaches, sectors: [] });
   if (!layout || layout.guessed) return null;
   const prefs = Object.assign({}, ctx.prefs || {});
-  const memo = new Map<number, { door: Door; seconds: number } | null>();
+  const memo = new Map<number, { door: Door; seconds: number; rank: number } | null>();
   return {
     layout,
+    /** The best door of coach idx; `rank`: its seconds, plus RELAXED_S where the walk had to break your access settings. */
     best(idx: number) {
       if (memo.has(idx)) return memo.get(idx)!;
-      let best: { door: Door; seconds: number } | null = null;
+      let best: { door: Door; seconds: number; rank: number } | null = null;
       for (const door of doorsOf(layout, idx)) {
         const at: StationRouteEndpoint = { stop: { uic, ref, at: door.xy, sector: door.sector } };
         const r = dir === 'in' ? SR.route(model, anchor, at, prefs) : SR.route(model, at, anchor, prefs);
         // a way that ends short (closed), or one that could not even find the sector, says nothing about this door
         const reached = r && !r.incomplete && (dir === 'in' ? r.toAt || (r.toSectors && r.toSectors.length) : r.fromAt || (r.fromSectors && r.fromSectors.length));
-        if (r && reached && (!best || r.seconds < best.seconds)) best = { door, seconds: r.seconds };
+        if (r && reached && (!best || rank(r) < best.rank)) best = { door, seconds: r.seconds, rank: rank(r) };
       }
       memo.set(idx, best);
       return best;
     },
   };
+}
+
+/** How a walk to a door ranks: one that keeps your access settings (step-free, no escalators, …) before any that
+ *  had to break them (route.relaxed), then the shortest. The seconds shown stay the walk's own. */
+const RELAXED_S = 1e5;
+const rank = (r: { seconds: number; relaxed?: unknown[] | null }) => r.seconds + (r.relaxed && r.relaxed.length ? RELAXED_S : 0);
+/** The walk ends at the door itself (the router could aim at the point in front of it), not merely in its sector. */
+const atDoor = (r: { toAt?: boolean; points: XYL[] }, door: Door) => {
+  const e = r.points[r.points.length - 1];
+  return !!r.toAt && Math.hypot(e[0] - door.xy[0], e[1] - door.xy[1]) < 9;
+};
+
+/** No coach of your class can be chosen: the door of the train nearest to where the walk comes from, so the way
+ *  still leads into the train.
+ *  - the formation is known (`coaches`), but no coach suits ('class', 'wheelchair', 'unreachable'): the nearest door of
+ *    an open coach with seats, laid out as the formation has them (never a locomotive or a closed coach); a train that
+ *    splits where the data does not say which part goes on ('portion', 'unmatched'): none (it could be the wrong part);
+ *  - not known: the train laid over the sectors the timetable gives it (`sectors`); without them, four coaches round
+ *    where the way reaches the platform (`around`).
+ *  Null where the model has no sectors at that platform (where the train stands would be a guess), or no door can be
+ *  walked to. */
+export async function planNearestDoor(t: Station3DTrain, ctx: CoachPlanContext, sectors: string[], around: XY | null,
+  coaches: TrainCoach[] | null = null, missing: CoachPlan['missing'] = null): Promise<CoachPlan | null> {
+  if (t.mode !== 'train' || t.role !== 'board') return null;
+  if (coaches && (missing === 'portion' || missing === 'unmatched')) return null;
+  const key = t.board.key, model = key ? await ctx.loadModel(key) : null, SR = ctx.router();
+  if (!model || !SR) return null;
+  const anchor = await anchorIn(t, ctx);
+  if (!anchor) return null;
+  const known = sectors.length > 0;
+  const pk = SR.platformKey;
+  const all = [...new Set((model.sectors || []).filter((x) => pk(x.ref) === pk(t.board.ref)).map((x) => x.name))];
+  const lay = coaches ? null : known ? { sectors, around: null } : { sectors: all, around, maxLen: 4 * 26.5 };
+  const layout = coaches ? layoutTrain(model, t.board.ref, { coaches, sectors: [] }) : layoutTrain(model, t.board.ref, { coaches: null, ...lay! });
+  if (!layout || layout.guessed || !layout.cars.length) return null;
+  // an open coach with seats, in the part of the train that goes where you get off (as coachesFor has it)
+  const reach = coaches && coaches.some((c) => c.reaches === true);
+  const boardable = (car: TrainLayout['cars'][number]) => !coaches || (!!car.coach && !car.coach.closed && (car.coach.kind === 'coach' || car.coach.kind === 'sleeper')
+    && car.coach.reaches !== false && (!reach || car.coach.reaches === true));
+  const prefs = Object.assign({}, ctx.prefs || {});
+  let best: { idx: number; door: Door; seconds: number; rank: number } | null = null;
+  for (const car of layout.cars) {
+    if (!boardable(car)) continue;
+    for (const door of doorsOf(layout, car.idx)) {
+      const r = SR.route(model, anchor, { stop: { uic: t.board.uic, ref: t.board.ref, at: door.xy, sector: door.sector } }, prefs);
+      if (!r || r.incomplete || !atDoor(r, door)) continue;
+      if (!best || rank(r) < best.rank) best = { idx: car.idx, door, seconds: r.seconds, rank: rank(r) };
+    }
+  }
+  if (!best) return null;
+  const board = { idx: best.idx, door: best.door, seconds: best.seconds };
+  return { coachId: coaches ? coaches[best.idx].id : null, board, alight: null, missing: null, weighed: ['in'], nearest: coaches ? 'formation' : known ? 'sectors' : 'arrival', lay: lay || undefined };
 }

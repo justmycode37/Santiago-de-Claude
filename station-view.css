@@ -45,7 +45,7 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 
 /* the floors: only the route's (and ⌂), with the indoor position's probability as a bar */
 .stv-floors { position: absolute; top: calc(10px + var(--stv-safe-t)); right: 10px; z-index: 5; display: flex; flex-direction: column; gap: 2px;
-  padding: 4px; border-radius: 16px; background: var(--stv-card); box-shadow: 0 2px 10px rgba(0,0,0,.12); max-height: calc(100% - 300px); overflow-y: auto; }
+  padding: 4px; border-radius: 16px; background: var(--stv-card); box-shadow: 0 2px 10px rgba(0,0,0,.12); max-height: calc(100% - var(--stv-sheet-h, 300px) - 30px - var(--stv-safe-t)); overflow-y: auto; }
 .stv-floor { position: relative; min-width: 44px; min-height: 40px; border-radius: 12px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; display: grid; place-items: center; }
 .stv-floor.used::after { content: ""; position: absolute; right: 5px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--stv-route); box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
 .stv-floor.on { background: var(--stv-text) !important; color: var(--stv-card) !important; }
@@ -55,11 +55,34 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 .stv-all { border-top: 1px solid var(--stv-hair) !important; border-radius: 0 0 12px 12px !important; }
 
 /* bottom: what the route could not keep, and the step you are at */
-.stv-bottom { position: absolute; left: 10px; right: 10px; bottom: calc(10px + var(--stv-safe-b)); z-index: 5; display: flex; flex-direction: column; gap: 8px; max-width: 560px; margin: 0 auto; pointer-events: none; }
-.stv-bottom > * { pointer-events: auto; }
-.stv-notice { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: #fff4e0; color: #6b3a00; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+/* one sheet: a grip to drag it (or tap: one size up), three sizes (station-view.ts: setSnap) */
+.stv-bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; max-width: 580px; margin: 0 auto;
+  border-radius: 20px 20px 0 0; background: var(--stv-card); box-shadow: 0 -4px 24px rgba(0,0,0,.18); padding-bottom: var(--stv-safe-b);
+  max-height: 46vh; transition: max-height .22s ease; touch-action: none; }
+.stv-bottom.dragging { transition: none; }
+.stv-bottom[data-snap="peek"] { max-height: max(36vh, 220px); }
+.stv-bottom[data-snap="full"] { max-height: 86vh; }
+.stv-grip { flex: none; display: grid !important; place-items: center; height: 22px; width: 100%; cursor: grab !important; touch-action: none; }
+.stv-grip-bar { width: 40px; height: 5px; border-radius: 3px; background: var(--stv-hair); box-shadow: inset 0 0 0 1px var(--stv-hair); }
+.stv-grip:hover .stv-grip-bar { background: var(--stv-sub); }
+.stv-sheet-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 12px; display: flex; flex-direction: column; gap: 8px; touch-action: pan-y; }
+.stv-bottom[data-snap="peek"] .stv-sheet-body { overflow-y: auto; }
+/* peek: the step and its buttons first (never cut off), then the coach to board in a line; not the train you leave */
+.stv-bottom[data-snap="peek"] .stv-guide { order: -1; }
+.stv-bottom[data-snap="peek"] .stv-train { padding: 8px 0 0 !important; border-bottom: 0; border-top: 1px solid var(--stv-hair); }
+.stv-bottom[data-snap="peek"] .stv-vehicle.alight { display: none; }
+/* peek: the step at hand in a line and its buttons, the coach to board in a line */
+.stv-bottom[data-snap="peek"] :is(.stv-legend, .stv-chips, .stv-then, .stv-src, .stv-list, .stv-pov-note, .stv-cars, .stv-train-crowd, .stv-train-src, .stv-berth, .stv-meta, .stv-train-text) { display: none !important; }
+.stv-bottom[data-snap="peek"] .stv-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stv-bottom[data-snap="peek"] .stv-bar { margin-top: 8px; }
+.stv-bottom[data-snap="peek"] .stv-notice { padding: 4px 10px; }
+.stv-bottom[data-snap="peek"] .stv-notice span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stv-train-sum { display: none; font-size: 13px; line-height: 17px; margin-top: 4px; }
+.stv-bottom[data-snap="peek"] .stv-train-sum { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stv-bottom[data-snap="peek"] .stv-vehicle + .stv-vehicle { margin-top: 6px; padding-top: 6px; }
+.stv-notice { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: #fff4e0; color: #6b3a00; }
 .stv-notice[hidden] { display: none; }
-.stv-guide { padding: 12px 14px; border-radius: 18px; background: var(--stv-card); box-shadow: 0 4px 20px rgba(0,0,0,.16); max-height: 46vh; overflow-y: auto; }
+.stv-guide { padding: 0; }
 .stv-step { display: flex; gap: 10px; align-items: flex-start; }
 .stv-step-main { min-width: 0; flex: 1; }
 .stv-text { font-size: 17px; font-weight: 650; line-height: 22px; }
@@ -102,9 +125,8 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 .stv-src { margin-top: 8px; font-size: 10px; line-height: 13px; color: var(--stv-sub); }
 .stv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* the train the walk leads to: its coaches as they stand (sector A on the left), your class, how full it will be */
-.stv-train { padding: 10px 12px; border-radius: 18px; background: var(--stv-card); box-shadow: 0 4px 20px rgba(0,0,0,.16); }
+.stv-train { padding: 0 0 10px; border-bottom: 1px solid var(--stv-hair); }
 .stv-train[hidden] { display: none; }
-.stv-train { max-height: 42vh; overflow-y: auto; }
 .stv-berth { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--stv-sub); }
 .stv-berth span { flex: 1; }
 .stv-berth-b { min-height: 32px !important; font-size: 13px !important; }
@@ -165,13 +187,13 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 @keyframes stv-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .stv-spin { animation-duration: 3s; } }
 
-/* first person in a lift (station3d-solid.js) */
-.stv .sx-lift { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: radial-gradient(120% 90% at 50% 42%, #434850 0%, #24272c 55%, #15171a 100%); pointer-events: none; }
+/* first person in a lift (station3d-solid.ts): the car is drawn in 3D; this chip says where it goes */
+.stv .sx-lift { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); z-index: 4; pointer-events: none; }
 .stv .sx-lift[hidden] { display: none; }
-.stv .sx-lift-car { min-width: 200px; padding: 18px 24px; border-radius: 18px; background: #14161a; color: #ffc928; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
-.stv .sx-lift-arrow { font-size: 34px; line-height: 1; }
-.stv .sx-lift-now { font-size: 46px; font-weight: 800; line-height: 1.1; letter-spacing: .02em; }
-.stv .sx-lift-to { margin-top: 6px; font-size: 14px; color: #e8e8e8; }
+.stv .sx-lift-car { display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border-radius: 14px; background: rgba(20,22,26,.9); color: #ffc928; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,.3); font-variant-numeric: tabular-nums; }
+.stv .sx-lift-arrow { font-size: 20px; font-weight: 800; }
+.stv .sx-lift-now { font-size: 22px; font-weight: 800; letter-spacing: .02em; }
+.stv .sx-lift-to { font-size: 13px; color: #e8e8e8; }
 .stv .sx-lift-to b { color: #fff; }
 
 /* labels in the model (placed by station3d-solid.js) */
@@ -215,6 +237,5 @@ html.stv-open, html.stv-open body { overflow: hidden; }
 
 @media (max-width: 480px) {
   .stv-text { font-size: 16px; line-height: 21px; }
-  .stv-guide { padding: 10px 12px; }
   .stv .sx-label { font-size: 11px; }
 }
