@@ -63,12 +63,17 @@ export class DrawnLines {
       if (list) for (const i of list) f(xy[4 * i], xy[4 * i + 1], xy[4 * i + 2], xy[4 * i + 3], this.half[i], this.flags[i]);
     }
   }
-  /** Whether the drawn line nearest p (within `within` metres, any direction) runs in a tunnel. */
-  tunnelAt(p: LngLat, within = 8): boolean {
+  /**
+   * Whether the drawn line nearest p (within `within` metres) running the way from `a` to `b` (within 45°: not one it
+   * crosses, over or under it) runs in a tunnel.
+   */
+  tunnelAt(p: LngLat, a: LngLat, b: LngLat, within = 8): boolean {
     const kx = 111320 * Math.cos((p[1] * Math.PI) / 180), ky = 110540;
+    const dx = (b[0] - a[0]) * kx, dy = (b[1] - a[1]) * ky, dl = Math.hypot(dx, dy);
     let best = within, tunnel = false;
     this.near(p, (ax, ay, bx, by, _h, fl) => {
       const sx = (bx - ax) * kx, sy = (by - ay) * ky, l2 = sx * sx + sy * sy;
+      if (dl > 0 && l2 > 0 && Math.abs(sx * dx + sy * dy) < 0.7 * Math.sqrt(l2) * dl) return;
       const u = l2 ? Math.max(0, Math.min(1, ((p[0] - ax) * kx * sx + (p[1] - ay) * ky * sy) / l2)) : 0;
       const d = Math.hypot((ax - p[0]) * kx + u * sx, (ay - p[1]) * ky + u * sy);
       if (d < best) { best = d; tunnel = (fl & 1) !== 0; }
@@ -127,7 +132,7 @@ export function layRoad(raw: LngLat[], lines: DrawnLines): LaidLine {
     const list: { o: number; lane: number; tunnel: boolean; d: number }[] = [];
     if (dl > 0) {
       nx[k] = dy / dl; ny[k] = -dx / dl;
-      if (complete && !lines.covers(q)) complete = false;
+      if (complete && (k % 20 === 0 || k === n - 1) && !lines.covers(q)) complete = false; // (every 100 m: a tile is 1.6 km)
       lines.near(q, (ax, ay, bx, by, half, fl) => {
         if (!half) return;
         const sx = (bx - ax) * kx, sy = (by - ay) * ky, sl = Math.hypot(sx, sy);

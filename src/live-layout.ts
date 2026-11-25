@@ -80,18 +80,19 @@ export class VehicleLayout<V extends LayoutVehicle> {
     }
   }
   /**
-   * The vehicles of `list` drawn as bodies whose place passes `inView`, after step(): each one's carriages, the one
-   * behind kept behind the one in front.
+   * The vehicles of `list` drawn as bodies that `drawn` takes (where it is, what it is, how far its body reaches from
+   * there, metres), after step(): each one's carriages, the one behind kept behind the one in front.
    */
-  place(list: V[], ms: number, inView: (p: LngLat) => boolean): Placed<V>[] {
+  place(list: V[], ms: number, drawn: (p: LngLat, v: V, make: Make, reachM: number) => boolean): Placed<V>[] {
     const dt = Number.isFinite(this.lastMs) ? Math.max(0, Math.min(1, (ms - this.lastMs) / 1000)) : 0;
     this.lastMs = ms;
     const out: (Placed<V> & { len: number; body: LngLat[] | null; dir: [number, number]; c: LngLat })[] = [];
     let lat = 0;
     list.forEach((v, i) => {
       const k = VehicleLayout.key(v), s = this.shown.get(k);
-      if (!s || !inView(s.ll)) return;
+      if (!s) return;
       const make = makeOf(v.line), len = lengthOf(make);
+      if (!drawn(s.ll, v, make, len / 2 + 10)) return;
       const body = KANTE_LIVE.bodyAt(s.rec, s.f, len, s.prev, 0);
       let dir: [number, number] = [0, 0];
       if (body && body.length > 1) {
@@ -101,9 +102,10 @@ export class VehicleLayout<V extends LayoutVehicle> {
       lat = s.ll[1];
       out.push({ i, k, v, s, make, cars: null, len, body, dir, c: s.ll });
     });
-    // two on the same track or in the same lane, the same way: the one behind behind the other's tail (by cells of
-    // 50 m: only those near each other are compared)
-    const kx = kxAt(lat), CELLM = 50, cells = new Map<string, number[]>();
+    // two on the same track or in the same lane, the same way: the one behind behind the other's tail (by cells as
+    // large as the longest of them: only those near enough to touch are compared)
+    const kx = kxAt(lat), cells = new Map<string, number[]>();
+    const CELLM = Math.min(400, Math.max(50, ...out.map((P) => P.len + ROOM_M)));
     out.forEach((P, n) => {
       if (!P.dir[0] && !P.dir[1]) return;
       const key = Math.floor((P.c[0] * kx) / CELLM) + ',' + Math.floor((P.c[1] * KY) / CELLM);
@@ -120,7 +122,8 @@ export class VehicleLayout<V extends LayoutVehicle> {
           if (A.dir[0] * B.dir[0] + A.dir[1] * B.dir[1] < SAME_WAY) continue;
           const dx = (B.c[0] - A.c[0]) * kx, dy = (B.c[1] - A.c[1]) * KY, need = (A.len + B.len) / 2 + ROOM_M;
           const along = dx * A.dir[0] + dy * A.dir[1], side = Math.abs(-dx * A.dir[1] + dy * A.dir[0]);
-          if (side > LANE_SIDE_M || Math.abs(along) > need + 5) continue;
+          // (each held back so far reaches that much further back)
+          if (side > LANE_SIDE_M || Math.abs(along) > need + 5 + (want.get(A.k) || 0) + (want.get(B.k) || 0)) continue;
           // which is in front: as it was, unless clearly the other way now; first time: the one further on, at one
           // place the one that came first (arrived earlier), then by key
           const pk = A.k < B.k ? A.k + '\n' + B.k : B.k + '\n' + A.k;

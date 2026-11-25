@@ -436,20 +436,24 @@ fn hop_len(app: &App, run: &Run, i: usize, j: usize) -> f32 {
 }
 
 /// The stops `run` serves with their times, made physically possible (`motion::feasible`: a hop gets the time its
-/// vehicle needs to speed up, run and brake, borrowed from the stops beside it; measured times stay). Over the whole
-/// run, so the times of a hop are the same whenever it is asked about (worked out only around `now`, a hop leaving
-/// that window took the time it had pushed on later stops with it: the vehicle jumped).
-fn served_at(app: &App, run: &Run, _now: i64) -> Vec<(usize, i64, i64)> {
+/// vehicle needs to speed up, run and brake, borrowed from the stops beside it; measured times stay). For a run on its
+/// pattern's own way, over the whole run (its hops' lengths are measured once), so the times of a hop are the same
+/// whenever it is asked about: worked out only around `now`, a hop leaving that window took the time it had pushed on
+/// later stops with it, and the vehicle jumped. For the others (an extra journey, a changed platform: their ways are
+/// put together hop by hop) the quarter of an hour around `now`.
+fn served_at(app: &App, run: &Run, now: i64) -> Vec<(usize, i64, i64)> {
     let mut served = served_with_profiles(app, run);
     if let Some(m) = crate::motion::of(run.mode, &run.category) {
         let f = &run.facts;
         let measured = |i: usize, kind: u8| f.observed_pos >= 0 && ((f.observed_pos as usize) > i || (f.observed_pos as usize == i && f.observed_kind & kind != 0));
         let idx: Vec<usize> = served.iter().map(|s| s.0).collect();
+        let whole = run.pattern.is_some() && app.shapes.is_some() && run.calls.iter().all(|c| c.planned.is_none());
+        let (from, until) = if whole { (i64::MIN, i64::MAX) } else { (now - 900, now + 900) };
         crate::motion::feasible(
             &mut served,
             &m,
-            i64::MIN,
-            i64::MAX,
+            from,
+            until,
             |k| Some(hop_len(app, run, idx[k], idx[k + 1])),
             |k| measured(idx[k], OBSERVED_DEP),
             |k| measured(idx[k], OBSERVED_ARR),

@@ -116,6 +116,13 @@ console.log('a bus on the road the map draws');
   }
   check(step < 2, `no step sideways anywhere along it (at most ${step.toFixed(2)} m more than it goes on)`);
   check(laid.complete === false, 'a way crossing tiles not yet in is laid again later');
+  // at the end of its run (nothing ahead): all of it on its way, arriving and standing alike
+  const E = at(198, 150), bus = { mode: 'bus' as KanteMode, name: '12', category: 'B' };
+  const arriving = { from: at(0, 0), to: E, dep: 0, arr: 60, nextSeq: 9, frac: 1, t: 60, hopPath: enc(raw), line: bus };
+  const standing = { from: E, to: E, dep: 60, arr: 60, nextSeq: 9, point: E, line: bus };
+  const b1 = KANTE_LIVE.bodyAt(arriving, 1, 18)!, b2 = KANTE_LIVE.bodyAt(standing, 0, 18, arriving)!;
+  const front1 = b1[b1.length - 1], front2 = b2[b2.length - 1];
+  check(m(front1, E) < 0.6 && m(front2, front1) < 0.6, `its front at the end of its way, as it came in and standing (${m(front1, E).toFixed(1)} m, ${m(front2, front1).toFixed(1)} m apart)`);
   // no drawn road near: the engine's way as it is
   const far = layRoad([at(0, 500), at(100, 500)], lines);
   check(far.pts.length === 2 && far.pts[0] === raw[0] || m(far.pts[0], at(0, 500)) < 0.01, 'no drawn road near: its own way');

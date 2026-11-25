@@ -13,7 +13,7 @@ import { journey } from './state.ts';
 import { isRide } from './journey-steps.ts';
 import { KANTE } from '../engine.ts';
 import { KANTE_LIVE } from '../live.ts';
-import { DrawnLines, layRoad, RAIL_CLASSES, ROAD_CLASSES } from '../live-lines.ts';
+import { DrawnLines, layRoad, RAIL_CLASSES, ROAD_CLASSES, tileKey } from '../live-lines.ts';
 import { VehicleLayout, mergeAnswer } from '../live-layout.ts';
 import type { Make } from '../live-layout.ts';
 import { tileLines } from '../vector-lines.ts';
@@ -75,7 +75,7 @@ const BASE_SOURCE = 'base_v1.0.0', BASE_TILES = 'https://vectortiles.geo.admin.c
 const LINE_CLASSES = new Set([...ROAD_CLASSES, ...RAIL_CLASSES]);
 const MAX_TILES = 48; // then they start again (a long way off)
 let roads = new DrawnLines(), rails = new DrawnLines();
-const tileWanted: string[] = [], tileBusy = new Set<string>();
+const tileWanted: string[] = [], tileBusy = new Set<string>(), tileFailed = new Map<string, number>();
 let linesFrom = 0; // when the box's tiles were asked for (performance.now())
 KANTE_LIVE.setLineRefiner((pts) => layRoad(pts, roads));
 function tileUrl() {
@@ -89,15 +89,18 @@ function tilesOf(b: KanteBbox): string[] {
   for (let x = tx(b[0]); x <= tx(b[2]); x++) for (let y = ty(b[3]); y <= ty(b[1]); y++) out.push(x + '/' + y);
   return out;
 }
-/** The box's tiles: asked for, nearest the view's middle first. */
-function linesFor(b: KanteBbox) {
-  const want = tilesOf(b).filter((t) => !roads.tiles.has(t) && !tileBusy.has(t));
+/** The tiles around the view (only drawn as bodies from zoom 15 do vehicles need them): asked for, at most MAX_TILES. */
+function linesForView() {
+  if (!vehBox || map.getZoom() < BODY_MIN_ZOOM - 0.5) return;
+  const v = map.getBounds(), now = performance.now();
+  const want = tilesOf(KANTE_LIVE.padBbox([v.getWest(), v.getSouth(), v.getEast(), v.getNorth()], 0.35))
+    .filter((t) => !roads.tiles.has(t) && !tileBusy.has(t) && !(now - (tileFailed.get(t) || -1e9) < 20000)).slice(0, MAX_TILES);
+  if (!want.length) return;
   if (roads.tiles.size + want.length > MAX_TILES) {
-    roads = new DrawnLines(); rails = new DrawnLines(); tileBusy.clear();
+    roads = new DrawnLines(); rails = new DrawnLines();
     KANTE_LIVE.setLineRefiner((pts) => layRoad(pts, roads));
-    return linesFor(b);
   }
-  linesFrom = performance.now();
+  linesFrom = now;
   tileWanted.length = 0;
   tileWanted.push(...want);
   for (let k = 0; k < 4; k++) nextTile();
@@ -113,11 +116,23 @@ function nextTile() {
       const all = tileLines(new Uint8Array(buf), 14, x, y, 'transportation', LINE_CLASSES);
       roads.add(t, all.filter((l) => ROAD_CLASSES.has(l.cls)));
       rails.add(t, all.filter((l) => RAIL_CLASSES.has(l.cls)));
-      KANTE_LIVE.relayLines(); // the ways laid without it
+      tileFailed.delete(t);
+      tunnels.clear(); // worked out again with its lines
+      KANTE_LIVE.linesCame();
+      relayLater(); // the ways laid without it
     }))
-    .catch(() => { roads.add(t, []); rails.add(t, []); }) // none: as if it had no lines
+    .catch(() => { tileFailed.set(t, performance.now()); }) // asked for again after a while
     .finally(() => { tileBusy.delete(t); nextTile(); });
 }
+/** The ways laid before the tiles around them came: laid again a few at a time when the page has a moment (not in a frame). */
+let relayTimer = 0;
+function relayLater() {
+  if (relayTimer) return;
+  relayTimer = 1;
+  idle((d) => { relayTimer = 0; if (KANTE_LIVE.relayLines(Math.max(4, d.timeRemaining() - 1))) relayLater(); });
+}
+const idle = (f: IdleRequestCallback) => (window.requestIdleCallback ? window.requestIdleCallback(f, { timeout: 500 })
+  : setTimeout(() => f({ didTimeout: false, timeRemaining: () => 8 }), 50));
 /** f once the map is not moving (a tile's lines take a few milliseconds). */
 function whenStill(f: () => void): Promise<void> {
   return new Promise((done) => {
@@ -125,9 +140,9 @@ function whenStill(f: () => void): Promise<void> {
     go();
   });
 }
-/** A road vehicle is drawn as its body once the lines around have come (or after a moment without them): never laid
- *  onto the road while one watches. */
-const linesReady = () => !tileWanted.length && !tileBusy.size || performance.now() - linesFrom > 2500;
+/** A road vehicle at p is drawn as its body once the lines of its tile have come (or failed, or after a moment without
+ *  them): never laid onto the road while one watches. */
+const linesReady = (p: LngLat) => roads.covers(p) || tileFailed.has(tileKey(p)) || performance.now() - linesFrom > 2500;
 
 // During a journey: the trips of its rides (`tripId|serviceDate`), and the box around their stops
 function journeyTrips(): Set<string> | null {
@@ -149,8 +164,10 @@ const vehWanted = () => !!KANTE && KANTE.ok() && !document.hidden && (journey.de
   : map.getZoom() >= VEH_MIN_ZOOM && SETTINGS.prefs().liveVehicles !== false);
 /** The live layer shows this trip's vehicle now (a journey's ride: then its own marker is not needed). */
 export function vehShowsTrip(tripId: string, serviceDate: string) {
-  return Date.now() - vehAt < VEH_DIM_MS && vehList.some((v) => v.tripId === tripId && v.serviceDate === serviceDate);
+  return Date.now() - vehAt < VEH_DIM_MS && drawnTrips.has(tripId + '|' + serviceDate);
 }
+/** The trips drawn in the last frame. */
+let drawnTrips = new Set<string>();
 export function vehStop() {
   vehReq++;
   if (vehES) { vehES.close(); vehES = null; }
@@ -184,7 +201,7 @@ export function vehUpdate() {
   vehMode = mode;
   vehBox = KANTE_LIVE.padBbox(view, trips ? .3 : .35);
   if (!KANTE_LIVE.bboxOk(vehBox)) { vehBox = null; return; }
-  if (!trips || map.getZoom() >= VEH_MIN_ZOOM) linesFor(vehBox);
+  linesForView();
   const bbox = KANTE_LIVE.bboxParam(vehBox), id = vehReq;
   if (KANTE!.has('stream') && window.EventSource) {
     vehES = new EventSource(KANTE!.href('/api/stream', { bbox }));
@@ -228,12 +245,13 @@ function vehSet(data: KanteVehiclesResponse) {
 let layTimer = 0;
 function layLater() {
   if (layTimer) return;
-  const idle = window.requestIdleCallback || ((f: IdleRequestCallback) => setTimeout(() => f({ didTimeout: false, timeRemaining: () => 8 }), 50));
   layTimer = 1;
   idle((d) => {
     layTimer = 0;
+    // what the moment allows, at least a few milliseconds (a page that is never idle still gets them laid)
+    const until = performance.now() + Math.max(4, d.timeRemaining() - 1);
     for (const v of vehList) {
-      if (d.timeRemaining() < 2) { layLater(); return; }
+      if (performance.now() > until) { layLater(); return; }
       if (v.line.mode === 'bus' || v.line.mode === 'ondemand') { KANTE_LIVE.pointAtShare(v, 0.5); if (v.onward && v.onward.hopPath) KANTE_LIVE.pointAtShare({ ...v, hopPath: v.onward.hopPath, hopSpan: v.onward.hopSpan }, 0.5); }
     }
   });
@@ -338,7 +356,7 @@ function tunnelFlags(k: string, cars: [LngLat, LngLat][], make: Make): boolean[]
   const mid = cars[Math.floor(cars.length / 2)][0], was = tunnels.get(k);
   if (was && was.flags.length === cars.length && KANTE_LIVE.distKm(was.at, mid) < 0.003) return was.flags;
   const lines = make.rail ? rails : roads;
-  const flags = cars.map(([p, q]) => lines.tunnelAt([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]));
+  const flags = cars.map(([p, q]) => lines.tunnelAt([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], p, q));
   tunnels.set(k, { at: mid, flags });
   return flags;
 }
@@ -359,14 +377,22 @@ function paint() {
     drawnAny = false;
   }
   vehHits = [];
+  const drawn = new Set<string>();
+  drawnTrips = drawn;
   if (!vehList.length || !Number.isFinite(tNow) || zoom < VEH_MIN_ZOOM) return;
   canvasSize();
   const dpr = ratio();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawnAny = true;
-  layout.step(vehList, tNow, now);
+  // the buses' ways not laid yet: a few milliseconds of laying a frame, the rest in the frames after (and when idle)
+  KANTE_LIVE.layBudget(4);
+  try { layout.step(vehList, tNow, now); paintVehicles(ctx, zoom, now); } finally { if (KANTE_LIVE.layBudget(Infinity)) layLater(); }
+  if (tunnels.size > 2 * vehList.length + 50) for (const k of tunnels.keys()) if (!layout.shown.has(k)) tunnels.delete(k);
+}
+function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number) {
+  const drawn = drawnTrips;
   const old = Date.now() - vehAt > VEH_DIM_MS, dark = currentTheme() === 'dark', project = projector();
-  const pad = 60, inView = (p: LngLat) => { const q = project(p); return q.x > -pad && q.y > -pad && q.x < cssW + pad && q.y < cssH + pad; };
+  const pad = 60;
   if (zoom < BODY_MIN_ZOOM) {
     // the pictograms, as large as the map's symbols were (from 0.62 at zoom 14 to 0.8 at 16, exponentially)
     const size = 0.62 + (0.8 - 0.62) * (1.5 ** (zoom - VEH_MIN_ZOOM) - 1) / (1.5 ** 2 - 1);
@@ -379,17 +405,24 @@ function paint() {
       ctx.globalAlpha = old || !p.live ? 0.45 : 1;
       ctx.drawImage(img.img, q.x - w / 2, q.y - hh / 2, w, hh);
       vehHits.push({ i, cars: [[q, q, Math.max(w, hh) / 2 + 4]] });
+      drawn.add(vehKey(v));
     });
     ctx.globalAlpha = 1;
     return;
   }
   const lat = map.getCenter().lat, pxPerM = 1 / (40075016.686 * Math.cos((lat * Math.PI) / 180) / (512 * 2 ** zoom));
-  const ready = linesReady();
+  // in view as far as its body reaches; a road vehicle once the roads around it have come and its way is laid onto
+  // them (never laid while one watches)
+  const inView = (p: LngLat, v: LiveVehicle, make: Make, reachM: number) => {
+    if (make.road && !(linesReady(p) && KANTE_LIVE.isLaid(layout.shown.get(vehKey(v))!.rec))) return false;
+    const q = project(p), r = pad + reachM * pxPerM;
+    return q.x > -r && q.y > -r && q.x < cssW + r && q.y < cssH + r;
+  };
   const labels: { v: LiveVehicle; x: number; y: number; dim: boolean }[] = [];
   ctx.lineJoin = 'round';
   for (const P of layout.place(vehList, now, inView)) {
     const { v, s, make, i, k } = P;
-    if (make.road && !ready) continue;
+    drawn.add(k);
     const fill = colorOf(k, s.ll), live = propsOf(v).live;
     const W = Math.max(make.width * pxPerM, 5 + Math.min(3, Math.max(0, zoom - 15) * 1.5));
     ctx.globalAlpha = old || !live ? 0.55 : 1;
@@ -411,7 +444,6 @@ function paint() {
   }
   // over them all: each one's badge, and where it goes from zoom 17
   for (const L of labels) drawBadge(ctx, L.v, L.x, L.y, zoom, dark, L.dim);
-  if (tunnels.size > 2 * vehList.length + 50) for (const k of tunnels.keys()) if (!layout.shown.has(k)) tunnels.delete(k);
 }
 
 /**
@@ -608,6 +640,7 @@ export function start() {
     vehPopup.setLngLat(at).setDOMContent(body).addTo(map);
   });
   map.on('moveend', vehUpdate);
+  map.on('moveend', linesForView);
   // the canvas: drawn with the map while it moves (so they move as one), sized with it
   map.on('render', () => { if (map.isMoving() && (vehList.length || drawnAny)) paint(); });
   map.on('resize', () => { canvasSize(); paintedAt = -1; paint(); });

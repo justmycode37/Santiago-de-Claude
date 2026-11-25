@@ -33,7 +33,9 @@ export type KanteLiveCarrier = { liveInfo?: KanteLiveInfo | null; live?: KanteLi
 /** What places a vehicle of /api/vehicles; `t`: the time of the response it came in. */
 export type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & Partial<Pick<KanteVehicle, 'hopPath' | 'hopSpan' | 'hopStraight' | 'point' | 'nextSeq' | 'onward' | 'motion' | 'hopLen'>>
   & { line?: Partial<KanteLine> }
-  & { frac?: number | null; t?: number | null };
+  & { frac?: number | null; t?: number | null }
+  /** Driven on onto its onward hop by the page (hopAt): it goes on after this hop, though the next one is not known yet. */
+  & { goesOn?: boolean };
 /** A vehicle of /api/vehicles, as far as it tells whether it has left a stop; `info`: its liveInfoOf(), when already worked out. */
 export type KanteVehicleSeen = Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null };
 /** late: the walk is longer than the time left; tight: under three minutes to spare. */
@@ -175,21 +177,47 @@ export interface LaidWay { pts: LngLat[]; cum: number[]; complete: boolean }
 /** Lays a way onto the map's own lines; null: the way as it is. */
 export type LineRefiner = (pts: LngLat[]) => LaidWay | null;
 let refiner: LineRefiner | null = null;
-const refinedLines = new Map<string, HopLine & { complete: boolean }>();
+/** A laid line: `complete` (every tile it crosses was there), `drawn` (a vehicle has been drawn on it: it stays as it is). */
+type LaidLine = HopLine & { complete: boolean; drawn?: boolean; version?: number };
+/** How many times more of the map's lines have come (linesCame()): a way laid before is laid again once. */
+let linesVersion = 0;
+const refinedLines = new Map<string, LaidLine>();
 /** Sets (or, null, drops) the refiner. */
 function setLineRefiner(f: LineRefiner | null) {
   refiner = f;
   refinedLines.clear();
 }
-/** More of the map's lines have come: the ways laid without them are laid again (those laid in full stay as they are). */
-function relayLines() {
-  for (const [k, h] of refinedLines) if (!h.complete) refinedLines.delete(k);
+/**
+ * More of the map's lines have come: the ways laid without them are laid again, for up to `budgetMs` (then true: more
+ * to do). Those laid in full stay as they are, and so do those a vehicle has been drawn on (laid again under it, it
+ * would move sideways; its next hop is laid with them).
+ */
+function relayLines(budgetMs = Infinity): boolean {
+  if (!refiner) return false;
+  const t0 = performance.now();
+  for (const [k, h] of refinedLines) {
+    if (h.complete || h.drawn || (h.version || 0) >= linesVersion) continue;
+    if (performance.now() - t0 > budgetMs) return true;
+    const laid = refiner(decodePolyline(k));
+    h.version = linesVersion;
+    if (laid) { h.pts = laid.pts; h.cum = laid.cum; h.complete = laid.complete; } else h.complete = true;
+  }
+  return false;
 }
+/** More of the map's lines have come (then relayLines()). */
+function linesCame() { linesVersion++; }
 /** Laid onto the drawn roads: road vehicles. */
 const ROAD_MODES = new Set(['bus', 'ondemand']);
+// How long laying ways may take within one frame (layBudget()): past it, a way not laid yet is the engine's for this
+// frame (not kept); the page draws a road vehicle only once its ways are laid (isLaid()), so none is seen moving across
+let layUntil = Infinity;
+let layLeft = false;
+/** Ways may be laid for `ms` from now (Infinity: as many as asked for). Returns whether some were left unlaid since the last call. */
+function layBudget(ms: number): boolean { layUntil = performance.now() + ms; const left = layLeft; layLeft = false; return left; }
 function hopLine(s: string, refine?: boolean): HopLine | null {
-  const cache = refine && refiner ? refinedLines : hopLines;
+  let cache = refine && refiner ? refinedLines : hopLines;
   let h = cache.get(s);
+  if (!h && cache === refinedLines && performance.now() > layUntil) { cache = hopLines; h = cache.get(s); layLeft = true; }
   if (!h) {
     const raw = decodePolyline(s);
     if (raw.length < 2) return null;
@@ -200,10 +228,16 @@ function hopLine(s: string, refine?: boolean): HopLine | null {
       for (let k = 1; k < raw.length; k++) cum.push(cum[k - 1] + distKm(raw[k - 1], raw[k]));
     }
     if (cache.size > 3000) cache.clear(); // the vehicles of one window are far fewer (laid again, they come out the same)
-    h = { pts: laid ? laid.pts : raw, cum, complete: laid ? laid.complete : true } as HopLine & { complete: boolean };
+    h = { pts: laid ? laid.pts : raw, cum, complete: laid ? laid.complete : true, version: linesVersion } as LaidLine;
     cache.set(s, h);
   }
   return h;
+}
+/** Whether the ways vehicle v is drawn on (its hop and the next) are laid where they are to be (road vehicles). */
+function isLaid(v: KanteVehicleHop): boolean {
+  if (!onRoad(v) || !refiner) return true;
+  const o = v.onward;
+  return (!v.hopPath || refinedLines.has(v.hopPath)) && (!o || !o.hopPath || refinedLines.has(o.hopPath));
 }
 /** The segment of line h that km `goal` is on: k with cum[k - 1] ≤ goal ≤ cum[k] (a binary search). */
 function segAt(h: HopLine, goal: number): number {
@@ -322,12 +356,21 @@ function bodyAt(v: KanteVehicleHop, f: number, lenM: number, prev?: KanteVehicle
   const place = (h: HopLine, km: number, onward: HopLine | null) => {
     let c = km - backM / 1000;
     if (!rail && !behind) c = Math.max(c, half);
-    if (!rail && !onward) c = Math.min(c, Math.max(half, lineEnd(h) - half));
+    if (!rail && !onward && !v.goesOn) c = Math.min(c, Math.max(half, lineEnd(h) - half));
     return stretch(h, c - half, c + half, onward, behind);
   };
-  if (standingAt(v)) return next ? place(next, 0, null) : behind ? stretch(behind, lineEnd(behind) - half - backM / 1000, lineEnd(behind) + half - backM / 1000, null) : null;
+  for (const x of [next, behind]) if (x) (x as LaidLine).drawn = true;
+  if (standingAt(v)) {
+    if (next) return place(next, 0, null);
+    if (!behind) return null;
+    // at the end of its run: where its way ends (a road vehicle with all of it on its way, as it came in)
+    let c = lineEnd(behind) - backM / 1000;
+    if (!rail) c = Math.min(c, Math.max(half, lineEnd(behind) - half));
+    return stretch(behind, c - half, c + half, null);
+  }
   const h = v.hopPath ? hopLine(v.hopPath, road) : null;
   if (!h) return null;
+  (h as LaidLine).drawn = true;
   const [a, b] = v.hopSpan || [0, 1], total = lineEnd(h);
   const km = (b > a ? (clamp01(f) - a) / (b - a) : 0) * total;
   // on the hop's last part sent, the onward hop goes on from where it ends
@@ -378,7 +421,7 @@ function hopAt<V extends KanteVehicleHop>(v: V, tNow: number): V {
       motion: undefined, hopLen: undefined };
   }
   return { ...v, from: stop, to: o.to, nextSeq: o.nextSeq, dep: o.dep, arr: o.arr, frac: null, t: null, hopPath: o.hopPath, hopSpan: o.hopSpan,
-    hopStraight: o.hopStraight, point: undefined, onward: undefined, motion: o.motion, hopLen: o.hopLen };
+    hopStraight: o.hopStraight, point: undefined, onward: undefined, motion: o.motion, hopLen: o.hopLen, goesOn: true };
 }
 // How far along its trip a vehicle shown on hop `x` a share f along is: heading for stop n, n − ½ … n; standing at n, n
 const progress = (x: KanteVehicleHop, f: number) => (x.nextSeq != null ? x.nextSeq : 0) - (standingAt(x) ? 0 : 0.5 * (1 - f));
@@ -402,7 +445,7 @@ function showVehicle<V extends KanteVehicleHop>(s: KanteShownVehicle<V> | null |
     f = standingAt(v) ? 0 : glide(s.f, share(v, tNow), rate(v), dt, jump(v));
     // the way as it was first sent while it still reaches well past the vehicle (another part sent for another box
     // is the same way, give or take a metre: none of that shows)
-    if (s.rec.hopPath && v.hopPath !== s.rec.hopPath && wayLeft(s.rec, f) > 0.4) rec = s.rec;
+    if (s.rec.hopPath && v.hopPath !== s.rec.hopPath && wayLeft(s.rec, f) > 0.4) rec = keepWay(v, s.rec);
   } else if (!standingAt(s.rec) && s.f < 1 && (standingAt(v) ? s.rec.nextSeq === v.nextSeq : sameLL(s.rec.to, v.from))) {
     rec = s.rec; // the answer has it at (or already past) the stop its shown hop leads to: drive on into it first,
     // braking (at most twice its average pace; the last stretch slower and slower)
@@ -419,7 +462,7 @@ function showVehicle<V extends KanteVehicleHop>(s: KanteShownVehicle<V> | null |
   // the hop it came along: kept while on the same hop, the one it was shown on when it went on from its end
   const prev = !s ? null : s.rec === rec || sameHop(s.rec, rec) ? s.prev : sameLL(s.rec.to, rec.from) && !standingAt(s.rec) ? s.rec
     : standingAt(s.rec) && sameLL(s.rec.from, rec.from) ? s.prev : null;
-  return { rec, f, at: ms, ll: standingAt(rec) ? (rec.point || rec.from) : pointAtShare(rec, f), prev };
+  return { rec, f, at: ms, ll: standingAt(rec) ? standPoint(rec, prev) : pointAtShare(rec, f), prev };
 }
 
 // km of its way sent (`hopPath`) left beyond share f (the way's whole length unknown: as if it were 1 km)
@@ -427,8 +470,29 @@ function wayLeft(v: KanteVehicleHop, f: number): number {
   const h = v.hopPath ? hopLine(v.hopPath, onRoad(v)) : null;
   if (!h) return 0;
   const [a, b] = v.hopSpan || [0, 1];
+  if (f < a) return 0;
   if (b >= 1) return Infinity;
   return b > a ? ((b - f) / (b - a)) * lineEnd(h) : 0;
+}
+// The newer answer v with the way of the hop as it was first sent (`was`): its times and onward hop are the newer ones
+const kept = new WeakMap<object, { was: object; v: KanteVehicleHop }>();
+function keepWay<V extends KanteVehicleHop>(v: V, was: V): V {
+  const k = kept.get(v);
+  if (k && k.was === was) return k.v as V;
+  const out = { ...v, hopPath: was.hopPath, hopSpan: was.hopSpan };
+  kept.set(v, { was, v: out });
+  return out;
+}
+// Where a vehicle standing at a stop is: on the way it leaves on (a road vehicle: as laid onto the drawn road), else at
+// the end of the way it came along, else its place beside the boarding point
+function standPoint(v: KanteVehicleHop, prev: KanteVehicleHop | null | undefined): LngLat {
+  if (onRoad(v)) {
+    const o = v.onward, next = o && o.hopPath && (!o.hopSpan || o.hopSpan[0] <= 0) ? hopLine(o.hopPath, true) : null;
+    if (next) return next.pts[0];
+    const behind = prev && prev.hopPath && (!prev.hopSpan || prev.hopSpan[1] >= 1) ? hopLine(prev.hopPath, true) : null;
+    if (behind) return behind.pts[behind.pts.length - 1];
+  }
+  return v.point || v.from;
 }
 
 // ---- The engine's clock on the page: its time (unix s) at a moment of performance.now(). Each answer says the second
@@ -487,5 +551,5 @@ export const KANTE_LIVE = {
   /** The largest box the engine answers /api/vehicles for (its diagonal, km). */
   MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
   /** Seconds until it leaves, seconds of walking left. */
-  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, pointAtShare, bodyAt, hopAt, wayShare, glide, showVehicle, setLineRefiner, relayLines, engineClock, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
+  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, pointAtShare, bodyAt, hopAt, wayShare, glide, showVehicle, setLineRefiner, relayLines, linesCame, layBudget, isLaid, engineClock, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
 };

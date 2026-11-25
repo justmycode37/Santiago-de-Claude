@@ -75,7 +75,7 @@ function pageLayout(): Layout {
         roads.add(`${x}/${y}`, tileLines(await get(x, y), 14, x, y, 'transportation', ROAD_CLASSES));
         added = true;
       }
-      if (added) KANTE_LIVE.relayLines();
+      if (added) { KANTE_LIVE.linesCame(); KANTE_LIVE.relayLines(); }
     },
     answer(vs, t, atMs) {
       clock.answer(t, atMs);
