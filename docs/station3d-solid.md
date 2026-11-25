@@ -69,8 +69,13 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   - **stairs** with closed strings, a balustrade and a handrail on each side; escalators with their handrails;
   - the survey's **pillars** (to the ceiling, or up to the canopy over them) and **platform canopies** (at the height
     of a building or roof of the model over them, else 4.6 m);
-  - the eye and the yellow line on the floor keep 0.65 m off walls, pillars and shops (OpenStreetMap often draws a
-    passage's path along its edge; a point inside a shop is moved out through its nearest side).
+  - the eye, the yellow line on the floor (and the walker of the play-through) follow one smoothed copy of the way:
+    on walks averaged over ±2.5 m (OpenStreetMap's corners and zig-zags rounded; stairs, escalators and lifts keep
+    their own line), kept 0.65 m off walls, pillars and shops (OpenStreetMap often draws a passage's path along its
+    edge; a point inside a shop is moved out through its nearest side).
+
+  First person's shader programs are compiled ahead, while the view is idle (`prewarm`), and the trains' skins are
+  uploaded when they are made: entering first person and a train coming into view do not stop the view.
 
   The eye looks where the way goes 7 m ahead (2.5 m on stairs and escalators, pitch at most 20°), turning by yaw and
   pitch. In a lift the view gives way to its display over the car's walls (direction, the floor it passes, where it

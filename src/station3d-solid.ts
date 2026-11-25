@@ -1361,8 +1361,72 @@ export async function open(opts: SolidOptions) {
     return route;
   }
   function routePoints() { return route!.points.map(([x, y, l]) => V(x, y, zOf(l)).setY(zOf(l) * S + ROUTE_Y)); }
+  // ------------------------------------------------------------------ the walk, smoothed
+  // OpenStreetMap's paths turn in sharp corners and zig-zag where a path is drawn in short pieces; the eye, the walker
+  // and the line on the floor follow one smoothed copy of the way instead: samples every 0.5 m, on walks averaged over
+  // ±2.5 m (never across a stair, an escalator, a lift or another floor, so they keep their own line), then kept off
+  // walls, pillars and shops (in first person). `along` stays the way's metres (route.dists): the steps and the sign
+  // keep their distances.
+  interface SmoothWay { along: number[]; x: number[]; y: number[]; l: number[]; walk: boolean[] }
+  let smooth: SmoothWay | null = null;
+  const SMOOTH_M = 0.5, SMOOTH_W = 2.5;
+  function buildSmooth() {
+    smooth = null;
+    if (!route || route.same) return;
+    const r = route, sw: SmoothWay = { along: [], x: [], y: [], l: [], walk: [] };
+    for (const s of r.steps) {
+      const walk = s.kind === 'walk' || s.kind === 'arrive';
+      for (let k = s.from; k < s.to; k++) {
+        const [x0, y0, l0] = r.points[k], [x1, y1, l1] = r.points[k + 1], a0 = r.dists[k], a1 = r.dists[k + 1];
+        if (a1 - a0 < 1e-3) continue;   // a lift: no metres
+        const n = Math.max(1, Math.ceil((a1 - a0) / SMOOTH_M));
+        for (let j = sw.along.length && Math.abs(sw.along[sw.along.length - 1] - a0) < 1e-6 && sw.l[sw.l.length - 1] === l0 ? 1 : 0; j <= n; j++) {
+          const f = j / n;
+          sw.along.push(a0 + (a1 - a0) * f); sw.x.push(x0 + (x1 - x0) * f); sw.y.push(y0 + (y1 - y0) * f); sw.l.push(l0 + (l1 - l0) * f); sw.walk.push(walk);
+        }
+      }
+    }
+    const N = sw.along.length;
+    if (N < 2) return;
+    const ok = (i: number, j: number) => sw.walk[j] && Math.round(sw.l[j]) === Math.round(sw.l[i]);
+    const x = sw.x.slice(), y = sw.y.slice();
+    for (let i = 0; i < N; i++) {
+      if (!sw.walk[i]) continue;
+      // as far either way as both sides allow (the ends of a walk stay where they are)
+      let w = SMOOTH_W;
+      for (let j = i - 1; j >= 0 && sw.along[i] - sw.along[j] <= w; j--) if (!ok(i, j)) { w = Math.min(w, sw.along[i] - sw.along[j + 1]); break; }
+      for (let j = i + 1; j < N && sw.along[j] - sw.along[i] <= w; j++) if (!ok(i, j)) { w = Math.min(w, sw.along[j - 1] - sw.along[i]); break; }
+      if (i === 0 || i === N - 1) w = 0;
+      let sx = 0, sy = 0, n = 0;
+      for (let j = i; j >= 0 && sw.along[i] - sw.along[j] <= w + 1e-6; j--) { sx += sw.x[j]; sy += sw.y[j]; n++; }
+      for (let j = i + 1; j < N && sw.along[j] - sw.along[i] <= w + 1e-6; j++) { sx += sw.x[j]; sy += sw.y[j]; n++; }
+      x[i] = sx / n; y[i] = sy / n;
+    }
+    for (let i = 0; i < N; i++) if (sw.walk[i]) [x[i], y[i]] = clearOfWalls(x[i], y[i], sw.l[i], CLEAR_M);
+    sw.x = x; sw.y = y;
+    smooth = sw;
+  }
+  /** The smoothed way at `along` metres: [x, y, level]; null without one. */
+  function smoothAt(along: number): XYL | null {
+    const s = smooth;
+    if (!s) return null;
+    let lo = 0, hi = s.along.length - 1;
+    if (along <= s.along[0]) return [s.x[0], s.y[0], s.l[0]];
+    if (along >= s.along[hi]) return [s.x[hi], s.y[hi], s.l[hi]];
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s.along[m] <= along) lo = m; else hi = m; }
+    const f = (along - s.along[lo]) / Math.max(1e-6, s.along[hi] - s.along[lo]);
+    return [s.x[lo] + (s.x[hi] - s.x[lo]) * f, s.y[lo] + (s.y[hi] - s.y[lo]) * f, s.l[lo] + (s.l[hi] - s.l[lo]) * f];
+  }
+  /** Where the walker (or the eye) is on a pose of the play-through: the smoothed way on a walk, the way itself on a
+   *  stair, an escalator, a ramp or in a lift (world, at ROUTE_Y). */
+  function walkPos(pose: { p: THREE.Vector3; i: number; along: number }) {
+    const st = route && route.steps[pose.i];
+    const q = st && (st.kind === 'walk' || st.kind === 'arrive') ? smoothAt(pose.along) : null;
+    return q ? V(q[0], q[1], zOf(q[2])).setY(zOf(q[2]) * S + ROUTE_Y) : pose.p;
+  }
   function drawRoute() {
     if (routeGroup) { scene.remove(routeGroup); freeGroup(routeGroup); }
+    buildSmooth();
     routeGroup = new THREE.Group();
     if (pov) { floorLine(routeGroup); scene.add(routeGroup); activeDrawn = -2; drawActive(); return; }
     const pts = routePoints();
@@ -1441,18 +1505,11 @@ export async function open(opts: SolidOptions) {
   // every 4 m; over stairs and escalators a little higher, on their steps
   function floorLine(g: THREE.Group) {
     const bands: THREE.BufferGeometry[] = [], marks: THREE.Matrix4[] = [];
-    const lift = new Float32Array(route!.points.length);
-    for (const st of route!.steps) if (st.kind !== 'walk' && st.kind !== 'arrive') for (let k = st.from; k <= st.to; k++) lift[k] = 0.22;
-    const at = (x0: number, y0: number, l: number, up: number) => {
-      const [x, y] = up ? [x0, y0] : clearOfWalls(x0, y0, l, CLEAR_M);   // on stairs it stays on them
-      return V(x, y, zOf(l)).setY(zOf(l) * S + 0.03 + up);
-    };
-    // the points of the way, walks in pieces of at most 1.5 m (each kept off the walls and pillars)
-    const P = route!.points, line: THREE.Vector3[] = [at(P[0][0], P[0][1], P[0][2], lift[0])];
-    for (let k = 0; k + 1 < P.length; k++) {
-      const [x0, y0, l0] = P[k], [x1, y1, l1] = P[k + 1], up = lift[k] && lift[k + 1] ? lift[k] : 0;
-      const n = up ? 1 : Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 1.5));
-      for (let j = 1; j <= n; j++) line.push(j === n ? at(x1, y1, l1, lift[k + 1]) : at(x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n, l0 + (l1 - l0) * j / n, up));
+    // the smoothed way (the eye follows the same), a little higher over stairs and escalators, on their steps
+    const line: THREE.Vector3[] = [];
+    if (smooth) for (let i = 0; i < smooth.along.length; i++) {
+      const l = smooth.l[i];
+      line.push(V(smooth.x[i], smooth.y[i], zOf(l)).setY(zOf(l) * S + 0.03 + (smooth.walk[i] ? 0 : 0.22)));
     }
     let next = 2, run = 0;
     const q = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
@@ -1794,6 +1851,8 @@ export async function open(opts: SolidOptions) {
       group.add(m);
     }
     singlePass(group);
+    // the coaches' skins to the GPU now, not in the frame the train first comes into view
+    for (const t of textures) renderer.initTexture(t);
     return { input, layout, group, y, zone, textures, box: new THREE.Box3().setFromObject(group) };
   }
   /** A typical train (SolidTrainInput.ambient) at the end and at the start of the way when they are at a train's platform
@@ -2460,18 +2519,19 @@ export async function open(opts: SolidOptions) {
     if (pose.i !== stepIdx || cueNext) { cueNext = false; cue(pose.i); }
     else if (now - labelTick > 400) { labelTick = now; refreshBeacon(); }   // "In 30 m"
     if (pov) {
-      povLook(eyeAt(pose.p, dt), pose.along, pose.dir == null, dt);
+      povLook(eyeAt(walkPos(pose), dt), pose.along, pose.dir == null, dt);
       const st = route!.steps[pose.i];
       if (st && st.kind === 'elevator') liftShow(st, levelOfZ((pose.p.y - ROUTE_Y) / S));
       else liftHide();
     } else {
-      walker!.position.copy(pose.p).setY(pose.p.y - ROUTE_Y + 0.3);
+      const wp = walkPos(pose);
+      walker!.position.copy(wp).setY(wp.y - ROUTE_Y + 0.3);
       walker!.rotation.y = -heading;
     }
     if (!pov && !anim) {
-      const k = 1 - Math.exp(-dt * 2.5);
-      controls.target.lerp(pose.p, k);
-      camera.position.lerp(chasePos(pose.p, heading), k);
+      const k = 1 - Math.exp(-dt * 2.5), wp = walkPos(pose);
+      controls.target.lerp(wp, k);
+      camera.position.lerp(chasePos(wp, heading), k);
     }
     if (done) {
       playing = false; playT = 0;
@@ -2524,7 +2584,9 @@ export async function open(opts: SolidOptions) {
   /** First person: stand where step i starts, looking along it. */
   function povJump(i: number) {
     if (!route) return;
-    const st = route.steps[i], [x, y, l] = route.points[st.from];
+    const st = route.steps[i], [x0, y0, l0] = route.points[st.from];
+    const q = (st.kind === 'walk' || st.kind === 'arrive') && smoothAt(route.dists[st.from]);
+    const [x, y, l] = q || [x0, y0, l0];
     const eye = eyeAt(V(x, y, zOf(l)).setY(zOf(l) * S + ROUTE_Y));
     // look along the way: the first point ahead that is not straight up or down (a lift) — this step's or a later one
     aimAlong(st.from);
@@ -2546,16 +2608,9 @@ export async function open(opts: SolidOptions) {
     }
     alongPlatform();
   }
-  /** The eye over a point of the way (world, at ROUTE_Y), kept 0.7 m off the walls; the push is smoothed (dt), or set at
-   *  once (no dt). */
-  const eyeOff = new THREE.Vector2();
-  function eyeAt(p: THREE.Vector3, dt?: number) {
-    const x = p.x + cx, y = -p.z + cy, level = levelOfZ((p.y - ROUTE_Y) / S);
-    const st = route && stepIdx >= 0 ? route.steps[stepIdx] : null;
-    const [x2, y2] = st && st.kind !== 'walk' && st.kind !== 'arrive' ? [x, y] : clearOfWalls(x, y, level, CLEAR_M);
-    const k = dt == null ? 1 : 1 - Math.exp(-dt * 6);
-    eyeOff.x += (x2 - x - eyeOff.x) * k; eyeOff.y += (y2 - y - eyeOff.y) * k;
-    return new THREE.Vector3(p.x + eyeOff.x, p.y - ROUTE_Y + EYE, p.z - eyeOff.y);
+  /** The eye over a point of the way (world, at ROUTE_Y; on a walk the smoothed way, already off the walls). */
+  function eyeAt(p: THREE.Vector3, _dt?: number) {
+    return new THREE.Vector3(p.x, p.y - ROUTE_Y + EYE, p.z);
   }
   function lookFrom(eye: THREE.Vector3) {
     settle();
@@ -2565,7 +2620,7 @@ export async function open(opts: SolidOptions) {
   }
   function povLook(eye: THREE.Vector3, along: number, inLift: boolean, dt: number) {
     const L = route!.steps[stepIdx] && route!.steps[stepIdx].kind !== 'walk' ? 2.5 : 7;
-    const a = inLift ? null : SR.pointAt(route!, along + L);
+    const a = inLift ? null : smoothAt(along + L) || SR.pointAt(route!, along + L);
     if (a) {
       const want = V(a[0], a[1], zOf(a[2])).setY(zOf(a[2]) * S + EYE).sub(eye);
       const h = Math.hypot(want.x, want.z);
@@ -2663,16 +2718,60 @@ export async function open(opts: SolidOptions) {
   }
   function changed() { if (opts.onChange) opts.onChange({ route, step: stepIdx, focusLevel: stepIdx < 0 && mode.kind === 'floor' ? mode.id : null, playing: isPlaying(), pov }); }
 
+  // ------------------------------------------------------------------ first person's shaders, ahead of time
+  // Entering first person needs some twenty shader programs at once: compiled then, they stop the view for a third of a
+  // second here, longer on a phone. So they are compiled while the view is idle: a tiny scene with one mesh per kind of
+  // first-person material, under first person's lights and fog. three.js keeps a program while a material uses it, so
+  // these materials live as long as the view; the build then finds its programs made.
+  let warmMats: THREE.Material[] = [], warmGeo: THREE.BufferGeometry | null = null, warmTimer = 0;
+  function prewarm() {
+    warmTimer = 0;
+    if (warmMats.length || disposed || !route || route.same) return;
+    const P = pal(), S2 = surfaces(), sc = new THREE.Scene();
+    sc.fog = new THREE.Fog(P.bg, 16, FOG_FAR);
+    sc.add(new THREE.HemisphereLight(0xffffff, 0xd6d0c6, 2.3), new THREE.DirectionalLight(0xffffff, 0.55));
+    const holes: Holes = { holes: Array.from({ length: HOLES }, () => new THREE.Vector4()), r2: new Array(HOLES).fill(0), n: 1, box: new THREE.Vector4() };
+    const glass = { color: P.glass, transparent: true, opacity: 0.2, depthWrite: false };
+    warmMats = [
+      holed(new THREE.MeshLambertMaterial({ color: P.povFloor, map: S2.floor }), holes, ''),
+      holed(ceilingMat(P), holes, ''), ceilingMat(P),
+      new THREE.MeshLambertMaterial({ color: P.povWall, map: S2.wall, side: THREE.DoubleSide }),
+      new THREE.MeshLambertMaterial({ map: S2.shop.shop.map, emissive: 0xffffff, emissiveMap: S2.shop.shop.glow, side: THREE.DoubleSide }),
+      new THREE.MeshLambertMaterial({ color: P.povCeil }), new THREE.MeshLambertMaterial({ color: P.povWall, side: THREE.DoubleSide }),
+      new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }),
+      new THREE.MeshLambertMaterial({ color: ESC_UP, map: textures.chevron, side: THREE.DoubleSide }),
+      new THREE.MeshLambertMaterial({ ...glass, side: THREE.DoubleSide, forceSinglePass: true }), new THREE.MeshLambertMaterial({ ...glass }),
+      new THREE.MeshBasicMaterial({ color: ROUTE, side: THREE.DoubleSide }), new THREE.MeshBasicMaterial({ color: ROUTE }),
+      new THREE.LineBasicMaterial({ color: P.glassEdge, transparent: true, opacity: 0.7 }),
+      holoMaterial(HOLO, S2.floor, !dark()),
+    ];
+    warmGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    warmGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Array(warmGeo.getAttribute('position').count * 3).fill(1), 3));
+    for (const m of warmMats) sc.add(m instanceof THREE.LineBasicMaterial ? new THREE.LineSegments(warmGeo, m) : new THREE.Mesh(warmGeo, m));
+    // the instanced ones: arrowheads on the line, pins (with a colour each)
+    const arrows = new THREE.InstancedMesh(warmGeo, warmMats[11], 1), pins = new THREE.InstancedMesh(warmGeo, warmMats[5], 1);
+    pins.setColorAt(0, new THREE.Color(1, 1, 1));
+    sc.add(arrows, pins);
+    renderer.compile(sc, camera);
+  }
+  /** Once the view is still (or after 2 s), first person's shaders. */
+  function prewarmSoon() {
+    if (warmMats.length || warmTimer) return;
+    const idle = (window as Window & { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    warmTimer = idle ? idle(prewarm, { timeout: 2000 }) : window.setTimeout(prewarm, 1500);
+  }
+
   // ------------------------------------------------------------------ start
   if (opts.from && opts.to) plan(opts.from, opts.to, opts.prefs, true);
   build();
   resize();
   whole();
+  prewarmSoon();
 
   return {
     model, solid, levels,
     get route() { return route; },
-    plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { const wasPov = pov; if (pov) { const tr = trains.map((t) => t.input); leavePov(); tr.forEach((t) => drawTrain(t)); } halt(); snapPrev = null; plan(from, to, p); if (wasPov) replayFix(); whole(); return route; },
+    plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { prewarmSoon(); const wasPov = pov; if (pov) { const tr = trains.map((t) => t.input); leavePov(); tr.forEach((t) => drawTrain(t)); } halt(); snapPrev = null; plan(from, to, p); if (wasPov) replayFix(); whole(); return route; },
     step: (i: number) => { halt(); if (pov && route) povJump(Math.max(0, Math.min(route.steps.length - 1, i))); else step(i); },
     whole: () => { setPov(false); halt(); whole(); }, floor: (id: number | null) => { setPov(false); halt(); floor(id); },
     next: () => { halt(); if (pov && route) povJump(Math.min(route.steps.length - 1, stepIdx + 1)); else step(stepIdx + 1); },
@@ -2701,7 +2800,7 @@ export async function open(opts: SolidOptions) {
         return [n, r && !r.incomplete && r.toSectors && r.toSectors.length ? r.seconds : Infinity];
       })),
     reset: () => { halt(); if (pov && route) povJump(Math.max(0, stepIdx)); else if (stepIdx >= 0) step(stepIdx); else whole(); },
-    dispose: () => { disposed = true; playing = false; clearTimeout(occTimer); wallIndex.clear(); if (stepper) clearInterval(stepper); cancelAnimationFrame(raf); clearTimeout(glowTimer);
+    dispose: () => { disposed = true; playing = false; warmMats.forEach((m) => m.dispose()); if (warmGeo) warmGeo.dispose(); clearTimeout(occTimer); wallIndex.clear(); if (stepper) clearInterval(stepper); cancelAnimationFrame(raf); clearTimeout(glowTimer);
       for (const g of [activeGroup, you, walker]) if (g) freeGroup(g); document.removeEventListener('visibilitychange', onVisible); if (world) freeGroup(world); if (routeGroup) freeGroup(routeGroup); dropTrain(); dropAmbient();
       textures.chevron.dispose(); textures.stripe.dispose(); freeSurfaces(); ro.disconnect(); mq.removeEventListener('change', onScheme); controls.dispose(); renderer.dispose(); mount.removeChild(renderer.domElement); mount.removeChild(labelsEl); mount.removeChild(liftEl); },
     /** Tests: the camera on (x, y) of a level, from dist metres at elev degrees, from the compass bearing yaw. */
