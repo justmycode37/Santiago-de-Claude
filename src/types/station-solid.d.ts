@@ -50,6 +50,17 @@ interface StationSolidLabel {
   ref?: string;
 }
 
+/** The cadastral survey (Amtliche Vermessung) in a station, for the first-person view (tools/station3d_av.py): walls
+ *  it measured below ground (near a floor's edge), the floor between that edge and such a wall, pillars, canopies over
+ *  the platforms (top: metres over level 0). */
+interface StationSolidAv {
+  walls: { level: number; line: XY[] }[];
+  fills: { level: number; ring: XY[] }[];
+  /** top: metres over level 0, up to the canopy over the pillar (above ground). */
+  pillars: { level: number; ring: XY[]; top?: number }[];
+  canopies: { level: number; ring: XY[]; top: number }[];
+}
+
 interface StationSolid {
   key: string;
   name: string;
@@ -65,6 +76,8 @@ interface StationSolid {
   tracks: StationSolidTrack[];
   labels: StationSolidLabel[];
   shell: StationShell[];
+  /** Where the canton publishes the cadastral survey openly. */
+  av?: StationSolidAv;
 }
 
 /** stations3d/<key>.solid.js adds its data here when it is loaded. */
