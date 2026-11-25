@@ -66,8 +66,10 @@ fake('../engine.ts', { KANTE: { available: () => true, uicOf: () => null, failur
 // a station model without a way through (its router finds none)
 fake('../station3d.ts', { Station3D: { loadData: () => Promise.resolve({}), preload: nothing }, stationRouter: () => ({ route: () => null, toLngLat: nothing }) });
 const element = () => ({ className: '', title: '', setAttribute: nothing, addEventListener: nothing, appendChild: nothing });
-Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { createElement: element },
-  maplibregl: { Marker: class { setLngLat() { return this; } } } });
+Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { createElement: element } });
+// the map library, which the modules import (src/app/tracking.ts: its markers)
+const maplibre = { Marker: class { setLngLat() { return this; } } };
+mock.module('maplibre-gl', (hasExports ? { exports: maplibre } : { namedExports: maplibre }) as Parameters<typeof mock.module>[1]);
 
 // ---- the modules tested, as far as these tests call them ----
 interface Dir { kind: string; text: string; coords: LngLat[] }

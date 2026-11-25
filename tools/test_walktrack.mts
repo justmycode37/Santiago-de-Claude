@@ -61,7 +61,9 @@ fake('../station3d.ts', { Station3D: { loadData: () => Promise.resolve({}), prel
   stationRouter: () => ({ route: () => null, toLngLat: nothing }) });
 class Marker { _map: object | null = null; at: LngLat | null = null; setLngLat(ll: LngLat) { this.at = ll; return this; } addTo() { this._map = {}; return this; } remove() { return this; } }
 const element = () => ({ className: '', title: '', style: {}, setAttribute: nothing, addEventListener: nothing, appendChild: nothing });
-Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { createElement: element }, maplibregl: { Marker } });
+Object.assign(globalThis, { requestAnimationFrame: (f: () => void) => f(), document: { createElement: element } });
+// the map library, which the modules import (src/app/tracking.ts: its markers)
+mock.module('maplibre-gl', (hasExports ? { exports: { Marker } } : { namedExports: { Marker } }) as Parameters<typeof mock.module>[1]);
 
 // ---- the modules tested, as far as these tests call them ----
 interface Feature { geometry: { type: string; coordinates: LngLat[] }; properties: { kind: string; step: number; done?: boolean } }

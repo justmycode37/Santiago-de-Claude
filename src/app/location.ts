@@ -1,4 +1,5 @@
 // ---------- Current location ----------
+import * as maplibregl from 'maplibre-gl';
 import { CH_BOUNDS, map } from './map.ts';
 import { showToast } from '../toast.ts';
 import { destMarker, inputs, startMarker } from './search.ts';

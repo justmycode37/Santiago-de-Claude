@@ -1,3 +1,4 @@
+import * as maplibregl from 'maplibre-gl';
 import { root } from '../theme.ts';
 // ---------- Map ----------
 export const CH_BOUNDS: [LngLat, LngLat] = [[5.7, 45.6], [10.7, 48.0]];

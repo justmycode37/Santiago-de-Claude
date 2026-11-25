@@ -141,6 +141,7 @@ export function start() {
   viewOptions.forEach((b) => b.addEventListener('click', () => {
     setMenu(false);
     menuBtn.focus();
-    setMapView(b.dataset.view as MapView).catch(() => showToast('The satellite view could not be loaded.'));
+    const view = b.dataset.view as MapView;
+    setMapView(view).catch(() => showToast(view === 'satellite' ? 'The satellite view could not be loaded.' : 'The map could not be loaded.'));
   }));
 }

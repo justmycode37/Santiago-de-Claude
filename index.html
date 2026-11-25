@@ -13,9 +13,12 @@
     { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
                    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
   </script>
+  <!-- MapLibre for the map: the page's script imports it from this address (scripts/build.mts, the version in
+       package.json); fetched straight away. The build checks that this and the stylesheet are of that version. -->
+  <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs" crossorigin />
   <link rel="stylesheet" href="pricing.css" />
   <link rel="stylesheet" href="ticket-pricing.css" />
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.css" />
   <!-- build: src/inline/theme.ts -->
   <!-- build: src/inline/first-visit.ts -->
   <!-- Open the connections the app needs while the page is still loading (map tiles, search, timetable) -->
@@ -23,7 +26,7 @@
   <link rel="preconnect" href="https://api3.geo.admin.ch" crossorigin />
   <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
   <link rel="preconnect" href="https://kante.omniroute.app" crossorigin />
-  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://unpkg.com" crossorigin />
   <!-- build: src/inline/early.ts -->
   <!-- build: src/inline/updated.ts -->
   <style>
@@ -1861,7 +1864,6 @@
 
   <!-- The app's language: a plain script, so that it runs before maplibre has downloaded (src/translate.ts) -->
   <!-- build: src/translate.ts -->
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <!-- Generated data and the optional local config: plain scripts that put themselves on window -->
   <script src="swiss-workshops.js"></script>
   <script src="bern-events.js"></script>

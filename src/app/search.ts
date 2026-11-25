@@ -1,4 +1,5 @@
 // ---------- Search (swisstopo SearchServer) ----------
+import * as maplibregl from 'maplibre-gl';
 import type { PlaceKind } from '../places.ts';
 
 /** One of the trip's two fields: where it starts ('from') and where it goes ('to'). */
