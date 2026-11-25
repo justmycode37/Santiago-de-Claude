@@ -423,5 +423,5 @@ export function endJourney(keepPlan?: boolean) {
   setField('from', '');
   blurSearch();
   setPlanOpen(false);
-  if (had && userLngLat) map.flyTo({ center: userLngLat, zoom: 15 });
+  if (had && userLngLat) map.flyTo({ center: userLngLat, zoom: 15, bearing: 0, pitch: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
 }

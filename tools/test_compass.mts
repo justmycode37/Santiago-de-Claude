@@ -1,7 +1,7 @@
 // Tests for src/compass.ts: where the phone faces, and how wide the blue dot's beam is (src/app/heading.ts).
 //
 //   node tools/test_compass.mts
-import { CompassFilter, SPREAD_MIN, angDiff, compassOff, compassReading } from '../src/compass.ts';
+import { CompassFilter, CourseTracker, SPREAD_MIN, angDiff, bearingDeg, compassOff, compassReading, swissDeclination } from '../src/compass.ts';
 
 let passed = 0, failed = 0;
 const check = (ok: boolean, what: string) => { if (ok) passed++; else failed++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${what}`); };
@@ -64,6 +64,39 @@ check(near(mid.deg, 355), `one step 350° → 10° goes a quarter of the way: 35
 const f = run([[0, 8], [0, 8]]);
 f.update({ deg: 180, acc: 8 }, 10000);
 check(near(f.deg, 180), 'after a pause, starts again from the new reading');
+
+console.log('True north');
+const at2026 = Date.UTC(2026, 10, 25);
+check(near(swissDeclination(7.44, at2026), 3.39, 0.1), `Bern, late 2026: 3.4° (${swissDeclination(7.44, at2026).toFixed(2)}°)`);
+check(near(swissDeclination(6.14, at2026), 3.08, 0.1), 'Geneva: 3.1°');
+check(near(swissDeclination(9.37, at2026), 3.85, 0.1), 'St. Gallen: 3.8°');
+check(near(swissDeclination(7.44, Date.UTC(2029, 0, 1)), 3.66, 0.1), 'Bern, 2029: 3.7°');
+
+console.log('Direction you go (GPS)');
+const east = (m: number): [number, number] => [7.44 + m / (111320 * Math.cos(46.95 * Math.PI / 180)), 46.95];
+const north = (m: number): [number, number] => [7.44, 46.95 + m / 110540];
+check(near(bearingDeg(east(0), east(100)), 90) && near(bearingDeg(north(0), north(100)), 0) && near(bearingDeg(north(100), north(0)), 180), 'bearing: east 90°, north 0°, south 180°');
+{
+  const c = new CourseTracker();
+  c.fix(north(0), 5, null, null, 0);
+  check(c.fix(north(6), 5, null, null, 4000) == null, 'moved 6 m with fixes ±5 m: not yet clearly anywhere → none');
+  const k = c.fix(north(14), 5, null, null, 9000);
+  check(near(k?.deg, 0) && k!.spread >= 12 && k!.spread <= 45, `moved 14 m north, no heading from the phone → 0° (±${k?.spread.toFixed(0)}°)`);
+  check(c.fix(north(14), 5, null, 0.2, 10000) == null, 'standing (0.2 m/s) → forgotten');
+  const p = c.fix(north(14), 5, 270, 1.3, 11000);
+  check(near(p?.deg, 270) && p!.spread === 25, 'the phone says 270° at 1.3 m/s → 270°');
+  const d = new CourseTracker();
+  d.fix(east(0), 40, null, null, 0);
+  check(d.fix(east(50), 40, null, null, 5000) == null, 'fixes ±40 m: too rough → none');
+  const s = new CourseTracker();
+  s.fix(east(0), 5, null, null, 0);
+  check(s.fix(east(20), 5, null, null, 60000) == null, 'the earlier fix a minute old → starts again from this one');
+  const h = new CourseTracker();
+  h.fix(east(0), 80, null, 0, 0); // standing in a station hall: a rough fix
+  h.fix(east(0), 5, null, null, 2000); // outside
+  const o = h.fix(east(15), 5, null, null, 12000);
+  check(near(o?.deg, 90), 'a rough fix indoors is not measured from: 15 m east once outside → 90°');
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
