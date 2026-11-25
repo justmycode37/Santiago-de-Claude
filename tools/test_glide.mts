@@ -105,5 +105,25 @@ console.log('speeding up and braking (the engine\'s motion)');
   setLineRefiner(null);
 }
 
+console.log('the vehicle\'s body');
+{
+  const { bodyAt, distKm } = KANTE_LIVE;
+  const len = (pts: LngLat[]) => pts.slice(1).reduce((m, p, k) => m + distKm(pts[k], p) * 1000, 0);
+  // the L-shaped hop (1.1 km east, 1.1 km north): a 40 m tram halfway, at the corner, bends round it
+  const enc = '_~n}G_cll@?qzAo}@?';
+  const tram = { from: [7.44, 46.94] as LngLat, to: [7.45465, 46.95] as LngLat, dep: 0, arr: 100, hopPath: enc, line: { mode: 'tram' as KanteMode } };
+  const b = bodyAt(tram, 0.5, 40)!;
+  check(!!b && Math.abs(len(b) - 40) < 0.5 && b.length === 3, `40 m long along its way, round the corner (${b && len(b).toFixed(1)} m, ${b && b.length} points)`);
+  // at the start of its hop: half of it behind the stop, straight back
+  const b0 = bodyAt(tram, 0, 40)!;
+  check(Math.abs(len(b0) - 40) < 0.5 && b0[0][0] < 7.44, `at the stop it left: across it (${len(b0).toFixed(1)} m)`);
+  // standing, with the hop it leaves on: across its platform, along the way out
+  const at = { from: [7.44, 46.94] as LngLat, to: [7.44, 46.94] as LngLat, dep: 0, arr: 0, point: [7.44, 46.94] as LngLat, line: { mode: 'tram' as KanteMode },
+    onward: { nextSeq: 2, to: [7.45465, 46.95] as LngLat, dep: 10, arr: 100, hopPath: enc } };
+  const bs = bodyAt(at, 0, 40)!;
+  check(!!bs && Math.abs(len(bs) - 40) < 0.5, `standing at a stop: across its platform (${bs && len(bs).toFixed(1)} m)`);
+  check(bodyAt({ ...at, onward: undefined }, 0, 40) === null, 'standing, nothing known of its way: no body (its pictogram)');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

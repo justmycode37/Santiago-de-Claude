@@ -44,7 +44,7 @@ fake('live-engine.ts', { rideTrip: () => null });
 // the header's pieces as text: a line's badge is its name
 fake('sheet.ts', { MODE_NAME: {}, h: (_tag: string, _cls: string, ...kids: unknown[]) => kids.join(''), kBadge: (j: { name: string }) => j.name,
   kDelay: (m: number) => `+${m}`, quayOf: () => null });
-fake('live-vehicles.ts', { fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`), levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
+fake('live-vehicles.ts', { vehShowsTrip: () => false, fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`), levelShort: String, platformOf: () => '–', platformWord: () => 'Platform',
   splitPlatform: () => ({}), vehUpdate: nothing });
 fake('sheet-content.ts', { connStart: (c: { t0: number }) => c.t0, connEnd: (c: { t1: number }) => c.t1, queueSheet: nothing, renderHead: nothing,
   s3Plan: () => null, s3Prefs: () => ({}) });

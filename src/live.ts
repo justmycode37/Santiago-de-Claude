@@ -246,6 +246,49 @@ function pointAtShare(v: KanteVehicleHop, f: number): LngLat {
   if (v.point && v.from[0] === v.to[0] && v.from[1] === v.to[1]) return v.point;
   return [v.from[0] + (v.to[0] - v.from[0]) * f, v.from[1] + (v.to[1] - v.from[1]) * f];
 }
+// ---- The vehicle's body: the stretch of its way it covers, `len` metres long, centred where it is (where it stands at
+//      a stop is its platform's middle). Onwards it runs on along its next hop; behind the start of the hop it is on
+//      (unknown) it carries on straight back. ----
+const railish = (v: KanteVehicleHop) => !!v.line && RAIL_MODES.has(String(v.line.mode));
+/** The points of line h from km a to km b (a < 0: straight back from its start; past its end: on along `next`, else straight on). */
+function stretch(h: HopLine, a: number, b: number, next: HopLine | null): LngLat[] {
+  const total = h.cum[h.cum.length - 1], out: LngLat[] = [];
+  const along = (line: HopLine, km: number): LngLat => {
+    const t = line.cum[line.cum.length - 1];
+    if (km <= 0 || t <= 0) {
+      const [p, q] = [line.pts[0], line.pts[1]], l = distKm(p, q) || 1e-9; // straight back from the start
+      return [p[0] - (q[0] - p[0]) * (-km / l), p[1] - (q[1] - p[1]) * (-km / l)];
+    }
+    if (km >= t) {
+      const n = line.pts.length, [p, q] = [line.pts[n - 2], line.pts[n - 1]], l = distKm(p, q) || 1e-9; // straight on
+      return [q[0] + (q[0] - p[0]) * ((km - t) / l), q[1] + (q[1] - p[1]) * ((km - t) / l)];
+    }
+    return alongLine(line, km / t);
+  };
+  out.push(along(h, a));
+  for (let k = 1; k < h.pts.length - 1; k++) if (h.cum[k] > a && h.cum[k] < b) out.push(h.pts[k]);
+  if (b <= total || !next) out.push(along(h, b));
+  else {
+    out.push(h.pts[h.pts.length - 1]);
+    const rest = b - total;
+    for (let k = 1; k < next.pts.length - 1; k++) if (next.cum[k] < rest) out.push(next.pts[k]);
+    out.push(along(next, rest));
+  }
+  return out;
+}
+/** The stretch of its way a vehicle shown a share f along its hop covers, `lenM` metres long; null where not known. */
+function bodyAt(v: KanteVehicleHop, f: number, lenM: number): LngLat[] | null {
+  const half = lenM / 2000, o = v.onward;
+  const next = o && o.hopPath && (!o.hopSpan || o.hopSpan[0] <= 0) ? hopLine(o.hopPath, railish(v)) : null;
+  if (standingAt(v)) return next ? stretch(next, -half, half, null) : null; // across its platform, along the way out
+  const h = v.hopPath ? hopLine(v.hopPath, railish(v)) : null;
+  if (!h) return null;
+  const [a, b] = v.hopSpan || [0, 1], total = h.cum[h.cum.length - 1];
+  const km = (b > a ? (clamp01(f) - a) / (b - a) : 0) * total;
+  // on the hop's last part sent, the onward hop goes on from where it ends
+  return stretch(h, km - half, km + half, b >= 1 ? next : null);
+}
+
 // ---- Gliding: what is shown moves smoothly towards where the data puts the vehicle, along its way. A newer answer that
 //      puts it a little ahead or behind is not jumped to: the shown place goes on at up to twice the vehicle's pace to
 //      catch up, or slows down (never backwards) to let it come; a gap of more than JUMP_S of travel is jumped. ----
@@ -347,5 +390,5 @@ export const KANTE_LIVE = {
   /** The largest box the engine answers /api/vehicles for (its diagonal, km). */
   MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
   /** Seconds until it leaves, seconds of walking left. */
-  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, pointAtShare, hopAt, wayShare, glide, showVehicle, setLineRefiner, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
+  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, pointAtShare, bodyAt, hopAt, wayShare, glide, showVehicle, setLineRefiner, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
 };

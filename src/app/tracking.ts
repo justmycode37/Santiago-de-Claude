@@ -8,6 +8,7 @@ import { fixAge, fixTime, gpsOn, userAccuracy, userLngLat, userMarker } from './
 import { destMarker } from './search.ts';
 import { hasForecast, icon, journeyEnd, lineLabel, lineVars, liveMs, modeOf, routedSpan, splitLine, stopName } from './journey-steps.ts';
 import { rideTrip } from './live-engine.ts';
+import { vehShowsTrip } from './live-vehicles.ts';
 import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
 import { distKm, lengthKm } from './routing.ts';
@@ -526,7 +527,9 @@ export function updateNowMarker() {
   const ride = journey.steps.find((st): st is JourneyRideStep => st.type === 'ride' && st.t0 != null && now >= st.t0 && now <= st.t1!);
   const gps = !!tracking.track && !tracking.track.off && gpsOn();
   // once GPS shows you on board, your blue dot is the vehicle
-  const v = ride && !(gps && journey.steps[tracking.track!.i] === ride && !tracking.track!.missed) ? vehicleState(ride, now) : null;
+  // (the live layer draws the ride's vehicle itself where it has it: live-vehicles.ts)
+  const drawn = !!ride && ride.s.legs.some((l) => vehShowsTrip(l.tripId, l.serviceDate));
+  const v = ride && !drawn && !(gps && journey.steps[tracking.track!.i] === ride && !tracking.track!.missed) ? vehicleState(ride, now) : null;
   if (v && ride!.path.length > 1) {
     const j = ride!.s.line, key = lineLabel(j) + '|' + j.category;
     if (vehEl.dataset.key !== key) {

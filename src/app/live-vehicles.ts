@@ -1,5 +1,7 @@
-// ---- Live vehicles on the map, from zoom 14: the engine's stream when it has one, else every 15 s. Not during
-//      a journey (the trip's own vehicle is shown on it), not while the page is hidden. ----
+// ---- Live vehicles on the map, from zoom 14: the engine's stream when it has one, else every 15 s. During a journey
+//      only the vehicles of its rides (at any zoom, the one coming to your stop too). Not while the page is hidden.
+//      From zoom 15 each is drawn as its body: as long and wide as such a vehicle is, along its way, in its line's
+//      colour. ----
 import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { platformPopup } from './platforms.ts';
@@ -7,6 +9,7 @@ import { vehicleGlyph } from './sprites.ts';
 import { lineColor, lineLabel, lineVars, modeOf } from './journey-steps.ts';
 import { h, kBadge } from './sheet.ts';
 import { journey } from './state.ts';
+import { isRide } from './journey-steps.ts';
 import { KANTE } from '../engine.ts';
 import { KANTE_LIVE } from '../live.ts';
 import { SETTINGS } from '../settings.ts';
@@ -35,20 +38,26 @@ export interface LiveVehicleProps {
   extra: boolean;
   /** Not live (or not updated for a while): drawn faded. */
   dim: boolean;
+  /** Its body is drawn (from zoom 15): no pictogram there, only the line number from VEH_PILL_ZOOM. */
+  body: boolean;
 }
 export type LiveVehicleCollection = GeoJSON.FeatureCollection<GeoJSON.Point, LiveVehicleProps>;
+/** What the map's 'kvehBody' source says about a vehicle's body: its width (m), colours (light and dark map), faded. */
+export interface LiveVehicleBodyProps { w: number; fill: string; edge: string; fillD: string; edgeD: string; dim: boolean }
+export const VEH_BODY_FC: GeoJSON.FeatureCollection<GeoJSON.LineString, LiveVehicleBodyProps> = { type: 'FeatureCollection', features: [] };
 // ---------------------------------------------------------------- small helpers (the end of live-vehicles.ts)
 
 /** A platform as the timetable writes it, taken apart: "7A-D" → num "7", sectors "A–D". */
 export interface PlatformParts { num: string; sectors: string }
 
 const VEH_MIN_ZOOM = 14;
+const BODY_MIN_ZOOM = 15; // from here a vehicle is drawn as its body
 const VEH_PILL_ZOOM = 16; // from here the vehicle shows its line number too
 export const VEH_FC: LiveVehicleCollection = { type: 'FeatureCollection', features: [] };
 const VEH_MAX = 300; // enough for a city centre, light enough for a phone
 let vehList: LiveVehicle[] = [], vehBox: KanteBbox | null = null, vehES: EventSource | null = null, vehPollTimer: number | null = null, vehBusy = false, vehReq = 0;
 // Drawing: about 12 times a second (smooth at street zoom, light enough for a phone), not while the map is moved
-const VEH_FRAME_MS = 80;
+const VEH_FRAME_MS = 80, VEH_FRAME_MOVING_MS = 160; // while the map is moved: less often, not not at all
 let vehRaf = 0, vehDrawnAt = 0;
 // ---- The base map's red lines (swisstopo's rails and tram tracks, layers public_transport…): a vehicle on rails is
 //      drawn on them where they run within RED_SNAP_M of the engine's way and the same way (KANTE_LIVE.setLineRefiner).
@@ -141,21 +150,53 @@ let vehAt = 0, vehT = 0;
 const VEH_DIM_MS = 45000, VEH_DROP_MS = 120000;
 // The engine's "now" for the vehicles: their t plus the time since they came (so a wrong phone clock doesn't matter)
 const vehNow = () => vehT + (Date.now() - vehAt) / 1000;
+// Metres on the map at zoom 15 and 22 in pixels (MapLibre's 512 px tiles, at Switzerland's latitude, ~47°)
+const PX_PER_M_15 = 32768 / 53483, PX_PER_M_22 = 4194304 / 53483;
 export function vehLayers(theme: Theme): maplibregl.LayerSpecification[] {
   const dark = theme === 'dark';
+  // estimated from the timetable alone (no live data, or none for a while): faded, so it is not taken for live
   const fade: maplibregl.ExpressionSpecification = ['case', ['get', 'dim'], .45, 1];
-  // What each vehicle is, as a pictogram in its line's colour (sprites.ts); from VEH_PILL_ZOOM with the line
-  // number in it. It grows with the map: small among the streets, about vehicle size close in.
+  const metres = (extra: number): maplibregl.ExpressionSpecification =>
+    ['interpolate', ['exponential', 2], ['zoom'], BODY_MIN_ZOOM, ['*', ['+', ['get', 'w'], extra], PX_PER_M_15], 22, ['*', ['+', ['get', 'w'], extra], PX_PER_M_22]];
+  // What each vehicle is, as a pictogram in its line's colour (sprites.ts); from BODY_MIN_ZOOM its body instead (as
+  // long and wide as such a vehicle, along its way, edged darker), from VEH_PILL_ZOOM with the line number on it.
   return [
+    { id: 'kveh-body-edge', type: 'line', source: 'kvehBody', minzoom: BODY_MIN_ZOOM,
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: { 'line-color': ['get', dark ? 'edgeD' : 'edge'], 'line-width': metres(0.9), 'line-opacity': fade } },
+    { id: 'kveh-body', type: 'line', source: 'kvehBody', minzoom: BODY_MIN_ZOOM,
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: { 'line-color': ['get', dark ? 'fillD' : 'fill'], 'line-width': metres(0), 'line-opacity': fade } },
     { id: 'kveh-dot', type: 'symbol', source: 'kveh', minzoom: VEH_MIN_ZOOM,
-      layout: { 'icon-image': ['step', ['zoom'], ['get', dark ? 'iconD' : 'icon'], VEH_PILL_ZOOM, ['get', dark ? 'pillD' : 'pill']],
+      layout: { 'icon-image': ['step', ['zoom'], ['get', dark ? 'iconD' : 'icon'],
+                  BODY_MIN_ZOOM, ['case', ['get', 'body'], '', ['get', dark ? 'iconD' : 'icon']], VEH_PILL_ZOOM, ['get', dark ? 'pillD' : 'pill']],
                 'icon-size': ['interpolate', ['exponential', 1.5], ['zoom'], VEH_MIN_ZOOM, .62, 16, .8, 18, 1.15, 20, 1.9],
                 'icon-allow-overlap': true, 'icon-ignore-placement': true },
       paint: { 'icon-opacity': fade } },
   ];
 }
-const vehWanted = () => !!KANTE && KANTE.ok() && !journey.dest && !document.hidden && map.getZoom() >= VEH_MIN_ZOOM
-  && SETTINGS.prefs().liveVehicles !== false;
+// During a journey: the trips of its rides (`tripId|serviceDate`), and the box around their stops
+function journeyTrips(): Set<string> | null {
+  if (!journey.dest || !journey.conn) return null;
+  return new Set(journey.conn.parts.filter(isRide).flatMap((s) => s.legs.map((l) => l.tripId + '|' + l.serviceDate)));
+}
+function journeyBox(): KanteBbox | null {
+  if (!journey.conn) return null;
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const r of journey.conn.parts.filter(isRide)) for (const c of r.stops) {
+    w = Math.min(w, c.quay.lon); e = Math.max(e, c.quay.lon); s = Math.min(s, c.quay.lat); n = Math.max(n, c.quay.lat);
+  }
+  return Number.isFinite(w) ? [w, s, e, n] : null;
+}
+// what the vehicles are fetched for: 'map' (all around, from zoom 14, when Settings has them on) or a journey's trips
+let vehMode = '';
+const vehWanted = () => !!KANTE && KANTE.ok() && !document.hidden && (journey.dest
+  ? !!journeyTrips()?.size
+  : map.getZoom() >= VEH_MIN_ZOOM && SETTINGS.prefs().liveVehicles !== false);
+/** The live layer shows this trip's vehicle now (a journey's ride: then its own marker is not needed). */
+export function vehShowsTrip(tripId: string, serviceDate: string) {
+  return Date.now() - vehAt < VEH_DIM_MS && vehList.some((v) => v.tripId === tripId && v.serviceDate === serviceDate);
+}
 export function vehStop() {
   vehReq++;
   if (vehES) { vehES.close(); vehES = null; }
@@ -164,6 +205,7 @@ export function vehStop() {
   vehPollTimer = null;
   vehRaf = 0;
   vehDrawnKey = '';
+  vehMode = '';
   shown.clear();
   vehBox = null;
   vehList = [];
@@ -173,10 +215,20 @@ export function vehStop() {
 }
 export function vehUpdate() {
   if (!vehWanted()) { if (vehBox || vehList.length) vehStop(); return; }
-  const b = map.getBounds(), view: KanteBbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-  if (vehBox && KANTE_LIVE.bboxContains(vehBox, view)) return; // still covered: keep the stream / poll as it is
-  vehStop();
-  vehBox = KANTE_LIVE.padBbox(view, .35);
+  const trips = journeyTrips(), mode = trips ? [...trips].sort().join(',') : 'map';
+  const b = map.getBounds(), view: KanteBbox = trips ? journeyBox()! : [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  if (mode === vehMode && vehBox && KANTE_LIVE.bboxContains(vehBox, view)) return; // still covered: keep the stream / poll as it is
+  if (mode !== vehMode) vehStop();
+  else {
+    // the map moved on: a stream for the new box, and what is shown stays (gliding on) until its first answer
+    vehReq++;
+    if (vehES) { vehES.close(); vehES = null; }
+    clearInterval(vehPollTimer);
+    vehPollTimer = null;
+    cancelAnimationFrame(vehRaf);
+  }
+  vehMode = mode;
+  vehBox = KANTE_LIVE.padBbox(view, trips ? .3 : .35);
   if (!KANTE_LIVE.bboxOk(vehBox)) { vehBox = null; return; }
   const bbox = KANTE_LIVE.bboxParam(vehBox), id = vehReq;
   if (KANTE!.has('stream') && window.EventSource) {
@@ -194,7 +246,7 @@ export function vehUpdate() {
   const frame = () => {
     vehRaf = requestAnimationFrame(frame);
     const t = performance.now();
-    if (t - vehDrawnAt < VEH_FRAME_MS || map.isMoving() || (!vehList.length && !VEH_FC.features.length)) return;
+    if (t - vehDrawnAt < (map.isMoving() ? VEH_FRAME_MOVING_MS : VEH_FRAME_MS) || (!vehList.length && !VEH_FC.features.length)) return;
     vehDrawnAt = t;
     vehDraw();
   };
@@ -211,7 +263,9 @@ function vehSet(data: KanteVehiclesResponse) {
   vehAt = Date.now();
   vehT = data && Number.isFinite(data.t) ? data.t : vehAt / 1000;
   // each vehicle is placed from its frac at the response's t
-  vehList = ((data && data.vehicles) || []).slice(0, VEH_MAX).map((v) => ({ ...v, t: vehT, j: KANTE_LIVE.journeyLike(v.line), info: KANTE_LIVE.liveInfoOf(v) }));
+  const trips = journeyTrips();
+  vehList = ((data && data.vehicles) || []).filter((v) => !trips || trips.has(v.tripId + '|' + v.serviceDate)).slice(0, VEH_MAX)
+    .map((v) => ({ ...v, t: vehT, j: KANTE_LIVE.journeyLike(v.line), info: KANTE_LIVE.liveInfoOf(v) }));
   const keys = new Set(vehList.map(vehKey));
   for (const k of shown.keys()) if (!keys.has(k)) shown.delete(k);
   if (!redGrid) redSoon();
@@ -223,7 +277,41 @@ function vehShownAt(v: LiveVehicle, tNow: number, ms: number): LngLat {
   shown.set(k, s);
   return s.ll;
 }
-const vehProps = new WeakMap<LiveVehicle, Omit<LiveVehicleProps, 'dim'> & { live: boolean }>();
+// How long and wide a vehicle of this kind is, metres: Swiss trams 36–43 m (Combino, Flexity, Cobra), city buses
+// articulated (18 m), PostAuto's 12 m, regional trains about 100 m (FLIRT, KISS in pairs), long-distance ones 300 m
+const LONG_DISTANCE = /^(IC|ICE|ICN|IR|IRE|EC|EN|NJ|TGV|RJ|RJX|PE|EXT)$/;
+function bodySize(v: LiveVehicle): [number, number] {
+  const cat = (v.line.category || '').toUpperCase();
+  switch (v.line.mode) {
+    case 'tram': return [40, 2.4];
+    case 'bus': case 'ondemand': return [/PostAuto|CarPostal|AutoPostale/i.test(v.line.operator || '') ? 12 : 18, 2.55];
+    case 'rail': return [LONG_DISTANCE.test(cat) ? 300 : 100, 2.9];
+    case 'metro': return [60, 2.7];
+    case 'rack': return [50, 2.65];
+    case 'funicular': return [25, 2.6];
+    case 'cableway': return [8, 3];
+    case 'boat': return [50, 9];
+    default: return [12, 2.5];
+  }
+}
+// A colour a third of the way to black: the body's edge
+function darker(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16), f = (x: number) => Math.round(x * 0.62).toString(16).padStart(2, '0');
+  return '#' + f(n >> 16) + f((n >> 8) & 255) + f(n & 255);
+}
+const vehBodies = new WeakMap<LiveVehicle, Omit<LiveVehicleBodyProps, 'dim'> & { len: number }>();
+function bodyOf(v: LiveVehicle) {
+  let b = vehBodies.get(v);
+  if (!b) {
+    const c = lineColor(v.j), [len, w] = bodySize(v);
+    b = { len, w, fill: c.bg, edge: darker(c.bg), fillD: c.dbg, edgeD: darker(c.dbg) };
+    vehBodies.set(v, b);
+  }
+  return b;
+}
+const vehProps = new WeakMap<LiveVehicle, Omit<LiveVehicleProps, 'dim' | 'body'> & { live: boolean }>();
 function propsOf(v: LiveVehicle, i: number) {
   let p = vehProps.get(v);
   if (!p) {
@@ -241,17 +329,26 @@ function vehDraw() {
   const age = Date.now() - vehAt;
   if (vehList.length && age > VEH_DROP_MS) { vehList = []; vehPopup.remove(); }
   if (!vehList.length && !VEH_FC.features.length) return; // nothing shown, nothing to show
-  const now = vehNow(), old = age > VEH_DIM_MS, ms = performance.now();
+  const now = vehNow(), old = age > VEH_DIM_MS, ms = performance.now(), bodies = map.getZoom() >= BODY_MIN_ZOOM - 0.5;
+  VEH_BODY_FC.features = [];
   VEH_FC.features = vehList.map((v, i) => {
-    const { live, ...p } = propsOf(v, i);
-    return { type: 'Feature', geometry: { type: 'Point', coordinates: vehShownAt(v, now, ms) }, properties: { ...p, i, dim: old || !live } };
+    const { live, ...p } = propsOf(v, i), at = vehShownAt(v, now, ms), dim = old || !live;
+    // its body, only where it is drawn (from zoom 15): the stretch of its way it covers
+    const s = bodies ? shown.get(vehKey(v)) : null, b = bodyOf(v);
+    const line = s ? KANTE_LIVE.bodyAt(s.rec, s.f, b.len) : null;
+    if (line && line.length > 1) {
+      const { len, ...bp } = b;
+      VEH_BODY_FC.features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: line }, properties: { ...bp, dim } });
+    }
+    return { type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: { ...p, i, dim, body: !!line } };
   });
   // nothing moved (all standing, or less than about 10 cm): the map keeps what it has
-  const key = VEH_FC.features.map((f) => f.geometry.coordinates.map((c) => c.toFixed(6)).join() + (f.properties.dim ? 'd' : '')).join(';');
+  const key = VEH_FC.features.map((f) => f.geometry.coordinates.map((c) => c.toFixed(6)).join() + (f.properties.dim ? 'd' : '') + (f.properties.body ? 'b' : '')).join(';');
   if (key === vehDrawnKey) return;
   vehDrawnKey = key;
-  const src = map.getSource<maplibregl.GeoJSONSource>('kveh');
+  const src = map.getSource<maplibregl.GeoJSONSource>('kveh'), body = map.getSource<maplibregl.GeoJSONSource>('kvehBody');
   if (src) src.setData(VEH_FC);
+  if (body) body.setData(VEH_BODY_FC);
 }
 const vehPopup = new maplibregl.Popup({ closeButton: false, className: 'pf-pop vh-pop', maxWidth: 'none', offset: 12 });
 

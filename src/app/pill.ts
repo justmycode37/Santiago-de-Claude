@@ -14,7 +14,7 @@ import { buildSteps, fmtTime, isRide, journeyEnd, journeyStart, lineLabel, liveM
 import { nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
 import { redrawRoute, renderLive } from './live-line.ts';
 import { livePoll, platSig } from './live-engine.ts';
-import { vehStop } from './live-vehicles.ts';
+import { vehStop, vehUpdate } from './live-vehicles.ts';
 import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } from './sheet.ts';
 import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
 import { updateWhenChip } from './time-picker.ts';
@@ -166,6 +166,7 @@ export function renderJourney(conn: Journey, destTitle: string) {
   renderBar();
   renderSheet();
   redrawRoute(true);
+  vehUpdate(); // the vehicles of its rides, live (the one coming to your stop too)
   updateNowMarker();
   refreshRouteHighlight();
   if (!followCamOn()) fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it

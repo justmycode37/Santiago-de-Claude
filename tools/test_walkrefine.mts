@@ -139,7 +139,7 @@ fake('journey-map.ts', { jBody: null, jFoot: null, jHead: null, setRoute: nothin
 fake('platforms.ts', { platformKey: (p: string | null | undefined) => String(p || '').toUpperCase() });
 fake('sprites.ts', { INK: '#000' });
 fake('tracking.ts', { nowMarker: marker, placeUserDot: nothing, vehMarker: marker, journeyProgress: () => null, stopKms: () => null, tripLive: () => true });
-fake('live-vehicles.ts', { platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', vehUpdate: nothing,
+fake('live-vehicles.ts', { vehShowsTrip: () => false, platformOf: (s: FakeStop) => (s.quay && s.quay.label) || '–', vehUpdate: nothing,
   fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`),
   levelShort: (l: number) => (l < 0 ? '−' + -l : String(l)), platformWord: () => 'Platform', splitPlatform: (p: string) => ({ num: p || '', sectors: '' }) });
 fake('sheet-content.ts', { queueSheet: nothing, renderSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
