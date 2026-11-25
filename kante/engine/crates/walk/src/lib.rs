@@ -137,6 +137,7 @@
 //! * A way is "inside" if it has `EF_INDOOR` or is a `Corridor`.
 
 mod index;
+pub mod kerb;
 mod net;
 mod path;
 pub use net::{rules, LevelJoin, LevelJoinKind};
@@ -230,6 +231,10 @@ pub struct WalkPath {
     pub steps: Vec<PathStep>,
     /// Stretches under a roof: (first vertex, last vertex, what covers them), in order.
     pub covered: Vec<(u32, u32, Cover)>,
+    /// Stretches along a carriageway, in order: drawn at the road's edge by [`kerb::apply`] once the walk's ends are
+    /// joined on. Empty without the graph's kerb attributes.
+    #[serde(skip)]
+    pub kerb: Vec<kerb::KerbPiece>,
 }
 
 /// What a covered stretch of a walk runs under.

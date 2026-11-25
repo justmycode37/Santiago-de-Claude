@@ -49,8 +49,11 @@ export interface StopVisionHooks {
   board?: typeof KANTE_BOARD;
   /** The page's sign parser (signloc.ts), once the 3D view has loaded it; without it Scan reads platform names itself. */
   signs?(): typeof SIGNLOC | null;
-  /** The AR camera runs on top: the photo model (DINOv2) stays unloaded, its CPU goes to the vehicle detector and OCR. */
+  /** The AR camera runs on top: the photo model (DINOv2) stays unloaded, its CPU goes to the vehicle detector and OCR.
+   *  It is a live view only: no photo button. */
   ar?: boolean;
+  /** Ask for the camera again (after it stopped, or was refused and you tap to retry); default: the back camera. */
+  camera?(): Promise<MediaStream>;
 }
 export interface StopVisionRoute {
   uic: string;
@@ -292,7 +295,12 @@ let debugOn = typeof location !== 'undefined' && /[?&]scandebug(&|$)/.test(locat
 let stillImage: string | null = null;   // a photo taken with the file input instead of the live camera
 let stillFrames = 0;     // photo comparisons done on that photo (one is enough: it does not change)
 let stillReads = 0;      // sign readings done on it
-let noCamera = false;    // camera refused: nothing to read until a photo is taken
+let noCamera = false;    // camera refused: nothing to read until a photo is taken (or, in AR, until a tap retries)
+// The live camera: 'starting' (asked, no picture yet), 'live', 'paused' (the browser would not play it by itself, e.g.
+// iOS in Low Power Mode: a tap starts it), 'failed' (refused or busy: a tap asks again).
+let camState: 'starting' | 'live' | 'paused' | 'failed' = 'starting';
+let camWatch: ReturnType<typeof setInterval> | null = null;
+let camAsking = false;   // a new camera is being asked for
 let sourceGen = 0;       // +1 whenever the picture source changes (a photo chosen): older readings are dropped
 
 // ---------------------------------------------------------------- small helpers
@@ -486,7 +494,8 @@ function buildUI() {
   shoot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
   const file = $('input', 'sv-file');
   file.type = 'file'; file.accept = 'image/*'; file.setAttribute('capture', 'environment');
-  top.append(close, status, shoot);
+  if (app!.ar) top.append(close, status); // AR is a live view only: no photo instead
+  else top.append(close, status, shoot);
   const sheet = $('div', 'sv-sheet');
   sheet.setAttribute('aria-live', 'polite');
   const debug = $('pre', 'sv-debug');
@@ -502,7 +511,11 @@ function buildUI() {
   file.addEventListener('change', () => { if (file.files![0]) useStill(file.files![0]); file.value = ''; });
   // Tap the picture to read the sign there
   root.addEventListener('click', (e) => {
-    if (e.target !== video && e.target !== still && e.target !== ar) return;
+    const over = e.target instanceof Element && !!e.target.closest('.sv-ar, .ar-layer'); // the drawing on top of the picture
+    if (e.target !== video && e.target !== still && !over) return;
+    // no picture yet: the tap starts the camera (still paused) or asks for it again (refused, busy)
+    if (!stillImage && camState === 'paused') { playCamera(session); return; }
+    if (!stillImage && camState === 'failed') { askCamera(session); return; }
     const src = stillImage ? still : video;
     const p = toSourcePx(src, e.clientX, e.clientY);
     if (!p) return;
@@ -1719,6 +1732,8 @@ function renderSheet() {
 
 function renderStatus() {
   if (noCamera && !stillImage) return; // keep the "No camera" message
+  if (!stillImage && camState === 'starting') { setStatus('Starting the camera…', 'Allow camera access if you are asked.'); return; }
+  if (!stillImage && camState === 'paused') { setStatus('Tap the screen to start the camera', ''); return; }
   const busy = ocrState === 'loading' || modelState === 'loading';
   const pos = position();
   const title = stillImage ? 'Photo' : !pos ? 'Point at a stop sign' : headingOk() ? 'Look around' : 'Point at a stop';
@@ -1790,6 +1805,64 @@ function useStill(file: File) {
 const stopStream = (st: MediaStream | null) => { if (st) st.getTracks().forEach((t) => t.stop()); };
 let session = 0;
 
+// ---- the live camera: keep it showing. A stream can end (the app went to the background, another app took the
+//      camera) and a video can stay paused (iOS Low Power Mode plays nothing by itself): either way the screen is black.
+async function useStream(mine: number, got: MediaStream) {
+  if (mine !== session || !running || !ui) { stopStream(got); return false; }
+  if (stream && stream !== got) stopStream(stream);
+  stream = got;
+  noCamera = false;
+  camState = 'starting';
+  ui.video.srcObject = got;
+  await playCamera(mine);
+  return true;
+}
+// play() can wait for ever on some browsers: give it 3 s, after which the watch below takes over
+function playCamera(mine: number) {
+  if (!ui) return Promise.resolve();
+  const played = ui.video.play().then(() => { if (mine === session && camState !== 'failed') camState = 'live'; },
+    () => { if (mine === session && camState !== 'failed') camState = 'paused'; });
+  return Promise.race([played, new Promise<void>((ok) => setTimeout(ok, 3000))]).then(() => { if (mine === session && ui) renderStatus(); });
+}
+function askCamera(mine: number) {
+  if (camAsking || mine !== session || !running) return;
+  camAsking = true;
+  camState = 'starting';
+  noCamera = false;
+  renderStatus();
+  const ask = app && app.camera ? app.camera()
+    : navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+      ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      : Promise.reject(Object.assign(new Error('no camera API'), { name: 'NoApiError' }));
+  ask.then((got) => useStream(mine, got).then((ok) => { if (ok) ensureOcr(); }), (err) => { if (mine === session && running) cameraFailed(err); })
+    .finally(() => { camAsking = false; });
+}
+function cameraFailed(err: unknown) {
+  console.warn('Scan: no camera', err);
+  noCamera = true;
+  camState = 'failed';
+  const name = (err as { name?: string } | null)?.name || '';
+  const ar = !!(app && app.ar);
+  const again = ar ? 'then tap the screen.' : 'or take a photo with the camera button.';
+  if (name === 'NotReadableError' || name === 'AbortError' || name === 'TrackStartError') setStatus('The camera is busy', `Close other apps that use it, ${again}`);
+  else if (name === 'NotFoundError' || name === 'OverconstrainedError') setStatus('No camera found', ar ? 'Tap the screen to try again.' : 'Take a photo with the camera button.');
+  else if (name === 'NoApiError' || !window.isSecureContext) setStatus('No camera', 'This browser does not give this page the camera (it needs https).');
+  else setStatus('Camera access is off', `Allow the camera for this site in your browser settings, ${again}`);
+}
+function watchCamera(mine: number) {
+  if (camWatch) clearInterval(camWatch);
+  let mutedFor = 0;
+  camWatch = setInterval(() => {
+    if (mine !== session || !running || !ui) { if (camWatch) clearInterval(camWatch); camWatch = null; return; }
+    if (stillImage || camState === 'failed' || camAsking || document.visibilityState !== 'visible') return;
+    const track = stream && stream.getVideoTracks()[0];
+    mutedFor = track && track.muted ? mutedFor + 1 : 0; // iOS mutes it when something else takes the camera
+    if (!track || track.readyState === 'ended' || mutedFor > 3) { mutedFor = 0; askCamera(mine); return; } // a new one
+    if (ui.video.paused) { if (camState !== 'paused') playCamera(mine); return; } // paused waits for a tap
+    if (ui.video.videoWidth > 0 && camState !== 'live') { camState = 'live'; renderStatus(); }
+  }, 1000);
+}
+
 /**
  * Open the Scan screen. camera: the answer to getUserMedia(), asked by the caller while the tap still counts
  * as a user gesture; orientation: the same for the compass permission (iOS), only its failure is swallowed.
@@ -1807,19 +1880,16 @@ async function openScan(hooks: StopVisionHooks, cameraPromise: Promise<MediaStre
   window.addEventListener('deviceorientationabsolute', onOrientation);
   window.addEventListener('deviceorientation', onOrientation);
   if (orientationPromise) orientationPromise.catch(() => {});
+  camState = 'starting';
   loop(mine);
   try {
     const got = await cameraPromise;
-    if (mine !== session || !running) { stopStream(got); return; } // closed (or reopened) while asking
-    stream = got;
-    ui.video.srcObject = got;
-    await ui.video.play().catch(() => {});
+    if (!(await useStream(mine, got))) return; // closed (or reopened) while asking
   } catch (err) {
     if (mine !== session) return;
-    console.warn('Scan: no camera', err);
-    noCamera = true;
-    setStatus('No camera', 'Allow camera access, or take a photo with the camera button.');
+    cameraFailed(err);
   }
+  watchCamera(mine);
   if (mine !== session || noCamera) return; // a photo loads the readers on demand
   ensureOcr();
   loadIndex().then((idx) => { if (idx) setTimeout(() => { if (running && mine === session) ensureModel(); }, 1500); }); // after the sign reader
@@ -1829,6 +1899,8 @@ function closeScan() {
   if (!running) return;
   running = false;
   session++;
+  if (camWatch) clearInterval(camWatch);
+  camWatch = null;
   stopStream(stream);
   stream = null;
   window.removeEventListener('deviceorientationabsolute', onOrientation);

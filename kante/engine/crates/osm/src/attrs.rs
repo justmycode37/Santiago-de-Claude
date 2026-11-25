@@ -83,6 +83,56 @@ fn way_attrs_full(tags: &[(&str, &str)]) -> (u8, Option<String>, bool) {
     (bits, hours, hw == "cycleway")
 }
 
+/// Where a road's sidewalks are and how wide its carriageway is (`KB_*`, sides relative to the way's direction), for
+/// drawing walks along it at its edge. `sidewalk=both|left|right|no|none|separate|yes`, `sidewalk:both|left|right=
+/// yes|no|separate`. A walk on the road's line is on a sidewalk tagged on the road (`yes`) when it has one; only
+/// when it has none does a sidewalk drawn apart (`separate`) say which side it is beside. `width` (metres), else
+/// `lanes` × 3.25 m. Roundabouts (`junction=roundabout|circular`), one-way tertiary or bigger roads and living
+/// streets (shared space, often wall to wall): [`KB_NO_GUESS`].
+pub fn way_kerb(tags: &[(&str, &str)]) -> u8 {
+    let get = |k: &str| tags.iter().find(|t| t.0 == k).map(|t| t.1).unwrap_or("");
+    // per side (left, right): None = not said, else Some("yes" | "separate" | "no")
+    let mut side: [Option<&str>; 2] = match get("sidewalk") {
+        "both" | "yes" => [Some("yes"); 2],
+        "separate" => [Some("separate"); 2],
+        "left" => [Some("yes"), Some("no")],
+        "right" => [Some("no"), Some("yes")],
+        "no" | "none" => [Some("no"); 2],
+        _ => [None; 2],
+    };
+    let norm = |v: &str| -> Option<&'static str> {
+        match v {
+            "yes" => Some("yes"),
+            "separate" => Some("separate"),
+            "no" | "none" => Some("no"),
+            _ => None,
+        }
+    };
+    if let Some(v) = norm(get("sidewalk:both")) {
+        side = [Some(v); 2];
+    }
+    for (i, k) in ["sidewalk:left", "sidewalk:right"].into_iter().enumerate() {
+        if let Some(v) = norm(get(k)) {
+            side[i] = Some(v);
+        }
+    }
+    let on_road = side.map(|s| s == Some("yes"));
+    let sides = if on_road.contains(&true) { on_road } else { side.map(|s| s == Some("separate")) };
+    let metres = |s: &str| s.trim().trim_end_matches('m').trim().replace(',', ".").parse::<f32>().ok();
+    let width = metres(get("width"))
+        .filter(|w| (2.0..=15.0).contains(w))
+        .or_else(|| get("lanes").trim().parse::<u8>().ok().filter(|l| (1..=4).contains(l)).map(|l| l as f32 * 3.25));
+    let mut k = width.map_or(0, |w| w.round().clamp(1.0, 15.0) as u8) << KB_WIDTH_SHIFT;
+    if side.iter().any(Option::is_some) {
+        k |= KB_TAGGED | if sides[0] { KB_LEFT } else { 0 } | if sides[1] { KB_RIGHT } else { 0 };
+    }
+    let major = matches!(get("highway"), "tertiary" | "secondary" | "primary" | "trunk" | "tertiary_link" | "secondary_link" | "primary_link" | "trunk_link");
+    if matches!(get("junction"), "roundabout" | "circular") || (major && matches!(get("oneway"), "yes" | "-1" | "true" | "1")) || get("highway") == "living_street" {
+        k |= KB_NO_GUESS;
+    }
+    k
+}
+
 /// Which areas' hours apply to the ways in them.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AreaKind {
@@ -132,6 +182,9 @@ pub struct AttrStats {
     pub hours_readable: usize,
     pub areas: usize,
     pub crossing_no_nodes: usize,
+    /// Carriageway edges that say where their sidewalks are, and those with a sidewalk on one side only.
+    pub kerb_tagged_edges: usize,
+    pub kerb_sided_edges: usize,
 }
 
 struct Area {
@@ -194,11 +247,13 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
     let ways_in_graph: FxHashSet<i64> = g.edge_way.iter().copied().filter(|&w| w != 0).collect();
     struct WayOut {
         attrs: Vec<(i64, u8, Option<String>)>,
+        // (way, KB_* bits)
+        kerb: Vec<(i64, u8)>,
         // (way, relation (0: a closed way of its own), inner, refs, kind, hours)
         pieces: Vec<(i64, i64, bool, Vec<i64>, Option<(AreaKind, Option<String>)>)>,
     }
     let way_chunks = for_each_block(pbf, |block| {
-        let mut out = WayOut { attrs: Vec::new(), pieces: Vec::new() };
+        let mut out = WayOut { attrs: Vec::new(), kerb: Vec::new(), pieces: Vec::new() };
         for grp in block.groups() {
             for w in grp.ways() {
                 let rels = member_of.get(&w.id());
@@ -211,6 +266,10 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
                     let (bits, hours, cycleway) = way_attrs_full(&tags);
                     if bits != 0 || hours.is_some() || cycleway {
                         out.attrs.push((w.id(), bits | if cycleway { CYCLEWAY } else { 0 }, hours));
+                    }
+                    let kerb = if bits & EA_ROAD != RC_NONE { way_kerb(&tags) } else { 0 };
+                    if kerb != 0 {
+                        out.kerb.push((w.id(), kerb));
                     }
                 }
                 let area = area_kind(&tags);
@@ -228,7 +287,7 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
                 }
             }
         }
-        (!out.attrs.is_empty() || !out.pieces.is_empty()).then_some(out)
+        (!out.attrs.is_empty() || !out.kerb.is_empty() || !out.pieces.is_empty()).then_some(out)
     })?;
     let mut hours_ix: FxHashMap<String, u32> = FxHashMap::default();
     let mut hours: Vec<String> = Vec::new();
@@ -241,11 +300,13 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
         hours.len() as u32 - 1
     };
     let mut way_bits: FxHashMap<i64, (u8, u32)> = FxHashMap::default();
+    let mut way_kerb_bits: FxHashMap<i64, u8> = FxHashMap::default();
     let mut pieces = Vec::new();
     for ch in way_chunks {
         for (w, bits, h) in ch.attrs {
             way_bits.insert(w, (bits, h.map(&mut intern).unwrap_or(u32::MAX)));
         }
+        way_kerb_bits.extend(ch.kerb);
         pieces.extend(ch.pieces);
     }
 
@@ -413,7 +474,23 @@ pub fn import_attrs(pbf: &Path, g: &WalkGraph, bbox: Option<&BBox>) -> Result<(W
             (bits, h, by_area)
         })
         .collect();
-    let mut attrs = WalkAttrs { graph: graph_fingerprint(g), edge: Vec::with_capacity(per.len()), node: vec![0; g.nodes.len()], hours, edge_hours: Vec::new() };
+    // ---- kerbs: a carriageway's sidewalks (its edges run the way's way)
+    let kerb: Vec<u8> = g
+        .edges
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let road = matches!(e.kind, EdgeKind::Road | EdgeKind::RoadBusy) && e.flags & (EF_AREA | EF_INDOOR) == 0 && per[i].0 & EA_ROAD != RC_NONE;
+            if road {
+                way_kerb_bits.get(&g.edge_way[i]).copied().unwrap_or(0)
+            } else {
+                0
+            }
+        })
+        .collect();
+    st.kerb_sided_edges = kerb.iter().filter(|&&k| (k & KB_LEFT != 0) != (k & KB_RIGHT != 0)).count();
+    st.kerb_tagged_edges = kerb.iter().filter(|&&k| k & KB_TAGGED != 0).count();
+    let mut attrs = WalkAttrs { graph: graph_fingerprint(g), edge: Vec::with_capacity(per.len()), node: vec![0; g.nodes.len()], hours, edge_hours: Vec::new(), kerb };
     for (i, &(bits, h, by_area)) in per.iter().enumerate() {
         attrs.edge.push(bits);
         if h != u32::MAX {
@@ -457,6 +534,29 @@ mod tests {
         assert!(!sep(&[("highway", "secondary"), ("sidewalk", "right"), ("sidewalk:left", "separate")]));
         assert!(!sep(&[("highway", "primary"), ("sidewalk", "both")]));
         assert!(!sep(&[("highway", "footway"), ("sidewalk", "separate")]), "not a road");
+    }
+
+    #[test]
+    fn where_a_roads_sidewalks_are() {
+        let sides = |t: &[(&str, &str)]| way_kerb(t) & (KB_LEFT | KB_RIGHT | KB_TAGGED);
+        assert_eq!(sides(&[("highway", "secondary"), ("lanes", "2")]), 0, "not said");
+        assert_eq!(sides(&[("highway", "residential"), ("sidewalk", "both")]), KB_TAGGED | KB_LEFT | KB_RIGHT);
+        assert_eq!(sides(&[("highway", "residential"), ("sidewalk", "right")]), KB_TAGGED | KB_RIGHT);
+        assert_eq!(sides(&[("highway", "residential"), ("sidewalk", "no")]), KB_TAGGED);
+        assert_eq!(sides(&[("highway", "tertiary"), ("sidewalk:both", "no"), ("sidewalk:left", "yes")]), KB_TAGGED | KB_LEFT);
+        // a walk on the road's line is on the sidewalk tagged on it, not beside the one drawn apart
+        assert_eq!(sides(&[("highway", "secondary"), ("sidewalk:left", "separate"), ("sidewalk:right", "yes")]), KB_TAGGED | KB_RIGHT);
+        // with none on the road, the one drawn apart says which side
+        assert_eq!(sides(&[("highway", "secondary"), ("sidewalk:left", "separate"), ("sidewalk:right", "no")]), KB_TAGGED | KB_LEFT);
+        let width = |t: &[(&str, &str)]| (way_kerb(t) & KB_WIDTH) >> KB_WIDTH_SHIFT;
+        assert_eq!(width(&[("highway", "secondary"), ("width", "6,5 m")]), 7);
+        assert_eq!(width(&[("highway", "secondary"), ("lanes", "2")]), 7);
+        assert_eq!(width(&[("highway", "residential"), ("width", "60")]), 0, "not a carriageway's width");
+        let guess = |t: &[(&str, &str)]| way_kerb(t) & KB_NO_GUESS != 0;
+        assert!(guess(&[("highway", "tertiary"), ("junction", "roundabout")]));
+        assert!(guess(&[("highway", "primary"), ("oneway", "yes")]));
+        assert!(guess(&[("highway", "living_street")]));
+        assert!(!guess(&[("highway", "residential"), ("oneway", "yes")]), "a one-way side street has one carriageway");
     }
 
     #[test]

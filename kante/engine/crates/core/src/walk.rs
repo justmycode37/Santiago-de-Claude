@@ -206,7 +206,7 @@ impl WalkGraph {
 
 // ---------------------------------------------------------------- attributes (walkattr.bin)
 
-pub const WALKATTR_SCHEMA: &str = "walkattr-v1";
+pub const WALKATTR_SCHEMA: &str = "walkattr-v2";
 
 /// [`WalkAttrs::edge`]: the size of the road a carriageway edge (`Road`, `RoadBusy`) belongs to.
 pub const EA_ROAD: u8 = 0x07;
@@ -234,6 +234,21 @@ pub const EA_HOURS: u8 = 1 << 6;
 /// [`WalkAttrs::node`]: `crossing=no`: walkers may not cross the road here.
 pub const NA_CROSSING_NO: u8 = 1 << 0;
 
+/// [`WalkAttrs::kerb`]: a sidewalk on the left of the edge, looking from node `a` to node `b` (the way's own
+/// direction: edges keep it).
+pub const KB_LEFT: u8 = 1 << 0;
+/// A sidewalk on the right of the edge, looking from `a` to `b`.
+pub const KB_RIGHT: u8 = 1 << 1;
+/// The road says where its sidewalks are (`sidewalk*=*`, `no` included): without it, [`KB_LEFT`] and [`KB_RIGHT`]
+/// are unknown, not absent.
+pub const KB_TAGGED: u8 = 1 << 2;
+/// A roundabout, or a one-way main road (likely one half of a divided road): which edge is the outer one cannot be
+/// told from the way alone, so without [`KB_TAGGED`] a walk along it stays on its line.
+pub const KB_NO_GUESS: u8 = 1 << 3;
+/// The carriageway's width in metres (`width`, else `lanes`), 0 when the road does not say.
+pub const KB_WIDTH_SHIFT: u8 = 4;
+pub const KB_WIDTH: u8 = 0x0f << KB_WIDTH_SHIFT;
+
 /// Per edge and per node of a [`WalkGraph`], what route choice reads beyond kinds and flags. Built by `kante-osm`
 /// with the graph (see its crate docs); [`WalkAttrs::fits`] says whether it belongs to a graph.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -248,11 +263,18 @@ pub struct WalkAttrs {
     pub hours: Vec<String>,
     /// (edge, index into `hours`), ascending by edge, for the edges with `EA_HOURS`.
     pub edge_hours: Vec<(u32, u32)>,
+    /// `KB_*`, one per edge: where a carriageway's sidewalks are and how wide it is, for drawing a walk along the
+    /// road at its edge rather than down its middle. Not read by route choice.
+    pub kerb: Vec<u8>,
 }
 
 impl WalkAttrs {
     pub fn fits(&self, g: &WalkGraph) -> bool {
-        self.edge.len() == g.edges.len() && self.node.len() == g.nodes.len()
+        self.edge.len() == g.edges.len() && self.node.len() == g.nodes.len() && (self.kerb.is_empty() || self.kerb.len() == g.edges.len())
+    }
+    #[inline]
+    pub fn kerb(&self, e: u32) -> u8 {
+        self.kerb.get(e as usize).copied().unwrap_or(0)
     }
     #[inline]
     pub fn edge(&self, e: u32) -> u8 {
@@ -292,7 +314,7 @@ pub fn attrs_fingerprint(a: &WalkAttrs) -> u64 {
         h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
     };
     mix(a.edge.len() as u64);
-    for c in a.edge.chunks(8).chain(a.node.chunks(8)) {
+    for c in a.edge.chunks(8).chain(a.node.chunks(8)).chain(a.kerb.chunks(8)) {
         mix(c.iter().fold(0u64, |x, &b| x << 8 | b as u64));
     }
     for &(e, i) in &a.edge_hours {

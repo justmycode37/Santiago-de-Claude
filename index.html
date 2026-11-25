@@ -836,8 +836,7 @@
     .kj .step-views > button { margin: 0; }
     .kj .view3d, .kj .step-views > button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 8px 8px 2px 0; padding: 0 14px; border-radius: 18px; background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 700; }
     .kj .view3d:active, .kj .step-views > button:active { opacity: .7; }
-    /* AR camera (src/app/65-ar.ts): drawn over Scan's live view; no photo button */
-    .ar-mode .sv-top > .sv-btn:last-child { display: none; }
+    /* AR camera (src/app/ar.ts): drawn over Scan's live view (Scan leaves out its photo button in AR) */
     /* the camera fills the screen: Scan's own panel and the journey sheet underneath step aside while AR is open */
     .ar-mode .sv-sheet, .ar-mode .sv-debug { display: none !important; }
     body.ar-open #journey, body.ar-open #jFoot, body.ar-open #jPill { visibility: hidden !important; }

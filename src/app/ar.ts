@@ -207,10 +207,13 @@ let arMotion = 'unknown'; // what iOS answered to the motion permission (shown i
 function arOpen(st: JourneyStep) {
   const target = arTargetOf(st);
   if (!target) return;
+  // already open: asking for a second camera would black out the first one on iOS
+  if (document.querySelector('.sv')) return;
   // both permissions here, while the tap still counts as a user gesture (iOS)
-  const camera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+  const askCamera = () => (navigator.mediaDevices && navigator.mediaDevices.getUserMedia
     ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, ...AR_RESOLUTION }, audio: false })
-    : Promise.reject(new Error('no camera API'));
+    : Promise.reject(Object.assign(new Error('no camera API'), { name: 'NoApiError' })));
+  const camera = askCamera();
   const orientation = window.DeviceOrientationEvent && typeof (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission === 'function'
     ? (DeviceOrientationEvent as DeviceOrientationAsk).requestPermission!() : Promise.resolve('granted');
   // the gyro (devicemotion) keeps vehicle boxes on their tracks while the phone turns; iOS Safari asks for it separately
@@ -220,7 +223,8 @@ function arOpen(st: JourneyStep) {
   motion.then((r) => { arMotion = r; }, () => { arMotion = 'denied'; });
   const mine = ++arSession;
   const hooks = scanHooks();
-  hooks.ar = true; // Scan keeps its photo model (DINOv2) unloaded: the CPU is the detector's and the OCR's
+  hooks.ar = true; // Scan keeps its photo model (DINOv2) unloaded: the CPU is the detector's and the OCR's; no photo button
+  hooks.camera = askCamera; // the camera again, the same way, when it stopped or was refused (Scan's camera watch)
   // the camera gets the whole screen: the journey sheet and its bar step aside until AR closes (CSS: body.ar-open)
   document.body.classList.add('ar-open');
   const done = () => { document.body.classList.remove('ar-open'); if (arSession === mine) arSession++; };
@@ -240,7 +244,7 @@ function arOpen(st: JourneyStep) {
 function arLayer(mine: number, target: ArTarget) {
   const root = document.querySelector<HTMLElement>('[aria-label="Scan for stops"]');
   const video = root && root.querySelector('video');
-  if (!root || !video) return;
+  if (!root || !video || root.classList.contains('ar-mode')) return;
   root.classList.add('ar-mode');
   root.setAttribute('aria-label', 'AR camera');
   const layer = h('div', 'ar-layer');
