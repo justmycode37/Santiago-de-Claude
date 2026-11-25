@@ -17,7 +17,7 @@ interface SolidUserState {
   level?: number | null; levelProb?: number | null; levelProbs?: Record<string, number> | null; sure?: boolean;
   acc?: number; mode?: 'route' | 'free'; step?: number; offRouteSec?: number; follow: boolean;
 }
-interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null }
+interface SolidChange { route: StationRouteResult | null; step: number; focusLevel: number | null; playing?: boolean; pov?: boolean }
 interface SolidLevel { id: number; z: number; name: string }
 interface SolidView {
   model: StationModel;
@@ -43,6 +43,13 @@ interface SolidView {
   clearTrain?(role?: SolidTrainInput['role']): void;
   follow?(on: boolean): void;
   locate?(): void;
+  /** The play-through (a walker going the way, the camera behind it). */
+  play?(): void;
+  pause?(): void;
+  readonly playing?: boolean;
+  /** First person: the play-through at eye height. */
+  pov?(on: boolean): void;
+  readonly povOn?: boolean;
   reset(): void;
   dispose(): void;
   _debug(): Record<string, unknown>;
@@ -162,6 +169,9 @@ const ICON: Record<string, string> = {
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   whole: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
   alert: '<path d="M12 3l9.5 17H2.5z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   me: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/>',
@@ -193,7 +203,10 @@ let seq = 0;                     // the latest open(): an older one that finishe
 let user: Station3DUser | null = null, userAt = 0;
 let listOpen = false;
 let lastChange: SolidChange = { route: null, step: -1, focusLevel: null };
-let historyState = false;        // a history entry of ours: the phone's back button closes the view
+let historyState = false;
+/** The sources of the model (OpenStreetMap, the cantons' cadastral survey, …): their terms ask for the credit. Shown
+ *  at the foot of the card, where it wraps. */
+let sources = '';        // a history entry of ours: the phone's back button closes the view
 
 function shell(): Ui {
   const close = btn('stv-close', 'Close the 3D view', () => close3d(), icon('close', 20)) as HTMLButtonElement;
@@ -268,6 +281,7 @@ function open(opts: Station3DOpenOptions) {
   document.documentElement.classList.add('stv-open');
   const model0 = window.STATION3D && window.STATION3D[opts.key];
   ui.title.textContent = opts.title || (model0 && model0.name) || 'Station';
+  sources = '';
   ui.sub.textContent = '';
   ui.you.textContent = '';
   ui.floors.textContent = '';
@@ -292,6 +306,8 @@ function open(opts: Station3DOpenOptions) {
     if (id !== seq || !ui) return;
     const model = window.STATION3D![opts.key];
     ui.title.textContent = opts.title || model.name;
+    const solid = window.STATION3D_SOLID && window.STATION3D_SOLID[opts.key];
+    sources = [...new Set([...(model.attribution || []), ...((solid && solid.attribution) || [])])].join(' · ');
     ui.root.setAttribute('aria-label', '3D view of ' + model.name);
     const from = opts.from || null, to = opts.to || null;
     const v = await mod.open({
@@ -422,9 +438,14 @@ function render() {
 
   const g = ui.guide;
   g.textContent = '';
+  try { renderGuide(v, r, step, focusLevel, g); } finally { if (sources) g.append(el('div', 'stv-src', sources)); }
+}
+function renderGuide(v: SolidView, r: StationRouteResult | null, step: number, focusLevel: number | null, g: HTMLElement) {
+  if (!ui) return;
+  const ui0 = ui;
   if (!r) {
     const lv = focusLevel != null ? v.levels.find((l) => l.id === focusLevel) : null;
-    ui.sub.textContent = lv ? `Level ${levelTag(lv.id)}${lv.name ? ' · ' + lv.name : ''}` : 'Drag to turn, pinch to zoom';
+    ui0.sub.textContent = lv ? `Level ${levelTag(lv.id)}${lv.name ? ' · ' + lv.name : ''}` : 'Drag to turn, pinch to zoom';
     if (cur && (cur.opts.from || cur.opts.to) && !(cur.opts.from && cur.opts.to)) {
       g.append(el('div', 'stv-text', lv ? `Level ${levelTag(lv.id)}${lv.name ? ', ' + lv.name : ''}` : v.model.name));
     } else if (cur && cur.opts.from && cur.opts.to) {
@@ -433,7 +454,7 @@ function render() {
     return;
   }
   const changes = r.steps.filter((s) => s.kind !== 'walk' && s.kind !== 'arrive' && Math.round(s.toLevel) !== Math.round(s.level));
-  ui.sub.textContent = `${Math.round(r.length)} m · ${Math.max(1, Math.round(r.seconds / 60))} min · ${changes.length ? changes.length + ' change' + (changes.length === 1 ? '' : 's') + ' of floor' : 'all on one floor'}`;
+  ui0.sub.textContent = `${Math.round(r.length)} m · ${Math.max(1, Math.round(r.seconds / 60))} min · ${changes.length ? changes.length + ' change' + (changes.length === 1 ? '' : 's') + ' of floor' : 'all on one floor'}`;
   const n = r.steps.length;
   const bar = el('div', 'stv-bar');
   if (focusLevel != null) {
@@ -449,6 +470,7 @@ function render() {
     g.append(el('div', 'stv-legend', ...([['stv-lg-up', 'Escalator up'], ['stv-lg-down', 'Escalator down'], ['stv-lg-stairs', 'Stairs'], ['stv-lg-lift', 'Lift'], ['stv-lg-route', 'Your way']] as const)
       .map(([c, t]) => el('span', null, el('i', c), t))));
     bar.append(btn('stv-btn stv-primary', null, () => goStep(0), 'Start ›'));
+    if (!r.same) bar.append(playBtn(v, false), povBtn(v, false));
   } else {
     const s = r.steps[step];
     const row = el('div', 'stv-step' + (s.warn ? ' warn' : ''), stepIcon(s), el('div', 'stv-step-main', el('div', 'stv-text', s.text), el('div', 'stv-meta', stepMeta(s, step, n))));
@@ -458,8 +480,23 @@ function render() {
     bar.append(btn('stv-btn', 'Previous step', () => goStep(step - 1), '‹'));
     bar.append(step < n - 1 ? btn('stv-btn stv-primary', null, () => goStep(step + 1), 'Next ›')
       : btn('stv-btn stv-primary', null, () => emit('done', { route: r }), 'Done'));
+    if (step < n - 1 || lastChange.playing) bar.append(playBtn(v, !!lastChange.playing));
+    if (!r.same) bar.append(povBtn(v, !!lastChange.pov));
+    if (lastChange.pov) g.append(el('div', 'stv-pov-note', 'First person, at true heights. The walls are drawn from the edges of the floors: schematic.'));
   }
   bar.append(el('span', 'stv-grow'));
+  // where you are: shown when the position is known; a tap follows you (and again stops following)
+  if (v.locate && v.follow) {
+    const me = btn('stv-btn stv-icon stv-me', 'Follow my position', () => {
+      const on = !(v.user && v.user.follow);
+      v.follow!(on);
+      if (on) v.locate!();
+    }, icon('me', 18));
+    me.hidden = !(v.user && v.user.visible);
+    me.setAttribute('aria-pressed', v.user && v.user.follow ? 'true' : 'false');
+    me.classList.toggle('on', !!(v.user && v.user.follow));
+    bar.append(me);
+  }
   const lb = btn('stv-btn stv-icon', listOpen ? 'Hide all steps' : 'All steps', () => { listOpen = !listOpen; render(); }, icon('list', 18));
   lb.setAttribute('aria-expanded', listOpen ? 'true' : 'false');
   bar.append(lb);
@@ -473,6 +510,23 @@ function render() {
     });
     g.append(ol);
   }
+}
+// ▶ plays the way through (a walker, the camera behind it, the steps as it reaches them); ❚❚ stops it where it is
+function playBtn(v: SolidView, on: boolean) {
+  const b = btn('stv-btn stv-icon stv-play', on ? 'Pause the play-through' : 'Play the way through', () => { if (v.playing) v.pause!(); else v.play!(); }, icon(on ? 'pause' : 'play', 18));
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!v.play) b.hidden = true;
+  return b;
+}
+// 👁 first person: the walk at eye height (▶ plays it, ‹ › go from step to step); again to go back to the model
+function povBtn(v: SolidView, on: boolean) {
+  const b = btn('stv-btn stv-icon stv-pov', on ? 'Leave first person' : 'Walk it in first person', () => {
+    if (v.povOn) v.pov!(false);
+    else { v.pov!(true); v.play!(); }
+  }, icon('eye', 18));
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!v.pov) b.hidden = true;
+  return b;
 }
 function endName(r: StationRouteResult) {
   const s = r.toStop, to = cur && cur.opts.to;
@@ -659,7 +713,7 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
     return { el: card, said: lines.join('') };
   }
   // the coaches as they stand, sector A on the left (coaches the model cannot place: in the formation's order)
-  let cars: TrainCar[] = L ? L.cars.slice() : [];
+  let cars: TrainCar[] = L && !L.approx ? L.cars.slice() : [];   // laid out without sectors (approx): drawn, not placed
   const unplaced = !cars.length && !!(s && s.coaches);
   if (unplaced) cars = s!.coaches!.map((c, idx) => ({ coach: c, idx, s0: 0, s1: 0, a: [0, 0], b: [0, 0], noseA: false, noseB: false }));
   const names = L ? L.sectors.map((x) => x.name) : [];
@@ -747,6 +801,8 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
 // ------------------------------------------------------------------ you
 function renderYou(u: SolidUserState) {
   if (!ui || !view) return;
+  const me = ui.guide.querySelector<HTMLButtonElement>('.stv-me');
+  if (me) { me.hidden = !(u && u.visible); me.setAttribute('aria-pressed', u && u.follow ? 'true' : 'false'); me.classList.toggle('on', !!(u && u.follow)); }
   const probs = (u && u.visible && u.levelProbs) || {};
   for (const b of ui.floors.querySelectorAll<HTMLButtonElement>('.stv-floor[data-l]')) {
     const id = +b.dataset.l!, p = (probs as Record<string, number>)[id] || 0;

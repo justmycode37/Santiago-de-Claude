@@ -2,6 +2,7 @@
 // Three ways, all ending in dropPin(): drag the pin out of the card onto the map · tap the pin, then tap the
 // map · long-press (or right-click) the map and pick "From here" / "To here". A pin already on the map can be
 // dragged to move it.
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { setMenu } from './menu.ts';
 import { showToast } from '../toast.ts';
@@ -200,7 +201,13 @@ export function start() {
       armPin(armedPin === f ? null : f);
     });
   }
-  map.on('contextmenu', (e) => { e.preventDefault(); openPinMenu(e.lngLat.toArray()); });
+  // A right click. MapLibre 6 also makes a 'contextmenu' of its own from a touch held still (not a browser event,
+  // isTrusted false): that one is left out, as the long press below allows a thumb more movement (10 px, not 3) and
+  // counts only on the map itself, not on a marker or an event card.
+  map.on('contextmenu', (e) => {
+    e.preventDefault();
+    if (e.originalEvent.isTrusted) openPinMenu(e.lngLat.toArray());
+  });
   {
     let timer = 0, at: maplibregl.Point | null = null;
     const cancel = () => { clearTimeout(timer); timer = 0; };

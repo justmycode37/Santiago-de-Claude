@@ -39,8 +39,13 @@ export interface TrainLayout {
   /** The point on the track at s, and the platform edge's direction there. */
   at(s: number): XY;
   dir(s: number): XY;
-  /** The track along the platform was not found: the train is drawn along the sector line itself. */
+  /** The track along the platform was not found (the train is drawn along the sector line itself), or the model has no
+   *  sectors there and the train fills the platform (`approx`): where it stands is a guess, no door can be planned from it. */
   guessed: boolean;
+  /** Laid out without sectors, along the platform's own line (layoutTrain's `approx`). */
+  approx?: boolean;
+  /** The platform's tracks are narrow gauge (a single-deck train of a regional line, as the RBS). */
+  narrow?: boolean;
 }
 
 const sub = (a: XY, b: XY): XY => [a[0] - b[0], a[1] - b[1]];
@@ -147,9 +152,48 @@ function platformTracks(model: StationModel, key: string, level: number, E: XY[]
   return best ? [best.line] : [];
 }
 
-export function layoutTrain(model: StationModel, ref: string, o: { coaches: TrainCoach[] | null; sectors: string[] }): TrainLayout | null {
+/** For a platform the model has no sectors for: the stretch of its track along its walkway, as one unnamed span. The
+ *  track with the platform's number (else the one nearest the stop), from where the first of the walkway's nodes lies
+ *  along it to the last. (The nodes themselves can lie on both edges of a wide platform, or of two.) */
+function lineOfStop(model: StationModel, key: string): { pts: XY[]; secs: { name: string; s0: number; s1: number }[] } | null {
+  const pk = StationRoute.platformKey;
+  const stop = (model.stops || []).find((s) => s.mode === 'train' && pk(s.ref) === key);
+  if (!stop) return null;
+  const ns = (stop.nodes || []).map((n) => model.graph.nodes[n]).filter(Boolean).map((n) => [n[0], n[1]] as XY);
+  if (ns.length < 2) return null;
+  const { tagged, all } = tracksOf(model, key, stop.level != null ? stop.level : null);
+  let line: XY[] | null = null, bd = TRACK_NEAR_M * 2;
+  for (const t of tagged.length ? tagged : all) { const d = nearestOn(t.line, stop.xy).d; if (d < bd) { bd = d; line = t.line; } }
+  if (!line) return null;
+  // arc length along the track of each node's nearest point
+  const acc = [0];
+  for (let i = 1; i < line.length; i++) acc.push(acc[i - 1] + len(sub(line[i], line[i - 1])));
+  const sOf = (p: XY) => {
+    let best = Infinity, s = 0;
+    for (let i = 0; i + 1 < line!.length; i++) { const n = nearestOn([line![i], line![i + 1]], p); if (n.d < best) { best = n.d; s = acc[i] + len(sub(n.q, line![i])); } }
+    return s;
+  };
+  const ss = ns.map(sOf), s0 = Math.min(...ss), s1 = Math.max(...ss);
+  if (s1 - s0 < 20) return null;   // shorter than a coach: a stop node, not a platform
+  const at = (s: number): XY => {
+    let i = 0;
+    while (i < line!.length - 2 && acc[i + 1] < s) i++;
+    const L = acc[i + 1] - acc[i] || 1;
+    return add(line![i], mul(sub(line![i + 1], line![i]), (s - acc[i]) / L));
+  };
+  const pts = dedupe([at(s0), ...line.filter((_, i) => acc[i] > s0 && acc[i] < s1), at(s1)]);
+  return pts.length >= 2 ? { pts, secs: [{ name: '', s0: 0, s1: s1 - s0 }] } : null;
+}
+
+/** `approx`: where the model has no sectors for the platform, lay the train along the platform's own line instead (filling it,
+ *  or centred on it with coaches): for showing a train, never for planning a coach (the result is `guessed`). */
+/** `around`/`maxLen` (without coaches): only that much of the sectors' stretch, centred where the platform is nearest `around`
+ *  (a typical train near where the way arrives, not one as long as the platform). */
+export function layoutTrain(model: StationModel, ref: string, o: { coaches: TrainCoach[] | null; sectors: string[]; approx?: boolean; around?: XY | null; maxLen?: number }): TrainLayout | null {
   const key = StationRoute.platformKey(ref);
-  const edge = edgeOf(model, key);
+  let edge = edgeOf(model, key);
+  const approx = !edge && !!o.approx;
+  if (!edge && approx) edge = lineOfStop(model, key);
   if (!edge) return null;
   const stop = (model.stops || []).find((s) => s.mode === 'train' && StationRoute.platformKey(s.ref) === key);
   const level = stop && stop.level != null ? stop.level : 0;
@@ -171,7 +215,8 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
     return mul(n, k);
   });
   const found = offs.filter(Boolean) as XY[];
-  const guessed = !found.length;
+  const guessed = !found.length || approx;
+  const narrow = tracksOf(model, key, level).all.some((t) => t.kind === 'narrow_gauge' && lines.includes(t.line));
   const mean: XY = found.length ? mul(found.reduce(add, [0, 0] as XY), 1 / found.length) : [0, 0];
   const off = offs.map((x) => x || mean);
   const seg = (s: number) => { let i = 0; while (i < E.length - 2 && acc[i + 1] < s) i++; return i; };
@@ -185,6 +230,7 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
   const sectors: TrainSector[] = edge.secs.map((s) => ({ name: s.name, s0: s.s0, s1: s.s1, a: at(s.s0), b: at(s.s1), mid: at((s.s0 + s.s1) / 2) }));
   const lo = Math.min(...edge.secs.map((s) => s.s0)), hi = Math.max(...edge.secs.map((s) => s.s1));
   const span = (names: string[]) => {
+    if (approx) return [lo, hi] as [number, number];   // the one unnamed span: the whole platform
     const ss = names.map((n) => secByName.get(n.toUpperCase())).filter(Boolean) as { s0: number; s1: number }[];
     return ss.length ? [Math.min(...ss.map((x) => x.s0)), Math.max(...ss.map((x) => x.s1))] as [number, number] : null;
   };
@@ -192,7 +238,12 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
   let cars: TrainCar[] = [];
   const coaches = o.coaches || [];
   const target = coaches.map((c) => span(c.sectors));
-  if (coaches.length && target.some(Boolean)) {
+  if (approx && coaches.length) {
+    // no sectors: the coaches end to end, centred on the platform
+    const total = coaches.reduce((t, c) => t + c.len, 0);
+    let u = (lo + hi) / 2 - total / 2;
+    cars = coaches.map((c, i) => { const p = u; u += c.len; return { coach: c, idx: i, s0: p, s1: u, a: at(p), b: at(u), noseA: false, noseB: false }; });
+  } else if (coaches.length && target.some(Boolean)) {
     // end to end at their lengths (u: the middle of each along the train), then slid to fit the sectors
     const U: number[] = [], mids: number[] = [];
     let u = 0;
@@ -212,8 +263,24 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
       return { coach: c, idx: i, s0: Math.min(p, q), s1: Math.max(p, q), a: at(Math.min(p, q)), b: at(Math.max(p, q)), noseA: false, noseB: false };
     });
   } else {
-    const st = span(o.sectors);
-    if (!st) return { kind: 'train', ref, level, sectors, cars: [], side, at, dir, guessed };
+    let st = span(o.sectors);
+    if (st && approx) {
+      // the whole platform but its ends (a train rarely fills it to the last metre); without `around`, at most a long
+      // train (320 m) in its middle
+      const mid = (st[0] + st[1]) / 2, half = Math.min(o.around && o.maxLen ? Infinity : 160, Math.max(10, (st[1] - st[0]) / 2 - 6));
+      st = [mid - half, mid + half];
+    }
+    if (st && o.around && o.maxLen && st[1] - st[0] > o.maxLen) {
+      // the stretch of it nearest `around`, maxLen long
+      let best = Infinity, sa = (st[0] + st[1]) / 2;
+      for (let i = 0; i + 1 < E.length; i++) {
+        const n = nearestOn([E[i], E[i + 1]], o.around);
+        if (n.d < best) { best = n.d; sa = acc[i] + len(sub(n.q, E[i])); }
+      }
+      const c = Math.max(st[0] + o.maxLen / 2, Math.min(st[1] - o.maxLen / 2, sa));
+      st = [c - o.maxLen / 2, c + o.maxLen / 2];
+    }
+    if (!st) return { kind: 'train', ref, level, sectors, cars: [], side, at, dir, guessed, approx, narrow };
     const n = Math.max(2, Math.round((st[1] - st[0]) / COACH_M)), L = (st[1] - st[0]) / n;
     for (let i = 0; i < n; i++) {
       const p = st[0] + i * L, q = p + L;
@@ -226,7 +293,7 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
   const first = sorted[0], last = sorted[sorted.length - 1];
   if (first && !(first.coach && first.coach.kind === 'loco')) first.noseA = true;
   if (last && !(last.coach && last.coach.kind === 'loco')) last.noseB = true;
-  return { kind: 'train', ref, level, sectors, cars: sorted, side, at, dir, guessed };
+  return { kind: 'train', ref, level, sectors: approx ? [] : sectors, cars: sorted, side, at, dir, guessed, approx, narrow };
 }
 
 // ------------------------------------------------------------------ a tram or a bus at its stop

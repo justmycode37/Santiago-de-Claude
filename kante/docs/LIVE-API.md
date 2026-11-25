@@ -154,6 +154,7 @@ be there.
 | `t` | default now |
 | `before`, `after` | seconds before/after `t` to include (defaults 120 and 900) |
 | `limit` | default 30 |
+| `to` | the rider's stop, as `station`: each entry then has `servesTo` |
 
 `quay` is the engine's quay id or the **ATLAS SLOID** of the boarding edge (what a journey from `/api/plan`
 gives as `quay.sloid`, and what the app's stop data knows). The two are the same string for nearly every
@@ -163,7 +164,7 @@ boarding point; a platform whose sectors the timetable splits has extra quays fo
 `GET /api/due?quay=ch:1:sloid:76646:0:13` — Bern, Bahnhof, bay E.
 
 ```json
-{ "t": 1795262074, "due": [ {
+{ "t": 1795262074, "complete": true, "truncated": false, "due": [ {
   "tripId": "…", "serviceDate": "2026-11-21", "seq": 5,
   "line": { "name": "10", "category": "T", "mode": "tram", "operator": "BERNMOBIL" },
   "headsign": "Ostermundigen, Rüti", "number": null,
@@ -172,15 +173,30 @@ boarding point; a platform whose sectors the timetable splits has extra quays fo
   "arr": 1795262100, "dep": 1795262130, "delayS": 60, "cancelled": false,
   "approachBearing": 92, "departBearing": 110,
   "state": "approaching", "etaS": 26,
-  "liveInfo": { … }, "extra": false
+  "liveInfo": { … }, "extra": false,
+  "profiled": true, "pickup": true, "servesTo": true, "prevStop": [7.4391, 46.9484], "nextStop": [7.4474, 46.9479]
 } ] }
 ```
+
+`complete`: nothing is missing from the list. It is false when more trips were due than `limit` (`truncated`)
+or when a live feed the engine reads has not answered for 5 minutes (a replacement bus or a changed platform could
+be missing). The AR camera never calls a vehicle "yours" on an incomplete board.
+
+`profiled`: after a measured stop, `arr`/`dep` (and `etaS`, `state`) come from the learned hop and dwell
+profiles, as `position` does on `/api/trip`, not from the forecast; the window applies to those final times.
+`aimedArr`/`aimedDep`: as timetabled; `forecastArr`/`forecastDep` (only where `profiled`): the forecast's own
+times before the profiles, so the two can be compared later (`livemap/measure/due_archive.py`, `due_compare.py`).
+`pickup`: riders may board here (false where the timetable allows only setting down, or the stop is skipped
+today). `servesTo` (with `to=`): whether the run calls at that station after this stop, not skipped today, and
+lets riders off there; an express and a local with the same display differ here. `complete` is about runs that
+can be boarded here and those that only set down here and are under way within 4 km at some moment of the window
+(looked at every two minutes). `prevStop`/`nextStop`: the boarding points of the stops before and after, where it comes from and goes to.
 
 `state`: `approaching` (not yet there), `at-stop` (between live arrival and departure), `departed`.
 
 Included: departures from the asked boarding points, counting the platform in use (a train moved from 4 to
 5 shows at 5, not at 4); vehicles already under way that only set down here (e.g. at the end of their run;
-`dep` is null); extra journeys. Not included: a vehicle that only sets down here and has not started yet.
+`dep` is null); extra journeys. Vehicles that only set down here are found among those under way within 4 km at some moment of the window (looked at every two minutes); one that never is, is missing.
 `delayS` is only given where the time is live.
 `approachBearing` is the direction the vehicle drives in when it arrives (from the stop before);
 `departBearing` when it leaves (to the next stop). Either is null where there is no such stop.

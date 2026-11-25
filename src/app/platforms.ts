@@ -2,6 +2,7 @@
 // Exact position of every platform (Gleis) and bus/tram stop edge (Kante) in Switzerland, from the
 // official ATLAS data (platforms.js, built by tools/build_platforms.py). Always drawn on the map from
 // zoom 17, and used to put journey boarding/alighting points on the right platform.
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { userLngLat } from './location.ts';
 import { pinTap } from './pins.ts';

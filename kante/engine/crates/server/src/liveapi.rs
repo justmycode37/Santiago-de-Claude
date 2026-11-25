@@ -27,6 +27,13 @@ pub struct RunCall {
     pub planned: Option<StopIdx>,
     /// The times come from a live feed, not the timetable.
     pub live: bool,
+    /// Riders may board / get off here (the timetable's pickup and drop-off flags; never at the run's ends where
+    /// there is nothing to board or leave).
+    pub pickup: bool,
+    pub dropoff: bool,
+    /// As timetabled (for matching what was said with what was measured later, `livemap/measure/due_compare.py`).
+    pub aimed_arr: Option<i64>,
+    pub aimed_dep: Option<i64>,
 }
 
 /// The facts behind `liveInfo`, for timetable trips and extra journeys alike.
@@ -83,6 +90,7 @@ impl Run {
     pub fn of_trip(app: &App, trip: TripIdx, date: Date, tl: Option<&TripLive>) -> Run {
         let tt = &app.tt;
         let stops = tt.pattern_stops(tt.trips[trip as usize].pattern);
+        let flags = tt.pattern_flags(tt.trips[trip as usize].pattern);
         let n = stops.len();
         let calls = (0..n)
             .map(|p| {
@@ -94,6 +102,10 @@ impl Run {
                     skipped: tl.map(|l| l.is_skipped(p)).unwrap_or(false),
                     planned: changed.map(|_| stops[p]),
                     live: tl.is_some_and(|l| l.is_live_at(p)),
+                    aimed_arr: (p > 0).then(|| time::to_unix(date, tt.arr(trip, p))),
+                    aimed_dep: (p + 1 < n).then(|| time::to_unix(date, tt.dep(trip, p))),
+                    pickup: p + 1 < n && flags.get(p).is_none_or(|f| f & FLAG_NO_PICKUP == 0),
+                    dropoff: p > 0 && flags.get(p).is_none_or(|f| f & FLAG_NO_DROPOFF == 0),
                 }
             })
             .collect();
@@ -121,6 +133,10 @@ impl Run {
                 skipped: c.skipped,
                 planned: None,
                 live: true,
+                pickup: i + 1 < n,
+                dropoff: i > 0,
+                aimed_arr: if i > 0 { c.aimed_arr.or(c.aimed_dep) } else { None },
+                aimed_dep: if i + 1 < n { c.aimed_dep.or(c.aimed_arr) } else { None },
             })
             .collect();
         Run { mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
@@ -198,15 +214,21 @@ pub fn live_info(f: &LiveFacts, ages: FeedAges, now: i64) -> json::LiveInfo {
 /// after a measured departure, the hop usually takes its learned time; after a
 /// measured arrival of a bus or tram, it usually stands for its learned dwell.
 fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
+    served_with_profiles_applied(app, run).0
+}
+
+/// [`served_with_profiles`], and whether a learned hop or dwell was used (the order clamp alone is not a profile).
+fn served_with_profiles_applied(app: &App, run: &Run) -> (Vec<(usize, i64, i64)>, bool) {
     let mut served = run.served();
     let f = &run.facts;
     if f.observed_pos < 0 {
-        return served;
+        return (served, false);
     }
-    let Some(k) = served.iter().position(|s| s.0 == f.observed_pos as usize) else { return served };
+    let Some(k) = served.iter().position(|s| s.0 == f.observed_pos as usize) else { return (served, false) };
     if k + 1 >= served.len() {
-        return served;
+        return (served, false);
     }
+    let mut applied = false;
     let tt = &app.tt;
     let st = |i: usize| tt.stops[run.calls[i].stop as usize].station;
     let (a, b) = (st(served[k].0), st(served[k + 1].0));
@@ -218,6 +240,7 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
             // timing point keeps waiting.
             served[k].2 = (served[k].1 + d).max(served[k].2);
             left_measured = true;
+            applied = true;
         }
     }
     if left_measured {
@@ -226,6 +249,7 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
             let next = &mut served[k + 1];
             next.1 = left + h;
             next.2 = next.2.max(next.1);
+            applied = true;
         }
     }
     // Keep every later stop in order after a change.
@@ -235,7 +259,7 @@ fn served_with_profiles(app: &App, run: &Run) -> Vec<(usize, i64, i64)> {
         s.1 = s.1.max(before);
         s.2 = s.2.max(s.1);
     }
-    served
+    (served, applied)
 }
 
 /// Where the vehicle of `run` is at `now`.
@@ -317,6 +341,55 @@ pub struct DueQuery {
     pub before: i64,
     pub after: i64,
     pub limit: usize,
+    /// The rider's stop: each entry then says whether it calls there after this stop (`servesTo`).
+    pub to: Option<StationIdx>,
+}
+
+/// Every live feed the engine reads answered within [`STALE_S`], with a document of its own no older than that (a
+/// source can keep serving a frozen one), and there is at least one.
+fn feeds_fresh(app: &App) -> bool {
+    let now = wall_clock();
+    let live = app.live.read();
+    all_fresh(live.meta.feeds.iter().map(|f| (f.polled_at, f.updated_at)), now)
+}
+
+fn all_fresh(feeds: impl Iterator<Item = (Option<i64>, Option<i64>)>, now: i64) -> bool {
+    let mut any = false;
+    for (polled, updated) in feeds {
+        any = true;
+        let recent = |t: Option<i64>| t.is_some_and(|t| now - t <= STALE_S);
+        if !recent(polled) || !recent(updated) {
+            return false;
+        }
+    }
+    any
+}
+
+/// How many departures are looked at; reaching it before the end of the window makes the board incomplete.
+const DEPARTURE_SCAN: usize = 600;
+
+/// Whether a run lets riders off at station `to` later: it stops there (not skipped today) and allows getting off.
+/// `calls`: (station, skipped, drop-off allowed) of each call after this one.
+fn calls_after(calls: impl Iterator<Item = (StationIdx, bool, bool)>, to: StationIdx) -> bool {
+    calls.into_iter().any(|(st, skipped, dropoff)| st == to && !skipped && dropoff)
+}
+
+/// How far past the window a forecast is still looked at: the profiles can bring a call forward into it.
+const PROFILE_MARGIN_S: i64 = 600;
+
+/// The moments the vehicles under way are looked at for a window: every 120 s from `from`, and `to` itself.
+fn snapshot_moments(from: i64, to: i64) -> Vec<i64> {
+    let mut m: Vec<i64> = (0..).map(|k| from + 120 * k).take_while(|&t| t < to).collect();
+    m.push(to);
+    m
+}
+
+/// The time at call `i` from [`served_with_profiles`] where the profiles changed it (compared with the same calls
+/// without them): `(arr, dep)`, `dep` kept absent where the run has none there (it ends here).
+fn profiled_times(profiled: &[(usize, i64, i64)], plain: &[(usize, i64, i64)], i: usize, dep: Option<i64>) -> Option<(Option<i64>, Option<i64>)> {
+    let &(_, a, d) = profiled.iter().find(|s| s.0 == i)?;
+    let &(_, pa, pd) = plain.iter().find(|s| s.0 == i)?;
+    ((a, d) != (pa, pd)).then_some((Some(a), dep.map(|_| d)))
 }
 
 pub fn due(app: &App, q: &DueQuery) -> json::DueResponse {
@@ -335,16 +408,20 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     let trip_item = |run: &Run, trip: TripIdx, pos: usize, delay: Option<i32>| {
         let t = &tt.trips[trip as usize];
         let number = tt.str(t.short_name);
-        due_item(app, run, pos, app.line_badge(trip), tt.str(t.headsign).to_string(), (!number.is_empty()).then(|| number.to_string()), ages, q.t, delay)
+        due_item(app, run, pos, app.line_badge(trip), tt.str(t.headsign).to_string(), (!number.is_empty()).then(|| number.to_string()), ages, q.t, delay, q.to)
     };
     // Departures from every boarding point of these stations: a changed platform
     // can bring a train to one of the asked ones (and take it away from another).
     let mut all: Vec<StopIdx> = q.stops.iter().flat_map(|&s| tt.stations[tt.stops[s as usize].station as usize].stops.iter().copied()).collect();
     all.sort_unstable();
     all.dedup();
-    for e in app.router.departures(&all, date, secs, 600, live) {
+    let events = app.router.departures(&all, date, secs, DEPARTURE_SCAN, live);
+    // the scan stopped at its count before the end of the window: later departures are missing
+    let mut capped = events.len() >= DEPARTURE_SCAN;
+    for e in events {
         let dep = time::to_unix(date, e.live_dep);
-        if dep > q.t + q.after {
+        if dep > q.t + q.after + PROFILE_MARGIN_S {
+            capped = false;
             break;
         }
         let tl = live.and_then(|l| l.trip(e.date, e.trip));
@@ -365,7 +442,10 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
     if !q.stops.is_empty() {
         let c = area.min.lerp(&area.max, 0.5);
         let mut under_way = Vec::new();
-        for moment in [q.t - q.before, q.t] {
+        // Every two minutes across the whole window: a short run that starts and ends inside it, or one coming from
+        // further than the 4 km around, is under way within 4 km at one of them (a board without it would wrongly be
+        // complete: a vehicle that only sets down here may show the rider's display).
+        for moment in snapshot_moments(q.t - q.before, q.t + q.after) {
             let (d, s) = time::from_unix(moment);
             under_way.extend(app.router.vehicles(&BBox::around(c, 4000.0), d, s, live));
         }
@@ -377,7 +457,7 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
             for k in v.pos as usize..run.calls.len() {
                 let c = &run.calls[k];
                 let Some(a) = c.arr else { continue };
-                if a > q.t + q.after {
+                if a > q.t + q.after + PROFILE_MARGIN_S {
                     break;
                 }
                 if in_set(c.stop) && a >= q.t - q.before && seen.insert((run.id.clone(), v.date, k)) {
@@ -393,26 +473,44 @@ pub fn due_in(app: &App, live: Option<&dyn LiveView>, q: &DueQuery) -> json::Due
             }
             for (i, c) in x.calls.iter().enumerate() {
                 let (Some(at), Some(leaves)) = (c.at(), c.leaves()) else { continue };
-                if in_set(c.stop) && leaves >= q.t - q.before && at <= q.t + q.after {
+                if in_set(c.stop) && leaves >= q.t - q.before && at <= q.t + q.after + PROFILE_MARGIN_S {
                     let run = Run::of_extra(x);
                     let delay = c.dep.zip(c.aimed_dep).or(c.arr.zip(c.aimed_arr)).map(|(t, a)| (t - a) as i32);
-                    out.push(due_item(app, &run, i, extra_badge(x), x.headsign.clone(), None, ages, q.t, delay));
+                    out.push(due_item(app, &run, i, extra_badge(x), x.headsign.clone(), None, ages, q.t, delay, q.to));
                 }
             }
         }
     }
+    // what is due in the window by its final (possibly profiled) time
+    out.retain(|d| d.arr.or(d.dep).is_none_or(|a| a <= q.t + q.after));
     out.sort_by_key(|d| d.arr.or(d.dep).unwrap_or(i64::MAX));
+    // A board cut at `limit` or built on a stale feed can be missing the vehicle in front of the camera: the
+    // camera then never says "yours" (docs/ar-recognition-plan.md).
+    let truncated = out.len() > q.limit || capped;
     out.truncate(q.limit);
-    json::DueResponse { t: q.t, due: out }
+    // complete only when this board was built on live data (the snapshot it used), and the feeds are fresh
+    json::DueResponse { t: q.t, complete: !truncated && live.is_some() && feeds_fresh(app), truncated, due: out }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: String, number: Option<String>, ages: FeedAges, now: i64, delay: Option<i32>) -> json::Due {
+fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: String, number: Option<String>, ages: FeedAges, now: i64, delay: Option<i32>, to: Option<StationIdx>) -> json::Due {
     let tt = &app.tt;
     let c = &run.calls[i];
     let here = &tt.stops[c.stop as usize];
-    let arr = c.arr.or(c.dep);
-    let dep = c.dep;
+    // After a measured stop, the next calls are timed by the learned hop and dwell profiles (as `position`).
+    let (mut arr, mut dep) = (c.arr.or(c.dep), c.dep);
+    let forecast = (arr, dep);
+    let mut profiled = false;
+    if run.facts.observed_pos >= 0 && !c.skipped {
+        let (with, applied) = served_with_profiles_applied(app, run);
+        if let Some((a, d)) = profiled_times(&with, &run.served(), i, dep).filter(|_| applied) {
+            (arr, dep, profiled) = (a, d, true);
+        }
+    }
+    let station = |k: usize| tt.stops[run.calls[k].stop as usize].station;
+    let serves_to = to.map(|to| calls_after((i + 1..run.calls.len()).map(|k| (station(k), run.calls[k].skipped, run.calls[k].dropoff)), to));
+    let at = |k: usize| lonlat(&tt.stops[run.calls[k].stop as usize].pos);
+    let served = |k: &usize| !run.calls[*k].skipped;
     let state = match (arr, dep) {
         (Some(a), _) if now < a => "approaching",
         (_, Some(d)) if now <= d => "at-stop",
@@ -444,6 +542,15 @@ fn due_item(app: &App, run: &Run, i: usize, line: json::LineBadge, headsign: Str
         eta_s: arr.map(|a| a - now).unwrap_or(0),
         live_info: live_info(&run.facts, ages, now),
         extra: run.extra,
+        profiled,
+        forecast_arr: if profiled { forecast.0 } else { None },
+        forecast_dep: if profiled { forecast.1 } else { None },
+        aimed_arr: c.aimed_arr.or(c.aimed_dep),
+        aimed_dep: c.aimed_dep,
+        pickup: c.pickup && !c.skipped,
+        serves_to,
+        prev_stop: (0..i).rev().find(served).map(at),
+        next_stop: (i + 1..run.calls.len()).find(served).map(at),
     }
 }
 
@@ -826,6 +933,44 @@ pub fn stream(app: Arc<App>, bbox: BBox, slot: StreamSlot) -> impl futures_util:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_board_is_complete_only_while_every_feed_answers() {
+        let ok = (Some(1000), Some(995));
+        assert!(all_fresh([ok, (Some(990), Some(980))].into_iter(), 1000 + STALE_S - 25));
+        assert!(!all_fresh([ok, (Some(500), Some(500))].into_iter(), 1000), "one feed stale");
+        assert!(!all_fresh([ok, (None, None)].into_iter(), 1000), "one feed never answered");
+        assert!(!all_fresh([ok, (Some(1000), Some(100))].into_iter(), 1000), "fetched, but the document is old (a frozen source)");
+        assert!(!all_fresh(std::iter::empty(), 1000), "no live feed at all: timetable only");
+    }
+
+    #[test]
+    fn vehicles_are_looked_for_across_the_whole_window() {
+        assert_eq!(snapshot_moments(1000, 1300), vec![1000, 1120, 1240, 1300]);
+        assert_eq!(snapshot_moments(1000, 1000), vec![1000]);
+        assert!(snapshot_moments(0, 1200).windows(2).all(|w| w[1] - w[0] <= 120), "no gap longer than two minutes");
+    }
+
+    #[test]
+    fn serves_the_stop_only_when_it_calls_there_later() {
+        let calls = [(3, false, true), (7, true, true), (9, false, true), (11, false, false)];
+        assert!(calls_after(calls.into_iter(), 9));
+        assert!(!calls_after(calls.into_iter(), 7), "skipped there today");
+        assert!(!calls_after(calls.into_iter(), 4), "not on its way");
+        assert!(!calls_after(calls.into_iter(), 11), "no getting off there");
+        assert!(calls_after([(11, false, false), (11, false, true)].into_iter(), 11), "a station it calls at twice: the call that lets riders off counts");
+    }
+
+    #[test]
+    fn profiled_times_only_where_the_profile_changed_them() {
+        let profiled = [(2, 100, 120), (3, 190, 200), (4, 260, 260)];
+        let plain = [(2, 100, 120), (3, 210, 220), (4, 300, 300)];
+        assert_eq!(profiled_times(&profiled, &plain, 3, Some(220)), Some((Some(190), Some(200))));
+        assert_eq!(profiled_times(&profiled, &profiled, 3, Some(200)), None, "unchanged");
+        assert_eq!(profiled_times(&profiled, &plain, 4, None), Some((Some(260), None)), "the end of the run has no departure");
+        assert_eq!(profiled_times(&profiled, &plain, 5, None), None, "not served");
+        assert_eq!(profiled_times(&profiled, &profiled, 2, Some(110)), None, "the served times' own clamping is not a profile");
+    }
 
     #[test]
     fn only_a_train_that_names_its_parts_divides() {

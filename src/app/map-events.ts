@@ -1,8 +1,10 @@
 // ---------- Community events ----------
 // Which events show is set on the Settings page (settings.ts). Language courses and other events for newcomers only
 // show for those who said they are new to Switzerland; anyone can still pick them as a category in the search.
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { SATELLITE_STYLE_URL, STYLES, STYLE_URL, makeDarkStyle } from '../map-style.ts';
+import { fetchStyleWithTiles } from '../tilejson.ts';
 import { currentTheme, onThemeChange, root, setTheme, themeMeta } from '../theme.ts';
 import { eventsBtn, viewOptions, viewsBtn } from './menu.ts';
 import { showToast } from '../toast.ts';
@@ -153,9 +155,22 @@ export let mapView: MapView = (() => {
 // The satellite style is the same in light and dark (photos); fetched the first time it is shown
 let satelliteStyle: maplibregl.StyleSpecification | null = null;
 let satelliteLoad: Promise<maplibregl.StyleSpecification> | null = null;
+let normalLoad: Promise<void> | null = null;
+/** The normal view's style (light, and the dark variant made of it): the first time the one on its way since the
+ *  <head> (EARLY_STYLE), else fetched; tried again on the next call when it fails. */
+function loadNormal(): Promise<void> {
+  if (STYLES.light) return Promise.resolve();
+  const early = window.EARLY_STYLE;
+  window.EARLY_STYLE = undefined;
+  normalLoad ||= (early || fetchStyleWithTiles(STYLE_URL)).then((style) => {
+    STYLES.light = style;
+    STYLES.dark = makeDarkStyle(style);
+  }).catch((e: unknown) => { normalLoad = null; throw e; });
+  return normalLoad;
+}
 function loadSatellite(): Promise<maplibregl.StyleSpecification> {
-  satelliteLoad ||= fetch(SATELLITE_STYLE_URL)
-    .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<maplibregl.StyleSpecification>; })
+  // the same tile addresses as the normal view's base map (tilejson.ts): switching view reuses its tiles
+  satelliteLoad ||= fetchStyleWithTiles(SATELLITE_STYLE_URL)
     .then((st) => (satelliteStyle = st))
     .catch((e: unknown) => { satelliteLoad = null; throw e; }); // try again on the next tap
   return satelliteLoad;
@@ -164,14 +179,18 @@ function showView() {
   viewsBtn.classList.toggle('active', mapView === 'satellite');
   viewOptions.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === mapView)));
 }
-/** Switches between the plain map and the satellite view and remembers the choice. Resolves once it is drawn in. */
+/** Switches between the plain map and the satellite view and remembers the choice once it is shown. When its
+ *  style cannot be loaded, the view stays as it was (and the promise is rejected). */
 export function setMapView(view: MapView): Promise<void> {
+  const before = mapView;
   mapView = view;
-  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
   showView();
-  if (view === 'map') { applyMapTheme(true); return Promise.resolve(); }
-  return loadSatellite().then(() => { if (mapView === 'satellite') applyMapTheme(true); }, (e: unknown) => {
-    if (mapView === 'satellite') setMapView('map');
+  return (view === 'satellite' ? loadSatellite() : loadNormal()).then(() => {
+    if (mapView !== view) return; // another view was picked meanwhile
+    try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+    applyMapTheme(true);
+  }, (e: unknown) => {
+    if (mapView === view) { mapView = before; showView(); }
     throw e;
   });
 }
@@ -198,22 +217,28 @@ function applyMapTheme(diff: boolean) {
 export function start() {
   onThemeChange(() => applyMapTheme(true)); // a new theme from Settings or the system: the map's style follows
   showView();
-  if (mapView === 'satellite') setMapView('satellite').catch(() => showToast('The satellite view could not be loaded.'));
   map.on('moveend', updateCards);
   map.on('zoom', () => {
     if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
   });
   map.on('resize', updateCards);
-  // Usually already on its way since the <head> (EARLY_STYLE)
-  (window.EARLY_STYLE || fetch(STYLE_URL).then((r) => r.json()))
-    .then((style: maplibregl.StyleSpecification) => {
-      STYLES.light = style;
-      STYLES.dark = makeDarkStyle(style);
-      applyMapTheme(false);
-      // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
-      map.once('idle', () => { updateCards(); startPlatforms(); });
-    })
-    .catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
+  // The normal style, also when the map opens in satellite view (for switching to it later)
+  const normal = loadNormal();
+  normal.catch(() => {}); // handled below when it is the first view; else tried again when the normal view is picked
+  // The map is drawn once, in the saved view: satellite (the normal view if its style cannot be loaded) or normal
+  const first = mapView !== 'satellite' ? normal : loadSatellite().then(() => {}, () => {
+    if (mapView === 'satellite') { // (unless Normal was picked meanwhile)
+      mapView = 'map';
+      showView();
+      showToast('The satellite view could not be loaded.');
+    }
+    return loadNormal();
+  });
+  first.then(() => {
+    applyMapTheme(false);
+    // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
+    map.once('idle', () => { updateCards(); startPlatforms(); });
+  }).catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
   themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
   // Follow the system setting until the user picks a theme themselves
   if (window.matchMedia as typeof matchMedia | undefined) {

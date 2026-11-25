@@ -3,6 +3,7 @@
 // Whether it shows is decided in the <head> of index.html (localStorage 'onboarding', ?intro), which also holds back
 // the location prompt until it is over. Settings › "Show the introduction again" opens it once more.
 // Nothing is kept here: every answer goes straight into settings.ts (SETTINGS).
+import * as maplibregl from 'maplibre-gl';
 import { SETTINGS } from './settings.ts';
 import { STYLES, STYLE_URL, makeDarkStyle } from './map-style.ts';
 import type { Settings } from './settings.ts';
@@ -225,9 +226,8 @@ function makeTrip(host: HTMLElement, clock: Clock): Trip {
   const ok = (v: boolean) => settle(v);
   const both = () => { if (loaded && tiled) ok(true); };
   try {
-    const gl = (window as { maplibregl?: typeof maplibregl }).maplibregl;
-    if (!gl) ok(false);
-    else {
+    const gl = maplibregl; // part of the page's modules: always there once this runs
+    {
     const dark = html.dataset.theme === 'dark';
     // The app's own map style (light, or its dark variant): already loaded behind the introduction, else fetched
     const style = (): Promise<maplibregl.StyleSpecification> => {

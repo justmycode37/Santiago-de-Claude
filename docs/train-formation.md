@@ -71,6 +71,10 @@ open source has the crowding of single coaches. The view says "expected" next to
 
 The formation says which sectors a coach is in, not where in them. The coaches are laid end to end at their real
 lengths and the whole train slid along the track to where it fits the sectors best (`src/train-layout.ts`).
+Where the model has no sectors for the platform (Bern's RBS platforms 21–24, many narrow-gauge and smaller
+platforms), the 3D view still draws the train, along the platform's own walkway (`layoutTrain(…, { approx: true })`:
+centred on it, or filling it), single-deck on narrow-gauge track; such a layout is `guessed`, so no door is planned
+from it.
 
 ### The key
 

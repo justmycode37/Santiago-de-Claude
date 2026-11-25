@@ -7,16 +7,17 @@
   "scripts": {
     "dev": "node scripts/dev.mts",
     "build": "node scripts/build.mts",
-    "check": "tsc -p tsconfig.json && tsc -p src/pages && tsc -p scripts && tsc -p tools && tsc -p tools/tsconfig.page.json && tsc -p livemap && tsc -p livemap/tsconfig.page.json",
+    "ar-test": "node tools/ar-test.mts",
+    "check": "tsc -p tsconfig.json && tsc -p src/pages && tsc -p src/sw && tsc -p scripts && tsc -p tools && tsc -p tools/tsconfig.page.json && tsc -p livemap && tsc -p livemap/tsconfig.page.json",
     "search-eval": "node --experimental-test-module-mocks tools/search-eval/eval.mts",
-    "test": "node tools/test_station_route.mts && node tools/test_train_formation.mts && node tools/test_coach_plan.mts && node tools/test_station_route2.mts && node --experimental-test-module-mocks tools/test_walkrefine.mts && node --experimental-test-module-mocks tools/test_walkguess.mts && node --experimental-test-module-mocks tools/test_walktrack.mts && node --experimental-test-module-mocks tools/test_pages.mts && node tools/test_arcore.mts"
+    "test": "node tools/test_station_route.mts && node tools/test_train_formation.mts && node tools/test_coach_plan.mts && node tools/test_station_route2.mts && node --experimental-test-module-mocks tools/test_walkrefine.mts && node --experimental-test-module-mocks tools/test_walkguess.mts && node --experimental-test-module-mocks tools/test_walktrack.mts && node --experimental-test-module-mocks tools/test_pages.mts && node tools/test_arcore.mts && node tools/test_compass.mts && node tools/test_artrack.mts && node tools/test_ppocr.mts && node tools/test_yolox.mts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@types/three": "0.170.0",
     "amaro": "^1.3.0",
     "esbuild": "^0.28.2",
-    "maplibre-gl": "4.7.1",
+    "maplibre-gl": "6.19.0",
     "typescript": "^7.0.2"
   }
 }

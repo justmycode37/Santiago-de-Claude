@@ -7,7 +7,7 @@ A Swiss community event map and public transport journey planner. Team project f
 ## Features
 
 - **Journey planner & live tracking**: Plans Swiss public transport and walking trips via the team's [Kante engine](kante/README.md) ([details](docs/journeys.md)) with route alternatives, exact train platforms (Gleis) and bus/tram stop edges (Kante), live vehicle tracking, delay/platform updates, GPS route following, and SBB ticket links.
-- **3D station navigation**: Interactive 3D models for Bern, Europaplatz, Wankdorf, Brünnen Westside, Bümpliz Nord, Zürich HB, Basel SBB, Luzern, Lausanne and Genève shown as one building at true heights, with the indoor transfer route step by step ([details](docs/station3d-solid.md)), and the trains, trams and buses you board or leave as holograms at the platform: the coach chosen for the shortest walk at both ends, its classes, and how full it will be ([details](docs/train-formation.md)).
+- **3D station navigation**: Interactive 3D models for Bern, Europaplatz, Wankdorf, Brünnen Westside, Bümpliz Nord, Zürich HB, Basel SBB, Luzern, Lausanne and Genève shown as one building at true heights, with the indoor transfer route step by step, a play-through of the walk and the step following your position ([details](docs/station3d-solid.md)), and the trains, trams and buses you board or leave as holograms at the platform: the coach chosen for the shortest walk at both ends, its classes, and how full it will be ([details](docs/train-formation.md)).
 - **Indoor position**: in the 3D station view, which floor you are on and where, from the phone's sensors, GPS and signs read by Scan ([details](docs/indoor-positioning.md)).
 - **Walking routes**: Walks to the stop, between platforms and to the door are the Kante engine's, on a pedestrian network from OpenStreetMap and swisstopo's address register: right door, arcades and passages, floors, hills, step-free settings ([details](docs/walking-routes.md)).
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo), with draggable start/destination map pins. An empty search offers categories (Restaurants, Hotels, Supermarkets, …; language courses and migration offices with *New to Switzerland* on) that put the best-rated places nearby on the map as cards with photo and website.
@@ -45,9 +45,10 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
   ```bash
   node tools/build-map-places.mts
   ```
-- **3D station models (`stations3d/`)** from OSM + ATLAS (requires `pip install shapely`):
+- **3D station models (`stations3d/`)** from OSM + ATLAS, and the cantons' cadastral survey for the first-person walls (requires `pip install shapely pyproj`):
   ```bash
   python3 tools/build_station3d.py
+  python3 tools/station3d_av.py all
   ```
 - **Stop scan database (`stop-images/`)** from GTFS + open photo sources (requires `pip install onnxruntime pillow numpy`; optional `MAPILLARY_TOKEN`):
   ```bash

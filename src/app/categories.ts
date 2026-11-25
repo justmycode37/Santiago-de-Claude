@@ -6,6 +6,7 @@
 // known the place is on OpenStreetMap and Wikidata (PlaceSearch.enrich). Being near counts a little.
 // With "New to Switzerland" on in Settings, categories for newcomers come first: language courses (the community
 // events) and town halls & migration offices. Those events are not on the map otherwise (map-events.ts).
+import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { eventMarkers, updateCards } from './map-events.ts';
 import { showToast, toast } from '../toast.ts';

@@ -12,10 +12,23 @@ struct CameraVehicleOverlay: Identifiable {
     var displayText: String? = nil
     var capturedAt: Date? = nil
 
+    /// Red only where the display names something: another listed departure (observedService), a short turn, or out
+    /// of service. A conflict that names nothing ("7 Detrina" for "7 Ostring") is how correlated misreads of the right
+    /// display look (docs/ar-reading-range.md): it is not drawn red.
+    var redFromDisplay: Bool {
+        guard decision.state == .conflicting else { return false }
+        // the trip binding's own short working or cancellation (not a display read)
+        if decision.reason == "trip_cancelled_pickup_forbidden_or_short_working" { return true }
+        // a display read: something named, in two distinct frames
+        return (decision.frames ?? 0) >= 2 && (decision.observedService != nil
+            || ["out_of_service", "display_short_turn_before_alighting"].contains(decision.reason))
+    }
+
     var symbol: String {
         switch decision.state {
-        case .visualCandidate, .verifiedService: return "checkmark.circle"
-        case .conflicting: return "xmark.octagon.fill"
+        case .visualCandidate: return "text.viewfinder"
+        case .verifiedService: return "checkmark.circle"
+        case .conflicting: return redFromDisplay ? "xmark.octagon.fill" : "questionmark.circle"
         case .unknown: return "questionmark.circle"
         }
     }
@@ -27,12 +40,12 @@ struct CameraVehicleOverlay: Identifiable {
             switch decision.reason {
             case "out_of_service": return "Out of service · do not board"
             case "display_short_turn_before_alighting": return "Ends before your stop"
-            case "selected_boarding_unavailable": return "Departure unavailable"
-            case "selected_alighting_unavailable": return "Your arrival stop is unavailable"
-            default: return "Different line or destination"
+            default: return redFromDisplay ? "Different line or destination" : "Display differs · check it"
             }
         case .unknown:
             switch decision.reason {
+            case "selected_boarding_unavailable": return "Departure unavailable"
+            case "selected_alighting_unavailable": return "Your arrival stop is unavailable"
             case "multiple_matching_vehicles": return "Multiple matches · choose one"
             case "route_context_stale": return "Journey needs refresh"
             case "route_calls_incomplete", "ambiguous_alighting_call": return "Destination stop unconfirmed"
@@ -43,11 +56,12 @@ struct CameraVehicleOverlay: Identifiable {
 }
 
 /// Main-actor-owned display state. Every invalidation rejects queued publication and clears
-/// feedback. Display timeout alone preserves bounded tracker history, allowing throttled fresh
-/// frames to accumulate evidence; a context/scene interruption resets that history as well.
+/// feedback. Display timeout and a small camera movement alone preserve bounded tracker history
+/// (the tracker moves old boxes by the camera's turn), allowing throttled fresh frames to
+/// accumulate evidence; a big turn or a context/scene interruption resets that history as well.
 struct CameraEvidenceLifecycle {
     enum Invalidation: CaseIterable {
-        case restarted, contextChanged, trackingLost, stopped, thermal, failed, moved, expired
+        case restarted, contextChanged, trackingLost, stopped, thermal, failed, moved, turned, expired
 
         var instruction: String {
             switch self {
@@ -57,7 +71,7 @@ struct CameraEvidenceLifecycle {
             case .stopped: return "Camera stopped. Use the map or reopen the camera to check the display."
             case .thermal: return "Camera recognition paused while the phone cools. Check the line and destination on the vehicle."
             case .failed: return "Vehicle recognition unavailable. Check the line and destination, or use a photo."
-            case .moved: return "Hold steady with the full vehicle and destination display in view."
+            case .moved, .turned: return "Hold steady with the full vehicle and destination display in view."
             case .expired: return "View changed or expired. Read the vehicle's line and destination again."
             }
         }
@@ -88,7 +102,8 @@ struct CameraEvidenceLifecycle {
 
     mutating func invalidate(_ reason: Invalidation, at now: Date = Date()) {
         epoch = UUID()
-        if reason != .expired { trackingEpoch = UUID() }
+        // An expired overlay or a small movement keeps the tracks (the pan reset of the plan's step 1)
+        if reason != .expired && reason != .moved { trackingEpoch = UUID() }
         generationStartedAt = now
         vehicles = []; matches = []; feedbackID = nil; expiresAt = nil
         recognition = reason.instruction
@@ -112,22 +127,32 @@ struct CameraEvidenceLifecycle {
         return candidates.count == 1 ? candidates.first?.id : nil
     }
 
+    /// How old a picture, its display text and the overlay drawn from them may get, from the processing cadence
+    /// (seconds between processed frames). At the normal 0.4 s: 0.7 s, 0.8 s and a 0.5 s lease, as always; throttled
+    /// (0.8 s, 1.2 s) they grow with it, so a hot phone's overlay does not lapse before the next frame can renew it.
+    static func limits(cadence: TimeInterval) -> (capture: TimeInterval, text: TimeInterval, lease: TimeInterval) {
+        let c = min(1.2, max(0.4, cadence.isFinite ? cadence : 0.4))
+        return (0.3 + c, 0.4 + c, 0.1 + c)
+    }
+
     /// Only fresh work from the current active generation can publish. Expiry also rejects work
     /// that completed before its queued timer ran; that work must not resurrect a lost highlight.
     @discardableResult mutating func publish(vehicles incoming: [CameraVehicleOverlay], matches signs: [CameraTextMatch],
                                              token: UUID, capturedAt: Date, now: Date, routeValidUntil: Date? = nil,
-                                             displayIssues: [UUID: DisplayRecognitionIssue] = [:]) -> Bool {
+                                             displayIssues: [UUID: DisplayRecognitionIssue] = [:],
+                                             cadence: TimeInterval = 0.4) -> Bool {
         guard active, token == epoch else { return false }
+        let limit = Self.limits(cadence: cadence)
         guard now.timeIntervalSince1970.isFinite, capturedAt.timeIntervalSince1970.isFinite,
               capturedAt >= generationStartedAt, now >= capturedAt,
-              now.timeIntervalSince(capturedAt) < 0.7, !feedbackExpired(at: now) else {
+              now.timeIntervalSince(capturedAt) < limit.capture, !feedbackExpired(at: now) else {
             invalidate(.expired, at: now)
             return false
         }
         let candidates = incoming.filter { Self.isCandidate($0.decision) }
         let textDates = candidates.compactMap(\.capturedAt)
         guard textDates.count == candidates.count,
-              textDates.allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= capturedAt && now.timeIntervalSince($0) < 0.8 }) else {
+              textDates.allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= capturedAt && now.timeIntervalSince($0) < limit.text }) else {
             invalidate(.expired, at: now)
             return false
         }
@@ -149,14 +174,16 @@ struct CameraEvidenceLifecycle {
                 : "Display matches. Check the line, destination and boarding area before boarding."
         } else if candidates.count > 1 {
             recognition = "More than one display matches. Point at one vehicle and check which service is boarding."
-        } else if let conflict = incoming.first(where: { $0.decision.state == .conflicting }) {
+        } else if let conflict = incoming.first(where: { $0.decision.state == .conflicting && $0.redFromDisplay }) {
             switch conflict.decision.reason {
             case "out_of_service": recognition = "Vehicle is out of service. Do not board; look for another service."
-            case "selected_boarding_unavailable": recognition = "This departure is unavailable for boarding. Check another departure or replan."
-            case "selected_alighting_unavailable": recognition = "This service cannot currently take you to your selected stop. Check another departure or replan."
             case "display_short_turn_before_alighting": recognition = "This vehicle's display ends before your stop. Do not board; check another service."
             default: recognition = "Different line or destination. Do not use this vehicle match; check another vehicle's full display."
             }
+        } else if incoming.contains(where: { $0.decision.reason == "selected_boarding_unavailable" }) {
+            recognition = "This departure is unavailable for boarding. Check another departure or replan."
+        } else if incoming.contains(where: { $0.decision.reason == "selected_alighting_unavailable" }) {
+            recognition = "This service cannot currently take you to your selected stop. Check another departure or replan."
         } else if incoming.contains(where: { $0.decision.reason == "route_context_stale" }) {
             recognition = "Journey information is out of date. Check current departures before comparing this vehicle."
         } else if incoming.contains(where: { ["route_calls_incomplete", "ambiguous_alighting_call"].contains($0.decision.reason) }) {
@@ -171,8 +198,8 @@ struct CameraEvidenceLifecycle {
             recognition = Invalidation.restarted.instruction
         }
         feedbackID = UUID()
-        expiresAt = min(now.addingTimeInterval(0.5), capturedAt.addingTimeInterval(0.8))
-        if let oldestText = textDates.min() { expiresAt = min(expiresAt!, oldestText.addingTimeInterval(0.8)) }
+        expiresAt = min(now.addingTimeInterval(limit.lease), capturedAt.addingTimeInterval(limit.text))
+        if let oldestText = textDates.min() { expiresAt = min(expiresAt!, oldestText.addingTimeInterval(limit.text)) }
         if !candidates.isEmpty, let routeValidUntil { expiresAt = min(expiresAt!, routeValidUntil) }
         return true
     }

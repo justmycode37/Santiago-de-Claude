@@ -13,9 +13,12 @@
     { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
                    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
   </script>
+  <!-- MapLibre for the map: the page's script imports it from this address (scripts/build.mts, the version in
+       package.json); fetched straight away. The build checks that this and the stylesheet are of that version. -->
+  <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs" crossorigin />
   <link rel="stylesheet" href="pricing.css" />
   <link rel="stylesheet" href="ticket-pricing.css" />
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.css" />
   <!-- build: src/inline/theme.ts -->
   <!-- build: src/inline/first-visit.ts -->
   <!-- Open the connections the app needs while the page is still loading (map tiles, search, timetable) -->
@@ -23,7 +26,7 @@
   <link rel="preconnect" href="https://api3.geo.admin.ch" crossorigin />
   <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
   <link rel="preconnect" href="https://kante.omniroute.app" crossorigin />
-  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://unpkg.com" crossorigin />
   <!-- build: src/inline/early.ts -->
   <!-- build: src/inline/updated.ts -->
   <style>
@@ -841,10 +844,13 @@
     .ar-layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
     .ar-box { position: absolute; border: 3px solid #fff; border-radius: 10px; box-shadow: 0 0 0 2px rgba(0,0,0,.45); }
     .ar-box.ok { border-color: #2ecc71; }
-    .ar-box.warn { border-color: #ff9f1a; }
+    .ar-box.no { border-color: #e5484d; }
     .ar-box > span { position: absolute; left: -3px; bottom: 100%; margin-bottom: 4px; max-width: 80vw; padding: 4px 8px; border-radius: 8px; background: rgba(0,0,0,.75); color: #fff; font: 700 14px/1.25 system-ui, sans-serif; }
     .ar-box.ok > span { background: #1e8e4f; }
-    .ar-box.warn > span { background: #b86200; }
+    .ar-box.no > span { background: #c0262c; }
+    .ar-dbg { position: absolute; left: 12px; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: flex-end; pointer-events: auto; color: #fff; font: 12px/1.3 ui-monospace, monospace; }
+    .ar-dbg > div { flex: 1; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.6); white-space: pre-wrap; }
+    .ar-dbg > button { flex: none; padding: 10px 12px; border: 0; border-radius: 10px; background: #fff; color: #000; font: 700 14px system-ui, sans-serif; }
     .ar-arrow { position: absolute; left: 50%; top: 24%; color: #fff; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); transform-origin: 50% 50%; }
     .ar-arrow svg { width: 96px; height: 96px; display: block; }
     .ar-info { position: absolute; left: 12px; right: 12px; top: calc(72px + env(safe-area-inset-top)); padding: 8px 12px; border-radius: 12px; background: rgba(0,0,0,.7); color: #fff; font: 700 15px/1.3 system-ui, sans-serif; text-align: center; }
@@ -1390,6 +1396,24 @@
       border: 3.5px solid #fff;
       box-shadow: 0 1px 5px rgba(0,0,0,.3);
     }
+    /* Which way you face (src/app/heading.ts): a beam from the dot, --s half its angle (as wide as the compass is
+       unsure), --a how strong; JS turns it. It sits between the pulse (::before) and the dot (::after). */
+    .user-beam {
+      --s: 30deg;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 120px;
+      height: 120px;
+      margin: -60px 0 0 -60px;
+      pointer-events: none;
+      background: radial-gradient(closest-side, color-mix(in srgb, var(--you) 80%, transparent) 15%, color-mix(in srgb, var(--you) 0%, transparent));
+      -webkit-mask: conic-gradient(from calc(var(--s) * -1), transparent, #000 4deg, #000 calc(var(--s) * 2 - 4deg), transparent calc(var(--s) * 2));
+      mask: conic-gradient(from calc(var(--s) * -1), transparent, #000 4deg, #000 calc(var(--s) * 2 - 4deg), transparent calc(var(--s) * 2));
+      opacity: 0;
+      transition: opacity .4s ease;
+    }
+    .user-beam.on { opacity: var(--a, 1); }
     @keyframes pulse {
       0%   { transform: scale(.4); opacity: 1; }
       100% { transform: scale(1.4); opacity: 0; }
@@ -1843,7 +1867,6 @@
 
   <!-- The app's language: a plain script, so that it runs before maplibre has downloaded (src/translate.ts) -->
   <!-- build: src/translate.ts -->
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <!-- Generated data and the optional local config: plain scripts that put themselves on window -->
   <script src="swiss-workshops.js"></script>
   <script src="bern-events.js"></script>
