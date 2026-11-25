@@ -86,9 +86,11 @@ fn check_journey(tt: &Timetable, q: &Query, j: &Journey) -> Result<(), String> {
             Leg::Access { to, dep, arr } => {
                 ensure!(li == 0 && q.onboard.is_none(), "access leg misplaced");
                 let a = acc(to).ok_or("access stop not in query")?;
-                ensure!(arr - dep == a, "access duration");
-                ensure!(dep == j.dep && dep >= q.from, "access departure {dep} vs journey {} / from {}", j.dep, q.from);
-                ensure!(q.window == 0 || dep <= q.from + q.window, "departure outside window");
+                // (a stop whose departures count earlier: the leg leaves that much before the walk has to)
+                let late = q.access.iter().position(|&(s, _)| s == to).and_then(|i| q.access_late.get(i)).copied().unwrap_or(0);
+                ensure!(arr - dep == a + late, "access duration");
+                ensure!(dep == j.dep && dep + late >= q.from, "access departure {dep} vs journey {} / from {}", j.dep, q.from);
+                ensure!(q.window == 0 || dep + late <= q.from + q.window, "departure outside window");
                 at = Some(to);
                 ready = arr;
                 prev_was_ride = false;
@@ -226,6 +228,126 @@ fn change_needs_margin() {
     let mut q3 = q;
     q3.max_transfers = 0;
     assert!(w.plan(&q3).is_empty());
+}
+
+#[test]
+fn a_journey_of_many_rides() {
+    // Two town buses to the station, three trains and three valley buses: eight rides, and the only way there
+    // tonight. With seven rides at most the planner answered with tomorrow's direct bus.
+    let mut b = Builder::new();
+    let stops: Vec<StopIdx> = (0..=MAX_RIDES).map(|i| b.stop(&format!("S{i}"))).collect();
+    let l = b.line("1", Mode::Bus);
+    let chain: Vec<usize> = (0..MAX_RIDES)
+        .map(|i| {
+            let p = b.pattern(l, &[stops[i], stops[i + 1]]);
+            b.trip(p, &[hm(18, 10 * i as i32), hm(18, 10 * i as i32 + 5)])
+        })
+        .collect();
+    let (first, last) = (stops[0], stops[MAX_RIDES]);
+    let direct = b.pattern(l, &[first, last]);
+    let tomorrow = b.trip(direct, &[hm(30, 0), hm(31, 0)]);
+    let w = World::new(b);
+    let (acc_, egr_) = ([(first, 0)], [(last, 0)]);
+    let mut q = query(hm(17, 50), &acc_, &egr_, &w.none);
+    q.max_transfers = u8::MAX;
+    let js = w.plan(&q);
+    assert_eq!(js.len(), 2, "tonight with every ride there is, and tomorrow's direct bus");
+    assert_eq!(rides(&js[0]), chain.iter().map(|&t| (w.t(t), 0, 1)).collect::<Vec<_>>());
+    assert_eq!((js[0].transfers as usize, js[0].arr), (MAX_RIDES - 1, hm(18, 10 * (MAX_RIDES as i32 - 1) + 5)));
+    assert_eq!(rides(&js[1]), vec![(w.t(tomorrow), 0, 1)]);
+    // eight rides, as that journey has: found with seven changes, not with six
+    let eighth = stops[8];
+    let egr8 = [(eighth, 0)];
+    let mut q8 = query(hm(17, 50), &acc_, &egr8, &w.none);
+    q8.max_transfers = 7;
+    assert_eq!(w.plan(&q8)[0].transfers, 7);
+    q8.max_transfers = 6;
+    assert!(w.plan(&q8).is_empty());
+    // a traveller who asks for fewer changes gets the direct bus
+    q.max_transfers = 5;
+    assert_eq!(rides0(&w.plan(&q)), vec![(w.t(tomorrow), 0, 1)]);
+}
+
+#[test]
+fn a_stop_the_traveller_would_rather_not_walk_to() {
+    // From the near stop N a bus every hour, 40 minutes to Z; from the far stop F (a 25 minute walk) a train, 10
+    // minutes to Z. F's departures count 30 minutes earlier (`access_late`).
+    let mut b = Builder::new();
+    let (n, f, z) = (b.stop("N"), b.stop("F"), b.stop("Z"));
+    let (bus, rail) = (b.line("1", Mode::Bus), b.line("S", Mode::Rail));
+    let (pb, pr) = (b.pattern(bus, &[n, z]), b.pattern(rail, &[f, z]));
+    let bus8 = b.trip(pb, &[hm(8, 10), hm(8, 50)]);
+    let bus9 = b.trip(pb, &[hm(9, 10), hm(9, 50)]);
+    // caught only by leaving at once: it counts as leaving at 07:30, before the question, and is still caught
+    let early = b.trip(pr, &[hm(8, 25), hm(8, 35)]);
+    // arrives when the 09:10 bus does, for leaving ten minutes after it: not worth the walk
+    let no_gain = b.trip(pr, &[hm(9, 40), hm(9, 50)]);
+    let w = World::new(b);
+    let (acc_, egr_, late) = ([(n, 300), (f, 1500)], [(z, 0)], [0, 1800]);
+    let mut q = query(hm(8, 0), &acc_, &egr_, &w.none);
+    q.window = 2 * 3600;
+    q.access_late = &late;
+    let js = w.plan(&q);
+    // the train at 08:25 (leave at 08:00, reported as 07:30) gets there a quarter of an hour before the first bus;
+    // the one at 09:40 is beaten by the 09:10 bus: it leaves at 09:15, counted as 08:45, and the bus leaves at 09:05
+    let got: Vec<(TripIdx, Secs, Secs)> = js.iter().map(|j| (rides(j)[0].0, j.dep, j.arr)).collect();
+    assert_eq!(got, vec![(w.t(early), hm(7, 30), hm(8, 35)), (w.t(bus8), hm(8, 5), hm(8, 50)), (w.t(bus9), hm(9, 5), hm(9, 50))]);
+    assert_eq!(js[0].legs[0], Leg::Access { to: f, dep: hm(7, 30), arr: hm(8, 25) });
+    // without it, the later train is an answer too
+    q.access_late = &[];
+    assert!(w.plan(&q).iter().any(|j| rides(j)[0].0 == w.t(no_gain)));
+}
+
+#[test]
+fn a_late_stop_does_not_put_the_traveller_at_the_others_before_they_leave() {
+    // G is at the door and its departures count half an hour earlier; X is a quarter of an hour's walk. The bus from
+    // G at 08:00 reaches X at 08:05, for the train at 08:10: nobody leaving at 08:00 walks to X by then. (The
+    // iteration of G's bus runs as of 07:30; the traveller is not at X at 07:45 for that.)
+    let mut b = Builder::new();
+    let (g, x, z) = (b.stop("G"), b.stop("X"), b.stop("Z"));
+    let (bus, rail) = (b.line("1", Mode::Bus), b.line("S", Mode::Rail));
+    let (pb, pr) = (b.pattern(bus, &[g, x]), b.pattern(rail, &[x, z]));
+    let feeder = b.trip(pb, &[hm(8, 0), hm(8, 5)]);
+    let first = b.trip(pr, &[hm(8, 10), hm(8, 30)]);
+    let second = b.trip(pr, &[hm(9, 10), hm(9, 30)]);
+    let w = World::new(b);
+    let (acc_, egr_, late) = ([(g, 0), (x, 900)], [(z, 0)], [1800, 0]);
+    let mut q = query(hm(8, 0), &acc_, &egr_, &w.none);
+    q.window = 3600;
+    q.transfer_margin = 0;
+    q.access_late = &late;
+    let got: Vec<(Vec<(TripIdx, u16, u16)>, Secs, Secs)> = w.plan(&q).iter().map(|j| (rides(j), j.dep, j.arr)).collect();
+    assert_eq!(got, vec![(vec![(w.t(feeder), 0, 1), (w.t(first), 0, 1)], hm(7, 30), hm(8, 30)), (vec![(w.t(second), 0, 1)], hm(8, 55), hm(9, 30))]);
+}
+
+#[test]
+fn a_journey_through_a_late_stop_stays_when_walking_there_is_past_the_window() {
+    // The bus from the near stop N reaches the far station L (a 25 minute walk, `access_late`) at 11:35 for the
+    // train at 12:30. Walking to L for that train means leaving at 12:05, after the window (08:00 to 12:00): that
+    // journey is not in the answer, and the one by bus must not be dropped for it.
+    let mut b = Builder::new();
+    let (n, l, z) = (b.stop("N"), b.stop("L"), b.stop("Z"));
+    let (bus, rail) = (b.line("1", Mode::Bus), b.line("S", Mode::Rail));
+    let (pb, pr) = (b.pattern(bus, &[n, l]), b.pattern(rail, &[l, z]));
+    let feeder = b.trip(pb, &[hm(11, 20), hm(11, 35)]);
+    let train = b.trip(pr, &[hm(12, 30), hm(12, 50)]);
+    let w = World::new(b);
+    let (acc_, egr_, late) = ([(n, 300), (l, 1500)], [(z, 0)], [0, 1800]);
+    let mut q = query(hm(8, 0), &acc_, &egr_, &w.none);
+    q.window = 4 * 3600;
+    q.access_late = &late;
+    let by_bus = vec![(vec![(w.t(feeder), 0, 1), (w.t(train), 0, 1)], hm(11, 15), hm(12, 50))];
+    let got = |q: &Query| w.plan(q).iter().map(|j| (rides(j), j.dep, j.arr)).collect::<Vec<_>>();
+    assert_eq!(got(&q), by_bus);
+    // (the last hour alone, as a search in chunks asks it)
+    q.from = hm(11, 0) + 1;
+    q.window = 3599;
+    assert_eq!(got(&q), by_bus);
+    // with the walk inside the window, the journey on foot to the train (counted as leaving at 11:35) is in the
+    // answer and beats the one by bus, as any journey leaving later with fewer rides does
+    q.from = hm(8, 0);
+    q.window = 5 * 3600;
+    assert_eq!(got(&q), vec![(vec![(w.t(train), 0, 1)], hm(11, 35), hm(12, 50))]);
 }
 
 #[test]

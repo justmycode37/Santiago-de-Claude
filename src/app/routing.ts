@@ -25,6 +25,7 @@ import { Station3D } from '../station3d.ts';
 import { KANTE } from '../engine.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import type { Station3DEndpoint } from '../station3d.ts';
+import type { Station3DTrain } from '../train-formation.ts';
 import type { JourneyChangeStep, JourneyWalkStep, LineMode } from './journey-steps.ts';
 import type { LngLatFirst } from './search.ts';
 import type { KanteFloorChange, KanteWalkDir } from '../engine.ts';
@@ -72,7 +73,12 @@ export interface WalkEnd {
 /** What a routed walk through a station puts on its step (stationWalk()); `floors` null: routed along the streets. */
 export interface StationWalkParts { lines: LngLat[][]; walks: RoutedWalk[]; floors: KanteFloorChange[] | null; /** Routed along the streets: the model had no route. */ street?: boolean }
 /** A walk's place in a station with a 3D model (s3Plan() in sheet-content.ts): the model and the two ends. */
-export interface StationWalkPlan { key: string; from: Station3DEndpoint; to: Station3DEndpoint }
+/** A walk inside a modelled station; `train`: the train it leads to, when it ends at a platform to board one. */
+export interface StationWalkPlan {
+  key: string; from: Station3DEndpoint; to: Station3DEndpoint;
+  /** The vehicle the walk leads to (board) and the one it starts from (alight), when they are trains, trams or buses. */
+  board?: Station3DTrain | null; alight?: Station3DTrain | null;
+}
 
 const routeCache = new Map<string, Promise<unknown>>();
 function getJSON<T>(url: string) {

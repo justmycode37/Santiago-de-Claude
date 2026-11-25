@@ -853,10 +853,33 @@ fn footpaths(tt: &Timetable, router: &WalkRouter, links: &[StopLink], profile: &
                     }
                 }
             }
+            // A change inside one station that takes longer than the bound (a step-free way round, a long
+            // underpass): timed by the quickest walk there is, up to three times the bound, rather than by an
+            // estimate from the straight line that may be far too short for the walk drawn.
+            let mut long: FxHashMap<StopIdx, (f32, f32)> = FxHashMap::default();
+            if from.matched != LinkMatch::None {
+                let far: Vec<StopIdx> = near
+                    .iter()
+                    .copied()
+                    .filter(|&t| !reached.contains(&t) && links[t as usize].matched != LinkMatch::None && tt.stops[t as usize].station == stop.station && tt.stops[t as usize].pos.dist_m(&stop.pos) <= 450.0)
+                    .collect();
+                if !far.is_empty() {
+                    let snaps: Vec<Snap> = far.iter().map(|&t| links[t as usize].snap).collect();
+                    for (j, r) in router.quickest_many(&[(from.snap, 0.0, 0.0)], &snaps, profile, 3.0 * max_s).into_iter().enumerate() {
+                        if let Some((_, c)) = r {
+                            long.insert(far[j], (c.var_m + from.snap.dist_m + snaps[j].dist_m, c.fix_s));
+                        }
+                    }
+                }
+            }
             // Never lose a change inside one station, or around a stop that has
             // no mapped paths: estimate from the straight line instead.
             for &t in &near {
                 if reached.contains(&t) {
+                    continue;
+                }
+                if let Some(&(var, fix)) = long.get(&t) {
+                    out.push((t, var.ceil().min(65535.0) as u16, fix.ceil().min(65535.0) as u16));
                     continue;
                 }
                 let other = &tt.stops[t as usize];

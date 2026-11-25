@@ -82,9 +82,16 @@ pub struct PlanOptions {
     /// At a change with time to spare, walk a flatter way (as "avoid" would) when it still leaves a minute in
     /// hand. Not with `hills: "ignore"` or `"avoid"` (that walks the flatter way anyway).
     pub flatter_changes: bool,
+    /// Seconds added to every change, on top of the walk between the two boarding points (0: a change takes that
+    /// walk and no more).
     pub transfer_margin_s: i32,
+    /// The longest walk to the first stop and from the last. A journey with a longer one (up to twice as long) is
+    /// offered beside the others where it has half an hour on them, and where nothing can be reached within it
+    /// (`App::plan`); it carries a `long-walk` alert.
     pub max_walk_min: f32,
     pub modes: Option<Vec<String>>,
+    /// The most changes a journey may have; left out: as many as the planner can follow (`kante_raptor::MAX_RIDES`
+    /// rides).
     pub max_transfers: Option<u8>,
 }
 
@@ -97,7 +104,7 @@ impl Default for PlanOptions {
             wheelchair: false,
             hills: "normal".into(),
             flatter_changes: true,
-            transfer_margin_s: 120,
+            transfer_margin_s: 0,
             max_walk_min: 20.0,
             modes: None,
             max_transfers: None,
@@ -158,6 +165,10 @@ pub struct WalkRequest {
     /// again: what there is time for).
     #[serde(default)]
     pub limit_s: Option<f32>,
+    /// When the walk sets out (Unix seconds): ways closed then (opening hours) are avoided. Without it every way is
+    /// open, and the walk is timed from now.
+    #[serde(default)]
+    pub time: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -296,6 +307,9 @@ pub struct WalkLeg {
     pub step_free: bool,
     #[serde(skip_serializing_if = "is_zero")]
     pub unmapped_level_changes: u8,
+    /// Metres on ways closed at the walk's time (opening hours), taken because no open way would do.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub closed_m: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slack_s: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]

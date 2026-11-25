@@ -22,6 +22,21 @@
 //! wheelchair mode rough surfaces count ×1.8, unpaved paths ×1.3 and busy
 //! roads ×2 (the largest of these, not their product).
 //!
+//! With the graph's attributes (`WalkGraph::attrs`, `walkattr.bin`; see
+//! `docs/walking-routes.md`, "Which way"): a carriageway whose sidewalks are
+//! drawn apart counts ×2.5 instead of its own multiplier, a car-only service
+//! road at least ×1.3, a way away from traffic ×0.95 (the A* bound allows for
+//! it), a way closed at `WalkProfile::at` ×20 on top. And at a junction of
+//! three or more ways (`net::Junctions`) passing from one way to another
+//! costs a turn (2 s from 35°, 4 s back) and, from a footway or sidewalk, each
+//! tertiary / secondary / primary carriageway walked over where no crossing is
+//! mapped (15 / 30 / 45 s); `crossing=no` there is not crossed at all. The
+//! search keeps one label per arc into such a junction, so these are exact,
+//! and against the direction of travel the same (the costs are symmetric).
+//! A search by the time walked alone ([`WalkRouter::quickest_many`],
+//! [`WalkRouter::quickest_between`]) leaves all of them out, `crossing=no`
+//! excepted. `KANTE_WALK_RULES_OFF` switches each off ([`rules`]).
+//!
 //! Hills (when the graph has slopes, `WalkGraph::slopes`, from `kante-elevation`; the model is
 //! `kante_core::slope`): every arc carries its direction's extra metres of walking time, which add to
 //! `var_m` (so up a hill takes longer than down it), its route-choice effort, weighted by the walker's
@@ -124,7 +139,7 @@
 mod index;
 mod net;
 mod path;
-pub use net::{LevelJoin, LevelJoinKind};
+pub use net::{rules, LevelJoin, LevelJoinKind};
 mod search;
 mod steps;
 #[cfg(test)]
@@ -204,6 +219,9 @@ pub struct WalkPath {
     /// for step-free and wheelchair profiles. A walk with any of these is not
     /// known to be step-free even if `stairs_up + stairs_down == 0`.
     pub unmapped_level_changes: u8,
+    /// Metres on ways whose opening hours or closing condition exclude the walk's time (`WalkProfile::at`): taken
+    /// only when no open way would do.
+    pub closed_m: f32,
     /// Snapped start → edges → snapped end. At a lift the same position
     /// appears twice, once per level.
     pub geometry: Vec<LatLon>,
@@ -298,6 +316,9 @@ pub struct IndexStats {
     pub net_bytes: usize,
     /// Graph nodes that are lifts or touch a lift edge.
     pub lift_nodes: usize,
+    /// Junctions with transition costs, and the search states (routing nodes and one per arc into a junction).
+    pub junctions: usize,
+    pub search_states: usize,
 }
 
 impl WalkRouter {
@@ -382,7 +403,7 @@ impl WalkRouter {
                 continue;
             }
             for a in &self.net.arcs[self.net.out(r)] {
-                out.push((r, self.net.orig_node(a.head), a.edge(), a.cls, a.len_m, a.head_block));
+                out.push((r, self.net.orig_node(a.head), a.edge(), a.cls, a.len_m, a.head_block & 7));
             }
         }
         out
@@ -435,6 +456,13 @@ impl WalkRouter {
         Some(legs.iter().filter(|l| l.edge != net::NO_EDGE).map(|l| (l.edge, l.f0, l.f1)).collect())
     }
 
+    /// Passing graph node `node` from edge `e_in` to edge `e_out`: the route-choice seconds of the turn and of
+    /// walking over busy roads where no crossing is mapped, and whether it is not allowed (`crossing=no`), as the
+    /// rules on now count them (for tools that measure walks).
+    pub fn transition(&self, node: u32, e_in: u32, e_out: u32) -> (f32, f32, bool) {
+        self.net.transition(&self.graph, node, e_in, e_out)
+    }
+
     /// Edges intersecting `bbox` (for map overlays), ascending.
     pub fn edges_in(&self, bbox: &BBox) -> Vec<u32> {
         self.grid.edges_in(&self.graph, bbox)
@@ -471,6 +499,8 @@ impl WalkRouter {
             arcs: self.net.arcs.len(),
             net_bytes: self.net.heap_bytes(),
             lift_nodes: self.net.n_lift_nodes as usize,
+            junctions: self.net.jun.node.len(),
+            search_states: self.net.ns as usize,
         }
     }
 }

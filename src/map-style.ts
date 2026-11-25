@@ -10,6 +10,8 @@ export type Hsl = [h: number, s: number, l: number];
 export type HslRemap = (h: number, s: number, l: number) => Hsl;
 
 export const STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json';
+/** Satellite view (••• › Views): swisstopo's aerial images (SWISSIMAGE) with roads, names and labels drawn over them. */
+export const SATELLITE_STYLE_URL = 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.imagerybasemap.vt/style.json';
 
 // swisstopo has no dark vector basemap. Same as the Kante app: a dark variant of the light base map,
 // made by remapping the lightness of every colour in the style (ground, roads, casings and text separately).

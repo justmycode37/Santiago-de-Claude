@@ -22,6 +22,7 @@ import { Station3D } from '../station3d.ts';
 import type { Journey, JourneyPlatformAt } from '../engine-journey.ts';
 import type { StationRouteStopRef } from '../station-route.ts';
 import type { Station3DEndpoint } from '../station3d.ts';
+import type { RideEnd, Station3DTrain } from '../train-formation.ts';
 import type { JourneyChangeStep, JourneyDirection, JourneyRideStep, JourneyStep, JourneyWalkStep } from './journey-steps.ts';
 import type { StationWalkPlan } from './routing.ts';
 import type { Quay } from './sheet.ts';
@@ -41,12 +42,82 @@ function s3End(stop: KanteStopCall, at: JourneyPlatformAt | null | undefined): S
   if (edge && edge.level != null) end.level = edge.level;
   return end as Station3DEndpoint;
 }
-// Where a step's walk starts and ends inside the modelled station, or null when it is not in one
+// Compass direction from a to b (degrees, 0 = north), or null when they are the same point
+function bearingOf(a: LngLat | undefined, b: LngLat | undefined): number | null {
+  if (!a || !b) return null;
+  const dx = (b[0] - a[0]) * Math.cos(a[1] * Math.PI / 180), dy = b[1] - a[1];
+  return dx || dy ? (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360 : null;
+}
+const RIDE_MODE: Partial<Record<KanteMode, Station3DTrain['mode']>> = { rail: 'train', tram: 'tram', bus: 'bus' };
+// A ride for the 3D view, at its boarding end (role 'board') or its alighting end ('alight'), with both ends and the
+// walks before and after it, so that the coach is chosen once for the whole ride (coach-plan.ts). Only trains (from a
+// known platform), trams and buses.
+// The trains in a row with this ride: the rides before and after it reached by a change (not a walk) from train to
+// train, in order. Their coaches are chosen together (coach-plan.ts).
+function trainChain(ride: JourneyRideStep): JourneyRideStep[] {
+  const steps = journey.steps, i = steps.indexOf(ride);
+  const isTrain = (st: JourneyStep | undefined): st is JourneyRideStep => !!st && st.type === 'ride' && !!st.s.legs[0] && st.s.legs[0].line.mode === 'rail';
+  if (i < 0) return [ride];
+  const out = [ride];
+  for (let j = i; steps[j - 1] && steps[j - 1].type === 'change' && isTrain(steps[j - 2]); j -= 2) out.unshift(steps[j - 2] as JourneyRideStep);
+  for (let j = i; steps[j + 1] && steps[j + 1].type === 'change' && isTrain(steps[j + 2]); j += 2) out.push(steps[j + 2] as JourneyRideStep);
+  return out;
+}
+function s3Ride(ride: JourneyRideStep | null | undefined, role: 'board' | 'alight', inChain = false): Station3DTrain | null {
+  if (!ride) return null;
+  const legs = ride.s.legs, first = legs[0], last = legs[legs.length - 1];
+  const mode = first && RIDE_MODE[first.line.mode];
+  if (!first || !mode) return null;
+  const bc = ride.s.stops[0], ac = ride.s.stops[ride.s.stops.length - 1];
+  if (!bc || !ac || (mode === 'train' && !(role === 'board' ? bc : ac).quay.label)) return null;
+  const steps = journey.steps, i = steps.indexOf(ride);
+  const before = i > 0 ? steps[i - 1] : null, after = i >= 0 && i + 1 < steps.length ? steps[i + 1] : null;
+  const kb = s3Key(bc), ka = s3Key(ac);
+  const wb = before && before.type !== 'ride' ? s3Core(before, true) : null, wa = after && after.type !== 'ride' ? s3Core(after, true) : null;
+  const g0 = first.geometry || [], g1 = last.geometry || [];
+  const end = (c: KanteStopCall, key: string | null, walk: Station3DEndpoint | null, ll: LngLat | null, heading: number | null): RideEnd => ({
+    uic: stopUic(c), ref: c.quay.label || '', sectors: c.quay.sectors || '', name: stopName(c), key, walk, ll, heading,
+  });
+  const board = end(bc, kb, wb && wb.key === kb ? wb.from : null, ride.depLL, first.bearing ?? bearingOf(g0[0], g0[1]));
+  const alight = end(ac, ka, wa && wa.key === ka ? wa.to : null, ride.arrLL, bearingOf(g1[g1.length - 2], g1[g1.length - 1]));
+  // a change from another train: the walk to this one starts at the door of the coach you arrive in
+  if (role === 'board' && before && before.type === 'change' && before.prevRide && !inChain) board.via = s3Ride(before.prevRide, 'alight', true);
+  const leg = role === 'board' ? first : last, call = role === 'board' ? bc : ac;
+  // trains in a row: each at its boarding end, without chains of their own
+  const chain = !inChain && mode === 'train' ? trainChain(ride).map((r) => (r === ride ? null : s3Ride(r, 'board', true))) : null;
+  if (chain) chain[chain.indexOf(null)] = s3Ride(ride, 'board', true);
+  return {
+    chain: chain && chain.length > 1 && chain.every(Boolean) ? chain as Station3DTrain[] : null,
+    id: [first.tripId, first.serviceDate, board.uic].join('|'), mode, role, board, alight, through: legs.length === 1,
+    number: leg.number || '', operator: leg.line.operator || '', category: leg.line.category || '', line: leg.line.name || '',
+    headsign: first.headsign || '', date: first.serviceDate, dep: bc.dep ?? null, delayS: bc.depDelayS ?? null,
+    uic: stopUic(call), ref: call.quay.label || '', sectors: call.quay.sectors || '',
+    // where you get off: the end of its first trip (you stay seated on any after it, in the same coaches)
+    toUic: stopUic(first.to), toName: stopName(first.to),
+  };
+}
+// Where a step's walk starts and ends inside the modelled station (with the vehicles at either end: the one you
+// get off, the one you get on), or null when it is not in one
 export function s3Plan(st: JourneyStep): StationWalkPlan | null {
+  const core = s3Core(st);
+  if (!core) return null;
+  const { key } = core;
+  let board: Station3DTrain | null = null, alight: Station3DTrain | null = null;
+  if (st.type === 'walk' && st.next) board = s3Ride(st.nextRide, 'board');
+  else if (st.type === 'walk') alight = s3Ride(st.prevRide, 'alight');
+  else if (st.type === 'change') {
+    if (s3Key(st.next.from) === key) board = s3Ride(st.nextRide, 'board');
+    if (s3Key(st.prev.to) === key) alight = s3Ride(st.prevRide, 'alight');
+  }
+  return { ...core, board, alight };
+}
+// planned: the walk as planned, from where the trip starts (not from where you are now): the coach for a ride is
+// chosen from it, the same whenever it is asked for
+function s3Core(st: JourneyStep, planned = false): StationWalkPlan | null {
   let key = null, from = null, to = null;
   if (st.type === 'walk' && st.next) {
     key = s3Key(st.next.from);
-    const here = searchState.tripStart ? null : userLngLat; // a trip from somewhere else starts there, not where you are
+    const here = searchState.tripStart || planned ? null : userLngLat; // a trip from somewhere else starts there, not where you are
     const start = here || (st.lines[0] && st.lines[0][0]);
     to = s3End(st.next.from, st.nextRide && st.nextRide.depAt);
     // from further away the model only shows the last stretch: where the walk comes in, not where you are
@@ -181,11 +252,16 @@ function optionRow(conn: Journey, now: number) {
   // line 1: every vehicle's badge, with the walks between them, and how long it all takes
   const chain = h('span', 'chain');
   chain.setAttribute('aria-hidden', 'true');
-  let walkS = 0;
+  let walkS = 0, over = false;
+  const long = KanteJourney.longWalks(conn); // a walk longer than the maximum walk of Settings stands out
   const add = (node: HTMLElement) => { if (chain.childNodes.length) chain.append(kIcon('right', 12, 'chain-sep')); chain.append(node); };
-  const addWalk = () => { const m = Math.round(walkS / 60); walkS = 0; if (m > 3) add(h('span', 'chain-walk', kIcon('walk', 14), String(m))); };
+  const addWalk = () => {
+    const m = Math.round(walkS / 60);
+    if (m > 3) add(h('span', 'chain-walk' + (over ? ' over' : ''), kIcon('walk', 14), String(m)));
+    walkS = 0; over = false;
+  };
   conn.parts.forEach((s) => {
-    if (s.type === 'walk') { walkS += KanteJourney.walkSecs(s); return; }
+    if (s.type === 'walk') { walkS += KanteJourney.walkSecs(s); over = over || long.has(s.kind); return; }
     addWalk();
     add(kBadge(s.line, null, chainIcon(s.line)));
   });
@@ -433,6 +509,11 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     kBtn('walk-sum', `${title}, ${kDur(secs)}${dist ? ', ' + fmtDist(dist) : ''}${climb ? `, ${climb} m uphill` : ''}. Show on map`, () => goToStep(i),
       h('strong', null, title), meta ? h('span', 'walk-meta', meta) : null));
   if (st.type === 'change' && !spare!.easy) main.append(spareLine(st)); // a tight or missed change gets its own line
+  // a walk longer than the maximum walk of Settings (the engine offers it where the journey is far better for it)
+  if (st.type === 'walk' && journey.conn && KanteJourney.longWalks(journey.conn).has(st.final ? 'egress' : 'access')) {
+    main.append(h('div', 'spare tight', kIcon('alert', 15), h('span', null, h('b', null, 'Longer than your maximum walk'),
+      h('small', null, ` — ${SETTINGS.prefs().maxWalkMin} min`))));
+  }
   // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
   const row = h('div', 'step-views');
   if (s3Plan(st)) row.append(kBtn('view3d', 'Show this walk in 3D, inside the station', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));

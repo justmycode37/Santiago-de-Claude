@@ -184,27 +184,6 @@ fn merge_few(normal: &Footpaths, step_free: &Footpaths) -> Footpaths {
     out
 }
 
-/// Reference margin the official change times are compared against.
-const OFFICIAL_MARGIN_S: f32 = 120.0;
-
-/// Shorten footpaths so that `var_m / 1.3 + fix_s + 120 s` does not exceed
-/// the official minimum change time of the pair. Returns how many changed.
-fn cap_by_official(tt: &Timetable, fp: &mut Footpaths) -> usize {
-    let mut n = 0;
-    for s in 0..fp.off.len().saturating_sub(1) {
-        for i in fp.off[s] as usize..fp.off[s + 1] as usize {
-            let Some(off) = tt.official_transfer(s as u32, fp.to[i]) else { continue };
-            // Two metres less, so rounding up to whole seconds cannot push it over.
-            let allowed = (((off as f32 - OFFICIAL_MARGIN_S - fp.fix_s[i] as f32).max(0.0) * DEFAULT_SPEED_MPS) - 2.0).max(0.0) as u16;
-            if fp.var_m[i] > allowed {
-                fp.var_m[i] = allowed;
-                n += 1;
-            }
-        }
-    }
-    n
-}
-
 /// The slopes in `slopes.bin` when they belong to graph `g` (none when the file is missing, unreadable or of
 /// another build).
 pub fn load_slopes(path: &Path, g: &WalkGraph) -> Option<Vec<EdgeSlope>> {
@@ -213,6 +192,16 @@ pub fn load_slopes(path: &Path, g: &WalkGraph) -> Option<Vec<EdgeSlope>> {
     }
     let s = io::load::<Slopes>(path, SLOPES_SCHEMA).ok()?;
     (s.graph == graph_fingerprint(g) && s.edges.len() == g.edges.len()).then_some(s.edges)
+}
+
+/// The attributes in `walkattr.bin` when they belong to graph `g` (none when the file is missing, unreadable or of
+/// another build: every edge then as before they were read).
+pub fn load_attrs(path: &Path, g: &WalkGraph) -> Option<WalkAttrs> {
+    if !path.exists() {
+        return None;
+    }
+    let a = io::load::<WalkAttrs>(path, WALKATTR_SCHEMA).ok()?;
+    (a.graph == graph_fingerprint(g) && a.fits(g)).then_some(a)
 }
 
 fn timed<T>(what: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
@@ -277,6 +266,7 @@ impl App {
 
         let mut walk_bbox = BBox::empty();
         let slopes_path = built.join("slopes.bin");
+        let attrs_path = built.join("walkattr.bin");
         let walk = graph.map(|mut g| {
             for n in g.nodes.iter().step_by(64) {
                 walk_bbox.extend(n);
@@ -286,9 +276,14 @@ impl App {
                 _ if slopes_path.exists() => eprintln!("  slopes.bin belongs to another walk graph build: walks timed as if flat (run `kante build`)"),
                 _ => eprintln!("  no slopes.bin: walks timed as if flat (scripts/fetch-data.sh --elevation, then `kante build`)"),
             }
+            match timed("walk attributes", || Ok(load_attrs(&attrs_path, &g))) {
+                Ok(Some(a)) => g.attrs = a,
+                _ => eprintln!("  no walkattr.bin for this walk graph: sidewalks drawn apart, road sizes and opening hours unknown (run `kante build`)"),
+            }
             let t = Instant::now();
             let r = WalkRouter::new(Arc::new(g));
-            eprintln!("  walk index: {:.2}s", t.elapsed().as_secs_f32());
+            let st = r.index_stats();
+            eprintln!("  walk index: {:.2}s ({} junctions with turns or crossings, {} search states, {} MB)", t.elapsed().as_secs_f32(), st.junctions, st.search_states, st.net_bytes / 1_000_000);
             r
         });
         if walk.is_none() {
@@ -353,14 +348,9 @@ impl App {
                 (None, fp.clone(), fp)
             }
         };
-        // Where the timetable publishes a minimum change time for a pair of
-        // stops, a walker at normal pace must be able to make a change of
-        // that length: the operators plan connections on it. Our own path
-        // between two registry points can be longer than what passengers
-        // really walk (long platforms, V-shaped stations), so cap it.
-        let mut fp_normal = fp_normal;
-        let capped = cap_by_official(&tt, &mut fp_normal);
-        eprintln!("  footpaths capped by official change times: {capped}");
+        // A change takes the walk between the two boarding points, as the footpaths time it (and the seconds the
+        // traveller asks for on top). The timetable's own minimum change times are not used: they are one number
+        // for a whole station and every walker, sometimes more than this walk and sometimes less.
         let fp_few = merge_few(&fp_normal, &fp_step_free);
 
         let t = Instant::now();
@@ -628,9 +618,9 @@ impl App {
     }
 
     /// A place's ways onto the network: the point itself, and the doors of the building it is in.
-    pub fn place_end(&self, pos: LatLon, profile: &WalkProfile) -> End {
+    pub fn place_end(&self, pos: LatLon, profile: &WalkProfile, name: Option<&str>) -> End {
         match self.walk.as_ref() {
-            Some(walk) => End::place(walk, self.doors.as_ref(), pos, profile),
+            Some(walk) => End::place_at(walk, self.doors.as_ref(), pos, profile, name),
             None => End::exact(pos, None),
         }
     }
@@ -662,7 +652,7 @@ impl App {
         // entered at street level, as above)
         let end = match (ep.station, self.walk.as_ref()) {
             (Some(_), Some(walk)) => End::station(walk, self.doors.as_ref(), ep.pos, profile),
-            (None, Some(walk)) => End::place(walk, self.doors.as_ref(), ep.pos, profile),
+            (None, Some(walk)) => End::place_at(walk, self.doors.as_ref(), ep.pos, profile, Some(ep.place.name.as_str())),
             _ => End::exact(ep.pos, None),
         };
         let mut via: FxHashMap<StopIdx, &'static str> = best.keys().map(|&s| (s, "station")).collect();

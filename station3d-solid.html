@@ -52,6 +52,15 @@
     .sx-step.sx-on { outline: 3px solid #14161a; }
     .sx-start { background: #1f8a4c; color: #fff; border-color: #1f8a4c; }
     .sx-end { background: #d7263d; color: #fff; border-color: #d7263d; }
+    /* the train (?train=demo): as in station-view.css */
+    .sx-coach { display: inline-flex; align-items: center; gap: 5px; background: rgba(8,40,56,.82); color: #bdf0ff; border-color: #52d6ff; padding: 1px 6px; }
+    .sx-coach b { font-size: 13px; } .sx-coach.sx-c1 b { color: #ffd400; } .sx-coach em { font-style: normal; font-weight: 500; opacity: .8; }
+    .sx-coach.sx-on { background: var(--route); color: #14161a; border-color: #14161a; } .sx-coach.sx-on.sx-c1 b { color: #14161a; }
+    .sx-crowd { display: inline-flex; gap: 1px; align-items: flex-end; }
+    .sx-crowd s { display: block; width: 3px; height: 9px; border-radius: 2px 2px 1px 1px; background: currentColor; opacity: .25; text-decoration: none; }
+    .sx-crowd-1 { color: #2fbf71; } .sx-crowd-2 { color: #f2a531; } .sx-crowd-3 { color: #ff5a5f; }
+    .sx-crowd-1 s:nth-child(-n+1), .sx-crowd-2 s:nth-child(-n+2), .sx-crowd-3 s { opacity: 1; }
+    .sx-board { background: var(--route); color: #14161a; border-color: #14161a; font-size: 13px; font-weight: 800; }
     .attrib { position: fixed; left: 14px; bottom: 2px; font-size: 10px; color: var(--muted); z-index: 4; }
     @media (max-width: 480px) { #top { right: 70px; } #stepText { font-size: 16px; } }
     #fail { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: var(--bg); }

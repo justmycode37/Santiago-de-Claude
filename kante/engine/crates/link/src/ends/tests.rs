@@ -657,3 +657,73 @@ fn a_line_inside_to_the_door_through_a_jog_in_its_wall_is_through_a_wall() {
     let door = here.joins.iter().find(|j| j.door.is_some()).expect("its door");
     assert!(door.wall && door.doubt == 2, "{door:?}");
 }
+
+// ---------------------------------------------------------------- doors and lines: route-choice preferences
+
+/// A house 20 × 20 m on the corner of Hauptstrasse (south, y = -8) and Nebengasse (east, x = 28), sidewalks along
+/// both (y = -3, x = 23).
+fn corner(doors: &[(f32, f32, DoorKind, &str)]) -> (WalkRouter, DoorIndex) {
+    let mut w = World::new();
+    w.named_way((-60.0, -8.0), (60.0, -8.0), 6, EdgeKind::Road, "Hauptstrasse");
+    w.named_way((28.0, -60.0), (28.0, 60.0), 6, EdgeKind::Road, "Nebengasse");
+    w.way((-60.0, -3.0), (23.0, -3.0), 6, EdgeKind::Sidewalk, 0);
+    w.way((23.0, -3.0), (23.0, 60.0), 6, EdgeKind::Sidewalk, 0);
+    w.way((23.0, -3.0), (28.0, -8.0), 1, EdgeKind::Footway, 0);
+    let b = w.building(0.0, 0.0, 20.0, 20.0);
+    for &(x, y, k, a) in doors {
+        w.door_addr(b, x, y, k, a);
+    }
+    w.finish()
+}
+
+fn door_pen(_ix: &DoorIndex, e: &End, door: u32) -> f32 {
+    e.joins.iter().filter(|j| j.door == Some(door)).map(|j| j.pen_s).fold(f32::INFINITY, f32::min)
+}
+
+#[test]
+fn a_door_knows_whether_it_looks_onto_its_address_street() {
+    let (_, ix) = corner(&[(10.0, 0.0, DoorKind::Yes, "Hauptstrasse 1"), (20.0, 10.0, DoorKind::Yes, "Hauptstrasse 1"), (20.0, 14.0, DoorKind::Yes, "Nebengasse 2")]);
+    let f: Vec<u8> = ix.doors.doors.iter().map(|d| d.faces).collect();
+    assert_eq!(f, vec![DOOR_FACES_OWN, DOOR_FACES_OTHER, DOOR_FACES_OWN]);
+}
+
+#[test]
+fn the_front_door_of_its_address_and_the_main_door_are_preferred() {
+    // the same kind of door on the front (Hauptstrasse) and on the side street: the side one counts 15 m more
+    let (r, ix) = corner(&[(10.0, 0.0, DoorKind::Yes, "Hauptstrasse 1"), (20.0, 10.0, DoorKind::Yes, "Hauptstrasse 1")]);
+    let e = End::place(&r, Some(&ix), pt(10.0, 10.0), &NORMAL);
+    let (front, side) = (door_pen(&ix, &e, 0), door_pen(&ix, &e, 1));
+    assert!(side - front > DOOR_OTHER_STREET_M / 1.3 - 1.0, "{front} {side}");
+    // a main entrance beats another mapped door
+    let (r, ix) = corner(&[(10.0, 0.0, DoorKind::Main, ""), (5.0, 0.0, DoorKind::Yes, "")]);
+    let e = End::place(&r, Some(&ix), pt(8.0, 10.0), &NORMAL);
+    assert!(door_pen(&ix, &e, 1) - door_pen(&ix, &e, 0) > DOOR_NOT_MAIN_M / 1.3 - 0.5);
+    // a place asked for by its address: the door with that address
+    let (r, ix) = corner(&[(10.0, 0.0, DoorKind::Yes, "Hauptstrasse 1"), (20.0, 14.0, DoorKind::Yes, "Nebengasse 2")]);
+    let e = End::place_at(&r, Some(&ix), pt(12.0, 10.0), &NORMAL, Some("Nebengasse 2"));
+    assert!(door_pen(&ix, &e, 0) - door_pen(&ix, &e, 1) > DOOR_OTHER_ADDRESS_M / 1.3 - 1.0);
+    let e = End::place_at(&r, Some(&ix), pt(12.0, 10.0), &NORMAL, Some("Hauptstrasse 1"));
+    assert!(door_pen(&ix, &e, 1) - door_pen(&ix, &e, 0) > DOOR_OTHER_ADDRESS_M / 1.3 - 1.0);
+    // an address no door has changes nothing
+    let e = End::place_at(&r, Some(&ix), pt(12.0, 10.0), &NORMAL, Some("Bahnhofstrasse 9"));
+    assert!((door_pen(&ix, &e, 0) - door_pen(&ix, &e, 1)).abs() < 0.1, "{e:?}");
+}
+
+#[test]
+fn a_line_onto_the_network_across_a_busy_road_counts_more() {
+    // a main road along y = 0, sidewalks 7 m north and south of a point 2 m north of it
+    let mut w = World::new();
+    w.way((-60.0, 0.0), (60.0, 0.0), 6, EdgeKind::RoadBusy, 0);
+    let north = w.way((-60.0, 9.0), (60.0, 9.0), 6, EdgeKind::Sidewalk, 0);
+    let south = w.way((-60.0, -5.0), (60.0, -5.0), 6, EdgeKind::Sidewalk, 0);
+    let (r, ix) = w.finish();
+    let g = r.graph();
+    let on_way = |j: &Join, ns: &[u32]| ns.contains(&g.edges[j.snap.edge as usize].a);
+    let e = End::place(&r, Some(&ix), pt(0.0, 2.0), &NORMAL);
+    let n = e.joins.iter().find(|j| on_way(j, &north)).expect("north");
+    let s = e.joins.iter().find(|j| on_way(j, &south)).expect("south");
+    assert!((n.line_m() - 7.0).abs() < 0.1 && (s.line_m() - 7.0).abs() < 0.1);
+    assert!(s.pen_s > n.pen_s + 5.0, "the south line crosses the road: {} vs {}", s.pen_s, n.pen_s);
+    assert_eq!(crate::doors::crosses_carriageway(&r, pt(0.0, 2.0), s.snap.pos, s.snap.edge), Some(true));
+    assert_eq!(crate::doors::crosses_carriageway(&r, pt(0.0, 2.0), n.snap.pos, n.snap.edge), None);
+}

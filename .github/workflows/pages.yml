@@ -21,12 +21,14 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Build and deploy are separate jobs, as in GitHub's own Pages workflows. In one job, deploy-pages asked
+# for the artifact under a second after it was uploaded and often found none ("No artifacts named
+# github-pages"); and re-running that one job uploaded a second one ("Multiple artifacts named
+# github-pages"). Now the deploy job starts once the upload is done, and "Re-run failed jobs" re-runs
+# only the deploy, with the artifact already there.
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
 
@@ -50,5 +52,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5

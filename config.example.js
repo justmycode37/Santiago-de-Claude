@@ -12,6 +12,10 @@
 // For a quick test without config.js, add ?kante=http://127.0.0.1:8080 to the page address (only an engine on this
 // machine is accepted that way; any other ?kante=<url> is ignored); ?kante=off or ?engine=off switches it off.
 // engine.js, the engine's one client, reads it.
+//
+// formationKey: an opentransportdata.swiss key for the Train Formation Service, only for a test on your own machine:
+// the 3D station view then asks the service itself for a train's coaches, instead of the engine (which keeps its
+// key on the server). Never on a public site: the page sends it from the browser. docs/train-formation.md
 window.APP_CONFIG = {
   googlePlacesKey: '',
   // kanteUrl: 'http://127.0.0.1:8080',

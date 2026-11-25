@@ -21,7 +21,7 @@ def place(s):
 def hm(t): return datetime.datetime.fromtimestamp(t, Z).strftime("%H:%M:%S")
 req = {"from": place(args[0]), "to": place(args[1]), "options": {
     "walkSpeed": float(kv.get("speed", 1.3)), "stairs": kv.get("stairs", "ok"), "escalators": kv.get("escalators", "1") == "1",
-    "wheelchair": kv.get("wheelchair", "0") == "1", "transferMarginS": int(kv.get("margin", 120)), "maxWalkMin": float(kv.get("maxwalk", 20))}}
+    "wheelchair": kv.get("wheelchair", "0") == "1", "transferMarginS": int(kv.get("margin", 0)), "maxWalkMin": float(kv.get("maxwalk", 20))}}
 if len(args) > 2:
     req["time"] = int(datetime.datetime.fromisoformat(args[2]).replace(tzinfo=Z).timestamp())
 if kv.get("arrive") == "1": req["arriveBy"] = True

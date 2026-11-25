@@ -47,6 +47,104 @@ pub fn line_weight_m(dist_m: f32, busy_road: bool, wall: bool) -> f32 {
     dist_m * f + if wall { WALL_M } else { 0.0 }
 }
 
+/// [`line_weight_m`] of a line that may walk over a carriageway to reach its way ([`crosses_carriageway`]): over a
+/// busy one twice, over another 1.5 times (less than one that ends on a main road's carriageway, four times).
+pub fn line_weight_crossing_m(dist_m: f32, busy_road: bool, wall: bool, crosses: Option<bool>) -> f32 {
+    let w = line_weight_m(dist_m, busy_road, wall);
+    match crosses {
+        Some(true) if !busy_road => w * 2.0,
+        Some(false) if !busy_road => w * 1.5,
+        _ => w,
+    }
+}
+
+/// Does the straight line from `p` to `q` (on edge `target`) walk over a carriageway on the ground other than the
+/// road it joins, more than half a metre from its ends? `Some(true)`: a busy one (tertiary and up, a `RoadBusy`, or
+/// one whose sidewalks are drawn apart), `Some(false)`: another. `None` too when the rule is off
+/// (`KANTE_WALK_RULES_OFF=lines`).
+pub fn crosses_carriageway(router: &WalkRouter, p: LatLon, q: LatLon, target: u32) -> Option<bool> {
+    if !kante_walk::rules::is_on(kante_walk::rules::LINES) {
+        return None;
+    }
+    let g = router.graph();
+    let len = p.dist_m(&q);
+    if len < 1.0 {
+        return None;
+    }
+    let mut bb = kante_core::geo::BBox::empty();
+    bb.extend(&p);
+    bb.extend(&q);
+    let (pp, qq) = (p.xy(), q.xy());
+    let way = g.edge_way.get(target as usize).copied().unwrap_or(0);
+    let attrs = g.attrs.fits(g).then_some(&g.attrs);
+    let mut found: Option<bool> = None;
+    for e in router.edges_in(&bb) {
+        let ed = &g.edges[e as usize];
+        if e == target || !matches!(ed.kind, EdgeKind::Road | EdgeKind::RoadBusy) || ed.flags & (EF_TUNNEL | EF_BRIDGE | EF_INDOOR) != 0 {
+            continue;
+        }
+        if !matches!(ed.level_a, LEVEL_NONE | 0) || (way != 0 && g.edge_way[e as usize] == way) {
+            continue;
+        }
+        let pts = g.edge_geom(e);
+        let crossed = pts.windows(2).any(|w| hit(pp, qq, w[0].xy(), w[1].xy()).is_some_and(|t| t * len > 0.5 && t * len < len - 0.5));
+        if crossed {
+            let busy = ed.kind == EdgeKind::RoadBusy || attrs.is_some_and(|a| a.road(e) >= RC_TERTIARY || a.edge(e) & EA_SIDEWALK_SEPARATE != 0);
+            found = Some(found.unwrap_or(false) || busy);
+        }
+    }
+    found
+}
+
+/// The street of an address ("Bahnhofstrasse 12, 12a" → "Bahnhofstrasse") and its numbers (["12", "12a"]); an
+/// address without a number ("Rue du Rhône") is all street.
+pub fn addr_parts(addr: &str) -> (&str, Vec<&str>) {
+    let mut parts = addr.split(", ");
+    let first = parts.next().unwrap_or("");
+    let (street, nb) = match first.rsplit_once(' ') {
+        Some((s, n)) if n.chars().any(|c| c.is_ascii_digit()) => (s, n),
+        _ => (first, ""),
+    };
+    let mut nbs = vec![nb];
+    nbs.extend(parts);
+    (street, nbs.into_iter().filter(|s| !s.is_empty()).collect())
+}
+
+/// Does a door's address ("Bahnhofstrasse 12, 12a") hold this address ("Bahnhofstrasse 12a")?
+pub fn addr_holds(door_addr: &str, addr: &str) -> bool {
+    let (s, nbs) = addr_parts(door_addr);
+    let (s2, nb2) = addr_parts(addr);
+    !s.is_empty() && same_street(s, s2) && nb2.len() == 1 && nbs.iter().any(|n| n.eq_ignore_ascii_case(nb2[0]))
+}
+
+/// Two street names alike once case and accents are left out.
+fn same_street(a: &str, b: &str) -> bool {
+    kante_core::text::normalize(a) == kante_core::text::normalize(b)
+}
+
+/// Whether the nearest named street a door looks onto (a named carriageway or pedestrian street on the ground within
+/// 30 m, the line to it through no building) is its address's street.
+fn faces(router: &WalkRouter, plan: &Plan, pos: LatLon, addr: &str, scratch: &mut Vec<u32>) -> u8 {
+    let (street, _) = addr_parts(addr);
+    if street.is_empty() {
+        return DOOR_FACES_UNKNOWN;
+    }
+    let g = router.graph();
+    let roads = (1u32 << EdgeKind::Road as u8) | (1 << EdgeKind::RoadBusy as u8) | (1 << EdgeKind::Pedestrian as u8);
+    let opts = SnapOptions { max_dist_m: 30.0, level: Some(0), profile: None, exclude_kinds: !roads };
+    let p = pos.xy();
+    for s in router.snap_candidates(pos, &opts, 8) {
+        let ed = &g.edges[s.edge as usize];
+        let name = g.edge_name(s.edge);
+        let off_ground = ed.flags & (EF_BRIDGE | EF_INDOOR) != 0 || (ed.flags & EF_TUNNEL != 0 && ed.flags & EF_COVERED == 0);
+        if name.is_empty() || off_ground || plan.through(p, s.pos.xy(), 0.0, scratch) {
+            continue;
+        }
+        return if same_street(name, street) { DOOR_FACES_OWN } else { DOOR_FACES_OTHER };
+    }
+    DOOR_FACES_UNKNOWN
+}
+
 #[inline]
 fn key(cx: i64, cy: i64) -> u64 {
     (((cx + (1 << 30)) as u64) << 32) | (cy + (1 << 30)) as u64
@@ -372,10 +470,11 @@ fn attach_door(router: &WalkRouter, plan: &Plan, rails: &Rails, pos: LatLon, scr
     let g = router.graph();
     let opts = SnapOptions { max_dist_m: ATTACH_MAX_M, level: Some(0), profile: None, exclude_kinds: NO_STEP };
     let p = pos.xy();
-    let mut out: Vec<(f32, DoorAttach)> = Vec::new();
+    // (weight as before carriageways were seen, weight with them, the way out)
+    let mut out: Vec<(f32, f32, DoorAttach)> = Vec::new();
     for s in router.snap_candidates(pos, &opts, 32) {
-        // nothing further away can be cheaper than three found already
-        if out.iter().filter(|(w, _)| *w <= s.dist_m).count() >= MAX_ATTACH {
+        // nothing further away can be cheaper than three found already (by either weight)
+        if out.iter().filter(|(w, x, _)| *w <= s.dist_m && *x <= s.dist_m).count() >= MAX_ATTACH {
             break;
         }
         let ed = &g.edges[s.edge as usize];
@@ -385,7 +484,7 @@ fn attach_door(router: &WalkRouter, plan: &Plan, rails: &Rails, pos: LatLon, scr
         }
         // one way out onto each way (the others are alternatives for a walker who may not use it)
         let way = g.edge_way.get(s.edge as usize).copied();
-        if out.iter().any(|(_, a)| a.edge == s.edge || g.edge_way.get(a.edge as usize).copied() == way || router.snap_at(a.edge, a.frac()).pos.dist_m(&s.pos) < 1.0) {
+        if out.iter().any(|(_, _, a)| a.edge == s.edge || g.edge_way.get(a.edge as usize).copied() == way || router.snap_at(a.edge, a.frac()).pos.dist_m(&s.pos) < 1.0) {
             continue;
         }
         let q = s.pos.xy();
@@ -393,11 +492,22 @@ fn attach_door(router: &WalkRouter, plan: &Plan, rails: &Rails, pos: LatLon, scr
             continue;
         }
         let wall = plan.through(p, q, if ed.flags & EF_COVERED != 0 { 5.0 } else { 0.0 }, scratch);
-        out.push((line_weight_m(s.dist_m, ed.kind == EdgeKind::RoadBusy, wall), DoorAttach::new(s.edge, s.frac, s.dist_m, wall)));
+        let crosses = crosses_carriageway(router, pos, s.pos, s.edge);
+        let busy = ed.kind == EdgeKind::RoadBusy;
+        // with carriageways seen: one whose sidewalks are drawn apart counts as a main road walked on (as `ends` does)
+        let apart = g.attrs.fits(g) && g.attrs.edge(s.edge) & EA_SIDEWALK_SEPARATE != 0 && ed.flags & EF_HAS_SIDEWALK == 0;
+        out.push((line_weight_m(s.dist_m, busy, wall), line_weight_crossing_m(s.dist_m, busy || apart, wall, crosses), DoorAttach::new(s.edge, s.frac, s.dist_m, wall, crosses)));
     }
+    // the three cheapest as they were before lines over a carriageway counted more (so no door loses a way out it had),
+    // and the cheapest with them, if it is another one
     out.sort_by(|a, b| a.0.total_cmp(&b.0));
-    out.truncate(MAX_ATTACH);
-    out.into_iter().map(|x| x.1).collect()
+    let best = out.iter().enumerate().min_by(|x, y| x.1 .1.total_cmp(&y.1 .1)).map(|x| x.0);
+    let mut keep: Vec<(f32, DoorAttach)> = out.iter().take(MAX_ATTACH).map(|x| (x.1, x.2)).collect();
+    if let Some(b) = best.filter(|&b| b >= MAX_ATTACH) {
+        keep.push((out[b].1, out[b].2));
+    }
+    keep.sort_by(|a, b| a.0.total_cmp(&b.0));
+    keep.into_iter().map(|x| x.1).collect()
 }
 
 pub fn build(raw: &BuildingsRaw, register: &[Address], router: &WalkRouter, extract: &OsmExtract) -> (Doors, DoorStats) {
@@ -463,6 +573,9 @@ pub fn build(raw: &BuildingsRaw, register: &[Address], router: &WalkRouter, extr
     st.unattached = attach.iter().filter(|a| a.is_empty()).count();
     st.through_only = attach.iter().filter(|a| !a.is_empty() && a.iter().all(|x| x.through())).count();
 
+    // ---- whether each door looks onto its address's street
+    let facing: Vec<u8> = doors.par_iter().map_init(Vec::new, |scratch, d| faces(router, &plan, d.pos, &d.addr, scratch)).collect();
+
     // ---- every building, with its doors (if any)
     let mut by_bld: Vec<Vec<usize>> = vec![Vec::new(); raw.len()];
     for (i, d) in doors.iter().enumerate() {
@@ -482,6 +595,7 @@ pub fn build(raw: &BuildingsRaw, register: &[Address], router: &WalkRouter, extr
                 pos: d.pos,
                 kind: d.kind,
                 wheelchair: d.wheelchair,
+                faces: facing[i],
                 addr_off: out.addr.len() as u32,
                 addr_len: addr.len() as u16,
                 attach_off: out.attach.len() as u32,

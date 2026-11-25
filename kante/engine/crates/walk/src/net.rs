@@ -41,6 +41,43 @@ pub(crate) const K_ALIGHT: u8 = 13;
 /// levels without stairs, ramp or lift (see [`floors_at`]).
 pub(crate) const K_JUMP: u8 = 14;
 
+/// Route choice on a carriageway whose sidewalks are drawn as ways of their own (`EA_SIDEWALK_SEPARATE`), instead of
+/// the road's own multiplier: a last resort. Measured at 2, 2.5, 3 and 4 (`kante/tools/refwalks`): 4 as a line
+/// through a building scores no better on the checked walks and sends walks round 1.5 to 3 times the length of a
+/// stretch where a drawn sidewalk has a gap (out of town); 2.5 keeps 95 % of the gain.
+pub(crate) const SEPARATE_MULT: f32 = 2.5;
+/// Route choice on a space for cars (`EA_CAR_ONLY`: parking aisles, driveways): at least this.
+pub(crate) const CAR_ONLY_MULT: f32 = 1.3;
+/// Route choice on a way away from traffic (`EA_FAVOURED`: footways, paths, pedestrian streets and squares): a
+/// little less than it takes. The A* bound allows for it.
+pub(crate) const FAVOURED_MULT: f32 = 0.95;
+
+
+/// Transition costs at junctions ([`Junctions`]), in units of half a second.
+pub(crate) const TRANS_UNIT_S: f32 = 0.5;
+/// A turn of 35° to 145° at a junction of three or more ways: 2 s of route choice.
+pub(crate) const TURN_UNITS: u8 = 4;
+/// Turning back (more than 145°): 4 s.
+pub(crate) const TURN_BACK_UNITS: u8 = 8;
+/// Walking over a carriageway at a junction where no crossing is mapped, per carriageway crossed, by road size:
+/// tertiary 15 s, secondary 30 s, primary and trunk 45 s. More than a signalled crossing's wait (18 s, real time):
+/// the lights 20 to 35 m away are taken rather than the junction.
+pub(crate) fn cross_units(road: u8) -> u8 {
+    match road {
+        RC_TERTIARY => 30,
+        RC_SECONDARY => 60,
+        RC_PRIMARY | RC_TRUNK => 90,
+        _ => 0,
+    }
+}
+/// The bounded searches by preference allow this many seconds more than the slack of their multipliers, for a
+/// short walk's turns and crossings.
+pub(crate) const TRANS_SLACK_S: f32 = 60.0;
+/// Route choice on a way whose opening hours or closing condition exclude the walk's time (on top of the rest).
+pub(crate) const CLOSED_MULT: f32 = 20.0;
+/// A transition nobody may take (`crossing=no`).
+pub(crate) const TRANS_BLOCKED: u8 = u8::MAX;
+
 /// Horizontal metres an unmapped level change is assumed to take per half
 /// level, walked as stairs (one floor ≈ 20 steps ≈ 6 m ≈ 10 s at 1.3 m/s).
 pub(crate) const JUMP_M_PER_HALF_LEVEL: f32 = 3.0;
@@ -59,6 +96,9 @@ pub(crate) const AVOID_STAIRS_FLIGHT_S: f32 = 25.0;
 #[repr(C)]
 pub(crate) struct Arc {
     pub head: u32,
+    /// The search state the arc leads to: `head`, or at a junction with transition costs the state "arrived at
+    /// `head` along this arc" ([`Junctions`]).
+    pub state: u32,
     /// `edge << 1 | rev`; `rev` = travelling from node `b` to node `a`.
     pub edge_dir: u32,
     pub len_m: f32,
@@ -88,6 +128,80 @@ pub(crate) const ARC_NO_FWD: u8 = 2;
 /// `Arc::head_block`: walking the arc the other way is against its one-way edge (a search against the direction of
 /// travel does not take it).
 pub(crate) const ARC_NO_BACK: u8 = 4;
+/// `Arc::head_block`, route-choice groups (the bits above the three of the head): a carriageway whose sidewalks are
+/// drawn apart, a space for cars, a way away from traffic. Together with `cls` they index [`CostTable::gen_m`]
+/// ([`gen_index`]).
+pub(crate) const ARC_G_SEPARATE: u8 = 1 << 3;
+pub(crate) const ARC_G_CAR: u8 = 1 << 4;
+pub(crate) const ARC_G_FAVOURED: u8 = 1 << 5;
+/// `Arc::head_block`: the edge has opening hours ([`Net::edge_hours`]).
+pub(crate) const ARC_HOURS: u8 = 1 << 6;
+
+/// Index of an arc's generalised cost per metre in [`CostTable::gen_m`]: its route-choice groups and its class.
+#[inline]
+pub(crate) fn gen_index(a: &Arc) -> usize {
+    (((a.head_block >> 3) & 7) as usize) << 8 | a.cls as usize
+}
+
+/// Route-choice rules that can be switched off at run time, to measure each alone: `KANTE_WALK_RULES_OFF` lists
+/// them by name, comma-separated (`separate,cross,turns,car,favoured,hours,doors,lines`, or `all`). Read once.
+pub mod rules {
+    pub const SEPARATE: u32 = 1 << 0;
+    pub const CROSS: u32 = 1 << 1;
+    pub const TURNS: u32 = 1 << 2;
+    pub const CAR: u32 = 1 << 3;
+    pub const FAVOURED: u32 = 1 << 4;
+    pub const HOURS: u32 = 1 << 5;
+    /// Door preferences (`kante-link`): the main door, the door facing its address's street.
+    pub const DOORS: u32 = 1 << 6;
+    /// Straight lines onto the network that cross a carriageway (`kante-link`).
+    pub const LINES: u32 = 1 << 7;
+    const NAMES: [(&str, u32); 8] = [("separate", SEPARATE), ("cross", CROSS), ("turns", TURNS), ("car", CAR), ("favoured", FAVOURED), ("hours", HOURS), ("doors", DOORS), ("lines", LINES)];
+
+    /// The rules on: all but those `KANTE_WALK_RULES_OFF` names.
+    pub fn on() -> u32 {
+        static ON: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        *ON.get_or_init(|| {
+            let off = std::env::var("KANTE_WALK_RULES_OFF").unwrap_or_default();
+            let mut on = u32::MAX;
+            for w in off.split(',').map(str::trim) {
+                if w == "all" {
+                    on = 0;
+                }
+                if let Some(&(_, b)) = NAMES.iter().find(|n| n.0 == w) {
+                    on &= !b;
+                }
+            }
+            on
+        })
+    }
+    pub fn is_on(rule: u32) -> bool {
+        on() & rule != 0
+    }
+
+    /// For measuring other values: `KANTE_WALK_TUNE=separate=2.5,favoured=1.0` overrides a multiplier (read once).
+    pub fn tune(name: &str, default: f32) -> f32 {
+        static TUNE: std::sync::OnceLock<Vec<(String, f32)>> = std::sync::OnceLock::new();
+        TUNE.get_or_init(|| {
+            std::env::var("KANTE_WALK_TUNE")
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|kv| kv.split_once('=').and_then(|(k, v)| Some((k.trim().to_string(), v.trim().parse().ok()?))))
+                .collect()
+        })
+        .iter()
+        .find(|t| t.0 == name)
+        .map_or(default, |t| t.1)
+    }
+    /// `SEPARATE_MULT` (2.5), or its `KANTE_WALK_TUNE` override.
+    pub fn separate_mult() -> f32 {
+        tune("separate", super::SEPARATE_MULT)
+    }
+    /// `FAVOURED_MULT` (0.95), or its `KANTE_WALK_TUNE` override (at most 1).
+    pub fn favoured_mult() -> f32 {
+        tune("favoured", super::FAVOURED_MULT).min(1.0)
+    }
+}
 
 impl Arc {
     #[inline]
@@ -225,8 +339,8 @@ pub(crate) fn class_cost(c: u8, p: &WalkProfile) -> Option<ClassCost> {
 
 /// Per-profile lookup: generalised cost and time components per class.
 pub(crate) struct CostTable {
-    /// Generalised seconds per metre; `INFINITY` when unusable.
-    pub gen_m: [f32; 256],
+    /// Generalised seconds per metre, by route-choice group and class ([`gen_index`]); `INFINITY` when unusable.
+    pub gen_m: Vec<f32>,
     /// Generalised seconds per unit of `Arc::share`.
     pub gen_c: [f32; 256],
     pub var_m: [f32; 256],
@@ -243,11 +357,32 @@ pub(crate) struct CostTable {
     pub slope_dir: usize,
     /// The one-way bit of `Arc::head_block` this search may not take ([`ARC_NO_FWD`] or [`ARC_NO_BACK`]).
     pub dir_mask: u8,
+    /// By the time walked alone ([`CostTable::fill_walked`]): no transition costs (only what is blocked).
+    pub walked: bool,
+    /// Per entry of [`Net::hours`]: closed at the walk's time (empty: none known). A search by the time walked alone
+    /// knows them too, but its costs leave them out.
+    pub closed: Vec<bool>,
+    /// The time `closed` is for.
+    pub closed_for: Option<WalkTime>,
 }
 
 impl CostTable {
     pub fn new() -> Self {
-        CostTable { gen_m: [f32::INFINITY; 256], gen_c: [0.0; 256], var_m: [0.0; 256], fix_m: [0.0; 256], fix_c: [0.0; 256], usable: [false; 256], head_mask: ARC_NO_FWD, k_slope: [0.0; 3], slope_dir: 0, dir_mask: ARC_NO_FWD }
+        CostTable {
+            gen_m: vec![f32::INFINITY; 2048],
+            gen_c: [0.0; 256],
+            var_m: [0.0; 256],
+            fix_m: [0.0; 256],
+            fix_c: [0.0; 256],
+            usable: [false; 256],
+            head_mask: ARC_NO_FWD,
+            k_slope: [0.0; 3],
+            slope_dir: 0,
+            dir_mask: ARC_NO_FWD,
+            walked: false,
+            closed: Vec::new(),
+            closed_for: None,
+        }
     }
     pub fn fill(&mut self, p: &WalkProfile) {
         let speed = p.speed_mps.max(0.05);
@@ -258,10 +393,31 @@ impl CostTable {
         let steep = if p.wheelchair && p.hills != HillsPref::Ignore { 1.0 } else { 0.0 };
         self.k_slope = [0.1 / speed, 0.1 * p.hills.effort_weight() / speed, 0.1 * steep / speed];
         self.slope_dir = p.backwards as usize;
+        self.walked = false;
+        let on = rules::on();
         for c in 0..256usize {
-            match class_cost(c as u8, p) {
+            let cc = class_cost(c as u8, p);
+            for grp in 0..8usize {
+                self.gen_m[grp << 8 | c] = match &cc {
+                    Some(cc) => {
+                        let g = (grp as u8) << 3;
+                        let mut m = cc.pen_mult;
+                        if g & ARC_G_SEPARATE != 0 && on & rules::SEPARATE != 0 {
+                            m = rules::separate_mult();
+                        }
+                        if g & ARC_G_CAR != 0 && on & rules::CAR != 0 {
+                            m = m.max(CAR_ONLY_MULT);
+                        }
+                        if g & ARC_G_FAVOURED != 0 && on & rules::FAVOURED != 0 {
+                            m *= rules::favoured_mult();
+                        }
+                        (cc.var_m / speed + cc.fix_m) * m
+                    }
+                    None => f32::INFINITY,
+                };
+            }
+            match cc {
                 Some(cc) => {
-                    self.gen_m[c] = (cc.var_m / speed + cc.fix_m) * cc.pen_mult;
                     self.gen_c[c] = (cc.fix_c + cc.pen_c) / 65535.0;
                     self.var_m[c] = cc.var_m;
                     self.fix_m[c] = cc.fix_m;
@@ -269,7 +425,6 @@ impl CostTable {
                     self.usable[c] = true;
                 }
                 None => {
-                    self.gen_m[c] = f32::INFINITY;
                     self.gen_c[c] = 0.0;
                     self.var_m[c] = 0.0;
                     self.fix_m[c] = 0.0;
@@ -285,11 +440,59 @@ impl CostTable {
         self.fill(p);
         let speed = p.speed_mps.max(0.05);
         self.k_slope = [0.1 / speed, 0.0, 0.0];
+        self.walked = true;
         for c in 0..256usize {
             if self.usable[c] {
-                self.gen_m[c] = self.var_m[c] / speed + self.fix_m[c];
+                for grp in 0..8usize {
+                    self.gen_m[grp << 8 | c] = self.var_m[c] / speed + self.fix_m[c];
+                }
                 self.gen_c[c] = self.fix_c[c];
             }
+        }
+    }
+    /// Which of the network's hours are closed at `at` (none when it is not known, the rule is off, or the search
+    /// goes by the time walked alone).
+    pub fn set_time(&mut self, net: &Net, at: Option<WalkTime>) {
+        let at = if !rules::is_on(rules::HOURS) { None } else { at };
+        if self.closed_for == at && (at.is_none() || self.closed.len() == net.hours.len()) {
+            return;
+        }
+        self.closed_for = at;
+        self.closed = match at {
+            Some(t) => net.hours.iter().map(|h| h.as_ref().is_some_and(|h| h.closed_at(t))).collect(),
+            None => Vec::new(),
+        };
+    }
+    /// Is the arc's way closed at the walk's time?
+    #[inline]
+    pub fn is_closed(&self, net: &Net, a: &Arc) -> bool {
+        a.head_block & ARC_HOURS != 0 && !self.closed.is_empty() && net.hours_of(a.edge()).is_some_and(|i| self.closed[i as usize])
+    }
+    /// The multiplier of an arc's generalised cost for its hours: [`CLOSED_MULT`] when closed at the walk's time
+    /// (not by the time walked alone).
+    #[inline]
+    pub fn hours_mult(&self, net: &Net, a: &Arc) -> f32 {
+        if !self.walked && self.is_closed(net, a) {
+            CLOSED_MULT
+        } else {
+            1.0
+        }
+    }
+    /// Generalised seconds per metre of an arc, hours included.
+    #[inline]
+    pub fn gen_per_m(&self, net: &Net, a: &Arc) -> f32 {
+        self.gen_m[gen_index(a)] * self.hours_mult(net, a)
+    }
+    /// The generalised seconds of a transition at a junction of so many [`TRANS_UNIT_S`]; `None` when nobody may
+    /// take it. By the time walked alone only what is blocked counts.
+    #[inline]
+    pub fn trans(&self, units: u8) -> Option<f32> {
+        if units == TRANS_BLOCKED {
+            None
+        } else if self.walked {
+            Some(0.0)
+        } else {
+            Some(units as f32 * TRANS_UNIT_S)
         }
     }
     /// Can this walker walk the arc to its end (class usable, no barrier at the head)?
@@ -301,14 +504,14 @@ impl CostTable {
     /// cost is infinite for an unusable arc. A barrier at the head node is
     /// not considered: use [`CostTable::through`] where the walk goes on past it.
     #[inline]
-    pub fn arc(&self, a: &Arc, scale: f32) -> (f32, f32, f32) {
+    pub fn arc(&self, net: &Net, a: &Arc, scale: f32) -> (f32, f32, f32) {
         let c = a.cls as usize;
         if !self.usable[c] || a.head_block & self.dir_mask != 0 {
             return (f32::INFINITY, 0.0, 0.0);
         }
         let l = a.len_m * scale;
         let sh = a.share as f32 * scale;
-        (l * self.gen_m[c] + sh * self.gen_c[c] + scale * self.slope_gen(a), l * self.var_m[c] + scale * self.slope_var(a), l * self.fix_m[c] + sh * self.fix_c[c])
+        (l * self.gen_per_m(net, a) + sh * self.gen_c[c] + scale * self.slope_gen(a), l * self.var_m[c] + scale * self.slope_var(a), l * self.fix_m[c] + sh * self.fix_c[c])
     }
     /// Generalised seconds of a whole arc's slopes.
     #[inline]
@@ -335,6 +538,8 @@ pub(crate) struct EdgeArcs {
 }
 
 pub(crate) struct Net {
+    /// Unique among the networks of this process (the searches' per-thread scratch is for one at a time).
+    pub id: u64,
     /// Number of nodes of the graph; routing nodes `>= n0` are virtual.
     pub n0: u32,
     /// Number of routing nodes.
@@ -356,9 +561,68 @@ pub(crate) struct Net {
     /// Stairs, escalators and ramps whose two end levels are the wrong way
     /// round in the graph (see [`upside_down`]), ascending.
     pub flipped: Vec<u32>,
+    /// Junctions with transition costs (turns, crossing a busy road, `crossing=no`).
+    pub jun: Junctions,
+    /// Number of search states: the routing nodes, then one per arc into a junction.
+    pub ns: u32,
+    /// The opening hours of the graph's ways, parsed (`None`: unreadable, open) …
+    pub hours: Vec<Option<Hours>>,
+    /// … and (edge, index into `hours`), ascending by edge.
+    pub edge_hours: Vec<(u32, u32)>,
+}
+
+/// Nodes where it matters how a walk arrives: a turn costs a little route choice, and walking from a way on one
+/// side of a busy road to one on the other where no crossing is mapped costs more, or is not allowed
+/// (`crossing=no`). A search keeps one label per arc into such a node ("arrived along this arc"), so the costs are
+/// exact; elsewhere one label per node as before.
+///
+/// The slots of junction `j` are the arcs out of its node in their order (`Net::out`); the arc into the node along
+/// the same edge has the same slot. `cost[off[j] + k * deg[j] + i]` is the cost of arriving along slot `k` and
+/// leaving along slot `i` in [`TRANS_UNIT_S`] units ([`TRANS_BLOCKED`]: not allowed); it is symmetric, so a search
+/// against the direction of travel reads it unchanged.
+#[derive(Default)]
+pub(crate) struct Junctions {
+    /// Per routing node: its junction, or `NO_NODE` (empty when there is none).
+    pub of: Vec<u32>,
+    pub node: Vec<u32>,
+    /// First search state of each junction (its slots follow).
+    pub base: Vec<u32>,
+    pub off: Vec<u32>,
+    pub deg: Vec<u16>,
+    /// The largest transition cost at the junction, or `TRANS_BLOCKED` if one is blocked (no pruning there).
+    pub max: Vec<u8>,
+    pub cost: Vec<u8>,
+}
+
+impl Junctions {
+    #[inline]
+    pub fn of(&self, node: u32) -> Option<usize> {
+        match self.of.get(node as usize) {
+            Some(&j) if j != NO_NODE => Some(j as usize),
+            _ => None,
+        }
+    }
+    #[inline]
+    pub fn units(&self, j: usize, k: usize, i: usize) -> u8 {
+        self.cost[self.off[j] as usize + k * self.deg[j] as usize + i]
+    }
 }
 
 impl Net {
+    /// The search states of a routing node: itself, or its junction's slots.
+    #[inline]
+    pub fn states_of(&self, node: u32) -> std::ops::Range<u32> {
+        match self.jun.of(node) {
+            Some(j) => self.jun.base[j]..self.jun.base[j] + self.jun.deg[j] as u32,
+            None => node..node + 1,
+        }
+    }
+    /// Index into `hours` of an edge's opening hours.
+    #[inline]
+    pub fn hours_of(&self, e: u32) -> Option<u32> {
+        self.edge_hours.binary_search_by_key(&e, |x| x.0).ok().map(|i| self.edge_hours[i].1)
+    }
+
     /// The edge as the router reads it: end levels and the up-direction
     /// exchanged if the graph has them the wrong way round.
     pub fn edge_view(&self, g: &WalkGraph, e: u32) -> WalkEdge {
@@ -795,7 +1059,8 @@ impl Net {
             arc_off[i] += arc_off[i - 1];
         }
         let total = arc_off[n as usize + 1] as usize;
-        let blank = Arc { head: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0, slope: [[0; 3]; 2] };
+        let blank = Arc { head: 0, state: 0, edge_dir: 0, len_m: 0.0, cls: 0, head_block: 0, share: 0, slope: [[0; 3]; 2] };
+        let has_attrs = g.attrs.fits(g);
         let mut arcs = vec![blank; total];
         // the slopes of each direction, when a terrain model gave the graph some
         let has_slopes = g.slopes.len() == g.edges.len();
@@ -822,6 +1087,22 @@ impl Net {
                 }
             }
             let mut base = ed.kind as u8;
+            let mut grp = 0u8;
+            if has_attrs {
+                let ea = g.attrs.edge(e);
+                if ea & EA_SIDEWALK_SEPARATE != 0 && matches!(ed.kind, EdgeKind::Road | EdgeKind::RoadBusy) && flags & EF_HAS_SIDEWALK == 0 {
+                    grp |= ARC_G_SEPARATE;
+                }
+                if ea & EA_CAR_ONLY != 0 {
+                    grp |= ARC_G_CAR;
+                }
+                if ea & EA_FAVOURED != 0 {
+                    grp |= ARC_G_FAVOURED;
+                }
+                if ea & EA_HOURS != 0 {
+                    grp |= ARC_HOURS;
+                }
+            }
             if flags & EF_WHEELCHAIR_NO != 0 {
                 base |= C_WC_BLOCK;
             }
@@ -854,27 +1135,218 @@ impl Net {
             let (ab, ba) = (ed.flags & EF_ONEWAY_BA == 0, ed.flags & EF_ONEWAY_AB == 0);
             let dir_bits = |fwd: bool, back: bool| if fwd { 0 } else { ARC_NO_FWD } | if back { 0 } else { ARC_NO_BACK };
             {
-                let head_block = if nflag(ed.b) & NF_NO_WHEELCHAIR != 0 { ARC_BARRIER } else { 0 } | dir_bits(ab, ba);
+                let head_block = if nflag(ed.b) & NF_NO_WHEELCHAIR != 0 { ARC_BARRIER } else { 0 } | dir_bits(ab, ba) | grp;
                 let slot = &mut arc_off[ia as usize + 1];
-                arcs[*slot as usize] = Arc { head: ib, edge_dir: e << 1, len_m, cls: base, head_block, share, slope: slope_of(e, false) };
+                arcs[*slot as usize] = Arc { head: ib, state: ib, edge_dir: e << 1, len_m, cls: base, head_block, share, slope: slope_of(e, false) };
                 *slot += 1;
             }
             {
-                let head_block = if nflag(ed.a) & NF_NO_WHEELCHAIR != 0 { ARC_BARRIER } else { 0 } | dir_bits(ba, ab);
+                let head_block = if nflag(ed.a) & NF_NO_WHEELCHAIR != 0 { ARC_BARRIER } else { 0 } | dir_bits(ba, ab) | grp;
                 let slot = &mut arc_off[ib as usize + 1];
-                arcs[*slot as usize] = Arc { head: ia, edge_dir: e << 1 | 1, len_m, cls: base, head_block, share, slope: slope_of(e, true) };
+                arcs[*slot as usize] = Arc { head: ia, state: ia, edge_dir: e << 1 | 1, len_m, cls: base, head_block, share, slope: slope_of(e, true) };
                 *slot += 1;
             }
         }
         for &(t, h, cls, len_m) in &virt {
             let slot = &mut arc_off[t as usize + 1];
-            arcs[*slot as usize] = Arc { head: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535, slope: [[0; 3]; 2] };
+            arcs[*slot as usize] = Arc { head: h, state: h, edge_dir: NO_EDGE << 1, len_m, cls, head_block: 0, share: 65535, slope: [[0; 3]; 2] };
             *slot += 1;
         }
         arc_off.truncate(n as usize + 1);
         debug_assert_eq!(arc_off[n as usize] as usize, total);
 
-        Net { n0, n, orig, arc_off, arcs, remap, lift_slack_m, n_lift_nodes: special.len() as u32, lift_from, joins, flipped }
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut net = Net { id, n0, n, orig, arc_off, arcs, remap, lift_slack_m, n_lift_nodes: special.len() as u32, lift_from, joins, flipped, jun: Junctions::default(), ns: n, hours: Vec::new(), edge_hours: Vec::new() };
+        if has_attrs {
+            net.hours = g.attrs.hours.iter().map(|h| parse_hours_entry(h)).collect();
+            net.edge_hours = g.attrs.edge_hours.clone();
+        }
+        net.build_junctions(g);
+        net
+    }
+
+    /// The direction (degrees clockwise from north) in which arc `x` leaves its tail: towards the point of its
+    /// edge 4 m along it (or its far end).
+    fn bearing_out(&self, g: &WalkGraph, x: usize) -> f32 {
+        let a = &self.arcs[x];
+        let pts = g.edge_geom(a.edge());
+        if pts.len() < 2 {
+            return 0.0;
+        }
+        let at = |i: usize| if a.rev() { pts[pts.len() - 1 - i] } else { pts[i] };
+        let p0 = at(0);
+        let mut q = at(1);
+        let mut d = p0.dist_m(&q);
+        let mut i = 1;
+        while d < 4.0 && i + 1 < pts.len() {
+            let r = at(i + 1);
+            d += q.dist_m(&r);
+            q = r;
+            i += 1;
+        }
+        let k = (p0.lat as f64 * 1e-7).to_radians().cos();
+        let (dx, dy) = ((q.lon - p0.lon) as f64 * k, (q.lat - p0.lat) as f64);
+        ((dx.atan2(dy).to_degrees() + 360.0) % 360.0) as f32
+    }
+
+    /// The transition costs at a routing node, slot by slot: `None` when every one is free (not a junction).
+    fn node_transitions(&self, g: &WalkGraph, u: u32, on: u32) -> Option<Vec<u8>> {
+        let cost = self.node_matrix(g, u, on)?;
+        cost.iter().any(|&c| c > 0).then_some(cost)
+    }
+
+    /// Passing graph node `u` from edge `e_in` to edge `e_out`: (route-choice seconds of the turn, of crossing busy
+    /// roads where no crossing is mapped, not allowed), whatever the junctions of this network keep. For tools.
+    pub fn transition(&self, g: &WalkGraph, u: u32, e_in: u32, e_out: u32) -> (f32, f32, bool) {
+        if u >= self.n0 || u >= self.n {
+            return (0.0, 0.0, false);
+        }
+        let r = self.out(u);
+        let slot = |e: u32| self.arcs[r.clone()].iter().position(|a| a.edge() == e);
+        let (Some(k), Some(i)) = (slot(e_in), slot(e_out)) else { return (0.0, 0.0, false) };
+        let deg = r.len();
+        let part = |on: u32| self.node_matrix(g, u, on).map_or(0, |m| m[k * deg + i]);
+        let (t, c) = (part(rules::TURNS), part(rules::CROSS));
+        let blocked = c == TRANS_BLOCKED;
+        (t as f32 * TRANS_UNIT_S, if blocked { 0.0 } else { c as f32 * TRANS_UNIT_S }, blocked)
+    }
+
+    /// The transition costs at a routing node for the rules `on`, slot by slot (all of them, free or not); `None`
+    /// where there are none to have (fewer than three ways, a lift, a floor of a level join).
+    fn node_matrix(&self, g: &WalkGraph, u: u32, on: u32) -> Option<Vec<u8>> {
+        if u >= self.n0 {
+            return None;
+        }
+        let r = self.out(u);
+        let deg = r.len();
+        if !(3..=64).contains(&deg) {
+            return None;
+        }
+        let arcs = &self.arcs[r.clone()];
+        if arcs.iter().any(|a| a.edge() == NO_EDGE) {
+            return None;
+        }
+        let attrs = &g.attrs;
+        let has_attrs = attrs.fits(g);
+        let nflag = g.node_flags.get(u as usize).copied().unwrap_or(0);
+        let crossing_no = has_attrs && attrs.node(u) & NA_CROSSING_NO != 0;
+        let mapped = nflag & (NF_CROSSING | NF_CROSSING_SIGNALS) != 0;
+        let brg: Vec<f32> = r.clone().map(|x| self.bearing_out(g, x)).collect();
+        let kind: Vec<EdgeKind> = arcs.iter().map(|a| g.edges[a.edge() as usize].kind).collect();
+        let area: Vec<bool> = arcs.iter().map(|a| g.edges[a.edge() as usize].flags & EF_AREA != 0).collect();
+        let road = |i: usize| matches!(kind[i], EdgeKind::Road | EdgeKind::RoadBusy);
+        // a carriageway walked as a last resort (its sidewalks are drawn apart): its walker is on the road
+        let apart = |i: usize| road(i) && has_attrs && attrs.edge(arcs[i].edge()) & EA_SIDEWALK_SEPARATE != 0;
+        // a carriageway's size: from the attributes; without them a busy road counts as secondary
+        let size: Vec<u8> = (0..deg)
+            .map(|i| {
+                if !road(i) {
+                    RC_NONE
+                } else if has_attrs {
+                    attrs.road(arcs[i].edge())
+                } else if kind[i] == EdgeKind::RoadBusy {
+                    RC_SECONDARY
+                } else {
+                    RC_MINOR
+                }
+            })
+            .collect();
+        let crossing_way = |i: usize| kind[i] == EdgeKind::Crossing;
+        let mut cost = vec![0u8; deg * deg];
+        for k in 0..deg {
+            for i in 0..deg {
+                let mut units: u32 = 0;
+                // clockwise angle from the way arrived along (pointing back along it) to the way out
+                let diff = (brg[i] - brg[k]).rem_euclid(360.0);
+                let between = diff.min(360.0 - diff); // 0: back the same way, 180: straight on
+                let dev = 180.0 - between;
+                if on & rules::TURNS != 0 && k != i && !area[k] && !area[i] && kind[k] != EdgeKind::Platform && kind[i] != EdgeKind::Platform {
+                    if dev > 145.0 {
+                        units += TURN_BACK_UNITS as u32;
+                    } else if dev > 35.0 {
+                        units += TURN_UNITS as u32;
+                    }
+                }
+                // the carriageways between the way arrived along and the way out, on each side; the walker crosses
+                // those of the cheaper side
+                if on & rules::CROSS != 0 && k != i {
+                    let sweep = |cw: bool| -> (u32, bool) {
+                        let (mut c, mut any_road) = (0u32, false);
+                        for j in 0..deg {
+                            if j == k || j == i || !road(j) {
+                                continue;
+                            }
+                            let a = (brg[j] - brg[k]).rem_euclid(360.0);
+                            if (cw && a > 0.0 && a < diff) || (!cw && a > diff) {
+                                any_road = true;
+                                c += cross_units(size[j]) as u32;
+                            }
+                        }
+                        (c, any_road)
+                    };
+                    let ((c_cw, r_cw), (c_ccw, r_ccw)) = (sweep(true), sweep(false));
+                    // `crossing=no` first: a crossing way drawn through such a node does not make it one
+                    if crossing_no && !road(k) && !road(i) && r_cw && r_ccw {
+                        cost[k * deg + i] = TRANS_BLOCKED;
+                        continue;
+                    }
+                    // a walker on a footway or sidewalk (or on a carriageway whose sidewalks are drawn apart), not on a
+                    // mapped crossing; along carriageways through a junction the walker is on the road's line already
+                    if !mapped && !crossing_way(k) && !crossing_way(i) && (!road(k) || !road(i) || apart(k) || apart(i)) {
+                        units += c_cw.min(c_ccw);
+                    }
+                }
+                cost[k * deg + i] = units.min(TRANS_BLOCKED as u32 - 1) as u8;
+            }
+        }
+        Some(cost)
+    }
+
+    /// Finds the junctions and numbers their states (see [`Junctions`]).
+    fn build_junctions(&mut self, g: &WalkGraph) {
+        let on = rules::on();
+        if on & (rules::TURNS | rules::CROSS) == 0 {
+            return;
+        }
+        let found: Vec<(u32, Vec<u8>)> = (0..self.n0.min(self.n)).into_par_iter().filter_map(|u| self.node_transitions(g, u, on).map(|c| (u, c))).collect();
+        if found.is_empty() {
+            return;
+        }
+        let mut jun = Junctions { of: vec![NO_NODE; self.n as usize], ..Default::default() };
+        let mut next = self.n;
+        for (j, (u, c)) in found.into_iter().enumerate() {
+            let deg = self.out(u).len();
+            jun.of[u as usize] = j as u32;
+            jun.node.push(u);
+            jun.base.push(next);
+            jun.off.push(jun.cost.len() as u32);
+            jun.deg.push(deg as u16);
+            jun.max.push(if c.contains(&TRANS_BLOCKED) { TRANS_BLOCKED } else { c.iter().copied().max().unwrap_or(0) });
+            jun.cost.extend(c);
+            next += deg as u32;
+        }
+        // the state each arc leads to: at a junction, the slot of the arc back along its edge
+        let states: Vec<u32> = (0..self.arcs.len())
+            .into_par_iter()
+            .map(|x| {
+                let a = &self.arcs[x];
+                let Some(j) = jun.of(a.head) else { return a.state };
+                if a.edge() == NO_EDGE {
+                    return a.state;
+                }
+                let back = a.edge_dir ^ 1;
+                match self.arcs[self.out(a.head)].iter().position(|b| b.edge_dir == back) {
+                    Some(k) => jun.base[j] + k as u32,
+                    None => a.state,
+                }
+            })
+            .collect();
+        for (a, s) in self.arcs.iter_mut().zip(states) {
+            a.state = s;
+        }
+        self.ns = next;
+        self.jun = jun;
     }
 
     #[inline]
@@ -988,6 +1460,13 @@ impl Net {
     }
 
     pub fn heap_bytes(&self) -> usize {
-        self.arcs.len() * std::mem::size_of::<Arc>() + self.arc_off.len() * 4 + self.orig.len() * 4 + self.remap.len() * 16
+        self.arcs.len() * std::mem::size_of::<Arc>()
+            + self.arc_off.len() * 4
+            + self.orig.len() * 4
+            + self.remap.len() * 16
+            + self.jun.of.len() * 4
+            + self.jun.node.len() * 15
+            + self.jun.cost.len()
+            + self.edge_hours.len() * 8
     }
 }

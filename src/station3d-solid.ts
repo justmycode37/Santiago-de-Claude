@@ -13,7 +13,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { StationRoute } from './station-route.ts';
+import { layoutAtStop, layoutTrain } from './train-layout.ts';
 import type { StationRouteConnectorKind, StationRouteEndpoint, StationRoutePrefs, StationRouteResult } from './station-route.ts';
+import type { StopPose, TrainCar, TrainLayout } from './train-layout.ts';
+import type { TrainCoach, TrainCrowd } from './train-formation.ts';
+import { DOOR_IN_M, NOSE_DOOR_M } from './coach-plan.ts';
 
 
 const MAX_CUT = 40;               // route pieces the cutaway can follow
@@ -44,9 +48,35 @@ export type SolidView = Awaited<ReturnType<typeof open>>;
 interface SolidDrawn extends THREE.Object3D { geometry?: THREE.BufferGeometry; material?: THREE.Material | THREE.Material[] }
 interface SolidFrameOptions { elev?: number; yaw?: number | null; pad?: number }
 /** `near`: shown only from closer than about twice this; `up`: metres above the floor; `step`: index into route.steps. */
-interface SolidLabelOptions { up?: number; near?: number; step?: number }
+interface SolidLabelOptions { up?: number; near?: number; step?: number; html?: string }
 interface SolidLabel extends SolidLabelOptions { el: HTMLDivElement; pos: THREE.Vector3; prio: number; z: number }
 type SolidMode = { kind: 'whole' } | { kind: 'step' } | { kind: 'floor'; id: number };
+/** A vehicle at a platform or stop of the way (setTrain): the one the way leads to (board) or starts from (alight).
+ *  A train with its coaches, or only the sectors it stops in; a tram or bus of a typical shape at its stop. */
+export interface SolidTrainInput {
+  role: 'board' | 'alight';
+  kind: 'train' | 'tram' | 'bus';
+  ref: string;
+  coaches: TrainCoach[] | null;
+  sectors: string[];
+  /** Indices into coaches: where to get on (drawn in the way's colour, with the boarding zone on the platform). */
+  target: number[];
+  /** The sector the way leads to (named on the boarding zone). */
+  sector?: string | null;
+  /** The forecast per class, and the class you travel in (the crowding the coaches show is that class's). */
+  crowd: { first: TrainCrowd | null; second: TrainCrowd | null } | null;
+  cls: 1 | 2;
+  /** The door of the chosen coach (coach-plan.ts): the way is drawn on through it into the coach (board) or out of
+   *  it (alight). xy: the spot on the platform in front of it; inside: on the track. */
+  door?: { xy: XY; inside: XY } | null;
+  /** A tram or bus: its stop and the direction it travels. */
+  pose?: StopPose | null;
+  /** The label over a tram or bus ("Tram 9"). */
+  title?: string;
+}
+const HOLO = 0x52d6ff, HOLO_TARGET = 0xffc928, HOLO_LIGHT = 0x0a7fb5, HOLO_TARGET_LIGHT = 0xc98a00, HOLO_OFF = 0x3ddc84, HOLO_OFF_LIGHT = 0x1f8a4c;
+/** Text for a label's innerHTML (names from the timetable go into it). */
+const escHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 
 export async function open(opts: SolidOptions) {
   const { mount, key } = opts;
@@ -411,6 +441,14 @@ export async function open(opts: SolidOptions) {
     const xray = new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: ROUTE, transparent: true, opacity: 0.38, depthTest: false, depthWrite: false }));
     xray.renderOrder = 10;
     routeGroup.add(xray);
+    for (const dp of doorPaths(pts)) {
+      const c = new THREE.CurvePath<THREE.Vector3>();
+      for (let i = 0; i + 1 < dp.length; i++) if (dp[i].distanceTo(dp[i + 1]) > 0.05) c.add(new THREE.LineCurve3(dp[i], dp[i + 1]));
+      if (!c.curves.length) continue;
+      const n = Math.max(4, Math.round(c.getLength() / 1.5));
+      routeGroup.add(new THREE.Mesh(new THREE.TubeGeometry(c, n, 0.78, 8, false), new THREE.MeshBasicMaterial({ color: ROUTE_CASE, side: THREE.BackSide })));
+      routeGroup.add(new THREE.Mesh(new THREE.TubeGeometry(c, n, 0.5, 8, false), new THREE.MeshLambertMaterial({ color: ROUTE, emissive: ROUTE, emissiveIntensity: 0.35 })));
+    }
     for (const [p, colr] of [[pts[0], 0x1f8a4c], [pts[pts.length - 1], 0xd7263d]] as const) {
       routeGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.5, 20).translate(p.x, p.y, p.z), new THREE.MeshLambertMaterial({ color: colr })));
     }
@@ -467,6 +505,234 @@ export async function open(opts: SolidOptions) {
   }
   function noCut() { CUT.uN.value = 0; CUT.uCutY.value = 1e6; }
 
+  // ------------------------------------------------------------------ the train: a hologram on the track
+  // A double-deck coach (the IC 2000 / Twindexx / KISS shape most SBB trains have) or a locomotive, drawn as a
+  // glowing see-through shell with its windows, doors and class marks; the coaches to get on in the way's colour, the
+  // stretch of platform in front of them lit as the boarding zone. docs/train-formation.md
+  interface SolidTrain {
+    input: SolidTrainInput; layout: TrainLayout; group: THREE.Group; y: number;
+    zone: THREE.MeshBasicMaterial | null; textures: THREE.Texture[];
+  }
+  /** The vehicles shown: at most one per role. */
+  let trains: SolidTrain[] = [];
+  const holoTime = { value: 0 };
+  const stillMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // cross-sections (across the track, height above the rail; metres): a double-deck coach, a locomotive
+  const PROFILE_DD: [number, number][] = [[-1.4, 0.6], [-1.42, 3.35], [-1.3, 4.1], [-0.9, 4.48], [0, 4.6], [0.9, 4.48], [1.3, 4.1], [1.42, 3.35], [1.4, 0.6]];
+  const PROFILE_LOCO: [number, number][] = [[-1.48, 0.7], [-1.5, 3.0], [-1.32, 3.65], [-0.8, 3.92], [0, 3.98], [0.8, 3.92], [1.32, 3.65], [1.5, 3.0], [1.48, 0.7]];
+  // a low-floor tram, an articulated bus
+  const PROFILE_TRAM: [number, number][] = [[-1.15, 0.35], [-1.17, 2.95], [-1.02, 3.35], [-0.5, 3.5], [0, 3.52], [0.5, 3.5], [1.02, 3.35], [1.17, 2.95], [1.15, 0.35]];
+  const PROFILE_BUS: [number, number][] = [[-1.27, 0.3], [-1.28, 2.75], [-1.15, 3.05], [0, 3.12], [1.15, 3.05], [1.28, 2.75], [1.27, 0.3]];
+  const NOSE_M = 3.4;
+  /** A shell L long along +x, its profile across z; sloped driving ends where asked. uv: u along, v round the profile. */
+  function coachGeometry(L: number, prof: [number, number][], noseA: boolean, noseB: boolean) {
+    const rings: [number, number, number][] = [];   // x, width scale, height scale
+    // a nose takes at most a third of a short shell (with two, the rings stay in order)
+    const N = Math.min(NOSE_M, L / 3), N1 = N * 1.1 / NOSE_M;
+    if (noseA) rings.push([0, 0.84, 0.5], [N1, 0.95, 0.8], [N, 1, 1]); else rings.push([0, 1, 1]);
+    if (noseB) rings.push([L - N, 1, 1], [L - N1, 0.95, 0.8], [L, 0.84, 0.5]); else rings.push([L, 1, 1]);
+    const base = prof[0][1], n = prof.length;
+    const per = [0];
+    for (let i = 1; i < n; i++) per.push(per[i - 1] + Math.hypot(prof[i][0] - prof[i - 1][0], prof[i][1] - prof[i - 1][1]));
+    const P = per[n - 1];
+    const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    for (const [x, sw, sh] of rings) prof.forEach(([z, y], k) => { pos.push(x, base + (y - base) * sh, z * sw); uv.push(x / L, per[k] / P); });
+    for (let r = 0; r + 1 < rings.length; r++) {
+      // wound so the normals point out (the shader tells the near side from the far one by them)
+      for (let k = 0; k + 1 < n; k++) { const a = r * n + k, c = a + n; idx.push(a, a + 1, c, a + 1, c + 1, c); }
+      const a = r * n + n - 1, b = r * n, c = a + n, d = b + n;   // the floor
+      idx.push(a, b, c, b, d, c);
+    }
+    for (const r of [0, rings.length - 1]) {   // the two ends, a fan from their middle (their own corners: flat normals)
+      const [x, sw, sh] = rings[r], c0 = pos.length / 3;
+      pos.push(x, base + (2.2 - base) * sh, 0); uv.push(x / L, 0.5);
+      prof.forEach(([z, y]) => { pos.push(x, base + (y - base) * sh, z * sw); uv.push(x / L, 0.5); });
+      const out = r === 0 ? -1 : 1;
+      for (let k = 0; k < n; k++) { const p = c0 + 1 + k, q = c0 + 1 + ((k + 1) % n); if (out > 0) idx.push(c0, p, q); else idx.push(c0, q, p); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return { g, per, P };
+  }
+  type SkinKind = 'c1' | 'c2' | 'c12' | 'rest' | 'loco' | 'plain' | 'tram' | 'bus';
+  /** The coach's sides, unrolled (u along, v round the profile): windows, doors, the yellow band of 1st class, numerals. */
+  function skin(kind: SkinKind, L: number, prof: [number, number][], noseA = false, noseB = false) {
+    const W = 1024, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d')!;
+    const per = [0];
+    for (let i = 1; i < prof.length; i++) per.push(per[i - 1] + Math.hypot(prof[i][0] - prof[i - 1][0], prof[i][1] - prof[i - 1][1]));
+    const P = per[per.length - 1];
+    // v of a height on the left side (the right side is the mirror: 1 − v); canvas y with flipY: (1 − v) · H
+    const vOf = (h: number) => {
+      for (let i = 1; i < prof.length; i++) {
+        const [, y0] = prof[i - 1], [, y1] = prof[i];
+        if (y1 > y0 && h <= y1) return (per[i - 1] + (per[i] - per[i - 1]) * Math.max(0, (h - y0) / (y1 - y0))) / P;
+      }
+      return 0.5;
+    };
+    const X = (m: number) => m / L * W;
+    const sides: { y: (h: number) => number; flip: number }[] = [{ y: (h) => (1 - vOf(h)) * H, flip: -1 }, { y: (h) => vOf(h) * H, flip: 1 }];
+    const rect = (x0: number, x1: number, h0: number, h1: number, fill: string | null, stroke?: string) => {
+      for (const s of sides) {
+        const ya = s.y(h0), yb = s.y(h1), y = Math.min(ya, yb), hh = Math.abs(yb - ya);
+        if (fill) { g.fillStyle = fill; g.beginPath(); g.roundRect(X(x0), y, X(x1) - X(x0), hh, Math.min(4, hh / 3)); g.fill(); }
+        if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; g.beginPath(); g.roundRect(X(x0), y, X(x1) - X(x0), hh, 3); g.stroke(); }
+      }
+    };
+    const text = (t: string, xm: number, h: number, size: number, col: string) => {
+      for (const s of sides) {
+        g.save(); g.translate(X(xm), s.y(h));
+        // left side: seen from outside, u runs right to left (mirror); right side: v runs downwards (upside down)
+        if (s.flip < 0) g.scale(-1, 1); else g.scale(1, -1);
+        g.fillStyle = col; g.font = `800 ${size}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(t, 0, 0); g.restore();
+      }
+    };
+    const win = 'rgba(235,250,255,0.92)', frame = 'rgba(235,250,255,0.75)';
+    // a line along the body at the floor and under the roof
+    rect(0.3, L - 0.3, 0.62, 0.72, frame);
+    if (kind === 'tram' || kind === 'bus') {
+      // one row of tall windows, double doors (a tram part has one in its middle; a bus at the front and the middle)
+      const top = kind === 'tram' ? 2.55 : 2.6, doors = kind === 'tram' ? [L / 2 - 0.65] : L > 9 ? [0.9, L / 2 - 0.6] : [L / 2 - 0.6];
+      for (let x = 0.5; x + 1.1 < L - 0.4; x += 1.55) if (!doors.some((d) => x + 1.1 > d - 0.1 && x < d + 1.4)) rect(x, x + 1.1, 1.15, top, win);
+      for (const d of doors) rect(d, d + 1.3, 0.45, top, 'rgba(235,250,255,0.18)', frame);
+    } else if (kind === 'loco') {
+      rect(0.4, 2.6, 2.3, 3.2, win); rect(L - 2.6, L - 0.4, 2.3, 3.2, win);           // cab windows
+      for (let x = 4.2; x + 1.2 < L - 4.2; x += 2.2) rect(x, x + 1.2, 2.2, 2.9, 'rgba(235,250,255,0.35)');   // grilles
+      rect(L / 2 - 1.6, L / 2 + 1.6, 1.4, 1.9, 'rgba(255,70,80,0.95)');                  // the red front-to-back band
+    } else {
+      rect(0.3, L - 0.3, 4.02, 4.1, frame);
+      // where coach-plan.ts puts them (the shell starts 0.2 m into the car): not in a sloped driving end
+      const doors = [(noseA ? NOSE_DOOR_M : DOOR_IN_M) - 0.9, L - (noseB ? NOSE_DOOR_M : DOOR_IN_M) - 0.5];
+      for (const d of doors) rect(d, d + 1.4, 0.75, 2.55, 'rgba(235,250,255,0.18)', frame);
+      for (let x = 4.4; x + 1.5 < L - 4.2; x += 1.95) { rect(x, x + 1.5, 1.3, 2.15, win); rect(x, x + 1.5, 2.65, 3.55, win); }
+      if (kind === 'c1') rect(0.3, L - 0.3, 3.72, 3.86, 'rgba(255,212,0,1)');
+      if (kind === 'c12') rect(0.3, L / 2, 3.72, 3.86, 'rgba(255,212,0,1)');
+      if (kind === 'rest') rect(0.3, L - 0.3, 3.72, 3.86, 'rgba(255,70,80,1)');
+      const num = kind === 'c1' ? ['1', '1'] : kind === 'c2' ? ['2', '2'] : kind === 'c12' ? ['1', '2'] : null;
+      if (num) { text(num[0], 2.9, 3.1, 64, kind === 'c2' ? '#ffffff' : '#ffd400'); text(num[1], L - 2.9, 3.1, 64, num[1] === '1' ? '#ffd400' : '#ffffff'); }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+  }
+  function holoMaterial(color: number, map: THREE.Texture, light: boolean) {
+    return new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: new THREE.Color(color) }, uMap: { value: map }, uTime: holoTime, uOpacity: { value: light ? 0.95 : 0.9 } },
+      vertexShader: `varying vec2 vUv; varying vec3 vN; varying vec3 vV; varying float vH;
+        void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; vN = normalMatrix * normal; vH = position.y;
+          gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; uniform sampler2D uMap; uniform float uTime; uniform float uOpacity;
+        varying vec2 vUv; varying vec3 vN; varying vec3 vV; varying float vH;
+        void main() {
+          float facing = dot(normalize(vN), normalize(vV));
+          float fres = pow(1.0 - abs(facing), 2.0);
+          // the far side shows through, faintly: its numerals would read mirrored
+          vec4 t = texture2D(uMap, vUv) * (facing > 0.0 ? 1.0 : 0.28);
+          float scan = 0.6 + 0.4 * sin(vH * 10.0 - uTime * 2.6);
+          float sweep = smoothstep(0.92, 1.0, fract(vH * 0.22 - uTime * 0.35));
+          float a = uOpacity * ((0.08 + 0.7 * fres) * scan + 0.85 * t.a + 0.35 * sweep);
+          vec3 col = mix(uColor * (0.75 + 0.7 * fres), t.rgb, t.a * 0.8) + sweep * 0.35;
+          gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      blending: light ? THREE.NormalBlending : THREE.AdditiveBlending,
+    });
+  }
+  const skinKind = (c: TrainCoach | null): SkinKind => !c ? 'plain' : c.kind === 'loco' ? 'loco' : c.kind === 'restaurant' ? 'rest'
+    : c.cls === 1 ? 'c1' : c.cls === 2 ? 'c2' : c.cls === 12 ? 'c12' : 'plain';
+  /** Takes away the vehicle of that role (or all of them). */
+  function dropTrain(role?: SolidTrainInput['role']) {
+    for (const t of trains.filter((x) => !role || x.input.role === role)) {
+      scene.remove(t.group); freeGroup(t.group);
+      t.textures.forEach((x) => x.dispose());
+    }
+    trains = trains.filter((x) => role && x.input.role !== role);
+  }
+  function drawTrain(input: SolidTrainInput) {
+    dropTrain(input.role);
+    const layout = input.kind === 'train' ? layoutTrain(model!, input.ref, { coaches: input.coaches, sectors: input.sectors })
+      : input.pose ? layoutAtStop(model!, input.kind, input.pose) : null;
+    // the old vehicle's labels and its stretch of the way go
+    if (!layout || !layout.cars.length) { labelsDirty = true; if (route) drawRoute(); request(); return layout; }
+    const light = !dark();
+    const group = new THREE.Group(), textures: THREE.Texture[] = [];
+    const y = zOf(layout.level) * S;
+    const target = new Set(input.target);
+    const mats = new Map<string, THREE.ShaderMaterial>();
+    // made when first used: freeGroup frees what is in the group, and only that
+    const edgeMats: { on?: THREE.LineBasicMaterial; off?: THREE.LineBasicMaterial } = {};
+    const onCol = input.role === 'alight' ? (light ? HOLO_OFF_LIGHT : HOLO_OFF) : (light ? HOLO_TARGET_LIGHT : HOLO_TARGET);
+    const edgeMat = (on: boolean) => edgeMats[on ? 'on' : 'off'] ||= new THREE.LineBasicMaterial({ color: on ? onCol : (light ? HOLO_LIGHT : HOLO), transparent: true, opacity: light ? 0.9 : 0.85, depthWrite: false });
+    // no crowding drawn per coach: the forecast is one figure per class for the whole train (the card shows it)
+    const ground: THREE.BufferGeometry[] = [], zoneGs: THREE.BufferGeometry[] = [];
+    const P3 = (xy: XY, up = 0) => V(xy[0], xy[1], 0).setY(y + up);
+    for (const car of layout.cars) {
+      const on = !!car.coach && target.has(car.idx);
+      const loco = !!car.coach && car.coach.kind === 'loco';
+      const prof = layout.kind === 'tram' ? PROFILE_TRAM : layout.kind === 'bus' ? PROFILE_BUS : loco ? PROFILE_LOCO : PROFILE_DD;
+      const a = P3(car.a), b = P3(car.b), d = new THREE.Vector3().subVectors(b, a), L = d.length();
+      if (L < 3) continue;
+      const kind: SkinKind = layout.kind === 'train' ? skinKind(car.coach) : layout.kind, mk = kind + (on ? '*' : '') + '|' + Math.round(L) + (car.noseA ? '<' : '') + (car.noseB ? '>' : '');
+      if (!mats.has(mk)) { const t = skin(kind, L - 0.4, prof, car.noseA, car.noseB); textures.push(t); mats.set(mk, holoMaterial(on ? onCol : (light ? HOLO_LIGHT : HOLO), t, light)); }
+      const { g } = coachGeometry(L - 0.4, prof, car.noseA, car.noseB);
+      g.translate(0.2, 0, 0);
+      const body = new THREE.Mesh(g, mats.get(mk)!);
+      body.renderOrder = 6;
+      const lines = new THREE.LineSegments(new THREE.EdgesGeometry(g, 28), edgeMat(on));
+      lines.renderOrder = 7;
+      for (const o of [body, lines]) { o.position.copy(a); o.rotation.y = Math.atan2(-d.z, d.x); group.add(o); }
+      // under it: the light it stands in, coloured by how full its class is expected to be
+      ground.push(band(a, b, 3.4, 0.2));
+
+      // where to stand: the stretch of platform in front of the coach
+      if (on) {
+        const s = new THREE.Vector3(layout.side[0], 0, -layout.side[1]).multiplyScalar(3.0);
+        zoneGs.push(band(a.clone().lerp(b, 0.08).add(s), b.clone().lerp(a, 0.08).add(s), 1.7, 0.1));
+      }
+    }
+    if (ground.length) group.add(new THREE.Mesh(merged(ground), new THREE.MeshBasicMaterial({ color: light ? HOLO_LIGHT : HOLO, transparent: true, opacity: light ? 0.16 : 0.2, depthWrite: false, side: THREE.DoubleSide })));
+    let zone: THREE.MeshBasicMaterial | null = null;
+    if (zoneGs.length) {
+      zone = new THREE.MeshBasicMaterial({ color: input.role === 'alight' ? HOLO_OFF : ROUTE, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+      const m = new THREE.Mesh(merged(zoneGs), zone);
+      m.renderOrder = 8;
+      group.add(m);
+    }
+    scene.add(group);
+    trains.push({ input, layout, group, y, zone, textures });
+    labelsDirty = true;
+    if (route) drawRoute();   // the way's stretch through the door
+    request();
+    return layout;
+  }
+  /** The ends of the coaches to get on or off (or the whole vehicle): for framing the whole way. */
+  function trainFrame(): THREE.Vector3[] {
+    return trains.flatMap((tr) => {
+      const cars = tr.layout.cars, t = new Set(tr.input.target);
+      const on = cars.filter((c) => c.coach && t.has(c.idx));
+      return (on.length ? on : cars).flatMap((c) => [V(c.a[0], c.a[1], 0).setY(tr.y + 4.6), V(c.b[0], c.b[1], 0).setY(tr.y)]);
+    });
+  }
+  /** The last metres of the way: from its end on the platform through the chosen coach's door into the coach
+   *  (board), or out of it to the way's start (alight). Joined to the way only when it ends near the door. */
+  function doorPaths(pts: THREE.Vector3[]): THREE.Vector3[][] {
+    const out: THREE.Vector3[][] = [];
+    for (const tr of trains) {
+      const d = tr.input.door;
+      if (!d) continue;
+      const lv = zOf(tr.layout.level) * S;
+      const spot = V(d.xy[0], d.xy[1], 0).setY(lv + ROUTE_Y), inside = V(d.inside[0], d.inside[1], 0).setY(lv + 1.3);
+      const end = tr.input.role === 'board' ? pts[pts.length - 1] : pts[0];
+      const path = end && end.distanceTo(spot) < 60 ? [end, spot, inside] : [spot, inside];
+      out.push(tr.input.role === 'board' ? path : path.reverse());
+    }
+    return out;
+  }
+
   // ------------------------------------------------------------------ camera
   let anim: ((now: number) => void) | null = null;
   function frame(pts: THREE.Vector3[], { elev = 42, yaw = null, pad = 1.25 }: SolidFrameOptions = {}) {
@@ -505,7 +771,7 @@ export async function open(opts: SolidOptions) {
     const add = (text: string, x: number, y: number, z: number, cls: string, prio: number, opts2: SolidLabelOptions = {}) => {
       const el = document.createElement('div');
       el.className = 'sx-label ' + cls;
-      el.textContent = text;
+      if (opts2.html) el.innerHTML = opts2.html; else el.textContent = text;
       labelsEl.appendChild(el);
       labels.push(Object.assign({ el, pos: V(x, y, z).setY(z * S + (opts2.up || 2.4)), prio, z }, opts2));
     };
@@ -539,7 +805,41 @@ export async function open(opts: SolidOptions) {
         add(`${n}  ${kindName(s.kind)} ${arrow} ${levelName(s.toLevel)}`, p[0], p[1], zOf(p[2]), 'sx-step' + (i === stepIdx ? ' sx-on' : ''), i === stepIdx ? 98 : 90, { up: 3.0, step: i });
       });
     }
+    for (const tr of trains) trainLabels(tr, add);
     labelsDirty = false;
+  }
+  // over each coach its class (and how full that class is expected to be); on the platform, where to get on
+  function trainLabels(t: SolidTrain, add: (text: string, x: number, y: number, z: number, cls: string, prio: number, o?: SolidLabelOptions) => void) {
+    const tg = new Set(t.input.target), z = zOf(t.layout.level);
+    const mid = (c: TrainCar) => [(c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2];
+    if (t.layout.kind !== 'train') {
+      // a tram or bus: what it is, and that its shape and place are typical
+      const cars = t.layout.cars, [x, y] = mid(cars[Math.floor(cars.length / 2)]);
+      add(t.input.title || (t.layout.kind === 'tram' ? 'Tram' : 'Bus'), x, y, z, 'sx-coach sx-vehicle', t.input.role === 'board' ? 93 : 91,
+        { up: 4.6, html: `<b>${escHtml(t.input.title || (t.layout.kind === 'tram' ? 'Tram' : 'Bus'))}</b> <em>${t.input.role === 'board' ? 'get on' : 'you arrive'} · approximate</em>` });
+      return;
+    }
+    for (const car of t.layout.cars) {
+      const c = car.coach;
+      if (!c || c.kind === 'loco' || c.kind === 'luggage' || c.kind === 'other') continue;
+      const on = tg.has(car.idx);
+      const name = c.kind === 'restaurant' ? 'Restaurant' : c.kind === 'sleeper' ? 'Sleeper' : c.cls === 12 ? '1 | 2' : String(c.cls || '');
+      const html = `<b>${name}</b>${c.closed ? ' <em>closed</em>' : c.declassed ? ' <em>open to all</em>' : ''}`
+;
+      const [x, y] = mid(car);
+      add(name, x, y, z, 'sx-coach' + (on ? ' sx-on' + (t.input.role === 'alight' ? ' sx-off' : '') : '') + (c.cls === 1 || c.cls === 12 ? ' sx-c1' : '') + (c.closed ? ' sx-closed' : ''), on ? 96 : 34, { up: 5.3, near: on ? undefined : 190, html });
+    }
+    const on = t.layout.cars.filter((c) => c.coach && tg.has(c.idx));
+    if (on.length) {
+      const secs = t.input.sector ? [t.input.sector] : [...new Set(on.flatMap((c) => c.coach!.sectors))].sort();
+      const m = on[Math.floor((on.length - 1) / 2)], [x, y] = mid(m);
+      const where = secs[0] ? ` · sector ${secs.length > 1 ? secs[0] + '–' + secs[secs.length - 1] : secs[0]}` : '';
+      add(t.input.role === 'board' ? `Get on here${where}` : `You get off here${where}`, x + t.layout.side[0] * 3, y + t.layout.side[1] * 3, z, 'sx-board' + (t.input.role === 'alight' ? ' sx-off' : ''), 99, { up: 1.4 });
+    } else if (!t.input.coaches && t.input.sectors.length) {
+      const cars = t.layout.cars, [x, y] = mid(cars[Math.floor(cars.length / 2)]);
+      const s = t.input.sectors;
+      add(`Train stops in sector${s.length > 1 ? 's ' + s[0] + '–' + s[s.length - 1] : ' ' + s[0]}`, x, y, z, 'sx-coach sx-on', 92, { up: 5.3 });
+    }
   }
   const levelOfZ = (z: number) => levels.reduce((best, l) => (Math.abs(l.z - z) < Math.abs(best.z - z) ? l : best), levels[0]).id;
   const kindName = (k: StationRouteConnectorKind) => ({ escalator: 'Escalator', stairs: 'Stairs', elevator: 'Lift', ramp: 'Ramp' })[k] || k;
@@ -587,15 +887,33 @@ export async function open(opts: SolidOptions) {
 
   // ------------------------------------------------------------------ render loop (on demand)
   let pending = false, disposed = false, raf = 0;
+  // the hologram's shimmer: a frame every GLOW_MS while the train shows and the page is seen (not every display
+  // frame), and those frames leave the labels where they are
+  const GLOW_MS = 70;
+  let glowTimer = 0, glowTick = false;
   function request() { if (!pending && !disposed) { pending = true; raf = requestAnimationFrame(render); } }
   function render(now: number) {
     pending = false;
+    const tick = glowTick;
+    glowTick = false;
     if (anim) anim(now);
     const moving = controls.update();
+    let glowing = false;
+    for (const tr of trains) {
+      // hidden when a floor below the platform is picked (everything above it is lifted away)
+      tr.group.visible = CUT.uCutY.value > tr.y + 1;
+      glowing = glowing || (tr.group.visible && !stillMotion && document.visibilityState === 'visible');
+      holoTime.value = now / 1000;
+      if (tr.zone) tr.zone.opacity = stillMotion ? 0.85 : 0.55 + 0.35 * (0.5 + 0.5 * Math.sin(now / 380));
+    }
     renderer.render(scene, camera);
-    placeLabels();
+    if (!tick || anim || moving || labelsDirty) placeLabels();
     if (anim || moving) request();
+    else if (glowing && !glowTimer) glowTimer = window.setTimeout(() => { glowTimer = 0; glowTick = true; request(); }, GLOW_MS);
   }
+  // back from another tab or app: the shimmer goes on
+  const onVisible = () => { if (document.visibilityState === 'visible') request(); };
+  document.addEventListener('visibilitychange', onVisible);
   controls.addEventListener('change', request);
   function resize() {
     const w = mount.clientWidth || window.innerWidth, h = mount.clientHeight || window.innerHeight;
@@ -605,13 +923,14 @@ export async function open(opts: SolidOptions) {
     request();
   }
   const ro = new ResizeObserver(resize); ro.observe(mount);
-  const mq = matchMedia('(prefers-color-scheme: dark)'); const onScheme = () => { build(); request(); };
+  const mq = matchMedia('(prefers-color-scheme: dark)'); const onScheme = () => { build(); redrawTrains(); request(); };
+  function redrawTrains() { for (const inp of trains.map((t) => t.input)) drawTrain(inp); }
   mq.addEventListener('change', onScheme);
 
   // ------------------------------------------------------------------ views
   function whole() {
     stepIdx = -1; mode = { kind: 'whole' };
-    if (route) { const pts = routePoints(); cutAlong(pts); frame(pts, { elev: 34, pad: 1.1 }); }
+    if (route) { const pts = routePoints(); cutAlong(pts); frame(pts.concat(trainFrame()), { elev: 34, pad: 1.1 }); }
     else { noCut(); overview(); }
     labelsDirty = true; request(); changed();
   }
@@ -662,10 +981,22 @@ export async function open(opts: SolidOptions) {
     /** true: the whole station; false: only the part the route uses (the default). */
     showAll: (on: boolean) => { showAll = !!on; setFocus(); build(); labelsDirty = true; if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
     get focused() { return !!focus; },
-    setStretch: (s: number) => { S = s; build(); if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
+    setStretch: (s: number) => { S = s; build(); redrawTrains(); if (mode.kind === 'floor') floor(mode.id); else if (stepIdx >= 0) step(stepIdx); else whole(); },
     get stretch() { return S; },
+    /** The train at the platform the way leads to (null: none). Returns where it was laid out (null: the model has
+     *  no sectors at that platform, so nothing is drawn). */
+    setTrain: (t: SolidTrainInput): TrainLayout | null => drawTrain(t),
+    /** Takes the vehicle of that role away (all of them without one). */
+    clearTrain: (role?: SolidTrainInput['role']) => { dropTrain(role); labelsDirty = true; if (route) drawRoute(); request(); },
+    /** Seconds on foot from `from` to each of these sectors of platform `ref` (Infinity: no way there). */
+    sectorWalks: (from: SolidEnd, uic: string, ref: string, names: string[], p?: StationRoutePrefs | null): Record<string, number> =>
+      Object.fromEntries(names.map((n) => {
+        const r = from ? SR.route(model!, from, { stop: { uic, ref, sector: n } }, Object.assign({}, p || {})) : null;
+        // a sector the model does not have: the router would aim at the whole platform instead, so it does not count
+        return [n, r && !r.incomplete && r.toSectors && r.toSectors.length ? r.seconds : Infinity];
+      })),
     reset: () => (stepIdx >= 0 ? step(stepIdx) : whole()),
-    dispose: () => { disposed = true; cancelAnimationFrame(raf); if (world) freeGroup(world); if (routeGroup) freeGroup(routeGroup);
+    dispose: () => { disposed = true; cancelAnimationFrame(raf); clearTimeout(glowTimer); document.removeEventListener('visibilitychange', onVisible); if (world) freeGroup(world); if (routeGroup) freeGroup(routeGroup); dropTrain();
       textures.chevron.dispose(); textures.stripe.dispose(); ro.disconnect(); mq.removeEventListener('change', onScheme); controls.dispose(); renderer.dispose(); mount.removeChild(renderer.domElement); mount.removeChild(labelsEl); },
     _debug: () => ({ cut: CUT.uN.value, labels: labels.filter((l) => l.el.style.display !== 'none').map((l) => l.el.textContent), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, mem: Object.assign({}, renderer.info.memory) }),
   };

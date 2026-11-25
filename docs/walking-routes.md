@@ -63,6 +63,57 @@ kept for good. A fix that is only snapped onto the end from further off (one str
 arrived" for that fix alone. Arrived for good, you stay arrived, through walking on into the building and through a
 gap in GPS, until another trip is opened.
 
+## Which way
+
+Of the ways there are, the walk takes the one a careful local walker would. These preferences only choose among
+ways: a walk's time is always the time it takes, and whether a stop can be reached in time never depends on them
+(`kante/docs/WALK-ENDS.md`). What the engine reads beyond a way's kind is in `walkattr.bin` (`kante build`,
+`kante/engine/crates/osm/src/attrs.rs`); each preference can be switched off to measure it
+(`KANTE_WALK_RULES_OFF=separate,cross,turns,car,favoured,hours,doors,lines`).
+
+- **On the sidewalk, not in the road**: a road whose sidewalks OpenStreetMap draws as ways of their own
+  (`sidewalk[:both|:left|:right]=separate` with none on the road itself, or `foot=use_sidepath`; 3 695 km
+  nationally) is walked on its carriageway only as a last resort: each metre counts 2.5 (it stays in the network,
+  so a walk still goes where a drawn sidewalk has a gap). ×4, as a line through a building, was measured too: no
+  better on the checked walks, and walks out of town went round 1.5 to 3 times the length of a gap in the sidewalk.
+- **Over a busy road where a crossing is**: from a footway or sidewalk over a tertiary, secondary or primary road at
+  a junction where no crossing is mapped counts 15, 30 or 45 s per carriageway (more than the 18 s wait at lights,
+  so lights 20–35 m away are taken); which side of the road each way is on comes from their directions at the
+  junction. `crossing=no` there: not crossed at all, by any walk (56 such nodes on the network); along the road and
+  onto the footway beside it is still walked.
+- **Few turns**: 2 s for a turn of 35–145° at a junction of three or more ways, 4 s for turning back. The search
+  keeps one label per way into such a junction (about a million of them), so these are exact, not estimated.
+- **Footways and parks, not driveways**: footways (not cycleways), pedestrian streets and squares, and paths in a
+  park or garden count 5 % less; parking aisles, driveways and service roads with limited access (303 000 edges)
+  at least 30 % more.
+- **Closed at night**: a way with `opening_hours`, or `access:conditional` / `foot:conditional` `no @ (…)`, and the
+  paths of a park or the corridors of a mall with opening hours (5 983 edges, 319 of 404 hours readable) count 20
+  times while closed at the walk's time: a journey's walks at the journey's time asked (or the page's), `/api/walk` at its `time`
+  (without one every way is open). Only what can be read for certain counts: an hour of a public holiday, sunrise,
+  week numbers or a comment make the hours unreadable, and unreadable is open. A walk that still has to go through
+  one says so (`closedM`). Of 900 walks in ten city centres, 12 are walked otherwise at 23:30 than at noon.
+- **The front door**: a building's main entrance is preferred to its other mapped doors (by 3 m), a door that looks
+  onto another street than its address's (a side or back door; 270 000 doors) counts 15 m more, and when the place
+  asked for is an address one of its doors has, the others count 20 m more. A straight line onto the network that
+  walks over a carriageway to reach the sidewalk across it counts twice (a busy one) or 1.5 times; a door keeps the
+  ways out it had and gets the one on its own side as well.
+
+Measured on 149 reference walks in ten city centres checked by eye on aerial images (`kante/tools/refwalks`): of the
+24 where one walk was judged right, `main` takes the right one in 2, the engine now in 19; on all 149, metres on
+carriageways whose sidewalks are drawn apart 5 941 → 399, busy roads walked over from a footway without a crossing
+56 → 6, walks 1.6 % longer in time. Each preference alone (switched off, the others on): sidewalks 13 of 24,
+turns 14, footways 14, car-only 18, lines 18, doors 19 (but 33 → 10 walks of 900 ending at another door),
+crossings 20 (busy roads walked over 6 → 26; the one walk lost is a sidewalk the wrong walk also used).
+
+## Map gaps
+
+`walk-quality <data dir> [--bbox s,w,n,e] [--out DIR]` (`kante/engine/crates/osm/src/bin/walk-quality.rs`) lists
+what makes walks wrong in the map itself, as counts and GeoJSON. Nationally (November 2026): 34 drawn sidewalks
+loose at both ends and 5 475 at one (366 km), 57 small pieces of network with sidewalks, 275 stretches (53 km) of
+roads tagged as having their sidewalks drawn apart where none is drawn beside them (Schaffhauserstrasse in Zürich
+1.5 km), 2 955 stretches of busy roads with sidewalks and no crossing for more than 300 m (1 509 km), and roads with
+sidewalks tagged on the road (where the side of the street is not known): 2 539 km minor, 2 259 km tertiary and up.
+
 ## Hills
 
 Walks climb and descend the land: the engine reads swisstopo's terrain model (swissALTIRegio, 10 m) and knows how
@@ -97,9 +148,11 @@ much each way climbs, in each direction (`kante/engine/crates/elevation`; the mo
 
 The fields of a walking leg are in `KanteWalk` (`src/types/kante.d.ts`, `kante/engine/crates/server/src/json.rs`):
 `geometry`, `levels`, `steps`, `distanceM`, `durationS`, `climbM` / `descentM` and `flatter` (a change walked round a hill), and from engines that know doors `door`, `startDoor`,
-`covered` (vertex ranges), `approxStart` / `approxEnd` and `noStepFreeDoor`. An engine without them still gives the
+`covered` (vertex ranges), `approxStart` / `approxEnd`, `noStepFreeDoor` and `closedM` (metres on ways closed at the
+walk's time). An engine without them still gives the
 path; the page then draws it without a door. `/api/walk` takes, for each end, a boarding point (`quay`: its id or
-SLOID), a point taken as it is (`exact`: where a station model's paths begin) or a coordinate.
+SLOID), a point taken as it is (`exact`: where a station model's paths begin) or a coordinate, and `time` (when the
+walk sets out, Unix seconds: ways closed then are avoided; without it every way is open).
 `KanteJourney.routed()` turns a walk into the shape the page draws (`src/engine-journey.ts`; an `approximate` one is
 the straight line with the engine's time, metres and "Walk about …" direction); `routeWalk()` in `src/app/routing.ts` asks for one. A walk moved since the
 plan through a station whose model has no route (or does not load) is asked for once, along the streets. A walk the
@@ -150,6 +203,10 @@ tracks of the browser's tiles. "Engine before" is the engine on `main` before th
   there and more walks take stairs up than the browser's (which started on the street level); step-free walks have
   none.
 - The browser router's paths from swissTLM3D (paths outside towns OpenStreetMap lacks) were used on 1 of these 382
-  walks; the engine has no swissTLM3D paths.
+  walks; the engine has no swissTLM3D paths. Not added (November 2026): its paths come as a 3.6 GB (SHP) or 4.8 GB
+  (GPKG) download, about 0.5 GB of it roads and paths, once a year; reading it needs a shapefile or SQLite reader
+  the engine does not have, and joining it to OpenStreetMap without doubling the paths both have is the work of
+  days (the browser's tool dropped TLM lines within 12 m of an OSM way); swisstopo's open-data terms do not name
+  swissTLM3D explicitly. Worth it only if long walks out of town become a goal.
 
 Sources: © OpenStreetMap contributors (ODbL), © swisstopo (building address register, swissALTIRegio).
