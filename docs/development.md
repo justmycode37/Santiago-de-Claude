@@ -107,17 +107,19 @@ page's script imports it) and the page's script itself; without that, the first 
 
 ## The map
 
-MapLibre GL JS 6 is an ES module from unpkg: the modules `import * as maplibregl from 'maplibre-gl'`, which the
-import map in `index.html` points at the CDN (`EXTERNAL` in `scripts/build.mts`; `livemap/` still loads 4.7.1 as a
-plain script). The version is in three places in `index.html` (import map, `modulepreload`, stylesheet) and in
-`package.json`, which gives the types; keep them the same.
+MapLibre GL JS 6 is an ES module from unpkg: the modules `import * as maplibregl from 'maplibre-gl'`, and the build
+writes the CDN address of the version in `package.json` into the bundle instead (`MAPLIBRE_URL` in
+`scripts/build.mts`; no import map, which Safari has only from 16.4). `index.html` preloads that file and loads its
+stylesheet; the build fails when their version is not the installed one. MapLibre 6 needs WebGL 2 (iOS 15 and
+later). `livemap/` still loads 4.7.1 as a plain script.
 
 The base map is swisstopo's: vector tiles up to zoom 14 (each up to ~220 kB zipped in a city centre), which MapLibre
 cuts into zoom 15–16 tiles itself (its `zoomLevelsToOverscale`, 4 by default) and scales beyond that. The normal
 and the satellite style are fetched with their tile sets written in (`src/tilejson.ts`), so both ask for the same
 tile addresses. `src/sw/sw.ts` keeps swisstopo's tiles, satellite photos, fonts and styles in the browser's Cache
 Storage: tiles are answered from there without the network (refreshed in the background once a week old), the
-rest is refreshed on every use; each cache has a limit on its number of files. It handles no other request, so
+rest is refreshed on every use; each cache has a limit on its number of files. On a first visit the worker starts
+after the map, so that visit's tiles are only in the browser's own HTTP cache; later visits use the worker. It handles no other request, so
 the site's own files are always the browser's as without it. Raise `VERSION` in it to start with empty caches.
 
 ## Globals

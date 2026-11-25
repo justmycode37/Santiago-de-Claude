@@ -32,8 +32,15 @@ export const ENTRIES = ['src/main.ts', 'src/pages/scan-bench.ts', 'src/pages/sta
 export const SCRIPTS = ['src/translate.ts'];
 /** The service worker (src/app/map-cache.ts registers it): dist/sw.js, under a name that stays the same. */
 const SERVICE_WORKER = 'src/sw/sw.ts';
-/** Loaded by the pages from the CDN, through their import map: left as imports. */
-const EXTERNAL = ['three', 'three/addons/*', 'maplibre-gl'];
+/**
+ * MapLibre, the version installed (package.json), from the CDN. The modules import 'maplibre-gl'; the bundle names
+ * its full address instead, so the page needs no import map for it (Safari has import maps only from 16.4).
+ */
+export const MAPLIBRE_VERSION = (JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/maplibre-gl/package.json'), 'utf8')) as { version: string }).version;
+const MAPLIBRE_URL = `https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.mjs`;
+/** Loaded by the pages from the CDN, through their import map (three.js) or by their address (maplibre): left as imports. */
+const EXTERNAL = ['three', 'three/addons/*', MAPLIBRE_URL];
+const ALIAS = { 'maplibre-gl': MAPLIBRE_URL };
 /**
  * A line in a page that a script from src/ replaces: "<!-- build: src/inline/early.ts -->". Attributes after the
  * path go onto the <script> tag: "<!-- build: src/main.ts type="module" -->".
@@ -88,7 +95,7 @@ function bundle(built: Built): Made[] {
   const result = buildSync({
     ...OUTPUT, absWorkingDir: ROOT, entryPoints: ENTRIES, bundle: true, splitting: true, format: 'esm',
     outdir: DIST, outbase: SRC, entryNames: '[dir]/[name]-[hash]', chunkNames: 'chunks/[name]-[hash]', sourcemap: true,
-    external: EXTERNAL, metafile: true, write: false,
+    external: EXTERNAL, alias: ALIAS, metafile: true, write: false,
   });
   const meta = result.metafile.outputs;
   const name = (f: string) => served(path.join(ROOT, f));
@@ -135,7 +142,7 @@ function checkLoads(files: esbuild.OutputFile[], made: Set<string>): void {
 /** A plain script (no import or export at run time), with what it imports written into it. */
 function classicScript(source: string, outdir?: string) {
   return buildSync({
-    ...OUTPUT, absWorkingDir: ROOT, entryPoints: [source], bundle: true, format: 'iife', external: EXTERNAL, write: false,
+    ...OUTPUT, absWorkingDir: ROOT, entryPoints: [source], bundle: true, format: 'iife', external: EXTERNAL, alias: ALIAS, write: false,
     // as they have always run: not in strict mode (esbuild would add "use strict", tsconfig.json being strict)
     tsconfigRaw: { compilerOptions: { alwaysStrict: false } },
     ...(outdir ? { outdir, entryNames: '[name]-[hash]', sourcemap: true, metafile: true } : {}),
@@ -195,6 +202,10 @@ function inlineScript(source: string): string {
 /** A page with the scripts its build markers name: a module or plain script by its file, anything else written in. */
 function buildPage(page: string, built: Built): Made {
   const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+  // the stylesheet and the preload of MapLibre must be of the version the bundle imports
+  for (const [, v] of html.matchAll(/maplibre-gl@([\w.-]+)\/dist\/maplibre-gl\.(?:css|mjs)/g)) {
+    if (v !== MAPLIBRE_VERSION) throw new Error(`${page}: maplibre-gl@${v}, but ${MAPLIBRE_VERSION} is installed (package.json)`);
+  }
   return { file: page, content: html.replace(MARKER, (_line, indent: string, source: string, attributes: string) => {
     const b = built.get(source);
     if (ENTRIES.includes(source)) return moduleTags(b!, indent, page, attributes);

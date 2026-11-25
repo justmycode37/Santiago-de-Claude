@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
   <title>Maps</title>
-  <!-- MapLibre for the map (imported by the page's modules as 'maplibre-gl'; fetched straight away, see the preload)
-       and three.js for the 3D station view (station3d-solid.js imports 'three'; loaded only when a station opens in 3D) -->
+  <!-- three.js for the 3D station view (station3d-solid.js imports 'three'; loaded only when a station opens in 3D) -->
   <script type="importmap">
-    { "imports": { "maplibre-gl": "https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs",
-                   "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
+    { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
                    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
   </script>
+  <!-- MapLibre for the map: the page's script imports it from this address (scripts/build.mts, the version in
+       package.json); fetched straight away. The build checks that this and the stylesheet are of that version. -->
   <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs" crossorigin />
   <link rel="stylesheet" href="pricing.css" />
   <link rel="stylesheet" href="ticket-pricing.css" />

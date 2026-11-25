@@ -155,8 +155,19 @@ export let mapView: MapView = (() => {
 // The satellite style is the same in light and dark (photos); fetched the first time it is shown
 let satelliteStyle: maplibregl.StyleSpecification | null = null;
 let satelliteLoad: Promise<maplibregl.StyleSpecification> | null = null;
-// The normal view's style (light and dark): set in start()
-let normalStyle: Promise<void> = Promise.resolve();
+let normalLoad: Promise<void> | null = null;
+/** The normal view's style (light, and the dark variant made of it): the first time the one on its way since the
+ *  <head> (EARLY_STYLE), else fetched; tried again on the next call when it fails. */
+function loadNormal(): Promise<void> {
+  if (STYLES.light) return Promise.resolve();
+  const early = window.EARLY_STYLE;
+  window.EARLY_STYLE = undefined;
+  normalLoad ||= (early || fetchStyleWithTiles(STYLE_URL)).then((style) => {
+    STYLES.light = style;
+    STYLES.dark = makeDarkStyle(style);
+  }).catch((e: unknown) => { normalLoad = null; throw e; });
+  return normalLoad;
+}
 function loadSatellite(): Promise<maplibregl.StyleSpecification> {
   // the same tile addresses as the normal view's base map (tilejson.ts): switching view reuses its tiles
   satelliteLoad ||= fetchStyleWithTiles(SATELLITE_STYLE_URL)
@@ -168,14 +179,18 @@ function showView() {
   viewsBtn.classList.toggle('active', mapView === 'satellite');
   viewOptions.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === mapView)));
 }
-/** Switches between the plain map and the satellite view and remembers the choice. Resolves once it is drawn in. */
+/** Switches between the plain map and the satellite view and remembers the choice once it is shown. When its
+ *  style cannot be loaded, the view stays as it was (and the promise is rejected). */
 export function setMapView(view: MapView): Promise<void> {
+  const before = mapView;
   mapView = view;
-  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
   showView();
-  if (view === 'map') return normalStyle.then(() => { if (mapView === 'map') applyMapTheme(true); });
-  return loadSatellite().then(() => { if (mapView === 'satellite') applyMapTheme(true); }, (e: unknown) => {
-    if (mapView === 'satellite') setMapView('map');
+  return (view === 'satellite' ? loadSatellite() : loadNormal()).then(() => {
+    if (mapView !== view) return; // another view was picked meanwhile
+    try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+    applyMapTheme(true);
+  }, (e: unknown) => {
+    if (mapView === view) { mapView = before; showView(); }
     throw e;
   });
 }
@@ -207,25 +222,21 @@ export function start() {
     if (eventMarkers.size && map.getZoom() < EVENT_MIN_ZOOM) updateCards();
   });
   map.on('resize', updateCards);
-  // The normal style: usually already on its way since the <head> (EARLY_STYLE). Kept for the normal view even
-  // when the map opens in satellite view.
-  const normal = normalStyle = (window.EARLY_STYLE || fetchStyleWithTiles(STYLE_URL)).then((style) => {
-    STYLES.light = style;
-    STYLES.dark = makeDarkStyle(style);
-  });
+  // The normal style, also when the map opens in satellite view (for switching to it later)
+  const normal = loadNormal();
+  normal.catch(() => {}); // handled below when it is the first view; else tried again when the normal view is picked
   // The map is drawn once, in the saved view: satellite (the normal view if its style cannot be loaded) or normal
   const first = mapView !== 'satellite' ? normal : loadSatellite().then(() => {}, () => {
     mapView = 'map';
     showView();
     showToast('The satellite view could not be loaded.');
-    return normal;
+    return loadNormal();
   });
   first.then(() => {
     applyMapTheme(false);
     // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
     map.once('idle', () => { updateCards(); startPlatforms(); });
   }).catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
-  normal.catch(() => {}); // handled above when it is the first view; the normal view is then offered again later
   themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
   // Follow the system setting until the user picks a theme themselves
   if (window.matchMedia as typeof matchMedia | undefined) {

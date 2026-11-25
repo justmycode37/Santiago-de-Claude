@@ -68,7 +68,7 @@ async function respond(event: FetchEvent, req: Request, store: Store, key: strin
   }
   // req carries the map's AbortSignal: a tile it no longer wants is not fetched to the end
   const res = await fetch(req);
-  if (cache && storable(res)) event.waitUntil(put(cache, store, key, res.clone()));
+  if (cache && storable(res)) event.waitUntil(put(cache, store, key, res.clone()).catch(() => {}));
   return res;
 }
 
@@ -81,25 +81,36 @@ async function refresh(req: Request, store: Store, key: string): Promise<void> {
 /** A whole, readable answer: not an error, not part of a file, not an opaque one (no size, counted large). */
 const storable = (res: Response) => res.status === 200 && (res.type === 'cors' || res.type === 'basic');
 
-/** How long ago the cached answer was fetched (its Date header; very old if there is none). */
+/** When this worker stored the answer. Not the server's Date header: a cross-origin answer does not show it. */
+const STORED_AT = 'x-stored-at';
+/** How long ago the cached answer was stored (very old if that is not known). */
 function age(res: Response): number {
-  const d = Date.parse(res.headers.get('date') || '');
-  return Number.isFinite(d) ? Date.now() - d : Infinity;
+  const t = Number(res.headers.get(STORED_AT));
+  return t > 0 ? Date.now() - t : Infinity;
 }
 
-// Trimming reads every key of a cache: done only every so many new files, not on each one
+// Trimming reads every key of a cache: done on the first new file after the worker starts (the browser stops it
+// often), then every so many new files, not on each one
 const sinceTrim = new Map<string, number>();
+const TRIM_EVERY = 25;
 async function put(cache: Cache, store: Store, key: string, res: Response): Promise<void> {
+  // the answer as it can be read here (a cross-origin one shows only some headers), with the time it was stored
+  const headers = new Headers(res.headers);
+  headers.set(STORED_AT, String(Date.now()));
+  // the body is kept unzipped: the zipped length and encoding of the original would not match it
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  const body = await res.arrayBuffer(); // the whole file before anything is stored: a cut-off one is not
   try {
-    await cache.put(key, res);
+    await cache.put(key, new Response(body, { status: res.status, statusText: res.statusText, headers }));
   } catch (e) {
-    // full: make room for next time
-    await trim(cache, Math.floor(store.max / 2)).catch(() => {});
+    // only when storage is full: make room for next time (any other failure leaves the cache as it is)
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') await trim(cache, Math.floor(store.max / 2)).catch(() => {});
     return;
   }
-  const n = (sinceTrim.get(store.name) || 0) + 1;
-  sinceTrim.set(store.name, n);
-  if (n >= 25) { sinceTrim.set(store.name, 0); await trim(cache, store.max).catch(() => {}); }
+  const n = sinceTrim.get(store.name) ?? TRIM_EVERY - 1;
+  sinceTrim.set(store.name, n + 1);
+  if (n + 1 >= TRIM_EVERY) { sinceTrim.set(store.name, 0); await trim(cache, store.max).catch(() => {}); }
 }
 /** Deletes the oldest files (keys come back in the order they were stored) down to `keep`. */
 async function trim(cache: Cache, keep: number): Promise<void> {
