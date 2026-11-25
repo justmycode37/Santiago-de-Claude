@@ -4,7 +4,7 @@
 import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { platformPopup } from './platforms.ts';
-import { vehicleGlyph } from './sprites.ts';
+import { spriteImage, vehicleGlyph } from './sprites.ts';
 import { lineColor, lineLabel, lineVars, modeOf } from './journey-steps.ts';
 import { h, kBadge } from './sheet.ts';
 import { journey } from './state.ts';
@@ -52,7 +52,7 @@ export const VEH_FC: LiveVehicleCollection = { type: 'FeatureCollection', featur
 const VEH_MAX = 300; // enough for a city centre, light enough for a phone
 let vehList: LiveVehicle[] = [], vehBox: KanteBbox | null = null, vehES: EventSource | null = null, vehPollTimer: number | null = null, vehBusy = false, vehReq = 0;
 // Drawing: about 12 times a second (smooth at street zoom, light enough for a phone), not while the map is moved
-const VEH_FRAME_MS = 80, VEH_FRAME_MOVING_MS = 160; // while the map is moved: less often, not not at all
+const VEH_FRAME_MS = 80; // the pictograms below zoom 15 (through the map's data); not while the map is moved
 let vehRaf = 0, vehDrawnAt = 0;
 // ---- The base map's red lines (swisstopo's rails and tram tracks, layers public_transport…): a vehicle on rails is
 //      drawn on them where they run within RED_SNAP_M of the engine's way and the same way (KANTE_LIVE.setLineRefiner).
@@ -89,7 +89,11 @@ function loadRed() {
   KANTE_LIVE.setLineRefiner(redGrid ? redRefine : null);
 }
 // once the map has its tiles around: after a move, and as tiles of the base map come in
-const redSoon = () => { clearTimeout(redTimer); if (vehBox) redTimer = window.setTimeout(loadRed, 400); };
+const redSoon = () => {
+  clearTimeout(redTimer);
+  // not while the map moves (reading its tiles then would hold up the frames): once it stops
+  if (vehBox) redTimer = window.setTimeout(() => (map.isMoving() ? redSoon() : loadRed()), 400);
+};
 /** Whether the red line nearest p (within 8 m) runs in a tunnel: the vehicle there is underground. */
 function underground(p: LngLat): boolean {
   if (!redGrid) return false;
@@ -244,9 +248,10 @@ export function vehUpdate() {
   const frame = () => {
     vehRaf = requestAnimationFrame(frame);
     if (!vehList.length && !VEH_FC.features.length) { if (vehHits.length) paint(); return; } // (clear what was drawn)
-    if (!map.isMoving()) paint();
+    if (map.isMoving()) return; // the canvas is drawn with the map (its render event); the pictograms wait
+    paint();
     const t = performance.now();
-    if (t - vehDrawnAt < (map.isMoving() ? VEH_FRAME_MOVING_MS : VEH_FRAME_MS)) return;
+    if (t - vehDrawnAt < VEH_FRAME_MS) return;
     vehDrawnAt = t;
     vehDraw();
   };
@@ -278,34 +283,41 @@ function vehShownAt(v: LiveVehicle, tNow: number, ms: number): LngLat {
   return s.ll;
 }
 // ---- From zoom 15 the vehicles are drawn on a canvas over the map, every frame (in step with the map while it moves),
-//      not through the map's data (which redraws a fraction of a second later, so they could only step): each as its
-//      parts seen from above, as long and wide as such a vehicle — tram sections, a bus (two halves where articulated),
-//      the coaches of a train — with a cab window at the front, in a colour of its own (none of the vehicles near it
-//      has it when it first shows, and it keeps it), the line number on it from zoom 16, dashed where it runs in a
-//      tunnel. ----
-// How a vehicle of this kind is made up, metres: [lengths of its parts], width. Swiss trams 36–43 m in five or so
-// sections (Combino, Flexity, Cobra), city buses articulated (18 m), PostAuto's 12 m, regional trains about 100 m
-// (FLIRT, KISS in pairs), long-distance ones 300 m in coaches of 25 m
+//      not through the map's data (which redraws a fraction of a second later, so they could only step). Each as its
+//      parts seen from above: rigid carriages, each a straight body from where its back is on the way to where its
+//      front is, linked at their joints (so they follow the curve as a real train does, not as a snake), as long and
+//      wide as such a vehicle (at least a few pixels wide), rounded at the cabs, shaded across the roof, with windows
+//      along the sides and a windscreen at the front; in a colour of its own (none of the vehicles near it has it when it
+//      first shows, and it keeps it); dashed and paler in a tunnel. Over it its badge (what it is and its line, as on
+//      the map below zoom 15), from zoom 17 where it goes. Two on the same track never overlap: the one behind is drawn
+//      behind the one in front; two meeting on one drawn line keep to their right. Buses keep to the right of the
+//      road's middle. ----
+// How a vehicle of this kind is made up, metres: [lengths of its parts], width, cab at both ends. Swiss trams 36–43 m in
+// five sections (Combino, Flexity, Cobra), city buses articulated (18 m), PostAuto's 12 m, regional trains about
+// 100 m (FLIRT, KISS in pairs), long-distance ones 300 m in coaches of 25 m
 const LONG_DISTANCE = /^(IC|ICE|ICN|IR|IRE|EC|EN|NJ|TGV|RJ|RJX|PE|EXT)$/;
 const repeat = (n: number, len: number) => Array.from({ length: n }, () => len);
-function partsOf(v: LiveVehicle): [number[], number] {
+interface Make { parts: number[]; width: number; cabs: 1 | 2; gap: number; rail: boolean; road: boolean }
+function makeOf(v: LiveVehicle): Make {
   const cat = (v.line.category || '').toUpperCase();
   switch (v.line.mode) {
-    case 'tram': return [[9, 6, 9, 6, 9], 2.4];
-    case 'bus': case 'ondemand': return [/PostAuto|CarPostal|AutoPostale/i.test(v.line.operator || '') ? [12] : [10.5, 7.5], 2.55];
-    case 'rail': return [LONG_DISTANCE.test(cat) ? repeat(12, 25) : repeat(4, 25), 2.9];
-    case 'metro': return [repeat(3, 20), 2.7];
-    case 'rack': return [repeat(2, 24), 2.65];
-    case 'funicular': return [[25], 2.6];
-    case 'cableway': return [[8], 3];
-    case 'boat': return [[50], 9];
-    default: return [[12], 2.5];
+    case 'tram': return { parts: [9.5, 5.5, 9, 5.5, 9.5], width: 2.4, cabs: 2, gap: 0.5, rail: true, road: false };
+    case 'bus': case 'ondemand':
+      return { parts: /PostAuto|CarPostal|AutoPostale/i.test(v.line.operator || '') ? [12] : [10.5, 7.2], width: 2.55, cabs: 1, gap: 0.6, rail: false, road: true };
+    case 'rail': return { parts: LONG_DISTANCE.test(cat) ? repeat(12, 25) : repeat(4, 25), width: 2.9, cabs: 2, gap: 0.9, rail: true, road: false };
+    case 'metro': return { parts: repeat(3, 20), width: 2.7, cabs: 2, gap: 0.8, rail: true, road: false };
+    case 'rack': return { parts: repeat(2, 24), width: 2.65, cabs: 2, gap: 0.8, rail: true, road: false };
+    case 'funicular': return { parts: [25], width: 2.6, cabs: 2, gap: 0, rail: true, road: false };
+    case 'cableway': return { parts: [8], width: 3, cabs: 2, gap: 0, rail: false, road: false };
+    case 'boat': return { parts: [50], width: 9, cabs: 1, gap: 0, rail: false, road: false };
+    default: return { parts: [12], width: 2.5, cabs: 1, gap: 0.6, rail: false, road: true };
   }
 }
-const PART_GAP_M = 0.8; // between two parts (a joint, a coupling)
+const lengthOf = (m: Make) => m.parts.reduce((a, x) => a + x, 0) + m.gap * (m.parts.length - 1);
+const ROAD_RIGHT_M = 1.6; // a bus keeps to the right of the road's middle
 // Colours a vehicle can have: far apart from each other, plain on the light and the dark map
-const VEH_COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#0fb5c9', '#f032e6', '#8cc63f', '#469990', '#9a6324',
-  '#800000', '#000075', '#808000', '#d4a106', '#ff6f91', '#5b5b5b'];
+const VEH_COLORS = ['#d7263d', '#2e9e44', '#2f5fd0', '#f08a24', '#8b3fb5', '#0ea5b7', '#d63fa8', '#7cb518', '#2f7f78', '#a0632a',
+  '#7a1f2b', '#23306b', '#6b6b1f', '#d4a106', '#ff6f91', '#4a5563'];
 const vehColor = new Map<string, number>();
 const NEAR_KM = 2; // vehicles nearer than this never share a colour when one of them first shows
 function colorOf(k: string, at: LngLat): string {
@@ -330,30 +342,26 @@ function colorOf(k: string, at: LngLat): string {
   }
   return VEH_COLORS[c];
 }
-// A colour a third of the way to black: the edge
-function darker(hex: string) {
+// A colour moved towards black (f < 1) or white (f > 1)
+function shade(hex: string, f: number) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
   if (!m) return hex;
-  const n = parseInt(m[1], 16), f = (x: number) => Math.round(x * 0.6).toString(16).padStart(2, '0');
-  return '#' + f(n >> 16) + f((n >> 8) & 255) + f(n & 255);
+  const n = parseInt(m[1], 16), ch = (x: number) => Math.round(f <= 1 ? x * f : x + (255 - x) * (f - 1)).toString(16).padStart(2, '0');
+  return '#' + ch(n >> 16) + ch((n >> 8) & 255) + ch(n & 255);
 }
-// The points of a line from metre a to metre b along it
-function cutLine(pts: LngLat[], cum: number[], a: number, b: number): LngLat[] {
-  const at = (m: number): LngLat => {
-    let k = 1;
-    while (k < cum.length - 1 && cum[k] < m) k++;
-    const l = cum[k] - cum[k - 1], t = l > 0 ? Math.max(0, Math.min(1, (m - cum[k - 1]) / l)) : 0;
-    return [pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * t, pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * t];
-  };
-  const out = [at(a)];
-  for (let k = 1; k < pts.length - 1; k++) if (cum[k] > a && cum[k] < b) out.push(pts[k]);
-  out.push(at(b));
-  return out;
+// Planar metres around a latitude (enough over a vehicle's length)
+const kxAt = (lat: number) => 111320 * Math.cos(lat * Math.PI / 180), KY = 110540;
+/** The point m metres along a line given with its cumulative metres. */
+function at(pts: LngLat[], cum: number[], m: number): LngLat {
+  let k = 1;
+  while (k < cum.length - 1 && cum[k] < m) k++;
+  const l = cum[k] - cum[k - 1], t = l > 0 ? Math.max(0, Math.min(1, (m - cum[k - 1]) / l)) : 0;
+  return [pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * t, pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * t];
 }
 
 let vcv: HTMLCanvasElement | null = null, vctx: CanvasRenderingContext2D | null = null;
-/** What was drawn of each vehicle, for taps: its index, its body in screen pixels, half its width. */
-let vehHits: { i: number; pts: { x: number; y: number }[]; half: number }[] = [];
+/** What was drawn of each vehicle, for taps: its index and its carriages as screen rectangles (back, front, half width). */
+let vehHits: { i: number; cars: [{ x: number; y: number }, { x: number; y: number }, number][] }[] = [];
 function canvasSize() {
   if (!vcv) return;
   const c = map.getCanvas(), dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
@@ -375,6 +383,11 @@ function canvasReady() {
   canvasSize();
   return vctx;
 }
+/** How far each vehicle is drawn behind where it is (m), to stay behind the one in front, eased from frame to frame. */
+const keptBack = new Map<string, number>();
+/** How far each is drawn to its right (m): two meeting on one drawn line. */
+const keptRight = new Map<string, number>();
+interface Placed { i: number; k: string; v: LiveVehicle; s: KanteShownVehicle<LiveVehicle>; make: Make; len: number; c: LngLat; dir: [number, number] }
 let paintedAt = -1;
 function paint() {
   const now = performance.now();
@@ -391,85 +404,192 @@ function paint() {
   if (zoom < BODY_MIN_ZOOM || !vehList.length) return;
   const age = Date.now() - vehAt, old = age > VEH_DIM_MS, tNow = vehNow(), dark = currentTheme() === 'dark';
   const lat = map.getCenter().lat, pxPerM = 1 / (40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** zoom));
-  const b = map.getBounds().toArray(), pad = 0.01;
-  const inView = (p: LngLat) => p[0] > b[0][0] - pad && p[0] < b[1][0] + pad && p[1] > b[0][1] - pad && p[1] < b[1][1] + pad;
+  const bb = map.getBounds(), pad = 0.01;
+  const inView = (p: LngLat) => p[0] > bb.getWest() - pad && p[0] < bb.getEast() + pad && p[1] > bb.getSouth() - pad && p[1] < bb.getNorth() + pad;
+  const kx = kxAt(lat);
+
+  // 1. where each is, and which way it goes (planar metres)
+  const placed: Placed[] = [];
   vehList.forEach((v, i) => {
     const k = vehKey(v), s = KANTE_LIVE.showVehicle(shown.get(k), v, tNow, now);
     shown.set(k, s);
     if (!inView(s.ll)) return;
-    const [parts, width] = partsOf(v), len = parts.reduce((a, x) => a + x, 0) + PART_GAP_M * (parts.length - 1);
-    const fill = colorOf(k, s.ll), edge = darker(fill), live = v.info && v.info.state !== 'stale' && v.info.state !== 'timetable';
-    const body = KANTE_LIVE.bodyAt(s.rec, s.f, len);
-    const wpx = Math.max(3, width * pxPerM);
-    ctx.globalAlpha = old || !live ? 0.5 : 1;
-    if (!body || body.length < 2) {
-      // its way not known: a dot where it is
-      const p = map.project(s.ll);
-      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(4, wpx), 0, Math.PI * 2);
-      ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = edge; ctx.stroke();
-      vehHits.push({ i, pts: [p], half: Math.max(4, wpx) });
-      return;
+    const make = makeOf(v), len = lengthOf(make);
+    const ahead = KANTE_LIVE.bodyAt(s.rec, s.f, 6, s.prev);
+    let dir: [number, number] = [0, 0];
+    if (ahead && ahead.length > 1) {
+      const p = ahead[0], q = ahead[ahead.length - 1], dx = (q[0] - p[0]) * kx, dy = (q[1] - p[1]) * KY, l = Math.hypot(dx, dy);
+      if (l > 0) dir = [dx / l, dy / l];
     }
-    // the body in metres along it (back to front), cut into its parts
-    const cum = [0];
-    for (let j = 1; j < body.length; j++) cum.push(cum[j - 1] + KANTE_LIVE.distKm(body[j - 1], body[j]) * 1000);
-    const scale = cum[cum.length - 1] / len || 1;
-    let from = 0;
-    const screen = body.map((p) => map.project(p));
-    vehHits.push({ i, pts: screen, half: wpx / 2 + 1 });
-    ctx.lineJoin = 'round';
-    parts.forEach((pl, j) => {
-      const a = from * scale, z = (from + pl) * scale;
-      from += pl + PART_GAP_M;
-      const seg = cutLine(body, cum, a, z).map((p) => map.project(p));
-      const mid = cutLine(body, cum, (a + z) / 2, (a + z) / 2)[0];
-      const tunnel = underground(mid);
-      const path = () => { ctx.beginPath(); seg.forEach((q, n) => (n ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); };
-      // edge, then the part: a dashed edge in a tunnel, the part paler there
-      ctx.lineCap = 'butt';
-      ctx.setLineDash(tunnel ? [Math.max(3, wpx * 0.9), Math.max(2, wpx * 0.6)] : []);
-      path(); ctx.lineWidth = wpx + 2.2; ctx.strokeStyle = edge; ctx.stroke();
-      ctx.setLineDash([]);
-      path(); ctx.lineWidth = wpx; ctx.strokeStyle = fill;
-      const a0 = ctx.globalAlpha;
-      if (tunnel) ctx.globalAlpha = a0 * 0.45;
-      ctx.stroke();
-      ctx.globalAlpha = a0;
-      // the cab window at the front
-      if (j === parts.length - 1 && wpx >= 5) {
-        const glass = cutLine(body, cum, Math.max(a, z - 1.1 * scale), z - 0.25 * scale).map((p) => map.project(p));
-        ctx.beginPath(); glass.forEach((q, n) => (n ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
-        ctx.lineWidth = wpx * 0.7; ctx.strokeStyle = dark ? 'rgba(200,225,255,.85)' : 'rgba(25,40,60,.8)'; ctx.stroke();
-      }
-    });
-    // the line number on it, in the line's colours
-    if (zoom >= VEH_PILL_ZOOM) {
-      const mid = map.project(cutLine(body, cum, cum[cum.length - 1] / 2, cum[cum.length - 1] / 2)[0]);
-      const c = lineColor(v.j), label = lineLabel(v.j);
-      ctx.font = '600 11px system-ui, -apple-system, Segoe UI, sans-serif';
-      const tw = ctx.measureText(label).width, bw = tw + 10, bh = 16;
-      ctx.beginPath();
-      (ctx as CanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect
-        ? ctx.roundRect(mid.x - bw / 2, mid.y - bh / 2, bw, bh, 5) : ctx.rect(mid.x - bw / 2, mid.y - bh / 2, bw, bh);
-      ctx.fillStyle = dark ? c.dbg : c.bg; ctx.fill();
-      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
-      ctx.fillStyle = dark ? c.dfg : c.fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(label, mid.x, mid.y + 0.5);
-    }
+    placed.push({ i, k, v, s, make, len, c: s.ll, dir });
   });
-  ctx.globalAlpha = 1;
+  // 2. on rails, one behind the other, never over each other; meeting on one drawn line, each to its right
+  const back = new Map<string, number>(), right = new Map<string, number>();
+  for (let pass = 0; pass < 2; pass++) {
+    for (let a = 0; a < placed.length; a++) for (let b = a + 1; b < placed.length; b++) {
+      const A = placed[a], B = placed[b];
+      if (!A.make.rail || !B.make.rail || (!A.dir[0] && !A.dir[1]) || (!B.dir[0] && !B.dir[1])) continue;
+      const dx = (B.c[0] - A.c[0]) * kx, dy = (B.c[1] - A.c[1]) * KY;
+      const reach = (A.len + B.len) / 2 + 3;
+      if (Math.abs(dx) > reach || Math.abs(dy) > reach) continue;
+      const cos = A.dir[0] * B.dir[0] + A.dir[1] * B.dir[1];
+      const along = dx * A.dir[0] + dy * A.dir[1], side = Math.abs(-dx * A.dir[1] + dy * A.dir[0]);
+      if (side > 2.5) continue; // side by side on two tracks: as they are
+      if (cos > 0.9) {
+        // the same way on the same track: the one behind is drawn behind the other's tail
+        const bA = back.get(A.k) || 0, bB = back.get(B.k) || 0, need = (A.len + B.len) / 2 + 2;
+        // how far the one in front is ahead of the one behind as drawn (each kept back by what it is so far)
+        const apart = along > 0 ? along - bB + bA : -along - bA + bB;
+        if (apart < need) {
+          const rear = along > 0 ? A : B;
+          back.set(rear.k, (back.get(rear.k) || 0) + (need - apart));
+        }
+      } else if (cos < -0.9 && Math.abs(along) < reach) {
+        // towards each other on one drawn line: each on its right-hand track
+        right.set(A.k, 2.2);
+        right.set(B.k, 2.2);
+      }
+    }
+  }
+  const ease = (m: Map<string, number>, k: string, target: number) => {
+    const was = m.get(k) || 0, next = was + (target - was) * 0.2;
+    if (Math.abs(next) < 0.05 && !target) m.delete(k); else m.set(k, next);
+    return next;
+  };
+
+  // 3. each as itself
+  ctx.lineJoin = 'round';
+  for (const P of placed) {
+    const { v, s, make, len, i, k } = P;
+    const fill = colorOf(k, s.ll), live = v.info && v.info.state !== 'stale' && v.info.state !== 'timetable';
+    const backM = ease(keptBack, k, back.get(k) || 0), rightM = ease(keptRight, k, right.get(k) || 0) + (make.road ? ROAD_RIGHT_M : 0);
+    const body = KANTE_LIVE.bodyAt(s.rec, s.f, len, s.prev, backM);
+    const W = Math.max(make.width * pxPerM, 5 + Math.min(3, Math.max(0, zoom - 15) * 1.5));
+    ctx.globalAlpha = old || !live ? 0.55 : 1;
+    let centre: { x: number; y: number } = map.project(s.ll);
+    if (!body || body.length < 2) {
+      // its way not known: a disc where it is
+      ctx.beginPath(); ctx.arc(centre.x, centre.y, W * 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = shade(fill, 0.55); ctx.stroke();
+      vehHits.push({ i, cars: [[centre, centre, W * 0.8]] });
+    } else {
+      const cum = [0];
+      for (let j = 1; j < body.length; j++) cum.push(cum[j - 1] + Math.hypot((body[j][0] - body[j - 1][0]) * kx, (body[j][1] - body[j - 1][1]) * KY));
+      const scale = cum[cum.length - 1] / len || 1;
+      // each part: from where its back is on the way to where its front is, straight (back to front)
+      const cars: [{ x: number; y: number }, { x: number; y: number }][] = [];
+      let from = 0;
+      for (const pl of make.parts) {
+        let p = map.project(at(body, cum, from * scale)), q = map.project(at(body, cum, (from + pl) * scale));
+        if (rightM) {
+          const dx = q.x - p.x, dy = q.y - p.y, l = Math.hypot(dx, dy) || 1, o = rightM * pxPerM;
+          const nx = (-dy / l) * o, ny = (dx / l) * o; // to the right of the way it goes (y downwards)
+          p = { x: p.x + nx, y: p.y + ny } as typeof p; q = { x: q.x + nx, y: q.y + ny } as typeof q;
+        }
+        cars.push([p, q]);
+        from += pl + make.gap;
+      }
+      const mid = cars[Math.floor(cars.length / 2)];
+      centre = { x: (mid[0].x + mid[1].x) / 2, y: (mid[0].y + mid[1].y) / 2 };
+      drawVehicle(ctx, cars, W, fill, make, cars.map(([p, q]) => underground(map.unproject([(p.x + q.x) / 2, (p.y + q.y) / 2]).toArray() as LngLat)), dark);
+      vehHits.push({ i, cars: cars.map(([p, q]) => [p, q, W / 2 + 2]) });
+    }
+    ctx.globalAlpha = 1;
+    labels.push({ v, x: centre.x, y: centre.y - W / 2, dim: old || !live });
+  }
+  // over them all: each one's badge, and where it goes from zoom 17
+  for (const L of labels) drawBadge(ctx, L.v, L.x, L.y, zoom, dark, L.dim);
+  labels.length = 0;
+  for (const k of keptBack.keys()) if (!shown.has(k)) keptBack.delete(k);
+  for (const k of keptRight.keys()) if (!shown.has(k)) keptRight.delete(k);
 }
+const labels: { v: LiveVehicle; x: number; y: number; dim: boolean }[] = [];
+
+/**
+ * One vehicle seen from above: its carriages (screen back and front points, back to front), W px wide. Each a body
+ * with squared corners and a rounded nose at a cab, painted flat with its roof a shade lighter, a crisp darker
+ * outline, the windscreen across the front behind the nose; grey bellows between the parts; a soft shadow under it.
+ * In a tunnel (per carriage) dashed and paler.
+ */
+function drawVehicle(ctx: CanvasRenderingContext2D, cars: [{ x: number; y: number }, { x: number; y: number }][], W: number, fill: string,
+  make: Make, tunnel: boolean[], dark: boolean) {
+  const edge = shade(fill, 0.55), roof = shade(fill, 1.22), glass = dark ? '#9fc3ea' : '#1c2a3d';
+  const n = cars.length, a0 = ctx.globalAlpha;
+  // the bellows between the parts, under them
+  for (let j = 1; j < n; j++) {
+    const p = cars[j - 1][1], q = cars[j][0];
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+    ctx.lineCap = 'butt'; ctx.lineWidth = W * 0.74; ctx.strokeStyle = dark ? '#3a4049' : '#59606b'; ctx.stroke();
+  }
+  cars.forEach(([p, q], j) => {
+    const L = Math.hypot(q.x - p.x, q.y - p.y);
+    if (L < 0.5) return;
+    const front = j === n - 1, backCab = j === 0 && make.cabs === 2;
+    const corner = W * 0.14, nose = W * 0.36;
+    const rf = front ? nose : corner, rb = backCab ? nose : corner;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(Math.atan2(q.y - p.y, q.x - p.x));
+    const pale = tunnel[j] ? 0.5 : 1;
+    // the body, with a soft shadow under it
+    ctx.globalAlpha = a0 * pale;
+    ctx.shadowColor = 'rgba(10,14,20,.35)'; ctx.shadowBlur = Math.min(4, W * 0.25); ctx.shadowOffsetY = Math.min(1.5, W * 0.08);
+    ctx.beginPath(); ctx.roundRect(0, -W / 2, L, W, [rb, rf, rf, rb]);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    // its roof, a shade lighter, inset from the sides
+    if (W >= 6) {
+      const ins = Math.max(1, W * 0.2), x0 = (backCab ? nose : corner) * 0.6 + ins * 0.5, x1 = L - (front ? nose + W * 0.32 : corner * 0.6 + ins * 0.5);
+      if (x1 > x0) { ctx.beginPath(); ctx.roundRect(x0, -W / 2 + ins, x1 - x0, W - ins * 2, Math.max(0.5, W * 0.08)); ctx.fillStyle = roof; ctx.fill(); }
+    }
+    // the windscreen across the front (and the back of one that drives both ways), behind the nose
+    if (W >= 5) {
+      const depth = Math.max(1.2, W * 0.2), side = Math.max(0.8, W * 0.12);
+      ctx.fillStyle = glass;
+      if (front) { ctx.beginPath(); ctx.roundRect(L - nose * 0.55 - depth, -W / 2 + side, depth, W - side * 2, depth * 0.4); ctx.fill(); }
+      if (backCab) { ctx.beginPath(); ctx.roundRect(nose * 0.55, -W / 2 + side, depth, W - side * 2, depth * 0.4); ctx.fill(); }
+    }
+    // the outline: crisp; dashed in a tunnel
+    ctx.globalAlpha = a0;
+    ctx.beginPath(); ctx.roundRect(0, -W / 2, L, W, [rb, rf, rf, rb]);
+    ctx.lineWidth = W >= 10 ? 1.3 : 1; ctx.strokeStyle = edge;
+    if (tunnel[j]) ctx.setLineDash([Math.max(3, W * 0.4), Math.max(2, W * 0.3)]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  });
+  ctx.globalAlpha = a0;
+}
+
+/** Its badge over it: what it is and its line (as on the map below zoom 15); from zoom 17 where it goes. */
+function drawBadge(ctx: CanvasRenderingContext2D, v: LiveVehicle, x: number, y: number, zoom: number, dark: boolean, dim: boolean) {
+  const p = propsOf(v, 0), img = spriteImage(zoom >= VEH_PILL_ZOOM ? (dark ? p.pillD : p.pill) : (dark ? p.iconD : p.icon));
+  const a0 = ctx.globalAlpha;
+  ctx.globalAlpha = dim ? 0.7 : 1;
+  let bottom = y - 3;
+  if (img) {
+    const scale = (zoom >= 18 ? 0.95 : 0.8) / img.ratio, w = img.img.width * scale, h = img.img.height * scale;
+    ctx.drawImage(img.img, x - w / 2, bottom - h, w, h);
+    bottom -= h - 2;
+  }
+  if (zoom >= DEST_MIN_ZOOM && v.headsign) {
+    ctx.font = '600 11px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const text = '→ ' + v.headsign;
+    ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(12,14,18,.92)' : 'rgba(255,255,255,.95)'; ctx.strokeText(text, x, bottom);
+    ctx.fillStyle = dark ? '#e9ecf1' : '#1d232c'; ctx.fillText(text, x, bottom);
+  }
+  ctx.globalAlpha = a0;
+}
+const DEST_MIN_ZOOM = 17;
+
 /** The vehicle drawn under a tap at point p (screen pixels), or null. */
 function vehicleAt(p: { x: number; y: number }): number | null {
   let best: number | null = null, bestD = 10;
-  for (const h of vehHits) {
-    let d = Infinity;
-    if (h.pts.length === 1) d = Math.hypot(h.pts[0].x - p.x, h.pts[0].y - p.y) - h.half;
-    for (let k = 1; k < h.pts.length; k++) {
-      const a = h.pts[k - 1], b = h.pts[k], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
-      const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
-      d = Math.min(d, Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y) - h.half);
-    }
+  for (const h of vehHits) for (const [a, b, half] of h.cars) {
+    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+    const d = Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y) - half;
     if (d < bestD) { bestD = d; best = h.i; }
   }
   return best;

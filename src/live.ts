@@ -247,46 +247,65 @@ function pointAtShare(v: KanteVehicleHop, f: number): LngLat {
   return [v.from[0] + (v.to[0] - v.from[0]) * f, v.from[1] + (v.to[1] - v.from[1]) * f];
 }
 // ---- The vehicle's body: the stretch of its way it covers, `len` metres long, centred where it is (where it stands at
-//      a stop is its platform's middle). Onwards it runs on along its next hop; behind the start of the hop it is on
-//      (unknown) it carries on straight back. ----
+//      a stop is its platform's middle). Ahead it runs on along its next hop; behind, along the hop it came along
+//      (`prev`). Where that is not known: a vehicle on rails carries on straight back (a platform is straight), one on
+//      the road is moved forward onto its own way, so it never sticks out across what is beside the road. ----
 const railish = (v: KanteVehicleHop) => !!v.line && RAIL_MODES.has(String(v.line.mode));
-/** The points of line h from km a to km b (a < 0: straight back from its start; past its end: on along `next`, else straight on). */
-function stretch(h: HopLine, a: number, b: number, next: HopLine | null): LngLat[] {
-  const total = h.cum[h.cum.length - 1], out: LngLat[] = [];
-  const along = (line: HopLine, km: number): LngLat => {
-    const t = line.cum[line.cum.length - 1];
-    if (km <= 0 || t <= 0) {
-      const [p, q] = [line.pts[0], line.pts[1]], l = distKm(p, q) || 1e-9; // straight back from the start
-      return [p[0] - (q[0] - p[0]) * (-km / l), p[1] - (q[1] - p[1]) * (-km / l)];
-    }
-    if (km >= t) {
-      const n = line.pts.length, [p, q] = [line.pts[n - 2], line.pts[n - 1]], l = distKm(p, q) || 1e-9; // straight on
-      return [q[0] + (q[0] - p[0]) * ((km - t) / l), q[1] + (q[1] - p[1]) * ((km - t) / l)];
-    }
-    return alongLine(line, km / t);
-  };
-  out.push(along(h, a));
+const lineEnd = (line: HopLine) => line.cum[line.cum.length - 1];
+/** The point km along line h (beyond its ends: straight on). */
+function pointOn(h: HopLine, km: number): LngLat {
+  const t = lineEnd(h);
+  if (km <= 0 || t <= 0) {
+    const [p, q] = [h.pts[0], h.pts[1]], l = distKm(p, q) || 1e-9;
+    return [p[0] - (q[0] - p[0]) * (-km / l), p[1] - (q[1] - p[1]) * (-km / l)];
+  }
+  if (km >= t) {
+    const n = h.pts.length, [p, q] = [h.pts[n - 2], h.pts[n - 1]], l = distKm(p, q) || 1e-9;
+    return [q[0] + (q[0] - p[0]) * ((km - t) / l), q[1] + (q[1] - p[1]) * ((km - t) / l)];
+  }
+  return alongLine(h, km / t);
+}
+/** The points of line h from km a to km b: before its start along `before` (its end), past its end along `next`. */
+function stretch(h: HopLine, a: number, b: number, next: HopLine | null, before: HopLine | null = null): LngLat[] {
+  const total = lineEnd(h), out: LngLat[] = [];
+  if (a < 0 && before) {
+    const bt = lineEnd(before), from = Math.max(0, bt + a);
+    out.push(pointOn(before, from));
+    for (let k = 1; k < before.pts.length - 1; k++) if (before.cum[k] > from) out.push(before.pts[k]);
+    out.push(h.pts[0]);
+  } else out.push(pointOn(h, a));
   for (let k = 1; k < h.pts.length - 1; k++) if (h.cum[k] > a && h.cum[k] < b) out.push(h.pts[k]);
-  if (b <= total || !next) out.push(along(h, b));
+  if (b <= total || !next) out.push(pointOn(h, b));
   else {
     out.push(h.pts[h.pts.length - 1]);
     const rest = b - total;
     for (let k = 1; k < next.pts.length - 1; k++) if (next.cum[k] < rest) out.push(next.pts[k]);
-    out.push(along(next, rest));
+    out.push(pointOn(next, rest));
   }
   return out;
 }
-/** The stretch of its way a vehicle shown a share f along its hop covers, `lenM` metres long; null where not known. */
-function bodyAt(v: KanteVehicleHop, f: number, lenM: number): LngLat[] | null {
-  const half = lenM / 2000, o = v.onward;
-  const next = o && o.hopPath && (!o.hopSpan || o.hopSpan[0] <= 0) ? hopLine(o.hopPath, railish(v)) : null;
-  if (standingAt(v)) return next ? stretch(next, -half, half, null) : null; // across its platform, along the way out
-  const h = v.hopPath ? hopLine(v.hopPath, railish(v)) : null;
+/**
+ * The stretch of its way a vehicle shown a share f along its hop covers, `lenM` metres long, its middle `backM` metres
+ * back from where it is (to keep it behind the one in front); `prev`: the hop it came along. Back to front; null where
+ * its way is not known.
+ */
+function bodyAt(v: KanteVehicleHop, f: number, lenM: number, prev?: KanteVehicleHop | null, backM = 0): LngLat[] | null {
+  const half = lenM / 2000, o = v.onward, rail = railish(v);
+  const next = o && o.hopPath && (!o.hopSpan || o.hopSpan[0] <= 0) ? hopLine(o.hopPath, rail) : null;
+  const behind = prev && prev.hopPath && (!prev.hopSpan || prev.hopSpan[1] >= 1) ? hopLine(prev.hopPath, railish(prev)) : null;
+  // where its middle is on line h at km; on the road with nothing known behind: not past the line's start
+  const place = (h: HopLine, km: number, onward: HopLine | null) => {
+    let c = km - backM / 1000;
+    if (!rail && !behind) c = Math.max(c, half);
+    return stretch(h, c - half, c + half, onward, behind);
+  };
+  if (standingAt(v)) return next ? place(next, 0, null) : behind ? stretch(behind, lineEnd(behind) - half - backM / 1000, lineEnd(behind) + half - backM / 1000, null) : null;
+  const h = v.hopPath ? hopLine(v.hopPath, rail) : null;
   if (!h) return null;
-  const [a, b] = v.hopSpan || [0, 1], total = h.cum[h.cum.length - 1];
+  const [a, b] = v.hopSpan || [0, 1], total = lineEnd(h);
   const km = (b > a ? (clamp01(f) - a) / (b - a) : 0) * total;
   // on the hop's last part sent, the onward hop goes on from where it ends
-  return stretch(h, km - half, km + half, b >= 1 ? next : null);
+  return place(h, km, b >= 1 ? next : null);
 }
 
 // ---- Gliding: what is shown moves smoothly towards where the data puts the vehicle, along its way. A newer answer that
@@ -313,7 +332,11 @@ function glide(shown: number | null | undefined, target: number, rate: number, d
  * What is shown of a vehicle of /api/vehicles: the answer (`rec`) whose hop it is shown on, how far along it (`f`, a
  * share of the way's length) and where that is (`ll`), as of `at` (ms, the page's monotonic clock: performance.now()).
  */
-export interface KanteShownVehicle<V extends KanteVehicleHop = KanteVehicleHop> { rec: V; f: number; at: number; ll: LngLat }
+export interface KanteShownVehicle<V extends KanteVehicleHop = KanteVehicleHop> {
+  rec: V; f: number; at: number; ll: LngLat;
+  /** The hop it was shown on before this one (it came along it): its body's tail is on it. */
+  prev?: V | null;
+}
 const sameLL = (a: LngLat, b: LngLat) => a[0] === b[0] && a[1] === b[1];
 const standingAt = (v: KanteVehicleHop) => sameLL(v.from, v.to);
 // The hop a vehicle is on at tNow by its own times, when that is later than its answer: past the end of its hop it
@@ -355,7 +378,10 @@ function showVehicle<V extends KanteVehicleHop>(s: KanteShownVehicle<V> | null |
     f = s.f;
   } else f = standingAt(v) ? 0 : share(v, tNow);
   f = clamp01(f);
-  return { rec, f, at: ms, ll: standingAt(rec) ? (rec.point || rec.from) : pointAtShare(rec, f) };
+  // the hop it came along: kept while on the same hop, the one it was shown on when it went on from its end
+  const prev = !s ? null : s.rec === rec || sameHop(s.rec, rec) ? s.prev : sameLL(s.rec.to, rec.from) && !standingAt(s.rec) ? s.rec
+    : standingAt(s.rec) && sameLL(s.rec.from, rec.from) ? s.prev : null;
+  return { rec, f, at: ms, ll: standingAt(rec) ? (rec.point || rec.from) : pointAtShare(rec, f), prev };
 }
 
 // Under way (not standing at a stop) after a measured departure from the stop before `nextSeq`. With stops
