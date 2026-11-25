@@ -90,6 +90,23 @@ map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip 
 (`live-vehicles.ts`, `/api/stream` or `/api/vehicles`) use: positions moved on in time, km along the drawn ride,
 the honest wording of how a position was worked out, and the bounding boxes.
 
+## Which way you face, and the map following you
+
+The blue dot's beam (`src/app/heading.ts`) shows which way the phone faces, from its compass (`src/compass.ts`) turned
+from magnetic to true north (Swiss declination, fitted to NOAA's WMM2025: about 3.4° in Bern). Without a compass it
+shows the direction you go: the course the phone gives with a fix, else the line between two fixes once you have
+moved clearly further than both may be off. iPhones (and recent Chrome) give a page compass readings only once it
+has asked from a tap: the page asks on Start, on a tap on the dot, and on the first tap outside a text field once
+there is a dot; access given before is picked up as the page loads.
+
+After Start, `src/app/follow-cam.ts` keeps you low in the free part of the map, tilted 45° and turned so that up is
+the way you go: on foot the compass, drawn towards the direction you walk (unless the two differ by more than 60°,
+when you are looking elsewhere); on a ride the way the track or road goes where GPS puts you on it (`tripHere()`,
+`tracking.ts`). It moves only when that changes enough to see, a few times a second at most, since every camera move
+runs the map's move handlers. Dragging the map or picking a step, direction or stop hands the camera back (a pinch
+only changes how close it follows); "Back to where you are" takes it up again, and the north button turns the map
+north up. Leaving the trip puts the map back north up and flat.
+
 ## Departure boards: `src/engine-departures.ts` (`KANTE_BOARD`)
 
 The card of a tapped platform and Scan both read `KANTE_BOARD.load()`: the engine's departures for the stop

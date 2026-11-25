@@ -42,6 +42,7 @@ import * as timePicker from './app/time-picker.ts';
 import * as eventPage from './app/event-page.ts';
 import * as keyboard from './app/keyboard.ts';
 import * as mapCache from './app/map-cache.ts';
+import * as followCam from './app/follow-cam.ts';
 import { map } from './app/map.ts';
 import { showDestinationJourney } from './app/trip-ends.ts';
 
@@ -74,3 +75,4 @@ timePicker.start();
 eventPage.start();
 keyboard.start();
 mapCache.start();
+followCam.start();
