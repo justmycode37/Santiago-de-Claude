@@ -359,7 +359,10 @@ impl App {
         let shapes_path = built.join("shapes.bin");
         let shapes = if shapes_path.exists() {
             match timed("shapes", || io::load::<kante_shapes::Shapes>(&shapes_path, kante_shapes::SHAPES_SCHEMA)) {
-                Ok(sh) if sh.timetable == kante_shapes::fingerprint(&tt) && sh.pattern_shape.len() == tt.patterns.len() => Some(sh),
+                Ok(mut sh) if sh.timetable == kante_shapes::fingerprint(&tt) && sh.pattern_shape.len() == tt.patterns.len() => {
+                    sh.measure();
+                    Some(sh)
+                }
                 Ok(_) => {
                     eprintln!("  shapes.bin belongs to another timetable: vehicles move in straight lines (run `kante build`)");
                     None

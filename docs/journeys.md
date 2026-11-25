@@ -88,7 +88,10 @@ map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip 
 
 `src/live.ts` (`KANTE_LIVE`) holds the pure helpers this uses, and that the live vehicles on the map
 (`live-vehicles.ts`, `/api/stream` or `/api/vehicles`) use: positions moved on in time, km along the drawn ride,
-the honest wording of how a position was worked out, and the bounding boxes.
+the honest wording of how a position was worked out, and the bounding boxes. Where each vehicle on the map is drawn,
+frame by frame, is `src/live-layout.ts` (its body as rigid carriages, kept behind the one in front without ever going
+back); buses are laid onto the roads the base map draws (`src/live-lines.ts`, from the base map's own tiles read by
+`src/vector-lines.ts`); vehicles on rails keep the engine's way, which runs on the drawn rails already.
 
 ## Which way you face, and the map following you
 

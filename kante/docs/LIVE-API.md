@@ -118,7 +118,8 @@ next in the same minute). The times positions are worked out from (`dep`, `arr`,
 give every hop at least what its vehicle needs to speed up, run and brake over the hop's length
 (`crates/server/src/motion.rs`), borrowed from the stops beside it: it leaves earlier (from its time standing there, unless that is a wait of
 more than a minute: a timing point it leaves on time from) and arrives later, by up to a minute each. Measured times
-are never moved, and the times after a moved one keep their order. A hop too short for its vehicle even so is run at
+are never moved, and the times after a moved one keep their order. This is worked out over the whole run, so a hop's
+times are the same whichever moment is asked about. A hop too short for its vehicle even so is run at
 an even pace (no `motion`). The rates are service figures: trams 1.2
 m/s² both ways (Siemens Combino Plus and Avenio, Bombardier Flexity datasheets: 1.2–1.3 m/s²
 starting, 1.1–1.3 m/s² service braking); buses 1.0 / 1.1 m/s² (passenger comfort, about 1 m/s²); regional
@@ -148,10 +149,12 @@ ends at. The vehicle is at `frac` of the whole way, so on the part at (`frac` �
 for) until the next answer comes: `{ nextSeq, to, dep, arr, hopPath, hopSpan, hopStraight, motion, hopLen }`, the stop
 after and its boarding point, when it leaves the stop and reaches that one, and its way. The app's map does: past
 `arr` the vehicle stands at `nextSeq`, from `onward.dep` it drives the onward hop. A newer answer is glided to, not
-jumped to (`src/live.ts`, `showVehicle`): at up to twice the vehicle's pace to catch up, slowing down (never
-backwards) to let it come; only a gap of more than a minute of travel is jumped. Replayed on this engine's answers
-15 s apart over 4 minutes in the centres of Bern, Zürich and Luzern (`tools/glide_replay.mts`, timetable times): no
-jumps where the map drew 40–110 jumps per vehicle-hour before (redrawn once a second, jumping to each answer).
+jumped to (`src/live.ts`, `showVehicle`): at up to twice the vehicle's pace to catch up, slowing down to let it come;
+only a gap of more than a minute of travel ahead is jumped. A vehicle shown never goes back along its way: an answer
+that has it further back (a delay, or an answer worked out a moment before the last) is waited for where it is.
+`tools/vehicle_replay.mts` replays this engine's answers as the page gets them (every 15 s, a little late, for a view
+panned now and then) through the page's layout (`src/live-layout.ts`) at 60 frames a second and counts drawn vehicles
+going backwards, sideways off their way, or leaping more than 3 m in a frame.
 
 A vehicle is found in the box when the way of its hop passes through it, not only the straight line between its
 stops (a train on a bend).

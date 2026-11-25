@@ -96,12 +96,17 @@ console.log('speeding up and braking (the engine\'s motion)');
   check(Math.abs(wayShare(m, len, t, 0.5) - 0.5) < 0.01, 'halfway in time: halfway along (the same rates both ways)');
   check(Math.abs(wayShare(m, len, t, 1) - 1) < 1e-6 && wayShare(m, len, t, 0) === 0, 'from the stop to the next');
   check(wayShare(null, len, t, 0.3) === 0.3, 'without a motion: an even pace');
-  // the map's own lines: only for vehicles on rails
+  // the map's own lines: buses are laid onto its roads; on rails the engine's way (already on the drawn rails)
   const enc = '_~n}G_cll@?qzAo}@?';
-  setLineRefiner((pts) => pts.map(([x, y]) => [x, y + 0.00001] as LngLat));
+  const rawCum = (pts: LngLat[]) => pts.map((_, k) => pts.slice(1, k + 1).reduce((m, p, j) => m + KANTE_LIVE.distKm(pts[j], p), 0));
+  setLineRefiner((pts) => ({ pts: pts.map(([x, y]) => [x, y + 0.00001] as LngLat), cum: rawCum(pts), complete: true }));
   const base = { from: [0, 0] as LngLat, to: [1, 1] as LngLat, dep: 0, arr: 100, hopPath: enc };
   const tram = hopPointAt({ ...base, line: { mode: 'tram' } }, 0.25), bus = hopPointAt({ ...base, line: { mode: 'bus' } }, 0.25);
-  check(Math.abs(tram[1] - bus[1] - 0.00001) < 1e-9, 'a tram is drawn on the map\'s rails, a bus on its own way');
+  check(Math.abs(bus[1] - tram[1] - 0.00001) < 1e-9, 'a bus is drawn on the map\'s roads, a tram on the engine\'s way');
+  // the laid way keeps the engine's way's length as its measure: the same share is as far along on both
+  setLineRefiner((pts) => ({ pts: pts.map(([x, y], k) => [x, y + 0.0001 * k] as LngLat), cum: rawCum(pts), complete: true }));
+  const shifted = hopPointAt({ ...base, line: { mode: 'bus' } }, 0.25);
+  check(Math.abs(shifted[0] - tram[0]) < 1e-9, 'a laid way is measured along the engine\'s way');
   setLineRefiner(null);
 }
 

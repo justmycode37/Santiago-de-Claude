@@ -12,7 +12,6 @@ import { CATEGORY_CARDS } from './categories.ts';
 import { EMPTY_FC, PLATFORM_FC, PLATFORM_MIN_ZOOM, platformLayers, platformsOnMap, startPlatforms } from './platforms.ts';
 import { PLACES_FC, placeLayers, placesOnMap, updatePlaces } from './map-places.ts';
 import { ROUTE_FC, routeLayers } from './journey-map.ts';
-import { VEH_FC, vehLayers } from './live-vehicles.ts';
 import { openEvent } from './event-page.ts';
 import type { SearchCategory } from './categories.ts';
 import { journey, popup, searchState } from './state.ts';
@@ -204,11 +203,10 @@ function applyMapTheme(diff: boolean) {
   style.sources.platforms = { type: 'geojson', data: platformsOnMap ? PLATFORM_FC : EMPTY_FC, maxzoom: PLATFORM_MIN_ZOOM };
   style.sources.route = { type: 'geojson', data: ROUTE_FC };
   style.sources.places = { type: 'geojson', data: placesOnMap ? PLACES_FC : EMPTY_FC };
-  style.sources.kveh = { type: 'geojson', data: VEH_FC };
   const route = routeLayers(theme);
   const firstSymbol = style.layers.findIndex((l) => l.type === 'symbol');
   style.layers.splice(firstSymbol < 0 ? style.layers.length : firstSymbol, 0, ...route.below);
-  style.layers.push(...placeLayers(theme), ...platformLayers(theme), ...vehLayers(theme), ...route.above);
+  style.layers.push(...placeLayers(theme), ...platformLayers(theme), ...route.above);
   map.setStyle(style, { diff });
 }
 
