@@ -458,8 +458,12 @@ fn hop_motion(run: &Run, len: f32, t: f32, tau: f32) -> (Option<[f32; 3]>, f32) 
 }
 
 fn position_way(app: &App, run: &Run, now: i64) -> Option<(json::Position, Option<Vec<LatLon>>)> {
+    position_on(app, run, now, &served_at(app, run, now))
+}
+
+/// [`position_way`] on the stops and times `served` ([`served_at`]).
+fn position_on(app: &App, run: &Run, now: i64, served: &[(usize, i64, i64)]) -> Option<(json::Position, Option<Vec<LatLon>>)> {
     let tt = &app.tt;
-    let served = served_at(app, run, now);
     let pos = |i: usize| lonlat(&tt.stops[run.calls[i].stop as usize].pos);
     let first = *served.first()?;
     let last = *served.last()?;
@@ -509,8 +513,8 @@ fn position_way(app: &App, run: &Run, now: i64) -> Option<(json::Position, Optio
             // on the way the vehicle takes: away from the stop speeding up, braking into the next (motion.rs)
             let way = hop_way(app, run, i, j);
             let len = match &way {
-                Some((pts, _)) => pts.windows(2).map(|w| w[0].dist_m(&w[1])).sum::<f32>(),
-                None => tt.stops[run.calls[i].stop as usize].pos.dist_m(&tt.stops[run.calls[j].stop as usize].pos),
+                Some((pts, false)) => pts.windows(2).map(|w| w[0].dist_m(&w[1])).sum::<f32>(),
+                _ => hop_len(app, run, i, j),
             };
             let (motion, share) = hop_motion(run, len, span as f32, (now - d_i) as f32);
             let (point, heading) = match &way {
@@ -1014,7 +1018,8 @@ pub fn station_of(app: &App, id: &str) -> Option<StationIdx> {
 #[allow(clippy::too_many_arguments)]
 fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, live: &'static str, ages: FeedAges, t: i64, bbox: &BBox) -> Option<json::Vehicle> {
     let tt = &app.tt;
-    let (p, way) = position_way(app, run, t)?;
+    let served = served_at(app, run, t);
+    let (p, way) = position_on(app, run, t, &served)?;
     // only the part of a long hop (an express train's 60 km) near the window asked about
     let (hop_path, hop_span) = match way {
         Some(w) => {
@@ -1029,7 +1034,6 @@ fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, liv
     let next = p.next_seq.unwrap_or(p.seq) as usize;
     // the hop after: from the stop it stands at (or is heading for) to the next one it serves, so a page can drive it
     // on through that stop until the next answer comes
-    let served = served_at(app, run, t);
     let onward = served.iter().position(|s| s.0 == next).and_then(|k| {
         let (&(_, _, dep), &(nj, arr, _)) = (served.get(k)?, served.get(k + 1)?);
         let way = hop_way(app, run, next, nj);
@@ -1041,8 +1045,8 @@ fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, liv
             None => (None, None),
         };
         let len = match &way {
-            Some((w, _)) => w.windows(2).map(|x| x[0].dist_m(&x[1])).sum::<f32>(),
-            None => hop_len(app, run, next, nj),
+            Some((w, false)) => w.windows(2).map(|x| x[0].dist_m(&x[1])).sum::<f32>(),
+            _ => hop_len(app, run, next, nj),
         };
         let (motion, _) = hop_motion(run, len, (arr - dep) as f32, 0.0);
         Some(json::Onward {

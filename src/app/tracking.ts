@@ -493,6 +493,25 @@ function shownKm(st: JourneyRideStep, km: number, now: number) {
   vehShown = { st, path: st.path, km: k, at: now };
   return k;
 }
+// km along a line, from its cumulative lengths (kept per line array: the line is a new array whenever it changes)
+const cumOf = new WeakMap<LngLat[], number[]>();
+function pointOnLine(cs: LngLat[], km: number): LngLat | null {
+  if (!cs.length) return null;
+  let cum = cumOf.get(cs);
+  if (!cum) { cum = cumKm(cs); cumOf.set(cs, cum); }
+  if (cs.length < 2 || km <= 0) return cs[0];
+  if (km >= cum[cum.length - 1]) return cs[cs.length - 1];
+  let lo = 0, hi = cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= km) lo = mid; else hi = mid; }
+  const l = cum[hi] - cum[lo], t = l > 0 ? (km - cum[lo]) / l : 0, a = cs[lo], b = cs[hi];
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+let vehDrawnKm = NaN;
+function placeVehMarker(st: JourneyRideStep, km: number) {
+  if (Math.abs(km - vehDrawnKm) < 0.0005 && vehMarker._map) return; // under half a metre: as it is
+  vehDrawnKm = km;
+  vehMarker.setLngLat(pointOnLine(st.path, km)!);
+}
 function animateVehMarker(t: number) {
   vehAnim = 0;
   if (!vehMarker._map || !vehShown || document.hidden) return;
@@ -500,7 +519,7 @@ function animateVehMarker(t: number) {
   if (t - vehAnimAt < 50) return;
   vehAnimAt = t;
   const now = Date.now(), st = vehShown.st, v = vehicleState(st, now);
-  if (v) vehMarker.setLngLat(pointAtKm(st.path, shownKm(st, v.km, now))!);
+  if (v) placeVehMarker(st, shownKm(st, v.km, now));
 }
 export function updateNowMarker() {
   const now = Date.now();
@@ -522,8 +541,8 @@ export function updateNowMarker() {
       vehEl.setAttribute('aria-label', `${MODE_NAME[modeOf(j.category)] || 'Vehicle'} ${lineLabel(j)}: ${how.text}`);
     }
     vehEl.classList.toggle('dim', how.dim);
-    vehMarker.setLngLat(pointAtKm(ride!.path, shownKm(ride!, v.km, now))!);
-    if (!vehMarker._map) vehMarker.addTo(map);
+    const km = shownKm(ride!, v.km, now);
+    if (!vehMarker._map) { vehDrawnKm = NaN; placeVehMarker(ride!, km); vehMarker.addTo(map); } else placeVehMarker(ride!, km);
     if (!vehAnim) vehAnim = requestAnimationFrame(animateVehMarker);
   } else { vehMarker.remove(); vehShown = null; }
   const tp = !gpsOn() && !ride ? timeProgress(now) : null;

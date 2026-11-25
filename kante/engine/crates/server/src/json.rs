@@ -699,7 +699,8 @@ pub struct Position {
     /// at. The vehicle is at `frac` of the whole way: on the part at (`frac` − start) / (end − start).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hop_span: Option<[f32; 2]>,
-    /// Where the vehicle is at `t` on its track or road: `between`, `frac` of the way along `hopPath`; otherwise
+    /// Where the vehicle is at `t` on its track or road: `between`, as far along `hopPath` as `motion` takes it in
+    /// `frac` of the hop's time; otherwise
     /// where it stands at `seq` (beside its boarding point). Absent where not known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub point: Option<[f64; 2]>,

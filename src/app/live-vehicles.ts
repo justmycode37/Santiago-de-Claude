@@ -54,16 +54,17 @@ let vehRaf = 0, vehDrawnAt = 0;
 //      drawn on them where they run within RED_SNAP_M of the engine's way and the same way (KANTE_LIVE.setLineRefiner).
 //      Further off (a diversion, a line the drawing lacks) the engine's way stays: the drawing never decides the route.
 const RED_SOURCE = 'base_v1.0.0', RED_SNAP_M = 6, RED_COS = Math.cos(35 * Math.PI / 180), RED_CELL = 0.0005, RED_STEP_M = 8;
-type Seg = [LngLat, LngLat];
+type Seg = [LngLat, LngLat, number]; // and the line (feature) it is part of
 let redGrid: Map<string, Seg[]> | null = null, redTimer = 0;
 const redKey = (x: number, y: number) => x + ',' + y;
+let redSig = '';
 function loadRed() {
-  redGrid = null;
   // only where the map draws them (not on the satellite view)
-  if (!map.getLayer('public_transport') || !map.getSource(RED_SOURCE)) { KANTE_LIVE.setLineRefiner(null); return; }
-  const grid = new Map<string, Seg[]>();
+  if (!map.getLayer('public_transport') || !map.getSource(RED_SOURCE)) { redGrid = null; redSig = ''; KANTE_LIVE.setLineRefiner(null); return; }
   const feats = map.querySourceFeatures(RED_SOURCE, { sourceLayer: 'transportation', filter: ['in', ['get', 'class'], ['literal', ['rail', 'transit']]] });
-  for (const f of feats) {
+  const grid = new Map<string, Seg[]>();
+  let segs = 0;
+  feats.forEach((f, fid) => {
     const g = f.geometry;
     const lines = g.type === 'LineString' ? [g.coordinates as LngLat[]] : g.type === 'MultiLineString' ? (g.coordinates as LngLat[][]) : [];
     for (const l of lines) for (let k = 0; k + 1 < l.length; k++) {
@@ -71,10 +72,15 @@ function loadRed() {
       for (let x = Math.floor(Math.min(a[0], b[0]) / RED_CELL); x <= Math.floor(Math.max(a[0], b[0]) / RED_CELL); x++)
         for (let y = Math.floor(Math.min(a[1], b[1]) / RED_CELL); y <= Math.floor(Math.max(a[1], b[1]) / RED_CELL); y++) {
           const key = redKey(x, y), list = grid.get(key);
-          if (list) list.push([a, b]); else grid.set(key, [[a, b]]);
+          if (list) list.push([a, b, fid]); else grid.set(key, [[a, b, fid]]);
+          segs++;
         }
     }
-  }
+  });
+  // the same lines as last time (tiles that came in elsewhere, a move within them): the ways laid onto them stay
+  const sig = `${feats.length}|${segs}|${grid.size}`;
+  if (sig === redSig && redGrid) return;
+  redSig = sig;
   redGrid = grid.size ? grid : null;
   KANTE_LIVE.setLineRefiner(redGrid ? redRefine : null);
 }
@@ -90,22 +96,35 @@ function redRefine(pts: LngLat[]): LngLat[] | null {
     const a = pts[k - 1], b = pts[k], n = Math.max(1, Math.ceil(Math.hypot((b[0] - a[0]) * kx, (b[1] - a[1]) * ky) / RED_STEP_M));
     for (let s = 1; s <= n; s++) dense.push([a[0] + (b[0] - a[0]) * s / n, a[1] + (b[1] - a[1]) * s / n]);
   }
-  let any = false;
+  let any = false, prev = -1; // the line the sample before was laid onto
   const out = dense.map((q, k) => {
     const p0 = dense[Math.max(0, k - 1)], p1 = dense[Math.min(dense.length - 1, k + 1)];
     const dx = (p1[0] - p0[0]) * kx, dy = (p1[1] - p0[1]) * ky, dl = Math.hypot(dx, dy);
     if (!dl) return q;
-    let best: LngLat | null = null, bestD = RED_SNAP_M;
+    // the nearest place on each red line beside it (within RED_SNAP_M, running its way)
+    const near = new Map<number, { d: number; p: LngLat }>();
     const cx = Math.floor(q[0] / RED_CELL), cy = Math.floor(q[1] / RED_CELL);
-    for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) for (const [a, b] of redGrid!.get(redKey(x, y)) || []) {
+    for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) for (const [a, b, fid] of redGrid!.get(redKey(x, y)) || []) {
       const sx = (b[0] - a[0]) * kx, sy = (b[1] - a[1]) * ky, sl = Math.hypot(sx, sy);
       if (!sl || Math.abs((sx * dx + sy * dy) / (sl * dl)) < RED_COS) continue; // crossing, not beside
       const t = Math.max(0, Math.min(1, (((q[0] - a[0]) * kx) * sx + ((q[1] - a[1]) * ky) * sy) / (sl * sl)));
       const px = a[0] + (b[0] - a[0]) * t, py = a[1] + (b[1] - a[1]) * t, d = Math.hypot((px - q[0]) * kx, (py - q[1]) * ky);
-      if (d < bestD) { bestD = d; best = [px, py]; }
+      const cur = near.get(fid);
+      if (d <= RED_SNAP_M && (!cur || d < cur.d)) near.set(fid, { d, p: [px, py] });
     }
-    if (best) any = true;
-    return best || q;
+    const ranked = [...near.entries()].sort((x, y) => x[1].d - y[1].d);
+    if (!ranked.length) { prev = -1; return q; }
+    // on along the line it was on, where that is still about as near; two other lines about as near (tracks side by
+    // side, the way between them): neither, the engine's way
+    const kept = near.get(prev);
+    let pick: [number, { d: number; p: LngLat }] | null = kept && kept.d <= ranked[0][1].d + 2 ? [prev, kept] : ranked[0];
+    if (pick[0] !== prev && ranked.length > 1 && ranked[1][1].d - ranked[0][1].d < 1) pick = null;
+    prev = pick ? pick[0] : -1;
+    if (pick) any = true;
+    if (!pick) return q;
+    // fully onto the line within RED_SNAP_M / 2, fading back to the engine's way towards RED_SNAP_M
+    const w = Math.min(1, Math.max(0, (RED_SNAP_M - pick[1].d) / (RED_SNAP_M / 2)));
+    return [q[0] + (pick[1].p[0] - q[0]) * w, q[1] + (pick[1].p[1] - q[1]) * w] as LngLat;
   });
   // the ends stay where the vehicle stands at its stops
   out[0] = pts[0];
@@ -144,6 +163,7 @@ export function vehStop() {
   cancelAnimationFrame(vehRaf);
   vehPollTimer = null;
   vehRaf = 0;
+  vehDrawnKey = '';
   shown.clear();
   vehBox = null;
   vehList = [];
@@ -174,7 +194,7 @@ export function vehUpdate() {
   const frame = () => {
     vehRaf = requestAnimationFrame(frame);
     const t = performance.now();
-    if (t - vehDrawnAt < VEH_FRAME_MS || map.isMoving()) return;
+    if (t - vehDrawnAt < VEH_FRAME_MS || map.isMoving() || (!vehList.length && !VEH_FC.features.length)) return;
     vehDrawnAt = t;
     vehDraw();
   };
@@ -194,6 +214,7 @@ function vehSet(data: KanteVehiclesResponse) {
   vehList = ((data && data.vehicles) || []).slice(0, VEH_MAX).map((v) => ({ ...v, t: vehT, j: KANTE_LIVE.journeyLike(v.line), info: KANTE_LIVE.liveInfoOf(v) }));
   const keys = new Set(vehList.map(vehKey));
   for (const k of shown.keys()) if (!keys.has(k)) shown.delete(k);
+  if (!redGrid) redSoon();
   vehDraw();
 }
 // Where vehicle v is shown at tNow (the engine's clock), at ms (the page's clock)
@@ -202,19 +223,33 @@ function vehShownAt(v: LiveVehicle, tNow: number, ms: number): LngLat {
   shown.set(k, s);
   return s.ll;
 }
+const vehProps = new WeakMap<LiveVehicle, Omit<LiveVehicleProps, 'dim'> & { live: boolean }>();
+function propsOf(v: LiveVehicle, i: number) {
+  let p = vehProps.get(v);
+  if (!p) {
+    const c = lineColor(v.j), st = v.info && v.info.state;
+    const glyph = vehicleGlyph(v.line.mode), x = v.extra ? 'x' : '', label = lineLabel(v.j);
+    const id = (bg: string, fg: string, text: string, theme: string) => ['vh', glyph, bg.slice(1), fg.slice(1), text, x, theme].join('|');
+    p = { i, label, extra: !!v.extra, live: st !== 'stale' && st !== 'timetable',
+      icon: id(c.bg, c.fg, '', 'light'), pill: id(c.bg, c.fg, label, 'light'), iconD: id(c.dbg, c.dfg, '', 'dark'), pillD: id(c.dbg, c.dfg, label, 'dark') };
+    vehProps.set(v, p);
+  }
+  return p;
+}
+let vehDrawnKey = '';
 function vehDraw() {
   const age = Date.now() - vehAt;
   if (vehList.length && age > VEH_DROP_MS) { vehList = []; vehPopup.remove(); }
   if (!vehList.length && !VEH_FC.features.length) return; // nothing shown, nothing to show
-  const now = vehNow(), old = age > VEH_DIM_MS, ms = Date.now();
+  const now = vehNow(), old = age > VEH_DIM_MS, ms = performance.now();
   VEH_FC.features = vehList.map((v, i) => {
-    const c = lineColor(v.j), st = v.info && v.info.state;
-    const glyph = vehicleGlyph(v.line.mode), x = v.extra ? 'x' : '', label = lineLabel(v.j);
-    const id = (bg: string, fg: string, text: string, theme: string) => ['vh', glyph, bg.slice(1), fg.slice(1), text, x, theme].join('|');
-    return { type: 'Feature', geometry: { type: 'Point', coordinates: vehShownAt(v, now, ms) },
-      properties: { i, label, extra: !!v.extra, dim: old || st === 'stale' || st === 'timetable',
-        icon: id(c.bg, c.fg, '', 'light'), pill: id(c.bg, c.fg, label, 'light'), iconD: id(c.dbg, c.dfg, '', 'dark'), pillD: id(c.dbg, c.dfg, label, 'dark') } };
+    const { live, ...p } = propsOf(v, i);
+    return { type: 'Feature', geometry: { type: 'Point', coordinates: vehShownAt(v, now, ms) }, properties: { ...p, i, dim: old || !live } };
   });
+  // nothing moved (all standing, or less than about 10 cm): the map keeps what it has
+  const key = VEH_FC.features.map((f) => f.geometry.coordinates.map((c) => c.toFixed(6)).join() + (f.properties.dim ? 'd' : '')).join(';');
+  if (key === vehDrawnKey) return;
+  vehDrawnKey = key;
   const src = map.getSource<maplibregl.GeoJSONSource>('kveh');
   if (src) src.setData(VEH_FC);
 }

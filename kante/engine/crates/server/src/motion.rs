@@ -26,8 +26,8 @@ pub fn of(mode: Option<Mode>, category: &str) -> Option<Motion> {
     let m = |accel, brake, kmh: f32| Motion { accel, brake, vmax: kmh / 3.6 };
     Some(match mode? {
         Mode::Tram => m(1.2, 1.2, 70.0),
-        Mode::Bus | Mode::OnDemand => m(1.0, 1.1, 80.0),
-        Mode::Rail if long => m(0.5, 0.6, 200.0),
+        Mode::Bus | Mode::OnDemand => m(1.0, 1.1, 100.0),
+        Mode::Rail if long => m(0.5, 0.6, 250.0),
         Mode::Rail => m(0.9, 0.8, 160.0),
         Mode::Metro => m(1.1, 1.1, 80.0),
         Mode::RackRail => m(0.5, 0.5, 40.0),
@@ -57,14 +57,12 @@ impl Motion {
 
     /// The cruising speed that covers `len` metres in `t` seconds, standing at both ends; None when `t` is too short.
     pub fn cruise(&self, len: f32, t: f32) -> Option<f32> {
-        if len <= 0.0 || t <= 0.0 {
+        if len <= 0.0 || t <= 0.0 || t < self.min_time(len) - 0.01 {
             return None;
         }
         let c = self.c();
         let disc = t * t - 4.0 * c * len;
-        if disc < -1e-3 {
-            return None;
-        }
+        // t ≥ min_time: the root is at most vmax (and at vmax exactly when t is the least time at vmax)
         Some(((t - disc.max(0.0).sqrt()) / (2.0 * c)).min(self.vmax))
     }
 
@@ -103,8 +101,10 @@ pub const BORROW_S: i64 = 60;
 
 /// Makes the times of `served` (index, arrival, departure; unix seconds) physically possible for hops overlapping
 /// `[from, until]`: a hop shorter than its vehicle needs for its length (`len(k)`: metres of the hop from `served[k]`
-/// to `served[k + 1]`) leaves earlier (from its dwell at the stop, up to [`BORROW_S`]) and arrives later (up to
-/// [`BORROW_S`], leaving that stop later too where it must). Times measured (`fixed_dep(k)`, `fixed_arr(k)`) stay.
+/// to `served[k + 1]`) leaves earlier (from its dwell at the stop, up to [`BORROW_S`]; not from a wait longer than
+/// that, a timing point it leaves on time from) and arrives later (up to [`BORROW_S`], leaving that stop later too
+/// where it must, never past a measured departure). Times measured (`fixed_dep(k)`, `fixed_arr(k)`) stay; times after
+/// a moved one keep their order.
 pub fn feasible(
     served: &mut [(usize, i64, i64)],
     m: &Motion,
@@ -125,18 +125,30 @@ pub fn feasible(
         if deficit <= 0 {
             continue;
         }
-        let room = if fixed_dep(k) { 0 } else { (served[k].2 - served[k].1).clamp(0, BORROW_S) };
+        let dwell = served[k].2 - served[k].1;
+        let room = if fixed_dep(k) || dwell > BORROW_S { 0 } else { dwell.max(0) };
         let x = room.min((deficit + 1) / 2);
         served[k].2 -= x;
         deficit -= x;
         if !fixed_arr(k + 1) {
-            let y = deficit.min(BORROW_S);
+            // not past a measured departure from that stop (it has left by then)
+            let cap = if fixed_dep(k + 1) { (served[k + 1].2 - served[k + 1].1).max(0) } else { BORROW_S };
+            let y = deficit.min(BORROW_S).min(cap);
             served[k + 1].1 += y;
             served[k + 1].2 = served[k + 1].2.max(served[k + 1].1);
             deficit -= y;
         }
         let x2 = (room - x).min(deficit.max(0));
         served[k].2 -= x2;
+    }
+    // a stop left later (an arrival pushed on) pushes on what comes after it, unless measured
+    for k in 1..served.len() {
+        if !fixed_arr(k) && served[k].1 < served[k - 1].2 {
+            served[k].1 = served[k - 1].2;
+        }
+        if !fixed_dep(k) && served[k].2 < served[k].1 {
+            served[k].2 = served[k].1;
+        }
     }
 }
 
@@ -156,6 +168,23 @@ mod tests {
         let v = m.cruise(400.0, 60.0).unwrap();
         assert!(v < m.vmax && v > 400.0 / 60.0, "{v}");
         assert!(m.cruise(400.0, 20.0).is_none());
+    }
+
+    #[test]
+    fn a_hop_too_short_for_the_vehicle_runs_at_an_even_pace_without_jumps() {
+        let m = of(Some(Mode::Tram), "T").unwrap();
+        // 2 km in 100 s is more than a tram at 70 km/h can do: no motion, an even pace
+        assert!(m.cruise(2000.0, 100.0).is_none());
+        assert!((m.share(2000.0, 100.0, 50.0) - 0.5).abs() < 1e-6);
+        // where it can: no jump where speeding up, cruising and braking meet
+        for (len, t) in [(2000.0f32, 140.0f32), (400.0, 40.0), (400.0, 120.0), (150.0, 25.0)] {
+            let mut last = 0.0;
+            for k in 0..=10000 {
+                let x = m.share(len, t, t * k as f32 / 10000.0) * len;
+                assert!(x - last <= m.vmax * t / 10000.0 + 0.05, "{len} m in {t} s: {last} → {x} at step {k}");
+                last = x;
+            }
+        }
     }
 
     #[test]
@@ -192,6 +221,19 @@ mod tests {
         feasible(&mut s, &m, 0, 200, |_| Some(400.0), |k| k == 0, |_| false);
         assert_eq!(s[0].2, 60);
         assert_eq!(s[1].1, 60 + need);
+        // the arrival is not pushed past a measured departure from that stop
+        let mut s = vec![(0, 0, 60), (1, 60, 65), (2, 180, 180)];
+        feasible(&mut s, &m, 0, 200, |_| Some(400.0), |k| k == 0 || k == 1, |_| false);
+        assert_eq!(s[1].2, 65, "{s:?}");
+        assert!(s[1].1 <= s[1].2, "{s:?}");
+        // a timing point (a wait of minutes) is left on time; the arrival moves instead
+        let mut s = vec![(0, 0, 300), (1, 300, 300), (2, 600, 600)];
+        feasible(&mut s, &m, 0, 700, |_| Some(400.0), |_| false, |_| false);
+        assert_eq!(s[0].2, 300, "{s:?}");
+        // never out of order, also where the next hop has no time either
+        let mut s = vec![(0, 0, 60), (1, 60, 60), (2, 60, 60), (3, 60, 60)];
+        feasible(&mut s, &m, 0, 100, |_| Some(400.0), |_| false, |_| false);
+        assert!(s.windows(2).all(|w| w[0].2 <= w[1].1) && s.iter().all(|x| x.1 <= x.2), "{s:?}");
         // a hop with time enough is left as it is
         let mut s = vec![(0, 0, 0), (1, 120, 120)];
         feasible(&mut s, &m, 0, 200, |_| Some(400.0), |_| false, |_| false);

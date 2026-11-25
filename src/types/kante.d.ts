@@ -114,7 +114,7 @@ type KanteLiveWord = 'observed' | 'predicted' | 'timetable';
 /** How a position was worked out. */
 type KanteBasis = 'observed-stop' | 'forecast' | 'timetable';
 
-/** Where a vehicle is at `t`: standing at stop `seq`, or `frac` of the way from `seq` to `nextSeq`. */
+/** Where a vehicle is at `t`: standing at stop `seq`, or `frac` of the time from leaving `seq` to reaching `nextSeq`. */
 interface KantePosition {
   state: 'before-start' | 'at' | 'between' | 'ended';
   seq: number;
@@ -135,7 +135,7 @@ interface KantePosition {
   /** When `hopPath` is only part of the hop's way (/api/vehicles, near the window asked about): the shares of the
    *  whole way's length it starts and ends at. */
   hopSpan?: [number, number];
-  /** Where the vehicle is at `t` on its track or road (`between`: `frac` of the way along it; otherwise where it
+  /** Where the vehicle is at `t` on its track or road (`between`: as far as `motion` takes it in `frac` of the time; otherwise where it
    *  stands at `seq`). */
   point?: LngLat;
   /** `between`: the direction it drives in at `point`, degrees from north. */
@@ -249,7 +249,7 @@ interface KanteVehicle {
   /** When `hopPath` is only part of the hop's way (/api/vehicles, near the window asked about): the shares of the
    *  whole way's length it starts and ends at. */
   hopSpan?: [number, number];
-  /** Where the vehicle is at `t` on its track or road (`between`: `frac` of the way along it; otherwise where it
+  /** Where the vehicle is at `t` on its track or road (`between`: as far as `motion` takes it in `frac` of the time; otherwise where it
    *  stands at `seq`). */
   point?: LngLat;
   /** `between`: the direction it drives in at `point`, degrees from north. */

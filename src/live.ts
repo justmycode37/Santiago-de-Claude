@@ -231,7 +231,11 @@ function wayShare(m: [number, number, number] | null | undefined, len: number | 
 }
 /** The point a share f (of the time) along a vehicle's hop: on its way on the rails and roads where known. */
 function hopPointAt(v: KanteVehicleHop, f: number): LngLat {
-  f = wayShare(v.motion, v.hopLen, v.arr - v.dep, f);
+  return pointAtShare(v, wayShare(v.motion, v.hopLen, v.arr - v.dep, f));
+}
+/** The point a share f of the way (of its length) along a vehicle's hop. */
+function pointAtShare(v: KanteVehicleHop, f: number): LngLat {
+  f = clamp01(f);
   const h = v.hopPath ? hopLine(v.hopPath, !!v.line && RAIL_MODES.has(String(v.line.mode))) : null;
   if (h) {
     // the same share of the way's length as of the time; on the part sent, where it starts and ends in the whole way
@@ -264,7 +268,7 @@ function glide(shown: number | null | undefined, target: number, rate: number, d
 
 /**
  * What is shown of a vehicle of /api/vehicles: the answer (`rec`) whose hop it is shown on, how far along it (`f`, a
- * share by time) and where that is (`ll`), as of `at` (ms, the page's clock).
+ * share of the way's length) and where that is (`ll`), as of `at` (ms, the page's monotonic clock: performance.now()).
  */
 export interface KanteShownVehicle<V extends KanteVehicleHop = KanteVehicleHop> { rec: V; f: number; at: number; ll: LngLat }
 const sameLL = (a: LngLat, b: LngLat) => a[0] === b[0] && a[1] === b[1];
@@ -288,18 +292,27 @@ function hopAt<V extends KanteVehicleHop>(v: V, tNow: number): V {
 /** Where vehicle v (the newest answer) is shown at tNow (the engine's clock), ms (the page's clock), after `s`. */
 function showVehicle<V extends KanteVehicleHop>(s: KanteShownVehicle<V> | null | undefined, answer: V, tNow: number, ms: number): KanteShownVehicle<V> {
   const dt = s ? (ms - s.at) / 1000 : 0, v = hopAt(answer, tNow);
-  const rate = (x: V) => (x.arr > x.dep ? 1 / (x.arr - x.dep) : 0);
+  // shares of the way's length (so a newer answer with other times or motion for the same hop moves nothing by itself),
+  // and how fast that share grows (a second on); a minute of travel is jumped rather than glided
+  const share = (x: V, t: number) => wayShare(x.motion, x.hopLen, x.arr - x.dep, hopFrac(x, t));
+  const rate = (x: V) => Math.max(0, share(x, tNow + 1) - share(x, tNow));
+  const pace = (x: V) => (x.arr > x.dep ? 1 / (x.arr - x.dep) : 0); // on average
+  const jump = (x: V) => JUMP_S * Math.max(rate(x), pace(x));
   const sameHop = (a: V, b: V) => a.nextSeq === b.nextSeq && sameLL(a.from, b.from) && sameLL(a.to, b.to);
   let rec = v, f: number;
-  if (!s) f = standingAt(v) ? 0 : hopFrac(v, tNow);
-  else if (sameHop(s.rec, v)) f = standingAt(v) ? 0 : glide(s.f, hopFrac(v, tNow), rate(v), dt);
-  else if (standingAt(v) && !standingAt(s.rec) && s.rec.nextSeq === v.nextSeq && s.f < 0.999) {
-    rec = s.rec; // the answer says it is at the stop its shown hop leads to: drive on into it
-    f = glide(s.f, 1, rate(rec), dt, 1);
+  if (!s) f = standingAt(v) ? 0 : share(v, tNow);
+  else if (sameHop(s.rec, v)) f = standingAt(v) ? 0 : glide(s.f, share(v, tNow), rate(v), dt, jump(v));
+  else if (!standingAt(s.rec) && s.f < 0.999 && (standingAt(v) ? s.rec.nextSeq === v.nextSeq : sameLL(s.rec.to, v.from))) {
+    rec = s.rec; // the answer has it at (or already past) the stop its shown hop leads to: drive on into it first
+    f = glide(s.f, 1, pace(rec), dt, 1);
   } else if (!standingAt(v) && (standingAt(s.rec) || s.f >= 0.999) && sameLL(s.rec.to, v.from)) {
-    f = glide(0, hopFrac(v, tNow), rate(v), dt); // it has left the stop it is shown at: drive out of it
-  } else f = standingAt(v) ? 0 : hopFrac(v, tNow);
-  return { rec, f, at: ms, ll: standingAt(rec) ? (rec.point || rec.from) : hopPointAt(rec, f) };
+    f = glide(0, share(v, tNow), rate(v), dt, jump(v)); // it has left the stop it is shown at: drive out of it
+  } else if (standingAt(v) && !standingAt(s.rec) && sameLL(s.rec.from, v.from)) {
+    rec = s.rec; // shown leaving a stop that a newer answer has it still standing at (a delay): it waits where it is
+    f = s.f;
+  } else f = standingAt(v) ? 0 : share(v, tNow);
+  f = clamp01(f);
+  return { rec, f, at: ms, ll: standingAt(rec) ? (rec.point || rec.from) : pointAtShare(rec, f) };
 }
 
 // Under way (not standing at a stop) after a measured departure from the stop before `nextSeq`. With stops
@@ -334,5 +347,5 @@ export const KANTE_LIVE = {
   /** The largest box the engine answers /api/vehicles for (its diagonal, km). */
   MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
   /** Seconds until it leaves, seconds of walking left. */
-  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, hopAt, wayShare, glide, showVehicle, setLineRefiner, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
+  runOrWait, journeyLike, vehicleAt, hopFrac, hopPointAt, pointAtShare, hopAt, wayShare, glide, showVehicle, setLineRefiner, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
 };

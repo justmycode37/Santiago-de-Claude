@@ -116,12 +116,14 @@ then on at `cruise`, and `hopLen` − ½·brake·(`arr` − `dep` − τ)² whil
 Published times are whole minutes, so a short hop is often given no time at all (leaving one stop and reaching the
 next in the same minute). The times positions are worked out from (`dep`, `arr`, and the `at`/`between` they decide)
 give every hop at least what its vehicle needs to speed up, run and brake over the hop's length
-(`crates/server/src/motion.rs`), borrowed from the stops beside it: it leaves earlier (from its time standing there)
-and arrives later, by up to a minute each. Measured times are never moved. The rates are service figures: trams 1.2
+(`crates/server/src/motion.rs`), borrowed from the stops beside it: it leaves earlier (from its time standing there, unless that is a wait of
+more than a minute: a timing point it leaves on time from) and arrives later, by up to a minute each. Measured times
+are never moved, and the times after a moved one keep their order. A hop too short for its vehicle even so is run at
+an even pace (no `motion`). The rates are service figures: trams 1.2
 m/s² both ways, at most 70 km/h (Siemens Combino Plus and Avenio, Bombardier Flexity datasheets: 1.2–1.3 m/s²
-starting, 1.1–1.3 m/s² service braking); buses 1.0 / 1.1 m/s², 80 km/h (passenger comfort, about 1 m/s²); regional
+starting, 1.1–1.3 m/s² service braking); buses 1.0 / 1.1 m/s², 100 km/h (passenger comfort, about 1 m/s²; 100 km/h on motorways); regional
 trains 0.9 / 0.8 m/s², 160 km/h (Stadler FLIRT 1.2–1.3, KISS 0.95–1.1 m/s² starting); long-distance trains 0.5 /
-0.6 m/s², 200 km/h; metros 1.1 m/s², 80 km/h; rack railways, funiculars and cableways 0.5 m/s²; boats 0.2 / 0.3 m/s².
+0.6 m/s², 250 km/h; metros 1.1 m/s², 80 km/h; rack railways, funiculars and cableways 0.5 m/s²; boats 0.2 / 0.3 m/s².
 `/api/due` keeps the times as the feeds and profiles give them.
 
 Each call in `calls` has `live: true` where its times come from a feed (reported, or carried on from an

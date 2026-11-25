@@ -31,6 +31,38 @@ console.log('gliding to a newer answer');
   check(!back && Math.abs(shownF - target) < 0.003, `ahead: waits for it, never backwards (${((shownF - target) * 100).toFixed(2)} s apart after 30 s)`);
 }
 check(glide(0.1, 0.9, 0.01, 0.08) === 0.9, 'a gap of more than a minute of travel is jumped');
+{
+  // shown 92 % along A→B when an answer has it 7 s into B→C: it drives into B first, then on; no leap past the stop
+  const { showVehicle } = KANTE_LIVE;
+  const A: LngLat = [7.44, 46.94], B: LngLat = [7.45465, 46.94], C: LngLat = [7.45465, 46.95];
+  const ab = { from: A, to: B, dep: 0, arr: 100, nextSeq: 2, frac: 0.92, t: 92 };
+  const bc = { from: B, to: C, dep: 100, arr: 200, nextSeq: 3, frac: 0.07, t: 107 };
+  let s = showVehicle(null, ab, 92, 0), worst = 0;
+  for (let ms = 80; ms <= 20000; ms += 80) {
+    const next = showVehicle(s, bc, 107 + ms / 1000, ms);
+    worst = Math.max(worst, KANTE_LIVE.distKm(s.ll, next.ll) * 1000);
+    s = next;
+  }
+  // 1.1 km in 100 s is 11 m/s: at twice that, under 2 m in a frame
+  check(worst < 2, `an answer already past the stop: it drives into it and on (at most ${worst.toFixed(1)} m in a frame)`);
+  // shown leaving A (driven on past its forecast departure), then an answer with it still at A (a delay): it waits
+  const atA = { from: A, to: A, dep: 130, arr: 0, nextSeq: 1, point: A, onward: { nextSeq: 2, to: B, dep: 100, arr: 200 } };
+  let w = showVehicle(null, atA, 110, 0);
+  const shownOut = w.ll;
+  const late = { ...atA, dep: 140, onward: { ...atA.onward, dep: 140, arr: 240 } };
+  let back = 0;
+  for (let ms = 80; ms <= 5000; ms += 80) {
+    const next = showVehicle(w, late, 110 + ms / 1000, ms);
+    back = Math.max(back, KANTE_LIVE.distKm(shownOut, A) * 1000 - KANTE_LIVE.distKm(next.ll, A) * 1000);
+    w = next;
+  }
+  check(KANTE_LIVE.distKm(shownOut, A) > 0.05 && back < 0.5, `a delay after it was shown leaving: it waits, not back to the stop (${(back).toFixed(1)} m back)`);
+  // the same hop with new times (a delay) moves nothing by itself
+  const hop = { from: A, to: B, dep: 0, arr: 100, nextSeq: 2, frac: 0.3, t: 30 };
+  const s1 = showVehicle(null, hop, 30, 0), s2 = showVehicle(s1, { ...hop, arr: 160, frac: 0.25, t: 40 }, 30.08, 80);
+  check(KanteLiveDist(s1.ll, s2.ll) < 3, `new times for the same hop: no jump (${KanteLiveDist(s1.ll, s2.ll).toFixed(1)} m in a frame)`);
+}
+function KanteLiveDist(a: LngLat, b: LngLat) { return KANTE_LIVE.distKm(a, b) * 1000; }
 check(glide(null, 0.4, 0.01, 0.08) === 0.4, 'nothing shown yet: where the answer puts it');
 {
   // standing still (rate 0), shown 200 m short of it: it gets there all the same
