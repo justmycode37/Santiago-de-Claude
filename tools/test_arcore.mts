@@ -80,7 +80,7 @@ interface BenchEvents { events: BenchEvent[] }
 interface BenchLabel { event: number; line: string; destination: string }
 interface BenchLabels { labels: BenchLabel[] }
 /** How a pass ends: accepted (and on what basis), or flagged as wrong (and as which service), or unknown. */
-interface PassResult { o: 'accepted' | 'conflicting' | 'unknown'; basis?: string; named?: string | null }
+interface PassResult { o: 'accepted' | 'conflicting' | 'unknown'; basis?: string; named?: ArCandidate | null }
 const BENCH = path.join(ROOT, 'rightside', 'tools', 'display-bench');
 const load = <T,>(dir: string, f: string): T => JSON.parse(fs.readFileSync(path.join(BENCH, dir, f), 'utf8'));
 const ocrDev = load<BenchOcr>('data', 'bern-video-ocr.json');
@@ -108,13 +108,13 @@ function runSet(dir: string, ocr: BenchOcr) {
   }
   function run(event: BenchEvent, expected: ArExpectation): PassResult {
     const { readings: rs, times } = readings(event);
-    let conflict = false, named: string | null = null;
+    let conflict = false, named: ArCandidate | null = null;
     for (let i = 0; i < times.length; i++) {
       const now = times[i];
       const win = rs.slice(0, i + 1).filter((r) => now - r.at <= 2);
       const d = A.decide(win, now, expected, now);
       if (d.state === 'match') return { o: 'accepted', basis: d.basis || 'strict' };
-      if (d.state === 'wrong') { conflict = true; named = named || d.observed || null; }
+      if (d.state === 'wrong') { conflict = true; named = named || d.other || null; }
     }
     return { o: conflict ? 'conflicting' : 'unknown', named };
   }
@@ -145,8 +145,9 @@ function runSet(dir: string, ocr: BenchOcr) {
       const r = run(event, { line: wrong.line, destination: wrong.destination, board: brd });
       neg[r.o]++; neg.n++;
       if (r.named) {
-        const [l, ...d] = r.named.split(' ');
-        if (A.sameDisplay({ line: l, destination: d.join(' ') }, truth)) neg.namedRight++; else neg.namedWrong++;
+        // a group name ("9/22 → Wabern") is right when the vehicle's service is one of them
+        if ((r.named.group || [r.named]).some((c) => A.sameDisplay(c, truth))) neg.namedRight++;
+        else { neg.namedWrong++; if (process.env.SHOW_NAMED) console.log(`    named wrong: #${label.event} is ${truth.line} ${truth.destination}, rider ${wrong.line} ${wrong.destination}, named ${r.named.line} ${r.named.destination}`); }
       }
     }
   }
@@ -171,6 +172,7 @@ const linuxContains = (o: ArBox, i: ArBox) => { // union(o, i) == o, compared ex
 const phoneContains = A.options.containsBox;
 for (const mode of ['linux', 'phone']) {
   A.options.containsBox = mode === 'linux' ? linuxContains : phoneContains;
+  A.options.notYours = mode !== 'linux'; // the Swift matcher has no such rule
   for (const dir of ['data', 'data-holdout']) {
     const ocr: BenchOcr = dir === 'data' ? ocrDev : JSON.parse(fs.readFileSync(path.join(BENCH, dir, 'bern-video-ocr.json'), 'utf8'));
     const started = Date.now();
@@ -192,7 +194,7 @@ Display bench ${dir}, ${mode === 'linux' ? 'as the Swift bench runs on Linux' : 
     }
   }
 }
-A.options.containsBox = phoneContains;
+A.options.containsBox = phoneContains; A.options.notYours = true;
 
 console.log(`
 ${passed} passed, ${failed} failed`);

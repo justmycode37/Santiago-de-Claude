@@ -26,6 +26,10 @@ The rules come from [ar-recognition-plan.md](ar-recognition-plan.md) and hold by
   or out of service. A contradiction that names nothing listed ("7 Detrina" for "7 Ostring") is how correlated
   misreads of the right display look on the bench, so it gets no label. Reads of pictures taken within 0.12 s
   (Tesseract and PP-OCR on the same picture) are one frame.
+- **Not yours, whichever it is:** when a clear read fits up to three other departures about equally and clearly
+  not the rider's display (a clean "Wabern" while a 9 and a 19 both go to Wabern, Tram-Endstation), it counts for red
+  naming all of them ("Not yours: 9/19 → Wabern, Tram-Endstation"). The board's live times only order the names
+  (the likelier in view first); they never make a vehicle green or red, and never set the rider's display aside.
 - Otherwise the display text alone ("Display: 10 → Rüti"), or nothing. Timing never labels a vehicle.
 - **Memory.** A vehicle keeps what its display said while it stays the same vehicle: once two pictures within 6 s
   match the same listed display on a fresh, complete board and none names another (or, for green only, one very

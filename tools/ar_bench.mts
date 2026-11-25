@@ -31,7 +31,11 @@ const OCR_EVERY = 3; // frames between two display reads (5 frames/s: 0.6 s)
 interface PassRow { event: number; frame: number; line: string; destination: string; box: ArBox }
 interface Range { video: string; frames: PassRow[] }
 interface Words { text: string; score: number; box: ArBox }
-interface Cached { segments: [number, number][]; frames: Record<number, Record<string, ArDet[]> & { reads?: Record<string, Words[]> }> }
+interface Cached { segments: [number, number][]; frames: Record<number, Record<string, ArDet[] | Record<string, Words[]>>> }
+/** --reader-tag T: the display reads of another version of the reader, kept apart ("reads@T") to compare. */
+const RK = opt('--reader-tag') ? `reads@${opt('--reader-tag')}` : 'reads';
+const detsOf = (fr: Cached['frames'][number], m: string) => (fr[m] || []) as ArDet[];
+const readsOf = (fr: Cached['frames'][number]) => fr[RK] as Record<string, Words[]> | undefined;
 // Ties the bench's own tracker got wrong, checked on the frames: a video cut joined two trams into one pass
 const FIXES: { video: string; event: number; from?: number; upTo?: number; line: string; destination: string }[] = [
   { video: 'QfULTK-AKAM', event: 203, upTo: 4478, line: '3', destination: 'Bern, Weissenbühl (Tram)' }, // the 3 (fleet 756) before the cut at 4479
@@ -94,16 +98,24 @@ if (MODE === 'cache') {
     for (const [a, b] of out.segments) for (let f = a; f <= b; f++) {
       const p = path.join(FRAMES, r.video, String(f).padStart(5, '0') + '.jpg');
       const missing = names.filter((m) => !out.frames[f] || !out.frames[f][m]);
-      if (!fs.existsSync(p) || !missing.length) continue;
+      const a0 = out.segments.find((sg) => sg[0] <= f && sg[1] >= f)![0];
+      // a tagged reader's reads are made for every box of the asked detectors that has none yet
+      const tagged = out.frames[f] && out.frames[f][RK] as Record<string, Words[]> | undefined;
+      const needReads = (f - a0) % OCR_EVERY === 0 && RK !== 'reads' && (!tagged || !tagged.road
+        || names.some((m) => detsOf(out.frames[f], m).some((_, i) => !tagged[`${m}:${i}`])));
+      if (!fs.existsSync(p) || (!missing.length && !needReads)) continue;
       const img = jpeg.default.decode(fs.readFileSync(p), { useTArray: true, formatAsRGBA: true });
       const box = (x: { box: ArBox; score: number; cls: string }): ArDet => ({ box: x.box.map((v) => +v.toFixed(5)) as ArBox, score: +x.score.toFixed(4), cls: x.cls });
       const fr: Cached['frames'][number] = out.frames[f] || {};
       for (const m of missing) fr[m] = (await yoloxDetect(ort, det[m], img, 0.3)).map(box);
       if ((f - a) % OCR_EVERY === 0) {
-        fr.reads ||= {};
+        const fresh = needReads ? names : missing; // detectors whose boxes are read now
+        fr[RK] ||= {};
+        const reads = fr[RK] as Record<string, Words[]>;
         // reads already made (another detector's boxes) serve a box within IoU 0.9 of theirs
-        const done: { region: ArBox; words: Words[] }[] = Object.keys(fr).filter((m) => m !== 'reads' && !missing.includes(m))
-          .flatMap((m) => fr[m].map((x, i) => ({ region: band(x.box), words: fr.reads![`${m}:${i}`] || [] })));
+        const done: { region: ArBox; words: Words[] }[] = Object.keys(fr).filter((m) => !m.startsWith('reads') && !fresh.includes(m))
+          .flatMap((m) => detsOf(fr, m).map((x, i) => ({ region: band(x.box), words: reads[`${m}:${i}`] })))
+          .filter((x): x is { region: ArBox; words: Words[] } => !!x.words); // only boxes read by this reader
         const readBand = async (rb: ArBox) => {
           const again = done.find((x) => iou(x.region, rb) >= 0.9);
           if (again) return again.words;
@@ -119,8 +131,8 @@ if (MODE === 'cache') {
           done.push({ region: rb, words });
           return words;
         };
-        if (!fr.reads.road) fr.reads.road = await readBand(ROAD);
-        for (const m of missing) for (let i = 0; i < fr[m].length; i++) fr.reads[`${m}:${i}`] = await readBand(band(fr[m][i].box));
+        if (!reads.road) reads.road = await readBand(ROAD);
+        for (const m of fresh) for (let i = 0; i < detsOf(fr, m).length; i++) if (!reads[`${m}:${i}`]) reads[`${m}:${i}`] = await readBand(band(detsOf(fr, m)[i].box));
         n++;
       }
       out.frames[f] = fr;
@@ -141,6 +153,8 @@ for (const f of (opt('--detections') || '').split(',').filter(Boolean)) {
 }
 // --limits '{"MEMORY_S":30}': try other settings of the label code
 const FORGET: Record<string, number> = {};
+// --arcore '{"notYours":false}': the matcher's switches (src/arcore.ts OPTIONS)
+if (opt('--arcore')) Object.assign((await import('../src/arcore.ts')).ARCORE.options, JSON.parse(opt('--arcore')!));
 if (opt('--limits')) Object.assign(AR_LIMITS, JSON.parse(opt('--limits')!));
 const BOARD = (JSON.parse(fs.readFileSync(path.join(ROOT, 'rightside/tools/display-bench/data/bern-board.json'), 'utf8')) as { candidates: { line: string; destination: string; category?: string }[] }).candidates;
 const boardAt = (at: number): ArBoard => ({ at, complete: true, entries: BOARD.map((c) => ({ line: c.line, headsign: c.destination, pickup: true, servesTo: true, etaS: 120, dep: 0 })) });
@@ -183,20 +197,20 @@ for (const d of POS) {
         if (!fr) continue;
         const at = f / 5;
         if (at >= nextBoard) { ses.board(boardAt(at)); nextBoard += 15; }
-        const dets = fr[DET];
+        const dets = detsOf(fr, DET), rd = readsOf(fr);
         ses.detections(dets, at, null, (CUTS[r.video] || []).includes(f) ? 1 : null);
-        if (fr.reads && argv.includes('--read-all')) {
+        if (rd && argv.includes('--read-all')) {
           // a ceiling: every vehicle and the road read at once (a reader with unlimited time)
-          const all = [...fr.reads.road, ...dets.flatMap((_, i) => fr.reads![`${DET}:${i}`] || [])];
+          const all = [...rd.road, ...dets.flatMap((_, i) => rd[`${DET}:${i}`] || [])];
           ses.words(all, at, at + 0.1);
-        } else if (fr.reads) {
+        } else if (rd) {
           // what the phone would read now: the same choice as src/app/ar.ts
           const target = ses.readTarget(at);
           let words: Words[] = [];
-          if (target === 'road') words = fr.reads.road;
+          if (target === 'road') words = rd.road;
           else {
             const i = dets.findIndex((x) => iou(x.box, target) >= 0.999);
-            words = i >= 0 ? fr.reads[`${DET}:${i}`] || [] : [];
+            words = i >= 0 ? rd[`${DET}:${i}`] || [] : [];
           }
           ses.words(words, at, at + 0.1);
         }
@@ -226,7 +240,10 @@ for (const d of POS) {
           if (l && l.kind !== 'green' && l.kind !== 'red') reasons.set(`${l.kind}:${l.reason}`, (reasons.get(`${l.kind}:${l.reason}`) || 0) + 1);
           if (!l) reasons.set('no box', (reasons.get('no box') || 0) + 1);
           // a right red whose text names another service than this vehicle's (the rider is safe, the text is not)
-          if (k === 'certain' && l!.kind === 'red' && !l!.text.includes(`${p.line} → ${p.destination}`)) redText.add(`${r.video} f${f}: "${l!.text}" on ${p.line} ${p.destination}`);
+          // (a group name, "7/9 → Bern, Bümpliz", is right when it holds the vehicle's line and destination)
+          const names = (l?.text || '').replace(/^Not yours: /, '').split(' / ').map((x) => /^(.+?) → (.+)$/.exec(x)).filter((x): x is RegExpExecArray => !!x);
+          const rightName = names.some((n) => n[1].split('/').includes(p.line) && n[2] === p.destination);
+          if (k === 'certain' && l!.kind === 'red' && !rightName && !/Not in service/.test(l!.text)) redText.add(`${r.video} f${f}: "${l!.text}" on ${p.line} ${p.destination}`);
           if (k === 'WRONG') wrong.push(`${r.video} f${f} pass ${p.event} (${p.line} ${p.destination}) rider ${key}: ${l!.kind} "${l!.text}" (${l!.reason})`);
           const side = mine ? 'mine' : 'other';
           T[side][k]++;

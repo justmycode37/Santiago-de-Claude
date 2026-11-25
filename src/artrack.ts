@@ -38,6 +38,8 @@ export interface ArBoardEntry {
   cancelled?: boolean;
   /** Does it call at the rider's stop after this one? /api/due with `to=`; undefined: not told. */
   servesTo?: boolean | null;
+  /** Its time is live (the engine gave a delay), not only the timetable's. */
+  live?: boolean;
 }
 export interface ArBoard {
   /** When the phone got it. */
@@ -142,7 +144,7 @@ interface Track {
   /** Capture moment of its last read that showed two displays (a box over two vehicles): no latching near it. */
   twoAt: number;
   /** Pictures that each named a display on their own (key), for latching. */
-  named: { key: string; at: number; frame: string; decision: ArDecision }[];
+  named: { key: string; at: number; frame: string; decision: ArDecision; reading: ArReading }[];
   /** Frames that contradicted the memory since it was last supported; the first hides the label. */
   against: { at: number; frame: string }[];
   /** When the display reader last looked at it. */
@@ -347,11 +349,22 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
 
   /** A board fresh enough for green, red and the banner's times. */
   function boardFresh(now: number) { return !!board && now - board.at <= L.BOARD_STALE_S; }
+  /** How likely a departure is in view now, from its live time (0–1); without a live time a middling 0.3, so timing
+   *  never singles it out. Only ever used to choose which name a "not yours" shows among departures the text fits
+   *  equally (arcore notYours): never to accept a read. */
+  function inView(e: ArBoardEntry, now: number) {
+    if (!e.live || e.etaS == null || !board) return 0.3;
+    const eta = e.etaS - (now - board.at);
+    if (e.state === 'at-stop') return 1;
+    if (e.state === 'departed' || eta < -60) return eta > -120 ? 0.3 : 0.1;
+    return eta <= 60 ? 0.9 : eta <= 180 ? 0.6 : eta <= 300 ? 0.3 : 0.1;
+  }
+
   /** What the display matcher compares with: the departures due here. A stale board still tells displays apart for
    *  the neutral text ("Display: 9 → Wabern") for a while; it never makes a label green or red (labels()). */
   function expectation(now: number): ArExpectation {
     const cands: ArCandidate[] = board && now - board.at <= L.BOARD_MATCH_S
-      ? board!.entries.filter((e) => e.line && e.headsign && !e.cancelled).map((e) => ({ line: e.line, destination: e.headsign, vias: e.vias }))
+      ? board!.entries.filter((e) => e.line && e.headsign && !e.cancelled).map((e) => ({ line: e.line, destination: e.headsign, vias: e.vias, rank: inView(e, now) }))
       : [];
     return { line: ride.line, destination: ride.destination, vias: ride.vias, board: cands, stopsBefore: ride.stopsBefore };
   }
@@ -436,22 +449,37 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
       return { key: 'mine', decision: { state: 'match', reason: 'display_matches', basis: 'consensus', confidence: m1.confidence, frames: 1 }, strength: m1.confidence * r.frameQuality };
     }
     const m = ARCORE.match(r.observed, [own, ...alternatives]);
-    if (m.outcome !== 'matched' || !m.best || m.confidence * r.frameQuality < L.PICTURE_MIN) return null;
-    const c = m.best.candidate, strength = m.confidence * r.frameQuality;
+    const ny = m.outcome === 'ambiguous' ? m.notYours : null; // not the rider's, whichever of a few it is
+    const conf = ny ? ny.confidence : m.confidence;
+    if ((m.outcome !== 'matched' && !ny) || !m.best || conf * r.frameQuality < L.PICTURE_MIN) return null;
+    const c = ny ? ny.candidate : m.best.candidate, strength = conf * r.frameQuality;
     if (c.isExpected) return { key: 'mine', decision: { state: 'match', reason: 'display_matches', basis: 'consensus', confidence: m.confidence, frames: 1 }, strength };
-    const shortTurn = ARCORE.lineKey(c.line) === ARCORE.lineKey(e.line) && (e.stopsBefore || []).some((x) => ARCORE.sameDestination(x, c.destination));
+    const shortTurn = !c.group && ARCORE.lineKey(c.line) === ARCORE.lineKey(e.line) && (e.stopsBefore || []).some((x) => ARCORE.sameDestination(x, c.destination));
     return { key: 'other:' + ARCORE.identity(c), decision: { state: 'wrong', reason: shortTurn ? 'display_short_turn_before_alighting' : 'display_matches_other_departure',
       other: c, observed: `${c.line} ${c.destination}`, basis: 'consensus', confidence: m.confidence, frames: 1 }, strength };
   }
 
+  /** Two things pictures said agree: the same key, or two other departures where one is a group name ("9/19 →
+   *  Wabern", arcore notYours) holding the other. */
+  const agree = (ka: string | null, da: ArDecision | null | undefined, kb: string | null, db: ArDecision | null | undefined) => {
+    if (!ka || !kb) return false;
+    if (ka === kb) return true;
+    const a = da && da.other, b = db && db.other;
+    if (!a || !b || !ka.startsWith('other:') || !kb.startsWith('other:')) return false;
+    const members = (c: ArCandidate) => c.group || [c];
+    return members(a).some((x) => members(b).some((y) => ARCORE.sameDisplay(x, y)));
+  };
+
   /** Does reading r speak against what the track remembers? */
-  function contradicts(t: Track, r: ArReading, own: string | null, now: number) {
+  function contradicts(t: Track, r: ArReading, own: string | null, now: number, said: ArDecision | null = null) {
     const m = t.memory!;
-    if (own) return own !== m.key;
+    if (own) return !agree(own, said, m.key, m.decision);
     if (r.ambiguous) return true;
     if (r.outOfService) return m.key !== 'out_of_service';
     if (m.key === 'mine') return ARCORE.credibleContradiction(r, expectation(now));
-    if (m.key.startsWith('other:') && m.decision.other) return ARCORE.credibleContradiction(r, { line: m.decision.other.line, destination: m.decision.other.destination, vias: m.decision.other.vias });
+    if (m.key.startsWith('other:') && m.decision.other) {
+      return (m.decision.other.group || [m.decision.other]).every((c) => ARCORE.credibleContradiction(r, { line: c.line, destination: c.destination, vias: c.vias }));
+    }
     return false;
   }
 
@@ -478,16 +506,16 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
     const at = fresh.at, said = pictureSays(fresh, now), own = said ? said.key : null;
     // one entry per picture: two reads of one picture (SAME_FRAME_S apart, joined under a new frame id) are one frame
     const samePicture = (x: { at: number }) => Math.abs(x.at - at) <= L.SAME_FRAME_S;
-    if (said && !t.named.some((x) => x.key === said.key && samePicture(x))) t.named.push({ key: said.key, at, frame: fresh.frameId, decision: said.decision });
+    if (said && !t.named.some((x) => agree(x.key, x.decision, said.key, said.decision) && samePicture(x))) t.named.push({ key: said.key, at, frame: fresh.frameId, decision: said.decision, reading: fresh });
     const latest = Math.max(...t.named.map((x) => x.at), at);
     t.named = t.named.filter((x) => latest - x.at <= L.LATCH_S);
     if (t.memory) {
-      if (own === t.memory.key) {
+      if (said && agree(own, said.decision, t.memory.key, t.memory.decision)) {
         // a fresh picture that says it again: it holds longer, and a contradiction before it no longer hides it
         if (at > t.memory.lastSupport) t.memory.lastSupport = at;
         if (!t.memory.support.some(samePicture)) { t.memory.frames++; t.memory.support = [...t.memory.support, fresh].slice(-6); }
         t.against = t.against.filter((x) => x.at > at);
-      } else if (contradicts(t, fresh, own, now)) {
+      } else if (contradicts(t, fresh, own, now, said ? said.decision : null)) {
         if (!t.against.some(samePicture)) t.against.push({ at, frame: fresh.frameId });
         if (t.against.length >= L.FORGET_FRAMES) contest(t, now, 'display_changed');
       }
@@ -499,15 +527,21 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
     if (t.readings.some((x) => x.ambiguous)) return;
     // LATCH_FRAMES pictures within LATCH_S name the same display and none names another; or the decision itself
     // already rests on that many frames
-    const k = keyOf(d), support = (key: string) => t.readings.filter((x) => pictureSays(x, now)?.key === key);
-    if (k && (d.frames || 0) >= L.LATCH_FRAMES && !t.named.some((x) => x.key !== k)) {
-      t.memory = { key: k, decision: d, since: at, lastSupport: at, frames: d.frames || 0, support: support(k), board: boardKey(now) };
+    // the pictures behind a latch (checked again when the board's departures change): every one that agreed
+    const k = keyOf(d), support = (key: string, dec: ArDecision) => [
+      ...t.named.filter((x) => agree(x.key, x.decision, key, dec)).map((x) => x.reading),
+      ...t.readings.filter((x) => { const p = pictureSays(x, now); return !!p && agree(p.key, p.decision, key, dec) && !t.named.some((n) => n.reading === x); }),
+    ];
+    const allAgree = (key: string, dec: ArDecision) => t.named.every((x) => agree(x.key, x.decision, key, dec))
+      && t.named.every((x, i) => t.named.every((y, j) => j <= i || agree(x.key, x.decision, y.key, y.decision)));
+    if (k && (d.frames || 0) >= L.LATCH_FRAMES && allAgree(k, d)) {
+      t.memory = { key: k, decision: d, since: at, lastSupport: at, frames: d.frames || 0, support: support(k, d), board: boardKey(now) };
     } else if (said) {
-      const same = t.named.filter((x) => x.key === said.key);
+      const same = t.named.filter((x) => agree(x.key, x.decision, said.key, said.decision));
       // a red needs two pictures always (RED_FRAMES); a green may rest on one very clear picture
       const enough = same.length >= L.LATCH_FRAMES || (said.key === 'mine' && said.strength >= L.LATCH_SINGLE_MIN);
-      if (enough && !t.named.some((x) => x.key !== said.key)) {
-        t.memory = { key: said.key, decision: said.decision, since: same[0].at, lastSupport: at, frames: same.length, support: support(said.key), board: boardKey(now) };
+      if (enough && allAgree(said.key, said.decision)) {
+        t.memory = { key: said.key, decision: said.decision, since: same[0].at, lastSupport: at, frames: same.length, support: support(said.key, said.decision), board: boardKey(now) };
       }
     }
     if (t.memory) { t.against = []; note({ at: now, type: 'remember', track: t.id, key: t.memory.key }); }
@@ -519,9 +553,9 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
     const m = t.memory!, key = boardKey(now);
     if (key === m.board) return;
     const says = m.support.map((x) => pictureSays(x, now));
-    const agree = says.filter((x) => x && x.key === m.key);
-    const enough = agree.length >= L.LATCH_FRAMES || (m.key === 'mine' && agree.some((x) => x!.strength >= L.LATCH_SINGLE_MIN));
-    if (!enough || says.some((x) => x && x.key !== m.key)) contest(t, now, 'board_changed');
+    const ok = says.filter((x) => x && agree(x.key, x.decision, m.key, m.decision));
+    const enough = ok.length >= L.LATCH_FRAMES || (m.key === 'mine' && ok.some((x) => x!.strength >= L.LATCH_SINGLE_MIN));
+    if (!enough || says.some((x) => x && !agree(x.key, x.decision, m.key, m.decision))) contest(t, now, 'board_changed');
     else m.board = key;
   }
 
@@ -534,6 +568,8 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
   }
 
   const display = (line: string, dest: string) => `${line} → ${dest}`;
+  /** A departure's name; a group's ("9/19 → Wabern, Tram-Endstation", or each line with its own destination). */
+  const nameOf = (c: ArCandidate) => (c.group && !c.destination ? c.group.map((g) => display(g.line, g.destination)).join(' / ') : display(c.line, c.destination));
 
   /** Runs due here whose display is the rider's; and whether all of them take the rider where they are going. */
   function plausibleRuns(now: number) {
@@ -583,14 +619,15 @@ export function createArSession(ride: ArRide, onEvent?: (e: ArEvent) => void) {
         continue;
       }
       if (d.state === 'wrong') {
-        const other = d.other ? display(d.other.line, d.other.destination) : '';
+        const other = d.other ? nameOf(d.other) : '';
         const text = d.reason === 'out_of_service' ? 'Not in service' : other ? `Not yours: ${other}` : 'Not yours';
         // Red only for text that names something: another departure on the board, a stop of the rider's own route
         // (a short turn), or out of service. A contradiction that names nothing listed ("7 Detrina" for "7 Ostring")
         // is what correlated misreads of the right display look like (the reading-range bench, docs/ar-reading-range.md).
         // a remembered "other departure" counts only while the board still lists it (a refresh may drop it)
-        const listed = !d.other || d.reason === 'display_short_turn_before_alighting' || (!!board && board.entries.some((e) => !e.cancelled && e.line && e.headsign
-          && ARCORE.sameDisplay({ line: e.line, destination: e.headsign }, d.other!)));
+        const onBoard = (c: ArCandidate) => !!board && board.entries.some((e) => !e.cancelled && e.line && e.headsign
+          && ARCORE.sameDisplay({ line: e.line, destination: e.headsign }, c));
+        const listed = !d.other || d.reason === 'display_short_turn_before_alighting' || (d.other.group || [d.other]).every(onBoard);
         const named = (!!d.other && listed) || d.reason === 'out_of_service' || d.reason === 'display_short_turn_before_alighting';
         const why = !fresh ? (board ? 'board_stale' : 'no_board') : (d.frames || 0) < L.RED_FRAMES ? 'one_frame_only' : !named ? 'names_nothing_listed' : '';
         if (why) out.push({ ...base, kind: other || d.reason === 'out_of_service' ? 'neutral' : 'none', text: other ? `Display: ${other}` : d.reason === 'out_of_service' ? 'Display: not in service' : '', reason: why });
@@ -668,7 +705,7 @@ export function boardOf(d: KanteDueResponse, at: number): ArBoard {
     entries: (d.due || []).filter((x) => x.line && x.headsign).map((x) => ({
       tripId: x.tripId, serviceDate: x.serviceDate, line: x.line!.name, headsign: x.headsign!, vias: x.vias || undefined,
       quayId: x.quayId, quayLabel: x.quayLabel, state: x.state, etaS: x.etaS, dep: x.dep, cancelled: x.cancelled, servesTo: x.servesTo,
-      pickup: x.pickup,
+      pickup: x.pickup, live: x.delayS != null,
     })),
   };
 }

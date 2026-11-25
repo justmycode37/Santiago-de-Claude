@@ -528,6 +528,50 @@ suite('Review: a late read that contradicts a remembered display counts at its o
   { at: 2.8, say: 'a slow read of 1.8 arrives: 9 Wabern: hidden', det: { A: LEFT }, words: { captured: 1.8, on: { A: ['9', 'Wabern'] } }, expect: { A: 'none' } },
 ]);
 
+// ---------------------------------------------------------------- what can be here: the board's live times
+// A clear "Wabern" fits a 9 and a 19 to Wabern, Tram-Endstation equally. For a rider waiting for the 7 it is not
+// theirs whichever it is: red, naming both, the likelier in view now (live times) first. For a rider waiting for the 9
+// it stays unlabelled however far the 19 is: timing only orders a name, it never makes a vehicle green or red. A
+// garbled read ("abern") is never enough for this.
+const OST = E('T7', '7', 'Bern, Ostring', { servesTo: true, live: true, etaS: 60 });
+const W9 = (eta: number) => E('T9w', '9', 'Wabern, Tram-Endstation', { servesTo: false, live: true, etaS: eta });
+const W19 = (eta: number) => E('T19', '19', 'Wabern, Tram-Endstation', { servesTo: false, live: true, etaS: eta }); // another line, the same destination
+const RIDE7: ArRide = { line: '7', destination: 'Bern, Ostring', mode: 'tram', tripId: 'T7', serviceDate: SD };
+const RIDE9: ArRide = { line: '9', destination: 'Wabern, Tram-Endstation', mode: 'tram', tripId: 'T9w', serviceDate: SD };
+const abern = (at: number): Step => ({ at, say: '"abern"', det: { A: LEFT }, words: { captured: at, on: { A: ['', 'abern'] } }, expect: {} });
+const wabern = (at: number): Step => ({ at, say: '"Wabern"', det: { A: LEFT }, words: { captured: at, on: { A: ['', 'Wabern'] } }, expect: {} });
+suite('Context: "Wabern" for a rider of the 7, a 9 close and a 19 far: red, naming both, the 9 first', [
+  { at: 0, say: 'board', board: board([OST, W9(30), W19(900)]), det: { A: LEFT }, expect: { A: 'none' } },
+  wabern(0.3),
+  { ...wabern(0.9), expect: { A: ['red', /^Not yours: 9\/19 → Wabern, Tram-Endstation$/] } },
+], RIDE7);
+suite('Context: the same with the 19 close and the 9 far: the same red, the 19 first', [
+  { at: 0, say: 'board', board: board([OST, W9(900), W19(30)]), det: { A: LEFT }, expect: { A: 'none' } },
+  wabern(0.3),
+  { ...wabern(0.9), expect: { A: ['red', /^Not yours: 19\/9 → Wabern, Tram-Endstation$/] } },
+], RIDE7);
+suite('Context: a garbled "abern" is never enough for red', [
+  { at: 0, say: 'board', board: board([OST, W9(30), W19(900)]), det: { A: LEFT }, expect: { A: 'none' } },
+  { ...abern(0.3), expect: { A: 'none' } },
+  { ...abern(0.9), expect: { A: 'none' } },
+  { ...abern(1.5), expect: { A: 'none' } },
+], RIDE7);
+for (const far of [900, 30]) for (const read of [abern, wabern]) {
+  suite(`Context: ${read === abern ? '"abern"' : '"Wabern"'} for a rider waiting for the 9, the 19 ${far === 900 ? 'far away' : 'close'}: no colour either way`, [
+    { at: 0, say: 'board', board: board([W9(30), W19(far)]), det: { A: LEFT }, expect: { A: 'none' } },
+    ...[0.3, 0.9, 1.5].map((t) => ({ ...read(t), expect: { A: 'none' as const } })),
+  ], RIDE9);
+}
+
+// review: a tentative 9 ("y Wabern") never tells a 9 from a 19 to the same place
+const RIDE19: ArRide = { line: '19', destination: 'Wabern, Tram-Endstation', mode: 'tram', tripId: 'T19', serviceDate: SD };
+for (const ride of [RIDE9, RIDE19]) {
+  suite(`Review: "y Wabern" with a 9 and a 19 due, rider of the ${ride.line}: no colour`, [
+    { at: 0, say: 'board', board: board([W9(30), W19(30)]), det: { A: LEFT }, expect: { A: 'none' } },
+    ...[0.3, 0.9, 1.5].map((t): Step => ({ at: t, say: '"y Wabern"', det: { A: LEFT }, words: { captured: t, on: { A: ['y', 'Wabern'] } }, expect: { A: 'none' } })),
+  ], ride);
+}
+
 // ---------------------------------------------------------------- field captures
 // A capture saved with "Save last 10 s" (src/app/ar.ts: format ar-capture/1) is replayed event by event through a new
 // session. Its `expect` (added by hand once the glitch is understood) names labels that must never appear again,

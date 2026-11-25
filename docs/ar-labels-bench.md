@@ -78,6 +78,48 @@ nothing, never white. Frames: dev 2,450 own + 6,792 other; held-out 2,640 + 5,09
   display mean two vehicles: no label.
 - **Reading order:** vehicles not yet known first, a known one again every 1.5 s, the road band every fourth turn.
 
+## What can be here (25 November)
+
+The owner asked to use what is known besides the display (which vehicles can be here now, which way they go, tram
+or bus) to settle half-read displays, and to try pixel masks instead of boxes. Planned with GPT Astra and Gemini Neon,
+who agreed on the line drawn here: setting a departure aside because of its time is the same as adding evidence for
+the ones left, so a late, early or unlisted vehicle would get the wrong green. Context may choose a name or what to
+read next, never a colour.
+
+| set | version | own rider: green | other rider: red | other rider: white | after first certain, still certain |
+| --- | --- | ---: | ---: | ---: | ---: |
+| dev | before (memory, tiny) | 37.2 % | 27.4 % | 2.8 % | 69 % |
+| dev | **"not yours, whichever it is"** | 37.2 % | **28.5 %** | 2.2 % | 70 % |
+| held-out | before | 54.2 % | 42.8 % | 2.8 % | 83 % |
+| held-out | "not yours, whichever it is" | 54.2 % | 42.8 % | 2.8 % | 83 % |
+
+No wrong colour, and every red names the vehicle's own service or a group holding it. Kept: the "not yours" rule
+(arcore `notYours`): a read as clear as one the matcher accepts on its own, fitting at most three other departures
+about equally and the rider's display clearly not (never among them nor close), counts for red naming all of them
+("Not yours: 9/19 → Wabern, Tram-Endstation", the likelier in view now first; different destinations: each line with
+its own). Live times only order that name. Display bench (`tools/test_arcore.mts`, phone mode): wrong vehicles
+flagged 223 → 226 of 349 (dev), 75 → 77 of 113 (held-out), right ones accepted unchanged, none wrong.
+
+The first version did more (dev red 35 %) and was taken back after the reviews (GPT Astra, Gemini Neon) showed how it
+could go wrong: a loose read ("abern" at 0.77, or a "via" row of the rider's own route) could put red on the rider's
+own vehicle; naming one departure by its live time changed which frames agreed, so timing changed colours; a guessed
+LED digit ("y" for 9) could give a one-frame wrong green; group names could collide with real lines ("1/9" and 19).
+So "abern" alone stays unlabelled; a clean "Wabern" or the line number settles it.
+
+Tried and left out, measured:
+
+- **Reading the line number again** with room beside the destination (`ppocr.ts`): 14 numbers recovered on labelled
+  vehicles, all right, but no gain (dev green 37.0 → 36.2 %, held-out white 2.5 → 4.5 %) for up to three more
+  recogniser runs per read. On these LED displays the 9 is not missed but read as "y" or "3"; treating those as a
+  possible 9 was also tried and dropped (it can turn a 19 or another line's display into a wrong match).
+- **Pixel masks** (torchvision LR-ASPP MobileNetV3, BSD, VOC bus and train, 13 MB, 37–68 ms a frame on a PC in
+  onnxruntime-web): good outlines of trams seen from the side, but two touching trams are one blob (it cannot tell
+  vehicles apart, which was the reason to want it) and a close head-on tram is missed. Boxes stay.
+- **Setting departures aside by time, position or direction:** not done (above). `/api/vehicles` positions are the
+  same timetable forecast drawn on a map, not independent evidence; the compass near trams and box motion are too
+  unreliable to rule a direction out. A rule that sets aside only trips measured past this stop minutes ago would be
+  safe but changes little; it needs the `due` archive's numbers first.
+
 ## Process and limits
 
 - Planned with GPT Astra and Gemini Neon (their advice: remember the display, not the colour; suspend on the first
