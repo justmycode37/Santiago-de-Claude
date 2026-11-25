@@ -105,12 +105,16 @@ async function put(cache: Cache, store: Store, key: string, res: Response): Prom
     await cache.put(key, new Response(body, { status: res.status, statusText: res.statusText, headers }));
   } catch (e) {
     // only when storage is full: make room for next time (any other failure leaves the cache as it is)
-    if (e instanceof DOMException && e.name === 'QuotaExceededError') await trim(cache, Math.floor(store.max / 2)).catch(() => {});
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') await halve(cache).catch(() => {});
     return;
   }
   const n = sinceTrim.get(store.name) ?? TRIM_EVERY - 1;
   sinceTrim.set(store.name, n + 1);
   if (n + 1 >= TRIM_EVERY) { sinceTrim.set(store.name, 0); await trim(cache, store.max).catch(() => {}); }
+}
+/** Storage is full: the oldest half of this cache goes. */
+async function halve(cache: Cache): Promise<void> {
+  await trim(cache, Math.floor((await cache.keys()).length / 2));
 }
 /** Deletes the oldest files (keys come back in the order they were stored) down to `keep`. */
 async function trim(cache: Cache, keep: number): Promise<void> {

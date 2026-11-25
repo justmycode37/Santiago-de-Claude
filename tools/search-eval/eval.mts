@@ -175,8 +175,10 @@ fake('platforms.ts', { PLATFORMS, platformKey });
 Object.assign(globalThis, {
   window: globalThis, APP_CONFIG: {}, fetch: replayFetch, location: { search: '' }, // the engine's client (src/engine.ts) reads the page's address
   document: { getElementById: element, createElement: element, head: element() },
-  maplibregl: { Marker: class { setLngLat() { return this; } addTo() { return this; } remove() { return this; } } },
 });
+// the map library, which the modules import (src/app/search.ts: its markers)
+const maplibre = { Marker: class { setLngLat() { return this; } addTo() { return this; } remove() { return this; } } };
+mock.module('maplibre-gl', (hasExports ? { exports: maplibre } : { namedExports: maplibre }) as Parameters<typeof mock.module>[1]);
 
 interface Row { title: string; subtitle: string; kind: string; ll: LngLat }
 interface PageResult { title: string; subtitle: string; kind: string; lngLat: LngLat }

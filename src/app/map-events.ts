@@ -227,9 +227,11 @@ export function start() {
   normal.catch(() => {}); // handled below when it is the first view; else tried again when the normal view is picked
   // The map is drawn once, in the saved view: satellite (the normal view if its style cannot be loaded) or normal
   const first = mapView !== 'satellite' ? normal : loadSatellite().then(() => {}, () => {
-    mapView = 'map';
-    showView();
-    showToast('The satellite view could not be loaded.');
+    if (mapView === 'satellite') { // (unless Normal was picked meanwhile)
+      mapView = 'map';
+      showView();
+      showToast('The satellite view could not be loaded.');
+    }
     return loadNormal();
   });
   first.then(() => {

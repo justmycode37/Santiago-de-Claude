@@ -201,20 +201,28 @@ export function start() {
       armPin(armedPin === f ? null : f);
     });
   }
-  // A right click, or a long press: MapLibre turns a touch held still for half a second into 'contextmenu' (an
-  // event it makes itself, not one from the browser). A long press counts only on the map itself, not on a marker
-  // or an event card above it.
-  let touchOnMap = false;
-  map.on('touchstart', (e) => {
-    const oe = e.originalEvent;
-    touchOnMap = oe.touches.length === 1 && oe.target === map.getCanvas();
-  });
+  // A right click. MapLibre 6 also makes a 'contextmenu' of its own from a touch held still (not a browser event,
+  // isTrusted false): that one is left out, as the long press below allows a thumb more movement (10 px, not 3) and
+  // counts only on the map itself, not on a marker or an event card.
   map.on('contextmenu', (e) => {
     e.preventDefault();
-    if (!e.originalEvent.isTrusted && !touchOnMap) return;
-    openPinMenu(e.lngLat.toArray());
+    if (e.originalEvent.isTrusted) openPinMenu(e.lngLat.toArray());
   });
-  map.on('touchend', () => { if (pinMenu.isOpen()) pinMenuQuiet = Date.now() + 400; });
+  {
+    let timer = 0, at: maplibregl.Point | null = null;
+    const cancel = () => { clearTimeout(timer); timer = 0; };
+    map.on('touchstart', (e) => {
+      cancel();
+      const oe = e.originalEvent;
+      if (oe.touches.length !== 1 || oe.target !== map.getCanvas()) return; // not a pinch, not a marker
+      at = e.point;
+      const lngLat = e.lngLat.toArray();
+      timer = setTimeout(() => { timer = 0; openPinMenu(lngLat); }, 550);
+    });
+    map.on('touchmove', (e) => { if (timer && (e.originalEvent.touches.length !== 1 || e.point.dist(at!) > 10)) cancel(); });
+    map.on('touchend', () => { cancel(); if (pinMenu.isOpen()) pinMenuQuiet = Date.now() + 400; });
+    map.on('touchcancel', cancel);
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     armPin(null);
