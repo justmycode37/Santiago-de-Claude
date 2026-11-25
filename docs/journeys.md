@@ -84,7 +84,14 @@ Every ride knows its trips, so while a journey is on (from 30 minutes before to 
 ride still to come is asked of `GET /api/trip` every 30 s and when the tab comes back. `KanteJourney.applyTrip()`
 writes the answer into the ride's stop calls (times, delays, boarding point); `KanteJourney.requay()` then moves the
 boarding points and the walks to them when the platform has changed. The trip's `position` places the vehicle on the
-map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip offers "Replan".
+map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip offers "Replan". A change the live
+times make impossible says "Not enough time to change" with "Replan", also when the next ride has already left
+while you are still on the one before.
+
+A journey's live times never go back: the engine drops live times that cannot be true (a vehicle logged onto the
+wrong run, a frozen clock) and keeps every trip's times running forward
+([what it leaves out](../kante/docs/LIVE-API.md#what-is-not-taken-from-the-feeds)), and the app does not offer a
+journey whose times would go back all the same (`runsForward()` in `src/engine-journey.ts`).
 
 `src/live.ts` (`KANTE_LIVE`) holds the pure helpers this uses, and that the live vehicles on the map
 (`live-vehicles.ts`, `/api/stream` or `/api/vehicles`) use: positions moved on in time, km along the drawn ride,

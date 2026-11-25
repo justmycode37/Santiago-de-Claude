@@ -46,13 +46,14 @@ function platChange(r: JourneyRideStep | null | undefined) {
   return q && q.planned ? h('b', 'plat-move', ` · ${q.word} ${q.planned} → ${q.label}`) : null;
 }
 // A change ahead that live times make impossible: the next ride leaves before you can walk there (by the seconds the
-// change's card counts: spareOf())
+// change's card counts: spareOf()). Ahead while the next ride has not left, or while the ride before has not arrived
+// (the next one has already gone: missed all the same)
 function brokenChange(now: number, from: number) {
   return journey.steps.find((st, i) => {
     if (st.type !== 'change' || i < from) return false;
     const arr = liveMs(st.prev.to, 'arr'), dep = liveMs(st.next.from, 'dep');
     const live = hasForecast(st.prev.to, 'arr') || hasForecast(st.next.from, 'dep');
-    return live && arr != null && dep != null && now < dep && spareOf(st).s < 0;
+    return live && arr != null && dep != null && (now < dep || now < arr) && spareOf(st).s < 0;
   }) as JourneyChangeStep | undefined;
 }
 // Walking to a ride with GPS: is there time to spare, at your walking speed (Settings), for the metres left?
@@ -76,7 +77,8 @@ export function liveParts(now: number): LiveLine | null {
   const walking = t && !t.arrived && journey.steps[t.i].type !== 'ride' && !journey.steps[t.i].final;
   const broken = brokenChange(now, t ? t.i + (walking ? 1 : 0) : 0);
   if (broken) {
-    return { kind: 'off', replan: true, parts: [`Not enough time to change at ${stopName(broken.next.from)} · `, kBadge(broken.next.line), ` leaves ${fmtTime(liveMs(broken.next.from, 'dep'))}`] };
+    const dep = liveMs(broken.next.from, 'dep')!;
+    return { kind: 'off', replan: true, parts: [`Not enough time to change at ${stopName(broken.next.from)} · `, kBadge(broken.next.line), ` ${dep <= now ? 'left' : 'leaves'} ${fmtTime(dep)}`] };
   }
   if (t) {
     const st = journey.steps[t.i], lay = tripLayout(), left = Math.max(0, lay.lens[t.i] - t.kmIn) * 1000; // from where you are (on a guessed stretch too)

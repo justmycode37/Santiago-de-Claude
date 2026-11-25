@@ -849,8 +849,9 @@ impl App {
                 *n += 1;
                 *n <= 6
             });
-            let out: Vec<json::Journey> =
+            let mut out: Vec<json::Journey> =
                 shown.map(|j| self.journey(j, qdate, &from_end, &to_end, None, to_ep.station, &profile, margin, opt.flatter_changes, max_walk, live)).collect();
+            keep_forward(&mut out);
             return Ok(json::PlanResponse {
                 from: from_place,
                 to: to_ep.place,
@@ -994,6 +995,10 @@ impl App {
         if let Dir::ArriveBy(t) = dir {
             journeys.retain(|j| j.arr <= t);
         }
+        // No journey that goes back in time leaves the engine, whatever the live data says (the live overlay keeps
+        // every trip's times running forward, and a trip that goes on as another takes its lateness along: this
+        // is the last guard)
+        keep_forward(&mut journeys);
 
         let start = match dir {
             Dir::After(t) => t,
@@ -1240,6 +1245,58 @@ fn unsure_alert(w: &json::WalkLeg, leg: Option<usize>, profile: &WalkProfile) ->
             text: format!("No step-free way is known {at}: this walk is guessed there (through a building, onto another floor, across a track, or across ground with no mapped way)"),
         }
     })
+}
+
+/// Leaves out (and logs) every journey that does not keep to the order of time: each ride's departure, its stops on
+/// the way and its arrival (live where live) one after the other, no ride or walk starting before the ride or walk
+/// before it has ended, every walk ending after it starts, and the journey arriving after it leaves. A change walk
+/// that ends after the next ride has left is not time travel: the engine times such a walk as drawn on purpose,
+/// with a `missed-connection` alert, so that the change says it is missed. (The
+/// vehicle's arrival where you board and its departure where you get off are not the traveller's either: it may
+/// come before you, and leave after; on board, the stop you are at may be the one you get off at.)
+fn keep_forward(journeys: &mut Vec<json::Journey>) {
+    let before = journeys.len();
+    journeys.retain(runs_forward);
+    if journeys.len() < before {
+        eprintln!("plan: {} of {before} journeys left out: a time before the one before it", before - journeys.len());
+    }
+}
+/// See [`keep_forward`].
+fn runs_forward(j: &json::Journey) -> bool {
+    let live = |t: Option<i64>, d: Option<i32>| t.map(|t| t + d.unwrap_or(0) as i64);
+    // when the last ride arrived
+    let mut arrived = i64::MIN;
+    for leg in &j.legs {
+        match leg {
+            JLeg::Walk(w) => {
+                if w.dep < arrived || w.arr < w.dep {
+                    return false;
+                }
+                // a walk to the first stop ends before the ride leaves; a change walk may end after (missed)
+                if w.kind != "transfer" {
+                    arrived = arrived.max(w.arr);
+                }
+            }
+            JLeg::Ride(r) => {
+                let mut times: Vec<i64> = Vec::new();
+                if !r.onboard {
+                    times.extend(live(r.from.dep, r.from.dep_delay_s));
+                }
+                for c in r.intermediate.iter().filter(|c| !c.skipped) {
+                    times.extend(live(c.arr, c.arr_delay_s));
+                    times.extend(live(c.dep, c.dep_delay_s));
+                }
+                times.extend(live(r.to.arr, r.to.arr_delay_s));
+                if times.first().is_some_and(|&t| t < arrived) || times.windows(2).any(|w| w[1] < w[0]) {
+                    return false;
+                }
+                if let Some(&t) = times.last() {
+                    arrived = t;
+                }
+            }
+        }
+    }
+    j.dep <= j.arr
 }
 
 /// A departure window is Pareto-optimal only within itself: a slow many-change option can survive because the faster

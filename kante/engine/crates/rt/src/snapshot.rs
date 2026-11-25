@@ -5,8 +5,8 @@
 
 use crate::matcher::{MatchMethod, MatchedTrip, Matcher, REPORTED_ARR, REPORTED_DEP, REPORTED_SKIP};
 use crate::model::{FeedMeta, RtJourney};
-use kante_core::time::{Date, Secs};
-use kante_core::{DelayBounds, DelayIndex, DerivedSlot, ExtraTrip, LiveView, Timetable, TripIdx, TripLive, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
+use kante_core::time::{self, Date, Secs};
+use kante_core::{DelayBounds, DelayIndex, DerivedSlot, ExtraTrip, LiveView, Timetable, TripIdx, TripLive, NONE, OBSERVED_DEP, SOURCE_GTFS_RT, SOURCE_SIRI_ET};
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
@@ -292,7 +292,129 @@ impl LiveSnapshotBuilder {
         self.finish(Some(tt))
     }
 
+    /// A vehicle that goes on as another trip (the traveller stays seated) takes its lateness with it: the trip it
+    /// continues as cannot leave before it has arrived. One without live data of its own gets the lateness the
+    /// vehicle arrives with, less the time it was to stand there (as the matcher carries a delay on: never early on
+    /// a guess); one with live data that would leave earlier is moved to that arrival (by the timetable's arrival
+    /// where the trip before has no live data). One measured to have left its first stop already, or that does not
+    /// serve it today, is left as it is: the router does not stay seated into it either. Without this the router rode a
+    /// tram 30 s late on as the next line "on time", leaving before it had arrived. Along chains too.
+    fn carry_on(&mut self, tt: &Timetable) {
+        // Every trip that goes on as another, with live data of its own or going on as one that has
+        let mut work: Vec<Key> = self.snap.trips.keys().copied().filter(|&(_, t)| !tt.continuations_from(t).is_empty()).collect();
+        let mut dates: HashMap<TripIdx, Vec<Date>> = HashMap::new();
+        for &(d, t) in self.snap.trips.keys() {
+            dates.entry(t).or_default().push(d);
+        }
+        for c in &tt.continuations {
+            for &db in dates.get(&c.to).map(Vec::as_slice).unwrap_or(&[]) {
+                for dd in [0, 1, -1] {
+                    if !self.snap.trips.contains_key(&(db - dd, c.from)) {
+                        work.push((db - dd, c.from));
+                    }
+                }
+            }
+        }
+        // (each step only ever moves times later, so this ends; the budget is a safeguard)
+        let mut budget = 16 * (work.len() + 1024);
+        while let Some((date, a)) = work.pop() {
+            if budget == 0 {
+                break;
+            }
+            budget -= 1;
+            let ta = tt.trip_times(a);
+            let n = ta.len() / 2;
+            if n == 0 {
+                continue;
+            }
+            let (delay, sources, updated_at, inaccurate) = match self.snap.trips.get(&(date, a)) {
+                Some(la) if la.cancelled || la.arr_delay.len() != n || la.is_skipped(n - 1) => continue,
+                Some(la) => (la.arr_delay[n - 1], la.sources, la.updated_at, la.inaccurate),
+                None if tt.trip_active(a, date) => (0, 0, 0, false),
+                None => continue,
+            };
+            let sched_arr = ta[2 * (n - 1)] as i64;
+            let arrives = sched_arr + delay as i64;
+            let start_a = time::service_day_start_unix(date);
+            for c in tt.continuations_from(a) {
+                if c.service != NONE && !tt.service_active(c.service, date) {
+                    continue;
+                }
+                let b = c.to;
+                let tb = tt.trip_times(b);
+                if tb.len() < 4 {
+                    continue;
+                }
+                let dep0 = tb[1] as i64;
+                // as the router finds it: on the same service day, else the one after or before (around midnight);
+                // the seconds between the two days' starts (23 or 25 hours where the clocks change)
+                let Some((db, shift)) = [0, 1, -1]
+                    .into_iter()
+                    .map(|dd| (date + dd, time::service_day_start_unix(date + dd) - start_a))
+                    .find(|&(db, shift)| tt.trip_active(b, db) && (0..=3 * 3600).contains(&(dep0 + shift - sched_arr)))
+                else {
+                    continue;
+                };
+                let key = (db, b);
+                let floor = arrives - shift; // in the seconds of b's service day
+                let changed = match self.snap.trips.get_mut(&key) {
+                    Some(lb) if lb.cancelled || lb.is_skipped(0) => false,
+                    // measured to have left its first stop: it went (with another vehicle, or the feeds contradict
+                    // each other), and is left as it is; the router does not stay seated into it
+                    Some(lb) if lb.observed_pos > 0 || (lb.observed_pos == 0 && lb.observed_kind & OBSERVED_DEP != 0) => false,
+                    Some(lb) => {
+                        let m = lb.arr_delay.len().min(tb.len() / 2);
+                        let mut first_moved = None;
+                        for p in 0..m {
+                            for (k, d) in [(0, &mut lb.arr_delay[p]), (1, &mut lb.dep_delay[p])] {
+                                // (a measured arrival at the first stop stays)
+                                if p == 0 && k == 0 && lb.observed_pos == 0 {
+                                    continue;
+                                }
+                                let at = tb[2 * p + k] as i64 + *d as i64;
+                                if at < floor {
+                                    *d = (floor - tb[2 * p + k] as i64) as i32;
+                                    first_moved.get_or_insert(p as i16);
+                                }
+                            }
+                        }
+                        if let Some(p) = first_moved {
+                            if lb.first_live < 0 || p < lb.first_live {
+                                lb.first_live = p;
+                            }
+                        }
+                        first_moved.is_some()
+                    }
+                    None => {
+                        let lag = (floor - dep0).max(0) as i32;
+                        if lag > 0 {
+                            let m = tb.len() / 2;
+                            let carried = TripLive {
+                                arr_delay: vec![lag; m],
+                                dep_delay: vec![lag; m],
+                                observed_pos: -1,
+                                first_live: 0,
+                                updated_at,
+                                sources,
+                                inaccurate,
+                                ..Default::default()
+                            };
+                            self.snap.trips.insert(key, carried);
+                        }
+                        lag > 0
+                    }
+                };
+                if changed && !tt.continuations_from(b).is_empty() {
+                    work.push(key);
+                }
+            }
+        }
+    }
+
     fn finish(mut self, tt: Option<&Timetable>) -> LiveSnapshot {
+        if let Some(tt) = tt {
+            self.carry_on(tt);
+        }
         // Only delays a traveller can still meet: trips that run, at stops they serve.
         let (mut max, mut common) = (0, 0);
         let mut late = Vec::new();
@@ -718,5 +840,150 @@ mod tests {
         assert_eq!(snap.delay_bounds(fri).pattern(0), Some(9000));
         assert_eq!(snap.delay_bounds(fri).stop(0), Some(9000));
         assert!(!snap.delay_bounds(fri - 1).any());
+    }
+
+    #[test]
+    fn a_vehicle_going_on_as_another_trip_takes_its_lateness_along() {
+        let (mut tt, ids) = bern();
+        let fri = day("2026-11-20");
+        // Bus 101 at 22:30 (arriving 22:45) goes on as the one at 23:00; and that one as the one at 23:30.
+        tt.continuations = vec![
+            kante_core::Continuation { from: ids.bus, to: ids.bus + 1, service: NONE },
+            kante_core::Continuation { from: ids.bus + 1, to: ids.bus + 2, service: NONE },
+        ];
+        let mk = |trip: TripIdx, arr: Vec<i32>, dep: Vec<i32>| MatchedTrip {
+            date: fri,
+            trip,
+            live: TripLive { arr_delay: arr, dep_delay: dep, observed_pos: -1, first_live: 0, sources: SOURCE_SIRI_ET, ..Default::default() },
+            platform_changes: Vec::new(),
+            method: MatchMethod::JourneyId,
+            calls: 3,
+            aligned: 3,
+            on_schedule: 3,
+            implausible: 0,
+            own_timestamp: true,
+            first_reported: 0,
+            reported: vec![REPORTED_ARR | REPORTED_DEP; 3],
+        };
+        // 20 minutes late: arrives 23:05, so the 23:00 run, without data of its own, leaves at 23:05 at the
+        // earliest and is 5 minutes late all the way; the 23:30 run has its 15 minutes and is on time.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, vec![1200; 3], vec![1200; 3]));
+        let snap = b.build_indexed(&tt);
+        let next = snap.trip(fri, ids.bus + 1).expect("the run it goes on as");
+        assert_eq!((next.dep_delay.clone(), next.arr_delay.clone(), next.first_live, next.observed_pos), (vec![300; 3], vec![300; 3], 0, -1));
+        assert!(snap.trip(fri, ids.bus + 2).is_none());
+        // With data of its own that would leave earlier: moved to the arrival, the rest as reported.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, vec![1200; 3], vec![1200; 3]));
+        b.push(mk(ids.bus + 1, vec![60; 3], vec![60, 60, 60]));
+        let snap = b.build_indexed(&tt);
+        let next = snap.trip(fri, ids.bus + 1).unwrap();
+        assert_eq!(next.dep_delay, vec![300, 60, 60]);
+        assert_eq!(next.arr_delay, vec![300, 60, 60]);
+        // On time: nothing is added.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, vec![0; 3], vec![0; 3]));
+        assert!(b.build_indexed(&tt).trip(fri, ids.bus + 1).is_none());
+        // 50 minutes late: along the chain (arrives 23:35 → the 23:00 run is 35 min late, arrives 23:50 → the
+        // 23:30 run is 20 min late).
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, vec![3000; 3], vec![3000; 3]));
+        let snap = b.build_indexed(&tt);
+        assert_eq!(snap.trip(fri, ids.bus + 1).unwrap().dep_delay, vec![2100; 3]);
+        assert_eq!(snap.trip(fri, ids.bus + 2).unwrap().dep_delay, vec![1200; 3]);
+    }
+
+    #[test]
+    fn carrying_lateness_on_keeps_to_what_the_router_rides() {
+        let (mut tt, ids) = bern();
+        let fri = day("2026-11-20");
+        tt.continuations = vec![
+            kante_core::Continuation { from: ids.bus, to: ids.bus + 1, service: NONE },
+            kante_core::Continuation { from: ids.bus + 1, to: ids.bus + 2, service: NONE },
+        ];
+        let mk = |trip: TripIdx, delay: i32, skipped: Vec<bool>, observed_pos: i16| MatchedTrip {
+            date: fri,
+            trip,
+            live: TripLive { arr_delay: vec![delay; 3], dep_delay: vec![delay; 3], skipped, observed_pos, first_live: 0, ..Default::default() },
+            platform_changes: Vec::new(),
+            method: MatchMethod::JourneyId,
+            calls: 3,
+            aligned: 3,
+            on_schedule: 3,
+            implausible: 0,
+            own_timestamp: true,
+            first_reported: 0,
+            reported: vec![REPORTED_ARR | REPORTED_DEP; 3],
+        };
+        // The trip before has no live data; the one it goes on as reports leaving 20 minutes early, before the
+        // vehicle is due: not before the timetable's arrival.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus + 1, -1200, vec![], -1));
+        let snap = b.build_indexed(&tt);
+        let next = snap.trip(fri, ids.bus + 1).unwrap();
+        assert_eq!(next.dep_delay[0], -15 * 60, "not before 22:45, when the bus at 22:30 arrives");
+        // A continuation that skips its first stop today is not ridden on: left as it is.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, 1200, vec![], -1));
+        b.push(mk(ids.bus + 1, 60, vec![true, false, false], -1));
+        assert_eq!(b.build_indexed(&tt).trip(fri, ids.bus + 1).unwrap().dep_delay, vec![60; 3]);
+        // Measured to have left its first stop: it went, and is left as it is (the router does not stay seated into it).
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, 1200, vec![], -1));
+        let mut gone = mk(ids.bus + 1, 60, vec![], 0);
+        gone.live.observed_kind = OBSERVED_DEP;
+        b.push(gone);
+        assert_eq!(b.build_indexed(&tt).trip(fri, ids.bus + 1).unwrap().dep_delay, vec![60; 3]);
+        // Arrived at its first stop, not yet left: the departure moves to the vehicle's arrival.
+        let mut b = LiveSnapshotBuilder::new();
+        b.push(mk(ids.bus, 1200, vec![], -1));
+        let mut there = mk(ids.bus + 1, 60, vec![], 0);
+        there.live.observed_kind = kante_core::OBSERVED_ARR;
+        there.live.first_live = 1;
+        b.push(there);
+        let next = b.build_indexed(&tt).trip(fri, ids.bus + 1).unwrap().clone();
+        assert_eq!((next.arr_delay[0], next.dep_delay[0], next.dep_delay[1], next.first_live), (60, 300, 60, 0));
+    }
+
+    #[test]
+    fn a_long_chain_is_carried_to_its_end() {
+        // Six runs of one bus, each 30 minutes after the one before (15 minutes to stand at the end): two hours late
+        // at the start, still late at the end.
+        let mut b = crate::matcher::testkit::Tb::new();
+        let every = b.service(&["2026-11-20"]);
+        let st = b.station("A", 8590010);
+        let st2 = b.station("B", 8590011);
+        let a = b.stop(st, "ch:1:sloid:90010", "", "", kante_core::Precision::Station);
+        let z = b.stop(st2, "ch:1:sloid:90011", "", "", kante_core::Precision::Station);
+        let line = b.line("7", kante_core::Mode::Bus);
+        let names: Vec<String> = (0..6).map(|k| format!("r{k}")).collect();
+        let times: Vec<[String; 2]> = (0..6).map(|k| [format!("{}:{:02}", 10 + k / 2, (k % 2) * 30), format!("{}:{:02}", 10 + k / 2, (k % 2) * 30 + 15)]).collect();
+        let tts: Vec<[&str; 2]> = times.iter().map(|t| [t[0].as_str(), t[1].as_str()]).collect();
+        let trips: Vec<(&str, &str, kante_core::ServiceIdx, &[&str])> = (0..6).map(|k| (names[k].as_str(), names[k].as_str(), every, &tts[k][..])).collect();
+        let first = b.pattern(line, &[a, z], &trips);
+        let mut tt = b.finish();
+        tt.continuations = (0..5).map(|k| kante_core::Continuation { from: first + k, to: first + k + 1, service: NONE }).collect();
+        let fri = day("2026-11-20");
+        let mut sb = LiveSnapshotBuilder::new();
+        sb.push(MatchedTrip {
+            date: fri,
+            trip: first,
+            live: TripLive { arr_delay: vec![7200; 2], dep_delay: vec![7200; 2], observed_pos: -1, first_live: 0, ..Default::default() },
+            platform_changes: Vec::new(),
+            method: MatchMethod::JourneyId,
+            calls: 2,
+            aligned: 2,
+            on_schedule: 2,
+            implausible: 0,
+            own_timestamp: true,
+            first_reported: 0,
+            reported: vec![REPORTED_ARR | REPORTED_DEP; 2],
+        });
+        let snap = sb.build_indexed(&tt);
+        // each run eats 15 minutes of it: 105, 90, 75, 60, 45 minutes late
+        for k in 1..6u32 {
+            assert_eq!(snap.trip(fri, first + k).unwrap().dep_delay[0], 7200 - 900 * k as i32, "run {k}");
+        }
     }
 }

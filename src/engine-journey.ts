@@ -212,6 +212,22 @@ function applyTrip(ride: JourneyRide, n: number, trip: KanteTrip) {
     if (k == null) return;
     writeCall(ride.stops[k], c, !(n > 0 && c.seq === leg.from.seq), !(n < last && c.seq === leg.to.seq));
   });
+  keepOrder(ride);
+}
+// The ride's times one after the other: its trips are asked one by one, so where the vehicle goes on as another trip
+// one may have its new answer and the next not (yet). The vehicle leaves no stop before it has got there: a time
+// before the one before it is moved up to it.
+function keepOrder(ride: JourneyRide) {
+  let prev = -Infinity;
+  ride.stops.forEach((s) => {
+    [ARR, DEP].forEach(([t, d]) => {
+      const at = s[t];
+      if (at == null || s.skipped) return;
+      const live = at + (s[d] || 0);
+      if (live < prev) s[d] = prev - at;
+      else prev = live;
+    });
+  });
 }
 
 // The way the ride's vehicle takes on the rails and roads, as the engine laid each trip onto them, and each stop's
@@ -302,7 +318,7 @@ interface Offers { list: KanteJourney[]; walk: KanteJourney | null }
 // 3.5 km and 50 minutes) → { list, walk }
 function offers(res: KantePlanResponse, body: PlanBody): Offers {
   const sound = (j: KanteJourney) => !j.legs.some((l) => (l as KanteRideLeg).cancelled) && !(j.alerts || []).some((a) => a.kind === 'missed-connection');
-  let list = (res.journeys || []).filter((j) => j.legs && j.legs.length);
+  let list = (res.journeys || []).filter((j) => j.legs && j.legs.length && runsForward(j));
   if (list.some(sound)) list = list.filter(sound);
   let walk = res.walkOnly && res.walkOnly.legs && res.walkOnly.legs.length === 1 ? res.walkOnly : null;
   if (walk && body.arriveBy && body.time) {
@@ -311,6 +327,29 @@ function offers(res: KantePlanResponse, body: PlanBody): Offers {
     walk = { ...walk, dep, arr: body.time, legs: [{ ...walk.legs[0] as KanteWalkLeg, dep, arr: body.time }] };
   }
   return { list, walk };
+}
+// A journey that goes back in time (a ride reaching a stop before the one before it, a ride or walk starting before
+// the ride before it has arrived) is no journey: live data gone wrong (a vehicle logged onto another run). The engine
+// leaves such journeys out (keep_forward() in kante/engine/crates/server/src/plan.rs); one from an engine that does
+// not is not offered either. A change walk that ends after the next ride has left is no time travel: the engine
+// times it so on purpose, with a `missed-connection` alert. (The vehicle's arrival where you board and its departure
+// where you get off are not the traveller's; on board, the stop you are at may be the one you get off at.)
+function runsForward(j: KanteJourney) {
+  const live = (t: number | undefined, d: number | undefined) => (t == null ? null : t + (d || 0));
+  let arrived = -Infinity; // when the last ride (or walk to a stop) ended
+  return j.dep <= j.arr && j.legs.every((l) => {
+    if (l.type !== 'ride') {
+      if (l.dep < arrived || l.arr < l.dep) return false;
+      if (l.kind !== 'transfer') arrived = Math.max(arrived, l.arr); // a change walk may end after the next ride left (missed)
+      return true;
+    }
+    const times = [l.onboard ? null : live(l.from.dep, l.from.depDelayS),
+      ...l.intermediate.filter((c) => !c.skipped).flatMap((c) => [live(c.arr, c.arrDelayS), live(c.dep, c.depDelayS)]),
+      live(l.to.arr, l.to.arrDelayS)].filter((t): t is number => t != null);
+    if (times.some((t, i) => t < (i ? times[i - 1] : arrived))) return false;
+    if (times.length) arrived = times[times.length - 1];
+    return true;
+  });
 }
 // Which of them to show first. Leaving now or at a set time: the one that gets there first; "arrive by": the
 // one that leaves last. One change less is worth three minutes. Walking all the way wins when it is no
