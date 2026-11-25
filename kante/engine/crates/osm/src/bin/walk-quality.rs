@@ -711,7 +711,7 @@ mod tests {
             names: vec![String::new(), "Teststrasse".into()],
             ..Default::default()
         };
-        g.attrs = WalkAttrs { graph: 0, edge: es.iter().map(|e| e.5).collect(), node: vec![0; nodes.len()], hours: vec![], edge_hours: vec![] };
+        g.attrs = WalkAttrs { graph: 0, edge: es.iter().map(|e| e.5).collect(), node: vec![0; nodes.len()], hours: vec![], edge_hours: vec![], kerb: vec![] };
         g
     }
 

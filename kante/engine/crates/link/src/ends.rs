@@ -583,18 +583,71 @@ pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn {
         None if w.to.snap.dist_m > 1.5 && !b.on_track => tail.push(b.pos),
         None => {}
     }
+    // along a carriageway the line is drawn at the road's edge (kante_walk::kerb). It never moves a door the network
+    // is joined at (drawn as the path's own end), and a walk that starts or ends on the road's line steps to its
+    // edge from there: that point is drawn twice, once where it is and once moved.
+    let at_door = |j: &Join| j.door.and_then(|d| door_pos(d)).is_some_and(|dp| dp.dist_m(&j.snap.pos) <= 0.05);
+    let path_last = p.geometry.len().saturating_sub(1) as u32;
+    let kerb_at = |v: u32| p.kerb.iter().any(|k| !k.fixed && (k.v0 == v || k.v1 == v));
+    let (real_head, real_tail) = (head.len(), tail.len());
+    let step_on = head.is_empty() && !p.kerb.is_empty() && kerb_at(0) && !at_door(&w.from);
+    let step_off = tail.is_empty() && !p.kerb.is_empty() && kerb_at(path_last) && !at_door(&w.to) && path_last > 0;
+    if step_on {
+        head.push(p.geometry[0]);
+    }
+    if step_off {
+        tail.push(p.geometry[path_last as usize]);
+    }
     let n_head = head.len() as u32;
     let mut geometry = head;
     let mut levels = vec![lv0; geometry.len()];
     geometry.extend_from_slice(&p.geometry);
     levels.extend_from_slice(&p.levels);
     let path_end = geometry.len() as u32 - 1;
-    let n_tail = tail.len();
     geometry.extend(tail);
+    let mut pinned: Vec<u32> = Vec::new();
+    if at_door(&w.from) {
+        pinned.push(n_head);
+    }
+    if at_door(&w.to) {
+        pinned.push(path_end);
+    }
+    let drawn_on_line = geometry.clone();
+    if kante_walk::kerb::apply(&mut geometry, &p.kerb, n_head, path_end, &pinned) {
+        // a narrow street: a point moved to the edge that puts the line through a building goes back on the line
+        if let Some(ix) = doors {
+            for _ in 0..8 {
+                let through = |a: LatLon, b: LatLon| ix.through(a, b, 0.0);
+                let bad: Vec<usize> = (0..geometry.len() - 1)
+                    .filter(|&k| (geometry[k], geometry[k + 1]) != (drawn_on_line[k], drawn_on_line[k + 1]))
+                    .filter(|&k| through(geometry[k], geometry[k + 1]) && !through(drawn_on_line[k], drawn_on_line[k + 1]))
+                    .collect();
+                if bad.is_empty() {
+                    break;
+                }
+                for k in bad {
+                    geometry[k] = drawn_on_line[k];
+                    geometry[k + 1] = drawn_on_line[k + 1];
+                }
+            }
+        }
+    }
+    // a point drawn twice where nothing moved: drawn once
+    let (mut n_head, mut path_end) = (n_head, path_end);
+    if step_off && geometry[path_end as usize] == geometry[path_end as usize + 1] {
+        geometry.pop();
+    }
+    if step_on && geometry[0] == geometry[1] {
+        geometry.remove(0);
+        levels.remove(0);
+        n_head -= 1;
+        path_end -= 1;
+    }
+    let n_tail = geometry.len() - 1 - path_end as usize;
     levels.extend(std::iter::repeat_n(lv1, n_tail));
     let guess = |j: &Join, e: &End| j.unsure || (j.snap.dist_m > GUESS_M && !e.on_track);
-    let approx_start = (n_head > 0 && guess(&w.from, a)).then_some(n_head);
-    let approx_end = (n_tail > 0 && guess(&w.to, b)).then_some(path_end);
+    let approx_start = (real_head > 0 && guess(&w.from, a)).then_some(n_head);
+    let approx_end = (real_tail > 0 && guess(&w.to, b)).then_some(path_end);
     let wall = w.from.wall || w.to.wall;
     let unsure = w.from.unsure || w.to.unsure;
     // through a door that is not step-free, for any walker
