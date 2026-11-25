@@ -410,6 +410,7 @@ export async function open(opts: SolidOptions) {
     // first person: light from all round and from the ceilings (a hall is lit, not sunlit), so ceilings and walls read
     hemi.color.set(0xffffff); hemi.groundColor.set(pov ? (dark() ? 0x6a665f : 0xd6d0c6) : 0x8a8f99); hemi.intensity = pov ? 2.3 : 2.2;
     sun.intensity = pov ? 0.55 : 1.4;
+    if (shared.outline) shared.outline.dispose();
     shared.outline = new THREE.LineBasicMaterial({ color: P.outline, transparent: true, opacity: 0.35 });
 
     // floors, one mesh per level, and their outlines (the outlines stay when the cutaway opens a floor)
@@ -486,7 +487,7 @@ export async function open(opts: SolidOptions) {
     const bedGs = [], railPts = [];
     if (pov) povTracks(P);
     for (const t of pov ? [] : solid!.tracks) {
-      if (focus && (!onLevel(levelOfZ(t.z)) || !lineIn(t.line))) continue;
+      if (focus && (!onLevel(levelOfZ(t.z + (t.kind === 'tram' ? 0 : 1.1))) || !lineIn(t.line))) continue;
       const tram = t.kind === 'tram';
       for (let i = 0; i + 1 < t.line.length; i++) {
         const p0 = V(t.line[i][0], t.line[i][1], t.z), p1 = V(t.line[i + 1][0], t.line[i + 1][1], t.z);
@@ -853,15 +854,21 @@ export async function open(opts: SolidOptions) {
   let tunnelSides: { line: XY[]; z: number; h: number }[] = [];
   function povTracks(P: SolidPalette) {
     const S2 = surfaces();
-    const beds: THREE.BufferGeometry[] = [], rails: THREE.BufferGeometry[] = [], tops: THREE.BufferGeometry[] = [], sides: { line: XY[]; z: number; h: number }[] = [];
-    // world uvs (metres), so the overlapping beds of tracks side by side match
-    const worldUV = (g: THREE.BufferGeometry) => {
-      const pp = g.getAttribute('position'), uv = new Float32Array(pp.count * 2);
-      for (let i = 0; i < pp.count; i++) { uv[i * 2] = pp.getX(i); uv[i * 2 + 1] = pp.getZ(i); }
-      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    const beds: number[] = [], rails: number[] = [], tops: number[] = [], sides: { line: XY[]; z: number; h: number }[] = [];
+    // flat bands along the tracks, straight into one array each (hundreds of track pieces: no geometry per piece); uvs in
+    // world metres, so the overlapping beds of tracks side by side match
+    const flat = (out: number[], ax: number, az: number, bx: number, bz: number, y: number, w: number) => {
+      const L = Math.hypot(bx - ax, bz - az), sx = -(bz - az) / L * w / 2, sz = (bx - ax) / L * w / 2;
+      out.push(ax + sx, y, az + sz, bx - sx, y, bz - sz, ax - sx, y, az - sz, ax + sx, y, az + sz, bx + sx, y, bz + sz, bx - sx, y, bz - sz);
+    };
+    const mesh = (pos: number[], uvWorld: boolean) => {
+      const g = new THREE.BufferGeometry(), n = pos.length / 3;
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(Array.from({ length: n * 3 }, (_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+      if (uvWorld) g.setAttribute('uv', new THREE.Float32BufferAttribute(Array.from({ length: n * 2 }, (_, i) => pos[Math.floor(i / 2) * 3 + (i % 2 ? 2 : 0)]), 2));
       return g;
     };
-    const ts = solid!.tracks.filter((t) => !(focus && (!onLevel(levelOfZ(t.z)) || !lineIn(t.line))));
+    const ts = solid!.tracks.filter((t) => !(focus && (!onLevel(levelOfZ(t.z + (t.kind === 'tram' ? 0 : 1.1))) || !lineIn(t.line))));
     for (const t of ts) {
       const tram = t.kind === 'tram', lvId = levelOfZ(t.z + (tram ? 0 : 1.1)), under = lvId < 0 && !tram;
       const floorZ = t.z + (tram ? 0 : 1.1), lv = levels.find((l) => l.id === lvId);
@@ -869,10 +876,10 @@ export async function open(opts: SolidOptions) {
       for (let i = 0; i + 1 < t.line.length; i++) {
         const p0 = V(t.line[i][0], t.line[i][1], t.z), p1 = V(t.line[i + 1][0], t.line[i + 1][1], t.z);
         if (p0.distanceTo(p1) < 0.05) continue;
-        if (!tram) beds.push(worldUV(band(p0, p1, under ? 9 : 3.2, 0)));
-        const d = new THREE.Vector3().subVectors(p1, p0), side = new THREE.Vector3(-d.z, 0, d.x).normalize().multiplyScalar(tram ? 0.72 : 0.72);
-        for (const sgn of [1, -1]) rails.push(band(p0.clone().addScaledVector(side, sgn), p1.clone().addScaledVector(side, sgn), 0.08, tram ? 0.03 : 0.17));
-        if (under) tops.push(worldUV(band(p0.clone().setY(ceil), p1.clone().setY(ceil), 9, 0)));
+        if (!tram) flat(beds, p0.x, p0.z, p1.x, p1.z, p0.y, under ? 9 : 3.2);
+        const d = new THREE.Vector3().subVectors(p1, p0), side = new THREE.Vector3(-d.z, 0, d.x).normalize().multiplyScalar(tram ? 0.5 : 0.72);
+        for (const sgn of [1, -1]) flat(rails, p0.x + side.x * sgn, p0.z + side.z * sgn, p1.x + side.x * sgn, p1.z + side.z * sgn, p0.y + (tram ? 0.03 : 0.17), 0.08);
+        if (under) flat(tops, p0.x, p0.z, p1.x, p1.z, ceil, 9);
       }
       if (!under) continue;
       // the outer wall: where 4.6 m to the side there is neither a platform nor another track
@@ -907,9 +914,9 @@ export async function open(opts: SolidOptions) {
       if (runs.length) drops.push(strip(runs.map((line) => ({ line, z: lv.z })), top - h, h, 1.2));
     }
     const concrete = () => new THREE.MeshLambertMaterial({ color: P.bed, map: S2.bed, side: THREE.DoubleSide });
-    if (beds.length) world!.add(new THREE.Mesh(merged(beds), concrete()));
-    if (rails.length) world!.add(new THREE.Mesh(merged(rails), new THREE.MeshLambertMaterial({ color: P.steel })));
-    if (tops.length) world!.add(new THREE.Mesh(merged(tops), ceilingMat(P)));
+    if (beds.length) world!.add(new THREE.Mesh(mesh(beds, true), concrete()));
+    if (rails.length) world!.add(new THREE.Mesh(mesh(rails, false), new THREE.MeshLambertMaterial({ color: P.steel })));
+    if (tops.length) world!.add(new THREE.Mesh(mesh(tops, true), ceilingMat(P)));
     tunnelSides = sides;
     const walls = sides.map((sd) => {
       const g = strip([{ line: sd.line, z: sd.z }], sd.h, 0, 1), uv = g.getAttribute('uv');
@@ -1057,7 +1064,7 @@ export async function open(opts: SolidOptions) {
         if (za > zb) { [x0, y0, za, x1, y1, zb] = [x1, y1, zb, x0, y0, za]; }   // from low to high
         const t0 = Math.max(0, (z0 - za) / (zb - za)), t1 = Math.min(1, (z1 - za) / (zb - za));
         let ax = x0 + (x1 - x0) * t0, ay = y0 + (y1 - y0) * t0, bx = x0 + (x1 - x0) * t1, by = y0 + (y1 - y0) * t1;
-        if (trimTop && t1 >= 1) {
+        if (trimTop && zb <= z1 + 0.3) {
           const L = Math.hypot(bx - ax, by - ay);
           if (L <= r) continue;
           bx -= (bx - ax) / L * r; by -= (by - ay) / L * r;
@@ -1565,6 +1572,8 @@ export async function open(opts: SolidOptions) {
   const stillMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   /** Typical trains that are not the journey's (SolidTrainInput.ambient). */
   let ambient: SolidTrain[] = [];
+  /** The roles the journey gave a vehicle for (setTrain), whether or not it could be placed: no typical train there. */
+  const given = new Set<SolidTrainInput['role']>();
   const AMBIENT_M = 4 * 26.5;   // m: a typical train is drawn this long, round where the way arrives
   // cross-sections (across the track, height above the rail; metres): a double-deck coach, a locomotive
   const PROFILE_DD: [number, number][] = [[-1.4, 0.6], [-1.42, 3.35], [-1.3, 4.1], [-0.9, 4.48], [0, 4.6], [0.9, 4.48], [1.3, 4.1], [1.42, 3.35], [1.4, 0.6]];
@@ -1646,8 +1655,8 @@ export async function open(opts: SolidOptions) {
     // a line along the body at the floor and under the roof
     rect(0.3, L - 0.3, 0.62, 0.72, frame);
     if (kind === 'single') {
-      // one row of windows, a pair of doors a quarter in from either end
-      const doors = [L * 0.25 - 0.65, L * 0.75 - 0.65];
+      // one row of windows, the doors where coach-plan.ts puts them (the way is drawn through them)
+      const doors = [(noseA ? NOSE_DOOR_M : DOOR_IN_M) - 0.9, L - (noseB ? NOSE_DOOR_M : DOOR_IN_M) - 0.5];
       for (let x = 0.6; x + 1.3 < L - 0.5; x += 1.75) if (!doors.some((d) => x + 1.3 > d - 0.15 && x < d + 1.45)) rect(x, x + 1.3, 1.2, 2.45, win);
       for (const d of doors) rect(d, d + 1.3, 0.55, 2.5, 'rgba(235,250,255,0.18)', frame);
     } else if (kind === 'tram' || kind === 'bus') {
@@ -1721,8 +1730,11 @@ export async function open(opts: SolidOptions) {
     // where the model has no sectors for the platform, along the platform's own line (only to be shown: approx)
     const layout = input.kind === 'train' ? layoutTrain(model!, input.ref, { coaches: input.coaches, sectors: input.sectors, approx: true })
       : input.pose ? layoutAtStop(model!, input.kind, input.pose) : null;
-    const t = layout && layout.cars.length ? makeTrain(input, layout) : null;
+    // laid out without sectors: where it stands is a guess, so no coach is marked to get on and no way leads to a door
+    const shown = layout && layout.approx ? { ...input, target: [], sector: null, door: null } : input;
+    const t = layout && layout.cars.length ? makeTrain(shown, layout) : null;
     if (t) { scene.add(t.group); trains.push(t); }
+    given.add(input.role);
     syncAmbient();
     // the old vehicle's labels and its stretch of the way go, the new one's come
     labelsDirty = true;
@@ -1793,7 +1805,7 @@ export async function open(opts: SolidOptions) {
     if (route && !route.same) {
       const pts = route.points;
       for (const [stop, role, p] of [[route.toStop, 'board', pts[pts.length - 1]], [route.fromStop, 'alight', pts[0]]] as const) {
-        if (!stop || stop.mode !== 'train' || !stop.ref || trains.some((t) => t.input.role === role || pk(t.input.ref) === pk(stop.ref))) continue;
+        if (!stop || stop.mode !== 'train' || !stop.ref || given.has(role) || trains.some((t) => pk(t.input.ref) === pk(stop.ref))) continue;
         if (want.some((w) => pk(w.input.ref) === pk(stop.ref))) continue;
         const secs = [...new Set((model!.sectors || []).filter((x) => pk(x.ref) === pk(stop.ref)).map((x) => x.name))];
         want.push({ input: { role, kind: 'train', ref: stop.ref, coaches: null, sectors: secs, target: [], crowd: null, cls: 2, ambient: true }, at: [p[0], p[1]] });
@@ -2139,17 +2151,7 @@ export async function open(opts: SolidOptions) {
   }
 
   // ------------------------------------------------------------------ render loop (on demand)
-  let pending = false, disposed = false, raf = 0, compiling = false;
-  /** The shaders of what was just built, compiled off the main thread where the browser can (no frame stalls on a phone
-   *  while they link); the play-through's clock waits for them. */
-  function warm() {
-    compiling = true;
-    renderer.compileAsync(scene, camera).catch(() => undefined).then(() => {
-      compiling = false;
-      playLast = performance.now();
-      if (!disposed) request();
-    });
-  }
+  let pending = false, disposed = false, raf = 0;
   /** First person: the background at street level and below ground (set by build). */
   const skyCol = new THREE.Color(), underCol = new THREE.Color();
   // the hologram's shimmer: a frame every GLOW_MS while the train shows and the page is seen (not every display
@@ -2160,7 +2162,6 @@ export async function open(opts: SolidOptions) {
   function request() { if (!pending && !disposed) { pending = true; raf = requestAnimationFrame(render); } }
   function render(now: number) {
     pending = false;
-    if (compiling) return;   // the last frame stays on screen until the new shaders are ready
     const tick = glowTick;
     glowTick = false;
     if (anim) anim(now);
@@ -2177,6 +2178,7 @@ export async function open(opts: SolidOptions) {
     }
     if (Math.abs(camera.near - near) > 0.05 || Math.abs(camera.far - far) > 200) { camera.near = near; camera.far = far; camera.updateProjectionMatrix(); }
     let glowing = false;
+    if (trains.length || ambient.length) camera.updateMatrixWorld();
     if (trains.length || ambient.length) frustum.setFromProjectionMatrix(projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     for (const tr of trains.concat(ambient)) {
       // hidden when a floor below the platform is picked (everything above it is lifted away)
@@ -2501,7 +2503,6 @@ export async function open(opts: SolidOptions) {
       Object.assign(controls, { minDistance: 0.01, maxDistance: 1e4, maxPolarAngle: Math.PI * 0.95, minPolarAngle: Math.PI * 0.05, enablePan: false, enableZoom: false });
     } else leavePov();
     build(); redrawTrains(); replayFix();
-    warm();
     labelsDirty = true;
     if (on) { buildTimeline(); povJump(Math.max(0, Math.min(stepIdx, route!.steps.length - 1))); }
     else if (stepIdx >= 0) step(stepIdx); else whole();
@@ -2671,7 +2672,7 @@ export async function open(opts: SolidOptions) {
   return {
     model, solid, levels,
     get route() { return route; },
-    plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { if (pov) { const tr = trains.map((t) => t.input); leavePov(); tr.forEach((t) => drawTrain(t)); } halt(); snapPrev = null; plan(from, to, p); whole(); return route; },
+    plan: (from: SolidEnd, to: SolidEnd, p?: StationRoutePrefs | null) => { const wasPov = pov; if (pov) { const tr = trains.map((t) => t.input); leavePov(); tr.forEach((t) => drawTrain(t)); } halt(); snapPrev = null; plan(from, to, p); if (wasPov) replayFix(); whole(); return route; },
     step: (i: number) => { halt(); if (pov && route) povJump(Math.max(0, Math.min(route.steps.length - 1, i))); else step(i); },
     whole: () => { setPov(false); halt(); whole(); }, floor: (id: number | null) => { setPov(false); halt(); floor(id); },
     next: () => { halt(); if (pov && route) povJump(Math.min(route.steps.length - 1, stepIdx + 1)); else step(stepIdx + 1); },
@@ -2691,7 +2692,7 @@ export async function open(opts: SolidOptions) {
      *  no sectors at that platform, so nothing is drawn). */
     setTrain: (t: SolidTrainInput): TrainLayout | null => drawTrain(t),
     /** Takes the vehicle of that role away (all of them without one). */
-    clearTrain: (role?: SolidTrainInput['role']) => { dropTrain(role); syncAmbient(); labelsDirty = true; if (route) drawRoute(); request(); },
+    clearTrain: (role?: SolidTrainInput['role']) => { dropTrain(role); if (role) given.delete(role); else given.clear(); syncAmbient(); labelsDirty = true; if (route) drawRoute(); request(); },
     /** Seconds on foot from `from` to each of these sectors of platform `ref` (Infinity: no way there). */
     sectorWalks: (from: SolidEnd, uic: string, ref: string, names: string[], p?: StationRoutePrefs | null): Record<string, number> =>
       Object.fromEntries(names.map((n) => {

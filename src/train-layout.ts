@@ -152,25 +152,37 @@ function platformTracks(model: StationModel, key: string, level: number, E: XY[]
   return best ? [best.line] : [];
 }
 
-/** The platform's centre line from its stop's walkway nodes (every 10 m along it), as one unnamed span: for a platform the
- *  model has no sectors for. Ordered along its main axis. */
+/** For a platform the model has no sectors for: the stretch of its track along its walkway, as one unnamed span. The
+ *  track with the platform's number (else the one nearest the stop), from where the first of the walkway's nodes lies
+ *  along it to the last. (The nodes themselves can lie on both edges of a wide platform, or of two.) */
 function lineOfStop(model: StationModel, key: string): { pts: XY[]; secs: { name: string; s0: number; s1: number }[] } | null {
   const pk = StationRoute.platformKey;
   const stop = (model.stops || []).find((s) => s.mode === 'train' && pk(s.ref) === key);
   if (!stop) return null;
-  const ps = (stop.nodes || []).map((n) => model.graph.nodes[n]).filter(Boolean).map((n) => [n[0], n[1]] as XY);
-  if (ps.length < 2) return null;
-  const m = mul(ps.reduce(add, [0, 0] as XY), 1 / ps.length);
-  // the main axis: the eigenvector of the larger eigenvalue of the points' covariance
-  let sxx = 0, sxy = 0, syy = 0;
-  for (const p of ps) { const d = sub(p, m); sxx += d[0] * d[0]; sxy += d[0] * d[1]; syy += d[1] * d[1]; }
-  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy), ax: XY = [Math.cos(ang), Math.sin(ang)];
-  const pts = dedupe(ps.slice().sort((a, b) => (a[0] - b[0]) * ax[0] + (a[1] - b[1]) * ax[1]));
-  if (pts.length < 2) return null;
-  let s = 0;
-  for (let i = 1; i < pts.length; i++) s += len(sub(pts[i], pts[i - 1]));
-  // a platform shorter than a coach is a stop node, not a platform
-  return s >= 20 ? { pts, secs: [{ name: '', s0: 0, s1: s }] } : null;
+  const ns = (stop.nodes || []).map((n) => model.graph.nodes[n]).filter(Boolean).map((n) => [n[0], n[1]] as XY);
+  if (ns.length < 2) return null;
+  const { tagged, all } = tracksOf(model, key, stop.level != null ? stop.level : null);
+  let line: XY[] | null = null, bd = TRACK_NEAR_M * 2;
+  for (const t of tagged.length ? tagged : all) { const d = nearestOn(t.line, stop.xy).d; if (d < bd) { bd = d; line = t.line; } }
+  if (!line) return null;
+  // arc length along the track of each node's nearest point
+  const acc = [0];
+  for (let i = 1; i < line.length; i++) acc.push(acc[i - 1] + len(sub(line[i], line[i - 1])));
+  const sOf = (p: XY) => {
+    let best = Infinity, s = 0;
+    for (let i = 0; i + 1 < line!.length; i++) { const n = nearestOn([line![i], line![i + 1]], p); if (n.d < best) { best = n.d; s = acc[i] + len(sub(n.q, line![i])); } }
+    return s;
+  };
+  const ss = ns.map(sOf), s0 = Math.min(...ss), s1 = Math.max(...ss);
+  if (s1 - s0 < 20) return null;   // shorter than a coach: a stop node, not a platform
+  const at = (s: number): XY => {
+    let i = 0;
+    while (i < line!.length - 2 && acc[i + 1] < s) i++;
+    const L = acc[i + 1] - acc[i] || 1;
+    return add(line![i], mul(sub(line![i + 1], line![i]), (s - acc[i]) / L));
+  };
+  const pts = dedupe([at(s0), ...line.filter((_, i) => acc[i] > s0 && acc[i] < s1), at(s1)]);
+  return pts.length >= 2 ? { pts, secs: [{ name: '', s0: 0, s1: s1 - s0 }] } : null;
 }
 
 /** `approx`: where the model has no sectors for the platform, lay the train along the platform's own line instead (filling it,
@@ -253,8 +265,9 @@ export function layoutTrain(model: StationModel, ref: string, o: { coaches: Trai
   } else {
     let st = span(o.sectors);
     if (st && approx) {
-      // the whole platform but its ends (a train rarely fills it to the last metre)
-      const mid = (st[0] + st[1]) / 2, half = Math.max(10, (st[1] - st[0]) / 2 - 6);
+      // the whole platform but its ends (a train rarely fills it to the last metre); without `around`, at most a long
+      // train (320 m) in its middle
+      const mid = (st[0] + st[1]) / 2, half = Math.min(o.around && o.maxLen ? Infinity : 160, Math.max(10, (st[1] - st[0]) / 2 - 6));
       st = [mid - half, mid + half];
     }
     if (st && o.around && o.maxLen && st[1] - st[0] > o.maxLen) {

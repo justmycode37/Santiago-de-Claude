@@ -713,7 +713,7 @@ function trainCard(st: TrainState, withClass: boolean): { el: HTMLElement; said:
     return { el: card, said: lines.join('') };
   }
   // the coaches as they stand, sector A on the left (coaches the model cannot place: in the formation's order)
-  let cars: TrainCar[] = L ? L.cars.slice() : [];
+  let cars: TrainCar[] = L && !L.approx ? L.cars.slice() : [];   // laid out without sectors (approx): drawn, not placed
   const unplaced = !cars.length && !!(s && s.coaches);
   if (unplaced) cars = s!.coaches!.map((c, idx) => ({ coach: c, idx, s0: 0, s1: 0, a: [0, 0], b: [0, 0], noseA: false, noseB: false }));
   const names = L ? L.sectors.map((x) => x.name) : [];

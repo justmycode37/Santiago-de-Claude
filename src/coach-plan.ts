@@ -257,7 +257,8 @@ async function anchorIn(t: Station3DTrain, ctx: CoachPlanContext): Promise<Stati
 
 async function layoutAt(ctx: CoachPlanContext, key: string | null, ref: string, coaches: TrainCoach[]): Promise<TrainLayout | null> {
   const model = key ? await ctx.loadModel(key) : null;
-  return model ? layoutTrain(model, ref, { coaches, sectors: [] }) : null;
+  const layout = model ? layoutTrain(model, ref, { coaches, sectors: [] }) : null;
+  return layout && !layout.guessed ? layout : null;   // no door is planned where the train's place is a guess
 }
 
 /** One end of the ride in a station model: the walk to (in) or from (out) each door of the coaches asked about. */

@@ -75,8 +75,7 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   The eye looks where the way goes 7 m ahead (2.5 m on stairs and escalators, pitch at most 20°), turning by yaw and
   pitch. In a lift the view gives way to its display over the car's walls (direction, the floor it passes, where it
   goes); out of a lift at the end it turns along the platform. Paused, a drag looks round; ‹ › go to the start of a
-  step; a floor, ⌂, ◎ or 👁 again leave it. Its shaders are compiled off the main thread where the browser can
-  (`compileAsync`): the last frame stays until they are ready.
+  step; a floor, ⌂, ◎ or 👁 again leave it.
 
 What it does not have: inner walls (the survey has only the outer outlines of what is built below ground, and no
 heights), signs at eye level, the survey at Lausanne and Luzern (Vaud and Luzern do not publish it openly). Where such data
