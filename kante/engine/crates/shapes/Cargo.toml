@@ -1,0 +1,12 @@
+[package]
+name = "kante-shapes"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+kante-core.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+osmpbf.workspace = true
+serde.workspace = true

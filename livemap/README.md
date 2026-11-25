@@ -15,7 +15,7 @@ This is not part of the static site: it needs a server, so `livemap/` is left ou
 |---|---|
 | Kante engine (`kante/` in this repository) | Holds the timetable, polls the live feed once a minute with the API key, answers "which vehicles are under way" and "this trip's stops and delays" |
 | `server.mts` | Asks the engine for every running vehicle, builds each one's coming stops with live times, and serves the page. Holds no API keys |
-| `shaper/` | Small Rust program. Finds the path between two consecutive stops on OpenStreetMap rails, roads or ferry lines. Started by `server.mts` |
+| `shaper/` | Small Rust program. Finds the path between two consecutive stops on OpenStreetMap rails, roads or ferry lines. Started by `server.mts`; only for hops the engine sends no way for (an engine built without `shapes.bin`, a long hop of which it sends only part): the engine lays each line onto the network as a whole ([LIVE-API.md](../kante/docs/LIVE-API.md#the-way-vehicles-take)) |
 | `index.html` | The map. Draws each vehicle along its path and glides to corrections instead of jumping |
 | `index-old.html` | The first version of the page (current hop only, no gliding), served at `/old` for comparison |
 | `measure/` | Scripts that measured how much vehicles jump around |

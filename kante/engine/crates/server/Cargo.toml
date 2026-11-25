@@ -18,6 +18,7 @@ kante-link.workspace = true
 kante-search.workspace = true
 kante-elevation.workspace = true
 kante-rt.workspace = true
+kante-shapes.workspace = true
 ureq.workspace = true
 anyhow.workspace = true
 rayon.workspace = true

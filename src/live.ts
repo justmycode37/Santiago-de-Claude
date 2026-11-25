@@ -31,7 +31,8 @@ export interface KanteJourneyLike { category: string; number: string; operator: 
 /** A trip or a vehicle: anything that says how live it is. */
 export type KanteLiveCarrier = { liveInfo?: KanteLiveInfo | null; live?: KanteLiveWord | boolean | null };
 /** What places a vehicle of /api/vehicles; `t`: the time of the response it came in. */
-export type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & { frac?: number | null; t?: number | null };
+export type KanteVehicleHop = Pick<KanteVehicle, 'from' | 'to' | 'dep' | 'arr'> & Partial<Pick<KanteVehicle, 'hopPath' | 'hopSpan' | 'point'>>
+  & { frac?: number | null; t?: number | null };
 /** A vehicle of /api/vehicles, as far as it tells whether it has left a stop; `info`: its liveInfoOf(), when already worked out. */
 export type KanteVehicleSeen = Partial<Pick<KanteVehicle, 'from' | 'to' | 'nextSeq'>> & KanteLiveCarrier & { info?: KanteLiveInfo | null };
 /** late: the walk is longer than the time left; tight: under three minutes to spare. */
@@ -143,8 +144,51 @@ function journeyLike(line: Partial<KanteLine> | null | undefined) {
   const num = cat && name.toUpperCase().startsWith(cat.toUpperCase()) ? name.slice(cat.length).trim() : name;
   return { category: cat, number: num || name, operator: l.operator || '', name };
 }
+// ---- The way a vehicle takes between two stops (the engine's `hopPath`): Google's encoded polyline, decoded once ----
+interface HopLine { pts: LngLat[]; cum: number[] }
+const hopLines = new Map<string, HopLine>();
+/** An encoded polyline (precision 5) → [lon, lat] points. */
+function decodePolyline(s: string): LngLat[] {
+  const out: LngLat[] = [];
+  let i = 0, lat = 0, lon = 0;
+  const next = () => {
+    let r = 0, sh = 0, b;
+    do { b = s.charCodeAt(i++) - 63; r |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20 && i < s.length);
+    return r & 1 ? ~(r >> 1) : r >> 1;
+  };
+  while (i < s.length) {
+    lat += next();
+    lon += next();
+    out.push([lon / 1e5, lat / 1e5]);
+  }
+  return out;
+}
+function hopLine(s: string): HopLine | null {
+  let h = hopLines.get(s);
+  if (!h) {
+    const pts = decodePolyline(s);
+    if (pts.length < 2) return null;
+    const cum = [0];
+    for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + distKm(pts[k - 1], pts[k]));
+    if (hopLines.size > 3000) hopLines.clear(); // the vehicles of one window are far fewer
+    h = { pts, cum };
+    hopLines.set(s, h);
+  }
+  return h;
+}
+/** The point a share f (0…1) of the way along a line. */
+function alongLine(h: HopLine, f: number): LngLat {
+  const goal = clamp01(f) * h.cum[h.cum.length - 1];
+  let k = 1;
+  while (k < h.cum.length - 1 && h.cum[k] < goal) k++;
+  const a = h.pts[k - 1], b = h.pts[k], l = h.cum[k] - h.cum[k - 1], t = l > 0 ? clamp01((goal - h.cum[k - 1]) / l) : 0;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+
 // Where a vehicle of /api/vehicles is at tNow (unix s): from its `frac` at the response's time `t` (copied onto
-// it), going on at the pace of its dep→arr. Standing at a stop (from = to) it stays there.
+// it), going on at the pace of its dep→arr, along the way it takes on the rails and roads (`hopPath`; only the part
+// near the window asked about, `hopSpan`) where the engine knows it, else on the straight line between the stops.
+// Standing at a stop (from = to) it stays there: beside the boarding point, on its track or road (`point`).
 /** Where a vehicle of /api/vehicles is at tNow. */
 function vehicleAt(v: KanteVehicleHop, tNow: number): LngLat {
   const span = v.arr - v.dep;
@@ -152,6 +196,14 @@ function vehicleAt(v: KanteVehicleHop, tNow: number): LngLat {
   if (v.frac != null && v.t != null) f = Number(v.frac) + (span > 0 ? (tNow - v.t) / span : 0);
   else f = span > 0 ? (tNow - v.dep) / span : tNow >= v.arr ? 1 : 0;
   f = clamp01(f);
+  const h = v.hopPath ? hopLine(v.hopPath) : null;
+  if (h) {
+    // the same share of the way's length as of the time; on the part sent, where it starts and ends in the whole way
+    // (a vehicle that has run off the part sent stays at its end, outside the window, until the next answer)
+    const [a, b] = v.hopSpan || [0, 1];
+    return alongLine(h, b > a ? (f - a) / (b - a) : 0);
+  }
+  if (v.point && v.from[0] === v.to[0] && v.from[1] === v.to[1]) return v.point;
   return [v.from[0] + (v.to[0] - v.from[0]) * f, v.from[1] + (v.to[1] - v.from[1]) * f];
 }
 // Under way (not standing at a stop) after a measured departure from the stop before `nextSeq`. With stops
@@ -186,5 +238,5 @@ export const KANTE_LIVE = {
   /** The largest box the engine answers /api/vehicles for (its diagonal, km). */
   MAX_BBOX_KM, liveInfoOf, isLive, liveArr, liveDep, depMeasured, nextCall, advance, rideKm, liveText,
   /** Seconds until it leaves, seconds of walking left. */
-  runOrWait, journeyLike, vehicleAt, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
+  runOrWait, journeyLike, vehicleAt, decodePolyline, vehicleLeftMeasured, padBbox, bboxContains, bboxOk, bboxParam, distKm,
 };

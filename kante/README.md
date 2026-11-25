@@ -17,6 +17,9 @@ engine is at https://kante.omniroute.app.
 | `scripts/fetch-data.sh` | Downloads the timetable, the stop registry, OpenStreetMap Switzerland and the building address register (about 1 GB); `--elevation` swisstopo's terrain model (10 GB), for hills |
 | `scripts/plan.py` | Plans a trip from the command line |
 
+Vehicles are placed on their own line's tracks and roads, laid onto OpenStreetMap by `kante build`
+([docs/LIVE-API.md](docs/LIVE-API.md#the-way-vehicles-take)), not on straight lines between stops.
+
 ## Running it
 
 Needs Rust, about 6 GB of disk (16 GB with the terrain model) and 4 GB of memory.

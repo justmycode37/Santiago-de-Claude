@@ -137,6 +137,8 @@ export interface JourneyRideStep extends JourneyStepBase,
   /** stopKms() (tracking.ts): the km of each of `stops` along `path`, and the `path` they were measured on. */
   _kms?: number[];
   _kmFor?: LngLat[];
+  /** Where the engine laid the ride onto the rails and roads: each stop's vertex in `path` (per `stopIdx` entry). */
+  pathIdx?: number[];
 }
 /** The last step: being there. */
 export interface JourneyArriveStep extends JourneyStepBase,
@@ -277,11 +279,15 @@ export const hasForecast = (c: KanteStopCall | null | undefined, which: StopTime
 export const isRide = (p: JourneyPart | null | undefined): p is JourneyRide => !!p && p.type === 'ride';
 const sameStation = (q: KanteQuay | null | undefined, c: KanteStopCall | null | undefined) => !!(q && c && q.stationId === c.quay.stationId);
 
-// Every stop of a ride on its exact boarding point, as the engine names it
+// Every stop of a ride on its exact boarding point, as the engine names it; the line between them the way the engine
+// laid the trip onto the rails and roads (from the boarding point onto the track, along it, off it to the last one)
 function placeRide(s: JourneyRide) {
   const at = s.stops.map((_, k) => KanteJourney.at(s, k));
   const pts = at.map((a) => a.ll);
-  return { path: pts, idx: pts.map((_, k) => k), // idx: each path stop's place in the ride's stops
+  const way = KanteJourney.ridePath(s);
+  // path is stops (the same array) until a line is drawn in between them
+  return { path: way ? [pts[0], ...way.path, pts[pts.length - 1]] : pts, stops: pts, pathIdx: way ? way.idx.map((i) => i + 1) : undefined,
+    idx: pts.map((_, k) => k), // idx: each path stop's place in the ride's stops
     dep: pts[0], arr: pts[pts.length - 1], depAt: at[0], arrAt: at[at.length - 1] };
 }
 
@@ -360,7 +366,7 @@ export function buildSteps(conn: Journey, destTitle: string) {
       engineWalk(st, w);
       steps.push(st);
     }
-    steps.push({ type: 'ride', s, path: here.path, stops: here.path, stopIdx: here.idx, depLL: here.dep, arrLL: here.arr, depAt: here.depAt, arrAt: here.arrAt,
+    steps.push({ type: 'ride', s, path: here.path, stops: here.stops, stopIdx: here.idx, pathIdx: here.pathIdx, depLL: here.dep, arrLL: here.arr, depAt: here.depAt, arrAt: here.arrAt,
       t0: planMs(s.from, 'dep'), t1: planMs(s.to, 'arr') });
     lastRide = s;
   });

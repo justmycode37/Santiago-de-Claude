@@ -43,6 +43,7 @@ in the design is Bern-specific: the walking area is a bounding box option.
 | `engine/crates/walk` | Snapping, pedestrian routing, turn-by-turn steps on a `WalkGraph` |
 | `engine/crates/link` | Attaches timetable Stops to the walk graph, precomputes `Footpaths` |
 | `engine/crates/elevation` | The slopes of the walk graph's edges from swisstopo's terrain model (`Slopes`) |
+| `engine/crates/shapes` | The way each pattern's vehicles take on OSM's rails and roads (`Shapes`, `shapes.bin`; `docs/LIVE-API.md`) |
 | `engine/crates/search` | Geocoder: stations, addresses, POIs |
 | `engine/crates/rt` | SIRI-ET and GTFS-RT parsing and polling |
 | `engine/crates/server` | `kante` binary: `kante build`, `kante serve` |
@@ -315,6 +316,20 @@ pub mod ends  { pub struct End;   // End::place / End::stop / End::exact; End::s
                     -> Vec<Option<WalkCost>>;
                 pub fn walk(router: &WalkRouter, a: &End, b: &End, profile: &WalkProfile) -> Option<Walk>;
                 pub fn draw(doors: Option<&DoorIndex>, a: &End, b: &End, w: &Walk) -> Drawn; }
+```
+
+### kante-shapes
+
+```rust
+/// Lays every pattern of `tt` onto OSM's rails, roads, ferry lines and aerialways (whole-pattern map matching).
+pub fn build(tt: &Timetable, pbf: &Path, threads: usize) -> anyhow::Result<(Shapes, BuildStats)>;
+pub fn fingerprint(tt: &Timetable) -> u64;      // Shapes::timetable must equal it
+impl Shapes {
+    pub fn piece(&self, p: PatternIdx, from: usize, to: usize) -> Option<Piece>;  // the way between two stops
+    pub fn anchor(&self, p: PatternIdx, pos: usize) -> Option<LatLon>;           // where the vehicle stands
+    /// A pattern of the same mode (the line's own first) making the hop a → b: for extra journeys, changed platforms.
+    pub fn borrow(&self, tt: &Timetable, mode: Option<Mode>, line: &str, a: StopIdx, b: StopIdx) -> Option<(PatternIdx, usize)>;
+}
 ```
 
 ### kante-elevation

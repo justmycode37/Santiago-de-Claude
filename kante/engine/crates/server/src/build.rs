@@ -11,6 +11,7 @@
 //! | `search`    | `timetable.bin`, the PBF                | `search.bin`                        |
 //! | `doors`     | the PBF, `walkgraph.bin`, `osm-extract.bin`, `raw/register/adr.csv.zip` | `doors.bin` (again whenever `osm` runs) |
 //! | `elevation` | `walkgraph.bin`, `raw/dem/swissaltiregio.tif` | `slopes.bin` (again whenever `osm` runs) |
+//! | `shapes`    | `timetable.bin`, the PBF                | `shapes.bin`: each pattern's way on rails and roads (again whenever the timetable changes) |
 //!
 //! Without the terrain model (`scripts/fetch-data.sh --elevation`) there is no `slopes.bin` and walks are timed
 //! as if the country were flat; the links are made again when the slopes they were timed with change.
@@ -266,6 +267,49 @@ pub fn run(args: &Args) -> Result<()> {
             let linked = links.links.iter().filter(|l| l.matched != LinkMatch::None).count();
             eprintln!("   {} of {} boarding points attached, {} footpaths ({} step-free)", linked, links.links.len(), links.normal.len(), links.step_free.len());
             io::save(&links_path, LINKS_SCHEMA, &links)
+        })?;
+    }
+
+    // the way each pattern's vehicles take on the rails and roads: made again with the timetable (the patterns) and
+    // with a new map extract
+    let shapes_path = built.join("shapes.bin");
+    let shapes_wanted = wanted("shapes", &[(&shapes_path, kante_shapes::SHAPES_SCHEMA)])
+        || (only.is_none() && (tt_wanted || osm_wanted || {
+            let t = io::load::<Timetable>(&tt_path, TIMETABLE_SCHEMA).ok();
+            let sh = io::load::<kante_shapes::Shapes>(&shapes_path, kante_shapes::SHAPES_SCHEMA).ok();
+            !matches!((t, sh), (Some(t), Some(sh)) if sh.timetable == kante_shapes::fingerprint(&t))
+        }));
+    if shapes_wanted {
+        step("shapes", || {
+            // what it needs of the timetable; the rest (its trips and times, most of its memory) goes before the
+            // network is read
+            let input = kante_shapes::Input::of(&io::load::<Timetable>(&tt_path, TIMETABLE_SCHEMA)?);
+            // each search holds arrays over the whole network: a few at once keep the build's memory down
+            let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+            let (shapes, st) = kante_shapes::build_input(input, &pbf, threads)?;
+            eprintln!(
+                "   {} of {} patterns laid out as {} shapes ({} along their line's route relation); hops: {} on the network, {} along the relation, {} straight ({} at a stop off the map, {} others; {:.1} % of the length); {} distinct hops, {} points; boarding point to track or road: median {:.1} m, p95 {:.1} m",
+                st.laid_out,
+                st.patterns,
+                st.shapes,
+                st.with_relation,
+                st.hops[0],
+                st.hops[1],
+                st.hops[2],
+                st.straight_off_map,
+                st.straight_other,
+                100.0 * st.straight_m / st.all_m.max(1.0),
+                st.unique_hops,
+                st.points,
+                st.snap_p50,
+                st.snap_p95
+            );
+            if std::env::var_os("KANTE_SHAPES_SAMPLES").is_some() {
+                for s in &st.samples {
+                    eprintln!("   straight: {s}");
+                }
+            }
+            io::save(&shapes_path, kante_shapes::SHAPES_SCHEMA, &shapes)
         })?;
     }
 

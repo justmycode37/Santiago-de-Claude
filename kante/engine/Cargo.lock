@@ -685,6 +685,7 @@ dependencies = [
  "kante-raptor",
  "kante-rt",
  "kante-search",
+ "kante-shapes",
  "kante-walk",
  "libc",
  "parking_lot",
@@ -695,6 +696,18 @@ dependencies = [
  "tokio",
  "tower-http",
  "ureq",
+]
+
+[[package]]
+name = "kante-shapes"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kante-core",
+ "osmpbf",
+ "rayon",
+ "rustc-hash",
+ "serde",
 ]
 
 [[package]]

@@ -242,6 +242,17 @@ pub struct RideLeg {
     pub to: StopCall,
     pub intermediate: Vec<StopCall>,
     pub geometry: Vec<[f64; 2]>,
+    /// The way the vehicle takes, on the rails and roads (`geometry` is the straight line through the stops): from
+    /// where it stands at the first call (beside the boarding point) to where it stands at the last. Empty where not
+    /// known.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub path: Vec<[f64; 2]>,
+    /// Per call: its vertex in `path`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub path_at: Vec<u32>,
+    /// The hops (by the index of the call they start at) where `path` is a straight line: a stop off the map.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub straight_hops: Vec<u16>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub stay_on_board: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -457,6 +468,17 @@ pub struct TripResponse {
     pub number: Option<String>,
     pub calls: Vec<StopCall>,
     pub geometry: Vec<[f64; 2]>,
+    /// The way the vehicle takes, on the rails and roads (`geometry` is the straight line through the stops): from
+    /// where it stands at the first call (beside the boarding point) to where it stands at the last. Empty where not
+    /// known.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub path: Vec<[f64; 2]>,
+    /// Per call: its vertex in `path`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub path_at: Vec<u32>,
+    /// The hops (by the index of the call they start at) where `path` is a straight line: a stop off the map.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub straight_hops: Vec<u16>,
     pub live: &'static str,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub cancelled: bool,
@@ -494,6 +516,18 @@ pub struct Vehicle {
     pub live_info: LiveInfo,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub extra: bool,
+    /// As on `Position`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_path: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hop_straight: bool,
+    /// As on `Position`: `/api/vehicles` sends only the part of a long hop's way near the window asked about.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_span: Option<[f32; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub point: Option<[f64; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -617,6 +651,25 @@ pub struct Position {
     pub dep: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arr: Option<i64>,
+    /// `between`: the way from `from` to `to` on the rails and roads (Google encoded polyline, precision 5),
+    /// from where the vehicle stands at `seq` to where it stands at `nextSeq`. Absent where only the straight line
+    /// is known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_path: Option<String>,
+    /// Some of `hopPath` is a straight line (a stop off the map).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hop_straight: bool,
+    /// When `hopPath` is only part of the hop's way: the shares of the whole way's length (0..1) it starts and ends
+    /// at. The vehicle is at `frac` of the whole way: on the part at (`frac` − start) / (end − start).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_span: Option<[f32; 2]>,
+    /// Where the vehicle is at `t` on its track or road: `between`, `frac` of the way along `hopPath`; otherwise
+    /// where it stands at `seq` (beside its boarding point). Absent where not known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub point: Option<[f64; 2]>,
+    /// `between`: the direction it drives in at `point`, degrees from north.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading: Option<f32>,
 }
 
 #[derive(Serialize)]

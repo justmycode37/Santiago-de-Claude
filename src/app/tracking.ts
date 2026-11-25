@@ -4,7 +4,7 @@
 import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
-import { fixAge, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';
+import { fixAge, fixTime, gpsOn, userAccuracy, userLngLat, userMarker } from './location.ts';
 import { destMarker } from './search.ts';
 import { hasForecast, icon, journeyEnd, lineLabel, lineVars, liveMs, modeOf, routedSpan, splitLine, stopName } from './journey-steps.ts';
 import { rideTrip } from './live-engine.ts';
@@ -117,10 +117,17 @@ function pointAtKm(cs: LngLat[], km: number): LngLat | null {
   const len = lengthKm(cs);
   return cs.length < 2 || !len ? cs[0] : splitLine(cs, Math.min(1, Math.max(0, km / len)))[2];
 }
-// How far along a ride's line (km) each of its stops is
+// How far along a ride's line (km) each of its stops is. Where the engine laid the ride onto the rails and roads, each
+// stop is a vertex of the line (pathIdx): exact, also where the line passes the same place twice (a loop, a terminus
+// it goes round). Else each stop is projected onto the line drawn through them.
 export function stopKms(st: JourneyRideStep): number[] {
   if (st._kmFor === st.path) return st._kms!;
   const cs = st.path, cum = cumKm(cs);
+  if (st.pathIdx && st.pathIdx.length === st.stops.length && st.pathIdx.every((i) => i < cs.length)) {
+    st._kms = st.pathIdx.map((i) => cum[i]);
+    st._kmFor = cs;
+    return st._kms;
+  }
   let j0 = 0;
   st._kms = st.stops.map((p) => {
     let best: { d: number; j: number; km: number } | null = null;
@@ -230,17 +237,31 @@ function guessedKm(st: JourneyStep, cum: number[]): [number, number][] {
 // the stretch begins (walkedKmIn: on the guessed start, or a walk all guessed, not at all; on the guessed end, up to
 // where the routed part ends), until you are within 25 m of the walk's end. The blue dot is not put on it
 // (placeUserDot()), there too.
-export function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null {
+export function snapToTrip(p: LngLat, ref: number, now: number, reach?: Reach | null): TripSnap | null {
+  return snapBoth(p, ref, now, reach).best;
+}
+/** Where you can have got to since the last fix: km into the trip. */
+export interface Reach { lo: number; hi: number }
+// The snap within `reach` (best), and the best anywhere on the trip (free): a place outside reach is not taken from one
+// fix (it costs a kilometre and more), however near the line it is.
+function snapBoth(p: LngLat, ref: number, now: number, reach?: Reach | null): { best: TripSnap | null; free: TripSnap | null } {
   const lay = tripLayout();
-  let best: TripSnap | null = null;
+  let best: TripSnap | null = null, free: TripSnap | null = null;
   journey.steps.forEach((st, i) => {
     const cs = stepLine(st);
     if (!cs.length) return;
     const early = st.type === 'ride' && st.t0 != null && now < st.t0 - 60000 ? 150 : 0;
-    const consider = (d: number, kmIn: number, walkedKmIn?: number) => { // walkedKmIn: on a guessed stretch, how far it is drawn as walked
+    // walkedKmIn: on a guessed stretch, how far it is drawn as walked; reachOnly: a place only for the snap within reach
+    const consider = (d: number, kmIn: number, walkedKmIn?: number, reachOnly?: boolean) => {
       const km = lay.km0[i] + kmIn;
       const cost = d + early + (km < ref ? (ref - km) * 500 : (km - ref) * 20);
-      if (!best || cost < best.cost) best = walkedKmIn == null ? { cost, d, i, kmIn, km } : { cost, d, i, kmIn, km, walkedKmIn, guess: true };
+      const out = reach ? Math.max(0, reach.lo - km, km - reach.hi) : 0;
+      const c = cost + (out > 0 ? 1000 + out * 2000 : 0);
+      // free: where the fix is nearest the line, wherever that is (ties to the nearer to where you were)
+      const near = d + early + Math.abs(km - ref) * 2;
+      const snap = (x: number): TripSnap => walkedKmIn == null ? { cost: x, d, i, kmIn, km } : { cost: x, d, i, kmIn, km, walkedKmIn, guess: true };
+      if (!best || c < best.cost) best = snap(c);
+      if (!reachOnly && (!free || near < free.cost)) free = snap(near);
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
     const cum = cumKm(cs), guesses = guessedKm(st, cum);
@@ -250,9 +271,28 @@ export function snapToTrip(p: LngLat, ref: number, now: number): TripSnap | null
       // on a guess: past where it begins (where a routed part ends is on that part), or anywhere on a guess the walk starts with
       const g = guesses.find(([a, b]) => k >= a && k <= b && (k > a || a === 0));
       consider(q.d, k, g ? (nearEnd ? k : g[0]) : undefined);
+      // the fix's foot on the segment is out of reach, but some of the segment is not: its nearest place within reach
+      // (a long straight stretch must not let one fix carry you to its far end)
+      if (reach) {
+        const k0 = lay.km0[i] + cum[j], k1 = lay.km0[i] + cum[j + 1], kk = lay.km0[i] + k;
+        const lo = Math.max(k0, reach.lo), hi = Math.min(k1, reach.hi);
+        if (lo <= hi && (kk < lo || kk > hi) && k1 > k0) {
+          const kc = Math.min(hi, Math.max(lo, kk)), t = (kc - k0) / (k1 - k0);
+          const pt: LngLat = [cs[j][0] + (cs[j + 1][0] - cs[j][0]) * t, cs[j][1] + (cs[j + 1][1] - cs[j][1]) * t];
+          const kin = kc - lay.km0[i], gc = guesses.find(([a, b]) => kin >= a && kin <= b && (kin > a || a === 0));
+          consider(distKm(p, pt) * 1000, kin, gc ? (nearEnd ? kin : gc[0]) : undefined, true);
+        }
+      }
     }
   });
-  return best;
+  return { best, free };
+}
+
+// The fastest you can move on a step, m/s: on foot (running for it), or on board (the line's mode)
+function topSpeed(st: JourneyStep) {
+  if (st.type !== 'ride') return 7;
+  const m = modeOf(st.s.line.category);
+  return m === 'train' ? 70 : m === 'bus' || m === 'tram' || m === 'boat' || m === 'cable' ? 28 : 40;
 }
 
 // Still at (or on the way to) the stop of a ride that has left without you?
@@ -292,9 +332,37 @@ function trackOnce() {
   if (!journey.steps.length || !gpsOn() || !tripLive()) { tracking.track = null; return; }
   const now = Date.now(), lay = tripLayout(), tp = timeProgress(now);
   // where you were at the last fix (measured on today's lines), else where the timetable puts you
-  const ref = tracking.track && !tracking.track.off && tracking.track.v === tracking.geoVersion ? tracking.track.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
-  const s = snapToTrip(userLngLat!, ref, now);
+  const prev = tracking.track && !tracking.track.off && tracking.track.v === tracking.geoVersion ? tracking.track : null;
+  const ref = prev ? prev.km : tp ? lay.km0[tp.i] + tp.kmIn : 0;
+  // From a place on the trip you can only have got so far since that fix (at the top speed of the step you were on):
+  // on a line that passes the same place twice (a loop, the way out and back beside it, a walk beside the ride), or
+  // past a stray fix, you stay where you were going. The fix's own time: the same fix followed again (the page does
+  // every few seconds) gets you no further, and does not count again towards being off the route or towards a jump.
+  const fixAt = fixTime(), fresh = fixAt > tracking.fixAt;
+  const acc = Math.min(Math.max(userAccuracy, 10), 150);
+  // (back along the trip is only dear, as it was: a fix that put you on too far is undone by the next one)
+  // (at the top speed of the step you were on or the next ones: from the platform onto a train between two fixes)
+  const vmax = prev ? Math.max(...journey.steps.slice(prev.i, prev.i + 3).map(topSpeed)) : 0;
+  const reach = prev && prev.i < journey.steps.length
+    ? { lo: -Infinity, hi: prev.km + (fresh ? (vmax * Math.max(0, fixAt - tracking.fixAt) / 1000 + 2 * acc + 100) / 1000 : 0) }
+    : null;
+  if (!reach) tracking.jump = null; // nothing to jump from (a trip just opened, or you were off it)
+  const both = snapBoth(userLngLat!, ref, now, reach);
+  let s = both.best;
   if (!s) { tracking.track = null; return; }
+  // Somewhere else on the trip, much nearer the fix than the place within reach (on, out of reach; or back, further
+  // than going back is believed from one fix), is believed when three fixes in a row (each taken later than the one
+  // before) agree on it: the line really does go on there (you got on a vehicle the timetable did not expect, GPS was
+  // lost for a while), or you were put on the wrong pass of a line that passes the same place twice
+  const free = both.free;
+  if (reach && free && Math.abs(free.km - s.km) > 0.2 && free.d + 25 < s.d) {
+    const j = tracking.jump;
+    const along = j ? (topSpeed(journey.steps[free.i]) * Math.max(0, fixAt - j.at) / 1000 + 2 * acc + 100) / 1000 : 0;
+    const n = !j ? 1 : fixAt === j.at ? j.n : Math.abs(free.km - j.km) <= along ? j.n + 1 : 1;
+    tracking.jump = { km: free.km, at: fixAt, n };
+    if (n >= 3) { s = free; tracking.jump = null; }
+  } else tracking.jump = null;
+  tracking.fixAt = fixAt;
   const arrive = (t: TripSnap) => {
     const a: TrackState = { ...t, i: journey.steps.length - 1, kmIn: 0, km: lay.total, v: tracking.geoVersion, offCount: 0, off: false, onRoute: true, arrived: true, missed: null };
     delete a.walkedKmIn;
@@ -310,9 +378,11 @@ function trackOnce() {
   const tol = onFoot ? Math.max(25, Math.min(userAccuracy, 150)) + 20 : Math.max(35, Math.min(userAccuracy, 150)) + 30;
   // A trip that starts somewhere else: you are not "off the route" before you have been on it
   // (once you have been on it, leaving it again is "off the route", however long that lasts)
-  const onRoute = !!(tracking.track && tracking.track.onRoute) || s.d <= tol;
+  // near some part of the trip is not off it, also while a jump there is not believed yet
+  const near = Math.min(s.d, free ? free.d : Infinity);
+  const onRoute = !!(tracking.track && tracking.track.onRoute) || near <= tol;
   if (searchState.tripStart && !onRoute) { tracking.track = null; return; }
-  const offCount = s.d > tol ? ((tracking.track && tracking.track.offCount) || 0) + 1 : 0;
+  const offCount = near > tol ? ((tracking.track && tracking.track.offCount) || 0) + (fresh ? 1 : 0) : 0;
   tracking.track = { ...s, v: tracking.geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (tracking.track.off) return;
   // Arrived: within 25 m of the trip's end along its line (a trip that ends on foot only past its last ride: not on

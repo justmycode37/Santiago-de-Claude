@@ -109,6 +109,39 @@ function shapeFor(profile: Profile | undefined, fx: number, fy: number, tx: numb
   return 0;
 }
 
+// The engine's own ways (it lays each line onto the network as a whole, `kante build`), by their geometry: two lines
+// between the same stops that take other streets keep their own. Kept for this run only (the engine has them again).
+const engineShapeOf = new Map<string, number>();
+/** The shape id of one of the engine's ways (an encoded polyline). */
+function engineShape(enc: string) {
+  let id = engineShapeOf.get(enc);
+  if (id === undefined) engineShapeOf.set(enc, (id = shapes.push(enc) - 1));
+  return id;
+}
+/** Per hop of a trip (call j → j + 1): the id of the engine's way for it, 0 where it has none (the shaper's then). */
+function engineHops(d: LiveMapEngineTrip): number[] {
+  const at = d.pathAt, path = d.path;
+  if (!path || !at || at.length !== d.calls.length) return [];
+  const straight = new Set(d.straightHops || []);
+  return d.calls.slice(1).map((_, j) => (straight.has(j) || at[j + 1] <= at[j] ? 0 : engineShape(encodePolyline(path.slice(at[j], at[j + 1] + 1)))));
+}
+
+/** Google's encoded polyline, precision 5 (as the shaper and the engine write it). */
+function encodePolyline(pts: [number, number][]) {
+  let out = "", plat = 0, plon = 0;
+  const put = (v: number) => {
+    v = v < 0 ? ~(v << 1) : v << 1;
+    while (v >= 0x20) { out += String.fromCharCode(((v & 0x1f) | 0x20) + 63); v >>>= 5; }
+    out += String.fromCharCode(v + 63);
+  };
+  for (const [lon, lat] of pts) {
+    const la = Math.round(lat * 1e5), lo = Math.round(lon * 1e5);
+    put(la - plat); put(lo - plon);
+    plat = la; plon = lo;
+  }
+  return out;
+}
+
 /** Like shapeFor, but waits (briefly) for the shaper's answer. */
 async function shapeForAwait(profile: Profile | undefined, fx: number, fy: number, tx: number, ty: number) {
   const id = shapeFor(profile, fx, fy, tx, ty);
@@ -161,7 +194,9 @@ async function buildSnapshot() {
   const meta = await engineJson<LiveMapEngineMeta>("/api/meta");
   // Queue every hop that has no path yet and give the shaper a moment, so a
   // vehicle is on its rails or road from the first snapshot that shows the hop.
-  for (const v of all.values()) shapeFor(PROFILE[v.line.mode], r5(v.from[0]), r5(v.from[1]), r5(v.to[0]), r5(v.to[1]));
+  // the engine's own way for a hop where it sent all of it; the shaper for the rest
+  const own = (v: LiveMapEngineVehicle) => (v.hopPath && !v.hopSpan && !v.hopStraight ? engineShape(v.hopPath) : 0);
+  for (const v of all.values()) if (!own(v)) shapeFor(PROFILE[v.line.mode], r5(v.from[0]), r5(v.from[1]), r5(v.to[0]), r5(v.to[1]));
   if (pending.size) await Promise.race([Promise.all([...pending.values()]), new Promise((resolve) => setTimeout(resolve, 3000))]);
   const rows: LiveMapVehicleRow[] = [];
   for (const v of all.values()) {
@@ -170,7 +205,7 @@ async function buildSnapshot() {
       v.tripId, v.serviceDate, v.line.name, v.line.category, v.line.mode, v.line.operator, v.headsign,
       fx, fy, tx, ty, v.dep, v.arr, v.nextStop,
       LIVE_CODE[v.live] ?? 0,
-      shapeFor(PROFILE[v.line.mode], fx, fy, tx, ty),
+      own(v) || shapeFor(PROFILE[v.line.mode], fx, fy, tx, ty),
     ]);
   }
   const body: LiveMapVehicles = {
@@ -222,7 +257,8 @@ type Anchor = [t: number, stop: number];
 type FleetTail = [live: LiveMapLiveCode, base: number, stops: number[], anchors: number[]];
 const fleet = new Map<string, FleetEntry>();      // key → { id, rev, rec, sig }
 const tombs: [rev: number, id: number][] = [];             // [rev, id] of vehicles that have gone
-const tripCache = new Map<string, { feed: Feed; calls: LiveCall[] }>();  // key → { feed, calls: [{ lon, lat, arr, dep }] } with live times
+// key → { feed, calls: [{ lon, lat, arr, dep }] } with live times, hops: the engine's way per hop (engineHops())
+const tripCache = new Map<string, { feed: Feed; calls: LiveCall[]; hops: number[] }>();
 const shapeMetres = [0];
 let fleetRev = 0, nextVehicleId = 1, fleetFeed: number | null | undefined = null, fleetBuilding: Promise<void> | null = null, fleetTimer: NodeJS.Timeout | null = null, lastAsk = 0, fleetBuiltAt = 0;
 
@@ -275,7 +311,7 @@ async function buildFleet() {
       const [key, v, want] = need[next++];
       try {
         const d = await engineJson<LiveMapEngineTrip>(`/api/trip?id=${encodeURIComponent(v.tripId)}&date=${encodeURIComponent(v.serviceDate)}`);
-        tripCache.set(key, { feed: want, calls: liveCalls(d) });
+        tripCache.set(key, { feed: want, calls: liveCalls(d), hops: engineHops(d) });
       } catch { /* keep the previous timeline */ }
     }
   }));
@@ -289,7 +325,7 @@ async function buildFleet() {
   for (const [key, v] of all) {
     const tc = tripCache.get(key); if (!tc || tc.calls.length < 2) continue;
     const [base, end] = windowOf(v, tc.calls.length), profile = PROFILE[v.line.mode];
-    for (let j = base; j + 1 < end; j++) shapeFor(profile, tc.calls[j].lon, tc.calls[j].lat, tc.calls[j + 1].lon, tc.calls[j + 1].lat);
+    for (let j = base; j + 1 < end; j++) if (!tc.hops[j]) shapeFor(profile, tc.calls[j].lon, tc.calls[j].lat, tc.calls[j + 1].lon, tc.calls[j + 1].lat);
   }
   if (pending.size) await Promise.race([Promise.all([...pending.values()]), new Promise((resolve) => setTimeout(resolve, 3000))]);
 
@@ -299,7 +335,7 @@ async function buildFleet() {
     const stops: number[] = [], S = [0];
     for (let j = base; j < end; j++) {
       const c = calls[j], n = calls[j + 1];
-      const sid = j + 1 < end ? shapeFor(profile, c.lon, c.lat, n.lon, n.lat) : 0;
+      const sid = j + 1 < end ? tc.hops[j] || shapeFor(profile, c.lon, c.lat, n.lon, n.lat) : 0;
       stops.push(c.lon, c.lat, sid);
       if (j + 1 < end) S.push(S[S.length - 1] + (sid ? lengthOf(sid) : metres(c.lon, c.lat, n.lon, n.lat)));
     }
@@ -356,10 +392,12 @@ async function trip(url: URL, res: http.ServerResponse) {
     name: c.quay.stationName, label: c.quay.label, noun: c.quay.noun, lat: c.quay.lat, lon: c.quay.lon,
     arr: c.arr ?? null, dep: c.dep ?? null, arrDelayS: c.arrDelayS ?? null, depDelayS: c.depDelayS ?? null,
   }));
-  // One encoded path per hop between consecutive stops; null where there is none.
+  // One encoded path per hop between consecutive stops; null where there is none. The engine's way where it has one.
   const profile = PROFILE[d.line?.mode];
+  const hops = engineHops(d);
   const segments = await Promise.all(calls.slice(1).map(async (b, i) => {
     const a = calls[i];
+    if (hops[i]) return shapes[hops[i]];
     const sid = await shapeForAwait(profile, r5(a.lon), r5(a.lat), r5(b.lon), r5(b.lat));
     return sid ? shapes[sid] : null;
   }));

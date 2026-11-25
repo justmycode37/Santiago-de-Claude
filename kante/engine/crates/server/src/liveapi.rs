@@ -14,6 +14,10 @@ use kante_core::time::{self, Date};
 use kante_core::*;
 use std::sync::Arc;
 
+/// How far beyond the asked window `/api/vehicles` keeps a vehicle's way (metres): what it drives through between
+/// two answers, and more.
+pub const VEHICLE_WAY_PAD_M: f32 = 1500.0;
+
 /// Live data older than this (by the newest feed document) is `stale`.
 pub const STALE_S: i64 = 300;
 
@@ -78,6 +82,10 @@ impl LiveFacts {
 
 pub struct Run {
     pub mode: Option<Mode>,
+    /// The timetable pattern (its shape is the way the vehicle takes); None for an extra journey.
+    pub pattern: Option<PatternIdx>,
+    /// The line's name as shown ("10", "S3"): hops borrowed from other patterns are its own line's first.
+    pub line: String,
     pub id: String,
     pub date: Date,
     pub calls: Vec<RunCall>,
@@ -111,6 +119,8 @@ impl Run {
             .collect();
         Run {
             mode: Some(tt.trip_line(trip).mode),
+            pattern: Some(tt.trips[trip as usize].pattern),
+            line: tt.trip_line(trip).name.clone(),
             id: tt.trip_gtfs_id(trip).to_string(),
             date,
             calls,
@@ -139,7 +149,7 @@ impl Run {
                 aimed_dep: if i + 1 < n { c.aimed_dep.or(c.aimed_arr) } else { None },
             })
             .collect();
-        Run { mode: e.mode, id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
+        Run { mode: e.mode, pattern: None, line: e.line.clone(), id: e.id.clone(), date: e.date, calls, facts: LiveFacts::of_extra(e), cancelled: e.cancelled, extra: true }
     }
 
     /// Calls the vehicle actually stops at, with (index, arrival, departure); a
@@ -262,8 +272,146 @@ fn served_with_profiles_applied(app: &App, run: &Run) -> (Vec<(usize, i64, i64)>
     (served, applied)
 }
 
+/// The way the vehicle of `run` takes from call `i` to call `j` (`i < j`) on the rails and roads, and whether some of
+/// it is a straight line (a stop off the map); None where only the straight line is known. The pattern's own shape
+/// where the run keeps to its boarding points; where one changed, or for an extra journey, the hops some pattern
+/// makes between the same boarding points, of the same mode and the run's own line first (the pattern's shape when
+/// there is none: the right line, a track off).
+pub fn hop_way(app: &App, run: &Run, i: usize, j: usize) -> Option<(Vec<LatLon>, bool)> {
+    let sh = app.shapes.as_ref()?;
+    if i >= j || j >= run.calls.len() {
+        return None;
+    }
+    let changed = run.calls[i..=j].iter().any(|c| c.planned.is_some());
+    let own = || run.pattern.and_then(|p| sh.piece(p, i, j)).map(|w| (w.pts, w.straight));
+    if !changed {
+        if let Some(w) = own() {
+            return Some(w);
+        }
+    }
+    let mut pts: Vec<LatLon> = Vec::new();
+    for k in i..j {
+        let found = sh.borrow(&app.tt, run.mode, &run.line, run.calls[k].stop, run.calls[k + 1].stop).and_then(|(p, pos)| sh.piece(p, pos, pos + 1));
+        let Some(w) = found else { return own() };
+        let skip = usize::from(pts.last() == w.pts.first());
+        pts.extend_from_slice(&w.pts[skip..]);
+    }
+    Some((pts, false))
+}
+
+/// The way of `run` from call `from` to call `to`, hop by hop ([`hop_way`]; a hop without one is the straight line
+/// between where the vehicle stands at its ends): (points as [lon, lat], each call's vertex, the hops that are
+/// straight lines, by the call they start at). None where no hop has a way.
+pub fn run_path(app: &App, run: &Run, from: usize, to: usize) -> Option<(Vec<[f64; 2]>, Vec<u32>, Vec<u16>)> {
+    app.shapes.as_ref()?;
+    let mut pts: Vec<LatLon> = Vec::new();
+    let mut at = Vec::with_capacity(to + 1 - from);
+    let mut straight = Vec::new();
+    let mut any = false;
+    let stand = |i: usize| anchor(app, run, i).unwrap_or(app.tt.stops[run.calls[i].stop as usize].pos);
+    for k in from..to {
+        let (w, flat) = match hop_way(app, run, k, k + 1) {
+            Some((w, s)) => {
+                any = true;
+                (w, s)
+            }
+            None => (vec![stand(k), stand(k + 1)], true),
+        };
+        if flat {
+            straight.push((k - from) as u16);
+        }
+        if pts.is_empty() {
+            at.push(0);
+        }
+        let skip = usize::from(!pts.is_empty() && pts.last() == w.first());
+        pts.extend_from_slice(&w[skip..]);
+        at.push(pts.len() as u32 - 1);
+    }
+    if !any {
+        return None;
+    }
+    Some((pts.iter().map(lonlat).collect(), at, straight))
+}
+
+/// Where the vehicle of `run` stands at call `i`, on its track or road (None where not known).
+pub fn anchor(app: &App, run: &Run, i: usize) -> Option<LatLon> {
+    let sh = app.shapes.as_ref()?;
+    let c = run.calls.get(i)?;
+    if c.planned.is_none() {
+        if let Some(a) = run.pattern.and_then(|p| sh.anchor(p, i)) {
+            return Some(a);
+        }
+    }
+    let borrow = |a: StopIdx, b: StopIdx| sh.borrow(&app.tt, run.mode, &run.line, a, b);
+    let next = (i + 1 < run.calls.len()).then(|| borrow(c.stop, run.calls[i + 1].stop)).flatten();
+    let prev = (i > 0).then(|| borrow(run.calls[i - 1].stop, c.stop)).flatten().map(|(p, pos)| (p, pos + 1));
+    next.or(prev).and_then(|(p, pos)| sh.anchor(p, pos))
+}
+
+/// The point a share `f` (0..=1) of the way along `pts`, and the bearing of travel there (None on a way of no length).
+pub fn along(pts: &[LatLon], f: f32) -> (LatLon, Option<f32>) {
+    let lens: Vec<f32> = pts.windows(2).map(|w| w[0].dist_m(&w[1])).collect();
+    let total: f32 = lens.iter().sum();
+    if pts.len() < 2 || total <= 0.0 {
+        return (pts.first().copied().unwrap_or(LatLon::NONE), None);
+    }
+    let goal = total * f.clamp(0.0, 1.0);
+    let mut acc = 0.0;
+    for (k, &l) in lens.iter().enumerate() {
+        if l > 0.0 && (acc + l >= goal || k + 1 == lens.len()) {
+            let t = ((goal - acc) / l).clamp(0.0, 1.0);
+            return (pts[k].lerp(&pts[k + 1], t), Some(pts[k].bearing_deg(&pts[k + 1]).round()));
+        }
+        acc += l;
+    }
+    (pts[pts.len() - 1], None)
+}
+
 /// Where the vehicle of `run` is at `now`.
 pub fn position(app: &App, run: &Run, now: i64) -> Option<json::Position> {
+    position_way(app, run, now).map(|(mut p, way)| {
+        p.hop_path = way.map(kante_shapes::encode);
+        p
+    })
+}
+
+/// The part of `pts` near `bbox` (within `pad` metres; with the point before and after, so the vehicle runs on
+/// into and out of the window), and the share of the whole way's length it starts and ends at. None for the span
+/// when it is the whole way.
+pub fn clip_way(pts: &[LatLon], bbox: &BBox, pad: f32) -> (Vec<LatLon>, Option<[f32; 2]>) {
+    let n = pts.len();
+    if n < 3 {
+        return (pts.to_vec(), None);
+    }
+    let mut grown = *bbox;
+    let corner_a = BBox::around(bbox.min, pad);
+    let corner_b = BBox::around(bbox.max, pad);
+    grown.extend(&corner_a.min);
+    grown.extend(&corner_b.max);
+    let inside: Vec<bool> = pts.iter().map(|q| grown.contains(q)).collect();
+    // segments crossing the box with both ends outside: keep both ends
+    let hit = |k: usize| inside[k] || inside[k + 1] || {
+        let mut s = BBox::empty();
+        s.extend(&pts[k]);
+        s.extend(&pts[k + 1]);
+        s.intersects(&grown)
+    };
+    let (Some(first), Some(last)) = ((0..n - 1).find(|&k| hit(k)), (0..n - 1).rev().find(|&k| hit(k))) else {
+        return (pts.to_vec(), None);
+    };
+    let (a, b) = (first, last + 1);
+    if a == 0 && b == n - 1 {
+        return (pts.to_vec(), None);
+    }
+    let mut cum = vec![0.0f32; n];
+    for k in 1..n {
+        cum[k] = cum[k - 1] + pts[k - 1].dist_m(&pts[k]);
+    }
+    let total = cum[n - 1].max(0.01);
+    (pts[a..=b].to_vec(), Some([cum[a] / total, cum[b] / total]))
+}
+
+fn position_way(app: &App, run: &Run, now: i64) -> Option<(json::Position, Option<Vec<LatLon>>)> {
     let tt = &app.tt;
     let served = served_with_profiles(app, run);
     let pos = |i: usize| lonlat(&tt.stops[run.calls[i].stop as usize].pos);
@@ -273,41 +421,75 @@ pub fn position(app: &App, run: &Run, now: i64) -> Option<json::Position> {
     let measured = |i: usize, kind: u8| f.observed_pos >= 0 && ((f.observed_pos as usize) > i || (f.observed_pos as usize == i && f.observed_kind & kind != 0));
     let at = |k: usize, basis: &'static str| {
         let (i, a, d) = served[k];
-        json::Position { state: "at", seq: i as u16, from: pos(i), to: pos(i), frac: 0.0, basis, t: now, next_seq: None, dep: Some(d), arr: Some(a) }
+        let point = anchor(app, run, i).map(|p| lonlat(&p));
+        json::Position {
+            state: "at",
+            seq: i as u16,
+            from: pos(i),
+            to: pos(i),
+            frac: 0.0,
+            basis,
+            t: now,
+            next_seq: None,
+            dep: Some(d),
+            arr: Some(a),
+            hop_path: None,
+            hop_straight: false,
+            hop_span: None,
+            point,
+            heading: None,
+        }
     };
     let basis_at = |i: usize| if !f.live { "timetable" } else if measured(i, OBSERVED_ARR) { "observed-stop" } else { "forecast" };
     let n = served.len();
     if now < first.2 {
         let state = if now < first.1 { "before-start" } else { "at" };
-        return Some(json::Position { state, ..at(0, basis_at(first.0)) });
+        return Some((json::Position { state, ..at(0, basis_at(first.0)) }, None));
     }
     if now >= last.1 {
-        return Some(json::Position { state: "ended", ..at(n - 1, basis_at(last.0)) });
+        return Some((json::Position { state: "ended", ..at(n - 1, basis_at(last.0)) }, None));
     }
     for (k, w) in served.windows(2).enumerate() {
         let ((i, a_i, d_i), (j, a_j, _)) = (w[0], w[1]);
         if now >= a_i && now < d_i {
-            return Some(at(k, basis_at(i)));
+            return Some((at(k, basis_at(i)), None));
         }
         if now >= d_i && now < a_j {
             let span = (a_j - d_i).max(1);
             let est = ((now - d_i) as f32 / span as f32).clamp(0.0, 1.0);
             let basis = if !f.live { "timetable" } else if measured(i, OBSERVED_DEP) { "observed-stop" } else { "forecast" };
-            return Some(json::Position {
-                state: "between",
-                seq: i as u16,
-                from: pos(i),
-                to: pos(j),
-                frac: est,
-                basis,
-                t: now,
-                next_seq: Some(j as u16),
-                dep: Some(d_i),
-                arr: Some(a_j),
-            });
+            // on the way the vehicle takes, the same share of its length as of the time (no acceleration or braking)
+            let way = hop_way(app, run, i, j);
+            let (point, heading) = match &way {
+                Some((pts, _)) => {
+                    let (p, h) = along(pts, est);
+                    (Some(lonlat(&p)), h)
+                }
+                None => (None, None),
+            };
+            return Some((
+                json::Position {
+                    state: "between",
+                    seq: i as u16,
+                    from: pos(i),
+                    to: pos(j),
+                    frac: est,
+                    basis,
+                    t: now,
+                    next_seq: Some(j as u16),
+                    dep: Some(d_i),
+                    arr: Some(a_j),
+                    hop_straight: way.as_ref().is_some_and(|w| w.1),
+                    hop_path: None,
+                    hop_span: None,
+                    point,
+                    heading,
+                },
+                way.map(|w| w.0),
+            ));
         }
     }
-    Some(at(n - 1, basis_at(last.0)))
+    Some((at(n - 1, basis_at(last.0)), None))
 }
 
 /// Line badge of an extra journey ("EV", "S 1", "IC 8").
@@ -775,9 +957,17 @@ pub fn station_of(app: &App, id: &str) -> Option<StationIdx> {
 /// A vehicle as `/api/vehicles` lists it, everything taken from its position
 /// (the same served hop), so geometry, fraction and times always agree.
 #[allow(clippy::too_many_arguments)]
-fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, live: &'static str, ages: FeedAges, t: i64) -> Option<json::Vehicle> {
+fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, live: &'static str, ages: FeedAges, t: i64, bbox: &BBox) -> Option<json::Vehicle> {
     let tt = &app.tt;
-    let p = position(app, run, t)?;
+    let (p, way) = position_way(app, run, t)?;
+    // only the part of a long hop (an express train's 60 km) near the window asked about
+    let (hop_path, hop_span) = match way {
+        Some(w) => {
+            let (part, span) = clip_way(&w, bbox, VEHICLE_WAY_PAD_M);
+            (Some(kante_shapes::encode(part)), span)
+        }
+        None => (None, None),
+    };
     if p.state == "before-start" || p.state == "ended" {
         return None;
     }
@@ -798,7 +988,22 @@ fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, liv
         basis: p.basis,
         live_info: live_info(&run.facts, ages, t),
         extra: run.extra,
+        hop_path,
+        hop_straight: p.hop_straight,
+        hop_span,
+        point: p.point,
+        heading: p.heading,
     })
+}
+
+/// The vehicle is within reach of `bbox` (`VEHICLE_WAY_PAD_M`: what it drives between two answers) where its place on
+/// its way is known; otherwise as the straight hop found it.
+fn near_box(v: &json::Vehicle, bbox: &BBox) -> bool {
+    let Some(p) = v.point else { return true };
+    let mut grown = *bbox;
+    grown.extend(&BBox::around(bbox.min, VEHICLE_WAY_PAD_M).min);
+    grown.extend(&BBox::around(bbox.max, VEHICLE_WAY_PAD_M).max);
+    grown.contains(&LatLon::from_deg(p[1], p[0]))
 }
 
 /// Every vehicle under way in `bbox` at `t`, timetable trips and extra journeys.
@@ -824,7 +1029,9 @@ pub fn vehicles_in(app: &App, live: Option<&dyn LiveView>, bbox: &BBox, t: i64) 
         }
         let run = Run::of_trip(app, v.trip, v.date, tl);
         let tr = &tt.trips[v.trip as usize];
-        out.extend(vehicle_of(app, &run, app.line_badge(v.trip), tt.str(tr.headsign).to_string(), App::live_state(tl), ages, t));
+        // the router finds the hops whose way passes the box; the vehicle itself must be near it (a long hop's train
+        // can be 30 km off yet)
+        out.extend(vehicle_of(app, &run, app.line_badge(v.trip), tt.str(tr.headsign).to_string(), App::live_state(tl), ages, t, bbox).filter(|v| near_box(v, bbox)));
     }
     if let Some(l) = live {
         for x in l.extras() {
@@ -832,11 +1039,12 @@ pub fn vehicles_in(app: &App, live: Option<&dyn LiveView>, bbox: &BBox, t: i64) 
                 continue;
             }
             let run = Run::of_extra(x);
-            let Some(v) = vehicle_of(app, &run, extra_badge(x), x.headsign.clone(), if run.facts.observed_pos >= 0 { "observed" } else { "predicted" }, ages, t) else {
+            let Some(v) = vehicle_of(app, &run, extra_badge(x), x.headsign.clone(), if run.facts.observed_pos >= 0 { "observed" } else { "predicted" }, ages, t, bbox) else {
                 continue;
             };
             let (a, b) = (LatLon::from_deg(v.from[1], v.from[0]), LatLon::from_deg(v.to[1], v.to[0]));
-            if bbox.contains(&a) || bbox.contains(&b) {
+            let on_way = v.point.is_some_and(|p| bbox.contains(&LatLon::from_deg(p[1], p[0])));
+            if bbox.contains(&a) || bbox.contains(&b) || on_way {
                 out.push(v);
             }
         }
