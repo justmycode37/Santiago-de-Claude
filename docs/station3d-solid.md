@@ -23,7 +23,18 @@
   floors above the way are cut open along it (a corridor cutaway: the rest of each floor stays), and a faint copy of
   the tube shows through any floor that still hides it. In a step, the play-through and while following you, whatever
   stands above the floor in focus between the camera and it is cut out too (a round see-through hole), so no floor or
-  shop hides the step.
+  shop hides the step. Stairs, escalators and ramps are cut or kept whole by where they start (cutaway's `base`): one
+  that starts at or below the floor in view shows all the way up to the floor it reaches, not just its first steps.
+  On walks the tube follows the same path as the walker and the eye (below), in the open part of a passage.
+
+## The card
+
+The step at hand, the train and the notices are one **sheet** at the bottom. It opens at its smallest (the step in a
+line and its buttons first, then where to get on), is dragged up by its grip (or anywhere on it that is not a button) to half the
+screen (the coaches, the legend) or to all of it (with the list of steps), and remembers the size. In first person and
+while the way plays it drops to its smallest by itself and comes back after. The view frames the way in what the sheet
+leaves free (the camera's centre is moved up by an off-centre projection, `setInsets`; not in first person, so the
+horizon stays put), and labels under the sheet are not shown.
 
 ## Guidance in the model
 
@@ -69,17 +80,24 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   - **stairs** with closed strings, a balustrade and a handrail on each side; escalators with their handrails;
   - the survey's **pillars** (to the ceiling, or up to the canopy over them) and **platform canopies** (at the height
     of a building or roof of the model over them, else 4.6 m);
-  - the eye, the yellow line on the floor (and the walker of the play-through) follow one smoothed copy of the way:
-    on walks averaged over ±2.5 m (OpenStreetMap's corners and zig-zags rounded; stairs, escalators and lifts keep
-    their own line), kept 0.65 m off walls, pillars and shops (OpenStreetMap often draws a passage's path along its
-    edge; a point inside a shop is moved out through its nearest side).
+  - the eye, the yellow line on the floor (and the walker of the play-through, and the tube in the model) follow one
+    smoothed copy of the way: on walks averaged over ±2.5 m (OpenStreetMap's corners and zig-zags rounded; stairs,
+    escalators and lifts keep their own line), then moved **into the open**: OpenStreetMap often draws a passage's path
+    along one side of it, or a hall's along its wall, so at each point the place square to the way (up to 4 m either
+    side, on a floor, not across a wall) with the most room up to 2.8 m round it is taken: the middle of a narrow
+    passage, 2.8 m off the walls of a wide one (`centre`, smoothed over ±6 m; it tapers off over 4 m to the ends of a
+    walk and to where the way goes through a doorway, so it meets the stairs, lifts and doors where they are). Then it
+    is kept 0.65 m off walls, pillars, railings, lift shafts and shops (a point inside a shop is moved out through its
+    nearest side), and wherever the result would cross any of them the way keeps its own line.
 
   First person's shader programs are compiled ahead, while the view is idle (`prewarm`), and the trains' skins are
   uploaded when they are made: entering first person and a train coming into view do not stop the view.
 
   The eye looks where the way goes 7 m ahead (2.5 m on stairs and escalators, pitch at most 20°), turning by yaw and
-  pitch. In a lift the view gives way to its display over the car's walls (direction, the floor it passes, where it
-  goes); out of a lift at the end it turns along the platform. Paused, a drag looks round; ‹ › go to the start of a
+  pitch. In a lift you stand in its car, drawn round the eye: steel doors with glass in them, glass sides (the floors
+  go by), a handrail, a light in the ceiling, and over the doors its display (the way it goes, the floor it passes);
+  the lens widens to 64° in the car, and a small chip at the top says where it goes. Out of a lift at the end the eye
+  turns along the platform, or to the door of your coach when a train is there. Paused, a drag looks round; ‹ › go to the start of a
   step; a floor, ⌂, ◎ or 👁 again leave it.
 
 What it does not have: inner walls (the survey has only the outer outlines of what is built below ground, and no
@@ -113,13 +131,29 @@ The Bern-area companions were built from the OpenStreetMap cache of 21 November 
 | `stations3d/<key>.solid.js` | `tools/station3d_solid.py <key>` | the model above + OpenStreetMap from the builder's cache (`tools/cache/<key>.osm.json`) |
 | `tools/station3d_data/<key>/{boards,sectors,furniture}.json` | `tools/station3d_sbb_layers.py <key>` | data.sbb.ch (sector signs, clocks, ticket machines) |
 | `tools/station3d_data/<key>/av_objects.geojson`, the `av` layer of `stations3d/<key>.solid.js` | `tools/station3d_av.py <key>` | the cantons' cadastral survey (Amtliche Vermessung, Einzelobjekte) via geodienste.ch: ZH, BE, BS, GE |
+| the walking graph of `stations3d/<key>.js`, repaired | `tools/station3d_clear.py <key>` | the companion: wells, lift shafts, railings, walls |
 
 ```bash
 python tools/station3d_sbb_layers.py zurich   # SBB layers (cached in tools/cache/)
 python tools/build_station3d.py zurich         # the model (downloads OSM once, cached)
 python tools/station3d_solid.py zurich         # the 3D companion
 python tools/station3d_av.py zurich            # the cadastral survey's layer (also merged into an existing companion)
+python tools/station3d_clear.py zurich         # the walking graph kept out of wells, lift shafts and walls (last)
 ```
+
+**Walls and the way.** OpenStreetMap's paths and the builder's links across open floors are straight lines, and some
+ran across the well of a stair or an escalator, through its railing or through a lift's glass shaft (a third of the
+routes at Zürich HB, a tenth at Bern): the way went through them, and in first person so did you.
+`tools/station3d_clear.py` repairs the model's graph with the companion's geometry: a node standing in a well or a
+shaft is moved out onto the floor; a link through an obstacle is dropped where the graph already has a way round no
+longer than 1.6 times it (+25 m) in each direction it goes and as usable (not closed, step-free where it is), else
+bent round it inside a corridor along it (never to another platform); the step onto a stair, an escalator or into a
+lift's own door is allowed. It writes nothing if any node of a stop or an entrance would reach less than before
+(walking or step-free, with or without the edges that have closures) and lists what it left (a few short links at stair heads where the platform is
+nearly all well). In first person the smoothed line and the eye keep off railings and the shafts of lifts you do not
+ride as off walls, a smoothed corner that would cut through any of them keeps the way's own line, and the eye looks
+less far ahead where the way turns round a wall. A link the builder made up (`inferred`) no longer opens a doorway in
+a wall.
 
 The companion file is separate on purpose: the model format stays as it is, and the router and the indoor position
 read only the model.

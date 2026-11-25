@@ -7,8 +7,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { StationRoute as SR } from '../src/station-route.ts';
-import { doorsOf, pickCoach, planCoach } from '../src/coach-plan.ts';
-import { layoutAtStop, layoutTrain } from '../src/train-layout.ts';
+import { doorsOf, pickCoach, planCoach, planNearestDoor } from '../src/coach-plan.ts';
+import { FILLER, layoutAtStop, layoutTrain } from '../src/train-layout.ts';
 import type { FormationAnswer, Station3DTrain, TrainEngine } from '../src/train-formation.ts';
 
 declare global {
@@ -199,6 +199,36 @@ await test('layoutAtStop: a bus beside its stop; without a direction, nothing', 
   const L = layoutAtStop(bern, 'bus', { uic: stop.uic, ref: 'U', ll: null, heading: 0 })!;
   assert(L && L.cars.length === 2 && Math.abs(dist(L.cars[1].b, stop.xy) - 1.7) < 0.01, 'front 1.7 m beside the stop');
   eq(layoutAtStop(bern, 'bus', { uic: stop.uic, ref: 'U', ll: null, heading: null }), null);
+});
+
+// Without the formation (the engine has no key for it): the nearest door of a train laid over the timetable's sectors
+const NOKEY: TrainEngine = { base: 'data:', href: () => 'data:application/json,' + encodeURIComponent('{"error":"no key"}') };
+await test('doorsOf: a coach of a train laid out without its formation has doors', () => {
+  const L = layoutTrain(bern, '7', { coaches: null, sectors: sB.slice(0, 2) })!;
+  assert(L.cars.length >= 2 && L.cars[0].idx === FILLER, 'fillers from FILLER');
+  const d = doorsOf(L, L.cars[1].idx);
+  assert(d.length >= 1 && d.every((x) => x.s >= L.cars[1].s0 && x.s <= L.cars[1].s1), 'its doors, on it');
+});
+await test('planNearestDoor: the way leads to the door nearest the walk, in the sectors the train stops in', async () => {
+  const base = ride('board', 'Bahnhofplatz (main hall)', 'Bahnhofplatz', 'r-near');
+  const t: Station3DTrain = { ...base, sectors: 'A-D', board: { ...base.board, sectors: 'A-D' } };
+  const secs = ['A', 'B', 'C', 'D'].filter((s) => sB.includes(s));
+  const p = (await planNearestDoor(t, { ...ctx, engine: NOKEY }, secs, null))!;
+  assert(p && p.nearest === 'sectors' && p.board && p.board.door && p.board.idx >= FILLER, 'a filler coach with a door');
+  assert(!!p.board!.door!.sector && secs.includes(p.board!.door!.sector!), `in the sectors it stops in (${p.board!.door!.sector})`);
+  // no door of that train is nearer
+  const L = layoutTrain(bern, '7', { coaches: null, sectors: secs })!;
+  for (const car of L.cars) for (const door of doorsOf(L, car.idx)) {
+    const r = SR.route(bern, { entrance: 'Bahnhofplatz (main hall)' }, { stop: { uic: String(BERN), ref: '7', at: door.xy, sector: door.sector } }, {});
+    assert(!r || r.incomplete || r.seconds >= p.board!.seconds! - 0.5, `door at ${door.s.toFixed(0)} m is nearer`);
+  }
+  // without sectors: four coaches round where the way reaches the platform
+  const end = SR.route(bern, { entrance: 'Bahnhofplatz (main hall)' }, { stop: { uic: String(BERN), ref: '7' } }, {})!;
+  const at = end.points[end.points.length - 1];
+  const q = (await planNearestDoor({ ...t, id: 'r-near2' }, { ...ctx, engine: NOKEY }, [], [at[0], at[1]]))!;
+  assert(q && q.nearest === 'arrival' && !!q.lay && !!q.lay.maxLen, 'round where the way arrives');
+  assert(dist(q.board!.door!.xy, [at[0], at[1]]) < 60, 'near where it arrives');
+  eq(await planNearestDoor({ ...t, role: 'alight' }, ctx, secs, null), null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

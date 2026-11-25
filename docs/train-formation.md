@@ -51,6 +51,25 @@ arrival): a tram on the nearest tram track of the model, a bus in the lane besid
 and the card say the shape and place are approximate. Without the direction of travel it is not drawn. The walk
 leads to the stop as before.
 
+## Without the order of the coaches: the nearest door
+
+When no coach of your class can be chosen (no formation: the engine has no key, or the train has none; or none suits),
+the way still leads into the train (`planNearestDoor` in `src/coach-plan.ts`): the train is laid over the sectors the
+timetable gives it ("7A-D"), each coach a usual 26.5 m, and of all their doors the one with the shortest walk is
+chosen. That coach is drawn in the way's colour ("Nearest door · sector C"), the walk goes through its door, and the
+card says why it is not a coach of your class ("Where its 1st class coaches are isn't published for this train", with
+how to tell them on the platform). Without the timetable's sectors either, four coaches stand round where the way
+reaches the platform and the card says the stopping place is not known. When the formation is known but none of its
+coaches suits (no open coach of your class, none with wheelchair spaces), it is the nearest door of an open coach
+with seats of the train as it stands (never a locomotive, a closed coach or the part of a splitting train that goes
+elsewhere); when the data cannot say which part goes on, none. Where the model has no sectors at that
+platform, nothing is planned (where the train stands would be a guess). No keyless source has the coaches' positions
+at a platform, so it cannot be the nearest coach of your class.
+
+A coach chosen after you started the steps, first person or the play-through (the formation arrives late) does not
+throw you back to the start: the way is aimed anew and you stay at the step nearest where you were
+(`reaim` in `src/station3d-solid.ts`).
+
 ## Who may get on
 
 Only coaches that fit are suggested: open, of your class, with wheelchair spaces when a wheelchair is set in
@@ -87,8 +106,8 @@ requests for the same train at once share one call, and no more than 30 calls a 
 On the server: subscribe the key to **Train Formation Service** in the
 [API manager](https://api-manager.opentransportdata.swiss/) and add it to `secrets/otd.json` as `"formation"`
 (`{"siri-et": "…", "formation": "…"}`), or set `KANTE_OTD_FORMATION_KEY`. Without it `/api/formation` answers 503,
-and the view shows the train from the timetable's sectors only (coaches without classes) and says that the order
-of its coaches is not available.
+and the view lays the train over the timetable's sectors (coaches without classes) and leads the way to its
+**nearest door** instead of a coach of your class (below).
 
 To try it on your own machine without an engine that has a key, put the key in `config.js` as `formationKey`: the
 page then asks the service itself. Never on a public site.
