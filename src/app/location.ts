@@ -7,6 +7,7 @@ import { journey } from './state.ts';
 import { indoor } from '../station3d.ts';
 import { WALK_PACE } from '../walk-pace.ts';
 import { Station3D } from '../station3d.ts';
+import { noteCourse, startHeading } from './heading.ts';
 
 /**
  * A position as onPosition() (location.ts) takes it: the browser's GeolocationPosition, or the made-up one at
@@ -74,6 +75,7 @@ export function onPosition(pos: PositionFix) {
   userMarker.setLngLat(lngLat);
   if (!userMarker._map) { accMarker.addTo(map); userMarker.addTo(map); }
   updateAccuracy();
+  if (!pos.simulated) noteCourse(pos.coords.heading, pos.coords.speed, takenAt);
   // through the indoor filter (indoornav.ts) while a station is open in 3D: it adds the floor and the phone's steps
   if (Station3D) (indoor.nav || Station3D).setUser({ ll: lngLat, accuracy: userAccuracy, heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : undefined, at: takenAt });
   inputs.from.placeholder = 'Your location';
@@ -95,6 +97,7 @@ export function onPositionError(err: GeolocationPositionError) {
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
   map.on('zoom', updateAccuracy);
+  startHeading(dotEl); // the beam of which way you face
   if (!window.isSecureContext) {
     showToast('Open this page over HTTPS to use your location.', 8000);
   } else if (!('geolocation' in navigator)) {
