@@ -281,10 +281,12 @@ pub fn run(args: &Args) -> Result<()> {
         }));
     if shapes_wanted {
         step("shapes", || {
-            let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
+            // what it needs of the timetable; the rest (its trips and times, most of its memory) goes before the
+            // network is read
+            let input = kante_shapes::Input::of(&io::load::<Timetable>(&tt_path, TIMETABLE_SCHEMA)?);
             // each search holds arrays over the whole network: a few at once keep the build's memory down
             let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
-            let (shapes, st) = kante_shapes::build(&tt, &pbf, threads)?;
+            let (shapes, st) = kante_shapes::build_input(input, &pbf, threads)?;
             eprintln!(
                 "   {} of {} patterns laid out as {} shapes ({} along their line's route relation); hops: {} on the network, {} along the relation, {} straight ({} at a stop off the map, {} others; {:.1} % of the length); {} distinct hops, {} points; boarding point to track or road: median {:.1} m, p95 {:.1} m",
                 st.laid_out,

@@ -93,7 +93,7 @@ pub struct Router {
     pat_bbox: OnceLock<Vec<BBox>>,
     /// Per pattern stop (`Timetable::pattern_stops` order): the box around the way to the next stop, where it is
     /// known (`set_shape_boxes`); a vehicle on a bend is found in a window its straight stop-to-stop line misses.
-    hop_bbox: OnceLock<Vec<BBox>>,
+    hop_bbox: OnceLock<HopBoxes>,
     /// Minimum-travel-time graph for target pruning (see `lower_bounds.rs`).
     lb_graph: lower_bounds::Graph,
     target_bounds: AtomicBool,
@@ -197,8 +197,8 @@ impl Router {
     /// The boxes around the ways vehicles take (per pattern, and per pattern stop to the next one; empty where not
     /// known), for `vehicles`: a pattern's box grows to hold its way. Before the first `vehicles` or `warm_up`;
     /// false (and nothing changed) after.
-    pub fn set_shape_boxes(&self, pattern: Vec<BBox>, hops: Vec<BBox>) -> bool {
-        if self.pat_bbox.get().is_some() || pattern.len() != self.tt.patterns.len() || hops.len() != self.tt.pattern_stops.len() {
+    pub fn set_shape_boxes(&self, pattern: Vec<BBox>, hops: HopBoxes) -> bool {
+        if self.pat_bbox.get().is_some() || pattern.len() != self.tt.patterns.len() || hops.of.len() != self.tt.pattern_stops.len() {
             return false;
         }
         let mut boxes = vehicles::pattern_boxes(&self.tt);
@@ -211,13 +211,27 @@ impl Router {
         self.pat_bbox.set(boxes).is_ok() && self.hop_bbox.set(hops).is_ok()
     }
 
-    fn hop_boxes(&self) -> Option<&[BBox]> {
-        self.hop_bbox.get().map(|v| v.as_slice())
+    fn hop_boxes(&self) -> Option<&HopBoxes> {
+        self.hop_bbox.get()
     }
 
     #[inline]
     fn trip_has_cont(&self, t: TripIdx) -> bool {
         (self.has_cont[t as usize >> 6] >> (t & 63)) & 1 == 1
+    }
+}
+
+/// The boxes around the ways vehicles take between two stops (`Router::set_shape_boxes`): one per distinct way, and
+/// per pattern stop (`Timetable::pattern_stops` order) the one to the next stop (`u32::MAX`: not known).
+pub struct HopBoxes {
+    pub boxes: Vec<BBox>,
+    pub of: Vec<u32>,
+}
+
+impl HopBoxes {
+    /// Does the way from pattern stop `k` (an index into `Timetable::pattern_stops`) to the next touch `bbox`?
+    pub fn hits(&self, k: usize, bbox: &BBox) -> bool {
+        self.of.get(k).and_then(|&h| self.boxes.get(h as usize)).is_some_and(|b| b.intersects(bbox))
     }
 }
 

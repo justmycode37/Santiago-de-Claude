@@ -153,7 +153,7 @@ relation of the pattern's own line (same kind and `ref`, its ways passing the mo
 two directions apart) makes its ways cheaper, so the line follows the route as mapped; the platform number on a
 track (`railway:track_ref`) tells which of a station's tracks a train stands on.
 
-Measured on the national timetable fetched 21 Nov 2026 (`kante build --only shapes` on 25 Nov: 145 s on 8 threads, 2.4 GB at most; the engine then needs about 100 MB more): all 108,100 patterns that are not
+Measured on the national timetable fetched 21 Nov 2026 (`kante build --only shapes` on 25 Nov: about 150 s on 8 threads, 0.85 GB at most: it keeps only the stops and patterns of the timetable; the engine then needs about 80 MB more): all 108,100 patterns that are not
 lifts laid out; 70 % of them along their own route relation. Of 1.2 million hops, 85 % are on the network; of the
 182,347 straight ones, 179,347 have a stop with no way of its mode near it (abroad: the map is Switzerland's) and
 3,000 (0.3 % of all hops) do not (mostly lines crossing the border and back, such as Bülach–Schaffhausen through

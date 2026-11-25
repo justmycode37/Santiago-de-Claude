@@ -168,7 +168,7 @@ pub(crate) fn vehicles(rt: &Router, bbox: &BBox, date: Date, now: Secs, live: Op
                         // on the way between the stops it serves
                         || hop_boxes.is_some_and(|h| {
                             let off = tt.patterns[p as usize].stops_off as usize;
-                            (i.saturating_sub(2)..=i.min(n - 2)).any(|k| h[off + k].intersects(bbox))
+                            (i.saturating_sub(2)..=i.min(n - 2)).any(|k| h.hits(off + k, bbox))
                         }))
                 {
                     out.push(VehicleSeg { trip, date: tdate, pos: i as u16 - 1, dwell: false, dep: dep(i - 1) + shift, arr: arr(i) + shift });

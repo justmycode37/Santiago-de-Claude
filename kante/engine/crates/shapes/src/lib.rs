@@ -149,21 +149,20 @@ impl Shapes {
             })
             .collect()
     }
-    /// Per pattern stop (`Timetable::pattern_stops` order): the box around the way to the next stop (empty after the
-    /// last stop and where the pattern has no shape).
-    pub fn hop_boxes(&self, tt: &Timetable) -> Vec<BBox> {
-        let mut out = vec![BBox::empty(); tt.pattern_stops.len()];
+    /// The box around each distinct hop's way, and per pattern stop (`Timetable::pattern_stops` order) the hop to
+    /// the next stop ([`NONE`] after the last stop and where the pattern has no shape).
+    pub fn hop_boxes(&self, tt: &Timetable) -> (Vec<BBox>, Vec<u32>) {
+        let boxes = (0..self.hop_kind.len() as u32).map(|h| self.hop_box(h)).collect();
+        let mut of = vec![NONE; tt.pattern_stops.len()];
         for (pi, pat) in tt.patterns.iter().enumerate() {
             let Some(s) = self.shape_of(pi as PatternIdx) else { continue };
             let hops = self.hops_of(s);
             if hops.len() + 1 != pat.n_stops as usize {
                 continue;
             }
-            for (k, &h) in hops.iter().enumerate() {
-                out[pat.stops_off as usize + k] = self.hop_box(h);
-            }
+            of[pat.stops_off as usize..pat.stops_off as usize + hops.len()].copy_from_slice(hops);
         }
-        out
+        (boxes, of)
     }
     /// The hop from stop `pos` of pattern `p` to the next is on the network (not a straight line).
     pub fn hop_on_network(&self, p: PatternIdx, pos: usize) -> bool {
@@ -237,111 +236,144 @@ pub struct BuildStats {
     pub samples: Vec<String>,
 }
 
+/// What the build needs of the timetable, and nothing more: the boarding points and, per distinct (mode, line,
+/// stops), its stops. `kante build` takes this and lets the timetable go (its trips and times are most of its memory)
+/// before the network is read.
+pub struct Input {
+    /// [`fingerprint`] of the timetable.
+    pub timetable: u64,
+    /// Per boarding point (`StopIdx`): position, platform label, precision, station name (for the build's samples).
+    pub stops: Vec<(LatLon, String, kante_core::Precision, String)>,
+    /// Per pattern: its group, or [`NONE`] (a lift, a mode not laid out).
+    pub group_of: Vec<u32>,
+    /// Per group, in the order of its first pattern: mode, line name, stops.
+    pub groups: Vec<(kante_core::Mode, String, Vec<StopIdx>)>,
+}
+
+impl Input {
+    pub fn of(tt: &Timetable) -> Input {
+        // one search per (mode, line, stops): RAPTOR patterns that differ only in pickup flags share it
+        let mut index: FxHashMap<(u8, String, &[StopIdx]), u32> = FxHashMap::default();
+        let mut group_of = vec![NONE; tt.patterns.len()];
+        let mut groups = Vec::new();
+        for p in 0..tt.patterns.len() as PatternIdx {
+            let line = &tt.lines[tt.patterns[p as usize].line as usize];
+            if matcher::profile(line.mode).is_none() || tt.pattern_stops(p).len() < 2 {
+                continue;
+            }
+            let key = (line.mode as u8, net::norm_ref(&line.name), tt.pattern_stops(p));
+            let g = *index.entry(key).or_insert_with(|| {
+                groups.push((line.mode, line.name.clone(), tt.pattern_stops(p).to_vec()));
+                groups.len() as u32 - 1
+            });
+            group_of[p as usize] = g;
+        }
+        let stops = tt.stops.iter().map(|s| (s.pos, s.label.clone(), s.precision, tt.stations[s.station as usize].name.clone())).collect();
+        Input { timetable: fingerprint(tt), stops, group_of, groups }
+    }
+}
+
 /// Lays every pattern of `tt` onto the network read from `pbf`, with `threads` searches at once.
 pub fn build(tt: &Timetable, pbf: &Path, threads: usize) -> Result<(Shapes, BuildStats)> {
+    build_input(Input::of(tt), pbf, threads)
+}
+
+/// [`build`] from what it needs of the timetable.
+pub fn build_input(input: Input, pbf: &Path, threads: usize) -> Result<(Shapes, BuildStats)> {
     let t0 = std::time::Instant::now();
     let net = net::load(pbf)?;
-    // one search per (mode, line, stops): RAPTOR patterns that differ only in pickup flags share it
-    let mut groups: FxHashMap<(u8, String, &[StopIdx]), u32> = FxHashMap::default();
-    let mut group_of = vec![NONE; tt.patterns.len()];
-    let mut reps: Vec<PatternIdx> = Vec::new();
-    for p in 0..tt.patterns.len() as PatternIdx {
-        let line = &tt.lines[tt.patterns[p as usize].line as usize];
-        if matcher::profile(line.mode).is_none() || tt.pattern_stops(p).len() < 2 {
-            continue;
-        }
-        let key = (line.mode as u8, net::norm_ref(&line.name), tt.pattern_stops(p));
-        let g = *groups.entry(key).or_insert_with(|| {
-            reps.push(p);
-            reps.len() as u32 - 1
-        });
-        group_of[p as usize] = g;
-    }
-    drop(groups);
-    eprintln!("   {} patterns, {} to lay out", tt.patterns.len(), reps.len());
+    let Input { timetable, stops, group_of, groups } = input;
+    eprintln!("   {} patterns, {} to lay out", group_of.len(), groups.len());
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads.max(1)).build()?;
     let scratches: Mutex<Vec<matcher::Scratch>> = Mutex::new(Vec::new());
-    let done = std::sync::atomic::AtomicUsize::new(0);
-    let results: Vec<(matcher::Matched, Vec<bool>)> = pool.install(|| {
-        use rayon::prelude::*;
-        reps.par_iter()
-            .map(|&p| {
-                let mut s = scratches.lock().unwrap().pop().unwrap_or_else(|| matcher::Scratch::new(&net));
-                let line = &tt.lines[tt.patterns[p as usize].line as usize];
-                let prof = matcher::profile(line.mode).expect("laid-out modes have a profile");
-                let stops: Vec<matcher::StopIn> = tt.pattern_stops(p).iter().map(|&s| matcher::StopIn::of(&tt.stops[s as usize])).collect();
-                let rel = matcher::pick_relation(&net, &prof, &net::norm_ref(&line.name), &stops).map(|r| r.0);
-                let m = matcher::match_pattern(&net, &prof, &mut s, &stops, rel);
-                let own = stops.iter().map(|s| s.precision == kante_core::Precision::Edge).collect();
-                scratches.lock().unwrap().push(s);
-                let n = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                if n % 20000 == 0 {
-                    eprintln!("   {n} of {} laid out ({:.0}s)", reps.len(), t0.elapsed().as_secs_f32());
-                }
-                (m, own)
-            })
-            .collect()
-    });
-    drop(scratches);
-
-    let mut out = Shapes { timetable: fingerprint(tt), shape_off: vec![0], hop_off: vec![0], ..Default::default() };
-    let mut st = BuildStats { patterns: tt.patterns.len(), shapes: results.len(), ..Default::default() };
+    let mut out = Shapes { timetable, shape_off: vec![0], hop_off: vec![0], ..Default::default() };
+    let mut st = BuildStats { patterns: group_of.len(), shapes: groups.len(), ..Default::default() };
     let mut snaps: Vec<f32> = Vec::new();
     let mut pool_ix: FxHashMap<Vec<LatLon>, u32> = FxHashMap::default();
-    for (g, (m, own)) in results.iter().enumerate() {
-        let ll: Vec<LatLon> = m.pts.iter().map(|q| LatLon::from_xy(q[0], q[1])).collect();
-        for (k, &kind) in m.hops.iter().enumerate() {
-            let (a, b) = (m.at[k] as usize, m.at[k + 1] as usize);
-            let len: f64 = m.pts[a..=b].windows(2).map(|w| net::dist(w[0], w[1]) as f64).sum();
-            st.hops[kind as usize] += 1;
-            st.all_m += len;
-            if kind == HOP_STRAIGHT {
-                st.straight_m += len;
-                if m.off_map[k] || m.off_map[k + 1] {
-                    st.straight_off_map += 1;
-                } else {
-                    st.straight_other += 1;
-                    if st.samples.len() < 40 && st.straight_other % 97 == 1 {
-                        let p = reps[g];
-                        let line = &tt.lines[tt.patterns[p as usize].line as usize];
-                        let stops = tt.pattern_stops(p);
-                        let (sa, sb) = (&tt.stops[stops[k] as usize], &tt.stops[stops[k + 1] as usize]);
-                        st.samples.push(format!(
-                            "{} {} {} ({:.5},{:.5}) -> {} ({:.5},{:.5}) {:.0} m",
-                            line.mode.as_str(),
-                            line.name,
-                            tt.stations[sa.station as usize].name,
-                            sa.pos.lat_deg(),
-                            sa.pos.lon_deg(),
-                            tt.stations[sb.station as usize].name,
-                            sb.pos.lat_deg(),
-                            sb.pos.lon_deg(),
-                            sa.pos.dist_m(&sb.pos)
-                        ));
+    // a chunk of groups at a time, each chunk's results put into the hop pool in order (the same file as all at
+    // once, without holding every pattern's points until the end)
+    const CHUNK: usize = 4096;
+    for (c, chunk) in groups.chunks(CHUNK).enumerate() {
+        let results: Vec<(matcher::Matched, Vec<bool>)> = pool.install(|| {
+            use rayon::prelude::*;
+            chunk
+                .par_iter()
+                .map(|(mode, line, stop_ix)| {
+                    let mut s = scratches.lock().unwrap().pop().unwrap_or_else(|| matcher::Scratch::new(&net));
+                    let prof = matcher::profile(*mode).expect("laid-out modes have a profile");
+                    let ins: Vec<matcher::StopIn> = stop_ix
+                        .iter()
+                        .map(|&i| {
+                            let x = &stops[i as usize];
+                            matcher::StopIn { pos: x.0, label: &x.1, precision: x.2 }
+                        })
+                        .collect();
+                    let rel = matcher::pick_relation(&net, &prof, &net::norm_ref(line), &ins).map(|r| r.0);
+                    let m = matcher::match_pattern(&net, &prof, &mut s, &ins, rel);
+                    let own = ins.iter().map(|s| s.precision == kante_core::Precision::Edge).collect();
+                    scratches.lock().unwrap().push(s);
+                    (m, own)
+                })
+                .collect()
+        });
+        for (k, (m, own)) in results.iter().enumerate() {
+            let (mode, line, stop_ix) = &groups[c * CHUNK + k];
+            let ll: Vec<LatLon> = m.pts.iter().map(|q| LatLon::from_xy(q[0], q[1])).collect();
+            for (h, &kind) in m.hops.iter().enumerate() {
+                let (a, b) = (m.at[h] as usize, m.at[h + 1] as usize);
+                let len: f64 = m.pts[a..=b].windows(2).map(|w| net::dist(w[0], w[1]) as f64).sum();
+                st.hops[kind as usize] += 1;
+                st.all_m += len;
+                if kind == HOP_STRAIGHT {
+                    st.straight_m += len;
+                    if m.off_map[h] || m.off_map[h + 1] {
+                        st.straight_off_map += 1;
+                    } else {
+                        st.straight_other += 1;
+                        if st.samples.len() < 40 && st.straight_other % 97 == 1 {
+                            let (sa, sb) = (&stops[stop_ix[h] as usize], &stops[stop_ix[h + 1] as usize]);
+                            st.samples.push(format!(
+                                "{} {} {} ({:.5},{:.5}) -> {} ({:.5},{:.5}) {:.0} m",
+                                mode.as_str(),
+                                line,
+                                sa.3,
+                                sa.0.lat_deg(),
+                                sa.0.lon_deg(),
+                                sb.3,
+                                sb.0.lat_deg(),
+                                sb.0.lon_deg(),
+                                sa.0.dist_m(&sb.0)
+                            ));
+                        }
                     }
                 }
+                let q = ll[a..=b].to_vec();
+                let next = pool_ix.len() as u32;
+                let id = *pool_ix.entry(q).or_insert_with_key(|q| {
+                    out.pts.extend_from_slice(q);
+                    out.hop_off.push(out.pts.len() as u32);
+                    out.hop_kind.push(kind);
+                    next
+                });
+                out.shape_hops.push(id);
             }
-            let q = ll[a..=b].to_vec();
-            let next = pool_ix.len() as u32;
-            let h = *pool_ix.entry(q).or_insert_with_key(|q| {
-                out.pts.extend_from_slice(q);
-                out.hop_off.push(out.pts.len() as u32);
-                out.hop_kind.push(kind);
-                next
-            });
-            out.shape_hops.push(h);
-        }
-        out.shape_off.push(out.shape_hops.len() as u32);
-        out.relation.push(m.relation);
-        if m.relation != 0 {
-            st.with_relation += 1;
-        }
-        for (d, o) in m.snap_m.iter().zip(own) {
-            if *o && d.is_finite() {
-                snaps.push(*d);
+            out.shape_off.push(out.shape_hops.len() as u32);
+            out.relation.push(m.relation);
+            if m.relation != 0 {
+                st.with_relation += 1;
             }
+            for (d, o) in m.snap_m.iter().zip(own) {
+                if *o && d.is_finite() {
+                    snaps.push(*d);
+                }
+            }
+        }
+        let done = (c * CHUNK + chunk.len()) as u64;
+        if done / 20000 != (c * CHUNK) as u64 / 20000 {
+            eprintln!("   {done} of {} laid out ({:.0}s)", groups.len(), t0.elapsed().as_secs_f32());
         }
     }
+    drop(scratches);
     st.unique_hops = out.hop_kind.len();
     st.points = out.pts.len();
     out.pattern_shape = group_of;

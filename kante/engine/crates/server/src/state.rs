@@ -377,7 +377,8 @@ impl App {
         let t = Instant::now();
         let router = Router::new(tt.clone());
         if let Some(sh) = &shapes {
-            router.set_shape_boxes(sh.pattern_boxes(), sh.hop_boxes(&tt));
+            let (boxes, of) = sh.hop_boxes(&tt);
+            router.set_shape_boxes(sh.pattern_boxes(), kante_raptor::HopBoxes { boxes, of });
         }
         let today = kante_core::time::from_unix(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)).0;
         router.warm_up(today);
