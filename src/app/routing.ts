@@ -372,7 +372,8 @@ export function refineJourney(id: number) {
     const plan = (st.lines || []).length ? s3Plan(st) : null;
     if (plan) refineStationWalk(st as JourneyWalkStep | JourneyChangeStep, plan, task);
     else if (st.type === 'walk' || st.type === 'change') refineWalk(st, task);
-    if (st.type === 'ride') task(routeRide(st.path, modeOf(st.s.line.category)), (res) => { st.path = res; });
+    // the engine's way on the rails and roads when it has one; else the street and rail routers through the stops
+    if (st.type === 'ride' && !st.pathIdx) task(routeRide(st.path, modeOf(st.s.line.category)), (res) => { st.path = res; });
   });
 }
 

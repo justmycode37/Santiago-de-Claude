@@ -101,6 +101,8 @@ pub struct App {
     pub data_dir: PathBuf,
     /// Buildings and their doors (`doors.bin`), for walks that start in or end at one.
     pub doors: Option<kante_link::doors::DoorIndex>,
+    /// The way each pattern's vehicles take on the rails and roads (`shapes.bin`); None: straight lines between stops.
+    pub shapes: Option<kante_shapes::Shapes>,
 }
 
 pub struct Endpoint {
@@ -353,8 +355,31 @@ impl App {
         // for a whole station and every walker, sometimes more than this walk and sometimes less.
         let fp_few = merge_few(&fp_normal, &fp_step_free);
 
+        // the ways vehicles take; only those made for this timetable
+        let shapes_path = built.join("shapes.bin");
+        let shapes = if shapes_path.exists() {
+            match timed("shapes", || io::load::<kante_shapes::Shapes>(&shapes_path, kante_shapes::SHAPES_SCHEMA)) {
+                Ok(sh) if sh.timetable == kante_shapes::fingerprint(&tt) && sh.pattern_shape.len() == tt.patterns.len() => Some(sh),
+                Ok(_) => {
+                    eprintln!("  shapes.bin belongs to another timetable: vehicles move in straight lines (run `kante build`)");
+                    None
+                }
+                Err(e) => {
+                    eprintln!("  shapes unavailable: {e:#}");
+                    None
+                }
+            }
+        } else {
+            eprintln!("  no shapes.bin: vehicles move in straight lines between stops (run `kante build`)");
+            None
+        };
+
         let t = Instant::now();
         let router = Router::new(tt.clone());
+        if let Some(sh) = &shapes {
+            let (boxes, of) = sh.hop_boxes(&tt);
+            router.set_shape_boxes(sh.pattern_boxes(), kante_raptor::HopBoxes { boxes, of });
+        }
         let today = kante_core::time::from_unix(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)).0;
         router.warm_up(today);
         // The footpath sets are final here: derive the router's data from them now.
@@ -411,6 +436,7 @@ impl App {
             walk_bbox,
             data_dir: data_dir.to_path_buf(),
             doors,
+            shapes,
         })
     }
 

@@ -110,6 +110,11 @@ interface LiveMapEngineVehicle {
   nextStop: string;
   nextSeq: number;
   live: LiveMapEngineLive;
+  /** The way from `from` to `to` on the rails and roads, as the engine laid the line onto them (encoded polyline,
+   *  precision 5); `hopSpan`: only part of it (near the box asked about); `hopStraight`: partly a straight line. */
+  hopPath?: string;
+  hopSpan?: [number, number];
+  hopStraight?: boolean;
 }
 interface LiveMapEngineVehicles { vehicles: LiveMapEngineVehicle[] }
 
@@ -126,6 +131,10 @@ interface LiveMapEngineTrip {
   line: LiveMapEngineLine;
   number?: string;
   calls: LiveMapEngineCall[];
+  /** The way on the rails and roads, each call's vertex in it, and the hops (by their first call) that are straight. */
+  path?: [lon: number, lat: number][];
+  pathAt?: number[];
+  straightHops?: number[];
 }
 
 /** GET /api/meta */

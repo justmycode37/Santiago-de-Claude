@@ -95,6 +95,12 @@ export const tracking = {
   arrivedAt: null as JourneyStep[] | null,
   /** The step GPS last moved the cards to. */
   autoStep: 0,
+  /** When the fix `track` was made from was taken (ms): how far you can have gone since is measured from it. */
+  fixAt: 0,
+  /** Fixes that put you somewhere on the trip you cannot have got to since the last one (a stray fix, or the line
+   *  passing the same place twice): where (km into the trip), when the last of them was taken, how many in a row
+   *  agree. Three that agree are believed (trackOnce()). */
+  jump: null as { km: number; at: number; n: number } | null,
   /** When a step was last picked by hand. */
   userPickedAt: 0,
 };

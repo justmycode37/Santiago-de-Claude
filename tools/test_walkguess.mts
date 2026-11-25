@@ -40,7 +40,7 @@ const dest = { _map: null as object | null, at: P, getLngLat: () => ({ toArray: 
 const page = { asked: 0, answer: null as KanteWalk | null, plan: null as { key: string } | null, dot: null as LngLat | null };
 fake('map.ts', { map: { flyTo: nothing } });
 fake('map-events.ts', { updateCards: nothing });
-fake('location.ts', { fixAge: () => 0, gpsOn: () => true, userAccuracy: 10, userLngLat: P, userMarker: { setLngLat: (ll: LngLat) => { page.dot = ll; } } });
+fake('location.ts', { fixAge: () => 0, fixTime: () => Date.now(), gpsOn: () => true, userAccuracy: 10, userLngLat: P, userMarker: { setLngLat: (ll: LngLat) => { page.dot = ll; } } });
 fake('search.ts', { destMarker: dest, startMarker: marker });
 fake('search-pins.ts', { clearPlacePins: nothing, render: nothing });
 fake('trip-ends.ts', { blurSearch: nothing, setField: nothing, setFollowing: nothing, setPlanOpen: nothing });
