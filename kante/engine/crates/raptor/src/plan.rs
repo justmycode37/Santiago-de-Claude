@@ -757,6 +757,13 @@ impl<'a> Engine<'a> {
             if live_b.is_some_and(|l| l.is_skipped(0)) {
                 continue;
             }
+            // Live data that has the trip leave before the vehicle arrives (it went with another vehicle, or the
+            // feeds contradict each other): no staying seated into it. (The live snapshot carries a late vehicle's
+            // lateness into the trip it goes on as, so this is what is left over.)
+            let b_dep0 = tt.times[base + 1] + day as Secs * DAY + live_b.map_or(0, |l| l.dep_delay_at(0));
+            if b_dep0 < cur.arr(&tt.times, n - 1) {
+                continue;
+            }
             // A continuation trip is ridden from its first stop whoever feeds
             // it, so once per trip instance and round is enough.
             match self.s.cont_done.get(&(b, day)) {

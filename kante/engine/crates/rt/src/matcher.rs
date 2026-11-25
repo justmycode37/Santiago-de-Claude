@@ -107,6 +107,13 @@ pub struct MatchOptions {
     /// forecasts a whole day off.
     pub max_delay: i32,
     pub max_early: i32,
+    /// A reported time more than this many seconds before the call's own aimed time (the timetable's where the
+    /// feed has none) is not data. Vehicles do run early, but within about five minutes; measured on the national
+    /// SIRI-ET feed (2026-11-25), the times earlier than that are a vehicle logged onto a later run than the one
+    /// it drives (15 to 60 minutes early) or a frozen clock, and nearly none fall between 10 and 15 minutes.
+    /// `max_early` still bounds the delay against the timetable, whose time can differ from the aimed one (the
+    /// plan of the day).
+    pub max_early_vs_plan: i32,
     /// Take a live stop reference to *another* boarding point of the station
     /// as a change of boarding point even when no platform name says so.
     /// Some operators' live systems consistently name another edge than the
@@ -118,7 +125,7 @@ pub struct MatchOptions {
 
 impl Default for MatchOptions {
     fn default() -> Self {
-        MatchOptions { time_tolerance: 90, max_time_offset: 1800, fallback_min_share: 0.8, max_delay: 3 * 3600, max_early: 1800, trust_stop_refs: true }
+        MatchOptions { time_tolerance: 90, max_time_offset: 1800, fallback_min_share: 0.8, max_delay: 3 * 3600, max_early: 1800, max_early_vs_plan: 600, trust_stop_refs: true }
     }
 }
 
@@ -285,6 +292,55 @@ struct CallInfo {
     aimed_is_dep: bool,
     extra: bool,
 }
+
+/// A time the feed reports for one arrival or departure of a trip.
+#[derive(Clone, Copy, Debug)]
+struct Reported {
+    /// The live time, unix.
+    t: i64,
+    /// Measured (`Actual…`), not a forecast.
+    measured: bool,
+    /// When it was planned: the feed's aimed time, else the timetable's.
+    plan: i64,
+}
+
+/// A run of times that stand still while the vehicle should be moving: each time from the second on is not data.
+/// Seen at VBZ and ASm: a vehicle's recorded calls all carry the one moment its clock or forecast froze (sixteen
+/// stops "passed" at 20:48:46, four stations a second apart). A hop between two stops planned to take
+/// [`FROZEN_MIN_HOP_S`] or more that the live times cover in less than [`FROZEN_MAX_S`] (or in negative time) is no
+/// hop a vehicle makes; the later of the two times goes. (Short city hops are made in a quarter of their planned
+/// minute: 200 m in 14 s is measured, and kept.) The stop within a stop (arrival to departure) is not checked: a
+/// vehicle that is late may well cut its dwell. Returns how many times were dropped.
+fn drop_frozen(rep: &mut [[Option<Reported>; 2]]) -> u16 {
+    let mut dropped = 0;
+    // The time kept that the clock last moved on to, and its position: hops shorter than a minute each that add up to
+    // more stand still all the same
+    let mut last: Option<(Reported, usize)> = None;
+    for p in 0..rep.len() {
+        for k in 0..2 {
+            let Some(r) = rep[p][k] else { continue };
+            if let Some((l, lp)) = last {
+                // a departure is checked against the stop before only where the arrival here is not known
+                let hop = lp < p && (k == 0 || rep[p][0].is_none());
+                let planned = r.plan - l.plan;
+                if hop && planned >= FROZEN_MIN_HOP_S && r.t - l.t < FROZEN_MAX_S {
+                    rep[p][k] = None;
+                    dropped += 1;
+                    continue;
+                }
+                if r.t - l.t < FROZEN_MAX_S {
+                    continue; // kept, but the clock has not moved on (nor back)
+                }
+            }
+            last = Some((r, p));
+        }
+    }
+    dropped
+}
+/// See [`drop_frozen`].
+const FROZEN_MIN_HOP_S: i64 = 60;
+/// See [`drop_frozen`].
+const FROZEN_MAX_S: i64 = 10;
 
 #[derive(Clone, Copy, Default, PartialEq, PartialOrd)]
 struct Score {
@@ -661,7 +717,11 @@ impl Matcher {
                 .or_else(|| (!c.platform.is_empty()).then(|| self.stop_by_label(tt, station, first, &c.platform)).flatten())
                 .filter(|&s| tt.stops[s as usize].station == station)
                 .unwrap_or(first);
-            let kind = if c.actual_arr.is_some() { kante_core::OBSERVED_ARR } else { 0 } | if c.actual_dep.is_some() { kante_core::OBSERVED_DEP } else { 0 };
+            // as for a trip of the timetable (overlay()): far earlier than aimed is not this run
+            let max_early = self.options.max_early_vs_plan as i64;
+            let fits = |t: Option<i64>, aimed: Option<i64>| t.filter(|&t| aimed.is_none_or(|a| t - a >= -max_early));
+            let (actual_arr, actual_dep) = (fits(c.actual_arr, c.aimed_arr), fits(c.actual_dep, c.aimed_dep));
+            let kind = if actual_arr.is_some() { kante_core::OBSERVED_ARR } else { 0 } | if actual_dep.is_some() { kante_core::OBSERVED_DEP } else { 0 };
             if kind != 0 && !c.cancelled {
                 observed_pos = calls.len() as i16;
                 observed_kind = kind;
@@ -672,13 +732,21 @@ impl Matcher {
                 platform: c.platform.clone(),
                 aimed_arr: c.aimed_arr,
                 aimed_dep: c.aimed_dep,
-                arr: c.actual_arr.or(c.expected_arr).or(c.aimed_arr),
-                dep: c.actual_dep.or(c.expected_dep).or(c.aimed_dep),
+                arr: actual_arr.or(fits(c.expected_arr, c.aimed_arr)).or(c.aimed_arr),
+                dep: actual_dep.or(fits(c.expected_dep, c.aimed_dep)).or(c.aimed_dep),
                 skipped: c.cancelled,
             });
         }
         if calls.len() < 2 {
             return None;
+        }
+        // no time before the one before it
+        let mut prev = i64::MIN;
+        for c in &mut calls {
+            for t in [&mut c.arr, &mut c.dep].into_iter().flatten() {
+                *t = (*t).max(prev);
+                prev = *t;
+            }
         }
         let headsign = if !j.destination.is_empty() {
             j.destination.clone()
@@ -822,44 +890,126 @@ impl Matcher {
         let mut changes = Vec::new();
         let mut implausible = 0u16;
         let plausible = -self.options.max_early..=self.options.max_delay;
+        let max_early_vs_plan = self.options.max_early_vs_plan as i64;
+        let sched = |p: usize, k: usize| base + times[2 * p + k] as i64;
+        // What the feed reports at each position, arrival and departure: the live time, whether it was measured,
+        // and the time it was planned for (the feed's aimed time, else the timetable's).
+        let mut rep: Vec<[Option<Reported>; 2]> = vec![[None, None]; n];
+        for p in 0..n {
+            if cand.pos_call[p] == u32::MAX {
+                continue;
+            }
+            let c = &rt_calls[cand.pos_call[p] as usize];
+            if c.cancelled {
+                if live.skipped.is_empty() {
+                    live.skipped = vec![false; n];
+                }
+                live.skipped[p] = true;
+            } else if !c.no_data {
+                let mut take = |actual: Option<i64>, expected: Option<i64>, rel: Option<i32>, aimed: Option<i64>, sched: i64| {
+                    let (t, measured) = match (actual, expected, rel) {
+                        (Some(t), _, _) => (t, true),
+                        (None, Some(t), _) => (t, false),
+                        (None, None, Some(r)) => (sched + r as i64, false),
+                        (None, None, None) => return None,
+                    };
+                    let d = (t - sched).clamp(-1_000_000, 1_000_000) as i32;
+                    let plan = aimed.unwrap_or(sched);
+                    // Far earlier than planned is not this run: a vehicle logged onto a later run reports the run
+                    // before it (seen at VBZ, 15 to 60 minutes early), a frozen clock the moment it froze.
+                    if plausible.contains(&d) && t - plan >= -max_early_vs_plan {
+                        Some(Reported { t, measured, plan })
+                    } else {
+                        implausible += 1;
+                        None
+                    }
+                };
+                rep[p] = [
+                    take(c.actual_arr, c.expected_arr, c.arr_delay, c.aimed_arr, sched(p, 0)),
+                    take(c.actual_dep, c.expected_dep, c.dep_delay, c.aimed_dep, sched(p, 1)),
+                ];
+            }
+        }
+        implausible += drop_frozen(&mut rep);
+
         let mut carry: Option<i32> = None;
         let mut first_reported = u16::MAX;
         let mut reported = vec![0u8; n];
-        // Latest live time so far, to keep the overlay free of time travel.
-        let mut prev = i64::MIN;
+        // The live time of every event, arrival and departure at each position in turn
+        let mut at = vec![0i64; 2 * n];
+        let mut fixed = vec![false; 2 * n];
         for p in 0..n {
-            let sched_arr = base + times[2 * p] as i64;
-            let sched_dep = base + times[2 * p + 1] as i64;
-            let (mut arr, mut dep) = (None, None);
+            let [arr, dep] = rep[p];
+            if arr.is_some() || dep.is_some() {
+                if first_reported == u16::MAX {
+                    first_reported = p as u16;
+                }
+                let kind = if arr.is_some_and(|r| r.measured) { kante_core::OBSERVED_ARR } else { 0 }
+                    | if dep.is_some_and(|r| r.measured) { kante_core::OBSERVED_DEP } else { 0 };
+                if kind != 0 {
+                    live.observed_pos = p as i16;
+                    live.observed_kind = kind;
+                }
+            }
+            // Arrival: reported, else as late as the vehicle was last known to be.
+            at[2 * p] = match arr {
+                Some(r) => r.t,
+                None => sched(p, 0) + carry.unwrap_or(0) as i64,
+            };
+            if let Some(r) = arr {
+                carry = Some((r.t - sched(p, 0)) as i32);
+            }
+            // Departure: reported, else the carried delay, but never early on a guess.
+            at[2 * p + 1] = match dep {
+                Some(r) => r.t,
+                None => sched(p, 1) + carry.map(|c| c.max(0)).unwrap_or(0) as i64,
+            };
+            if let Some(r) = dep {
+                carry = Some((r.t - sched(p, 1)) as i32);
+            }
+            fixed[2 * p] = arr.is_some();
+            fixed[2 * p + 1] = dep.is_some();
+            if arr.is_some() {
+                reported[p] |= REPORTED_ARR;
+            }
+            if dep.is_some() {
+                reported[p] |= REPORTED_DEP;
+            }
+        }
+        // No time travel, ever: the router boards and leaves by these times. A guess is never later than the next
+        // time the feed reports (a vehicle that left early on its way was early before it, too); then every time is
+        // at least the one before it, reported ones included (two reports that contradict each other: the later
+        // event cannot have happened before the earlier one).
+        let mut next = i64::MAX;
+        for e in (0..2 * n).rev() {
+            if fixed[e] {
+                next = at[e];
+            } else if at[e] > next {
+                at[e] = next;
+            }
+        }
+        for e in 1..2 * n {
+            at[e] = at[e].max(at[e - 1]);
+        }
+        for p in 0..n {
+            live.arr_delay[p] = (at[2 * p] - sched(p, 0)) as i32;
+            live.dep_delay[p] = (at[2 * p + 1] - sched(p, 1)) as i32;
+            if live.skipped.get(p).copied().unwrap_or(false) {
+                reported[p] |= REPORTED_SKIP;
+            }
+        }
+        // Where the times before the first report moved to fit it, they are live from there on (the answers show
+        // a time as live only from `first_live`, and must show what the router uses).
+        let moved = (0..first_reported.min(n as u16) as usize).find(|&p| (p > 0 && live.arr_delay[p] != 0) || (p + 1 < n && live.dep_delay[p] != 0));
+        live.first_live = match (moved, first_reported) {
+            (Some(p), _) => p as i16,
+            (None, u16::MAX) => -1,
+            (None, f) => f as i16,
+        };
+
+        for p in 0..n {
             if cand.pos_call[p] != u32::MAX {
                 let c = &rt_calls[cand.pos_call[p] as usize];
-                if c.cancelled {
-                    if live.skipped.is_empty() {
-                        live.skipped = vec![false; n];
-                    }
-                    live.skipped[p] = true;
-                } else if !c.no_data {
-                    let mut delay = |actual: Option<i64>, expected: Option<i64>, rel: Option<i32>, sched: i64| {
-                        let d = actual.or(expected).map(|t| (t - sched).clamp(-1_000_000, 1_000_000) as i32).or(rel)?;
-                        if plausible.contains(&d) {
-                            Some(d)
-                        } else {
-                            implausible += 1;
-                            None
-                        }
-                    };
-                    arr = delay(c.actual_arr, c.expected_arr, c.arr_delay, sched_arr);
-                    dep = delay(c.actual_dep, c.expected_dep, c.dep_delay, sched_dep);
-                    if (arr.is_some() || dep.is_some()) && first_reported == u16::MAX {
-                        first_reported = p as u16;
-                    }
-                    let kind = if c.actual_arr.is_some() && arr.is_some() { kante_core::OBSERVED_ARR } else { 0 }
-                        | if c.actual_dep.is_some() && dep.is_some() { kante_core::OBSERVED_DEP } else { 0 };
-                    if kind != 0 {
-                        live.observed_pos = p as i16;
-                        live.observed_kind = kind;
-                    }
-                }
                 if !c.cancelled && !j.cancelled {
                     if let Some((stop, planned, current)) = self.platform_change(tt, stops[p], c) {
                         if stop != NONE {
@@ -874,44 +1024,7 @@ impl Matcher {
                     }
                 }
             }
-            // A measured time is kept as it is; estimates around it give way.
-            let (arr_measured, dep_measured) = if cand.pos_call[p] != u32::MAX {
-                let c = &rt_calls[cand.pos_call[p] as usize];
-                (c.actual_arr.is_some() && arr.is_some(), c.actual_dep.is_some() && dep.is_some())
-            } else {
-                (false, false)
-            };
-            if arr.is_some() {
-                reported[p] |= REPORTED_ARR;
-            }
-            if dep.is_some() {
-                reported[p] |= REPORTED_DEP;
-            }
-            if live.skipped.get(p).copied().unwrap_or(false) {
-                reported[p] |= REPORTED_SKIP;
-            }
-            // Arrival: reported, else as late as the vehicle was last known to be.
-            let mut a = arr.or(carry).unwrap_or(0);
-            if !arr_measured && prev != i64::MIN && sched_arr + (a as i64) < prev {
-                a = (prev - sched_arr) as i32;
-            }
-            prev = sched_arr + a as i64;
-            if arr.is_some() {
-                carry = arr;
-            }
-            // Departure: reported, else the carried delay, but never early on a guess.
-            let mut d = dep.or(carry.map(|c| c.max(0))).unwrap_or(0);
-            if !dep_measured && sched_dep + (d as i64) < prev {
-                d = (prev - sched_dep) as i32;
-            }
-            prev = sched_dep + d as i64;
-            if dep.is_some() {
-                carry = dep;
-            }
-            live.arr_delay[p] = a;
-            live.dep_delay[p] = d;
         }
-        live.first_live = if first_reported == u16::MAX { -1 } else { first_reported as i16 };
         MatchedTrip {
             date: cand.date,
             trip,
@@ -1334,14 +1447,155 @@ mod tests {
         assert_eq!(got.live.dep_delay[2], 0);
         assert_eq!(got.live.arr_delay[3], -90);
 
-        // A forecast that would arrive before the previous departure is pulled up.
-        j.calls[1].actual_dep = t("2026-11-20T23:05:00");
-        j.calls[2].expected_arr = t("2026-11-20T23:00:00");
+        // A forecast that would arrive before the previous departure is no forecast: the delay measured is carried.
+        j.calls[1].actual_dep = t("2026-11-20T23:22:00");
+        j.calls[2].expected_arr = t("2026-11-20T23:20:00");
         let got = m.apply(&tt, &j).unwrap();
-        // Lausanne left at 23:05 → Bern (planned 23:26) cannot be reached at 23:00.
-        assert_eq!(got.live.dep_delay[1], 45 * 60);
-        assert_eq!(got.live.arr_delay[2], -(21 * 60));
-        assert_eq!(got.live.dep_delay[2], 0);
+        // Lausanne left at 23:22 → Bern (66 minutes on) cannot be reached at 23:20.
+        assert_eq!(got.live.dep_delay[1], 62 * 60);
+        assert_eq!(got.live.arr_delay[2], 62 * 60);
+        assert_eq!(got.live.dep_delay[2], 62 * 60);
+        assert_eq!(got.implausible, 1);
+    }
+
+    /// Every live time of a trip is at least the one before it: the router boards and leaves by them.
+    fn assert_no_time_travel(tt: &Timetable, got: &MatchedTrip) {
+        let times = tt.trip_times(got.trip);
+        let mut prev = i64::MIN;
+        for p in 0..got.live.arr_delay.len() {
+            for (k, d) in [(0, got.live.arr_delay[p]), (1, got.live.dep_delay[p])] {
+                let at = times[2 * p + k] as i64 + d as i64;
+                assert!(at >= prev, "position {p} ({}) at {at} before {prev}: {:?}", ["arr", "dep"][k], got.live);
+                prev = at;
+            }
+        }
+    }
+
+    #[test]
+    fn a_run_reported_far_earlier_than_planned_is_not_this_run() {
+        // Seen at VBZ: a tram logged onto the run half an hour after the one it drives. Its measured times are those
+        // of the run before; taken as they are, the planner rode it back in time.
+        let (tt, _) = bern();
+        let m = Matcher::new(&tt);
+        let mut j = ic733();
+        j.calls[1].actual_arr = t("2026-11-20T21:48:00");
+        j.calls[1].actual_dep = t("2026-11-20T21:50:00");
+        j.calls[2].expected_arr = t("2026-11-20T22:56:00");
+        j.calls[2].expected_dep = t("2026-11-20T23:02:00");
+        let got = m.apply(&tt, &j).unwrap();
+        assert_eq!(got.implausible, 4);
+        // Only Genève's departure is left, carried on.
+        assert_eq!(got.live.dep_delay, vec![72, 72, 72, 72]);
+        assert_eq!(got.live.observed_pos, 0);
+        assert_no_time_travel(&tt, &got);
+
+        // Early by the aimed time of the feed, not by the timetable: a plan of the day 20 minutes earlier, kept to
+        // the minute, is no early running.
+        let mut j = ic733();
+        for c in &mut j.calls[1..3] {
+            c.aimed_arr = c.aimed_arr.map(|x| x - 1200);
+            c.aimed_dep = c.aimed_dep.map(|x| x - 1200);
+        }
+        j.calls[1].actual_arr = t("2026-11-20T21:58:00");
+        j.calls[1].actual_dep = t("2026-11-20T22:00:00");
+        j.calls[2].expected_arr = t("2026-11-20T23:06:00");
+        j.calls[2].expected_dep = t("2026-11-20T23:12:00");
+        let got = m.apply(&tt, &j).unwrap();
+        assert_eq!(got.implausible, 0);
+        assert_eq!(&got.live.dep_delay[..3], &[72, -1200, -1200]);
+        assert_no_time_travel(&tt, &got);
+    }
+
+    #[test]
+    fn a_frozen_clock_is_not_data() {
+        // Seen at VBZ (bus 31): every stop the bus had passed was recorded at the moment it left the first one.
+        let (tt, _) = bern();
+        let m = Matcher::new(&tt);
+        let mut j = ic733();
+        j.calls[1].actual_arr = t("2026-11-20T21:43:12");
+        j.calls[1].actual_dep = t("2026-11-20T21:43:12");
+        j.calls[2].recorded = true;
+        j.calls[2].expected_arr = t("2026-11-20T21:43:13");
+        j.calls[2].expected_dep = t("2026-11-20T21:43:13");
+        j.calls[3].expected_arr = t("2026-11-21T00:30:00");
+        let got = m.apply(&tt, &j).unwrap();
+        // Lausanne's and Bern's times are early beyond belief, or frozen; Zürich's forecast stands.
+        assert_eq!(got.implausible, 4);
+        assert_eq!(got.live.arr_delay[3], 120);
+        assert_eq!(got.live.observed_pos, 0);
+        assert_no_time_travel(&tt, &got);
+
+        // Frozen: seconds apart in the feed, half an hour apart in the plan.
+        let mut rep = vec![[None, None]; 4];
+        let r = |at: &str, plan: &str| Some(Reported { t: t(at).unwrap(), measured: false, plan: t(plan).unwrap() });
+        rep[0][1] = r("2026-11-20T21:42:00", "2026-11-20T21:42:00");
+        rep[1][0] = r("2026-11-20T21:42:03", "2026-11-20T22:18:00");
+        rep[1][1] = r("2026-11-20T21:42:05", "2026-11-20T22:20:00");
+        rep[2][0] = r("2026-11-20T23:26:00", "2026-11-20T23:26:00");
+        assert_eq!(drop_frozen(&mut rep), 2);
+        assert!(rep[1][0].is_none() && rep[1][1].is_none() && rep[2][0].is_some());
+        // Short hops, each under a minute, that add up to more: standing still all the same.
+        let mut rep = vec![[None, None]; 6];
+        for (p, slot) in rep.iter_mut().enumerate() {
+            let plan = t("2026-11-20T21:42:00").unwrap() + 30 * p as i64;
+            slot[0] = Some(Reported { t: t("2026-11-20T21:42:00").unwrap(), measured: true, plan });
+        }
+        assert_eq!(drop_frozen(&mut rep), 4, "the stops from a minute on");
+        assert!(rep[0][0].is_some() && rep[1][0].is_some() && rep[2..].iter().all(|r| r[0].is_none()));
+        // A time back (a short hop reported before the stop before) does not set the clock back for the next.
+        let mut rep = vec![[None, None]; 3];
+        rep[0][1] = r("2026-11-20T10:05:00", "2026-11-20T10:00:00");
+        rep[1][0] = r("2026-11-20T10:00:00", "2026-11-20T10:00:30");
+        rep[2][0] = r("2026-11-20T10:00:15", "2026-11-20T10:01:30");
+        assert_eq!(drop_frozen(&mut rep), 1);
+        assert!(rep[2][0].is_none());
+        // A short city hop made quickly is a hop: a minute planned, 14 seconds measured.
+        let mut rep = vec![[None, None]; 2];
+        rep[0][1] = r("2026-11-20T21:42:00", "2026-11-20T21:42:00");
+        rep[1][0] = r("2026-11-20T21:42:14", "2026-11-20T21:43:00");
+        assert_eq!(drop_frozen(&mut rep), 0);
+        // A dwell cut short is no frozen clock.
+        let mut rep = vec![[None, None]; 2];
+        rep[0][1] = r("2026-11-20T21:42:00", "2026-11-20T21:42:00");
+        rep[1][0] = r("2026-11-20T22:28:00", "2026-11-20T22:18:00");
+        rep[1][1] = r("2026-11-20T22:28:30", "2026-11-20T22:30:00");
+        assert_eq!(drop_frozen(&mut rep), 0);
+    }
+
+    #[test]
+    fn live_times_never_run_backwards() {
+        let (tt, ids) = bern();
+        let m = Matcher::new(&tt);
+        // Two measured times that contradict each other (left Lausanne before arriving there): the later event
+        // is not before the earlier one.
+        let mut j = ic733();
+        j.calls[1].actual_arr = t("2026-11-20T22:25:00");
+        j.calls[1].actual_dep = t("2026-11-20T22:24:00");
+        let got = m.apply(&tt, &j).unwrap();
+        assert_no_time_travel(&tt, &got);
+        assert_eq!((got.live.arr_delay[1], got.live.dep_delay[1]), (420, 300));
+
+        // A departure guessed later than the next time the feed reports is pulled down to it (the tram that
+        // "left" Rentenanstalt at 21:17 and reached Bürkliplatz at 20:48), and the answers show it as live.
+        let j = RtJourney {
+            journey_ref: "ch:1:sjyid:100602:plan:aaa".into(),
+            operating_day: "2026-11-20".into(),
+            calls: vec![call("ch:1:sloid:76646:0:1", "", "2026-11-20T22:30:00"), {
+                let mut c = call("ch:1:sloid:90002", "2026-11-20T22:34:00", "2026-11-20T22:34:00");
+                c.recorded = true;
+                c.actual_arr = t("2026-11-20T22:29:00");
+                c
+            }],
+            ..Default::default()
+        };
+        let got = m.apply(&tt, &j).unwrap();
+        assert_eq!(got.trip, ids.bus);
+        assert_no_time_travel(&tt, &got);
+        assert_eq!(got.live.dep_delay[0], -60);
+        assert_eq!(got.live.arr_delay[1], -300);
+        assert_eq!(got.live.dep_delay[1], 0, "never early on a guess");
+        assert_eq!(got.live.first_live, 0);
+        assert_eq!(got.first_reported, 1);
     }
 
     #[test]
@@ -1609,5 +1863,23 @@ mod tests {
         assert_eq!(split_platform("41/42"), ("41/42", ""));
         assert_eq!(split_platform("B2"), ("B2", ""));
         assert_eq!(split_platform(" 7 "), ("7", ""));
+    }
+
+    #[test]
+    fn an_extra_journey_keeps_to_the_order_of_time() {
+        let (tt, _) = bern();
+        let m = Matcher::new(&tt);
+        let mut j = ic733();
+        j.journey_ref = "ch:1:sjyid:100001:extra-1".into();
+        j.extra = true;
+        // Lausanne measured 35 minutes before its aimed time (another run), Bern forecast before Lausanne left
+        j.calls[1].actual_arr = t("2026-11-20T21:43:00");
+        j.calls[1].actual_dep = t("2026-11-20T22:21:00");
+        j.calls[2].expected_arr = t("2026-11-20T22:15:00");
+        let e = m.extra_trip(&tt, &j).unwrap();
+        assert_eq!(e.calls[1].arr, t("2026-11-20T22:18:00"), "the aimed time, not another run's");
+        assert_eq!((e.observed_pos, e.observed_kind), (1, kante_core::OBSERVED_DEP), "measured: the departure, not the arrival");
+        let times: Vec<i64> = e.calls.iter().flat_map(|c| [c.arr, c.dep]).flatten().collect();
+        assert!(times.windows(2).all(|w| w[0] <= w[1]), "{times:?}");
     }
 }

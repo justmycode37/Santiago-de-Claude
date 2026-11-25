@@ -309,7 +309,7 @@ fn match_stats(tt: &Timetable, m: &Matcher, js: &[RtJourney], results: &[Result<
     );
     let implausible: usize = results.iter().flatten().map(|x| x.implausible as usize).sum();
     let impl_trips = results.iter().flatten().filter(|x| x.implausible > 0).count();
-    println!("    reported times dropped as implausible (> 3 h late or > 30 min early): {implausible} in {impl_trips} journeys");
+    println!("    reported times dropped as implausible (> 3 h late, > 30 min early, > 10 min before the aimed time, or a frozen clock): {implausible} in {impl_trips} journeys");
 
     // Platforms.
     let (mut named, mut resolved, mut textual, mut by_ref, mut plan_unlabelled, mut trips_changed) = (0usize, 0, 0, 0, 0, 0);
@@ -422,7 +422,7 @@ fn match_stats(tt: &Timetable, m: &Matcher, js: &[RtJourney], results: &[Result<
 
     // Largest delays and extra journeys that matched anyway.
     let mut big: Vec<(i32, String)> = Vec::new();
-    let (mut d1h, mut d3h, mut neg10) = (0usize, 0usize, 0usize);
+    let (mut d1h, mut d3h, mut neg10, mut backwards) = (0usize, 0usize, 0usize, 0usize);
     for (j, r) in js.iter().zip(results) {
         let Ok(x) = r else { continue };
         if x.live.cancelled {
@@ -433,12 +433,16 @@ fn match_stats(tt: &Timetable, m: &Matcher, js: &[RtJourney], results: &[Result<
         d1h += (max >= 3600) as usize;
         d3h += (max >= 10_800) as usize;
         neg10 += (min <= -600) as usize;
+        // a live time before the one at the stop before it: the router would ride back in time
+        let times = tt.trip_times(x.trip);
+        let at = |e: usize| times[e] as i64 + if e % 2 == 0 { x.live.arr_delay[e / 2] } else { x.live.dep_delay[e / 2] } as i64;
+        backwards += (1..2 * x.live.arr_delay.len()).any(|e| at(e) < at(e - 1)) as usize;
         if max >= 3600 || min <= -600 {
             big.push((if max >= 3600 { max } else { min }, format!("{} line {} → {} [{}] monitored {} dep delays {:?}", j.journey_ref, j.line_name, j.destination, j.operator_ref, j.monitored, &x.live.dep_delay[..x.live.dep_delay.len().min(6)])));
         }
     }
     big.sort_by_key(|b| -(b.0.abs()));
-    println!("  delays           trips with a departure ≥ 1 h late: {d1h}, ≥ 3 h: {d3h}; with a time ≥ 10 min early: {neg10}");
+    println!("  delays           trips with a departure ≥ 1 h late: {d1h}, ≥ 3 h: {d3h}; with a time ≥ 10 min early: {neg10}; with a time before the one before it: {backwards}");
     for (d, text) in big.iter().take(10) {
         println!("      {:>7} s  {}", d, trunc(text, 190));
     }

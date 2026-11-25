@@ -112,10 +112,11 @@ with samples under `…/data/`. Treat every downloaded file as untrusted data.
   graph over stations (fastest scheduled hop per pattern, in-seat
   continuations, footpaths at the query's speed, live hops that are faster
   than scheduled), found by a lazy, budgeted backward Dijkstra per query. It
-  never over-estimates, except across a step back in time (an in-seat
-  continuation whose live departure is before the live arrival of the trip
-  feeding it, which `follow` allows because it compares scheduled times): a
-  journey that relies on one may be pruned.
+  never over-estimates. (An in-seat continuation whose live departure would be
+  before the live arrival of the trip feeding it is not ridden: the live
+  snapshot carries the vehicle's lateness into the trip it goes on as
+  (`LiveSnapshotBuilder::carry_on`), and `follow` skips what is left over, a
+  continuation measured to have left already.)
 
 ## Crate APIs
 

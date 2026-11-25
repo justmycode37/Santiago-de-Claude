@@ -33,6 +33,34 @@ feeds' forecasts were off by 42 s on average (median 30 s). It has no measured t
 and no names for the journeys it adds. GTFS-RT on its own matches 96 % of its journeys (all but the 506 it
 adds); SIRI-ET 99 %.
 
+### What is not taken from the feeds
+
+The router boards and leaves by the live times, so a time that cannot be true would let a journey go back in
+time (seen on 25 Nov 2026: a tram "leaving" Rentenanstalt at 21:17 and reaching Bürkliplatz at 20:48, and a
+journey changing onto a tram that had left before the first one arrived). The matcher (`kante-rt`,
+`Matcher::overlay`) therefore drops, per stop, as no data:
+
+| Dropped | Why |
+|---|---|
+| a time more than 10 min before its own aimed time (the timetable's where the feed has none) | a vehicle logged onto a later run than the one it drives reports that run's times 15 to 60 min early (VBZ); real early running stays within about 5 min (measured on the national feed, nearly nothing between 10 and 15 min early) |
+| a time that covers a hop planned to take a minute or more in under 10 s, or in negative time (several shorter hops in a row that add up to a minute count as one) | a frozen clock or forecast: sixteen stops of a VBZ bus "passed" at the same second, four ASm stations a second apart |
+| more than 3 h late or 30 min early against the timetable | stale journeys and forecasts a day off |
+
+Then every trip's times run forward, arrival and departure at each stop in turn: a guessed time (carried on
+from an earlier report) is never later than the next time the feed reports, and no time is before the one
+before it. Extra journeys (not in the timetable) keep the same order, and take their aimed time where the feed's
+is far earlier. A trip the vehicle goes on as (the traveller stays seated) takes its lateness along: without live
+data of its own it gets the delay the vehicle arrives with, less the time it was to stand there; with its own,
+it does not leave before the vehicle arrives (by the timetable where the trip before has no live data; measured
+times stay; not for a trip that skips its first stop, which the router does not ride on either). Last,
+`/api/plan` leaves out any journey that would still go back in time — a ride reaching a stop before the one
+before it, or a ride or walk starting before the ride before it has arrived (`keep_forward()`,
+`server/src/plan.rs`; it logs when it does) — and the app does too. A change walk that ends after the next ride
+has left is not time travel: the engine times it so on purpose, with a `missed-connection` alert.
+
+`rt-inspect` reports how many times a feed document had dropped and how many trips would go back in time
+(`with a time before the one before it`, 0 since; 151 trips in the document of 25 Nov 2026, 21:22, before).
+
 Keys: `data/secrets/otd.json` as `{"siri-et": "…", "gtfs-rt": "…"}` (or `KANTE_OTD_KEY` /
 `KANTE_OTD_GTFS_RT_KEY`). Either one may be missing; the engine then runs with the other or on the
 timetable alone.
