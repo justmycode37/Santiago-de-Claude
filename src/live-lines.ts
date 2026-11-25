@@ -95,14 +95,16 @@ function distKm(a: LngLat, b: LngLat) {
 
 const STEP_M = 5; // a sample every 5 m along the way
 const SNAP_M = 6; // drawn roads further off than this are not the one it is on
+const RAIL_SNAP_M = 4; // …drawn rails (the engine's run within 1.3 m of them, nearly always)
 const MIN_COS = Math.cos((35 * Math.PI) / 180); // …nor one crossing it
 const NONE_COST = 10; // staying on the engine's way where a drawn road is near: only to stay on the road it is on
 const SWITCH = 2.5; // changing to another road (or off the drawn ones)
+const LEVEL = 30; // a way on rails going into or out of a tunnel (as dear as some 60 m on a track 1 m further off)
 const SLOPE = 0.25; // moving across at most 25 cm per metre along (a lane's width over some 12 m)
-const BUS_HALF_W = 1.275, LANE_MARGIN = 0.4, LANE_MAX = 0.8;
+const BUS_HALF_W = 1.275, LANE_MARGIN = 0.25, LANE_MAX = 1.0;
 /**
- * How far right of a drawn road's middle a bus keeps: to its side, well within what is drawn (measured on Bern's buses: 1.6 m
- * right put a side of 44 % of them off the drawn road, 0.8 m 1.8 %); in the middle of a one-way road.
+ * How far right of a drawn road's middle a bus keeps: to its side (two passing each other on a wide road do not overlap),
+ * well within what is drawn; in the middle of a one-way road.
  */
 const laneOf = (half: number, flags: number) => ((flags & 2) || !half ? 0 : Math.max(0, Math.min(LANE_MAX, half - BUS_HALF_W - LANE_MARGIN)));
 
@@ -111,75 +113,8 @@ const laneOf = (half: number, flags: number) => ((flags & 2) || !half ? 0 : Math
  * crosses was in `lines` (else lay it again when they are).
  */
 export function layRoad(raw: LngLat[], lines: DrawnLines): LaidLine {
-  // the samples: the way's points, and every STEP_M between; km along it
-  const kx = 111320 * Math.cos((raw[0][1] * Math.PI) / 180), ky = 110540;
-  const pts: LngLat[] = [raw[0]], cum = [0];
-  for (let k = 1; k < raw.length; k++) {
-    const a = raw[k - 1], b = raw[k], len = distKm(a, b), n = Math.max(1, Math.ceil((len * 1000) / STEP_M));
-    for (let s = 1; s <= n; s++) {
-      pts.push(s === n ? b : [a[0] + ((b[0] - a[0]) * s) / n, a[1] + ((b[1] - a[1]) * s) / n]);
-      cum.push(cum[cum.length - 1] + len / n);
-    }
-  }
+  const { pts, cum, nx, ny, kx, ky, cand, pick, complete } = match(raw, lines, false);
   const n = pts.length;
-  // per sample: its right-hand normal (planar metres, x east, y north) and the candidates as offsets along it
-  const nx = new Float64Array(n), ny = new Float64Array(n);
-  const cand: { o: number; lane: number; tunnel: boolean }[][] = [];
-  let complete = true;
-  for (let k = 0; k < n; k++) {
-    const p0 = pts[Math.max(0, k - 1)], p1 = pts[Math.min(n - 1, k + 1)], q = pts[k];
-    const dx = (p1[0] - p0[0]) * kx, dy = (p1[1] - p0[1]) * ky, dl = Math.hypot(dx, dy);
-    const list: { o: number; lane: number; tunnel: boolean; d: number }[] = [];
-    if (dl > 0) {
-      nx[k] = dy / dl; ny[k] = -dx / dl;
-      if (complete && (k % 20 === 0 || k === n - 1) && !lines.covers(q)) complete = false; // (every 100 m: a tile is 1.6 km)
-      lines.near(q, (ax, ay, bx, by, half, fl) => {
-        if (!half) return;
-        const sx = (bx - ax) * kx, sy = (by - ay) * ky, sl = Math.hypot(sx, sy);
-        if (!sl || Math.abs((sx * dx + sy * dy) / (sl * dl)) < MIN_COS) return;
-        const t = Math.max(0, Math.min(1, ((q[0] - ax) * kx * sx + (q[1] - ay) * ky * sy) / (sl * sl)));
-        const ex = (ax - q[0]) * kx + t * sx, ey = (ay - q[1]) * ky + t * sy, d = Math.hypot(ex, ey);
-        if (d > SNAP_M) return;
-        // the road's middle as an offset to the right of the way (along it, the nearest point is beside the sample)
-        const o = ex * nx[k] + ey * ny[k];
-        // one way roads drawn twice (a carriageway each way) come once, the same line from two tiles once
-        const same = list.find((c) => Math.abs(c.o - o) < 0.5);
-        const lane = laneOf(half, fl);
-        if (!same) list.push({ o, lane, tunnel: (fl & 1) !== 0, d });
-        else if (d < same.d) Object.assign(same, { o, lane, tunnel: (fl & 1) !== 0, d });
-      });
-    } else if (k) { nx[k] = nx[k - 1]; ny[k] = ny[k - 1]; }
-    list.sort((a, b) => a.d - b.d);
-    cand.push(list.slice(0, 4));
-  }
-  // Viterbi: state j < cand[k].length is that road, the last state the engine's way (offset 0)
-  const cost: Float64Array[] = [], from: Int8Array[] = [];
-  const emit = (k: number, j: number) => (j < cand[k].length ? 0.5 * Math.abs(cand[k][j].o) : NONE_COST);
-  const off = (k: number, j: number) => (j < cand[k].length ? cand[k][j].o : 0);
-  for (let k = 0; k < n; k++) {
-    const m = cand[k].length + 1, c = new Float64Array(m), f = new Int8Array(m);
-    for (let j = 0; j < m; j++) {
-      if (!k) { c[j] = emit(k, j); continue; }
-      const prev = cost[k - 1], pm = prev.length;
-      let best = Infinity, bi = 0;
-      for (let i = 0; i < pm; i++) {
-        const jump = Math.abs(off(k, j) - off(k - 1, i)), noneSwap = (i === pm - 1) !== (j === m - 1);
-        const x = prev[i] + jump + (jump > 0.75 || noneSwap ? SWITCH : 0);
-        if (x < best) { best = x; bi = i; }
-      }
-      c[j] = best + emit(k, j);
-      f[j] = bi;
-    }
-    cost.push(c);
-    from.push(f);
-  }
-  const pick = new Int8Array(n);
-  {
-    const last = cost[n - 1];
-    let j = 0;
-    for (let i = 1; i < last.length; i++) if (last[i] < last[j]) j = i;
-    for (let k = n - 1; k >= 0; k--) { pick[k] = j; j = from[k][j]; }
-  }
   // the offset to draw at each sample: the road's middle plus its lane; changes spread over SLOPE (forwards and
   // backwards, averaged: centred on where it changes)
   const want = new Float64Array(n), tunnel = new Uint8Array(n);
@@ -204,6 +139,96 @@ export function layRoad(raw: LngLat[], lines: DrawnLines): LaidLine {
   });
   roundCorners(out);
   return { pts: out, cum, tunnel: tunnel.some((x) => x) ? tunnel : null, complete };
+}
+
+/**
+ * Where a way on rails (the engine's) runs in a tunnel, by the drawn rails it runs on: per sample (km along it, every
+ * 5 m), the tunnel flag of the drawn track it is matched to as a whole (Viterbi: it stays on one track, so a tunnel
+ * beside or under it does not make it flicker). `complete` as for layRoad.
+ */
+export function railTunnels(raw: LngLat[], lines: DrawnLines): { cum: number[]; tunnel: Uint8Array; complete: boolean } {
+  const { cum, cand, pick, complete } = match(raw, lines, true);
+  const tunnel = new Uint8Array(cum.length);
+  for (let k = 0; k < cum.length; k++) { const c = cand[k][pick[k]]; tunnel[k] = c && c.tunnel ? 1 : 0; }
+  return { cum, tunnel, complete };
+}
+
+// A way matched to the drawn lines (roads, or rails: those with no width): its samples, their normals, the candidates
+// at each (offsets to the right of the way) and the one chosen for each (Viterbi; past the last candidate: none)
+function match(raw: LngLat[], lines: DrawnLines, rail: boolean) {
+  // the samples: the way's points, and every STEP_M between; km along it
+  const kx = 111320 * Math.cos((raw[0][1] * Math.PI) / 180), ky = 110540;
+  const pts: LngLat[] = [raw[0]], cum = [0];
+  for (let k = 1; k < raw.length; k++) {
+    const a = raw[k - 1], b = raw[k], len = distKm(a, b), n = Math.max(1, Math.ceil((len * 1000) / STEP_M));
+    for (let s = 1; s <= n; s++) {
+      pts.push(s === n ? b : [a[0] + ((b[0] - a[0]) * s) / n, a[1] + ((b[1] - a[1]) * s) / n]);
+      cum.push(cum[cum.length - 1] + len / n);
+    }
+  }
+  const n = pts.length;
+  // per sample: its right-hand normal (planar metres, x east, y north) and the candidates as offsets along it
+  const nx = new Float64Array(n), ny = new Float64Array(n);
+  const cand: { o: number; lane: number; tunnel: boolean }[][] = [];
+  let complete = true;
+  for (let k = 0; k < n; k++) {
+    const p0 = pts[Math.max(0, k - 1)], p1 = pts[Math.min(n - 1, k + 1)], q = pts[k];
+    const dx = (p1[0] - p0[0]) * kx, dy = (p1[1] - p0[1]) * ky, dl = Math.hypot(dx, dy);
+    const list: { o: number; lane: number; tunnel: boolean; d: number }[] = [];
+    if (dl > 0) {
+      nx[k] = dy / dl; ny[k] = -dx / dl;
+      if (complete && (k % 20 === 0 || k === n - 1) && !lines.covers(q)) complete = false; // (every 100 m: a tile is 1.6 km)
+      lines.near(q, (ax, ay, bx, by, half, fl) => {
+        if (!half !== rail) return;
+        const sx = (bx - ax) * kx, sy = (by - ay) * ky, sl = Math.hypot(sx, sy);
+        if (!sl || Math.abs((sx * dx + sy * dy) / (sl * dl)) < MIN_COS) return;
+        const t = Math.max(0, Math.min(1, ((q[0] - ax) * kx * sx + (q[1] - ay) * ky * sy) / (sl * sl)));
+        const ex = (ax - q[0]) * kx + t * sx, ey = (ay - q[1]) * ky + t * sy, d = Math.hypot(ex, ey);
+        if (d > (rail ? RAIL_SNAP_M : SNAP_M)) return;
+        // the road's middle as an offset to the right of the way (along it, the nearest point is beside the sample)
+        const o = ex * nx[k] + ey * ny[k];
+        // one way roads drawn twice (a carriageway each way) come once, the same line from two tiles once
+        const same = list.find((c) => Math.abs(c.o - o) < 0.5);
+        const lane = laneOf(half, fl);
+        if (!same) list.push({ o, lane, tunnel: (fl & 1) !== 0, d });
+        else if (d < same.d) Object.assign(same, { o, lane, tunnel: (fl & 1) !== 0, d });
+      });
+    } else if (k) { nx[k] = nx[k - 1]; ny[k] = ny[k - 1]; }
+    list.sort((a, b) => a.d - b.d);
+    cand.push(list.slice(0, 4));
+  }
+  // Viterbi: state j < cand[k].length is that road, the last state the engine's way (offset 0)
+  const cost: Float64Array[] = [], from: Int8Array[] = [];
+  const emit = (k: number, j: number) => (j < cand[k].length ? 0.5 * Math.abs(cand[k][j].o) : NONE_COST);
+  const off = (k: number, j: number) => (j < cand[k].length ? cand[k][j].o : 0);
+  const under = (k: number, j: number) => j < cand[k].length && cand[k][j].tunnel;
+  for (let k = 0; k < n; k++) {
+    const m = cand[k].length + 1, c = new Float64Array(m), f = new Int8Array(m);
+    for (let j = 0; j < m; j++) {
+      if (!k) { c[j] = emit(k, j); continue; }
+      const prev = cost[k - 1], pm = prev.length;
+      let best = Infinity, bi = 0;
+      for (let i = 0; i < pm; i++) {
+        const jump = Math.abs(off(k, j) - off(k - 1, i)), noneSwap = (i === pm - 1) !== (j === m - 1);
+        // (into or out of a tunnel: only where the track it is on does: a tunnel under or beside it is not taken)
+        const level = rail && under(k, j) !== under(k - 1, i) ? LEVEL : 0;
+        const x = prev[i] + jump + (jump > 0.75 || noneSwap ? SWITCH : 0) + level;
+        if (x < best) { best = x; bi = i; }
+      }
+      c[j] = best + emit(k, j);
+      f[j] = bi;
+    }
+    cost.push(c);
+    from.push(f);
+  }
+  const pick = new Int8Array(n);
+  {
+    const last = cost[n - 1];
+    let j = 0;
+    for (let i = 1; i < last.length; i++) if (last[i] < last[j]) j = i;
+    for (let k = n - 1; k >= 0; k--) { pick[k] = j; j = from[k][j]; }
+  }
+  return { pts, cum, nx, ny, kx, ky, cand, pick, complete };
 }
 /**
  * A road's corners as a bus drives them: rounded (a way turning at one point, as mapped, turns over some metres), so

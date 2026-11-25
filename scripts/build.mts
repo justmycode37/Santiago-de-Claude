@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import * as esbuild from 'esbuild';
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -30,6 +31,11 @@ export const SRC = path.join(ROOT, 'src');
 export const ENTRIES = ['src/main.ts', 'src/pages/scan-bench.ts', 'src/pages/station3d-solid.page.ts'];
 /** Plain scripts beside the bundle, loaded with their own <script src>: translate.js runs before maplibre has downloaded. */
 export const SCRIPTS = ['src/translate.ts'];
+/**
+ * The live vehicles' worker (src/app/live-vehicles.ts starts it): dist/lines-worker-<hash>.js, a plain script with what
+ * it imports written into it; the modules know its name (__LINES_WORKER__).
+ */
+const LINES_WORKER = 'src/app/lines-worker.ts';
 /** The service worker (src/app/map-cache.ts registers it): dist/sw.js, under a name that stays the same. */
 const SERVICE_WORKER = 'src/sw/sw.ts';
 /**
@@ -91,11 +97,11 @@ const outputs = (files: esbuild.OutputFile[]): Made[] => files.map((f) => ({ fil
  * The modules of ENTRIES, bundled: every file is named by its content (main-<hash>.js, chunks/<name>-<hash>.js),
  * so a page and the files it loads are always of one build. See "Files and deploys" in docs/development.md.
  */
-function bundle(built: Built): Made[] {
+function bundle(built: Built, linesWorker: string): Made[] {
   const result = buildSync({
     ...OUTPUT, absWorkingDir: ROOT, entryPoints: ENTRIES, bundle: true, splitting: true, format: 'esm',
     outdir: DIST, outbase: SRC, entryNames: '[dir]/[name]-[hash]', chunkNames: 'chunks/[name]-[hash]', sourcemap: true,
-    external: EXTERNAL, alias: ALIAS, metafile: true, write: false,
+    external: EXTERNAL, alias: ALIAS, metafile: true, write: false, define: { __LINES_WORKER__: JSON.stringify(linesWorker) },
   });
   const meta = result.metafile.outputs;
   const name = (f: string) => served(path.join(ROOT, f));
@@ -147,6 +153,12 @@ function classicScript(source: string, outdir?: string) {
     tsconfigRaw: { compilerOptions: { alwaysStrict: false } },
     ...(outdir ? { outdir, entryNames: '[name]-[hash]', sourcemap: true, metafile: true } : {}),
   });
+}
+
+/** The live vehicles' worker as dist/lines-worker-<hash>.js (named by its content: a page and its worker are of one build). */
+function linesWorker(): Made {
+  const content = classicScript(LINES_WORKER).outputFiles![0].contents;
+  return { file: `lines-worker-${createHash('sha256').update(content).digest('hex').slice(0, 8).toUpperCase()}.js`, content };
 }
 
 /** The service worker as dist/sw.js: the browser knows it by its address, so the name has no hash. */
@@ -256,7 +268,8 @@ export function buildScripts(release = false): void {
 }
 function makeScripts(release: boolean): Made[] {
   const built: Built = new Map();
-  const made = [...bundle(built), ...classicScripts(built), serviceWorker(), ...pages(release).map((p) => buildPage(p, built)),
+  const worker = linesWorker();
+  const made = [...bundle(built, worker.file), worker, ...classicScripts(built), serviceWorker(), ...pages(release).map((p) => buildPage(p, built)),
     ...RETIRED.filter((n) => !fs.existsSync(path.join(ROOT, n + '.js'))).map((n) => ({ file: n + '.js', content: reloadFor(n) }))];
   return made;
 }

@@ -43,8 +43,14 @@ console.log('never back along its way');
   let w = showVehicle(null, bc, 102, 0);
   const shownAt = w.ll;
   const late = { ...ab, frac: 0.5, t: 103, dep: 70, arr: 130 };
-  for (let ms = 16; ms < 3000; ms += 16) w = showVehicle(w, late, 103 + ms / 1000, ms);
-  check(m(w.ll, shownAt) < 0.01, `a delay reported after it was shown further on: it waits there (${m(w.ll, shownAt).toFixed(2)} m)`);
+  let wBack = 0, wLast = w.ll;
+  for (let ms = 16; ms < 12000; ms += 16) {
+    w = showVehicle(w, late, 103 + ms / 1000, ms);
+    if (m(w.ll, C) > m(wLast, C) + 1e-6) wBack = Math.max(wBack, m(w.ll, wLast));
+    wLast = w.ll;
+  }
+  const v0 = 500 / 60, stopM = (v0 * v0) / 4; // braking at 2 m/s² from its pace
+  check(wBack === 0 && (w.v || 0) === 0 && m(w.ll, shownAt) <= stopM + 1, `a delay reported after it was shown further on: it comes to a stand, never back (${m(w.ll, shownAt).toFixed(1)} m on, braking)`);
   // the same hop, an answer far behind what is shown: it waits, does not jump back
   const g = KANTE_LIVE.glide(0.8, 0.1, 0.01, 0.016);
   check(g === 0.8, 'gliding: a target far behind is waited for, not jumped to');
@@ -106,7 +112,7 @@ console.log('a bus on the road the map draws');
   const raw = [at(0, 0), at(198, 0), at(198, 150)];
   const laid = layRoad(raw, lines);
   const offsets = laid.pts.slice(3, 30).map((p) => (p[1] - O[1]) * KY);
-  check(offsets.every((o) => o > 1.1 && o < 1.3), `laid onto the drawn road, 0.8 m right of its middle (${Math.min(...offsets).toFixed(2)}–${Math.max(...offsets).toFixed(2)} m north)`);
+  check(offsets.every((o) => o > 0.9 && o < 1.1), `laid onto the drawn road, 1 m right of its middle (${Math.min(...offsets).toFixed(2)}–${Math.max(...offsets).toFixed(2)} m north)`);
   const cum = laid.cum[laid.cum.length - 1] * 1000;
   check(Math.abs(cum - 348) < 1, `measured along the engine's way (${cum.toFixed(1)} m)`);
   let step = 0;

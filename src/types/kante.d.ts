@@ -260,6 +260,8 @@ interface KanteVehicle {
   hopLen?: number;
   /** The hop after this one, so a page can drive the vehicle on through the stop until the next answer. */
   onward?: KanteOnward;
+  /** The hop before: the way it came along into the stop it stands at (or has left), for its tail. */
+  behind?: { hopPath: string; hopSpan?: [number, number] };
 }
 /** The hop a vehicle drives after the one it is on: from the stop it stands at (or is heading for) to the next. */
 interface KanteOnward {

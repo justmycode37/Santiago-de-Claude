@@ -435,8 +435,9 @@ fn hop_len(app: &App, run: &Run, i: usize, j: usize) -> f32 {
     }
 }
 
-/// The stops `run` serves with their times, made physically possible (`motion::feasible`: a hop gets the time its
-/// vehicle needs to speed up, run and brake, borrowed from the stops beside it; measured times stay). For a run on its
+/// The stops `run` serves with their times, made something its vehicle does (`motion::fit`: it stands at every stop
+/// for a moment at least, borrowed from the hops beside it, and drives a hop with time to spare at a reasonable pace
+/// after standing at the stop it leaves; measured times stay). For a run on its
 /// pattern's own way, over the whole run (its hops' lengths are measured once), so the times of a hop are the same
 /// whenever it is asked about: worked out only around `now`, a hop leaving that window took the time it had pushed on
 /// later stops with it, and the vehicle jumped. For the others (an extra journey, a changed platform: their ways are
@@ -449,7 +450,7 @@ fn served_at(app: &App, run: &Run, now: i64) -> Vec<(usize, i64, i64)> {
         let idx: Vec<usize> = served.iter().map(|s| s.0).collect();
         let whole = run.pattern.is_some() && app.shapes.is_some() && run.calls.iter().all(|c| c.planned.is_none());
         let (from, until) = if whole { (i64::MIN, i64::MAX) } else { (now - 900, now + 900) };
-        crate::motion::feasible(
+        crate::motion::fit(
             &mut served,
             &m,
             from,
@@ -463,12 +464,13 @@ fn served_at(app: &App, run: &Run, now: i64) -> Vec<(usize, i64, i64)> {
 }
 
 /// How vehicle of `run` moves on the hop from `i` to `j`, `t` seconds long, of `len` metres: [accel, brake, cruise]
-/// (m/s², m/s², m/s) and the share of the way it has gone `tau` seconds in (a share of the time without a motion).
+/// (m/s², m/s², m/s; `motion::Motion::profile`: always speeding up and slowing down) and the share of the way it has
+/// gone `tau` seconds in (a share of the time for a kind of vehicle without a motion, or a hop of no length or time).
 fn hop_motion(run: &Run, len: f32, t: f32, tau: f32) -> (Option<[f32; 3]>, f32) {
     let uniform = if t > 0.0 { (tau / t).clamp(0.0, 1.0) } else { 1.0 };
-    match crate::motion::of(run.mode, &run.category).and_then(|m| m.cruise(len, t).map(|v| (m, v))) {
-        Some((m, v)) if v > 0.0 => (Some([m.accel, m.brake, v]), crate::motion::share_at(m.accel, m.brake, v, len, t, tau.clamp(0.0, t))),
-        _ => (None, uniform),
+    match crate::motion::of(run.mode, &run.category).and_then(|m| m.profile(len, t)) {
+        Some([a, b, v]) => (Some([a, b, v]), crate::motion::share_at(a, b, v, len, t, tau.clamp(0.0, t))),
+        None => (None, uniform),
     }
 }
 
@@ -1049,6 +1051,12 @@ fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, liv
         None => (None, None),
     };
     let next = p.next_seq.unwrap_or(p.seq) as usize;
+    // the hop before: into the stop it stands at or has left (its tail is on it)
+    let behind = served.iter().position(|s| s.0 == p.seq as usize).filter(|&k| k > 0).and_then(|k| {
+        let (w, _) = hop_way(app, run, served[k - 1].0, served[k].0)?;
+        let (part, span) = clip_way(&w, bbox, VEHICLE_WAY_PAD_M);
+        Some(json::Behind { hop_path: kante_shapes::encode(part), hop_span: span })
+    });
     // the hop after: from the stop it stands at (or is heading for) to the next one it serves, so a page can drive it
     // on through that stop until the next answer comes
     let onward = served.iter().position(|s| s.0 == next).and_then(|k| {
@@ -1102,6 +1110,7 @@ fn vehicle_of(app: &App, run: &Run, line: json::LineBadge, headsign: String, liv
         motion: p.motion,
         hop_len: p.hop_len,
         onward,
+        behind,
     })
 }
 

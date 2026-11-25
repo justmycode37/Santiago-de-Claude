@@ -538,6 +538,19 @@ pub struct Vehicle {
     /// The hop after this one: from the stop it stands at (or is heading for, `nextSeq`) on to the next it serves.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub onward: Option<Onward>,
+    /// The hop before: the way it came along into the stop it stands at (or has left, `seq`), so a page can draw its
+    /// whole length on its way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub behind: Option<Behind>,
+}
+
+/// The way of the hop a vehicle came along (`Vehicle::behind`): as `hopPath` / `hopSpan` are for the hop it is on.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Behind {
+    pub hop_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop_span: Option<[f32; 2]>,
 }
 
 /// The hop a vehicle drives after the one it is on (`Vehicle::onward`).
