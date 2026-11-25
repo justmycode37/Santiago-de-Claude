@@ -188,7 +188,8 @@ function match(raw: LngLat[], lines: DrawnLines, rail: boolean) {
         // the road's middle as an offset to the right of the way (along it, the nearest point is beside the sample)
         const o = ex * nx[k] + ey * ny[k];
         // one way roads drawn twice (a carriageway each way) come once, the same line from two tiles once
-        const same = list.find((c) => Math.abs(c.o - o) < 0.5);
+        // (not a tunnel under a track or road: kept apart from it)
+        const same = list.find((c) => Math.abs(c.o - o) < 0.5 && c.tunnel === ((fl & 1) !== 0));
         const lane = laneOf(half, fl);
         if (!same) list.push({ o, lane, tunnel: (fl & 1) !== 0, d });
         else if (d < same.d) Object.assign(same, { o, lane, tunnel: (fl & 1) !== 0, d });

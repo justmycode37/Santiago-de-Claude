@@ -92,6 +92,17 @@ console.log('kept behind the one in front');
   }
   check(back < 0.01, `the one arriving behind never goes back (${back.toFixed(2)} m)`);
   check(gap > 0, `…and stops behind the other's tail (${gap.toFixed(1)} m apart)`);
+  // three standing at one stop, first shown together: one behind the other, none over another
+  {
+    const L3 = new VehicleLayout<LayoutVehicle>();
+    const at3 = (k: string, dep: number): LayoutVehicle => ({ tripId: k, serviceDate: 'd', line, t: 0, from: S, to: S, dep, arr: 0, nextSeq: 5, point: S,
+      onward: { nextSeq: 6, to: N, dep, arr: dep + 60, hopPath: enc([S, N]) }, behind: { hopPath: enc([P, S]) } });
+    const list3 = [at3('x', 30), at3('y', 60), at3('z', 90)];
+    L3.step(list3, 0, 0);
+    const pl = L3.place(list3, 0, () => true), mid = (k: string) => { const c = pl.find((x) => x.k === k + '|d')!.cars!; return (c[0][0][0] + c[c.length - 1][1][0]) / 2; };
+    const xs = ['x', 'y', 'z'].map(mid).sort((a, b) => b - a), gaps = [xs[0] - xs[1], xs[1] - xs[2]].map((d) => d * KX);
+    check(gaps.every((g) => g > 39.5), `three at one stop, first shown together: one behind the other (${gaps.map((g) => g.toFixed(1)).join(', ')} m apart)`);
+  }
   // an answer that lacks a vehicle keeps it for two answers
   const v1 = second(10), v2 = { ...second(10), tripId: 'c' };
   let list = mergeAnswer<LayoutVehicle & { missed?: number }>([], [v1, v2]);

@@ -208,7 +208,7 @@ function relayLines(budgetMs = Infinity): boolean {
 /** More of the map's lines have come (then relayLines()): where ways on rails run in tunnels is told again too. */
 function linesCame() {
   linesVersion++;
-  for (const [k, t] of railTunnelLines) if (!t || !t.complete) railTunnelLines.delete(k);
+  for (const [k, t] of railTunnelLines) if (!t) railTunnelLines.delete(k); else if (!t.complete) staleTunnels.add(k);
 }
 /** Laid onto the drawn roads: road vehicles. */
 const ROAD_MODES = new Set(['bus', 'ondemand']);
@@ -242,9 +242,13 @@ function hopLine(s: string, refine?: boolean): HopLine | null {
 /** Whether the ways vehicle v is drawn on (its hop and the next) are laid where they are to be (road vehicles). */
 function isLaid(v: KanteVehicleHop): boolean {
   if (!onRoad(v) || !refiner) return true;
-  const o = v.onward;
-  return (!v.hopPath || refinedLines.has(v.hopPath)) && (!o || !o.hopPath || refinedLines.has(o.hopPath))
-    && (!v.behind || refinedLines.has(v.behind.hopPath));
+  // laid in full, or with all the lines there are now (laid before more came: not until laid again), or drawn on
+  const ok = (path: string | undefined) => {
+    if (!path) return true;
+    const h = refinedLines.get(path);
+    return !!h && (h.complete || !!h.drawn || (h.version || 0) >= linesVersion);
+  };
+  return ok(v.hopPath) && ok(v.onward && v.onward.hopPath) && ok(v.behind && v.behind.hopPath);
 }
 /** The segment of line h that km `goal` is on: k with cum[k - 1] ≤ goal ≤ cum[k] (a binary search). */
 function segAt(h: HopLine, goal: number): number {
@@ -411,15 +415,18 @@ function bodyPlace(v: KanteVehicleHop, f: number, lenM: number, prev?: KanteVehi
 export type Tunneler = (pts: LngLat[], path: string) => { cum: ArrayLike<number>; tunnel: Uint8Array; complete: boolean } | null | 'pending';
 let tunneler: Tunneler | null = null;
 const railTunnelLines = new Map<string, { cum: ArrayLike<number>; tunnel: Uint8Array; complete: boolean } | null>();
+const staleTunnels = new Set<string>(); // told without all the tiles they cross: told again, kept as they are meanwhile
 /** Sets (or, null, drops) how ways on rails are told to be in tunnels. */
-function setTunneler(f: Tunneler | null) { tunneler = f; railTunnelLines.clear(); }
+function setTunneler(f: Tunneler | null) { tunneler = f; railTunnelLines.clear(); staleTunnels.clear(); }
 function tunnelsOf(path: string, road: boolean): { cum: ArrayLike<number>; tunnel: Uint8Array } | null {
   if (road) { const h = refinedLines.get(path); return h && h.tunnel ? { cum: h.cum, tunnel: h.tunnel } : null; }
   if (!tunneler) return null;
   let t = railTunnelLines.get(path);
-  if (t === undefined) {
+  if (t === undefined || staleTunnels.has(path)) {
     const raw = decodePolyline(path), got = raw.length > 1 ? tunneler(raw, path) : null;
-    if (got === 'pending') return null;
+    // being told again: as it was until then (none of its carriages comes up out of a tunnel for a moment)
+    if (got === 'pending') return t || null;
+    staleTunnels.delete(path);
     t = got;
     if (railTunnelLines.size > 3000) railTunnelLines.clear();
     railTunnelLines.set(path, t);
@@ -487,7 +494,8 @@ function hopAt<V extends KanteVehicleHop>(v: V, tNow: number): V {
   if (!o || (!standing && tNow < v.arr)) return v;
   const stop = standing ? v.from : v.to;
   if (tNow < o.dep) {
-    return standing ? v : { ...v, from: stop, to: stop, point: v.hopPath ? hopPointAt(v, 1) : stop, frac: null, t: null, hopPath: undefined, hopSpan: undefined,
+    // (standing until it leaves on the onward hop: that is its departure)
+    return standing ? v : { ...v, from: stop, to: stop, dep: o.dep, point: v.hopPath ? hopPointAt(v, 1) : stop, frac: null, t: null, hopPath: undefined, hopSpan: undefined,
       motion: undefined, hopLen: undefined, behind: v.hopPath ? { hopPath: v.hopPath, hopSpan: v.hopSpan } : undefined };
   }
   return { ...v, from: stop, to: o.to, nextSeq: o.nextSeq, dep: o.dep, arr: o.arr, frac: null, t: null, hopPath: o.hopPath, hopSpan: o.hopSpan,

@@ -81,6 +81,8 @@ const LINE_CLASSES = new Set([...ROAD_CLASSES, ...RAIL_CLASSES]);
 const MAX_TILES = 24; // then they start again (a long way off)
 // the tiles taken in (or asked for, or that failed: asked for again after a while)
 const tilesIn = new Set<string>(), tileBusy = new Set<string>(), tileFailed = new Map<string, number>();
+let tileGen = 0; // how often they started again (a worker's answer for tiles asked before that is of no use)
+let layGen = 0; // how often more lines came: a way laid before that, not in full, is laid again
 let linesFrom = 0; // when the view's tiles were last asked for (performance.now())
 type Laid = { pts: LngLat[] | null; cum: number[]; tunnel: Uint8Array | null; complete: boolean };
 let worker: Worker | null = null;
@@ -95,7 +97,7 @@ function fromWorker(kind: 'road' | 'rail', path: string) {
   if (!x) {
     if (laid[kind].size > 4000) laid[kind].clear();
     laid[kind].set(path, 'asked');
-    worker!.postMessage({ type: 'lay', kind, path } satisfies LinesAsk);
+    worker!.postMessage({ type: 'lay', kind, path, gen: layGen } satisfies LinesAsk);
   }
   return 'pending' as const;
 }
@@ -113,20 +115,25 @@ if (worker) {
   worker.onmessage = (e: MessageEvent<LinesAnswer>) => {
     const m = e.data;
     if (m.type === 'tiles') {
+      if (m.gen !== tileGen) return; // asked before starting again: of no use
       for (const t of m.done) { tilesIn.add(t); tileBusy.delete(t); tileFailed.delete(t); }
       for (const t of m.failed) { tileBusy.delete(t); tileFailed.set(t, performance.now()); }
       if (m.done.length) linesCame();
     } else {
+      // laid before more lines came (or before starting again) and not in full: asked again
+      if (m.gen !== layGen && !m.complete) { if (laid[m.kind].get(m.path) === 'asked') laid[m.kind].delete(m.path); return; }
       const pts: LngLat[] | null = m.pts ? Array.from({ length: m.pts.length / 2 }, (_, k) => [m.pts![2 * k], m.pts![2 * k + 1]] as LngLat) : null;
       laid[m.kind].set(m.path, { pts, cum: Array.from(m.cum), tunnel: m.tunnel, complete: m.complete });
       relayLater(); // a way laid again (more tiles came): in place of the one before, where no vehicle is drawn on it yet
     }
   };
-  worker.onerror = () => { worker = null; setLaying(); };
+  // the worker failed: the lines here, from the start
+  worker.onerror = () => { worker = null; tilesIn.clear(); tileBusy.clear(); laid.road.clear(); laid.rail.clear(); setLaying(); linesForView(); };
 }
 // more lines came: the ways laid without them are laid again
 function linesCame() {
-  for (const m of [laid.road, laid.rail]) for (const [k, x] of m) if (x !== 'asked' && !x.complete) m.delete(k);
+  layGen++;
+  for (const m of [laid.road, laid.rail]) for (const [k, x] of m) if (x === 'asked' || !x.complete) m.delete(k);
   KANTE_LIVE.linesCame();
   relayLater();
 }
@@ -149,7 +156,10 @@ function linesForView() {
     .filter((t) => !tilesIn.has(t) && !tileBusy.has(t) && !(now - (tileFailed.get(t) || -1e9) < 20000)).slice(0, MAX_TILES);
   if (!want.length) return;
   if (tilesIn.size + want.length > MAX_TILES) {
+    tileGen++;
+    layGen++;
     tilesIn.clear();
+    for (const t of tileBusy) if (!want.includes(t)) tileBusy.delete(t);
     laid.road.clear(); laid.rail.clear();
     if (worker) worker.postMessage({ type: 'reset' } satisfies LinesAsk);
     roads = new DrawnLines(); rails = new DrawnLines();
@@ -157,7 +167,7 @@ function linesForView() {
   }
   linesFrom = now;
   for (const t of want) tileBusy.add(t);
-  if (worker) worker.postMessage({ type: 'tiles', url: tileUrl(), tiles: want } satisfies LinesAsk);
+  if (worker) worker.postMessage({ type: 'tiles', url: tileUrl(), tiles: want, gen: tileGen } satisfies LinesAsk);
   else for (const t of want) tileHere(t);
 }
 // without a worker: a tile taken in here, while the map is still
@@ -201,6 +211,17 @@ function journeyTrips(): Set<string> | null {
   if (!journey.dest || !journey.conn) return null;
   return new Set(journey.conn.parts.filter(isRide).flatMap((s) => s.legs.map((l) => l.tripId + '|' + l.serviceDate)));
 }
+// The box a journey's vehicles are asked for: around all its stops where that is small enough for the engine (it answers
+// boxes up to 120 km across, padded); a longer one (Geneva to Zurich): the part the map shows, else around where its
+// first ride is boarded (never the middle of the way, where neither end is)
+const diagKm = (b: KanteBbox) => KANTE_LIVE.distKm([b[0], b[1]], [b[2], b[3]]);
+function journeyView(shown: KanteBbox): KanteBbox {
+  const all = journeyBox()!;
+  if (diagKm(all) * 1.6 <= KANTE_LIVE.MAX_BBOX_KM * 0.95) return all;
+  if (diagKm(shown) * 1.35 <= KANTE_LIVE.MAX_BBOX_KM * 0.95) return shown;
+  const q = journey.conn!.parts.filter(isRide)[0]?.stops[0]?.quay;
+  return q ? [q.lon - 0.05, q.lat - 0.035, q.lon + 0.05, q.lat + 0.035] : shown;
+}
 function journeyBox(): KanteBbox | null {
   if (!journey.conn) return null;
   let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
@@ -239,7 +260,8 @@ export function vehStop() {
 export function vehUpdate() {
   if (!vehWanted()) { if (vehBox || vehList.length) vehStop(); return; }
   const trips = journeyTrips(), mode = trips ? [...trips].sort().join(',') : 'map';
-  const b = map.getBounds(), view: KanteBbox = trips ? journeyBox()! : [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  const b = map.getBounds(), shown: KanteBbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  const view: KanteBbox = trips ? journeyView(shown) : shown;
   if (mode === vehMode && vehBox && KANTE_LIVE.bboxContains(vehBox, view)) return; // still covered: keep the stream / poll as it is
   if (mode !== vehMode) vehStop();
   else {

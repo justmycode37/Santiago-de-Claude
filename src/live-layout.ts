@@ -132,6 +132,7 @@ export class VehicleLayout<V extends LayoutVehicle> {
     // per vehicle behind another: the room it has before it is too near the one in front (as drawn), and how fast
     // that one is drawn going
     const room = new Map<string, number>(), aheadGoes = new Map<string, number>();
+    const pairs: { r: string; f: string; raw: number; need: number }[] = [];
     const backOf = (k: string) => this.held.get(k)?.back || 0;
     for (const [key, here] of cells) {
       const [cx, cy] = key.split(',').map(Number);
@@ -141,20 +142,24 @@ export class VehicleLayout<V extends LayoutVehicle> {
         // on rails or on the road (a tram and a bus in one street's lane too)
         if ((!A.make.rail && !A.make.road) || (!B.make.rail && !B.make.road)) continue;
         const need = (A.len + B.len) / 2 + ROOM_M;
-        // heading for (or standing at) the same boarding point: one after the other into it, by how far each still has
-        // to go along its own way (two lines coming in from two branches queue before they meet)
-        const sa = stopAhead(A), sb = stopAhead(B);
-        if (sa && sb && sa.key === sb.key) {
-          // (which is first by where they are; how far apart by where they are drawn)
-          const ra = sa.left, rb = sb.left;
+        // going the same way through the same boarding point (heading for it, standing at it, or just gone from it): one
+        // after the other through it, by where each is along its own way from it (two lines coming in from two
+        // branches queue before they meet; one leaving on a bend stays ahead of one coming in)
+        const at = throughStop(A, B);
+        if (at && A.dir[0] * B.dir[0] + A.dir[1] * B.dir[1] > 0) {
+          // (which is first by where they are, a change of that only once their drawn places agree; how far apart by
+          // where they are drawn)
+          const [ra, rb] = at;
           if (Math.abs(ra - rb) < need + LOOK_M + backOf(A.k) + backOf(B.k)) {
             const pk = A.k < B.k ? A.k + '\n' + B.k : B.k + '\n' + A.k;
+            const da = ra - backOf(A.k), db = rb - backOf(B.k);
             let front = this.order.get(pk);
-            if (!front || (front === A.k && ra > rb + 2) || (front === B.k && rb > ra + 2)) {
-              front = Math.abs(ra - rb) > 0.5 ? (ra < rb ? A.k : B.k) : first(A, B);
+            if (!front || (front === A.k && rb > ra + 2 && db > da + 2) || (front === B.k && ra > rb + 2 && da > db + 2)) {
+              front = Math.abs(ra - rb) > 0.5 ? (ra > rb ? A.k : B.k) : first(A, B);
               this.order.set(pk, front);
             }
-            const [F, R, gap] = front === A.k ? [A, B, rb + backOf(B.k) - ra - backOf(A.k)] : [B, A, ra + backOf(A.k) - rb - backOf(B.k)];
+            const [F, R, gap] = front === A.k ? [A, B, da - db] : [B, A, db - da];
+            pairs.push({ r: R.k, f: F.k, raw: gap - backOf(R.k) + backOf(F.k), need });
             if (gap - need < (room.get(R.k) ?? Infinity)) { room.set(R.k, gap - need); aheadGoes.set(R.k, this.held.get(F.k)?.u ?? 0); }
             continue;
           }
@@ -166,24 +171,36 @@ export class VehicleLayout<V extends LayoutVehicle> {
         // which is in front: as it was, unless clearly the other way now; first time: the one further on, at one
         // place the one that came first (arrived earlier), then by key
         const pk = A.k < B.k ? A.k + '\n' + B.k : B.k + '\n' + A.k;
+        const drawnAlong = along - backOf(B.k) + backOf(A.k);
         let front = this.order.get(pk);
-        if (!front || (front === A.k && along > 2) || (front === B.k && along < -2)) {
+        if (!front || (front === A.k && along > 2 && drawnAlong > 2) || (front === B.k && along < -2 && drawnAlong < -2)) {
           front = Math.abs(along) > 0.5 ? (along > 0 ? B.k : A.k) : first(A, B);
           this.order.set(pk, front);
         }
         const [F, R] = front === A.k ? [A, B] : [B, A];
         // how far the one in front is ahead of the one behind as drawn
         const gap = (front === B.k ? along : -along) + backOf(R.k) - backOf(F.k);
-        if (gap - need < (room.get(R.k) ?? Infinity)) { room.set(R.k, gap - need); aheadGoes.set(R.k, this.held.get(F.k)?.u ?? 0); }
+        pairs.push({ r: R.k, f: F.k, raw: gap - backOf(R.k) + backOf(F.k), need });
+            if (gap - need < (room.get(R.k) ?? Infinity)) { room.set(R.k, gap - need); aheadGoes.set(R.k, this.held.get(F.k)?.u ?? 0); }
       }
     }
     // each drawn going at a speed of its own: its vehicle's, slower where the one in front is near (braking for it in
     // good time, never harder than a vehicle brakes), catching up once there is room again; held back by what it has
     // not gone since, never pulled back. Where it first shows, straight where it belongs.
+    // those no longer laid out (gone from view and round it): forgotten, placed afresh when they come back
+    const laidOut = new Set(out.map((P) => P.k));
+    for (const k of this.held.keys()) if (!laidOut.has(k)) this.held.delete(k);
+    // those first shown now: each behind the one in front as that one is placed (three at one stop: one behind the
+    // other, not two behind the first)
+    const fresh = new Map<string, number>();
+    for (const P of out) if (!this.held.has(P.k)) fresh.set(P.k, 0);
+    for (let it = 0; it < 4 && fresh.size && pairs.length; it++) {
+      for (const pr of pairs) if (fresh.has(pr.r)) fresh.set(pr.r, Math.max(fresh.get(pr.r)!, pr.need - pr.raw + (fresh.get(pr.f) ?? backOf(pr.f))));
+    }
     for (const P of out) {
       const h = this.held.get(P.k), r = room.get(P.k) ?? Infinity;
       let back: number, u: number;
-      if (!h) { back = Math.max(0, -r); u = P.s.v || 0; } else {
+      if (!h) { back = fresh.get(P.k) || 0; u = P.s.v || 0; } else {
         // (its vehicle's own speed as shown: where its point is drawn can step a little where a hop ends)
         const v = P.s.v || 0, gone = v * dt;
         // what it may go: up to its own place (and its speed), not into the one ahead (its speed, and what it can
@@ -217,12 +234,31 @@ function first(A: { k: string; s: KanteShownVehicle<LayoutVehicle> }, B: { k: st
   const a = when(A.s), b = when(B.s);
   return a !== b ? (a < b ? A.k : B.k) : A.k < B.k ? A.k : B.k;
 }
-/** The boarding point a vehicle is heading for, or standing at, and how far it still has to go there (m). */
-function stopAhead(P: { s: KanteShownVehicle<LayoutVehicle>; make: Make }): { key: string; left: number } | null {
+/**
+ * Where two vehicles are along their ways through a boarding point both go through, metres (heading for it: below 0;
+ * standing at it: 0; gone from it: above): by the stop either is heading for or standing at, else the one either has
+ * just left. Null where they go through none together.
+ */
+function throughStop(A: Through, B: Through): [number, number] | null {
+  for (const key of [stopOf(A, 'to'), stopOf(B, 'to'), stopOf(A, 'from'), stopOf(B, 'from')]) {
+    if (!key) continue;
+    const a = alongFrom(A, key), b = alongFrom(B, key);
+    if (a != null && b != null) return [a, b];
+  }
+  return null;
+}
+type Through = { s: KanteShownVehicle<LayoutVehicle>; make: Make };
+const llKey = (p: LngLat) => p[0] + ',' + p[1];
+function stopOf(P: Through, end: 'to' | 'from'): string | null {
   if (!P.make.rail && !P.make.road) return null;
+  return llKey(P.s.rec[end]);
+}
+function alongFrom(P: Through, key: string): number | null {
   const r = P.s.rec, standing = r.from[0] === r.to[0] && r.from[1] === r.to[1];
-  if (standing) return { key: r.from[0] + ',' + r.from[1], left: 0 };
-  return { key: r.to[0] + ',' + r.to[1], left: (1 - P.s.f) * KANTE_LIVE.wayLenM(r) };
+  if (standing) return llKey(r.from) === key ? 0 : null;
+  if (llKey(r.to) === key) return -(1 - P.s.f) * KANTE_LIVE.wayLenM(r);
+  if (llKey(r.from) === key) return P.s.f * KANTE_LIVE.wayLenM(r);
+  return null;
 }
 /** A body (its stretch of way, back to front) cut into its carriages: each straight from its back to its front. */
 function cut(body: LngLat[], make: Make, len: number): [LngLat, LngLat][] {

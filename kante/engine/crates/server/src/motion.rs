@@ -71,7 +71,8 @@ impl Motion {
             return None;
         }
         match self.cruise(len, t) {
-            Some(v) if v > 0.0 => Some([self.accel, self.brake, v]),
+            // (at those rates no faster than it runs: else the gentler quarter-time profile, which is)
+            Some(v) if v > 0.0 && v <= self.vmax => Some([self.accel, self.brake, v]),
             _ => {
                 let v = len / (0.75 * t);
                 let a = v / (0.25 * t);
@@ -197,10 +198,12 @@ pub fn fit(
             served[k].2 += spare;
         }
     }
-    // a stop left later (an arrival pushed on) pushes on what comes after it, unless measured
+    // a stop left later (an arrival pushed on) pushes on what comes after it, unless measured; and never a hop driven
+    // faster than its vehicle runs (in no time at all), whatever was borrowed before it
     for k in 1..n {
-        if !fixed_arr(k) && served[k].1 < served[k - 1].2 {
-            served[k].1 = served[k - 1].2;
+        let least = lens[k - 1].map_or(0, |l| m.least(l));
+        if !fixed_arr(k) && served[k].1 < served[k - 1].2 + least {
+            served[k].1 = served[k - 1].2 + least;
         }
         if !fixed_dep(k) && served[k].2 < served[k].1 {
             served[k].2 = served[k].1;
@@ -273,6 +276,19 @@ mod tests {
         fit(&mut s, &m, i64::MIN, i64::MAX, |_| Some(300.0), |k| k == 0, |_| false);
         assert_eq!(s[0].2, 60);
         assert!(s[1].1 - s[0].2 >= m.least(300.0), "{s:?}");
+    }
+
+    #[test]
+    fn no_hop_is_left_without_time_and_none_runs_faster_than_its_vehicle() {
+        let m = tram();
+        // four 450 m hops, the first four stops in the same minute, the last five minutes later
+        let mut s = vec![(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 300, 300)];
+        fit(&mut s, &m, i64::MIN, i64::MAX, |_| Some(450.0), |_| false, |_| false);
+        assert!(s.windows(2).all(|w| w[1].1 - w[0].2 >= m.least(450.0)), "{s:?}");
+        assert!(s.iter().all(|x| x.1 <= x.2), "{s:?}");
+        // 500 m in 41 s: the service rates would need more than a tram runs
+        let [_, _, v] = m.profile(500.0, 41.0).unwrap();
+        assert!(v <= m.vmax + 1e-3, "{v} m/s");
     }
 
     #[test]

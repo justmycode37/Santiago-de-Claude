@@ -57,7 +57,7 @@ const tilesOf = (b: KanteBbox) => {
 type V = KanteVehicle;
 export interface Drawn {
   k: string; mode: string; cars: [[number, number], [number, number]][];
-  /** Per carriage in a tunnel: as drawn, and by the nearest drawn rail line (how it was told before) */
+  /** Per carriage in a tunnel: as drawn, and by the nearest drawn rail line running its way (how it was told before) */
   tunnel?: boolean[]; tunnelNearest?: boolean[];
 }
 export interface Layout {
@@ -99,7 +99,7 @@ function pageLayout(): Layout {
       const w = view[2] - view[0], h = view[3] - view[1], within = (p: LngLat, m: number, n: number) => p[0] > view[0] - m && p[0] < view[2] + m && p[1] > view[1] - n && p[1] < view[3] + n;
       return L.place(list, ms, (p) => (within(p, pad, pad) ? true : within(p, w, h) ? 'near' : false))
         .filter((P) => P.cars).map((P) => ({ k: P.k, mode: String(P.v.line.mode), tunnel: P.tunnel,
-          tunnelNearest: P.make.rail ? P.cars!.map(([a, b]) => rails.tunnelAt([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], a, a)) : undefined,
+          tunnelNearest: P.make.rail ? P.cars!.map(([a, b]) => rails.tunnelAt([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], a, b)) : undefined,
           cars: P.cars!.map(([a, b]) => [[a[0] * kx, a[1] * KY], [b[0] * kx, b[1] * KY]] as [[number, number], [number, number]]) }));
     },
   };
@@ -248,5 +248,5 @@ const row = (name: string, x: Stat) => {
 const all: Stat = { frames: 0, back: 0, backM: 0, side: 0, sideM: 0, leaps: 0, hard: 0, stopGo: 0, overlapS: 0, overlaps: 0 };
 for (const [m, x] of [...by].sort()) { row(m, x); for (const k of Object.keys(all) as (keyof typeof all)[]) all[k] += x[k]; }
 row('all', all);
-if (portal || portalOld) console.log(`  tunnels (vehicles on rails): changes ${portal}, flickers (back within 5 s) ${flick}; told by the nearest drawn line, as before: changes ${portalOld}, flickers ${flickOld}`);
+if (portal || portalOld) console.log(`  tunnels (vehicles on rails): changes ${portal}, flickers (back within 5 s) ${flick}; told by the nearest drawn line running its way, as before: changes ${portalOld}, flickers ${flickOld}`);
 export {};
