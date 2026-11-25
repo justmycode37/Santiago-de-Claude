@@ -838,6 +838,7 @@ impl App {
                 lon: here.pos.lon_deg(),
                 modes: None,
                 dist_m: None,
+                ..Default::default()
             };
             let from_end = WalkEnd { name: from_place.name.clone(), pos: here.pos, stop: None, end: End::exact(here.pos, None) };
             // six that keep to the longest walk, and beside them up to six with a longer one

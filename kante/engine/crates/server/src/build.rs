@@ -311,11 +311,11 @@ pub fn run(args: &Args) -> Result<()> {
         })?;
     }
 
-    if wanted("search", &[(&search_path, "search-v1")]) {
+    if wanted("search", &[(&search_path, kante_search::SEARCH_SCHEMA)]) {
         step("search", || {
             let tt: Timetable = io::load(&tt_path, TIMETABLE_SCHEMA)?;
             let idx = kante_search::build(&tt, pbf.exists().then_some(pbf.as_path()), None)?;
-            io::save(&search_path, "search-v1", &idx)
+            io::save(&search_path, kante_search::SEARCH_SCHEMA, &idx)
         })?;
     }
     eprintln!("build complete: {}", built.display());

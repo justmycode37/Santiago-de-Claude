@@ -316,6 +316,8 @@
     .results .title { font-size: 16.5px; font-weight: 600; color: var(--bar-text); }
     .results .subtitle { font-size: 13px; color: var(--bar-secondary); margin-top: 1px; }
     .results .empty { color: var(--bar-secondary); font-size: 15px; cursor: default; }
+    .results .thumb { flex: none; width: 48px; height: 48px; border-radius: 10px; object-fit: cover; background: var(--pressed); }
+    .results .thumb.logo { object-fit: contain; padding: 5px; background: #fff; box-shadow: inset 0 0 0 1px var(--pressed); }
     .results li.on-map { color: var(--accent-ink); font-size: 15px; font-weight: 600; gap: 8px; justify-content: center; }
     .results li.on-map svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .results li.attr { justify-content: center; padding: 4px 16px 8px; font-size: 11px; color: var(--bar-secondary); cursor: default; }
@@ -836,8 +838,7 @@
     .kj .step-views > button { margin: 0; }
     .kj .view3d, .kj .step-views > button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 8px 8px 2px 0; padding: 0 14px; border-radius: 18px; background: var(--ink); color: var(--surface); font-size: 14px; font-weight: 700; }
     .kj .view3d:active, .kj .step-views > button:active { opacity: .7; }
-    /* AR camera (src/app/65-ar.ts): drawn over Scan's live view; no photo button */
-    .ar-mode .sv-top > .sv-btn:last-child { display: none; }
+    /* AR camera (src/app/ar.ts): drawn over Scan's live view (Scan leaves out its photo button in AR) */
     /* the camera fills the screen: Scan's own panel and the journey sheet underneath step aside while AR is open */
     .ar-mode .sv-sheet, .ar-mode .sv-debug { display: none !important; }
     body.ar-open #journey, body.ar-open #jFoot, body.ar-open #jPill { visibility: hidden !important; }

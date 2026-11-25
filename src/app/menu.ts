@@ -44,7 +44,8 @@ export type DeviceOrientationAsk = typeof DeviceOrientationEvent & { requestPerm
 let scan: typeof STOPVISION | null = null;
 export function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream>, orientation: Promise<unknown>, then?: () => void) {
   startPlatforms(); // the stop positions are needed straight away
-  const go = () => platformsReady.then(() => scan!.open(hooks, camera, orientation)).then(() => { if (then) then(); });
+  // then: as soon as the screen is up (open() builds it before it waits for the camera), not once the camera plays
+  const go = () => platformsReady.then(() => { const opened = scan!.open(hooks, camera, orientation); if (then) then(); return opened; });
   if (scan) go();
   else {
     load(import.meta.url, () => import('../stopvision.ts')).then((m) => { scan = m.STOPVISION; }).then(go, (e) => {

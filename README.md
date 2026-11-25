@@ -10,7 +10,7 @@ A Swiss community event map and public transport journey planner. Team project f
 - **3D station navigation**: Interactive 3D models for Bern, Europaplatz, Wankdorf, Brünnen Westside, Bümpliz Nord, Zürich HB, Basel SBB, Luzern, Lausanne and Genève shown as one building at true heights, with the indoor transfer route step by step, a play-through of the walk and the step following your position ([details](docs/station3d-solid.md)), and the trains, trams and buses you board or leave as holograms at the platform: the coach chosen for the shortest walk at both ends, its classes, and how full it will be ([details](docs/train-formation.md)).
 - **Indoor position**: in the 3D station view, which floor you are on and where, from the phone's sensors, GPS and signs read by Scan ([details](docs/indoor-positioning.md)).
 - **Walking routes**: Walks to the stop, between platforms and to the door are the Kante engine's, on a pedestrian network from OpenStreetMap and swisstopo's address register: right door, arcades and passages, floors, hills, step-free settings ([details](docs/walking-routes.md)).
-- **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), place name, or Swiss address/stop (OpenStreetMap via Photon + swisstopo), with draggable start/destination map pins. An empty search offers categories (Restaurants, Hotels, Supermarkets, …; language courses and migration offices with *New to Switzerland* on) that put the best-rated places nearby on the map as cards with photo and website.
+- **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), what a place serves ("pizza", "vegan"), place name, or Swiss address/stop (Kante engine, OpenStreetMap via Photon, swisstopo), with each place's icon and, where known, its photo, with draggable start/destination map pins. An empty search offers categories (Restaurants, Hotels, Supermarkets, …; language courses and migration offices with *New to Switzerland* on) that put the best-rated places nearby on the map as cards with photo and website.
 - **Events & amenities**: Shows community events alongside public toilets across Switzerland and Bern's public amenities and local places.
 - **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones). Details: [docs/scan.md](docs/scan.md).
 - **First-visit introduction**: A welcome page, a short demo journey on the map and two questions (walking speed, access needs) before the map; details and status in [docs/onboarding.md](docs/onboarding.md).
@@ -49,6 +49,7 @@ Copy `config.example.js` to `config.js` (gitignored) to switch place search from
   ```bash
   python3 tools/build_station3d.py
   python3 tools/station3d_av.py all
+  python3 tools/station3d_clear.py zurich   # per station: keeps the walking graph out of wells, lift shafts and walls
   ```
 - **Stop scan database (`stop-images/`)** from GTFS + open photo sources (requires `pip install onnxruntime pillow numpy`; optional `MAPILLARY_TOKEN`):
   ```bash

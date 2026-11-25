@@ -2,8 +2,8 @@
 import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { showToast } from '../toast.ts';
-import { COLLAPSED_COUNT, KIND, inputs, list } from './search.ts';
-import { combineResults, searchPlaces, searchPlacesOnline } from './search-places.ts';
+import { COLLAPSED_COUNT, KIND, inputs, isPlaceResult, list } from './search.ts';
+import { combineResults, searchKante, searchPlaces, searchPlacesOnline } from './search-places.ts';
 import { blurSearch, choose, select } from './trip-ends.ts';
 import { categoryForText, categoryRow, exitCategory, loadCategory, renderCategories } from './categories.ts';
 import { loadPlaces } from './map-places.ts';
@@ -44,7 +44,7 @@ function drawPlacePins(places: SearchResult[], text: string, field: TripField) {
   pins = { text, field };
 }
 export function showPlacesOnMap() {
-  const places = searchState.results.filter((r) => r.origin === 'place');
+  const places = searchState.results.filter(isPlaceResult);
   if (!places.length) return;
   const field = searchState.field;
   drawPlacePins(places, inputs[field].value.trim(), field);
@@ -65,10 +65,12 @@ async function searchArea() {
   const { text, field } = pins, id = ++searchState.reqId, view = map.getBounds();
   areaChip.hidden = true;
   const bbox: PlaceBbox = [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()];
-  const [online] = await Promise.all([searchPlacesOnline(text, bbox).catch(() => null), loadPlaces()]);
+  // the engine measures from the middle of the map once it shows somewhere else than you (searchOrigin)
+  const [online, , kante] = await Promise.all([searchPlacesOnline(text, bbox).catch(() => null), loadPlaces(),
+    searchKante(text).catch(() => null)]);
   if (id !== searchState.reqId || !pins || pins.text !== text) return;
-  const found = combineResults(text, null, online, searchPlaces(text, true))
-    .filter((r) => r.origin === 'place' && view.contains(r.lngLat));
+  const found = combineResults(text, null, online, searchPlaces(text, true), kante)
+    .filter((r) => isPlaceResult(r) && view.contains(r.lngLat));
   if (!found.length) { showToast(`Nothing found for “${text}” in this part of the map.`); return; }
   searchState.results = found;
   searchState.last = { field, text };
@@ -116,9 +118,9 @@ export function render(emptyText = 'No results') {
     li.textContent = emptyText;
     list.appendChild(li);
   }
-  const placeCount = searchState.results.filter((r) => r.origin === 'place').length;
+  const placeCount = searchState.results.filter(isPlaceResult).length;
   let onMapLast: HTMLElement | null = null;
-  if (placeCount >= 2 && searchState.results[0].origin === 'place' && !(typedCategory && searchState.field === 'to')) {
+  if (placeCount >= 2 && isPlaceResult(searchState.results[0]) && !(typedCategory && searchState.field === 'to')) {
     const onMap = document.createElement('li');
     onMap.className = 'on-map';
     onMap.setAttribute('role', 'option');
@@ -149,6 +151,17 @@ export function render(emptyText = 'No results') {
     s.textContent = r.subtitle;
     text.append(t, s);
     li.append(icon, text);
+    if (r.photo) { // a photo of the place, or its brand's logo
+      const img = document.createElement('img');
+      img.className = r.photoIsLogo ? 'thumb logo' : 'thumb';
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => img.remove());
+      img.src = r.photo;
+      li.append(img);
+    }
     onTap(li, () => select(i));
     list.appendChild(li);
   });

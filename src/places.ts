@@ -366,8 +366,36 @@ async function search(text: string, { center, origin, radiusKm = 1.5, bbox }: Pl
 // a Wikidata entry); a second one asks Wikidata for the photo of those that only have an entry there.
 // How well known a place is stands in for its rating: it ranks the places of a category.
 interface OsmTags { [k: string]: string | undefined }
-interface WikidataClaims { entities?: Record<string, { claims?: { P18?: { mainsnak?: { datavalue?: { value?: string } } }[] } }> }
+type WikidataClaim = { mainsnak?: { datavalue?: { value?: string } } }[];
+interface WikidataClaims { entities?: Record<string, { claims?: { P18?: WikidataClaim; P154?: WikidataClaim } }> }
 const commonsFile = (file: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/^File:/i, ''))}?width=400`;
+
+// ---- Pictures from Wikidata: a place's photo (P18), a brand's logo (P154) ----
+/** 'Q72:P18' → the picture's URL, '' when the item has none. Kept for the page's life: typing asks for the same ones. */
+const wikidataSeen = new Map<string, string>();
+/** Pictures of Wikidata items: 'Q72:P18' → URL for those that have one. At most 40 items are asked for at a time. */
+export async function wikidataImages(wanted: [qid: string, prop: 'P18' | 'P154'][]): Promise<Map<string, string>> {
+  const ask = [...new Set(wanted.map(([q]) => q).filter((q) => /^Q\d+$/.test(q) && !wikidataSeen.has(`${q}:P18`)))].slice(0, 40);
+  if (ask.length) {
+    try {
+      const data = await getJSON<WikidataClaims>(
+        `https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids=${ask.join('|')}`, { signal: AbortSignal.timeout(5000) });
+      for (const q of ask) {
+        const claims = data.entities?.[q]?.claims;
+        for (const prop of ['P18', 'P154'] as const) {
+          const file = claims?.[prop]?.[0]?.mainsnak?.datavalue?.value;
+          wikidataSeen.set(`${q}:${prop}`, file ? commonsFile(file) : '');
+        }
+      }
+    } catch (e) { /* no pictures from Wikidata this time */ }
+  }
+  const found = new Map<string, string>();
+  for (const [q, prop] of wanted) {
+    const url = wikidataSeen.get(`${q}:${prop}`);
+    if (url) found.set(`${q}:${prop}`, url);
+  }
+  return found;
+}
 const OSM_TYPES = { N: 'node', W: 'way', R: 'relation' } as const;
 async function enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]> {
   const osm = list.filter((r) => r.source === 'osm' && /^osm:[NWR]\d+$/.test(r.id) && !r.details);
@@ -405,18 +433,8 @@ async function enrich(list: PlaceSearchResult[]): Promise<PlaceSearchResult[]> {
       + (t.stars ? (+t.stars || 0) * 0.4 : 0) + Math.min(Object.keys(t).length, 25) / 10;
     r.details = true;
   }
-  const qids = Object.keys(wikidata).filter((q) => /^Q\d+$/.test(q)).slice(0, 40);
-  if (qids.length) {
-    try {
-      const data = await getJSON<WikidataClaims>(
-        `https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids=${qids.join('|')}`, { signal: AbortSignal.timeout(5000) });
-      for (const q of qids) {
-        const p18 = data.entities && data.entities[q] && data.entities[q].claims && data.entities[q].claims!.P18;
-        const file = p18 && p18[0] && p18[0].mainsnak && p18[0].mainsnak.datavalue && p18[0].mainsnak.datavalue.value;
-        if (file) for (const r of wikidata[q]) { r.photo = commonsFile(file); r.score = (r.score || 0) + 2; }
-      }
-    } catch (e) { /* no photos from Wikidata this time */ }
-  }
+  const photos = await wikidataImages(Object.keys(wikidata).map((q) => [q, 'P18']));
+  for (const [key, url] of photos) for (const r of wikidata[key.split(':')[0]]) { r.photo = url; r.score = (r.score || 0) + 2; }
   return list;
 }
 
