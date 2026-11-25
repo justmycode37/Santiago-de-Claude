@@ -4,3 +4,4 @@ rightside/**/*.bin binary
 rightside/**/*.mlmodel binary
 rightside/**/*.png binary
 rightside/**/*.jpg binary
+*.onnx binary

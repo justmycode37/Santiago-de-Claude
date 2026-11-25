@@ -646,6 +646,10 @@ pub struct MatchResponse {
 #[derive(Serialize)]
 pub struct DueResponse {
     pub t: i64,
+    /// Nothing is missing: not cut at `limit`, and every live feed answered within the last 5 minutes.
+    pub complete: bool,
+    /// More trips were due than `limit`.
+    pub truncated: bool,
     pub due: Vec<Due>,
 }
 
@@ -673,6 +677,24 @@ pub struct Due {
     pub eta_s: i64,
     pub live_info: LiveInfo,
     pub extra: bool,
+    /// `arr`/`dep` come from the learned hop and dwell profiles after a measured stop, not the forecast.
+    pub profiled: bool,
+    /// Where `profiled`: the forecast's own times, before the profiles (to compare the two later).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forecast_arr: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forecast_dep: Option<i64>,
+    /// As timetabled.
+    pub aimed_arr: Option<i64>,
+    pub aimed_dep: Option<i64>,
+    /// Riders may board here (false: it only sets down, or is skipped today).
+    pub pickup: bool,
+    /// With `to=`: whether it calls at that station after this stop and lets riders off there.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serves_to: Option<bool>,
+    /// The boarding points of the stop before and after this one (where it comes from and goes to); null at an end.
+    pub prev_stop: Option<[f64; 2]>,
+    pub next_stop: Option<[f64; 2]>,
 }
 
 // ------------------------------------------------------------------ /api/identify

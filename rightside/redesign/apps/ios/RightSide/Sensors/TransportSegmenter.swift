@@ -56,13 +56,14 @@ final class TransportSegmenter {
               let boxData = contiguousFloats(boxes), let planes = contiguousFloats(prototypes) else { return [] }
         let count = boxes.shape[2].intValue
         func value(_ row: Int, _ column: Int) -> Float { boxData[row * count + column] }
-        var candidates: [(index: Int, kind: TransportClass, score: Float, box: CGRect)] = []
+        var candidates: [(index: Int, kind: TransportClass, score: Float, box: CGRect, margin: Float, runnerUp: TransportClass?)] = []
         for i in 0..<count {
             let scores = (0..<3).map { value(4 + $0, i) }
             guard let best = scores.indices.max(by: { scores[$0] < scores[$1] }), scores[best].isFinite, scores[best] >= 0.35 else { continue }
-            let ranked = scores.sorted(by: >)
-            // Zero-shot tram/train ambiguity is withheld, not resolved from the expected journey mode.
-            guard ranked[0] - ranked[1] >= 0.08 else { continue }
+            // An unsure class (zero-shot tram/train) no longer drops the vehicle: the class is only its caption and is
+            // never resolved from the expected journey mode. Which service it is comes from its display alone.
+            let second = scores.indices.filter { $0 != best }.max(by: { scores[$0] < scores[$1] })
+            let margin = second.map { scores[best] - scores[$0] } ?? 1
             let x = Double(value(0, i)), y = Double(value(1, i)), w = Double(value(2, i)), h = Double(value(3, i))
             guard [x,y,w,h].allSatisfy(\.isFinite), w > 0, h > 0 else { continue }
             let rect = CGRect(x: (x - w / 2 - padding.x) / scale / imageSize.width,
@@ -70,11 +71,12 @@ final class TransportSegmenter {
                               width: w / scale / imageSize.width, height: h / scale / imageSize.height)
                 .intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
             if !rect.isNull, rect.width > 0.03, rect.height > 0.03 {
-                candidates.append((i, TransportClass.allCases[best], scores[best], rect))
+                candidates.append((i, TransportClass.allCases[best], scores[best], rect, margin.isFinite ? margin : 0,
+                                   second.map { TransportClass.allCases[$0] }))
             }
         }
         // Class-agnostic suppression prevents duplicate bus/tram hypotheses on the same physical object.
-        var retained: [(index: Int, kind: TransportClass, score: Float, box: CGRect)] = []
+        var retained: [(index: Int, kind: TransportClass, score: Float, box: CGRect, margin: Float, runnerUp: TransportClass?)] = []
         for candidate in candidates.sorted(by: { $0.score > $1.score }).prefix(200) {
             if retained.allSatisfy({ VehicleTracker.iou($0.box, candidate.box) < 0.45 }) { retained.append(candidate) }
             if retained.count == VehicleTracker.maximumTracks { break }
@@ -96,7 +98,8 @@ final class TransportSegmenter {
             } }
             guard mask.contains(1) else { return nil }
             return VehicleDetection(kind: candidate.kind, box: candidate.box, score: candidate.score,
-                                    mask: VehicleMask(width: mw, height: mh, pixels: mask))
+                                    mask: VehicleMask(width: mw, height: mh, pixels: mask),
+                                    classMargin: candidate.margin, runnerUp: candidate.runnerUp)
         }
     }
     private static func contiguousFloats(_ array: MLMultiArray) -> [Float]? {
@@ -199,17 +202,21 @@ final class LocalVehiclePipeline: @unchecked Sendable {
         self.displayModelURL = displayModelURL
         self.displayCharactersURL = displayCharactersURL
     }
-    func process(buffer: CVPixelBuffer, orientation: CGImagePropertyOrientation, at: Date, epoch: UUID) throws -> VehicleFrameResult {
-        try process(upright: CIImage(cvPixelBuffer: buffer).oriented(orientation), at: at, epoch: epoch)
+    /// `shift`: how far the phone's turn moved the picture since the last processed frame; `trackGap`: how long a
+    /// track outlives not being seen (both from LiveCameraGuidance, see VehicleTracker).
+    func process(buffer: CVPixelBuffer, orientation: CGImagePropertyOrientation, at: Date, epoch: UUID,
+                 shift: CGPoint = .zero, trackGap: TimeInterval = 0.9) throws -> VehicleFrameResult {
+        try process(upright: CIImage(cvPixelBuffer: buffer).oriented(orientation), at: at, epoch: epoch, shift: shift, trackGap: trackGap)
     }
     /// The same inference path accepts bounded recorded inputs for reproducible native evaluation.
     /// Callers label replay and supply its clock; it does not write a live camera observation.
-    func process(upright image: CIImage, at: Date, epoch: UUID) throws -> VehicleFrameResult {
+    func process(upright image: CIImage, at: Date, epoch: UUID, shift: CGPoint = .zero, trackGap: TimeInterval = 0.9) throws -> VehicleFrameResult {
         let started = ProcessInfo.processInfo.systemUptime
         if self.epoch != epoch { tracker.reset(); ocrSchedule.reset(); self.epoch = epoch }
         if detector == nil { detector = try TransportSegmenter(url: modelURL) }
         let detections = try detector!.detect(image)
-        tracker.update(detections, at: at)
+        tracker.maximumGap = trackGap
+        tracker.update(detections, at: at, shift: shift)
         let frameID = UUID()
         var signTexts: [VehicleText] = []
         var diagnostics: [VehicleRecognitionDiagnostic] = []
@@ -276,7 +283,9 @@ final class LocalVehiclePipeline: @unchecked Sendable {
                     let displayRequest = VNRecognizeTextRequest()
                     displayRequest.recognitionLevel = displayRecognitionLevel; displayRequest.usesLanguageCorrection = false
                     displayRequest.recognitionLanguages = ["de-DE", "fr-FR", "en-US"]
-                    displayRequest.minimumTextHeight = 0.025
+                    // Half the body pass's floor: a far display's lines are small even in its own band, and a weak
+                    // line Vision boxes here can still be re-read by the second recognizer (unanchoredRegions).
+                    displayRequest.minimumTextHeight = 0.0125
                     try VNImageRequestHandler(cgImage: displayCG).perform([displayRequest])
                     let roi = CGRect(x: displayCrop.minX / image.extent.width, y: 1-displayCrop.maxY/image.extent.height,
                                      width: displayCrop.width/image.extent.width, height: displayCrop.height/image.extent.height)
@@ -336,6 +345,34 @@ final class LocalVehiclePipeline: @unchecked Sendable {
                 } else {
                     displayIssue = displayLoadState.issue
                     fallbackFailure = displayIssue == .initializationFailed ? "display_recognition_failed" : "display_model_unavailable"
+                }
+            }
+            // No accepted route numeral, so no proposal: the second recognizer still re-reads Vision's weak lines in
+            // the display band. What it reads confidently joins the frame's text; the matcher decides as always.
+            if proposal == nil, !reading.ambiguous, !reading.outOfService, reading.line == nil || reading.destination == nil {
+                let regions = VehicleDisplayRecognitionPolicy.unanchoredRegions(texts, detection: track.detection, otherBoxes: otherBoxes)
+                if !regions.isEmpty, displayLoadState.begin(modelPresent: displayModelURL != nil, dictionaryPresent: displayCharactersURL != nil),
+                   let displayModelURL, let displayCharactersURL {
+                    do { displayRecognizer = try VehicleDisplayRecognizer(modelURL: displayModelURL, charactersURL: displayCharactersURL) }
+                    catch { displayLoadState.rejectInitialization() }
+                }
+                if !regions.isEmpty, let displayRecognizer {
+                    var reread: [VehicleText] = []
+                    for region in regions {
+                        do {
+                            if let observation = try displayRecognizer.recognize(image: image, region: region, trackID: track.id,
+                                frameID: frameID, capturedAt: at, samplingID: "unanchored-native") {
+                                additionalAlternatives.append(observation)
+                                if let text = VehicleDisplayRecognitionPolicy.unanchoredText(observation, trackID: track.id, frameID: frameID, at: at) {
+                                    reread.append(text)
+                                }
+                            }
+                        } catch { fallbackFailure = "display_crop_unsupported_or_failed" }
+                    }
+                    if !reread.isEmpty {
+                        texts.append(contentsOf: reread)
+                        reading = VehicleTextRules.read(texts, detection: track.detection, otherBoxes: otherBoxes, at: at, frameID: frameID, layout: displayLayout)
+                    }
                 }
             }
             if routeReread, !reading.ambiguous, !reading.outOfService, reading.line == nil,

@@ -9,6 +9,7 @@ lives in `~/kante-host`.
 | `kante-engine.service` | The engine, on `127.0.0.1:8080` only |
 | `kante-tunnel.service` | `cloudflared`, which gives the engine a public HTTPS address without opening a port |
 | `kante-deploy.timer` | Every two minutes, runs `deploy.sh` |
+| `kante-due-archive.service` | Not enabled by `install.sh`: `systemctl --user enable --now kante-due-archive.service`. Keeps what `/api/due` says at the bus and tram stops of six city centres, every minute, in `~/kante-host/due-archive` (28 days), for `livemap/measure/due_compare.py` |
 | `kante-data.timer` | Daily at 02:30 Swiss time, runs `refresh-data.sh`: new timetable (Mondays, Thursdays and when a timetable year starts), learned travel times (Mondays), the terrain model (once, and a release with it when the running one has no slopes; one the build cannot read is removed and fetched again after a week) |
 
 ## The running instance

@@ -30,6 +30,9 @@ check(A.isRouteToken('n1') && A.isRouteToken('10e') && !A.isRouteToken('wabern')
 check(A.destinationSimilarity('Wabern, Tram-Endstation', 'Wabern') >= 0.9, '"Wabern" is how "Wabern, Tram-Endstation" is shown');
 check(A.destinationSimilarity('Bern, Wankdorf Bahnhof', 'Wankdorf Bhf') >= 0.9, '"Wankdorf Bhf" for "Bern, Wankdorf Bahnhof"');
 check(A.similarity('Saali', 'Soali') >= 0.85, 'LED a/o counts half an edit');
+check(!A.sameDestination('Bern, Bahnhof', 'Bern Wankdorf, Bahnhof'), '"Bern, Bahnhof" and "Bern Wankdorf, Bahnhof" are two destinations (Swift parity)');
+check(!A.sameDisplay({ line: '10', destination: 'Bern, Bahnhof' }, { line: '10', destination: 'Bern Wankdorf, Bahnhof' }), 'so the 10 to each is a different display, and a rival stays on the board');
+check(A.sameDestination('Wabern, Tram-Endstation', 'Wabern,Tram-Endstation') && A.sameDestination('Bern, Wankdorf Bahnhof', 'Bern, Wankdorf Bhf'), 'the same destination spelt two ways is one');
 
 console.log('One frame against a board');
 const board = [
@@ -77,7 +80,7 @@ interface BenchEvents { events: BenchEvent[] }
 interface BenchLabel { event: number; line: string; destination: string }
 interface BenchLabels { labels: BenchLabel[] }
 /** How a pass ends: accepted (and on what basis), or flagged as wrong (and as which service), or unknown. */
-interface PassResult { o: 'accepted' | 'conflicting' | 'unknown'; basis?: string; named?: string | null }
+interface PassResult { o: 'accepted' | 'conflicting' | 'unknown'; basis?: string; named?: ArCandidate | null }
 const BENCH = path.join(ROOT, 'rightside', 'tools', 'display-bench');
 const load = <T,>(dir: string, f: string): T => JSON.parse(fs.readFileSync(path.join(BENCH, dir, f), 'utf8'));
 const ocrDev = load<BenchOcr>('data', 'bern-video-ocr.json');
@@ -105,13 +108,13 @@ function runSet(dir: string, ocr: BenchOcr) {
   }
   function run(event: BenchEvent, expected: ArExpectation): PassResult {
     const { readings: rs, times } = readings(event);
-    let conflict = false, named: string | null = null;
+    let conflict = false, named: ArCandidate | null = null;
     for (let i = 0; i < times.length; i++) {
       const now = times[i];
       const win = rs.slice(0, i + 1).filter((r) => now - r.at <= 2);
       const d = A.decide(win, now, expected, now);
       if (d.state === 'match') return { o: 'accepted', basis: d.basis || 'strict' };
-      if (d.state === 'wrong') { conflict = true; named = named || d.observed || null; }
+      if (d.state === 'wrong') { conflict = true; named = named || d.other || null; }
     }
     return { o: conflict ? 'conflicting' : 'unknown', named };
   }
@@ -142,8 +145,9 @@ function runSet(dir: string, ocr: BenchOcr) {
       const r = run(event, { line: wrong.line, destination: wrong.destination, board: brd });
       neg[r.o]++; neg.n++;
       if (r.named) {
-        const [l, ...d] = r.named.split(' ');
-        if (A.sameDisplay({ line: l, destination: d.join(' ') }, truth)) neg.namedRight++; else neg.namedWrong++;
+        // a group name ("9/22 → Wabern") is right when the vehicle's service is one of them
+        if ((r.named.group || [r.named]).some((c) => A.sameDisplay(c, truth))) neg.namedRight++;
+        else { neg.namedWrong++; if (process.env.SHOW_NAMED) console.log(`    named wrong: #${label.event} is ${truth.line} ${truth.destination}, rider ${wrong.line} ${wrong.destination}, named ${r.named.line} ${r.named.destination}`); }
       }
     }
   }
@@ -151,15 +155,15 @@ function runSet(dir: string, ocr: BenchOcr) {
 }
 const pct = (a: number, n: number) => (n ? (a * 100 / n).toFixed(1) + ' %' : '-');
 
-// The Swift's numbers on the same data (run-eval.sh on Linux, strategy C, 21 Nov 2026): passes accepted, wrong-vehicle
+// The Swift's numbers on the same data (run-eval.sh on Linux, strategy C, 24 Nov 2026, with sameDestination): passes accepted, wrong-vehicle
 // trials flagged. On Linux, Foundation's CGRect.contains(rect) is union(rect) == self, compared exactly, which fails
 // for most float boxes (x + width − x ≠ width), so the Swift's line/destination pairs (VehicleTextRules.read) almost never form there. "Linux"
 // mode below reproduces that and must give exactly the Swift's numbers; "phone" mode is the logic as intended (and as
 // the web runs it).
 interface SwiftNumbers { accepted: number; n: number; flagged: number; negN: number }
 const SWIFT: Record<string, SwiftNumbers> = {
-  data: { accepted: 76, n: 111, flagged: 241, negN: 349 },
-  'data-holdout': { accepted: 27, n: 35, flagged: 81, negN: 113 },
+  data: { accepted: 72, n: 111, flagged: 225, negN: 349 },
+  'data-holdout': { accepted: 26, n: 35, flagged: 77, negN: 113 },
 };
 const linuxContains = (o: ArBox, i: ArBox) => { // union(o, i) == o, compared exactly
   const x0 = Math.min(o[0], i[0]), y0 = Math.min(o[1], i[1]);
@@ -168,6 +172,7 @@ const linuxContains = (o: ArBox, i: ArBox) => { // union(o, i) == o, compared ex
 const phoneContains = A.options.containsBox;
 for (const mode of ['linux', 'phone']) {
   A.options.containsBox = mode === 'linux' ? linuxContains : phoneContains;
+  A.options.notYours = mode !== 'linux'; // the Swift matcher has no such rule
   for (const dir of ['data', 'data-holdout']) {
     const ocr: BenchOcr = dir === 'data' ? ocrDev : JSON.parse(fs.readFileSync(path.join(BENCH, dir, 'bern-video-ocr.json'), 'utf8'));
     const started = Date.now();
@@ -189,7 +194,7 @@ Display bench ${dir}, ${mode === 'linux' ? 'as the Swift bench runs on Linux' : 
     }
   }
 }
-A.options.containsBox = phoneContains;
+A.options.containsBox = phoneContains; A.options.notYours = true;
 
 console.log(`
 ${passed} passed, ${failed} failed`);

@@ -168,7 +168,7 @@ final class CameraEvidenceLifecycleTests: XCTestCase {
             state.invalidate(event, at: t.addingTimeInterval(0.1))
             assertCleared(state)
             XCTAssertNotEqual(state.epoch, pending)
-            XCTAssertEqual(state.trackingEpoch == history, event == .expired)
+            XCTAssertEqual(state.trackingEpoch == history, event == .expired || event == .moved) // a small move keeps the tracks
             XCTAssertFalse(state.publish(vehicles: [overlay()], matches: [sign], token: pending,
                                          capturedAt: t, now: t.addingTimeInterval(0.2)))
             assertCleared(state)

@@ -5,6 +5,8 @@ interface AppConfig {
   googlePlacesKey?: string;
   /** Address of the Kante engine (engine.ts, live.ts). Left out: the hosted engine. '': no engine. */
   kanteUrl?: string;
+  /** Where the AR camera's "Save last 10 s" sends its capture (tools/ar-test.mts sets it); left out: shared or downloaded. */
+  arCaptureUrl?: string;
   /** An opentransportdata.swiss key for the Train Formation Service, for a test on your own machine: the 3D view then
    *  asks the service itself for a train's coaches instead of the engine (train-formation.ts). Never on a public site. */
   formationKey?: string;

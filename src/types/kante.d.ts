@@ -372,12 +372,30 @@ type KanteBbox = [w: number, s: number, e: number, n: number];
 /** GET /api/due (kante/docs/LIVE-API.md): every trip due at a boarding point, as far as the page uses it. */
 interface KanteDueResponse {
   t: number;
+  /** Nothing is missing: the list was not cut at `limit` and the live feed is not stale (LIVE-API.md). */
+  complete?: boolean;
+  /** More trips were due than `limit`. */
+  truncated?: boolean;
   due: Array<{
+    tripId?: string;
+    serviceDate?: string;
     line?: { name: string; category?: string; mode?: string };
     headsign?: string | null;
     /** Stops on the way a display may show (LIVE-API.md). */
     vias?: string[] | null;
+    quayId?: string | null;
     quayLabel?: string | null;
+    /** Live departure here, unix seconds; null where it only sets down. */
+    dep?: number | null;
+    /** With `to=`: whether it calls there after this stop. */
+    servesTo?: boolean | null;
+    /** arr/dep come from the learned hop and dwell profiles after a measured stop. */
+    profiled?: boolean;
+    /** Riders may board here (false: it only sets down, or is skipped today). */
+    pickup?: boolean;
+    /** Boarding points of the stops before and after this one. */
+    prevStop?: LngLat | null;
+    nextStop?: LngLat | null;
     departBearing?: number | null;
     state?: 'approaching' | 'at-stop' | 'departed';
     etaS?: number | null;

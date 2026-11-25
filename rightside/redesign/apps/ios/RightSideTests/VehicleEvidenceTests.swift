@@ -137,14 +137,17 @@ final class VehicleEvidenceTests: XCTestCase {
         tracker.update([detection()], at: t.addingTimeInterval(2)); tracker.reset()
         XCTAssertTrue(tracker.tracks.isEmpty)
     }
-    func testThreeTaxaDoNotShareTrackIdentity() {
+    func testBusAndRailDoNotShareTrackIdentityTramAndTrainDo() {
+        // YOLOE flickers between tram and train on the same Bern tram (docs/ar-recognition-plan.md, step 5).
         var tracker = VehicleTracker()
-        for (index, kind) in TransportClass.allCases.enumerated() {
-            let old = tracker.tracks.first?.id
-            tracker.update([detection(kind: kind)], at: t.addingTimeInterval(Double(index) * 0.4))
-            XCTAssertEqual(tracker.tracks.first?.detection.kind, kind)
-            XCTAssertNotEqual(tracker.tracks.first?.id, old)
-        }
+        tracker.update([detection(kind: .bus)], at: t)
+        let bus = tracker.tracks.first?.id
+        tracker.update([detection(kind: .tram)], at: t.addingTimeInterval(0.4))
+        let tram = tracker.tracks.first?.id
+        XCTAssertNotEqual(tram, bus)
+        tracker.update([detection(kind: .train)], at: t.addingTimeInterval(0.8))
+        XCTAssertEqual(tracker.tracks.first?.id, tram)
+        XCTAssertEqual(tracker.tracks.first?.detection.kind, .train)
     }
     func testBoundedTracksAndHistory() {
         var tracker = VehicleTracker(); tracker.update((0..<100).map { detection(Double($0) / 100) }, at: t)

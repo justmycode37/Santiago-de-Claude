@@ -11,6 +11,7 @@ out="$(mktemp -d)"
   "$app/Sensors/VehicleEvidence.swift" \
   "$app/Sensors/DepartureDisplayMatcher.swift" \
   "$app/Sensors/VehiclePositionEvidence.swift" \
+  "$app/Sensors/VehicleDisplayRecognition.swift" \
   "$app/Spatial/GeoARAlignment.swift" \
   "$app/Spatial/StopEdges.swift" \
   "$here/main.swift"

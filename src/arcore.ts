@@ -18,7 +18,14 @@ export interface ArText { text: string; box: ArBox; score: number }
 /** Where a vehicle (or, on the web, the aim frame around its display) is in the picture; score: the detector's, 1 for the aim frame. */
 export interface ArDetection { box: ArBox; score: number }
 /** A service that can stop here soon: the ride you want, or another departure of the stop. */
-export interface ArCandidate { line: string; destination: string; vias?: string[]; isExpected?: boolean }
+export interface ArCandidate {
+  line: string; destination: string; vias?: string[]; isExpected?: boolean;
+  /** 0–1: how likely it is in view now (its live time). Only ever used to choose which name to show among other
+   *  departures that the text fits equally (notYours), never to accept a reading or to weigh one against another. */
+  rank?: number;
+  /** A name for several departures the text fits equally (notYours): the departures themselves. */
+  group?: ArCandidate[];
+}
 export type ArLineEvidence = 'exact' | 'confusable' | 'unseen' | 'contradicted';
 export interface ArCandidateScore {
   candidate: ArCandidate;
@@ -40,6 +47,10 @@ export interface ArBoardMatch {
   margin: number;
   /** How far this one frame can be trusted, 0–1. */
   confidence: number;
+  /** When the text fits several other departures about equally and the rider's own display clearly not: the one to
+   *  name (the likeliest in view now among the equal ones), and how far the frame can be trusted. Whichever it is, it
+   *  is not the rider's. */
+  notYours?: { candidate: ArCandidate; confidence: number } | null;
 }
 /** What one frame shows on one vehicle. at: seconds. */
 export interface ArReading {
@@ -74,6 +85,8 @@ export interface ArDecision {
   observed?: string;
   basis?: ArBasis | null;
   confidence?: number | null;
+  /** How many distinct frames in the window back this answer (the web's labels need two for red). */
+  frames?: number;
 }
 
 type Box = ArBox;
@@ -98,7 +111,8 @@ function iou(a: Box, b: Box) {
 }
 
 /** Swappable for tests: tools/test_arcore.mts replays the Swift bench as it runs on Linux (see there). */
-const OPTIONS = { containsBox };
+/** notYours: the "not yours whichever it is" rule (off: exactly the Swift matcher, for the parity test). */
+const OPTIONS = { containsBox, notYours: true };
 
 // ---------------------------------------------------------------- DisplayText: normalisation, no dictionary
 const ABBREVIATIONS: Record<string, string> = {
@@ -245,9 +259,11 @@ function makeRows(texts: ArText[]): Row[] {
 
 // ---------------------------------------------------------------- DepartureDisplayMatcher
 const DESTINATION_ACCEPT = 0.8, DESTINATION_ACCEPT_WITH_LINE = 0.7, MARGIN_ACCEPT = 0.25, UNLISTED_BELOW = 0.5;
+/** notYours names at most this many departures the text fits equally. */
+const NOT_YOURS_MAX = 3;
 const POSITION_WEIGHT = 0.3;
 const LINE_TERM: Record<ArLineEvidence, number> = { exact: 0.6, confusable: 0.45, unseen: 0, contradicted: -0.6 };
-const identity = (c: ArCandidate) => lineKey(c.line) + '|' + canonical(c.destination);
+const identity = (c: ArCandidate): string => (c.group ? 'group:' + c.group.map(identity).sort().join('+') : lineKey(c.line) + '|' + canonical(c.destination));
 const total = (s: ArCandidateScore) => s.destination + LINE_TERM[s.line] + s.position * POSITION_WEIGHT;
 
 interface Win { bytes: number[]; key: string; text: string; weight: number; score: number }
@@ -299,7 +315,15 @@ function score(c: ArCandidate, wins: Win[], routeTokens: string[]): ArCandidateS
 }
 
 function sameDisplay(a: ArCandidate, b: ArCandidate) {
-  return lineKey(a.line) === lineKey(b.line) && destinationSimilarity(a.destination, b.destination) >= 0.9;
+  return lineKey(a.line) === lineKey(b.line) && sameDestination(a.destination, b.destination);
+}
+/** Whether two names are the same destination. Only full renderings count (weight 1 variants), so a shared generic part
+ *  ("Bahnhof" of "Bern, Bahnhof" and "Bern Wankdorf, Bahnhof") or a shared locality alone ("Wabern" of two Wabern
+ *  stops) never makes two destinations one. As DepartureDisplayMatcher.sameDestination in the Swift. */
+function sameDestination(a: string, b: string, threshold = 0.9) {
+  const x = weightedVariants(a).filter((v) => v.weight >= 1), y = weightedVariants(b).filter((v) => v.weight >= 1);
+  for (const u of x) for (const v of y) if (similarity(u.words.join(''), v.words.join('')) >= threshold) return true;
+  return false;
 }
 
 /** Compare one frame's display text with every candidate service. positions: likelihoods per identity (0–1). */
@@ -312,7 +336,8 @@ function match(texts: ArText[], candidates: ArCandidate[], positions?: Record<st
   for (const c of candidates) {
     if (!c.line || !c.destination) continue;
     const k = identity(c), old = byId.get(k);
-    if (!old || (c.isExpected && !old.isExpected)) byId.set(k, c);
+    if (!old || (c.isExpected && !old.isExpected)) byId.set(k, old && !c.isExpected === !old.isExpected ? c : { ...c, rank: Math.max(c.rank ?? 0, old?.rank ?? 0) });
+    else if ((c.rank ?? 0) > (old.rank ?? 0)) byId.set(k, { ...old, rank: c.rank });
   }
   const wins = windows(rows);
   const scores = [...byId.entries()].map(([k, c]) => {
@@ -332,7 +357,41 @@ function match(texts: ArText[], candidates: ArCandidate[], positions?: Record<st
   if (accepted && best.line !== 'contradicted') outcome = margin >= MARGIN_ACCEPT ? 'matched' : 'ambiguous';
   else if (readable && best.destination < UNLISTED_BELOW) outcome = 'unlisted';
   else outcome = readable ? 'ambiguous' : 'unreadable';
-  return { outcome, best, runnerUp, margin, confidence: confidenceOf(outcome, best, margin) };
+  return { outcome, best, runnerUp, margin, confidence: confidenceOf(outcome, best, margin), notYours: outcome === 'ambiguous' ? notYours(scores, best) : null };
+}
+/** The text fits other departures (all about equally, none of them the rider's) and the rider's display clearly not:
+ *  "not yours" whichever it is. The rider's own display must be in the set and score far below, with a destination
+ *  that does not fit (a short or garbled read of the rider's own display never counts). */
+function notYours(scores: ArCandidateScore[], best: ArCandidateScore) {
+  if (!OPTIONS.notYours) return null;
+  const own = scores.find((x) => x.candidate.isExpected);
+  if (!own || best.candidate.isExpected || sameDisplay(best.candidate, own.candidate)) return null;
+  // as clear a read as one the matcher accepts on its own (a via row or a garbled word never is)
+  const accepted = best.destination >= DESTINATION_ACCEPT
+    || (best.destination >= DESTINATION_ACCEPT_WITH_LINE && (best.line === 'exact' || best.line === 'confusable'));
+  if (best.line === 'contradicted' || !accepted) return null;
+  if (own.destination >= UNLISTED_BELOW || own.line === 'exact' || own.line === 'confusable' || best.total - own.total < MARGIN_ACCEPT) return null;
+  // the ones the text fits about as well as the best: none may be the rider's
+  const close = scores.filter((x) => best.total - x.total < MARGIN_ACCEPT);
+  if (close.some((x) => x.candidate.isExpected || sameDisplay(x.candidate, own.candidate))) return null;
+  const line = { exact: 1, confusable: 0.85, unseen: 0.7, contradicted: 0.3 }[best.line];
+  const confidence = Math.min(1, best.destination) * line * (0.6 + 0.4 * Math.min(1, Math.max(0, best.ocrScore)));
+  // all of them, always (which one it is never decides anything); the likeliest in view now first, for reading
+  const kinds = close.filter((x, i) => close.findIndex((y) => sameDisplay(x.candidate, y.candidate)) === i).map((x) => x.candidate);
+  // many departures the text fits equally: the read lacks what tells them apart (often the line), and the vehicle's
+  // own service may not be on the board at all; no red from that
+  if (kinds.length > NOT_YOURS_MAX) return null;
+  if (kinds.length === 1) return { candidate: kinds[0], confidence };
+  return { candidate: groupName(kinds), confidence };
+}
+/** One name for several departures, the likeliest in view now first (rank: its live time; only the order): their
+ *  lines and destination when they all go to the same place ("9/19 → Wabern, Tram-Endstation"), else no destination
+ *  (the label names each line with its own: "7 → Zentrum Nord / 9 → Zentrum Süd"). */
+function groupName(cs: ArCandidate[]): ArCandidate {
+  const sorted = cs.slice().sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0) || lineKey(a.line).localeCompare(lineKey(b.line), undefined, { numeric: true }));
+  const lines = [...new Set(sorted.map((c) => c.line))].join('/');
+  const same = sorted.every((c) => sameDestination(c.destination, sorted[0].destination));
+  return { line: lines, destination: same ? sorted[0].destination : '', group: sorted };
 }
 /** How far one frame's reading can be trusted (0–1): destination fit × numeral × margin × the OCR's own score. */
 function confidenceOf(outcome: ArMatchOutcome, best: ArCandidateScore | null, margin: number) {
@@ -440,7 +499,8 @@ function credibleContradiction(r: ArReading, expected: ArExpectation) {
 // match(), memoised per camera frame: every frame is judged again while it stays in the 2 s window.
 const matchCache = new Map<string, ArBoardMatch>();
 function matchFrame(frameId: string, texts: ArText[], candidates: ArCandidate[], positions?: Record<string, number>) {
-  const key = frameId + '|' + candidates.map(identity).join(';') + '|'
+  // (a candidate's rank orders a group's name: part of the key, so a newer board's times are not served stale)
+  const key = frameId + '|' + candidates.map((c) => identity(c) + '@' + Math.round((c.rank ?? 0) * 10)).join(';') + '|'
     + Object.keys(positions || {}).sort().map((k) => k + '=' + Math.trunc(positions![k] * 100)).join(';');
   const hit = matchCache.get(key);
   if (hit) return hit;
@@ -450,12 +510,12 @@ function matchFrame(frameId: string, texts: ArText[], candidates: ArCandidate[],
   return m;
 }
 
-interface BoardEvidence { expectedFrames: number[]; other: ArCandidate | null; split: boolean; acceptedExpected: boolean; basis: ArBasis | null; confidence: number | null }
+interface BoardEvidence { expectedFrames: number[]; other: ArCandidate | null; split: boolean; acceptedExpected: boolean; basis: ArBasis | null; confidence: number | null; frames: number }
 function boardEvidence(readings: ArReading[], expected: ArExpectation, positions?: Record<string, number>): BoardEvidence {
   const own: ArCandidate = { line: expected.line, destination: expected.destination, vias: expected.vias, isExpected: true };
   const alternatives = (expected.board || []).filter((c) => !c.isExpected && !sameDisplay(c, own));
   const candidates = [own, ...alternatives];
-  const ev: BoardEvidence = { expectedFrames: [], other: null, split: false, acceptedExpected: false, basis: null, confidence: null };
+  const ev: BoardEvidence = { expectedFrames: [], other: null, split: false, acceptedExpected: false, basis: null, confidence: null, frames: 0 };
   const scored: { candidate: ArCandidate; confidence: number }[] = [];
   const seen = new Set<string>();
   for (const r of readings) {
@@ -469,6 +529,7 @@ function boardEvidence(readings: ArReading[], expected: ArExpectation, positions
       if (m.outcome === 'matched' && m.best.line === 'exact' && m.best.destination >= 0.85) ev.expectedFrames.push(r.at);
       continue;
     }
+    if (m.outcome === 'ambiguous' && m.notYours) { scored.push({ candidate: m.notYours.candidate, confidence: m.notYours.confidence * r.frameQuality }); continue; }
     if (m.outcome !== 'matched') continue;
     scored.push({ candidate: m.best.candidate, confidence: m.confidence * r.frameQuality });
   }
@@ -486,6 +547,7 @@ function boardEvidence(readings: ArReading[], expected: ArExpectation, positions
   const settle = (c: ArCandidate, basis: ArBasis, confidence: number) => {
     if (c.isExpected) ev.acceptedExpected = true; else ev.other = c;
     ev.basis = basis; ev.confidence = confidence;
+    ev.frames = scored.filter((s) => identity(s.candidate) === identity(c)).length; // one entry per distinct frame
   };
   if (L.count >= 2 && L.least >= CONSENSUS_MIN) {
     if (rival >= L.best * 0.8) ev.split = true; else settle(L.candidate, 'consensus', L.best);
@@ -508,15 +570,15 @@ function decide(readingsIn: ArReading[], lastSeen: number, expected: ArExpectati
   const readings = readingsIn.filter((r) => r.at <= now && now - r.at <= 2);
   const latest = readings[readings.length - 1];
   if (!latest || now - latest.at >= 0.8) return ans('unknown', 'display_stale');
-  if (readings.some((r) => r.outOfService)) return ans('wrong', 'out_of_service');
+  if (readings.some((r) => r.outOfService)) return ans('wrong', 'out_of_service', { frames: new Set(readings.filter((r) => r.outOfService).map((r) => r.frameId)).size });
   if (readings.some((r) => r.ambiguous)) return ans('unknown', 'ambiguous_display');
   const line = normalize(expected.line).replace(/ /g, ''), destination = normalize(expected.destination);
   const board = boardEvidence(readings, expected, positions);
-  const withBasis = (d: ArDecision) => (board.basis ? { ...d, basis: board.basis, confidence: board.confidence } : d);
+  const withBasis = (d: ArDecision) => (board.basis ? { ...d, basis: board.basis, confidence: board.confidence, frames: board.frames } : d);
   if (board.other) {
     const o = board.other, service = `${o.line} ${o.destination}`;
     const stops = expected.stopsBefore || [];
-    if (lineKey(o.line) === lineKey(expected.line) && stops.some((s) => destinationSimilarity(s, o.destination) >= 0.9)) {
+    if (!o.group && lineKey(o.line) === lineKey(expected.line) && stops.some((s) => sameDestination(s, o.destination))) {
       return withBasis(ans('wrong', 'display_short_turn_before_alighting', { other: o, observed: service }));
     }
     return withBasis(ans('wrong', 'display_matches_other_departure', { other: o, observed: service }));
@@ -524,20 +586,24 @@ function decide(readingsIn: ArReading[], lastSeen: number, expected: ArExpectati
   if (board.split) return ans('unknown', 'display_matches_several_departures');
   if (board.acceptedExpected) return withBasis(ans('match', 'display_matches'));
   const ef = board.expectedFrames;
-  if (ef.length >= 3 && latest.at - ef[0] >= 0.8 && ef[ef.length - 1] === latest.at) return ans('match', 'display_matches');
+  if (ef.length >= 3 && latest.at - ef[0] >= 0.8 && ef[ef.length - 1] === latest.at) return ans('match', 'display_matches', { frames: ef.length });
   const differing = readings.filter((r) => (r.line != null && r.line !== line) || (r.destination != null && r.destination !== destination));
   if (differing.length) {
     if (ef.length) return ans('unknown', 'insufficient_temporal_evidence');
     const credible = differing.filter((r) => credibleContradiction(r, expected));
     if (new Set(credible.map((r) => r.frameId)).size < 2) return ans('unknown', 'display_conflict_unconfirmed');
     const stops = (expected.stopsBefore || []).map(normalize);
-    if (credible.some((r) => r.line === line && r.destination != null && stops.includes(r.destination))) return ans('wrong', 'display_short_turn_before_alighting');
-    return ans('wrong', 'wrong_line_destination_or_short_working');
+    const frames = new Set(credible.map((r) => r.frameId)).size;
+    // a short turn only when two distinct frames name a stop before the rider's (one, plus another contradiction,
+    // is a contradiction that names nothing)
+    const turning = new Set(credible.filter((r) => r.line === line && r.destination != null && stops.includes(r.destination)).map((r) => r.frameId)).size;
+    if (turning >= 2) return ans('wrong', 'display_short_turn_before_alighting', { frames: turning });
+    return ans('wrong', 'wrong_line_destination_or_short_working', { frames });
   }
   if (latest.line == null || latest.destination == null) return ans('unknown', ef.length ? 'insufficient_temporal_evidence' : 'display_unreadable');
   const complete = readings.filter((r) => r.line === line && r.destination === destination);
   if (new Set(complete.map((r) => r.frameId)).size < 3 || latest.at - complete[0].at < 0.8) return ans('unknown', 'insufficient_temporal_evidence');
-  return ans('match', 'display_matches');
+  return ans('match', 'display_matches', { frames: new Set(complete.map((r) => r.frameId)).size });
 }
 
 /** In words for the screen. */
@@ -549,6 +615,6 @@ function decisionText(d: ArDecision, expected: ArExpectation | null): string {
 }
 
 export const ARCORE = {
-  words, canonical, lineKey, isRouteToken, confusionKey, weightedVariants, similarity, destinationSimilarity, sameDisplay,
+  words, canonical, lineKey, isRouteToken, confusionKey, weightedVariants, similarity, destinationSimilarity, sameDisplay, sameDestination,
   identity, normalize, match, read, decide, decisionText, credibleContradiction, iou, options: OPTIONS,
 };

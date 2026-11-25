@@ -529,5 +529,129 @@ do {
     if case .unavailable = far.mode {} else { check(false, "far from the route: no AR path") }
 }
 
+// MARK: - Vehicle tracker (docs/ar-recognition-plan.md, step 1: pan reset, class margin, cadence)
+
+func vd(_ kind: TransportClass, _ x: Double, _ y: Double = 0.3, w: Double = 0.3, h: Double = 0.4, margin: Float = 1, runnerUp: TransportClass? = nil) -> VehicleDetection {
+    VehicleDetection(kind: kind, box: CGRect(x: x, y: y, width: w, height: h), score: 0.8,
+                     mask: VehicleMask(width: 2, height: 2, pixels: [1, 1, 1, 1]), classMargin: margin, runnerUp: runnerUp)
+}
+do {
+    var tracker = VehicleTracker()
+    tracker.update([vd(.tram, 0.2, margin: 0.03, runnerUp: .train)], at: t0)
+    let id = tracker.tracks.first?.id
+    tracker.update([vd(.train, 0.22, margin: 0.05, runnerUp: .tram)], at: t0.addingTimeInterval(0.4))
+    check(tracker.tracks.count == 1 && tracker.tracks.first?.id == id, "a tram that flickers to \"train\" stays one track")
+    tracker.update([vd(.bus, 0.22)], at: t0.addingTimeInterval(0.8))
+    check(tracker.tracks.first?.id != id, "but a bus in its place is another vehicle")
+    check(vd(.train, 0.2, margin: 0.03, runnerUp: .tram).caption == "Tram or train" && vd(.bus, 0.2, margin: 0.02, runnerUp: .tram).caption == "Vehicle"
+          && vd(.bus, 0.2).caption == "Bus", "an unsure class says less, a sure one names it")
+
+    // a pan: the picture moves 0.25 to the left; the vehicle keeps its track when the shift is given
+    var panned = VehicleTracker()
+    panned.update([vd(.bus, 0.5)], at: t0)
+    let busID = panned.tracks.first?.id
+    panned.update([vd(.bus, 0.25)], at: t0.addingTimeInterval(0.4), shift: CGPoint(x: -0.25, y: 0))
+    check(panned.tracks.first?.id == busID, "a pan the camera reports keeps the track")
+    var unshifted = VehicleTracker()
+    unshifted.update([vd(.bus, 0.5)], at: t0)
+    let first = unshifted.tracks.first?.id
+    unshifted.update([vd(.bus, 0.25)], at: t0.addingTimeInterval(0.4))
+    check(unshifted.tracks.first?.id != first, "without the shift, a jump that far starts a new track (no inheritance)")
+
+    // the swap a pan could cause: A leaves on the left, B slides into A's old place; with the shift, B is not A
+    var swap = VehicleTracker()
+    swap.update([vd(.bus, 0.1), vd(.bus, 0.45)], at: t0)
+    let a = swap.tracks[0].id, b = swap.tracks[1].id
+    swap.update([vd(.bus, 0.1)], at: t0.addingTimeInterval(0.4), shift: CGPoint(x: -0.35, y: 0))
+    check(swap.tracks.count == 1 && swap.tracks[0].id == b && swap.tracks[0].id != a, "after a pan, the vehicle in A's old place is B, not A")
+
+    // throttled cadence (1.2 s): a track survives the gap only when the tracker is told the gap
+    var slow = VehicleTracker(); slow.maximumGap = 2.5 * 1.2
+    slow.update([vd(.bus, 0.3)], at: t0)
+    let slowID = slow.tracks.first?.id
+    slow.update([vd(.bus, 0.31)], at: t0.addingTimeInterval(1.2))
+    check(slow.tracks.first?.id == slowID, "at 1.2 s per frame the track survives")
+    var fast = VehicleTracker()
+    fast.update([vd(.bus, 0.3)], at: t0)
+    let fastID = fast.tracks.first?.id
+    fast.update([vd(.bus, 0.31)], at: t0.addingTimeInterval(1.2))
+    check(fast.tracks.first?.id != fastID, "with the old 0.9 s gap it did not")
+
+    // the decision's freshness follows the cadence too
+    var expected = VehicleServiceExpectation(line: "10", destination: "Ostermundigen, Rüti")
+    expected.boardAlternatives = bern
+    let clean = [[VehicleText]](repeating: [text("10", x: 0.12, w: 0.05), text("Ostermundigen Rüti", x: 0.19)], count: 3)
+    let tr = track(clean)
+    let late = tr.lastSeen.addingTimeInterval(1.0)
+    check(VehicleServiceMatcher.decide(tr, expected: expected, now: late).reason == "track_stale", "1 s after the last frame: stale at the normal cadence")
+    check(VehicleServiceMatcher.decide(tr, expected: expected, now: late, freshness: 0.4 + 1.2).state == .visualCandidate,
+          "but not when the camera runs at 1.2 s per frame")
+}
+
+// MARK: - The second display reader without an accepted numeral (plan step 3)
+do {
+    let bus = vd(.bus, 0.1, 0.1, w: 0.6, h: 0.7)
+    let weak = [VehicleText(text: "Ostermundi9en", box: CGRect(x: 0.2, y: 0.15, width: 0.3, height: 0.04), score: 0.45),
+                VehicleText(text: "1O", box: CGRect(x: 0.12, y: 0.15, width: 0.05, height: 0.05), score: 0.5),
+                VehicleText(text: "Werbung", box: CGRect(x: 0.2, y: 0.7, width: 0.3, height: 0.05), score: 0.5),   // low on the body
+                VehicleText(text: "Sure", box: CGRect(x: 0.2, y: 0.25, width: 0.2, height: 0.04), score: 0.9)]     // already accepted
+    let regions = VehicleDisplayRecognitionPolicy.unanchoredRegions(weak, detection: bus, otherBoxes: [])
+    check(regions.count == 1 && regions.allSatisfy { $0.midY < 0.3 }, "a weak destination line is re-read; not a route numeral, the body or accepted text (\(regions))")
+    check(VehicleDisplayRecognitionPolicy.unanchoredRegions(weak, detection: bus, otherBoxes: [CGRect(x: 0, y: 0, width: 1, height: 0.3)]).isEmpty,
+          "never text that lies in another vehicle")
+    let frame = UUID(), trackID = UUID()
+    func obs(_ text: String, _ scores: [Float], track: UUID = trackID) -> AlternativeDisplayObservation {
+        AlternativeDisplayObservation(engineID: VehicleDisplayRecognitionPolicy.engineID, modelID: VehicleDisplayRecognitionPolicy.modelID,
+            configID: VehicleDisplayRecognitionPolicy.configID, frameID: frame, capturedAt: t0, trackID: track, text: text,
+            characterScores: scores, region: regions[0], samplingID: "unanchored-native")
+    }
+    let good = VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 0.98, count: 13)), trackID: trackID, frameID: frame, at: t0)
+    check(good?.text == "Ostermundigen" && (good?.score ?? 0) > 0.95, "a confident complete re-read joins the frame's text")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 0.9, count: 13)), trackID: trackID, frameID: frame, at: t0) == nil,
+          "mean under 0.95: dropped")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [0.3] + [Float](repeating: 1, count: 12)), trackID: trackID, frameID: frame, at: t0) == nil,
+          "one weak character: dropped")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 12)), trackID: trackID, frameID: frame, at: t0) == nil,
+          "incomplete character scores: dropped")
+    check(VehicleDisplayRecognitionPolicy.unanchoredText(obs("Ostermundigen", [Float](repeating: 1, count: 13), track: UUID()), trackID: trackID, frameID: frame, at: t0) == nil,
+          "another track's read: dropped")
+    for text in ["10 Ostermundigen", "Ostermundigen 10", "1O", "N1 Bern", "10E Wabern", "9Wankdorf", "I0 Bern", "9-Wabern", "(10) Rüti", "10.Wabern", "10/Rüti", "N1O Bern", "10Ostermundigen"] {
+        check(VehicleDisplayRecognitionPolicy.unanchoredText(obs(text, [Float](repeating: 1, count: text.count)), trackID: trackID, frameID: frame, at: t0) == nil,
+              "a re-read holding a route numeral is dropped: \(text)")
+    }
+    // throttled (1.2 s per frame): three frames fit only a window wider than 2 s
+    var exp = VehicleServiceExpectation(line: "10", destination: "Ostermundigen, Rüti")
+    exp.boardAlternatives = []
+    let d0 = detection()
+    let slowReads = (0..<3).map { i in VehicleTextRules.read([text("10", x: 0.12, w: 0.05), text("Ostermundigen Rüti", x: 0.19)], detection: d0, otherBoxes: [],
+                                                           at: t0.addingTimeInterval(Double(i) * 1.2), frameID: UUID(), layout: .eitherSide) }
+    let slowTrack = VehicleTrack(id: UUID(), detection: d0, lastSeen: t0.addingTimeInterval(2.4), readings: slowReads)
+    check(VehicleServiceMatcher.decide(slowTrack, expected: exp, now: slowTrack.lastSeen).state != .visualCandidate, "three frames 1.2 s apart do not fit 2 s")
+    check(VehicleServiceMatcher.decide(slowTrack, expected: exp, now: slowTrack.lastSeen, freshness: 1.6, window: 3).state == .visualCandidate,
+          "but fit the throttled window")
+}
+
+// MARK: - Red needs two frames; a short turn needs two frames naming it (review: Astra)
+do {
+    var exp = VehicleServiceExpectation(line: "7", destination: "Bern, Ostring")
+    exp.requiresRouteContext = false
+    exp.downstreamCalls = [VehicleExpectedCall(id: "k", stopID: "kursaal", name: "Bern, Kursaal"), VehicleExpectedCall(id: "o", stopID: "ostring", name: "Bern, Ostring")]
+    exp.alightingCallID = "o"
+    let d0 = detection()
+    func reads(_ texts: [[VehicleText]]) -> VehicleTrack {
+        let rs = texts.enumerated().map { i, t in VehicleTextRules.read(t, detection: d0, otherBoxes: [], at: t0.addingTimeInterval(Double(i) * 0.5), frameID: UUID(), layout: .eitherSide) }
+        return VehicleTrack(id: UUID(), detection: d0, lastSeen: t0.addingTimeInterval(Double(texts.count - 1) * 0.5), readings: rs)
+    }
+    let mixed = reads([[text("7", x: 0.12, w: 0.05), text("Bern Kursaal", x: 0.19)], [text("7", x: 0.12, w: 0.05), text("Detrina", x: 0.19)]])
+    let dm = VehicleServiceMatcher.decide(mixed, expected: exp, now: mixed.lastSeen)
+    check(dm.reason != "display_short_turn_before_alighting", "one frame naming a stop before plus another contradiction is no short turn (\(dm.reason))")
+    let turn = reads([[text("7", x: 0.12, w: 0.05), text("Bern Kursaal", x: 0.19)], [text("7", x: 0.12, w: 0.05), text("Bern Kursaal", x: 0.19)]])
+    let dt = VehicleServiceMatcher.decide(turn, expected: exp, now: turn.lastSeen)
+    check(dt.reason == "display_short_turn_before_alighting" && dt.frames == 2, "two frames naming it are (\(dt.reason), \(dt.frames ?? 0))")
+    let closed = reads([[text("Dienstfahrt", x: 0.19)]])
+    let dc = VehicleServiceMatcher.decide(closed, expected: exp, now: closed.lastSeen)
+    check(dc.reason == "out_of_service" && dc.frames == 1, "one frame of Dienstfahrt counts one frame (\(dc.frames ?? 0)): not red on its own")
+}
+
 print("\(checks - failures)/\(checks) checks passed")
 exit(failures == 0 ? 0 : 1)
