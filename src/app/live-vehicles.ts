@@ -20,6 +20,7 @@ import type { Make, Placed } from '../live-layout.ts';
 import { tileLines } from '../vector-lines.ts';
 import type { LinesAnswer, LinesAsk } from './lines-worker.ts';
 import { SETTINGS } from '../settings.ts';
+import { WALK_PACE } from '../walk-pace.ts';
 import type { KanteJourneyLike, KanteShownVehicle } from '../live.ts';
 import { currentTheme } from '../theme.ts';
 import type { LineLike, LineMode } from './journey-steps.ts';
@@ -712,6 +713,7 @@ export function splitPlatform(p: string | null | undefined): PlatformParts {
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
   map.on('click', (e) => {
+    if (WALK_PACE.drawing()) return; // the taps draw a path (developer options)
     if (!vehList.length) return;
     const i = vehicleAt(e.point);
     const v = i == null ? null : vehList[i];

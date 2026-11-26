@@ -16,6 +16,7 @@ import { setDetent, sheetDetent } from './sheet.ts';
 import { renderSheet } from './sheet-content.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
+import { WALK_PACE } from '../walk-pace.ts';
 import type { SearchResult, TripField } from './search.ts';
 const PIN_WORD = { from: 'start', to: 'destination' };
 const pinHint = document.getElementById('pinHint')!;
@@ -131,6 +132,7 @@ export const pinMenu = new maplibregl.Popup({ closeButton: false, closeOnClick: 
 let pinMenuAt = 0;     // when it last opened (Android sends both a long press and a context menu)
 let pinMenuQuiet = 0;  // until then, a click on the map is the end of the long press, not a tap to close it
 function openPinMenu(lngLat: LngLat) {
+  if (WALK_PACE.drawing()) return; // the map is for drawing a path (developer options)
   if (Date.now() - pinMenuAt < 600 || document.body.classList.contains('pin-dragging') || !inSwitzerland(lngLat)) return;
   pinMenuAt = Date.now();
   pinMenuQuiet = pinMenuAt + 700;

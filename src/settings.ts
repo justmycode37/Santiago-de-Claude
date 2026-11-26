@@ -4,7 +4,7 @@
 // (live.ts) and, folded behind one row, "Events and places": what the events button shows (map-layers.ts).
 // "Events for you" narrows down which community events show.
 // "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.ts); "Developer options" at the very
-// bottom (only with ?dev in the address) shows the tools to test that.
+// bottom (only with ?dev in the address) shows the tools to test that, and dummy trips for the fare suggestions.
 // Everything is saved on this device only.
 import { PRICING_HISTORY, keepTripsWhen } from './pricing-history.ts';
 import { showToast } from './toast.ts';
@@ -442,6 +442,8 @@ page.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest('#setMapAll')) return update({ mapHidden: state.mapHidden.length ? [] : [...LAYER_KEYS] });
   if ((e.target as HTMLElement).closest('#settingsReset')) {
     if (pricingHalfFare.checked) PRICING_HISTORY.setHalfFare(false);
+    // the developer options go off, so their dummy trips go with them (your own trips stay)
+    if (PRICING_HISTORY.hasDummy()) PRICING_HISTORY.setDummy(false);
     // the theme follows the system again
     try { localStorage.removeItem('theme'); } catch { /* it stays as it is */ }
     setTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', false);

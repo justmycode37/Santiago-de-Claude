@@ -54,8 +54,12 @@ function updateAccuracy() {
 
 let lastSavedAt = 0;
 let lastRealPos: PositionFix | null = null; // the newest fix from the phone itself, to come back to after a simulated walk
+let simulating = false; // you are at a made-up position (developer options): the phone's own fixes wait until it is given up
 export function onPosition(pos: PositionFix) {
-  if (!pos.simulated) lastRealPos = pos;
+  if (!pos.simulated) {
+    lastRealPos = pos;
+    if (simulating) return; // or the next fix would take you straight back
+  }
   const lngLat: LngLat = [pos.coords.longitude, pos.coords.latitude];
   if (!inSwitzerland(lngLat)) {
     showToast('You are outside Switzerland');
@@ -113,8 +117,9 @@ export function start() {
   // Developer options: walking a path drawn on the map puts your position at its end
   WALK_PACE.attach({
     map,
-    position: (pos) => { centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)
+    position: (pos) => { simulating = true; centeredOnUser = true; onPosition(pos); }, // (don't jump the map to the first made-up fix)
     restore: () => {
+      simulating = false;
       if (!lastRealPos) return; // no real position: you stay where the walk ended
       lastFixAt = 0;
       onPosition(lastRealPos);

@@ -16,7 +16,9 @@ npm run build   # dist/ once, without the dev server
 `python3 tools/serve.py` serves the same `dist/` gzipped and cached.
 
 `?dev` in the address shows the "Developer options" switch at the bottom of Settings (tools to test
-"Adjust to how I walk"). Once switched on, it stays visible without the flag.
+"Adjust to how I walk", and dummy trips for the fare suggestions). Once switched on, it stays visible without the
+flag. A path walked on the map keeps you at its end until its panel is closed; "Reset all settings" also removes
+the dummy trips.
 
 ## Where things are
 
