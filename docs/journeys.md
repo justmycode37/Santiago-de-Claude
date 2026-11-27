@@ -137,6 +137,26 @@ been, its first ride drawn from the stop you passed last (`tools/test_onboard.mt
 more than half an hour after the journey on show (or after now), and not when it has you get off at the next stop to
 ride back further from the destination. "Update route" asks again before it shows the new journey.
 
+## Following one vehicle: `src/app/vehicle-follow.ts`
+
+A ride in the journey sheet (its line and where it goes, marked "Follow") and a ride in the bar at the top under way
+follow that ride's vehicle on the map; a second tap, "Stop" on the card at the top, or dragging the map stops it (a
+pinch or the wheel only zooms). A ride you stay seated on follows the trip that runs now. The live layer
+(`live-vehicles.ts`, `vehFocus()`) draws the vehicle with a ring and moves it on every frame; the camera reads where
+it is drawn every frame and eases a little ahead of it a few times a second, so the map glides along without moving
+on every frame (each camera move runs the map's `moveend` handlers). Where the live layer does not have it, the card
+says how it is placed instead: the trip's `/api/trip` position moved on along its way (also before your stop), "Not
+on its way yet: due to start at … at …" with the map showing where it starts and your stop, cancelled, ended, or no
+live data (with your stop's time by the timetable). The trip is asked again every 30 s while that lasts, and the
+journey's vehicles are asked for around where it is said to be, so the live layer picks it up as it comes.
+
+The search lists lines too (`src/app/line-search.ts`, matching in `src/vehicle-pick.ts`): "Tram 9", "9", "Bus 12",
+"S1", "IC 8" typed where to go are matched against the live vehicles around where the search measures from (about
+9 km across, else 45 km; the engine has no list of lines). Choosing a line (or Enter) shows only its vehicles on the
+map, at any zoom, and the card lists the nearest to follow one, or "Follow the nearest coming your way" (with your
+position: the nearest whose next stop is nearer you than the stop it left, within 2 km of you; otherwise "the
+nearest", measured from you or the middle of the map). A vehicle tapped on the map offers "Follow" on its card.
+
 ## Which way you face, and the map following you
 
 The blue dot's beam (`src/app/heading.ts`) shows which way the phone faces, from its compass (`src/compass.ts`) turned

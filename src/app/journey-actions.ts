@@ -8,6 +8,7 @@ import { refreshRouteHighlight } from './journey-map.ts';
 import { fmtTime, journeyEnd, journeyStart, lineLabel, stopName, stopUic } from './journey-steps.ts';
 import { journeyProgress } from './tracking.ts';
 import { followCam, pauseFollowCam } from './follow-cam.ts';
+import { stopFollowing } from './vehicle-follow.ts';
 import { askForCompass } from './heading.ts';
 import { h, kIcon, setDetent, sheetDetent } from './sheet.ts';
 import { renderSheet, walkDirections } from './sheet-content.ts';
@@ -17,6 +18,7 @@ import { journey, sheet, tracking } from './state.ts';
 import type { TimedPlace } from './tracking.ts';
 export function overview() {
   pauseFollowCam();
+  stopFollowing();
   sheet.focus = null;
   journey.overview = true;
   refreshRouteHighlight();
@@ -28,6 +30,7 @@ export function focusDir(i: number, k: number) {
   const st = journey.steps[i], d = st && walkDirections(st)[k];
   if (!d) return;
   pauseFollowCam();
+  stopFollowing();
   sheet.focus = { step: i, dir: k };
   journey.step = i;
   journey.overview = false;
@@ -44,6 +47,7 @@ export function showQuay(i: number) {
   const r = journey.steps[i];
   if (!r) return;
   pauseFollowCam();
+  stopFollowing();
   sheet.focus = null;
   journey.step = i;
   journey.overview = false;
@@ -57,6 +61,7 @@ export function showQuay(i: number) {
 // face (follow-cam.ts); until there is a GPS fix it shows the step you are on. The tap is the one iPhones need to
 // be asked for the compass.
 export function startFollowing() {
+  stopFollowing(); // the map follows you, not a vehicle
   void askForCompass(true);
   setFollowing(true);
   if (!gpsOn() && window.isSecureContext && navigator.geolocation) {
