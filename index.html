@@ -216,6 +216,12 @@
     .pace-note-x svg { width: 12px; height: 12px; }
     .pace-note-go:focus-visible, .pace-note-x:focus-visible, .sim-actions button:focus-visible { outline: 2px solid var(--user-blue); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { .pace-note { animation: none; } }
+    /* On another vehicle than planned: "Looks like you're on 10 — update route?" (ride-switch.ts). The pace notice's
+       look; below that notice when both show, and the toast below it. */
+    .ride-note .pace-note-text b .badge { margin: 0 2px; vertical-align: 1px; }
+    body.pace-note-on .ride-note { top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 20px + var(--pace-note-h, 120px)); }
+    body.ride-note-on:not(.pace-note-on) .toast { top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 20px + var(--ride-note-h, 120px)); }
+    body.ride-note-on.pace-note-on .toast { top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 30px + var(--pace-note-h, 120px) + var(--ride-note-h, 120px)); }
 
     /* Developer options: a path drawn on the map and the panel to walk it (walk-pace.js) */
     .sim-panel {

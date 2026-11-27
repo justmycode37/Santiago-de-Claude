@@ -13,6 +13,7 @@ import { refreshRouteHighlight, setRoute } from './journey-map.ts';
 import { buildSteps, fmtTime, isRide, journeyEnd, journeyStart, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
 import { nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
 import { redrawRoute, renderLive } from './live-line.ts';
+import { checkRide } from './ride-switch.ts';
 import { livePoll, platSig } from './live-engine.ts';
 import { vehStop, vehUpdate } from './live-vehicles.ts';
 import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } from './sheet.ts';
@@ -128,6 +129,7 @@ export function renderBar() {
 export function updateProgress() {
   if (!journey.conn) return;
   trackJourney();
+  checkRide(); // on another vehicle than planned? (ride-switch.ts)
   renderBar();
   renderLive();
   if (journey.steps.length) { redrawRoute(); updateNowMarker(); }

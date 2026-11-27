@@ -104,6 +104,39 @@ back); buses are laid onto the roads the base map draws (`src/live-lines.ts`, fr
 the drawn rails already, and are drawn dashed in a tunnel by the drawn track they are matched to. Once a journey's route
 is chosen, the vehicles of its rides show at any zoom, whether Settings has live vehicles on or not.
 
+## Another vehicle than planned
+
+Travellers sometimes board another vehicle than the planned one (an earlier bus that goes there too, the next run
+of the line). `src/app/ride-switch.ts` notices it and offers the journey from on board it, never switching by itself:
+"Looks like you're on bus 10 to Wankdorf · Update the route? Arrive 14:32", "Looks like you're on an earlier 12 ·
+Update the times?" (the same line, to the same stop, the rest as planned) or "Still on 12?" (stayed on past the
+planned stop). Closing it leaves that vehicle alone for the rest of the trip; it goes by itself once the vehicle has
+not fitted for a minute.
+
+What decides is the pure `src/app/ride-detect.ts` (tested on made-up tracks: `tools/test_ride_detect.mts`), on the
+fixes of the last two minutes since the last gap of more than 30 s and since you last stood still for 45 s (waiting
+at the stop), each within 60 m:
+
+- **Moving like a vehicle**: 4 fixes over 40 s at least, 300 m from the first to the last, 3.5 m/s on average and
+  6.5 m/s over 15 s at some point. Waiting at the stop, walking and running for the bus do not count.
+- **On a trip**: 80 % of the fixes (and the last) within their accuracy plus 30 m (40–90 m) of the trip's way, going
+  forward along it (on a way that passes the same place twice, along whichever pass fits), and where its vehicle is by its live stop times when each was taken: a median gap of 90 s at most
+  (150 s on timetable times), none over 180 s (240 s). The vehicle positions in Switzerland come from those times, so
+  this is being with the vehicle. The fixes before the first one on its way (the walk to the stop) are left out.
+- **One answer**: when a planned ride fits best, or another trip fits within 40 s of the best (another line on the same
+  road, a bus bunched with the next one), nothing is said; and only when the same trip is named twice, on fixes at
+  least 15 s apart.
+
+The journey's own rides are checked first, without asking the engine anything. Only when none fits are the vehicles
+around you asked for (`GET /api/vehicles`, a box that grows with your speed; at most every 20 s, every 60 s while none
+fits) and the trips of up to six going your way within 400 m of their way between the stops around where they are
+drawn (`GET /api/trip`). The journey offered is the engine's from
+on board (`onboard` in `POST /api/plan`, from the stop ahead of you while the vehicle has still to get there),
+`KanteJourney.onboard()`: not one with a cancelled ride or a missed change, nor one that has you get off where you have
+been, its first ride drawn from the stop you passed last (`tools/test_onboard.mts`). It is offered when it gets there no
+more than half an hour after the journey on show (or after now), and not when it has you get off at the next stop to
+ride back further from the destination. "Update route" asks again before it shows the new journey.
+
 ## Which way you face, and the map following you
 
 The blue dot's beam (`src/app/heading.ts`) shows which way the phone faces, from its compass (`src/compass.ts`) turned
