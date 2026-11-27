@@ -157,6 +157,13 @@ map, at any zoom, and the card lists the nearest to follow one, or "Follow the n
 position: the nearest whose next stop is nearer you than the stop it left, within 2 km of you; otherwise "the
 nearest", measured from you or the middle of the map). A vehicle tapped on the map offers "Follow" on its card.
 
+The vehicles are drawn on a canvas over the map's, from [lon, lat] with the map's camera, once a frame: in a frame the
+map draws, from its `render` event (it applies a drag's, a pinch's or a wheel's moves inside its own frame, so drawn
+before that they would trail it by a frame); in the other frames (the map still, a finger resting on it in the middle
+of a gesture) from a loop of their own, which leaves out a frame only when the map has one of its own coming. Their own motion and spacing are worked out in every frame they
+are drawn, the map moving or not. Whether the map is moving (`isMoving()`) decides nothing about drawing: it stays true while a
+finger rests on the map and the map draws nothing, which used to freeze them.
+
 ## Which way you face, and the map following you
 
 The blue dot's beam (`src/app/heading.ts`) shows which way the phone faces, from its compass (`src/compass.ts`) turned
