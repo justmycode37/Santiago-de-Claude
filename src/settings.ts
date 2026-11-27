@@ -58,9 +58,6 @@ export interface Settings {
   fareTracking: boolean;
   /** Remember what you search for, for "Recent" and "Frequent" in the search (search-history.ts). */
   searchHistory: boolean;
-  /** Not on the page: whether the time sheet last planned a departure or an arrival; it opens on that again
-   *  (time-picker.ts). Only the choice, never the time. */
-  timeMode: 'dep' | 'arr';
 }
 /** One stop of the walking speed slider (Slow … Fast). */
 export interface SpeedPreset {
@@ -106,7 +103,6 @@ const DEFAULTS: Settings = {
   adaptiveSport: false,
   fareTracking: false,
   searchHistory: true,
-  timeMode: 'dep',
   // Developer options (bottom of the page)
   devOptions: false,
 };
@@ -147,7 +143,6 @@ function clean(saved: Record<string, unknown>) {
   for (const k in DEFAULTS) if (typeof DEFAULTS[k as keyof Settings] === 'boolean' && typeof saved[k] === 'boolean') s[k as FlagKey] = saved[k];
   if (typeof saved.walkKmh === 'number' && saved.walkKmh > 0) s.walkKmh = SPEED_PRESETS[nearestPreset(saved.walkKmh)].kmh;
   if (s.avoidHills && s.ignoreHills) s.ignoreHills = false;
-  if (saved.timeMode === 'arr') s.timeMode = 'arr';
   for (const k in STEPPERS) {
     const v = saved[k] as number, r = STEPPERS[k as StepperKey];
     if (Number.isInteger(v) && v >= r.min && v <= r.max) s[k as StepperKey] = v;
@@ -376,7 +371,9 @@ devDummyTrips.addEventListener('change', () => {
 
 // "Clear search history": there whenever something is kept, also with the switch off
 function renderSearchHistory() {
-  searchHistoryClear.hidden = !SEARCH_HISTORY.count();
+  const n = SEARCH_HISTORY.count();
+  searchHistoryClear.hidden = !n;
+  if (n && searchHistoryStatus.textContent === 'Search history cleared.') searchHistoryStatus.hidden = true; // kept again since
 }
 searchHistoryClear.addEventListener('click', () => {
   if (!window.confirm('Clear your recent and frequent searches on this device?')) return;
@@ -470,6 +467,7 @@ page.addEventListener('click', (e) => {
     if (pricingHalfFare.checked) PRICING_HISTORY.setHalfFare(false);
     // the theme follows the system again
     try { localStorage.removeItem('theme'); } catch { /* it stays as it is */ }
+    try { localStorage.removeItem('timeMode'); } catch { /* the time sheet's last mode (time-picker.ts) stays */ }
     setTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', false);
     themeChanged();
     update({ ...DEFAULTS });
@@ -555,9 +553,10 @@ window.addEventListener('storage', (event) => {
       window.dispatchEvent(new Event('pricing-history-change'));
     }
     // the search history switched off there is off here too (and this tab's next save does not switch it back on)
-    const remember = saved?.searchHistory !== false, timeMode = saved?.timeMode === 'arr' ? 'arr' : 'dep';
-    if (state.searchHistory !== remember || state.timeMode !== timeMode) {
-      state = { ...state, searchHistory: remember, timeMode };
+    // (unreadable: as it was here; missing: on, the default)
+    const remember = saved === undefined ? state.searchHistory : saved?.searchHistory !== false;
+    if (state.searchHistory !== remember) {
+      state = { ...state, searchHistory: remember };
       render();
     }
   } else if (isOpen && event.key === 'pricing-trip-history-v1') renderPricing();

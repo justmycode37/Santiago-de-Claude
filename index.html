@@ -1874,6 +1874,8 @@
 
   <div class="search-wrap" id="searchWrap">
     <form class="trip" id="searchForm" role="search">
+      <!-- With two fields, Enter submits the form only through a submit button (HTML's implicit submission) -->
+      <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
       <div class="trip-rows">
         <div class="trip-row from">
           <button class="pin-tok" type="button" data-pin="from" aria-label="Start pin: drag it onto the map, or tap it and then tap the map"><span><svg class="pin-art from" viewBox="-2 -2 30 38" aria-hidden="true"><path d="M13 34C10 25 0 20 0 13A13 13 0 0 1 26 13C26 20 16 25 13 34Z"/><circle cx="13" cy="13" r="5"/></svg></span></button>

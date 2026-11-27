@@ -2,7 +2,6 @@
 import { dayLabel } from './journey-steps.ts';
 import { startJourney } from './pill.ts';
 import { journey } from './state.ts';
-import { SETTINGS } from '../settings.ts';
 
 /** When the trip should be: leave at ('dep') or arrive by ('arr') a date and time; both empty = now. */
 export type TimeMode = 'dep' | 'arr';
@@ -45,15 +44,20 @@ export function closeTimeSheet() {
   tSheet.setAttribute('aria-hidden', 'true');
 }
 
-// The mode the time sheet was last used with (Settings' timeMode): the chip opens on it while the trip leaves now.
-// Only the choice is remembered, never a date or time, which would be out of date.
-function rememberMode(mode: TimeMode) { if (SETTINGS.prefs().timeMode !== mode) SETTINGS.set({ timeMode: mode }); }
+// The mode the time sheet was last used with, remembered on this device: the chip opens on it while the trip leaves
+// now. Only the choice, never a date or time, which would be out of date. (Its own key, not the settings': writing
+// those would save this tab's copy of all of them. "Reset all settings" removes it too.)
+const MODE_KEY = 'timeMode';
+function lastMode(): TimeMode { try { return localStorage.getItem(MODE_KEY) === 'arr' ? 'arr' : 'dep'; } catch (e) { return 'dep'; } }
+function rememberMode(mode: TimeMode) {
+  try { if (mode === 'arr') localStorage.setItem(MODE_KEY, 'arr'); else localStorage.removeItem(MODE_KEY); } catch (e) { /* this visit only */ }
+}
 
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
   document.getElementById('whenChip')!.addEventListener('click', () => {
     const { mode, date, time } = journey.query;
-    openTimeSheet(date || time ? mode : SETTINGS.prefs().timeMode);
+    openTimeSheet(date || time ? mode : lastMode());
   });
   document.getElementById('jDepBtn')!.addEventListener('click', () => openTimeSheet('dep'));
   document.getElementById('jArrBtn')!.addEventListener('click', () => openTimeSheet('arr'));

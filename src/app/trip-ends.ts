@@ -82,13 +82,17 @@ export function setStart(r: JourneyDest | null, fly?: boolean) {
   if (journey.dest) startJourney(journey.dest, true);
   else if (r && fly) map.flyTo({ center: r.lngLat, zoom: Math.max(map.getZoom(), 15), bearing: 0, pitch: 0, speed: 1.4 });
 }
+// An end is picked, so the search is done: a late answer to it must not open the list again over the trip
+function searchDone() { clearTimeout(searchState.debounce); searchState.reqId++; }
 export function choose(r: SearchResult, field = searchState.field) {
+  searchDone();
   if (field === 'from') setStart(r, true);
   else showDestinationJourney(r);
   rememberChoice(r); // the place, and the trip once both ends are picked (search-history-ui.ts)
 }
 // A trip from the search history: both ends at once, planned once, leaving now
 export function chooseTrip(from: JourneyDest, to: JourneyDest) {
+  searchDone();
   clearPlacePins();
   searchState.tripStart = from;
   setField('from', from.title);

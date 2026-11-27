@@ -13,8 +13,10 @@ before and simply remembers nothing.
 - **Where the trip starts** ("From") lists places only. Categories are offered only while no trip is on show
   (their places are not on the map during one).
 - **While typing**: up to 2 of your entries the text matches (every typed word starts a word of the name, accents
-  ignored) show with a clock above the results, unless the results already have that place. Enter opens the row on
-  top, so it is always what you see first.
+  ignored) show with a clock above the results, unless the list already has them (the place among the results,
+  the category the text names). Not a trip once you have picked a start: it would replace it. Enter opens the
+  history row on top, the one drawn there; Enter works because the form has a hidden submit button (with two
+  fields, HTML submits on Enter only through one).
 - **Settings › Search history**: "Remember searches" (on by default) and "Clear search history". Off: nothing new is
   kept and the search shows none of it; what is kept stays until it is cleared. Another open tab follows the
   switch.
@@ -35,7 +37,8 @@ sources is one entry: the same engine id, or the same name within 150 m (address
 ## Ranking
 
 Each use adds 1 to an entry's score, and the score halves every 30 days (`s · 0.5^(age / 30 days)`, worked out
-when read). Picking the same thing again within 15 minutes only makes it recent. "Frequent" needs a score of 1.5:
+when read). Picking the same thing again within 15 minutes only makes it recent (the score fades on). A trip or
+place picked again from a source without the engine's id keeps the id it had. "Frequent" needs a score of 1.5:
 two uses stay frequent for about 12 days, three for about a month. When there are more than 40 entries, the
 lowest score goes, but never one of the 8 newest, so a run of new searches cannot be pushed out by old favourites.
 
@@ -45,8 +48,9 @@ Settings already keep every journey preference (accessibility, walking speed, ch
 layers, the satellite view). In addition:
 
 - **Depart at / Arrive by**: the time sheet, opened from the "Leave now" chip, starts on the mode you last planned
-  with (Settings' hidden `timeMode`; "Now" sets it back to departing; "Reset all settings" too). Only the mode:
-  a date or time from last time would be out of date.
+  with (`timeMode`, a key of its own: writing the settings would save this tab's copy of all of them; "Now" sets
+  it back to departing, "Reset all settings" removes it). Only the mode: a date or time from last time would be
+  out of date.
 - **Events and places** (the button in the menu): on again at the next visit if it was on (`eventsOn`), once the
   map has drawn.
 

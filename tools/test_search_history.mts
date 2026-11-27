@@ -46,11 +46,28 @@ H.record(P('Bahnhofstrasse 1', [8.0, 47.0], { origin: 'address', kind: 'address'
 H.record(P('Bahnhofstrasse 1', [8.0005, 47.0], { origin: 'address', kind: 'address' }), T0);
 check(H.count() === 6, 'addresses merge only within 30 m (these are 38 m apart)');
 
+console.log('a trip keeps the ids of its stations when picked again from a source without them');
+fresh();
+H.record({ k: 'j', from: place('Bern', [7.4391, 46.9488], { kanteId: 'st:8507000' }), to: place('Thun', [7.6296, 46.7548], { kanteId: 'st:8507100' }) }, T0);
+H.record({ k: 'j', from: place('Bern', [7.4391, 46.9488], { origin: 'gazetteer' }), to: place('Thun', [7.6297, 46.7549], { origin: 'gazetteer' }) }, T0 + DAY);
+const trip = H.list()[0] as Extract<H.HistoryEntry, { k: 'j' }>;
+check(H.count() === 1 && trip.from.kanteId === 'st:8507000' && trip.to.kanteId === 'st:8507100', 'one trip, both ids kept');
+
 console.log('frequent: used more than once lately, fading');
 fresh();
 H.record(P('Home', [7.45, 46.95]), T0);
 H.record(P('Home', [7.45, 46.95]), T0 + 5 * MIN);
 check(H.frequent(3, [], undefined, T0 + 6 * MIN).length === 0, 'twice within a quarter of an hour counts once');
+{
+  fresh();
+  H.record(P('Busy', [7.5, 47]), T0);
+  for (let i = 1; i <= 30 * 24 * 6; i++) H.record(P('Busy', [7.5, 47]), T0 + i * 10 * MIN); // every 10 minutes for 30 days
+  const busy = H.list()[0];
+  check(Math.abs(busy.s - 0.5) < 0.01, `picked again and again within a quarter of an hour: still one use, fading (${busy.s.toFixed(3)})`);
+}
+fresh();
+H.record(P('Home', [7.45, 46.95]), T0);
+H.record(P('Home', [7.45, 46.95]), T0 + 5 * MIN);
 H.record(P('Home', [7.45, 46.95]), T0 + DAY);
 H.record(P('Work', [7.43, 46.94]), T0 + DAY + MIN);
 H.record(P('Work', [7.43, 46.94]), T0 + 2 * DAY);

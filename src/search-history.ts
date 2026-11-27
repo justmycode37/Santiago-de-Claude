@@ -48,7 +48,7 @@ const MAX_TEXT = 160;
 let enabled: () => boolean | undefined = () => true;
 /** settings.ts: on() says whether searches are remembered now (its "Remember searches" switch). */
 export function rememberWhen(on: () => boolean | undefined) { enabled = on; }
-const isOn = () => enabled() !== false;
+export const isOn = () => enabled() !== false;
 
 let storageOverride: StorageLike | null | undefined;
 /** Tests: use this storage instead of the browser's (null: none at all, as when it is blocked). */
@@ -146,6 +146,7 @@ function save(items: HistoryEntry[]) {
 /** How much an entry is used now: its uses, each counting half as much every HALF_LIFE_MS. */
 export const score = (e: HistoryEntry, now = Date.now()) => e.s * 0.5 ** (Math.max(0, now - e.t) / HALF_LIFE_MS);
 
+const keepId = (p: HistoryPlace, old: HistoryPlace): HistoryPlace => (!p.kanteId && old.kanteId ? { ...p, kanteId: old.kanteId } : p);
 const round = (p: HistoryPlace): HistoryPlace => ({ ...p, sub: stableSubtitle(p.sub), ll: [+p.ll[0].toFixed(5), +p.ll[1].toFixed(5)] });
 let seq = 0;
 const newId = (now: number) => `${now.toString(36)}${(seq++ % 1296).toString(36).padStart(2, '0')}`;
@@ -163,9 +164,11 @@ export function record(item: HistoryItem, now = Date.now()): boolean {
   let entry: HistoryEntry;
   if (i >= 0) {
     const old = items.splice(i, 1)[0];
-    // what it is now (a newer name, the engine's id once known), used once more
-    const merged = clean.k === 'p' && old.k === 'p' && !clean.p.kanteId && old.p.kanteId ? { ...clean, p: { ...clean.p, kanteId: old.p.kanteId } } : clean;
-    entry = { ...merged, id: old.id, t: Math.max(now, old.t), s: now - old.t < REPEAT_MS ? old.s : score(old, now) + 1 };
+    // what it is now (a newer name), keeping the engine's id when this source has none; used once more, unless a
+    // moment ago (then only recent, its score fading on as before)
+    const merged: HistoryItem = clean.k === 'p' && old.k === 'p' ? { k: 'p', p: keepId(clean.p, old.p) }
+      : clean.k === 'j' && old.k === 'j' ? { k: 'j', from: keepId(clean.from, old.from), to: keepId(clean.to, old.to) } : clean;
+    entry = { ...merged, id: old.id, t: Math.max(now, old.t), s: score(old, now) + (now - old.t < REPEAT_MS ? 0 : 1) };
   } else entry = { ...clean, id: newId(now), t: now, s: 1 };
   items.unshift(entry);
   // too many: the least used go, never the newest few
@@ -213,7 +216,12 @@ export function remove(id: string): boolean {
 }
 /** Forgets everything. Returns whether that could be saved. */
 export function clear(): boolean {
-  try { storage()?.removeItem(KEY); return true; } catch { return false; }
+  try {
+    const s = storage();
+    if (!s) return false;
+    s.removeItem(KEY);
+    return true;
+  } catch { return false; }
 }
 /** How many entries are kept (also while the switch is off: Settings offers to clear them). */
 export const count = () => list().length;

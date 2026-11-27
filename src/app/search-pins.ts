@@ -116,8 +116,9 @@ export function render(emptyText = 'No results') {
   }
   const typedCategory = categoryForText(inputs[searchState.field].value);
   if (typedCategory && searchState.field === 'to') list.appendChild(categoryRow(typedCategory));
-  renderTypedHistory(); // searches of yours the text matches (search-history-ui.ts)
-  if (!searchState.results.length) {
+  const history = renderTypedHistory(); // searches of yours the text matches (search-history-ui.ts)
+  // (one letter is not searched for: no "No results" under your own searches)
+  if (!searchState.results.length && !(history && inputs[searchState.field].value.trim().length < 2)) {
     const li = document.createElement('li');
     li.className = 'empty';
     li.textContent = emptyText;
