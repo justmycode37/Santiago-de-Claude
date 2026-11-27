@@ -13,6 +13,7 @@ import { MODE_NAME } from './sheet.ts';
 import { goToStep } from './pill.ts';
 import { distKm, lengthKm } from './routing.ts';
 import { journey, searchState, tracking } from './state.ts';
+import { noteFix } from './walk-reroute.ts';
 import { KANTE_LIVE } from '../live.ts';
 import { bearingDeg } from '../compass.ts';
 import type { KanteAdvancedPosition } from '../live.ts';
@@ -83,10 +84,11 @@ export interface TimedVehiclePlace extends VehiclePlace { engine?: undefined; tN
 export type VehicleState = EngineVehiclePlace | TimedVehiclePlace;
 
 
-// A step's line in travel order (a change without a walk is just the platform)
-function stepLine(st: JourneyStep): LngLat[] {
+// A step's line in travel order (a change without a walk is just the platform); a walk rerouted from where you were
+// begins with the part already walked (walkedPoints() of it)
+export function stepLine(st: JourneyStep): LngLat[] {
   if (st._lv === tracking.geoVersion) return st._line!;
-  let cs = st.type === 'ride' ? st.path : (st.lines || []).flat();
+  let cs = st.type === 'ride' ? st.path : [...(st.walked || []).flatMap((pc) => pc.coords), ...(st.lines || []).flat()];
   if (!cs.length && st.type === 'change') cs = st.points.filter(Boolean).slice(-1) as LngLat[];
   st._lv = tracking.geoVersion;
   st._line = cs || [];
@@ -100,6 +102,19 @@ export function tripLayout(): TripLayout {
   journey.steps.forEach((st) => { km0.push(total); const l = lengthKm(stepLine(st)); lens.push(l); total += l; });
   layCache = { v: tracking.geoVersion, steps: journey.steps, lens, km0, total };
   return layCache;
+}
+/** How many of stepLine()'s points are of the part already walked (a rerouted walk): GPS is not snapped onto it. */
+const walkedPoints = (st: JourneyStep) => (st.walked || []).reduce((n, pc) => n + pc.coords.length, 0);
+/** The nearest point of a line to p: metres away, and km along the line. */
+export function nearestOnLine(cs: LngLat[], p: LngLat): { d: number; km: number } {
+  if (cs.length < 2) return { d: cs.length ? distKm(p, cs[0]) * 1000 : Infinity, km: 0 };
+  let best = { d: Infinity, km: 0 }, at = 0;
+  for (let j = 0; j < cs.length - 1; j++) {
+    const len = distKm(cs[j], cs[j + 1]), q = projectSeg(p, cs[j], cs[j + 1]);
+    if (q.d < best.d) best = { d: q.d, km: at + q.t * len };
+    at += len;
+  }
+  return best;
 }
 function cumKm(cs: LngLat[]) {
   const out = [0];
@@ -219,7 +234,7 @@ export function tripLive(now = Date.now()) {
 function guessedKm(st: JourneyStep, cum: number[]): [number, number][] {
   if (st.type === 'ride') return [];
   const out: [number, number][] = [];
-  let o = 0; // where line k begins in stepLine()
+  let o = walkedPoints(st); // where line k begins in stepLine()
   (st.lines || []).forEach((l, k) => {
     const w = st.walks && st.walks[k], z = o + l.length - 1;
     if (l.length > 1 && (!w || w.approx)) out.push([cum[o], cum[z]]);
@@ -266,12 +281,13 @@ function snapBoth(p: LngLat, ref: number, now: number, reach?: Reach | null): { 
       if (!reachOnly && (!free || near < free.cost)) free = snap(near);
     };
     if (cs.length === 1) { consider(distKm(p, cs[0]) * 1000, 0); return; }
-    const cum = cumKm(cs), guesses = guessedKm(st, cum);
+    const cum = cumKm(cs), guesses = guessedKm(st, cum), k0 = cum[walkedPoints(st)] || 0; // (where the way on begins)
     const nearEnd = distKm(p, cs[cs.length - 1]) < 0.025; // within 25 m of the walk's end: drawn as walked up to you
-    for (let j = 0; j < cs.length - 1; j++) {
+    // (a rerouted walk: only onto the way from where it was rerouted, not back onto the part already walked)
+    for (let j = walkedPoints(st); j < cs.length - 1; j++) {
       const q = projectSeg(p, cs[j], cs[j + 1]), k = cum[j] + q.t * (cum[j + 1] - cum[j]);
       // on a guess: past where it begins (where a routed part ends is on that part), or anywhere on a guess the walk starts with
-      const g = guesses.find(([a, b]) => k >= a && k <= b && (k > a || a === 0));
+      const g = guesses.find(([a, b]) => k >= a && k <= b && (k > a || a === k0));
       consider(q.d, k, g ? (nearEnd ? k : g[0]) : undefined);
       // the fix's foot on the segment is out of reach, but some of the segment is not: its nearest place within reach
       // (a long straight stretch must not let one fix carry you to its far end)
@@ -281,7 +297,7 @@ function snapBoth(p: LngLat, ref: number, now: number, reach?: Reach | null): { 
         if (lo <= hi && (kk < lo || kk > hi) && k1 > k0) {
           const kc = Math.min(hi, Math.max(lo, kk)), t = (kc - k0) / (k1 - k0);
           const pt: LngLat = [cs[j][0] + (cs[j + 1][0] - cs[j][0]) * t, cs[j][1] + (cs[j + 1][1] - cs[j][1]) * t];
-          const kin = kc - lay.km0[i], gc = guesses.find(([a, b]) => kin >= a && kin <= b && (kin > a || a === 0));
+          const kin = kc - lay.km0[i], gc = guesses.find(([a, b]) => kin >= a && kin <= b && (kin > a || a === k0));
           consider(distKm(p, pt) * 1000, kin, gc ? (nearEnd ? kin : gc[0]) : undefined, true);
         }
       }
@@ -406,7 +422,10 @@ function trackOnce() {
   const onRoute = !!(tracking.track && tracking.track.onRoute) || near <= tol;
   if (searchState.tripStart && !onRoute) { tracking.track = null; return; }
   const offCount = near > tol ? ((tracking.track && tracking.track.offCount) || 0) + (fresh ? 1 : 0) : 0;
-  tracking.track = { ...s, v: tracking.geoVersion, offCount, off: offCount >= 2, onRoute }; // two fixes in a row, so one stray fix doesn't count
+  // on another way to where the walk leads, the walk is rerouted from where you are (walk-reroute.ts): while that is
+  // being made sure of or asked for, you are not told you are off the route (it is said at once when it fails)
+  const hold = onRoute && noteFix(s, fresh, fixAt, tol);
+  tracking.track = { ...s, v: tracking.geoVersion, offCount, off: offCount >= 2 && !hold, onRoute }; // two fixes in a row, so one stray fix doesn't count
   if (tracking.track.off) return;
   // Arrived: within 25 m of the trip's end along its line (a trip that ends on foot only past its last ride: not on
   // a bus 10 m before the stop a short walk leads on from), or with the fix itself at the end: within the GPS

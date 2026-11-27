@@ -596,7 +596,8 @@ function requay(steps: JourneyStep[], changed: () => void) {
       return;
     }
     if (!same(d.ll, st.depLL) && prev && (prev.type === 'walk' || prev.type === 'change')) {
-      const from = prev.type === 'change' ? prev.points[0] : prev.lines[0] && prev.lines[0][0];
+      // (a walk rerouted from where you were: from where its way now begins)
+      const from = prev.walked ? prev.lines[0] && prev.lines[0][0] : prev.type === 'change' ? prev.points[0] : prev.lines[0] && prev.lines[0][0];
       if (prev.type === 'change') prev.points[1] = d.ll; else prev.board = d.ll;
       if (from) rewalk.set(prev, [(rewalk.get(prev) || [from])[0], d.ll]);
     }
@@ -607,7 +608,8 @@ function requay(steps: JourneyStep[], changed: () => void) {
         const to = next.type === 'change' ? next.points[1] : next.toLL || lastOf(next); // the place, not the door last found
         if (next.type === 'change') next.points[0] = a.ll;
         else next.alight = a.ll;
-        if (to) rewalk.set(next, [a.ll, (rewalk.get(next) || [null, to] as [null, LngLat])[1]]);
+        // (rerouted from where you were, it starts there still: you have left the platform; nothing to route again)
+        if (to && !next.walked) rewalk.set(next, [a.ll, (rewalk.get(next) || [null, to] as [null, LngLat])[1]]);
       }
     }
     const routed = st.path !== st.stops; // the track or road between the stops has been drawn in

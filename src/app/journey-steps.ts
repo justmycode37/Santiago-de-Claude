@@ -86,7 +86,16 @@ export interface JourneyFootStep extends JourneyStepBase {
   _askFor?: LngLat[][];
   _askSig?: string;
   toLL?: LngLat;
+  /** Rerouted from where GPS put you (walk-reroute.ts): the part already walked, as it was drawn (the planned way up
+   *  to where you left it, then a straight bit to where the new way begins), kept out of `lines` so that nothing
+   *  routes it again; `lines` is then the way from there on. Drawn as walked; counted in the step's length. */
+  walked?: WalkedPiece[];
+  /** …and when you get to the walk's end, at the engine's pace for the way left (eta, ms; worked out again with each
+   *  fix: s a metre of it), which the walk's end, the time to spare at a change and the arrival go by. */
+  reroute?: { eta: number; sPerM: number };
 }
+/** A piece of a walk already walked; guess: drawn dashed (a guessed stretch, or the bit off the planned way). */
+export interface WalkedPiece { coords: LngLat[]; guess: boolean }
 /** On foot to the first stop, or (final) from the last stop to the destination. A trip without a ride is one final walk. */
 export interface JourneyWalkStep extends JourneyFootStep,
   JourneyStepWithout<'prev' | 'walkMin' | 'points' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt' | 'destTitle' | 'time' | 'end'> {
@@ -118,7 +127,7 @@ export interface JourneyChangeStep extends JourneyFootStep,
   points: [off: LngLat | null, on: LngLat | null];
 }
 export interface JourneyRideStep extends JourneyStepBase,
-  JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 'destTitle' | 'time' | 'end'> {
+  JourneyStepWithout<'min' | 'start' | 'toName' | 'final' | 'from' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 'walked' | 'reroute' | 'destTitle' | 'time' | 'end'> {
   type: 'ride';
   /** When it leaves and arrives, ms (by the live forecasts; null where the stop has no time). */
   t0: number | null;
@@ -142,7 +151,7 @@ export interface JourneyRideStep extends JourneyStepBase,
 }
 /** The last step: being there. */
 export interface JourneyArriveStep extends JourneyStepBase,
-  JourneyStepWithout<'t0' | 't1' | 'min' | 'start' | 'toName' | 'final' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt'> {
+  JourneyStepWithout<'t0' | 't1' | 'min' | 'start' | 'toName' | 'final' | 'board' | 'alight' | 'prev' | 'next' | 'walkMin' | 'points' | 'lines' | 'walks' | 'floors' | 'walkS' | 'kanteWalk' | 'walked' | 'reroute' | 's' | 'path' | 'stops' | 'stopIdx' | 'depLL' | 'arrLL' | 'depAt' | 'arrAt'> {
   type: 'arrive';
   destTitle: string;
   /** When, ms: the timetable's arrival, then the live times'. */
@@ -301,7 +310,8 @@ export function syncEnds(steps: JourneyStep[]) {
   steps.forEach((st) => {
     if (st.type !== 'walk' && st.type !== 'change') return;
     const old = st.ends || [], n = Math.max(1, (st.lines || []).length);
-    const from = st.prevRide ? platformEndOf(st.prevRide.arrAt) : (old[0] || [])[0] || {};
+    // (rerouted from where you were: its lines start there, not at the platform you got off at)
+    const from = st.walked ? {} : st.prevRide ? platformEndOf(st.prevRide.arrAt) : (old[0] || [])[0] || {};
     const to = st.nextRide ? platformEndOf(st.nextRide.depAt) : (old[old.length - 1] || [])[1] || {};
     const joint = (k: number, side: 0 | 1): WalkEnd => (old.length === n ? old[k][side] : { exact: true });
     st.ends = Array.from({ length: n }, (_, k): [WalkEnd, WalkEnd] => [k === 0 ? from : joint(k, 0), k === n - 1 ? to : joint(k, 1)]);
@@ -392,6 +402,7 @@ export function buildSteps(conn: Journey, destTitle: string) {
 
 // Time every ride, change and the last walk by the live forecasts (run again whenever they change). The last walk
 // ends its seconds after the last ride's arrival, to the nearest minute (the seconds added first, then rounded).
+// A walk rerouted from where you are ends when you get there from there (its eta).
 export function applyLiveTimes(steps: JourneyStep[]) {
   let end: number | null = null;
   steps.forEach((st) => {
@@ -401,7 +412,11 @@ export function applyLiveTimes(steps: JourneyStep[]) {
       end = st.t1;
     } else if (st.type === 'change') {
       st.t0 = liveMs(st.prev.to, 'arr');
-      st.t1 = st.walkMin > 0 ? st.t0! + st.walkMin * 60000 : liveMs(st.next.from, 'dep');
+      st.t1 = st.reroute ? st.reroute.eta : st.walkMin > 0 ? st.t0! + st.walkMin * 60000 : liveMs(st.next.from, 'dep');
+    } else if (st.type === 'walk' && st.reroute) {
+      if (st.final && st.from) st.t0 = liveMs(st.from.to, 'arr');
+      st.t1 = st.reroute.eta;
+      if (st.final) end = st.t1;
     } else if (st.type === 'walk' && st.final) {
       if (st.from) {
         st.t0 = liveMs(st.from.to, 'arr');
@@ -434,7 +449,9 @@ export function changeRoomS(st: JourneyChangeStep): number | null {
 }
 export function spareOf(st: JourneyChangeStep) {
   const wait = (liveMs(st.next.from, 'dep')! - liveMs(st.prev.to, 'arr')!) / 1000;
-  const s = wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
+  // rerouted from where you are: from when you get there (its eta) to the departure
+  const s = st.reroute ? (liveMs(st.next.from, 'dep')! - st.reroute.eta) / 1000
+    : wait - (st.walkS != null ? st.walkS : (st.walkMin || 0) * 60); // walkS: the engine's walk, to the second
   const level = s < 0 ? 'missed' : s < 120 ? 'tight' : 'ok';
   const extra = (SETTINGS.prefs ? SETTINGS.prefs().extraChangeMin : 0) || 0;
   const short = extra > 0 && s < extra * 60; // less than the extra change time asked for in Settings
@@ -490,9 +507,10 @@ export function levelChange(st: JourneyStep): JourneyLevelChange | null {
   const walk = (st.lines || []).flat();
   let from = 0, to = 0, at: LngLat | null | undefined = null;
   if (st.type === 'walk' && !st.final) { to = lv(depLevel(st.nextRide)); at = pointAlong(walk, -0.03); }
-  else if (st.type === 'walk') { from = lv(arrLevel(st.prevRide)); at = pointAlong(walk, 0.03); }
+  // (rerouted from where you were, on the street: from there)
+  else if (st.type === 'walk') { from = st.walked ? 0 : lv(arrLevel(st.prevRide)); at = pointAlong(walk, 0.03); }
   else if (st.type === 'change') {
-    from = lv(arrLevel(st.prevRide)); to = lv(depLevel(st.nextRide));
+    from = st.walked ? 0 : lv(arrLevel(st.prevRide)); to = lv(depLevel(st.nextRide));
     at = walk.length > 1 ? splitLine(walk, .5)[2] : st.points[1];
   } else return null;
   if (from === to) return null;
@@ -530,6 +548,8 @@ export function stepFeatures(steps: JourneyStep[]) {
   };
   steps.forEach((st, i) => {
     let from = 0;
+    // rerouted: the part already walked, as it was drawn (walk-reroute.ts)
+    (st.walked || []).forEach((pc) => { line(pc.coords, 'walk', i, { done: true, ...(pc.guess ? { approx: true } : {}) }); from += lengthKm(pc.coords); });
     (st.lines || []).forEach((l, k) => {
       // a straight line until a router has found the way, and the long straight bits across open ground onto and off
       // the paths (approxTo / approxFrom): dashed
@@ -566,6 +586,19 @@ export function stepFeatures(steps: JourneyStep[]) {
     (st.floors || []).forEach((m) => pt(m.at, { kind: 'lvl', step: i, img: `lv|${m.to > m.from ? 'u' : 'd'}|${levelShort(m.to)}` }));
   });
   const first = steps[0];
-  if (first && first.type === 'walk' && first.lines[0]) pt(first.lines[0][0], { kind: 'pin', step: 0, img: 'pin|from' });
+  const start = first && first.type === 'walk' ? (first.walked && first.walked[0] ? first.walked[0].coords[0] : first.lines[0] && first.lines[0][0]) : null;
+  if (start) pt(start, { kind: 'pin', step: 0, img: 'pin|from' });
   return f;
+}
+/** A walk's lines as they are drawn: each line's routed part solid, its guessed ends (or all of a line without a
+ *  route) as guesses, in travel order. */
+export function footPieces(st: JourneyStep): WalkedPiece[] {
+  const out: WalkedPiece[] = [];
+  (st.lines || []).forEach((l, k) => {
+    const w = st.walks && st.walks[k];
+    if (!w || w.approx) { out.push({ coords: l, guess: true }); return; }
+    const [a, b] = routedSpan(w, l.length);
+    ([[0, a, true], [a, b, false], [b, l.length - 1, true]] as const).forEach(([x, y, guess]) => { if (y > x) out.push({ coords: l.slice(x, y + 1), guess }); });
+  });
+  return out;
 }

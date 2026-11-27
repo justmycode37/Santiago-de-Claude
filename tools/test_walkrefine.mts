@@ -145,6 +145,7 @@ fake('live-vehicles.ts', { vehShowsTrip: () => false, platformOf: (s: FakeStop) 
 fake('sheet-content.ts', { queueSheet: nothing, renderSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
 fake('pill.ts', { updateProgress: nothing, updatePillTimes: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
+fake('walk-reroute.ts', { rerouteTimes: nothing, rerouteAsk: () => ({ time: 0, limitS: null }), noteFix: () => false }); // (rerouting from where GPS puts you: test_walkreroute.mts)
 // the modules beside the page's that the routing code and the engine's journeys read: the settings, the station
 // models and their router, the engine's client
 const prefs = { walkKmh: 4.68, stepFree: false, fewerStairs: false, noEscalators: false, wheelchair: false, extraChangeMin: 0, maxWalkMin: 20 };
