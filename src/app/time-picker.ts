@@ -2,6 +2,7 @@
 import { dayLabel } from './journey-steps.ts';
 import { startJourney } from './pill.ts';
 import { journey } from './state.ts';
+import { SETTINGS } from '../settings.ts';
 
 /** When the trip should be: leave at ('dep') or arrive by ('arr') a date and time; both empty = now. */
 export type TimeMode = 'dep' | 'arr';
@@ -44,20 +45,29 @@ export function closeTimeSheet() {
   tSheet.setAttribute('aria-hidden', 'true');
 }
 
+// The mode the time sheet was last used with (Settings' timeMode): the chip opens on it while the trip leaves now.
+// Only the choice is remembered, never a date or time, which would be out of date.
+function rememberMode(mode: TimeMode) { if (SETTINGS.prefs().timeMode !== mode) SETTINGS.set({ timeMode: mode }); }
+
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
-  document.getElementById('whenChip')!.addEventListener('click', () => openTimeSheet(journey.query.mode));
+  document.getElementById('whenChip')!.addEventListener('click', () => {
+    const { mode, date, time } = journey.query;
+    openTimeSheet(date || time ? mode : SETTINGS.prefs().timeMode);
+  });
   document.getElementById('jDepBtn')!.addEventListener('click', () => openTimeSheet('dep'));
   document.getElementById('jArrBtn')!.addEventListener('click', () => openTimeSheet('arr'));
   document.querySelectorAll<HTMLButtonElement>('#tSeg button').forEach((b) => b.addEventListener('click', () => setTMode(b.dataset.mode as TimeMode)));
   tDim.addEventListener('click', closeTimeSheet);
   document.getElementById('tNow')!.addEventListener('click', () => {
     journey.query = { mode: 'dep', date: '', time: '' };
+    rememberMode('dep');
     closeTimeSheet();
     startJourney(journey.dest!, true);
   });
   document.getElementById('tDone')!.addEventListener('click', () => {
     journey.query = { mode: tMode, date: tDate.value, time: tTime.value };
+    rememberMode(tMode);
     closeTimeSheet();
     startJourney(journey.dest!, true);
   });

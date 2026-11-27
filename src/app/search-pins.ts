@@ -8,6 +8,7 @@ import { blurSearch, choose, select } from './trip-ends.ts';
 import { categoryForText, categoryRow, exitCategory, loadCategory, renderCategories } from './categories.ts';
 import { loadPlaces } from './map-places.ts';
 import { mapPadding } from './pill.ts';
+import { renderHistory, renderTypedHistory } from './search-history-ui.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import type { PlaceBbox } from '../places.ts';
@@ -105,13 +106,17 @@ export function onTap(el: HTMLElement, fn: () => void) {
 export function render(emptyText = 'No results') {
   list.innerHTML = '';
   if (!inputs[searchState.field].value.trim()) {
-    // nothing typed: the categories (where to, not where from, and not while a trip is on show)
-    if (searchState.field === 'to' && !journey.dest && document.activeElement === inputs.to) renderCategories();
-    else list.classList.remove('open');
+    // nothing typed: your recent and frequent searches (search-history-ui.ts), then the categories (where to, not
+    // where from, and not while a trip is on show)
+    const focused = document.activeElement === inputs[searchState.field];
+    const history = focused && renderHistory(searchState.field);
+    if (searchState.field === 'to' && !journey.dest && focused) renderCategories();
+    else if (!history) list.classList.remove('open');
     return;
   }
   const typedCategory = categoryForText(inputs[searchState.field].value);
   if (typedCategory && searchState.field === 'to') list.appendChild(categoryRow(typedCategory));
+  renderTypedHistory(); // searches of yours the text matches (search-history-ui.ts)
   if (!searchState.results.length) {
     const li = document.createElement('li');
     li.className = 'empty';

@@ -5,8 +5,10 @@
 // "Events for you" narrows down which community events show.
 // "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.ts); "Developer options" at the very
 // bottom (only with ?dev in the address) shows the tools to test that.
+// "Search history" switches off (or clears) what the search remembers of your searches (search-history.ts).
 // Everything is saved on this device only.
 import { PRICING_HISTORY, keepTripsWhen } from './pricing-history.ts';
+import { SEARCH_HISTORY, rememberWhen } from './search-history.ts';
 import { showToast } from './toast.ts';
 import { load, reloadNote } from './lazy.ts';
 import { MAP_LAYERS } from './map-layers.ts';
@@ -54,6 +56,11 @@ export interface Settings {
   devOptions: boolean;
   // the fare suggestions: are trips kept (pricing-history.ts)?
   fareTracking: boolean;
+  /** Remember what you search for, for "Recent" and "Frequent" in the search (search-history.ts). */
+  searchHistory: boolean;
+  /** Not on the page: whether the time sheet last planned a departure or an arrival; it opens on that again
+   *  (time-picker.ts). Only the choice, never the time. */
+  timeMode: 'dep' | 'arr';
 }
 /** One stop of the walking speed slider (Slow … Fast). */
 export interface SpeedPreset {
@@ -98,6 +105,8 @@ const DEFAULTS: Settings = {
   women: false,
   adaptiveSport: false,
   fareTracking: false,
+  searchHistory: true,
+  timeMode: 'dep',
   // Developer options (bottom of the page)
   devOptions: false,
 };
@@ -138,6 +147,7 @@ function clean(saved: Record<string, unknown>) {
   for (const k in DEFAULTS) if (typeof DEFAULTS[k as keyof Settings] === 'boolean' && typeof saved[k] === 'boolean') s[k as FlagKey] = saved[k];
   if (typeof saved.walkKmh === 'number' && saved.walkKmh > 0) s.walkKmh = SPEED_PRESETS[nearestPreset(saved.walkKmh)].kmh;
   if (s.avoidHills && s.ignoreHills) s.ignoreHills = false;
+  if (saved.timeMode === 'arr') s.timeMode = 'arr';
   for (const k in STEPPERS) {
     const v = saved[k] as number, r = STEPPERS[k as StepperKey];
     if (Number.isInteger(v) && v >= r.min && v <= r.max) s[k as StepperKey] = v;
@@ -247,6 +257,8 @@ const pricingSummary = document.getElementById('pricingSummary')!;
 const pricingClearPaused = document.getElementById('pricingClearPaused')!;
 const pricingStorageStatus = document.getElementById('pricingStorageStatus')!;
 const devDummyTrips = document.getElementById('devDummyTrips') as HTMLInputElement;
+const searchHistoryClear = document.getElementById('searchHistoryClear')!;
+const searchHistoryStatus = document.getElementById('searchHistoryStatus')!;
 const layerSwitches = [...layerGroup.querySelectorAll<HTMLInputElement>('input[data-layer]')];
 const switches = [...page.querySelectorAll<HTMLInputElement>('input[data-setting]')];
 const modeSwitches = [...page.querySelectorAll<HTMLInputElement>('input[data-mode]')];
@@ -362,6 +374,18 @@ devDummyTrips.addEventListener('change', () => {
   window.dispatchEvent(new Event('pricing-history-change'));
 });
 
+// "Clear search history": there whenever something is kept, also with the switch off
+function renderSearchHistory() {
+  searchHistoryClear.hidden = !SEARCH_HISTORY.count();
+}
+searchHistoryClear.addEventListener('click', () => {
+  if (!window.confirm('Clear your recent and frequent searches on this device?')) return;
+  const cleared = SEARCH_HISTORY.clear();
+  searchHistoryStatus.hidden = false;
+  searchHistoryStatus.textContent = cleared ? 'Search history cleared.' : 'Could not clear the search history.';
+  renderSearchHistory();
+});
+
 pricingClearPaused.addEventListener('click', () => {
   if (!window.confirm('Clear all confirmed trips saved in this browser?')) return;
   const cleared = PRICING_HISTORY.clear();
@@ -372,6 +396,7 @@ pricingClearPaused.addEventListener('click', () => {
 
 function render() {
   renderPricing();
+  renderSearchHistory();
   const eff = effective();
   for (const input of switches) {
     const k = input.dataset.setting as FlagKey;
@@ -402,6 +427,7 @@ function render() {
 // by: 'auto' when the app changed the setting itself (walk-pace.ts), otherwise it was you
 function update(patch: Partial<Settings>, by?: SettingsChangedBy) {
   if ('fareTracking' in patch) pricingStorageStatus.hidden = true;
+  if ('searchHistory' in patch) searchHistoryStatus.hidden = true;
   const before = state;
   state = { ...state, ...patch };
   save();
@@ -528,7 +554,14 @@ window.addEventListener('storage', (event) => {
       render();
       window.dispatchEvent(new Event('pricing-history-change'));
     }
+    // the search history switched off there is off here too (and this tab's next save does not switch it back on)
+    const remember = saved?.searchHistory !== false, timeMode = saved?.timeMode === 'arr' ? 'arr' : 'dep';
+    if (state.searchHistory !== remember || state.timeMode !== timeMode) {
+      state = { ...state, searchHistory: remember, timeMode };
+      render();
+    }
   } else if (isOpen && event.key === 'pricing-trip-history-v1') renderPricing();
+  if (event.key === SEARCH_HISTORY.KEY || event.key === null) renderSearchHistory();
   if (event.key === 'pricing-profile-v1' || event.key === null) {
     renderPricing();
     window.dispatchEvent(new Event('pricing-history-change'));
@@ -539,6 +572,8 @@ page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 
 // the trips for fare suggestions are kept while it is on (pricing-history.ts)
 keepTripsWhen(() => effective().fareTracking);
+// searches are remembered while "Search history" is on (search-history.ts)
+rememberWhen(() => state.searchHistory);
 
 export const SETTINGS = {
   /** Opens the Settings page (URL #settings); `anchor` = id of a heading on the page to open it at. */

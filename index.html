@@ -334,6 +334,27 @@
     .cat-chip:active { transform: scale(.96); }
     .cat-icon { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
     .cat-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+    /* Your searches when nothing is typed, and the ones the text matches (search-history-ui.ts) */
+    .results li.hist { padding: 0; gap: 0; }
+    .results li.hist:active { background: none; }
+    .results .hist-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 0 10px 16px; }
+    .results .hist-main:active { background: var(--pressed); }
+    .results .hist-del {
+      flex: none; align-self: stretch; width: 48px; display: grid; place-items: center; border: 0; padding: 0;
+      background: none; color: var(--bar-secondary); cursor: pointer;
+    }
+    .results .hist-del:active { background: var(--pressed); }
+    .results .hist-del svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+    .results li.hist-head {
+      justify-content: space-between; padding: 8px 16px 2px; cursor: default; font-size: 12px; font-weight: 600;
+      letter-spacing: .02em; text-transform: uppercase; color: var(--bar-secondary);
+    }
+    .results li.hist-head:active { background: none; }
+    .results .hist-clear {
+      border: 0; background: none; padding: 4px 0 4px 12px; font: inherit; font-size: 13px; font-weight: 600; text-transform: none;
+      letter-spacing: 0; color: var(--accent-ink); cursor: pointer;
+    }
+    .results .hist-clear.armed { color: var(--pin-red); }
 
     .trip {
       position: relative;
@@ -1565,6 +1586,18 @@
         <button class="set-reset" id="pricingClearPaused" type="button" hidden>Clear saved trips</button>
       </div>
       <p class="set-foot" id="pricingStorageStatus" role="status" hidden></p>
+
+      <h2 class="set-head" id="searchHistoryHead">Search history</h2>
+      <div class="set-group" role="group" aria-labelledby="searchHistoryHead">
+        <label class="set-row">
+          <span class="set-ic" style="--c:var(--navy)" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 4.5V9H9" /><path d="M12 8v4l3 2" /></svg></span>
+          <span class="set-text"><b id="searchHistoryT">Remember searches</b><small id="searchHistoryD">Recent and frequent places, categories and trips in the search.</small></span>
+          <input class="switch" type="checkbox" role="switch" data-setting="searchHistory" aria-labelledby="searchHistoryT" aria-describedby="searchHistoryD" />
+        </label>
+        <button class="set-reset" id="searchHistoryClear" type="button" hidden>Clear search history</button>
+      </div>
+      <p class="set-foot">Kept only on this device, never sent anywhere. Switched off, nothing new is kept and the search shows none of it; what is kept stays until you clear it.</p>
+      <p class="set-foot" id="searchHistoryStatus" role="status" hidden></p>
 
       <h2 class="set-head" id="setAccessHead">Accessibility</h2>
       <div class="set-group" role="group" aria-labelledby="setAccessHead">
