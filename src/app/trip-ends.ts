@@ -5,7 +5,7 @@ import { setMenu } from './menu.ts';
 import { userLngLat } from './location.ts';
 import { FIELDS, clears, destMarker, form, inputs, isPlaceResult, list, startMarker, wrap } from './search.ts';
 import { search } from './search-places.ts';
-import { areaChip, clearPlacePins, pins, render, showPlacesOnMap } from './search-pins.ts';
+import { areaChip, clearPlacePins, loadPlaceSheet, pins, render, showPlacesOnMap } from './search-pins.ts';
 import { armPin, pinMenu } from './pins.ts';
 import { categoryForText, enterCategory } from './categories.ts';
 import { loadPlaces } from './map-places.ts';
@@ -14,6 +14,7 @@ import { renderFoot, renderHead } from './sheet-content.ts';
 import { startJourney } from './pill.ts';
 import { endJourney } from './routing.ts';
 import { stopFollowCam } from './follow-cam.ts';
+import { pickTypedHistory, rememberChoice, rememberTrip } from './search-history-ui.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import type { SearchResult, TripField } from './search.ts';
@@ -57,6 +58,8 @@ function layoutTop() { root.style.setProperty('--top-ui', topUiBottom() + 'px');
 // A destination has been chosen (a result, a place on the map, an event, a dropped pin): plan the trip there.
 // quiet: the camera stays where it is until the trip is found (you have just put the pin there yourself)
 export function showDestinationJourney(r: JourneyDest, quiet?: boolean) {
+  clearTimeout(searchState.debounce);
+  searchState.reqId++; // a list of places still on its way does not replace the trip
   const first = !journey.dest;
   if (first) journey.query = { mode: 'dep', date: '', time: '' };
   clearPlacePins();
@@ -70,6 +73,8 @@ export function showDestinationJourney(r: JourneyDest, quiet?: boolean) {
 }
 // Where the trip starts: a place, a dropped pin, or null for where you are
 export function setStart(r: JourneyDest | null, fly?: boolean) {
+  clearTimeout(searchState.debounce);
+  searchState.reqId++;
   clearPlacePins();
   searchState.tripStart = r;
   setField('from', r ? r.title : '');
@@ -81,9 +86,24 @@ export function setStart(r: JourneyDest | null, fly?: boolean) {
   if (journey.dest) startJourney(journey.dest, true);
   else if (r && fly) map.flyTo({ center: r.lngLat, zoom: Math.max(map.getZoom(), 15), bearing: 0, pitch: 0, speed: 1.4 });
 }
+// An end is picked, so the search is done: a late answer to it must not open the list again over the trip
+function searchDone() { clearTimeout(searchState.debounce); searchState.reqId++; }
 export function choose(r: SearchResult, field = searchState.field) {
+  searchDone();
   if (field === 'from') setStart(r, true);
   else showDestinationJourney(r);
+  rememberChoice(r); // the place, and the trip once both ends are picked (search-history-ui.ts)
+}
+// A trip from the search history: both ends at once, planned once, leaving now
+export function chooseTrip(from: JourneyDest, to: JourneyDest) {
+  searchDone();
+  clearPlacePins();
+  searchState.tripStart = from;
+  setField('from', from.title);
+  startMarker.setLngLat(from.lngLat).addTo(map);
+  journey.query = { mode: 'dep', date: '', time: '' };
+  showDestinationJourney(to);
+  rememberTrip();
 }
 export function select(i: number) {
   const r = searchState.results[i];
@@ -100,6 +120,7 @@ function swapEnds() {
   if (searchState.tripStart) startMarker.setLngLat(searchState.tripStart.lngLat).addTo(map);
   else startMarker.remove();
   showDestinationJourney(dest, true);
+  rememberTrip();
 }
 
 // Moving the map closes the keyboard, results and menu; once it has moved away from the places shown,
@@ -123,8 +144,8 @@ export function start() {
       clears[f].classList.toggle('show', !!input.value);
       clearTimeout(searchState.debounce);
       clearPlacePins();
-      if (text.length < 2) { searchState.reqId++; searchState.results = []; searchState.placeCategory = null; searchState.last = null; render(); return; }
-      // Google Places is paid per request: wait a little longer for a pause in typing
+      if (text.length < 2) { searchState.reqId++; searchState.results = []; searchState.predictions = []; searchState.placeCategory = null; searchState.last = null; render(); return; }
+      // Google is counted per request: wait a little longer for a pause in typing
       searchState.debounce = setTimeout(() => search(text), PlaceSearch && PlaceSearch.source === 'google' ? 350 : 200);
     });
     input.addEventListener('focus', () => {
@@ -134,6 +155,7 @@ export function start() {
       armPin(null);
       pinMenu.remove();
       loadPlaces(); // so places (toilets, pharmacies…) are ready to be searched
+      if (PlaceSearch) PlaceSearch.endSession(); // typing from here on is a new session (Google's predictions)
       const p = pointOf(f);
       // the place already chosen, or the category on the map: typing replaces it · your own unfinished search: its
       // results again · nothing typed: the categories
@@ -155,9 +177,12 @@ export function start() {
     clears[f].addEventListener('click', () => {
       searchState.field = f;
       searchState.results = [];
+      searchState.predictions = [];
       searchState.placeCategory = null;
       searchState.last = null;
       searchState.reqId++;
+      clearTimeout(searchState.debounce);
+      if (PlaceSearch) PlaceSearch.endSession();
       clearPlacePins();
       if (f === 'to' && journey.dest) endJourney(true); // the card stays open for another destination
       else if (f === 'from' && searchState.tripStart) setStart(null);
@@ -166,14 +191,30 @@ export function start() {
       input.focus();
     });
   }
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    // "restaurants" + Enter: the best restaurants here, as if the category had been tapped; "Migros" + Enter shows them
-    // all on the map; a name or address goes straight there
-    const typed = searchState.field === 'to' ? categoryForText(inputs.to.value) : null;
+    // Enter before the pause in typing has searched: this text is searched first (not the list of the text before)
+    const field = searchState.field, text = inputs[field].value.trim();
+    if (text.length >= 2 && !(searchState.last && searchState.last.field === field && searchState.last.text === text)
+      && !(field === 'to' && categoryForText(text))) {
+      clearTimeout(searchState.debounce);
+      await search(text);
+      if (searchState.field !== field || inputs[field].value.trim() !== text) return; // typed on meanwhile
+    }
+    // "restaurants" + Enter: the best restaurants here, as if the category had been tapped; "pizza", "Migros" + Enter:
+    // the list of them and their pins (with Google: its results); one place: its card; an address or a stop goes
+    // straight there
+    const to = searchState.field === 'to';
+    const typed = to ? categoryForText(inputs.to.value) : null;
+    const first = searchState.results[0];
+    const places = searchState.results.filter(isPlaceResult).length;
+    const google = !!PlaceSearch && PlaceSearch.source === 'google';
     if (typed) enterCategory(typed);
-    else if (searchState.placeCategory && searchState.results.filter(isPlaceResult).length >= 2) showPlacesOnMap();
-    else if (searchState.results.length) select(0);
+    else if (pickTypedHistory()) return; // a search of yours it matches, the row on top (search-history-ui.ts)
+    else if (to && (first ? isPlaceResult(first) : searchState.predictions.length > 0) && (places >= 2 || google)) showPlacesOnMap();
+    else if (!to && searchState.placeCategory && places >= 2) showPlacesOnMap();
+    else if (to && first && isPlaceResult(first)) { closeSearch(); loadPlaceSheet().then((mod) => { if (mod) mod.showPlace(first); }); }
+    else if (first) select(0);
   });
   tripBtn.addEventListener('click', () => { if (planOpen()) swapEnds(); else setPlanOpen(true); });
   document.getElementById('tripClose')!.addEventListener('click', () => endJourney());

@@ -13,16 +13,18 @@ import { refreshRouteHighlight, setRoute } from './journey-map.ts';
 import { buildSteps, fmtTime, isRide, journeyEnd, journeyStart, lineLabel, liveMs, stepCoords } from './journey-steps.ts';
 import { nowMarker, placeUserDot, progressTime, trackJourney, tripLive, updateNowMarker, vehMarker } from './tracking.ts';
 import { redrawRoute, renderLive } from './live-line.ts';
+import { checkRide } from './ride-switch.ts';
 import { livePoll, platSig } from './live-engine.ts';
 import { vehStop, vehUpdate } from './live-vehicles.ts';
 import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } from './sheet.ts';
 import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
 import { updateWhenChip } from './time-picker.ts';
 import { refineJourney } from './routing.ts';
-import { journey, searchState, sheet, tracking } from './state.ts';
+import { journey, placeView, searchState, sheet, tracking } from './state.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import { followCamOn, pauseFollowCam } from './follow-cam.ts';
-import type { Journey } from '../engine-journey.ts';
+import { closeLine, followsRide, stopFollowing, toggleRide, vehicleFollowing } from './vehicle-follow.ts';
+import type { Journey, JourneyRide } from '../engine-journey.ts';
 import type { JourneyDest, JourneyOrigin } from './state.ts';
 const jBar = document.getElementById('jBar')!;
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -31,7 +33,7 @@ const BAR = { pad: 6, lineY: 26, textY: 14, dot: 8, ball: 2.5, node: 4.2, inset:
 // → { segs: [{ kind, a, b, x0, x1, label }], t0, t1, W, x(t), tAt(px) }
 /** A part of the bar: from when to when (ms), its least width, and (once laid out) its width and where it is, px. */
 interface BarPart { a: number; b: number; min: number; w: number; x0: number; x1: number }
-interface BarRide extends BarPart { kind: 'ride'; label: string }
+interface BarRide extends BarPart { kind: 'ride'; label: string; ride: JourneyRide }
 interface BarGap extends BarPart { kind: 'gap' }
 type BarSeg = BarRide | BarGap;
 function barLayout() {
@@ -42,7 +44,7 @@ function barLayout() {
   journey.conn!.parts.filter(isRide).forEach((s) => {
     const a = Math.max(cursor, liveMs(s.from, 'dep')!), b = Math.max(a, liveMs(s.to, 'arr')!);
     if (a > cursor || rides) segs.push({ kind: 'gap', a: cursor, b: a, min: rides ? 28 : 17 } as BarGap); // a change, or the walk to the first stop
-    segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.line) } as BarRide);
+    segs.push({ kind: 'ride', a, b, min: 26, label: lineLabel(s.line), ride: s } as BarRide);
     cursor = b;
     rides++;
   });
@@ -77,7 +79,8 @@ function drawBarArt(g: SVGGElement, { segs }: { segs: BarSeg[] }) {
     if (s.kind === 'ride') {
       // a big dot where the ride starts and where it ends, the line between them
       const xa = s === first ? s.x0 : s.x0 + BAR.inset, xb = Math.max(xa, s === last ? s.x1 : s.x1 - BAR.inset);
-      g.appendChild(svgEl('line', { x1: xa, y1: BAR.lineY, x2: xb, y2: BAR.lineY, stroke: 'currentColor', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+      // (thicker: the ride whose vehicle the map follows, vehicle-follow.ts)
+      g.appendChild(svgEl('line', { x1: xa, y1: BAR.lineY, x2: xb, y2: BAR.lineY, stroke: 'currentColor', 'stroke-width': followsRide(s.ride) ? 7 : 4, 'stroke-linecap': 'round' }));
       if (s !== first) dot(xa, BAR.node);
       if (s !== last) dot(xb, BAR.node);
       return;
@@ -128,6 +131,7 @@ export function renderBar() {
 export function updateProgress() {
   if (!journey.conn) return;
   trackJourney();
+  checkRide(); // on another vehicle than planned? (ride-switch.ts)
   renderBar();
   renderLive();
   if (journey.steps.length) { redrawRoute(); updateNowMarker(); }
@@ -150,6 +154,7 @@ export function updatePillTimes() {
   el.classList.toggle('late', live - plan >= 60000);
 }
 export function renderJourney(conn: Journey, destTitle: string) {
+  stopFollowing(); // (a vehicle of the journey before)
   journey.conn = conn;
   journey.steps = buildSteps(conn, destTitle);
   journey.platKey = platSig();
@@ -169,18 +174,20 @@ export function renderJourney(conn: Journey, destTitle: string) {
   vehUpdate(); // the vehicles of its rides, live (the one coming to your stop too)
   updateNowMarker();
   refreshRouteHighlight();
-  if (!followCamOn()) fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it
+  if (!followCamOn() && !vehicleFollowing()) fitJourney(); // the whole journey first; a step picked in the sheet (or reached by GPS) zooms in on it
 }
 
-// Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you
-export function goToStep(i: number, auto?: boolean) {
+// Show one step of the trip on the map (the rest dims); auto: moved there by GPS, not by you; keepCamera: the map is
+// left as it is (a ride whose vehicle is to be followed: vehicle-follow.ts moves it)
+export function goToStep(i: number, auto?: boolean, keepCamera?: boolean) {
   if (!journey.steps.length) return;
   if (!auto) { tracking.userPickedAt = Date.now(); pauseFollowCam(); }
+  if (!auto && !keepCamera) stopFollowing(); // you picked another step: the map shows it, not the vehicle
   journey.step = Math.min(journey.steps.length - 1, Math.max(0, i));
   journey.overview = false;
   sheet.focus = null;
   refreshRouteHighlight();
-  if (!followCamOn()) fitStep(journey.step); // (the follow camera shows where you are on it)
+  if (!followCamOn() && !keepCamera && !vehicleFollowing()) fitStep(journey.step); // (the follow camera shows where you are on it)
   if (!auto && sheetDetent === 'full') setDetent('mid');
   renderSheet();
 }
@@ -191,9 +198,10 @@ export function mapPadding() {
   // under way the menu button hangs below the pill; otherwise it is beside the card
   // (with room for a pin, which stands above its point)
   const top = document.body.classList.contains('following') ? 150 : Math.max(56, topUiBottom()) + 48;
-  const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheet.y) : 0;
+  // the journey sheet, or the place sheet (place-sheet.ts): never both
+  const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheet.y) : placeView.covered;
   const bottom = Math.max(40, Math.min(covered + 24, hgt - top - 120));
-  const side = window.innerWidth >= 700 && covered ? 444 : 48; // wide screens: the sheet is a panel on the left
+  const side = window.innerWidth >= 700 && (covered || placeView.side) ? 444 : 48; // wide screens: the sheet is a panel on the left
   return { top, bottom: side > 48 ? 40 : bottom, left: side, right: 48 };
 }
 export function fitCoords(coords: LngLat[], maxZoom = 17) {
@@ -214,6 +222,8 @@ export function fitStep(i: number) {
 // origin: where the trip starts and what it is called; left out: the start, else your position, else the map centre
 export async function startJourney(r: JourneyDest, keepQuery?: boolean, origin?: JourneyOrigin) {
   const id = ++journey.req;
+  closeLine(); // a line chosen in the search gives way to the trip
+  stopFollowing();
   if (!keepQuery) journey.query = { mode: 'dep', date: '', time: '' };
   journey.dest = r;
   journey.conn = null;
@@ -290,7 +300,14 @@ export function start() {
   jBar.addEventListener('click', (e) => {
     if (!journey.conn || !journey.steps.length) return;
     const geo = barLayout();
-    const t = geo.tAt(e.clientX - jBar.getBoundingClientRect().left);
+    const x = e.clientX - jBar.getBoundingClientRect().left;
+    // a ride: follow its vehicle (again: stop); between rides, that step
+    const seg = geo.segs.find((s) => x >= s.x0 && x <= s.x1);
+    if (seg && seg.kind === 'ride') {
+      const k = journey.steps.findIndex((st) => st.type === 'ride' && st.s === seg.ride);
+      if (k >= 0) { toggleRide(k); return; }
+    }
+    const t = geo.tAt(x);
     let i = 0;
     journey.steps.forEach((st, k) => { if (st.t0 != null && st.t0 <= t) i = k; });
     if (t >= geo.t1 - 1000) i = journey.steps.length - 1;

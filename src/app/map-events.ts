@@ -137,8 +137,11 @@ function makeVenueCard(features: EventFeature[]) {
   return card;
 }
 
+// Events and places on or off (the button in the menu): remembered on this device, and on again on the next visit
+const EVENTS_ON_KEY = 'eventsOn';
 export function setEventsOn(enabled: boolean) {
   eventsOn = enabled;
+  try { if (enabled) localStorage.setItem(EVENTS_ON_KEY, '1'); else localStorage.removeItem(EVENTS_ON_KEY); } catch (e) { /* this visit only */ }
   eventsBtn.setAttribute('aria-pressed', String(enabled));
   eventsBtn.classList.toggle('active', enabled);
   updateCards();
@@ -235,7 +238,14 @@ export function start() {
   first.then(() => {
     applyMapTheme(false);
     // Start the 2 MB platform data once the first map view has drawn, not while it is still loading
-    map.once('idle', () => { updateCards(); startPlatforms(); });
+    // and the events and places back on if they were on last time (not before: their data would compete with the map's)
+    map.once('idle', () => {
+      let wasOn = false;
+      try { wasOn = localStorage.getItem(EVENTS_ON_KEY) === '1'; } catch (e) { /* off */ }
+      if (wasOn && !eventsOn) setEventsOn(true);
+      else updateCards();
+      startPlatforms();
+    });
   }).catch(() => { showToast('Map could not be loaded'); startPlatforms(); });
   themeMeta.setAttribute('content', getComputedStyle(root).getPropertyValue('--page-bg').trim());
   // Follow the system setting until the user picks a theme themselves

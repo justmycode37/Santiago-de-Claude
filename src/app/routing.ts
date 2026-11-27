@@ -24,6 +24,7 @@ import { stationRouter } from '../station3d.ts';
 import { Station3D } from '../station3d.ts';
 import { KANTE } from '../engine.ts';
 import { KanteJourney } from '../engine-journey.ts';
+import { rerouteAsk, rerouteTimes } from './walk-reroute.ts';
 import type { Station3DEndpoint } from '../station3d.ts';
 import type { Station3DTrain } from '../train-formation.ts';
 import type { JourneyChangeStep, JourneyWalkStep, LineMode } from './journey-steps.ts';
@@ -107,11 +108,12 @@ interface BrouterAnswer { features?: { geometry: { coordinates: number[][] } }[]
 // the straight line with the engine's time for it; no answer (the engine is off or down): the straight line.
 // limitS (a change): the seconds there are for it, so that the way the traveller prefers (round a hill) is taken only
 // when it fits, the quickest otherwise.
-export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd], limitS?: number | null): Promise<RoutedWalk> {
+// time: when it sets out (Unix seconds; ways closed then are avoided), else every way is open.
+export async function routeWalk(a: LngLat, b: LngLat, ends?: [WalkEnd, WalkEnd], limitS?: number | null, time?: number): Promise<RoutedWalk> {
   const [from, to] = ends || [{}, {}];
   const place = (p: LngLat, e: WalkEnd): KantePlaceRef => ({ lat: p[1], lon: p[0], ...(e.quay ? { quay: e.quay } : {}), ...(e.exact ? { exact: true } : {}) });
   try {
-    const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options(), ...(limitS != null ? { limitS } : {}) }));
+    const r = KanteJourney.routed(await KANTE.walk({ from: place(a, from), to: place(b, to), options: KanteJourney.options(), ...(limitS != null ? { limitS } : {}), ...(time != null ? { time } : {}) }));
     if (r) return (r.noPath && (await footWalk(a, b, r))) || r;
   } catch (e) { /* the straight line */ }
   return { coords: [a, b], steps: null, dist: null, approx: true };
@@ -226,7 +228,7 @@ export function refineWalks(id: number, onlyMoved?: boolean) {
     }
     // no walk any more (both rides at the same point now): an answer still on its way must not bring it back
     if (!(st.lines || []).length) { newWalkRev(st); return; }
-    const plan = s3Plan(st);
+    const plan = st.walked ? null : s3Plan(st); // (rerouted from where you were: along the streets from there)
     if (plan) refineStationWalk(st, plan, task); else refineWalk(st, task);
   });
 }
@@ -245,13 +247,15 @@ const walkEnds = (st: JourneyWalkStep | JourneyChangeStep) => {
 };
 // A change: the time there is for it, to the second (what it is asked within, limitS); not one a station model draws
 // (its way, and the street stretches to it, do not depend on the time: the street way in its place does)
+// (nor one rerouted from where you were: asked within the time there was then, it is not asked again for the time alone)
 function walkTimeKey(st: JourneyWalkStep | JourneyChangeStep) {
+  if (st.walked) return null;
   const room = st.type === 'change' && !st._modelDrawn ? changeRoomS(st) : null;
   return room == null ? null : Math.round(room);
 }
 // A new revision of a walk's route: answers for older ones (it has been moved or rerouted since), and answers for
 // ends and platforms the walk no longer has, are dropped
-function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
+export function newWalkRev(st: JourneyWalkStep | JourneyChangeStep) {
   const rev = (st.walkRev = (st.walkRev || 0) + 1), sig = walkSig(st);
   st._askFor = st.lines;
   st._askSig = sig;
@@ -309,10 +313,12 @@ function refineWalk(st: JourneyWalkStep | JourneyChangeStep, task: WalkTask) {
     });
     return;
   }
-  // a change of one stretch: within the time there is for it (a walk through a station model has its own way)
-  const limit = st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
+  // a change of one stretch: within the time there is for it (a walk through a station model has its own way); a walk
+  // rerouted from where you were: as it was asked then, from now (walk-reroute.ts)
+  const re = st.walked ? rerouteAsk(st) : null;
+  const limit = re ? re.limitS : st.type === 'change' && lines.length === 1 ? changeRoomS(st) : null;
   const asked = st.lines;
-  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k], limit))), (res) => {
+  task(Promise.all(lines.map((line, k) => routeWalk(line[0], goal(line, k), st.ends && st.ends[k], limit, re ? re.time : undefined))), (res) => {
     if (!current()) return;
     // no answer for a walk whose ends have not moved (asked again for its time alone): the way it has stays, and it
     // is asked again on a later poll
@@ -338,6 +344,8 @@ const DETOUR = 1.35;
 // end, the last walk's and the journey's arrival follow it. A part without an answer is timed as the engine times
 // a straight line, and the walk's time is marked as an estimate.
 function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) {
+  // rerouted from where you were (its lines are the way from there): timed from there, its start left as it was
+  if (st.walked) { rerouteTimes(st); queueSheet(true); return; }
   const pace = KanteJourney.options().walkSpeed; // m/s
   const metres = (w: RoutedWalk) => (w.dist != null ? w.dist : lengthKm(w.coords) * 1000 * DETOUR);
   const s = Math.round(walks.reduce((sum, w) => sum + (answered(w) ? w.walkS! : metres(w) / pace), 0));
@@ -353,7 +361,7 @@ function walkTime(st: JourneyWalkStep | JourneyChangeStep, walks: RoutedWalk[]) 
 
 // Where a walk leads: for the walk to the destination the place itself, not the door its last route ended at (which
 // the router would take for a point on the building's wall)
-const walkGoal = (st: JourneyWalkStep | JourneyChangeStep, end: LngLat) => (st.type === 'walk' && st.final && st.toLL) || end;
+export const walkGoal = (st: JourneyWalkStep | JourneyChangeStep, end: LngLat) => (st.type === 'walk' && st.final && st.toLL) || end;
 
 export function refineJourney(id: number) {
   let scheduled = false;

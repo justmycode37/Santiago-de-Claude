@@ -43,6 +43,8 @@ import * as eventPage from './app/event-page.ts';
 import * as keyboard from './app/keyboard.ts';
 import * as mapCache from './app/map-cache.ts';
 import * as followCam from './app/follow-cam.ts';
+import * as vehicleFollow from './app/vehicle-follow.ts';
+import * as lineSearch from './app/line-search.ts';
 import { map } from './app/map.ts';
 import { showDestinationJourney } from './app/trip-ends.ts';
 
@@ -76,3 +78,5 @@ eventPage.start();
 keyboard.start();
 mapCache.start();
 followCam.start();
+vehicleFollow.start();
+lineSearch.start();

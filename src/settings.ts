@@ -5,8 +5,10 @@
 // "Events for you" narrows down which community events show.
 // "Adjust to how I walk" lets the app move the walking speed by itself (walk-pace.ts); "Developer options" at the very
 // bottom (only with ?dev in the address) shows the tools to test that.
+// "Search history" switches off (or clears) what the search remembers of your searches (search-history.ts).
 // Everything is saved on this device only.
 import { PRICING_HISTORY, keepTripsWhen } from './pricing-history.ts';
+import { SEARCH_HISTORY, rememberWhen } from './search-history.ts';
 import { showToast } from './toast.ts';
 import { load, reloadNote } from './lazy.ts';
 import { MAP_LAYERS } from './map-layers.ts';
@@ -54,6 +56,8 @@ export interface Settings {
   devOptions: boolean;
   // the fare suggestions: are trips kept (pricing-history.ts)?
   fareTracking: boolean;
+  /** Remember what you search for, for "Recent" and "Frequent" in the search (search-history.ts). */
+  searchHistory: boolean;
 }
 /** One stop of the walking speed slider (Slow … Fast). */
 export interface SpeedPreset {
@@ -98,6 +102,7 @@ const DEFAULTS: Settings = {
   women: false,
   adaptiveSport: false,
   fareTracking: false,
+  searchHistory: true,
   // Developer options (bottom of the page)
   devOptions: false,
 };
@@ -247,6 +252,8 @@ const pricingSummary = document.getElementById('pricingSummary')!;
 const pricingClearPaused = document.getElementById('pricingClearPaused')!;
 const pricingStorageStatus = document.getElementById('pricingStorageStatus')!;
 const devDummyTrips = document.getElementById('devDummyTrips') as HTMLInputElement;
+const searchHistoryClear = document.getElementById('searchHistoryClear')!;
+const searchHistoryStatus = document.getElementById('searchHistoryStatus')!;
 const layerSwitches = [...layerGroup.querySelectorAll<HTMLInputElement>('input[data-layer]')];
 const switches = [...page.querySelectorAll<HTMLInputElement>('input[data-setting]')];
 const modeSwitches = [...page.querySelectorAll<HTMLInputElement>('input[data-mode]')];
@@ -362,6 +369,20 @@ devDummyTrips.addEventListener('change', () => {
   window.dispatchEvent(new Event('pricing-history-change'));
 });
 
+// "Clear search history": there whenever something is kept, also with the switch off
+function renderSearchHistory() {
+  const n = SEARCH_HISTORY.count();
+  searchHistoryClear.hidden = !n;
+  if (n && searchHistoryStatus.textContent === 'Search history cleared.') searchHistoryStatus.hidden = true; // kept again since
+}
+searchHistoryClear.addEventListener('click', () => {
+  if (!window.confirm('Clear your recent and frequent searches on this device?')) return;
+  const cleared = SEARCH_HISTORY.clear();
+  searchHistoryStatus.hidden = false;
+  searchHistoryStatus.textContent = cleared ? 'Search history cleared.' : 'Could not clear the search history.';
+  renderSearchHistory();
+});
+
 pricingClearPaused.addEventListener('click', () => {
   if (!window.confirm('Clear all confirmed trips saved in this browser?')) return;
   const cleared = PRICING_HISTORY.clear();
@@ -372,6 +393,7 @@ pricingClearPaused.addEventListener('click', () => {
 
 function render() {
   renderPricing();
+  renderSearchHistory();
   const eff = effective();
   for (const input of switches) {
     const k = input.dataset.setting as FlagKey;
@@ -402,6 +424,7 @@ function render() {
 // by: 'auto' when the app changed the setting itself (walk-pace.ts), otherwise it was you
 function update(patch: Partial<Settings>, by?: SettingsChangedBy) {
   if ('fareTracking' in patch) pricingStorageStatus.hidden = true;
+  if ('searchHistory' in patch) searchHistoryStatus.hidden = true;
   const before = state;
   state = { ...state, ...patch };
   save();
@@ -444,6 +467,7 @@ page.addEventListener('click', (e) => {
     if (pricingHalfFare.checked) PRICING_HISTORY.setHalfFare(false);
     // the theme follows the system again
     try { localStorage.removeItem('theme'); } catch { /* it stays as it is */ }
+    try { localStorage.removeItem('timeMode'); } catch { /* the time sheet's last mode (time-picker.ts) stays */ }
     setTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', false);
     themeChanged();
     update({ ...DEFAULTS });
@@ -528,7 +552,15 @@ window.addEventListener('storage', (event) => {
       render();
       window.dispatchEvent(new Event('pricing-history-change'));
     }
+    // the search history switched off there is off here too (and this tab's next save does not switch it back on)
+    // (unreadable: as it was here; missing: on, the default)
+    const remember = saved === undefined ? state.searchHistory : saved?.searchHistory !== false;
+    if (state.searchHistory !== remember) {
+      state = { ...state, searchHistory: remember };
+      render();
+    }
   } else if (isOpen && event.key === 'pricing-trip-history-v1') renderPricing();
+  if (event.key === SEARCH_HISTORY.KEY || event.key === null) renderSearchHistory();
   if (event.key === 'pricing-profile-v1' || event.key === null) {
     renderPricing();
     window.dispatchEvent(new Event('pricing-history-change'));
@@ -539,6 +571,8 @@ page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 
 // the trips for fare suggestions are kept while it is on (pricing-history.ts)
 keepTripsWhen(() => effective().fareTracking);
+// searches are remembered while "Search history" is on (search-history.ts)
+rememberWhen(() => state.searchHistory);
 
 export const SETTINGS = {
   /** Opens the Settings page (URL #settings); `anchor` = id of a heading on the page to open it at. */

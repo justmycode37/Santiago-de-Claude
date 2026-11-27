@@ -56,12 +56,13 @@ function brokenChange(now: number, from: number) {
     return live && arr != null && dep != null && (now < dep || now < arr) && spareOf(st).s < 0;
   }) as JourneyChangeStep | undefined;
 }
-// Walking to a ride with GPS: is there time to spare, at your walking speed (Settings), for the metres left?
-function hurry(left: number, r: JourneyRideStep, now: number) {
+// Walking to a ride with GPS: is there time to spare, at your walking speed (Settings), for the metres left? (On a
+// walk rerouted from where you were, at the engine's pace for its way: its stairs, lifts and hills.)
+function hurry(left: number, r: JourneyRideStep, now: number, sPerM?: number) {
   const leftS = (r.t0! - now) / 1000;
   if (!(leftS > -30) || leftS > 20 * 60) return null;
   const kmh = (SETTINGS.prefs && SETTINGS.prefs().walkKmh) || 4.7;
-  return KANTE_LIVE.runOrWait(leftS, left / (kmh / 3.6));
+  return KANTE_LIVE.runOrWait(leftS, sPerM != null ? left * sPerM : left / (kmh / 3.6));
 }
 export function liveParts(now: number): LiveLine | null {
   const t = tracking.track && gpsOn() ? tracking.track : null;
@@ -96,7 +97,7 @@ export function liveParts(now: number): LiveLine | null {
     if (st.final || !r) return { kind: 'gps', parts: [`${fmtDist(left)} to ${st.toName || 'your destination'}`] };
     const board = boardName(r);
     const where = left < 30 ? `At ${board} ·` : `${fmtDist(left)} to ${board} ·`;
-    const hr = left >= 30 ? hurry(left, r, now) : null;
+    const hr = left >= 30 ? hurry(left, r, now, st.reroute && st.reroute.sPerM) : null;
     return { kind: 'gps', rest: hr ? hr.text : '', restLevel: hr && hr.level,
       parts: [h('span', 'live-lead', where, kBadge(r.s.line)), ` ${leaves(r.t0!, now)}`, lateTag(lateMin(r.s.from, 'dep')), platChange(r)] };
   }

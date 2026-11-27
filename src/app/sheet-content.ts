@@ -2,18 +2,19 @@
 import { showToast } from '../toast.ts';
 import { userLngLat } from './location.ts';
 import { jBody, jFoot, jHead, refreshRouteHighlight } from './journey-map.ts';
-import { dayLabel, fmtTime, hasForecast, isRide, journeyEnd, journeyStart, kDur, kDurExact, lateMin, levelChange, lineVars, liveMs, modeOf, planMs, spareOf, stopName, stopUic } from './journey-steps.ts';
+import { dayLabel, fmtTime, hasForecast, isRide, journeyEnd, journeyStart, kDur, kDurExact, lateMin, levelChange, lineLabel, lineVars, liveMs, modeOf, planMs, spareOf, stopName, stopUic } from './journey-steps.ts';
 import { liveParts, replan } from './live-line.ts';
 import { livePoll } from './live-engine.ts';
 import { cap, compassWord, fmtDist, levelShort, platformOf } from './live-vehicles.ts';
-import { MODE_K, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
+import { MODE_K, MODE_NAME, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kIcon, kPlat, openDirs, openStops, placeSheet, quayOf, setDetent, sheetDetent } from './sheet.ts';
 import type { KIconName } from './sheet.ts';
 import { ticketPricing } from './ticket-pricing.ts';
 import { focusDir, overview, shareJourney, showQuay, startFollowing, ticketLink } from './journey-actions.ts';
 import { arStepButton } from './ar.ts';
 import { fitJourney, goToStep, renderBar, renderJourney, retryJourney, updatePillTimes } from './pill.ts';
+import { followsRide, stopFollowing, toggleRide } from './vehicle-follow.ts';
 import { dateValue } from './time-picker.ts';
-import { distKm, endJourney, refineJourney } from './routing.ts';
+import { distKm, endJourney, lengthKm, refineJourney } from './routing.ts';
 import type { StopTime } from './journey-steps.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
 import { SETTINGS } from '../settings.ts';
@@ -154,12 +155,13 @@ function walkTarget(st: JourneyStep) {
   const q = quayOf(r, 'dep');
   return q.label ? `${q.word} ${q.label}` : stopName(r.s.from);
 }
-// Metres on foot, once every part of the walk has been routed (null until then)
+// Metres on foot, once every part of the walk has been routed (null until then); rerouted from where you were, the
+// part already walked as well
 function walkDist(st: JourneyStep) {
   const lines = st.lines || [];
   if (!lines.length) return 0;
-  const ws = st.walks || [];
-  return lines.every((_, k) => ws[k] && ws[k].dist != null) ? ws.reduce((sum, w) => sum + (w ? w.dist! : 0), 0) : null;
+  const ws = st.walks || [], walked = (st.walked || []).reduce((sum, pc) => sum + lengthKm(pc.coords), 0) * 1000;
+  return lines.every((_, k) => ws[k] && ws[k].dist != null) ? Math.round(walked + ws.reduce((sum, w) => sum + (w ? w.dist! : 0), 0)) : null;
 }
 const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
 // Metres climbed on foot, as the engine counts them ("↑ 25 m" from 10 m: less is the lie of the land)
@@ -371,6 +373,7 @@ function openOption(conn: Journey) {
 }
 function showOptions() {
   if (optionCount() < 2) return;
+  stopFollowing(); // the journeys to choose from on the map
   journey.list = true;
   sheet.focus = null;
   if (!journey.overview) { journey.overview = true; refreshRouteHighlight(); }
@@ -577,6 +580,15 @@ function liveTag(st: JourneyRideStep) {
   const p = hasForecast(st.s.from, 'dep') || hasForecast(st.s.to, 'arr');
   return h('span', 'live-tag ' + (p ? 'predicted' : 'timetable'), p ? h('i', 'live-dot') : kIcon('clock', 12), p ? 'Live times' : 'Timetable');
 }
+// The line and where it goes: a tap follows its vehicle on the map (vehicle-follow.ts), a second tap stops
+function rideLine(st: JourneyRideStep, i: number) {
+  const j = st.s.line, on = followsRide(st.s);
+  const mode = modeOf(j.category), label = `${mode === 'train' ? '' : (MODE_NAME[mode] || 'Bus') + ' '}${lineLabel(j)} to ${st.s.headsign}`;
+  const b = kBtn('ride-line follow' + (on ? ' on' : ''), `Follow ${label} on the map`, () => toggleRide(i),
+    kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', st.s.headsign), h('span', 'follow-cue', on ? 'Following' : 'Follow'));
+  b.setAttribute('aria-pressed', String(on));
+  return b;
+}
 function rideBlock(st: JourneyRideStep, i: number) {
   const s = st.s, j = s.line, mode = modeOf(j.category);
   const list = s.stops;
@@ -592,7 +604,7 @@ function rideBlock(st: JourneyRideStep, i: number) {
   li.append(h('div', 'tl-row', h('span', 'tl-time'), h('span', 'tl-rail ride'),
     h('div', 'tl-main',
       standCard(st, i),
-      h('div', 'ride-line', kBadge(j, 'lg'), kIcon('go', 14), h('span', 'ride-head', s.headsign)),
+      rideLine(st, i),
       h('div', 'ride-sum',
         stops > 0 ? kBtn('expander', null, () => { if (open) openStops.delete(i); else openStops.add(i); renderBody(); }, kIcon(open ? 'up' : 'down', 16), `${stops + 1} stops · ${kDur(rideS)}`)
           : h('span', 'quiet-line', `Non-stop · ${kDur(rideS)}`),

@@ -86,7 +86,9 @@ writes the answer into the ride's stop calls (times, delays, boarding point); `K
 boarding points and the walks to them when the platform has changed. The trip's `position` places the vehicle on the
 map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip offers "Replan". A change the live
 times make impossible says "Not enough time to change" with "Replan", also when the next ride has already left
-while you are still on the one before.
+while you are still on the one before. A walk you leave for another way to the same place is rerouted from where you
+are, and the times after it follow the new walk ([how](walking-routes.md#leaving-the-walks-way)); the rides are not
+planned again.
 
 A journey's live times never go back: the engine drops live times that cannot be true (a vehicle logged onto the
 wrong run, a frozen clock) and keeps every trip's times running forward
@@ -101,6 +103,66 @@ back); buses are laid onto the roads the base map draws (`src/live-lines.ts`, fr
 `src/vector-lines.ts`, in a worker: `src/app/lines-worker.ts`); vehicles on rails keep the engine's way, which runs on
 the drawn rails already, and are drawn dashed in a tunnel by the drawn track they are matched to. Once a journey's route
 is chosen, the vehicles of its rides show at any zoom, whether Settings has live vehicles on or not.
+
+## Another vehicle than planned
+
+Travellers sometimes board another vehicle than the planned one (an earlier bus that goes there too, the next run
+of the line). `src/app/ride-switch.ts` notices it and offers the journey from on board it, never switching by itself:
+"Looks like you're on bus 10 to Wankdorf · Update the route? Arrive 14:32", "Looks like you're on an earlier 12 ·
+Update the times?" (the same line, to the same stop, the rest as planned) or "Still on 12?" (stayed on past the
+planned stop). Closing it leaves that vehicle alone for the rest of the trip; it goes by itself once the vehicle has
+not fitted for a minute.
+
+What decides is the pure `src/app/ride-detect.ts` (tested on made-up tracks: `tools/test_ride_detect.mts`), on the
+fixes of the last two minutes since the last gap of more than 30 s and since you last stood still for 45 s (waiting
+at the stop), each within 60 m:
+
+- **Moving like a vehicle**: 4 fixes over 40 s at least, 300 m from the first to the last, 3.5 m/s on average and
+  6.5 m/s over 15 s at some point. Waiting at the stop, walking and running for the bus do not count.
+- **On a trip**: 80 % of the fixes (and the last) within their accuracy plus 30 m (40–90 m) of the trip's way, going
+  forward along it (on a way that passes the same place twice, along whichever pass fits), and where its vehicle is by its live stop times when each was taken: a median gap of 90 s at most
+  (150 s on timetable times), none over 180 s (240 s). The vehicle positions in Switzerland come from those times, so
+  this is being with the vehicle. The fixes before the first one on its way (the walk to the stop) are left out.
+- **One answer**: when a planned ride fits best, or another trip fits within 40 s of the best (another line on the same
+  road, a bus bunched with the next one), nothing is said; and only when the same trip is named twice, on fixes at
+  least 15 s apart.
+
+The journey's own rides are checked first, without asking the engine anything. Only when none fits are the vehicles
+around you asked for (`GET /api/vehicles`, a box that grows with your speed; at most every 20 s, every 60 s while none
+fits) and the trips of up to six going your way within 400 m of their way between the stops around where they are
+drawn (`GET /api/trip`). The journey offered is the engine's from
+on board (`onboard` in `POST /api/plan`, from the stop ahead of you while the vehicle has still to get there),
+`KanteJourney.onboard()`: not one with a cancelled ride or a missed change, nor one that has you get off where you have
+been, its first ride drawn from the stop you passed last (`tools/test_onboard.mts`). It is offered when it gets there no
+more than half an hour after the journey on show (or after now), and not when it has you get off at the next stop to
+ride back further from the destination. "Update route" asks again before it shows the new journey.
+
+## Following one vehicle: `src/app/vehicle-follow.ts`
+
+A ride in the journey sheet (its line and where it goes, marked "Follow") and a ride in the bar at the top under way
+follow that ride's vehicle on the map; a second tap, "Stop" on the card at the top, or dragging the map stops it (a
+pinch or the wheel only zooms). A ride you stay seated on follows the trip that runs now. The live layer
+(`live-vehicles.ts`, `vehFocus()`) draws the vehicle with a ring and moves it on every frame; the camera reads where
+it is drawn every frame and eases a little ahead of it a few times a second, so the map glides along without moving
+on every frame (each camera move runs the map's `moveend` handlers). Where the live layer does not have it, the card
+says how it is placed instead: the trip's `/api/trip` position moved on along its way (also before your stop), "Not
+on its way yet: due to start at … at …" with the map showing where it starts and your stop, cancelled, ended, or no
+live data (with your stop's time by the timetable). The trip is asked again every 30 s while that lasts, and the
+journey's vehicles are asked for around where it is said to be, so the live layer picks it up as it comes.
+
+The search lists lines too (`src/app/line-search.ts`, matching in `src/vehicle-pick.ts`): "Tram 9", "9", "Bus 12",
+"S1", "IC 8" typed where to go are matched against the live vehicles around where the search measures from (about
+9 km across, else 45 km; the engine has no list of lines). Choosing a line (or Enter) shows only its vehicles on the
+map, at any zoom, and the card lists the nearest to follow one, or "Follow the nearest coming your way" (with your
+position: the nearest whose next stop is nearer you than the stop it left, within 2 km of you; otherwise "the
+nearest", measured from you or the middle of the map). A vehicle tapped on the map offers "Follow" on its card.
+
+The vehicles are drawn on a canvas over the map's, from [lon, lat] with the map's camera, once a frame: in a frame the
+map draws, from its `render` event (it applies a drag's, a pinch's or a wheel's moves inside its own frame, so drawn
+before that they would trail it by a frame); in the other frames (the map still, a finger resting on it in the middle
+of a gesture) from a loop of their own, which leaves out a frame only when the map has one of its own coming. Their own motion and spacing are worked out in every frame they
+are drawn, the map moving or not. Whether the map is moving (`isMoving()`) decides nothing about drawing: it stays true while a
+finger rests on the map and the map draws nothing, which used to freeze them.
 
 ## Which way you face, and the map following you
 

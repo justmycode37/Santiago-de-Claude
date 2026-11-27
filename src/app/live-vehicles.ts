@@ -1,27 +1,27 @@
 // ---- Live vehicles on the map, from zoom 14 when Settings has them on: the engine's stream when it has one, else every
 //      15 s. Once a journey's route is chosen, only the vehicles of its rides, at any zoom, whether Settings has them on
 //      or not (the one coming to your stop too). Not while the page is hidden.
-//      Drawn on a canvas over the map, every frame and with the map as it moves (paint()): below zoom 15 each as a
-//      pictogram, from zoom 15 as itself. Where each is: src/live-layout.ts (the same code the replay
+//      Drawn on a canvas over the map, every frame, in the map's frame when it draws one (paintLoop()): below zoom 15
+//      each as a pictogram, from zoom 15 as itself. Where each is: src/live-layout.ts (the same code the replay
 //      tools/vehicle_replay.mts measures); buses on the roads the map draws: src/live-lines.ts. ----
 import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { platformPopup } from './platforms.ts';
 import { spriteImage, vehicleGlyph } from './sprites.ts';
 import { lineColor, lineLabel, lineVars, modeOf } from './journey-steps.ts';
-import { h, kBadge } from './sheet.ts';
+import { h, kBadge, kBtn } from './sheet.ts';
 import { journey } from './state.ts';
 import { isRide } from './journey-steps.ts';
 import { KANTE } from '../engine.ts';
 import { KANTE_LIVE } from '../live.ts';
 import { DrawnLines, layRoad, railTunnels, RAIL_CLASSES, ROAD_CLASSES, tileKey } from '../live-lines.ts';
 import { VehicleLayout, mergeAnswer } from '../live-layout.ts';
-import type { Make, Placed } from '../live-layout.ts';
+import type { Make } from '../live-layout.ts';
 import { tileLines } from '../vector-lines.ts';
 import type { LinesAnswer, LinesAsk } from './lines-worker.ts';
 import { SETTINGS } from '../settings.ts';
 import type { KanteJourneyLike, KanteShownVehicle } from '../live.ts';
-import { currentTheme } from '../theme.ts';
+import { currentTheme, onThemeChange } from '../theme.ts';
 import type { LineLike, LineMode } from './journey-steps.ts';
 
 // ---------------------------------------------------------------- live vehicles on the map
@@ -193,8 +193,16 @@ function relayLater() {
   relayTimer = 1;
   idle((d) => { relayTimer = 0; if (KANTE_LIVE.relayLines(Math.max(4, d.timeRemaining() - 1))) relayLater(); });
 }
-const idle = (f: IdleRequestCallback) => (window.requestIdleCallback ? window.requestIdleCallback(f, { timeout: 500 })
-  : setTimeout(() => f({ didTimeout: false, timeRemaining: () => 8 }), 50));
+// (while the map is being dragged, pinched or zoomed, not before it stops, or a second has gone: such work takes a few
+// milliseconds at once, which a frame of the gesture would wait for)
+function idle(f: IdleRequestCallback, since = performance.now()) {
+  const go: IdleRequestCallback = (d) => {
+    if (map.isMoving() && performance.now() - since < 1000) setTimeout(() => idle(f, since), 100);
+    else f(d);
+  };
+  if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 500 });
+  else setTimeout(() => go({ didTimeout: false, timeRemaining: () => 4 }), 50);
+}
 /** f once the map is not moving (a tile's lines take a few milliseconds). */
 function whenStill(f: () => void): Promise<void> {
   return new Promise((done) => {
@@ -217,6 +225,7 @@ function journeyTrips(): Set<string> | null {
 const diagKm = (b: KanteBbox) => KANTE_LIVE.distKm([b[0], b[1]], [b[2], b[3]]);
 function journeyView(shown: KanteBbox): KanteBbox {
   const all = journeyBox()!;
+  if (focusAt) all.splice(0, 4, Math.min(all[0], focusAt[0]), Math.min(all[1], focusAt[1]), Math.max(all[2], focusAt[0]), Math.max(all[3], focusAt[1]));
   if (diagKm(all) * 1.6 <= KANTE_LIVE.MAX_BBOX_KM * 0.95) return all;
   if (diagKm(shown) * 1.35 <= KANTE_LIVE.MAX_BBOX_KM * 0.95) return shown;
   const q = journey.conn!.parts.filter(isRide)[0]?.stops[0]?.quay;
@@ -230,11 +239,48 @@ function journeyBox(): KanteBbox | null {
   }
   return Number.isFinite(w) ? [w, s, e, n] : null;
 }
-// what the vehicles are fetched for: 'map' (all around, from zoom 14, when Settings has them on) or a journey's trips
+// ---- For src/app/vehicle-follow.ts and src/app/line-search.ts: one line's vehicles only (at any zoom, Settings' live
+//      vehicles on or not), and one vehicle followed: drawn with a ring round it (moved on every frame, as
+//      they all are), and where it was drawn last. ----
+/** One line's vehicles, as line-search.ts asks for them: its key, which vehicles are of it, the box they were found in. */
+export interface VehLineFilter { key: string; match: (line: KanteLine) => boolean; box: KanteBbox }
+let lineFilter: VehLineFilter | null = null;
+/** Only this line's vehicles (null: all of them again, from zoom 14 as Settings has it). */
+export function vehLine(f: VehLineFilter | null) {
+  if ((f && f.key) === (lineFilter && lineFilter.key)) return;
+  lineFilter = f;
+  vehUpdate();
+}
+/** The vehicles the map has now (only a line's while vehLine() has one, only a journey's during a journey). */
+export const vehShown = (): readonly LiveVehicle[] => vehList;
+/** The engine has answered for what is asked now (a line's vehicles: an empty list then means none). */
+export const vehAnswered = () => vehAt > 0;
+let focusKey: string | null = null;
+/** A place the vehicles of a journey are asked for too (the vehicle followed, still on its way to the journey's stops). */
+let focusAt: LngLat | null = null;
+/** Where the followed vehicle was drawn (or is, off the screen), as of `at` (performance.now()). */
+export interface VehFocusSample { key: string; ll: LngLat; at: number; v: LiveVehicle; drawn: boolean; /** ms since the live data last came in, when longer than it should be (0: fresh) */ old: number }
+let focusSample: VehFocusSample | null = null;
+/** The vehicle followed (`tripId|serviceDate`), or none; `at`: where it is said to be, when it may be outside the box a
+ *  journey's vehicles are asked for. */
+export function vehFocus(key: string | null, at: LngLat | null = null) {
+  const moved = (at && at.join()) !== (focusAt && focusAt.join());
+  focusAt = at;
+  if (key !== focusKey) { focusKey = key; focusSample = null; }
+  if (moved) vehUpdate();
+}
+/** Where the followed vehicle was drawn in the last frame; null while the live layer does not have it. */
+export const vehFocusNow = (): VehFocusSample | null => (focusSample && focusSample.key === focusKey ? focusSample : null);
+let followHandler: ((v: LiveVehicle) => void) | null = null;
+/** A tapped vehicle's card offers "Follow", which calls this. */
+export function onFollowVehicle(fn: (v: LiveVehicle) => void) { followHandler = fn; }
+
+// what the vehicles are fetched for: 'map' (all around, from zoom 14, when Settings has them on), a journey's trips,
+// or one line's
 let vehMode = '';
 const vehWanted = () => !!KANTE && KANTE.ok() && !document.hidden && (journey.dest
   ? !!journeyTrips()?.size
-  : map.getZoom() >= VEH_MIN_ZOOM && SETTINGS.prefs().liveVehicles !== false);
+  : !!lineFilter || (map.getZoom() >= VEH_MIN_ZOOM && SETTINGS.prefs().liveVehicles !== false));
 /** The live layer shows this trip's vehicle now (a journey's ride: then its own marker is not needed). */
 export function vehShowsTrip(tripId: string, serviceDate: string) {
   return Date.now() - vehAt < VEH_DIM_MS && drawnTrips.has(tripId + '|' + serviceDate);
@@ -259,9 +305,10 @@ export function vehStop() {
 }
 export function vehUpdate() {
   if (!vehWanted()) { if (vehBox || vehList.length) vehStop(); return; }
-  const trips = journeyTrips(), mode = trips ? [...trips].sort().join(',') : 'map';
+  const trips = journeyTrips(), line = trips ? null : lineFilter, mode = trips ? [...trips].sort().join(',') : line ? 'line:' + line.key : 'map';
   const b = map.getBounds(), shown: KanteBbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-  const view: KanteBbox = trips ? journeyView(shown) : shown;
+  // a line's: the box it was found in while the map shows a part of it, else the map
+  const view: KanteBbox = trips ? journeyView(shown) : line && KANTE_LIVE.bboxContains(line.box, shown) ? line.box : shown;
   if (mode === vehMode && vehBox && KANTE_LIVE.bboxContains(vehBox, view)) return; // still covered: keep the stream / poll as it is
   if (mode !== vehMode) vehStop();
   else {
@@ -270,10 +317,9 @@ export function vehUpdate() {
     if (vehES) { vehES.close(); vehES = null; }
     clearInterval(vehPollTimer);
     vehPollTimer = null;
-    cancelAnimationFrame(vehRaf);
   }
   vehMode = mode;
-  vehBox = KANTE_LIVE.padBbox(view, trips ? .3 : .35);
+  vehBox = KANTE_LIVE.padBbox(view, trips || line ? .3 : .35);
   if (!KANTE_LIVE.bboxOk(vehBox)) { vehBox = null; return; }
   linesForView();
   const bbox = KANTE_LIVE.bboxParam(vehBox), id = vehReq;
@@ -288,12 +334,7 @@ export function vehUpdate() {
     vehFetch(bbox, id);
     vehPollTimer = setInterval(() => vehFetch(bbox, id), 15000);
   }
-  // every frame (while the map moves, from its render event instead, so both move as one)
-  const frame = () => {
-    vehRaf = requestAnimationFrame(frame);
-    if (!map.isMoving()) paint();
-  };
-  vehRaf = requestAnimationFrame(frame);
+  paintLoop();
 }
 async function vehFetch(bbox: string, id: number) {
   if (vehBusy || document.hidden) return;
@@ -308,13 +349,38 @@ function vehSet(data: KanteVehiclesResponse) {
   clock.answer(t, performance.now());
   // the nearest the view's middle first, as many as a phone draws smoothly
   const trips = journeyTrips(), c = map.getCenter(), kx = Math.cos((c.lat * Math.PI) / 180);
-  const near = (v: KanteVehicle) => { const p = v.point || v.from; return ((p[0] - c.lng) * kx) ** 2 + (p[1] - c.lat) ** 2; };
-  let list = ((data && data.vehicles) || []).filter((v) => !trips || trips.has(v.tripId + '|' + v.serviceDate));
+  // (a line's only; the one followed is never left out)
+  const near = (v: KanteVehicle) => { const p = v.point || v.from; return focusKey === VehicleLayout.key(v) ? -1 : ((p[0] - c.lng) * kx) ** 2 + (p[1] - c.lat) ** 2; };
+  const line = trips ? null : lineFilter;
+  let list = ((data && data.vehicles) || []).filter((v) => (trips ? trips.has(v.tripId + '|' + v.serviceDate) : !line || line.match(v.line)));
   if (list.length > VEH_MAX) list = list.map((v) => [near(v), v] as const).sort((a, b) => a[0] - b[0]).slice(0, VEH_MAX).map((x) => x[1]);
   vehList = mergeAnswer(vehList, list.map((v) => ({ ...v, t, j: KANTE_LIVE.journeyLike(v.line), info: KANTE_LIVE.liveInfoOf(v) })));
   layout.forget(new Set(vehList.map(vehKey)));
-  placedAt = -Infinity; // (what was placed is of the list before)
   layLater();
+  badgesLater();
+  paintLoop();
+}
+// Their badges (and from zoom 15 the destinations of those in view) made ahead, when the page has a moment: made in
+// the frame that first needs them, all at once as a zoom passes 16 or 17, they held that frame up by tens of ms
+let badgeTimer = 0;
+function badgesLater() {
+  if (badgeTimer) return;
+  badgeTimer = 1;
+  idle((d) => {
+    badgeTimer = 0;
+    const until = performance.now() + Math.max(2, d.timeRemaining() - 1), dark = currentTheme() === 'dark';
+    const dest = map.getZoom() >= BODY_MIN_ZOOM;
+    const over = () => performance.now() > until;
+    for (const v of vehList) {
+      if (over()) { badgesLater(); return; }
+      const p = propsOf(v);
+      spriteImage(dark ? p.iconD : p.icon);
+      if (over()) { badgesLater(); return; }
+      spriteImage(dark ? p.pillD : p.pill);
+      if (over()) { badgesLater(); return; }
+      if (dest && v.headsign && drawnTrips.has(vehKey(v))) headsignImage('→ ' + v.headsign, dark);
+    }
+  });
 }
 // The buses' ways laid onto the roads ahead of drawing them, a few at a time when the page has a moment
 let layTimer = 0;
@@ -335,8 +401,8 @@ function layLater() {
   });
 }
 
-// ---- Drawn on a canvas over the map, every frame (in step with the map while it moves), not through the map's data
-//      (which redraws a fraction of a second later, so they could only step). From zoom 15 each as its parts seen
+// ---- Drawn on a canvas over the map, every frame (in the map's own frame when it draws one), not through the map's
+//      data (which redraws a fraction of a second later, so they could only step). From zoom 15 each as its parts seen
 //      from above: rigid carriages, each a straight body from where its back is on the way to where its front is,
 //      linked at their joints (so they follow the curve as a real train does, not as a snake), as long and wide as
 //      such a vehicle (at least a few pixels wide), rounded at the cabs, shaded across the roof, with windows along the
@@ -431,12 +497,37 @@ function projector(): Project {
     return { x: o.x + ax * x + bx * y, y: o.y + ay * x + by * y };
   };
 }
-let paintedAt = -1;
+// ---- When they are drawn: in every frame, with the map's camera of that frame. A frame the map draws as well, from
+//      its 'render' event (start()): the map applies a drag's, a pinch's or a wheel's moves inside its own frame, so
+//      drawn before it they would be a frame behind. Any other frame (the map still, a finger resting on it during a
+//      gesture, a wheel zoom winding down), from the loop here, which leaves out a frame the map has drawn, or will.
+//      The vehicles' own motion goes on in every frame drawn, the map moving or not. ----
+// The loop leaves a frame to the map when the map has drawn in it already (the frame's time, as the map's 'render'
+// saw it), or has a frame of its own coming: MapLibre keeps that request in `_frameRequest` while it is pending
+// (Map.triggerRepaint). Neither is needed for what is shown, only to draw once a frame: without them (an older
+// browser, another MapLibre) both draw in such a frame, each with the camera the map has then.
+const mapFrame = map as unknown as { _frameRequest?: unknown };
+const frameTime = () => (document.timeline ? document.timeline.currentTime : null);
+let mapDrewAt: CSSNumberish | null = null;
+function paintLoop() {
+  if (!vehRaf) vehRaf = requestAnimationFrame(loopFrame);
+}
+function loopFrame() {
+  vehRaf = 0;
+  if (!vehList.length && !drawnAny) return; // nothing to draw: started again by the next answer
+  vehRaf = requestAnimationFrame(loopFrame);
+  if (mapFrame._frameRequest != null || (mapDrewAt != null && mapDrewAt === frameTime())) return;
+  paint();
+}
+/** The map has drawn a frame: the vehicles with it, with the camera it has drawn. */
+function paintWithMap() {
+  if (!vehList.length && !drawnAny) return;
+  mapDrewAt = frameTime();
+  paint();
+}
 function paint() {
-  const now = performance.now();
-  if (now === paintedAt) return;
-  paintedAt = now;
   if (!vehList.length && !drawnAny) return; // nothing drawn, nothing to draw
+  const now = performance.now();
   const ctx = canvasReady();
   if (!ctx || !vcv) return;
   if (Date.now() - vehAt > VEH_DROP_MS && vehList.length) { vehList = []; layout.forget(new Set()); vehPopup.remove(); }
@@ -452,7 +543,7 @@ function paint() {
   drawnTrips = drawn;
   // a journey's vehicles at any zoom (its route is chosen: the vehicles of its rides, Live vehicles on or not); the
   // others from zoom 14
-  if (!vehList.length || !Number.isFinite(tNow) || (zoom < VEH_MIN_ZOOM && !journeyTrips())) return;
+  if (!vehList.length || !Number.isFinite(tNow) || (zoom < VEH_MIN_ZOOM && !journeyTrips() && !lineFilter)) return;
   canvasSize();
   const dpr = ratio();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -460,23 +551,26 @@ function paint() {
   // the buses' ways not laid yet: a few milliseconds of laying a frame, the rest in the frames after (and when idle)
   KANTE_LIVE.layBudget(4);
   // (moved on every frame where they can be seen; the others a few times a second)
-  const project0 = projector(), near = (p: LngLat) => { const q = project0(p); return q.x > -cssW && q.y > -cssH && q.x < 2 * cssW && q.y < 2 * cssH; };
-  // while the map is dragged or zoomed, where each vehicle is (and its carriages) is worked out again every
-  // MOVING_MS (it goes on less than a pixel in that time); each frame in between only draws it where the map now is
-  const again = !map.isMoving() || now - placedAt >= MOVING_MS || zoom < BODY_MIN_ZOOM !== placedLow;
+  labelsLeft = 3;
+  const project = projector(), near = (p: LngLat) => { const q = project(p); return q.x > -cssW && q.y > -cssH && q.x < 2 * cssW && q.y < 2 * cssH; };
+  focusDrawn = null;
   try {
-    if (again) layout.step(vehList, tNow, now, near);
-    paintVehicles(ctx, zoom, now, again);
+    layout.step(vehList, tNow, now, near);
+    paintVehicles(ctx, zoom, now, project);
   } finally { if (KANTE_LIVE.layBudget(Infinity)) layLater(); }
+  if (focusKey) {
+    // where it is drawn (its body's middle; held back behind the one in front, that is not where it is shown going)
+    const s = layout.shown.get(focusKey), v = s && vehList.find((x) => vehKey(x) === focusKey);
+    const old = Date.now() - vehAt;
+    focusSample = s && v ? { key: focusKey, ll: focusDrawn || s.ll, at: now, v, drawn: drawn.has(focusKey), old: old > VEH_DIM_MS ? old : 0 } : null;
+  }
 }
-const MOVING_MS = 100;
-let placed: Placed<LiveVehicle>[] = [], placedAt = -Infinity, placedLow = false;
-function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number, again: boolean) {
+let focusDrawn: LngLat | null = null; // where the followed vehicle's body was drawn in this frame
+function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number, project: Project) {
   const drawn = drawnTrips;
-  const old = Date.now() - vehAt > VEH_DIM_MS, dark = currentTheme() === 'dark', project = projector();
+  const old = Date.now() - vehAt > VEH_DIM_MS, dark = currentTheme() === 'dark';
   const pad = 60;
   if (zoom < BODY_MIN_ZOOM) {
-    if (again) { placedAt = now; placedLow = true; }
     // the pictograms, as large as the map's symbols were (from 0.62 at zoom 14 to 0.8 at 16, exponentially)
     const size = Math.max(0.5, 0.62 + (0.8 - 0.62) * (1.5 ** (zoom - VEH_MIN_ZOOM) - 1) / (1.5 ** 2 - 1));
     vehList.forEach((v, i) => {
@@ -489,6 +583,7 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
       ctx.drawImage(img.img, q.x - w / 2, q.y - hh / 2, w, hh);
       vehHits.push({ i, cars: [[q, q, Math.max(w, hh) / 2 + 4]] });
       drawn.add(vehKey(v));
+      if (vehKey(v) === focusKey) focusRing(ctx, q, Math.max(w, hh) / 2 + 6, lineColor(v.j).bg);
     });
     ctx.globalAlpha = 1;
     return;
@@ -505,8 +600,7 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
   };
   const labels: { v: LiveVehicle; x: number; y: number; dim: boolean }[] = [];
   ctx.lineJoin = 'round';
-  if (again) { placed = layout.place(vehList, now, inView); placedAt = now; placedLow = false; }
-  for (const P of placed) {
+  for (const P of layout.place(vehList, now, inView)) {
     const { v, s, make, i, k } = P;
     drawn.add(k);
     const fill = colorOf(k, s.ll), live = propsOf(v).live;
@@ -526,10 +620,23 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
       vehHits.push({ i, cars: cars.map(([p, q]) => [p, q, W / 2 + 2]) });
     }
     ctx.globalAlpha = 1;
+    if (k === focusKey) {
+      focusRing(ctx, centre, Math.max(16, W * 1.6), fill);
+      if (P.cars) { const ll = map.unproject([centre.x, centre.y]); focusDrawn = [ll.lng, ll.lat]; }
+    }
     labels.push({ v, x: centre.x, y: centre.y - W / 2, dim: old || !live });
   }
   // over them all: each one's badge, and where it goes from zoom 17
   for (const L of labels) drawBadge(ctx, L.v, L.x, L.y, zoom, dark, L.dim);
+}
+
+// The vehicle followed: a ring round it in its own colour, over a pale disc (so it is found at a glance)
+function focusRing(ctx: CanvasRenderingContext2D, c: Pt, r: number, color: string) {
+  const a0 = ctx.globalAlpha;
+  ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.16; ctx.fillStyle = color; ctx.fill();
+  ctx.globalAlpha = 0.9; ctx.lineWidth = 2.5; ctx.strokeStyle = color; ctx.stroke();
+  ctx.globalAlpha = a0;
 }
 
 /**
@@ -633,17 +740,21 @@ function drawBadge(ctx: CanvasRenderingContext2D, v: LiveVehicle, x: number, y: 
     bottom -= hh - 2;
   }
   if (zoom >= DEST_MIN_ZOOM && v.headsign) {
-    const t = headsignImage('→ ' + v.headsign, dark);
-    ctx.drawImage(t.img, x - t.w / 2, bottom - t.h, t.w, t.h);
+    const t = headsignImage('→ ' + v.headsign, dark, labelsLeft > 0);
+    if (t) ctx.drawImage(t.img, x - t.w / 2, bottom - t.h, t.w, t.h);
   }
   ctx.globalAlpha = a0;
 }
-// Where it goes, as text with a halo: drawn once into an image of its own (text outlines are slow to draw every frame)
+// Where it goes, as text with a halo: drawn once into an image of its own (text outlines are slow to draw every frame).
+// Made ahead (badgesLater()); those not made yet a few in a frame (`labelsLeft`, paint() sets it), the others shown in
+// the frames after: a zoom straight on to 17 would make them all in one frame
 const headsigns = new Map<string, { img: HTMLCanvasElement; w: number; h: number }>();
-function headsignImage(text: string, dark: boolean) {
+let labelsLeft = 0;
+function headsignImage(text: string, dark: boolean, make = true) {
   const key = text + (dark ? '\u0001' : '');
   let out = headsigns.get(key);
-  if (out) return out;
+  if (out || !make) return out || null;
+  labelsLeft--;
   const r = ratio(), font = '600 11px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   const c = document.createElement('canvas'), m = c.getContext('2d')!;
   m.font = font;
@@ -726,14 +837,17 @@ export function start() {
     const body = h('div', null,
       h('div', 'pf-head', kBadge(v.j), h('span', 'pf-name', h('b', null, `to ${v.headsign}`), h('small', null, `Next stop: ${v.nextStop}`))),
       v.extra ? h('p', 'pf-note vh-extra', 'Extra journey, not in the timetable') : null,
-      h('p', 'vh-how', how.text));
+      h('p', 'vh-how', how.text),
+      followHandler ? kBtn('vh-follow', `Follow ${propsOf(v).label} to ${v.headsign}`, () => { vehPopup.remove(); followHandler!(v); }, 'Follow') : null);
     platformPopup.remove();
     vehPopup.setLngLat(at).setDOMContent(body).addTo(map);
   });
   map.on('moveend', vehUpdate);
   map.on('moveend', linesForView);
-  // the canvas: drawn with the map while it moves (so they move as one), sized with it
-  map.on('render', () => { if (map.isMoving() && (vehList.length || drawnAny)) paint(); });
-  map.on('resize', () => { sized = false; canvasSize(); paintedAt = -1; paint(); });
+  map.on('moveend', () => { if (vehList.length) badgesLater(); });
+  onThemeChange(() => { if (vehList.length) badgesLater(); });
+  // the canvas: drawn in each frame the map draws, with it (see paintLoop()), sized with it
+  map.on('render', paintWithMap);
+  map.on('resize', () => { sized = false; }); // (sized and drawn with the map's next frame)
   window.addEventListener('resize', () => { sized = false; });
 }

@@ -72,6 +72,33 @@ kept for good. A fix that is only snapped onto the end from further off (one str
 arrived" for that fix alone. Arrived for good, you stay arrived, through walking on into the building and through a
 gap in GPS, until another trip is opened.
 
+## Leaving the walk's way
+
+Following a journey, a walk is rerouted from where you are when you take another way to where it leads
+(`src/app/walk-reroute.ts`, tested by `tools/test_walkreroute.mts`), as a navigation app does:
+
+- **When**: GPS at most 30 m accurate puts you more than `max(20, accuracy) + 12` m off the walk's way (32–42 m,
+  under the 45 m and more that is "Off the route" on foot): two fixes at least 2 s apart beyond the off-route
+  tolerance, or three over 3 s that have moved 10 m; a gap of over 10 s starts the count again, and a fix within
+  `max(15, accuracy)` of the way ends it. Not on a guessed stretch, not within 30 m of the walk's end, not on a walk a
+  station model draws or whose route is still on its way. While this is being made sure of (15 s at most, by the
+  clock) and asked for, "Off the route" waits; once it is said, a retry does not take it back.
+- **What**: the engine's `/api/walk` from your position to the walk's end (its boarding point, or the destination's
+  place), at the time it is asked and within the time until the next ride leaves; never OSRM. A walk whose start is a
+  guess (no way within 20 m of you) or that has no way is not taken: you are off the route, as before. No answer: the
+  walk stays as it was. One request at a time; the next no sooner than 10 s after a reroute, 20 s after a refusal (5 s
+  once you have gone 30 m on), 30 s after no answer. An answer that comes after the walk was routed again, after you
+  boarded or arrived, when you are back on the old way or GPS is no longer sure enough, is dropped.
+- **Drawn**: the part already walked stays drawn as walked (`walked` on the step: the planned way up to where you left
+  it, then a dashed line to where the new way begins); the new way is the step's line, and GPS is followed on it, not
+  back onto the part walked. A delay alone does not ask for it again; a platform change asks only for the way on
+  (from where it begins, at that time, within the time until the ride leaves).
+- **Timed**: when you get to the walk's end is the latest fix plus the way left at the engine's pace for it (its
+  stairs and hills), worked out again with each fix and kept once you are past it: the walk's end, the arrival, the
+  time to spare at a change and "Hurry" on the way to a ride follow it. The rides after it are not planned again:
+  "Hurry: about 2 min short" says when the new way is too long for the next ride, and "Missed …?" with Replan once it
+  has left.
+
 ## Which way
 
 Of the ways there are, the walk takes the one a careful local walker would. These preferences only choose among
