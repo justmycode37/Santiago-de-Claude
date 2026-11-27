@@ -447,6 +447,70 @@ async function more(o: JourneyOptions | null | undefined, dir: 'earlier' | 'late
   return true;
 }
 
+// ---- On board ----
+// The journeys from inside a vehicle (ride-switch.ts: you are on another one than planned). The engine plans from the
+// trip's next stop: `nextSeq`, the stop ahead of where GPS puts you, while the vehicle's live arrival there is still to
+// come (else left out, and the engine takes the first stop whose live arrival is: a stop given that the vehicle has
+// passed by its times would start the search back then, onto connections that have left since). A journey that would
+// get you off where you have already been, or still go wrong (a cancelled ride, a missed change), is not offered. Its
+// first ride is then the trip's own calls and way from `fromSeq` (the stop you passed last) on, so the ride covers
+// where you are now and following it by GPS goes on at once; the trip's answer is its first live data.
+/**
+ * The journey to show from on board `trip` (an answer of /api/trip, taken at `tripAt`, ms) to `dest` (a search
+ * result), as plans() answers (that journey alone, no earlier or later ones); null when the engine finds none worth
+ * taking. fromSeq: the stop you passed last; nextSeq: the one ahead; nowS: now by the engine's clock (unix s). Throws a
+ * KanteError when the engine is off or down.
+ */
+async function onboard(trip: KanteTrip, tripAt: number, fromSeq: number, nextSeq: number | null,
+  dest: { lngLat?: LngLat | null; kanteId?: string }, nowS = Date.now() / 1000): Promise<JourneyOptions | null> {
+  const base = request(dest.lngLat, dest);
+  if (!base) return null;
+  const calls = trip.calls || [], next = nextSeq == null ? null : calls.find((c) => c.seq === nextSeq);
+  const nextArr = next ? (next.arr != null ? next.arr + (next.arrDelayS || 0) : next.dep != null ? next.dep + (next.depDelayS || 0) : null) : null;
+  const ahead = nextArr != null && nextArr >= nowS - 60;
+  const body: PlanBody = { to: base.to, options: base.options,
+    onboard: { tripId: trip.tripId, serviceDate: trip.serviceDate, ...(ahead ? { nextSeq: nextSeq! } : {}) } };
+  const res = await ask(body);
+  if (!res) return null;
+  const sound = (j: KanteJourney) => {
+    const first = j.legs[0];
+    return !!first && first.type === 'ride' && first.tripId === trip.tripId && first.serviceDate === trip.serviceDate && first.to.seq > fromSeq
+      && !j.legs.some((l) => l.type === 'ride' && l.cancelled) && !(j.alerts || []).some((a) => a.kind === 'missed-connection' || a.kind === 'cancelled');
+  };
+  const first = pick({ list: offers(res, body).list.filter(sound), walk: null }, body);
+  if (!first) return null;
+  const best = journeyOf(fromStop(first, trip, fromSeq));
+  const ride = best.parts[0];
+  if (ride && ride.type === 'ride') {
+    ride.live[0] = { trip, at: tripAt, fails: 0 };
+    applyTrip(ride, 0, trip);
+  }
+  return { list: [best], walk: null, best, earlier: false, later: false, request: { body } };
+}
+// The journey with its first ride from the trip's stop `fromSeq` on (when that comes before where the engine starts
+// it): the trip's calls from there to where you get off (the stops it skips today too, as the engine's legs have them),
+// and its way, where the trip has one (else the ride is drawn through its stops and routed as any other: routing.ts)
+function fromStop(j: KanteJourney, trip: KanteTrip, fromSeq: number): KanteJourney {
+  const leg = j.legs[0];
+  if (!leg || leg.type !== 'ride' || fromSeq >= leg.from.seq) return j;
+  const calls = trip.calls || [], ia = calls.findIndex((c) => c.seq === fromSeq), iz = calls.findIndex((c) => c.seq === leg.to.seq);
+  if (ia < 0 || iz <= ia) return j;
+  const own = calls.slice(ia, iz + 1);
+  const ride: KanteRideLeg = { ...leg, from: own[0], intermediate: own.slice(1, -1), to: own[own.length - 1],
+    geometry: own.map((c): LngLat => [c.quay.lon, c.quay.lat]) };
+  delete ride.path; delete ride.pathAt; delete ride.straightHops;
+  // the way it leaves where the ride now starts
+  const [a, b] = ride.geometry;
+  if (a && b) ride.bearing = Math.round((Math.atan2((b[0] - a[0]) * Math.cos(a[1] * Math.PI / 180), b[1] - a[1]) * 180 / Math.PI + 360) % 360);
+  const at = trip.pathAt;
+  if (trip.path && at && at.length === calls.length && at[iz] > at[ia]) {
+    ride.path = trip.path.slice(at[ia], at[iz] + 1);
+    ride.pathAt = at.slice(ia, iz + 1).map((x) => x - at[ia]);
+  }
+  const f = ride.from, dep = f.dep != null ? f.dep + (f.depDelayS || 0) : f.arr != null ? f.arr + (f.arrDelayS || 0) : j.dep;
+  return { ...j, dep: Math.min(dep, j.dep), durationS: j.arr - Math.min(dep, j.dep), legs: [ride, ...j.legs.slice(1)] };
+}
+
 // ---- Walks ----
 // The engine's walking leg as the page keeps a routed walk: its line, metres, and written directions
 // with the floor changes ({ kind, text, coords, from, to } as walkDirections() lists them).
@@ -637,4 +701,4 @@ function requay(steps: JourneyStep[], changed: () => void) {
 function longWalks(j: KanteJourney): Set<string> {
   return new Set((j.alerts || []).filter((a) => a.kind === 'long-walk' && a.leg != null && j.legs[a.leg]).map((a) => (j.legs[a.leg!] as KanteWalkLeg).kind));
 }
-export const KanteJourney = { plans, more, at, ridePath, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options, longWalks };
+export const KanteJourney = { plans, more, onboard, at, ridePath, walkSecs: shownSecs, setWalk, routed, applyTrip, requay, options, longWalks };
