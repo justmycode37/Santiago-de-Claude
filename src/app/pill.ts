@@ -19,7 +19,7 @@ import { openDirs, openSheet, openStops, placeSheet, setDetent, sheetDetent } fr
 import { optionCount, refreshList, renderSheet } from './sheet-content.ts';
 import { updateWhenChip } from './time-picker.ts';
 import { refineJourney } from './routing.ts';
-import { journey, searchState, sheet, tracking } from './state.ts';
+import { journey, placeView, searchState, sheet, tracking } from './state.ts';
 import { KanteJourney } from '../engine-journey.ts';
 import { followCamOn, pauseFollowCam } from './follow-cam.ts';
 import type { Journey } from '../engine-journey.ts';
@@ -191,9 +191,10 @@ export function mapPadding() {
   // under way the menu button hangs below the pill; otherwise it is beside the card
   // (with room for a pin, which stands above its point)
   const top = document.body.classList.contains('following') ? 150 : Math.max(56, topUiBottom()) + 48;
-  const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheet.y) : 0;
+  // the journey sheet, or the place sheet (place-sheet.ts): never both
+  const covered = document.body.classList.contains('journey-mode') ? Math.max(0, hgt - sheet.y) : placeView.covered;
   const bottom = Math.max(40, Math.min(covered + 24, hgt - top - 120));
-  const side = window.innerWidth >= 700 && covered ? 444 : 48; // wide screens: the sheet is a panel on the left
+  const side = window.innerWidth >= 700 && (covered || placeView.side) ? 444 : 48; // wide screens: the sheet is a panel on the left
   return { top, bottom: side > 48 ? 40 : bottom, left: side, right: 48 };
 }
 export function fitCoords(coords: LngLat[], maxZoom = 17) {

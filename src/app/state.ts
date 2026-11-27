@@ -7,6 +7,7 @@ import type { Journey, JourneyOptions } from '../engine-journey.ts';
 import type { EventFeature } from '../events.ts';
 import type { MapGroupKey } from '../map-layers.ts';
 import type { JourneyStep } from './journey-steps.ts';
+import type { PlacePrediction } from '../places.ts';
 import type { FieldSearch, SearchResult, TripField } from './search.ts';
 import type { JourneyFocus } from './sheet.ts';
 import type { JourneyQuery } from './time-picker.ts';
@@ -121,8 +122,23 @@ export const searchState = {
   reqId: 0,
   /** { field, text }: what the list was last filled for. */
   last: null as FieldSearch | null,
-  /** The category picked in the search (categories.ts): its events or its places are the cards on the map. */
+  /** The category picked in the search (categories.ts): its events are the cards on the map, its places the list. */
   category: null as SearchCategory | null,
+  /** Google's predictions for what was typed that no row of the list already is (places.ts suggest()). */
+  predictions: [] as PlacePrediction[],
+};
+
+/**
+ * The place sheet (place-sheet.ts, loaded the first time a list of places or a place card opens): what the rest of
+ * the page needs to know of it without importing it.
+ */
+export const placeView = {
+  /** How much of the map it covers: px from the bottom on a phone; on a wide screen it is a panel on the left. */
+  covered: 0,
+  /** Wide screen: it is the panel on the left. */
+  side: false,
+  /** Closes it (and the places' pins), set once it has loaded. */
+  close: null as (() => void) | null,
 };
 
 /** The card open on the map. */
