@@ -17,6 +17,7 @@ import { choose, closeSearch, setField, topUiBottom } from './trip-ends.ts';
 import { loadPlaces } from './map-places.ts';
 import { mapPadding } from './pill.ts';
 import { distKm } from './routing.ts';
+import { rememberCategory } from './search-history-ui.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import { SETTINGS } from '../settings.ts';
@@ -82,6 +83,13 @@ export function categoryForText(text: string): SearchCategory | null {
   if (!label) return null;
   const ours = CATEGORY_LIST.find((c) => c.query && PlaceSearch.matchCategory(c.query) === label);
   return ours || { key: 'q:' + fold(label), label, icon: KIND.other, query: text.replace(NEAR_PHRASE, '').trim() || text };
+}
+// A category from the search history (search-history.ts): ours by key, else what its words name now, else as it was
+export function categoryFromHistory(key: string, label: string, query?: string): SearchCategory | null {
+  const ours = CATEGORY_LIST.find((c) => c.key === key);
+  if (ours) return ours;
+  if (!query) return null;
+  return categoryForText(query) || { key, label, icon: KIND.other, query };
 }
 
 // ---- The chips in the empty search list ----
@@ -153,6 +161,7 @@ let categoryReq = 0;
 export const CATEGORY_CARDS = 6; // at most this many cards at once: the map stays readable
 
 export function enterCategory(c: SearchCategory) {
+  rememberCategory(c);
   clearPlacePins(); // also leaves the category before (exitCategory)
   searchState.category = c;
   searchState.results = [];

@@ -14,6 +14,7 @@ import { renderFoot, renderHead } from './sheet-content.ts';
 import { startJourney } from './pill.ts';
 import { endJourney } from './routing.ts';
 import { stopFollowCam } from './follow-cam.ts';
+import { pickTypedHistory, rememberChoice, rememberTrip } from './search-history-ui.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
 import type { SearchResult, TripField } from './search.ts';
@@ -81,9 +82,24 @@ export function setStart(r: JourneyDest | null, fly?: boolean) {
   if (journey.dest) startJourney(journey.dest, true);
   else if (r && fly) map.flyTo({ center: r.lngLat, zoom: Math.max(map.getZoom(), 15), bearing: 0, pitch: 0, speed: 1.4 });
 }
+// An end is picked, so the search is done: a late answer to it must not open the list again over the trip
+function searchDone() { clearTimeout(searchState.debounce); searchState.reqId++; }
 export function choose(r: SearchResult, field = searchState.field) {
+  searchDone();
   if (field === 'from') setStart(r, true);
   else showDestinationJourney(r);
+  rememberChoice(r); // the place, and the trip once both ends are picked (search-history-ui.ts)
+}
+// A trip from the search history: both ends at once, planned once, leaving now
+export function chooseTrip(from: JourneyDest, to: JourneyDest) {
+  searchDone();
+  clearPlacePins();
+  searchState.tripStart = from;
+  setField('from', from.title);
+  startMarker.setLngLat(from.lngLat).addTo(map);
+  journey.query = { mode: 'dep', date: '', time: '' };
+  showDestinationJourney(to);
+  rememberTrip();
 }
 export function select(i: number) {
   const r = searchState.results[i];
@@ -100,6 +116,7 @@ function swapEnds() {
   if (searchState.tripStart) startMarker.setLngLat(searchState.tripStart.lngLat).addTo(map);
   else startMarker.remove();
   showDestinationJourney(dest, true);
+  rememberTrip();
 }
 
 // Moving the map closes the keyboard, results and menu; once it has moved away from the places shown,
@@ -172,6 +189,7 @@ export function start() {
     // all on the map; a name or address goes straight there
     const typed = searchState.field === 'to' ? categoryForText(inputs.to.value) : null;
     if (typed) enterCategory(typed);
+    else if (pickTypedHistory()) return; // a search of yours it matches, the row on top (search-history-ui.ts)
     else if (searchState.placeCategory && searchState.results.filter(isPlaceResult).length >= 2) showPlacesOnMap();
     else if (searchState.results.length) select(0);
   });

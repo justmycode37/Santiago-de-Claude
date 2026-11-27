@@ -44,20 +44,34 @@ export function closeTimeSheet() {
   tSheet.setAttribute('aria-hidden', 'true');
 }
 
+// The mode the time sheet was last used with, remembered on this device: the chip opens on it while the trip leaves
+// now. Only the choice, never a date or time, which would be out of date. (Its own key, not the settings': writing
+// those would save this tab's copy of all of them. "Reset all settings" removes it too.)
+const MODE_KEY = 'timeMode';
+function lastMode(): TimeMode { try { return localStorage.getItem(MODE_KEY) === 'arr' ? 'arr' : 'dep'; } catch (e) { return 'dep'; } }
+function rememberMode(mode: TimeMode) {
+  try { if (mode === 'arr') localStorage.setItem(MODE_KEY, 'arr'); else localStorage.removeItem(MODE_KEY); } catch (e) { /* this visit only */ }
+}
+
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
 export function start() {
-  document.getElementById('whenChip')!.addEventListener('click', () => openTimeSheet(journey.query.mode));
+  document.getElementById('whenChip')!.addEventListener('click', () => {
+    const { mode, date, time } = journey.query;
+    openTimeSheet(date || time ? mode : lastMode());
+  });
   document.getElementById('jDepBtn')!.addEventListener('click', () => openTimeSheet('dep'));
   document.getElementById('jArrBtn')!.addEventListener('click', () => openTimeSheet('arr'));
   document.querySelectorAll<HTMLButtonElement>('#tSeg button').forEach((b) => b.addEventListener('click', () => setTMode(b.dataset.mode as TimeMode)));
   tDim.addEventListener('click', closeTimeSheet);
   document.getElementById('tNow')!.addEventListener('click', () => {
     journey.query = { mode: 'dep', date: '', time: '' };
+    rememberMode('dep');
     closeTimeSheet();
     startJourney(journey.dest!, true);
   });
   document.getElementById('tDone')!.addEventListener('click', () => {
     journey.query = { mode: tMode, date: tDate.value, time: tTime.value };
+    rememberMode(tMode);
     closeTimeSheet();
     startJourney(journey.dest!, true);
   });
