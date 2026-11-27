@@ -2,9 +2,9 @@
 //      while typing (above the results, so Enter opens what is on top). What is kept and how it is ranked:
 //      search-history.ts. search-pins.ts render() calls the two render functions; choosing a result, a category or
 //      a trip calls the remember functions. ----
-import { KIND, inputs, list } from './search.ts';
-import { onTap, render } from './search-pins.ts';
-import { choose, chooseTrip } from './trip-ends.ts';
+import { KIND, inputs, isPlaceResult, list } from './search.ts';
+import { loadPlaceSheet, onTap, render } from './search-pins.ts';
+import { blurSearch, choose, chooseTrip } from './trip-ends.ts';
 import { categoryForText, categoryFromHistory, enterCategory } from './categories.ts';
 import { journey, searchState } from './state.ts';
 import { clear, frequent, isOn, list as historyList, matching, recent, record, remove, samePlace } from '../search-history.ts';
@@ -35,6 +35,11 @@ export function rememberChoice(r: SearchResult) {
   if (p) record({ k: 'p', p });
   rememberTrip();
 }
+/** A place whose card was opened (place-sheet.ts), without planning a trip to it. */
+export function rememberPlace(r: SearchResult) {
+  const p = historyPlace(r);
+  if (p) record({ k: 'p', p });
+}
 export function rememberCategory(c: SearchCategory) {
   record(c.query && c.key.startsWith('q:') ? { k: 'c', key: c.key, label: c.label, query: c.query } : { k: 'c', key: c.key, label: c.label });
 }
@@ -45,7 +50,17 @@ const asResult = (p: HistoryPlace): SearchResult => ({ title: p.title, subtitle:
 function open(e: HistoryEntry, field: TripField) {
   // still kept? (cleared or switched off in another tab since the row was drawn)
   if (!isOn() || !historyList().some((x) => x.id === e.id)) { render(); return; }
-  if (e.k === 'p') choose(asResult(e.p), field);
+  if (e.k === 'p') {
+    const r = asResult(e.p);
+    // a place where to: its card again, as picking it in the list does (Directions are on it); else planned at once
+    if (field === 'to' && isPlaceResult(r)) {
+      clearTimeout(searchState.debounce);
+      const id = ++searchState.reqId;
+      list.classList.remove('open');
+      blurSearch();
+      loadPlaceSheet().then((mod) => { if (mod && id === searchState.reqId) mod.showPlace(r); });
+    } else choose(r, field);
+  }
   else if (e.k === 'j') chooseTrip(asResult(e.from), asResult(e.to));
   else {
     const c = categoryFromHistory(e.key, e.label, e.query);

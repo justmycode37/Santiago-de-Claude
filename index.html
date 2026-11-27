@@ -1173,6 +1173,116 @@
     .ev-related { display: block; margin: 0 0 20px; }
     .ev-related[hidden] { display: none; }
     .ev-related select { display: block; width: 100%; height: 44px; margin-top: 6px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--row-bg); color: var(--bar-text); font: inherit; }
+    /* ===== Place sheet (src/app/place-sheet.ts): a list of places with their pins, and a place's card, as in Google
+       Maps. A bottom sheet on phones (peek · half · up to the search card), a panel on the left on wide screens; it
+       uses the journey sheet's palette (.kj) and is never shown with it. ===== */
+    .kj.psheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 12;
+      display: none; flex-direction: column; height: 46vh;
+      background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-2);
+      transition: height .26s var(--ease);
+      padding-bottom: var(--safe-b);
+    }
+    .kj.psheet.open { display: flex; animation: ps-in .28s var(--ease); }
+    @keyframes ps-in { from { transform: translateY(40%); opacity: 0; } }
+    body.journey-mode .kj.psheet, body.following .kj.psheet { display: none; }
+    @media (min-width: 700px) {
+      .kj.psheet {
+        left: 12px; right: auto; width: 420px; bottom: 12px; height: auto !important;
+        top: calc(var(--top-ui, 70px) + 10px); border-radius: 18px; box-shadow: var(--shadow);
+      }
+      .kj.psheet .sheet-handle { display: none; }
+    }
+    @media (min-width: 700px) {
+      body.places-open #areaChip { position: fixed; left: 444px; top: calc(var(--top-ui, 70px) + 10px); }
+    }
+    .kj .ps-top { flex: none; touch-action: none; }
+    .kj .ps-head { display: flex; align-items: center; gap: 6px; padding: 0 10px 8px 14px; }
+    .kj .ps-title { flex: 1; min-width: 0; }
+    .kj .ps-title b { display: block; font-size: 18px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kj .ps-title small { display: block; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kj .ps-btn { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--tonal); }
+    .kj .ps-btn[hidden] { display: none; }
+    .kj .ps-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .kj .ps-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .kj .ps-body::-webkit-scrollbar { display: none; }
+    .kj .ps-loading, .kj .ps-empty { padding: 18px 16px; color: var(--ink-3); }
+    .kj .ps-attr { padding: 10px 16px 18px; font-size: 11px; color: var(--ink-3); text-align: center; }
+    /* list rows: text on the left, the photo (or the kind's icon) on the right */
+    .kj .ps-row { border-top: 1px solid var(--line); }
+    .kj .ps-row:first-child { border-top: 0; }
+    .kj .ps-row-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; }
+    .kj .ps-row-btn:active { background: var(--tonal); }
+    .kj .ps-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .kj .ps-name { font-size: 16px; line-height: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kj .ps-line { font-size: 13.5px; line-height: 18px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kj .ps-rating { font-weight: 600; color: var(--ink); margin-right: 3px; }
+    .kj .ps-open b { color: #188038; font-weight: 600; }
+    .kj .ps-closed b { color: var(--alarm); font-weight: 600; }
+    :root[data-theme="dark"] .kj .ps-open b { color: #81c995; }
+    .kj .ps-thumb { flex: none; width: 76px; height: 76px; border-radius: 12px; object-fit: cover; background: var(--tonal); }
+    .kj .ps-thumb.logo { object-fit: contain; padding: 8px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
+    .kj .ps-thumb-icon { display: grid; place-items: center; width: 44px; height: 44px; margin: 16px; border-radius: 50%; color: #fff; }
+    .kj .ps-thumb-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    /* stars: five grey ones with the rating's share of them in gold over them */
+    .kj .ps-stars { position: relative; display: inline-block; font-size: 12px; letter-spacing: 1px; line-height: 1; color: var(--tonal-2); vertical-align: 1px; }
+    .kj .ps-stars::before, .kj .ps-stars i::before { content: "★★★★★"; }
+    .kj .ps-stars i { position: absolute; left: 0; top: 0; width: calc(var(--r) / 5 * 100%); overflow: hidden; white-space: nowrap; color: #f4b400; font-style: normal; }
+    /* the card */
+    .kj .ps-photos { display: flex; gap: 6px; overflow-x: auto; padding: 0 12px 4px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+    .kj .ps-photos::-webkit-scrollbar { display: none; }
+    .kj .ps-photo { position: relative; flex: none; width: 74%; max-width: 300px; height: 168px; margin: 0; border-radius: 14px; overflow: hidden; background: var(--tonal); scroll-snap-align: start; }
+    .kj .ps-photos .ps-photo:only-child { width: 100%; max-width: none; }
+    .kj .ps-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .kj .ps-photo img.logo { object-fit: contain; padding: 18px; background: #fff; }
+    .kj .ps-credit a { color: #fff; text-decoration: none; }
+    .kj .ps-credit a:active { text-decoration: underline; }
+    .kj .ps-when { color: inherit; text-decoration: none; }
+    .kj a.ps-photo-more { text-decoration: none; color: var(--accent-ink); }
+    .kj .ps-credit { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); padding: 2px 7px; border-radius: 8px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kj .ps-photo-load, .kj .ps-photo-more { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 100%; color: var(--ink-2); font-size: 13px; font-weight: 600; text-align: center; padding: 10px; }
+    .kj .ps-photo-load svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .kj .ps-card-head { padding: 10px 16px 4px; display: flex; flex-direction: column; gap: 3px; }
+    .kj .ps-card-title { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; }
+    .kj .ps-rating-line { font-size: 14px; }
+    .kj .ps-rating-line .ps-stars { font-size: 14px; }
+    .kj .ps-summary { margin: 4px 0 0; font-size: 14px; line-height: 19px; color: var(--ink-2); }
+    .kj .ps-actions { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; scrollbar-width: none; }
+    .kj .ps-actions::-webkit-scrollbar { display: none; }
+    .kj .ps-action {
+      flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 18px;
+      background: var(--tonal); color: var(--accent-ink); font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+    }
+    .kj .ps-action.primary { background: var(--user-blue); color: #fff; }
+    .kj .ps-action svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .kj .ps-info { border-top: 1px solid var(--line); margin: 4px 0 0; }
+    .kj .ps-info > li { display: flex; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14.5px; line-height: 20px; overflow-wrap: anywhere; }
+    .kj .ps-info > li > svg { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--accent-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .kj .ps-info > li > div { flex: 1; min-width: 0; }
+    .kj .ps-info a { color: var(--accent-ink); text-decoration: none; }
+    .kj .ps-hours summary { cursor: pointer; list-style: none; }
+    .kj .ps-hours summary::-webkit-details-marker { display: none; }
+    .kj .ps-hours summary::after { content: " ▾"; color: var(--ink-3); }
+    .kj .ps-hours[open] summary::after { content: " ▴"; }
+    .kj .ps-hours ul { margin-top: 6px; color: var(--ink-2); }
+    .kj .ps-hours li { padding: 1px 0; }
+    .kj .ps-hours li.today { color: var(--ink); font-weight: 600; }
+    .kj .ps-reviews { padding: 14px 16px 4px; }
+    .kj .ps-reviews h3 { margin: 0 0 10px; font-size: 17px; }
+    .kj .ps-review { padding: 10px 0; border-top: 1px solid var(--line); }
+    .kj .ps-review-head { display: flex; align-items: center; gap: 10px; }
+    .kj .ps-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--tonal); }
+    .kj .ps-author { font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: none; }
+    .kj .ps-review-text { margin: 6px 0 0; font-size: 14px; line-height: 20px; color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+    .kj .ps-review-text.full { -webkit-line-clamp: unset; display: block; }
+    .kj .ps-more { margin-top: 2px; color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+    .kj .ps-embed { padding: 12px 16px 0; }
+    .kj .ps-embed iframe { display: block; width: 100%; height: 320px; border: 0; border-radius: 14px; }
+    /* the places' pins: the one picked is lifted, its card above it */
+    .place-pin.sel .icon, .place-pin.hover .icon { transform: scale(1.25); box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+    .place-pin.sel { z-index: 3; }
+    .ps-mapcard { pointer-events: auto; }
+    .ps-mapcard .ev-inner { animation-duration: .3s; }
     @keyframes ev-in {
       from { transform: scale(.5); opacity: 0; }
       to   { transform: none; opacity: 1; }

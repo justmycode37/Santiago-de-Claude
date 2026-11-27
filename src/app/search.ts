@@ -41,8 +41,22 @@ export interface SearchResult {
   /** A photo of the place (or, with photoIsLogo, its brand's logo), shown beside its row. */
   photo?: string;
   photoIsLogo?: boolean;
-  /** The engine's places: what OpenStreetMap knows about them (cuisine, hours, website, Wikidata). */
+  /** The engine's places: what OpenStreetMap knows about them (cuisine, hours, website, Wikidata). Our own places
+   *  carry their hours, phone and website here too. */
   info?: KantePoiInfo;
+  /** Places found online (places.ts): 'osm:N123', 'google:ChIJ…'. */
+  id?: string;
+  /** Google's id of the place, when known: a Google result, or a row a Google prediction turned out to be. */
+  googleId?: string;
+  /** Places: their kind in words ('Café') and their address, for the place card. */
+  category?: string;
+  address?: string;
+  /** Places, when known (Google once opened, OpenStreetMap from its hours): what the list shows of them. */
+  rating?: number | null;
+  ratingCount?: number;
+  priceLevel?: number | null;
+  openNow?: boolean | null;
+  openText?: string;
 }
 /** A place, which "Show on the map" puts on the map: ours, one found online, or one of the engine's (not a town, a
  *  mountain or a lake, which are where places are rather than places to go to). */

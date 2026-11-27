@@ -1,9 +1,14 @@
 // Copy this file to config.js (it is not committed) to change the settings below.
 // Without config.js the search uses OpenStreetMap, which needs no key, and live data comes from the hosted engine.
 //
-// googlePlacesKey: switches the place search to Google Places.
-// The key: Google Cloud console → enable "Places API (New)" → Credentials → API key. Restrict it to
-// "Places API (New)" and to your site's address (HTTP referrers), because the page sends it from the browser.
+// googlePlacesKey: adds Google Places to the place search: Google's predictions while typing, its results list, and
+// a place's rating, hours, photos and reviews when you open it, all kept within Google's free monthly caps.
+// The key: Google Cloud console → enable "Places API (New)" (and "Maps Embed API" for the free fallback card) →
+// Credentials → API key. Restrict it to those two APIs and to your site's address (HTTP referrers), because the
+// page sends it from the browser. Set the daily quotas too: docs/places-data.md#place-search-and-google-places.
+// googlePlacesMode: 'embed' never calls the Places API (search and lists stay on OpenStreetMap); a place's card
+// offers Google's own card (Maps Embed API: free, no limit). Only "Maps Embed API" is needed then.
+// googleDailyLimits: lower per-device daily limits than places.ts's ({ details: 10, photo: 10 }).
 //
 // kanteUrl: the Kante engine journeys, departure boards and live data come from (see docs/journeys.md). Leave it
 // out for the hosted engine (https://kante.omniroute.app), set e.g. 'http://127.0.0.1:8080' for one on this
@@ -18,5 +23,6 @@
 // key on the server). Never on a public site: the page sends it from the browser. docs/train-formation.md
 window.APP_CONFIG = {
   googlePlacesKey: '',
+  // googlePlacesMode: 'embed',
   // kanteUrl: 'http://127.0.0.1:8080',
 };

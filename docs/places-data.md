@@ -25,6 +25,69 @@ The card shows `paid` as Free, Fee (with the price) or Partly free (`mixed`), wi
 
 In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › Events and places (community events, toilets and drinking water at first). `map-places.js` is loaded the first time they are shown or the search box is used; the map layer itself is only built once they are shown. The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, Eurokey, address, website) and directions.
 
+## Place search and Google Places
+
+The search bar works like Google Maps: type a name ("Einstein Kaffee") or what you want ("pizza", "pharmacy open
+now", "coffee"); Enter, "See results" or a category chip opens a list (photo, name, rating, price, open or closed
+until when, distance, address) with a pin per place, kept in step (`src/app/place-sheet.ts`, loaded on first use).
+A row or pin opens the place's card: photos, rating, hours for the week, address, phone, website, reviews where
+Google has them, **Directions** (the journey planner) and **Start here**. Parts the data lacks are left out.
+
+**Without a key (default, free):** places come from the Kante engine, swisstopo, `map-places.js` and Photon
+(OpenStreetMap); a card adds OpenStreetMap's tags (one OSM API request per type for a whole list) and a Wikidata
+photo. "Open now" comes from OSM `opening_hours` (`src/opening-hours.ts`: day ranges, times, past midnight, `off`;
+anything else such as `PH` or `sunrise` is shown as mapped, never guessed). No reviews or ratings: OSM has none.
+
+**With `googlePlacesKey` in `config.js`** (`src/places.ts`), Google is asked only for what each step needs, to
+stay inside the free monthly caps (since March 2025 per SKU: Essentials 10,000, Pro 5,000, Enterprise 1,000; a
+request is billed at the highest SKU of any field it asks for). The app's own limits are per device: only the
+project's daily quotas (below) make sure all visitors together stay inside the caps:
+
+| Step | Request | SKU (free/month) | Per device per day |
+| --- | --- | --- | --- |
+| Typing (from 3 letters, debounced 350 ms) | Autocomplete (New) with a session token; OSM keeps giving the rows with points | Autocomplete Requests, Essentials (10,000): free when the session ends in the Details of a place opened; a session without a pick, one ended by a place already opened on the page, or by a start (Essentials Details: its first 12) is billed per request | 300 |
+| Results list | Text Search, Pro fields only (`id, displayName, shortFormattedAddress, location, primaryType(DisplayName), types, businessStatus`) | Text Search Pro (5,000) | 150 |
+| Opening a place | Place Details with rating, price, hours, phones, website, photos, reviews, summary | Place Details Enterprise + Atmosphere (1,000) | 30 |
+| A prediction picked as the start | Place Details `id,location` | Place Details Essentials (10,000) | 300 |
+| Each Google photo shown | Photo media (first photo of a card; the others on tap) | Place Details Photos (1,000) | 30 |
+| Google's own card | Maps Embed API iframe, only on tap | free, no limit | — |
+
+- Ratings, price and hours are Enterprise fields, so the list does not ask for them; a place's rating shows in the
+  list once you have opened it. List thumbnails are only free photos (OSM, Wikimedia, the engine's).
+- Every Google answer is kept in memory for the page's life (the same text from about the same spot, ~1 km, or the
+  same place is never asked twice). Nothing of Google's content is stored on the device: Google's terms allow
+  storing place IDs (and coordinates for 30 days) only. `localStorage` holds just the day's request counts.
+- Over the per-device daily limit (`DAILY` in `places.ts`, about a 31st of each cap; `googleDailyLimits` in
+  `config.js` lowers it), or after Google answers 429 (quota) or 403, that kind of request switches to OSM for the
+  rest of the day, and a card offers Google's free Embed card instead of Google's details.
+- `googlePlacesMode: 'embed'` never calls the Places API: OSM everywhere, Google's Embed card on request. It costs
+  nothing at any volume and needs only the Maps Embed API.
+
+### Setting up the key so it can never cost anything
+
+1. Google Cloud console: a project with a **billing account attached** (Google requires one even when usage stays
+   within the free caps).
+2. APIs & Services → enable **Places API (New)** and **Maps Embed API**.
+3. Credentials → API key → restrict it to those two APIs and to the site's HTTP referrers
+   (`https://justmycode37.github.io/*`, `http://localhost:8000/*`). The page sends the key from the browser.
+4. APIs & Services → **Places API (New)** → **Quotas & System Limits**: set the per-day limits (Edit quota) of
+   `SearchText` to 160, `GetPlace` to 32 (it covers both Details SKUs, so this keeps the Enterprise + Atmosphere one
+   under 1,000 a month), `AutocompletePlaces` to 320 and `GetPhotoMedia` to 32. Where a method only offers a
+   per-minute limit, the Google path cannot be guaranteed free (the per-device limits do not add up across
+   visitors: two of them opening 30 places a day pass 1,000 a month): use `googlePlacesMode: 'embed'` instead.
+   Over a quota Google answers 429, which the app treats as "OSM for today". These quotas are the only hard stop
+   for all visitors together; the device limits spread them out.
+5. Billing → Budgets & alerts: a budget of 1 CHF with an alert, to hear of any charge at once (a budget alone does
+   not stop spending).
+
+Rough cost beyond the caps (USD per 1,000, first tier): Autocomplete 2.83, Text Search Pro 32, Place Details
+Enterprise + Atmosphere 25, Place Details Essentials 5, photos 7. With the quotas above none of it is reached.
+
+**Terms:** Google's Maps Platform terms restrict showing Places API content (names, ratings, reviews, photos) on or
+next to a non-Google map, which the MapLibre map is (`googlePlacesKey` has done this since the first Google
+search). Check the terms for your billing country before publishing with a key. The Maps Embed card (Google's own
+map) and the OSM data are not affected: `googlePlacesMode: 'embed'` is the safe choice for a public site.
+
 ## Schemas
 
 `data/amenities.json` = `{ generated, source, items: Amenity[] }`, `Amenity = { id: "node/123", lat, lon, category, name: string|null, opening_hours: string|null, fee: string|null, wheelchair: string|null, website: string|null }`, with `category` in `toilets | drinking_water | pharmacy | hospital | clinic | doctors | library | wifi | atm | supermarket | community_centre`; additive categories (renderers skip unknown ones): `bench | shelter | shower | lockers | post_office | post_box | bank | bureau_de_change | money_transfer | police | townhall | embassy | social_facility | food_sharing | give_box | place_of_worship | dentist | veterinary | aed | emergency_phone | phone_charging | telephone | public_bookcase | internet_cafe | bicycle_repair_station | bicycle_parking | bicycle_rental | recycling | playground | baby_changing | water_point | ticket_machine | ev_charging | car_sharing | taxi | disabled_parking | elevator`. Additive optional fields on every item (string|null, raw OSM values): `address, level, access, operator, phone, description, changing_table, unisex, male, female, toilets_wheelchair, toilets_disposal, drinking_water, covered, backrest, capacity, indoor, check_date`, plus `tags` = raw OSM tag object (minus source*/note*/fixme*/created_by).

@@ -1,22 +1,19 @@
 // ---- Categories: what the empty search bar offers ("Restaurants", "Hotels", "Supermarkets", …) ----
-// A tap on one (or typing one and pressing Enter) puts the best places of that kind in the part of the map in view on
-// the map as cards, in the format of the event cards: photo, name, rating, distance, website. Not every place: the
-// best few that fit on the screen without covering each other.
+// A tap on one (or typing one and pressing Enter) lists the best places of that kind in the part of the map in view
+// (the place sheet: photo, name, rating, open state, distance) with their pins; the one picked is shown as a card.
 // "Best": Google's rating weighed by how many people rated it, with a Google key (config.js); otherwise how well
 // known the place is on OpenStreetMap and Wikidata (PlaceSearch.enrich). Being near counts a little.
 // With "New to Switzerland" on in Settings, categories for newcomers come first: language courses (the community
 // events) and town halls & migration offices. Those events are not on the map otherwise (map-events.ts).
-import * as maplibregl from 'maplibre-gl';
 import { map } from './map.ts';
 import { eventMarkers, updateCards } from './map-events.ts';
 import { showToast, toast } from '../toast.ts';
 import { KIND, inputs, list } from './search.ts';
 import { NEAR_PHRASE, fold, searchOrigin, searchPlaces, searchPlacesOnline } from './search-places.ts';
-import { areaChip, clearPlacePins, onTap } from './search-pins.ts';
-import { choose, closeSearch, setField, topUiBottom } from './trip-ends.ts';
+import { areaChip, clearPlacePins, loadPlaceSheet, onTap } from './search-pins.ts';
+import { closeSearch, setField } from './trip-ends.ts';
 import { loadPlaces } from './map-places.ts';
-import { mapPadding } from './pill.ts';
-import { distKm } from './routing.ts';
+import { distKm, endJourney } from './routing.ts';
 import { rememberCategory } from './search-history-ui.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
@@ -38,8 +35,6 @@ export interface SearchCategory {
   words?: string[];
   newcomer?: boolean;
 }
-/** A place of a category, ranked, with what its card shows. */
-interface CategoryPlace { result: SearchResult; photo: string; website: string; lines: string[]; score: number; id: string }
 
 const eventIcon = (glyph: keyof typeof EVENTS.GLYPHS, color: string, fg?: string): SearchIcon =>
   ({ color, fg, svg: `<path d="${EVENTS.GLYPHS[glyph]}"/>` });
@@ -152,16 +147,16 @@ export function categoryRow(c: SearchCategory) {
   return li;
 }
 
-// ---- A category on the map ----
+// ---- A category: its events as cards on the map, its places as a list (the place sheet) with their pins ----
 // 'Restaurant, italian' → 'Italian': the kind of food says more than the kind of place
 const cuisineOr = (category: string) => { const [kind, extra] = category.split(', '); return extra ? extra[0].toUpperCase() + extra.slice(1) : kind; };
-const categoryMarkers = new Map<string, maplibregl.Marker>();
-let categoryPlaces: CategoryPlace[] = [];
 let categoryReq = 0;
-export const CATEGORY_CARDS = 6; // at most this many cards at once: the map stays readable
+export const CATEGORY_CARDS = 6; // at most this many event cards at once: the map stays readable
 
 export function enterCategory(c: SearchCategory) {
   rememberCategory(c);
+  clearTimeout(searchState.debounce);
+  if (!c.events && journey.dest) endJourney(true); // its places' list takes the trip's place (the sheet)
   clearPlacePins(); // also leaves the category before (exitCategory)
   searchState.category = c;
   searchState.results = [];
@@ -169,6 +164,7 @@ export function enterCategory(c: SearchCategory) {
   searchState.reqId++;
   setField('to', c.label);
   closeSearch();
+  PlaceSearch.endSession(); // a list, not a pick
   if (c.events) {
     updateCards();
     if (!eventMarkers.size) showNearestEvents(c);
@@ -181,8 +177,6 @@ export function exitCategory() {
   const label = searchState.category.label;
   searchState.category = null;
   categoryReq++;
-  categoryPlaces = [];
-  clearCategoryCards();
   areaChip.hidden = true;
   if (inputs.to.value === label) setField('to', '');
   updateCards();
@@ -196,144 +190,52 @@ function showNearestEvents(c: SearchCategory) {
   map.flyTo({ center: near[0][0].geometry.coordinates, zoom: Math.max(map.getZoom(), 14), speed: 1.4 });
 }
 
+/** How good a place is, for ranking a category: Google's stars weighed by how many rated (a 5.0 from 3 people is not
+ *  better than a 4.6 from 900), else how well known it is on OpenStreetMap; being near counts a little. */
+export function placeScore(p: { rating?: number | null; ratingCount?: number; score?: number }, km: number, inView: boolean) {
+  const n = p.ratingCount || 0;
+  const quality = p.rating ? ((p.rating * n + 3.8 * 15) / (n + 15)) * 2 + Math.log10(n + 1) * 0.6 : (p.score || 0);
+  return quality - km * (p.rating ? 0.25 : 0.6) - (inView ? 0 : 3);
+}
+
 export async function loadCategory(c: SearchCategory, areaOnly: boolean) {
   const id = ++categoryReq;
   const view = map.getBounds();
   const bbox: PlaceBbox | undefined = areaOnly ? [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()] : undefined;
   showToast(`Finding the best ${c.label.toLowerCase()} here…`, 8000);
-  const [online] = await Promise.all([searchPlacesOnline(c.query!, bbox).catch(() => null), loadPlaces()]);
-  if (id !== categoryReq || searchState.category !== c) return;
+  const [online, , mod] = await Promise.all([searchPlacesOnline(c.query!, bbox).catch(() => null), loadPlaces(), loadPlaceSheet()]);
+  if (id !== categoryReq || searchState.category !== c || !mod) { toast.classList.remove('show'); return; }
   const from = searchOrigin();
   // the 30 nearest: their details come in one request, so the best of them can be told apart
   const found = (online ? online.results : []).slice().sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)).slice(0, 30);
-  const rank = () => {
-    const ranked: CategoryPlace[] = found.map((p) => {
+  // Google's Text Search (Pro fields) has no ratings: its own order (relevance) counts then, as a rating would
+  const googleOrder = new Map((online ? online.results : []).map((p, i) => [p, i]));
+  const rank = (): SearchResult[] => {
+    const ranked = found.map((p) => {
       const km = distKm(from, p.lngLat);
-      const n = p.ratingCount || 0;
-      // Google: stars weighed by how many rated (a 5.0 from 3 people is not better than a 4.6 from 900)
-      const quality = p.rating ? ((p.rating * n + 3.8 * 15) / (n + 15)) * 2 + Math.log10(n + 1) * 0.6 : (p.score || 0);
-      const rating = p.rating ? `★ ${p.rating.toFixed(1)}${n ? ` (${n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n})` : ''}` : '';
-      const open = p.openNow === true ? 'Open' : p.openNow === false ? 'Closed' : '';
-      return {
-        id: p.id,
-        result: { title: p.title, subtitle: p.subtitle, kind: p.kind, origin: 'place', lngLat: p.lngLat, distance: p.distance, source: p.source },
-        photo: p.photo || '',
-        website: p.website || '',
-        lines: [[rating, cuisineOr(p.category)].filter(Boolean).join(' · '), [PlaceSearch.formatDistance(km * 1000), open].filter(Boolean).join(' · ')],
-        score: quality - km * (p.rating ? 0.25 : 0.6) - (view.contains(p.lngLat) ? 0 : 3)
-          + (c.key === 'offices' && /migra|einwohner|integration|population/i.test(p.title) ? 4 : 0), // the office newcomers go to first
-      };
+      const relevance = p.source === 'google' && !p.rating ? 7.5 - (googleOrder.get(p) ?? 20) * 0.25 : 0;
+      const result: SearchResult = { title: p.title, subtitle: p.subtitle, kind: p.kind, origin: 'place', lngLat: p.lngLat, distance: p.distance, source: p.source,
+        id: p.id, category: cuisineOr(p.category), address: p.address, rating: p.rating, ratingCount: p.ratingCount, priceLevel: p.priceLevel,
+        openNow: p.openNow, openText: p.openText, photo: p.photo || undefined,
+        info: { openingHours: p.hours || undefined, website: p.website || undefined, phone: p.phone || undefined } };
+      return { result, score: placeScore(p, km, view.contains(p.lngLat)) + relevance
+        + (c.key === 'offices' && /migra|einwohner|integration|population/i.test(p.title) ? 4 : 0) }; // the office newcomers go to first
     });
     // Bern's own places (map-places.js) when nothing was found online
-    if (!ranked.length) {
-      for (const r of searchPlaces(c.query!, true).kinds) {
-        ranked.push({ id: r.title + r.lngLat.join(), result: r, photo: '', website: '', lines: [r.subtitle], score: -distKm(from, r.lngLat) });
-      }
-    }
-    return ranked.sort((a, b) => b.score - a.score).slice(0, 15);
+    if (!ranked.length) for (const r of searchPlaces(c.query!, true).kinds) ranked.push({ result: r, score: -distKm(from, r.lngLat) });
+    return ranked.sort((a, b) => b.score - a.score).slice(0, 15).map((x) => x.result);
   };
-  // First the places as found (Google already has ratings and photos), then again once OpenStreetMap's details are in
-  categoryPlaces = rank();
+  // First the places as found, then again once OpenStreetMap's details (photos, hours, how well known) are in
+  let places = rank();
   toast.classList.remove('show');
-  if (!categoryPlaces.length) { showToast(`No ${c.label.toLowerCase()} found here.`); return; }
-  if (categoryPlaces.some((p) => view.contains(p.result.lngLat))) updateCategoryCards();
-  else {
-    // none where you are looking: show where the best of them are
-    const bounds = new maplibregl.LngLatBounds();
-    for (const p of categoryPlaces.slice(0, 5)) bounds.extend(p.result.lngLat);
-    const pad = mapPadding();
-    map.fitBounds(bounds, { padding: { ...pad, top: pad.top + 200, left: pad.left + 80, right: pad.right + 80, bottom: pad.bottom + 20 }, maxZoom: 16, duration: 900 });
-  }
+  if (!places.length) { showToast(`No ${c.label.toLowerCase()} found here.`); return; }
+  const shown = mod.showResults({ title: c.label, text: c.query!, field: c.label, places, openNow: !!(online && online.openNow) }, !areaOnly);
   if (!found.some((p) => !p.details)) return;
   await PlaceSearch.enrich(found).catch(() => found);
   if (id !== categoryReq || searchState.category !== c) return;
-  categoryPlaces = rank();
-  clearCategoryCards(); // the cards again, now with photos and websites
-  updateCategoryCards();
-}
-
-function clearCategoryCards() {
-  for (const m of categoryMarkers.values()) m.remove();
-  categoryMarkers.clear();
-}
-// The best places that fit on the screen without covering each other, like the event cards
-function updateCategoryCards() {
-  if (!searchState.category || searchState.category.events || journey.dest) { clearCategoryCards(); return; }
-  const { clientWidth, clientHeight } = map.getContainer();
-  const shown: { p: CategoryPlace; point: maplibregl.Point }[] = [];
-  const height = (p: CategoryPlace) => (p.photo ? 180 : 125); // the card and its tail, above its place
-  for (const p of categoryPlaces) {
-    const point = map.project(p.result.lngLat);
-    if (point.x < 20 || point.x > clientWidth - 20 || point.y < topUiBottom() + height(p) - 40 || point.y > clientHeight) continue;
-    // a card covers the cards whose place is up to one card's height below or above it
-    if (shown.some((o) => Math.abs(o.point.x - point.x) < 158
-      && (o.point.y > point.y ? o.point.y - point.y < height(o.p) : point.y - o.point.y < height(p)))) continue;
-    shown.push({ p, point });
-    if (shown.length >= CATEGORY_CARDS) break;
-  }
-  const next = new Map<string, maplibregl.Marker>();
-  for (const { p } of shown) {
-    let marker = categoryMarkers.get(p.id);
-    if (marker) categoryMarkers.delete(p.id);
-    else marker = new maplibregl.Marker({ element: makePlaceCard(p), anchor: 'bottom' }).setLngLat(p.result.lngLat).addTo(map);
-    next.set(p.id, marker);
-  }
-  clearCategoryCards();
-  for (const [k, m] of next) categoryMarkers.set(k, m);
-}
-
-const GLOBE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
-function makePlaceCard(p: CategoryPlace) {
-  const k = p.result.icon || KIND[p.result.kind] || KIND.other;
-  const card = document.createElement('div');
-  card.className = 'ev-card place-card';
-  const inner = document.createElement('div');
-  inner.className = 'ev-inner';
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'ev-body';
-  button.setAttribute('aria-label', `${p.result.title}, ${p.lines.join(', ')}. Plan a trip there`);
-  const photo = document.createElement('img');
-  photo.loading = 'lazy';
-  photo.alt = '';
-  photo.addEventListener('error', () => button.classList.add('no-photo'));
-  const icon = document.createElement('span');
-  icon.className = 'pc-icon';
-  icon.style.background = k.color;
-  if (k.fg) icon.style.color = k.fg;
-  icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${k.svg}</svg>`;
-  const caption = document.createElement('span');
-  caption.className = 'ev-caption';
-  const title = document.createElement('strong');
-  title.textContent = p.result.title;
-  caption.append(title);
-  for (const line of p.lines.filter(Boolean)) {
-    const small = document.createElement('small');
-    small.textContent = line;
-    caption.append(small);
-  }
-  button.append(photo, icon, caption);
-  button.classList.toggle('no-photo', !p.photo);
-  if (p.photo) photo.src = p.photo;
-  button.addEventListener('click', (e) => { e.stopPropagation(); choose(p.result, 'to'); });
-  inner.append(button);
-  if (p.website) {
-    const web = document.createElement('a');
-    web.className = 'pc-web';
-    web.href = p.website;
-    web.target = '_blank';
-    web.rel = 'noopener';
-    web.setAttribute('aria-label', `Website of ${p.result.title}`);
-    web.innerHTML = GLOBE;
-    web.addEventListener('click', (e) => e.stopPropagation());
-    inner.append(web);
-  }
-  card.append(inner);
-  return card;
+  places = rank();
+  mod.updateResults(shown, places); // the card opened meanwhile stays open
 }
 
 /** What this part of the page does when it starts (main.ts calls it, in the order the parts start). */
-export function start() {
-  map.on('moveend', updateCategoryCards);
-  map.on('resize', updateCategoryCards);
-}
+export function start() { /* nothing: the place sheet keeps a category's places on the map */ }

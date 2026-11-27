@@ -9,10 +9,11 @@ import { fmtDist } from './live-vehicles.ts';
 import { distKm } from './routing.ts';
 import { searchState } from './state.ts';
 import { PlaceSearch, wikidataImages } from '../places.ts';
+import { openState } from '../opening-hours.ts';
 import { KANTE } from '../engine.ts';
 import { PLATFORMS, platformKey } from './platforms.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
-import type { PlaceBbox, PlaceSearchAnswer, PlaceSearchResult } from '../places.ts';
+import type { PlaceBbox, PlacePrediction, PlaceSearchAnswer, PlaceSearchResult } from '../places.ts';
 import type { LngLatFirst, PlaceMatches, SearchIcon, SearchResult, SwisstopoSearchAnswer } from './search.ts';
 export const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
 const stem = (w: string) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) + 'y'
@@ -50,7 +51,15 @@ function placeSearchIndex() {
 function placeResult(row: MapPlaceRow, km: number): SearchResult {
   const [g, glyph, , label] = PLACES!.cats[row[2]];
   const group = GROUP_BY_KEY[g];
+  const x = row[4] || {};
+  const open = openState(x.h);
   return {
+    // what the place card shows of it, without a request
+    category: label,
+    address: x.a || '',
+    info: { openingHours: x.h, phone: x.p, website: x.u },
+    openNow: open ? open.open : null,
+    openText: open ? open.text : '',
     title: row[3] || label,
     // "Pharmacy · 120 m · Neuengasse 15": the street tells apart branches with the same name
     subtitle: [row[3] ? label : '', fmtDist(km * 1000), row[4] && row[4].a && /\d/.test(row[4].a.split(',')[0]) ? row[4].a.split(',')[0] : ''].filter(Boolean).join(' · '),
@@ -234,7 +243,9 @@ export async function searchKante(text: string): Promise<SearchResult[] | null> 
     // that is what it is anyway (an ice cream parlour serving ice cream)
     const dish = (info.cuisine || '').split(', ')[0] || (info.diet === 'Vegan' || info.diet === 'Vegetarian' ? info.diet : '');
     const serves = fold(dish) === fold(what) ? '' : dish;
+    const open = openState(info.openingHours);
     return { ...base, kind, icon: known.icon, info: p.info, photo: info.image || undefined,
+      category: [what, serves].filter(Boolean).join(', '), address: where.join(' · '), openNow: open ? open.open : null, openText: open ? open.text : '',
       subtitle: [what, serves, dist, where.join(' · ')].filter(Boolean).join(' · ') };
   })];
 }
@@ -257,15 +268,37 @@ export async function fillPhotos(results: SearchResult[] | null): Promise<boolea
 
 // Restaurants, shops, cafés, … anything with a name, all over Switzerland (places.ts: OpenStreetMap, or Google
 // with a key): around the part of the map in view, with distances from you (or from the middle of the map once it
-// shows somewhere else). bbox [west, south, east, north]: only places inside it ("Search this area")
-export function searchPlacesOnline(text: string, bbox?: PlaceBbox): Promise<PlaceSearchAnswer | null> {
+// shows somewhere else). bbox [west, south, east, north]: only places inside it ("Search this area").
+// google: false asks OpenStreetMap only, even with a Google key (typing: Google's predictions are cheaper, suggest()).
+export function searchPlacesOnline(text: string, bbox?: PlaceBbox, google = true): Promise<PlaceSearchAnswer | null> {
   if (!PlaceSearch) return Promise.resolve(null);
   const center = map.getCenter().toArray();
   const corner = map.getBounds().getNorthEast().toArray();
   const viewKm = Math.hypot((corner[0] - center[0]) * 76, (corner[1] - center[1]) * 111); // km at Swiss latitudes
   const radiusKm = Math.min(Math.max(viewKm, 1), 10);
   const timeout = new Promise<never>((_, fail) => setTimeout(() => fail(new Error('timeout')), 4000));
-  return Promise.race([PlaceSearch.search(text, { center, origin: searchOrigin(), radiusKm, bbox }), timeout]);
+  return Promise.race([PlaceSearch.search(text, { center, origin: searchOrigin(), radiusKm, bbox, google }), timeout]);
+}
+
+// Google's predictions while typing: one that is a row of the list already (the same name, about as far away) gives
+// that row its Google id (its card then shows Google's details); the others are listed after the rows.
+export function attachPredictions(results: SearchResult[], predictions: PlacePrediction[]): PlacePrediction[] {
+  const rest: PlacePrediction[] = [];
+  for (const p of predictions) {
+    const t = fold(p.title);
+    const twins = results.filter((r) => {
+      if (!isPlaceResult(r) || (r.googleId && r.googleId !== p.placeId)) return false;
+      const n = fold(r.title);
+      return (n === t || (Math.min(n.length, t.length) >= 4 && (n.startsWith(t) || t.startsWith(n))))
+        && p.distance != null && r.distance != null && Math.abs(p.distance - r.distance) < 100;
+    });
+    // only when it can be no other row: two branches of the same name about as far away are not told apart
+    // (the card then checks that Google's point is the row's: place-sheet.ts)
+    const sameName = results.filter((r) => isPlaceResult(r) && fold(r.title) === fold(twins[0] ? twins[0].title : '')).length;
+    if (twins.length === 1 && sameName <= 1) twins[0].googleId = p.placeId;
+    else rest.push(p);
+  }
+  return rest.slice(0, 5);
 }
 
 const nearM = (a: LngLatFirst, b: LngLatFirst, m: number) => Math.hypot((a[0] - b[0]) * 76000, (a[1] - b[1]) * 111000) < m;
@@ -281,6 +314,12 @@ export function combineResults(text: string, swiss: SearchResult[] | null, onlin
   kante: SearchResult[] | null = null): SearchResult[] {
   const rest = combineOthers(text, swiss, online, local);
   if (!kante || !kante.length) return rest;
+  // a Google place the engine has too: the engine's row is kept, with Google's id (its card shows Google's details)
+  for (const r of rest) {
+    if (r.source !== 'google' || !r.id) continue;
+    const twin = kante.find((k) => sameAs(k, r));
+    if (twin && !twin.googleId) twin.googleId = r.id.slice(7);
+  }
   const kindAsked = local.kinds.length > 0 || !!searchState.placeCategory;
   if (kindAsked) {
     // the places of that kind from all sources, nearest first; then the rest. A place found online (Photon,
@@ -335,7 +374,13 @@ export async function search(text: string) {
   const remoteText = text.replace(NEAR_PHRASE, '').trim() || text;
   let online: PlaceSearchAnswer | null = null;
   let onlineDone = false;
-  const onlineReq = searchPlacesOnline(remoteText).catch(() => null).then((v) => { online = v; onlineDone = true; });
+  // while typing, places online come from OpenStreetMap (free); with a Google key, Google's predictions join them
+  const onlineReq = searchPlacesOnline(remoteText, undefined, false).catch(() => null).then((v) => { online = v; onlineDone = true; });
+  const google = !!PlaceSearch && PlaceSearch.source === 'google';
+  let predictions: PlacePrediction[] = [];
+  let predictionsDone = !google;
+  const predictionsReq = google ? PlaceSearch.suggest(remoteText, { center: map.getCenter().toArray(), origin: searchOrigin() })
+    .catch(() => []).then((v) => { predictions = v; predictionsDone = true; }) : Promise.resolve();
   const [swiss, , kante] = await Promise.all([
     searchSwisstopo(remoteText).catch(() => null),
     loadPlaces(), // usually loaded already (downloaded after the first map view)
@@ -346,21 +391,23 @@ export async function search(text: string) {
   const show = (final: boolean) => {
     if (field !== searchState.field) return; // the other field has been picked meanwhile
     searchState.results = combineResults(text, swiss, online, local, kante);
-    render(!final ? 'Searching…' : swiss || online || kante ? 'No results' : 'Search unavailable');
+    searchState.predictions = attachPredictions(searchState.results, predictions);
+    render(!final ? 'Searching…' : swiss || online || kante || predictions.length ? 'No results' : 'Search unavailable');
   };
   // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow
   // answer from one source never holds up the others
-  if (!onlineDone) await Promise.race([onlineReq, new Promise((ok) => setTimeout(ok, 250))]);
+  const web = Promise.all([onlineReq, predictionsReq]);
+  if (!onlineDone || !predictionsDone) await Promise.race([web, new Promise((ok) => setTimeout(ok, 250))]);
   if (id !== searchState.reqId) return;
   searchState.expanded = false;
-  show(onlineDone);
+  show(onlineDone && predictionsDone);
   // Photos from Wikidata join the engine's rows when they arrive (the rows are the same objects), while this
   // search's list is still open: not over the map once a result is picked or the places are on the map
   fillPhotos(kante).then((found) => {
     if (found && id === searchState.reqId && field === searchState.field && list.classList.contains('open')
       && searchState.results.some((r) => kante!.includes(r))) render();
   }).catch(() => {});
-  if (onlineDone) return;
-  await onlineReq;
+  if (onlineDone && predictionsDone) return;
+  await web;
   if (id === searchState.reqId) show(true);
 }
