@@ -9,6 +9,7 @@ import { lineLabel, lineVars, modeOf, stopName } from './journey-steps.ts';
 import { mk, platformOf, platformWord, splitPlatform } from './live-vehicles.ts';
 import { fitJourney, fitStep } from './pill.ts';
 import { followCamOn } from './follow-cam.ts';
+import { vehicleFollowing } from './vehicle-follow.ts';
 import { journey, sheet } from './state.ts';
 import type { JourneyEdge, JourneyPlatformAt } from '../engine-journey.ts';
 import type { JourneyDirection, JourneyRideStep, LineLike, LineMode } from './journey-steps.ts';
@@ -167,7 +168,7 @@ export function setDetent(d: SheetDetent, refit?: boolean) {
   placeSheet(d, true);
   if (!changed) return;
   // (not while the follow camera has the map: it keeps you in the free part of it itself)
-  if (refit && d !== 'full' && journey.conn) setTimeout(() => { if (!followCamOn()) (journey.overview ? fitJourney() : fitStep(journey.step)); }, 320);
+  if (refit && d !== 'full' && journey.conn) setTimeout(() => { if (!followCamOn() && !vehicleFollowing()) (journey.overview ? fitJourney() : fitStep(journey.step)); }, 320);
 }
 export function openSheet() {
   journeyEl.style.transition = 'none';

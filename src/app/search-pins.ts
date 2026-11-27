@@ -10,6 +10,7 @@ import { loadPlaces } from './map-places.ts';
 import { mapPadding } from './pill.ts';
 import { journey, searchState } from './state.ts';
 import { PlaceSearch } from '../places.ts';
+import { lineRows } from './line-search.ts';
 import type { PlaceBbox } from '../places.ts';
 import type { FieldSearch, SearchResult, TripField } from './search.ts';
 const placeMarkers: maplibregl.Marker[] = [];
@@ -112,7 +113,9 @@ export function render(emptyText = 'No results') {
   }
   const typedCategory = categoryForText(inputs[searchState.field].value);
   if (typedCategory && searchState.field === 'to') list.appendChild(categoryRow(typedCategory));
-  if (!searchState.results.length) {
+  const lines = lineRows(); // "Tram 9": the lines of that name nearby (line-search.ts)
+  list.append(...lines);
+  if (!searchState.results.length && !lines.length) {
     const li = document.createElement('li');
     li.className = 'empty';
     li.textContent = emptyText;

@@ -9,7 +9,7 @@ import { map } from './map.ts';
 import { platformPopup } from './platforms.ts';
 import { spriteImage, vehicleGlyph } from './sprites.ts';
 import { lineColor, lineLabel, lineVars, modeOf } from './journey-steps.ts';
-import { h, kBadge } from './sheet.ts';
+import { h, kBadge, kBtn } from './sheet.ts';
 import { journey } from './state.ts';
 import { isRide } from './journey-steps.ts';
 import { KANTE } from '../engine.ts';
@@ -217,6 +217,7 @@ function journeyTrips(): Set<string> | null {
 const diagKm = (b: KanteBbox) => KANTE_LIVE.distKm([b[0], b[1]], [b[2], b[3]]);
 function journeyView(shown: KanteBbox): KanteBbox {
   const all = journeyBox()!;
+  if (focusAt) all.splice(0, 4, Math.min(all[0], focusAt[0]), Math.min(all[1], focusAt[1]), Math.max(all[2], focusAt[0]), Math.max(all[3], focusAt[1]));
   if (diagKm(all) * 1.6 <= KANTE_LIVE.MAX_BBOX_KM * 0.95) return all;
   if (diagKm(shown) * 1.35 <= KANTE_LIVE.MAX_BBOX_KM * 0.95) return shown;
   const q = journey.conn!.parts.filter(isRide)[0]?.stops[0]?.quay;
@@ -230,11 +231,49 @@ function journeyBox(): KanteBbox | null {
   }
   return Number.isFinite(w) ? [w, s, e, n] : null;
 }
-// what the vehicles are fetched for: 'map' (all around, from zoom 14, when Settings has them on) or a journey's trips
+// ---- For src/app/vehicle-follow.ts and src/app/line-search.ts: one line's vehicles only (at any zoom, Settings' live
+//      vehicles on or not), and one vehicle followed: drawn with a ring round it, moved on every frame (not only every
+//      MOVING_MS while the map moves: the camera moves with it, so it would step against the map), and where it was
+//      drawn last. ----
+/** One line's vehicles, as line-search.ts asks for them: its key, which vehicles are of it, the box they were found in. */
+export interface VehLineFilter { key: string; match: (line: KanteLine) => boolean; box: KanteBbox }
+let lineFilter: VehLineFilter | null = null;
+/** Only this line's vehicles (null: all of them again, from zoom 14 as Settings has it). */
+export function vehLine(f: VehLineFilter | null) {
+  if ((f && f.key) === (lineFilter && lineFilter.key)) return;
+  lineFilter = f;
+  vehUpdate();
+}
+/** The vehicles the map has now (only a line's while vehLine() has one, only a journey's during a journey). */
+export const vehShown = (): readonly LiveVehicle[] => vehList;
+/** The engine has answered for what is asked now (a line's vehicles: an empty list then means none). */
+export const vehAnswered = () => vehAt > 0;
+let focusKey: string | null = null;
+/** A place the vehicles of a journey are asked for too (the vehicle followed, still on its way to the journey's stops). */
+let focusAt: LngLat | null = null;
+/** Where the followed vehicle was drawn (or is, off the screen), as of `at` (performance.now()). */
+export interface VehFocusSample { key: string; ll: LngLat; at: number; v: LiveVehicle; drawn: boolean; /** ms since the live data last came in, when longer than it should be (0: fresh) */ old: number }
+let focusSample: VehFocusSample | null = null;
+/** The vehicle followed (`tripId|serviceDate`), or none; `at`: where it is said to be, when it may be outside the box a
+ *  journey's vehicles are asked for. */
+export function vehFocus(key: string | null, at: LngLat | null = null) {
+  const moved = (at && at.join()) !== (focusAt && focusAt.join());
+  focusAt = at;
+  if (key !== focusKey) { focusKey = key; focusSample = null; paintedAt = -1; placedAt = -Infinity; }
+  if (moved) vehUpdate();
+}
+/** Where the followed vehicle was drawn in the last frame; null while the live layer does not have it. */
+export const vehFocusNow = (): VehFocusSample | null => (focusSample && focusSample.key === focusKey ? focusSample : null);
+let followHandler: ((v: LiveVehicle) => void) | null = null;
+/** A tapped vehicle's card offers "Follow", which calls this. */
+export function onFollowVehicle(fn: (v: LiveVehicle) => void) { followHandler = fn; }
+
+// what the vehicles are fetched for: 'map' (all around, from zoom 14, when Settings has them on), a journey's trips,
+// or one line's
 let vehMode = '';
 const vehWanted = () => !!KANTE && KANTE.ok() && !document.hidden && (journey.dest
   ? !!journeyTrips()?.size
-  : map.getZoom() >= VEH_MIN_ZOOM && SETTINGS.prefs().liveVehicles !== false);
+  : !!lineFilter || (map.getZoom() >= VEH_MIN_ZOOM && SETTINGS.prefs().liveVehicles !== false));
 /** The live layer shows this trip's vehicle now (a journey's ride: then its own marker is not needed). */
 export function vehShowsTrip(tripId: string, serviceDate: string) {
   return Date.now() - vehAt < VEH_DIM_MS && drawnTrips.has(tripId + '|' + serviceDate);
@@ -259,9 +298,10 @@ export function vehStop() {
 }
 export function vehUpdate() {
   if (!vehWanted()) { if (vehBox || vehList.length) vehStop(); return; }
-  const trips = journeyTrips(), mode = trips ? [...trips].sort().join(',') : 'map';
+  const trips = journeyTrips(), line = trips ? null : lineFilter, mode = trips ? [...trips].sort().join(',') : line ? 'line:' + line.key : 'map';
   const b = map.getBounds(), shown: KanteBbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-  const view: KanteBbox = trips ? journeyView(shown) : shown;
+  // a line's: the box it was found in while the map shows a part of it, else the map
+  const view: KanteBbox = trips ? journeyView(shown) : line && KANTE_LIVE.bboxContains(line.box, shown) ? line.box : shown;
   if (mode === vehMode && vehBox && KANTE_LIVE.bboxContains(vehBox, view)) return; // still covered: keep the stream / poll as it is
   if (mode !== vehMode) vehStop();
   else {
@@ -273,7 +313,7 @@ export function vehUpdate() {
     cancelAnimationFrame(vehRaf);
   }
   vehMode = mode;
-  vehBox = KANTE_LIVE.padBbox(view, trips ? .3 : .35);
+  vehBox = KANTE_LIVE.padBbox(view, trips || line ? .3 : .35);
   if (!KANTE_LIVE.bboxOk(vehBox)) { vehBox = null; return; }
   linesForView();
   const bbox = KANTE_LIVE.bboxParam(vehBox), id = vehReq;
@@ -308,8 +348,10 @@ function vehSet(data: KanteVehiclesResponse) {
   clock.answer(t, performance.now());
   // the nearest the view's middle first, as many as a phone draws smoothly
   const trips = journeyTrips(), c = map.getCenter(), kx = Math.cos((c.lat * Math.PI) / 180);
-  const near = (v: KanteVehicle) => { const p = v.point || v.from; return ((p[0] - c.lng) * kx) ** 2 + (p[1] - c.lat) ** 2; };
-  let list = ((data && data.vehicles) || []).filter((v) => !trips || trips.has(v.tripId + '|' + v.serviceDate));
+  // (a line's only; the one followed is never left out)
+  const near = (v: KanteVehicle) => { const p = v.point || v.from; return focusKey === VehicleLayout.key(v) ? -1 : ((p[0] - c.lng) * kx) ** 2 + (p[1] - c.lat) ** 2; };
+  const line = trips ? null : lineFilter;
+  let list = ((data && data.vehicles) || []).filter((v) => (trips ? trips.has(v.tripId + '|' + v.serviceDate) : !line || line.match(v.line)));
   if (list.length > VEH_MAX) list = list.map((v) => [near(v), v] as const).sort((a, b) => a[0] - b[0]).slice(0, VEH_MAX).map((x) => x[1]);
   vehList = mergeAnswer(vehList, list.map((v) => ({ ...v, t, j: KANTE_LIVE.journeyLike(v.line), info: KANTE_LIVE.liveInfoOf(v) })));
   layout.forget(new Set(vehList.map(vehKey)));
@@ -452,7 +494,7 @@ function paint() {
   drawnTrips = drawn;
   // a journey's vehicles at any zoom (its route is chosen: the vehicles of its rides, Live vehicles on or not); the
   // others from zoom 14
-  if (!vehList.length || !Number.isFinite(tNow) || (zoom < VEH_MIN_ZOOM && !journeyTrips())) return;
+  if (!vehList.length || !Number.isFinite(tNow) || (zoom < VEH_MIN_ZOOM && !journeyTrips() && !lineFilter)) return;
   canvasSize();
   const dpr = ratio();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -463,13 +505,23 @@ function paint() {
   const project0 = projector(), near = (p: LngLat) => { const q = project0(p); return q.x > -cssW && q.y > -cssH && q.x < 2 * cssW && q.y < 2 * cssH; };
   // while the map is dragged or zoomed, where each vehicle is (and its carriages) is worked out again every
   // MOVING_MS (it goes on less than a pixel in that time); each frame in between only draws it where the map now is
-  const again = !map.isMoving() || now - placedAt >= MOVING_MS || zoom < BODY_MIN_ZOOM !== placedLow;
+  // (every frame also while a vehicle is followed among few — a journey's, a line's —: the camera moves with it, so it
+  // would step against the map; among a city's hundreds the followed one steps with the others)
+  const again = !map.isMoving() || (!!focusKey && vehList.length <= FOCUS_EVERY_FRAME) || now - placedAt >= MOVING_MS || zoom < BODY_MIN_ZOOM !== placedLow;
+  focusDrawn = null;
   try {
     if (again) layout.step(vehList, tNow, now, near);
     paintVehicles(ctx, zoom, now, again);
   } finally { if (KANTE_LIVE.layBudget(Infinity)) layLater(); }
+  if (focusKey) {
+    // where it is drawn (its body's middle; held back behind the one in front, that is not where it is shown going)
+    const s = layout.shown.get(focusKey), v = s && vehList.find((x) => vehKey(x) === focusKey);
+    const old = Date.now() - vehAt;
+    focusSample = s && v ? { key: focusKey, ll: focusDrawn || s.ll, at: now, v, drawn: drawn.has(focusKey), old: old > VEH_DIM_MS ? old : 0 } : null;
+  }
 }
-const MOVING_MS = 100;
+const MOVING_MS = 100, FOCUS_EVERY_FRAME = 40;
+let focusDrawn: LngLat | null = null; // where the followed vehicle's body was drawn in this frame
 let placed: Placed<LiveVehicle>[] = [], placedAt = -Infinity, placedLow = false;
 function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number, again: boolean) {
   const drawn = drawnTrips;
@@ -489,6 +541,7 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
       ctx.drawImage(img.img, q.x - w / 2, q.y - hh / 2, w, hh);
       vehHits.push({ i, cars: [[q, q, Math.max(w, hh) / 2 + 4]] });
       drawn.add(vehKey(v));
+      if (vehKey(v) === focusKey) focusRing(ctx, q, Math.max(w, hh) / 2 + 6, lineColor(v.j).bg);
     });
     ctx.globalAlpha = 1;
     return;
@@ -526,10 +579,23 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
       vehHits.push({ i, cars: cars.map(([p, q]) => [p, q, W / 2 + 2]) });
     }
     ctx.globalAlpha = 1;
+    if (k === focusKey) {
+      focusRing(ctx, centre, Math.max(16, W * 1.6), fill);
+      if (P.cars) { const ll = map.unproject([centre.x, centre.y]); focusDrawn = [ll.lng, ll.lat]; }
+    }
     labels.push({ v, x: centre.x, y: centre.y - W / 2, dim: old || !live });
   }
   // over them all: each one's badge, and where it goes from zoom 17
   for (const L of labels) drawBadge(ctx, L.v, L.x, L.y, zoom, dark, L.dim);
+}
+
+// The vehicle followed: a ring round it in its own colour, over a pale disc (so it is found at a glance)
+function focusRing(ctx: CanvasRenderingContext2D, c: Pt, r: number, color: string) {
+  const a0 = ctx.globalAlpha;
+  ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.16; ctx.fillStyle = color; ctx.fill();
+  ctx.globalAlpha = 0.9; ctx.lineWidth = 2.5; ctx.strokeStyle = color; ctx.stroke();
+  ctx.globalAlpha = a0;
 }
 
 /**
@@ -726,7 +792,8 @@ export function start() {
     const body = h('div', null,
       h('div', 'pf-head', kBadge(v.j), h('span', 'pf-name', h('b', null, `to ${v.headsign}`), h('small', null, `Next stop: ${v.nextStop}`))),
       v.extra ? h('p', 'pf-note vh-extra', 'Extra journey, not in the timetable') : null,
-      h('p', 'vh-how', how.text));
+      h('p', 'vh-how', how.text),
+      followHandler ? kBtn('vh-follow', `Follow ${propsOf(v).label} to ${v.headsign}`, () => { vehPopup.remove(); followHandler!(v); }, 'Follow') : null);
     platformPopup.remove();
     vehPopup.setLngLat(at).setDOMContent(body).addTo(map);
   });

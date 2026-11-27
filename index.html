@@ -306,6 +306,7 @@
       color: #fff;
       background: var(--pin-red);
     }
+    .results .icon.line-icon { background: none; border-radius: 0; color: inherit; } /* a line's badge (line-search.ts) */
     .results .icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .results .title,
     .results .subtitle {
@@ -457,7 +458,7 @@
     .float-chip[hidden] { display: none; }
     .float-chip:active { background: var(--pressed); }
     .float-chip.hint { color: var(--bar-text); cursor: default; padding-right: 6px; }
-    .float-chip.hint button { height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: var(--pressed); color: var(--bar-secondary); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+    .float-chip.hint button, .vh-pop .vh-follow { height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: var(--pressed); color: var(--bar-secondary); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
     /* A pin on its way from the card to the map: lifted above the finger, with a shadow where its tip will land */
     .pin-ghost { position: fixed; left: 0; top: 0; z-index: 60; width: 0; height: 0; pointer-events: none; }
     .pin-ghost svg { position: absolute; left: -19px; bottom: -3px; width: 38px; height: 48px; overflow: visible; filter: drop-shadow(0 9px 7px rgba(0,0,0,.3)); animation: ghost-in .2s var(--bounce) both; transform-origin: 50% 100%; }
@@ -874,6 +875,12 @@
     .kj .step.k-arrive { font-weight: 700; }
     .kj .ride-line { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; min-height: 28px; }
     .kj .ride-line > .icon { margin-right: -2px; color: var(--ink-2); }
+    /* …a button: a tap follows the ride's vehicle on the map (vehicle-follow.ts); outlined while it does */
+    .kj .ride-line.follow { width: 100%; margin: 2px 0 4px; padding: 6px 12px 6px 6px; border-radius: 12px; background: var(--card); }
+    .kj .ride-line.follow:active { background: var(--tonal-2); }
+    .kj .ride-line.follow.on { box-shadow: inset 0 0 0 2px var(--ink); }
+    .kj .follow-cue { flex: none; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+    .kj .ride-line.follow.on .follow-cue { color: var(--ink); }
     .kj .ride-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
     .kj .ride-sum .quiet-line { margin: 0; }
     .kj .ride-head { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -964,6 +971,29 @@
     .vh-pop .pf-name b { white-space: normal; }
     .vh-pop .vh-how { margin: 8px 0 0; font-size: 13px; font-weight: 600; }
     .vh-pop .vh-extra { color: var(--warn); }
+    .vh-pop .vh-follow { margin-top: 8px; color: var(--bar-text); }
+    .vh-pop .vh-follow:active { filter: brightness(.94); }
+    /* Following one vehicle (src/app/vehicle-follow.ts): what is followed and how its position is known, with Stop; for a
+       line found in the search, its vehicles to pick one. Below the search card or the progress pill, clear of the menu. */
+    .follow-card {
+      position: fixed; z-index: 11; left: 12px; right: 68px; /* (under the journey sheet when it is pulled up) */
+      top: calc(var(--top-ui, calc(env(safe-area-inset-top) + 58px)) + 10px);
+      display: flex; align-items: center; gap: 10px; max-height: 50vh; overflow-y: auto;
+      padding: 8px 8px 8px 10px; border-radius: 18px; background: var(--surface);
+      box-shadow: var(--shadow), 0 0 0 .5px var(--hair);
+    }
+    .follow-card[hidden], body.searching .follow-card { display: none; }
+    .follow-card .fc-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .follow-card .fc-text b { font-size: 15px; line-height: 19px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .follow-card .fc-text small { font-size: 13px; line-height: 17px; color: var(--ink-2); }
+    .follow-card.line { flex-direction: column; align-items: stretch; gap: 6px; }
+    .follow-card .fc-top { display: flex; align-items: center; gap: 10px; }
+    .follow-card .fc-nearest { background: var(--brand); color: var(--on-brand); white-space: normal; text-align: center; padding-block: 6px; }
+    .follow-card .fc-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border-radius: 12px; background: var(--card); }
+    .follow-card .fc-row:active { background: var(--tonal-2); }
+    .follow-card .fc-row-to { font-size: 15px; font-weight: 600; }
+    .follow-card .fc-row small { font-size: 13px; color: var(--ink-2); }
+    @media (min-width: 700px) { .follow-card { left: 456px; max-width: 400px; } } /* beside the sheet and the search card */
     /* Tapped place (toilet, fountain, pharmacy…): what it is and the details the data has */
     .pl-body { max-height: min(52vh, 420px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
     .pl-body::-webkit-scrollbar { display: none; }
