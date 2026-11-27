@@ -86,7 +86,9 @@ writes the answer into the ride's stop calls (times, delays, boarding point); `K
 boarding points and the walks to them when the platform has changed. The trip's `position` places the vehicle on the
 map (`tracking.ts`), its `liveInfo` says how sure that is, and a cancelled trip offers "Replan". A change the live
 times make impossible says "Not enough time to change" with "Replan", also when the next ride has already left
-while you are still on the one before.
+while you are still on the one before. A walk you leave for another way to the same place is rerouted from where you
+are, and the times after it follow the new walk ([how](walking-routes.md#leaving-the-walks-way)); the rides are not
+planned again.
 
 A journey's live times never go back: the engine drops live times that cannot be true (a vehicle logged onto the
 wrong run, a frozen clock) and keeps every trip's times running forward

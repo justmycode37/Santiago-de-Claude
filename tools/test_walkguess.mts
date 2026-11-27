@@ -56,6 +56,7 @@ fake('live-vehicles.ts', { vehShowsTrip: () => false, fmtDist: (m: number) => `$
 fake('sheet-content.ts', { connStart: (c: { t0: number }) => c.t0, connEnd: (c: { t1: number }) => c.t1, queueSheet: nothing, s3Plan: () => page.plan, s3Prefs: () => ({}) });
 fake('pill.ts', { goToStep: nothing, updateProgress: nothing, updatePillTimes: nothing });
 fake('time-picker.ts', { closeTimeSheet: nothing, updateWhenChip: nothing });
+fake('walk-reroute.ts', { rerouteTimes: nothing, rerouteAsk: () => ({ time: 0, limitS: null }), noteFix: () => false }); // (rerouting from where GPS puts you: test_walkreroute.mts)
 fake('../toast.ts', { showToast: nothing });
 fake('../live.ts', { KANTE_LIVE: {} });
 const prefs = { walkKmh: 4.68, stepFree: false, fewerStairs: false, noEscalators: false, wheelchair: false, extraChangeMin: 0, maxWalkMin: 20 };

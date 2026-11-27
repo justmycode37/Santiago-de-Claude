@@ -13,7 +13,7 @@ import { focusDir, overview, shareJourney, showQuay, startFollowing, ticketLink 
 import { arStepButton } from './ar.ts';
 import { fitJourney, goToStep, renderBar, renderJourney, retryJourney, updatePillTimes } from './pill.ts';
 import { dateValue } from './time-picker.ts';
-import { distKm, endJourney, refineJourney } from './routing.ts';
+import { distKm, endJourney, lengthKm, refineJourney } from './routing.ts';
 import type { StopTime } from './journey-steps.ts';
 import { journey, searchState, sheet, tracking } from './state.ts';
 import { SETTINGS } from '../settings.ts';
@@ -154,12 +154,13 @@ function walkTarget(st: JourneyStep) {
   const q = quayOf(r, 'dep');
   return q.label ? `${q.word} ${q.label}` : stopName(r.s.from);
 }
-// Metres on foot, once every part of the walk has been routed (null until then)
+// Metres on foot, once every part of the walk has been routed (null until then); rerouted from where you were, the
+// part already walked as well
 function walkDist(st: JourneyStep) {
   const lines = st.lines || [];
   if (!lines.length) return 0;
-  const ws = st.walks || [];
-  return lines.every((_, k) => ws[k] && ws[k].dist != null) ? ws.reduce((sum, w) => sum + (w ? w.dist! : 0), 0) : null;
+  const ws = st.walks || [], walked = (st.walked || []).reduce((sum, pc) => sum + lengthKm(pc.coords), 0) * 1000;
+  return lines.every((_, k) => ws[k] && ws[k].dist != null) ? Math.round(walked + ws.reduce((sum, w) => sum + (w ? w.dist! : 0), 0)) : null;
 }
 const walkMinOf = (st: JourneyStep) => (st.type === 'change' ? st.walkMin || 0 : st.min || 0);
 // Metres climbed on foot, as the engine counts them ("↑ 25 m" from 10 m: less is the lie of the land)
