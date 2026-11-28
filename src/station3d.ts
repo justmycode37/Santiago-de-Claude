@@ -35,6 +35,9 @@ export interface Station3DOpenOptions {
   alight?: Station3DTrain | null;
   /** The element that gets the focus back on close (default: the one that has it now). */
   returnFocus?: HTMLElement | null;
+  /** Offer the first-person walk-through (👁). The app passes Settings › "First-person walk-through" (off by default);
+   *  left out, it is offered (the development page). */
+  firstPerson?: boolean;
 }
 /** `Station3D.setUser(position)`: the live position. */
 export interface Station3DUser {

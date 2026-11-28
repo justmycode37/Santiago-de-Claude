@@ -390,6 +390,7 @@ function open(opts: Station3DOpenOptions) {
     sheetRO.observe(ui.sheet); sheetRO.observe(ui.head); sheetRO.observe(ui.root);
   }
   snapAuto = null; wasBusy = false;
+  ui.root.classList.remove('stv-busy', 'stv-stepping'); // (the overlay is kept between openings)
   snap = savedSnap();
   ui.sheet.dataset.snap = snap;
   ui.sheet.style.maxHeight = '';
@@ -466,6 +467,7 @@ function close3d(fromHistory = false) {
   seq++;
   if (view) { view.dispose(); view = null; }
   trainStates = [];
+  if (ui) ui.root.classList.remove('stv-busy', 'stv-stepping');
   const back = cur && cur.returnFocus;
   cur = null;
   if (ui) ui.root.remove();
@@ -568,6 +570,10 @@ function render() {
   // on entering first person or the play-through (and on leaving it), not at every render: a size you pick meanwhile stays
   const busy = !!(lastChange.playing || lastChange.pov);
   if (busy !== wasBusy) { wasBusy = busy; autoPeek(busy); }
+  // less on screen while the way plays or in first person (the title, the floors, the train's card step aside), and
+  // in the steps (the floors fade until touched): the view is what matters then (station-view.css)
+  ui.root.classList.toggle('stv-busy', busy);
+  ui.root.classList.toggle('stv-stepping', !busy && step >= 0);
   insetsSoon();
 }
 function renderGuide(v: SolidView, r: StationRouteResult | null, step: number, focusLevel: number | null, g: HTMLElement) {
@@ -655,7 +661,8 @@ function povBtn(v: SolidView, on: boolean) {
     else { v.pov!(true); v.play!(); }
   }, icon('eye', 18));
   b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  if (!v.pov) b.hidden = true;
+  // only where Settings › "First-person walk-through" is on (the app passes it; it stays while you are in it)
+  if (!v.pov || (!on && !(cur && cur.opts.firstPerson !== false))) b.hidden = true;
   return b;
 }
 function endName(r: StationRouteResult) {

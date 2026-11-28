@@ -11,8 +11,8 @@ A Swiss community event map and public transport journey planner. Team project f
 - **Indoor position**: in the 3D station view, which floor you are on and where, from the phone's sensors, GPS and signs read by Scan ([details](docs/indoor-positioning.md)).
 - **Walking routes**: Walks to the stop, between platforms and to the door are the Kante engine's, on a pedestrian network from OpenStreetMap and swisstopo's address register: right door, arcades and passages, floors, hills, step-free settings ([details](docs/walking-routes.md)).
 - **Place & address search**: Search by category (e.g. "restaurant", "Apotheke", "toilet"), what a place serves ("pizza", "vegan"), place name, or Swiss address/stop (Kante engine, OpenStreetMap via Photon, swisstopo), with each place's icon and, where known, its photo, with draggable start/destination map pins. Results open as a list with pins, like Google Maps (photo, rating, open now, distance), and each place has a card with hours, phone, website, reviews where known and Directions. An empty search offers categories (Restaurants, Hotels, Supermarkets, …; language courses and migration offices with *New to Switzerland* on). Free OpenStreetMap data by default; optional Google Places within its free monthly caps ([details](docs/places-data.md#place-search-and-google-places)).
-- **Events & amenities**: Shows community events alongside public toilets across Switzerland and Bern's public amenities and local places.
-- **Camera stop scan**: Menu › **Scan** identifies nearby Swiss stops and shows next departures using sign OCR, GPS/compass, and reference-photo fingerprints (requires HTTPS on phones). Details: [docs/scan.md](docs/scan.md).
+- **Events & amenities**: Shows community events alongside public toilets, amenities and local places (restaurants, shops, benches, …) across Switzerland ([details](docs/places-data.md#on-the-map)).
+- **AR camera**: one **AR** button per journey that travels with you: it finds the stop and vehicle of your next ride, says where to get off, and points the last walk to the door, using sign OCR, vehicle display reading, GPS and compass (requires HTTPS on phones). Details: [docs/ar.md](docs/ar.md), [docs/scan.md](docs/scan.md).
 - **First-visit introduction**: A welcome page, a short demo journey on the map and two questions (walking speed, access needs) before the map; details and status in [docs/onboarding.md](docs/onboarding.md).
 - **Multilingual UI**: Settings › **Language** translates the interface into any of Google Translate's 249 languages.
 
@@ -41,7 +41,7 @@ Copy `config.example.js` to `config.js` (gitignored) to add Google Places to the
   ```bash
   python3 tools/build_platforms.py
   ```
-- **Places & amenities (`map-places.js`)** from `data/` (see [docs/places-data.md](docs/places-data.md)):
+- **Places & amenities (`map-places/`)** from `data/` (see [docs/places-data.md](docs/places-data.md)):
   ```bash
   node tools/build-map-places.mts
   ```

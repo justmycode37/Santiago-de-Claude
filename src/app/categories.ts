@@ -203,7 +203,7 @@ export async function loadCategory(c: SearchCategory, areaOnly: boolean) {
   const view = map.getBounds();
   const bbox: PlaceBbox | undefined = areaOnly ? [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()] : undefined;
   showToast(`Finding the best ${c.label.toLowerCase()} here…`, 8000);
-  const [online, , mod] = await Promise.all([searchPlacesOnline(c.query!, bbox).catch(() => null), loadPlaces(), loadPlaceSheet()]);
+  const [online, , mod] = await Promise.all([searchPlacesOnline(c.query!, bbox).catch(() => null), loadPlaces(bbox), loadPlaceSheet()]);
   if (id !== categoryReq || searchState.category !== c || !mod) { toast.classList.remove('show'); return; }
   const from = searchOrigin();
   // the 30 nearest: their details come in one request, so the best of them can be told apart
@@ -221,7 +221,7 @@ export async function loadCategory(c: SearchCategory, areaOnly: boolean) {
       return { result, score: placeScore(p, km, view.contains(p.lngLat)) + relevance
         + (c.key === 'offices' && /migra|einwohner|integration|population/i.test(p.title) ? 4 : 0) }; // the office newcomers go to first
     });
-    // Bern's own places (map-places.js) when nothing was found online
+    // our own places (map-places/) when nothing was found online
     if (!ranked.length) for (const r of searchPlaces(c.query!, true).kinds) ranked.push({ result: r, score: -distKm(from, r.lngLat) });
     return ranked.sort((a, b) => b.score - a.score).slice(0, 15).map((x) => x.result);
   };

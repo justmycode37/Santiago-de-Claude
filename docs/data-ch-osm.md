@@ -70,9 +70,8 @@ Toilets and showers also have `charge`, `fee_conditional` (`fee:conditional`), `
 
 Largest file is 6.9 MB, far below the 40 MB budget. Total about 37 MB raw, 2.9 MB gzipped.
 
-**Skipped on purpose** (too many, or not a basic need): benches, post boxes, bicycle parking, recycling, waste baskets.
-Also not carried over from the Bern build: bank, townhall, place_of_worship, veterinary, telephone, water_point, internet_cafe,
-car_sharing, taxi, bicycle_rental, embassy, ev_charging, baby_changing, ticket_machine.
+Benches, post boxes, bicycle parking, recycling and the other amenities of the Bern build that are not basic needs are in
+`osm-places-amenities.json.gz` ([below](#places-and-the-other-amenities-osm-places-groupjsongz)). Waste baskets are left out.
 
 ## Field coverage
 
@@ -88,6 +87,56 @@ Missing addresses are meant to be filled later from the official address registe
 ## Sanity check
 
 Toilets inside the Bern bbox (46.9,7.34,46.99,7.5): 165, same as the Bern build (`data/amenities.json`, 165).
+
+## Places and the other amenities (`osm-places-<group>.json.gz`)
+
+`data/ch/osm-places-<group>.json.gz`, built by `tools/build-places-ch.mts`: everything the Bern map has that the files above lack, for
+all of Switzerland. The categorize() of both Bern builds is shared (`tools/osm-categories.mts`), so a place gets the same category as in
+Bern.
+
+```sh
+node tools/build-places-ch.mts [data/ch] [--cache <dir>]   # ~10 min; --cache keeps each Overpass answer for a re-run
+node tools/build-map-places.mts                             # then the map's tiles
+```
+
+- Same source, canton areas, nonce, retries and backoff as above. Per canton seven queries, so none times out (two at a time):
+  food, shops, culture and lodging, leisure and health and worship, services, the other amenities, benches. Places must have a name,
+  except parking (with a name or a capacity), fuel and EV charging, as in the Bern build; the queries ask for named objects only
+  where categorize() would drop the unnamed ones anyway.
+- Places (`tools/build-places.mts` rules): the same name and category within 25 m (a shop as a point and as its building) is kept once,
+  the one with more tags. Amenities (`tools/build-amenities.mts` rules, only the categories the files above lack): same category within
+  ~1 m, or same category and name within 15 m; nodes win. An object can be both (a bank: a place in `services` and the amenity `bank`):
+  `tools/build-map-places.mts` keeps it once.
+- Points whose centre lies outside the CH bbox (7 ways along the border) are dropped.
+- Self-checks (nothing written when one fails): unique ids, every point inside the CH bbox, minimum counts (restaurants, cafés, hotels,
+  bakeries, hairdressers, schools, places of worship, benches, bike parking, recycling, post boxes, EV charging), and in the Bern bbox
+  at least 80 % of the restaurants, cafés and hairdressers of `data/places.json`.
+
+Format: gzipped `{ generated, source, licence, group?, counts: { [category]: n }, count, items }`. Slim items, no raw tags, a field
+that is not tagged is **left out**: places have the fields of `data/places.json` (docs/places-data.md: `id, lat, lon, group, category,
+name, brand, operator, address` = "street number, postcode city", `street, housenumber, postcode, city, phone, email, website,
+opening_hours, wheelchair, wheelchair_description, toilets_wheelchair, cuisine, diet, outdoor_seating, takeaway, delivery, payment,
+level, internet_access, wikidata, description, check_date`) plus `canton`; amenities `id, lat, lon, category, canton, name, address,
+opening_hours, fee, access, wheelchair, website, operator, phone, level, description, changing_table, covered, backrest, capacity,
+check_date`.
+
+Build of 2026-11-28:
+
+| file | items | raw MB | gzip MB |
+|---|---:|---:|---:|
+| osm-places-food_drink | 34 306 | 10.32 | 2.04 |
+| osm-places-shopping | 39 485 | 11.11 | 2.10 |
+| osm-places-lodging | 7 664 | 2.19 | 0.46 |
+| osm-places-attractions_culture | 19 907 | 4.85 | 0.88 |
+| osm-places-leisure_sport | 9 552 | 2.01 | 0.41 |
+| osm-places-services | 66 671 | 14.57 | 2.76 |
+| osm-places-health | 7 207 | 2.14 | 0.42 |
+| osm-places-worship | 5 332 | 1.32 | 0.25 |
+| osm-places-amenities | 162 363 | 19.00 | 2.68 |
+
+Amenities: bench 106 814, bicycle_parking 16 997, recycling 9 055, post_box 8 409, place_of_worship 6 983, ev_charging 3 697,
+ticket_machine 2 911, bank 2 185, car_sharing 1 453, townhall 1 411, bicycle_rental 1 072, veterinary 411, taxi 352, embassy 249,
+telephone 184, water_point 178, internet_cafe 2 (no `amenity=changing_table` in Switzerland).
 
 ## Licence
 

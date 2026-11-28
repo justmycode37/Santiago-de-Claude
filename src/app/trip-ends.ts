@@ -49,11 +49,16 @@ export function setFollowing(on: boolean) {
 // Bottom edge of what is at the top of the screen: the search card, or the progress pill once under way.
 // (Their boxes, not their rectangles on screen: the pill slides in.)
 const jPillEl = document.getElementById('jPill')!;
+// Following a vehicle while planning, its card at the top takes the search card's place (vehicle-follow.ts); under way
+// it stands below the pill, which is then what counts (the card is placed by --top-ui itself, so it must not count then).
 export function topUiBottom() {
+  const cls = document.body.classList;
+  const fc = cls.contains('vehicle-following') && !cls.contains('following') ? document.querySelector<HTMLElement>('.follow-card') : null;
   return Math.max(form.offsetHeight ? wrap.offsetTop + form.offsetTop + form.offsetHeight : 0,
-    jPillEl.offsetHeight ? jPillEl.offsetTop + jPillEl.offsetHeight : 0);
+    jPillEl.offsetHeight ? jPillEl.offsetTop + jPillEl.offsetHeight : 0,
+    fc && fc.offsetHeight ? fc.offsetTop + fc.offsetHeight : 0);
 }
-function layoutTop() { root.style.setProperty('--top-ui', topUiBottom() + 'px'); }
+export function layoutTop() { root.style.setProperty('--top-ui', topUiBottom() + 'px'); }
 
 // A destination has been chosen (a result, a place on the map, an event, a dropped pin): plan the trip there.
 // quiet: the camera stays where it is until the trip is found (you have just put the pin there yourself)

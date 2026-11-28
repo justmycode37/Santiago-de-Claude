@@ -9,7 +9,7 @@ export interface FieldSearch { field: TripField; text: string }
 /** The round icon of a result: a glyph (the inside of a 24×24 <svg>) in white, or in `fg`, on a disc of `color`. */
 export interface SearchIcon { color: string; fg?: string; svg: string }
 /**
- * Which icon a result gets (a key of KIND in search.ts). 'place' is one of our own places (map-places.js): it
+ * Which icon a result gets (a key of KIND in search.ts). 'place' is one of our own places (map-places/): it
  * has no entry in KIND and brings its own `icon`.
  */
 export type SearchKind = PlaceKind | 'address' | 'city' | 'postcode' | 'water' | 'place';
@@ -62,9 +62,9 @@ export interface SearchResult {
  *  mountain or a lake, which are where places are rather than places to go to). */
 export const isPlaceResult = (r: SearchResult) => r.origin === 'place'
   || (r.origin === 'kante' && !!r.kanteId && r.kanteId.startsWith('poi:') && !['city', 'mountain', 'water', 'nature'].includes(r.kind));
-/** Anything that begins with a longitude and a latitude: a LngLat, or a row of map-places.js. */
+/** Anything that begins with a longitude and a latitude: a LngLat, or a row of map-places/. */
 export type LngLatFirst = readonly [lng: number, lat: number, ...rest: unknown[]];
-/** What our own places (map-places.js) have for a search text. */
+/** What our own places (map-places/) have for a search text. */
 export interface PlaceMatches {
   /** The nearest places of the kind asked for ("pharmacy", "wc"). */
   kinds: SearchResult[];

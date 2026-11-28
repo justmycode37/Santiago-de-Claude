@@ -239,3 +239,12 @@ html.stv-open, html.stv-open body { overflow: hidden; }
   .stv-text { font-size: 16px; line-height: 21px; }
   .stv .sx-label { font-size: 11px; }
 }
+
+/* Less on screen (station-view.ts render): while the way plays or in first person only the close button, the sheet's
+   step and its buttons stay; in the steps the floor buttons fade until touched */
+.stv-head, .stv-floors { transition: opacity .2s ease; }
+.stv.stv-busy .stv-head, .stv.stv-busy .stv-floors { opacity: 0; visibility: hidden; pointer-events: none; }
+.stv.stv-busy .stv-train { display: none !important; }
+.stv.stv-stepping .stv-floors { opacity: .45; }
+.stv.stv-stepping .stv-floors:is(:hover, :focus-within, :active) { opacity: 1; }
+.stv.stv-stepping .stv-head .stv-sub { display: none; }

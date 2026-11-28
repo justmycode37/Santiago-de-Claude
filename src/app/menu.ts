@@ -6,7 +6,7 @@ import { EVENT_MIN_ZOOM, eventsOn, setEventsOn, setMapView, updateCards, visible
 import type { MapView } from './map-events.ts';
 import { fixAge, userAccuracy, userLngLat } from './location.ts';
 import { PLATFORMS, openPlatform, platformKey, platformsReady, startPlatforms } from './platforms.ts';
-import { PLACE_MIN_ZOOM, updatePlaces, viewNearBern } from './map-places.ts';
+import { PLACE_MIN_ZOOM, updatePlaces } from './map-places.ts';
 import { lineLabel, liveMs, stopName, stopUic } from './journey-steps.ts';
 import { badge, platformOf, vehUpdate } from './live-vehicles.ts';
 import { renderFoot } from './sheet-content.ts';
@@ -15,7 +15,8 @@ import { distKm } from './routing.ts';
 import { journey } from './state.ts';
 import { KANTE } from '../engine.ts';
 import { SETTINGS } from '../settings.ts';
-import type { StopVisionHooks } from '../stopvision.ts';
+import type { StopVisionHooks, StopVisionRoute } from '../stopvision.ts';
+import type { JourneyRideStep } from './journey-steps.ts';
 import { KANTE_BOARD } from '../engine-departures.ts';
 import { indoor } from '../station3d.ts';
 import { pauseFollowCam } from './follow-cam.ts';
@@ -55,6 +56,27 @@ export function openScanWith(hooks: StopVisionHooks, camera: Promise<MediaStream
     });
   }
 }
+// A ride of the journey as Scan's route: where it is boarded (the stop's edge with the same letter at the engine's
+// boarding point), its line, direction and live time. The AR camera (ar.ts) gives Scan the ride it guides you to.
+export function scanRouteOf(r: JourneyRideStep): StopVisionRoute {
+  const id = stopUic(r.s.from);
+  const pst = PLATFORMS.get(id);
+  const e = r.depAt && r.depAt.edge;
+  // the stop's edge with the same letter at the engine's boarding point
+  let i = -1;
+  if (pst && e && e.ll) {
+    const k = platformKey(e.ref);
+    const near = pst.edges.map((x, n): [number, number] => [distKm(x.ll, e.ll), n])
+      .filter(([d, n]) => d < 0.012 && (!k || pst.edges[n].key === k)).sort((x, y) => x[0] - y[0]);
+    if (near.length) i = near[0][1];
+  }
+  const key = platformKey(platformOf(r.s.from)), t = liveMs(r.s.from, 'dep');
+  return { uic: id, name: stopName(r.s.from), edge: i >= 0 ? i : null,
+           exact: !!pst && i >= 0 && ((!!key && pst.edges[i].key === key) || !!(e && e.ref && platformKey(e.ref) === pst.edges[i].key)),
+           line: lineLabel(r.s.line), to: r.s.headsign || undefined,
+           time: t != null ? new Date(t).toISOString() : undefined }; // live time
+}
+
 // What Scan (the AR camera's screen) gets from the page
 export function scanHooks(): StopVisionHooks {
   return {
@@ -81,23 +103,7 @@ export function scanHooks(): StopVisionHooks {
     route: () => {
       if (!journey.steps || !journey.steps.length) return null;
       const r = journey.steps.find((st) => st.type === 'ride' && (st.t0 || 0) > Date.now() - 60000);
-      if (!r || r.type !== 'ride') return null;
-      const id = stopUic(r.s.from);
-      const pst = PLATFORMS.get(id);
-      const e = r.depAt && r.depAt.edge;
-      // the stop's edge with the same letter at the engine's boarding point
-      let i = -1;
-      if (pst && e && e.ll) {
-        const k = platformKey(e.ref);
-        const near = pst.edges.map((x, n): [number, number] => [distKm(x.ll, e.ll), n])
-          .filter(([d, n]) => d < 0.012 && (!k || pst.edges[n].key === k)).sort((x, y) => x[0] - y[0]);
-        if (near.length) i = near[0][1];
-      }
-      const key = platformKey(platformOf(r.s.from)), t = liveMs(r.s.from, 'dep');
-      return { uic: id, name: stopName(r.s.from), edge: i >= 0 ? i : null,
-               exact: !!pst && i >= 0 && ((!!key && pst.edges[i].key === key) || !!(e && e.ref && platformKey(e.ref) === pst.edges[i].key)),
-               line: lineLabel(r.s.line), to: r.s.headsign || undefined,
-               time: t != null ? new Date(t).toISOString() : undefined }; // live time
+      return r && r.type === 'ride' ? scanRouteOf(r) : null;
     },
   };
 }
@@ -117,12 +123,6 @@ export function start() {
     if (!groups.length) showToast('Nothing is switched on under “Events and places” in Settings.');
     else if (!wantPlaces && !visibleEvents().length) showToast('No events match your settings.');
     else if (map.getZoom() < (groups.includes('events') ? EVENT_MIN_ZOOM : PLACE_MIN_ZOOM)) showToast('Zoom into a town or neighbourhood to see events and places.');
-    else if (wantPlaces && !viewNearBern()) {
-      // toilets are mapped everywhere, the other groups only for Bern
-      const others = groups.some((k) => k !== 'events' && k !== 'toilets');
-      if (!groups.includes('toilets')) showToast('Places other than toilets are only mapped for Bern so far.');
-      else if (others) showToast('Outside Bern, only toilets in Switzerland are mapped so far.');
-    }
   });
   document.getElementById('settingsBtn')!.addEventListener('click', () => {
     setMenu(false);

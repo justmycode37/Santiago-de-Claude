@@ -10,7 +10,7 @@ import { MODE_K, MODE_NAME, STEP_K, chainIcon, h, kBadge, kBtn, kDelay, kIcon, k
 import type { KIconName } from './sheet.ts';
 import { ticketPricing } from './ticket-pricing.ts';
 import { focusDir, overview, shareJourney, showQuay, startFollowing, ticketLink } from './journey-actions.ts';
-import { arStepButton } from './ar.ts';
+import { arTripButton } from './ar.ts';
 import { fitJourney, goToStep, renderBar, renderJourney, retryJourney, updatePillTimes } from './pill.ts';
 import { followsRide, stopFollowing, toggleRide } from './vehicle-follow.ts';
 import { dateValue } from './time-picker.ts';
@@ -146,7 +146,7 @@ function s3Open(st: JourneyStep, button: HTMLElement | null) {
   const plan = s3Plan(st); // now, not when the sheet was drawn: the start follows your position
   if (!plan) return;
   sheet.s3Step = st;
-  Station3D.open({ ...plan, prefs: s3Prefs(st), returnFocus: button });
+  Station3D.open({ ...plan, prefs: s3Prefs(st), returnFocus: button, firstPerson: SETTINGS.prefs().firstPerson });
 }
 
 function walkTarget(st: JourneyStep) {
@@ -517,12 +517,9 @@ function walkBlock(st: JourneyWalkStep | JourneyChangeStep, i: number) {
     main.append(h('div', 'spare tight', kIcon('alert', 15), h('span', null, h('b', null, 'Longer than your maximum walk'),
       h('small', null, ` — ${SETTINGS.prefs().maxWalkMin} min`))));
   }
-  // The ways to see this step besides the map: the 3D station view (in a modelled station) and the AR camera
-  const row = h('div', 'step-views');
-  if (s3Plan(st)) row.append(kBtn('view3d', 'Show this walk in 3D, inside the station', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view'));
-  const ar = arStepButton(st);
-  if (ar) row.append(ar);
-  if (row.childNodes.length) main.append(row);
+  // The other way to see this step besides the map: the 3D station view (in a modelled station). The AR camera is one
+  // for the whole trip, in the footer.
+  if (s3Plan(st)) main.append(h('div', 'step-views', kBtn('view3d', 'Show this walk in 3D, inside the station', (e) => s3Open(st, e.currentTarget as HTMLElement), kIcon('cube', 16), '3D view')));
   if (dirs.length > 1) {
     const toggle = kBtn('expander', null, () => {
       if (expanded) { openDirs.delete(i); if (sheet.focus && sheet.focus.step === i) sheet.focus = null; } else openDirs.add(i);
@@ -666,6 +663,7 @@ export function renderFoot() {
     // under way already: the same button, small, brings the map back to where you are on the trip
     following ? kBtn('round-btn', 'Back to where you are', startFollowing, kIcon('nav', 18))
       : kBtn('pill-btn start', null, startFollowing, kIcon('nav', 18), 'Start'),
+    arTripButton(), // the AR camera, one for the whole trip (ar.ts)
     ticket,
     kBtn('round-btn', 'Share journey', shareJourney, kIcon('share', 18)),
     pricing && !pricing.form ? pricing.row : null);

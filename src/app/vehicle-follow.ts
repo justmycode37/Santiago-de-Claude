@@ -20,6 +20,7 @@ import type { LiveVehicle } from './live-vehicles.ts';
 import { MODE_NAME, h, kBadge, kBtn, setDetent, sheetDetent } from './sheet.ts';
 import { queueSheet } from './sheet-content.ts';
 import { goToStep, mapPadding, renderBar } from './pill.ts';
+import { layoutTop } from './trip-ends.ts';
 import { pauseFollowCam } from './follow-cam.ts';
 import { fmtDist } from './live-vehicles.ts';
 import { fmtTime, lineLabel, liveMs, modeOf, planMs, stopName } from './journey-steps.ts';
@@ -211,6 +212,11 @@ function renderCard() {
   }
   card.hidden = !cur && !lineSess;
   card.classList.toggle('line', !cur && !!lineSess);
+  // following one vehicle: the search card steps aside (the card's Stop ends it), so the map has the room
+  if (!!cur !== document.body.classList.contains('vehicle-following')) {
+    document.body.classList.toggle('vehicle-following', !!cur);
+    layoutTop();
+  }
 }
 // The line's card again as they move (others may be nearest now), but not just after a finger or the mouse came down
 // on it, nor while the keyboard is in it: a row must not be swapped under a tap or the focus
@@ -222,13 +228,14 @@ function refreshLine() {
 function status(text: string) {
   const e = h('small', null, text);
   e.setAttribute('role', 'status');
+  e.title = text; // one line on the card; all of it on hover
   return e;
 }
 function setText(text: string) {
   if (text === shownText) return;
   shownText = text;
   const small = cardEl && cardEl.querySelector('.fc-text small');
-  if (small && cur) small.textContent = text;
+  if (small && cur) { small.textContent = text; (small as HTMLElement).title = text; }
 }
 // The middle of the free map (between the card or the top of the screen and the sheet), as an offset from the middle of
 // the whole map: an ease given padding would keep it on the map, and every fit after it would count it twice (so

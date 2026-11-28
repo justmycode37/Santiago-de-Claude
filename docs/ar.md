@@ -1,8 +1,36 @@
-# AR camera on a journey step
+# AR camera on a journey
 
-The **AR** button sits next to **3D view** on a walk or change step that has a ride to board next
-(`src/app/ar.ts`). It opens Scan's live camera (`src/stopvision.ts`) in an AR mode. There is no shutter: it
-runs by itself until it is closed. `?ar=0` in the address hides the button (remembered; `?ar=1` shows it again).
+One **AR** button per journey, beside **Start** in the journey's footer (`src/app/ar.ts`). It opens Scan's live
+camera (`src/stopvision.ts`) in an AR mode that goes with you through the whole trip. There is no shutter: it runs by
+itself until it is closed. `?ar=0` in the address hides the button (remembered; `?ar=1` shows it again).
+
+## Through the trip
+
+Once a second AR works out where on the trip you are (`arPhase()`): from GPS when it follows you on the trip
+(`tracking.ts`), else from the live timetable (`journeyProgress()`), and guides you accordingly:
+
+| Where you are | What AR does |
+| --- | --- |
+| Before the trip, on a walk, at a change, waiting at the stop | Guides you to the boarding point of your **next ride** and looks for its vehicle (everything in the table below). |
+| On board | Says where to get off, how many stops are left and when (no vehicle search, no arrow). A ride counts as boarded once GPS has you moving along it (over 100 m), or, without GPS, two minutes after it leaves: someone still on the platform keeps the vehicle search. |
+| A ride that left without you | Stays on its stop; the banner says it has gone. |
+| The last walk | An arrow to the destination and the distance. |
+| There | "You're there". |
+
+A new target (the next ride, or a changed boarding point) starts afresh: a new vehicle session (`artrack.ts`), a new
+`/api/due` board for its stop, no labels of the last one. Answers still on their way for the old one (a board, a read,
+a detection) are dropped by a generation counter. The camera and its permissions stay from the first tap. Scan's
+`route()` follows the same ride, so its one stop tag and "your ride leaves from this side" agree with AR.
+
+## On screen
+
+Kept to what helps now: the close button; one tag over the stop you board from (Scan's other stops are left out);
+the sign Scan read outlined without dimming the picture; vehicles outlined only when there is something to say
+(green: yours, red: not yours, faint: what its display says; a vehicle with nothing read is not outlined); the
+arrow while GPS and compass are good; and a two-line card at the bottom (what to do, and where). Scan's
+"Point at a stop" line shows only for camera problems.
+
+## Looking for your vehicle
 
 | Part | How | Status |
 | --- | --- | --- |

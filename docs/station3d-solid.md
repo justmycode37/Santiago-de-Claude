@@ -53,7 +53,7 @@ with a white casing. The full sentence ("Take the lift down to platform 32") is 
   fixes on a new step or 3 m into it, never within 20 s of you stepping through the way yourself, and without moving
   the camera. The ◎ button follows you (a drag stops it).
 
-- **First person** (👁 in the card, then ▶): the play-through at eye height (1.65 m) and true heights (1×), with fog
+- **First person** (👁 in the card, then ▶; in the app only with Settings › *First-person walk-through* on, off by default): the play-through at eye height (1.65 m) and true heights (1×), with fog
   for what is far; below ground the distance is dark (a tunnel, a hall's far end), at street level it is the sky. The
   model is closed and dressed for it (small canvas textures drawn once, `surfaces()`):
   - **walls** as high as the room (to the floor that lies over it, at most 3.4 m — not merely the next level of the
