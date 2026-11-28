@@ -1,5 +1,5 @@
 // What the events button can show on the map besides community events: public toilets, drinking water,
-// health, help, shops… (data/*.json, compacted into map-places.js by tools/build-map-places.mts).
+// health, help, shops… (data/*.json, compacted into map-places/ by tools/build-map-places.mts).
 // GROUPS are the switches under "Events and places" in Settings; classify() sorts every data category into one.
 // Palette: navy #344D77 · rose #C55A82 · sun #FFD34B (navy glyph) · tang #FF7241
 

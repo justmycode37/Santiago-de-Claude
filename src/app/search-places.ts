@@ -1,10 +1,11 @@
-// ---- Places in the search (map-places.js: Bern, toilets everywhere): a kind of place ("pharmacy", "wc", "apotheke", "closest toilet")
-//      lists the nearest ones; a name ("Migros", "Amavita") lists the places called that, nearest first ----
+// ---- Places in the search (map-places/: all of Switzerland, the tiles loaded around where the search measures from):
+//      a kind of place ("pharmacy", "wc", "apotheke", "closest toilet") lists the nearest ones; a name ("Migros",
+//      "Amavita") lists the places called that, nearest first ----
 import { map } from './map.ts';
 import { gpsOn, userLngLat } from './location.ts';
 import { KIND, isPlaceResult, list, parseResult } from './search.ts';
 import { render } from './search-pins.ts';
-import { GROUP_BY_KEY, PLACES, loadPlaces } from './map-places.ts';
+import { GROUP_BY_KEY, PLACES, ensurePlacesNear } from './map-places.ts';
 import { fmtDist } from './live-vehicles.ts';
 import { distKm } from './routing.ts';
 import { searchState } from './state.ts';
@@ -13,6 +14,7 @@ import { openState } from '../opening-hours.ts';
 import { KANTE } from '../engine.ts';
 import { PLATFORMS, platformKey } from './platforms.ts';
 import { MAP_LAYERS } from '../map-layers.ts';
+import { nudgeNearYou } from './search-rank.ts';
 import type { PlaceBbox, PlacePrediction, PlaceSearchAnswer, PlaceSearchResult } from '../places.ts';
 import type { LngLatFirst, PlaceMatches, SearchIcon, SearchResult, SwisstopoSearchAnswer } from './search.ts';
 export const fold = (s: string | number) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
@@ -34,18 +36,28 @@ interface PlaceSearchIndex {
   /** Per place (PLACES.items): its name, folded; '' when it has none. */
   names: string[];
   toilets: MapPlaceRow[];
+  /** How many rows of PLACES.items it has taken in */
+  rows: number;
 }
 let placeIndex: PlaceSearchIndex | null = null;
 function placeSearchIndex() {
-  if (!placeIndex && PLACES) {
+  if (!PLACES) return null;
+  if (!placeIndex) {
     const labelWords = (s: string) => wordsOf(s).map(stem);
     placeIndex = {
       cat: PLACES.cats.map(([, , , label]) => labelWords(label)),
       group: PLACES.cats.map(([g]) => labelWords(GROUP_BY_KEY[g].label)),
-      names: PLACES.items.map((r) => (r[3] ? fold(r[3]) : '')),
-      toilets: PLACES.items.filter((r) => PLACES!.cats[r[2]][0] === 'toilets'),
+      names: [], toilets: [], rows: 0,
     };
   }
+  // the rows of the tiles loaded since (they are only ever appended, never renumbered)
+  const items = PLACES.items;
+  for (let i = placeIndex.rows; i < items.length; i++) {
+    const r = items[i];
+    placeIndex.names.push(r[3] ? fold(r[3]) : '');
+    if (PLACES.cats[r[2]][0] === 'toilets') placeIndex.toilets.push(r);
+  }
+  placeIndex.rows = items.length;
   return placeIndex;
 }
 function placeResult(row: MapPlaceRow, km: number): SearchResult {
@@ -74,12 +86,15 @@ function placeResult(row: MapPlaceRow, km: number): SearchResult {
 // Where a search measures from: you, while the map shows where you are; the middle of the map once you have moved
 // it somewhere else (looking for a Coop in another part of town)
 export const searchOrigin = (): LngLat => (gpsOn() && map.getBounds().contains(userLngLat!) ? userLngLat! : map.getCenter().toArray());
-// many: for "Search this area", which keeps the ones in view (the list only needs the nearest few)
+// Only the tiles loaded count: search() loads those within 10 km of searchOrigin() first (ensurePlacesNear).
+// many: for "Search this area": up to 40 of each, of those in view (the list only needs the nearest few)
 export function searchPlaces(text: string, many?: boolean): PlaceMatches {
   const idx = placeSearchIndex();
   const plain = wordsOf(text).filter((w) => !NEAR_WORDS.has(w));
   if (!idx || !plain.length) return { kinds: [], names: [], toilets: false };
   const from = searchOrigin();
+  const view = many ? map.getBounds() : null;
+  const inArea = (r: MapPlaceRow) => !view || view.contains([r[0], r[1]]);
   const near = (rows: MapPlaceRow[], n: number) => rows.map((r): [MapPlaceRow, number] => [r, distKm(from, r)]).sort((a, b) => a[1] - b[1]).slice(0, n);
 
   // a kind of place: every word of the query (after aliases) starts a word of its label or of its group's name
@@ -99,8 +114,9 @@ export function searchPlaces(text: string, many?: boolean): PlaceMatches {
   const customerAsked = cats.length > 0 && cats.every((i) => PLACES!.cats[i][3] === 'Customer toilet');
   const forAll = (r: MapPlaceRow) => !(r[4] && r[4].k && r[4].k !== 'permissive' && PLACES!.cats[r[2]][0] === 'toilets')
     || (customerAsked && r[4].k === 'customers');
-  // Bern's places (all but the toilets) say nothing about elsewhere: the nearest of a kind count within 10 km
-  const kinds = cats.length ? near(PLACES!.items.filter((r) => catSet.has(r[2]) && forAll(r)), many ? 40 : 6).filter(([, km]) => km <= 10) : [];
+  // the nearest of a kind within 10 km (the tiles loaded around the search's origin), or those in view for "Search this area"
+  const kinds = cats.length ? near(PLACES!.items.filter((r) => catSet.has(r[2]) && forAll(r) && inArea(r)), many ? 40 : 6)
+    .filter(([, km]) => many || km <= 10) : [];
 
   // a name: every word appears in it. Stops and stations come from the swisstopo search instead, and some official
   // items are only named after where they stand ("Bahnhofplatz 1"), so they don't count as names.
@@ -110,7 +126,7 @@ export function searchPlaces(text: string, many?: boolean): PlaceMatches {
     const rows: MapPlaceRow[] = [];
     idx.names.forEach((name, i) => {
       const r = PLACES!.items[i];
-      if (!name || shown.has(r) || catSet.has(r[2]) || !plain.every((w) => name.includes(w))) return;
+      if (!name || shown.has(r) || catSet.has(r[2]) || !plain.every((w) => name.includes(w)) || !inArea(r)) return;
       const [g, , , label] = PLACES!.cats[r[2]];
       if (g === 'transit' || NAMED_BY_PLACE.has(label) || (r[4] && r[4].a && fold(r[4].a).startsWith(name))) return;
       rows.push(r);
@@ -338,7 +354,7 @@ export function combineResults(text: string, swiss: SearchResult[] | null, onlin
 function combineOthers(text: string, swiss: SearchResult[] | null, online: PlaceSearchAnswer | null, local: PlaceMatches): SearchResult[] {
   const { kinds, names } = local;
   const bern = [...kinds, ...names];
-  // a place in both the Bern data and online keeps the Bern entry
+  // a place in both our own data (map-places/) and online keeps our entry
   // Toilets: ours cover Switzerland and know which are for customers only or locked, so an online toilet that
   // is one of ours (within 50 m) is left out, whatever it is called there. The others (Liechtenstein, a new one)
   // stay, and are listed with ours by distance.
@@ -381,20 +397,29 @@ export async function search(text: string) {
   let predictionsDone = !google;
   const predictionsReq = google ? PlaceSearch.suggest(remoteText, { center: map.getCenter().toArray(), origin: searchOrigin() })
     .catch(() => []).then((v) => { predictions = v; predictionsDone = true; }) : Promise.resolve();
-  const [swiss, , kante] = await Promise.all([
+  // the places around where it measures from (usually loaded already): they join the list when they are there, so a
+  // slow tile never holds up the stops and addresses
+  let placesReady = false;
+  const placesReq = ensurePlacesNear(searchOrigin(), 10).catch(() => false).then(() => { placesReady = true; });
+  const [swiss, kante] = await Promise.all([
     searchSwisstopo(remoteText).catch(() => null),
-    loadPlaces(), // usually loaded already (downloaded after the first map view)
     searchKante(remoteText).catch(() => null),
   ]);
+  if (!placesReady) await Promise.race([placesReq, new Promise((ok) => setTimeout(ok, 300))]);
   if (id !== searchState.reqId) return; // a newer query is in flight
-  const local = searchPlaces(text);
-  const show = (final: boolean) => {
+  let local = searchPlaces(text);
+  // draw: false updates the results without opening the list again
+  const show = (final: boolean, draw = true) => {
     if (field !== searchState.field) return; // the other field has been picked meanwhile
-    searchState.results = combineResults(text, swiss, online, local, kante);
+    const combined = combineResults(text, swiss, online, local, kante);
+    // a small pull towards what is near you (search-rank.ts); a kind of place is listed nearest first already
+    searchState.results = nudgeNearYou(text, combined, local.kinds.length > 0 || !!searchState.placeCategory, gpsOn() ? userLngLat : null);
     searchState.predictions = attachPredictions(searchState.results, predictions);
-    render(!final ? 'Searching…' : swiss || online || kante || predictions.length ? 'No results' : 'Search unavailable');
+    if (!draw) return;
+    // (our own places still on their way: not "No results" yet)
+    render(!final || !placesReady ? 'Searching…' : swiss || online || kante || predictions.length ? 'No results' : 'Search unavailable');
   };
-  // Addresses and Bern places at once; places from the web join the list when they arrive, so a slow
+  // Addresses and our own places at once; places from the web join the list when they arrive, so a slow
   // answer from one source never holds up the others
   const web = Promise.all([onlineReq, predictionsReq]);
   if (!onlineDone || !predictionsDone) await Promise.race([web, new Promise((ok) => setTimeout(ok, 250))]);
@@ -407,7 +432,16 @@ export async function search(text: string) {
     if (found && id === searchState.reqId && field === searchState.field && list.classList.contains('open')
       && searchState.results.some((r) => kante!.includes(r))) render();
   }).catch(() => {});
-  if (onlineDone && predictionsDone) return;
-  await web;
-  if (id === searchState.reqId) show(true);
+  // our own places, once their tiles are there: into the list while it is still open for this search (a list closed
+  // meanwhile, by a pick or a drag of the map, is not opened again). search() ends only then, so Enter has them.
+  const late = placesReady ? null : placesReq.then(() => {
+    if (id !== searchState.reqId) return;
+    local = searchPlaces(text);
+    show(onlineDone && predictionsDone, list.classList.contains('open'));
+  });
+  if (!onlineDone || !predictionsDone) {
+    await web;
+    if (id === searchState.reqId && (!late || placesReady)) show(true);
+  }
+  if (late) await late;
 }

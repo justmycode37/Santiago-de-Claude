@@ -1,5 +1,5 @@
 // The search evaluation: every case of cases.json (build-cases.mts) through the page's own search (search() in
-// src/app/search-places.ts, with swisstopo and the Bern places as the page has them; Photon only with --photon) and
+// src/app/search-places.ts, with swisstopo and our own places (map-places/) as the page has them; Photon only with --photon) and
 // through the Kante engine's /api/search on its own, scored by where the first right answer is in the list.
 // The sources' answers are replayed from answers.json.gz, so a run is offline and gives the same numbers every
 // time; --record asks the sources for the answers that are missing (a few minutes for swisstopo and Kante) and adds
@@ -150,13 +150,31 @@ const distKm = (a: readonly number[], b: readonly number[]) => {
 };
 const element = (): Record<string, unknown> => ({ querySelector: element, addEventListener: nothing, appendChild: nothing, setAttribute: nothing,
   classList: { add: nothing, remove: nothing, contains: () => false }, style: {} });
-const sandbox: { window: { MAP_PLACES?: MapPlaces } } = { window: {} };
-vm.runInNewContext(fs.readFileSync(new URL('map-places.js', ROOT), 'utf8'), sandbox);
+// Our own places as src/app/map-places.ts loads them: the index, then the tiles around a point or the view, their
+// rows appended to PLACES.items as they come
+const PLACES_DIR = new URL('map-places/', ROOT);
+const placesIndex = JSON.parse(fs.readFileSync(new URL('index.json', PLACES_DIR), 'utf8')) as MapPlacesIndex;
+const PLACES: MapPlaces = { generated: placesIndex.generated, sources: placesIndex.sources, cats: placesIndex.cats, items: [] };
+const tilesLoaded = new Set<string>();
+const loadBox = (w: number, s: number, e: number, n: number) => {
+  for (const [key, tw, ts, te, tn] of placesIndex.tiles) {
+    if (tilesLoaded.has(key) || !(tw < e && te > w && ts < n && tn > s)) continue;
+    tilesLoaded.add(key);
+    const file = JSON.parse(fs.readFileSync(new URL(`${key}.json`, PLACES_DIR), 'utf8')) as MapPlaceTileFile;
+    for (const r of file.rows) PLACES.items.push(r);
+  }
+};
+const loadAround = (ll: readonly number[], km: number) => {
+  const dLat = km / 111, dLng = km / (111 * Math.cos((ll[1] * Math.PI) / 180));
+  loadBox(ll[0] - dLng, ll[1] - dLat, ll[0] + dLng, ll[1] + dLat);
+};
 const { MAP_LAYERS } = await import(new URL('map-layers.ts', SRC).href);
 fake('map.ts', { map });
 fake('location.ts', { gpsOn: () => false, userLngLat: null });
 fake('search-pins.ts', { render: nothing });
-fake('map-places.ts', { PLACES: sandbox.window.MAP_PLACES, loadPlaces: () => Promise.resolve(true),
+fake('map-places.ts', { PLACES,
+  ensurePlacesNear: (ll: LngLat, km: number) => { loadAround(ll, km); return Promise.resolve(true); },
+  loadPlaces: () => { const b = bounds(); loadBox(b.getWest(), b.getSouth(), b.getEast(), b.getNorth()); loadAround(view.at, 10); return Promise.resolve(true); },
   GROUP_BY_KEY: Object.fromEntries(MAP_LAYERS.GROUPS.map((g: { key: string }) => [g.key, g])) });
 fake('live-vehicles.ts', { fmtDist: (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`) });
 fake('routing.ts', { distKm });

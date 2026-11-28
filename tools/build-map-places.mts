@@ -1,14 +1,17 @@
-// Builds map-places.js (what the map shows) from data/amenities.json, data/places.json,
-// data/official-places.json (all three Bern only) and data/ch/toilets-ch.json (all of Switzerland). Run from the
-// repo root after refreshing those files:
+// Builds map-places/ (what the map shows and the search looks through: an index and one file per tile) from
+// data/amenities.json, data/places.json, data/official-places.json (Bern), the Switzerland-wide OpenStreetMap files
+// data/ch/osm-<category>.json and data/ch/osm-places-<group>.json.gz, the official points of data/ch/official-ch.json
+// and the toilets of data/ch/toilets-ch.json. Run from the repo root after refreshing any of them:
 //   node tools/build-map-places.mts
 // Toilets come from data/ch/toilets-ch.json (tools/build-toilets-ch.mts: OpenStreetMap merged with station
 // toilets, the cities' own lists and the Nette Toilette restaurants), not from the raw OpenStreetMap ones in
 // amenities.json. data/toilets.json (Bern) adds the notes the Swiss file leaves out.
-// Each data category is sorted into a map group with map-layers.ts's classify(). OpenStreetMap items found in
-// both OSM files are kept once, and an official item is dropped when OSM has the same kind of thing within 25 m
-// (its missing details are filled in from the official one).
-import { readFileSync, writeFileSync } from 'node:fs';
+// Each data category is sorted into a map group with map-layers.ts's classify(). An OpenStreetMap object found in
+// several files is kept once (Bern's record first, the others fill in what it lacks), and an official item is
+// dropped when OSM has the same kind of thing within 25 m (its missing details are filled in from the official one).
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { gunzipSync, gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { MAP_LAYERS } from '../src/map-layers.ts';
 import type { MapGroupKey, PlaceClass } from '../src/map-layers.ts';
 
@@ -98,6 +101,25 @@ interface OfficialPlace {
   website: string | null;
   description: string | null;
 }
+/** A record of data/ch/official-ch.json (docs/data-ch-official.md): a point of a city's, a canton's or SBB's own list, all of Switzerland. */
+interface OfficialChPlace {
+  id: string;
+  /** 'zh.brunnen', 'kantonbern.aed', 'sbb.billetautomat', … */
+  source: string;
+  lat: number;
+  lon: number;
+  category: string;
+  name: string | null;
+  /** Street and number */
+  address: string | null;
+  postcode: string | null;
+  city: string | null;
+  opening_hours: string | null;
+  /** 'yes' | 'limited' | 'no' */
+  wheelchair: string | null;
+  phone: string | null;
+  website: string | null;
+}
 
 /** The page's MapPlaceDetails while a place is put together: a field without a value is null, and is left out of the row. */
 type PlaceDetails = { [K in keyof MapPlaceDetails]: MapPlaceDetails[K] | null };
@@ -119,7 +141,10 @@ interface Place {
 interface Mergeable { name: string | null; x: Record<string, unknown> }
 interface LonLat { lon: number; lat: number }
 
-const read = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url)) as unknown as string);
+const read = (f: string) => {
+  const raw = readFileSync(new URL(`../${f}`, import.meta.url));
+  return JSON.parse((f.endsWith('.gz') ? gunzipSync(raw) : raw).toString('utf8'));
+};
 const { classify, GROUPS, GLYPHS } = MAP_LAYERS;
 
 const amenities = read('data/amenities.json') as DataFile<OsmItem>;
@@ -128,8 +153,26 @@ const official = read('data/official-places.json') as DataFile<OfficialPlace>;
 const toilets = read('data/ch/toilets-ch.json') as DataFile<ToiletRecord>;
 const bernToilets = read('data/toilets.json') as DataFile<BernToilet>;
 const osmToiletsCh = read('data/ch/osm-toilets.json') as DataFile<OsmToiletCh>;
+// All of Switzerland: the basic amenities (one file per category, the category is the file's), then the places
+// and the other amenities of tools/build-places-ch.mts. The toilets come from toilets-ch.json instead.
+const chFiles = readdirSync(new URL('../data/ch/', import.meta.url)).sort();
+const osmCh = chFiles.filter((f) => /^osm-(?!places-)[\w]+\.json$/.test(f) && f !== 'osm-toilets.json')
+  .map((f) => read(`data/ch/${f}`) as DataFile<Omit<OsmItem, 'category'>> & { category: string });
+const placesCh = chFiles.filter((f) => /^osm-places-[\w]+\.json\.gz$/.test(f)).map((f) => read(`data/ch/${f}`) as DataFile<OsmItem>);
+if (!placesCh.length) throw new Error('data/ch/osm-places-*.json.gz missing: run node tools/build-places-ch.mts first');
+const officialCh = read('data/ch/official-ch.json') as DataFile<OfficialChPlace>;
 
 const SOURCES = ['OpenStreetMap', 'Stadt Bern', 'Kanton Bern', 'SBB', 'Velospot'];
+// data/ch/official-ch.json: the categories the map shows from it (toilets come from toilets-ch.json, which has
+// these lists merged already; fountains whose water may not be drinkable, hospitals listed per department, helipads
+// and emergency meeting points are left out), and who each source is
+const OFFICIAL_CH_KINDS = new Set(['drinking_water', 'aed', 'ticket_machine', 'waiting_room', 'wifi', 'pharmacy', 'post_office', 'library']);
+const OFFICIAL_CH_SOURCES: Record<string, string> = {
+  zh: 'Stadt Zürich', bs: 'Kanton Basel-Stadt', ge: 'Canton de Genève', lu: 'Stadt Luzern', sg: 'Stadt St.Gallen', zg: 'Stadt Zug',
+  biel: 'Stadt Biel', kantonbern: 'Kanton Bern', bl: 'Kanton Basel-Landschaft', sbb: 'SBB',
+};
+// Staffed places have their point on the building or at the door: an official one this close to OSM's is the same
+const OFFICIAL_NEAR_M: Record<string, number> = { pharmacy: 75, post_office: 75, library: 75 };
 // Who a toilet record comes from, by the key its sources start with (docs/data-ch-toilets.md)
 const TOILET_SOURCES: Record<string, string> = {
   osm: 'OpenStreetMap', 'osm-place': 'OpenStreetMap', nette: 'Stadt Bern', atlas: 'opentransportdata.swiss', 'atlas.toilet': 'opentransportdata.swiss',
@@ -244,6 +287,16 @@ function fromOfficial(i: OfficialPlace): Place {
     x: { a: clip(i.address, 120), h: clip(i.opening_hours, 120), w, p: clip(i.phone, 40), u: url(i.website), d: clip(desc) },
   };
 }
+function fromOfficialCh(i: OfficialChPlace): Place {
+  const town = [i.postcode, i.city].filter(Boolean).join(' ');
+  const o = fromOfficial({ id: i.id, source: i.source, lat: i.lat, lon: i.lon, category: i.category, name: i.name || '',
+    address: [i.address, i.address && i.postcode && i.address.includes(i.postcode) ? '' : town].filter(Boolean).join(', ') || null,
+    opening_hours: i.opening_hours, wheelchair_or_accessibility: i.wheelchair, phone: i.phone, website: i.website, description: null });
+  o.src = sourceId(OFFICIAL_CH_SOURCES[i.source.split('.')[0]] || i.source);
+  return o;
+}
+// data/ch/osm-<category>.json has the street and the town apart: "Neuengasse 15" + 3011 Bern → "Neuengasse 15, 3011 Bern"
+const chAddress = (i: Omit<OsmItem, 'category'>) => [i.address, [i.postcode, i.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null;
 
 const metres = (a: LonLat, b: LonLat) => {
   const dx = (a.lon - b.lon) * 111320 * Math.cos(a.lat * Math.PI / 180), dy = (a.lat - b.lat) * 110540;
@@ -258,11 +311,20 @@ for (const i of amenities.items) {
   if (i.category === 'toilets') osmToilets.set(i.id, i);
   else byId.set(i.id, fromOsm(i));
 }
-for (const i of places.items) {
-  const p = fromOsm(i, i.group);
-  const had = byId.get(i.id);
+const add = (p: Place) => {
+  const had = byId.get(p.id);
   if (had) merge(had, p);
-  else byId.set(i.id, p);
+  else byId.set(p.id, p);
+};
+for (const i of places.items) add(fromOsm(i, i.group));
+// The rest of Switzerland, in the same order (amenities, then places): an object Bern's files have keeps Bern's
+// record, which gets what it lacks from these
+let chAmenities = 0, chPlaces = 0;
+for (const f of osmCh) for (const i of f.items) { add(fromOsm({ ...i, category: f.category, address: chAddress(i) })); chAmenities++; }
+for (const f of placesCh) for (const i of f.items) {
+  if (i.category === 'toilets') continue;
+  add(fromOsm(i, i.group));
+  if (i.group) chPlaces++; else chAmenities++;
 }
 // The same named place mapped twice in OSM (e.g. a shop as a point and as a building): keep it once
 function fold(t: string) { return String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -307,18 +369,38 @@ for (const it of items) {
   (grid.get(k) || grid.set(k, []).get(k)!).push(it);
 }
 let mergedOfficial = 0;
+const twinOf = (o: Place, m: number, any: boolean) => {
+  const r = Math.ceil(m / 40); // cells to look through on each side
+  const cx = Math.floor(o.lon / CELL), cy = Math.floor(o.lat / CELL);
+  for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    for (const it of grid.get(`${cx + dx},${cy + dy}`) || []) {
+      if ((any || it.src === 0) && it.kind === o.kind && metres(it, o) <= m) return it;
+    }
+  }
+  return null;
+};
+const keep = (o: Place) => {
+  items.push(o);
+  const k = cellKey(o.lon, o.lat);
+  (grid.get(k) || grid.set(k, []).get(k)!).push(o);
+};
 for (const i of official.items) {
   if (i.lat == null || i.lon == null) continue;
   const o = fromOfficial(i);
-  const cx = Math.floor(o.lon / CELL), cy = Math.floor(o.lat / CELL);
-  let twin: Place | null = null;
-  for (let dx = -1; dx <= 1 && !twin; dx++) for (let dy = -1; dy <= 1 && !twin; dy++) {
-    for (const it of grid.get(`${cx + dx},${cy + dy}`) || []) {
-      if (it.src === 0 && it.kind === o.kind && metres(it, o) <= 25) { twin = it; break; }
-    }
-  }
+  const twin = twinOf(o, 25, false);
   if (twin) { merge(twin, o); mergedOfficial++; continue; }
-  items.push(o);
+  keep(o);
+}
+// The official lists of the rest of Switzerland: also the same as one of Bern's official items nearby (the canton's
+// defibrillators are in both, under other ids)
+let officialChKept = 0;
+for (const i of officialCh.items) {
+  if (!OFFICIAL_CH_KINDS.has(i.category) || i.lat == null || i.lon == null) continue;
+  const o = fromOfficialCh(i);
+  const twin = twinOf(o, OFFICIAL_NEAR_M[o.kind] || 25, true);
+  if (twin) { merge(twin, o); mergedOfficial++; continue; }
+  keep(o);
+  officialChKept++;
 }
 
 // Compact output: a category table and one short array per item
@@ -342,25 +424,64 @@ for (const it of items) {
 // Stable order, so a rebuild from the same data gives the same file
 out.sort((a, b) => a[2] - b[2] || a[1] - b[1] || a[0] - b[0]);
 
-const generated = [amenities.generated, places.generated, official.generated, toilets.generated].sort().pop()!;
-const js = `// Generated by tools/build-map-places.mts from data/*.json (${generated}). Do not edit by hand.
-// Sources: OpenStreetMap contributors (ODbL); Stadt Bern geoportal, Kanton Bern (opendata.swiss terms_open);
-// SBB (data.sbb.ch); Velospot (GBFS). Toilets, all of Switzerland: OpenStreetMap, station toilets from ATLAS
-// (opentransportdata.swiss), Stadt Zürich, Kanton Basel-Stadt (CC BY 4.0), Ville de Genève, Stadt Luzern,
-// Stadt St.Gallen (CC BY 4.0), Stadt Zug, Stadt Bern. Addresses that the sources lack: swisstopo, Amtliches
-// Gebäudeadressverzeichnis. The records are merged across sources and shortened.
-// Rows: [lon, lat, category, name or 0, details?]
-// Details: a address, h opening hours, w wheelchair, f fee (no, yes, mixed), pr price, ft what the fee is for,
-// p phone, u website, l level, d description, k access (unsure = may be shut or locked), c changing table,
-// tw wheelchair toilet, e Eurokey,
-// o run by, s source (index into sources, 0 = OpenStreetMap).
-window.MAP_PLACES = ${JSON.stringify({ generated, sources: SOURCES, cats, items: out } satisfies MapPlaces)};
-`;
-writeFileSync(new URL('../map-places.js', import.meta.url), js);
+// Tiles: a grid of 1/8° (about 9.5 × 14 km), a tile with more than MAX_ROWS places cut into four, again and again
+// (down to 1/128°), so a city centre comes in several small files and the countryside in a few big ones. A tile's
+// file name is its level and its column and row on that level's grid: 4-123-750 = west 123/16°, south 750/16°.
+const BASE_LEVEL = 3, MAX_LEVEL = 7, MAX_ROWS = 5000;
+const tiles: { key: string; level: number; x: number; y: number; rows: MapPlaceRow[] }[] = [];
+function cut(rows: MapPlaceRow[], level: number, x: number, y: number) {
+  if (rows.length <= MAX_ROWS || level >= MAX_LEVEL) { tiles.push({ key: `${level}-${x}-${y}`, level, x, y, rows }); return; }
+  const n = 2 ** (level + 1), kids = new Map<string, MapPlaceRow[]>();
+  for (const r of rows) { const k = `${Math.floor(r[0] * n)},${Math.floor(r[1] * n)}`; (kids.get(k) || kids.set(k, []).get(k)!).push(r); }
+  for (const [k, kidRows] of kids) { const [kx, ky] = k.split(',').map(Number); cut(kidRows, level + 1, kx, ky); }
+}
+const base = new Map<string, MapPlaceRow[]>();
+for (const r of out) { // in the stable order above, which every tile keeps
+  const k = `${Math.floor(r[0] * 2 ** BASE_LEVEL)},${Math.floor(r[1] * 2 ** BASE_LEVEL)}`;
+  (base.get(k) || base.set(k, []).get(k)!).push(r);
+}
+for (const [k, rows] of base) { const [x, y] = k.split(',').map(Number); cut(rows, BASE_LEVEL, x, y); }
+tiles.sort((a, b) => (a.key < b.key ? -1 : 1));
+
+const generated = [amenities.generated, places.generated, official.generated, toilets.generated, officialCh.generated,
+  ...osmCh.map((f) => f.generated), ...placesCh.map((f) => f.generated)].sort().pop()!;
+const about = `Generated by tools/build-map-places.mts from data/*.json and data/ch/* (${generated}). Do not edit by hand. `
+  + 'Sources: OpenStreetMap contributors (ODbL); Stadt Bern geoportal, Kanton Bern (opendata.swiss terms_open); SBB (data.sbb.ch); '
+  + 'Velospot (GBFS); official lists of Stadt Zürich, Kanton Basel-Stadt (CC BY 4.0), Kanton Basel-Landschaft (CC BY), Canton and Ville de Genève, '
+  + 'Stadt Luzern, Stadt St.Gallen (CC BY 4.0), Stadt Zug, Stadt Biel; station toilets from ATLAS (opentransportdata.swiss). '
+  + 'Addresses that the sources lack: swisstopo, Amtliches Gebäudeadressverzeichnis. The records are merged across sources and shortened. '
+  + 'tiles: [file name in map-places/, west, south, east, north, places]. A tile file is { v: version, rows }, a row [lon, lat, category (index into cats), name or 0, details?]. '
+  + 'Details: a address, h opening hours, w wheelchair, f fee (no, yes, mixed), pr price, ft what the fee is for, p phone, u website, l level, '
+  + 'd description, k access (unsure = may be shut or locked), c changing table, tw wheelchair toilet, e Eurokey, o run by, s source (index into sources, 0 = OpenStreetMap).';
+const dir = new URL('../map-places/', import.meta.url);
+rmSync(dir, { recursive: true, force: true }); // tiles of an earlier build that this one cuts differently
+mkdirSync(dir, { recursive: true });
+// v: the tables the rows point into (cats, sources). A tile from another build with other tables (a cached one) is
+// told apart by it, and not read with the wrong categories.
+const version = createHash('sha1').update(JSON.stringify([cats, SOURCES])).digest('hex').slice(0, 10);
+let bytes = 0, gz = 0, biggest = 0;
+const save = (name: string, json: string) => {
+  writeFileSync(new URL(name, dir), json);
+  bytes += Buffer.byteLength(json);
+  gz += gzipSync(json).length;
+};
+for (const t of tiles) {
+  const json = JSON.stringify({ v: version, rows: t.rows } satisfies MapPlaceTileFile);
+  biggest = Math.max(biggest, Buffer.byteLength(json));
+  save(`${t.key}.json`, json);
+}
+const index: MapPlacesIndex = { generated, version, about, sources: SOURCES, cats, tiles: tiles.map((t) => {
+  const n = 2 ** t.level;
+  return [t.key, t.x / n, t.y / n, (t.x + 1) / n, (t.y + 1) / n, t.rows.length];
+}) };
+save('index.json', JSON.stringify(index));
+rmSync(new URL('../map-places.js', import.meta.url), { force: true }); // the single file of the builds before the tiles
 
 const perGroup: Partial<Record<MapGroupKey, number>> = {};
 for (const r of out) { const g = cats[r[2]][0]; perGroup[g] = (perGroup[g] || 0) + 1; }
-console.log(`map-places.js: ${out.length} places (${mergedTwins} OSM doubles and ${mergedOfficial} official items merged into OSM ones), ${(js.length / 1e6).toFixed(2)} MB`);
+console.log(`map-places/: ${out.length} places (${mergedTwins} OSM doubles and ${mergedOfficial} official items merged into OSM ones, ${officialChKept} official points of data/ch kept), `
+  + `${tiles.length} tiles, ${(bytes / 1e6).toFixed(1)} MB (${(gz / 1e6).toFixed(1)} MB gzipped), biggest tile ${(biggest / 1e6).toFixed(2)} MB`);
+console.log(`read: ${chAmenities} Swiss amenities and ${chPlaces} Swiss places from data/ch`);
 console.log(perGroup);
 console.log(`toilets: ${toilets.items.length - toiletsHidden} from data/ch/toilets-ch.json (${toiletsHidden} that are not for the public left out)`);
 const k: Partial<Record<PlaceAccess, number>> = {};

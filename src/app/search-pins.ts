@@ -127,7 +127,7 @@ async function searchArea() {
   areaChip.hidden = true;
   const bbox: PlaceBbox = [view.getWest(), view.getSouth(), view.getEast(), view.getNorth()];
   // the engine measures from the middle of the map once it shows somewhere else than you (searchOrigin)
-  const [online, , kante] = await Promise.all([searchPlacesOnline(text, bbox).catch(() => null), loadPlaces(),
+  const [online, , kante] = await Promise.all([searchPlacesOnline(text, bbox).catch(() => null), loadPlaces(bbox),
     searchKante(text).catch(() => null)]);
   if (id !== searchState.reqId || !pins || pins.text !== text) return;
   const found = combineResults(text, null, online, searchPlaces(text, true), kante)

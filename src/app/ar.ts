@@ -1,5 +1,9 @@
-// ---- AR camera: on the next step of a journey, a live camera view that finds the stop and its boarding edge, the
-//      vehicles, and the direction to go. No shutter: it runs by itself, frame after frame, until it is closed.
+// ---- AR camera: one for the whole journey (its button is in the journey's footer). A live camera view that goes with
+//      you through the trip: on a walk or at a change it finds the stop and boarding edge of your next ride, its
+//      vehicle, and the direction to go; on board it says where to get off; on the last walk it points to the
+//      destination. Where you are on the trip comes from GPS (tracking.ts), else from the live timetable (a ride counts
+//      as boarded only once GPS has you moving along it, or two minutes after it leaves). No shutter: it runs by
+//      itself, frame after frame, until it is closed.
 //      - The stop and edge: Scan's live pipeline (stopvision.ts: sign OCR + GPS + compass), with the journey's next ride
 //        as its route, so it outlines the sign it read and says where your ride leaves from.
 //      - Vehicles: buses, trams and trains outlined by an in-browser detector (YOLOX-nano in onnxruntime-web), each one a
@@ -12,12 +16,15 @@
 //      - The way: an arrow toward your boarding edge, from GPS + compass, only while both are fresh and good enough.
 //      ?ar=0 in the page address hides the button (remembered; ?ar=1 shows it again). ?ardebug=1 adds a
 //      "Save last 10 s" button for field tests (docs/ar-field-test.md); ?ardebug=0 removes it. ----
-import { openScanWith, scanHooks } from './menu.ts';
-import { userAccuracy, userLngLat } from './location.ts';
+import { openScanWith, scanHooks, scanRouteOf } from './menu.ts';
+import { gpsOn, userAccuracy, userLngLat } from './location.ts';
 import { bearingDeg } from './map-places.ts';
-import { lineLabel, modeOf, stopName, stopUic } from './journey-steps.ts';
-import { h, kBtn, kIcon, quayOf } from './sheet.ts';
+import { fmtTime, lineLabel, liveMs, modeOf, stopName, stopUic } from './journey-steps.ts';
+import { MODE_NAME, h, kBtn, kIcon, quayOf } from './sheet.ts';
 import { distKm } from './routing.ts';
+import { journeyProgress, stopKms, vehicleState } from './tracking.ts';
+import { journey, tracking } from './state.ts';
+import type { TimedPlace } from './tracking.ts';
 import type { DeviceOrientationAsk } from './menu.ts';
 import { createArSession, boardOf } from '../artrack.ts';
 import { load } from '../lazy.ts';
@@ -59,30 +66,100 @@ const AR_RESOLUTION = (() => {
   return max ? { width: { ideal: 3840 }, height: { ideal: 2160 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } };
 })();
 
-/** Where the AR camera guides you: the boarding point of the step's next ride. */
-interface ArTarget { ll: LngLat; label: string; line: string; to: string; ride: JourneyRideStep }
-function arTargetOf(st: JourneyStep): ArTarget | null {
-  const r = st.type === 'ride' ? st : st.nextRide;
-  if (!r || r.type !== 'ride' || !r.depLL) return null;
-  if (st.type === 'walk' && st.final) return null;
+// ---------------------------------------------------------------- where the trip is: what AR guides you to now
+/**
+ * What the AR camera guides you to at this moment of the trip (arPhase()):
+ * - board: to where your next ride leaves from, looking for its vehicle (on a walk, at a change, waiting at the stop);
+ * - ride: on board, where to get off (nothing to look for);
+ * - walk: on the last walk, the way to the destination;
+ * - arrived: there.
+ * `key` changes when the guidance has to start afresh (another ride, or its boarding point changed).
+ */
+type ArPhase =
+  | { kind: 'board'; key: string; ride: JourneyRideStep; ll: LngLat; label: string; line: string; to: string }
+  | { kind: 'ride'; key: string; ride: JourneyRideStep }
+  | { kind: 'walk'; key: string; ll: LngLat; label: string }
+  | { kind: 'arrived'; key: string; label: string };
+
+function boardPhase(r: JourneyRideStep | null | undefined): ArPhase | null {
+  if (!r || !r.depLL) return null;
   const q = quayOf(r, 'dep');
-  return { ll: r.depLL, label: q.label ? `${q.word} ${q.label}` : (stopName(r.s.from) || 'the stop'),
-    line: lineLabel(r.s.line), to: r.s.headsign || '', ride: r };
+  const label = q.label ? `${q.word} ${q.label}` : (stopName(r.s.from) || 'the stop');
+  return { kind: 'board', key: `board|${rideId(r)}|${r.s.from.quay.id || ''}|${label}`, ride: r, ll: r.depLL,
+    label, line: lineLabel(r.s.line), to: r.s.headsign || '' };
+}
+/** Which ride it is, whatever step it is now (a journey planned again or switched keeps the key only for the same
+ *  trip from the same stop to the same stop). */
+const rideId = (r: JourneyRideStep) => {
+  const leg = r.s.legs[0];
+  return [leg && leg.tripId, leg && leg.serviceDate, stopUic(r.s.from), stopUic(r.s.to)].join('|');
+};
+const destLL = (st: JourneyStep): LngLat | null => {
+  if (journey.dest) return journey.dest.lngLat;
+  const ls = st.lines || [], last = ls[ls.length - 1];
+  return last && last.length ? last[last.length - 1] : null;
+};
+const destTitle = () => (journey.dest && journey.dest.title) || 'your destination';
+/** GPS follows you on the trip (not only the timetable). */
+const gpsTrack = () => (tracking.track && !tracking.track.off && gpsOn() ? tracking.track : null);
+
+/** Where on the trip you are, as AR guides it: GPS when it follows you, else the live timetable (journeyProgress()).
+ *  Without GPS a ride counts as boarded only two minutes after it leaves, so someone still on the platform keeps the
+ *  vehicle search; with GPS, once it has you moving along the ride. */
+function arPhase(now = Date.now()): ArPhase | null {
+  const steps = journey.steps;
+  if (!steps.length) return null;
+  const t = gpsTrack();
+  // there for good once GPS has had you there (tracking.ts keeps it for this journey, also after the fix goes stale)
+  if ((t && t.arrived) || tracking.arrivedAt === steps) return { kind: 'arrived', key: 'arrived', label: destTitle() };
+  const p = journeyProgress() as TimedPlace | null;
+  // before the trip starts: its first step; after the timetable's end (no GPS to say): its last walk, or there
+  let i = p ? p.i : 0;
+  if (p && p.ended && !t) {
+    const fin = steps.findIndex((st) => st.type === 'walk' && st.final);
+    if (fin < 0) return { kind: 'arrived', key: 'arrived', label: destTitle() };
+    i = fin;
+  }
+  // a ride that left without you: still its stop (the banner says it has gone)
+  if (t && t.missed) return boardPhase(t.missed);
+  const st = steps[Math.min(i, steps.length - 1)];
+  if (st.type === 'arrive') return { kind: 'arrived', key: 'arrived', label: destTitle() };
+  if (st.type === 'walk' && st.final) {
+    const ll = destLL(st);
+    return ll ? { kind: 'walk', key: 'walk', ll, label: st.toName || destTitle() } : { kind: 'arrived', key: 'arrived', label: destTitle() };
+  }
+  if (st.type !== 'ride') return boardPhase(st.nextRide);
+  const onBoard = t ? t.i === i && !t.missed && t.kmIn > 0.1 : st.t0 != null && now > st.t0 + 120000;
+  return onBoard ? { kind: 'ride', key: `ride|${rideId(st)}`, ride: st } : boardPhase(st);
 }
 
-/** What the vehicle labels compare with: the ride, its planned trip and boarding point, and its stops before you get off. */
-function arRideOf(t: ArTarget): ArRide {
+/** What the labels compare vehicles with: the ride, its planned trip and boarding point, and its stops before you get off. */
+function arRideOf(t: Extract<ArPhase, { kind: 'board' }>): ArRide {
   const s = t.ride.s, leg = s.legs[0];
   const stops = s.stops.slice(1, -1).map((c) => stopName(c)).filter(Boolean);
-  return { line: t.line, destination: t.to, mode: modeWord(t), tripId: leg && leg.tripId, serviceDate: leg && leg.serviceDate,
+  return { line: t.line, destination: t.to, mode: modeWord(t.ride), tripId: leg && leg.tripId, serviceDate: leg && leg.serviceDate,
     quayId: s.from.quay.id, quayLabel: s.from.quay.label, stopsBefore: stops,
     dep: s.from.dep != null ? s.from.dep + (s.from.depDelayS || 0) : undefined };
 }
 
-/** The AR button for a journey step, or null (feature off, or nothing to board next). */
-export function arStepButton(st: JourneyStep): HTMLElement | null {
-  if (!AR_ON || !arTargetOf(st)) return null;
-  return kBtn('view3d ar-btn', 'Find the stop, your vehicle and the way with the camera', () => arOpen(st), kIcon('nav', 16), 'AR');
+/** On board: where to get off, and how many stops are left (by GPS along the ride, else by where its vehicle is). */
+function rideText(st: JourneyRideStep, now: number): [string, string] {
+  const off = stopName(st.s.to) || 'your stop', at = liveMs(st.s.to, 'arr');
+  const t = gpsTrack();
+  const km = t && journey.steps[t.i] === st ? t.kmIn : (vehicleState(st, now) || { km: null }).km;
+  let left: number | null = null;
+  if (km != null) { const kms = stopKms(st); if (kms.length) left = kms.filter((k) => k > km + 0.05).length; }
+  const mode = modeOf(st.s.line.category);
+  return [`On ${mode === 'train' ? '' : (MODE_NAME[mode] || 'Bus') + ' '}${lineLabel(st.s.line)} → ${st.s.headsign || ''}`.trim(),
+    [`Get off at ${off}`, left != null && left > 1 ? `${left} stops` : left === 1 ? 'next stop' : '', at ? fmtTime(at) : ''].filter(Boolean).join(' · ')];
+}
+
+/** The AR button of a journey (one for the whole trip), or null (feature off, or no ride to find). */
+export function arTripButton(): HTMLElement | null {
+  // a ride to find, or (a journey on foot) a destination to walk to
+  if (!AR_ON || !journey.steps.some((st) => (st.type === 'ride' && st.depLL) || (st.type === 'walk' && st.final && !!destLL(st)))) return null;
+  const b = kBtn('round-btn ar-trip', 'AR camera for the whole trip: your stop, your vehicle and the way, step by step', () => arOpen(), h('b', null, 'AR'));
+  return b;
 }
 
 // ---------------------------------------------------------------- the live view
@@ -204,12 +281,14 @@ async function arModelBytes(url: string): Promise<ArrayBuffer> {
 
 let arSession = 0;
 let arMotion = 'unknown'; // what iOS answered to the motion permission (shown in the debug line)
-function arOpen(st: JourneyStep) {
-  const target = arTargetOf(st);
-  if (!target) return;
+/** What AR guides you to now (arLayer() moves it on as the trip goes); Scan's route() follows it. */
+let arNow: ArPhase | null = null;
+function arOpen() {
+  arNow = arPhase();
+  if (!arNow) return;
   // already open: asking for a second camera would black out the first one on iOS
   if (document.querySelector('.sv')) return;
-  // both permissions here, while the tap still counts as a user gesture (iOS)
+  // both permissions here, while the tap still counts as a user gesture (iOS); they last the whole trip
   const askCamera = () => (navigator.mediaDevices && navigator.mediaDevices.getUserMedia
     ? navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, ...AR_RESOLUTION }, audio: false })
     : Promise.reject(Object.assign(new Error('no camera API'), { name: 'NoApiError' })));
@@ -225,6 +304,9 @@ function arOpen(st: JourneyStep) {
   const hooks = scanHooks();
   hooks.ar = true; // Scan keeps its photo model (DINOv2) unloaded: the CPU is the detector's and the OCR's; no photo button
   hooks.camera = askCamera; // the camera again, the same way, when it stopped or was refused (Scan's camera watch)
+  // Scan's "your ride leaves from this side" and the one stop tag it shows: the ride AR guides you to now (none on board
+  // or on the last walk)
+  hooks.route = () => (arNow && arNow.kind === 'board' ? scanRouteOf(arNow.ride) : null);
   // the camera gets the whole screen: the journey sheet and its bar step aside until AR closes (CSS: body.ar-open)
   document.body.classList.add('ar-open');
   const done = () => { document.body.classList.remove('ar-open'); if (arSession === mine) arSession++; };
@@ -236,12 +318,11 @@ function arOpen(st: JourneyStep) {
     if ((seen && !open) || (!seen && ++waited > 20) || arSession !== mine) { clearInterval(watch); if (!document.querySelector('.sv')) document.body.classList.remove('ar-open'); }
   }, 500);
   hooks.onClose = done;
-  openScanWith(hooks, camera, orientation, () => { if (arSession === mine) arLayer(mine, target); });
-  arDetector(); // start loading while the camera starts
-  arDisplayReader();
+  openScanWith(hooks, camera, orientation, () => { if (arSession === mine) arLayer(mine); });
+  if (arNow.kind === 'board') { arDetector(); arDisplayReader(); } // start loading while the camera starts (else when a ride is next)
 }
 
-function arLayer(mine: number, target: ArTarget) {
+function arLayer(mine: number) {
   const root = document.querySelector<HTMLElement>('[aria-label="Scan for stops"]');
   const video = root && root.querySelector('video');
   if (!root || !video || root.classList.contains('ar-mode')) return;
@@ -250,7 +331,9 @@ function arLayer(mine: number, target: ArTarget) {
   const layer = h('div', 'ar-layer');
   const boxes = h('div', 'ar-boxes');
   const arrow = h('div', 'ar-arrow', kIcon('arrow', 64));
-  const info = h('div', 'ar-info');
+  const infoMain = h('b', null, ''), infoSub = h('span', null, '');
+  const info = h('div', 'ar-info', infoMain, infoSub);
+  info.setAttribute('role', 'status');
   layer.append(boxes, arrow, info);
   root.append(layer);
 
@@ -276,30 +359,45 @@ function arLayer(mine: number, target: ArTarget) {
   };
   window.addEventListener('deviceorientationabsolute', onOri);
   window.addEventListener('deviceorientation', onOri);
-
-  // the vehicles: tracks, reads and labels (artrack.ts)
-  const ride = arRideOf(target);
-  const ses: ArSession = createArSession(ride);
   const nowS = () => Date.now() / 1000;
-  // what is due at the boarding stop, every 15 s (Kante /api/due); a failed poll changes nothing now, and the board
-  // goes stale on its own after AR_LIMITS.BOARD_STALE_S (no green or red without a fresh one)
-  const stopId = stopUic(target.ride.s.from);
-  const toId = stopUic(target.ride.s.to);
-  // before: 300, so a late vehicle timed as departed is still on the board (and still blocks green for a twin display).
-  // Answers that come back out of order are dropped: an older board must never replace a newer one.
-  let dueAsked = 0, dueApplied = 0;
-  const loadDue = () => {
-    const hooks = scanHooks();
-    if (!hooks.due || !stopId) return;
-    const n = ++dueAsked;
-    hooks.due({ station: String(stopId), after: 900, before: 300, to: toId ? String(toId) : undefined, limit: 80 })
-      .then((d) => {
-        if (n < dueApplied) return;
-        if (d) { dueApplied = n; ses.board(boardOf(d, nowS())); } else ses.boardFailed(nowS());
-      }, () => ses.boardFailed(nowS()));
+
+  // ---- the target: what the trip needs now. A new one (another ride to board, its boarding point changed, on board,
+  // the last walk) starts afresh: a new vehicle session, a new board of what is due, no labels of the last one. Every
+  // answer that comes back (a board, a read, a detection) is for the generation it was asked in, or it is dropped.
+  let phase: ArPhase | null = null, gen = 0, phaseAt = 0, phaseChecked = 0;
+  let ses: ArSession | null = null, ride: ArRide | null = null, dueTimer = 0;
+  const setPhase = (ph: ArPhase | null) => {
+    arNow = ph;
+    if (ph && phase && ph.key === phase.key) { phase = ph; return; } // the same guidance (its times may be newer)
+    gen++; phase = ph; phaseAt = nowS();
+    clearInterval(dueTimer); dueTimer = 0;
+    ses = null; ride = null;
+    boxes.replaceChildren();
+    if (!ph || ph.kind !== 'board') return; // on board, the last walk, there: no vehicle to look for
+    arDetector(); arDisplayReader(); // (loaded once; here when the first ride to find comes up)
+    ride = arRideOf(ph);
+    const s = createArSession(ride);
+    ses = s;
+    // what is due at the boarding stop, every 15 s (Kante /api/due); a failed poll changes nothing now, and the board
+    // goes stale on its own after AR_LIMITS.BOARD_STALE_S (no green or red without a fresh one). before: 300, so a late
+    // vehicle timed as departed is still on the board (and still blocks green for a twin display). Answers that come
+    // back out of order are dropped: an older board must never replace a newer one.
+    const g = gen, stopId = stopUic(ph.ride.s.from), toId = stopUic(ph.ride.s.to);
+    let dueAsked = 0, dueApplied = 0;
+    const loadDue = () => {
+      const hooks = scanHooks();
+      if (!hooks.due || !stopId || g !== gen) return;
+      const n = ++dueAsked;
+      hooks.due({ station: String(stopId), after: 900, before: 300, to: toId ? String(toId) : undefined, limit: 80 })
+        .then((d) => {
+          if (g !== gen || n < dueApplied) return;
+          if (d) { dueApplied = n; s.board(boardOf(d, nowS())); } else s.boardFailed(nowS());
+        }, () => { if (g === gen) s.boardFailed(nowS()); });
+    };
+    loadDue();
+    dueTimer = window.setInterval(loadDue, 15000);
   };
-  loadDue();
-  const dueTimer = setInterval(loadDue, 15000);
+  setPhase(arPhase());
 
   // the gyro: how far the picture moved between two detections (portrait only; elsewhere the boxes match unshifted).
   // Field of view of a phone's main camera in portrait video, about 42° across and 69° down (not measured per phone:
@@ -319,12 +417,13 @@ function arLayer(mine: number, target: ArTarget) {
   window.addEventListener('devicemotion', onMotion);
 
   // the words Scan reads, stamped with the moment their picture was taken: artrack.ts gives each vehicle its own
+  // (only pictures taken since the target began count for it)
   const ocrAge: number[] = [];
   const onWords = (ev: Event) => {
     const d = (ev as CustomEvent<ScanWordsDetail>).detail;
-    if (!d || !d.width || d.tap) return;
+    if (!d || !d.width || d.tap || !ses) return;
     const at = (d.capturedAt || 0) / 1000;
-    if (!at) return; // without the capture time a read cannot be put on the right vehicle
+    if (!at || at < phaseAt) return; // without the capture time a read cannot be put on the right vehicle
     const texts: ArText[] = d.words.filter((w) => w.text && w.text.trim()).map((w) => ({ text: w.text,
       box: [w.box.x0 / d.width, w.box.y0 / d.height, (w.box.x1 - w.box.x0) / d.width, (w.box.y1 - w.box.y0) / d.height] as ArBox,
       // Tesseract gives big lettering a low confidence, so a sure-enough word counts at least 0.5; a word it was not
@@ -357,7 +456,7 @@ function arLayer(mine: number, target: ArTarget) {
   }
   const cropCanvas = AR_DEBUG ? document.createElement('canvas') : null;
   const keepCrops = (now: number) => {
-    if (!cropCanvas) return;
+    if (!cropCanvas || !ses) return;
     const vw = video.videoWidth, vh = video.videoHeight;
     for (const t of ses.tracks()) {
       const [x, y, w, hh] = t.box;
@@ -372,18 +471,19 @@ function arLayer(mine: number, target: ArTarget) {
   const saveCapture = () => {
     const now = nowS();
     const data = { format: 'ar-capture/1', savedAt: now, ua: navigator.userAgent, video: [video.videoWidth, video.videoHeight],
-      motion: arMotion, ride, derotation: ses.derotation(), labels: ses.labels(now), banner: ses.banner(now),
-      detectMs: detectMs.slice(), ocrAgeS: ocrAge.slice(), ppocrMs: ocrMs.slice(), log: ses.log(), crops: crops.slice() };
+      motion: arMotion, ride, phase: phase && phase.kind, derotation: ses && ses.derotation(), labels: ses ? ses.labels(now) : [],
+      banner: ses && ses.banner(now), detectMs: detectMs.slice(), ocrAgeS: ocrAge.slice(), ppocrMs: ocrMs.slice(), log: ses ? ses.log() : [],
+      crops: crops.slice() };
     const name = `ar-capture-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     const body = JSON.stringify(data);
     const file = new File([body], name, { type: 'application/json' });
     const upload = window.APP_CONFIG && window.APP_CONFIG.arCaptureUrl; // the field-test server (tools/ar-test.mts)
     if (upload) {
-      const say = (t: string) => { if (saveBtn) { saveBtn.textContent = t; setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Save last 10 s'; }, 3000); } };
-      say('Saving…');
+      const said = (t: string) => { if (saveBtn) { saveBtn.textContent = t; setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Save last 10 s'; }, 3000); } };
+      said('Saving…');
       fetch(`${upload}?name=${encodeURIComponent(name)}`, { method: 'POST', body, headers: { 'content-type': 'application/json' } })
-        .then((r) => { if (!r.ok) throw new Error(String(r.status)); say('Saved ✓'); })
-        .catch(() => { say('Upload failed: downloaded'); offerFile(file, name, false); });
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); said('Saved ✓'); })
+        .catch(() => { said('Upload failed: downloaded'); offerFile(file, name, false); });
       return;
     }
     offerFile(file, name, true);
@@ -397,19 +497,21 @@ function arLayer(mine: number, target: ArTarget) {
   };
 
   // display reads: PP-OCR on one vehicle's display band at a time, at the camera's full resolution, in the order
-  // ses.readTarget() gives. Paced by how long a read takes.
+  // ses.readTarget() gives. Paced by how long a read takes. Only while there is a vehicle to find.
   const ocrCanvas = document.createElement('canvas');
   const ocrMs: number[] = [];
   let ocrBusy = false, ocrNext = 0, ocrState = 'loading';
   const readDisplays = async () => {
-    if (ocrBusy || Date.now() < ocrNext || !video.videoWidth) return;
+    if (!ses || ocrBusy || Date.now() < ocrNext || !video.videoWidth) return;
     ocrBusy = true;
+    const g = gen, s = ses;
     try {
       const reader = await arDisplayReader();
       ocrState = reader ? 'ready' : 'unavailable';
       if (!reader || arSession !== mine) { ocrNext = Date.now() + 5000; return; }
+      if (g !== gen) return;
       const vw = video.videoWidth, vh = video.videoHeight, now = nowS();
-      const target = ses.readTarget(now); // a vehicle in turn, or the road band (src/artrack.ts)
+      const target = s.readTarget(now); // a vehicle in turn, or the road band (src/artrack.ts)
       let r: ArBox = [0, 0.2, 1, 0.5]; // the road band
       if (target !== 'road') {
         const b = target;
@@ -428,52 +530,70 @@ function arLayer(mine: number, target: ArTarget) {
       const ms = performance.now() - t0;
       ocrMs.push(ms); if (ocrMs.length > 20) ocrMs.shift();
       ocrNext = Date.now() + Math.max(200, ms); // as much rest as the read took: the detector and Scan need the CPU too
-      if (arSession === mine) ses.words(words.map((x) => ({ text: x.text, box: x.box, score: x.score })), capturedAt, nowS());
+      if (arSession === mine && g === gen) s.words(words.map((x) => ({ text: x.text, box: x.box, score: x.score })), capturedAt, nowS());
     } catch (e) { ocrNext = Date.now() + 1000; } finally { ocrBusy = false; }
   };
 
+  // The vehicles: only what tells you something. Green (yours) and red (not yours) stand out; a vehicle whose display
+  // was read shows it quietly; one with nothing read is not outlined at all.
   const draw = (now: number) => {
-    boxes.replaceChildren(...ses.labels(now).map((l) => {
+    if (!ses) { if (boxes.childNodes.length) boxes.replaceChildren(); return; }
+    boxes.replaceChildren(...ses.labels(now).filter((l) => l.kind === 'green' || l.kind === 'red' || !!l.text).map((l) => {
       const [x, y, w, hh] = toScreen(l.box);
-      const el = h('div', 'ar-box' + (l.kind === 'green' ? ' ok' : l.kind === 'red' ? ' no' : ''), l.text ? h('span', null, l.text) : null);
+      const el = h('div', 'ar-box' + (l.kind === 'green' ? ' ok' : l.kind === 'red' ? ' no' : ' faint'), l.text ? h('span', null, l.text) : null);
       el.style.cssText += `left:${x}px;top:${y}px;width:${w}px;height:${hh}px`;
       return el;
     }));
   };
 
+  // The card at the bottom: what to do now, in two short lines
+  const say = (main: string, sub: string) => {
+    if (infoMain.textContent !== main) infoMain.textContent = main;
+    if (infoSub.textContent !== sub) infoSub.textContent = sub;
+    infoSub.hidden = !sub;
+  };
   let busy = false, lastDetect = 0;
   const frame = async () => {
     if (arSession !== mine || !root.isConnected) { cleanup(); return; }
-    // the way: an arrow toward the boarding point while GPS and compass are both good
+    if (Date.now() - phaseChecked > 1000) { phaseChecked = Date.now(); setPhase(arPhase()); } // where the trip is now
+    const now = nowS(), ph = phase;
+    // the way: an arrow toward the boarding point (or the destination) while GPS and compass are both good
+    const to = ph && (ph.kind === 'board' || ph.kind === 'walk') ? ph : null;
     const fresh = heading != null && Date.now() - headingAt < 3000;
-    const gpsOk = !!userLngLat && userAccuracy != null && userAccuracy <= 30;
-    const dist = userLngLat ? Math.round(distKm(userLngLat, target.ll) * 1000) : null;
-    if (fresh && gpsOk && dist != null && dist > 8) {
-      const turnDeg = ((bearingDeg(userLngLat!, target.ll) - heading! + 540) % 360) - 180;
+    // (a fix that has gone stale gives no distance and no arrow: it would point from where you were)
+    const fix = gpsOn() ? userLngLat : null;
+    const gpsOk = !!fix && userAccuracy != null && userAccuracy <= 30;
+    const dist = to && fix ? Math.round(distKm(fix, to.ll) * 1000) : null;
+    if (to && fresh && gpsOk && dist != null && dist > 8) {
+      const turnDeg = ((bearingDeg(fix!, to.ll) - heading! + 540) % 360) - 180;
       arrow.style.display = '';
       arrow.style.transform = `translateX(-50%) perspective(400px) rotateX(55deg) rotate(${turnDeg}deg)`;
     } else arrow.style.display = 'none';
-    const where = dist == null ? 'Turn on location for the way' : dist <= 8 ? `You're at ${target.label}` : `${target.label} · ${dist} m${fresh ? '' : ' · compass not ready'}`;
-    const now = nowS();
-    info.textContent = `${ses.banner(now).text} — ${where}`;
+    const where = !to ? '' : dist == null ? to.label : dist <= 8 ? `You're at ${to.label}` : `${to.label} · ${dist} m`;
+    if (!ph) say('No journey', 'Plan a journey to use the AR camera.');
+    else if (ph.kind === 'board') say(ses ? ses.banner(now).text : `${ph.line} → ${ph.to}`, where);
+    else if (ph.kind === 'ride') { const [a, b] = rideText(ph.ride, Date.now()); say(a, b); }
+    else if (ph.kind === 'walk') say(`Walk to ${ph.label}`, dist == null ? 'Turn on location for the way' : where);
+    else say("You're there", ph.label);
     draw(now); // labels expire and are revoked between detections too
     readDisplays();
     if (dbgText) {
       const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
-      const ls = ses.labels(now);
-      dbgText.textContent = `video ${video.videoWidth}×${video.videoHeight} · detect ${detName} ${Math.round(avg(detectMs))} ms · Tesseract age ${avg(ocrAge).toFixed(1)} s`
+      const ls = ses ? ses.labels(now) : [];
+      dbgText.textContent = `${ph ? ph.kind : 'none'} · video ${video.videoWidth}×${video.videoHeight} · detect ${detName} ${Math.round(avg(detectMs))} ms · Tesseract age ${avg(ocrAge).toFixed(1)} s`
         + ` · PP-OCR ${ocrState}${ocrMs.length ? ' ' + Math.round(avg(ocrMs)) + ' ms' : ''}`
-        + ` · motion ${arMotion}${ses.derotation().on ? '' : ' (gyro shift off)'}\n`
+        + ` · motion ${arMotion}${!ses || ses.derotation().on ? '' : ' (gyro shift off)'}${fresh ? '' : ' · compass not ready'}\n`
         + (ls.length ? ls.map((l) => `#${l.track} ${l.kind} ${l.reason}`).join(' · ') : 'no vehicles');
     }
-    // vehicles, about 3 times a second
-    if (busy || Date.now() - lastDetect < 330 || !video.videoWidth) return;
+    // vehicles, about 3 times a second, only while there is one to find
+    if (!ses || busy || Date.now() - lastDetect < 330 || !video.videoWidth) return;
     if (Date.now() < detRetry) return; // no detector, or it kept failing: try again later
     busy = true; // before any await: one detection at a time, also while the model loads
+    const g = gen, s = ses;
     try {
       const model = await arDetector();
       if (!model) { detRetry = Date.now() + 15000; return; }
-      if (arSession !== mine) return;
+      if (arSession !== mine || g !== gen) return;
       lastDetect = Date.now();
       const t0 = performance.now(), at = nowS();
       const shift = turn, panned = pan;
@@ -482,8 +602,8 @@ function arLayer(mine: number, target: ArTarget) {
       // only now taken: if the detector throws, the turn counts towards the next detection (a jerk still revokes)
       turn = { dx: turn.dx - shift.dx, dy: turn.dy - shift.dy }; pan -= panned;
       detectMs.push(performance.now() - t0); if (detectMs.length > 20) detectMs.shift();
-      if (arSession !== mine) return;
-      ses.detections(dets, at, motionAt ? shift : null, motionAt ? panned : null); // the picture the detector read was taken at `at`
+      if (arSession !== mine || g !== gen) return;
+      s.detections(dets, at, motionAt ? shift : null, motionAt ? panned : null); // the picture the detector read was taken at `at`
       keepCrops(at);
       draw(nowS());
       detFails = 0;
@@ -499,6 +619,7 @@ function arLayer(mine: number, target: ArTarget) {
   const cleanup = () => {
     stopTick();
     clearInterval(dueTimer);
+    gen++; ses = null;
     window.removeEventListener('scan:words', onWords);
     window.removeEventListener('devicemotion', onMotion);
     window.removeEventListener('deviceorientationabsolute', onOri);
@@ -509,4 +630,4 @@ function arLayer(mine: number, target: ArTarget) {
   const tick = setInterval(frame, 100); // ~10 updates a second; also runs where animation frames are held back
   const stopTick = () => clearInterval(tick);
 }
-const modeWord = (t: ArTarget) => ({ train: 'train', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable car' } as Record<LineMode, string>)[modeOf(t.ride.s.line.category)];
+const modeWord = (r: JourneyRideStep) => ({ train: 'train', tram: 'tram', bus: 'bus', boat: 'boat', cable: 'cable car' } as Record<LineMode, string>)[modeOf(r.s.line.category)];

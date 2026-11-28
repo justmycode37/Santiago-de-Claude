@@ -5,3 +5,5 @@ rightside/**/*.mlmodel binary
 rightside/**/*.png binary
 rightside/**/*.jpg binary
 *.onnx binary
+# Generated place tiles (tools/build-map-places.mts): no line-ending conversion, no text diffs
+map-places/** -text -diff linguist-generated=true

@@ -569,6 +569,8 @@ let focusDrawn: LngLat | null = null; // where the followed vehicle's body was d
 function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number, project: Project) {
   const drawn = drawnTrips;
   const old = Date.now() - vehAt > VEH_DIM_MS, dark = currentTheme() === 'dark';
+  // one vehicle followed (vehicle-follow.ts): the others fade back and lose their badges, so it stands out
+  const aside = (k: string) => !!focusKey && k !== focusKey;
   const pad = 60;
   if (zoom < BODY_MIN_ZOOM) {
     // the pictograms, as large as the map's symbols were (from 0.62 at zoom 14 to 0.8 at 16, exponentially)
@@ -579,7 +581,7 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
       const q = project(s.ll), p = propsOf(v), img = spriteImage(dark ? p.iconD : p.icon);
       if (!img || q.x < -pad || q.y < -pad || q.x > cssW + pad || q.y > cssH + pad) return;
       const w = (img.img.width / img.ratio) * size, hh = (img.img.height / img.ratio) * size;
-      ctx.globalAlpha = old || !p.live ? 0.45 : 1;
+      ctx.globalAlpha = aside(vehKey(v)) ? 0.3 : old || !p.live ? 0.45 : 1;
       ctx.drawImage(img.img, q.x - w / 2, q.y - hh / 2, w, hh);
       vehHits.push({ i, cars: [[q, q, Math.max(w, hh) / 2 + 4]] });
       drawn.add(vehKey(v));
@@ -605,7 +607,7 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
     drawn.add(k);
     const fill = colorOf(k, s.ll), live = propsOf(v).live;
     const W = Math.max(make.width * pxPerM, 5 + Math.min(3, Math.max(0, zoom - 15) * 1.5));
-    ctx.globalAlpha = old || !live ? 0.55 : 1;
+    ctx.globalAlpha = aside(k) ? 0.3 : old || !live ? 0.55 : 1;
     let centre = project(s.ll);
     if (!P.cars) {
       // its way not known: a disc where it is
@@ -624,7 +626,7 @@ function paintVehicles(ctx: CanvasRenderingContext2D, zoom: number, now: number,
       focusRing(ctx, centre, Math.max(16, W * 1.6), fill);
       if (P.cars) { const ll = map.unproject([centre.x, centre.y]); focusDrawn = [ll.lng, ll.lat]; }
     }
-    labels.push({ v, x: centre.x, y: centre.y - W / 2, dim: old || !live });
+    if (!aside(k)) labels.push({ v, x: centre.x, y: centre.y - W / 2, dim: old || !live });
   }
   // over them all: each one's badge, and where it goes from zoom 17
   for (const L of labels) drawBadge(ctx, L.v, L.x, L.y, zoom, dark, L.dim);

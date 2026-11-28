@@ -31,7 +31,7 @@ declare var SWISS_EVENT_SERIES: EventSeries[] | undefined;
 /** Local programmes (language courses, sport clubs, …); some are known by their town only (`areaOnly`). */
 declare var COMMUNITY_PROGRAMMES: EventListing[] | undefined;
 
-// ---- map-places.js (tools/build-map-places.mts): toilets, drinking water, health, help, shops… ----
+// ---- map-places/ (tools/build-map-places.mts): toilets, drinking water, health, help, shops… all of Switzerland ----
 
 /** What is known about a place besides its name. Every field may be missing. */
 interface MapPlaceDetails {
@@ -70,6 +70,7 @@ interface MapPlaceDetails {
 }
 /** One place: where, its category (an index into MapPlaces.cats), its name (0 when it has none), and details when there are any. */
 type MapPlaceRow = [lon: number, lat: number, category: number, name: string | 0, details?: MapPlaceDetails];
+/** The places loaded so far (src/app/map-places.ts): the index's tables, and the rows of the tiles loaded, in the order they came. */
 interface MapPlaces {
   /** When the data was fetched (ISO date and time). */
   generated: string;
@@ -79,5 +80,21 @@ interface MapPlaces {
   cats: import('../map-layers.ts').PlaceClass[];
   items: MapPlaceRow[];
 }
-/** Loaded on demand; src/app/map-places.ts deletes it again once it has taken the data. */
-declare var MAP_PLACES: MapPlaces | undefined;
+/**
+ * A tile of map-places/: its file name ('4-123-750' → map-places/4-123-750.json, a MapPlaceTileFile), its box and how
+ * many places it has.
+ */
+type MapPlaceTile = [key: string, west: number, south: number, east: number, north: number, count: number];
+/** map-places/index.json: the tables every tile's rows refer to, and the tiles. */
+interface MapPlacesIndex {
+  generated: string;
+  /** Names the tables below: a tile of the same version points into them. */
+  version: string;
+  /** Where the data comes from and how the files are laid out (licences, the row format). */
+  about: string;
+  sources: string[];
+  cats: import('../map-layers.ts').PlaceClass[];
+  tiles: MapPlaceTile[];
+}
+/** A file of map-places/: its places, and the version of the tables (MapPlacesIndex) their categories and sources point into. */
+interface MapPlaceTileFile { v: string; rows: MapPlaceRow[] }

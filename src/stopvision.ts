@@ -92,7 +92,7 @@ export interface ScanLayout { words: ScanWord[]; lines: ScanWord[][]; medianH: n
 /** A stop whose name was read: how well (0–1), which of its names, where and how big. */
 export interface ScanNameHit { c: StopVisionCandidate; best: number; what: string; box?: ScanBox; h: number }
 /** The sign outlined in the picture. h0: the heading when it was read; ok: recognised; warn: a sign/GPS conflict. */
-export interface ScanHighlight { box: ScanBox; name?: ScanBox | null; label: string; at: number; h0: number | null; ok?: boolean; warn?: boolean }
+export interface ScanHighlight { box: ScanBox; name?: ScanBox | null; label: string; at: number; h0: number | null; ok?: boolean; warn?: boolean; uic?: string }
 /** A stop name read clearly, far from the GPS position. */
 export interface ScanConflict { c: StopVisionCandidate; what: string; dist: number; at: number }
 /** Two edges facing each other across one road, and which one you are at: mine/other, how clear (|offset| / GPS accuracy). */
@@ -378,6 +378,7 @@ const CSS = `
   .sv-btn svg { width: 22px; height: 22px; }
   .sv-status { flex: 1; min-width: 0; padding-top: 4px; font-size: 13px; line-height: 1.35; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
   .sv-status b { display: block; font-size: 16px; font-weight: 600; }
+  .sv-status:empty { display: none; }
   .sv-ar { position: absolute; inset: 0; pointer-events: none; }
   .sv-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center;
             transition: opacity .25s ease; will-change: transform; }
@@ -948,14 +949,14 @@ async function useText(text: string, wasTap: boolean, layout?: ScanLayout | null
       const h = elsewhere[0];
       if (name) { const evn = evidence.get(name.c.uic); if (evn) evn.ocrUnique = false; name = null; } // the nearby name was a destination
       conflict = { c: h.c, what: h.what, dist: distM(pos!.ll, h.c.st.edges[0].ll), at: now };
-      if (h.box && layout) highlight = { box: signRegion(layout, { box: h.box, h: h.h }), name: h.box, label: `${h.c.st.name.split(',').pop()!.trim()} · not here`, at: now, h0: shotHeading ?? null, warn: true };
+      if (h.box && layout) highlight = { box: signRegion(layout, { box: h.box, h: h.h }), name: h.box, label: `${h.c.st.name.split(',').pop()!.trim()} · not here`, at: now, h0: shotHeading ?? null, warn: true, uic: h.c.uic };
     }
   }
   if (name && region && !conflict) {
     const e = edgeOf(name.c);
     const ref = e && name.c.st.edges[e.i] && name.c.st.edges[e.i].ref;
     highlight = { box: region, name: name.box, label: name.c.st.name.split(',').pop()!.trim() + (ref ? ` · ${EDGE_WORD(name.c.st.mode)} ${ref}` : ''),
-                  at: now, h0: shotHeading ?? null, ok: !!(evidence.get(name.c.uic)!.ocrUnique && evidence.get(name.c.uic)!.ocrStrong && name.best >= 0.8) };
+                  at: now, h0: shotHeading ?? null, ok: !!(evidence.get(name.c.uic)!.ocrUnique && evidence.get(name.c.uic)!.ocrStrong && name.best >= 0.8), uic: name.c.uic };
   }
   if (wasTap && !hits.length && !conflict) app!.toast('Read: “' + text.replace(/\s+/g, ' ').trim().slice(0, 60) + '” – no stop nearby has that name.');
 }
@@ -1501,7 +1502,9 @@ const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 function drawHighlight() {
   const svg = ui!.hl, label = ui!.hlLabel;
   const now = Date.now();
-  const hl = highlight;
+  // the AR camera outlines only the sign of the stop your next ride leaves from (none on board or on the last walk)
+  const want = app && app.ar ? (app.route ? app.route() : null) : undefined;
+  const hl = want === undefined || (highlight && want && highlight.uic === want.uic) ? highlight : null;
   const show = !!hl && (!!stillImage || (now - hl.at < 5000 && (hl.h0 == null || !headingOk() || angleDiff(heading!, hl.h0) < 5)));
   if (!show || !hl) { if (svg.style.display !== 'none') { svg.style.display = 'none'; label.style.display = 'none'; } return; }
   const el = source();
@@ -1523,7 +1526,7 @@ function drawHighlight() {
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const cls = hl.warn ? 'warn' : hl.ok ? 'ok' : '';
     svg.innerHTML = `<defs><mask id="sv-hl-mask"><rect width="${W}" height="${H}" fill="#fff"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#000"/></mask></defs>`
-      + `<rect width="${W}" height="${H}" fill="rgba(0,0,0,.42)" mask="url(#sv-hl-mask)"/>`
+      + (app && app.ar ? '' : `<rect width="${W}" height="${H}" fill="rgba(0,0,0,.42)" mask="url(#sv-hl-mask)"/>`) // AR: the picture stays bright
       + `<rect class="sv-hl-box ${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/>`;
     label.textContent = hl.label;
     label.className = 'sv-hl-label ' + cls;
@@ -1541,9 +1544,15 @@ function placeTags() {
     const fov = screenFov();
     const W = ui!.root.clientWidth, H = ui!.root.clientHeight;
     const top = candidates[0];
-    const shown = candidates.slice(0, 12);
+    // the AR camera: only the stop your next ride leaves from (none on the way to the destination), not every stop round you
+    const want = app && app.ar ? (app.route ? app.route() : null) : undefined;
+    const shown = want === undefined ? candidates.slice(0, 12) : want ? candidates.filter((c) => c.uic === want.uic).slice(0, 1) : [];
     shown.forEach((c, n) => {
-      const e = c.st.edges[c.aheadEdge != null ? c.aheadEdge : c.nearEdge];
+      // AR: the edge your ride leaves from when it is known (not the one you face or stand nearest); its letter only
+      // when that edge is sure
+      const mineEdge = want && want.edge != null && c.st.edges[want.edge] ? want.edge : null;
+      const e = c.st.edges[mineEdge != null ? mineEdge : c.aheadEdge != null ? c.aheadEdge : c.nearEdge];
+      const ref = want === undefined || (mineEdge != null && want!.exact) ? e.ref : '';
       const off = ((bearing(pos.ll, e.ll) - heading! + 540) % 360) - 180;
       if (Math.abs(off) > fov / 2 + 4) return;
       const x = W / 2 + Math.tan(off * toRad) / Math.tan(fov / 2 * toRad) * W / 2;
@@ -1558,11 +1567,11 @@ function placeTags() {
       }
       const pill = tag.firstChild as HTMLSpanElement;
       const label = c.st.name.split(',').pop()!.trim();
-      const key = label + e.ref + Math.round(distM(pos.ll, e.ll) / 5);
+      const key = label + ref + Math.round(distM(pos.ll, e.ll) / 5);
       if (tag.dataset.key !== key) {
         tag.dataset.key = key;
         pill.replaceChildren(icon(c.st.mode), $('em', null, label));
-        if (e.ref) pill.append($('span', 'sv-ref', e.ref));
+        if (ref) pill.append($('span', 'sv-ref', ref));
         pill.append($('small', null, Math.round(distM(pos.ll, e.ll)) + ' m'));
       }
       tag.classList.toggle('hit', c === top && !!recognised(c));
@@ -1734,6 +1743,8 @@ function renderStatus() {
   if (noCamera && !stillImage) return; // keep the "No camera" message
   if (!stillImage && camState === 'starting') { setStatus('Starting the camera…', 'Allow camera access if you are asked.'); return; }
   if (!stillImage && camState === 'paused') { setStatus('Tap the screen to start the camera', ''); return; }
+  // the AR camera (ar.ts) says itself what it is doing: no "Point at a stop" over the picture once the camera runs
+  if (app && app.ar && !stillImage) { ui!.status.replaceChildren(); return; }
   const busy = ocrState === 'loading' || modelState === 'loading';
   const pos = position();
   const title = stillImage ? 'Photo' : !pos ? 'Point at a stop sign' : headingOk() ? 'Look around' : 'Point at a stop';
@@ -1769,7 +1780,10 @@ function loop(mine: number) {
     score();
     placeTags();
     renderSheet();
-    if (!busy && (stillImage || ui!.video.videoWidth > 0)) { // nothing to read yet (no frames, or no camera): load nothing
+    // the AR camera: signs are read and departures asked only while a ride is to be boarded, and only for its stop
+    // (on board, on the last walk and once there, Scan only shows the picture)
+    const arWant = app && app.ar ? (app.route ? app.route() : null) : undefined;
+    if (arWant !== null && !busy && (stillImage || ui!.video.videoWidth > 0)) { // nothing to read yet (no frames, or no camera): load nothing
       const ocrDue = tapRead ? Infinity : now - lastOcr - 1500;
       // comparing photos only helps while it can still change the answer: not once a sign has settled it,
       // and not when fewer than two stops around have photos
@@ -1779,7 +1793,7 @@ function loop(mine: number) {
       if (ocrDue >= 0 && ocrDue >= visDue) run(readSigns, (t2) => { lastOcr = t2; });
       else if (visDue >= 0) run(comparePhotos, (t2) => { lastVis = t2; });
     }
-    if (candidates[0] && depDue(evidence.get(candidates[0].uic) || {})) departures(candidates[0]).catch(() => {});
+    if (candidates[0] && (arWant === undefined || (arWant && candidates[0].uic === arWant.uic)) && depDue(evidence.get(candidates[0].uic) || {})) departures(candidates[0]).catch(() => {});
     if (now - lastStatus > 1000) { lastStatus = now; renderStatus(); if (debugOn) ui!.debug.textContent = diagnostics(); }
     requestAnimationFrame(frame);
   };

@@ -3,6 +3,8 @@
 // (Swiss Overpass instance) and writes data/places.json. Data: (c) OpenStreetMap contributors, ODbL.
 import { writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
+import { CULTURE_AMENITY, FOOD_AMENITY, HEALTH_AMENITY, LEISURE, SERVICE_AMENITY, UNNAMED_OK, categorizePlace as categorize, rx } from "./osm-categories.mts";
+import type { OsmTags, PlaceGroup } from "./osm-categories.mts";
 
 const OUT = process.argv[2] ?? "data/places.json";
 const URL = "https://overpass.osm.ch/api/interpreter";
@@ -10,8 +12,6 @@ const BBOX = "46.9,7.34,46.99,7.5"; // S,W,N,E
 const [S, W, N, E] = BBOX.split(",").map(Number);
 const MAX_BYTES = 15e6;
 
-/** The tags of an OpenStreetMap object, key → value ("amenity" → "cafe"); a tag the object lacks reads as undefined. */
-type OsmTags = Record<string, string>;
 /** An element of an Overpass answer (`out center tags`): a node has its own position, a way or relation its center. */
 interface OverpassElement {
   type: "node" | "way" | "relation";
@@ -27,8 +27,6 @@ interface OverpassAnswer {
   remark?: string;
 }
 interface LatLon { lat: number; lon: number }
-/** The eight kinds of place the file is grouped by. */
-type PlaceGroup = "lodging" | "health" | "food_drink" | "attractions_culture" | "worship" | "shopping" | "services" | "leisure_sport";
 /** A record of data/places.json (docs/places-data.md). The values are OpenStreetMap's own strings; null = not tagged. */
 interface Place {
   /** "node/123", "way/456" */
@@ -71,20 +69,7 @@ interface Place {
   tags?: OsmTags;
 }
 
-const set = (s: string) => new Set(s.split(" "));
-const LODGING = set("hotel hostel guest_house apartment motel camp_site caravan_site chalet alpine_hut");
-const HEALTH_AMENITY = set("doctors dentist pharmacy hospital clinic veterinary");
-const FOOD_AMENITY = set("restaurant cafe fast_food bar pub biergarten ice_cream food_court nightclub");
-const FOOD_SHOP = set("bakery pastry confectionery deli butcher cheese chocolate coffee tea wine alcohol beverages greengrocer farm health_food seafood");
-const CULTURE_AMENITY = set("theatre cinema arts_centre library events_venue conference_centre music_venue casino planetarium");
-const CULTURE_TOURISM = set("attraction museum gallery viewpoint artwork zoo theme_park aquarium");
-const SERVICE_AMENITY = set("post_office bank car_rental car_wash fuel charging_station courthouse childcare kindergarten school university college language_school driving_school music_school dancing_school prep_school research_institute community_centre social_facility social_centre police fire_station townhall bureau_de_change money_transfer bicycle_rental car_sharing");
-const LEISURE = set("park garden sports_centre fitness_centre swimming_pool stadium ice_rink pitch dog_park nature_reserve water_park miniature_golf bowling_alley sauna golf_course escape_game amusement_arcade dance horse_riding sports_hall marina");
-const PRIVATE = set("private no permit residents employees delivery agricultural forestry");
-const UNNAMED_OK = set("parking fuel charging_station"); // everything else must have a name
-
 // One query per group so none times out; regexes mirror the sets above (categorize() does the real filtering).
-const rx = (s: Set<string>) => `"^(${[...s].join("|")})$"`;
 const QUERIES = {
   food_drink: `nwr[amenity~${rx(FOOD_AMENITY)}];`,
   shopping: `nwr[shop]; nwr[amenity=marketplace];`,
@@ -99,34 +84,6 @@ const query = (body: string, nonce: string) => `[out:json][timeout:180][bbox:${B
 ${body}
 );
 out center tags;`;
-
-// Precedence (first match wins): lodging > health amenity > food amenity/shop > culture amenity/tourism > worship >
-// marketplace > services (amenity, office=coworking/diplomatic, shop=car/car_repair) > leisure > other shop > healthcare=* > office=* > craft=* > historic=*.
-function categorize(t: OsmTags): [group: PlaceGroup, category: string] | null {
-  const a = t.amenity, priv = PRIVATE.has(t.access);
-  if (LODGING.has(t.tourism)) return ["lodging", t.tourism];
-  if (HEALTH_AMENITY.has(a)) return ["health", a];
-  if (FOOD_AMENITY.has(a)) return ["food_drink", a];
-  if (FOOD_SHOP.has(t.shop)) return ["food_drink", t.shop];
-  if (CULTURE_AMENITY.has(a)) return ["attractions_culture", a];
-  if (CULTURE_TOURISM.has(t.tourism)) return ["attractions_culture", t.tourism];
-  if (t.tourism === "information" && t.information === "office") return ["attractions_culture", "tourist_information"];
-  if (a === "place_of_worship") return ["worship", "place_of_worship"];
-  if (a === "marketplace") return ["shopping", "marketplace"];
-  if (a === "parking") return !priv && (t.capacity || t.name) ? ["services", "parking"] : null;
-  if (a === "recycling" && t.recycling_type === "centre") return ["services", "recycling_centre"];
-  if (a === "coworking_space" || t.office === "coworking") return ["services", "coworking"];
-  if (a === "embassy" || t.office === "diplomatic") return ["services", "embassy"];
-  if (SERVICE_AMENITY.has(a)) return ["services", a];
-  if (t.shop === "car" || t.shop === "car_repair") return ["services", t.shop];
-  if (LEISURE.has(t.leisure)) return priv ? null : ["leisure_sport", t.leisure];
-  if (t.shop && t.shop !== "vacant" && t.shop !== "no") return ["shopping", t.shop];
-  if (t.healthcare) return ["health", t.healthcare];
-  if (t.office) return ["services", t.office];
-  if (t.craft) return ["services", t.craft];
-  if (t.historic) return ["attractions_culture", t.historic];
-  return null;
-}
 
 async function fetchOverpass(body: string) {
   for (let attempt = 1; attempt <= 5; attempt++) {

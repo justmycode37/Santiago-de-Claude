@@ -53,7 +53,7 @@ const ALIAS = { 'maplibre-gl': MAPLIBRE_URL };
  */
 const MARKER = /^([ \t]*)<!-- build: (src\/[\w./-]+)((?: [a-z]+="[^"]*")*) -->[ \t]*$/gm;
 /** Folders the page loads files from. */
-export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media', 'models'];
+export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media', 'models', 'map-places'];
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
 const DEMO_PAGE = 'demo/index.html';
 const DEMO = ['demo/opening.jpg', 'demo/santiago.mp4'];
@@ -184,7 +184,9 @@ function classicScripts(built: Built): Made[] {
  */
 const RETIRED = ['translate', 'events', 'map-layers', 'pricing-history', 'settings', 'walk-pace', 'onboarding', 'engine',
   'engine-departures', 'engine-journey', 'live', 'arcore', 'places', 'walkroute',
-  'stopvision', 'station-view', 'station-route', 'station3d-solid', 'indoorloc', 'signloc', 'indoornav', 'pricing-panel', 'pricing-engine'];
+  'stopvision', 'station-view', 'station-route', 'station3d-solid', 'indoorloc', 'signloc', 'indoornav', 'pricing-panel', 'pricing-engine',
+  // the places in one file, before map-places/ (its tiles): a page still open from before asks for it the first time it needs places
+  'map-places'];
 const reloadFor = (name: string) => `// ${name}.js is no longer part of the site: the page that asked for it is from before an update. Reload it, once.
 try { if (!sessionStorage.getItem('reloaded-for ${name}.js')) { sessionStorage.setItem('reloaded-for ${name}.js', '1'); location.reload(); } } catch (e) {}
 `;

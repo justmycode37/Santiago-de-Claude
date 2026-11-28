@@ -2383,8 +2383,14 @@ export async function open(opts: SolidOptions) {
     const eyeFloor = camera.position.y - EYE, eyeLevel = pov ? levelOfZ(eyeFloor / S) : 0;
     const ex = camera.position.x + cx, ey = -camera.position.z + cy;
     const inCar = !!(car && car.visible);
+    // Fewer labels the more the way is what you follow: with a way, only what matters for it (its ends, the sign, the
+    // changes of floor, the door, the floors and places), fewer still in the steps, and the few most important while
+    // it plays or in first person. Without a way (a station opened from the map) the places are what it shows.
+    const focused = playing || pov, stepping = stepIdx >= 0;
+    const cap = !route ? 12 : focused ? 4 : stepping ? 6 : 8;
+    const least = !route ? 0 : focused ? 80 : stepping ? 56 : 41;
     for (const L of labels) {
-      let ok = !inCar;
+      let ok = !inCar && L.prio >= least;
       // first person: far, or on another floor (cheap tests first)
       if (pov && L.prio < 99 && (Math.abs(L.z * S - eyeFloor) > 2.8 || camera.position.distanceTo(L.pos) > (L.near ? 45 : 90))) ok = false;
       if (ok) { tmp.copy(L.pos).project(camera); ok = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05; }
@@ -2398,7 +2404,7 @@ export async function open(opts: SolidOptions) {
       if (ok && (y > h - inset.bottom + 6 || y < inset.top - 4)) ok = false;
       if (ok) {
         const r = { x0: x - 60, x1: x + 60, y0: y - 16, y1: y + 4 };
-        if (shown.length >= 15 && L.prio < 99) ok = false;
+        if (shown.length >= cap && L.prio < 99) ok = false;
         else if (shown.some((s) => !(r.x1 < s.x0 || r.x0 > s.x1 || r.y1 < s.y0 || r.y0 > s.y1))) ok = L.prio >= 99;   // the way's ends and the sign for the manoeuvre always show
         if (ok) shown.push(r);
       }

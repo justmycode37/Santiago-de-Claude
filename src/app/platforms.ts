@@ -97,7 +97,7 @@ export const platformsReady = new Promise<void>((resolve) => {
     s.onload = () => {
       indexPlatforms(window.PLATFORM_DATA);
       resolve();
-      // Then the places the search looks through (map-places.js), so the first search needn't wait for them
+      // Then the places around the map that the search looks through (map-places/), so the first search needn't wait for them
       setTimeout(loadPlaces, 1000);
     };
     s.onerror = () => resolve(); // journeys fall back to station positions
@@ -169,7 +169,7 @@ export async function openPlatform(f: PlatformTap) {
       if (edge.level != null) to.level = edge.level;
       const near = userLngLat && distKm(userLngLat, edge.ll) < 0.8;
       sheet.s3Step = null;
-      Station3D.open({ key: key3d, from: near ? { ll: userLngLat! } : undefined, to, prefs: SETTINGS.journey(), returnFocus: view3d });
+      Station3D.open({ key: key3d, from: near ? { ll: userLngLat! } : undefined, to, prefs: SETTINGS.journey(), returnFocus: view3d, firstPerson: SETTINGS.prefs().firstPerson });
     });
     box.append(view3d);
   }

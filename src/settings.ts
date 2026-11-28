@@ -46,6 +46,8 @@ export interface Settings {
   // Live data
   /** Show the vehicles on the map. */
   liveVehicles: boolean;
+  /** The 3D station view offers the first-person walk-through (👁); off: the model, its steps and the play-through only. */
+  firstPerson: boolean;
   // Events: show the ones for…
   newcomer: boolean;
   lowVision: boolean;
@@ -95,6 +97,8 @@ const DEFAULTS: Settings = {
   mapHidden: LAYER_KEYS.filter((k) => !FIRST_LAYERS.includes(k)),
   // Live data (live.ts): vehicles on the map; off unless you turn it on (a journey shows its own vehicle either way)
   liveVehicles: false,
+  // 3D station view: the first-person walk-through is offered only when switched on
+  firstPerson: false,
   // Events
   newcomer: false,
   lowVision: false,

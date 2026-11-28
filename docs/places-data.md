@@ -1,6 +1,6 @@
-# Places, amenities and official location data (Bern)
+# Places, amenities and official location data
 
-Three JSON files in `data/`, all for the bbox S,W,N,E = 46.9, 7.34, 46.99, 7.5 (City of Bern plus edges of Köniz, Muri, Ostermundigen, Ittigen). The map shows them through `map-places.js`, a compact copy built from all three (see [On the map](#on-the-map)).
+Three JSON files in `data/` for Bern, all for the bbox S,W,N,E = 46.9, 7.34, 46.99, 7.5 (City of Bern plus edges of Köniz, Muri, Ostermundigen, Ittigen), and the same kinds of place for all of Switzerland in `data/ch/` ([below](#switzerland-wide-data-datach)). The map and the search use `map-places/`, a compact tiled copy built from all of them (see [On the map](#on-the-map)).
 
 | File | Items | Source | Refresh (Node 24) |
 |---|---|---|---|
@@ -12,7 +12,15 @@ Sources and their quirks: [amenities-sources.md](amenities-sources.md). Random-s
 
 ## On the map
 
-`node tools/build-map-places.mts` (run after refreshing any of the three files or the toilet files) writes `map-places.js` (~2.5 MB, ~24,500 places). It sorts every category into one of the groups in `map-layers.js` (toilets, drinking water, health, help, food, shops, money, benches, accessibility, tickets, bikes, kids, schools, sport, culture, places to stay, worship, recycling, other businesses) with an icon and a rank from 1 (hospitals, stations) to 5 (benches, bike racks), keeps OSM objects that appear in both OSM files once, and drops an official item when OSM has the same kind of thing within 25 m (filling in OSM's missing details from it).
+`node tools/build-map-places.mts` (run after refreshing any of the files in `data/` or `data/ch/` it reads) writes `map-places/` (build of 2026-11-28: 418,141 places in 450 tiles, 29.5 MB, 8.7 MB gzipped). It sorts every category into one of the groups in `map-layers.ts` (toilets, drinking water, health, help, food, shops, money, benches, accessibility, tickets, bikes, kids, schools, sport, culture, places to stay, worship, recycling, other businesses) with an icon and a rank from 1 (hospitals, stations) to 5 (benches, bike racks). Its sources, in this order:
+
+- Bern: `data/amenities.json`, `data/places.json` (an OSM object in both is kept once, the amenity's record filled in from the place's);
+- all of Switzerland: `data/ch/osm-<category>.json` and `data/ch/osm-places-*.json.gz` (OSM, [data-ch-osm.md](data-ch-osm.md)). An OSM object Bern's files have too keeps Bern's record, which gets the fields it lacks;
+- the same named place mapped twice in OSM (a point and a building) within 60 m is kept once;
+- toilets from `data/ch/toilets-ch.json` (below);
+- official items: `data/official-places.json` (Bern) and, from `data/ch/official-ch.json` ([data-ch-official.md](data-ch-official.md)), drinking water, defibrillators, SBB ticket machines, waiting rooms and Wi-Fi, pharmacies, post offices and libraries (its toilets are in `toilets-ch.json` already; fountains whose water may not be drinkable, hospitals listed per department, helipads and emergency meeting points are left out). An official item is dropped when OSM has the same kind of thing within 25 m (75 m for pharmacies, post offices and libraries), filling in OSM's missing details from it; a Swiss one also when an official item of Bern's has it (the canton's defibrillators are in both lists under other ids).
+
+**Tiles.** `map-places/index.json` has the tables every row points into (`cats`: group, glyph, rank, label; `sources`), a `version` naming those tables, and the tiles: `[file name, west, south, east, north, places]`. A tile is a cell of a 1/8° grid (about 9.5 × 14 km) cut into four, again and again down to 1/128°, while it has more than 5,000 places, so a city centre comes in several small files (the biggest 0.39 MB) and the countryside in a few. Its file (`map-places/<level>-<column>-<row>.json`, e.g. `5-273-1516.json` = west 273/32°, south 1516/32°) is `{ v: version, rows }`, each row `[lon, lat, category, name or 0, details?]` (`MapPlaceRow` in `src/types/data.d.ts`), in a stable order (category, latitude, longitude), so a rebuild from the same data gives the same files. The page reads a tile only when its `v` is the index's.
 
 Toilets are the exception: they cover all of Switzerland and come from `data/ch/toilets-ch.json` (7,139 toilets: OSM merged with station toilets, six cities' own lists and the Nette Toilette restaurants, see [data-ch-toilets.md](data-ch-toilets.md)), not from the OSM toilets in `amenities.json`. Bern's `data/toilets.json` only adds the notes the Swiss file leaves out, and the build fails if it has a toilet the Swiss file lacks. Who may use a toilet:
 
@@ -23,7 +31,7 @@ Toilets are the exception: they cover all of Switzerland and come from `data/ch/
 
 The card shows `paid` as Free, Fee (with the price) or Partly free (`mixed`), with the city's own fee text where there is one, and "Free for customers" where OpenStreetMap says so. Online search results (Photon, Google) that lie within 50 m of one of our toilets are dropped as duplicates; other online toilets, for example in Liechtenstein, stay in the list.
 
-In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › Events and places (community events, toilets and drinking water at first). `map-places.js` is loaded the first time they are shown or the search box is used; the map layer itself is only built once they are shown. The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, Eurokey, address, website) and directions.
+In the app, the events button in the ••• menu shows these icons together with the community events, for the groups switched on under Settings › Events and places (community events, toilets and drinking water at first). `src/app/map-places.ts` loads the index and then, from zoom 12.5 while places are shown, the tiles in and around the view (a quarter of the view more on each side) each time the map settles; the map's source gets only the places of those tiles, in one update, and a view left before its tiles came is not drawn. The search loads the tiles within 10 km of where it measures from (`ensurePlacesNear`), "Search this area" and the categories those of the part of the map in view. Every row loaded stays, under the same index, for the page's life (the cards and the search refer to rows by it). The map keeps the same spacing between icons at every zoom: where they would crowd, higher ranks are shown first and the rest appear as you zoom in. Tap an icon for its details (opening hours, fee, wheelchair access, Eurokey, address, website) and directions.
 
 ## Place search and Google Places
 
@@ -33,7 +41,7 @@ until when, distance, address) with a pin per place, kept in step (`src/app/plac
 A row or pin opens the place's card: photos, rating, hours for the week, address, phone, website, reviews where
 Google has them, **Directions** (the journey planner) and **Start here**. Parts the data lacks are left out.
 
-**Without a key (default, free):** places come from the Kante engine, swisstopo, `map-places.js` and Photon
+**Without a key (default, free):** places come from the Kante engine, swisstopo, `map-places/` and Photon
 (OpenStreetMap); a card adds OpenStreetMap's tags (one OSM API request per type for a whole list) and a Wikidata
 photo. "Open now" comes from OSM `opening_hours` (`src/opening-hours.ts`: day ranges, times, past midnight, `off`;
 anything else such as `PH` or `sunrise` is shown as mapped, never guessed). No reviews or ratings: OSM has none.
@@ -111,15 +119,16 @@ map) and the OSM data are not affected: `googlePlacesMode: 'embed'` is the safe 
 
 Sample check of these files: [verification-2.md](verification-2.md).
 
-## Switzerland-wide basic needs (`data/ch/`)
+## Switzerland-wide data (`data/ch/`)
 
 | File | What | Docs |
 |---|---|---|
 | `data/ch/toilets-ch.json` | 7,139 toilets merged from OSM, ATLAS station toilets and the official lists of Zürich, Basel, Geneva, Luzern, St. Gallen, Zug; `paid` = free (3,217) / paid (379) / mixed (65) / null (3,478), `price` where known | [data-ch-toilets.md](data-ch-toilets.md) |
 | `data/ch/osm-<category>.json` | 94,025 OSM basic amenities in 30 files (drinking water, AED, pharmacy, hospital, shower, playground, ...) with canton | [data-ch-osm.md](data-ch-osm.md) |
+| `data/ch/osm-places-<group>.json.gz` | 190,124 OSM places of `places.json`'s eight groups (restaurants, shops, hotels, culture, sport, services, health, worship) and 162,363 amenities of `amenities.json` that the file above leaves out (benches, post boxes, banks, bike parking, recycling, EV charging, ticket machines, …) in `osm-places-amenities.json.gz`, all with canton | [data-ch-osm.md](data-ch-osm.md#places-and-the-other-amenities-osm-places-groupjsongz) |
 | `data/ch/official-ch.json` | 11,991 official points from 29 sources (city toilets and fountains, AED registers, hospitals, BABS emergency meeting points, SBB) | [data-ch-official.md](data-ch-official.md) |
 | `data/ch/help-ch.json` | 543 places from national networks (Tischlein deck dich, Caritas-Markt, Madame Frigo, Nette Toilette Basel/Luzern/Solothurn, big-city shelters and soup kitchens) + 10 national hotlines | [data-ch-help.md](data-ch-help.md) |
 
-Of these, only the toilets are on the map so far (see [On the map](#on-the-map)): `toilets-ch.json`, plus `osm-toilets.json` for websites and phone numbers. The other files are not used by the app yet.
+The map and the search use all of them but `help-ch.json` (see [On the map](#on-the-map)); `osm-toilets.json` only adds websites and phone numbers to `toilets-ch.json`.
 
 Addresses are filled from the national address register (`tools/enrich-addresses-ch.mts`): 20% → 79% overall. Sample check: [verification-ch.md](verification-ch.md).

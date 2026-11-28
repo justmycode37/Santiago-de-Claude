@@ -1,7 +1,7 @@
 # Scan: recognising stops with the camera
 
-Scan opens the rear camera (or takes a photo); in the app it is reached through the **AR** button on a journey
-step ([ar.md](ar.md)), no longer from the ••• menu. Code: `stopvision.ts`, loaded on first use; the photo
+Scan opens the rear camera (or takes a photo); in the app it is reached through the **AR** button of a journey
+([ar.md](ar.md)), no longer from the ••• menu. Code: `stopvision.ts`, loaded on first use; the photo
 database `stop-images/` is built by `tools/build_stop_images.py`.
 
 ## What it tells you
