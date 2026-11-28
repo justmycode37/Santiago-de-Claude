@@ -13,7 +13,8 @@
 //                        ENTRIES as <script type="module" src="…"> (with <link rel="modulepreload"> for the files it
 //                        imports, so they download alongside it), anything else written into the page as a plain
 //                        <script> (src/inline: theme, first visit, early location and map style; src/pages)
-//   *.css *.js         → copied (the .js files in the repository root are generated data and config.js)
+//   *.css *.js         → copied (the .js files in the repository root are generated data and config.js), and the
+//   manifest.webmanifest   app's manifest (icons/ holds its icons)
 //   STATIC_DIRS, DEMO  → copied
 //
 // Types are not checked here (`npm run check` does that), so a type error never blocks a build.
@@ -53,7 +54,7 @@ const ALIAS = { 'maplibre-gl': MAPLIBRE_URL };
  */
 const MARKER = /^([ \t]*)<!-- build: (src\/[\w./-]+)((?: [a-z]+="[^"]*")*) -->[ \t]*$/gm;
 /** Folders the page loads files from. */
-export const STATIC_DIRS = ['event-images', 'stop-images', 'stations3d', 'demo-media', 'models', 'map-places'];
+export const STATIC_DIRS = ['icons', 'event-images', 'stop-images', 'stations3d', 'demo-media', 'models', 'map-places'];
 /** The demo page and the two files it plays, not the raw screen recordings next to them. */
 const DEMO_PAGE = 'demo/index.html';
 const DEMO = ['demo/opening.jpg', 'demo/santiago.mp4'];
@@ -252,7 +253,7 @@ function copyDir(from: string, to: string): void {
 
 /** The stylesheets and scripts in the repository root that are served as they are. */
 export function rootFiles(release: boolean): string[] {
-  return fs.readdirSync(ROOT).filter((f) => /\.(css|js)$/.test(f) && !(release && notReleased(f)));
+  return fs.readdirSync(ROOT).filter((f) => /\.(css|js|webmanifest)$/.test(f) && !(release && notReleased(f)));
 }
 
 export function copyStatic(release: boolean): void {

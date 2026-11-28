@@ -17,7 +17,7 @@ const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.map': 'application/json',
   '.json': 'application/json', '.geojson': 'application/geo+json', '.md': 'text/markdown; charset=utf-8',
   '.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.mp4': 'video/mp4',
-  '.wasm': 'application/wasm', '.onnx': 'application/octet-stream',
+  '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json', '.onnx': 'application/octet-stream',
 };
 
 const time = () => new Date().toTimeString().slice(0, 8);
@@ -46,7 +46,7 @@ function changed(kind: 'scripts' | 'files'): void {
   }, 60);
 }
 fs.watch(SRC, { recursive: true }, () => changed('scripts'));
-fs.watch(ROOT, (_event, name) => { if (name && /\.(html|css|js)$/.test(name)) changed('files'); });
+fs.watch(ROOT, (_event, name) => { if (name && /\.(html|css|js|webmanifest)$/.test(name)) changed('files'); });
 for (const dir of [...STATIC_DIRS, 'demo']) fs.watch(path.join(ROOT, dir), { recursive: true }, () => changed('files'));
 
 // ---- serve dist/

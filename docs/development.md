@@ -31,6 +31,7 @@ npm run build   # dist/ once, without the dev server
 | `*.html` | copied, with each line `<!-- build: src/… -->` replaced by that script |
 | `*.css`, the `.js` files in the repository root (generated data, `config.js`) | copied as they are |
 | `event-images/`, `stop-images/`, `stations3d/`, `demo-media/` | copied as they are |
+| `manifest.webmanifest`, `icons/` | copied as they are: the web app manifest and its icons, which make the app installable (see below) |
 
 `scripts/build.mts` does this; its `ENTRIES` are the modules a page loads, its `SCRIPTS` the plain scripts (a page
 names both by a marker, and the build writes in their files' names). Add `--release` for exactly what is published:
@@ -57,6 +58,19 @@ the whole site. So the files of the bundle and the plain scripts are named by th
 The first deploy of the modules publishes the scripts a page from before loaded (as it started: `settings.js`,
 `events.js`, …; on first use: `stopvision.js`, `station-view.js`, …) once more, as files that reload the page
 (`RETIRED` in `scripts/build.mts`); any later deploy can drop them.
+
+### Installing the app
+
+`index.html` links `manifest.webmanifest`, so Chrome on Android offers to install the app and Safari on iOS adds it
+to the home screen as "Santiago". The site is served from a sub-path (`/Santiago-de-Claude/` on GitHub Pages), so
+every address in the manifest (`start_url`, `scope`, the icons) is relative to it. It has no `id`: a relative one
+would be read against the domain's root, so the app's id is its `start_url`. Chrome needs a name,
+`start_url`, `display: standalone` and icons of 192 and 512 pixels; the maskable one (the launcher cuts its own
+shape) keeps the pin inside the central safe zone, a circle of 40% of the width. The theme and background colour are
+the light page's `#fcfcfc`; the page's `theme-color` follows the theme from there (`src/theme.ts`).
+
+`icons/icon.svg` is the drawing; `scripts/gen-icons.sh` renders the PNGs from it with `rsvg-convert` (librsvg).
+Run it after changing the SVG and commit the PNGs.
 
 ## Modules
 

@@ -7,7 +7,13 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#fcfcfc" />
-  <title>Maps</title>
+  <meta name="apple-mobile-web-app-title" content="Santiago" />
+  <title>Santiago</title>
+  <!-- Installable as an app: the manifest and icons are in the repository root (scripts/gen-icons.sh draws the PNGs) -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <!-- three.js for the 3D station view (station3d-solid.js imports 'three'; loaded only when a station opens in 3D) -->
   <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
